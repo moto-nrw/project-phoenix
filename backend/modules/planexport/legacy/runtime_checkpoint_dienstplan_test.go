@@ -12,8 +12,8 @@ import (
 
 	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
 
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -40,8 +40,8 @@ func TestDienstplanRuntimeEvidence(t *testing.T) {
 		service := New(Sources{
 			Overview: shiftplanning.NewStaffScheduleOverviewService(shiftplanning.StaffScheduleOverviewDependencies{
 				Shifts:        reads,
-				Instances:     scheduleRepo.NewActivityInstanceRepository(db),
-				InstanceStaff: scheduleRepo.NewInstanceStaffRepository(db),
+				Instances:     timetablesqltest.NewActivityInstanceRepository(db),
+				InstanceStaff: timetablesqltest.NewInstanceStaffRepository(db),
 				Rooms:         rooms,
 				Staff:         reads,
 			}),

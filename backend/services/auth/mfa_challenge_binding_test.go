@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -26,11 +28,11 @@ import (
 // row, so a test can drive verify with the plaintext.
 func seedChallenge(t *testing.T, repo authmodel.MFAEmailChallengeRepository, accountID int64, code string, ttl time.Duration) *authmodel.MFAEmailChallenge {
 	t.Helper()
-	hash, err := auth.HashShortCode(code)
+	hash, err := auth.HashPassword(code)
 	require.NoError(t, err)
 	challenge := &authmodel.MFAEmailChallenge{
 		AccountID: accountID,
-		Scope:     authjwt.MFAChallengeScopeTenant,
+		Scope:     auth.MFAChallengeScopeTenant,
 		CodeHash:  hash,
 		ExpiresAt: time.Now().Add(ttl),
 		IPAddress: net.ParseIP("203.0.113.10"),
@@ -42,19 +44,19 @@ func seedChallenge(t *testing.T, repo authmodel.MFAEmailChallengeRepository, acc
 func TestStartChallenge_TokenCarriesItsChallengeID(t *testing.T) {
 	t.Parallel()
 
-	svc, repos, accID := newExtraMFAService(t)
+	scenario := newMFATestScenario(t)
+	svc, repos, accID := scenario.MFA, scenario.Repos, scenario.AccountID
 	ctx := context.Background()
-	require.NoError(t, svc.Enroll(ctx, accID))
+	require.NoError(t, svc.EnrollMFA(ctx, accID))
 
-	token, err := svc.StartChallenge(ctx, accID, 0, authjwt.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"))
+	token, err := svc.StartMFAChallenge(ctx, accID, 0, auth.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"))
 	require.NoError(t, err)
 
-	tokenAuth, err := authjwt.NewTokenAuthWithSecret(extraJWTSecret)
-	require.NoError(t, err)
+	tokenAuth := scenario.TokenAuth
 	claims, err := tokenAuth.ParseMFAChallengeJWT(token)
 	require.NoError(t, err)
 
-	persisted, err := repos.MFAEmailChallenge.FindActiveByAccountIDInScope(ctx, accID, 0, authjwt.MFAChallengeScopeTenant)
+	persisted, err := repos.MFAEmailChallenge.FindActiveByAccountIDInScope(ctx, accID, 0, auth.MFAChallengeScopeTenant)
 	require.NoError(t, err)
 	assert.Equal(t, persisted.ID, claims.ChallengeID,
 		"the challenge token must name the row it was minted for")
@@ -63,17 +65,17 @@ func TestStartChallenge_TokenCarriesItsChallengeID(t *testing.T) {
 func TestVerifyChallenge_RedeemsOnlyTheNamedChallenge(t *testing.T) {
 	t.Parallel()
 
-	svc, repos, accID := newExtraMFAService(t)
+	scenario := newMFATestScenario(t)
+	svc, repos, accID := scenario.MFA, scenario.Repos, scenario.AccountID
 	ctx := context.Background()
 
-	tokenAuth, err := authjwt.NewTokenAuthWithSecret(extraJWTSecret)
-	require.NoError(t, err)
+	tokenAuth := scenario.TokenAuth
 
 	// Two challenges in flight for one account. Distinct expiries because the
 	// partial unique index allows only one unconsumed row per (account,
 	// expires_at).
-	older := seedChallenge(t, repos.MFAEmailChallenge, accID, "111111", auth.MFAChallengeTTL)
-	newer := seedChallenge(t, repos.MFAEmailChallenge, accID, "222222", auth.MFAChallengeTTL+time.Minute)
+	older := seedChallenge(t, repos.MFAEmailChallenge, accID, "111111", identityaccess.MFAChallengeTTL)
+	newer := seedChallenge(t, repos.MFAEmailChallenge, accID, "222222", identityaccess.MFAChallengeTTL+time.Minute)
 	t.Cleanup(func() {
 		_, _ = repos.MFAEmailChallenge.DeleteExpired(context.Background())
 	})
@@ -81,20 +83,20 @@ func TestVerifyChallenge_RedeemsOnlyTheNamedChallenge(t *testing.T) {
 
 	olderToken, err := tokenAuth.CreateMFAChallengeJWT(authjwt.MFAChallengeClaims{
 		AccountID:   accID,
-		Scope:       authjwt.MFAChallengeScopeTenant,
+		Scope:       auth.MFAChallengeScopeTenant,
 		ChallengeID: older.ID,
-	}, auth.MFAChallengeTTL)
+	}, identityaccess.MFAChallengeTTL)
 	require.NoError(t, err)
 
 	// The other challenge's code must not satisfy this token. Under the old
 	// "newest active row" lookup this call succeeded.
-	verified, err := svc.VerifyChallenge(ctx, olderToken, "222222")
-	assert.Nil(t, verified)
+	verified, err := svc.VerifyMFAChallenge(ctx, olderToken, "222222")
+	assert.Zero(t, verified, "a refused verification must not name an account")
 	assert.ErrorIs(t, err, auth.ErrMFACodeInvalid,
 		"a code belonging to a different challenge must not be redeemable here")
 
 	// Its own code still works.
-	verified, err = svc.VerifyChallenge(ctx, olderToken, "111111")
+	verified, err = svc.VerifyMFAChallenge(ctx, olderToken, "111111")
 	require.NoError(t, err)
 	require.NotNil(t, verified)
 	assert.Equal(t, accID, verified.AccountID)
@@ -107,25 +109,25 @@ func TestVerifyChallenge_TokenWithoutChallengeID_Refused(t *testing.T) {
 	// refused rather than falling back to the ambiguous lookup — the challenge
 	// TTL is 5 minutes, so the whole cost is one re-login inside the deploy
 	// window.
-	svc, repos, accID := newExtraMFAService(t)
+	scenario := newMFATestScenario(t)
+	svc, repos, accID := scenario.MFA, scenario.Repos, scenario.AccountID
 	ctx := context.Background()
 
-	seedChallenge(t, repos.MFAEmailChallenge, accID, "333333", auth.MFAChallengeTTL)
+	seedChallenge(t, repos.MFAEmailChallenge, accID, "333333", identityaccess.MFAChallengeTTL)
 	t.Cleanup(func() {
 		_, _ = repos.MFAEmailChallenge.DeleteExpired(context.Background())
 	})
 
-	tokenAuth, err := authjwt.NewTokenAuthWithSecret(extraJWTSecret)
-	require.NoError(t, err)
+	tokenAuth := scenario.TokenAuth
 	legacyToken, err := tokenAuth.CreateMFAChallengeJWT(authjwt.MFAChallengeClaims{
 		AccountID: accID,
-		Scope:     authjwt.MFAChallengeScopeTenant,
-	}, auth.MFAChallengeTTL)
+		Scope:     auth.MFAChallengeScopeTenant,
+	}, identityaccess.MFAChallengeTTL)
 	require.NoError(t, err)
 
-	verified, err := svc.VerifyChallenge(ctx, legacyToken, "333333")
+	verified, err := svc.VerifyMFAChallenge(ctx, legacyToken, "333333")
 
-	assert.Nil(t, verified)
+	assert.Zero(t, verified, "a refused verification must not name an account")
 	assert.ErrorIs(t, err, auth.ErrMFAChallengeTokenInvalid,
 		"a token that names no challenge row must be refused, not resolved by guesswork")
 }
@@ -136,14 +138,15 @@ func TestResendChallengeForScope_ForeignScope_Refused(t *testing.T) {
 	// The scope guard the tenant and school resend endpoints both rely on: a
 	// challenge started for one portal must not be re-driven — and its
 	// 3-codes-per-15-minutes budget burned — through another portal's surface.
-	svc, _, accID := newExtraMFAService(t)
+	scenario := newMFATestScenario(t)
+	svc, accID := scenario.MFA, scenario.AccountID
 	ctx := context.Background()
-	require.NoError(t, svc.Enroll(ctx, accID))
+	require.NoError(t, svc.EnrollMFA(ctx, accID))
 
-	schoolToken, err := svc.StartChallenge(ctx, accID, 0, authjwt.MFAChallengeScopeSchool, net.ParseIP("127.0.0.1"))
+	schoolToken, err := svc.StartMFAChallenge(ctx, accID, 0, auth.MFAChallengeScopeSchool, net.ParseIP("127.0.0.1"))
 	require.NoError(t, err)
 
-	renewed, err := svc.ResendChallengeForScope(ctx, schoolToken, net.ParseIP("127.0.0.1"), authjwt.MFAChallengeScopeTenant)
+	renewed, err := svc.ResendMFAChallengeForScope(ctx, schoolToken, net.ParseIP("127.0.0.1"), auth.MFAChallengeScopeTenant)
 
 	assert.Empty(t, renewed)
 	assert.ErrorIs(t, err, auth.ErrMFAUnsupportedScope,
@@ -161,32 +164,32 @@ func TestVerifyChallengeForOwner_ForeignChallengeRefusedAndLeftRedeemable(t *tes
 	// returned VerifiedChallenge) burned a stranger's challenge on the way to
 	// the 401, killing their in-flight login with a code that had just gone
 	// "invalid".
-	svc, repos, victimID := newExtraMFAService(t)
+	scenario := newMFATestScenario(t)
+	svc, repos, victimID := scenario.MFA, scenario.Repos, scenario.AccountID
 	ctx := context.Background()
 
 	db := testpkg.SetupTestDB(t)
 	caller := testpkg.CreateTestAccount(t, db, "mfa-owner-mismatch")
 	require.NotEqual(t, victimID, caller.ID)
 
-	victimChallenge := seedChallenge(t, repos.MFAEmailChallenge, victimID, "424242", auth.MFAChallengeTTL)
+	victimChallenge := seedChallenge(t, repos.MFAEmailChallenge, victimID, "424242", identityaccess.MFAChallengeTTL)
 	t.Cleanup(func() {
 		_, _ = repos.MFAEmailChallenge.DeleteExpired(context.Background())
 	})
 
-	tokenAuth, err := authjwt.NewTokenAuthWithSecret(extraJWTSecret)
-	require.NoError(t, err)
+	tokenAuth := scenario.TokenAuth
 	victimToken, err := tokenAuth.CreateMFAChallengeJWT(authjwt.MFAChallengeClaims{
 		AccountID:   victimID,
-		Scope:       authjwt.MFAChallengeScopeTenant,
+		Scope:       auth.MFAChallengeScopeTenant,
 		ChallengeID: victimChallenge.ID,
-	}, auth.MFAChallengeTTL)
+	}, identityaccess.MFAChallengeTTL)
 	require.NoError(t, err)
 
 	// Right token, right code, wrong owner.
-	verified, err := svc.VerifyChallengeForOwner(
-		ctx, victimToken, "424242", authjwt.MFAChallengeScopeTenant, caller.ID, 0)
+	verified, err := svc.VerifyMFAChallengeForOwner(
+		ctx, victimToken, "424242", auth.MFAChallengeScopeTenant, caller.ID, 0)
 
-	assert.Nil(t, verified)
+	assert.Zero(t, verified, "a refused verification must not name an account")
 	assert.ErrorIs(t, err, auth.ErrMFAChallengeTokenInvalid,
 		"a challenge belonging to another account must be refused")
 
@@ -196,8 +199,8 @@ func TestVerifyChallengeForOwner_ForeignChallengeRefusedAndLeftRedeemable(t *tes
 		"the refused challenge must not have been consumed — it belongs to someone else's login")
 
 	// And its owner can still redeem it.
-	verified, err = svc.VerifyChallengeForOwner(
-		ctx, victimToken, "424242", authjwt.MFAChallengeScopeTenant, victimID, 0)
+	verified, err = svc.VerifyMFAChallengeForOwner(
+		ctx, victimToken, "424242", auth.MFAChallengeScopeTenant, victimID, 0)
 	require.NoError(t, err)
 	require.NotNil(t, verified)
 	assert.Equal(t, victimID, verified.AccountID)

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -216,8 +215,6 @@ var compositeFKSpecs = []compositeFKSpec{
 }
 
 func createCompositeFKs(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.2: Converting foreign keys to composite (tenant_id, column) form...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -225,11 +222,11 @@ func createCompositeFKs(ctx context.Context, db *bun.DB) error {
 	defer func() {
 		if err := tx.Rollback(); err != nil &&
 			err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
-	for i, spec := range compositeFKSpecs {
+	for _, spec := range compositeFKSpecs {
 		// Step 1: Find and drop the existing single-column FK constraint.
 		// We look it up dynamically from pg_constraint since some FKs are unnamed (auto-generated).
 		dropSQL := fmt.Sprintf(`
@@ -274,19 +271,15 @@ func createCompositeFKs(ctx context.Context, db *bun.DB) error {
 			return fmt.Errorf("failed to create composite FK %s on %s(%s) → %s: %w",
 				spec.newFKName, spec.sourceTable, spec.sourceColumn, spec.targetTable, err)
 		}
-
-		if (i+1)%10 == 0 {
-			fmt.Printf("  ✓ %d/%d composite FKs created\n", i+1, len(compositeFKSpecs))
-		}
 	}
 
-	fmt.Printf("Migration 1.15.2: Successfully converted %d foreign keys to composite form\n", len(compositeFKSpecs))
+	migrationLog().InfoContext(ctx, "foreign keys converted to composite form",
+		"count", len(compositeFKSpecs),
+	)
 	return tx.Commit()
 }
 
 func rollbackCompositeFKs(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.2: Restoring single-column foreign keys...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -294,7 +287,7 @@ func rollbackCompositeFKs(ctx context.Context, db *bun.DB) error {
 	defer func() {
 		if err := tx.Rollback(); err != nil &&
 			err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -314,11 +307,13 @@ func rollbackCompositeFKs(ctx context.Context, db *bun.DB) error {
 			`ALTER TABLE %s ADD CONSTRAINT %s_single FOREIGN KEY (%s) REFERENCES %s(id)%s`,
 			spec.sourceTable, spec.newFKName, spec.sourceColumn, spec.targetTable, onDeleteClause))
 		if err != nil {
-			log.Printf("Warning: failed to restore single-column FK on %s(%s): %v",
-				spec.sourceTable, spec.sourceColumn, err)
+			migrationLog().WarnContext(ctx, "failed to restore single-column foreign key",
+				"table", spec.sourceTable,
+				"column", spec.sourceColumn,
+				"error", err,
+			)
 		}
 	}
 
-	fmt.Println("Migration 1.15.2: Successfully rolled back composite FKs")
 	return tx.Commit()
 }

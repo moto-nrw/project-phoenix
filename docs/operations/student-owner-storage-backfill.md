@@ -1,0 +1,347 @@
+# Student owner storage Backfill (#2758)
+
+Migration `1.15.394` widens `platform.storage_backfill_checkpoints` with three
+student-specific columns and runs the first copy of `users.students` into
+`users.student_profiles`, `users.student_school_memberships` and
+`users.student_care_profiles`. `users.students` remains the only application
+authority: no caller switches, no trigger, view, or dual write exists, and the
+old rows are never modified. The field mapping is unchanged from
+[Expand #2717](../../backend/database/migrations/001015393_student_owner_storage_expand.go).
+
+Two groups of old columns have no target, and the backfill reports rather than
+copies them:
+
+- `guardian_name`, `guardian_contact`, `guardian_email` and `guardian_phone`
+  belong to `users.guardian_profiles` / `users.guardian_phone_numbers`. A value
+  is reconciled when a guardian linked to that child carries it; the rest are
+  counted in `guardian_mismatch_count`.
+- `sick`, `sick_since`, `excused` and `excused_since` are superseded by
+  `active.student_status_days`. A raised flag is equivalent when an uncleared
+  status day for today (Europe/Berlin) carries the matching status
+  (`class_trip` counts as excused), or when the flag cannot change the child's
+  state anyway because sickness already outranks it; the rest are counted in
+  `care_state_mismatch_count`.
+
+Both are Cutover blockers, so a school reports `stable: true` only once every
+legacy value has an owner and every raised flag has its day.
+
+## How the copy works
+
+- One checkpoint row per backfill and school holds the pass number, the
+  high-water mark (last copied `users.students.id`), cumulative counters, and
+  the last verification result. The table is shared with the Staff backfill
+  (#2752); superuser CLI and migrations are the only writers, and the
+  application roles hold no grants on it.
+- One advisory session lock excludes simultaneous Student backfill runs, reset,
+  and rollback. A competing command fails without changing data. The lock is
+  held on its own connection until the run and sequence alignment finish;
+  worker and lock sampler use two additional connections.
+- Each batch reads up to `--batch-size` rows (default 500) in `id` order after
+  the high-water mark inside one `REPEATABLE READ` transaction with a 5 s lock
+  timeout, upserts the profile, the membership and the care profile by
+  preserved identity (`student_profiles.id` = `student_school_memberships.id` =
+  `student_care_profiles.membership_id` = `students.id`), and advances the
+  checkpoint in the same commit. Rows whose content already matches are counted
+  as skipped, so a rerun of a completed batch writes nothing.
+- The membership's `deleted_at` is written as NULL. `users.students` has no soft
+  deletion, so while it stays authoritative no enrollment it still holds is
+  retired, and the verification reports a stray retirement as a mismatch.
+- Deadlocks (`40P01`), serialization failures (`40001`), and lock timeouts
+  (`55P03`) retry the batch up to five times. A unique-index conflict (`23505`)
+  rewinds the tenant's pass to zero, persisting the rewind first. It means some
+  target profile still claims a person its own source row no longer names:
+  either the enrollment was deleted and recreated between two batches of the
+  same pass, so the new student ID meets the profile of the deleted one, or the
+  person was reassigned to another child. Rewinds have their own budget of five
+  per batch. Before rewinding, the same transaction removes this school's
+  profiles whose source row is gone *or* now names a different person, and
+  records their removal count; the membership and care profile follow through
+  the cascade, and the restarted pass rebuilds all three from the source. The
+  end-of-pass sweep keeps the narrower rule and only removes profiles whose
+  source row is gone: a changed person is normally updated in place, and only a
+  conflict proves that update could not run.
+- A school whose batch fails with any other error is reported and skipped for
+  this run; the remaining schools still run, and the command exits non-zero.
+- Rows whose person belongs to another school are rejected, not copied.
+  `users.students` still carries the single-column person foreign key while
+  `users.student_profiles` references `users.persons(tenant_id, id)`, and the
+  superuser connection would otherwise launder the inconsistency into People
+  storage. Rejected rows keep the tenant unverified until the source is
+  corrected. `group_id` needs no such check: the old table already has the
+  composite `education.groups(tenant_id, id)` foreign key.
+- After each full pass the tenant's orphaned target rows (source physically
+  deleted) are removed, then counts, canonical checksums (SHA-256 over ordered
+  SHA-256 canonical JSON row digests on both sides), a row-wise mismatch count,
+  the guardian reconciliation and the care-state equivalence are stored. All
+  verification queries and their checkpoint update share one `REPEATABLE READ`
+  transaction with local UTC; `verification_snapshot` identifies that snapshot.
+  A tenant is stable when a pass changed nothing and every verification matches.
+  Unstable tenants get another pass, up to `--max-passes` (default 5) per run;
+  at the limit the completed pass and its high-water mark are kept.
+- A separate transaction before that one reads the three targets as
+  `phoenix_tenant`, scoped to the school, and fails the pass unless that role
+  sees exactly this school's rows and no other school's. The copy runs as
+  superuser and bypasses the very policies the rows depend on, so nothing else
+  in the run would notice a policy that Expand created and a later change
+  dropped, disabled or widened. It runs apart from the verification transaction
+  because the role switch would strip that transaction of the grants its
+  checkpoint update needs; the count it saw is recorded as
+  `rows_visible_to_tenant`.
+- A run on a tenant whose persisted pass is complete starts a new pass so old
+  rows changed since the last verification are re-read. Both target sequences
+  are kept above the preserved identities after every run; the hand-over from
+  the `users.students` sequence belongs to Cutover.
+- The migration runs the first copy inline so every deployment leaves a
+  populated target, at the cost of migration wall time proportional to
+  `users.students`. An error in one school fails the migration after the other
+  schools have run; rerunning `migrate` resumes from the checkpoints.
+
+## Commands
+
+Run inside the server container.
+
+```bash
+go run . backfill student-owner [--batch-size 500] [--max-passes 5]  # resume/re-read until stable; exit 1 while unstable
+go run . backfill student-owner status                                # print checkpoints only; exit 1 while unstable
+go run . backfill student-owner reset                                 # truncate targets + checkpoints, restart from zero
+```
+
+Interrupting a run (SIGINT, deployment restart) keeps every committed batch and
+its checkpoint. The next run resumes at the persisted high-water mark. Reset
+and the migration rollback refuse once `users.students` is no longer a base
+table, because after Cutover #2759 the targets hold the authoritative rows.
+
+## Resolving the three reported backlogs
+
+None of these counters is cleared by rerunning the backfill; each names data
+work. The report gives a count per school, so the queries below name the rows
+behind it. Run them as a superuser against the school's `tenant_id`; they read
+only, and they mirror `studentOwnerGuardianMismatch`,
+`studentOwnerCareStateMismatch` and `studentOwnerEligibleBatch` in
+`backend/database/migrations/student_owner_backfill*.go`.
+
+### `guardian_mismatch_count`
+
+Decide per value whether the contact belongs on an existing linked guardian,
+needs a new `users.guardian_profiles` row and link, or is stale and may be
+cleared on `users.students`. Normalization stops at case and whitespace for
+names and e-mails and at digits for phone numbers, so the same number written
+`+49 170 1234567` on the guardian and `0170 1234567` on the child is reported,
+not assumed equal. Correcting the guardian row or the legacy column clears it.
+
+```sql
+SELECT s.id AS student_id, p.first_name, p.last_name,
+       s.guardian_name, s.guardian_contact, s.guardian_email, s.guardian_phone,
+       (SELECT string_agg(format('%s %s <%s>', g.first_name, g.last_name, coalesce(g.email, '-')), '; ')
+        FROM users.students_guardians sg
+        JOIN users.guardian_profiles g ON g.tenant_id = sg.tenant_id AND g.id = sg.guardian_profile_id
+        WHERE sg.tenant_id = s.tenant_id AND sg.student_id = s.id) AS linked_guardians,
+       (SELECT string_agg(n.phone_number, '; ')
+        FROM users.students_guardians sg
+        JOIN users.guardian_phone_numbers n ON n.tenant_id = sg.tenant_id AND n.guardian_profile_id = sg.guardian_profile_id
+        WHERE sg.tenant_id = s.tenant_id AND sg.student_id = s.id) AS linked_phones
+FROM users.students s
+JOIN users.persons p ON p.tenant_id = s.tenant_id AND p.id = s.person_id
+WHERE s.tenant_id = :tenant_id
+  AND (nullif(btrim(coalesce(s.guardian_name, '')), '') IS NOT NULL
+    OR nullif(btrim(coalesce(s.guardian_contact, '')), '') IS NOT NULL
+    OR nullif(btrim(coalesce(s.guardian_email, '')), '') IS NOT NULL
+    OR nullif(regexp_replace(coalesce(s.guardian_phone, ''), '\D', '', 'g'), '') IS NOT NULL)
+ORDER BY s.id;
+```
+
+This lists every child still carrying a legacy value next to the guardians
+linked to them, which is a superset of the reported ones: the rows where the
+two columns already agree are the reconciled ones and need nothing.
+
+### `care_state_mismatch_count`
+
+A raised flag without an open status day for today is an absence the split would
+drop. The flags carry no date while the status days do, so a day on an earlier
+date does not cover a flag that still marks the child absent today. Run the
+end-of-day status archiver, which writes the day and clears the flag, or clear
+the flag directly when the child is no longer absent.
+
+Sick outranks excused in the effective absence read, so a child who is sick
+after the split is never reported for their excused flag: that flag is inert on
+both sides and carries no state to lose. Only a flag that would actually change
+the child's state is counted, so no row here is cleared to satisfy the verifier.
+
+Non-active children (`pending`, `inactive`, `alumnus`) are counted the same way
+even though the effective absence read skips them. Their flags still surface in
+the student list projection, so whether that display changes at Cutover belongs
+to #2759's caller switch, not here.
+
+**This is the one verdict that can change without anybody touching the data.**
+It is measured against today, so a child reported sick this morning through the
+modern path — flag raised *and* an open status day for today — is reconciled
+today and unreconciled tomorrow unless the day is renewed or the flag drained.
+A school that reported `stable: true` yesterday can therefore be unstable this
+morning. That is the honest signal, not a flaw: the flag is dateless and would
+keep the child absent forever after Cutover, while the day it was paired with
+expires. Run `status` shortly before Cutover rather than relying on an older
+green run, and drain the flags last.
+
+```sql
+SELECT s.id AS student_id, p.first_name, p.last_name,
+       s.sick, s.sick_since, s.excused, s.excused_since,
+       (SELECT string_agg(format('%s/%s%s', d.date, d.status,
+               CASE WHEN d.cleared_at IS NULL THEN '' ELSE ' (cleared)' END), '; ' ORDER BY d.date DESC)
+        FROM active.student_status_days d
+        WHERE d.tenant_id = s.tenant_id AND d.student_id = s.id
+          AND d.date >= (now() AT TIME ZONE 'Europe/Berlin')::date - 7) AS recent_status_days
+FROM users.students s
+JOIN users.persons p ON p.tenant_id = s.tenant_id AND p.id = s.person_id
+WHERE s.tenant_id = :tenant_id
+  AND ((s.sick IS TRUE AND NOT EXISTS (
+        SELECT 1 FROM active.student_status_days d
+        WHERE d.tenant_id = s.tenant_id AND d.student_id = s.id
+          AND d.date = (now() AT TIME ZONE 'Europe/Berlin')::date
+          AND d.cleared_at IS NULL AND d.status = 'sick'))
+    OR (s.excused IS TRUE AND NOT EXISTS (
+        SELECT 1 FROM active.student_status_days d
+        WHERE d.tenant_id = s.tenant_id AND d.student_id = s.id
+          AND d.date = (now() AT TIME ZONE 'Europe/Berlin')::date
+          AND d.cleared_at IS NULL AND d.status IN ('excused', 'class_trip'))))
+ORDER BY s.id;
+```
+
+### `rows_rejected`
+
+A rejected row points at a person of another school, which the old
+single-column person foreign key allows and People storage does not. Repoint
+`users.students.person_id` at this school's person, or move the person.
+
+```sql
+SELECT s.id AS student_id, s.tenant_id AS student_tenant, s.person_id, p.tenant_id AS person_tenant
+FROM users.students s
+LEFT JOIN users.persons p ON p.id = s.person_id
+WHERE s.tenant_id = :tenant_id
+  AND (p.id IS NULL OR p.tenant_id <> s.tenant_id)
+ORDER BY s.id;
+```
+
+## Runtime evidence
+
+Every `run` and `status` prints one JSON object per school plus
+`missing_tenants`, the schools without any checkpoint (after a reset, or
+created after the last run). Missing schools count as unstable. Fields:
+
+| Field | Meaning |
+| --- | --- |
+| `rows_scanned`, `rows_copied`, `rows_skipped`, `rows_rejected`, `rows_removed` | Cumulative source rows read, written (insert or changed update), unchanged, refused (cross-tenant person), and orphaned target rows deleted |
+| `batches_completed`, `batches_retried`, `deadlocks`, `serialization_failures`, `lock_timeouts` | Cumulative batch outcomes and the SQLSTATE class of each retry |
+| `pass`, `high_water_id`, `pass_writes`, `stable`, `stable_at` | Progress of the current pass and the final-delta checkpoint for Cutover |
+| `source_count`, `target_count`, `source_checksum`, `target_checksum`, `mismatch_count`, `verified_at`, `verification_snapshot` | Last coherent UTC verification of the mapped columns and its PostgreSQL snapshot |
+| `guardian_mismatch_count` | Students whose legacy guardian name, contact, e-mail or phone has no counterpart among the guardians linked to that child |
+| `care_state_mismatch_count` | Students whose legacy sick/excused flag has no equivalent uncleared status day for today |
+| `rows_visible_to_tenant` | Target rows the `phoenix_tenant` role saw for this school at the last verification, across all three tables. The copy is superuser and bypasses the policies, so this is the checkpoint's only evidence that the tenant boundary still holds |
+| `oldest_unmigrated_at` | `updated_at` of the oldest source row still reported by any of the three checks; `null` when none |
+| `batch_p95_ms`, `batch_max_ms` | p95 of the last run's batch transactions and the maximum across runs |
+| `pool_wait_ms` | Pool-wide connection wait observed while the tenant's batches ran; the process pool is shared, so concurrent users of the same pool are included |
+| `lock_wait_ms` | Cumulative sampled worker lock-wait time, including failed attempts; 10 ms sampling resolution |
+
+The worker's `pg_stat_activity.wait_event_type` is sampled every 10 ms through
+an independent connection. A successful wait below the 5 s `lock_timeout`
+therefore still contributes to `lock_wait_ms`; sampling is approximate, not
+statement duration. Missing or failed sampling fails the batch, not silently
+recording zero. Batch statements also have a 60 s timeout.
+
+Deadlock, serialization-failure and timeout counts include the final failed
+attempt; `batches_retried` counts only retries actually started. A successful
+batch commits accumulated telemetry with its data checkpoint. Terminal errors
+flush pending telemetry separately with a 5 s bound, without advancing row or
+pass progress, including on graceful cancellation. SIGKILL or an unavailable
+database can prevent that flush; the command reports persistence errors.
+Partial failures still print the available per-tenant JSON report and return
+the original error with a non-zero exit status.
+
+## Rollback
+
+`backfill student-owner reset` and the migration's down step truncate only the
+three target tables and delete this backfill's checkpoints; `users.students` is
+not touched. The down step drops the shared checkpoint table, and with it the
+two student-specific columns, only when no other backfill has rows in it — the
+up step is idempotent and recreates both. Stopping a run retains its
+checkpoint. The Expand rollback follows after the targets are empty.
+
+## Exit criterion for Cutover
+
+`backfill student-owner status` exits zero only when every school reports
+`stable: true`, equal counts and checksums, `mismatch_count: 0`,
+`guardian_mismatch_count: 0`, `care_state_mismatch_count: 0`, and
+`rows_rejected` explained. A school whose tenant policies no longer hold never
+reaches a verdict at all: the run fails that school's pass before verification. Cutover #2759 applies the final delta under its own
+write lock using the same runner and re-verifies before switching callers.
+
+## Production read-only survey (2026-09-18)
+
+Measured against the production database at migration `001015393` (the Expand),
+read-only, before this migration was written to disk anywhere near it. It sizes
+the run and the backlog; it is not a substitute for the staging record below.
+
+| Measure | Result |
+| --- | --- |
+| Schools / students | 12 schools, 1,448 students across 11 schools |
+| `rows_rejected` (person of another school) | 0 |
+| Rows violating a target CHECK (departure JSONB, status, class) | 0 |
+| Cross-tenant `group_id`, dangling `photo_consent_given_by` | 0, 0 |
+| `NOT VALID` constraints on `users.students` that could hide bad rows | none |
+| Legacy `guardian_name` / `guardian_contact` | 0 / 0 — nothing to reconcile |
+| Legacy `guardian_email` / `guardian_phone` | 298 / 297, of which **1 e-mail and 2 phones** do not match a linked guardian (schools 4 and 5) |
+| Legacy `sick` / `excused` flags | 31 / 2, of which **14 sick flags** have no open status day for today (schools 4, 8, 9); all on active students, `sick_since` between 2026-09-02 and today |
+| Source projection and canonical checksum | Execute against the real schema; 208/208 rows eligible for the largest school |
+
+So the copy itself has no obstacle on this data: every row is eligible and no
+constraint rejects it. The expected backlog is roughly seventeen data points in
+four schools, and the queries above name them. At 1,448 rows the inline copy is
+a few batches per school.
+
+## Staging acceptance record
+
+**Not yet executed for this revision.** Normal deployment stops the application
+before running the migration. Record that stopped-application migration path on
+staging, then run `backfill student-owner` until stable and attach the report.
+Separately use an isolated staging copy: while the previous image serves genuine
+student HTTP reads and create/edit/enroll/graduate writes, run the new backfill
+command against that copy; repeat the same reads/writes afterward. Use dedicated
+synthetic identities and captured mail. Record source parity, all-school
+checkpoints, interrupt/resume and reset/rerun on that isolated copy.
+
+| Evidence | Result |
+| --- | --- |
+| Deployment SHA / previous image digest | Pending |
+| Migration wall time (initial copy) | Pending |
+| Per-tenant counts and checksums equal, mismatch 0 | Pending |
+| `guardian_mismatch_count` per tenant and correction | Pending |
+| `care_state_mismatch_count` per tenant and correction | Pending |
+| `rows_rejected` per tenant and correction | Pending |
+| `batch_p95_ms` / `batch_max_ms` / `pool_wait_ms` | Pending |
+| `batches_retried` / `deadlocks` / `lock_timeouts` | Pending |
+| Observer lock waits and blocked sessions during the copy | Pending |
+| Interrupt during a pass and resume (SIGINT the container command) | Pending |
+| Previous-image student read/write parity during and after the copy | Pending |
+| `reset` on an isolated clone followed by a full rerun | Pending |
+
+## Local verification (2026-09-18)
+
+Migration tests cover interrupt and resume after every batch boundary, rerun of
+completed batches, injected deadlock, serialization and lock-timeout failures
+with retry accounting and durable terminal counters, graceful cancellation, one
+failing school not blocking the others, changed-row re-read and orphan removal,
+cross-tenant person rejection with the pass limit keeping the high-water mark,
+a mid-pass rejoin unique-conflict restart, a person reassignment between two
+live students that no orphan sweep can clear, unreconciled guardian values and
+stale absence flags with their corrections (including a flag whose only open
+status day is dated yesterday, and an excused flag left inert by an open sick
+day), concurrent run/reset/down exclusion,
+a measured successful lock wait, one coherent UTC verification snapshot,
+two-tenant RLS reads with the checkpoint grant denial, runtime detection of a
+dropped and of a widened tenant policy, index validity and
+index-backed plans for the batch, checksum and mismatch queries with sequential
+scans disabled, reset, and the guarded down/up sequence with the Expand
+rollback, shared checkpoint retention and the post-Cutover view guard. The CLI
+test drives run, status, reset and the unstable exit path against an isolated
+clone.
+
+These results do not replace the staging record above.

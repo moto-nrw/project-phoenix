@@ -36,7 +36,7 @@ interface OTPInputGridProps {
  * callback.
  *
  * Shared by MFAChallengeForm and MFAEnrollmentScreen; introduced to
- * collapse 82 lines of duplicated UX logic flagged by SonarCloud.
+ * collapse 82 lines of UX logic that were duplicated across both.
  */
 export const OTPInputGrid = forwardRef<OTPInputGridHandle, OTPInputGridProps>(
   function OTPInputGrid(

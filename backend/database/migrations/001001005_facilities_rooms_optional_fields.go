@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -35,8 +34,6 @@ func init() {
 
 // makeRoomFieldsOptional removes NOT NULL constraints and defaults from floor, capacity, category, and color
 func makeRoomFieldsOptional(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.1.5: Making floor, capacity, category, and color optional in facilities.rooms...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -44,7 +41,7 @@ func makeRoomFieldsOptional(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -88,16 +85,12 @@ func makeRoomFieldsOptional(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error making color optional: %w", err)
 	}
 
-	fmt.Println("Successfully made floor, capacity, category, and color optional")
-
 	// Commit the transaction
 	return tx.Commit()
 }
 
 // restoreRoomFieldsNotNull restores the original NOT NULL constraints and defaults
 func restoreRoomFieldsNotNull(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.1.5: Restoring NOT NULL constraints and defaults...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -105,7 +98,7 @@ func restoreRoomFieldsNotNull(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -165,8 +158,6 @@ func restoreRoomFieldsNotNull(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("error restoring color NOT NULL: %w", err)
 	}
-
-	fmt.Println("Successfully restored NOT NULL constraints and defaults")
 
 	// Commit the transaction
 	return tx.Commit()

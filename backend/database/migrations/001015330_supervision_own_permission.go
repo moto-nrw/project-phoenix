@@ -2,7 +2,6 @@ package migrations
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/uptrace/bun"
 )
@@ -39,8 +38,6 @@ func init() {
 // operational overview (#2380). Admins get it too so the tenant portal keeps
 // answering the same question with the same permission name.
 func supervisionOwnPermissionUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.330: supervision:own for the lehrkraft role...")
-
 	return grantPermissionToRoles(ctx, db, permissionSpec{
 		Name:        "supervision:own",
 		Description: "Eigene Aufsichten aus dem Betreuungsplan durchführen",
@@ -50,7 +47,5 @@ func supervisionOwnPermissionUp(ctx context.Context, db *bun.DB) error {
 }
 
 func supervisionOwnPermissionDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.330: Removing supervision:own...")
-
 	return dropPermission(ctx, db, "supervision:own")
 }

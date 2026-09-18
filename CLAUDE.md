@@ -42,8 +42,8 @@ All paths below are relative to the repository root.
   IDs map to frontend strings. Load the date rule before changing date logic.
 - **API contracts:** paths use kebab-case; migrate touched legacy snake_case
   paths with their consumers. IoT errors and auth headers are also consumed by
-  `../PyrePortal/`; coordinate both sides. `../moto-balenaOS/` runs the kiosk,
-  not the backend. Details: [docs/agents/contracts.md](docs/agents/contracts.md).
+  `../PyrePortal/`; coordinate both sides.
+  Details: [docs/agents/contracts.md](docs/agents/contracts.md).
 
 ## Read when the task matches
 
@@ -89,7 +89,8 @@ a missing tool or failed command is not a passed check.
 
 ## Git and skills
 
-PRs target `development` (moto-balenaOS: `main`). Commit types: `feat`, `fix`,
+PRs target `development`, or the branch of the PR below them when stacking;
+the `stacked-pr` skill owns that flow. Commit types: `feat`, `fix`,
 `refactor`, `chore`, `docs`, `test`, `style`. Use descriptive titles and names,
 without AI/tool branding or `Co-Authored-By: Claude`.
 

@@ -450,6 +450,7 @@ GET /api/timetable/operations/instances/{id}/roster
 GET /api/timetable/operations/planned-now
 GET /api/timetable/periods/
 GET /api/timetable/periods/{id}
+GET /api/timetable/pickup-extensions/
 GET /api/timetable/planning-tracks/
 GET /api/timetable/student/{id}/day
 GET /api/timetable/student/{id}/week
@@ -836,6 +837,7 @@ POST /api/timetable/operations/instances/{id}/students/{student_id}/check-out
 POST /api/timetable/operations/spontaneous/start
 POST /api/timetable/periods/
 POST /api/timetable/periods/bootstrap
+POST /api/timetable/pickup-extensions/{id}/resolve
 POST /api/timetable/planning-tracks/
 POST /api/timetable/planning-tracks/{id}/restore
 POST /api/timetable/shift-coverage

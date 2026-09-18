@@ -21,7 +21,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.100: Adding caregiver_enabled to auth.invitation_tokens...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE auth.invitation_tokens
 					ADD COLUMN IF NOT EXISTS caregiver_enabled boolean NOT NULL DEFAULT false;
@@ -31,7 +30,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.100: Removing caregiver_enabled from auth.invitation_tokens...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE auth.invitation_tokens
 					DROP COLUMN IF EXISTS caregiver_enabled;

@@ -200,16 +200,11 @@ func (rs *Resource) mfaVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	verified, err := rs.MFAService.VerifyChallengeForScope(r.Context(), req.ChallengeToken, req.Code, jwt.MFAChallengeScopeSchool)
+	verified, err := rs.MFAService.VerifyMFAChallengeForScope(r.Context(), req.ChallengeToken, req.Code, authService.MFAChallengeScopeSchool)
 	if err != nil {
 		mapMFAError(w, r, err)
 		return
 	}
-	if verified == nil {
-		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
-		return
-	}
-
 	rs.completeSchoolExchange(w, r, verified.AccountID, verified.TenantID, req.RememberDevice)
 }
 
@@ -283,7 +278,7 @@ func (rs *Resource) mfaResend(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	renewed, err := rs.MFAService.ResendChallengeForScope(r.Context(), req.ChallengeToken, common.ParseClientIP(r), jwt.MFAChallengeScopeSchool)
+	renewed, err := rs.MFAService.ResendMFAChallengeForScope(r.Context(), req.ChallengeToken, common.ParseClientIP(r), authService.MFAChallengeScopeSchool)
 	if err != nil {
 		mapMFAError(w, r, err)
 		return
@@ -318,7 +313,7 @@ func (rs *Resource) mfaEnrollStart(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
-	challengeToken, err := rs.MFAService.StartChallenge(r.Context(), claims.AccountID, claims.TenantID, jwt.MFAChallengeScopeSchool, common.ParseClientIP(r))
+	challengeToken, err := rs.MFAService.StartMFAChallenge(r.Context(), claims.AccountID, claims.TenantID, authService.MFAChallengeScopeSchool, common.ParseClientIP(r))
 	if err != nil {
 		mapMFAError(w, r, err)
 		return
@@ -373,8 +368,8 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	// the tenant enroll-confirm).
 	ctx := tenant.WithTenantID(r.Context(), claims.TenantID)
 
-	verified, err := rs.MFAService.VerifyChallengeForOwner(
-		ctx, req.ChallengeToken, req.Code, jwt.MFAChallengeScopeSchool, claims.AccountID, claims.TenantID,
+	verified, err := rs.MFAService.VerifyMFAChallengeForOwner(
+		ctx, req.ChallengeToken, req.Code, authService.MFAChallengeScopeSchool, claims.AccountID, claims.TenantID,
 	)
 	if err != nil {
 		mapMFAError(w, r, err)
@@ -383,12 +378,12 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	// The service already refused any challenge that is not this account's at
 	// this school; re-asserting it here costs nothing and keeps the handler
 	// honest if the binding ever moves.
-	if verified == nil || verified.AccountID != claims.AccountID || verified.TenantID != claims.TenantID {
+	if verified.AccountID != claims.AccountID || verified.TenantID != claims.TenantID {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
 
-	if err := rs.MFAService.Enroll(ctx, claims.AccountID); err != nil {
+	if err := rs.MFAService.EnrollMFA(ctx, claims.AccountID); err != nil {
 		// Already enrolled is fine — a retried request must still produce
 		// a valid session.
 		if !errors.Is(err, authService.ErrMFAAlreadyEnrolled) {

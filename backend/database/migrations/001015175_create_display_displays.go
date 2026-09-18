@@ -33,8 +33,6 @@ func init() {
 }
 
 func createDisplayDisplaysUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.175: Creating display schema + display.displays table...")
-
 	if _, err := db.NewRaw(`CREATE SCHEMA IF NOT EXISTS display;`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed creating display schema: %w", err)
 	}
@@ -98,7 +96,6 @@ func createDisplayDisplaysUp(ctx context.Context, db *bun.DB) error {
 }
 
 func createDisplayDisplaysDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.175: Dropping display.displays...")
 	if _, err := db.NewRaw(`DROP TABLE IF EXISTS display.displays CASCADE;`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed dropping display.displays: %w", err)
 	}

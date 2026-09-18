@@ -11,8 +11,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -70,7 +70,7 @@ func (s *service) GetDateframe(ctx context.Context, id int64) (*schedule.Datefra
 	dateframe, err := s.dateframeRepo.FindByID(ctx, id)
 	if err != nil {
 		if base.IsNoRows(err) {
-			err = scheduleSvc.ErrDateframeNotFound
+			err = careschedule.ErrDateframeNotFound
 		}
 		return nil, &ScheduleError{Op: "get dateframe", Err: err}
 	}
@@ -138,7 +138,7 @@ func (s *service) FindDateframesByDate(ctx context.Context, date time.Time) ([]*
 func (s *service) FindOverlappingDateframes(ctx context.Context, startDate, endDate time.Time) ([]*schedule.Dateframe, error) {
 	// Validate date range
 	if startDate.After(endDate) {
-		return nil, &ScheduleError{Op: "find overlapping dateframes", Err: scheduleSvc.ErrInvalidDateRange}
+		return nil, &ScheduleError{Op: "find overlapping dateframes", Err: careschedule.ErrInvalidDateRange}
 	}
 
 	dateframes, err := s.dateframeRepo.FindOverlapping(ctx, startDate, endDate)
@@ -156,7 +156,7 @@ func (s *service) GetTimeframe(ctx context.Context, id int64) (*schedule.Timefra
 	timeframe, err := s.timeframeRepo.FindByID(ctx, id)
 	if err != nil {
 		if base.IsNoRows(err) {
-			err = scheduleSvc.ErrTimeframeNotFound
+			err = careschedule.ErrTimeframeNotFound
 		}
 		return nil, &ScheduleError{Op: "get timeframe", Err: err}
 	}
@@ -225,7 +225,7 @@ func (s *service) validateTimeframeCareOfferingChange(
 	}
 	if err := s.validateCareOfferingTimeframeChange(ctx, id, replacement); err != nil {
 		if errors.Is(err, enrollmentModels.ErrCareOfferingInvalid) {
-			return &ScheduleError{Op: op, Err: scheduleSvc.ErrTimeframeRequiredByCareOffering}
+			return &ScheduleError{Op: op, Err: careschedule.ErrTimeframeRequiredByCareOffering}
 		}
 		return &ScheduleError{Op: op + ": validate care offerings", Err: err}
 	}
@@ -256,7 +256,7 @@ func (s *service) FindActiveTimeframes(ctx context.Context) ([]*schedule.Timefra
 func (s *service) FindTimeframesByTimeRange(ctx context.Context, startTime, endTime time.Time) ([]*schedule.Timeframe, error) {
 	// Validate time range
 	if !endTime.IsZero() && startTime.After(endTime) {
-		return nil, &ScheduleError{Op: "find timeframes by time range", Err: scheduleSvc.ErrInvalidTimeRange}
+		return nil, &ScheduleError{Op: "find timeframes by time range", Err: careschedule.ErrInvalidTimeRange}
 	}
 
 	timeframes, err := s.timeframeRepo.FindByTimeRange(ctx, startTime, endTime)
@@ -274,7 +274,7 @@ func (s *service) GetRecurrenceRule(ctx context.Context, id int64) (*schedule.Re
 	rule, err := s.recurrenceRuleRepo.FindByID(ctx, id)
 	if err != nil {
 		if base.IsNoRows(err) {
-			err = scheduleSvc.ErrRecurrenceRuleNotFound
+			err = careschedule.ErrRecurrenceRuleNotFound
 		}
 		return nil, &ScheduleError{Op: "get recurrence rule", Err: err}
 	}
@@ -358,9 +358,9 @@ func (s *service) GenerateEvents(ctx context.Context, ruleID int64, startDate, e
 	}
 	switch {
 	case errors.Is(err, timetable.ErrRecurrenceRuleNotFound):
-		err = scheduleSvc.ErrRecurrenceRuleNotFound
+		err = careschedule.ErrRecurrenceRuleNotFound
 	case errors.Is(err, timetable.ErrInvalidRecurrenceRange):
-		err = scheduleSvc.ErrInvalidDateRange
+		err = careschedule.ErrInvalidDateRange
 	}
 	return nil, &ScheduleError{Op: opGenerateEvents, Err: err}
 }
@@ -369,7 +369,7 @@ func (s *service) GenerateEvents(ctx context.Context, ruleID int64, startDate, e
 func (s *service) CheckConflict(ctx context.Context, startTime, endTime time.Time) (bool, []*schedule.Timeframe, error) {
 	// Validate time range
 	if !endTime.IsZero() && startTime.After(endTime) {
-		return false, nil, &ScheduleError{Op: "check conflict", Err: scheduleSvc.ErrInvalidTimeRange}
+		return false, nil, &ScheduleError{Op: "check conflict", Err: careschedule.ErrInvalidTimeRange}
 	}
 
 	// Find timeframes that overlap with the given range
@@ -386,11 +386,11 @@ func (s *service) CheckConflict(ctx context.Context, startTime, endTime time.Tim
 func (s *service) FindAvailableSlots(ctx context.Context, startDate, endDate time.Time, duration time.Duration) ([]*schedule.Timeframe, error) {
 	// Validate input
 	if startDate.After(endDate) {
-		return nil, &ScheduleError{Op: opFindAvailableSlots, Err: scheduleSvc.ErrInvalidDateRange}
+		return nil, &ScheduleError{Op: opFindAvailableSlots, Err: careschedule.ErrInvalidDateRange}
 	}
 
 	if duration <= 0 {
-		return nil, &ScheduleError{Op: opFindAvailableSlots, Err: scheduleSvc.ErrInvalidDuration}
+		return nil, &ScheduleError{Op: opFindAvailableSlots, Err: careschedule.ErrInvalidDuration}
 	}
 
 	startDate = timezone.NormalizeWallClock(startDate)
@@ -465,7 +465,7 @@ func (s *service) GetCurrentDateframe(ctx context.Context) (*schedule.Dateframe,
 	}
 
 	if len(dateframes) == 0 {
-		return nil, &ScheduleError{Op: "get current dateframe", Err: scheduleSvc.ErrDateframeNotFound}
+		return nil, &ScheduleError{Op: "get current dateframe", Err: careschedule.ErrDateframeNotFound}
 	}
 
 	// If multiple dateframes are active, prioritize by name or creation date

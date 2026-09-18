@@ -59,7 +59,7 @@ Project Phoenix is the software behind [**moto**](https://moto-ogs.de), the digi
 
 ## Hardware
 
-The NFC scanning happens on Raspberry Pi kiosks running [**PyrePortal**](https://github.com/moto-nrw/PyrePortal) (Tauri + React), deployed via [**moto-balenaOS**](https://github.com/moto-nrw/moto-balenaOS). The kiosks talk to this backend through the device-authenticated `/api/iot/*` API.
+The NFC scanning happens on Raspberry Pi kiosks running [**PyrePortal**](https://github.com/moto-nrw/PyrePortal) (Tauri + React). The kiosks talk to this backend through the device-authenticated `/api/iot/*` API.
 
 ## Quick Start
 

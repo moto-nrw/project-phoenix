@@ -53,15 +53,15 @@ func (s *careLifecycleService) ParticipatingStudentIDs(
 			return nil, err
 		}
 	}
-	boundaries, err := s.participationBoundaries(ctx, studentIDs)
-	if err != nil {
-		return nil, err
-	}
-	participating := participatingOn(studentIDs, boundaries, on, actuallyPresent)
 	students, err := s.studentRepo.FindByIDs(ctx, studentIDs)
 	if err != nil {
 		return nil, err
 	}
+	boundaries, err := s.participationBoundaries(ctx, studentIDs, students)
+	if err != nil {
+		return nil, err
+	}
+	participating := participatingOn(studentIDs, boundaries, on, actuallyPresent)
 	removeAlumni(participating, students, actuallyPresent)
 	return participating, nil
 }
@@ -109,11 +109,11 @@ func (s *careLifecycleService) resolveListParticipation(
 func (s *careLifecycleService) ParticipatingStudentIDsByDate(
 	ctx context.Context, studentIDs []int64, from, to timezone.Date,
 ) (map[timezone.Date]map[int64]bool, error) {
-	boundaries, err := s.participationBoundaries(ctx, studentIDs)
+	students, err := s.studentRepo.FindByIDs(ctx, studentIDs)
 	if err != nil {
 		return nil, err
 	}
-	students, err := s.studentRepo.FindByIDs(ctx, studentIDs)
+	boundaries, err := s.participationBoundaries(ctx, studentIDs, students)
 	if err != nil {
 		return nil, err
 	}
@@ -141,8 +141,10 @@ func (s *careLifecycleService) AdministrativelyVisibleStudentIDs(
 	return s.ParticipatingStudentIDs(ctx, studentIDs, on, retained)
 }
 
+// participationBoundaries takes the tenant rows of studentIDs as loaded by
+// studentRepo.FindByIDs; their enrolment ends bound participation as well.
 func (s *careLifecycleService) participationBoundaries(
-	ctx context.Context, studentIDs []int64,
+	ctx context.Context, studentIDs []int64, students map[int64]*userModels.Student,
 ) (map[int64]timezone.Date, error) {
 	if len(studentIDs) == 0 {
 		return map[int64]timezone.Date{}, nil
@@ -154,7 +156,7 @@ func (s *careLifecycleService) participationBoundaries(
 	if err != nil {
 		return nil, err
 	}
-	return s.withdrawalRepo.ListParticipationBoundaries(ctx, studentIDs, authoritative)
+	return s.withdrawalRepo.ListParticipationBoundaries(ctx, students, authoritative)
 }
 
 func removeAlumni(

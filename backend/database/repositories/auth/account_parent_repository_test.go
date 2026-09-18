@@ -119,31 +119,6 @@ func TestAccountParentRepository_FindByEmail(t *testing.T) {
 	})
 }
 
-func TestAccountParentRepository_FindByUsername(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountParent
-	ctx := testpkg.Ctx(t)
-
-	t.Run("finds parent account by username", func(t *testing.T) {
-		account := testpkg.CreateTestParentAccount(t, db, "find_by_user")
-		defer cleanupParentAccount(t, db, account.ID)
-
-		require.NotNil(t, account.Username, "Test account should have username")
-
-		found, err := repo.FindByUsername(ctx, *account.Username)
-		require.NoError(t, err)
-		assert.Equal(t, account.ID, found.ID)
-	})
-
-	t.Run("returns error for non-existent username", func(t *testing.T) {
-		_, err := repo.FindByUsername(ctx, "nonexistent_parent_user_12345")
-		require.Error(t, err)
-	})
-}
-
 func TestAccountParentRepository_Update(t *testing.T) {
 	t.Parallel()
 
@@ -186,29 +161,6 @@ func TestAccountParentRepository_Update(t *testing.T) {
 	})
 }
 
-func TestAccountParentRepository_UpdatePassword(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountParent
-	ctx := testpkg.Ctx(t)
-
-	t.Run("updates password hash", func(t *testing.T) {
-		account := testpkg.CreateTestParentAccount(t, db, "update_pass")
-		defer cleanupParentAccount(t, db, account.ID)
-
-		newHash := "$argon2id$v=19$m=65536,t=3,p=4$newpasswordhash"
-		err := repo.UpdatePassword(ctx, account.ID, newHash)
-		require.NoError(t, err)
-
-		found, err := repo.FindByEmail(ctx, account.Email)
-		require.NoError(t, err)
-		require.NotNil(t, found.PasswordHash)
-		assert.Equal(t, newHash, *found.PasswordHash)
-	})
-}
-
 func TestAccountParentRepository_FieldUpdatesRespectOptionalTenantScope(t *testing.T) {
 	t.Parallel()
 
@@ -217,19 +169,20 @@ func TestAccountParentRepository_FieldUpdatesRespectOptionalTenantScope(t *testi
 	otherTenantID, _ := testpkg.CreateTestTenant(t, db)
 	account := testpkg.CreateTestParentAccount(t, db, "cross-tenant-field-update")
 
-	err := repo.UpdatePassword(testpkg.TenantContext(otherTenantID), account.ID, "wrong-tenant-hash")
-	require.Error(t, err)
+	account.Username = testpkg.StrPtr("cross-tenant-update")
+	err := repo.Update(testpkg.TenantContext(otherTenantID), account)
+	require.Error(t, err, "another school's context must not update the row")
 
-	updatedHash := "background-hash"
-	require.NoError(t, repo.UpdatePassword(context.Background(), account.ID, updatedHash))
+	account.Username = testpkg.StrPtr("background-update")
+	require.NoError(t, repo.Update(context.Background(), account))
 
 	var found auth.AccountParent
 	require.NoError(t, db.NewSelect().Model(&found).
 		ModelTableExpr(`auth.accounts_parents AS "account_parent"`).
 		Where(`"account_parent".id = ?`, account.ID).
 		Scan(context.Background()))
-	require.NotNil(t, found.PasswordHash)
-	assert.Equal(t, updatedHash, *found.PasswordHash)
+	require.NotNil(t, found.Username)
+	assert.Equal(t, "background-update", *found.Username)
 }
 
 // ============================================================================

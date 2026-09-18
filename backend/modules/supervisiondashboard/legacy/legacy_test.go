@@ -18,6 +18,7 @@ import (
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
@@ -27,7 +28,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // The retained interfaces are wide; the mocks embed them and override only
@@ -132,20 +132,20 @@ func (m *mockOperationsService) ActiveSessions(_ context.Context, day timezone.D
 }
 
 type mockPickupService struct {
-	scheduleService.PickupScheduleService
-	getBulkEffectivePickupTimesForDateFn func([]int64, timezone.Date) (map[int64]*scheduleService.EffectivePickupTime, error)
+	careschedule.PickupScheduleService
+	getBulkEffectivePickupTimesForDateFn func([]int64, timezone.Date) (map[int64]*careschedule.EffectivePickupTime, error)
 }
 
-func (m *mockPickupService) GetBulkEffectivePickupTimesForDate(_ context.Context, studentIDs []int64, date timezone.Date) (map[int64]*scheduleService.EffectivePickupTime, error) {
+func (m *mockPickupService) GetBulkEffectivePickupTimesForDate(_ context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careschedule.EffectivePickupTime, error) {
 	return m.getBulkEffectivePickupTimesForDateFn(studentIDs, date)
 }
 
 type mockArrivalService struct {
-	scheduleService.ArrivalScheduleService
-	getBulkEffectiveArrivalTimesForDateFn func([]int64, timezone.Date) (map[int64]*scheduleService.EffectiveArrivalTime, error)
+	careschedule.ArrivalScheduleService
+	getBulkEffectiveArrivalTimesForDateFn func([]int64, timezone.Date) (map[int64]*careschedule.EffectiveArrivalTime, error)
 }
 
-func (m *mockArrivalService) GetBulkEffectiveArrivalTimesForDate(_ context.Context, studentIDs []int64, date timezone.Date) (map[int64]*scheduleService.EffectiveArrivalTime, error) {
+func (m *mockArrivalService) GetBulkEffectiveArrivalTimesForDate(_ context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careschedule.EffectiveArrivalTime, error) {
 	return m.getBulkEffectiveArrivalTimesForDateFn(studentIDs, date)
 }
 
@@ -495,17 +495,17 @@ func TestPlanningMapsEffectiveTimes(t *testing.T) {
 	pickup := timezone.NormalizeWallClock(time.Date(2026, time.August, 19, 15, 30, 0, 0, time.UTC))
 	arrival := timezone.NormalizeWallClock(time.Date(2026, time.August, 19, 11, 45, 0, 0, time.UTC))
 	p := planning{
-		pickups: &mockPickupService{getBulkEffectivePickupTimesForDateFn: func(studentIDs []int64, gotDate timezone.Date) (map[int64]*scheduleService.EffectivePickupTime, error) {
+		pickups: &mockPickupService{getBulkEffectivePickupTimesForDateFn: func(studentIDs []int64, gotDate timezone.Date) (map[int64]*careschedule.EffectivePickupTime, error) {
 			assert.Equal(t, []int64{42}, studentIDs)
 			assert.Equal(t, date, gotDate)
-			return map[int64]*scheduleService.EffectivePickupTime{
-				42: {Date: date, PickupTime: &pickup, WeekdayName: "Mittwoch", IsException: true, Notes: "Oma", DayNotes: []scheduleService.NoteData{{ID: 3, Content: "Klingeln"}}},
+			return map[int64]*careschedule.EffectivePickupTime{
+				42: {Date: date, PickupTime: &pickup, WeekdayName: "Mittwoch", IsException: true, Notes: "Oma", DayNotes: []careschedule.NoteData{{ID: 3, Content: "Klingeln"}}},
 				43: nil,
 			}, nil
 		}},
-		arrivals: &mockArrivalService{getBulkEffectiveArrivalTimesForDateFn: func([]int64, timezone.Date) (map[int64]*scheduleService.EffectiveArrivalTime, error) {
-			return map[int64]*scheduleService.EffectiveArrivalTime{
-				42: {Date: date, ArrivalTime: &arrival, WeekdayName: "Mittwoch", Notes: "Bus", DayNotes: []scheduleService.ArrivalNoteData{{ID: 4, Content: "Verspätung"}}},
+		arrivals: &mockArrivalService{getBulkEffectiveArrivalTimesForDateFn: func([]int64, timezone.Date) (map[int64]*careschedule.EffectiveArrivalTime, error) {
+			return map[int64]*careschedule.EffectiveArrivalTime{
+				42: {Date: date, ArrivalTime: &arrival, WeekdayName: "Mittwoch", Notes: "Bus", DayNotes: []careschedule.ArrivalNoteData{{ID: 4, Content: "Verspätung"}}},
 			}, nil
 		}},
 	}

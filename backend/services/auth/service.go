@@ -2,7 +2,6 @@
 package auth
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -20,20 +19,13 @@ import (
 )
 
 const (
-	passwordResetRateLimitThreshold = 3
-	opCreateService                 = "create service"
-	opHashPassword                  = "hash password"
-	opGetAccount                    = "get account"
-	opUpdateAccount                 = "update account"
-	opValidateToken                 = "validate token"
-	opCreateParentAccount           = "create parent account"
+	opCreateService       = "create service"
+	opHashPassword        = "hash password"
+	opGetAccount          = "get account"
+	opUpdateAccount       = "update account"
+	opValidateToken       = "validate token"
+	opCreateParentAccount = "create parent account"
 )
-
-var passwordResetEmailBackoff = []time.Duration{
-	time.Second,
-	5 * time.Second,
-	15 * time.Second,
-}
 
 // ServiceConfig holds configuration for the auth service
 type ServiceConfig struct {
@@ -50,15 +42,14 @@ type ServiceConfig struct {
 	// Sessions is the consumer-owned port over the Identity & Access
 	// account-authentication capability (#3251): login, refresh, switching,
 	// session validation, cleanup and revocation moved there. The retained
-	// flows (staff preview, password reset, account management, offboarding)
-	// and the AuthService session methods delegate to it.
+	// flows (staff preview, account management, offboarding) and the
+	// AuthService session methods delegate to it.
 	Sessions AccountSessions
 	// Lifecycle is the consumer-owned port over the Identity & Access
 	// account-lifecycle capability (#3225): staff preview, staff offboarding
 	// access, the school identity chain, parent accounts and guardian
-	// relative access moved there. The retained registration, linking and
-	// invitation flows provision identities and apply the school-role policy
-	// through it (#3314).
+	// relative access moved there. The retained account management flows
+	// apply the school-role policy through it (#3314).
 	Lifecycle AccountLifecycle
 }
 
@@ -87,35 +78,23 @@ func NewServiceConfig(
 }
 
 // Service provides the retained authentication and user management
-// functionality: registration and school linking, password change and
-// reset, account lifecycle, staff preview and offboarding. Tenant, parent and
-// school login, refresh, switching, logout, session validation, cleanup and
-// revocation are served by Identity & Access through the Sessions port
-// (#3251); role and permission management moved there with #3314.
+// functionality: password change, account administration, staff preview and
+// offboarding. Tenant, parent and school login, refresh, switching, logout,
+// session validation, cleanup and revocation are served by Identity & Access
+// through the Sessions port (#3251); role and permission management moved
+// there with #3314, the password reset, the invitations and the account
+// registration and school linking with #3332.
 type Service struct {
-	repos               *repositories.Factory
-	tokenAuth           *jwt.TokenAuth
-	dispatcher          *email.Dispatcher
-	defaultFrom         email.Email
-	frontendURL         string
-	parentsURL          string
-	schoolURL           string
-	passwordResetExpiry time.Duration
-	rateLimitEnabled    bool
-	txHandler           *tenant.TransactionRunner
-	db                  *bun.DB
-	logger              *slog.Logger
-	settings            configSvc.SettingsService
-	audit               auditModels.Command
-	tenantRuntime       *tenant.UnitOfWork
-	sessions            AccountSessions
-	lifecycle           AccountLifecycle
-	// mfaService is optional. The Identity & Access login flows read it
-	// through CurrentMFAService at call time, so SetMFAService keeps its
-	// meaning: nil disables the gate and login behaves as a plain
-	// password login. Wired post-construction to break the
-	// AuthService <-> MFAService construction-order dependency.
-	mfaService MFAService
+	repos         *repositories.Factory
+	tokenAuth     *jwt.TokenAuth
+	txHandler     *tenant.TransactionRunner
+	db            *bun.DB
+	logger        *slog.Logger
+	settings      configSvc.SettingsService
+	audit         auditModels.Command
+	tenantRuntime *tenant.UnitOfWork
+	sessions      AccountSessions
+	lifecycle     AccountLifecycle
 }
 
 func (s *Service) withTenantRuntime(ctx context.Context) context.Context {
@@ -130,14 +109,6 @@ func (s *Service) withTenantRuntime(ctx context.Context) context.Context {
 // under it.
 func (s *Service) WithTenantRuntime(ctx context.Context) context.Context {
 	return s.withTenantRuntime(ctx)
-}
-
-// detachedTenantContext preserves tenant/runtime values while isolating
-// asynchronous work from the request transaction and its commit hooks.
-func detachedTenantContext(ctx context.Context) context.Context {
-	ctx = context.WithoutCancel(ctx)
-	ctx = tenant.ContextWithoutTransaction(ctx)
-	return tenant.ContextWithoutAfterCommitHooks(ctx)
 }
 
 func (s *Service) SetTenantRuntime(runtime tenant.UnitOfWork) {
@@ -172,40 +143,16 @@ func NewService(
 	}
 
 	return &Service{
-		repos:               repos,
-		tokenAuth:           tokenAuth,
-		dispatcher:          config.Dispatcher,
-		defaultFrom:         config.DefaultFrom,
-		frontendURL:         config.FrontendURL,
-		parentsURL:          config.ParentsURL,
-		schoolURL:           config.SchoolURL,
-		passwordResetExpiry: config.PasswordResetExpiry,
-		rateLimitEnabled:    config.RateLimitEnabled,
-		txHandler:           tenant.NewTransactionRunner(),
-		db:                  db,
-		logger:              logger,
-		settings:            config.Settings,
-		audit:               config.Audit,
-		sessions:            config.Sessions,
-		lifecycle:           config.Lifecycle,
+		repos:     repos,
+		tokenAuth: tokenAuth,
+		txHandler: tenant.NewTransactionRunner(),
+		db:        db,
+		logger:    logger,
+		settings:  config.Settings,
+		audit:     config.Audit,
+		sessions:  config.Sessions,
+		lifecycle: config.Lifecycle,
 	}, nil
-}
-
-// getLogger returns the service's logger, falling back to slog.Default() if nil.
-func (s *Service) getLogger() *slog.Logger {
-	return cmp.Or(s.logger, slog.Default())
-}
-
-// SetMFAService wires the optional MFA service post-construction. Idempotent
-// — calling with nil clears the gate.
-func (s *Service) SetMFAService(svc MFAService) {
-	s.mfaService = svc
-}
-
-// CurrentMFAService returns the MFA gate the login flows consult; nil means
-// the gate is disabled.
-func (s *Service) CurrentMFAService() MFAService {
-	return s.mfaService
 }
 
 // AccountSessions returns the Identity & Access port the service delegates
@@ -218,33 +165,6 @@ func (s *Service) AccountSessions() AccountSessions {
 // the account lifecycle flows to.
 func (s *Service) AccountLifecycle() AccountLifecycle {
 	return s.lifecycle
-}
-
-func (s *Service) runInTx(
-	ctx context.Context,
-	fn func(txCtx context.Context) error,
-) error {
-	ctx = s.withTenantRuntime(ctx)
-	if s.txHandler == nil {
-		return fn(ctx)
-	}
-
-	if tenant.FromContext(ctx) == 0 && tenant.ScopeFromContext(ctx) != "" {
-		return tenant.WithinAdmin(ctx, fn)
-	}
-
-	return s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
-		return fn(txCtx)
-	})
-}
-
-func hasAmbientTx(ctx context.Context) bool {
-	_, ok := tenant.TransactionFromContext(ctx)
-	return ok
-}
-
-func (s *Service) independentCleanupCtx(ctx context.Context) context.Context {
-	return tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTenant(tenant.ContextWithoutTransaction(ctx)))
 }
 
 // VerifyPassword checks a plain-text password against its Argon2id hash. It
@@ -273,23 +193,11 @@ func (e *AuthError) Unwrap() error {
 	return e.Err
 }
 
-// MFAGateConfiguration wires the optional MFA gate into the login flows.
-type MFAGateConfiguration interface {
-	// SetMFAService wires the optional MFA gate. Pass nil to disable the
-	// gate (login then behaves exactly as LoginWithAudit).
-	SetMFAService(svc MFAService)
-}
-
 // AuthService defines the operations for authentication and user
 // management. Each subject declares its operations next to its
 // implementation.
 type AuthService interface {
 	SessionOperations
-	MFAGateConfiguration
-	RegistrationOperations
-	CredentialOperations
-	AccountAdministrationOperations
-	PasswordResetOperations
 	StaffPreviewOperations
 	ParentAccountOperations
 }

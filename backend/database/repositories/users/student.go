@@ -1924,42 +1924,6 @@ func (r *StudentRepository) PurgeAllPhotos(ctx context.Context) ([]string, error
 	return urls, nil
 }
 
-// FindByNameAndClass retrieves students by first name, last name, and school
-// class (for import duplicate detection). Matching is case-insensitive and
-// trims BOTH sides: a stored name with surrounding whitespace must not slip
-// past the class-list duplicate guards (mirror of
-// ClassListEntryRepository.FindByNameAndClass).
-//
-// Alumni are excluded, matching the soft-delete default in List: graduation
-// keeps the student row around, and a graduate must not block the import of a
-// new child who happens to share their name and class. Before graduation became
-// a soft delete the row was gone and could not collide; leaving it visible here
-// would reject that import as already_exists (#405 review).
-func (r *StudentRepository) FindByNameAndClass(ctx context.Context, firstName, lastName, schoolClass string) ([]*users.Student, error) {
-	var students []*users.Student
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&students).
-		ModelTableExpr(`users.students AS "student"`).
-		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
-		Where(`LOWER(BTRIM("person".first_name)) = LOWER(BTRIM(?))`, firstName).
-		Where(`LOWER(BTRIM("person".last_name)) = LOWER(BTRIM(?))`, lastName).
-		Where(`LOWER(BTRIM("student".school_class)) = LOWER(BTRIM(?))`, schoolClass).
-		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
-
-	query = base.WithTenantFilter(ctx, query, "student")
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by name and class",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	return students, nil
-}
-
 // UpdateStatus changes the lifecycle status of a single student. Tenant-scoped
 // via context. Returns an error if no row was affected (wrong tenant or
 // missing student).

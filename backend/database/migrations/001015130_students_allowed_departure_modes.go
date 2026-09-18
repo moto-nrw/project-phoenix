@@ -32,8 +32,6 @@ func init() {
 }
 
 func studentsAllowedDepartureModesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.130: Adding allowed_departure_modes to users.students...")
-
 	if _, err := db.NewRaw(`
 		ALTER TABLE users.students
 			ADD COLUMN IF NOT EXISTS allowed_departure_modes JSONB NOT NULL DEFAULT '{}'::jsonb;
@@ -118,13 +116,17 @@ func studentsAllowedDepartureModesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func studentsAllowedDepartureModesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.130: Removing allowed_departure_modes from users.students...")
-
 	if _, err := db.NewRaw(`
 		ALTER TABLE users.students
 			DROP CONSTRAINT IF EXISTS check_students_allowed_departure_modes,
 			DROP COLUMN IF EXISTS allowed_departure_modes;
-		DROP FUNCTION IF EXISTS users.is_valid_allowed_departure_modes(JSONB);
+		-- 1.15.393 made this validator shared: keep the drop, but leave it
+		-- standing for a table whose CHECK still depends on it.
+		DO $$ BEGIN
+			DROP FUNCTION IF EXISTS users.is_valid_allowed_departure_modes(JSONB);
+		EXCEPTION WHEN dependent_objects_still_exist THEN
+			RAISE NOTICE 'users.is_valid_allowed_departure_modes kept: %', SQLERRM;
+		END $$;
 	`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed removing users.students.allowed_departure_modes: %w", err)
 	}

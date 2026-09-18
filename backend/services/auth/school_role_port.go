@@ -3,7 +3,9 @@ package auth
 import (
 	"context"
 	"errors"
+	"strings"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 )
 
@@ -47,42 +49,44 @@ var (
 	ErrRoleLehrkraftCaregiverProfile = errors.New("Das Konto hat ein Betreuungsprofil an dieser Schule und kann nicht auf Lehrkraft umgestellt werden") //nolint:staticcheck // ST1005: user-facing German message
 )
 
-// validateAssignableSchoolRole resolves a role and refuses it when the school-
-// role policy does not allow it for tenantID. A lookup that failed for any
-// other reason than a missing row (DB unreachable, RLS) is not a verdict on
-// the role and is passed through, so callers log it and answer 500 instead of
-// telling the user the role is gone.
-func validateAssignableSchoolRole(
-	ctx context.Context,
-	repo authModels.RoleRepository,
-	policy SchoolIdentityProvisioning,
-	roleID, tenantID int64,
-) (*authModels.Role, error) {
-	if roleID <= 0 {
-		return nil, ErrRoleNotAssignable
-	}
-	role, err := repo.FindByID(ctx, roleID)
+// ResolveSystemRoleByName looks up the platform system role with that name,
+// matching case-insensitively; a school's own role never matches. Returns
+// (nil, nil) when no system role has the name. Shared by the caregiver
+// capability and the operator provisioning, which resolve the tier they
+// grant by name.
+func ResolveSystemRoleByName(ctx context.Context, repo authModels.RoleRepository, name string) (*authModels.Role, error) {
+	roles, err := repo.List(ctx, map[string]interface{}{
+		"name":      strings.TrimSpace(strings.ToLower(name)),
+		"is_system": true,
+	})
 	if err != nil {
-		if !isNotFoundError(err) {
-			return nil, err
-		}
-		return nil, ErrRoleNotAssignable
-	}
-	if role == nil {
-		return nil, ErrRoleNotAssignable
-	}
-	if policy == nil {
-		return nil, ErrAccountLifecycleUnavailable
-	}
-	if err := policy.ValidateAssignableSchoolRole(RoleFactsOf(role), tenantID); err != nil {
 		return nil, err
 	}
-	return role, nil
+	for _, role := range roles {
+		if role == nil {
+			continue
+		}
+		if role.TenantID == nil && role.IsSystem && strings.EqualFold(role.Name, name) {
+			return role, nil
+		}
+	}
+	return nil, nil
 }
 
-// isLehrkraftRole reports whether the role is the platform Lehrkraft role.
-// Without a composed policy no role is classified as Lehrkraft; the flows
-// that must refuse it validate the role through the policy first.
-func isLehrkraftRole(policy SchoolIdentityProvisioning, role *authModels.Role) bool {
-	return policy != nil && role != nil && policy.IsLehrkraftSystemRole(RoleFactsOf(role))
+// CanGrantRole answers whether an account holding actorPermissions may hand
+// the role out to someone else. Security Runtime owns the rule; the school
+// invitation asks it through the composition (#2722).
+func CanGrantRole(role RoleFacts, actorPermissions, rolePermissions []string) bool {
+	return authorize.CanGrantRole(grantedRole{facts: role, permissions: rolePermissions}, actorPermissions)
+}
+
+// grantedRole presents the role facts and the role's effective permissions
+// to the decision without a persistence model.
+type grantedRole struct {
+	facts       RoleFacts
+	permissions []string
+}
+
+func (r grantedRole) AuthorizationGrantData() (bool, string, *string, bool, bool, []string) {
+	return true, r.facts.Name, r.facts.BaseRole, r.facts.IsSystem, r.facts.TenantID != nil, r.permissions
 }

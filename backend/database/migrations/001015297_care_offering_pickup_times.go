@@ -22,7 +22,6 @@ func init() {
 }
 
 func careOfferingPickupTimesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.297: Adding care offering pickup times + pickup schedule source...")
 	_, err := db.ExecContext(ctx, `
 		ALTER TABLE enrollment.care_offerings
 			ADD COLUMN IF NOT EXISTS pickup_times JSONB;

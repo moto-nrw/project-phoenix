@@ -11,11 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -50,9 +49,34 @@ func authTestFactoryConfig(rateLimitEnabled bool) services.FactoryConfig {
 	}
 }
 
-func setupAuthService(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) auth.AuthService {
+// testAuthService is the retained auth service the tests drive, plus the
+// account creation the fixtures build their accounts with. Registration and
+// school linking belong to Identity & Access since #3332; the fixture keeps
+// the call shape the tests were written against and drives the owner's
+// capability underneath, so every assertion still describes real behavior.
+type testAuthService interface {
+	auth.AuthService
+	Register(ctx context.Context, email, username, password string, roleID *int64, tenantID int64) (*authModels.Account, error)
+	RegisterSchoolAccount(ctx context.Context, email, username, password string, roleID *int64, tenantID int64, identity *identityaccess.SchoolAccountIdentity) (*authModels.Account, *identityaccess.SchoolIdentity, error)
+	LinkAccountToTenant(ctx context.Context, email string, roleID *int64, tenantID int64) (*authModels.Account, error)
+	GetAccountByID(ctx context.Context, id int) (*authModels.Account, error)
+	UpdateAccount(ctx context.Context, account *authModels.Account) error
+	ListAccounts(ctx context.Context, filters map[string]any) ([]*authModels.Account, error)
+	GetAccountsByRole(ctx context.Context, roleName string) ([]*authModels.Account, error)
+	ActivateAccount(ctx context.Context, accountID int) error
+	DeactivateAccount(ctx context.Context, accountID int) error
+	ChangePassword(ctx context.Context, accountID int, currentPassword, newPassword string) error
+}
+
+func setupAuthService(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) testAuthService {
 	serviceFactory := setupAuthFactory(t, db, rateLimitEnabled...)
-	return &fixtureOwnedAuthService{AuthService: serviceFactory.Auth, t: t, db: db}
+	return &fixtureOwnedAuthService{
+		AuthService:    serviceFactory.Auth,
+		provisioning:   serviceFactory.AccountAuthentication(),
+		administration: serviceFactory.AccountAuthentication(),
+		t:              t,
+		db:             db,
+	}
 }
 
 // setupAuthFactory composes the service factory the auth service and the
@@ -68,37 +92,92 @@ func setupAuthFactory(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) *servi
 	return serviceFactory
 }
 
-func setupInvitationService(t *testing.T, db *bun.DB) auth.InvitationService {
+func setupInvitationService(t *testing.T, db *bun.DB) services.InvitationCapability {
 	t.Helper()
-	config := authTestFactoryConfig(false)
-	signer, err := jwt.NewTokenAuthWithDurations(config.JWTSecret, config.JWTExpiry, config.JWTRefreshExpiry)
-	require.NoError(t, err)
-	repos, compositionErr := repositories.NewInvitationPersistence(db)
-	require.NoError(t, compositionErr)
-	schoolIdentity, compositionErr := services.NewSchoolIdentityForTests(db, testpkg.TenantRuntime(t, db))
-	require.NoError(t, compositionErr)
-	service := auth.NewInvitationService(auth.InvitationServiceConfig{
-		SchoolIdentity:    schoolIdentity,
-		TokenAuth:         signer,
-		InvitationRepo:    repos.InvitationToken,
-		AccountRepo:       repos.Account,
-		AccountTenantRepo: repos.AccountTenant,
-		RoleRepo:          repos.Role,
-		PermissionRepo:    repos.Permission,
-		AccountRoleRepo:   repos.AccountRole,
-		SchoolRepo:        services.InvitationSchoolsForTests(repos.School, testpkg.TenantRuntime(t, db)),
-		Mailer:            email.NewMockMailer(),
-		FrontendURL:       config.FrontendURL, SchoolURL: config.SchoolURL,
-		InvitationExpiry: 48 * time.Hour, DB: db,
-	})
-	testpkg.SetTenantRuntime(t, service, db)
-	return &fixtureOwnedInvitationService{InvitationService: service, t: t, db: db}
+	service := setupAuthFactory(t, db).Invitation
+	return &fixtureOwnedInvitationService{InvitationCapability: service, t: t, db: db}
 }
 
 type fixtureOwnedAuthService struct {
 	auth.AuthService
-	t  *testing.T
-	db *bun.DB
+	provisioning   identityaccess.AccountProvisioning
+	administration identityaccess.AccountAdministration
+	t              *testing.T
+	db             *bun.DB
+}
+
+// The account administration belongs to Identity & Access since #3332. The
+// fixture keeps the call shape these tests were written against and drives
+// the owner's capability underneath, so every assertion still describes
+// real behavior.
+
+func (s *fixtureOwnedAuthService) GetAccountByID(ctx context.Context, id int) (*authModels.Account, error) {
+	account, err := s.administration.FindManageableAccount(ctx, int64(id))
+	if err != nil {
+		return nil, err
+	}
+	return managedAccountModel(account), nil
+}
+
+func (s *fixtureOwnedAuthService) UpdateAccount(ctx context.Context, account *authModels.Account) error {
+	return s.administration.UpdateManageableAccount(ctx, identityaccess.AccountIdentityUpdate{
+		AccountID: account.ID, Email: account.Email, Username: account.Username,
+	})
+}
+
+func (s *fixtureOwnedAuthService) ListAccounts(ctx context.Context, filters map[string]any) ([]*authModels.Account, error) {
+	var filter identityaccess.AccountListFilter
+	if email, ok := filters["email"].(string); ok {
+		filter.Email = email
+	}
+	if active, ok := filters["active"].(bool); ok {
+		filter.Active = &active
+	}
+	accounts, err := s.administration.ListManageableAccounts(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	return managedAccountModels(accounts), nil
+}
+
+func (s *fixtureOwnedAuthService) GetAccountsByRole(ctx context.Context, roleName string) ([]*authModels.Account, error) {
+	accounts, err := s.administration.ListManageableAccountsByRole(ctx, roleName)
+	if err != nil {
+		return nil, err
+	}
+	return managedAccountModels(accounts), nil
+}
+
+func (s *fixtureOwnedAuthService) ActivateAccount(ctx context.Context, accountID int) error {
+	return s.administration.ActivateAccount(ctx, int64(accountID))
+}
+
+func (s *fixtureOwnedAuthService) DeactivateAccount(ctx context.Context, accountID int) error {
+	return s.administration.DeactivateAccount(ctx, int64(accountID))
+}
+
+func (s *fixtureOwnedAuthService) ChangePassword(ctx context.Context, accountID int, currentPassword, newPassword string) error {
+	return s.administration.ChangeAccountPassword(ctx, int64(accountID), currentPassword, newPassword)
+}
+
+// managedAccountModel is the retained account shape the assertions read.
+func managedAccountModel(account identityaccess.ManagedAccount) *authModels.Account {
+	username := account.Username
+	return &authModels.Account{
+		Model:     modelBase.Model{ID: account.ID, CreatedAt: account.CreatedAt, UpdatedAt: account.UpdatedAt},
+		Email:     account.Email,
+		Username:  &username,
+		Active:    account.Active,
+		LastLogin: account.LastLogin,
+	}
+}
+
+func managedAccountModels(accounts []identityaccess.ManagedAccount) []*authModels.Account {
+	models := make([]*authModels.Account, 0, len(accounts))
+	for _, account := range accounts {
+		models = append(models, managedAccountModel(account))
+	}
+	return models
 }
 
 func (s *fixtureOwnedAuthService) Register(
@@ -107,10 +186,7 @@ func (s *fixtureOwnedAuthService) Register(
 	roleID *int64,
 	tenantID int64,
 ) (*authModels.Account, error) {
-	account, err := s.AuthService.Register(ctx, email, username, password, roleID, tenantID)
-	if account != nil {
-		testpkg.OwnTestAccount(s.t, s.db, account.ID)
-	}
+	account, _, err := s.RegisterSchoolAccount(ctx, email, username, password, roleID, tenantID, nil)
 	return account, err
 }
 
@@ -119,29 +195,59 @@ func (s *fixtureOwnedAuthService) RegisterSchoolAccount(
 	email, username, password string,
 	roleID *int64,
 	tenantID int64,
-	identity *auth.SchoolAccountIdentity,
-) (*authModels.Account, *auth.SchoolIdentity, error) {
-	account, schoolIdentity, err := s.AuthService.RegisterSchoolAccount(
-		ctx, email, username, password, roleID, tenantID, identity)
-	if account != nil {
-		testpkg.OwnTestAccount(s.t, s.db, account.ID)
+	identity *identityaccess.SchoolAccountIdentity,
+) (*authModels.Account, *identityaccess.SchoolIdentity, error) {
+	provisioned, err := s.provisioning.RegisterSchoolAccount(ctx, identityaccess.SchoolAccountRegistration{
+		TenantID: tenantID, Email: email, Username: username, Password: password,
+		RoleID: roleID, Identity: identity,
+	})
+	if err != nil {
+		return nil, nil, err
 	}
-	return account, schoolIdentity, err
+	testpkg.OwnTestAccount(s.t, s.db, provisioned.Account.ID)
+	return registeredAccountModel(provisioned.Account), provisioned.Identity, nil
+}
+
+func (s *fixtureOwnedAuthService) LinkAccountToTenant(
+	ctx context.Context,
+	email string,
+	roleID *int64,
+	tenantID int64,
+) (*authModels.Account, error) {
+	provisioned, err := s.provisioning.LinkSchoolAccount(ctx, identityaccess.SchoolAccountLink{
+		TenantID: tenantID, Email: email, RoleID: roleID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return registeredAccountModel(provisioned.Account), nil
+}
+
+// registeredAccountModel is the retained account shape the assertions read.
+func registeredAccountModel(account identityaccess.RegisteredAccount) *authModels.Account {
+	username := account.Username
+	return &authModels.Account{
+		Model:     modelBase.Model{ID: account.ID, CreatedAt: account.CreatedAt, UpdatedAt: account.UpdatedAt},
+		Email:     account.Email,
+		Username:  &username,
+		Active:    account.Active,
+		LastLogin: account.LastLogin,
+	}
 }
 
 type fixtureOwnedInvitationService struct {
-	auth.InvitationService
+	services.InvitationCapability
 	t  *testing.T
 	db *bun.DB
 }
 
-func (s *fixtureOwnedInvitationService) AcceptInvitation(
+func (s *fixtureOwnedInvitationService) AcceptSchoolInvitation(
 	ctx context.Context,
 	token string,
-	userData auth.UserRegistrationData,
-) (*authModels.Account, error) {
-	account, err := s.InvitationService.AcceptInvitation(ctx, token, userData)
-	if account != nil {
+	registration identityaccess.InvitationRegistration,
+) (identityaccess.Account, error) {
+	account, err := s.InvitationCapability.AcceptSchoolInvitation(ctx, token, registration)
+	if account.ID != 0 {
 		testpkg.OwnTestAccount(s.t, s.db, account.ID)
 	}
 	return account, err
@@ -153,17 +259,6 @@ func uniqueTestCredentials(prefix string) (email, username string) {
 	email = fmt.Sprintf("%s-%s@test.local", prefix, uniqueID)
 	username = fmt.Sprintf("%s-%s", prefix, uniqueID)
 	return
-}
-
-func ownPasswordResetRateLimit(t *testing.T, db *bun.DB, email string) {
-	t.Helper()
-	t.Cleanup(func() {
-		_, err := db.NewDelete().
-			TableExpr("auth.password_reset_rate_limits").
-			Where("email = ?", strings.ToLower(email)).
-			Exec(context.Background())
-		require.NoError(t, err)
-	})
 }
 
 // =============================================================================
@@ -232,7 +327,7 @@ func TestAuthService_Register(t *testing.T) {
 
 		require.Error(t, err)
 		assert.Nil(t, account)
-		assert.True(t, errors.Is(err, auth.ErrTenantRequiredForRoleAssignment))
+		assert.True(t, errors.Is(err, identityaccess.ErrTenantRequiredForRoleAssignment))
 
 		var accountCount int
 		err = db.NewSelect().
@@ -369,7 +464,7 @@ func TestAuthService_Login_ConcurrentIssuanceKeepsFiveActiveSessions(t *testing.
 	}
 
 	const concurrency = 8
-	issuers := make([]auth.AuthService, concurrency)
+	issuers := make([]testAuthService, concurrency)
 	for i := range issuers {
 		issuers[i] = setupAuthService(t, db)
 	}
@@ -2038,14 +2133,15 @@ func TestAuthService_UpdateAccount(t *testing.T) {
 	service := setupAuthService(t, db)
 	ctx := testpkg.Ctx(t)
 
-	t.Run("updates account successfully", func(t *testing.T) {
+	t.Run("updates the address and leaves the account enabled", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("updateacct")
 		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
-		account.Active = false
+		renamed, _ := uniqueTestCredentials("updateacct-renamed")
+		account.Email = renamed
 
 		// ACT
 		err = service.UpdateAccount(ctx, account)
@@ -2053,10 +2149,12 @@ func TestAuthService_UpdateAccount(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 
-		// Verify update
 		updated, err := service.GetAccountByID(ctx, int(account.ID))
 		require.NoError(t, err)
-		assert.False(t, updated.IsActive())
+		assert.Equal(t, renamed, updated.Email)
+		// An identity update never disables an account: that is the
+		// deactivation command, which revokes the sessions with it (#3332).
+		assert.True(t, updated.IsActive())
 	})
 }
 
@@ -2080,46 +2178,6 @@ func TestAuthService_GetAccountsByRole(t *testing.T) {
 
 // NOTE: GetAccountsWithRolesAndPermissions test is skipped because the repository
 // uses unqualified table names that may not work in all test database configurations.
-
-// =============================================================================
-// Cleanup Functions Tests
-// =============================================================================
-
-func TestAuthService_CleanupExpiredPasswordResetTokens(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("cleans up expired tokens without error", func(t *testing.T) {
-		// ACT
-		count, err := service.CleanupExpiredPasswordResetTokens(ctx)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, count, 0)
-	})
-}
-
-func TestAuthService_CleanupExpiredRateLimits(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("cleans up expired rate limits without error", func(t *testing.T) {
-		// ACT
-		count, err := service.CleanupExpiredRateLimits(ctx)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, count, 0)
-	})
-}
 
 // =============================================================================
 // Parent Account Tests (Additional Coverage)
@@ -2197,7 +2255,7 @@ func TestInvitationService_ListPendingInvitations(t *testing.T) {
 
 	t.Run("returns list without error", func(t *testing.T) {
 		// ACT
-		_, err := invitationService.ListPendingInvitations(ctx)
+		_, err := invitationService.ListPendingSchoolInvitations(ctx)
 
 		// ASSERT - no error means success (empty list is valid)
 		require.NoError(t, err)
@@ -2215,7 +2273,7 @@ func TestInvitationService_CleanupExpiredInvitations(t *testing.T) {
 
 	t.Run("cleans up expired invitations without error", func(t *testing.T) {
 		// ACT
-		count, err := invitationService.CleanupExpiredInvitations(ctx)
+		count, err := invitationService.DeleteExpiredSchoolInvitations(ctx)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -2244,7 +2302,7 @@ func TestInvitationService_CreateInvitation(t *testing.T) {
 		inviteeEmail := fmt.Sprintf("invitee-%d@test.local", time.Now().UnixNano())
 
 		// ACT
-		invitation, err := invitationService.CreateInvitation(ctx, auth.InvitationRequest{
+		invitation, err := invitationService.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
 			Email:     inviteeEmail,
 			RoleID:    role.ID,
 			CreatedBy: creator.ID,
@@ -2271,7 +2329,7 @@ func TestInvitationService_CreateInvitation(t *testing.T) {
 		mixedCaseEmail := fmt.Sprintf("MixedCase-%d@Test.Local", time.Now().UnixNano())
 
 		// ACT
-		invitation, err := invitationService.CreateInvitation(ctx, auth.InvitationRequest{
+		invitation, err := invitationService.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
 			Email:     mixedCaseEmail,
 			RoleID:    role.ID,
 			CreatedBy: creator.ID,
@@ -2309,7 +2367,7 @@ func TestInvitationService_ValidateInvitation(t *testing.T) {
 		)
 
 		// ACT
-		result, err := invitationService.ValidateInvitation(ctx, invitation.Token)
+		result, err := invitationService.ValidateSchoolInvitation(ctx, invitation.Token)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -2334,16 +2392,16 @@ func TestInvitationService_ValidateInvitation(t *testing.T) {
 		)
 
 		// ACT
-		_, err = invitationService.ValidateInvitation(ctx, invitation.Token)
+		_, err = invitationService.ValidateSchoolInvitation(ctx, invitation.Token)
 
 		// ASSERT
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, auth.ErrInvitationExpired))
+		assert.True(t, errors.Is(err, identityaccess.ErrInvitationExpired))
 	})
 
 	t.Run("returns error for non-existent token", func(t *testing.T) {
 		// ACT
-		_, err := invitationService.ValidateInvitation(ctx, "non-existent-token-12345")
+		_, err := invitationService.ValidateSchoolInvitation(ctx, "non-existent-token-12345")
 
 		// ASSERT
 		require.Error(t, err)
@@ -2373,7 +2431,7 @@ func TestInvitationService_AcceptInvitation(t *testing.T) {
 		)
 
 		// ACT
-		account, err := invitationService.AcceptInvitation(ctx, invitation.Token, auth.UserRegistrationData{
+		account, err := invitationService.AcceptSchoolInvitation(ctx, invitation.Token, identityaccess.InvitationRegistration{
 			FirstName:       "Katherine",
 			LastName:        "Johnson",
 			Password:        testPassword,
@@ -2382,14 +2440,18 @@ func TestInvitationService_AcceptInvitation(t *testing.T) {
 
 		// ASSERT
 		require.NoError(t, err)
-		require.NotNil(t, account)
+		require.NotZero(t, account.ID)
 		assert.Equal(t, invitation.Email, account.Email)
-		assert.True(t, account.Active)
+		// The accepted account can sign in: the owner stores it active, which
+		// the retained contract used to assert on a fabricated field.
+		var active bool
+		require.NoError(t, db.NewRaw(`SELECT active FROM auth.accounts WHERE id = ?`, account.ID).Scan(ctx, &active))
+		assert.True(t, active)
 
 		// Verify the invitation is now marked as used
-		_, err = invitationService.ValidateInvitation(ctx, invitation.Token)
+		_, err = invitationService.ValidateSchoolInvitation(ctx, invitation.Token)
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, auth.ErrInvitationUsed))
+		assert.True(t, errors.Is(err, identityaccess.ErrInvitationUsed))
 	})
 
 	t.Run("rejects weak password", func(t *testing.T) {
@@ -2406,7 +2468,7 @@ func TestInvitationService_AcceptInvitation(t *testing.T) {
 		)
 
 		// ACT
-		_, err = invitationService.AcceptInvitation(ctx, invitation.Token, auth.UserRegistrationData{
+		_, err = invitationService.AcceptSchoolInvitation(ctx, invitation.Token, identityaccess.InvitationRegistration{
 			FirstName:       "Test",
 			LastName:        "User",
 			Password:        "weak",
@@ -2415,10 +2477,10 @@ func TestInvitationService_AcceptInvitation(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, auth.ErrPasswordTooWeak))
+		assert.True(t, errors.Is(err, identityaccess.ErrPasswordTooWeak))
 
 		// Verify invitation is NOT marked as used
-		_, err = invitationService.ValidateInvitation(ctx, invitation.Token)
+		_, err = invitationService.ValidateSchoolInvitation(ctx, invitation.Token)
 		require.NoError(t, err) // Should still be valid
 	})
 
@@ -2436,7 +2498,7 @@ func TestInvitationService_AcceptInvitation(t *testing.T) {
 		)
 
 		// ACT
-		_, err = invitationService.AcceptInvitation(ctx, invitation.Token, auth.UserRegistrationData{
+		_, err = invitationService.AcceptSchoolInvitation(ctx, invitation.Token, identityaccess.InvitationRegistration{
 			FirstName:       "Test",
 			LastName:        "User",
 			Password:        testPassword,
@@ -2445,7 +2507,7 @@ func TestInvitationService_AcceptInvitation(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, auth.ErrInvitationExpired))
+		assert.True(t, errors.Is(err, identityaccess.ErrInvitationExpired))
 	})
 }
 
@@ -2472,186 +2534,15 @@ func TestInvitationService_RevokeInvitation(t *testing.T) {
 		)
 
 		// ACT
-		err = invitationService.RevokeInvitation(ctx, invitation.ID, creator.ID)
+		err = invitationService.RevokeSchoolInvitation(ctx, invitation.ID, creator.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify the invitation is now marked as used
-		_, err = invitationService.ValidateInvitation(ctx, invitation.Token)
+		_, err = invitationService.ValidateSchoolInvitation(ctx, invitation.Token)
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, auth.ErrInvitationUsed))
-	})
-}
-
-// =============================================================================
-// Password Reset Integration Tests
-// =============================================================================
-
-func TestAuthService_InitiatePasswordReset(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("creates password reset token for existing account", func(t *testing.T) {
-		// ARRANGE - Create an account
-		email := fmt.Sprintf("reset-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("resetuser%d", time.Now().UnixNano()), testPassword, nil, 0)
-		require.NoError(t, err)
-		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
-
-		// ACT
-		token, err := service.InitiatePasswordReset(ctx, email)
-
-		// ASSERT
-		require.NoError(t, err)
-		require.NotNil(t, token)
-		assert.NotEmpty(t, token.Token)
-		assert.Equal(t, account.ID, token.AccountID)
-		assert.True(t, token.Expiry.After(time.Now()))
-	})
-
-	t.Run("returns nil for non-existent email (security by design)", func(t *testing.T) {
-		// NOTE: The service intentionally returns (nil, nil) for non-existent emails
-		// to avoid revealing whether an email address exists in the system.
-
-		// ACT
-		token, err := service.InitiatePasswordReset(ctx, "nonexistent-for-reset@test.local")
-
-		// ASSERT - Both should be nil (no error, no token)
-		require.NoError(t, err)
-		assert.Nil(t, token)
-	})
-}
-
-func TestAuthService_ResetPassword(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("resets password with valid token", func(t *testing.T) {
-		// ARRANGE - Create an account and initiate password reset
-		email := fmt.Sprintf("resetpw-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("resetpw%d", time.Now().UnixNano()), testPassword, nil, 0)
-		require.NoError(t, err)
-		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
-
-		token, err := service.InitiatePasswordReset(ctx, email)
-		require.NoError(t, err)
-
-		newPassword := testNewPassword
-
-		// ACT
-		err = service.ResetPassword(ctx, token.Token, newPassword)
-
-		// ASSERT
-		require.NoError(t, err)
-
-		// Verify we can login with the new password
-		accessToken, refreshToken, err := service.Login(ctx, email, newPassword)
-		require.NoError(t, err)
-		assert.NotEmpty(t, accessToken)
-		assert.NotEmpty(t, refreshToken)
-	})
-
-	t.Run("rejects weak password", func(t *testing.T) {
-		// ARRANGE
-		email := fmt.Sprintf("weakreset-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("weakreset%d", time.Now().UnixNano()), testPassword, nil, 0)
-		require.NoError(t, err)
-		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
-
-		token, err := service.InitiatePasswordReset(ctx, email)
-		require.NoError(t, err)
-
-		// ACT
-		err = service.ResetPassword(ctx, token.Token, "weak")
-
-		// ASSERT
-		require.Error(t, err)
-		assert.True(t, errors.Is(err, auth.ErrPasswordTooWeak))
-	})
-
-	t.Run("rejects invalid token", func(t *testing.T) {
-		// ACT
-		err := service.ResetPassword(ctx, "invalid-token-12345", testNewPassword)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.True(t, errors.Is(err, auth.ErrInvalidToken))
-	})
-
-	t.Run("rejects already-used token", func(t *testing.T) {
-		// ARRANGE
-		email := fmt.Sprintf("usedtoken-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("usedtoken%d", time.Now().UnixNano()), testPassword, nil, 0)
-		require.NoError(t, err)
-		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
-
-		token, err := service.InitiatePasswordReset(ctx, email)
-		require.NoError(t, err)
-
-		// Use the token once
-		err = service.ResetPassword(ctx, token.Token, "FirstReset!123")
-		require.NoError(t, err)
-
-		// ACT - Try to use the same token again
-		err = service.ResetPassword(ctx, token.Token, "SecondReset!456")
-
-		// ASSERT
-		require.Error(t, err)
-		assert.True(t, errors.Is(err, auth.ErrInvalidToken))
-	})
-}
-
-func TestAuthService_PasswordResetRateLimit(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db, true)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("allows multiple reset requests within limit", func(t *testing.T) {
-		// ARRANGE
-		email := fmt.Sprintf("ratelimit-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("ratelimit%d", time.Now().UnixNano()), testPassword, nil, 0)
-		require.NoError(t, err)
-		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
-		ownPasswordResetRateLimit(t, db, email)
-
-		// ACT - Request password reset 3 times (within typical rate limit)
-		for i := 0; i < 3; i++ {
-			_, err := service.InitiatePasswordReset(ctx, email)
-			require.NoError(t, err, "Request %d should succeed", i+1)
-		}
-	})
-
-	t.Run("blocks requests after exceeding rate limit", func(t *testing.T) {
-		// ARRANGE
-		email := fmt.Sprintf("exceededlimit-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("exceededlimit%d", time.Now().UnixNano()), testPassword, nil, 0)
-		require.NoError(t, err)
-		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
-		ownPasswordResetRateLimit(t, db, email)
-
-		// Make 3 requests (the typical limit)
-		for i := 0; i < 3; i++ {
-			_, err := service.InitiatePasswordReset(ctx, email)
-			require.NoError(t, err)
-		}
-
-		// ACT - The 4th request should be rate limited
-		_, err = service.InitiatePasswordReset(ctx, email)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.True(t, errors.Is(err, auth.ErrRateLimitExceeded))
+		assert.True(t, errors.Is(err, identityaccess.ErrInvitationUsed))
 	})
 }
 
@@ -2790,147 +2681,6 @@ func TestAuthService_DeactivateParentAccount(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-	})
-}
-
-func TestAuthService_GetAccountsWithRolesAndPermissions(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns accounts with roles and permissions", func(t *testing.T) {
-		// ARRANGE
-		testpkg.CreateTestAccount(t, db, "roles-perms-test")
-
-		// ACT
-		_, err := service.GetAccountsWithRolesAndPermissions(ctx, nil)
-
-		// ASSERT
-		require.NoError(t, err)
-		// Result can be empty but should not error
-	})
-
-	t.Run("filters accounts by provided filters", func(t *testing.T) {
-		// ARRANGE
-		testpkg.CreateTestAccount(t, db, "filter-test")
-
-		filters := map[string]interface{}{
-			"active": true,
-		}
-
-		// ACT
-		result, err := service.GetAccountsWithRolesAndPermissions(ctx, filters)
-
-		// ASSERT
-		require.NoError(t, err)
-		// All returned accounts should be active
-		for _, acc := range result {
-			assert.True(t, acc.Active)
-		}
-	})
-}
-
-// =============================================================================
-// RateLimitError Tests
-// =============================================================================
-
-func TestRateLimitError_Error(t *testing.T) {
-	t.Parallel()
-
-	t.Run("returns error message when Err is set", func(t *testing.T) {
-		// ARRANGE
-		rle := &auth.RateLimitError{
-			Err:      fmt.Errorf("custom rate limit message"),
-			Attempts: 3,
-			RetryAt:  time.Now().Add(time.Hour),
-		}
-
-		// ACT
-		result := rle.Error()
-
-		// ASSERT
-		assert.Equal(t, "custom rate limit message", result)
-	})
-
-	t.Run("returns default message when Err is nil", func(t *testing.T) {
-		// ARRANGE
-		rle := &auth.RateLimitError{
-			Err:      nil,
-			Attempts: 3,
-			RetryAt:  time.Now().Add(time.Hour),
-		}
-
-		// ACT
-		result := rle.Error()
-
-		// ASSERT
-		assert.Equal(t, "rate limit exceeded", result)
-	})
-}
-
-func TestRateLimitError_RetryAfterSeconds(t *testing.T) {
-	t.Parallel()
-
-	t.Run("returns positive seconds when retry is in future", func(t *testing.T) {
-		// ARRANGE
-		now := time.Now()
-		rle := &auth.RateLimitError{
-			Err:      auth.ErrRateLimitExceeded,
-			Attempts: 3,
-			RetryAt:  now.Add(30 * time.Second),
-		}
-
-		// ACT
-		result := rle.RetryAfterSeconds(now)
-
-		// ASSERT
-		assert.GreaterOrEqual(t, result, 29)
-		assert.LessOrEqual(t, result, 31)
-	})
-
-	t.Run("returns zero when retry is in past", func(t *testing.T) {
-		// ARRANGE
-		now := time.Now()
-		rle := &auth.RateLimitError{
-			Err:      auth.ErrRateLimitExceeded,
-			Attempts: 3,
-			RetryAt:  now.Add(-30 * time.Second), // In the past
-		}
-
-		// ACT
-		result := rle.RetryAfterSeconds(now)
-
-		// ASSERT
-		assert.Equal(t, 0, result)
-	})
-
-	t.Run("returns zero when RetryAt is zero", func(t *testing.T) {
-		// ARRANGE
-		rle := &auth.RateLimitError{
-			Err:      auth.ErrRateLimitExceeded,
-			Attempts: 3,
-			RetryAt:  time.Time{}, // Zero time
-		}
-
-		// ACT
-		result := rle.RetryAfterSeconds(time.Now())
-
-		// ASSERT
-		assert.Equal(t, 0, result)
-	})
-
-	t.Run("returns zero for nil receiver", func(t *testing.T) {
-		// ARRANGE
-		var rle *auth.RateLimitError = nil
-
-		// ACT
-		result := rle.RetryAfterSeconds(time.Now())
-
-		// ASSERT
-		assert.Equal(t, 0, result)
 	})
 }
 
@@ -3073,7 +2823,7 @@ func TestAcceptInvitation_WithTenantID_CreatesAccountTenant(t *testing.T) {
 	ctx := testpkg.TenantContext(tenantID)
 	email := fmt.Sprintf("invite-tenant-%d@test.local", time.Now().UnixNano())
 
-	invitation, err := invService.CreateInvitation(ctx, auth.InvitationRequest{
+	invitation, err := invService.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
 		Email:     email,
 		RoleID:    role.ID,
 		CreatedBy: 1,
@@ -3084,7 +2834,7 @@ func TestAcceptInvitation_WithTenantID_CreatesAccountTenant(t *testing.T) {
 	require.NotNil(t, invitation)
 
 	// ACT — accept the invitation (public route, no tenant in ctx)
-	account, err := invService.AcceptInvitation(context.Background(), invitation.Token, auth.UserRegistrationData{
+	account, err := invService.AcceptSchoolInvitation(context.Background(), invitation.Token, identityaccess.InvitationRegistration{
 		FirstName:       "Test",
 		LastName:        "User",
 		Password:        testPassword,
@@ -3219,9 +2969,9 @@ func TestAuthService_LinkAccountToTenant(t *testing.T) {
 		require.Error(t, err)
 		assert.Nil(t, result)
 
-		var authErr *auth.AuthError
+		var authErr *identityaccess.AuthenticationError
 		require.True(t, errors.As(err, &authErr))
-		assert.True(t, errors.Is(authErr.Err, auth.ErrAccountNotFound))
+		assert.True(t, errors.Is(authErr.Err, identityaccess.ErrAccountNotFound))
 	})
 
 	t.Run("returns error for inactive account", func(t *testing.T) {
@@ -3245,9 +2995,9 @@ func TestAuthService_LinkAccountToTenant(t *testing.T) {
 		require.Error(t, err)
 		assert.Nil(t, result)
 
-		var authErr *auth.AuthError
+		var authErr *identityaccess.AuthenticationError
 		require.True(t, errors.As(err, &authErr))
-		assert.True(t, errors.Is(authErr.Err, auth.ErrAccountInactive))
+		assert.True(t, errors.Is(authErr.Err, identityaccess.ErrAccountInactive))
 	})
 
 	t.Run("idempotent when already linked", func(t *testing.T) {
@@ -3348,7 +3098,7 @@ func TestInvitationService_InvalidatePendingInvitationsByTenantID_Success(t *tes
 	testpkg.CreateTestInvitationToken(t, db, "svc-invalidate@example.com", role.ID, creator.ID, time.Now().Add(48*time.Hour))
 
 	// ACT
-	count, err := service.InvalidatePendingInvitationsByTenantID(ctx, testpkg.Tenant(t))
+	count, err := service.RevokeTenantSchoolInvitations(ctx, testpkg.Tenant(t))
 
 	// ASSERT
 	require.NoError(t, err)

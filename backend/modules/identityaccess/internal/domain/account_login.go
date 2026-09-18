@@ -90,8 +90,13 @@ type School struct {
 	OrganizationID int64
 	Name           string
 	Slug           string
-	Active         bool
-	Deleted        bool
+	// Subdomain is the host label tenant routing resolves by (#1977).
+	Subdomain string
+	Active    bool
+	Deleted   bool
+	// LogoURL is the school's branding image, as the public invitation
+	// pages show it. Empty when the school configured none.
+	LogoURL string
 }
 
 // Live reports whether the school can be logged into on any portal.
@@ -306,6 +311,13 @@ const (
 	AuthEventTokenRevoked             = "token_revoked"
 	AuthEventAccountWideWipeCompleted = "account_wide_wipe_completed"
 	AuthEventTenantSwitch             = "tenant_switch"
+	AuthEventMFAEmailSent             = "mfa_email_sent"
+	AuthEventMFAVerified              = "mfa_verified"
+	AuthEventMFAFailed                = "mfa_failed"
+	AuthEventMFALocked                = "mfa_locked"
+	AuthEventMFADisabled              = "mfa_disabled"
+	AuthEventMFATrustedDeviceAdded    = "mfa_trusted_device_added"
+	AuthEventMFAAdminOverride         = "mfa_admin_override"
 )
 
 // InternalRevocationAuditIP marks revocation evidence no client request
@@ -331,6 +343,8 @@ type AuthEvent struct {
 	PendingWipe *PendingWipeEvidence
 	// CompletedWipe is set on account_wide_wipe_completed events.
 	CompletedWipe *CompletedWipeEvidence
+	// MFA is set on the mfa_* events (#3331).
+	MFA *MFAEvidence
 }
 
 // TenantAccessEvidence describes an operator-led change of the school

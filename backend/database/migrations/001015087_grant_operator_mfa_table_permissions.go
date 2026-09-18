@@ -21,8 +21,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.87: Granting phoenix_auth access to platform.operator_mfa_* tables...")
-
 			// platform.operator_mfa_* tables are accessed from
 			// /operator/auth/mfa/* handlers, which run on the phoenix_auth
 			// connection (outside any tenant transaction). Mirrors the
@@ -46,12 +44,9 @@ func init() {
 				}
 			}
 
-			fmt.Println("Migration 1.15.87: Done")
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.87: Revoking phoenix_auth access to platform.operator_mfa_* tables...")
-
 			tables := []string{
 				"operator_mfa_credentials",
 				"operator_mfa_email_challenges",

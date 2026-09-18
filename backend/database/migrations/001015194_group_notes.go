@@ -32,8 +32,6 @@ func init() {
 }
 
 func groupNotesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.194: Adding notes (Wochennotiz) column to activities.groups...")
-
 	// Durable series note lives ONLY on the template. It is joined onto every
 	// materialized instance at read time, so it survives ReplanWeek and the
 	// series split without any instance-table column (mirrors required_staff).
@@ -51,8 +49,6 @@ func groupNotesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func groupNotesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.194: Removing notes column from activities.groups...")
-
 	_, err := db.NewRaw(`
 		ALTER TABLE activities.groups DROP COLUMN IF EXISTS notes;
 	`).Exec(ctx)

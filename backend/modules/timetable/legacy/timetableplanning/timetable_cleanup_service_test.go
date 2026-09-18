@@ -9,12 +9,12 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	scheduleRepoPkg "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -136,8 +136,8 @@ func setupFixture(t *testing.T) (*instFixture, int64) {
 func newCleanupSvc(db *bun.DB) timetableplanning.TimetableCleanupService {
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	return timetableplanning.NewTimetableCleanupService(
-		scheduleRepoPkg.NewActivityInstanceRepository(db),
-		scheduleRepoPkg.NewActivityExceptionRepository(db),
+		timetablesqltest.NewActivityInstanceRepository(db),
+		timetablesqltest.NewActivityExceptionRepository(db),
 		testInstanceStudents(db),
 		repos.DataDeletion,
 		repos.DeviationEvent,
@@ -288,8 +288,8 @@ func TestCleanup_RetentionOverride_UsesOverriddenDays(t *testing.T) {
 	f, roomID := setupFixture(t)
 	repos := repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db))
 	svc := timetableplanning.NewTimetableCleanupService(
-		scheduleRepoPkg.NewActivityInstanceRepository(f.db),
-		scheduleRepoPkg.NewActivityExceptionRepository(f.db),
+		timetablesqltest.NewActivityInstanceRepository(f.db),
+		timetablesqltest.NewActivityExceptionRepository(f.db),
 		testInstanceStudents(f.db),
 		repos.DataDeletion,
 		repos.DeviationEvent,
@@ -541,8 +541,8 @@ func TestCleanup_AuditWriteFailure_BubblesError(t *testing.T) {
 	f.attachStudent(t, instID, student.ID, nil)
 
 	svc := timetableplanning.NewTimetableCleanupService(
-		scheduleRepoPkg.NewActivityInstanceRepository(f.db),
-		scheduleRepoPkg.NewActivityExceptionRepository(f.db),
+		timetablesqltest.NewActivityInstanceRepository(f.db),
+		timetablesqltest.NewActivityExceptionRepository(f.db),
 		testInstanceStudents(f.db),
 		&failingAuditRepo{err: errors.New("simulated audit failure")},
 		nil,

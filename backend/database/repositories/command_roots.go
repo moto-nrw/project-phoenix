@@ -5,10 +5,8 @@ import (
 	"fmt"
 
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
@@ -45,24 +43,18 @@ func auditRootRuntime(db *bun.DB) auditRepo.Runtime {
 // CLI composes. The expired session sweep runs through Identity & Access,
 // which the composition binds to the school and person lookups here (#3251).
 type AuthCleanupRepositories struct {
-	School                 organizationtenancy.Capability
-	Person                 userModels.PersonRepository
-	PasswordResetRateLimit authModels.PasswordResetRateLimitRepository
-	AuthEvent              auditModels.AuthEventRepository
-	PushSubscription       deliveryModels.PushSubscriptionRepository
+	School           organizationtenancy.Capability
+	Person           userModels.PersonRepository
+	AuthEvent        auditModels.AuthEventRepository
+	PushSubscription deliveryModels.PushSubscriptionRepository
 }
 
 func NewAuthCleanupRepositories(db *bun.DB, command auditModels.Command) AuthCleanupRepositories {
 	authEvents := auditRepo.NewAuthEventRepository(auditRootRuntime(db))
 	return AuthCleanupRepositories{
 		School: mustNewOrganizationTenancy(db), Person: NewPersonRepository(db),
-		PasswordResetRateLimit: authRepo.NewPasswordResetRateLimitRepository(db),
-		AuthEvent:              RouteAuthEventWrites(authEvents, command), PushSubscription: deliveryCompose.NewPushSubscriptionRepository(db),
+		AuthEvent: RouteAuthEventWrites(authEvents, command), PushSubscription: deliveryCompose.NewPushSubscriptionRepository(db),
 	}
-}
-
-func NewInvitationCleanupRepository(db *bun.DB) authModels.InvitationTokenRepository {
-	return authRepo.NewInvitationTokenRepository(db)
 }
 
 type SessionCleanupRepositories struct {

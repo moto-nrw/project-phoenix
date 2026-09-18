@@ -20,13 +20,13 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
@@ -345,7 +345,7 @@ func (s *service) ensureNoPartialAbsenceForStatusWrite(
 	sortedDates := append([]timezone.Date(nil), dates...)
 	slices.SortFunc(sortedDates, timezone.Date.Compare)
 	for _, date := range sortedDates {
-		if err := scheduleService.LockCareExceptionDay(ctx, s.DB, studentID, date); err != nil {
+		if err := careschedule.LockCareExceptionDay(ctx, s.DB, studentID, date); err != nil {
 			return err
 		}
 	}
@@ -607,7 +607,7 @@ func (s *service) EditPickupChangeRequest(
 		if err != nil {
 			return err
 		}
-		req, editErr := s.CareRequests.EditRequest(txCtx, scheduleService.CareRequestEditInput{
+		req, editErr := s.CareRequests.EditRequest(txCtx, careschedule.CareRequestEditInput{
 			RequestID:         requestID,
 			StudentID:         studentID,
 			GuardianAccountID: accountID,
@@ -713,7 +713,7 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	if !pickupChange {
 		pickupCutoffClock = ""
 	}
-	pickupCutoff, err := scheduleService.NewSameDayCutoff(pickupCutoffClock, s.now())
+	pickupCutoff, err := careschedule.NewSameDayCutoff(pickupCutoffClock, s.now())
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: %w", err)
 	}
@@ -1161,7 +1161,7 @@ func (s *service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
-		if err := scheduleService.LockCareExceptionDay(txCtx, s.DB, studentID, date); err != nil {
+		if err := careschedule.LockCareExceptionDay(txCtx, s.DB, studentID, date); err != nil {
 			return err
 		}
 		staffOwned, checkErr := s.pickupHasStaffException(txCtx, studentID, date)
@@ -1185,7 +1185,7 @@ func (s *service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 		if !policy.enabled {
 			return ErrPickupChangeDisabled
 		}
-		created, createErr := s.CareRequests.CreatePickupChange(txCtx, scheduleService.PickupChangeCreateInput{
+		created, createErr := s.CareRequests.CreatePickupChange(txCtx, careschedule.PickupChangeCreateInput{
 			StudentID:         studentID,
 			GuardianAccountID: accountID,
 			Date:              date,
@@ -1335,7 +1335,7 @@ func (s *service) submitCareException(ctx context.Context, accountID, studentID 
 		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
-		if err := scheduleService.LockCareExceptionDay(txCtx, s.DB, studentID, date); err != nil {
+		if err := careschedule.LockCareExceptionDay(txCtx, s.DB, studentID, date); err != nil {
 			return err
 		}
 
@@ -1638,7 +1638,7 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
-		if err := scheduleService.LockCareExceptionDay(txCtx, s.DB, studentID, date); err != nil {
+		if err := careschedule.LockCareExceptionDay(txCtx, s.DB, studentID, date); err != nil {
 			return err
 		}
 		alreadyLeft, err := s.childAlreadyLeftToday(txCtx, studentID, date, today)

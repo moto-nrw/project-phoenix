@@ -131,25 +131,50 @@ func (rs *Resource) instanceStaffNames(ctx context.Context, instanceID int64) ([
 // only students the caller may read. Alumni are excluded like every other
 // staff read (see resolveStudentForRead).
 func (rs *Resource) visibleParticipants(r *http.Request, rows []*scheduleModel.InstanceStudent) ([]InstanceParticipantResponse, error) {
-	ctx := r.Context()
-
 	studentIDs := make([]int64, 0, len(rows))
 	for _, row := range rows {
 		studentIDs = append(studentIDs, row.StudentID)
 	}
-	students, err := rs.PersonService.GetStudentsByIDs(ctx, studentIDs)
+	names, err := rs.readableStudentNames(r, studentIDs)
 	if err != nil {
 		return nil, err
 	}
 
+	participants := make([]InstanceParticipantResponse, 0, len(names))
+	for studentID, name := range names {
+		participants = append(participants, InstanceParticipantResponse{
+			StudentID:   studentID,
+			DisplayName: name,
+		})
+	}
+	sort.Slice(participants, func(i, j int) bool {
+		if participants[i].DisplayName != participants[j].DisplayName {
+			return participants[i].DisplayName < participants[j].DisplayName
+		}
+		return participants[i].StudentID < participants[j].StudentID
+	})
+	return participants, nil
+}
+
+// readableStudentNames returns the display names of the children the caller
+// may read. Graduated children and children whose care has ended drop out:
+// they are not selectable participants any more (#2487).
+func (rs *Resource) readableStudentNames(r *http.Request, studentIDs []int64) (map[int64]string, error) {
+	result := make(map[int64]string, len(studentIDs))
+	if len(studentIDs) == 0 {
+		return result, nil
+	}
+	ctx := r.Context()
+	students, err := rs.PersonService.GetStudentsByIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, err
+	}
 	perms := jwt.PermissionsFromCtx(ctx)
+	today := rs.todayDate()
 	visible := make([]*usersModel.Student, 0, len(students))
 	personIDs := make([]int64, 0, len(students))
-	today := rs.todayDate()
 	for _, id := range studentIDs {
 		student := students[id]
-		// Graduated children and children whose care has ended are not
-		// selectable participants any more (#2487).
 		if student == nil || student.Status == usersModel.StudentStatusAlumnus || student.CareEndedOn(today) {
 			continue
 		}
@@ -159,25 +184,14 @@ func (rs *Resource) visibleParticipants(r *http.Request, rows []*scheduleModel.I
 		visible = append(visible, student)
 		personIDs = append(personIDs, student.PersonID)
 	}
-
 	persons, err := rs.PersonService.GetByIDs(ctx, personIDs)
 	if err != nil {
 		return nil, err
 	}
-
-	participants := make([]InstanceParticipantResponse, 0, len(visible))
 	for _, student := range visible {
-		person := persons[student.PersonID]
-		if person == nil {
-			continue
+		if person := persons[student.PersonID]; person != nil {
+			result[student.ID] = person.GetFullName()
 		}
-		participants = append(participants, InstanceParticipantResponse{
-			StudentID:   student.ID,
-			DisplayName: person.GetFullName(),
-		})
 	}
-	sort.Slice(participants, func(i, j int) bool {
-		return participants[i].DisplayName < participants[j].DisplayName
-	})
-	return participants, nil
+	return result, nil
 }

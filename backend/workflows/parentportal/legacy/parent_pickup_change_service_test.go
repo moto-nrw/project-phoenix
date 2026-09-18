@@ -15,10 +15,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule/carescheduletest"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/services"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
@@ -54,9 +54,16 @@ func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (parentSer
 
 // buildPickupChangeServiceWithRequests adds the real request service, so the
 // submit/list/withdraw round trip runs against actual rows. configure adjusts
-// the service configuration before the service is built (#3163 uses it to pin
-// the clock and to reuse the wiring for further services).
+// the service configuration before the service is built (#3163 uses it to
+// reuse the wiring for further services).
 func buildPickupChangeServiceWithRequests(t *testing.T, configure ...func(*parentService.ServiceConfig)) (parentService.Service, *bun.DB, *repositories.Factory) {
+	t.Helper()
+	return buildPickupChangeServiceWithRequestOptions(t, nil, configure...)
+}
+
+// buildPickupChangeServiceWithRequestOptions is buildPickupChangeServiceWithRequests
+// with construction options for the request service (#3163 pins its clock).
+func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []careschedule.CareRequestOption, configure ...func(*parentService.ServiceConfig)) (parentService.Service, *bun.DB, *repositories.Factory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
@@ -65,7 +72,7 @@ func buildPickupChangeServiceWithRequests(t *testing.T, configure ...func(*paren
 
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
-	careRequests := scheduleSvc.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+	careRequests := careschedule.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		repos.CareScheduleChangeRequest,
 		repos.Student,
 		repos.Person,
@@ -73,9 +80,9 @@ func buildPickupChangeServiceWithRequests(t *testing.T, configure ...func(*paren
 		sf.PickupSchedule,
 		repos.StudentPickupException,
 		presence,
-		scheduleSvc.NewPickupAutoExcusalSyncer(
+		careschedule.NewPickupAutoExcusalSyncer(
 			repos.StudentPickupException,
-			scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, approvedOfferingProjection(t), repos.CareOffering),
+			carescheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, approvedOfferingProjection(t), repos.CareOffering),
 			repos.InstanceStudent,
 			db,
 		),
@@ -86,6 +93,7 @@ func buildPickupChangeServiceWithRequests(t *testing.T, configure ...func(*paren
 		nil,
 		slog.Default(),
 		sf.StudentAudit,
+		requestOptions...,
 	)
 
 	cfg := parentService.ServiceConfig{

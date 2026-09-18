@@ -190,6 +190,7 @@ type Query interface {
 	InstanceStaffQuery
 	InstanceStudentQuery
 	ConflictAckQuery
+	PickupExtensionQuery
 	FindCategory(context.Context, int64) (Category, error)
 	FindCategoryForAssignment(context.Context, int64) (Category, error)
 	FindCategoryForShare(context.Context, int64) (Category, error)
@@ -224,6 +225,7 @@ type Command interface {
 	InstanceStaffCommand
 	InstanceStudentCommand
 	ConflictAckCommand
+	PickupExtensionCommand
 	CreateCategory(context.Context, CreateCategory) (Category, error)
 	UpdateCategory(context.Context, UpdateCategory) (Category, error)
 	ArchiveCategory(context.Context, int64) (Category, error)
@@ -1914,6 +1916,12 @@ func ErrorCode(err error) string {
 		return "invalid_schedule"
 	case errors.Is(err, ErrInvalidScheduleQuery):
 		return "invalid_schedule_query"
+	case errors.Is(err, ErrInvalidPickupExtension):
+		return "invalid_pickup_extension"
+	case errors.Is(err, ErrPickupExtensionNotFound):
+		return "pickup_extension_not_found"
+	case errors.Is(err, ErrPickupExtensionBlockGone):
+		return "pickup_extension_block_gone"
 	default:
 		return "internal_error"
 	}

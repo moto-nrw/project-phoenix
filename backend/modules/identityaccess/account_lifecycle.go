@@ -37,6 +37,12 @@ var (
 	ErrEmailAlreadyExists    = errors.New("Diese E-Mail-Adresse ist bereits registriert") //nolint:staticcheck // ST1005: user-facing German message
 	ErrUsernameAlreadyExists = errors.New("Dieser Benutzername ist bereits vergeben")     //nolint:staticcheck // ST1005: user-facing German message
 
+	// ErrPasswordTooWeak reports a credential that does not meet the
+	// complexity requirements Security Runtime owns. The module reports it
+	// wherever it accepts a password: registration, the invitation
+	// acceptances, the password reset and the self-service change.
+	ErrPasswordTooWeak = errors.New("password doesn't meet complexity requirements")
+
 	ErrCannotRemovePrimaryGuardian      = errors.New("the primary guardian cannot be removed by a parent")
 	ErrCannotRemoveStaffManagedGuardian = errors.New("staff-managed guardian contacts cannot be removed by a parent")
 	ErrCannotRemoveOwnAccess            = errors.New("a parent cannot remove their own access to a child")
@@ -412,6 +418,7 @@ type AccountLifecycle interface {
 	SchoolIdentityProvisioning
 	ParentAccountAccess
 	GuardianRelativeAccess
+	GuardianInvitations
 }
 
 func (m *Module) AuthenticateStaffPIN(ctx context.Context, tenantID, staffID int64, pin string) (AuthenticatedStaff, error) {

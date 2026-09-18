@@ -32,8 +32,6 @@ func init() {
 }
 
 func templateOfferingSourceUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.266: Adding offering-source columns to activities.groups...")
-
 	// Inverts the CareOffering.ActivityGroupID bridge (#1651): a template may
 	// declare ONE care offering as its roster source plus an optional grade
 	// filter, and the same offering may feed many templates. The legacy
@@ -113,13 +111,10 @@ func templateOfferingSourceUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed creating activities.groups source offering index: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.266: Completed successfully")
 	return nil
 }
 
 func templateOfferingSourceDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.266: Dropping offering-source columns from activities.groups...")
-
 	_, err := db.NewRaw(`
 		DROP TRIGGER IF EXISTS trg_groups_clear_orphaned_source_filter ON activities.groups;
 		DROP FUNCTION IF EXISTS activities.groups_clear_orphaned_source_filter();

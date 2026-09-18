@@ -23,8 +23,6 @@ func init() {
 }
 
 func absenceRequestStatusUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.310: Adding absence status to parent approval requests...")
-
 	if _, err := db.ExecContext(ctx, `
 		ALTER TABLE active.excused_absence_requests
 			ADD COLUMN IF NOT EXISTS absence_status TEXT NOT NULL DEFAULT 'excused';
@@ -42,8 +40,6 @@ func absenceRequestStatusUp(ctx context.Context, db *bun.DB) error {
 }
 
 func absenceRequestStatusDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.310: Removing absence status from parent approval requests...")
-
 	if _, err := db.ExecContext(ctx, `
 		DO $$
 		BEGIN

@@ -201,8 +201,6 @@ func init() {
 // written afterwards, and anything on an instance with no completion
 // timestamp to compare against, is left exactly as it is.
 func backfillCompletedExpectedAttendanceUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.205: Backfilling legacy 'expected' attendance on completed timetable instances (#1747)...")
-
 	// Cancelled instances are deliberately untouched: their 'expected' rows
 	// stay expected (the instance never ran, so 'absent' would be a misclaim)
 	// and the readers keep showing them — the instance status carries that
@@ -226,7 +224,9 @@ func backfillCompletedExpectedAttendanceUp(ctx context.Context, db *bun.DB) erro
 	}
 
 	if affected, err := res.RowsAffected(); err == nil {
-		fmt.Printf("Migration 1.15.205: repaired %d attendance rows\n", affected)
+		migrationLog().InfoContext(ctx, "legacy expected attendance rows flipped to absent",
+			"rows", affected,
+		)
 	}
 
 	return nil
@@ -237,6 +237,5 @@ func backfillCompletedExpectedAttendanceUp(ctx context.Context, db *bun.DB) erro
 // and nothing records which rows it touched. Reverting them all to 'expected'
 // would destroy genuine absences.
 func backfillCompletedExpectedAttendanceDown(_ context.Context, _ *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.205: no-op for legacy attendance repair")
 	return nil
 }

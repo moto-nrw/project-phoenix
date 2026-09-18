@@ -21,8 +21,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.125: Making timetable.materialization_enabled opt-out...")
-
 			if _, err := db.NewRaw(`
 				WITH deleted AS (
 					DELETE FROM config.setting_values
@@ -53,7 +51,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.125: no-op for materialization opt-out reset...")
 			return nil
 		},
 	)

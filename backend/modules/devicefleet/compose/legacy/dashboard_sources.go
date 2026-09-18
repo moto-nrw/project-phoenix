@@ -11,9 +11,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // DashboardDependencies are the legacy readers the dashboard aggregate needs.
@@ -21,7 +21,7 @@ type DashboardDependencies struct {
 	ActiveGroups   activeModels.GroupRepository
 	Templates      activitiesModels.GroupRepository
 	Instances      scheduleModels.ActivityInstanceRepository
-	PickupSchedule schedule.PickupScheduleService
+	PickupSchedule careschedule.PickupScheduleService
 }
 
 type dashboardSources struct{ deps DashboardDependencies }

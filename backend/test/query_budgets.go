@@ -46,6 +46,12 @@ var queryBudgets = map[string]queryBudget{
 	"api.students.requests.schema_introspection": {max: 0, exact: true},
 	// api/students — #2098: each planning-time bulk load runs once per list request.
 	"api.students.list.planning_times.per_table": {max: 1, exact: true},
+	// api/class-list-entries — GET the class-list-only entries (#2382), 3
+	// entries each with a namesake student. The "Zuordnen" hint is resolved
+	// per entry (the entry set is a hand-maintained handful per school), so
+	// this budget is the fixture-sized total: a third statement per entry, or
+	// a constant read moved inside the loop, fails the test.
+	"api.class_list_entries.list": {max: 8},
 	// api/students — GET /students list, 10 students, page_size=50.
 	"api.students.list": {max: 31},
 	// api/students — #2056: aggregated OGS group view, 10 students.
@@ -96,6 +102,10 @@ var queryBudgets = map[string]queryBudget{
 	// plus the setting, offering and series-root reads for roster maintenance
 	// (#3140). The test proves all 11 statements stay flat from 3 to 8 rows.
 	"api.timetable.templates.list": {max: 11},
+	// api/timetable — GET /pickup-extensions (#3261), day tasks only: tenant
+	// transaction and tenant setup, task read, one batched block read,
+	// student and person names. Flat in the number of open tasks.
+	"api.timetable.pickup_extensions.list": {max: 9},
 	// api/timetable — GET /periods (#3124): tenant transaction (BEGIN, SET
 	// LOCAL ROLE, set_config, COMMIT) + period list + one usage read per
 	// owner (Enrollment phases, Timetable planning tables). The two owner
@@ -113,14 +123,16 @@ var queryBudgets = map[string]queryBudget{
 	// calendar projection regardless of the number of returned VEVENTs.
 	"services.calendar.caldav_snapshot": {max: 24},
 	// #2941: list/read enrichment stays flat as result rows grow.
-	"services.active.work_session_history.reads":         {max: 7},
-	"services.active.future_comp_time_commitment.reads":  {max: 4, exact: true},
-	"services.auth.pending_guardian_approvals.reads":     {max: 6},
-	"services.education.suggest_mappings.reads":          {max: 4},
-	"services.reminders.present_students_in_rooms.reads": {max: 6},
-	"services.users.list_guardians.reads":                {max: 2},
-	"services.users.student_guardians.reads":             {max: 4},
-	"api.active.combination_groups.reads":                {max: 3, exact: true},
+	"services.active.work_session_history.reads":           {max: 7},
+	"services.active.future_comp_time_commitment.reads":    {max: 4, exact: true},
+	"services.auth.pending_guardian_approvals.reads":       {max: 6},
+	"services.auth.pending_invitations.reads":              {max: 1, exact: true},
+	"services.platform.pending_operator_invitations.reads": {max: 1, exact: true},
+	"services.education.suggest_mappings.reads":            {max: 4},
+	"services.reminders.present_students_in_rooms.reads":   {max: 6},
+	"services.users.list_guardians.reads":                  {max: 2},
+	"services.users.student_guardians.reads":               {max: 4},
+	"api.active.combination_groups.reads":                  {max: 3, exact: true},
 	// services/enrollment — list/read paths stay flat as rows grow (#2941).
 	"services.enrollment.list_child_offerings.reads":    {max: 5},
 	"services.enrollment.offering_source_options.reads": {max: 5},

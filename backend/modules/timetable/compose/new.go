@@ -1388,6 +1388,10 @@ func mapError(err error) error {
 		return timetable.ErrInstanceStaffNotFound
 	case errors.Is(err, domain.ErrInstanceStudentNotFound):
 		return timetable.ErrInstanceStudentNotFound
+	case errors.Is(err, domain.ErrPickupExtensionNotFound):
+		return timetable.ErrPickupExtensionNotFound
+	case errors.Is(err, domain.ErrPickupExtensionBlockGone):
+		return timetable.ErrPickupExtensionBlockGone
 	default:
 		return err
 	}

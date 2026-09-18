@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"testing"
+	"time"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
@@ -11,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
 // VerifyCodeForOperator is the JWT-less verify used by operator
@@ -23,10 +24,10 @@ func TestOperatorMFAService_VerifyCodeForOperator_UnknownOperator_ReturnsInvalid
 
 	svc, _, _ := newTestOperatorMFAService(t)
 
-	err := svc.VerifyCodeForOperator(context.Background(), 999_999_999, "123456")
+	err := svc.VerifyOperatorMFACode(context.Background(), 999_999_999, "123456")
 
 	require.Error(t, err)
-	assert.ErrorIs(t, err, platformSvc.ErrOperatorMFACodeInvalid,
+	assert.ErrorIs(t, err, authSvc.ErrMFACodeInvalid,
 		"unknown operator id must map to invalid-code, not a generic 500")
 }
 
@@ -36,10 +37,10 @@ func TestOperatorMFAService_VerifyCodeForOperator_NoActiveChallenge_ReturnsInval
 	svc, _, db := newTestOperatorMFAService(t)
 	op := testpkg.CreateTestOperator(t, db)
 
-	err := svc.VerifyCodeForOperator(context.Background(), op.ID, "123456")
+	err := svc.VerifyOperatorMFACode(context.Background(), op.ID, "123456")
 
 	require.Error(t, err)
-	assert.ErrorIs(t, err, platformSvc.ErrOperatorMFACodeInvalid)
+	assert.ErrorIs(t, err, authSvc.ErrMFACodeInvalid)
 }
 
 func TestOperatorMFAService_VerifyCodeForOperator_WrongCode_ReturnsInvalid(t *testing.T) {
@@ -47,17 +48,17 @@ func TestOperatorMFAService_VerifyCodeForOperator_WrongCode_ReturnsInvalid(t *te
 
 	svc, _, db := newTestOperatorMFAService(t)
 	op := testpkg.CreateTestOperator(t, db)
-	require.NoError(t, svc.Enroll(context.Background(), op.ID))
+	require.NoError(t, svc.EnrollOperatorMFA(context.Background(), op.ID))
 
 	// Seed an active challenge via StartChallenge so there's a real
 	// CodeHash to mismatch against.
-	_, err := svc.StartChallenge(context.Background(), op.ID, net.ParseIP("127.0.0.1"))
+	_, err := svc.StartOperatorMFAChallenge(context.Background(), op.ID, net.ParseIP("127.0.0.1"))
 	require.NoError(t, err)
 
-	err = svc.VerifyCodeForOperator(context.Background(), op.ID, "000000")
+	err = svc.VerifyOperatorMFACode(context.Background(), op.ID, "000000")
 
 	require.Error(t, err)
-	assert.ErrorIs(t, err, platformSvc.ErrOperatorMFACodeInvalid)
+	assert.ErrorIs(t, err, authSvc.ErrMFACodeInvalid)
 }
 
 // ResendChallenge re-issues a code given a valid operator challenge token.
@@ -69,35 +70,33 @@ func TestOperatorMFAService_ResendChallenge_InvalidJWT_ReturnsTokenInvalid(t *te
 
 	svc, _, _ := newTestOperatorMFAService(t)
 
-	renewed, err := svc.ResendChallenge(context.Background(), "not-a-jwt", net.ParseIP("127.0.0.1"))
+	renewed, err := svc.ResendOperatorMFAChallenge(context.Background(), "not-a-jwt", net.ParseIP("127.0.0.1"))
 
 	require.Error(t, err)
 	assert.Empty(t, renewed)
-	assert.ErrorIs(t, err, platformSvc.ErrOperatorMFAChallengeTokenInvalid)
+	assert.ErrorIs(t, err, authSvc.ErrMFAChallengeTokenInvalid)
 }
 
 func TestOperatorMFAService_ResendChallenge_WrongScope_ReturnsTokenInvalid(t *testing.T) {
 	t.Parallel()
 
-	svc, _, db := newTestOperatorMFAService(t)
+	svc, tokenAuth, db := newTestOperatorMFAService(t)
 	op := testpkg.CreateTestOperator(t, db)
 
 	// Build a *tenant*-scoped challenge token and try to resend it on the
 	// operator surface — must be rejected so a tenant cookie can't be
 	// laundered into the operator flow.
-	tokenAuth, err := authjwt.NewTokenAuthWithSecret(operatorMFATestJWTSecret)
-	require.NoError(t, err)
 	tenantToken, err := tokenAuth.CreateMFAChallengeJWT(authjwt.MFAChallengeClaims{
 		AccountID: op.ID,
 		Scope:     authjwt.MFAChallengeScopeTenant,
-	}, 5*60*1_000_000_000) // 5 minutes in nanoseconds
+	}, 5*time.Minute)
 	require.NoError(t, err)
 
-	renewed, err := svc.ResendChallenge(context.Background(), tenantToken, net.ParseIP("127.0.0.1"))
+	renewed, err := svc.ResendOperatorMFAChallenge(context.Background(), tenantToken, net.ParseIP("127.0.0.1"))
 
 	require.Error(t, err)
 	assert.Empty(t, renewed)
-	assert.ErrorIs(t, err, platformSvc.ErrOperatorMFAChallengeTokenInvalid,
+	assert.ErrorIs(t, err, authSvc.ErrMFAChallengeTokenInvalid,
 		"a tenant-scoped JWT must not survive the operator resend gate")
 }
 
@@ -106,13 +105,13 @@ func TestOperatorMFAService_ResendChallenge_HappyPath(t *testing.T) {
 
 	svc, _, db := newTestOperatorMFAService(t)
 	op := testpkg.CreateTestOperator(t, db)
-	require.NoError(t, svc.Enroll(context.Background(), op.ID))
+	require.NoError(t, svc.EnrollOperatorMFA(context.Background(), op.ID))
 
-	token, err := svc.StartChallenge(context.Background(), op.ID, net.ParseIP("127.0.0.1"))
+	token, err := svc.StartOperatorMFAChallenge(context.Background(), op.ID, net.ParseIP("127.0.0.1"))
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
 
-	renewed, err := svc.ResendChallenge(context.Background(), token, net.ParseIP("127.0.0.1"))
+	renewed, err := svc.ResendOperatorMFAChallenge(context.Background(), token, net.ParseIP("127.0.0.1"))
 	require.NoError(t, err)
 	// See tenant-side counterpart — JWT iat has 1-second resolution so
 	// equal byte sequences are legal here. The contract we actually

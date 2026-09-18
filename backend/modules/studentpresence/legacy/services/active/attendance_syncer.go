@@ -12,7 +12,7 @@ import (
 // that the active service needs to enrich SSE events. The pointer shape
 // matches realtime.EventData so broadcast helpers can copy fields directly.
 //
-// Declared in the active package (and not, say, services/schedule) so there
+// Declared in the active package (and not, say, timetableplanning) so there
 // is no cyclic-import risk — the schedule package already depends on active
 // for its bridge semantics, but active must not import schedule.
 type AttendanceSnapshot struct {
@@ -31,7 +31,7 @@ type AttendanceSnapshot struct {
 // Missing timetable assignments are valid no-ops. Read and write failures
 // return errors so the caller rolls back all presence and timetable writes.
 //
-// Implementations live in services/schedule. A nil AttendanceSyncer is
+// Implementations live in timetableplanning. A nil AttendanceSyncer is
 // valid at construction time (tests, early-boot servers without the full
 // factory wire-up) — callers must handle nil.
 type AttendanceSyncer interface {

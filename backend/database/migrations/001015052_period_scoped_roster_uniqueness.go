@@ -32,8 +32,6 @@ func init() {
 }
 
 func periodScopedRosterUniquenessUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.52: Making active template roster uniqueness period-scoped...")
-
 	_, err := db.NewRaw(`
 		DROP INDEX IF EXISTS activities.idx_student_enrollments_active;
 		CREATE UNIQUE INDEX idx_student_enrollments_active
@@ -63,8 +61,6 @@ func periodScopedRosterUniquenessUp(ctx context.Context, db *bun.DB) error {
 }
 
 func periodScopedRosterUniquenessDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.52: Restoring global active roster uniqueness...")
-
 	_, err := db.NewRaw(`
 		DROP INDEX IF EXISTS activities.idx_student_enrollments_active;
 		CREATE UNIQUE INDEX idx_student_enrollments_active

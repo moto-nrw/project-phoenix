@@ -62,6 +62,9 @@ func (s parentEnrollmentSeedStep) Run(ctx context.Context, rt *Runtime) error {
 		if err := s.seedDecidedPickupChange(rt, adminAuth, parentAuths[parents[0].Email], parents[0]); err != nil {
 			return err
 		}
+		if err := s.seedPendingLaterPickupChange(rt, adminAuth, parents, parentAuths); err != nil {
+			return err
+		}
 	}
 
 	rt.Enrollment = enrollmentState

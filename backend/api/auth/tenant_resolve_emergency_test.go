@@ -51,7 +51,7 @@ func TestResolveTenant_EmergencyHealthInfo_DefaultTrue(t *testing.T) {
 	db, authRoute := setupAuthDependenciesRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, authRoute.SchoolService, authRoute.Sessions, db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, db)
 	resource.SettingsService = authRoute.SettingsService
 
 	router := chi.NewRouter()
@@ -81,7 +81,7 @@ func TestResolveTenant_EmergencyHealthInfo_OverrideFalse(t *testing.T) {
 		authRoute.SettingsService.SetValue(ctx, configModel.KeyEmergencyListHealthInfo, false, nil, nil),
 		"disable emergency_list_health_info for the isolated tenant")
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, authRoute.SchoolService, authRoute.Sessions, db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, db)
 	resource.SettingsService = authRoute.SettingsService
 
 	router := chi.NewRouter()
@@ -107,7 +107,7 @@ func TestResolveTenant_EmergencyHealthInfo_SettingFailureFailsRequest(t *testing
 	db, authRoute := setupAuthDependenciesRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, authRoute.SchoolService, authRoute.Sessions, db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, db)
 	resource.SettingsService = failingTenantShellSettings{SettingsService: authRoute.SettingsService}
 
 	router := chi.NewRouter()
@@ -140,7 +140,7 @@ func TestResolveTenant_EmergencyHealthInfo_UnreadableValueFailsClosed(t *testing
 		configRepo.NewSettingValueRepository(testpkg.ConfigRuntime(db)).Upsert(scope.Context(), stored),
 		"store an unreadable emergency_list_health_info override")
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, authRoute.SchoolService, authRoute.Sessions, db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, db)
 	resource.SettingsService = authRoute.SettingsService
 
 	router := chi.NewRouter()

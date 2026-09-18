@@ -215,6 +215,12 @@ type Query interface {
 	// ListClassListEntries returns the entries matching the filter, ordered
 	// by last name, first name (both case-folded) and ID.
 	ListClassListEntries(context.Context, ClassListEntryFilter) ([]ClassListEntry, error)
+	// ListClassListEntriesInDisplayOrder returns them in class-then-name
+	// display order instead.
+	ListClassListEntriesInDisplayOrder(context.Context, ClassListEntryFilter) ([]ClassListEntry, error)
+	// MatchingStudentIDs names the enrolled students sharing an entry's name
+	// and class: the "Zuordnen" hint, never an automatic merge.
+	MatchingStudentIDs(context.Context, ClassListEntryFields) ([]int64, error)
 
 	ListClassAssignments(context.Context, ClassAssignmentFilter) ([]ClassAssignment, error)
 	ListGroupAssignments(context.Context, GroupAssignmentFilter) ([]GroupAssignment, error)
@@ -250,6 +256,14 @@ type Command interface {
 	UpdateClassListEntry(context.Context, UpdateClassListEntry) (ClassListEntry, error)
 	// DeleteClassListEntry removes the entry; entries carry no tombstone.
 	DeleteClassListEntry(context.Context, int64) error
+
+	// The audited administration commands of the Klassenliste screen. They
+	// guard the name against a second entry and against a regular student,
+	// and write the change trail in the same transaction.
+	AddClassListEntry(context.Context, AddClassListEntry) (ClassListEntry, error)
+	ReviseClassListEntry(context.Context, ReviseClassListEntry) (ClassListEntry, error)
+	RemoveClassListEntry(context.Context, RemoveClassListEntry) error
+	ResolveClassListEntry(context.Context, ResolveClassListEntry) error
 
 	CreateClassAssignment(context.Context, CreateClassAssignment) (ClassAssignment, error)
 	UpdateClassAssignment(context.Context, UpdateClassAssignment) (ClassAssignment, error)
@@ -299,9 +313,16 @@ type engine interface {
 
 	FindClassListEntry(ctx context.Context, id int64, lock string) (ClassListEntry, error)
 	ListClassListEntries(context.Context, ClassListEntryFilter) ([]ClassListEntry, error)
+	ListClassListEntriesInDisplayOrder(context.Context, ClassListEntryFilter) ([]ClassListEntry, error)
+	MatchingStudentIDs(context.Context, ClassListEntryFields) ([]int64, error)
 	CreateClassListEntry(context.Context, CreateClassListEntry) (ClassListEntry, error)
 	UpdateClassListEntry(context.Context, UpdateClassListEntry) (ClassListEntry, error)
 	DeleteClassListEntry(context.Context, int64) error
+	AddClassListEntry(context.Context, AddClassListEntry) (ClassListEntry, error)
+	ReviseClassListEntry(context.Context, ReviseClassListEntry) (ClassListEntry, error)
+	RemoveClassListEntry(context.Context, RemoveClassListEntry) error
+	ResolveClassListEntry(context.Context, ResolveClassListEntry) error
+	BindClassListEntryAdministration(ClassListEntryStudents, ClassListEntryTrail)
 }
 
 type teachingAssignmentEngine interface {
@@ -661,7 +682,8 @@ func ErrorCode(err error) string {
 		return "membership_conflict"
 	case errors.Is(err, ErrPersonnelNumberConflict):
 		return "personnel_number_conflict"
-	case errors.Is(err, ErrClassListEntryDuplicate):
+	case errors.Is(err, ErrClassListEntryDuplicate), errors.Is(err, ErrClassListEntryStudentExists),
+		errors.Is(err, ErrClassListEntryStudentNotFound), errors.Is(err, ErrClassListEntryAssignMismatch):
 		return "class_list_entry_conflict"
 	case errors.Is(err, ErrClassAssignmentConflict):
 		return "class_assignment_conflict"

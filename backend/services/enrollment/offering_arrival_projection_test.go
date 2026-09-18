@@ -19,10 +19,10 @@ import (
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule/carescheduletest"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -30,9 +30,9 @@ import (
 // bookingModeArrivalBaseline mirrors projectedPickupReader: the arrival
 // projection with enrollment.bookings_authoritative switched on, so the
 // approved booking links decide which weekdays a child is in care (#2414).
-func bookingModeArrivalBaseline(t *testing.T, env *decisionTestEnv, authoritative bool) scheduleService.ArrivalBaselineReader {
+func bookingModeArrivalBaseline(t *testing.T, env *decisionTestEnv, authoritative bool) careschedule.ArrivalBaselineReader {
 	t.Helper()
-	return scheduleService.NewArrivalBaselineService(
+	return careschedule.NewArrivalBaselineService(
 		env.repos.StudentArrivalSchedule,
 		env.repos.Student,
 		env.repos.ClassArrivalTime,
@@ -54,7 +54,7 @@ func bookingModeSettings(authoritative bool) configService.SettingsService {
 	}
 }
 
-func bookingModeCareDays(t *testing.T, env *decisionTestEnv, authoritative bool) scheduleService.CareDayService {
+func bookingModeCareDays(t *testing.T, env *decisionTestEnv, authoritative bool) careschedule.CareDayService {
 	t.Helper()
 	participation := usersService.NewCareLifecycleService(usersService.CareLifecycleDependencies{
 		StudentRepo: env.repos.Student, PersonRepo: env.repos.Person,
@@ -64,11 +64,11 @@ func bookingModeCareDays(t *testing.T, env *decisionTestEnv, authoritative bool)
 		BookingsAuthoritative: func(context.Context) (bool, error) { return authoritative, nil },
 		DB:                    env.db, Logger: slog.Default(),
 	})
-	return scheduleService.NewCareDayService(scheduleService.CareDayDependencies{
+	return careschedule.NewCareDayService(careschedule.CareDayDependencies{
 		ArrivalBaselines:  bookingModeArrivalBaseline(t, env, authoritative),
 		ArrivalSchedules:  env.repos.StudentArrivalSchedule,
 		ArrivalExceptions: env.repos.StudentArrivalException,
-		PickupBaselines: scheduletest.NewPickupBaselineService(
+		PickupBaselines: carescheduletest.NewPickupBaselineService(
 			env.repos.StudentPickupSchedule,
 			approvedOfferingTestProjection(env.repos),
 			env.repos.CareOffering,
@@ -78,8 +78,8 @@ func bookingModeCareDays(t *testing.T, env *decisionTestEnv, authoritative bool)
 	})
 }
 
-func bookingModePickupBaseline(env *decisionTestEnv, authoritative bool) scheduleService.PickupBaselineReader {
-	return scheduleService.NewPickupBaselineServiceWithSettings(
+func bookingModePickupBaseline(env *decisionTestEnv, authoritative bool) careschedule.PickupBaselineReader {
+	return careschedule.NewPickupBaselineServiceWithSettings(
 		env.repos.StudentPickupSchedule,
 		approvedOfferingTestProjection(env.repos),
 		env.repos.CareOffering,
@@ -87,8 +87,8 @@ func bookingModePickupBaseline(env *decisionTestEnv, authoritative bool) schedul
 	)
 }
 
-func bookingModePickupService(env *decisionTestEnv, authoritative bool) scheduleService.PickupScheduleService {
-	return scheduleService.NewPickupScheduleServiceWithBulk(
+func bookingModePickupService(env *decisionTestEnv, authoritative bool) careschedule.PickupScheduleService {
+	return careschedule.NewPickupScheduleServiceWithBulk(
 		env.repos.StudentPickupSchedule,
 		env.repos.StudentPickupException,
 		env.repos.StudentPickupNote,

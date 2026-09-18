@@ -9,7 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/email"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,14 +20,12 @@ import (
 func TestEnqueueExistingAccountEmail_RendersPortalLoginHint(t *testing.T) {
 	t.Parallel()
 	outbox := &stubOutboxEnqueuer{}
-	service := authService.NewGuardianInvitationService(authService.GuardianInvitationServiceConfig{
-		OutboxEnqueuer: outbox,
-		FrontendURL:    "https://eltern.example.test/",
+	mailer := services.NewGuardianInvitationMailer(services.GuardianInvitationMailerConfig{
+		Outbox:      outbox,
+		FrontendURL: "https://eltern.example.test/",
 	})
-	delivery, ok := service.(authService.GuardianInvitationDelivery)
-	require.True(t, ok)
 
-	delivery.EnqueueExistingAccountEmail(context.Background(), authService.GuardianInvitationRecipient{
+	mailer.EnqueueExistingAccount(context.Background(), services.GuardianMailRecipient{
 		FirstName: " Olga ", LastName: "Muster", Email: " admin@example.test ",
 	}, "OGS Musterschule")
 
@@ -38,7 +36,7 @@ func TestEnqueueExistingAccountEmail_RendersPortalLoginHint(t *testing.T) {
 	assert.Equal(t, "https://eltern.example.test/login", req.Payload["invitation_url"])
 	assert.Equal(t, true, req.Payload["existing_account"])
 
-	render := authService.NewGuardianInvitationRenderer(authService.GuardianInvitationRendererConfig{})
+	render := services.NewGuardianInvitationRenderer(services.GuardianInvitationRendererConfig{})
 	msg, err := render(context.Background(), req.Payload)
 	require.NoError(t, err)
 	assert.Equal(t, "Ihr Zugang zum Eltern-Portal – OGS Musterschule", msg.Subject)
@@ -56,18 +54,16 @@ func TestEnqueueExistingAccountEmail_RendersPortalLoginHint(t *testing.T) {
 func TestEnqueueExistingAccountEmail_SkipsWithoutAddress(t *testing.T) {
 	t.Parallel()
 	outbox := &stubOutboxEnqueuer{}
-	service := authService.NewGuardianInvitationService(authService.GuardianInvitationServiceConfig{OutboxEnqueuer: outbox})
-	delivery, ok := service.(authService.GuardianInvitationDelivery)
-	require.True(t, ok)
+	mailer := services.NewGuardianInvitationMailer(services.GuardianInvitationMailerConfig{Outbox: outbox})
 
-	delivery.EnqueueExistingAccountEmail(context.Background(), authService.GuardianInvitationRecipient{Email: "  "}, "")
+	mailer.EnqueueExistingAccount(context.Background(), services.GuardianMailRecipient{Email: "  "}, "")
 	assert.Empty(t, outbox.requests)
 }
 
 // The token invitation keeps its registration wording.
 func TestGuardianInvitationRenderer_TokenInvitationUnchanged(t *testing.T) {
 	t.Parallel()
-	render := authService.NewGuardianInvitationRenderer(authService.GuardianInvitationRendererConfig{})
+	render := services.NewGuardianInvitationRenderer(services.GuardianInvitationRendererConfig{})
 	msg, err := render(context.Background(), map[string]any{
 		"recipient_email": "new@example.test",
 		"invitation_url":  "https://eltern.example.test/accept-guardian-invite/abc",

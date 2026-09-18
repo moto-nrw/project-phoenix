@@ -8,6 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+	auth "github.com/moto-nrw/project-phoenix/services/auth"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -15,7 +18,6 @@ import (
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
-	"github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -43,19 +45,13 @@ func newSynchronousDeliveryMFAService(
 ) (auth.MFAService, *repositories.Factory, *bun.DB, *authjwt.TokenAuth) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	tokenAuth, err := authjwt.NewTokenAuthWithSecret(testJWTSecret)
-	require.NoError(t, err)
-	svc, err := auth.NewMFAService(auth.MFAServiceConfig{
-		Repos:      repos,
-		TokenAuth:  tokenAuth,
-		Dispatcher: email.NewDispatcher(mailer, nil),
-		JWTSecret:  testJWTSecret,
-		DB:         db,
-	})
-	require.NoError(t, err)
-	testpkg.SetTenantRuntime(t, svc, db)
-	return svc, repos, db, tokenAuth
+	module := newMFATestModule(t, db,
+		services.WithAuthTestMailer(mailer),
+		// One attempt: the contract under test is that a refused transport
+		// fails the issuance, not how long the retries take.
+		services.WithAuthTestMFABackoff(time.Millisecond),
+	)
+	return module.MFA, module.Repos, db, module.TokenAuth
 }
 
 func TestMFAStartChallengeFailsClosedAndInvalidatesCodeAfterCancellation(t *testing.T) {
@@ -67,11 +63,11 @@ func TestMFAStartChallengeFailsClosedAndInvalidatesCodeAfterCancellation(t *test
 	svc, repos, db, _ := newSynchronousDeliveryMFAService(t, mailer)
 	account := testpkg.CreateTestAccount(t, db, "mfa-sync-delivery-failure")
 
-	token, err := svc.StartChallenge(
+	token, err := svc.StartMFAChallenge(
 		ctx,
 		account.ID,
 		0,
-		authjwt.MFAChallengeScopeTenant,
+		auth.MFAChallengeScopeTenant,
 		net.ParseIP("203.0.113.71"),
 	)
 
@@ -80,7 +76,7 @@ func TestMFAStartChallengeFailsClosedAndInvalidatesCodeAfterCancellation(t *test
 	assert.Equal(t, int32(1), mailer.attempts.Load(), "cancellation must stop retries")
 
 	_, activeErr := repos.MFAEmailChallenge.FindActiveByAccountIDInScope(
-		context.Background(), account.ID, 0, authjwt.MFAChallengeScopeTenant,
+		context.Background(), account.ID, 0, auth.MFAChallengeScopeTenant,
 	)
 	require.Error(t, activeErr, "the undelivered code must not remain redeemable")
 
@@ -99,12 +95,12 @@ func TestMFAResendRejectsExpiredCredentialBeforeDelivery(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "mfa-sync-expired-token")
 	expiredToken, err := tokenAuth.CreateMFAChallengeJWT(authjwt.MFAChallengeClaims{
 		AccountID:  account.ID,
-		Scope:      authjwt.MFAChallengeScopeTenant,
+		Scope:      auth.MFAChallengeScopeTenant,
 		MFAPending: true,
 	}, -time.Minute)
 	require.NoError(t, err)
 
-	renewed, err := svc.ResendChallenge(context.Background(), expiredToken, net.ParseIP("203.0.113.72"))
+	renewed, err := svc.ResendMFAChallenge(context.Background(), expiredToken, net.ParseIP("203.0.113.72"))
 
 	require.ErrorIs(t, err, auth.ErrMFAChallengeTokenInvalid)
 	assert.Empty(t, renewed)

@@ -108,12 +108,19 @@ func (s *decisionService) ResetStudentPickupDayToOffering(
 	if err != nil {
 		return fmt.Errorf("load pickup schedules: %w", err)
 	}
+	removed := false
 	for _, row := range rows {
 		if row != nil && row.Weekday == weekday {
 			if err := s.PickupScheduleRepo.Delete(ctx, row.ID); err != nil {
 				return fmt.Errorf("delete pickup schedule override: %w", err)
 			}
+			removed = true
 			break
+		}
+	}
+	if removed && s.ClearPickupWeekdayExtension != nil {
+		if err := s.ClearPickupWeekdayExtension(ctx, studentID, weekday); err != nil {
+			return fmt.Errorf("clear pickup weekday extension: %w", err)
 		}
 	}
 	if err := s.resyncPickupAutoExcusals(ctx, []int64{studentID}); err != nil {
@@ -179,6 +186,31 @@ func (s *decisionService) resyncPickupAutoExcusals(ctx context.Context, studentI
 	}
 	if err := s.ResyncPickupAutoExcusals(ctx, studentIDs); err != nil {
 		return fmt.Errorf("resync pickup auto excusals: %w", err)
+	}
+	return nil
+}
+
+func (s *decisionService) snapshotPickupWeekdayChanges(
+	ctx context.Context, studentID int64, date timezone.Date,
+) (map[int]string, error) {
+	if s.SnapshotPickupWeekdayChanges == nil {
+		return nil, nil
+	}
+	before, err := s.SnapshotPickupWeekdayChanges(ctx, studentID, date)
+	if err != nil {
+		return nil, fmt.Errorf("snapshot pickup weekday changes: %w", err)
+	}
+	return before, nil
+}
+
+func (s *decisionService) recordPickupWeekdayChanges(
+	ctx context.Context, studentID int64, date timezone.Date, before map[int]string,
+) error {
+	if s.RecordPickupWeekdayChanges == nil || before == nil {
+		return nil
+	}
+	if err := s.RecordPickupWeekdayChanges(ctx, studentID, date, before); err != nil {
+		return fmt.Errorf("record pickup weekday changes: %w", err)
 	}
 	return nil
 }

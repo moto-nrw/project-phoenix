@@ -32,8 +32,6 @@ func init() {
 }
 
 func createEmailOutboxUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.58: Creating platform.email_outbox table...")
-
 	if _, err := db.NewRaw(`
 		CREATE TABLE IF NOT EXISTS platform.email_outbox (
 			id                  BIGSERIAL PRIMARY KEY,
@@ -100,7 +98,6 @@ func createEmailOutboxUp(ctx context.Context, db *bun.DB) error {
 }
 
 func createEmailOutboxDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.58: Dropping platform.email_outbox...")
 	if _, err := db.NewRaw(`DROP TABLE IF EXISTS platform.email_outbox CASCADE;`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed dropping platform.email_outbox: %w", err)
 	}

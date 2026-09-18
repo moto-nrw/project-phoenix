@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -35,8 +34,6 @@ func init() {
 
 // usersStudentsGuardiansUp creates the relationship table between students and guardians
 func usersStudentsGuardiansUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.3.6: Creating users.students_guardians relationship table...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -44,7 +41,7 @@ func usersStudentsGuardiansUp(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -134,8 +131,6 @@ func usersStudentsGuardiansUp(ctx context.Context, db *bun.DB) error {
 
 // usersStudentsGuardiansDown removes the users.students_guardians relationship table
 func usersStudentsGuardiansDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.3.6: Removing users.students_guardians relationship table...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -143,7 +138,7 @@ func usersStudentsGuardiansDown(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

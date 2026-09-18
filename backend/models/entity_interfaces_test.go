@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
-	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
@@ -52,7 +51,7 @@ var (
 	_ base.Entity = (*users.GuardianProfile)(nil)
 	_ base.Entity = (*users.Person)(nil)
 	_ base.Entity = (*users.PrivacyConsent)(nil)
-	_ base.Entity = (*users.Profile)(nil)
+	_ base.Entity = (*auth.Profile)(nil)
 	_ base.Entity = (*auth.RFIDCard)(nil)
 	_ base.Entity = (*users.Staff)(nil)
 	_ base.Entity = (*users.Student)(nil)
@@ -61,11 +60,10 @@ var (
 )
 
 type formerGetterShape struct {
-	name                                string
-	model                               any
-	timestampField                      string
-	timestampBun                        string
-	expectsStringIDModelWithoutNullZero bool
+	name           string
+	model          any
+	timestampField string
+	timestampBun   string
 }
 
 func TestFormerModelGetterExceptionsHaveHonestShapes(t *testing.T) {
@@ -78,8 +76,6 @@ func TestFormerModelGetterExceptionsHaveHonestShapes(t *testing.T) {
 		{name: "deviation event", model: (*audit.DeviationEvent)(nil), timestampField: "OccurredAt", timestampBun: "occurred_at,notnull,default:now()"},
 		{name: "enrollment offering adjustment", model: (*audit.EnrollmentOfferingAdjustment)(nil), timestampField: "ChangedAt", timestampBun: "changed_at,notnull,default:now()"},
 		{name: "guardian change", model: (*audit.GuardianChange)(nil), timestampField: "ChangedAt", timestampBun: "changed_at,notnull,default:now()"},
-		{name: "passkey session", model: (*auth.PasskeySession)(nil), expectsStringIDModelWithoutNullZero: true},
-		{name: "operator passkey session", model: (*platform.OperatorPasskeySession)(nil), expectsStringIDModelWithoutNullZero: true},
 	}
 
 	for _, tt := range tests {
@@ -94,10 +90,6 @@ func assertFormerGetterShape(t *testing.T, shape formerGetterShape) {
 
 	modelType := reflect.TypeOf(shape.model).Elem()
 	_, isGenericEntity := reflect.New(modelType).Interface().(base.Entity)
-	if shape.expectsStringIDModelWithoutNullZero {
-		assertPasskeySessionShape(t, modelType, isGenericEntity)
-		return
-	}
 	if isGenericEntity {
 		t.Fatalf("%s must not map its audit timestamp to the generic Entity contract", modelType)
 	}
@@ -108,28 +100,5 @@ func assertFormerGetterShape(t *testing.T, shape formerGetterShape) {
 	timestampField, ok := modelType.FieldByName(shape.timestampField)
 	if !ok || timestampField.Tag.Get("bun") != shape.timestampBun {
 		t.Fatalf("%s must map %s with bun tag %q", modelType, shape.timestampField, shape.timestampBun)
-	}
-}
-
-func assertPasskeySessionShape(t *testing.T, modelType reflect.Type, isGenericEntity bool) {
-	t.Helper()
-
-	field, ok := modelType.FieldByName("StringIDModelWithoutNullZero")
-	if !ok || !field.Anonymous || field.Type != reflect.TypeFor[base.StringIDModelWithoutNullZero]() {
-		t.Fatalf("%s must embed base.StringIDModelWithoutNullZero", modelType)
-	}
-	expectedTags := map[string]string{
-		"ID":        "id,pk",
-		"CreatedAt": "created_at,notnull,default:current_timestamp",
-		"UpdatedAt": "updated_at,notnull,default:current_timestamp",
-	}
-	for fieldName, expectedTag := range expectedTags {
-		baseField, found := field.Type.FieldByName(fieldName)
-		if !found || baseField.Tag.Get("bun") != expectedTag {
-			t.Fatalf("%s.%s must preserve bun tag %q", modelType, fieldName, expectedTag)
-		}
-	}
-	if !isGenericEntity {
-		t.Fatalf("%s must satisfy base.Entity through base.StringIDModelWithoutNullZero", modelType)
 	}
 }

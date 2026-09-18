@@ -7,10 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	authService "github.com/moto-nrw/project-phoenix/services/auth"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
 // TestMFAVerifyRequest_BindRejectsBadInputs covers the request-binding

@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -36,13 +36,13 @@ func NewClassDayTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() 
 	if err != nil {
 		return ClassDayTestModule{}, err
 	}
-	schedule.WireCareParticipation(active.CareDay, care.CareLifecycle)
+	careschedule.WireCareParticipation(active.CareDay, care.CareLifecycle)
 	report := enrollment.NewReportService(enrollment.ReportServiceConfig{
 		Requests: r.Enrollment(), Children: r.Enrollment(), Guardians: r.Enrollment(),
 		CareOfferingRepo: r.CareOffering, Schemas: r.Enrollment(),
 		Phases: r.Enrollment(), DataAccessLogRepo: r.DataAccessLog, StudentRepo: r.Student, StudentGuardianRepo: r.StudentGuardian,
 		StudentCompanionRepo: r.StudentCompanion, PersonRepo: r.Person, EducationGroupRepo: r.Group, StudentStatusDayRepo: r.StudentStatusDay,
-		ClassListEntryRepo: r.ClassListEntry, PickupScheduleSvc: active.PickupSchedule, ArrivalScheduleSvc: active.ArrivalSchedule,
+		ClassListEntries: NewClassListEntryRosterReader(r.Membership), PickupScheduleSvc: active.PickupSchedule, ArrivalScheduleSvc: active.ArrivalSchedule,
 		ClassArrivalExceptions: active.ArrivalSchedule, CareDaySvc: active.CareDay, Settings: active.Settings, CareParticipation: care.CareLifecycle,
 	})
 	exceptions := enrollment.NewClassDayArrivalExceptionService(enrollment.ClassDayArrivalExceptionConfig{

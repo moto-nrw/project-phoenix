@@ -32,8 +32,6 @@ func init() {
 }
 
 func addBusToStudentsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.6.19: Adding bus column to users.students...")
-
 	_, err := db.NewRaw(`
 		ALTER TABLE users.students
 		ADD COLUMN IF NOT EXISTS bus BOOLEAN DEFAULT FALSE;
@@ -54,8 +52,6 @@ func addBusToStudentsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func addBusToStudentsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.6.19: Removing bus column from users.students...")
-
 	// Drop index first
 	_, err := db.NewRaw(`
 		DROP INDEX IF EXISTS users.idx_students_bus;

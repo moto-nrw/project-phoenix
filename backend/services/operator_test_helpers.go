@@ -18,13 +18,13 @@ func NewOperatorDirectoryForTests(db *bun.DB) (platform.OperatorDirectory, error
 	return newOperatorDirectory(module), nil
 }
 
-// NewOperatorMFARecordsForTests serves the retained operator MFA records
-// port over the Identity & Access module composed for repository fixtures,
-// the way the service root binds it (#2723).
-func NewOperatorMFARecordsForTests(db *bun.DB) (platform.OperatorMFARecords, error) {
+// NewOperatorInvitationTokensForTests serves the retained operator
+// invitation link port over the Identity & Access module composed for
+// repository fixtures, the way the service root binds it (#2722).
+func NewOperatorInvitationTokensForTests(db *bun.DB) (platform.OperatorInvitationTokens, error) {
 	module, err := repositories.NewIdentityAccessForTests(db)
 	if err != nil {
 		return nil, err
 	}
-	return newOperatorMFARecords(module), nil
+	return newOperatorInvitationTokens(module), nil
 }

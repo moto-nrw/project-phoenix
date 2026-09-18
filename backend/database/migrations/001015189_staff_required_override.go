@@ -33,8 +33,6 @@ func init() {
 }
 
 func staffRequiredOverrideUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.189: Adding required_staff override columns to activities.groups and schedule.activity_instances...")
-
 	// NULLABLE by design: NULL = no manual requirement, fall back to the
 	// Betreuungsschlüssel-derived value (timetable.children_per_staff_ratio,
 	// issue #1869). A non-NULL value is an explicit admin override that wins
@@ -63,8 +61,6 @@ func staffRequiredOverrideUp(ctx context.Context, db *bun.DB) error {
 }
 
 func staffRequiredOverrideDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.189: Removing required_staff override columns...")
-
 	_, err := db.NewRaw(`
 		ALTER TABLE schedule.activity_instances DROP CONSTRAINT IF EXISTS chk_activity_instances_required_staff_nonneg;
 		ALTER TABLE activities.groups DROP CONSTRAINT IF EXISTS chk_groups_required_staff_nonneg;

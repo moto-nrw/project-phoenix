@@ -22,6 +22,8 @@ import (
 type RoleDirectory interface {
 	CreateRole(ctx context.Context, role identityaccess.Role) (identityaccess.Role, error)
 	FindRole(ctx context.Context, id int64) (identityaccess.Role, bool, error)
+	// FindSystemRoleByName resolves a platform system role by name.
+	FindSystemRoleByName(ctx context.Context, name string) (identityaccess.Role, bool, error)
 	FindRoleForUpdate(ctx context.Context, id int64) (identityaccess.Role, bool, error)
 	UpdateRole(ctx context.Context, role identityaccess.Role) error
 	DeleteRole(ctx context.Context, id int64) error
@@ -92,10 +94,11 @@ func (i lateSchoolIdentity) EnsureSchoolIdentity(ctx context.Context, input doma
 
 // accountAdministration serves the offboarding port: role removals run
 // through the role administration so their session revocation holds, the
-// deactivation through the retained account management.
+// deactivation through the account administration, which schedules the
+// account-wide session wipe with it (#3332).
 type accountAdministration struct {
 	roles    *application.RoleAdministration
-	accounts AccountAdministration
+	accounts *application.AccountAdministration
 }
 
 func (a accountAdministration) RemoveRoleFromAccount(ctx context.Context, accountID, roleID int64) error {
@@ -120,6 +123,10 @@ func (roleAssignmentPolicy) IsLehrkraftSystemRole(role *domain.RoleFacts) bool {
 
 func (roleAssignmentPolicy) IsGuardianTierRole(role *domain.RoleFacts) bool {
 	return identityaccess.IsGuardianTierRole(publicRoleFacts(role))
+}
+
+func (roleAssignmentPolicy) IsPlatformCaregiverRole(role *domain.RoleFacts) bool {
+	return identityaccess.IsPlatformCaregiverRole(publicRoleFacts(role))
 }
 
 func (roleAssignmentPolicy) ValidateAssignableSchoolRole(role *domain.RoleFacts, tenantID int64) error {
@@ -168,6 +175,13 @@ func (s roleStore) FindRole(ctx context.Context, id int64) (domain.ManagedRole, 
 // lookup applies no tenant filter and a system role stays resolvable.
 func (s roleStore) FindRoleIgnoringTenant(ctx context.Context, id int64) (domain.ManagedRole, bool, error) {
 	role, found, err := s.source.FindRole(tenant.ContextWithoutTenant(ctx), id)
+	return managedRole(role), found, err
+}
+
+// FindSystemRoleByName resolves the platform system role without a tenant,
+// so it stays visible inside a tenant transaction.
+func (s roleStore) FindSystemRoleByName(ctx context.Context, name string) (domain.ManagedRole, bool, error) {
+	role, found, err := s.source.FindSystemRoleByName(tenant.ContextWithoutTenant(ctx), name)
 	return managedRole(role), found, err
 }
 

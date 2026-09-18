@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -68,15 +67,13 @@ func init() {
 // closed a month is blocked until those rows are dealt with. Consistency with
 // the ledger beats diverging here.
 func staffMonthBalanceSnapshotsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.222: Creating active.staff_month_balance_snapshots...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -166,15 +163,13 @@ func staffMonthBalanceSnapshotsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func staffMonthBalanceSnapshotsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.222: Dropping active.staff_month_balance_snapshots...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

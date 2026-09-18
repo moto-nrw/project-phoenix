@@ -6,8 +6,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	owner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 type ApprovedOfferingReader interface {
@@ -91,8 +91,8 @@ func (p *ApprovedOfferingProjection) resolveSelections(ctx context.Context, sele
 	return result, nil
 }
 
-func (p *ApprovedOfferingProjection) ListApprovedByStudentIDsInRange(ctx context.Context, ids []int64, from, to timezone.Date) ([]*scheduleService.ApprovedBooking, error) {
-	result := make([]*scheduleService.ApprovedBooking, 0)
+func (p *ApprovedOfferingProjection) ListApprovedByStudentIDsInRange(ctx context.Context, ids []int64, from, to timezone.Date) ([]*careschedule.ApprovedBooking, error) {
+	result := make([]*careschedule.ApprovedBooking, 0)
 	if len(ids) == 0 || to.Before(from) {
 		return result, nil
 	}
@@ -121,9 +121,9 @@ func (p *ApprovedOfferingProjection) ListApprovedByStudentIDsInRange(ctx context
 		return nil, err
 	}
 	for _, child := range children {
-		booking := &scheduleService.ApprovedBooking{StudentID: child.StudentID}
+		booking := &careschedule.ApprovedBooking{StudentID: child.StudentID}
 		if child.Link != nil {
-			booking.Link = &scheduleService.BookingSelection{
+			booking.Link = &careschedule.BookingSelection{
 				CareOfferingID: child.Link.CareOfferingID,
 				SelectedDays:   child.Link.SelectedDays,
 				ValidFrom:      child.Link.ValidFrom,

@@ -562,7 +562,15 @@
    wer tiefer verpackt, packt aus.
    Gitter (`grid`, Kacheln) und Anklickbares (`a`, `button`, also
    `TileCard`) wachsen nie: eine gestreckte Kachel wäre ein riesiger Knopf,
-   ein gestrecktes Gitter zöge jede Zeile in die Länge. */
+   ein gestrecktes Gitter zöge jede Zeile in die Länge.
+   Ausstieg: `.moto-scroll-surface` an einer Fläche, die ihre Höhe selbst
+   bekommt und innen scrollt (die Chats mit `useChatViewportLock`). Die Regel
+   steht außerhalb der Tailwind-Layer; ihr `flex: 1 0 auto` schlüge sonst das
+   `flex-1 min-h-0` der Karte. Die Karte würde so hoch wie ihr ganzer
+   Inhalt, die Liste hätte nichts zu scrollen und die feste Hülle schnitte
+   das Eingabefeld ab (#3328). Solche Flächen und ihre Hüllen wachsen nicht
+   mit; `e2e/layout/tenant-body-grow.spec.ts` prüft beides im Browser
+   (`pnpm run test:layout`). */
 .moto-tenant-body {
   display: flex;
   flex: 1 1 0%;
@@ -578,12 +586,18 @@
    dem Desktop doppelt, als Karten und als Tabelle. */
 .moto-tenant-body
   > :last-child:not(.grid, .moto-content-surface, .hidden, .md\:hidden):has(
-    .moto-content-surface:last-child:is(section, div)
+    .moto-content-surface:last-child:is(section, div):not(.moto-scroll-surface)
   ),
 .moto-tenant-body
   > :last-child:not(.grid, .moto-content-surface, .hidden, .md\:hidden)
-  :not(.grid, .moto-content-surface, .hidden, .md\:hidden):has(
-    .moto-content-surface:last-child:is(section, div)
+  :not(
+    .grid,
+    .moto-content-surface,
+    .hidden,
+    .md\:hidden,
+    .moto-scroll-surface *
+  ):has(
+    .moto-content-surface:last-child:is(section, div):not(.moto-scroll-surface)
   ) {
   display: flex;
   flex-direction: column;
@@ -593,54 +607,54 @@
    div)`, H = eine Hülle `:last-child:not(.grid, .moto-content-surface)`.
    Es wächst F und jede H auf dem Weg dorthin, bis drei H tief. */
 /* F */
-.moto-tenant-body > .moto-content-surface:last-child:is(section, div),
+.moto-tenant-body > .moto-content-surface:last-child:is(section, div):not(.moto-scroll-surface),
 /* H > F */
 .moto-tenant-body
   > :last-child:not(.grid, .moto-content-surface):has(
-    > .moto-content-surface:last-child:is(section, div)
+    > .moto-content-surface:last-child:is(section, div):not(.moto-scroll-surface)
   ),
 .moto-tenant-body
   > :last-child:not(.grid, .moto-content-surface)
-  > .moto-content-surface:last-child:is(section, div),
+  > .moto-content-surface:last-child:is(section, div):not(.moto-scroll-surface),
 /* H > H > F */
 .moto-tenant-body
   > :last-child:not(.grid, .moto-content-surface):has(
     > :last-child:not(.grid, .moto-content-surface)
-      > .moto-content-surface:last-child:is(section, div)
+      > .moto-content-surface:last-child:is(section, div):not(.moto-scroll-surface)
   ),
 .moto-tenant-body
   > :last-child:not(.grid, .moto-content-surface)
   > :last-child:not(.grid, .moto-content-surface):has(
-    > .moto-content-surface:last-child:is(section, div)
+    > .moto-content-surface:last-child:is(section, div):not(.moto-scroll-surface)
   ),
 .moto-tenant-body
   > :last-child:not(.grid, .moto-content-surface)
   > :last-child:not(.grid, .moto-content-surface)
-  > .moto-content-surface:last-child:is(section, div),
+  > .moto-content-surface:last-child:is(section, div):not(.moto-scroll-surface),
 /* H > H > H > F */
 .moto-tenant-body
   > :last-child:not(.grid, .moto-content-surface):has(
     > :last-child:not(.grid, .moto-content-surface)
       > :last-child:not(.grid, .moto-content-surface)
-      > .moto-content-surface:last-child:is(section, div)
+      > .moto-content-surface:last-child:is(section, div):not(.moto-scroll-surface)
   ),
 .moto-tenant-body
   > :last-child:not(.grid, .moto-content-surface)
   > :last-child:not(.grid, .moto-content-surface):has(
     > :last-child:not(.grid, .moto-content-surface)
-      > .moto-content-surface:last-child:is(section, div)
+      > .moto-content-surface:last-child:is(section, div):not(.moto-scroll-surface)
   ),
 .moto-tenant-body
   > :last-child:not(.grid, .moto-content-surface)
   > :last-child:not(.grid, .moto-content-surface)
   > :last-child:not(.grid, .moto-content-surface):has(
-    > .moto-content-surface:last-child:is(section, div)
+    > .moto-content-surface:last-child:is(section, div):not(.moto-scroll-surface)
   ),
 .moto-tenant-body
   > :last-child:not(.grid, .moto-content-surface)
   > :last-child:not(.grid, .moto-content-surface)
   > :last-child:not(.grid, .moto-content-surface)
-  > .moto-content-surface:last-child:is(section, div) {
+  > .moto-content-surface:last-child:is(section, div):not(.moto-scroll-surface) {
   flex: 1 0 auto;
 }
 

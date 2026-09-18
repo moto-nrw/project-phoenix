@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func createUnifiedComments(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.12.1: Creating unified suggestions.comments table...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -115,20 +112,17 @@ func createUnifiedComments(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error dropping suggestions.operator_comments table: %w", err)
 	}
 
-	fmt.Println("Migration 1.12.1: Successfully created unified suggestions.comments table")
 	return tx.Commit()
 }
 
 func rollbackUnifiedComments(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.12.1: Restoring operator_comments table...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -190,6 +184,5 @@ func rollbackUnifiedComments(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error dropping suggestions.comments table: %w", err)
 	}
 
-	fmt.Println("Migration 1.12.1: Successfully restored operator_comments table")
 	return tx.Commit()
 }

@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -98,15 +97,13 @@ type departureSchemaRow struct {
 // has no legacy fields, so a re-run only repairs any remaining legacy phase
 // bindings and publishes nothing new.
 func formSchemasMigrateLegacyDepartureUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.166: Replacing legacy departure fields in enrollment.form_schemas with student.allowed_departure_modes...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -207,7 +204,9 @@ func formSchemasMigrateLegacyDepartureUp(ctx context.Context, db *bun.DB) error 
 		migrated++
 	}
 
-	fmt.Printf("Migration 1.15.166: Converted %d form-schema lineage(s).\n", migrated)
+	migrationLog().InfoContext(ctx, "form-schema lineages converted",
+		"lineages", migrated,
+	)
 	return tx.Commit()
 }
 

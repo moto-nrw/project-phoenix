@@ -193,7 +193,7 @@ export function MFAChallengeForm({
           disabled={isVerifying}
           onComplete={(code) => {
             // Fire-and-forget: errors surface through state, not the caller.
-            void performVerify(code); // NOSONAR typescript:S3735 fire-and-forget pattern matches project convention (10+ existing sites)
+            void performVerify(code);
           }}
           ariaLabel="6-stelliger Bestätigungscode"
         />

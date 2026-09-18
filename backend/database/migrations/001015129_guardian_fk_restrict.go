@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -46,9 +45,6 @@ func init() {
 // (guardian_phone_numbers, guardian_invitations) keep CASCADE — deleting a
 // guardian SHOULD clean those up; the danger was only the shared link table.
 func setGuardianLinkFKOnDelete(ctx context.Context, db *bun.DB, onDelete string) error {
-	fmt.Printf("Migration %s: setting fk_students_guardians_guardian_tenant ON DELETE %s...\n",
-		guardianFKRestrictVersion, onDelete)
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -56,7 +52,7 @@ func setGuardianLinkFKOnDelete(ctx context.Context, db *bun.DB, onDelete string)
 	defer func() {
 		if err := tx.Rollback(); err != nil &&
 			err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

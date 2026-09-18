@@ -14,9 +14,9 @@ import (
 	apiTest "github.com/moto-nrw/project-phoenix/api/testutil"
 	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -78,14 +78,14 @@ func doScopedDev(t *testing.T, setup *scopedDevSetup, instanceID int64, body any
 
 func scopedInstanceStaff(t *testing.T, db *bun.DB, ctx context.Context, instanceID int64) []*scheduleModel.InstanceStaff {
 	t.Helper()
-	rows, err := scheduleRepo.NewInstanceStaffRepository(db).FindByInstanceID(ctx, instanceID)
+	rows, err := timetablesqltest.NewInstanceStaffRepository(db).FindByInstanceID(ctx, instanceID)
 	require.NoError(t, err)
 	return rows
 }
 
 func readScopedInstanceStaff(t *testing.T, db *bun.DB, ctx context.Context, id int64) *scheduleModel.InstanceStaff {
 	t.Helper()
-	row, err := scheduleRepo.NewInstanceStaffRepository(db).FindByID(ctx, id)
+	row, err := timetablesqltest.NewInstanceStaffRepository(db).FindByID(ctx, id)
 	require.NoError(t, err)
 	return row
 }
@@ -327,7 +327,7 @@ func TestApplyDeviations_CannotClearSickAbsence(t *testing.T) {
 	row := testpkg.CreateTestInstanceStaff(t, s.db, instance.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
 	sickAbsenceID := row.ID
 	row.SickAbsenceID = &sickAbsenceID
-	require.NoError(t, scheduleRepo.NewInstanceStaffRepository(s.db).Update(s.ctx, row))
+	require.NoError(t, timetablesqltest.NewInstanceStaffRepository(s.db).Update(s.ctx, row))
 
 	w := doScopedDev(t, s, instance.ID, map[string]any{
 		"presences": []map[string]any{{
@@ -393,7 +393,7 @@ func TestApplyDeviations_CannotRemoveSickSubstitute(t *testing.T) {
 	row := testpkg.CreateTestInstanceStaff(t, s.db, instance.ID, s.staffX, testpkg.InstanceStaffOpts{IsSubstitute: true, IsAbsent: true})
 	sickAbsenceID := row.ID
 	row.SickAbsenceID = &sickAbsenceID
-	require.NoError(t, scheduleRepo.NewInstanceStaffRepository(s.db).Update(s.ctx, row))
+	require.NoError(t, timetablesqltest.NewInstanceStaffRepository(s.db).Update(s.ctx, row))
 
 	w := doScopedDev(t, s, instance.ID, map[string]any{
 		"substitution_removals": []map[string]any{{
@@ -616,7 +616,7 @@ func TestApplyDeviations_DayWidePresenceSkipsTerminalSickAbsence(t *testing.T) {
 	terminalRow := testpkg.CreateTestInstanceStaff(t, s.db, terminal.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
 	sickAbsenceID := terminalRow.ID
 	terminalRow.SickAbsenceID = &sickAbsenceID
-	require.NoError(t, scheduleRepo.NewInstanceStaffRepository(s.db).Update(s.ctx, terminalRow))
+	require.NoError(t, timetablesqltest.NewInstanceStaffRepository(s.db).Update(s.ctx, terminalRow))
 
 	w := doScopedDev(t, s, planned.ID, map[string]any{
 		"presences": []map[string]any{{"staff_id": s.staffA}},

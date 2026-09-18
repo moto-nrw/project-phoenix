@@ -8,9 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
-	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -18,14 +16,14 @@ import (
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
-// stubParentAuthService embeds the AuthService interface so all methods exist
-// at compile time. Only LoginParentWithAudit is overridden — calling any other
-// method nil-derefs and fails the test loudly, which is exactly what we want
-// (the parent login handler must not touch anything else).
+// stubParentAuthService embeds the AuthService interface so all methods
+// exist at compile time. Only LoginParentWithAudit is overridden — calling
+// any other method nil-derefs and fails the test loudly, which is exactly
+// what we want (the parent login handler must not touch anything else).
 type stubParentAuthService struct {
 	authService.AuthService
 	loginParent func(ctx context.Context, email, password, ip, ua string) (string, string, error)
-	resetParent func(ctx context.Context, email string) (*authModel.PasswordResetToken, error)
+	resetParent func(ctx context.Context, email string) error
 	confirm     func(ctx context.Context, token, newPassword string) error
 }
 
@@ -35,21 +33,45 @@ func (s *stubParentAuthService) LoginParentWithAudit(
 	return s.loginParent(ctx, email, password, ipAddress, userAgent)
 }
 
-func (s *stubParentAuthService) InitiateParentPasswordReset(ctx context.Context, email string) (*authModel.PasswordResetToken, error) {
-	return s.resetParent(ctx, email)
+// The reset runtime the composition root binds (#3332), stood up here from
+// the stub's two closures plus the classifiers the root supplies in
+// production. The sentinels are the stub's own, so a test proves the
+// handler's mapping and not the owner's error shapes.
+var (
+	errStubResetLinkUnusable = errors.New("stub: reset link is unusable")
+	errStubPasswordTooWeak   = errors.New("stub: password is too weak")
+)
+
+// errStubRateLimited carries the retry window a rate-limited stub reports.
+type errStubRateLimited struct{ retryAfter int }
+
+func (e *errStubRateLimited) Error() string { return "stub: too many password reset requests" }
+
+func (s *stubParentAuthService) resetRuntime() parent.PasswordResetRuntime {
+	return parent.PasswordResetRuntime{
+		Initiate: func(ctx context.Context, email string) error { return s.resetParent(ctx, email) },
+		Reset: func(ctx context.Context, token, newPassword string) error {
+			return s.confirm(ctx, token, newPassword)
+		},
+		LinkUnusable: func(err error) bool { return errors.Is(err, errStubResetLinkUnusable) },
+		TooWeak:      func(err error) bool { return errors.Is(err, errStubPasswordTooWeak) },
+		RetryAfter: func(err error) (int, bool) {
+			var limited *errStubRateLimited
+			if !errors.As(err, &limited) {
+				return 0, false
+			}
+			return limited.retryAfter, true
+		},
+	}
 }
 
-func (s *stubParentAuthService) ResetPassword(ctx context.Context, token, newPassword string) error {
-	return s.confirm(ctx, token, newPassword)
-}
-
-// newTestResource wires a Resource with just the AuthService — the login
-// handler doesn't touch ParentService, RequestService, GuardianProfileLoader,
-// SchoolRepo, AccountTenantRepo, or db. If a future change to the handler
-// reaches into them, the nil deref will surface as a test failure, which is
-// the desired guardrail.
-func newTestResource(svc authService.AuthService) *parent.Resource {
-	return parent.NewResource(parent.ResourceConfig{Auth: svc})
+// newTestResource wires a Resource with just the AuthService and the reset
+// runtime — the login handler doesn't touch ParentService, RequestService,
+// GuardianProfileLoader, SchoolRepo, AccountTenantRepo, or db. If a future
+// change to the handler reaches into them, the nil deref will surface as a
+// test failure, which is the desired guardrail.
+func newTestResource(svc *stubParentAuthService) *parent.Resource {
+	return parent.NewResource(parent.ResourceConfig{Auth: svc, Resets: svc.resetRuntime()})
 }
 
 // postLogin runs a single POST against the login handler via the resource's
@@ -228,10 +250,10 @@ func TestParentPasswordReset_NeutralSuccess(t *testing.T) {
 
 	called := false
 	svc := &stubParentAuthService{
-		resetParent: func(_ context.Context, email string) (*authModel.PasswordResetToken, error) {
+		resetParent: func(_ context.Context, email string) error {
 			called = true
 			assert.Equal(t, "parent@example.com", email)
-			return nil, nil
+			return nil
 		},
 	}
 
@@ -247,17 +269,9 @@ func TestParentPasswordReset_NeutralSuccess(t *testing.T) {
 func TestParentPasswordReset_RateLimitedSetsRetryAfter(t *testing.T) {
 	t.Parallel()
 
-	retryAt := time.Now().Add(10 * time.Minute)
 	svc := &stubParentAuthService{
-		resetParent: func(_ context.Context, _ string) (*authModel.PasswordResetToken, error) {
-			return nil, &authService.AuthError{
-				Op: "initiate parent password reset",
-				Err: &authService.RateLimitError{
-					Err:      authService.ErrRateLimitExceeded,
-					Attempts: 3,
-					RetryAt:  retryAt,
-				},
-			}
+		resetParent: func(_ context.Context, _ string) error {
+			return &errStubRateLimited{retryAfter: 600}
 		},
 	}
 
@@ -338,9 +352,9 @@ func TestParentPasswordReset_MalformedEmail_Returns400(t *testing.T) {
 	t.Parallel()
 
 	svc := &stubParentAuthService{
-		resetParent: func(_ context.Context, _ string) (*authModel.PasswordResetToken, error) {
+		resetParent: func(_ context.Context, _ string) error {
 			t.Fatal("service must not be called for an invalid request body")
-			return nil, nil
+			return nil
 		},
 	}
 	rr := postPasswordReset(t, newTestResource(svc), map[string]string{
@@ -354,8 +368,8 @@ func TestParentPasswordReset_UnexpectedError_Returns500(t *testing.T) {
 	t.Parallel()
 
 	svc := &stubParentAuthService{
-		resetParent: func(_ context.Context, _ string) (*authModel.PasswordResetToken, error) {
-			return nil, errors.New("smtp config missing")
+		resetParent: func(_ context.Context, _ string) error {
+			return errors.New("smtp config missing")
 		},
 	}
 	rr := postPasswordReset(t, newTestResource(svc), map[string]string{
@@ -412,7 +426,7 @@ func TestParentPasswordResetConfirm_InvalidToken_Returns410(t *testing.T) {
 	// and from a 500 (server fault).
 	svc := &stubParentAuthService{
 		confirm: func(_ context.Context, _, _ string) error {
-			return &authService.AuthError{Op: "reset password", Err: authService.ErrInvalidToken}
+			return errStubResetLinkUnusable
 		},
 	}
 	rr := postPasswordResetConfirm(t, newTestResource(svc), map[string]string{
@@ -431,7 +445,7 @@ func TestParentPasswordResetConfirm_WeakPassword_Returns400(t *testing.T) {
 	// and returns ErrPasswordTooWeak, which must still surface as a 400.
 	svc := &stubParentAuthService{
 		confirm: func(_ context.Context, _, _ string) error {
-			return &authService.AuthError{Op: "reset password", Err: authService.ErrPasswordTooWeak}
+			return errStubPasswordTooWeak
 		},
 	}
 	rr := postPasswordResetConfirm(t, newTestResource(svc), map[string]string{

@@ -42,7 +42,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.92: creating auth.mfa_overrides + migrating auth.accounts.mfa_admin_override...")
 			_, err := db.ExecContext(ctx, `
 				CREATE TABLE IF NOT EXISTS auth.mfa_overrides (
 					id          BIGSERIAL PRIMARY KEY,
@@ -157,7 +156,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.92: restoring auth.accounts.mfa_admin_override + dropping auth.mfa_overrides...")
 			_, err := db.ExecContext(ctx, `
 				ALTER TABLE auth.accounts
 				ADD COLUMN IF NOT EXISTS mfa_admin_override TEXT NOT NULL DEFAULT 'none';

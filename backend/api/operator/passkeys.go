@@ -40,7 +40,7 @@ func (rs *Resource) PasskeyLoginOptions(w http.ResponseWriter, r *http.Request) 
 		common.RenderError(w, r, common.ErrorInvalidRequest(authSvc.ErrPasskeyOriginInvalid))
 		return
 	}
-	options, err := rs.passkeyService.BeginLogin(r.Context(), origin)
+	options, err := rs.passkeyService.BeginOperatorPasskeyLogin(r.Context(), origin)
 	if err != nil {
 		mapOperatorPasskeyError(w, r, err)
 		return
@@ -62,7 +62,7 @@ func (rs *Resource) PasskeyLoginVerify(w http.ResponseWriter, r *http.Request) {
 	if ip != nil {
 		ipString = ip.String()
 	}
-	result, err := rs.passkeyService.FinishLogin(r.Context(), platformSvc.OperatorPasskeyLoginFinishRequest{
+	result, err := rs.passkeyService.FinishOperatorPasskeyLogin(r.Context(), platformSvc.OperatorPasskeyLoginFinish{
 		SessionID:          req.SessionID,
 		CredentialResponse: req.Response,
 		IPAddress:          ipString,
@@ -84,7 +84,7 @@ func (rs *Resource) PasskeyEnrollmentChallenge(w http.ResponseWriter, r *http.Re
 		return
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
-	result, err := rs.passkeyService.StartEnrollmentChallenge(r.Context(), int64(claims.ID), getClientIP(r))
+	result, err := rs.passkeyService.StartOperatorPasskeyEnrollment(r.Context(), int64(claims.ID), getClientIP(r))
 	if err != nil {
 		mapOperatorPasskeyError(w, r, err)
 		return
@@ -107,7 +107,7 @@ func (rs *Resource) PasskeyRegisterOptions(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
-	options, err := rs.passkeyService.BeginRegistration(r.Context(), platformSvc.OperatorPasskeyRegistrationStartRequest{
+	options, err := rs.passkeyService.BeginOperatorPasskeyRegistration(r.Context(), platformSvc.OperatorPasskeyRegistrationStart{
 		OperatorID:     int64(claims.ID),
 		ExpectedOrigin: origin,
 		Code:           req.Code,
@@ -130,7 +130,7 @@ func (rs *Resource) PasskeyRegisterVerify(w http.ResponseWriter, r *http.Request
 		return
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
-	credential, err := rs.passkeyService.FinishRegistration(r.Context(), platformSvc.OperatorPasskeyRegistrationFinishRequest{
+	credential, err := rs.passkeyService.FinishOperatorPasskeyRegistration(r.Context(), platformSvc.OperatorPasskeyRegistrationFinish{
 		OperatorID:         int64(claims.ID),
 		SessionID:          req.SessionID,
 		CredentialResponse: req.Response,
@@ -148,7 +148,7 @@ func (rs *Resource) PasskeyList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
-	credentials, err := rs.passkeyService.ListCredentials(r.Context(), int64(claims.ID))
+	credentials, err := rs.passkeyService.ListOperatorPasskeyCredentials(r.Context(), int64(claims.ID))
 	if err != nil {
 		mapOperatorPasskeyError(w, r, err)
 		return
@@ -167,7 +167,7 @@ func (rs *Resource) PasskeyRevoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
-	if err := rs.passkeyService.RevokeCredential(r.Context(), int64(claims.ID), id); err != nil {
+	if err := rs.passkeyService.RevokeOperatorPasskeyCredential(r.Context(), int64(claims.ID), id); err != nil {
 		mapOperatorPasskeyError(w, r, err)
 		return
 	}
@@ -196,6 +196,10 @@ func mapOperatorPasskeyError(w http.ResponseWriter, r *http.Request, err error) 
 	case errors.Is(err, authSvc.ErrPasskeyNotFound):
 		common.RenderError(w, r, ErrNotFound("Passkey not found"))
 	default:
+		// AuthErrorRenderer keeps the typed operator errors (invalid
+		// credentials, inactive, unknown) on their own status codes and
+		// answers everything else, including a failed read or write of the
+		// passkey records, with a stable message.
 		common.RenderError(w, r, AuthErrorRenderer(err))
 	}
 }

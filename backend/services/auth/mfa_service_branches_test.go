@@ -10,15 +10,15 @@ import (
 	"context"
 	"database/sql"
 	"net"
-	"strings"
 	"testing"
 	"time"
+
+	auth "github.com/moto-nrw/project-phoenix/services/auth"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
-	"github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -81,7 +81,7 @@ func TestMFAService_OperatorSetGlobalMFAOverride_ForceOnKeepsExistingDevice(t *t
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	require.NoError(t, svc.Enroll(ctx, acc.ID))
+	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
 	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, tenantID, "UA-test", net.ParseIP("203.0.113.10"))
 	require.NoError(t, err)
 
@@ -109,7 +109,7 @@ func TestMFAService_OperatorSetGlobalMFAOverride_ForceOffRevokesAcrossAllTenants
 	testpkg.EnsureTestTenant(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
 
-	require.NoError(t, svc.Enroll(ctx, acc.ID))
+	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
 	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, tenantA, "UA-A", net.ParseIP("203.0.113.21"))
 	require.NoError(t, err)
 	_, _, err = svc.IssueTrustedDevice(ctx, acc.ID, tenantB, "UA-B", net.ParseIP("203.0.113.22"))
@@ -173,7 +173,7 @@ func TestMFAService_SetMFAOverride_ForceOnKeepsTrustedDevices(t *testing.T) {
 
 	acc, tenantID := tenantMappedAccount(t, db, "tenant-force-on-keeps-device")
 
-	require.NoError(t, svc.Enroll(ctx, acc.ID))
+	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
 	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, tenantID, "UA-keep", net.ParseIP("203.0.113.30"))
 	require.NoError(t, err)
 
@@ -198,7 +198,7 @@ func TestMFAService_SetMFAOverride_ForceOffOnlyAffectsTargetTenant(t *testing.T)
 	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureAccountTenant(t, db, acc.ID, tenantB)
 
-	require.NoError(t, svc.Enroll(ctx, acc.ID))
+	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
 	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, tenantA, "UA-A", net.ParseIP("203.0.113.41"))
 	require.NoError(t, err)
 	_, _, err = svc.IssueTrustedDevice(ctx, acc.ID, tenantB, "UA-B", net.ParseIP("203.0.113.42"))
@@ -218,79 +218,6 @@ func TestMFAService_SetMFAOverride_ForceOffOnlyAffectsTargetTenant(t *testing.T)
 }
 
 // --- ShortenUserAgent — pure function ---------------------------------
-
-func TestShortenUserAgent(t *testing.T) {
-	t.Parallel()
-
-	// Every branch of the parser. The full UA strings come from real
-	// browsers (User-Agent headers as logged in development) so a future
-	// edit that breaks one of them is caught here.
-	cases := []struct {
-		name     string
-		ua       string
-		expected string
-	}{
-		{"empty", "", "Unbekanntes Gerät"},
-		{"whitespace", "   \n\t", "Unbekanntes Gerät"},
-		{"unknown browser unknown os", "Mozilla/5.0 SomethingObscure", "Browser"},
-		{"chrome on macOS",
-			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-			"Chrome auf macOS",
-		},
-		{"chrome on windows",
-			"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-			"Chrome auf Windows",
-		},
-		{"chrome on android",
-			"Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36",
-			"Chrome auf Android",
-		},
-		{"firefox on linux",
-			"Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0",
-			"Firefox auf Linux",
-		},
-		{"safari on iphone",
-			"Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1",
-			"Safari auf iPhone",
-		},
-		{"safari on ipad",
-			"Mozilla/5.0 (iPad; CPU OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/604.1",
-			"Safari auf iPad",
-		},
-		{"edge on windows",
-			"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
-			"Edge auf Windows",
-		},
-		{"chrome detected when edge sub-token absent",
-			"Mozilla/5.0 Chrome/120.0.0.0 Safari/537.36",
-			"Chrome",
-		},
-		{"safari without chrome token stays safari",
-			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15",
-			"Safari auf macOS",
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got := auth.ShortenUserAgent(tc.ua)
-			assert.Equal(t, tc.expected, got)
-		})
-	}
-}
-
-func TestShortenUserAgent_DoesNotMisidentifyChromeAsSafari(t *testing.T) {
-	t.Parallel()
-
-	// Regression guard: Chrome's UA contains "Safari/" — the parser
-	// must NOT report Safari for a Chrome string. Pulled into its own
-	// test because this is the easiest mistake to introduce while
-	// reordering the switch cases.
-	ua := "Mozilla/5.0 Chrome/120 Safari/537.36"
-	got := auth.ShortenUserAgent(ua)
-	require.True(t, strings.HasPrefix(got, "Chrome"), "expected Chrome prefix, got %q", got)
-}
-
-// --- override writes vs. an in-flight token mint -----------------------------
 
 // TestMFAService_OperatorSetGlobalMFAOverride_WaitsForTheAccountRowLock is the
 // #2207 review regression for the per-account half of the MFA policy. A session

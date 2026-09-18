@@ -3,8 +3,7 @@
  * MessageSenderKind). Types are erased at runtime so there is no executable
  * logic to exercise. This file exists to:
  *  1. Confirm the module can be imported without errors (smoke test).
- *  2. Assert the shape of runtime values that conform to the types, giving
- *     SonarCloud a coverage signal on the import itself.
+ *  2. Assert the shape of runtime values that conform to the types.
  */
 
 import { describe, it, expect } from "vitest";

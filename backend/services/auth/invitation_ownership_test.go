@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
@@ -29,12 +30,12 @@ func TestInvitationTokenCannotTakeOverExistingAccount(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, schoolA)
 	role := testpkg.CreateTestRoleForTenant(t, db, "invited-staff", schoolA)
 	creator := testpkg.CreateTestAccount(t, db, "invitation-creator")
-	invitation, err := service.CreateInvitation(testpkg.TenantContext(schoolA), auth.InvitationRequest{
+	invitation, err := service.CreateSchoolInvitation(testpkg.TenantContext(schoolA), identityaccess.SchoolInvitationRequest{
 		Email: owner.Email, RoleID: role.ID, CreatedBy: creator.ID,
 		FirstName: testpkg.StrPtr("Invited"), LastName: testpkg.StrPtr("Owner"),
 	})
 	require.NoError(t, err)
-	_, acceptErr := service.AcceptInvitation(context.Background(), invitation.Token, auth.UserRegistrationData{
+	_, acceptErr := service.AcceptSchoolInvitation(context.Background(), invitation.Token, identityaccess.InvitationRegistration{
 		Password: testNewPassword, ConfirmPassword: testNewPassword,
 	})
 	stored, err := repos.Account.FindByID(context.Background(), owner.ID)
@@ -45,7 +46,7 @@ func TestInvitationTokenCannotTakeOverExistingAccount(t *testing.T) {
 	exists, err := repos.AccountTenant.ExistsByAccountAndTenant(context.Background(), owner.ID, schoolA)
 	require.NoError(t, err)
 	require.False(t, exists)
-	_, err = service.ValidateInvitation(context.Background(), invitation.Token)
+	_, err = service.ValidateSchoolInvitation(context.Background(), invitation.Token)
 	require.NoError(t, err, "rejection must not consume the invitation")
 }
 
@@ -65,7 +66,7 @@ func TestInvitationExistingOwnerProof(t *testing.T) {
 			testpkg.EnsureTestTenant(t, db, schoolA)
 			role := testpkg.CreateTestRoleForTenant(t, db, "invited-staff", schoolA)
 			creator := testpkg.CreateTestAccount(t, db, "invitation-creator")
-			invitation, err := service.CreateInvitation(testpkg.TenantContext(schoolA), auth.InvitationRequest{
+			invitation, err := service.CreateSchoolInvitation(testpkg.TenantContext(schoolA), identityaccess.SchoolInvitationRequest{
 				Email: owner.Email, RoleID: role.ID, CreatedBy: creator.ID,
 				FirstName: testpkg.StrPtr("Invited"), LastName: testpkg.StrPtr("Owner"),
 			})
@@ -77,15 +78,15 @@ func TestInvitationExistingOwnerProof(t *testing.T) {
 				TenantID: testpkg.Tenant(t),
 			})
 			require.NoError(t, err)
-			accepted, acceptErr := service.AcceptInvitation(context.Background(), invitation.Token, auth.UserRegistrationData{OwnerAccessToken: accessToken})
+			accepted, acceptErr := service.AcceptSchoolInvitation(context.Background(), invitation.Token, identityaccess.InvitationRegistration{OwnerAccessToken: accessToken})
 			allowed := scope != "platform" && scope != "unknown"
 			if allowed {
 				require.NoError(t, acceptErr)
 				require.Equal(t, owner.ID, accepted.ID)
-				_, replayErr := service.AcceptInvitation(context.Background(), invitation.Token, auth.UserRegistrationData{OwnerAccessToken: accessToken})
-				require.ErrorIs(t, replayErr, auth.ErrInvitationUsed)
+				_, replayErr := service.AcceptSchoolInvitation(context.Background(), invitation.Token, identityaccess.InvitationRegistration{OwnerAccessToken: accessToken})
+				require.ErrorIs(t, replayErr, identityaccess.ErrInvitationUsed)
 			} else {
-				require.ErrorIs(t, acceptErr, auth.ErrInvitationOwnerRequired)
+				require.ErrorIs(t, acceptErr, identityaccess.ErrInvitationOwnerRequired)
 			}
 			stored, err := repos.Account.FindByID(context.Background(), owner.ID)
 			require.NoError(t, err)
@@ -128,7 +129,7 @@ func TestInvitationRejectsInvalidOwnerProofWithoutWrites(t *testing.T) {
 			invitation.SetTenantID(schoolA)
 			require.NoError(t, repos.InvitationToken.Create(testpkg.TenantContext(schoolA), invitation))
 			claims := map[string]any{"id": owner.ID, "sub": owner.Email, "roles": []string{}, "tenant_id": testpkg.Tenant(t), "exp": time.Now().Add(time.Hour).Unix()}
-			wantErr := auth.ErrInvitationOwnerRequired
+			wantErr := identityaccess.ErrInvitationOwnerRequired
 			signer := schoolTokenAuth(t)
 			switch name {
 			case "expired":
@@ -149,7 +150,7 @@ func TestInvitationRejectsInvalidOwnerProofWithoutWrites(t *testing.T) {
 				owner.Active = false
 				updateErr := repos.Account.Update(context.Background(), owner)
 				require.NoError(t, updateErr)
-				wantErr = auth.ErrAccountInactive
+				wantErr = identityaccess.ErrAccountInactive
 			case "forged":
 				var err error
 				signer, err = authjwt.NewTokenAuthWithSecret("different-test-signing-secret-not-authorized")
@@ -159,14 +160,14 @@ func TestInvitationRejectsInvalidOwnerProofWithoutWrites(t *testing.T) {
 				other := testpkg.CreateTestAccount(t, db, "different-owner")
 				claims["id"] = other.ID
 				claims["scope"] = strings.TrimPrefix(name, "wrong-owner:")
-				wantErr = auth.ErrInvitationOwnerMismatch
+				wantErr = identityaccess.ErrInvitationOwnerMismatch
 			}
 			_, proof, err := signer.JwtAuth.Encode(claims)
 			require.NoError(t, err)
 			if name == "missing" {
 				proof = ""
 			}
-			_, err = service.AcceptInvitation(context.Background(), invitation.Token, auth.UserRegistrationData{OwnerAccessToken: proof, Password: testNewPassword, ConfirmPassword: testNewPassword})
+			_, err = service.AcceptSchoolInvitation(context.Background(), invitation.Token, identityaccess.InvitationRegistration{OwnerAccessToken: proof, Password: testNewPassword, ConfirmPassword: testNewPassword})
 			require.ErrorIs(t, err, wantErr)
 			stored, err := repos.Account.FindByID(context.Background(), owner.ID)
 			require.NoError(t, err)
@@ -175,7 +176,7 @@ func TestInvitationRejectsInvalidOwnerProofWithoutWrites(t *testing.T) {
 			joined, err := repos.AccountTenant.ExistsByAccountAndTenant(context.Background(), owner.ID, schoolA)
 			require.NoError(t, err)
 			require.False(t, joined)
-			_, err = service.ValidateInvitation(context.Background(), invitation.Token)
+			_, err = service.ValidateSchoolInvitation(context.Background(), invitation.Token)
 			require.NoError(t, err)
 		})
 	}
@@ -219,17 +220,17 @@ func TestInvitationLifecycleAndImportedSchoolIdentity(t *testing.T) {
 			require.NoError(t, repos.InvitationToken.Create(ctx, invitation))
 			if strings.HasPrefix(name, "revoked") {
 				creator := testpkg.CreateTestAccount(t, db, "revoking-creator")
-				require.NoError(t, service.RevokeInvitation(ctx, invitation.ID, creator.ID))
+				require.NoError(t, service.RevokeSchoolInvitation(ctx, invitation.ID, creator.ID))
 			}
-			data := auth.UserRegistrationData{OwnerAccessToken: proof, Password: testPassword, ConfirmPassword: testPassword}
-			account, err := service.AcceptInvitation(context.Background(), invitation.Token, data)
+			data := identityaccess.InvitationRegistration{OwnerAccessToken: proof, Password: testPassword, ConfirmPassword: testPassword}
+			account, err := service.AcceptSchoolInvitation(context.Background(), invitation.Token, data)
 			if strings.HasPrefix(name, "expired") || strings.HasPrefix(name, "revoked") {
 				if strings.HasPrefix(name, "expired") {
-					require.ErrorIs(t, err, auth.ErrInvitationExpired)
+					require.ErrorIs(t, err, identityaccess.ErrInvitationExpired)
 				} else {
-					require.ErrorIs(t, err, auth.ErrInvitationUsed)
+					require.ErrorIs(t, err, identityaccess.ErrInvitationUsed)
 				}
-				require.Nil(t, account)
+				require.Zero(t, account.ID, "a refused acceptance hands back no account")
 				storedPerson, findErr := repos.Person.FindByID(ctx, person.ID)
 				require.NoError(t, findErr)
 				require.Nil(t, storedPerson.AccountID)
@@ -246,10 +247,16 @@ func TestInvitationLifecycleAndImportedSchoolIdentity(t *testing.T) {
 			require.NotNil(t, storedPerson.AccountID)
 			require.Equal(t, account.ID, *storedPerson.AccountID)
 			if owner != nil {
-				require.Equal(t, owner.PasswordHash, account.PasswordHash)
+				// The acceptance grants membership, never authority over the
+				// account's global credential. The owner's stored hash is the
+				// evidence; the answer itself carries no credential.
+				stored, storedErr := repos.Account.FindByID(context.Background(), owner.ID)
+				require.NoError(t, storedErr)
+				require.Equal(t, owner.PasswordHash, stored.PasswordHash)
+				require.Equal(t, owner.ID, account.ID)
 			}
-			_, err = service.AcceptInvitation(context.Background(), invitation.Token, data)
-			require.ErrorIs(t, err, auth.ErrInvitationUsed)
+			_, err = service.AcceptSchoolInvitation(context.Background(), invitation.Token, data)
+			require.ErrorIs(t, err, identityaccess.ErrInvitationUsed)
 		})
 	}
 }
@@ -277,7 +284,7 @@ func TestInvitationConcurrentOwnerAcceptanceIsSingleUse(t *testing.T) {
 	for range 2 {
 		go func() {
 			<-start
-			_, acceptErr := service.AcceptInvitation(context.Background(), invitation.Token, auth.UserRegistrationData{OwnerAccessToken: proof})
+			_, acceptErr := service.AcceptSchoolInvitation(context.Background(), invitation.Token, identityaccess.InvitationRegistration{OwnerAccessToken: proof})
 			results <- acceptErr
 		}()
 	}

@@ -21,8 +21,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.5: Adding security_invoker=true to views on tenant-scoped tables...")
-
 			// Recreate expired_privacy_consents view with security_invoker = true.
 			// Without this, the view executes as its owner and bypasses RLS policies,
 			// exposing data from ALL tenants regardless of the current session's tenant_id.
@@ -50,12 +48,9 @@ func init() {
 				return fmt.Errorf("error adding security_invoker to expired_privacy_consents view: %w", err)
 			}
 
-			fmt.Println("Migration 1.15.5: security_invoker=true applied to all views")
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.5: Removing security_invoker from views...")
-
 			// Recreate view without security_invoker (back to default SECURITY DEFINER)
 			_, err := db.ExecContext(ctx, `
 				DROP VIEW IF EXISTS users.expired_privacy_consents;
@@ -76,7 +71,6 @@ func init() {
 				return fmt.Errorf("error removing security_invoker from expired_privacy_consents view: %w", err)
 			}
 
-			fmt.Println("Migration 1.15.5: Rolled back security_invoker changes")
 			return nil
 		},
 	)

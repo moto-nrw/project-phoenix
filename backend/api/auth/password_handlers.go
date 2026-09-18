@@ -2,17 +2,15 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
 // initiatePasswordReset handles initiating a password reset
@@ -23,20 +21,15 @@ func (rs *Resource) initiatePasswordReset(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Always return success to avoid revealing whether email exists, but handle rate limiting
-	_, err := rs.AuthService.InitiatePasswordReset(r.Context(), req.Email)
-	if err != nil {
-		var rateErr *authService.RateLimitError
-		if errors.As(err, &rateErr) {
-			// Prefer Retry-After seconds, fallback to RFC1123 format
-			retryAfterSeconds := rateErr.RetryAfterSeconds(time.Now())
-			if retryAfterSeconds > 0 {
-				w.Header().Set("Retry-After", strconv.Itoa(retryAfterSeconds))
-			} else if !rateErr.RetryAt.IsZero() {
-				w.Header().Set("Retry-After", rateErr.RetryAt.UTC().Format(http.TimeFormat))
-			}
+	if rs.Sessions == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(identityaccess.ErrPasswordResetUnavailable))
+		return
+	}
 
-			common.RenderError(w, r, common.ErrorTooManyRequests(authService.ErrRateLimitExceeded))
+	// Always return success to avoid revealing whether email exists, but handle rate limiting
+	_, err := rs.Sessions.InitiatePasswordReset(r.Context(), req.Email, identityaccess.PasswordResetScopeStaff)
+	if err != nil {
+		if renderPasswordResetRateLimit(w, r, err) {
 			return
 		}
 
@@ -57,21 +50,21 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := rs.AuthService.ResetPassword(r.Context(), req.Token, req.NewPassword); err != nil {
+	if rs.Sessions == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(identityaccess.ErrPasswordResetUnavailable))
+		return
+	}
+
+	if err := rs.Sessions.ResetPassword(r.Context(), req.Token, req.NewPassword); err != nil {
 		slog.Default().WarnContext(r.Context(), "Password reset failed", slog.String("error", err.Error()))
 
-		var authErr *authService.AuthError
-		if errors.As(err, &authErr) {
-			switch {
-			case errors.Is(authErr.Err, authService.ErrInvalidToken),
-				errors.Is(authErr.Err, sql.ErrNoRows):
-				// Both cases indicate the token is invalid or not found
-				common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid or expired reset token")))
-				return
-			case errors.Is(authErr.Err, authService.ErrPasswordTooWeak):
-				common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrPasswordTooWeak))
-				return
-			}
+		switch {
+		case passwordResetLinkUnusable(err):
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid or expired reset token")))
+			return
+		case passwordTooWeak(err):
+			common.RenderError(w, r, common.ErrorInvalidRequest(identityaccess.ErrPasswordTooWeak))
+			return
 		}
 
 		common.RenderError(w, r, common.ErrorInternalServer(err))

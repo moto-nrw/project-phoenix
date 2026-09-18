@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func createAccountTenants(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.13.2: Creating auth.account_tenants table...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -87,20 +84,17 @@ func createAccountTenants(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating updated_at trigger for auth.account_tenants: %w", err)
 	}
 
-	fmt.Println("Migration 1.13.2: Successfully created auth.account_tenants table")
 	return tx.Commit()
 }
 
 func rollbackAccountTenants(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.13.2: Dropping auth.account_tenants table...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -112,6 +106,5 @@ func rollbackAccountTenants(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error dropping auth.account_tenants table: %w", err)
 	}
 
-	fmt.Println("Migration 1.13.2: Successfully rolled back auth.account_tenants table")
 	return tx.Commit()
 }

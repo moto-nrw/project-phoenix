@@ -25,8 +25,8 @@ import (
 
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/services"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
@@ -56,7 +56,7 @@ func careScheduleServiceOn(t *testing.T, db *bun.DB, repos *repositories.Factory
 	})
 }
 
-func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *repositories.Factory, boolValues map[string]bool, requestService ...*scheduleService.CareScheduleRequestService) *care.Service {
+func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *repositories.Factory, boolValues map[string]bool, requestService ...*careschedule.CareScheduleRequestService) *care.Service {
 	t.Helper()
 	sf, err := services.NewFactoryForTests(repos, db, slog.Default(), func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)

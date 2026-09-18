@@ -27,29 +27,27 @@ import (
 // service's consumer-owned port over the public module.
 
 // lifecycleWiring is the retained material the lifecycle seams are bound to.
-// The module composition fills repos from the session repositories. admin
-// and delivery are read at call time because the auth service and the
-// guardian invitation service are composed after the module.
+// The module composition fills repos from the session repositories.
 type lifecycleWiring struct {
 	repos    lifecycleRepositories
 	settings config.SettingsService
 	audit    auditModels.Command
-	admin    func() *auth.Service
-	delivery func() auth.GuardianInvitationDelivery
+	// guardianMail carries the invitation delivery and the enrollment claim
+	// the guardian invitation flows leave to the root.
+	guardianMail *guardianInvitationWiring
 }
 
 // lifecycleRepositories are the retained repositories the lifecycle seams
 // read and write.
 type lifecycleRepositories struct {
-	persons             userModels.PersonRepository
-	staff               userModels.StaffRepository
-	teachers            userModels.TeacherRepository
-	students            userModels.StudentRepository
-	guardianProfiles    userModels.GuardianProfileRepository
-	studentGuardians    userModels.StudentGuardianRepository
-	guardianInvitations auth.GuardianInvitationStore
-	authEvents          auditModels.AuthEventRepository
-	roles               identityaccessCompose.RoleDirectory
+	persons          userModels.PersonRepository
+	staff            userModels.StaffRepository
+	teachers         userModels.TeacherRepository
+	students         userModels.StudentRepository
+	guardianProfiles userModels.GuardianProfileRepository
+	studentGuardians userModels.StudentGuardianRepository
+	authEvents       auditModels.AuthEventRepository
+	roles            identityaccessCompose.RoleDirectory
 	// rolesErr is why the role directory could not be bound; the lifecycle
 	// composition reports it instead of the generic incompleteness.
 	rolesErr error
@@ -58,8 +56,8 @@ type lifecycleRepositories struct {
 func (w lifecycleWiring) complete() bool {
 	r := w.repos
 	return r.persons != nil && r.staff != nil && r.teachers != nil && r.students != nil &&
-		r.guardianProfiles != nil && r.studentGuardians != nil && r.guardianInvitations != nil && r.authEvents != nil &&
-		r.roles != nil && w.audit != nil && w.admin != nil && w.delivery != nil
+		r.guardianProfiles != nil && r.studentGuardians != nil && r.authEvents != nil &&
+		r.roles != nil && w.audit != nil
 }
 
 func lifecycleDependencies(wiring *lifecycleWiring, logger *slog.Logger) (*identityaccessCompose.LifecycleDependencies, error) {
@@ -70,18 +68,21 @@ func lifecycleDependencies(wiring *lifecycleWiring, logger *slog.Logger) (*ident
 		return nil, fmt.Errorf("identity access composition: %w", wiring.repos.rolesErr)
 	}
 	if !wiring.complete() {
-		return nil, errors.New("identity access composition: every lifecycle and role repository, the audit command, the retained auth service and the guardian invitation delivery are required")
+		return nil, errors.New("identity access composition: every lifecycle and role repository and the audit command are required")
+	}
+	delivery, enrollments, err := guardianInvitationDependencies(wiring.guardianMail)
+	if err != nil {
+		return nil, err
 	}
 	return &identityaccessCompose.LifecycleDependencies{
 		Staff:       staffDirectory{repos: wiring.repos},
 		PINs:        pinHasher{},
 		Lockout:     lockoutPolicy{settings: wiring.settings, logger: logger},
 		Audit:       previewAudit{events: wiring.repos.authEvents},
-		Admin:       accountAdministration{current: wiring.admin},
 		Passwords:   passwordPolicy{},
 		Guardians:   guardianDirectory{repos: wiring.repos},
-		Invitations: guardianInvitationStore{store: wiring.repos.guardianInvitations},
-		Delivery:    guardianInvitationDelivery{current: wiring.delivery},
+		Delivery:    delivery,
+		Enrollments: enrollments,
 		Financial:   financialAudit{command: wiring.audit},
 		Roles:       wiring.repos.roles,
 		Logger:      logger,
@@ -253,22 +254,31 @@ func (pinHasher) VerifyPIN(pin, hash string) bool {
 }
 
 // lockoutPolicy resolves the security.account_lockout_* settings for the
-// tenant in context; the MFA lockout constants are the shared fallback.
+// tenant in context. The PIN lockout and the MFA lockout share one
+// threshold and one window, so the identity module's constants are the
+// fallback here too (#586: one source of truth for the 5-attempt /
+// 15-minute policy).
 type lockoutPolicy struct {
 	settings config.SettingsService
 	logger   *slog.Logger
 }
 
 func (p lockoutPolicy) PINLockout(ctx context.Context) (int, time.Duration) {
-	threshold := config.ResolveIntOrDefault(ctx, p.settings, configModels.KeyAccountLockoutThreshold, auth.MFALockoutThreshold, p.logger)
-	minutes := config.ResolveIntOrDefault(ctx, p.settings, configModels.KeyAccountLockoutDurationMinutes, int(auth.MFALockoutDuration/time.Minute), p.logger)
+	threshold := config.ResolveIntOrDefault(ctx, p.settings, configModels.KeyAccountLockoutThreshold, identityaccess.MFALockoutThreshold, p.logger)
+	minutes := config.ResolveIntOrDefault(ctx, p.settings, configModels.KeyAccountLockoutDurationMinutes, int(identityaccess.MFALockoutDuration/time.Minute), p.logger)
 	return threshold, time.Duration(minutes) * time.Minute
 }
 
+// passwordPolicy binds the credential policy Security Runtime owns to the
+// module's password seam and reports the module's public sentinel, so every
+// flow that accepts a password answers with the same error text.
 type passwordPolicy struct{}
 
 func (passwordPolicy) ValidatePasswordStrength(password string) error {
-	return auth.ValidatePasswordStrength(password)
+	if err := auth.ValidatePasswordStrength(password); err != nil {
+		return identityaccess.ErrPasswordTooWeak
+	}
+	return nil
 }
 
 func (passwordPolicy) HashPassword(password string) (string, error) {
@@ -304,18 +314,6 @@ func (a previewAudit) LockStaffPreview(ctx context.Context, adminAccountID int64
 
 func (a previewAudit) StaffPreviewEnded(ctx context.Context, adminAccountID int64, previewID string) (bool, error) {
 	return a.events.StaffPreviewEnded(ctx, adminAccountID, previewID)
-}
-
-// --- retained account management -------------------------------------------
-
-type accountAdministration struct{ current func() *auth.Service }
-
-func (a accountAdministration) DeactivateAccount(ctx context.Context, accountID int64) error {
-	service := a.current()
-	if service == nil {
-		return errors.New("auth service is not composed")
-	}
-	return service.DeactivateAccount(ctx, int(accountID))
 }
 
 // --- guardian directory ----------------------------------------------------
@@ -505,90 +503,6 @@ func (d guardianDirectory) FindPersonNamesByIDs(ctx context.Context, personIDs [
 		return nil, err
 	}
 	return personNames(persons), nil
-}
-
-// --- guardian invitations ---------------------------------------------------
-
-type guardianInvitationStore struct{ store auth.GuardianInvitationStore }
-
-func guardianInvitationFact(record auth.GuardianInvitationRecord) identityaccessCompose.GuardianInvitation {
-	return identityaccessCompose.GuardianInvitation(record)
-}
-
-func guardianInvitationFacts(records []auth.GuardianInvitationRecord) []identityaccessCompose.GuardianInvitation {
-	result := make([]identityaccessCompose.GuardianInvitation, 0, len(records))
-	for _, record := range records {
-		result = append(result, guardianInvitationFact(record))
-	}
-	return result
-}
-
-func (s guardianInvitationStore) FindGuardianInvitation(ctx context.Context, id int64) (identityaccessCompose.GuardianInvitation, bool, error) {
-	record, found, err := s.store.FindGuardianInvitation(ctx, id)
-	return guardianInvitationFact(record), found, err
-}
-
-func (s guardianInvitationStore) ListGuardianInvitationsByProfile(ctx context.Context, guardianProfileID int64) ([]identityaccessCompose.GuardianInvitation, error) {
-	records, err := s.store.ListGuardianInvitationsByProfile(ctx, guardianProfileID)
-	if err != nil {
-		return nil, err
-	}
-	return guardianInvitationFacts(records), nil
-}
-
-func (s guardianInvitationStore) ListPendingGuardianApprovals(ctx context.Context) ([]identityaccessCompose.GuardianInvitation, error) {
-	records, err := s.store.ListPendingGuardianApprovals(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return guardianInvitationFacts(records), nil
-}
-
-func (s guardianInvitationStore) InsertGuardianInvitation(ctx context.Context, fact identityaccessCompose.GuardianInvitation) (identityaccessCompose.GuardianInvitation, error) {
-	record, err := s.store.InsertGuardianInvitation(ctx, auth.GuardianInvitationRecord(fact))
-	return guardianInvitationFact(record), err
-}
-
-func (s guardianInvitationStore) UpdateGuardianInvitation(ctx context.Context, fact identityaccessCompose.GuardianInvitation) error {
-	return s.store.UpdateGuardianInvitation(ctx, auth.GuardianInvitationRecord(fact))
-}
-
-type guardianInvitationDelivery struct {
-	current func() auth.GuardianInvitationDelivery
-}
-
-func (d guardianInvitationDelivery) InvitationExpiry(ctx context.Context) time.Duration {
-	if delivery := d.current(); delivery != nil {
-		return delivery.InvitationExpiry(ctx)
-	}
-	return auth.GuardianTokenExpiryFallback
-}
-
-func (d guardianInvitationDelivery) SchoolName(ctx context.Context, tenantID int64) string {
-	if delivery := d.current(); delivery != nil {
-		return delivery.SchoolName(ctx, tenantID)
-	}
-	return ""
-}
-
-func (d guardianInvitationDelivery) EnqueueInvitationEmail(ctx context.Context, invitation identityaccessCompose.GuardianInvitation, profile identityaccessCompose.GuardianProfile, schoolName string) {
-	delivery := d.current()
-	if delivery == nil {
-		return
-	}
-	delivery.EnqueueInvitationEmail(ctx, auth.GuardianInvitationRecord(invitation), auth.GuardianInvitationRecipient{
-		FirstName: profile.FirstName, LastName: profile.LastName, Email: profile.Email,
-	}, schoolName)
-}
-
-func (d guardianInvitationDelivery) EnqueueExistingAccountEmail(ctx context.Context, profile identityaccessCompose.GuardianProfile, schoolName string) {
-	delivery := d.current()
-	if delivery == nil {
-		return
-	}
-	delivery.EnqueueExistingAccountEmail(ctx, auth.GuardianInvitationRecipient{
-		FirstName: profile.FirstName, LastName: profile.LastName, Email: profile.Email,
-	}, schoolName)
 }
 
 type financialAudit struct{ command auditModels.Command }

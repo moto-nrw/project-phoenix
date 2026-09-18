@@ -155,8 +155,6 @@ type RecurrenceRuleRepository interface {
 // ClassArrivalExceptionRepository is the data access boundary for class-wide
 // arrival day exceptions (#2962).
 type ClassArrivalExceptionRepository interface {
-	crudRepository[*ClassArrivalException]
-
 	// FindByClassesAndDateRange returns the exceptions of the given classes
 	// with from <= date <= to, matched case-insensitively on the normalized
 	// class and ordered by date.

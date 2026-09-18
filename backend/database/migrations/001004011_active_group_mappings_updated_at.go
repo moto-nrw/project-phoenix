@@ -27,8 +27,6 @@ func init() {
 }
 
 func addGroupMappingsUpdatedAt(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.5.1: Adding updated_at column to active.group_mappings...")
-
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("error starting transaction: %w", err)
@@ -48,13 +46,10 @@ func addGroupMappingsUpdatedAt(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error committing transaction: %w", err)
 	}
 
-	fmt.Println("Migration 1.5.1: Successfully added updated_at column to active.group_mappings")
 	return nil
 }
 
 func removeGroupMappingsUpdatedAt(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rollback 1.5.1: Removing updated_at column from active.group_mappings...")
-
 	_, err := db.ExecContext(ctx, `
 		ALTER TABLE active.group_mappings DROP COLUMN IF EXISTS updated_at
 	`)
@@ -62,6 +57,5 @@ func removeGroupMappingsUpdatedAt(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error removing updated_at column: %w", err)
 	}
 
-	fmt.Println("Rollback 1.5.1: Successfully removed updated_at column from active.group_mappings")
 	return nil
 }

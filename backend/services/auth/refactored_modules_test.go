@@ -12,19 +12,40 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
+// accountPasswordHash reads the stored credential of an account so a test
+// can prove a write left it alone. The capability never reports it.
+func accountPasswordHash(t *testing.T, db *bun.DB, accountID int64) string {
+	t.Helper()
+	var hash *string
+	require.NoError(t, db.NewSelect().
+		ColumnExpr("password_hash").
+		TableExpr("auth.accounts").
+		Where("id = ?", accountID).
+		Scan(testpkg.Ctx(t), &hash))
+	if hash == nil {
+		return ""
+	}
+	return *hash
+}
+
 // setupAuthServiceWithDB creates an auth service with real database connection
-func setupAuthServiceWithDB(t *testing.T, db *bun.DB) auth.AuthService {
+func setupAuthServiceWithDB(t *testing.T, db *bun.DB) testAuthService {
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
-	return &fixtureOwnedAuthService{AuthService: serviceFactory.Auth, t: t, db: db}
+	return &fixtureOwnedAuthService{
+		AuthService:    serviceFactory.Auth,
+		provisioning:   serviceFactory.AccountAuthentication(),
+		administration: serviceFactory.AccountAuthentication(),
+		t:              t,
+		db:             db,
+	}
 }
 
 // =============================================================================
@@ -679,21 +700,17 @@ func TestAuthService_UpdateAccount_Extended(t *testing.T) {
 	service := setupAuthServiceWithDB(t, db)
 	ctx := testpkg.Ctx(t)
 
-	t.Run("preserves password hash when not provided", func(t *testing.T) {
+	t.Run("preserves the credential", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("preserve-hash-%d@test.local", time.Now().UnixNano())
 		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
 		require.NoError(t, err)
 		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
-		// Get the original password hash
-		original, err := service.GetAccountByID(ctx, int(account.ID))
-		require.NoError(t, err)
-		originalHash := original.PasswordHash
+		originalHash := accountPasswordHash(t, db, account.ID)
+		require.NotEmpty(t, originalHash)
 
-		// Update without password
-		account.PasswordHash = nil
-		account.Active = false
+		account.Email = fmt.Sprintf("preserved-hash-%d@test.local", time.Now().UnixNano())
 
 		// ACT
 		err = service.UpdateAccount(ctx, account)
@@ -701,11 +718,14 @@ func TestAuthService_UpdateAccount_Extended(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 
-		// Verify password hash is preserved
+		// The identity update writes the address and the name; the
+		// credential is only ever replaced by a password change (#3332).
+		assert.Equal(t, originalHash, accountPasswordHash(t, db, account.ID))
+
 		updated, err := service.GetAccountByID(ctx, int(account.ID))
 		require.NoError(t, err)
-		assert.Equal(t, originalHash, updated.PasswordHash)
-		assert.False(t, updated.Active)
+		assert.Equal(t, account.Email, updated.Email)
+		assert.True(t, updated.Active, "an identity update never disables an account")
 	})
 
 	t.Run("returns error for non-existent account", func(t *testing.T) {
@@ -819,42 +839,6 @@ func TestAuthService_CleanupExpiredTokens_Extended(t *testing.T) {
 	t.Run("returns zero when no expired tokens", func(t *testing.T) {
 		// ACT
 		count, err := service.CleanupExpiredTokens(ctx)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, count, 0)
-	})
-}
-
-func TestAuthService_CleanupExpiredPasswordResetTokens_Extended(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns count of cleaned tokens", func(t *testing.T) {
-		// ACT
-		count, err := service.CleanupExpiredPasswordResetTokens(ctx)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, count, 0)
-	})
-}
-
-func TestAuthService_CleanupExpiredRateLimits_Extended(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns count of cleaned rate limits", func(t *testing.T) {
-		// ACT
-		count, err := service.CleanupExpiredRateLimits(ctx)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1047,79 +1031,6 @@ func TestAuthService_ListParentAccounts_Extended(t *testing.T) {
 		for _, acc := range result {
 			assert.True(t, acc.Active)
 		}
-	})
-}
-
-// =============================================================================
-// Password Reset Extended Tests (password_reset.go)
-// =============================================================================
-
-func TestAuthService_ResetPassword_Extended(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns error for invalid token", func(t *testing.T) {
-		// ACT
-		err := service.ResetPassword(ctx, "invalid-token-12345", "NewPassword1%")
-
-		// ASSERT
-		require.Error(t, err)
-	})
-
-	t.Run("returns error for weak new password", func(t *testing.T) {
-		// ARRANGE
-		email := fmt.Sprintf("reset-weak-%d@test.local", time.Now().UnixNano())
-		_, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
-		require.NoError(t, err)
-
-		// Initiate password reset
-		resetToken, err := service.InitiatePasswordReset(ctx, email)
-		require.NoError(t, err)
-		require.NotNil(t, resetToken)
-
-		// ACT - Try with weak password
-		err = service.ResetPassword(ctx, resetToken.Token, "weak")
-
-		// ASSERT
-		require.Error(t, err)
-	})
-}
-
-func TestAuthService_InitiatePasswordReset_Extended(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns nil for non-existent email (security)", func(t *testing.T) {
-		// ACT
-		result, err := service.InitiatePasswordReset(ctx, fmt.Sprintf("nonexistent-%d@test.local", time.Now().UnixNano()))
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.Nil(t, result) // Should not reveal email existence
-	})
-
-	t.Run("normalizes email case", func(t *testing.T) {
-		// ARRANGE
-		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-		email := fmt.Sprintf("reset-case-%s@test.local", uniqueID)
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%s", uniqueID), "Test1234%", nil, 0)
-		require.NoError(t, err)
-
-		// ACT - Use uppercase email
-		result, err := service.InitiatePasswordReset(ctx, fmt.Sprintf("RESET-CASE-%s@TEST.LOCAL", uniqueID))
-
-		// ASSERT
-		require.NoError(t, err)
-		require.NotNil(t, result)
-		assert.Equal(t, account.ID, result.AccountID)
 	})
 }
 

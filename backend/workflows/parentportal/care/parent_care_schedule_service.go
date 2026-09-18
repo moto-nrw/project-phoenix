@@ -17,8 +17,8 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -59,7 +59,7 @@ func (c CareScheduleRequestCapabilities) Any() bool {
 // configured set, matching the diff convention).
 type CareScheduleWeekday struct {
 	Weekday int
-	Status  scheduleService.CareDayStatus
+	Status  careschedule.CareDayStatus
 	Arrival string
 	Pickup  string
 	Modes   []string
@@ -71,7 +71,7 @@ type CareScheduleWeekday struct {
 type PendingCareRequest struct {
 	ID              int64
 	CreatedAt       time.Time
-	Diff            []scheduleService.RequestDiffEntry
+	Diff            []careschedule.RequestDiffEntry
 	SubmittedBySelf bool
 }
 
@@ -155,7 +155,7 @@ func (s *Service) CreateCareScheduleRequest(ctx context.Context, accountID, stud
 	if bookingsAuthoritative {
 		return nil, ErrCareRequestBookingsAuthoritative
 	}
-	requested, err := scheduleService.RequestedCareScheduleFields(payload)
+	requested, err := careschedule.RequestedCareScheduleFields(payload)
 	if err != nil {
 		return nil, MapCareRequestError(err, "validate care schedule request")
 	}
@@ -263,7 +263,7 @@ func (s *Service) buildCareScheduleView(ctx context.Context, view *ChildCareSche
 		for _, m := range modes {
 			keys = append(keys, string(m))
 		}
-		if len(keys) == 0 && status == scheduleService.CareDayScheduled {
+		if len(keys) == 0 && status == careschedule.CareDayScheduled {
 			// An empty configured set means the child goes home alone — surface
 			// that explicitly instead of an ambiguous empty list (matches the
 			// request-diff convention).
@@ -298,7 +298,7 @@ func (s *Service) buildCareScheduleView(ctx context.Context, view *ChildCareSche
 
 func pendingCareRequest(
 	pending *scheduleModels.CareScheduleChangeRequest,
-	diff []scheduleService.RequestDiffEntry,
+	diff []careschedule.RequestDiffEntry,
 	accountID int64,
 	visible bool,
 ) *PendingCareRequest {
@@ -313,14 +313,14 @@ func pendingCareRequest(
 	}
 }
 
-func careDayStatus(hasCarePlan, hasArrivalDay bool, arrival, pickup string) scheduleService.CareDayStatus {
+func careDayStatus(hasCarePlan, hasArrivalDay bool, arrival, pickup string) careschedule.CareDayStatus {
 	if hasArrivalDay || arrival != "" || pickup != "" {
-		return scheduleService.CareDayScheduled
+		return careschedule.CareDayScheduled
 	}
 	if hasCarePlan {
-		return scheduleService.CareDayNotScheduled
+		return careschedule.CareDayNotScheduled
 	}
-	return scheduleService.CareDayUnknown
+	return careschedule.CareDayUnknown
 }
 
 // hasActiveAbsenceToday reports whether the child has any active scheduled
@@ -386,7 +386,7 @@ func (s *Service) EditCareScheduleRequest(
 		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
-		if _, editErr := s.CareRequests.EditRequest(txCtx, scheduleService.CareRequestEditInput{
+		if _, editErr := s.CareRequests.EditRequest(txCtx, careschedule.CareRequestEditInput{
 			RequestID:         requestID,
 			StudentID:         studentID,
 			GuardianAccountID: accountID,
@@ -409,11 +409,11 @@ func MapCareRequestError(err error, op string) error {
 		return ErrCareRequestNotFound
 	case errors.Is(err, scheduleModels.ErrCareRequestNotPending):
 		return ErrCareRequestNotPending
-	case errors.Is(err, scheduleService.ErrCareRequestAlreadyPending):
+	case errors.Is(err, careschedule.ErrCareRequestAlreadyPending):
 		return ErrCareRequestAlreadyPending
-	case errors.Is(err, scheduleService.ErrInvalidCareRequestPayload):
+	case errors.Is(err, careschedule.ErrInvalidCareRequestPayload):
 		return ErrInvalidCareRequestPayload
-	case errors.Is(err, scheduleService.ErrPickupChangeCutoffPassed):
+	case errors.Is(err, careschedule.ErrPickupChangeCutoffPassed):
 		return ErrPickupChangeCutoffPassed
 	default:
 		return fmt.Errorf("parent: %s: %w", op, err)

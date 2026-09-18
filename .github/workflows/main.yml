@@ -11,9 +11,17 @@ on:
     # out of draft would get no CI at all, because every job below skips while
     # the PR is a draft.
     types: [opened, synchronize, reopened, ready_for_review]
+  # The merge queue builds one temporary branch per queued pull request, each
+  # containing the base branch plus every pull request ahead of it, and waits
+  # for the required check to report on it. Without this trigger no run starts
+  # and every queue entry sits until the status check timeout expires.
+  merge_group:
 permissions: {}
 
 concurrency:
+  # merge_group has no head_ref, so queue runs fall back to run_id and get their
+  # own group. Cancelling them would leave the queue waiting for a check that
+  # never reports.
   group: ${{ github.workflow }}-${{ github.head_ref && github.ref || github.run_id }}
   cancel-in-progress: true
 
@@ -48,16 +56,42 @@ jobs:
       run-seed-smoke: ${{ steps.filter.outputs.backend-production == 'true' || steps.filter.outputs.ci == 'true' }}
       # Workflow/config changes validate the complete test commands. Ordinary
       # PRs use changed-test selection; protected-branch pushes are always full
-      # because they produce the coverage consumed by SonarCloud.
+      # because they revalidate the whole tree, not just what the push touched.
       full-backend-suite: ${{ steps.filter.outputs.backend-test-infra == 'true' || steps.filter.outputs.ci == 'true' || github.event_name == 'push' }}
       full-frontend-suite: ${{ steps.filter.outputs.frontend-test-infra == 'true' || steps.filter.outputs.ci == 'true' || github.event_name == 'push' }}
+      # Pull requests and merge groups test what changed against the base
+      # branch. Only protected-branch pushes run the full suites.
+      changed-scope: ${{ github.event_name != 'push' }}
+      base-ref: ${{ steps.base.outputs.ref }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      # `ref` drives changed-test selection, `filter-base` drives paths-filter.
+      # They differ on purpose: paths-filter resolves pull requests through the
+      # GitHub API and warns on every run when `base` is also set, and on push it
+      # needs an empty base to compare against the commit before the push. Only
+      # merge_group has neither fallback and must be told the base branch.
+      - name: Resolve base branch
+        id: base
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MERGE_GROUP_BASE_REF: ${{ github.event.merge_group.base_ref }}
+          PR_BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [[ "$EVENT_NAME" == "merge_group" ]]; then
+            ref="${MERGE_GROUP_BASE_REF#refs/heads/}"
+            filter_base="$ref"
+          else
+            ref="$PR_BASE_REF"
+            filter_base=""
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "filter-base=$filter_base" >> "$GITHUB_OUTPUT"
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         with:
+          base: ${{ steps.base.outputs.filter-base }}
           predicate-quantifier: "some-with-excludes"
           filters: |
             backend-tests:
@@ -146,7 +180,6 @@ jobs:
               - 'scripts/restore-db.sh'
               - 'scripts/run-go-toolchain.sh'
               - '.github/**'
-              - 'sonar-project.properties'
               - 'environments/**'
               - '.env.example'
               - 'package.json'
@@ -170,9 +203,12 @@ jobs:
 
   backend-architecture-ratchet:
     name: Backend architecture ratchet
+    # Protected-branch pushes always check. Pull requests and merge groups check
+    # only when backend or architecture files changed. Draft PRs need no guard
+    # here: detect-changes skips, and this job skips with it.
     if: >-
-      github.event_name != 'pull_request'
-      || (github.event.pull_request.draft == false && needs.detect-changes.outputs.run-backend-architecture == 'true')
+      github.event_name == 'push'
+      || needs.detect-changes.outputs.run-backend-architecture == 'true'
     needs: detect-changes
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
@@ -271,52 +307,10 @@ jobs:
       run-backend: ${{ needs.detect-changes.outputs.run-backend == 'true' }}
       run-frontend: ${{ needs.detect-changes.outputs.run-frontend == 'true' }}
       run-seed-smoke: ${{ needs.detect-changes.outputs.run-seed-smoke == 'true' }}
-      is-pr: ${{ github.event_name == 'pull_request' }}
-      base_ref: ${{ github.base_ref }}
+      changed-scope: ${{ needs.detect-changes.outputs.changed-scope == 'true' }}
+      base_ref: ${{ needs.detect-changes.outputs.base-ref }}
       full-backend-suite: ${{ needs.detect-changes.outputs.full-backend-suite == 'true' }}
       full-frontend-suite: ${{ needs.detect-changes.outputs.full-frontend-suite == 'true' }}
-
-  # Deliberately NOT a ci-gate dependency. Sonar needs the coverage artifacts,
-  # so it can only start once test finishes; keeping it in the gate added its
-  # full runtime to every run's critical path. Run it only after changes land
-  # on development or main; PRs already run lint and tests before merge.
-  sonarcloud:
-    needs: [detect-changes, test]
-    # always(): analyse failing runs too, matching the previous behaviour from
-    # when this job lived in test.yml.
-    if: >-
-      always()
-      && github.event_name == 'push'
-      && (github.ref_name == 'development' || github.ref_name == 'main')
-      && (needs.detect-changes.outputs.run-backend == 'true' || needs.detect-changes.outputs.run-frontend == 'true')
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0 # Required for SonarCloud PR analysis and SCM blame
-
-      - name: Download backend coverage
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: coverage-backend
-          path: backend/
-        continue-on-error: true
-
-      - name: Download frontend coverage
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: coverage-frontend
-          path: frontend/coverage/
-        continue-on-error: true
-
-      - name: SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f # v8.2.1
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   # Verify all environments have matching env var keys (no secrets needed)
   env-sync-check:

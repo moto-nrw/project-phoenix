@@ -54,6 +54,7 @@ import (
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	parentAPI "github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	requestFeedCompose "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/compose"
 	requestFeedHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/http"
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
@@ -70,6 +71,7 @@ import (
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	displayHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/httpadapter"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
+	tagScanOperatorAPI "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	emergencyAPI "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/http"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
@@ -122,7 +124,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	openRoomMoveCompose "github.com/moto-nrw/project-phoenix/workflows/openroommove/compose"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 )
@@ -203,7 +204,7 @@ func NewCleanupTimetable(db *bun.DB) (timetableModule.Capability, error) {
 	if err != nil {
 		return nil, err
 	}
-	return repositories.NewTimetable(db, students, rooms, scheduleSvc.TimetableCareDayLocker(db))
+	return repositories.NewTimetable(db, students, rooms, careschedule.TimetableCareDayLocker(db))
 }
 
 func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logger, tenantRuntime apiCommon.TenantRuntime) (moduleServices, error) {
@@ -271,7 +272,7 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 			return err
 		},
 		CarePlan: careQueries,
-		DB:       db, Students: timetableStudents(persons), Rooms: timetableRooms(rooms), CareDays: scheduleSvc.TimetableCareDayLocker(db),
+		DB:       db, Students: timetableStudents(persons), Rooms: timetableRooms(rooms), CareDays: careschedule.TimetableCareDayLocker(db),
 		Observe: func(observation timetableCompose.Observation) {
 			observability.ObserveTimetableActivitiesOperation(
 				observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows,
@@ -1336,7 +1337,6 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.Auth.SettingsService = api.Services.Settings
 	api.Auth.SetMFAService(api.Services.MFA)
 	api.Auth.SetPasskeyService(api.Services.Passkey)
-	api.Auth.SetGuardianInvitationService(api.Services.GuardianInvitation)
 	api.Rooms = roomsHTTPAdapter.NewResource(api.rooms, roomsHTTPAdapter.Dependencies{
 		Facilities: api.Services.Facilities, Settings: api.Services.Settings,
 		UserContext: api.Services.UserContext, Active: api.Services.Active,
@@ -1366,7 +1366,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		PersonService:                api.Services.Users,
 		PeopleDirectory:              api.Services.PeopleDirectory,
 		StudentService:               api.Services.Students,
-		ClassListEntryService:        api.Services.ClassListEntries,
+		ClassListEntries:             classListEntryStudentsReader{entries: api.membership},
 		StudentDeletion:              api.Services.StudentDeletion,
 		CareLifecycleService:         api.Services.CareLifecycle,
 		StudentAuditService:          api.Services.StudentAudit,
@@ -1455,7 +1455,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		api.Services.EnrollmentRollover,
 		api.Services.EnrollmentChangeRequest,
 		api.Services.EnrollmentDeletion,
-		api.Services.GuardianInvitation,
+		enrollmentGuardianInvitations(api.Services.GuardianInvitation),
 		api.Services.GuardianProfileLoader,
 		enrollmentSchoolDirectory{schools: api.Services.Schools},
 		db,
@@ -1547,7 +1547,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		Caller:            api.Services.UserContext,
 		ArrivalExceptions: api.Services.ClassDayArrivalExceptions,
 	}), db, logger.With("handler", "class-day"))
-	api.ClassListEntries = newClassListEntriesResource(api.membership, api.Services, db, logger.With("handler", "class-list-entries"))
+	api.ClassListEntries = newClassListEntriesResource(api.membership, db, logger.With("handler", "class-list-entries"))
 	api.Substitutions = workforceInbound.NewSubstitutionsResource(services.SubstitutionCapability(api.Services.Substitution), db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
 	api.TimeTracking = newTimeTrackingResource(api.Services, db)
@@ -1569,6 +1569,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		OfferingSourceOptions:   offeringSourceOptions(api.Services.EnrollmentDecision),
 		ReportService:           api.Services.EnrollmentReport,
 		PlanExportService:       api.Services.PlanExport,
+		PickupExtensions:        modules.timetable,
 		Broadcaster:             api.Services.RealtimeHub,
 		Logger:                  logger.With("handler", "timetable"),
 		DB:                      db,
@@ -1576,11 +1577,26 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	// The school portal reuses the class-day and the timetable resources, so
 	// it is built after both (#2207, #2527).
 	api.Notifications = notificationsAPI.NewResource(api.Services.Notifications, api.Services.PushSubscriptions, api.Services.NotificationPreferences, db)
-	api.School = schoolPortal.NewResource(api.Services.Auth, api.Services.MFA, api.ClassDay, api.Timetable, api.StaffMessaging, api.StaffNotices, api.Notifications)
+	api.School = schoolPortal.NewResource(api.Services.Auth, api.Services.MFA, schoolPasswordResets(api.Services.SchoolPasswordResetRuntime()), api.ClassDay, api.Timetable, api.StaffMessaging, api.StaffNotices, api.Notifications)
 	api.Emergency = emergencyAPI.NewResource(api.Services.Emergency, db)
 	api.Reminders = remindersAPI.NewResource(api.Services.Reminders, reminderCompose.HTTPRuntime(db))
 
-	// Initialize operator dashboard resources
+	// Initialize operator dashboard resources. The Device Fleet review of
+	// unregistered RFID scans answers in the operator surface's format (#3232).
+	tagScanReview := tagScanOperatorAPI.NewResource(tagScanOperatorAPI.Config{
+		Scans:     api.Services.IoT.Fleet(),
+		Directory: tagScanSchoolDirectory{schools: api.Services.Schools},
+		Surface: tagScanOperatorAPI.Surface{
+			InvalidRequest:  operatorAPI.ErrInvalidRequest,
+			Internal:        operatorAPI.ErrInternal,
+			ResolveFallback: operatorAPI.UnregisteredTagScanResolveError,
+			RenderError:     apiCommon.RenderError,
+			Respond:         apiCommon.Respond,
+			OperatorID: func(ctx context.Context) int64 {
+				return int64(projectJWT.ClaimsFromCtx(ctx).ID)
+			},
+		},
+	})
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
 		AppEnv:                     viper.GetString("app_env"),
 		AuthService:                api.Services.OperatorAuth,
@@ -1591,22 +1607,23 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		ProvisioningService:        api.Services.OperatorProvisioning,
 		CaregiverCapabilityService: api.Services.CaregiverCapability,
 		AnnouncementsService:       api.Services.Announcement,
-		UnregisteredTagScanService: api.Services.UnregisteredTagScans,
+		UnregisteredTagScans:       tagScanReview.Router(),
 		SettingsService:            api.Services.Settings,
 		Broadcaster:                api.Services.RealtimeHub,
 		SchoolService:              api.Services.Schools,
 		ActiveService:              api.Services.Active,
 		CareLifecycle:              api.Services.CareLifecycle,
-		TenantMFAService:           api.Services.MFA,
-		TokenAuth:                  nil, // Created internally by operator API
-		DB:                         db,
+		// Mirror the tenant-side OnValueSet hook so operator writes also
+		// trigger side effects (e.g. auto-creating the Schulhof/WC rooms when
+		// the corresponding checkout toggle flips on).
+		SettingValueSet:  api.Services.SettingsSideEffects.Dispatch,
+		TenantMFAService: api.Services.MFA,
+		TokenAuth:        nil, // Created internally by operator API
+		DB:               db,
 	})
-	// Mirror the tenant-side OnValueSet hook so operator writes also trigger
-	// side effects (e.g. auto-creating the Schulhof/WC rooms when the
-	// corresponding checkout toggle flips on).
-	api.Operator.OnSettingValueSet(api.Services.SettingsSideEffects.Dispatch)
 	api.Parent = parentAPI.NewResource(parentAPI.ResourceConfig{
 		Auth:                  api.Services.Auth,
+		Resets:                parentPasswordResets(api.Services.ParentPasswordResetRuntime()),
 		Parent:                api.Services.Parent,
 		Calendar:              api.Services.Calendar,
 		Requests:              api.Services.EnrollmentRequest,

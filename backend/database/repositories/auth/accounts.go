@@ -348,34 +348,6 @@ func (r *AccountRepository) SetCalendarFeedToken(ctx context.Context, accountID 
 	return nil
 }
 
-// FindByUsername retrieves an account by username
-func (r *AccountRepository) FindByUsername(ctx context.Context, username string) (*auth.Account, error) {
-	account := new(auth.Account)
-
-	// Explicitly specify the schema and table
-	err := base.GetDB(ctx, r.db).NewSelect().
-		ModelTableExpr(accountTable).
-		Where("LOWER(username) = LOWER(?)", username).
-		Scan(ctx, account)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by username",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	return account, nil
-}
-
-// UpdatePassword updates the password hash for an account and resets the
-// OTP flag (a permanent password replaces any one-time password).
-func (r *AccountRepository) UpdatePassword(ctx context.Context, id int64, passwordHash string) error {
-	account := &auth.Account{Model: modelBase.Model{ID: id}, PasswordHash: &passwordHash, IsPasswordOTP: false}
-	_, err := r.UpdateColumns(ctx, account, "password_hash", "is_password_otp")
-	return err
-}
-
 // IncrementMFAAttempts atomically bumps mfa_attempts by one and sets the
 // lock deadline from the application clock when the post-increment count is
 // >= threshold. The service evaluates that deadline against the same clock,
@@ -449,35 +421,12 @@ func (r *AccountRepository) UpdateAvatar(ctx context.Context, id int64, avatar s
 // List retrieves accounts matching the provided filters without applying an
 // account-management boundary. Internal authentication flows remain global.
 func (r *AccountRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.Account, error) {
-	return r.list(ctx, filters, false)
+	return r.list(ctx, filters)
 }
 
-// ListManageable lists only accounts the caller may administer.
-func (r *AccountRepository) ListManageable(ctx context.Context, filters map[string]interface{}) ([]*auth.Account, error) {
-	return r.list(ctx, filters, true)
-}
-
-// FindByRole retrieves manageable accounts that hold a named role in the
-// caller's tenant or organization.
-func (r *AccountRepository) FindByRole(ctx context.Context, role string) ([]*auth.Account, error) {
-	if tenant.ScopeFromContext(ctx) == tenant.ScopeOrg {
-		var accounts []*auth.Account
-		err := tenant.WithAdminTx(tenant.ContextWithoutTransaction(ctx), r.db, func(adminCtx context.Context, _ bun.Tx) error {
-			var err error
-			accounts, err = r.list(adminCtx, map[string]interface{}{"role": role}, true)
-			return err
-		})
-		return accounts, err
-	}
-	return r.list(ctx, map[string]interface{}{"role": role}, true)
-}
-
-func (r *AccountRepository) list(ctx context.Context, filters map[string]interface{}, manageable bool) ([]*auth.Account, error) {
+func (r *AccountRepository) list(ctx context.Context, filters map[string]interface{}) ([]*auth.Account, error) {
 	var accounts []*auth.Account
 	query := base.GetDB(ctx, r.db).NewSelect().Model(&accounts).ModelTableExpr(accountTableAlias)
-	if manageable {
-		query = scopeToMembership(ctx, query)
-	}
 
 	// Apply filters
 	for field, value := range filters {
@@ -510,8 +459,6 @@ func (r *AccountRepository) applyAccountFilter(ctx context.Context, query *bun.S
 		return r.applyStringLikeFilter(query, bun.Safe("username"), value)
 	case "active":
 		return query.Where("active = ?", value)
-	case "role":
-		return r.applyRoleFilter(ctx, query, value)
 	default:
 		return query.Where("? = ?", bun.Ident(field), value)
 	}
@@ -532,62 +479,6 @@ func (r *AccountRepository) applyStringLikeFilter(query *bun.SelectQuery, field 
 		return query.Where("LOWER(?) LIKE LOWER(?)", field, "%"+strValue+"%")
 	}
 	return query
-}
-
-// applyRoleFilter applies role-based filtering
-func (r *AccountRepository) applyRoleFilter(ctx context.Context, query *bun.SelectQuery, value interface{}) *bun.SelectQuery {
-	if strValue, ok := value.(string); ok {
-		query = query.
-			Join(`JOIN auth.account_roles AS "account_role" ON "account_role".account_id = "account".id`).
-			Join(`JOIN auth.roles AS "role" ON "account_role".role_id = "role".id`).
-			Where(`LOWER("role".name) = LOWER(?)`, strValue).
-			Distinct()
-		if tenant.ScopeFromContext(ctx) == tenant.ScopeOrg {
-			schoolIDs := manageableSchoolIDs(ctx)
-			if tenant.OrgFromContext(ctx) == 0 || len(schoolIDs) == 0 {
-				return query.Where("FALSE")
-			}
-			return query.
-				Join(`INNER JOIN auth.account_tenants AS "role_account_tenant" ON "role_account_tenant".account_id = "account_role".account_id AND "role_account_tenant".tenant_id = "account_role".tenant_id`).
-				Where(`"account_role".tenant_id IN (?)`, bun.List(schoolIDs)).
-				Where(`"role_account_tenant".status = ?`, auth.AccountTenantStatusActive)
-		}
-		if tenant.IsAdminTx(ctx) || tenant.ScopeFromContext(ctx) == tenant.ScopePlatform {
-			return query
-		}
-		if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-			return query.Where(`"account_role".tenant_id = ?`, tenantID)
-		}
-		return query.Where("FALSE")
-	}
-	return query
-}
-
-// FindAccountsWithRolesAndPermissions retrieves accounts with their associated roles and permissions
-func (r *AccountRepository) FindAccountsWithRolesAndPermissions(ctx context.Context, filters map[string]interface{}) ([]*auth.Account, error) {
-	var accounts []*auth.Account
-	err := r.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		// First get the accounts based on filters
-		if err := r.loadAccountsByFilters(ctx, tx, &accounts, filters); err != nil {
-			return err
-		}
-
-		// Batch-load roles and permissions for all accounts (3 queries instead of 3N)
-		if err := r.loadAllAccountRolesAndPermissions(ctx, tx, accounts); err != nil {
-			return err
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find accounts with roles and permissions",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	return accounts, nil
 }
 
 // FindEmailsByAccountIDs batch-loads email addresses for the given account IDs.
@@ -660,150 +551,12 @@ func (r *AccountRepository) FindAvatarsByAccountIDs(ctx context.Context, account
 	return result, nil
 }
 
-// loadAccountsByFilters loads accounts based on provided filters
-func (r *AccountRepository) loadAccountsByFilters(ctx context.Context, tx bun.Tx, accounts *[]*auth.Account, filters map[string]interface{}) error {
-	query := tx.NewSelect().
-		Model(accounts).
-		ModelTableExpr(accountTableAlias)
-	for field, value := range filters {
-		if value != nil {
-			query = query.Where("? = ?", bun.Ident(field), value)
-		}
-	}
-	return query.Scan(ctx)
-}
-
-// accountRole is a result struct for batch-loading roles with their account association.
-type accountRole struct {
-	AccountID int64 `bun:"account_id"`
-	auth.Role `bun:"role,extend"`
-}
-
-// accountPermission is a result struct for batch-loading permissions with their account association.
-type accountPermission struct {
-	AccountID       int64 `bun:"account_id"`
-	auth.Permission `bun:"permission,extend"`
-}
-
-// loadAllAccountRolesAndPermissions batch-loads roles and permissions for all accounts
-// using 3 queries instead of 3 per account.
-func (r *AccountRepository) loadAllAccountRolesAndPermissions(ctx context.Context, tx bun.Tx, accounts []*auth.Account) error {
-	if len(accounts) == 0 {
-		return nil
-	}
-
-	// Collect all account IDs
-	accountIDs := make([]int64, len(accounts))
-	for i, a := range accounts {
-		accountIDs[i] = a.ID
-	}
-
-	// 1. Batch-load roles for all accounts
-	// Select only columns mapped in auth.Role to avoid scanning unmapped DB columns (e.g. metadata)
-	var roleResults []accountRole
-	err := tx.NewSelect().
-		TableExpr(`auth.roles AS "role"`).
-		ColumnExpr(`ar.account_id`).
-		ColumnExpr(`"role".id, "role".created_at, "role".updated_at, "role".name, "role".description, "role".is_system`).
-		Join(`JOIN auth.account_roles AS ar ON ar.role_id = "role".id`).
-		Where("ar.account_id IN (?)", bun.List(accountIDs)).
-		Scan(ctx, &roleResults)
-	if err != nil {
-		return err
-	}
-
-	rolesByAccount := make(map[int64][]*auth.Role, len(accounts))
-	for i := range roleResults {
-		ar := roleResults[i]
-		role := ar.Role
-		rolesByAccount[ar.AccountID] = append(rolesByAccount[ar.AccountID], &role)
-	}
-
-	// 2. Batch-load direct permissions for all accounts
-	var directPermResults []accountPermission
-	err = tx.NewSelect().
-		TableExpr(`auth.permissions AS "permission"`).
-		ColumnExpr(`ap.account_id`).
-		ColumnExpr(`"permission".id, "permission".created_at, "permission".updated_at, "permission".name, "permission".description, "permission".resource, "permission".action`).
-		Join(`JOIN auth.account_permissions AS ap ON ap.permission_id = "permission".id`).
-		Where("ap.account_id IN (?)", bun.List(accountIDs)).
-		Where("ap.granted = true").
-		Scan(ctx, &directPermResults)
-	if err != nil {
-		return err
-	}
-
-	directPermsByAccount := make(map[int64][]*auth.Permission, len(accounts))
-	for i := range directPermResults {
-		p := directPermResults[i]
-		perm := p.Permission
-		directPermsByAccount[p.AccountID] = append(directPermsByAccount[p.AccountID], &perm)
-	}
-
-	// 3. Batch-load role-based permissions for all accounts
-	var rolePermResults []accountPermission
-	err = tx.NewSelect().
-		TableExpr(`auth.permissions AS "permission"`).
-		ColumnExpr(`ar.account_id`).
-		ColumnExpr(`"permission".id, "permission".created_at, "permission".updated_at, "permission".name, "permission".description, "permission".resource, "permission".action`).
-		Join(`JOIN auth.role_permissions AS rp ON rp.permission_id = "permission".id`).
-		Join(`JOIN auth.account_roles AS ar ON ar.role_id = rp.role_id`).
-		Where("ar.account_id IN (?)", bun.List(accountIDs)).
-		Scan(ctx, &rolePermResults)
-	if err != nil {
-		return err
-	}
-
-	rolePermsByAccount := make(map[int64][]*auth.Permission, len(accounts))
-	for i := range rolePermResults {
-		p := rolePermResults[i]
-		perm := p.Permission
-		rolePermsByAccount[p.AccountID] = append(rolePermsByAccount[p.AccountID], &perm)
-	}
-
-	// 4. Assign results to each account
-	for _, account := range accounts {
-		account.Roles = rolesByAccount[account.ID]
-		account.Permissions = r.mergePermissions(
-			directPermsByAccount[account.ID],
-			rolePermsByAccount[account.ID],
-		)
-	}
-
-	return nil
-}
-
-// mergePermissions combines direct and role-based permissions, avoiding duplicates
-func (r *AccountRepository) mergePermissions(directPermissions, rolePermissions []*auth.Permission) []*auth.Permission {
-	permMap := make(map[int64]*auth.Permission)
-	for _, p := range directPermissions {
-		permMap[p.ID] = p
-	}
-	for _, p := range rolePermissions {
-		if _, exists := permMap[p.ID]; !exists {
-			permMap[p.ID] = p
-		}
-	}
-
-	allPermissions := make([]*auth.Permission, 0, len(permMap))
-	for _, p := range permMap {
-		allPermissions = append(allPermissions, p)
-	}
-	return allPermissions
-}
-
 // Update overrides the base Update method to handle email normalization.
 func (r *AccountRepository) Update(ctx context.Context, account *auth.Account) error {
-	return r.update(ctx, account, false)
+	return r.update(ctx, account)
 }
 
-// UpdateManageable atomically applies the account-management membership
-// predicate to the write as well as its preceding read.
-func (r *AccountRepository) UpdateManageable(ctx context.Context, account *auth.Account) error {
-	return r.update(ctx, account, true)
-}
-
-func (r *AccountRepository) update(ctx context.Context, account *auth.Account, manageable bool) error {
+func (r *AccountRepository) update(ctx context.Context, account *auth.Account) error {
 	if account == nil {
 		return fmt.Errorf("account cannot be nil")
 	}
@@ -818,24 +571,12 @@ func (r *AccountRepository) update(ctx context.Context, account *auth.Account, m
 		Model(account).
 		ModelTableExpr(accountTableAlias).
 		Where(`"account".id = ?`, account.ID)
-	if manageable {
-		query = scopeToMembership(ctx, query)
-	}
 
 	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
 			Err: base.TranslateNotFound(err),
-		}
-	}
-	if manageable {
-		affected, rowsErr := result.RowsAffected()
-		if rowsErr != nil {
-			return &modelBase.DatabaseError{Op: "update account", Err: rowsErr}
-		}
-		if affected == 0 {
-			return &modelBase.DatabaseError{Op: "update account", Err: base.TranslateNotFound(sql.ErrNoRows)}
 		}
 	}
 	return base.AssertRowsAffected(result, 1, "update account")

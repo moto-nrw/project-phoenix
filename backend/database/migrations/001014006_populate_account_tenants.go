@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func populateAccountTenants(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.14.6: Populating account_tenants for default tenant...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -78,22 +75,22 @@ func populateAccountTenants(ctx context.Context, db *bun.DB) error {
 	}
 
 	rowsAffected, _ := result.RowsAffected()
-	fmt.Printf("Migration 1.14.6: Mapped %d accounts to default tenant (school_id=1)\n", rowsAffected)
+	migrationLog().InfoContext(ctx, "accounts mapped to the default tenant",
+		"rows", rowsAffected,
+		"school_id", 1,
+	)
 
-	fmt.Println("Migration 1.14.6: Successfully populated account_tenants")
 	return tx.Commit()
 }
 
 func rollbackPopulateAccountTenants(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.14.6: Removing default tenant mappings...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -111,6 +108,5 @@ func rollbackPopulateAccountTenants(ctx context.Context, db *bun.DB) error {
 	// have tenant_id=1 REFERENCES platform.schools(id) (ON DELETE RESTRICT).
 	// V1.14.2's rollback handles cleanup via DROP COLUMN ... CASCADE.
 
-	fmt.Println("Migration 1.14.6: Successfully removed default tenant mappings")
 	return tx.Commit()
 }

@@ -21,8 +21,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.13: Fixing phoenix_auth grants...")
-
 			// Fix 1: auth.tokens — add UPDATE for SELECT ... FOR UPDATE (defense-in-depth).
 			// Migration 1.14.1 granted SELECT, INSERT, DELETE but missed UPDATE.
 			// The refresh flow uses WithAdminTx, but logout runs as phoenix_auth directly
@@ -61,12 +59,9 @@ func init() {
 				return fmt.Errorf("grant on auth.password_reset_rate_limits: %w", err)
 			}
 
-			fmt.Println("Migration 1.15.13: Done")
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.13: Revoking phoenix_auth grants...")
-
 			_, err := db.ExecContext(ctx, `
 				REVOKE UPDATE ON auth.tokens FROM phoenix_auth;
 				REVOKE SELECT ON users.profiles FROM phoenix_auth;

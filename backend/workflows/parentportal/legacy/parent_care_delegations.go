@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
 
@@ -26,7 +26,7 @@ type (
 	DayState                        = care.DayState
 	// CareRequestDiffEntry is one "current → requested" row of a pending
 	// care-schedule request, as PendingCareRequest.Diff carries it.
-	CareRequestDiffEntry = scheduleSvc.RequestDiffEntry
+	CareRequestDiffEntry = careschedule.RequestDiffEntry
 )
 
 const (

@@ -18,10 +18,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule/carescheduletest"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -53,15 +53,15 @@ func createPickupTimeOffering(
 	return offering
 }
 
-func projectedPickupReader(env *decisionTestEnv) scheduleService.PickupScheduleService {
-	return scheduleService.NewPickupScheduleServiceWithBulk(
+func projectedPickupReader(env *decisionTestEnv) careschedule.PickupScheduleService {
+	return careschedule.NewPickupScheduleServiceWithBulk(
 		env.repos.StudentPickupSchedule,
 		env.repos.StudentPickupException,
 		env.repos.StudentPickupNote,
 		env.repos.Student,
 		env.repos.Person,
 		nil,
-		scheduletest.NewPickupBaselineService(
+		carescheduletest.NewPickupBaselineService(
 			env.repos.StudentPickupSchedule,
 			approvedOfferingTestProjection(env.repos),
 			env.repos.CareOffering,
@@ -226,6 +226,44 @@ func TestOfferingPickupProjection_StaffOverrideSurvivesOfferingEdit(t *testing.T
 	require.NoError(t, err)
 	require.NotNil(t, reset.PickupTime)
 	assert.Equal(t, "16:00", reset.PickupTime.Format("15:04"))
+}
+
+func TestOfferingPickupResetClearsManualWeekdayExtension(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-1))
+	ctx := testpkg.Ctx(t)
+	offering := createPickupTimeOffering(t, env, "gehzeit-reset-extension",
+		[]string{"mon"}, map[string]string{"mon": "16:00"})
+	studentID, _ := submitAndApproveOfferingChild(
+		t, env, offering.ID, "gehzeit-reset-extension@example.com", "Aufgabe", 2,
+	)
+	author := testpkg.CreateTestStaff(t, env.db, "Gehzeit", "Aufgabe")
+	testpkg.CreateTestPickupSchedule(t, env.db, studentID, scheduleModels.WeekdayMonday, author.ID, "16:00")
+	monday := nextWeekday(decisionTestToday, time.Monday)
+
+	var clearedStudentID int64
+	var clearedWeekday int
+	resetter := enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
+		PickupScheduleRepo: env.repos.StudentPickupSchedule,
+		PickupBaselines: carescheduletest.NewPickupBaselineService(
+			env.repos.StudentPickupSchedule,
+			approvedOfferingTestProjection(env.repos),
+			env.repos.CareOffering,
+		),
+		ClearPickupWeekdayExtension: func(_ context.Context, gotStudentID int64, gotWeekday int) error {
+			clearedStudentID, clearedWeekday = gotStudentID, gotWeekday
+			return nil
+		},
+	})
+
+	reset, ok := resetter.(enrollmentService.OfferingPickupTimeService)
+	require.True(t, ok)
+	require.NoError(t, reset.ResetStudentPickupDayToOffering(ctx, studentID, monday))
+	assert.Equal(t, studentID, clearedStudentID)
+	assert.Equal(t, scheduleModels.WeekdayMonday, clearedWeekday)
 }
 
 func TestOfferingPickupProjection_IgnoresInactiveOffering(t *testing.T) {

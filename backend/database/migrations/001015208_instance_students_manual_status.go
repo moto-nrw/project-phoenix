@@ -54,8 +54,6 @@ func init() {
 // migrations on the numeric filename prefix. Reusing the number would leave any
 // database that ran the old file without this column, silently.
 func instanceStudentsManualStatusUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.208: Adding manual_status_at column to schedule.instance_students (#1747)...")
-
 	if _, err := db.NewRaw(`
 		ALTER TABLE schedule.instance_students
 		ADD COLUMN IF NOT EXISTS manual_status_at TIMESTAMPTZ;
@@ -67,8 +65,6 @@ func instanceStudentsManualStatusUp(ctx context.Context, db *bun.DB) error {
 }
 
 func instanceStudentsManualStatusDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.208: Dropping manual_status_at column from schedule.instance_students...")
-
 	if _, err := db.NewRaw(`
 		ALTER TABLE schedule.instance_students DROP COLUMN IF EXISTS manual_status_at;
 	`).Exec(ctx); err != nil {

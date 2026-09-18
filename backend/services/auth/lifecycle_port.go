@@ -45,14 +45,6 @@ type RoleFacts struct {
 	BaseRole *string
 }
 
-// RoleFactsOf projects a role row onto its classification facts; nil stays nil.
-func RoleFactsOf(role *authModels.Role) *RoleFacts {
-	if role == nil {
-		return nil
-	}
-	return &RoleFacts{ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole}
-}
-
 // StaffPreviewSession is the result of starting an admin staff-view preview
 // (#2893): a short-lived, access-only JWT carrying the TARGET account's
 // identity, roles, and permissions plus the read_only/acting_admin_id claims.
@@ -134,17 +126,6 @@ type SchoolIdentity struct {
 	PersonID  int64
 	StaffID   int64
 	TeacherID int64
-}
-
-// IsSchoolIdentityRequestError reports whether the error is the caller's fault
-// rather than the server's: a missing name, a child's record, an unknown or
-// conflicting transponder. Handlers render these as 400.
-func IsSchoolIdentityRequestError(err error) bool {
-	return errors.Is(err, ErrSchoolIdentityNamesRequired) ||
-		errors.Is(err, ErrSchoolIdentityPersonIsStudent) ||
-		errors.Is(err, ErrSchoolIdentityTagUnknown) ||
-		errors.Is(err, ErrSchoolIdentityTagConflict) ||
-		errors.Is(err, ErrSchoolIdentityTagTaken)
 }
 
 // SchoolIdentityProvisioning is the consumer-owned port over the Identity &
@@ -360,12 +341,6 @@ func (s *Service) ExecuteStaffOffboarding(ctx context.Context, accountID int64, 
 	return lifecycle.ExecuteStaffOffboarding(ctx, accountID, revision)
 }
 
-// schoolIdentity returns the school identity port the retained flows
-// provision through; ErrAccountLifecycleUnavailable without one.
-func (s *Service) schoolIdentity(op string) (SchoolIdentityProvisioning, error) {
-	return s.accountLifecycle(op)
-}
-
 func (s *Service) CreateParentAccount(ctx context.Context, email, username, password string) (*authModels.AccountParent, error) {
 	lifecycle, err := s.accountLifecycle(opCreateParentAccount)
 	if err != nil {
@@ -455,124 +430,6 @@ func (s *Service) ListParentAccounts(ctx context.Context, filters map[string]int
 		accounts = append(accounts, parentAccountModel(record))
 	}
 	return accounts, nil
-}
-
-// GuardianInvitationRecord is one auth.guardian_invitations row as the
-// Identity & Access relative access flow reads and writes it through the
-// retained storage (#2722).
-type GuardianInvitationRecord struct {
-	ID                          int64
-	TenantID                    int64
-	Token                       string
-	GuardianProfileID           int64
-	CreatedBy                   int64
-	ExpiresAt                   time.Time
-	AcceptedAt                  *time.Time
-	EmailSentAt                 *time.Time
-	EmailError                  *string
-	StudentID                   *int64
-	RequestedByAccountID        *int64
-	ApprovalStatus              string
-	ApprovedBy                  *int64
-	ApprovedAt                  *time.Time
-	ProfileCreatedForInvitation bool
-	RoleUpgrade                 bool
-	CreatedAt                   time.Time
-}
-
-func guardianInvitationRecord(row *authModels.GuardianInvitation) GuardianInvitationRecord {
-	return GuardianInvitationRecord{
-		ID: row.ID, TenantID: row.TenantID, Token: row.Token, GuardianProfileID: row.GuardianProfileID, CreatedBy: row.CreatedBy,
-		ExpiresAt: row.ExpiresAt, AcceptedAt: row.AcceptedAt, EmailSentAt: row.EmailSentAt, EmailError: row.EmailError,
-		StudentID: row.StudentID, RequestedByAccountID: row.RequestedByAccountID, ApprovalStatus: row.ApprovalStatus,
-		ApprovedBy: row.ApprovedBy, ApprovedAt: row.ApprovedAt, ProfileCreatedForInvitation: row.ProfileCreatedForInvitation,
-		RoleUpgrade: row.RoleUpgrade, CreatedAt: row.CreatedAt,
-	}
-}
-
-func guardianInvitationRow(record GuardianInvitationRecord) *authModels.GuardianInvitation {
-	row := &authModels.GuardianInvitation{
-		Token: record.Token, GuardianProfileID: record.GuardianProfileID, CreatedBy: record.CreatedBy, ExpiresAt: record.ExpiresAt,
-		AcceptedAt: record.AcceptedAt, EmailSentAt: record.EmailSentAt, EmailError: record.EmailError, StudentID: record.StudentID,
-		RequestedByAccountID: record.RequestedByAccountID, ApprovalStatus: record.ApprovalStatus, ApprovedBy: record.ApprovedBy,
-		ApprovedAt: record.ApprovedAt, ProfileCreatedForInvitation: record.ProfileCreatedForInvitation, RoleUpgrade: record.RoleUpgrade,
-	}
-	row.ID = record.ID
-	row.CreatedAt = record.CreatedAt
-	row.SetTenantID(record.TenantID)
-	return row
-}
-
-// GuardianInvitationStore is the retained guardian invitation storage as the
-// Identity & Access relative access flow consumes it. Lookups report
-// found=false for a missing row.
-type GuardianInvitationStore interface {
-	FindGuardianInvitation(ctx context.Context, id int64) (GuardianInvitationRecord, bool, error)
-	ListGuardianInvitationsByProfile(ctx context.Context, guardianProfileID int64) ([]GuardianInvitationRecord, error)
-	ListPendingGuardianApprovals(ctx context.Context) ([]GuardianInvitationRecord, error)
-	InsertGuardianInvitation(ctx context.Context, record GuardianInvitationRecord) (GuardianInvitationRecord, error)
-	UpdateGuardianInvitation(ctx context.Context, record GuardianInvitationRecord) error
-}
-
-// NewGuardianInvitationStore serves the store over the retained repository.
-func NewGuardianInvitationStore(repo authModels.GuardianInvitationRepository) GuardianInvitationStore {
-	return guardianInvitationStore{repo: repo}
-}
-
-type guardianInvitationStore struct {
-	repo authModels.GuardianInvitationRepository
-}
-
-func (s guardianInvitationStore) FindGuardianInvitation(ctx context.Context, id int64) (GuardianInvitationRecord, bool, error) {
-	row, err := s.repo.FindByID(ctx, id)
-	if err != nil {
-		if IsRowMissing(err) {
-			return GuardianInvitationRecord{}, false, nil
-		}
-		return GuardianInvitationRecord{}, false, err
-	}
-	if row == nil {
-		return GuardianInvitationRecord{}, false, nil
-	}
-	return guardianInvitationRecord(row), true, nil
-}
-
-func guardianInvitationRecords(rows []*authModels.GuardianInvitation) []GuardianInvitationRecord {
-	records := make([]GuardianInvitationRecord, 0, len(rows))
-	for _, row := range rows {
-		if row != nil {
-			records = append(records, guardianInvitationRecord(row))
-		}
-	}
-	return records
-}
-
-func (s guardianInvitationStore) ListGuardianInvitationsByProfile(ctx context.Context, guardianProfileID int64) ([]GuardianInvitationRecord, error) {
-	rows, err := s.repo.FindByGuardianProfileID(ctx, guardianProfileID)
-	if err != nil {
-		return nil, err
-	}
-	return guardianInvitationRecords(rows), nil
-}
-
-func (s guardianInvitationStore) ListPendingGuardianApprovals(ctx context.Context) ([]GuardianInvitationRecord, error) {
-	rows, err := s.repo.FindPendingApproval(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return guardianInvitationRecords(rows), nil
-}
-
-func (s guardianInvitationStore) InsertGuardianInvitation(ctx context.Context, record GuardianInvitationRecord) (GuardianInvitationRecord, error) {
-	row := guardianInvitationRow(record)
-	if err := s.repo.Create(ctx, row); err != nil {
-		return GuardianInvitationRecord{}, err
-	}
-	return guardianInvitationRecord(row), nil
-}
-
-func (s guardianInvitationStore) UpdateGuardianInvitation(ctx context.Context, record GuardianInvitationRecord) error {
-	return s.repo.Update(ctx, guardianInvitationRow(record))
 }
 
 // Account lifecycle outcomes the retained handlers switch on; the
