@@ -22,8 +22,6 @@ type TargetStudent struct {
 	EnrolledUntil    string
 }
 
-type StudentDirectoryFunc func(context.Context) ([]TargetStudent, error)
-
 type InstanceStudent struct {
 	ID                 int64
 	TenantID           int64
@@ -90,23 +88,6 @@ func New(tb TB, db *bun.DB) timetable.Capability {
 	return newModule(tb, db, timetableCompose.StudentDirectoryFunc(func(context.Context) ([]timetableCompose.TargetStudent, error) {
 		return []timetableCompose.TargetStudent{}, nil
 	}))
-}
-
-func NewWithDirectories(tb TB, db *bun.DB, students StudentDirectoryFunc, rooms timetable.RoomDirectory) timetable.Capability {
-	if students == nil || rooms == nil {
-		tb.Fatalf("compose test Timetable & Activities: student and room directories are required")
-	}
-	return newModule(tb, db, timetableCompose.StudentDirectoryFunc(func(ctx context.Context) ([]timetableCompose.TargetStudent, error) {
-		values, err := students(ctx)
-		if err != nil {
-			return nil, err
-		}
-		result := make([]timetableCompose.TargetStudent, 0, len(values))
-		for _, value := range values {
-			result = append(result, timetableCompose.TargetStudent(value))
-		}
-		return result, nil
-	}), rooms)
 }
 
 func newModule(tb TB, db *bun.DB, students timetableCompose.StudentDirectory, rooms ...timetable.RoomDirectory) timetable.Capability {

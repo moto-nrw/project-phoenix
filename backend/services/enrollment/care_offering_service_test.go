@@ -16,7 +16,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/peopletest"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/enrollment/enrollmenttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -27,7 +26,6 @@ import (
 
 func bindTestTimetable(t *testing.T, factory *repositories.Factory, db *bun.DB) {
 	t.Helper()
-	factory.BindTimetable(timetabletest.New(t, db))
 }
 
 func testRepositories(t *testing.T, db *bun.DB) *repositories.Factory {

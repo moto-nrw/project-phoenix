@@ -10,14 +10,14 @@ import (
 )
 
 // StudentService is what the api layer holds (issue #584: handlers must not
-// hold repositories). It is the two halves of the child record together: the
-// directory rows People Directory owns, and the companion graph Care Plan
-// owns. CONTRACT: results and errors are returned VERBATIM — the handlers keep
-// their existing transaction wrappers, validation, and error-to-status
-// mapping, so responses stay byte-identical.
+// hold repositories). Since #3350 it is the People Directory half alone: the
+// companion graph moved to its owner
+// (modules/careplan/legacy/carelifecycle.StudentCompanionService), which the
+// handlers now hold beside this one. CONTRACT: results and errors are returned
+// VERBATIM — the handlers keep their existing transaction wrappers,
+// validation, and error-to-status mapping, so responses stay byte-identical.
 type StudentService interface {
 	StudentDirectoryService
-	StudentCompanionService
 }
 
 // StudentDirectoryService is the People Directory half: the child row, its
@@ -61,11 +61,9 @@ type studentService struct {
 	// StudentDirectoryReader is the owner capability behind the directory
 	// read; embedding it keeps this service out of the filter's way.
 	StudentDirectoryReader
-	directory     StudentDirectoryLocker
-	studentRepo   userModels.StudentRepository
-	companionRepo userModels.StudentCompanionRepository
-	studentAudit  StudentChangeRecorder
-	classes       StudentClassReader
+	directory   StudentDirectoryLocker
+	studentRepo userModels.StudentRepository
+	classes     StudentClassReader
 }
 
 // StudentClassReader lists the distinct classes of the tenant's non-alumni
@@ -80,15 +78,11 @@ func NewStudentService(
 	directory StudentDirectoryAccess,
 	classes StudentClassReader,
 	studentRepo userModels.StudentRepository,
-	companionRepo userModels.StudentCompanionRepository,
-	studentAudit StudentChangeRecorder,
 ) StudentService {
 	return &studentService{
 		StudentDirectoryReader: directory,
 		directory:              directory,
 		studentRepo:            studentRepo,
-		companionRepo:          companionRepo,
-		studentAudit:           studentAudit,
 		classes:                classes,
 	}
 }

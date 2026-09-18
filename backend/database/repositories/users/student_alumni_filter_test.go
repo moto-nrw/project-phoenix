@@ -50,7 +50,7 @@ func TestStudentRepository_AlumniExcludedFromGroupReads(t *testing.T) {
 
 	assignGroup(t, db, activeStudent.ID, group.ID)
 	assignGroup(t, db, alumnusStudent.ID, group.ID)
-	setLifecycle(t, db, alumnusStudent.ID, users.StudentStatusAlumnus, nil, nil)
+	testpkg.SetStudentLifecycle(t, db, alumnusStudent.ID, users.StudentStatusAlumnus, nil, nil)
 
 	t.Run("FindByGroupID excludes alumni", func(t *testing.T) {
 		students, err := repos.Student.FindByGroupID(ctx, group.ID)
@@ -110,7 +110,7 @@ func TestStudentRepository_AlumniExcludedFromGroupInfoReads(t *testing.T) {
 
 	assignGroup(t, db, activeStudent.ID, group.ID)
 	assignGroup(t, db, alumnusStudent.ID, group.ID)
-	setLifecycle(t, db, alumnusStudent.ID, users.StudentStatusAlumnus, nil, nil)
+	testpkg.SetStudentLifecycle(t, db, alumnusStudent.ID, users.StudentStatusAlumnus, nil, nil)
 
 	t.Run("FindAllWithGroups excludes alumni", func(t *testing.T) {
 		infos, err := repos.Student.FindAllWithGroups(ctx)
@@ -151,8 +151,8 @@ func TestStudentRepository_AlumniExcludedFromSchoolClasses(t *testing.T) {
 	testpkg.CreateTestStudent(t, db, "ClassMixedActive", "Kid", mixedClass)
 	alumnusMixed := testpkg.CreateTestStudent(t, db, "ClassMixedAlum", "Kid", mixedClass)
 
-	setLifecycle(t, db, alumnusOnly.ID, users.StudentStatusAlumnus, nil, nil)
-	setLifecycle(t, db, alumnusMixed.ID, users.StudentStatusAlumnus, nil, nil)
+	testpkg.SetStudentLifecycle(t, db, alumnusOnly.ID, users.StudentStatusAlumnus, nil, nil)
+	testpkg.SetStudentLifecycle(t, db, alumnusMixed.ID, users.StudentStatusAlumnus, nil, nil)
 
 	classes, err := repos.Student.ListSchoolClasses(ctx)
 	require.NoError(t, err)

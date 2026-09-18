@@ -1,4 +1,4 @@
-package users_test
+package carelifecycle_test
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -15,31 +16,24 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// newCompanionTestService wires the real repositories behind the student
+// newCompanionTestService wires the real repositories behind the companion
 // service — the companion rules span three tables, so a mock would only test
 // the mock.
-func newCompanionTestService(db *bun.DB) usersService.StudentService {
+func newCompanionTestService(db *bun.DB) carelifecycle.StudentCompanionService {
 	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	return usersService.NewStudentService(repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)), repositories.MustNewPeopleDirectory(db), factory.Student, factory.StudentCompanion, nil)
+	return carelifecycle.NewStudentCompanionService(factory.Student, factory.StudentCompanion, nil)
 }
 
-// setAccompaniedDays gives the student an "Anderes Kind" departure plan on the
-// given weekdays, which is the precondition for carrying a companion link. The
-// free-text note comes along because an accompanied plan must say "mit wem" and
-// there is no link yet at this point.
-func setAccompaniedDays(t *testing.T, db *bun.DB, ctx context.Context, studentID int64, days ...string) *userModels.Student {
-	t.Helper()
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+// studentPlans is the child repository the departure-plan fixture writes
+// through, so a staged plan is the normalized one a production write leaves.
+func studentPlans(db *bun.DB) testpkg.StudentPlanWriter {
+	return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+}
 
-	student, err := repo.FindByID(ctx, studentID)
-	require.NoError(t, err)
-	require.NotNil(t, student)
-
-	note := "Nachbarskind"
-	student.AllowedDepartureModes = userModels.WithAccompaniedDays(student.AllowedDepartureModes, days)
-	student.DepartureCompanionNote = &note
-	require.NoError(t, repo.Update(ctx, student))
-	return student
+// careWithdrawals is the Care Plan repository the withdrawal fixture stores
+// through, so a staged task obeys the owner's one-pending-task-per-child rule.
+func careWithdrawals(db *bun.DB) testpkg.CareWithdrawalWriter {
+	return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal
 }
 
 // clearCompanionNote drops the free-text note straight in SQL, leaving a child
@@ -72,10 +66,10 @@ func TestStudentService_TrimCompanionsToDays_DropsRemovedWeekdays(t *testing.T) 
 	subject := testpkg.CreateTestStudent(t, db, "TrimSubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "TrimCompanion", "Companion", "1a")
 
-	setAccompaniedDays(t, db, ctx, subject.ID, "mon", "tue")
-	setAccompaniedDays(t, db, ctx, companion.ID, "mon", "tue")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), subject.ID, "mon", "tue")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), companion.ID, "mon", "tue")
 
-	conflicts, err := service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+	conflicts, err := service.ReplaceCompanions(ctx, subject.ID, carelifecycle.CompanionUpdate{
 		Links: []userModels.CompanionLink{
 			{CompanionStudentID: companion.ID, Weekdays: []string{"mon", "tue"}},
 		},
@@ -112,38 +106,38 @@ func TestStudentService_CheckCompanionConflicts_ValidatesConfirmedRetry(t *testi
 
 	subject := testpkg.CreateTestStudent(t, db, "ConfirmSubject", "Companion", "1a")
 
-	setAccompaniedDays(t, db, ctx, subject.ID, "mon")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), subject.ID, "mon")
 
 	// A companion that does not exist (deleted between picking and saving).
-	_, err := service.CheckCompanionConflicts(ctx, subject.ID, usersService.CompanionUpdate{
+	_, err := service.CheckCompanionConflicts(ctx, subject.ID, carelifecycle.CompanionUpdate{
 		Links:                []userModels.CompanionLink{{CompanionStudentID: subject.ID + 9_000_000, Weekdays: []string{"mon"}}},
 		AccompaniedDays:      map[string]bool{"mon": true},
 		ExtendCompanionPlans: true,
 	})
-	assert.ErrorIs(t, err, usersService.ErrCompanionNotFound)
+	assert.ErrorIs(t, err, carelifecycle.ErrCompanionNotFound)
 
 	// More links than the cap.
-	tooMany := make([]userModels.CompanionLink, 0, usersService.MaxStudentCompanions+1)
-	for i := range usersService.MaxStudentCompanions + 1 {
+	tooMany := make([]userModels.CompanionLink, 0, carelifecycle.MaxStudentCompanions+1)
+	for i := range carelifecycle.MaxStudentCompanions + 1 {
 		tooMany = append(tooMany, userModels.CompanionLink{
 			CompanionStudentID: subject.ID + int64(i) + 1,
 			Weekdays:           []string{"mon"},
 		})
 	}
-	_, err = service.CheckCompanionConflicts(ctx, subject.ID, usersService.CompanionUpdate{
+	_, err = service.CheckCompanionConflicts(ctx, subject.ID, carelifecycle.CompanionUpdate{
 		Links:                tooMany,
 		AccompaniedDays:      map[string]bool{"mon": true},
 		ExtendCompanionPlans: true,
 	})
-	assert.ErrorIs(t, err, usersService.ErrTooManyCompanions)
+	assert.ErrorIs(t, err, carelifecycle.ErrTooManyCompanions)
 
 	// A weekday the subject's own plan does not allow.
-	_, err = service.CheckCompanionConflicts(ctx, subject.ID, usersService.CompanionUpdate{
+	_, err = service.CheckCompanionConflicts(ctx, subject.ID, carelifecycle.CompanionUpdate{
 		Links:                []userModels.CompanionLink{{CompanionStudentID: subject.ID + 9_000_000, Weekdays: []string{"fri"}}},
 		AccompaniedDays:      map[string]bool{"mon": true},
 		ExtendCompanionPlans: true,
 	})
-	assert.ErrorIs(t, err, usersService.ErrCompanionDayNotAllowed)
+	assert.ErrorIs(t, err, carelifecycle.ErrCompanionDayNotAllowed)
 }
 
 // TestStudentService_ReplaceCompanions_ExtendPreservesCompanionFields pins that
@@ -162,12 +156,12 @@ func TestStudentService_ReplaceCompanions_ExtendPreservesCompanionFields(t *test
 	subject := testpkg.CreateTestStudent(t, db, "ExtendSubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ExtendCompanion", "Companion", "1a")
 
-	setAccompaniedDays(t, db, ctx, subject.ID, "mon")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), subject.ID, "mon")
 	// The companion may only walk with another child on Friday, so Monday is a
 	// conflict the caller has to confirm.
-	setAccompaniedDays(t, db, ctx, companion.ID, "fri")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), companion.ID, "fri")
 
-	conflicts, err := service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+	conflicts, err := service.ReplaceCompanions(ctx, subject.ID, carelifecycle.CompanionUpdate{
 		Links:           []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon"}}},
 		AccompaniedDays: map[string]bool{"mon": true},
 	})
@@ -183,7 +177,7 @@ func TestStudentService_ReplaceCompanions_ExtendPreservesCompanionFields(t *test
 	updated.SchoolClass = "4b"
 	require.NoError(t, studentRepo.Update(ctx, updated))
 
-	conflicts, err = service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+	conflicts, err = service.ReplaceCompanions(ctx, subject.ID, carelifecycle.CompanionUpdate{
 		Links:                []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon"}}},
 		AccompaniedDays:      map[string]bool{"mon": true},
 		ExtendCompanionPlans: true,
@@ -214,29 +208,22 @@ func TestStudentService_ReplaceCompanions_ExtensionRecordsCompanionAudit(t *test
 	})
 	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	audit := usersService.NewStudentAuditService(repositories.NewStudentAudit(db))
-	directory := repositories.MustNewPeopleDirectory(db)
-	service := usersService.NewStudentService(
-		repositories.NewStudentDirectory(directory),
-		directory,
-		factory.Student,
-		factory.StudentCompanion,
-		audit,
-	)
+	service := carelifecycle.NewStudentCompanionService(factory.Student, factory.StudentCompanion, audit)
 
 	subject := testpkg.CreateTestStudent(t, db, "AuditSubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "AuditCompanion", "Companion", "1a")
 
-	setAccompaniedDays(t, db, ctx, subject.ID, "mon")
-	setAccompaniedDays(t, db, ctx, companion.ID, "fri")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), subject.ID, "mon")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), companion.ID, "fri")
 
-	conflicts, err := service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+	conflicts, err := service.ReplaceCompanions(ctx, subject.ID, carelifecycle.CompanionUpdate{
 		Links:           []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon"}}},
 		AccompaniedDays: map[string]bool{"mon": true},
 	})
 	require.NoError(t, err)
 	require.Len(t, conflicts, 1)
 
-	conflicts, err = service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+	conflicts, err = service.ReplaceCompanions(ctx, subject.ID, carelifecycle.CompanionUpdate{
 		Links:                []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon"}}},
 		AccompaniedDays:      map[string]bool{"mon": true},
 		ExtendCompanionPlans: true,
@@ -270,10 +257,10 @@ func TestStudentUpdate_CompanionLinkSatisfiesNoteRequirement(t *testing.T) {
 	subject := testpkg.CreateTestStudent(t, db, "NoteSubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "NoteCompanion", "Companion", "1a")
 
-	setAccompaniedDays(t, db, ctx, subject.ID, "mon")
-	setAccompaniedDays(t, db, ctx, companion.ID, "mon")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), subject.ID, "mon")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), companion.ID, "mon")
 
-	conflicts, err := service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+	conflicts, err := service.ReplaceCompanions(ctx, subject.ID, carelifecycle.CompanionUpdate{
 		Links: []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon"}}},
 	})
 	require.NoError(t, err)
@@ -312,10 +299,10 @@ func TestStudentService_ReplaceCompanions_RefusesOrphaningCompanion(t *testing.T
 	subject := testpkg.CreateTestStudent(t, db, "OrphanSubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "OrphanCompanion", "Companion", "1a")
 
-	setAccompaniedDays(t, db, ctx, subject.ID, "mon")
-	setAccompaniedDays(t, db, ctx, companion.ID, "mon")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), subject.ID, "mon")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), companion.ID, "mon")
 
-	conflicts, err := service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+	conflicts, err := service.ReplaceCompanions(ctx, subject.ID, carelifecycle.CompanionUpdate{
 		Links: []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon"}}},
 	})
 	require.NoError(t, err)
@@ -325,8 +312,8 @@ func TestStudentService_ReplaceCompanions_RefusesOrphaningCompanion(t *testing.T
 	clearCompanionNote(t, db, companion.ID)
 
 	// ACT — the subject drops the companion from their list.
-	_, err = service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{})
-	assert.ErrorIs(t, err, usersService.ErrCompanionWouldLoseDeparture)
+	_, err = service.ReplaceCompanions(ctx, subject.ID, carelifecycle.CompanionUpdate{})
+	assert.ErrorIs(t, err, carelifecycle.ErrCompanionWouldLoseDeparture)
 
 	// The refusal happens before any write: the link is still there.
 	links, err := service.ListCompanions(ctx, companion.ID)
@@ -334,8 +321,8 @@ func TestStudentService_ReplaceCompanions_RefusesOrphaningCompanion(t *testing.T
 	assert.Len(t, links, 1, "nothing may have been deleted")
 
 	// The same removal is fine once the companion carries their own note.
-	setAccompaniedDays(t, db, ctx, companion.ID, "mon")
-	_, err = service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{})
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), companion.ID, "mon")
+	_, err = service.ReplaceCompanions(ctx, subject.ID, carelifecycle.CompanionUpdate{})
 	require.NoError(t, err)
 }
 
@@ -356,11 +343,11 @@ func TestStudentService_ReplaceCompanions_RefusesStrandingRemovedWeekday(t *test
 	companion := testpkg.CreateTestStudent(t, db, "DayCompanion", "Companion", "1a")
 	third := testpkg.CreateTestStudent(t, db, "DayThird", "Companion", "1a")
 
-	setAccompaniedDays(t, db, ctx, subject.ID, "mon", "tue")
-	setAccompaniedDays(t, db, ctx, companion.ID, "mon", "tue")
-	setAccompaniedDays(t, db, ctx, third.ID, "tue")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), subject.ID, "mon", "tue")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), companion.ID, "mon", "tue")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), third.ID, "tue")
 
-	_, err := service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+	_, err := service.ReplaceCompanions(ctx, subject.ID, carelifecycle.CompanionUpdate{
 		Links: []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon", "tue"}}},
 	})
 	require.NoError(t, err)
@@ -370,10 +357,10 @@ func TestStudentService_ReplaceCompanions_RefusesStrandingRemovedWeekday(t *test
 	clearCompanionNote(t, db, companion.ID)
 
 	// ACT — the subject keeps the link but drops its Tuesday.
-	_, err = service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+	_, err = service.ReplaceCompanions(ctx, subject.ID, carelifecycle.CompanionUpdate{
 		Links: []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon"}}},
 	})
-	assert.ErrorIs(t, err, usersService.ErrCompanionWouldLoseDeparture)
+	assert.ErrorIs(t, err, carelifecycle.ErrCompanionWouldLoseDeparture)
 
 	// The refusal happens before any write: the Tuesday edge is still there.
 	links, err := service.ListCompanions(ctx, companion.ID)
@@ -383,12 +370,12 @@ func TestStudentService_ReplaceCompanions_RefusesStrandingRemovedWeekday(t *test
 
 	// A THIRD child covering the removed Tuesday makes the same narrowing legal
 	// — coverage counts per day, not per surviving companion.
-	_, err = service.ReplaceCompanions(ctx, third.ID, usersService.CompanionUpdate{
+	_, err = service.ReplaceCompanions(ctx, third.ID, carelifecycle.CompanionUpdate{
 		Links: []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"tue"}}},
 	})
 	require.NoError(t, err)
 
-	_, err = service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+	_, err = service.ReplaceCompanions(ctx, subject.ID, carelifecycle.CompanionUpdate{
 		Links: []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon"}}},
 	})
 	require.NoError(t, err)
@@ -409,10 +396,10 @@ func TestStudentService_CheckCompanionTrim_RefusesStrandingRemovedWeekday(t *tes
 	subject := testpkg.CreateTestStudent(t, db, "TrimDaySubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "TrimDayCompanion", "Companion", "1a")
 
-	setAccompaniedDays(t, db, ctx, subject.ID, "mon", "tue")
-	setAccompaniedDays(t, db, ctx, companion.ID, "mon", "tue")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), subject.ID, "mon", "tue")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), companion.ID, "mon", "tue")
 
-	_, err := service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+	_, err := service.ReplaceCompanions(ctx, subject.ID, carelifecycle.CompanionUpdate{
 		Links: []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon", "tue"}}},
 	})
 	require.NoError(t, err)
@@ -420,12 +407,12 @@ func TestStudentService_CheckCompanionTrim_RefusesStrandingRemovedWeekday(t *tes
 
 	assert.ErrorIs(t,
 		service.CheckCompanionTrim(ctx, subject.ID, map[string]bool{"mon": true}),
-		usersService.ErrCompanionWouldLoseDeparture,
+		carelifecycle.ErrCompanionWouldLoseDeparture,
 	)
 	assert.ErrorIs(t, func() error {
 		_, err := service.TrimCompanionsToDays(ctx, subject.ID, map[string]bool{"mon": true})
 		return err
-	}(), usersService.ErrCompanionWouldLoseDeparture)
+	}(), carelifecycle.ErrCompanionWouldLoseDeparture)
 
 	// Nothing was trimmed by the refused calls.
 	links, err := service.ListCompanions(ctx, companion.ID)
@@ -449,10 +436,10 @@ func TestStudentService_CheckCompanionTrim_RefusesOrphaningCompanion(t *testing.
 	subject := testpkg.CreateTestStudent(t, db, "TrimOrphanSubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "TrimOrphanCompanion", "Companion", "1a")
 
-	setAccompaniedDays(t, db, ctx, subject.ID, "mon")
-	setAccompaniedDays(t, db, ctx, companion.ID, "mon")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), subject.ID, "mon")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), companion.ID, "mon")
 
-	_, err := service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+	_, err := service.ReplaceCompanions(ctx, subject.ID, carelifecycle.CompanionUpdate{
 		Links: []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon"}}},
 	})
 	require.NoError(t, err)
@@ -461,7 +448,7 @@ func TestStudentService_CheckCompanionTrim_RefusesOrphaningCompanion(t *testing.
 	// Dropping "Anderes Kind" from Monday would drop the only edge.
 	assert.ErrorIs(t,
 		service.CheckCompanionTrim(ctx, subject.ID, map[string]bool{}),
-		usersService.ErrCompanionWouldLoseDeparture,
+		carelifecycle.ErrCompanionWouldLoseDeparture,
 	)
 	// Keeping Monday changes nothing, so there is nothing to refuse.
 	require.NoError(t, service.CheckCompanionTrim(ctx, subject.ID, map[string]bool{"mon": true}))
@@ -485,19 +472,19 @@ func TestStudentService_ReplaceCompanions_EnforcesLimitOnBothEnds(t *testing.T) 
 	// and one more trying to join.
 	popular := testpkg.CreateTestStudent(t, db, "PopularChild", "Companion", "1a")
 	ids := []int64{popular.ID}
-	peers := make([]int64, 0, usersService.MaxStudentCompanions+1)
-	for i := 0; i <= usersService.MaxStudentCompanions; i++ {
+	peers := make([]int64, 0, carelifecycle.MaxStudentCompanions+1)
+	for i := 0; i <= carelifecycle.MaxStudentCompanions; i++ {
 		peer := testpkg.CreateTestStudent(t, db, "LimitPeer", "Companion", "1a")
 		peers = append(peers, peer.ID)
 		ids = append(ids, peer.ID)
 	}
 
 	for _, id := range ids {
-		setAccompaniedDays(t, db, ctx, id, "mon")
+		testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), id, "mon")
 	}
 
-	for _, peer := range peers[:usersService.MaxStudentCompanions] {
-		_, err := service.ReplaceCompanions(ctx, peer, usersService.CompanionUpdate{
+	for _, peer := range peers[:carelifecycle.MaxStudentCompanions] {
+		_, err := service.ReplaceCompanions(ctx, peer, carelifecycle.CompanionUpdate{
 			Links: []userModels.CompanionLink{{CompanionStudentID: popular.ID, Weekdays: []string{"mon"}}},
 		})
 		require.NoError(t, err)
@@ -505,14 +492,14 @@ func TestStudentService_ReplaceCompanions_EnforcesLimitOnBothEnds(t *testing.T) 
 
 	// ACT — one more child submits a single-entry list, which is well under the
 	// cap for them but pushes the popular child over it.
-	_, err := service.ReplaceCompanions(ctx, peers[usersService.MaxStudentCompanions], usersService.CompanionUpdate{
+	_, err := service.ReplaceCompanions(ctx, peers[carelifecycle.MaxStudentCompanions], carelifecycle.CompanionUpdate{
 		Links: []userModels.CompanionLink{{CompanionStudentID: popular.ID, Weekdays: []string{"mon"}}},
 	})
-	assert.ErrorIs(t, err, usersService.ErrCompanionAtLimit)
+	assert.ErrorIs(t, err, carelifecycle.ErrCompanionAtLimit)
 
 	// Re-submitting an unchanged list is NOT rejected: the subject's own edges
 	// are excluded from the companion's degree.
-	_, err = service.ReplaceCompanions(ctx, peers[0], usersService.CompanionUpdate{
+	_, err = service.ReplaceCompanions(ctx, peers[0], carelifecycle.CompanionUpdate{
 		Links: []userModels.CompanionLink{{CompanionStudentID: popular.ID, Weekdays: []string{"mon"}}},
 	})
 	require.NoError(t, err)
@@ -535,21 +522,21 @@ func TestStudentService_ReplaceCompanions_ExtensionIsPerWeekday(t *testing.T) {
 	subject := testpkg.CreateTestStudent(t, db, "PerDaySubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "PerDayCompanion", "Companion", "1a")
 
-	setAccompaniedDays(t, db, ctx, subject.ID, "mon", "tue")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), subject.ID, "mon", "tue")
 	// The companion allows neither day, so both are conflicts — but only Monday
 	// was confirmed.
-	setAccompaniedDays(t, db, ctx, companion.ID, "fri")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), companion.ID, "fri")
 
 	links := []userModels.CompanionLink{
 		{CompanionStudentID: companion.ID, Weekdays: []string{"mon", "tue"}},
 	}
-	_, err := service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+	_, err := service.ReplaceCompanions(ctx, subject.ID, carelifecycle.CompanionUpdate{
 		Links:                links,
 		AccompaniedDays:      map[string]bool{"mon": true, "tue": true},
 		ExtendCompanionPlans: true,
 		AuthorizedExtensions: map[int64]map[string]bool{companion.ID: {"mon": true}},
 	})
-	assert.ErrorIs(t, err, usersService.ErrCompanionExtensionNotAuthorized)
+	assert.ErrorIs(t, err, carelifecycle.ErrCompanionExtensionNotAuthorized)
 
 	stored, err := studentRepo.FindByID(ctx, companion.ID)
 	require.NoError(t, err)
@@ -558,7 +545,7 @@ func TestStudentService_ReplaceCompanions_ExtensionIsPerWeekday(t *testing.T) {
 	assert.False(t, allowed["tue"], "the unconfirmed day especially")
 
 	// Confirming both days makes the identical request go through.
-	conflicts, err := service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+	conflicts, err := service.ReplaceCompanions(ctx, subject.ID, carelifecycle.CompanionUpdate{
 		Links:                links,
 		AccompaniedDays:      map[string]bool{"mon": true, "tue": true},
 		ExtendCompanionPlans: true,
@@ -591,10 +578,10 @@ func TestStudentUpdate_CompanionLinkCoversOnlyItsWeekdays(t *testing.T) {
 	subject := testpkg.CreateTestStudent(t, db, "CoverSubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "CoverCompanion", "Companion", "1a")
 
-	setAccompaniedDays(t, db, ctx, subject.ID, "mon", "tue")
-	setAccompaniedDays(t, db, ctx, companion.ID, "mon")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), subject.ID, "mon", "tue")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), companion.ID, "mon")
 
-	conflicts, err := service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+	conflicts, err := service.ReplaceCompanions(ctx, subject.ID, carelifecycle.CompanionUpdate{
 		Links: []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon"}}},
 	})
 	require.NoError(t, err)
@@ -639,9 +626,9 @@ func TestStudentService_ReplaceCompanions_RefusesStaleList(t *testing.T) {
 	first := testpkg.CreateTestStudent(t, db, "StaleFirst", "Companion", "1a")
 	second := testpkg.CreateTestStudent(t, db, "StaleSecond", "Companion", "1a")
 
-	setAccompaniedDays(t, db, ctx, subject.ID, "mon")
-	setAccompaniedDays(t, db, ctx, first.ID, "mon")
-	setAccompaniedDays(t, db, ctx, second.ID, "mon")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), subject.ID, "mon")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), first.ID, "mon")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), second.ID, "mon")
 
 	// Both editors load the same (empty) list.
 	loaded, err := service.ListCompanions(ctx, subject.ID)
@@ -649,18 +636,18 @@ func TestStudentService_ReplaceCompanions_RefusesStaleList(t *testing.T) {
 	snapshot := userModels.CompanionLinksFingerprint(loaded)
 
 	// Editor A saves first: the child now walks with `first`.
-	_, err = service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+	_, err = service.ReplaceCompanions(ctx, subject.ID, carelifecycle.CompanionUpdate{
 		Links:               []userModels.CompanionLink{{CompanionStudentID: first.ID, Weekdays: []string{"mon"}}},
 		ExpectedFingerprint: &snapshot,
 	})
 	require.NoError(t, err)
 
 	// ACT — editor B saves the list they built on the pre-A snapshot.
-	_, err = service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+	_, err = service.ReplaceCompanions(ctx, subject.ID, carelifecycle.CompanionUpdate{
 		Links:               []userModels.CompanionLink{{CompanionStudentID: second.ID, Weekdays: []string{"mon"}}},
 		ExpectedFingerprint: &snapshot,
 	})
-	assert.ErrorIs(t, err, usersService.ErrCompanionsChanged)
+	assert.ErrorIs(t, err, carelifecycle.ErrCompanionsChanged)
 
 	// Nothing was written: editor A's link survives untouched.
 	links, err := service.ListCompanions(ctx, subject.ID)
@@ -670,17 +657,17 @@ func TestStudentService_ReplaceCompanions_RefusesStaleList(t *testing.T) {
 
 	// The read-only pre-check refuses it too, so the HTTP path can answer 409
 	// before its transaction writes anything.
-	_, err = service.CheckCompanionConflicts(ctx, subject.ID, usersService.CompanionUpdate{
+	_, err = service.CheckCompanionConflicts(ctx, subject.ID, carelifecycle.CompanionUpdate{
 		Links:               []userModels.CompanionLink{{CompanionStudentID: second.ID, Weekdays: []string{"mon"}}},
 		ExpectedFingerprint: &snapshot,
 	})
-	assert.ErrorIs(t, err, usersService.ErrCompanionsChanged)
+	assert.ErrorIs(t, err, carelifecycle.ErrCompanionsChanged)
 
 	// Reloading makes the same edit succeed.
 	reloaded, err := service.ListCompanions(ctx, subject.ID)
 	require.NoError(t, err)
 	fresh := userModels.CompanionLinksFingerprint(reloaded)
-	_, err = service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+	_, err = service.ReplaceCompanions(ctx, subject.ID, carelifecycle.CompanionUpdate{
 		Links: []userModels.CompanionLink{
 			{CompanionStudentID: first.ID, Weekdays: []string{"mon"}},
 			{CompanionStudentID: second.ID, Weekdays: []string{"mon"}},
@@ -705,10 +692,10 @@ func TestStudentService_ListCompanionsForStudents(t *testing.T) {
 	companion := testpkg.CreateTestStudent(t, db, "BulkCompanion", "Companion", "1a")
 	lonely := testpkg.CreateTestStudent(t, db, "BulkLonely", "Companion", "1a")
 
-	setAccompaniedDays(t, db, ctx, subject.ID, "mon")
-	setAccompaniedDays(t, db, ctx, companion.ID, "mon")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), subject.ID, "mon")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), companion.ID, "mon")
 
-	_, err := service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+	_, err := service.ReplaceCompanions(ctx, subject.ID, carelifecycle.CompanionUpdate{
 		Links: []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon"}}},
 	})
 	require.NoError(t, err)

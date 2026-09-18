@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
@@ -28,14 +28,14 @@ func (d careExitAssignments) LockOpenStudentAssignments(ctx context.Context, ids
 	return d.capability.LockOpenStudentAssignments(ctx, ids)
 }
 
-func (d careExitAssignments) ReconnectCareExitAssignmentPickupExceptions(ctx context.Context, ids, pickups []int64, removals []usersRepo.CareExitRemoval) error {
+func (d careExitAssignments) ReconnectCareExitAssignmentPickupExceptions(ctx context.Context, ids, pickups []int64, removals []carelifecycle.CareExitRemoval) error {
 	return d.capability.ReconnectCareExitAssignmentPickupExceptions(ctx, ids, pickups, publicCareExitAssignments(removals))
 }
 
-func publicCareExitAssignments(removals []usersRepo.CareExitRemoval) []timetable.InstanceStudent {
+func publicCareExitAssignments(removals []carelifecycle.CareExitRemoval) []timetable.InstanceStudent {
 	result := make([]timetable.InstanceStudent, 0, len(removals))
 	for _, row := range removals {
-		if row.Kind != usersRepo.CareExitRemovalRoster {
+		if row.Kind != carelifecycle.CareExitRemovalRoster {
 			continue
 		}
 		assignment := timetable.InstanceStudent{TenantID: row.TenantID, StudentID: row.StudentID,

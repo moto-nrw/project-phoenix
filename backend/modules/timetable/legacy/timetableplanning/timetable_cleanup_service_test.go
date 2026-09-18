@@ -15,7 +15,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -148,15 +147,8 @@ func newCleanupSvc(db *bun.DB) timetableplanning.TimetableCleanupService {
 
 func testInstanceStudents(db *bun.DB) scheduleModels.InstanceStudentRepository {
 	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	factory.BindTimetable(timetabletest.New(scheduleTestTB{}, db))
 	return factory.InstanceStudent
 }
-
-type scheduleTestTB struct{}
-
-func (scheduleTestTB) Helper() {}
-
-func (scheduleTestTB) Fatalf(format string, args ...any) { panic(fmt.Sprintf(format, args...)) }
 
 // --- Tests ---
 

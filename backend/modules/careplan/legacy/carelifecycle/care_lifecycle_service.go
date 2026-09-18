@@ -1,4 +1,4 @@
-package users
+package carelifecycle
 
 import (
 	"context"
@@ -202,7 +202,7 @@ type careLifecycleService struct {
 	withdrawalRepo        userModels.CareWithdrawalCompletionRepository
 	bookingsAuthoritative func(context.Context) (bool, error)
 	tagReleaser           CareExitTagReleaser
-	auditService          StudentAuditService
+	auditService          StudentChangeRecorder
 	lockCareBookingWrites func(context.Context) error
 	txHandler             *tenant.TransactionRunner
 	logger                *slog.Logger
@@ -218,7 +218,7 @@ type CareLifecycleDependencies struct {
 	CleanupRepo    userModels.CareExitCleanupRepository
 	WithdrawalRepo userModels.CareWithdrawalCompletionRepository
 	TagReleaser    CareExitTagReleaser
-	AuditService   StudentAuditService
+	AuditService   StudentChangeRecorder
 	// LockCareBookingWrites is the same transaction-scoped gate used by
 	// authoritative offering adjustments. Taking it before any plan lock makes
 	// rebooking and care-end confirmation a total order instead of allowing a

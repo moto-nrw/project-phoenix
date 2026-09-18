@@ -20,7 +20,6 @@ import (
 	repoEducation "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -204,7 +203,6 @@ func TestTenantIsolation_TimeframeVisibility(t *testing.T) {
 	tfB := CreateTestTimeframeForTenant(t, db, tenantB, "TimeframeB")
 
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	repos.BindTimetable(timetabletest.New(t, db))
 	repo := repos.Timeframe
 
 	// --- Tenant A ---
