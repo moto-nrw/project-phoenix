@@ -311,7 +311,7 @@ func (l operatorActionLog) RecordOperatorActionAsync(entry identityaccess.Operat
 	}
 	row := &platformModels.OperatorAuditLog{
 		OperatorID: entry.OperatorID, Action: entry.Action, ResourceType: entry.ResourceType,
-		ResourceID: entry.ResourceID, RequestIP: parseClientIP(entry.IPAddress), CreatedAt: time.Now(),
+		ResourceID: entry.ResourceID, RequestIP: securityruntime.ParseClientAddress(entry.IPAddress), CreatedAt: time.Now(),
 	}
 	if changes := operatorMFAChanges(entry.MFA); len(changes) > 0 {
 		// A marshal failure falls through with empty changes: losing the

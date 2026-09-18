@@ -84,7 +84,7 @@ type operatorAuditLedger struct {
 func (a operatorAuditLedger) RecordOperatorAction(ctx context.Context, entry identityaccess.OperatorAuditEntry) error {
 	row := &platformModels.OperatorAuditLog{
 		OperatorID: entry.OperatorID, Action: entry.Action, ResourceType: entry.ResourceType,
-		ResourceID: entry.ResourceID, RequestIP: parseClientIP(entry.IPAddress),
+		ResourceID: entry.ResourceID, RequestIP: securityruntime.ParseClientAddress(entry.IPAddress),
 	}
 	if changes := operatorAuditChanges(entry); len(changes) > 0 {
 		if err := row.SetChanges(changes); err != nil {
