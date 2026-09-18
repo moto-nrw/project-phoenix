@@ -172,6 +172,16 @@ even though the effective absence read skips them. Their flags still surface in
 the student list projection, so whether that display changes at Cutover belongs
 to #2759's caller switch, not here.
 
+**This is the one verdict that can change without anybody touching the data.**
+It is measured against today, so a child reported sick this morning through the
+modern path — flag raised *and* an open status day for today — is reconciled
+today and unreconciled tomorrow unless the day is renewed or the flag drained.
+A school that reported `stable: true` yesterday can therefore be unstable this
+morning. That is the honest signal, not a flaw: the flag is dateless and would
+keep the child absent forever after Cutover, while the day it was paired with
+expires. Run `status` shortly before Cutover rather than relying on an older
+green run, and drain the flags last.
+
 ```sql
 SELECT s.id AS student_id, p.first_name, p.last_name,
        s.sick, s.sick_since, s.excused, s.excused_since,
@@ -263,6 +273,29 @@ checkpoint. The Expand rollback follows after the targets are empty.
 `rows_rejected` explained. A school whose tenant policies no longer hold never
 reaches a verdict at all: the run fails that school's pass before verification. Cutover #2759 applies the final delta under its own
 write lock using the same runner and re-verifies before switching callers.
+
+## Production read-only survey (2026-09-18)
+
+Measured against the production database at migration `001015393` (the Expand),
+read-only, before this migration was written to disk anywhere near it. It sizes
+the run and the backlog; it is not a substitute for the staging record below.
+
+| Measure | Result |
+| --- | --- |
+| Schools / students | 12 schools, 1,448 students across 11 schools |
+| `rows_rejected` (person of another school) | 0 |
+| Rows violating a target CHECK (departure JSONB, status, class) | 0 |
+| Cross-tenant `group_id`, dangling `photo_consent_given_by` | 0, 0 |
+| `NOT VALID` constraints on `users.students` that could hide bad rows | none |
+| Legacy `guardian_name` / `guardian_contact` | 0 / 0 — nothing to reconcile |
+| Legacy `guardian_email` / `guardian_phone` | 298 / 297, of which **1 e-mail and 2 phones** do not match a linked guardian (schools 4 and 5) |
+| Legacy `sick` / `excused` flags | 31 / 2, of which **14 sick flags** have no open status day for today (schools 4, 8, 9); all on active students, `sick_since` between 2026-09-02 and today |
+| Source projection and canonical checksum | Execute against the real schema; 208/208 rows eligible for the largest school |
+
+So the copy itself has no obstacle on this data: every row is eligible and no
+constraint rejects it. The expected backlog is roughly seventeen data points in
+four schools, and the queries above name them. At 1,448 rows the inline copy is
+a few batches per school.
 
 ## Staging acceptance record
 
