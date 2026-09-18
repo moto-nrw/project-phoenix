@@ -150,12 +150,6 @@ func testInstanceStudents(db *bun.DB) scheduleModels.InstanceStudentRepository {
 	return factory.InstanceStudent
 }
 
-type scheduleTestTB struct{}
-
-func (scheduleTestTB) Helper() {}
-
-func (scheduleTestTB) Fatalf(format string, args ...any) { panic(fmt.Sprintf(format, args...)) }
-
 // --- Tests ---
 
 func TestCleanup_HappyPath_DeletesOldRowsKeepsFreshRows(t *testing.T) {
