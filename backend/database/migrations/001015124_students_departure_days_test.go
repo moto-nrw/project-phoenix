@@ -30,7 +30,7 @@ func departureDaysColumnExists(t *testing.T, db *testpkg.DB) bool {
 // round-trip.
 func TestStudentsDepartureDaysMigration(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := context.Background()
 
 	// Ensure the column exists at baseline regardless of shared DB state.

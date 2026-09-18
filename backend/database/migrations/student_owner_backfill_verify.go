@@ -352,3 +352,61 @@ func oldestUnmigrated(candidates ...sql.NullTime) *time.Time {
 	}
 	return oldest
 }
+
+// StudentOwnerVerification is the per-tenant verdict Cutover (#2759) records
+// and refuses to switch without.
+type StudentOwnerVerification struct {
+	TenantID               int64  `json:"tenant_id"`
+	SourceCount            int64  `json:"source_count"`
+	TargetCount            int64  `json:"target_count"`
+	SourceChecksum         string `json:"source_checksum"`
+	TargetChecksum         string `json:"target_checksum"`
+	MismatchCount          int64  `json:"mismatch_count"`
+	GuardianMismatchCount  int64  `json:"guardian_mismatch_count"`
+	CareStateMismatchCount int64  `json:"care_state_mismatch_count"`
+}
+
+// Equal reports whether the targets reproduce the old table exactly and the two
+// column groups without a target are accounted for.
+func (v StudentOwnerVerification) Equal() bool {
+	return v.SourceCount == v.TargetCount && v.SourceChecksum == v.TargetChecksum &&
+		v.MismatchCount == 0 && v.GuardianMismatchCount == 0 && v.CareStateMismatchCount == 0
+}
+
+// Describe names the failing verdicts so an operator sees which of them blocked
+// the switch without reading the checkpoint row.
+func (v StudentOwnerVerification) Describe() string {
+	return fmt.Sprintf(
+		"source %d rows %s, target %d rows %s, %d mismatches, %d unreconciled guardian values, %d absence flags without a status day",
+		v.SourceCount, v.SourceChecksum, v.TargetCount, v.TargetChecksum,
+		v.MismatchCount, v.GuardianMismatchCount, v.CareStateMismatchCount)
+}
+
+// verifyStudentOwnerTenant is Cutover's single-transaction verdict. It lives
+// beside the projections above so it uses exactly the equality the resumable
+// backfill used: one definition, not a second one that could drift from it.
+func verifyStudentOwnerTenant(ctx context.Context, tx bun.Tx, tenantID int64) (StudentOwnerVerification, error) {
+	verification := StudentOwnerVerification{TenantID: tenantID}
+	if err := tx.NewRaw(studentOwnerSourceChecksum, tenantID).
+		Scan(ctx, &verification.SourceCount, &verification.SourceChecksum); err != nil {
+		return verification, fmt.Errorf("student owner cutover: tenant %d source checksum: %w", tenantID, err)
+	}
+	if err := tx.NewRaw(studentOwnerTargetChecksum, tenantID).
+		Scan(ctx, &verification.TargetCount, &verification.TargetChecksum); err != nil {
+		return verification, fmt.Errorf("student owner cutover: tenant %d target checksum: %w", tenantID, err)
+	}
+	var oldest sql.NullTime
+	if err := tx.NewRaw(studentOwnerMismatch, tenantID, tenantID).
+		Scan(ctx, &verification.MismatchCount, &oldest); err != nil {
+		return verification, fmt.Errorf("student owner cutover: tenant %d mismatches: %w", tenantID, err)
+	}
+	if err := tx.NewRaw(studentOwnerGuardianMismatch, tenantID, tenantID).
+		Scan(ctx, &verification.GuardianMismatchCount, &oldest); err != nil {
+		return verification, fmt.Errorf("student owner cutover: tenant %d guardian reconciliation: %w", tenantID, err)
+	}
+	if err := tx.NewRaw(studentOwnerCareStateMismatch, tenantID).
+		Scan(ctx, &verification.CareStateMismatchCount, &oldest); err != nil {
+		return verification, fmt.Errorf("student owner cutover: tenant %d care state: %w", tenantID, err)
+	}
+	return verification, nil
+}
