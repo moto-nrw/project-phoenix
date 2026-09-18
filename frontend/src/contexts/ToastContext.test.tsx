@@ -149,11 +149,11 @@ describe("ToastContext", () => {
         </ToastProvider>,
       );
 
-      expect(
-        await screen.findByRole("status", {
-          name: "Erfolgreich!: Gespeichert",
-        }),
-      ).toBeInTheDocument();
+      const toast = await screen.findByRole("status", {
+        name: "Erfolgreich!: Gespeichert",
+      });
+      expect(toast).toBeInTheDocument();
+      expect(toast.parentElement?.parentElement).toHaveClass("mx-auto");
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       expect(document.documentElement.style.overflow).not.toBe("hidden");
     });
