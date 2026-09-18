@@ -1660,7 +1660,7 @@ describe("ID-based selection: Tab change handler logic", () => {
 });
 
 /**
- * Coverage tests for ID-based selection logic introduced in the SSE selection stability PR.
- * These tests render the actual MeinRaumPage component to exercise changed lines
- * that SonarCloud needs covered.
+ * Tests for ID-based selection logic introduced in the SSE selection stability PR.
+ * These render the actual MeinRaumPage component rather than a stub, so the
+ * selection path is exercised end to end.
  */

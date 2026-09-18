@@ -848,7 +848,8 @@ export function useGlobalSSE(): SSEHookState {
       // jitter window (#2057 — every client receives the same broadcast at
       // the same instant, so a fixed delay produced synchronized herds).
       burstStartedAt.current = now;
-      burstJitter.current = Math.random() * FLUSH_JITTER_MS; // NOSONAR typescript:S2245 non-cryptographic load-spreading jitter, no security context
+      // Math.random is fine here: load-spreading jitter, no security context.
+      burstJitter.current = Math.random() * FLUSH_JITTER_MS;
     }
     // Trailing debounce with an upper bound: a sustained event stream
     // (morning rush) keeps pushing the flush back, but never beyond

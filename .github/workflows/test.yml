@@ -1,4 +1,4 @@
-name: Test & Coverage
+name: Test
 
 on:
   workflow_call:
@@ -13,7 +13,7 @@ on:
         type: boolean
         required: true
       # True for pull requests and merge groups: test only what changed against
-      # base_ref, skip coverage. False for protected-branch pushes.
+      # base_ref. False for protected-branch pushes, which run both full suites.
       changed-scope:
         type: boolean
         default: false
@@ -37,10 +37,9 @@ env:
 jobs:
   test-backend:
     if: ${{ inputs.run-backend }}
-    # Change-scoped runs cover only affected packages without coverage; four
-    # vCPUs avoid paying the 8-vCPU rate for that smaller workload.
-    # Protected-branch pushes keep eight vCPUs for the full instrumented suite
-    # consumed by SonarCloud.
+    # Change-scoped runs cover only affected packages; four vCPUs avoid paying
+    # the 8-vCPU rate for that smaller workload. Protected-branch pushes keep
+    # eight vCPUs for the full suite.
     runs-on: ${{ inputs.changed-scope && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
     permissions:
       contents: read
@@ -193,54 +192,15 @@ jobs:
           if [ "$CHANGED_SCOPE" = true ]; then
             test_args+=(-p 4)
           else
-            # Coverage is consumed only by the post-merge SonarCloud job.
-            # Keeping it off PRs avoids instrumenting every dependency and
-            # merging a large profile that no PR job reads.
-            test_args+=(-p 6 -covermode=atomic -coverpkg=./... -coverprofile=coverage.out)
+            # The full suite compiles every package; six package binaries in
+            # flight match the eight-vCPU runner it gets.
+            test_args+=(-p 6)
           fi
 
-          # Single pass produces junit.xml and, on pushes, coverage.out. No
-          # retries: flaky tests should fail loudly, not be hidden.
+          # Single pass produces junit.xml. No retries: flaky tests should fail
+          # loudly, not be hidden.
           go tool gotestsum --format pkgname-and-test-fails \
             --junitfile junit.xml -- "${test_args[@]}" "${packages[@]}"
-
-      - name: Fix Go coverage paths for SonarCloud
-        if: ${{ always() && hashFiles('backend/coverage.out') != '' }}
-        run: |
-          # Transform Go module paths to relative paths
-          # From: github.com/moto-nrw/project-phoenix/... → backend/...
-          sed -i 's|github.com/moto-nrw/project-phoenix/|backend/|g' backend/coverage.out
-          python3 - <<'PYEOF'
-          from collections import OrderedDict
-
-          source = "backend/coverage.out"
-          merged = OrderedDict()
-
-          with open(source, encoding="utf-8") as fh:
-              mode = fh.readline()
-              for raw in fh:
-                  line = raw.strip()
-                  if not line:
-                      continue
-                  location, statements, count = line.rsplit(" ", 2)
-                  key = (location, statements)
-                  merged[key] = merged.get(key, 0) + int(count)
-
-          with open(source, "w", encoding="utf-8") as fh:
-              fh.write(mode)
-              for (location, statements), count in merged.items():
-                  fh.write(f"{location} {statements} {count}\n")
-          PYEOF
-
-      - name: Upload backend coverage
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: coverage-backend
-          path: |
-            backend/coverage.out
-            backend/junit.xml
-          retention-days: 7
-        if: ${{ always() && ! inputs.changed-scope && hashFiles('backend/coverage.out', 'backend/junit.xml') != '' }}
 
       - name: Publish backend test results
         uses: mikepenz/action-junit-report@a9170d5795813c01ab4901ffb045b52bab4ab09d # v6.5.0
@@ -313,22 +273,9 @@ jobs:
         run: pnpm vitest run --changed "origin/${{ inputs.base_ref }}"
 
       - name: Run full frontend tests
-        if: ${{ inputs.changed-scope && (inputs.full-frontend-suite || inputs.base_ref == '') }}
+        if: ${{ ! inputs.changed-scope || inputs.full-frontend-suite || inputs.base_ref == '' }}
         working-directory: frontend
         run: pnpm run test:run
-
-      - name: Run full frontend tests with coverage
-        if: ${{ ! inputs.changed-scope }}
-        working-directory: frontend
-        run: pnpm run test:run --coverage
-
-      - name: Upload frontend coverage
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: coverage-frontend
-          path: frontend/coverage/lcov.info
-          retention-days: 7
-        if: ${{ always() && hashFiles('frontend/coverage/lcov.info') != '' }}
 
   # The seeder is the widest end-to-end path in this repo: roughly a hundred
   # real API calls across auth, enrollment, parent portal, time tracking and

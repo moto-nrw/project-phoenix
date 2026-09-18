@@ -130,14 +130,16 @@ mechanischer Sweep über alle Testdateien):
   zu trennen.
 
 CI-PRs verwenden dieselbe Reverse-Dependency-Auswahl wie
-`scripts/test-changed.sh` und erzeugen keine Coverage: Seit SonarCloud nur auf
-Pushes nach `development`/`main` läuft, hatte die PR-Coverage keinen Verbraucher.
+`scripts/test-changed.sh`. CI erzeugt überhaupt keine Coverage mehr — sie hatte
+zuletzt nur SonarCloud als Verbraucher, und das ist entfernt; `-coverprofile`
+bleibt ein lokales Werkzeug.
 Änderungen an der Test-Infrastruktur erzwingen nur den Volllauf der betroffenen
-Suite; CI-Workflow-Änderungen erzwingen beide. Pushes fahren beide Vollläufe mit
-Coverage für SonarCloud. Reine Markdown- und nicht testrelevante
+Suite; CI-Workflow-Änderungen erzwingen beide. Pushes fahren beide Vollläufe,
+weil ein Push auf einen geschützten Branch den ganzen Baum revalidiert und nicht
+nur das, was der Push berührt hat. Reine Markdown- und nicht testrelevante
 Backend-Konfigurationsänderungen starten keine Tests.
 Lint- und Build-Jobs laufen dabei nur für den tatsächlich geänderten Stack;
-die Sonar-bedingte Gegen-Suite startet ausschließlich ihre Tests mit Coverage.
+die Gegen-Suite startet ausschließlich ihre Tests.
 Reine `_test.go`-Änderungen laufen nur im eigenen Package; nur geänderter
 Produktionscode zieht die transitiven Importierer nach sich. Eingebettete
 Produktions-Assets (Locales, Export-Schriften/-Logo) zählen wie Produktionscode;
@@ -146,11 +148,11 @@ Goldens und E-Mail-Templates laufen in ihrem besitzenden Test-Package.
 Der lokale Changed-Loop nutzt höchstens die Hälfte der erkannten CPUs und
 maximal vier Package-Binaries. `GOMAXPROCS` pro Binary wird so berechnet, dass
 auch zusammen höchstens die halbe Maschine belegt wird; `-parallel` ist auf
-acht begrenzt. CI und der explizite Volllauf-Wrapper behalten für Post-Merge-Coverage
-`-p 6 -parallel 8`. Changed-only-PRs laufen auf dem 4-vCPU-Runner mit `-p 4`
-statt den doppelten Minutenpreis des 8-vCPU-Runners zu zahlen. Vitest nutzt
-lokal ebenfalls höchstens die Hälfte beziehungsweise vier Worker, in CI aber
-alle CPUs des isolierten Runners.
+acht begrenzt. CI und der explizite Volllauf-Wrapper behalten für den
+Post-Merge-Volllauf `-p 6 -parallel 8`. Changed-only-PRs laufen auf dem
+4-vCPU-Runner mit `-p 4` statt den doppelten Minutenpreis des 8-vCPU-Runners
+zu zahlen. Vitest nutzt lokal ebenfalls höchstens die Hälfte beziehungsweise
+vier Worker, in CI aber alle CPUs des isolierten Runners.
 
 Der eigenständige Seed-&-Simulate-Smoke läuft nur bei Backend-Produktionscode,
 seinen eingebetteten/runtime-geladenen Assets oder CI-Workflow-Änderungen.
@@ -164,5 +166,5 @@ Garantie auf Datenbank-Ebene ohne diesen Preis. TestMain pro Package hätte
 auch nackte `go test`-Aufrufe aufräumen lassen, wurde aber gegen 62
 Boilerplate-Dateien getauscht, weil die GC den Rest erledigt. Zielwerte:
 CI test-backend unter 90 Sekunden, lokaler Volllauf ≈ 2 Minuten. Die
-Changed-only-PR-Last rechtfertigt den 4-vCPU-Runner; der instrumentierte
-Post-Merge-Volllauf bleibt auf 8 vCPUs.
+Changed-only-PR-Last rechtfertigt den 4-vCPU-Runner; der Post-Merge-Volllauf
+bleibt auf 8 vCPUs.
