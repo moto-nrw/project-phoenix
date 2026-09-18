@@ -12,10 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	classdayhttp "github.com/moto-nrw/project-phoenix/modules/classday/http"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/schoolportal"
 	"github.com/moto-nrw/project-phoenix/modules/schoolportal/portaltest"
 	"github.com/moto-nrw/project-phoenix/tenant"

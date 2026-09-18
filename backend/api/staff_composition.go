@@ -9,9 +9,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
 	exportTransferCompose "github.com/moto-nrw/project-phoenix/modules/exporttransfer/compose"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"

@@ -5,10 +5,10 @@ import (
 	"errors"
 	"strings"
 
-	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
+	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 )
 
 // Identity & Access owns role and permission management (#3314). Its role

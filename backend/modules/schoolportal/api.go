@@ -27,9 +27,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	classdayAPI "github.com/moto-nrw/project-phoenix/modules/classday/http"
 	notificationsAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
 // StaffMessagingRouter is the school-portal mount supplied by the application

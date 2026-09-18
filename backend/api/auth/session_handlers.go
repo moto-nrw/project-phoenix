@@ -11,9 +11,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -96,7 +96,14 @@ func (rs *Resource) handleLoginError(w http.ResponseWriter, r *http.Request, err
 			// Mask the specific error so attackers can't enumerate accounts.
 			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrInvalidCredentials))
 		case errors.Is(err, identityaccess.ErrAccountInactive):
-			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrAccountInactive))
+			// The stable code the parents and school portals already send
+			// (#3376). Only reachable once the credential check accepted the
+			// password, so it tells a caller nothing about an account they do
+			// not own — and without it the frontend renders a deactivated
+			// account as "wrong password" and sends the owner into a reset
+			// loop that cannot help.
+			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(
+				identityaccess.ErrAccountInactive, "account_inactive"))
 		case errors.Is(err, identityaccess.ErrTenantNotFound):
 			common.RenderError(w, r, common.ErrorNotFound(identityaccess.ErrTenantNotFound))
 		case errors.Is(err, identityaccess.ErrTenantAccessDenied):

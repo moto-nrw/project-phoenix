@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
+	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
 // VerifyCodeForOperator is the JWT-less verify used by operator

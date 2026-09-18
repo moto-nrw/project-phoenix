@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/models/auth"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -27,7 +27,7 @@ func assignSystemRole(t *testing.T, db *bun.DB, accountID int64, roleName string
 		Where("name = ?", roleName).Where("is_system = TRUE").
 		Scan(ctx, &roleID), "seeded %s system role must exist", roleName)
 
-	assignment := &auth.AccountRole{AccountID: accountID, RoleID: roleID}
+	assignment := &authmodels.AccountRole{AccountID: accountID, RoleID: roleID}
 	assignment.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(assignment).ModelTableExpr(`auth.account_roles`).Exec(ctx)
 	require.NoError(t, err)

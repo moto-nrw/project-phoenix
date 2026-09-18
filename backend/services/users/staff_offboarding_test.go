@@ -12,9 +12,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -531,7 +531,23 @@ func TestOffboardStaff_MultiTenantAccountKeepsOtherSchool(t *testing.T) {
 
 // TestOffboardStaff_ReinviteSameEmailSameSchool covers bug 2 of issue #695:
 // the same email must be re-invitable at the same school after offboarding,
-// but a token alone must not reactivate the globally disabled account.
+// and acceptance restores a working Betreuer on the same account.
+//
+// The rule changed with #3376. Until then a token alone could not reactivate
+// the disabled account, which read as security but left the school with no
+// way back at all: the invitee was sent to a login for an account nobody can
+// sign in to, and a password reset cannot clear the disabled flag. What the
+// invitation now restores is an account that holds nothing — disabled and
+// without an active mapping at any school — to a school whose admin issued
+// the invitation, for whoever holds the invited mailbox. That is the same
+// proof a reset link already accepts for this account's password.
+//
+// The boundary that protects a live account is unchanged and covered
+// elsewhere: an account that is disabled while it still holds school access
+// was disabled deliberately and still demands the owner's session
+// (TestInvitationLeavesDisabledAccountWithSchoolAccessAlone), and an active
+// account is never taken over by a token
+// (TestInvitationTokenCannotTakeOverExistingAccount).
 func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 	t.Parallel()
 
@@ -583,12 +599,12 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 		Password:        newCredential,
 		ConfirmPassword: newCredential,
 	})
-	require.ErrorIs(t, err, services.ErrInvitationOwnerRequired)
-	require.Zero(t, reactivated.ID, "a refused acceptance hands back no account")
+	require.NoError(t, err, "a dormant account is restored by its invitation")
+	require.Equal(t, account.ID, reactivated.ID, "the invitee keeps the account the address belongs to")
 
 	exists, err := sc.repos.AccountTenant.ExistsByAccountAndTenant(sc.ctx, account.ID, testpkg.Tenant(t))
 	require.NoError(t, err)
-	assert.False(t, exists, "token-only acceptance must not reactivate the tenant mapping")
+	assert.True(t, exists, "the accepted invitation restores the tenant mapping")
 
 	var staffCount int
 	err = sc.db.NewSelect().
@@ -598,14 +614,17 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 		Where(`"person".account_id = ? AND "staff".deleted_at IS NULL AND "person".deleted_at IS NULL`, account.ID).
 		Scan(context.Background(), &staffCount)
 	require.NoError(t, err)
-	assert.Zero(t, staffCount, "rejected acceptance must not recreate a live staff record")
+	assert.Equal(t, 1, staffCount, "the restored Betreuer has a live staff record again")
 	stored, err := sc.repos.Account.FindByID(context.Background(), account.ID)
 	require.NoError(t, err)
-	assert.False(t, stored.Active)
-	assert.Equal(t, account.PasswordHash, stored.PasswordHash)
+	assert.True(t, stored.Active)
+	assert.NotEqual(t, account.PasswordHash, stored.PasswordHash, "the invitee's new credential replaced the old one")
 
 	_, _, err = sc.authSvc.LoginWithAudit(context.Background(), emailAddr, newCredential, "", "", "")
-	require.Error(t, err, "the proposed invitation password must grant no access")
+	require.NoError(t, err, "the password chosen in the invitation grants access")
+
+	_, _, err = sc.authSvc.LoginWithAudit(context.Background(), emailAddr, oldCredential, "", "", "")
+	require.Error(t, err, "the credential from before the offboarding must not survive")
 }
 
 // TestOffboardStaff_ActiveSupervisionBlocks: an active room supervision still

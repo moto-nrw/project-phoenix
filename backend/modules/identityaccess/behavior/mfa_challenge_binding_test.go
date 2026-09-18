@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
-	authmodel "github.com/moto-nrw/project-phoenix/models/auth"
+	authmodel "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
+	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 

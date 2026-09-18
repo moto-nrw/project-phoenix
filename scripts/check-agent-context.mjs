@@ -3,6 +3,7 @@
 // Markdown (except worktrees), and docs/agents. Markdown links are doc-relative;
 // Inline checks cover repo-root prefixes and explicit ./ or ../ document paths.
 // Checks standalone @imports, ATX heading slugs (including duplicates) and HTML ids.
+// Also checks that no two ADR filenames in docs/adr claim the same number.
 // Skips fences, remote/external paths, pointer-local optional markers and templates.
 // Bare inline names may be output templates; use Markdown links to check them.
 // Not a full Markdown parser: excludes setext headings and arbitrary code/prose.
@@ -164,6 +165,25 @@ function checkMirrors(root, errors) {
   }
 }
 
+// An ADR number is the identifier code and prose cite it by ("ADR 0020"), so
+// two files may not share one. Only the numeric prefix is compared, without
+// its padding; the slug after it is free. Files without one are not ADRs.
+function checkAdrNumbers(root, errors) {
+  const directory = path.join(root, 'docs/adr');
+  if (!fs.existsSync(directory)) return;
+  const taken = new Map();
+  for (const name of fs.readdirSync(directory).sort()) {
+    const prefix = /^(\d+)-.*\.md$/.exec(name)?.[1];
+    if (prefix === undefined) continue;
+    const number = Number(prefix);
+    if (taken.has(number)) {
+      errors.push(`docs/adr/${name}: ADR number ${prefix} already taken by ${taken.get(number)}`);
+      continue;
+    }
+    taken.set(number, name);
+  }
+}
+
 export function checkContext(root) {
   root = fs.realpathSync(root);
   const state = { root, errors: [], documents: [], visited: new Set(), anchors: new Map() };
@@ -175,6 +195,7 @@ export function checkContext(root) {
   walk(path.join(root, 'docs/agents'), state);
   for (const document of state.documents) checkDocument(document, state);
   checkMirrors(root, state.errors);
+  checkAdrNumbers(root, state.errors);
   return { documents: state.documents.length, errors: [...new Set(state.errors)].sort() };
 }
 

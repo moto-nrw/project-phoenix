@@ -1484,6 +1484,9 @@ describe("the Schulhof as a released room", () => {
       // The former empty state hid the room's children from everyone who was
       // not supervising; a released room is open to all caregivers (#3065).
       expect(screen.getByText("Offener Raum")).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "Schulhof" }),
+      ).toBeInTheDocument();
     });
     expect(screen.queryByText("Eigene Aufsicht")).not.toBeInTheDocument();
   });
@@ -1553,7 +1556,7 @@ describe("the Schulhof as a released room", () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          "Schulhof · 5 Kinder · Aktuelle Aufsicht: Max Mustermann, Erika Schmidt",
+          "5 Kinder · Aktuelle Aufsicht: Max Mustermann, Erika Schmidt",
         ),
       ).toBeInTheDocument();
     });
@@ -1616,8 +1619,9 @@ describe("the Schulhof as a released room", () => {
       ).toBeInTheDocument();
     });
     expect(screen.queryByText("Eigene Aufsicht")).not.toBeInTheDocument();
-    // Nobody supervises, so the status line names no one.
-    expect(screen.getByText("Schulhof · 0 Kinder")).toBeInTheDocument();
+    // Nobody supervises, so the status line names no one. The room itself is
+    // the page title and must not be repeated here.
+    expect(screen.getByText("0 Kinder")).toBeInTheDocument();
   });
 
   it("shows the released room's occupancy in the status line", async () => {
@@ -1680,9 +1684,7 @@ describe("the Schulhof as a released room", () => {
       // The count comes from the room, not from the caller's own supervision:
       // a shared room reports what is in it whoever is looking.
       expect(
-        screen.getByText(
-          "Schulhof · 15 Kinder · Aktuelle Aufsicht: Test Aufsicht",
-        ),
+        screen.getByText("15 Kinder · Aktuelle Aufsicht: Test Aufsicht"),
       ).toBeInTheDocument();
     });
   });

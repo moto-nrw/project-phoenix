@@ -177,7 +177,7 @@ export function SchulhofSuperviseButton({
   return (
     <Button
       type="button"
-      variant="primary"
+      variant="outline"
       size="md"
       onClick={onToggle}
       disabled={isToggling || disabled}

@@ -1,0 +1,604 @@
+package authpostgres
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
+)
+
+const (
+	accountTable      = "auth.accounts"
+	accountTableAlias = `auth.accounts AS "account"`
+)
+
+type manageableSchoolIDsKey struct{}
+
+// WithManageableSchoolIDs attaches the active school set resolved by the
+// Organization & Tenancy capability for an organization-scoped operation.
+func WithManageableSchoolIDs(ctx context.Context, ids []int64) context.Context {
+	return context.WithValue(ctx, manageableSchoolIDsKey{}, append([]int64(nil), ids...))
+}
+
+func manageableSchoolIDs(ctx context.Context) []int64 {
+	ids, _ := ctx.Value(manageableSchoolIDsKey{}).([]int64)
+	return ids
+}
+
+// OrganizationScope reports the organization selected by the caller context.
+func OrganizationScope(ctx context.Context) (int64, bool) {
+	id := tenant.OrgFromContext(ctx)
+	return id, tenant.ScopeFromContext(ctx) == tenant.ScopeOrg && id > 0
+}
+
+// membershipScopeKind names the account-visibility predicate a caller's
+// context selects. The predicates are compile-time SQL so the architecture
+// evaluator resolves the tables they read.
+type membershipScopeKind int
+
+const (
+	// membershipScopeGlobal keeps the global lookup (platform and admin
+	// contexts).
+	membershipScopeGlobal membershipScopeKind = iota
+	// membershipScopeDenied matches no account: an organization or tenant
+	// context without a resolvable scope.
+	membershipScopeDenied
+	// membershipScopeOrganization restricts to active memberships in the
+	// organization's manageable schools.
+	membershipScopeOrganization
+	// membershipScopeTenant restricts to an active membership in the tenant
+	// from the caller's context.
+	membershipScopeTenant
+)
+
+const (
+	membershipScopeDeniedSQL       = "FALSE"
+	membershipScopeOrganizationSQL = `EXISTS (
+			SELECT 1
+			FROM auth.account_tenants AS "account_tenant"
+			WHERE "account_tenant".account_id = "account".id
+			  AND "account_tenant".status = ?
+			  AND "account_tenant".tenant_id IN (?)
+		)`
+	membershipScopeTenantSQL = `EXISTS (
+		SELECT 1
+		FROM auth.account_tenants AS "account_tenant"
+		WHERE "account_tenant".account_id = "account".id
+		  AND "account_tenant".tenant_id = ?
+		  AND "account_tenant".status = ?
+	)`
+)
+
+func accountMembershipScope(ctx context.Context) (membershipScopeKind, []any) {
+	if tenant.ScopeFromContext(ctx) == tenant.ScopeOrg {
+		schoolIDs := manageableSchoolIDs(ctx)
+		if tenant.OrgFromContext(ctx) == 0 || len(schoolIDs) == 0 {
+			return membershipScopeDenied, nil
+		}
+		return membershipScopeOrganization, []any{authmodels.AccountTenantStatusActive, bun.List(schoolIDs)}
+	}
+	if tenant.IsAdminTx(ctx) || tenant.ScopeFromContext(ctx) == tenant.ScopePlatform {
+		return membershipScopeGlobal, nil
+	}
+
+	tenantID := tenant.FromContext(ctx)
+	if tenantID == 0 {
+		return membershipScopeDenied, nil
+	}
+	return membershipScopeTenant, []any{tenantID, authmodels.AccountTenantStatusActive}
+}
+
+// scopeToMembership applies the caller's membership scope to an account read
+// or write; the global scope leaves the query untouched. It is generic over
+// the query kind for the same reason base.WithTenantFilter is: selects and
+// updates must apply the identical predicate, and one definition is what
+// keeps them from drifting apart.
+func scopeToMembership[Q interface{ Where(string, ...any) Q }](ctx context.Context, query Q) Q {
+	switch kind, args := accountMembershipScope(ctx); kind {
+	case membershipScopeDenied:
+		return query.Where(membershipScopeDeniedSQL)
+	case membershipScopeOrganization:
+		return query.Where(membershipScopeOrganizationSQL, args...)
+	case membershipScopeTenant:
+		return query.Where(membershipScopeTenantSQL, args...)
+	default:
+		return query
+	}
+}
+
+// effectiveAdminExistsSQL decides whether an account holds effective admin
+// scope within one tenant: the literal admin role, or an admin:* / *:*
+// permission granted either through a tenant role or directly to the account.
+//
+// The four placeholders take the caller's qualified account and tenant columns
+// (account, tenant, account, tenant) as bun.Safe identifiers written in this
+// repository, never request input.
+//
+// There must stay exactly one definition of "effective admin" in SQL. It
+// decides who receives admin-scoped data, so a second, drifting copy is a
+// disclosure bug waiting to happen. The Go-side counterpart is
+// authorize.HasEffectiveAdminScope.
+const effectiveAdminExistsSQL = `EXISTS (
+		SELECT 1
+		FROM auth.account_roles AS "ar"
+		INNER JOIN auth.roles AS "r" ON "r".id = "ar".role_id
+		LEFT JOIN auth.role_permissions AS "rp" ON "rp".role_id = "ar".role_id
+		LEFT JOIN auth.permissions AS "p" ON "p".id = "rp".permission_id
+		WHERE "ar".account_id = ?
+		  AND "ar".tenant_id = ?
+		  AND (
+		    LOWER("r".name) = 'admin'
+		    OR ("p".resource = 'admin' AND "p".action = '*')
+		    OR ("p".resource = '*' AND "p".action = '*')
+		  )
+	) OR EXISTS (
+		SELECT 1
+		FROM auth.account_permissions AS "ap"
+		INNER JOIN auth.permissions AS "p" ON "p".id = "ap".permission_id
+		WHERE "ap".account_id = ?
+		  AND "ap".tenant_id = ?
+		  AND "ap".granted = TRUE
+		  AND (
+		    ("p".resource = 'admin' AND "p".action = '*')
+		    OR ("p".resource = '*' AND "p".action = '*')
+		  )
+	)`
+
+// AccountRepository implements auth.AccountRepository interface
+type AccountRepository struct {
+	*base.Repository[*authmodels.Account]
+	db *bun.DB
+}
+
+// FindByIDForUpdate retrieves an account with a row lock. Refresh uses this
+// before locking token rows so login and refresh share one lock order.
+func (r *AccountRepository) FindByIDForUpdate(ctx context.Context, id int64) (*authmodels.Account, error) {
+	account := new(authmodels.Account)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(account).
+		ModelTableExpr(accountTableAlias).
+		Where(`"account".id = ?`, id).
+		For("UPDATE").
+		Scan(ctx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+		return nil, &modelBase.DatabaseError{Op: "find account by id for update", Err: base.TranslateNotFound(err)}
+	}
+	return account, nil
+}
+
+// ListEffectiveAdminAccountIDs returns the IDs of accounts holding effective
+// admin scope in the current tenant, restricted to accounts that are active and
+// whose tenant mapping is active.
+//
+// Callers that need to decide, for many people at once, whether someone sees
+// tenant-wide data use this instead of asking per account. The predicate is
+// the one effectiveAdminExistsSQL definition, so every reader agrees by
+// construction.
+func (r *AccountRepository) ListEffectiveAdminAccountIDs(ctx context.Context) ([]int64, error) {
+	var ids []int64
+
+	accountColumn := bun.Safe(`"account".id`)
+	tenantColumn := bun.Safe(`"account_tenant".tenant_id`)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Distinct().
+		TableExpr(accountTableAlias).
+		ColumnExpr(`"account".id`).
+		Join(`INNER JOIN auth.account_tenants AS "account_tenant" ON "account_tenant".account_id = "account".id`).
+		Where(`"account".active = ?`, true).
+		Where(`"account_tenant".status = ?`, authmodels.AccountTenantStatusActive).
+		Where(effectiveAdminExistsSQL, accountColumn, tenantColumn, accountColumn, tenantColumn)
+
+	// auth.accounts is cross-tenant, so the tenant predicate belongs on the
+	// mapping table rather than on the account itself.
+	query = base.WithTenantFilter(ctx, query, "account_tenant")
+
+	if err := query.Scan(ctx, &ids); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list effective admin account IDs", Err: base.TranslateNotFound(err)}
+	}
+
+	return ids, nil
+}
+
+// ActiveAccountIDs is the owner query "every active platform account". Other
+// owners that must not read auth.accounts themselves join it as a subquery
+// (guardian portal reachability, staff messaging) so their statements stay
+// single round trips.
+func (r *AccountRepository) ActiveAccountIDs(ctx context.Context) *bun.SelectQuery {
+	return base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(accountTableAlias).
+		ColumnExpr(`"account".id`).
+		Where(`"account".active = ?`, true)
+}
+
+// NewAccountRepository creates a new AccountRepository
+func NewAccountRepository(db *bun.DB) authmodels.AccountRepository {
+	return &AccountRepository{
+		Repository: base.NewRepository[*authmodels.Account](db, accountTable, "Account"),
+		db:         db,
+	}
+}
+
+// FindManageableByID restricts account administration to active memberships
+// in the tenant or organization from the caller's context. Platform and admin
+// contexts keep the global lookup used by operator flows.
+func (r *AccountRepository) FindManageableByID(ctx context.Context, id int64) (*authmodels.Account, error) {
+	if kind, _ := accountMembershipScope(ctx); kind == membershipScopeGlobal {
+		return r.FindByID(ctx, id)
+	}
+
+	account := new(authmodels.Account)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(account).
+		ModelTableExpr(accountTableAlias).
+		Where(`"account".id = ?`, id)
+	err := scopeToMembership(ctx, query).Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find by id", Err: base.TranslateNotFound(err)}
+	}
+	return account, nil
+}
+
+// FindByEmail retrieves an account by email address
+func (r *AccountRepository) FindByEmail(ctx context.Context, email string) (*authmodels.Account, error) {
+	account := new(authmodels.Account)
+
+	// Explicitly specify the schema and table
+	err := base.GetDB(ctx, r.db).NewSelect().
+		ModelTableExpr(accountTable).
+		Where("LOWER(email) = LOWER(?)", email).
+		Scan(ctx, account)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by email",
+			Err: base.TranslateNotFound(err),
+		}
+	}
+
+	return account, nil
+}
+
+// FindByCalendarFeedToken resolves the account owning an iCalendar subscription
+// feed. The stored calendar_feed_token is the SHA-256 HASH of the raw token
+// (the service hashes both on write and before this lookup), so callers pass
+// the hash, not the raw token — a DB read exposes no replayable URL. Returns
+// (nil, nil) when no account matches so the public feed endpoint can answer 404
+// without leaking whether a token exists.
+func (r *AccountRepository) FindByCalendarFeedToken(ctx context.Context, tokenHash string) (*authmodels.Account, error) {
+	if tokenHash == "" {
+		return nil, nil
+	}
+	account := new(authmodels.Account)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		ModelTableExpr(accountTable).
+		Where("calendar_feed_token = ?", tokenHash).
+		Scan(ctx, account)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, &modelBase.DatabaseError{Op: "find by calendar feed token", Err: base.TranslateNotFound(err)}
+	}
+	return account, nil
+}
+
+// EnsureCalendarFeedToken atomically claims newTokenHash for the account only if
+// it has no feed token yet, then returns whatever hash is persisted. The value
+// is the SHA-256 hash of the raw token (the service hashes before calling), not
+// the raw token itself. The conditional UPDATE takes a row lock, so of two
+// concurrent first-time callers exactly one wins the write; the loser matches no
+// row and reads back the winner's hash via the follow-up SELECT. Nobody is ever
+// handed a hash a later write overwrote.
+func (r *AccountRepository) EnsureCalendarFeedToken(ctx context.Context, accountID int64, newTokenHash string) (string, error) {
+	db := base.GetDB(ctx, r.db)
+	res, err := db.NewUpdate().
+		Model((*authmodels.Account)(nil)).
+		ModelTableExpr(accountTable).
+		Set("calendar_feed_token = ?", newTokenHash).
+		Where(whereID, accountID).
+		Where("(calendar_feed_token IS NULL OR calendar_feed_token = '')").
+		Exec(ctx)
+	if err != nil {
+		return "", &modelBase.DatabaseError{Op: "ensure calendar feed token", Err: base.TranslateNotFound(err)}
+	}
+	if n, err := res.RowsAffected(); err == nil && n > 0 {
+		return newTokenHash, nil
+	}
+	// Row already had a token, or a concurrent request won the write: return the
+	// persisted value.
+	account := new(authmodels.Account)
+	if err := db.NewSelect().
+		ModelTableExpr(accountTable).
+		Where(whereID, accountID).
+		Scan(ctx, account); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
+		return "", &modelBase.DatabaseError{Op: "ensure calendar feed token", Err: base.TranslateNotFound(err)}
+	}
+	if account.CalendarFeedToken == nil {
+		return "", nil
+	}
+	return *account.CalendarFeedToken, nil
+}
+
+// SetCalendarFeedToken sets or rotates the account's calendar feed token. The
+// value stored is the SHA-256 hash of the raw token, not the raw token itself
+// (the service hashes before calling).
+func (r *AccountRepository) SetCalendarFeedToken(ctx context.Context, accountID int64, tokenHash string) error {
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*authmodels.Account)(nil)).
+		ModelTableExpr(accountTable).
+		Set("calendar_feed_token = ?", tokenHash).
+		Where(whereID, accountID).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "set calendar feed token", Err: base.TranslateNotFound(err)}
+	}
+	return nil
+}
+
+// IncrementMFAAttempts atomically bumps mfa_attempts by one and sets the
+// lock deadline from the application clock when the post-increment count is
+// >= threshold. The service evaluates that deadline against the same clock,
+// so database clock skew cannot immediately expire a fresh lock. Returns the
+// post-update counter and lock timestamp so the service can detect the
+// lockout transition (exact threshold equality means *this* call crossed the
+// line).
+//
+// The whole "read-mutate-write" pattern in the model layer was racy:
+// two concurrent failed verifies both read mfa_attempts=N, both wrote
+// N+1, and the counter only advanced by 1 — letting an attacker make
+// 2N attempts before the threshold hit. Single SQL statement removes
+// the race. (#1430 review item #6)
+func (r *AccountRepository) IncrementMFAAttempts(ctx context.Context, id int64, threshold int, lockoutDuration time.Duration) (authmodels.MFAAttemptResult, error) {
+	type incrementRow struct {
+		MFAAttempts    int        `bun:"mfa_attempts"`
+		MFALockedUntil *time.Time `bun:"mfa_locked_until"`
+	}
+	row := new(incrementRow)
+	lockedUntil := time.Now().Add(lockoutDuration)
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*authmodels.Account)(nil)).
+		ModelTableExpr(accountTable).
+		Set("mfa_attempts = mfa_attempts + 1").
+		Set(
+			"mfa_locked_until = CASE WHEN mfa_attempts + 1 >= ? THEN ? ELSE mfa_locked_until END",
+			threshold, lockedUntil,
+		).
+		Where(whereID, id).
+		Returning("mfa_attempts, mfa_locked_until").
+		Exec(ctx, row)
+	if err != nil {
+		return authmodels.MFAAttemptResult{}, &modelBase.DatabaseError{
+			Op:  "increment mfa attempts",
+			Err: base.TranslateNotFound(err),
+		}
+	}
+	return authmodels.MFAAttemptResult{
+		Attempts:    row.MFAAttempts,
+		LockedUntil: row.MFALockedUntil,
+	}, nil
+}
+
+// ResetMFAAttempts atomically clears mfa_attempts and mfa_locked_until.
+// Used after a successful verify so a stale in-memory Account.Update
+// can't accidentally re-set a concurrent racer's incremented counter.
+func (r *AccountRepository) ResetMFAAttempts(ctx context.Context, id int64) error {
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*authmodels.Account)(nil)).
+		ModelTableExpr(accountTable).
+		Set("mfa_attempts = 0").
+		Set("mfa_locked_until = NULL").
+		Where(whereID, id).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "reset mfa attempts",
+			Err: base.TranslateNotFound(err),
+		}
+	}
+	return nil
+}
+
+// UpdateAvatar updates the global avatar path for an account.
+func (r *AccountRepository) UpdateAvatar(ctx context.Context, id int64, avatar string) error {
+	account := &authmodels.Account{Model: modelBase.Model{ID: id}, Avatar: avatar}
+	_, err := r.UpdateColumns(ctx, account, "avatar")
+	return err
+}
+
+// List retrieves accounts matching the provided filters without applying an
+// account-management boundary. Internal authentication flows remain global.
+func (r *AccountRepository) List(ctx context.Context, filters map[string]interface{}) ([]*authmodels.Account, error) {
+	return r.list(ctx, filters)
+}
+
+func (r *AccountRepository) list(ctx context.Context, filters map[string]interface{}) ([]*authmodels.Account, error) {
+	var accounts []*authmodels.Account
+	query := base.GetDB(ctx, r.db).NewSelect().Model(&accounts).ModelTableExpr(accountTableAlias)
+
+	// Apply filters
+	for field, value := range filters {
+		if value != nil {
+			query = r.applyAccountFilter(ctx, query, field, value)
+		}
+	}
+
+	err := query.Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list",
+			Err: base.TranslateNotFound(err),
+		}
+	}
+
+	return accounts, nil
+}
+
+// applyAccountFilter applies a single filter to the query
+func (r *AccountRepository) applyAccountFilter(ctx context.Context, query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+	switch field {
+	case "email":
+		return r.applyStringEqualFilter(query, bun.Safe("email"), value)
+	case "username":
+		return r.applyStringEqualFilter(query, bun.Safe("username"), value)
+	case "email_like":
+		return r.applyStringLikeFilter(query, bun.Safe("email"), value)
+	case "username_like":
+		return r.applyStringLikeFilter(query, bun.Safe("username"), value)
+	case "active":
+		return query.Where("active = ?", value)
+	default:
+		return query.Where("? = ?", bun.Ident(field), value)
+	}
+}
+
+// applyStringEqualFilter applies case-insensitive equality filter for string fields
+// The field is a column written in this file, never request input.
+func (r *AccountRepository) applyStringEqualFilter(query *bun.SelectQuery, field bun.Safe, value interface{}) *bun.SelectQuery {
+	if strValue, ok := value.(string); ok {
+		return query.Where("LOWER(?) = LOWER(?)", field, strValue)
+	}
+	return query.Where("? = ?", field, value)
+}
+
+// applyStringLikeFilter applies case-insensitive LIKE filter for string fields
+func (r *AccountRepository) applyStringLikeFilter(query *bun.SelectQuery, field bun.Safe, value interface{}) *bun.SelectQuery {
+	if strValue, ok := value.(string); ok {
+		return query.Where("LOWER(?) LIKE LOWER(?)", field, "%"+strValue+"%")
+	}
+	return query
+}
+
+// FindEmailsByAccountIDs batch-loads email addresses for the given account IDs.
+// Returns a map of accountID → email.
+func (r *AccountRepository) FindEmailsByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
+	if len(accountIDs) == 0 {
+		return make(map[int64]string), nil
+	}
+
+	type accountEmailRow struct {
+		ID    int64  `bun:"id"`
+		Email string `bun:"email"`
+	}
+
+	var rows []accountEmailRow
+	err := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(accountTable).
+		Column("id", "email").
+		Where("id IN (?)", bun.List(accountIDs)).
+		Scan(ctx, &rows)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find emails by account IDs",
+			Err: base.TranslateNotFound(err),
+		}
+	}
+
+	result := make(map[int64]string, len(rows))
+	for _, row := range rows {
+		result[row.ID] = row.Email
+	}
+
+	return result, nil
+}
+
+// FindAvatarsByAccountIDs batch-loads avatar paths for the given account IDs.
+// Returns a map of accountID → avatar path (only accounts with non-empty avatars).
+func (r *AccountRepository) FindAvatarsByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
+	if len(accountIDs) == 0 {
+		return make(map[int64]string), nil
+	}
+
+	type accountAvatarRow struct {
+		ID     int64  `bun:"id"`
+		Avatar string `bun:"avatar"`
+	}
+
+	var rows []accountAvatarRow
+	err := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(accountTable).
+		Column("id", "avatar").
+		Where("id IN (?)", bun.List(accountIDs)).
+		Where("avatar IS NOT NULL").
+		Where("avatar != ''").
+		Scan(ctx, &rows)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find avatars by account IDs",
+			Err: base.TranslateNotFound(err),
+		}
+	}
+
+	result := make(map[int64]string, len(rows))
+	for _, row := range rows {
+		result[row.ID] = row.Avatar
+	}
+
+	return result, nil
+}
+
+// Update overrides the base Update method to handle email normalization.
+func (r *AccountRepository) Update(ctx context.Context, account *authmodels.Account) error {
+	return r.update(ctx, account)
+}
+
+func (r *AccountRepository) update(ctx context.Context, account *authmodels.Account) error {
+	if account == nil {
+		return fmt.Errorf("account cannot be nil")
+	}
+
+	// Validate account - this will also normalize the email
+	if err := account.Validate(); err != nil {
+		return err
+	}
+
+	// Execute the query using GetDB for transaction support
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model(account).
+		ModelTableExpr(accountTableAlias).
+		Where(`"account".id = ?`, account.ID)
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update",
+			Err: base.TranslateNotFound(err),
+		}
+	}
+	return base.AssertRowsAffected(result, 1, "update account")
+}
+
+// AnonymizeForDeletion overwrites the account's email with the given
+// anonymized placeholder and clears the username. Custom method
+// (backend-conventions Rule 2): GDPR person-deletion step that pairs two
+// column writes into one statement; used by operator SoftDeletePerson.
+func (r *AccountRepository) AnonymizeForDeletion(ctx context.Context, accountID int64, anonymizedEmail string) error {
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*authmodels.Account)(nil)).
+		ModelTableExpr(accountTableAlias).
+		Set(`email = ?`, anonymizedEmail).
+		Set(`username = NULL`).
+		Where(`"account".id = ?`, accountID).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "anonymize account for deletion",
+			Err: base.TranslateNotFound(err),
+		}
+	}
+	return nil
+}

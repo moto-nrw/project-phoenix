@@ -36,6 +36,14 @@ type SchoolInvitationStore interface {
 	// reactivating a deactivated one so a re-invitation after offboarding
 	// works.
 	EnsureAccountTenant(ctx context.Context, accountID, tenantID int64) (domain.OperationStats, error)
+
+	// SetAccountPassword replaces the credential of the account a dormant
+	// invitee is restoring, and reports whether the account exists.
+	SetAccountPassword(ctx context.Context, accountID int64, hash string) (bool, domain.OperationStats, error)
+	// SetAccountActive re-enables the account offboarding disabled. Only a
+	// dormant account is restored this way (#3376); an account disabled
+	// while it still holds school access stays disabled.
+	SetAccountActive(ctx context.Context, id int64, active bool) (domain.OperationStats, error)
 }
 
 // AccountProvisioning creates the account an accepted invitation gives

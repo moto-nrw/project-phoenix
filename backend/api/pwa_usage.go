@@ -6,7 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	pwaAPI "github.com/moto-nrw/project-phoenix/api/pwa"
-	projectJWT "github.com/moto-nrw/project-phoenix/auth/jwt"
+	projectJWT "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
 func (a *API) pwaUsageRouter() chi.Router {

@@ -1145,8 +1145,8 @@ func formatViolation(file string, line int, content string) string {
 // perTestTenantsOptOut lists packages that cannot call PerTestTenants. Only
 // structural reasons belong here, and each one names its reason.
 var perTestTenantsOptOut = map[string]string{
-	// test/ imports auth/jwt, so auth/jwt's internal tests cannot import test/.
-	"auth/jwt": "import cycle: test imports auth/jwt",
+	// test/ imports the JWT adapter, so its internal tests cannot import test/.
+	"modules/identityaccess/legacy/jwt": "import cycle: test imports modules/identityaccess/legacy/jwt",
 }
 
 // checkLeftoverGateOptIn reports test packages that open the test database but
