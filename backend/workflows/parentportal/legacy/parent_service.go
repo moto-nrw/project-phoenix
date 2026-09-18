@@ -578,7 +578,7 @@ type ServiceConfig struct {
 	// pickup/emergency flag change (append-only).
 	GuardianPhoneRepo       usersModels.GuardianPhoneNumberRepository
 	GuardianChangeAuditRepo auditModels.GuardianChangeRepository
-	StudentConsents         usersSvc.StudentConsentService
+	StudentConsents         StudentConsentService
 	// StudentPhotos resolves the photo lifecycle when a withdrawal needs it.
 	// The API bootstrap builds that service after this one, so the
 	// composition passes a resolver instead of setting it afterwards.

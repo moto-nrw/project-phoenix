@@ -36,7 +36,7 @@ func buildConsentService(t *testing.T) (parentService.Service, *bun.DB, *reposit
 		ChildRepo:           repos.ParentChild,
 		StudentRepo:         repos.Student,
 		StudentGuardianRepo: repos.StudentGuardian,
-		StudentConsents:     usersService.NewStudentConsentService(repos.StudentConsentChange),
+		StudentConsents:     repositories.NewStudentConsents(db),
 		StudentPhotos:       func() parentService.StudentPhotoUnlinker { return photos },
 		Broadcaster:         testpkg.NewRecordingBroadcaster(),
 		DB:                  db,

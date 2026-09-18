@@ -130,7 +130,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	emailOutboxService := delivery.EmailOutbox
 	frontendURL := currentFactoryConfig().FrontendURL
 	parentsURL := currentFactoryConfig().ParentsURL
-	studentConsentService := users.NewStudentConsentService(repos.StudentConsentChange)
+	studentConsentService := repositories.NewStudentConsents(db)
 	users.WirePersonCareParticipation(usersService, careLifecycleService)
 	careschedule.WireCareParticipation(careDayService, careLifecycleService)
 	approvedOfferings := enrollment.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: persons})

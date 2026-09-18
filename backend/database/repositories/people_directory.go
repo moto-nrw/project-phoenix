@@ -16,9 +16,10 @@ import (
 // instance of the serve root replaces it through BindPeopleDirectory.
 func NewPeopleDirectory(db *bun.DB) (peopledirectory.Capability, error) {
 	return peopleCompose.New(peopleCompose.Dependencies{
-		DB:                db,
-		Observe:           func(peopleCompose.Observation) {},
-		StudentFieldAudit: NewStudentFieldAuditLog(db),
+		DB:                    db,
+		Observe:               func(peopleCompose.Observation) {},
+		StudentFieldAudit:     NewStudentFieldAuditLog(db),
+		StudentConsentHistory: NewStudentConsentHistory(db),
 	})
 }
 

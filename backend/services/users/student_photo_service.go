@@ -90,7 +90,20 @@ type StudentPhotoServiceDependencies struct {
 	Unlinker    PhotoUnlinker
 	DB          *bun.DB
 	Logger      *slog.Logger
-	Consents    StudentConsentChangeRecorder
+	Consents    StudentConsentRecorder
+}
+
+// StudentConsentRecorder appends the Audit Platform trail entry for an
+// effective consent change. The composition root binds it
+// (database/repositories.NewStudentConsentsFor); Audit Platform owns the trail.
+type StudentConsentRecorder interface {
+	RecordTransitions(
+		ctx context.Context,
+		before, after *userModels.Student,
+		source string,
+		actorAccountID *int64,
+		changedAt time.Time,
+	) error
 }
 
 type studentPhotoService struct {

@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
@@ -64,6 +65,14 @@ type PrivacyConsentCapability interface {
 type FamilyProtectionCapability interface {
 	peopleModule.FamilyProtectionQuery
 	peopleModule.FamilyProtectionCommand
+}
+
+// StudentConsentCapability is the consent surface this resource needs for the
+// student rows it holds: the shared portal projection People Directory folds
+// together, and the Audit Platform trail every effective change appends to.
+type StudentConsentCapability interface {
+	CurrentStates(ctx context.Context, student *users.Student, canManagePhoto bool) ([]users.StudentConsentState, error)
+	RecordTransitions(ctx context.Context, before, after *users.Student, source string, actorAccountID *int64, changedAt time.Time) error
 }
 
 // ClassListEntryReader hands over the entries in the class-then-name display
@@ -160,7 +169,10 @@ type ResourceConfig struct {
 	ParentEventEmitter *parentmessaging.Emitter
 	AbsenceNotifier    notificationsService.AbsenceNotifier
 	StudentPhotos      userService.StudentPhotoService
-	StudentConsents    userService.StudentConsentService
+	// StudentConsents serves the shared consent projection (People Directory)
+	// and records every effective change (Audit Platform) for the retained
+	// student rows this resource holds (#3349).
+	StudentConsents StudentConsentCapability
 	// PrivacyConsents is the Student Presence owner capability over
 	// users.privacy_consents (#3349). Optional: a bare test Resource answers
 	// 500 on the two consent routes rather than reaching the table through a

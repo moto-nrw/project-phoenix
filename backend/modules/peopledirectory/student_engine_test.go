@@ -34,6 +34,13 @@ func (e *recordingEngine) SetFamilyProtection(context.Context, peopledirectory.S
 	return false, nil
 }
 
+func (e *recordingEngine) CurrentStudentConsents(
+	context.Context, peopledirectory.StudentConsentSnapshot, bool,
+) ([]peopledirectory.StudentConsentState, error) {
+	e.calls++
+	return nil, nil
+}
+
 func (e *recordingEngine) ListStudentChangeHistory(context.Context, int64) ([]peopledirectory.StudentFieldEdit, error) {
 	e.calls++
 	return nil, nil

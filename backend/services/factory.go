@@ -311,7 +311,7 @@ type Factory struct {
 	// supplies a PhotoUnlinker (file IO is an api-layer concern, not a
 	// service-layer one).
 	StudentPhotos   users.StudentPhotoService
-	StudentConsents users.StudentConsentService
+	StudentConsents *repositories.StudentConsents
 }
 
 // SetSettingsObservers wires delivery-owned metrics without coupling the
@@ -609,7 +609,7 @@ func newFactory(
 	if err := bindClassListEntryAdministration(membership, persons, auditCommand); err != nil {
 		return nil, err
 	}
-	studentConsentService := users.NewStudentConsentService(repos.StudentConsentChange)
+	studentConsentService := repositories.NewStudentConsentsFor(persons, repos.StudentConsentChange)
 
 	dispatcher := email.NewDispatcher(mailer, emailLogger, email.DeliveryObserver(observeDelivery))
 

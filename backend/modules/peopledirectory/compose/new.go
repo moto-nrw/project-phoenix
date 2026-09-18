@@ -26,6 +26,11 @@ type Dependencies struct {
 	// reports that it is not configured, which is what graphs that never
 	// touch it (CLI roots, repository tests) need.
 	StudentFieldAudit StudentFieldAuditLog
+	// StudentConsentHistory is the Audit Platform seam behind the shared
+	// consent projection. Optional on the same terms; a child without a live
+	// photo consent then reports that the trail is not configured rather than
+	// rendering a withdrawal as "never granted".
+	StudentConsentHistory StudentConsentHistory
 }
 
 func New(dependencies Dependencies) (*peopledirectory.Module, error) {
@@ -55,9 +60,14 @@ func New(dependencies Dependencies) (*peopledirectory.Module, error) {
 		auditLog = studentFieldAuditLog{log: dependencies.StudentFieldAudit}
 	}
 	studentAudit := application.NewStudentAudit(auditLog, observe)
+	var consentHistory ports.StudentConsentHistory
+	if dependencies.StudentConsentHistory != nil {
+		consentHistory = dependencies.StudentConsentHistory
+	}
+	studentConsents := application.NewStudentConsents(consentHistory, observe)
 	return peopledirectory.NewModule(engine{
 		service: service, students: students, guardians: guardians,
-		studentAudit: studentAudit, observe: observe,
+		studentAudit: studentAudit, studentConsents: studentConsents, observe: observe,
 	}), nil
 }
 
@@ -92,11 +102,12 @@ func (transaction) RunAdminRead(ctx context.Context, callback func(context.Conte
 }
 
 type engine struct {
-	service      *application.Service
-	students     *application.StudentService
-	guardians    *application.GuardianService
-	studentAudit *application.StudentAuditService
-	observe      func(Observation)
+	service         *application.Service
+	students        *application.StudentService
+	guardians       *application.GuardianService
+	studentAudit    *application.StudentAuditService
+	studentConsents *application.StudentConsentService
+	observe         func(Observation)
 }
 
 func (e engine) Create(ctx context.Context, input peopledirectory.CreatePerson) (peopledirectory.Person, error) {
