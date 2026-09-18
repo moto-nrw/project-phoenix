@@ -2214,6 +2214,8 @@ func newFactory(
 	// Created before the change-request service: its multi-child approval takes
 	// the companion lock order through this service.
 	studentService := users.NewStudentService(
+		repositories.NewStudentDirectory(persons),
+		persons,
 		repos.Student,
 		repos.StudentCompanion,
 		studentAuditService,

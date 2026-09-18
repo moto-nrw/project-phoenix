@@ -2,6 +2,7 @@ package compose
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
@@ -91,6 +92,50 @@ func (e engine) SetFamilyProtection(ctx context.Context, input peopledirectory.S
 		Reason: input.Reason, ActorAccountID: input.ActorAccountID,
 	})
 	return enabled, mapError(err)
+}
+
+func (e engine) ListStudentDirectory(
+	ctx context.Context,
+	filter peopledirectory.StudentDirectoryFilter,
+) ([]peopledirectory.StudentRecord, error) {
+	values, err := e.students.ListDirectory(ctx, toDomainStudentDirectoryFilter(filter))
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make([]peopledirectory.StudentRecord, 0, len(values))
+	for _, value := range values {
+		result = append(result, peopledirectory.StudentRecord(value))
+	}
+	return result, nil
+}
+
+func (e engine) CountStudentDirectory(
+	ctx context.Context,
+	filter peopledirectory.StudentDirectoryFilter,
+) (int, error) {
+	total, err := e.students.CountDirectory(ctx, toDomainStudentDirectoryFilter(filter))
+	return total, mapError(err)
+}
+
+func (e engine) ListStudentDirectoryIDs(ctx context.Context) ([]int64, error) {
+	ids, err := e.students.ListDirectoryIDs(ctx)
+	return ids, mapError(err)
+}
+
+// toDomainStudentDirectoryFilter renders the grade levels the SQL compares
+// against: the column holds free text, so the match is on the decimal spelling
+// of each level.
+func toDomainStudentDirectoryFilter(filter peopledirectory.StudentDirectoryFilter) domain.StudentDirectoryFilter {
+	levels := make([]string, 0, len(filter.GradeLevels))
+	for _, level := range filter.GradeLevels {
+		levels = append(levels, strconv.Itoa(level))
+	}
+	return domain.StudentDirectoryFilter{
+		IDs: filter.IDs, SchoolClasses: filter.SchoolClasses, GradeLevels: levels,
+		GuardianNameContains: filter.GuardianNameContains, KeepAlumni: filter.KeepAlumni,
+		CareStatus: filter.CareStatus, CareStatusOn: filter.CareStatusOn,
+		Page: filter.Page, PageSize: filter.PageSize,
+	}
 }
 
 func toPublicStudents(values []domain.Student) []peopledirectory.Student {

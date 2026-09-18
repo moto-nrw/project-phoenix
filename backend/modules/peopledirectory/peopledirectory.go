@@ -93,6 +93,7 @@ type Query interface {
 	StudentDepartureQuery
 	StudentFieldReviewQuery
 	StudentQuery
+	StudentDirectoryQuery
 	StudentAuditQuery
 	StudentPhotoQuery
 	StudentConsentQuery
@@ -154,6 +155,7 @@ type engine interface {
 	FamilyProtectionCommand
 	StudentDepartureQuery
 	studentEngine
+	StudentDirectoryQuery
 	studentDeletionEngine
 	StudentAuditQuery
 	StudentPhotoQuery

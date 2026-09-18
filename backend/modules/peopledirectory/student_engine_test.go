@@ -218,3 +218,24 @@ func (e *recordingEngine) ApplyStudentPhotoConsent(
 }
 
 func (e *recordingEngine) ScheduleStudentPhotoUnlink(context.Context, string) { e.calls++ }
+
+func (e *recordingEngine) ListStudentDirectory(
+	_ context.Context, filter peopledirectory.StudentDirectoryFilter,
+) ([]peopledirectory.StudentRecord, error) {
+	e.calls++
+	e.directory = filter
+	return nil, nil
+}
+
+func (e *recordingEngine) CountStudentDirectory(
+	_ context.Context, filter peopledirectory.StudentDirectoryFilter,
+) (int, error) {
+	e.calls++
+	e.directory = filter
+	return 0, nil
+}
+
+func (e *recordingEngine) ListStudentDirectoryIDs(context.Context) ([]int64, error) {
+	e.calls++
+	return nil, nil
+}

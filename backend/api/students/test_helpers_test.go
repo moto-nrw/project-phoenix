@@ -180,7 +180,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		PersonService:          svc.Users,
 		PeopleDirectory:        svc.PeopleDirectory,
 		StudentDeletion:        studentDeletion,
-		StudentService:         userService.NewStudentService(repoFactory.Student, repoFactory.StudentCompanion, nil),
+		StudentService:         userService.NewStudentService(repositories.NewStudentDirectory(svc.PeopleDirectory), svc.PeopleDirectory, repoFactory.Student, repoFactory.StudentCompanion, nil),
 		EducationService:       svc.Education,
 		UserContextService:     svc.UserContext,
 		ActiveService:          svc.Active,

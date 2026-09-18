@@ -34,6 +34,14 @@ type StudentStore interface {
 	// ListByPersonIDs returns the rows whose person is one of the ids, alumni
 	// included, ordered by id.
 	ListByPersonIDs(context.Context, []int64) ([]domain.Student, domain.OperationStats, error)
+	// ListDirectory returns one page of the staff directory, ordered by id so
+	// paging over a selection cannot repeat or skip a child.
+	ListDirectory(context.Context, domain.StudentDirectoryFilter) ([]domain.StudentRecord, domain.OperationStats, error)
+	// CountDirectory counts the same selection without its page window.
+	CountDirectory(context.Context, domain.StudentDirectoryFilter) (int, domain.OperationStats, error)
+	// ListDirectoryIDs returns the ids of every non-alumni row, the
+	// lightweight candidate set of the dated participation rule.
+	ListDirectoryIDs(context.Context) ([]int64, domain.OperationStats, error)
 	// ListEnrolled returns every non-alumni row of the current tenant.
 	ListEnrolled(context.Context) ([]domain.Student, domain.OperationStats, error)
 	// ListClasses returns the distinct non-empty classes of non-alumni rows.

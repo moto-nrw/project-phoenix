@@ -18,17 +18,12 @@ import (
 // transaction wrappers, validation, and error-to-status mapping, so responses
 // stay byte-identical. See the rule-8 deviation note in the PR description.
 type StudentService interface {
-	// ListWithOptions retrieves students matching the query options.
-	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*userModels.Student, error)
-
-	// CountWithOptions counts students matching the query options.
-	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
+	// StudentDirectoryReader is the owner's filtered, paginated directory
+	// read (#3349); this service only carries it to the handlers.
+	StudentDirectoryReader
 
 	// ListSchoolClasses retrieves all distinct non-empty school classes.
 	ListSchoolClasses(ctx context.Context) ([]string, error)
-
-	// ListIDs retrieves lightweight candidates for the dated participation rule.
-	ListIDs(ctx context.Context) ([]int64, error)
 
 	// GetByIDForUpdate retrieves a student with SELECT … FOR UPDATE row locking.
 	GetByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error)
@@ -125,39 +120,41 @@ type StudentService interface {
 }
 
 type studentService struct {
+	// StudentDirectoryReader is the owner capability behind the directory
+	// read; embedding it keeps this service out of the filter's way.
+	StudentDirectoryReader
 	studentRepo   userModels.StudentRepository
 	companionRepo userModels.StudentCompanionRepository
 	studentAudit  StudentChangeRecorder
+	classes       StudentClassReader
+}
+
+// StudentClassReader lists the distinct classes of the tenant's non-alumni
+// children; the owner answers it.
+type StudentClassReader interface {
+	ListSchoolClasses(ctx context.Context) ([]string, error)
 }
 
 // NewStudentService creates a StudentService backed by the student-domain
 // repositories.
 func NewStudentService(
+	directory StudentDirectoryReader,
+	classes StudentClassReader,
 	studentRepo userModels.StudentRepository,
 	companionRepo userModels.StudentCompanionRepository,
 	studentAudit StudentChangeRecorder,
 ) StudentService {
 	return &studentService{
-		studentRepo:   studentRepo,
-		companionRepo: companionRepo,
-		studentAudit:  studentAudit,
+		StudentDirectoryReader: directory,
+		studentRepo:            studentRepo,
+		companionRepo:          companionRepo,
+		studentAudit:           studentAudit,
+		classes:                classes,
 	}
 }
 
-func (s *studentService) ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*userModels.Student, error) {
-	return s.studentRepo.ListWithOptions(ctx, options)
-}
-
-func (s *studentService) CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error) {
-	return s.studentRepo.CountWithOptions(ctx, options)
-}
-
 func (s *studentService) ListSchoolClasses(ctx context.Context) ([]string, error) {
-	return s.studentRepo.ListSchoolClasses(ctx)
-}
-
-func (s *studentService) ListIDs(ctx context.Context) ([]int64, error) {
-	return s.studentRepo.ListIDs(ctx)
+	return s.classes.ListSchoolClasses(ctx)
 }
 
 func (s *studentService) GetByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error) {
