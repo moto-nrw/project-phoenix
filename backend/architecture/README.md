@@ -1179,7 +1179,7 @@ owner and no existing-owner import guard is expanded.
 
 The parent-portal workflow (`workflows/parentportal`, owner `parent-portal`,
 kind `workflow`, #3227,
-[ADR 0019](../../docs/adr/0019-parent-portal-is-an-application-workflow.md))
+[ADR 0022](../../docs/adr/0022-parent-portal-is-an-application-workflow.md))
 takes the guardian-portal flows out of `services/parent`, which coordinates
 Care Plan, Enrollment, Timetable & Activities, Communication, People
 Directory, Settings and Student Presence for one guardian and one child.

@@ -11,7 +11,7 @@ import (
 // Relocation declares that one classified package moved to a new path in this
 // policy epoch without becoming a different package. It is the fourth reviewed
 // mechanism (ADR 0020), next to the test-infrastructure rule (ADR 0014), table
-// adoption (ADR 0015) and workflow additions (ADR 0019): a structurally new
+// adoption (ADR 0015) and workflow additions (ADR 0022): a structurally new
 // move that the base comparison had no way to express.
 //
 // The move renames every violation key the package appears in, as source and
