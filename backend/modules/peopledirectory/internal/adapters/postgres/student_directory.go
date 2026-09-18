@@ -255,7 +255,7 @@ func (s *StudentStore) FindRecord(
 		// conflict, not a failure of this read.
 		if isLockNotAvailable(err) {
 			return domain.StudentRecord{}, false, stats,
-				fmt.Errorf("people directory postgres: find student record: %w", domain.ErrLockNotAvailable)
+				fmt.Errorf("people directory postgres: find student record: %w", domain.ErrStudentLockBusy)
 		}
 		return domain.StudentRecord{}, false, stats, fmt.Errorf("people directory postgres: find student record: %w", err)
 	}

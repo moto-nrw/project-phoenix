@@ -71,10 +71,6 @@ func HasCompanionNote(note *string) bool {
 	return note != nil && strings.TrimSpace(*note) != ""
 }
 
-// ErrLockNotAvailable reports a row another transaction already holds. The
-// persistence adapter recognizes the driver's code and reports it as this.
-var ErrLockNotAvailable = errors.New("row lock is not available")
-
 // ValidateStudentRecord checks a child before it is written.
 //
 // supplied is the plan as the caller sent it and resolved is the plan that will

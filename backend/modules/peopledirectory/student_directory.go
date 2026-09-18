@@ -154,6 +154,17 @@ type StudentDirectoryCommand interface {
 	// LockStudentRecordsByID reads and locks the given rows in ascending id
 	// order, the project-wide student lock order.
 	LockStudentRecordsByID(context.Context, []int64) ([]StudentRecord, error)
+	// FindStudentRecordForMutationNoWait is FindStudentRecordForMutation that
+	// never blocks: when another transaction holds the row it reports
+	// ErrStudentLockBusy instead of waiting.
+	//
+	// It exists for the one case where waiting is unsafe — taking a lock on an
+	// id BELOW one this transaction already holds. Every companion writer
+	// acquires rows in ascending id order, so a downward acquisition inverts
+	// that order and can deadlock against a writer coming the other way. The
+	// companion graph is read while locks are already held, so such
+	// acquisitions cannot be designed away; they are made non-blocking instead.
+	FindStudentRecordForMutationNoWait(context.Context, int64) (StudentRecord, error)
 }
 
 func (m *Module) ListStudentDirectory(ctx context.Context, filter StudentDirectoryFilter) ([]StudentRecord, error) {
@@ -313,4 +324,11 @@ func (m *Module) ListEnrolledStudentIDsByNameAndBirthday(
 
 func (m *Module) ListAllStudentIDs(ctx context.Context) ([]int64, error) {
 	return m.engine.ListAllStudentIDs(ctx)
+}
+
+func (m *Module) FindStudentRecordForMutationNoWait(ctx context.Context, studentID int64) (StudentRecord, error) {
+	if studentID <= 0 {
+		return StudentRecord{}, invalidStudent("student ID is required")
+	}
+	return m.engine.FindStudentRecordForMutationNoWait(ctx, studentID)
 }

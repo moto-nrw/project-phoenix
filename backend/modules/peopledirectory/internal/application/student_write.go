@@ -320,7 +320,7 @@ func (s *StudentService) lockCompanionFarEnds(
 			// A deleted or foreign row is skipped, exactly as the stranding
 			// check skips it.
 			_ = found
-		case errors.Is(err, domain.ErrLockNotAvailable):
+		case errors.Is(err, domain.ErrStudentLockBusy):
 			return domain.ErrCompanionLockBusy
 		default:
 			return err

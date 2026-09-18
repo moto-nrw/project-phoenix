@@ -234,3 +234,11 @@ func (e engine) ListAllStudentIDs(ctx context.Context) ([]int64, error) {
 	ids, err := e.students.ListAllIDs(ctx)
 	return ids, mapError(err)
 }
+
+func (e engine) FindStudentRecordForMutationNoWait(
+	ctx context.Context,
+	studentID int64,
+) (peopledirectory.StudentRecord, error) {
+	record, err := e.students.FindRecord(ctx, studentID, "UPDATE NOWAIT")
+	return peopledirectory.StudentRecord(record), mapError(err)
+}

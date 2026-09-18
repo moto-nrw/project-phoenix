@@ -382,6 +382,14 @@ func (r studentRepositoryWithOwnerWrites) ListIDs(ctx context.Context) ([]int64,
 	return r.reads.ListIDs(ctx)
 }
 
+func (r studentRepositoryWithOwnerWrites) FindByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error) {
+	return r.reads.FindByIDForUpdate(ctx, id)
+}
+
+func (r studentRepositoryWithOwnerWrites) FindByIDForUpdateNoWait(ctx context.Context, id int64) (*userModels.Student, error) {
+	return r.reads.FindByIDForUpdateNoWait(ctx, id)
+}
+
 func (r studentRepositoryWithOwnerWrites) Create(ctx context.Context, student *userModels.Student) error {
 	return r.writes.Create(ctx, student)
 }

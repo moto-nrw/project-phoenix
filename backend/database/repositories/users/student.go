@@ -11,40 +11,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
-
-// studentClassWritesLockClass is the pg_advisory_xact_lock class id ("clas" in
-// ASCII) that serializes a grade transition apply/revert against every write
-// which could put a child INTO one of the classes it is transitioning.
-//
-// Row locks cannot express that: a student created in a mapped class — or moved
-// in from an unmapped one — has no row the transition could have locked. The
-// apply's post-lock re-read (services/education.ensureNoLateArrivals) therefore
-// only sees arrivals that COMMITTED before it ran; one committing after that
-// statement but before the apply commits was silently left behind in a class the
-// transition had just emptied, while the transition reported success and wrote
-// no history row a revert could undo it with (#405 review).
-//
-// Writers take the gate SHARED — shared holders never conflict with each other,
-// so the normal path costs one in-memory advisory-lock round-trip and never
-// blocks. Apply/revert take it EXCLUSIVE for their whole transaction, which is
-// the only time a writer waits. Both forms are transaction-scoped: they release
-// at COMMIT/ROLLBACK (no Unlock to forget), and re-acquiring a lock the same
-// transaction already holds never waits — the transition's own student reads and
-// writes below pass straight through its exclusive hold.
-//
-// LOCK ORDER (must stay acyclic):
-//
-//  1. this gate, BEFORE the tenant recurrence gate and the grade-transition gate
-//     (services/education.lockRecurrenceThenTransitions takes all three in that
-//     order), and
-//  2. BEFORE any users.students row lock — every acquisition below sits in front
-//     of the row lock taken by the same method, so no transaction can hold a
-//     student row and then queue for the gate while the gate holder waits for
-//     that row.
-const studentClassWritesLockClass int32 = 0x636C6173
 
 // Table name constants (S1192 - avoid duplicate string literals)
 const (
@@ -510,106 +478,19 @@ func (r *StudentRepository) FindOverlappingWithGroupsOnDate(ctx context.Context,
 	return r.FindOverlappingWithGroups(ctx, date, date, timezone.DateFromTime(now))
 }
 
-// lockClassWritesShared takes the SHARED per-tenant class-writes gate. Called at
-// the top of every repository method that inserts a student, updates one, or
-// takes a student row lock the caller will update under — always BEFORE that
-// method's own row lock, which is what keeps the acquisition order acyclic.
-func (r *StudentRepository) lockClassWritesShared(ctx context.Context) error {
-	return r.lockClassWrites(ctx, true)
+// The locked reads and the per-tenant class-writes gate are the owner's too:
+// it takes the gate before the row, which is what keeps the acquisition order
+// gate-then-rows for every writer.
+func (r *StudentRepository) FindByIDForUpdate(context.Context, int64) (*users.Student, error) {
+	return nil, errStudentWritesMoved
 }
 
-func (r *StudentRepository) lockClassWrites(ctx context.Context, shared bool) error {
-	tenantID := tenant.FromContext(ctx)
-	if tenantID <= 0 {
-		// No tenant in context: the CLI / migration / seeding paths that run
-		// outside the tenant transaction as superuser. There is no per-tenant
-		// gate to take there, and a grade transition (a tenant-scoped HTTP
-		// request) can never be one of those callers.
-		return nil
-	}
-	if tenantID > 0x7fffffff {
-		return fmt.Errorf("lockClassWrites: tenant_id %d exceeds advisory-lock obj id range", tenantID)
-	}
-
-	db := base.GetDB(ctx, r.db)
-	var err error
-	op := "lock_student_class_writes"
-	if shared {
-		op = "lock_student_class_writes_shared"
-		_, err = db.NewRaw("SELECT pg_advisory_xact_lock_shared(?, ?)", studentClassWritesLockClass, int32(tenantID)).Exec(ctx)
-	} else {
-		_, err = db.NewRaw("SELECT pg_advisory_xact_lock(?, ?)", studentClassWritesLockClass, int32(tenantID)).Exec(ctx)
-	}
-	if err != nil {
-		return &modelBase.DatabaseError{Op: op, Err: base.TranslateNotFound(err)}
-	}
-	return nil
+func (r *StudentRepository) FindByIDForUpdateNoWait(context.Context, int64) (*users.Student, error) {
+	return nil, errStudentWritesMoved
 }
 
-// FindByIDForUpdate fetches a student row with a SELECT … FOR UPDATE so
-// the caller can re-validate state (consent, photo_path, …) under the
-// same row lock the subsequent UPDATE will use. Used by the photo upload
-// flow to close a lost-update race against concurrent consent
-// withdrawals: a stale snapshot from before the withdrawal would
-// otherwise re-write the cleared consent columns when the upload's
-// full-row UPDATE commits.
-//
-// Returns sql.ErrNoRows wrapped in DatabaseError if the row doesn't
-// exist. RLS / TenantWhere scopes visibility to the current tenant.
-func (r *StudentRepository) FindByIDForUpdate(ctx context.Context, id int64) (*users.Student, error) {
-	return r.findByIDForUpdate(ctx, id, false)
-}
-
-// FindByIDForUpdateNoWait is FindByIDForUpdate that never blocks: when another
-// transaction already holds the row, PostgreSQL raises 55P03 immediately
-// instead of waiting.
-//
-// It exists for the one situation where waiting is unsafe — taking a lock on an
-// id BELOW an id this transaction already holds. Every companion writer acquires
-// student rows in ascending id order, so a downward acquisition inverts that
-// order and can deadlock against a writer coming the other way. The companion
-// graph is not fully known before the first lock (it is read from the edge
-// table, which a concurrent commit can grow), so downward acquisitions cannot
-// be designed away — they are made non-blocking instead, and the caller turns
-// the refusal into the retriable users.ErrCompanionLockBusy.
-func (r *StudentRepository) FindByIDForUpdateNoWait(ctx context.Context, id int64) (*users.Student, error) {
-	return r.findByIDForUpdate(ctx, id, true)
-}
-
-func (r *StudentRepository) findByIDForUpdate(ctx context.Context, id int64, noWait bool) (*users.Student, error) {
-	// Callers of this method lock the row in order to update it, so the gate has
-	// to be taken here rather than only in Update — otherwise such a caller would
-	// hold a student row and THEN queue behind a grade transition that is waiting
-	// for exactly that row. noWait keeps its meaning for the ROW lock (55P03
-	// instead of waiting, which is what the companion lock protocol relies on);
-	// the gate itself is uncontended except while an apply/revert runs.
-	if err := r.lockClassWritesShared(ctx); err != nil {
-		return nil, err
-	}
-
-	lockClause := "UPDATE"
-	op := "find_by_id_for_update"
-	if noWait {
-		lockClause = "UPDATE NOWAIT"
-		op = "find_by_id_for_update_nowait"
-	}
-
-	student := new(users.Student)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(student).
-		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Where(`"student".id = ?`, id).
-		For(lockClause)
-
-	query = base.WithTenantFilter(ctx, query, "student")
-
-	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: op, Err: base.TranslateNotFound(err)}
-	}
-	if err := r.hydrateBusDaysForStudents(ctx, []*users.Student{student}); err != nil {
-		return nil, err
-	}
-	return student, nil
+func (r *StudentRepository) LockStudentClassWritesShared(context.Context) error {
+	return errStudentWritesMoved
 }
 
 // The lifecycle status and the care window are the owner's too (#3349). These

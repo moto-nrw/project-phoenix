@@ -372,3 +372,11 @@ func (e *recordingEngine) ListAllStudentIDs(context.Context) ([]int64, error) {
 	e.calls++
 	return nil, nil
 }
+
+func (e *recordingEngine) FindStudentRecordForMutationNoWait(
+	_ context.Context, id int64,
+) (peopledirectory.StudentRecord, error) {
+	e.calls++
+	e.lockedRecord = id
+	return peopledirectory.StudentRecord{ID: id}, nil
+}

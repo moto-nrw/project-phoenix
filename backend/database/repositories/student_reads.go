@@ -21,6 +21,9 @@ type StudentReadCapability interface {
 	// repository serves it from the same rows.
 	ListSchoolClasses(context.Context) ([]string, error)
 	LockStudentRecordsByID(context.Context, []int64) ([]peopleModule.StudentRecord, error)
+	FindStudentRecordForMutation(context.Context, int64) (peopleModule.StudentRecord, error)
+	FindStudentRecordForMutationNoWait(context.Context, int64) (peopleModule.StudentRecord, error)
+	LockEnrollmentClassWrites(context.Context) error
 }
 
 // StudentReads adapts the owner's child reads to the retained model-typed
@@ -186,6 +189,36 @@ func (r *StudentReads) ListIDs(ctx context.Context) ([]int64, error) {
 		return nil, translateStudentReadError("list student ids", err)
 	}
 	return ids, nil
+}
+
+// FindByIDForUpdate takes the row lock the caller will write under. The owner
+// takes the shared class-writes gate first, which is what keeps the
+// acquisition order gate-then-rows for every writer.
+func (r *StudentReads) FindByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error) {
+	record, err := r.directory.FindStudentRecordForMutation(ctx, id)
+	if err != nil {
+		return nil, translateStudentReadError("find by id for update", err)
+	}
+	return studentRecordToModel(record), nil
+}
+
+// FindByIDForUpdateNoWait refuses rather than waits, which is what makes a
+// downward acquisition in the companion graph safe.
+func (r *StudentReads) FindByIDForUpdateNoWait(ctx context.Context, id int64) (*userModels.Student, error) {
+	record, err := r.directory.FindStudentRecordForMutationNoWait(ctx, id)
+	if err != nil {
+		if errors.Is(err, peopleModule.ErrStudentLockBusy) {
+			return nil, userModels.ErrCompanionLockBusy
+		}
+		return nil, translateStudentReadError("find by id for update nowait", err)
+	}
+	return studentRecordToModel(record), nil
+}
+
+// LockStudentClassWritesShared exposes the owner's shared class-writes gate for
+// the caller that has to take it before another tenant-wide gate.
+func (r *StudentReads) LockStudentClassWritesShared(ctx context.Context) error {
+	return translateStudentReadError("lock student class writes", r.directory.LockEnrollmentClassWrites(ctx))
 }
 
 func (r *StudentReads) listRecords(
