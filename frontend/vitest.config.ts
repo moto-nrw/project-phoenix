@@ -63,11 +63,8 @@ export default defineConfig({
     ],
     coverage: {
       provider: "v8",
-      // CI uploads only lcov.info for SonarCloud. Building JSON/HTML trees and
-      // printing a 1,000-file table wastes CPU, disk, and log bandwidth.
-      reporter: process.env.CI
-        ? ["lcovonly"]
-        : ["text", "json", "html", "lcov"],
+      // Coverage is a local tool only; CI does not collect it.
+      reporter: ["text", "json", "html", "lcov"],
       reportOnFailure: true, // Generate coverage even when tests fail
       exclude: [
         "node_modules/",

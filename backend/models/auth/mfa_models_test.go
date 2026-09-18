@@ -7,11 +7,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// The tests in this file lift PR-diff coverage on the MFA model helpers
-// from 0% to ~100%. These are pure-function helpers (no DB, no goroutines)
-// so they're trivially testable; they're absent because the integration
-// tests exercise the methods transitively but don't import the model
-// package, leaving coverage at zero for SonarCloud's diff metric.
+// Direct unit tests for the MFA model helpers. These are pure functions
+// (no DB, no goroutines), so they're trivially testable; the integration
+// tests exercise them transitively but don't import the model package, so
+// nothing else covers them in isolation.
 
 // --- MFACredential ---
 

@@ -1,9 +1,9 @@
 // Unit tests for the WP-B10 attendance PATCH handler that don't require a
 // database. The DB-backed tests in instance_students_test.go cover the happy
-// path and cross-field rule end-to-end; these tests close the coverage gap on
-// the branches SonarQube flagged as missing: repo-not-wired guard, path
-// parsing errors, body decode errors, response mapping, and the
-// DatabaseError-wrapped not-found branch in isNotFoundDBError.
+// path and cross-field rule end-to-end; these tests close the remaining
+// branches: repo-not-wired guard, path parsing errors, body decode errors,
+// response mapping, and the DatabaseError-wrapped not-found branch in
+// isNotFoundDBError.
 package timetable
 
 import (

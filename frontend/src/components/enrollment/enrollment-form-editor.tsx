@@ -4370,13 +4370,13 @@ function getPreviewStatus({
 
 // Snake-case-ify a free-form label into a schema-safe field key.
 //
-// Implementation is character-loop based on purpose: SonarCloud
-// (rule S5852) flags `+` / `*` quantifiers on character classes as
-// potentially super-linear under backtracking. The patterns here
-// aren't actually catastrophic (single char classes, no overlapping
-// alternation), but the loop has the same O(n) cost and avoids the
-// scanner warning. Inputs are also capped \u2014 admin labels never
-// legitimately exceed a few hundred chars.
+// Implementation is character-loop based on purpose: the regex form
+// would need `+` / `*` quantifiers on character classes, which are the
+// shape static analysis flags as potentially super-linear under
+// backtracking. The patterns here aren't actually catastrophic (single
+// char classes, no overlapping alternation), but the loop has the same
+// O(n) cost and sidesteps the question. Inputs are also capped \u2014 admin
+// labels never legitimately exceed a few hundred chars.
 function normalizeFieldKey(value: string): string {
   const MAX_INPUT = 256;
   const source = value
