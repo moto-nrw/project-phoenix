@@ -275,12 +275,23 @@ func (s *SchoolInvitation) ValidateInvitation(ctx context.Context, token string)
 		if !found {
 			return failed("lookup role", domain.ErrRoleNotFound)
 		}
-		_, hasAccount, _, accountErr := s.logins.FindLoginAccountByEmail(txCtx, invitation.Email)
+		account, hasAccount, _, accountErr := s.logins.FindLoginAccountByEmail(txCtx, invitation.Email)
 		if accountErr != nil {
 			return failed(opFetchInvitation, accountErr)
 		}
+		requiresLogin := hasAccount
+		if hasAccount {
+			dormant, dormantErr := s.accountDormant(txCtx, account)
+			if dormantErr != nil {
+				return failed(opFetchInvitation, dormantErr)
+			}
+			// A dormant account has no way to sign in, so asking for its
+			// password would be a dead end (#3376); the invitee sets a new
+			// one instead, exactly as a fresh invitee does.
+			requiresLogin = !dormant
+		}
 		result = domain.InvitationPreview{
-			Portal: s.portalOf(role), RequiresAccountLogin: hasAccount, Email: invitation.Email, RoleName: role.Name,
+			Portal: s.portalOf(role), RequiresAccountLogin: requiresLogin, Email: invitation.Email, RoleName: role.Name,
 			FirstName: invitation.FirstName, LastName: invitation.LastName, Position: invitation.Position,
 			CaregiverEnabled: invitation.CaregiverEnabled, ExpiresAt: invitation.ExpiresAt,
 		}
@@ -314,9 +325,22 @@ func (s *SchoolInvitation) AcceptInvitation(ctx context.Context, token string, r
 		if accountErr != nil {
 			return failed(opAcceptInvitation, accountErr)
 		}
-		var passwordHash string
+		var (
+			passwordHash string
+			restore      bool
+		)
 		if hasAccount {
-			if ownerErr := s.verifyOwner(account, registration.OwnerAccessToken); ownerErr != nil {
+			dormant, dormantErr := s.accountDormant(txCtx, account)
+			if dormantErr != nil {
+				return failed(opAcceptInvitation, dormantErr)
+			}
+			if dormant {
+				hash, hashErr := s.hashPassword(registration)
+				if hashErr != nil {
+					return hashErr
+				}
+				passwordHash, restore = hash, true
+			} else if ownerErr := s.verifyOwner(account, registration.OwnerAccessToken); ownerErr != nil {
 				return failed(opAcceptInvitation, ownerErr)
 			}
 		} else {
@@ -330,7 +354,7 @@ func (s *SchoolInvitation) AcceptInvitation(ctx context.Context, token string, r
 		if nameErr != nil {
 			return failed(opAcceptInvitation, nameErr)
 		}
-		created, grantErr := s.grantAccess(invitationCtx, invitation, account, hasAccount, passwordHash, firstName, lastName)
+		created, grantErr := s.grantAccess(invitationCtx, invitation, account, hasAccount, restore, passwordHash, firstName, lastName)
 		if grantErr != nil {
 			return grantErr
 		}
@@ -359,9 +383,31 @@ func (s *SchoolInvitation) hashPassword(registration domain.InvitationRegistrati
 	return hash, nil
 }
 
+// accountDormant reports an account that nobody can sign in to any more and
+// that no school still grants access through: disabled, and without an
+// active mapping at any school. That is exactly what staff offboarding
+// leaves behind when it removes an account's last school (#3376).
+//
+// The distinction matters because it decides who may set the password. A
+// dormant account is restored by whoever holds the invitation link, which is
+// the invited mailbox and therefore the same proof a reset link asks for. An
+// account that is disabled while it still holds school access was disabled
+// deliberately and stays untouchable.
+func (s *SchoolInvitation) accountDormant(ctx context.Context, account domain.LoginAccount) (bool, error) {
+	if account.Active {
+		return false, nil
+	}
+	tenantIDs, _, err := s.logins.ListActiveTenantIDs(ctx, account.ID)
+	if err != nil {
+		return false, err
+	}
+	return len(tenantIDs) == 0, nil
+}
+
 // verifyOwner refuses an acceptance for an existing account unless the
 // caller proved they hold that account's session: an invitation grants
-// membership, never authority over someone else's credentials.
+// membership, never authority over someone else's credentials. Dormant
+// accounts never reach this check; they have no session to prove.
 func (s *SchoolInvitation) verifyOwner(account domain.LoginAccount, accessToken string) error {
 	if accessToken == "" {
 		return domain.ErrInvitationOwnerRequired
@@ -379,16 +425,23 @@ func (s *SchoolInvitation) verifyOwner(account domain.LoginAccount, accessToken 
 	return nil
 }
 
-// grantAccess creates or reuses the account and gives it the school access
-// the invitation promises.
+// grantAccess creates, restores or reuses the account and gives it the
+// school access the invitation promises.
 func (s *SchoolInvitation) grantAccess(
 	ctx context.Context,
 	invitation domain.SchoolInvitation,
 	existing domain.LoginAccount,
-	hasAccount bool,
+	hasAccount, restore bool,
 	passwordHash, firstName, lastName string,
 ) (domain.LoginAccount, error) {
 	account := existing
+	if hasAccount && restore {
+		restored, err := s.restoreDormantAccount(ctx, account, passwordHash)
+		if err != nil {
+			return domain.LoginAccount{}, err
+		}
+		account = restored
+	}
 	if !hasAccount {
 		created, _, err := s.store.InsertAccount(ctx, invitation.Email, passwordHash)
 		if err != nil {
@@ -438,6 +491,34 @@ func (s *SchoolInvitation) grantAccess(
 	if !redeemed {
 		return domain.LoginAccount{}, failed(opAcceptInvitation, domain.ErrInvitationUsed)
 	}
+	return account, nil
+}
+
+// restoreDormantAccount gives a dormant account the credential the invitee
+// just chose and re-enables it, on the acceptance's transaction: the
+// restored login and the school access it is for commit together, or neither
+// does.
+//
+// The account-wide session wipe its deactivation scheduled is deliberately
+// left alone. A pending wipe only revokes sessions that existed at its own
+// cutoff, so it cannot reach the session this invitee signs in with
+// afterwards, and claiming it here would pull platform-wide session state
+// into a school's transaction.
+func (s *SchoolInvitation) restoreDormantAccount(ctx context.Context, account domain.LoginAccount, passwordHash string) (domain.LoginAccount, error) {
+	found, _, err := s.store.SetAccountPassword(ctx, account.ID, passwordHash)
+	if err != nil {
+		return domain.LoginAccount{}, failed("restore account credential", err)
+	}
+	if !found {
+		return domain.LoginAccount{}, failed("restore account credential", domain.ErrAccountNotFound)
+	}
+	if _, err := s.store.SetAccountActive(ctx, account.ID, true); err != nil {
+		return domain.LoginAccount{}, failed("reactivate account", err)
+	}
+	s.logger.Info("dormant account restored by invitation",
+		slog.Int64("account_id", account.ID))
+	account.PasswordHash = passwordHash
+	account.Active = true
 	return account, nil
 }
 
