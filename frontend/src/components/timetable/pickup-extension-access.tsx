@@ -56,6 +56,7 @@ export function PickupExtensionAccessProvider({
     <PickupExtensionPromptContext.Provider value={context}>
       {children}
       <PickupExtensionDialog
+        key={open.map((task) => task.id).join(":")}
         tasks={open}
         isOpen={open.length > 0}
         onClose={() => setOpen([])}

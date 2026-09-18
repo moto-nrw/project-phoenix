@@ -189,6 +189,54 @@ describe("CareRequestReviewItem after a later pickup (#3261)", () => {
     );
   });
 
+  it("beginnt nach dem Neuladen einer kürzeren Aufgabenliste wieder vorn", async () => {
+    const firstTask: PickupExtension = {
+      ...task,
+      id: "6",
+      date: "2026-09-14",
+      blocks: [
+        {
+          id: "30",
+          title: "Frühdienst",
+          startTime: "14:45",
+          endTime: "16:00",
+        },
+      ],
+    };
+    const changedTask: PickupExtension = {
+      ...task,
+      blocks: [
+        {
+          id: "31",
+          title: "Spätdienst",
+          startTime: "15:00",
+          endTime: "16:00",
+        },
+      ],
+    };
+    mockFetch
+      .mockResolvedValueOnce([firstTask, task])
+      .mockResolvedValueOnce([changedTask]);
+    mockResolve
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(
+        new PickupExtensionApiError("gone", 409, "pickup_extension_block_gone"),
+      );
+    render(
+      <PickupExtensionAccessProvider value>
+        <CareRequestReviewItem row={laterPickupRow()} onDecided={vi.fn()} />
+      </PickupExtensionAccessProvider>,
+    );
+
+    approve();
+    await screen.findByText("Frühdienst");
+    fireEvent.click(screen.getByRole("button", { name: "Eintragen" }));
+    await screen.findByText("Freies Spiel");
+    fireEvent.click(screen.getByRole("button", { name: "Eintragen" }));
+
+    expect(await screen.findByText("Spätdienst")).toBeInTheDocument();
+  });
+
   it("geht ohne offene Frage weiter wie bisher", async () => {
     mockFetch.mockResolvedValue([]);
     const onDecided = vi.fn();
