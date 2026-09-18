@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type { ReactNode } from "react";
@@ -40,10 +41,20 @@ export function PickupExtensionAccessProvider({
   children,
 }: Readonly<{ value: boolean; children: ReactNode }>) {
   const [open, setOpen] = useState<readonly PickupExtension[]>([]);
+  const reloadGeneration = useRef(0);
+  const replaceOpenTasks = useCallback((tasks: readonly PickupExtension[]) => {
+    reloadGeneration.current += 1;
+    setOpen(tasks);
+  }, []);
   const reloadOpenTask = useCallback((task: PickupExtension) => {
+    const generation = reloadGeneration.current + 1;
+    reloadGeneration.current = generation;
     void fetchPickupExtensions(task.studentId)
-      .then(setOpen)
+      .then((tasks) => {
+        if (generation === reloadGeneration.current) setOpen(tasks);
+      })
       .catch((err: unknown) => {
+        if (generation !== reloadGeneration.current) return;
         logger.warn("pickup_extension_reload_failed", {
           error: err instanceof Error ? err.message : String(err),
           task_id: task.id,
@@ -51,7 +62,10 @@ export function PickupExtensionAccessProvider({
         setOpen([]);
       });
   }, []);
-  const context = useMemo(() => ({ enabled: value, prompt: setOpen }), [value]);
+  const context = useMemo(
+    () => ({ enabled: value, prompt: replaceOpenTasks }),
+    [value, replaceOpenTasks],
+  );
   return (
     <PickupExtensionPromptContext.Provider value={context}>
       {children}
@@ -59,7 +73,7 @@ export function PickupExtensionAccessProvider({
         key={open.map((task) => task.id).join(":")}
         tasks={open}
         isOpen={open.length > 0}
-        onClose={() => setOpen([])}
+        onClose={() => replaceOpenTasks([])}
         onStale={reloadOpenTask}
       />
     </PickupExtensionPromptContext.Provider>

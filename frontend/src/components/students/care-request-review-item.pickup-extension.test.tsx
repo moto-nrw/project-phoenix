@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -43,6 +49,14 @@ import { CareRequestReviewItem } from "./care-request-review-item";
 const mockDecide = vi.mocked(decideCareScheduleChangeRequest);
 const mockFetch = vi.mocked(fetchPickupExtensions);
 const mockResolve = vi.mocked(resolvePickupExtension);
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((complete) => {
+    resolve = complete;
+  });
+  return { promise, resolve };
+}
 
 function laterPickupRow(): StaffCareRequest {
   return {
@@ -187,6 +201,37 @@ describe("CareRequestReviewItem after a later pickup (#3261)", () => {
     await waitFor(() =>
       expect(mockResolve).toHaveBeenLastCalledWith("7", ["31"]),
     );
+  });
+
+  it("öffnet die Auswahl nach dem Schließen nicht erneut durch einen ausstehenden Reload", async () => {
+    const reload = deferred<PickupExtension[]>();
+    mockFetch.mockResolvedValueOnce([task]).mockReturnValueOnce(reload.promise);
+    mockResolve.mockRejectedValueOnce(
+      new PickupExtensionApiError("gone", 409, "pickup_extension_block_gone"),
+    );
+    render(
+      <PickupExtensionAccessProvider value>
+        <CareRequestReviewItem row={laterPickupRow()} onDecided={vi.fn()} />
+      </PickupExtensionAccessProvider>,
+    );
+
+    approve();
+    await screen.findByText("Längere Betreuung eintragen");
+    fireEvent.click(screen.getByRole("button", { name: "Eintragen" }));
+    await screen.findByText(
+      "Der Termin hat sich inzwischen geändert. Bitte wählen Sie noch einmal.",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Modal schließen" }));
+    await waitFor(() =>
+      expect(screen.queryByText("Längere Betreuung eintragen")).toBeNull(),
+    );
+
+    await act(async () => {
+      reload.resolve([task]);
+      await reload.promise;
+    });
+
+    expect(screen.queryByText("Längere Betreuung eintragen")).toBeNull();
   });
 
   it("beginnt nach dem Neuladen einer kürzeren Aufgabenliste wieder vorn", async () => {
