@@ -898,9 +898,8 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
     // genau einmal da — vorher trug jede Sitzung ihren eigenen Reiter mit
     // demselben Namen (#3065).
     await waitFor(() => {
-      expect(
-        screen.getByRole("heading", { name: "Schulhof" }).parentElement,
-      ).toHaveTextContent("9 Kinder");
+      expect(screen.getByRole("heading", { name: "Schulhof" })).toBeVisible();
+      expect(screen.getByText("9 Kinder", { selector: "p" })).toBeVisible();
     });
     expect(screen.queryAllByRole("tab", { name: "Schulhof" })).toHaveLength(0);
     // Der Zähler kommt aus dem Raum, nicht aus einer der Sitzungen: er zählt
@@ -986,9 +985,7 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
     expect(
       await screen.findByRole("heading", { name: "Schulhof" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "Schulhof" }).parentElement,
-    ).toHaveTextContent("9 Kinder");
+    expect(screen.getByText("9 Kinder", { selector: "p" })).toBeVisible();
     expect(screen.getByText("Offener Raum")).toBeInTheDocument();
     expect(screen.queryByText("Eigene Aufsicht")).not.toBeInTheDocument();
   });
@@ -1745,9 +1742,8 @@ describe("ID-based selection coverage: currentRoom useMemo", () => {
 
     // The count is the room's, reported by the shared view.
     await waitFor(() => {
-      expect(
-        screen.getByRole("heading", { name: "Schulhof" }).parentElement,
-      ).toHaveTextContent("5 Kinder");
+      expect(screen.getByRole("heading", { name: "Schulhof" })).toBeVisible();
+      expect(screen.getByText("5 Kinder", { selector: "p" })).toBeVisible();
     });
   });
 });
