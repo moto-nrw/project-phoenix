@@ -37,8 +37,9 @@ func NewActivitiesTestModule(db *bun.DB) (ActivitiesTestModule, error) {
 		Activities: activityService, UserContext: identity,
 		Schedule: timetableplanning.NewServiceWithConfig(timetableplanning.ServiceConfig{DateframeRepo: r.Dateframe, TimeframeRepo: r.Timeframe, RecurrenceRuleRepo: r.RecurrenceRule, RecurrenceEvents: r.Timetable}),
 		Users: users.NewPersonService(users.PersonServiceDependencies{
-			PersonDirectory: repositories.NewPersonDirectory(repositories.MustNewPeopleDirectory(db)),
-			PersonRepo:      r.Person, StaffRepo: r.Staff, TeacherRepo: r.Teacher, DB: db, Logger: slog.Default(),
+			PersonDirectory:  repositories.NewPersonDirectory(repositories.MustNewPeopleDirectory(db)),
+			StudentDirectory: repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)),
+			PersonRepo:       r.Person, StaffRepo: r.Staff, TeacherRepo: r.Teacher, DB: db, Logger: slog.Default(),
 		}),
 	}, nil
 }

@@ -64,8 +64,9 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	activeLogger := logger
 	realtimeHub := deliveryCompose.NewRealtimeHub(logger)
 	usersService := users.NewPersonService(users.PersonServiceDependencies{
-		PersonDirectory: repositories.NewPersonDirectory(repositories.MustNewPeopleDirectory(db)),
-		PersonRepo:      repos.Person, RFIDRepo: identity.RFIDCard, AccountRepo: identity.Account, StudentRepo: repos.Student,
+		PersonDirectory:  repositories.NewPersonDirectory(repositories.MustNewPeopleDirectory(db)),
+		StudentDirectory: repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)),
+		PersonRepo:       repos.Person, RFIDRepo: identity.RFIDCard, AccountRepo: identity.Account, StudentRepo: repos.Student,
 		StaffRepo: repos.Staff, TeacherRepo: repos.Teacher, LehrkraftRoles: identityRoles, PersonnelNumberAudit: repos.PersonnelNumberChange,
 		StaffMasterDataRepo: repos.StaffMasterData, StaffQualificationRepo: repos.StaffQualification, StaffFinancialRepo: repos.StaffFinancialData,
 		StammdatenAudit: repos.StaffMasterDataChange, DataAccessLog: repos.DataAccessLog, DB: db, SettingsService: settingsService, Logger: logger,

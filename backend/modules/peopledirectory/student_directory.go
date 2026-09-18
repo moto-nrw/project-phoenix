@@ -111,8 +111,6 @@ type StudentDirectoryQuery interface {
 	CountStudentDirectory(context.Context, StudentDirectoryFilter) (int, error)
 	// ListStudentDirectoryIDs returns the ids of every non-alumni child.
 	ListStudentDirectoryIDs(context.Context) ([]int64, error)
-	// FindStudentRecord reads one owned row.
-	FindStudentRecord(context.Context, int64) (StudentRecord, error)
 	// ListStudentRecordsByID reads the owned rows of the given children,
 	// alumni included, ordered by id.
 	ListStudentRecordsByID(context.Context, []int64) ([]StudentRecord, error)
@@ -150,13 +148,6 @@ func (m *Module) CountStudentDirectory(ctx context.Context, filter StudentDirect
 
 func (m *Module) ListStudentDirectoryIDs(ctx context.Context) ([]int64, error) {
 	return m.engine.ListStudentDirectoryIDs(ctx)
-}
-
-func (m *Module) FindStudentRecord(ctx context.Context, studentID int64) (StudentRecord, error) {
-	if studentID <= 0 {
-		return StudentRecord{}, invalidStudent("student ID is required")
-	}
-	return m.engine.FindStudentRecord(ctx, studentID)
 }
 
 func (m *Module) FindStudentRecordForMutation(ctx context.Context, studentID int64) (StudentRecord, error) {

@@ -157,14 +157,6 @@ func hydrateDeparturePlan(student *userModels.Student) {
 	student.SnapshotDeparturePlan()
 }
 
-func (d *StudentDirectory) GetStudent(ctx context.Context, id int64) (*userModels.Student, error) {
-	record, err := d.directory.FindStudentRecord(ctx, id)
-	if err != nil {
-		return nil, translateStudentDirectoryError(err)
-	}
-	return studentRecordToModel(record), nil
-}
-
 // translateStudentDirectoryError restates a missing child in the vocabulary
 // the retained contract uses. The owner has its own not-found sentinel, which
 // this package's consumers cannot reference; the service above turns the

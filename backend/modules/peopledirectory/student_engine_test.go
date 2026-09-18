@@ -240,11 +240,6 @@ func (e *recordingEngine) ListStudentDirectoryIDs(context.Context) ([]int64, err
 	return nil, nil
 }
 
-func (e *recordingEngine) FindStudentRecord(_ context.Context, id int64) (peopledirectory.StudentRecord, error) {
-	e.calls++
-	return peopledirectory.StudentRecord{ID: id}, nil
-}
-
 func (e *recordingEngine) FindStudentRecordForMutation(
 	_ context.Context, id int64,
 ) (peopledirectory.StudentRecord, error) {

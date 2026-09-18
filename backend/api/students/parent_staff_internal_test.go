@@ -44,7 +44,10 @@ func TestNormalizeSickReason(t *testing.T) {
 func newStaffNotesResource(db *bun.DB) *Resource {
 	rf := newStudentTestRepositories(db)
 	return NewResource(ResourceConfig{
-		PersonService:           usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{StudentRepo: rf.Student}),
+		PersonService: usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
+			StudentDirectory: repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)),
+			StudentRepo:      rf.Student,
+		}),
 		StudentService:          usersSvc.NewStudentService(repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)), repositories.MustNewPeopleDirectory(db), rf.Student, rf.StudentCompanion, nil),
 		StudentStatusDayService: activeSvc.NewStudentStatusDayServiceWithPartialAbsences(rf.StudentStatusDay, nil, nil, rf.CarePlan.LockExceptionDay),
 		Logger:                  slog.Default(),

@@ -817,6 +817,7 @@ func newFactory(
 	// Initialize users service first (needed for active service)
 	usersService := users.NewPersonService(users.PersonServiceDependencies{
 		PersonDirectory:      repositories.NewPersonDirectory(persons),
+		StudentDirectory:     repositories.NewStudentDirectory(persons),
 		PersonRepo:           repos.Person,
 		RFIDRepo:             repos.RFIDCard,
 		AccountRepo:          repos.Account,

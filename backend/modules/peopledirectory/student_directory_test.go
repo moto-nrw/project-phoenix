@@ -81,9 +81,7 @@ func TestModuleRecordReadsValidateBeforeTheEngine(t *testing.T) {
 	module := peopledirectory.NewModule(engine)
 	ctx := context.Background()
 
-	_, err := module.FindStudentRecord(ctx, 0)
-	require.ErrorIs(t, err, peopledirectory.ErrInvalidStudent)
-	_, err = module.FindStudentRecordForMutation(ctx, -3)
+	_, err := module.FindStudentRecordForMutation(ctx, -3)
 	require.ErrorIs(t, err, peopledirectory.ErrInvalidStudent)
 
 	records, err := module.ListStudentRecordsByID(ctx, []int64{0, -2})

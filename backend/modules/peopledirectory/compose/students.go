@@ -122,11 +122,6 @@ func (e engine) ListStudentDirectoryIDs(ctx context.Context) ([]int64, error) {
 	return ids, mapError(err)
 }
 
-func (e engine) FindStudentRecord(ctx context.Context, studentID int64) (peopledirectory.StudentRecord, error) {
-	record, err := e.students.FindRecord(ctx, studentID, "")
-	return peopledirectory.StudentRecord(record), mapError(err)
-}
-
 func (e engine) FindStudentRecordForMutation(ctx context.Context, studentID int64) (peopledirectory.StudentRecord, error) {
 	record, err := e.students.FindRecord(ctx, studentID, "UPDATE")
 	return peopledirectory.StudentRecord(record), mapError(err)

@@ -41,8 +41,9 @@ func NewGroupsTestModule(db *bun.DB, unit tenant.UnitOfWork) (GroupsTestModule, 
 	groups := education.NewService(tt.Group, tt.GroupTeacher, tt.ClassTeacher, tt.Room, tt.Teacher, tt.Staff, tt.Student, r.Substitutions, db)
 	groups.(interface{ SetBroadcaster(realtime.Broadcaster) }).SetBroadcaster(deliveryCompose.NewRealtimeHub(slog.Default()))
 	persons := users.NewPersonService(users.PersonServiceDependencies{
-		PersonDirectory: repositories.NewPersonDirectory(repositories.MustNewPeopleDirectory(db)),
-		PersonRepo:      tt.Person, StudentRepo: tt.Student, StaffRepo: tt.Staff, TeacherRepo: tt.Teacher, AccountRepo: r.Account, DB: db, Logger: slog.Default(),
+		PersonDirectory:  repositories.NewPersonDirectory(repositories.MustNewPeopleDirectory(db)),
+		StudentDirectory: repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)),
+		PersonRepo:       tt.Person, StudentRepo: tt.Student, StaffRepo: tt.Staff, TeacherRepo: tt.Teacher, AccountRepo: r.Account, DB: db, Logger: slog.Default(),
 	})
 	rooms, err := repositories.NewFacilities(db)
 	if err != nil {

@@ -44,6 +44,10 @@ const (
 	opLinkToRFIDCard = "link to RFID card"
 	// opGetStudentsWithGroupsByTeacher is the operation name for GetStudentsWithGroupsByTeacher operations
 	opGetStudentsWithGroupsByTeacher = "get students with groups by teacher"
+	// opLockStudent is the operation name for the locked child read; it is the
+	// spelling the retained repository reported, because callers match on the
+	// wrapped sentinels rather than on the text.
+	opLockStudent = "find_by_id_for_update"
 )
 
 // PersonServiceDependencies contains all dependencies required by the person service
@@ -51,6 +55,9 @@ type PersonServiceDependencies struct {
 	// PersonDirectory is the owner's person write path (#3349); the
 	// composition root binds database/repositories.NewPersonDirectory.
 	PersonDirectory PersonWriter
+	// StudentDirectory is the owner's child-row access (#3349); the
+	// composition root binds database/repositories.NewStudentDirectory.
+	StudentDirectory StudentDirectoryLocker
 	// Repository dependencies
 	PersonRepo  userModels.PersonRepository
 	RFIDRepo    auth.RFIDCardRepository
@@ -465,8 +472,17 @@ func (s *personService) GetStudentByID(ctx context.Context, id int64) (*userMode
 // a row that references the student need it: an unlocked read can be obsolete
 // the moment a grade transition commits.
 func (s *personService) GetStudentByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error) {
-	return s.StudentRepo.FindByIDForUpdate(ctx, id)
+	if s.StudentDirectory == nil {
+		return nil, &UsersError{Op: opLockStudent, Err: errStudentDirectoryUnwired}
+	}
+	student, err := s.StudentDirectory.LockStudent(ctx, id)
+	return student, translateMissingStudent(opLockStudent, err)
 }
+
+// errStudentDirectoryUnwired names a composition graph that reaches a locked
+// child read without the owner behind it. It is a configuration error,
+// reported rather than panicked so it cannot abort a request mid-transaction.
+var errStudentDirectoryUnwired = errors.New("student directory is not configured")
 
 // GetStudentByPersonID retrieves the student record belonging to a person.
 func (s *personService) GetStudentByPersonID(ctx context.Context, personID int64) (*userModels.Student, error) {

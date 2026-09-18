@@ -25,8 +25,6 @@ type StudentDirectoryReader interface {
 // a caller takes before it writes, and the per-tenant photo gate that read
 // pairs with.
 type StudentDirectoryLocker interface {
-	// GetStudent reads one owned row.
-	GetStudent(ctx context.Context, id int64) (*userModels.Student, error)
 	// GetStudentsByID reads the owned rows of the given children.
 	GetStudentsByID(ctx context.Context, ids []int64) ([]*userModels.Student, error)
 	// LockStudent re-reads one owned row and holds its lock for the caller's
