@@ -102,9 +102,19 @@ func (f *OperatorMFAFlows) StartChallenge(ctx context.Context, operatorID int64,
 		return "", domain.ErrMFALocked
 	}
 
+	// The hard cap of three codes per fifteen minutes is an abuse defense,
+	// so a failed count refuses the send instead of waving it through:
+	// ignoring the error meant the cap silently stopped existing exactly
+	// when the database was least healthy.
 	since := f.now().Add(-domain.OperatorMFARateLimitWindow)
 	count, err := f.records.CountChallengesSince(ctx, operatorID, since)
-	if err == nil && count >= domain.OperatorMFARateLimitMaxSent {
+	if err != nil {
+		f.logger.Warn("operator mfa rate-limit lookup failed; refusing to issue a code",
+			slog.Int64("operator_id", operatorID),
+			slog.String("error", err.Error()))
+		return "", domain.ErrMFAStatusUnavailable
+	}
+	if count >= domain.OperatorMFARateLimitMaxSent {
 		return "", domain.ErrMFARateLimited
 	}
 

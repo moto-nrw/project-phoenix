@@ -15,8 +15,9 @@ import (
 )
 
 // The operator second factor moved here with the flows (#3331). These tests
-// pin the three rules a store failure must not bend: an unreadable
-// enrollment refuses the login instead of reading as "not enrolled", a
+// pin the four rules a store failure must not bend: an unreadable
+// enrollment refuses the login instead of reading as "not enrolled", an
+// unreadable send-cap count refuses the code instead of issuing one, a
 // consumption that did not apply refuses the verification instead of minting
 // a second session from one code, and a failed step of the disable cascade
 // rolls the whole cascade back.
@@ -33,6 +34,7 @@ type fakeOperatorMFAStore struct {
 	trustedDevices  []domain.OperatorTrustedDevice
 	challengeCount  int
 	findCredErr     error
+	countErr        error
 	consumeErr      error
 	revokeAllErr    error
 	deleteCredCalls int
@@ -81,6 +83,9 @@ func (s *fakeOperatorMFAStore) FindActiveOperatorMFAChallenge(context.Context, i
 }
 
 func (s *fakeOperatorMFAStore) CountOperatorMFAChallengesSince(context.Context, int64, time.Time) (int, domain.OperationStats, error) {
+	if s.countErr != nil {
+		return 0, domain.OperationStats{}, s.countErr
+	}
 	return s.challengeCount, domain.OperationStats{}, nil
 }
 
@@ -316,6 +321,25 @@ func TestOperatorMFAStartChallengeFailsClosedOnDeliveryFailure(t *testing.T) {
 	assert.Empty(t, token, "a refused delivery must not produce a challenge credential")
 	assert.Zero(t, fixture.store.activateCalls, "the undelivered code must stay unredeemable")
 	assert.Equal(t, 1, fixture.store.challengeCount, "the refused issue still counts toward the cap")
+}
+
+// The rate-limit count is the only statement that fails below; everything
+// else behaves normally, which is the situation the fail-open bug needed to
+// show itself: challenge creation and mail dispatch succeed regardless of
+// whether that count could be read.
+func TestOperatorMFAStartChallengeFailsClosedOnRateLimitLookupFailure(t *testing.T) {
+	t.Parallel()
+
+	operator := domain.Operator{ID: 19, Email: "ops@example.test", DisplayName: "Ops", Active: true}
+	fixture := newOperatorMFAFixture(t, operator, &fakeOperatorMFAStore{countErr: errOperatorMFAStore})
+
+	token, err := fixture.flows.StartChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.9"))
+	require.ErrorIs(t, err, domain.ErrMFAStatusUnavailable,
+		"an unreadable rate-limit count must refuse the code, not wave it through")
+	assert.Empty(t, token, "a refused challenge must not produce a challenge credential")
+	assert.Empty(t, fixture.mail.codes, "a refused challenge sends nothing")
+	assert.Zero(t, fixture.store.challengeCount, "a refused challenge must leave no code behind")
+	assert.Zero(t, fixture.store.activateCalls)
 }
 
 // The hard cap of three codes per window is an abuse defense, not a UX knob.
