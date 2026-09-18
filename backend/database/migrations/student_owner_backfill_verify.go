@@ -140,6 +140,14 @@ const studentOwnerGuardianMismatch = `
 // class_trip counts as excused, matching how the effective absence count reads
 // the two today. The day is a calendar date in the school's timezone, so it is
 // derived from Europe/Berlin rather than from the session's UTC.
+//
+// Sick outranks excused: the effective read is an if/else-if chain, so a child
+// who is sick after the split reaches the excused branch neither before nor
+// after and their excused flag is inert. Nothing about that child is lost, so
+// the excused term only applies while no open sick day covers the day — without
+// that guard a doubly flagged child would be reported although their state is
+// identical on both sides, and an operator would have to clear a flag to
+// satisfy the verifier rather than to correct the data.
 const studentOwnerCareStateMismatch = `
 	SELECT count(*), min(s.updated_at)
 	FROM users.students AS s
@@ -153,7 +161,12 @@ const studentOwnerCareStateMismatch = `
 			SELECT 1 FROM active.student_status_days AS d
 			WHERE d.tenant_id = s.tenant_id AND d.student_id = s.id
 			  AND d.date = (now() AT TIME ZONE 'Europe/Berlin')::date
-			  AND d.cleared_at IS NULL AND d.status IN ('excused', 'class_trip'))))`
+			  AND d.cleared_at IS NULL AND d.status IN ('excused', 'class_trip'))
+			AND NOT EXISTS (
+			SELECT 1 FROM active.student_status_days AS d
+			WHERE d.tenant_id = s.tenant_id AND d.student_id = s.id
+			  AND d.date = (now() AT TIME ZONE 'Europe/Berlin')::date
+			  AND d.cleared_at IS NULL AND d.status = 'sick')))`
 
 // verify compares per-tenant counts, canonical checksums and row-wise
 // mismatches between the old table and the joined targets, reconciles the

@@ -832,6 +832,41 @@ func requireStudentOwnerTargetsEmpty(t *testing.T, db *testpkg.DB) {
 	}
 }
 
+// Nothing stops both legacy flags being raised at once, and the effective
+// absence read is an if/else-if chain in which sick wins. A child who stays
+// sick after the split therefore loses nothing when their excused flag goes,
+// and reporting them would cost an operator a flag cleared purely to satisfy
+// the verifier.
+func TestStudentOwnerBackfillAcceptsInertExcusedFlagUnderSickness(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	tenantID := testpkg.Tenant(t)
+	ids := studentOwnerFixture(t, db, tenantID, 1)
+	_, err := db.ExecContext(ctx, `INSERT INTO active.student_status_days (tenant_id, student_id, date, status, reported_at, source)
+		VALUES (?, ?, (now() AT TIME ZONE 'Europe/Berlin')::date, 'sick', now(), 'manual')`, tenantID, ids[0])
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `UPDATE users.students SET sick = true, sick_since = now(),
+		excused = true, excused_since = now() WHERE id = ?`, ids[0])
+	require.NoError(t, err)
+
+	report, err := RunStudentOwnerBackfill(ctx, db, StudentOwnerBackfillOptions{})
+	require.NoError(t, err)
+	cp := requireStudentOwnerTenantEqual(t, db, report, tenantID)
+	require.Zero(t, cp.CareStateMismatchCount,
+		"the child is sick on both sides of the split, so the excused flag carries no state to lose")
+
+	// Drop the sickness and the excused flag becomes load-bearing again: it is
+	// now the only thing marking the child absent, and it has no status day.
+	_, err = db.ExecContext(ctx, `UPDATE users.students SET sick = false WHERE id = ?`, ids[0])
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `UPDATE active.student_status_days SET cleared_at = now() WHERE student_id = ?`, ids[0])
+	require.NoError(t, err)
+	report, err = RunStudentOwnerBackfill(ctx, db, StudentOwnerBackfillOptions{MaxPasses: 1})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, studentOwnerCheckpoint(t, report, tenantID).CareStateMismatchCount)
+}
+
 // The copy runs as superuser and bypasses every policy it writes through, so
 // the run proves the tenant boundary of its own targets on each pass instead of
 // trusting that Expand's policies are still there.

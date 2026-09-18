@@ -1,7 +1,7 @@
 # Student owner storage Backfill (#2758)
 
-Migration `1.15.394` widens `platform.storage_backfill_checkpoints` with two
-student-specific verdicts and runs the first copy of `users.students` into
+Migration `1.15.394` widens `platform.storage_backfill_checkpoints` with three
+student-specific columns and runs the first copy of `users.students` into
 `users.student_profiles`, `users.student_school_memberships` and
 `users.student_care_profiles`. `users.students` remains the only application
 authority: no caller switches, no trigger, view, or dual write exists, and the
@@ -18,7 +18,8 @@ copies them:
 - `sick`, `sick_since`, `excused` and `excused_since` are superseded by
   `active.student_status_days`. A raised flag is equivalent when an uncleared
   status day for today (Europe/Berlin) carries the matching status
-  (`class_trip` counts as excused); the rest are counted in
+  (`class_trip` counts as excused), or when the flag cannot change the child's
+  state anyway because sickness already outranks it; the rest are counted in
   `care_state_mismatch_count`.
 
 Both are Cutover blockers, so a school reports `stable: true` only once every
@@ -47,13 +48,18 @@ legacy value has an owner and every raised flag has its day.
   retired, and the verification reports a stray retirement as a mismatch.
 - Deadlocks (`40P01`), serialization failures (`40001`), and lock timeouts
   (`55P03`) retry the batch up to five times. A unique-index conflict (`23505`)
-  rewinds the tenant's pass to zero, persisting the rewind first: it happens
-  when a child's enrollment is deleted and recreated between two batches of the
-  same pass, because the new student ID meets the profile of the deleted one on
-  the per-person unique key. Rewinds have their own budget of five per batch.
-  Before rewinding, the same transaction removes tenant profiles whose source
-  row was physically deleted and records their removal count; the membership and
-  care profile follow through the cascade.
+  rewinds the tenant's pass to zero, persisting the rewind first. It means some
+  target profile still claims a person its own source row no longer names:
+  either the enrollment was deleted and recreated between two batches of the
+  same pass, so the new student ID meets the profile of the deleted one, or the
+  person was reassigned to another child. Rewinds have their own budget of five
+  per batch. Before rewinding, the same transaction removes this school's
+  profiles whose source row is gone *or* now names a different person, and
+  records their removal count; the membership and care profile follow through
+  the cascade, and the restarted pass rebuilds all three from the source. The
+  end-of-pass sweep keeps the narrower rule and only removes profiles whose
+  source row is gone: a changed person is normally updated in place, and only a
+  conflict proves that update could not run.
 - A school whose batch fails with any other error is reported and skipped for
   this run; the remaining schools still run, and the command exits non-zero.
 - Rows whose person belongs to another school are rejected, not copied.
@@ -70,6 +76,8 @@ legacy value has an owner and every raised flag has its day.
   verification queries and their checkpoint update share one `REPEATABLE READ`
   transaction with local UTC; `verification_snapshot` identifies that snapshot.
   A tenant is stable when a pass changed nothing and every verification matches.
+  Unstable tenants get another pass, up to `--max-passes` (default 5) per run;
+  at the limit the completed pass and its high-water mark are kept.
 - A separate transaction before that one reads the three targets as
   `phoenix_tenant`, scoped to the school, and fails the pass unless that role
   sees exactly this school's rows and no other school's. The copy runs as
@@ -79,8 +87,6 @@ legacy value has an owner and every raised flag has its day.
   because the role switch would strip that transaction of the grants its
   checkpoint update needs; the count it saw is recorded as
   `rows_visible_to_tenant`.
-  Unstable tenants get another pass, up to `--max-passes` (default 5) per run;
-  at the limit the completed pass and its high-water mark are kept.
 - A run on a tenant whose persisted pass is complete starts a new pass so old
   rows changed since the last verification are re-read. Both target sequences
   are kept above the preserved identities after every run; the hand-over from
@@ -155,6 +161,16 @@ drop. The flags carry no date while the status days do, so a day on an earlier
 date does not cover a flag that still marks the child absent today. Run the
 end-of-day status archiver, which writes the day and clears the flag, or clear
 the flag directly when the child is no longer absent.
+
+Sick outranks excused in the effective absence read, so a child who is sick
+after the split is never reported for their excused flag: that flag is inert on
+both sides and carries no state to lose. Only a flag that would actually change
+the child's state is counted, so no row here is cleared to satisfy the verifier.
+
+Non-active children (`pending`, `inactive`, `alumnus`) are counted the same way
+even though the effective absence read skips them. Their flags still surface in
+the student list projection, so whether that display changes at Cutover belongs
+to #2759's caller switch, not here.
 
 ```sql
 SELECT s.id AS student_id, p.first_name, p.last_name,
@@ -284,7 +300,8 @@ cross-tenant person rejection with the pass limit keeping the high-water mark,
 a mid-pass rejoin unique-conflict restart, a person reassignment between two
 live students that no orphan sweep can clear, unreconciled guardian values and
 stale absence flags with their corrections (including a flag whose only open
-status day is dated yesterday), concurrent run/reset/down exclusion,
+status day is dated yesterday, and an excused flag left inert by an open sick
+day), concurrent run/reset/down exclusion,
 a measured successful lock wait, one coherent UTC verification snapshot,
 two-tenant RLS reads with the checkpoint grant denial, runtime detection of a
 dropped and of a widened tenant policy, index validity and
