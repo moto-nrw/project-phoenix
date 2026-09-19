@@ -2290,6 +2290,72 @@ describe("SupervisionProvider school switch (#3375)", () => {
     });
   });
 
+  it("discards an in-flight response when the session token changes", async () => {
+    await mockUrlTenant(2);
+    let releaseOld: (() => void) | undefined;
+    let releaseNew: (() => void) | undefined;
+    let oldResponseRead = false;
+    let groupRequests = 0;
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/api/groups/context")) {
+        groupRequests += 1;
+        if (groupRequests === 1) {
+          return new Promise((resolve) => {
+            releaseOld = () =>
+              resolve({
+                ok: true,
+                json: async () => {
+                  oldResponseRead = true;
+                  return { groups: [{ id: 2, name: "Alte Sitzung" }] };
+                },
+              });
+          });
+        }
+        return new Promise((resolve) => {
+          releaseNew = () =>
+            resolve({
+              ok: true,
+              json: async () => ({
+                groups: [{ id: 2, name: "Neue Sitzung" }],
+              }),
+            });
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+    });
+    vi.mocked(useSession).mockReturnValue(sessionFor(2, "token-old"));
+
+    const { result, rerender } = renderHook(() => useSupervision(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <SupervisionProvider>{children}</SupervisionProvider>
+      ),
+    });
+    await waitFor(() => expect(releaseOld).toBeDefined());
+
+    vi.mocked(useSession).mockReturnValue(sessionFor(2, "token-new"));
+    rerender();
+
+    await act(async () => {
+      releaseOld?.();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(oldResponseRead).toBe(true);
+      expect(result.current.groups).toEqual([]);
+      expect(releaseNew).toBeDefined();
+    });
+
+    await act(async () => {
+      releaseNew?.();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(result.current.groups[0]?.name).toBe("Neue Sitzung");
+    });
+  });
+
   it("discards an answer of the previous school that arrives late", async () => {
     await mockUrlTenant(2);
     let releaseOld: (() => void) | undefined;

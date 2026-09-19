@@ -723,5 +723,24 @@ describe("TenantGuard", () => {
 
       expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: "/" });
     });
+
+    it("keeps the recovery actions when sign-out fails", async () => {
+      mismatchedSession();
+      mockPerformTenantSwitch.mockRejectedValue(new Error("network down"));
+      mockSignOut.mockRejectedValue(new Error("sign-out failed"));
+
+      renderGuard();
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Neu anmelden" }),
+      );
+
+      await waitFor(() => {
+        expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: "/" });
+      });
+      expect(
+        screen.getByRole("button", { name: "Neu anmelden" }),
+      ).toBeInTheDocument();
+    });
   });
 });

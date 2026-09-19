@@ -325,7 +325,13 @@ export function TenantGuard({
                   type="button"
                   size="md"
                   variant="outline"
-                  onClick={() => void signOut({ callbackUrl: "/" })}
+                  onClick={() => {
+                    void signOut({ callbackUrl: "/" }).catch((err) => {
+                      logger.warn("tenant_relogin_signout_failed", {
+                        error: err instanceof Error ? err.message : String(err),
+                      });
+                    });
+                  }}
                 >
                   Neu anmelden
                 </Button>

@@ -116,6 +116,7 @@ export function SupervisionProvider({
   initial?: SupervisionSnapshot | null;
 }>) {
   const { data: session } = useSession();
+  const sessionToken = session?.user?.token;
 
   const [state, setState] = useState<SupervisionState>(() =>
     initialState(initial),
@@ -134,7 +135,7 @@ export function SupervisionProvider({
   // setting is the single source of truth for whether all rooms are visible;
   // a 403 means this school keeps the caller on their own supervisions, and
   // the staff endpoint answers instead.
-  const tokenRef = useLatest(session?.user?.token);
+  const tokenRef = useLatest(sessionToken);
   const sessionHasEffectiveAdminScope = hasEffectiveAdminScope(session);
 
   // The tenant's configured scope tells us whether asking for the school-wide
@@ -448,6 +449,7 @@ export function SupervisionProvider({
   // load already started.
   const previousSchoolRef = React.useRef({
     sessionTenantId,
+    sessionToken,
     urlTenantId,
     schoolMismatch,
   });
@@ -457,18 +459,22 @@ export function SupervisionProvider({
   const schoolTransitionPending =
     schoolMismatch ||
     previousSchoolRef.current.sessionTenantId !== sessionTenantId ||
+    previousSchoolRef.current.sessionToken !== sessionToken ||
     previousSchoolRef.current.urlTenantId !== urlTenantId;
   useEffect(() => {
     const previous = previousSchoolRef.current;
     previousSchoolRef.current = {
       sessionTenantId,
+      sessionToken,
       urlTenantId,
       schoolMismatch,
     };
-    const schoolChanged = previous.sessionTenantId !== sessionTenantId;
+    const sessionChanged =
+      previous.sessionTenantId !== sessionTenantId ||
+      previous.sessionToken !== sessionToken;
     const urlSchoolChanged = previous.urlTenantId !== urlTenantId;
     if (
-      !schoolChanged &&
+      !sessionChanged &&
       !urlSchoolChanged &&
       previous.schoolMismatch === schoolMismatch
     ) {
@@ -491,7 +497,7 @@ export function SupervisionProvider({
       return;
     }
     void refreshRef.current?.({ silent: true, force: true });
-  }, [sessionTenantId, urlTenantId, schoolMismatch]);
+  }, [sessionTenantId, sessionToken, urlTenantId, schoolMismatch]);
 
   // Initial load and refresh on session changes only
   useEffect(() => {
