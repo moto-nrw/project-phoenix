@@ -60,8 +60,7 @@ type PhaseResponsePortalAccounts interface {
 // PhaseResponseChildren reads the submitted children of a phase. The
 // Enrollment owner implements it.
 type PhaseResponseChildren interface {
-	ChildrenByPhaseStatuses(ctx context.Context, phaseID int64, statuses []string) ([]*enrollmentOwner.RequestChild, error)
-	ChildrenByID(ctx context.Context, ids []int64) ([]*enrollmentOwner.RequestChild, error)
+	PhaseResponseChildren(ctx context.Context, phaseID int64, statuses []string) ([]enrollmentOwner.PhaseResponseChild, error)
 }
 
 // PhaseResponseSources bundles the read ports of the overview.
@@ -208,13 +207,18 @@ type phaseResponseLink struct {
 // once; the earliest submission is the one shown.
 func (s *phaseService) phaseResponseLinks(ctx context.Context, phaseID int64) (answers, waiting map[int64]phaseResponseLink, err error) {
 	statuses := append(append([]string{}, phaseResponseCountedStatuses...), phaseResponseWaitingStatuses...)
-	children, err := s.responses.Children.ChildrenByPhaseStatuses(ctx, phaseID, statuses)
+	phaseChildren, err := s.responses.Children.PhaseResponseChildren(ctx, phaseID, statuses)
 	if err != nil {
 		return nil, nil, fmt.Errorf("phase %d response overview: list children: %w", phaseID, err)
 	}
-	sources, err := s.phaseResponseRolloverSources(ctx, children)
-	if err != nil {
-		return nil, nil, fmt.Errorf("phase %d response overview: list rollover sources: %w", phaseID, err)
+	children := make([]*enrollmentOwner.RequestChild, 0, len(phaseChildren))
+	sources := make(map[int64]*enrollmentOwner.RequestChild)
+	for _, phaseChild := range phaseChildren {
+		if phaseChild.IsPhaseChild {
+			children = append(children, phaseChild.Child)
+			continue
+		}
+		sources[phaseChild.Child.ID] = phaseChild.Child
 	}
 	sort.SliceStable(children, func(i, j int) bool { return children[i].ID < children[j].ID })
 	answers = make(map[int64]phaseResponseLink)
@@ -253,44 +257,6 @@ func phaseResponseCounts(status string) bool {
 		}
 	}
 	return false
-}
-
-func (s *phaseService) phaseResponseRolloverSources(ctx context.Context, children []*enrollmentOwner.RequestChild) (map[int64]*enrollmentOwner.RequestChild, error) {
-	ids := make([]int64, 0)
-	queued := make(map[int64]struct{})
-	for _, child := range children {
-		if child.RolloverSourceChildID != nil && phaseResponsePinnedStudent(child) == 0 {
-			id := *child.RolloverSourceChildID
-			if id > 0 {
-				if _, seen := queued[id]; !seen {
-					queued[id] = struct{}{}
-					ids = append(ids, id)
-				}
-			}
-		}
-	}
-	result := make(map[int64]*enrollmentOwner.RequestChild, len(ids))
-	for len(ids) > 0 {
-		sources, err := s.responses.Children.ChildrenByID(ctx, ids)
-		if err != nil {
-			return nil, err
-		}
-		ids = nil
-		for _, source := range sources {
-			result[source.ID] = source
-			if source.RolloverSourceChildID == nil || phaseResponsePinnedStudent(source) != 0 {
-				continue
-			}
-			id := *source.RolloverSourceChildID
-			if id > 0 {
-				if _, seen := queued[id]; !seen {
-					queued[id] = struct{}{}
-					ids = append(ids, id)
-				}
-			}
-		}
-	}
-	return result, nil
 }
 
 func phaseResponsePinnedStudent(child *enrollmentOwner.RequestChild) int64 {

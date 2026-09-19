@@ -108,9 +108,20 @@ func TestRenewalPhaseAnswersLeaveParentsWithoutAnAnswer(t *testing.T) {
 	// the app but did not. Six parents are seeded; at least one must stay out.
 	answered := map[int]bool{}
 	for _, answer := range renewalPhaseAnswers {
+		if answer.status == "" {
+			continue
+		}
 		assert.False(t, answered[answer.parent], "parent %d answers twice", answer.parent)
 		answered[answer.parent] = true
 	}
 	assert.NotEmpty(t, answered)
 	assert.Less(t, len(answered), 6)
+	assert.False(t, answered[4], "the silent family must not receive a submitted renewal")
+}
+
+func TestSubmitRenewalSkipsAParentWithoutAnswer(t *testing.T) {
+	t.Parallel()
+
+	err := (parentEnrollmentSeedStep{}).submitRenewal(nil, AuthRef{}, 0, ParentCredentials{}, nil, "")
+	require.NoError(t, err)
 }

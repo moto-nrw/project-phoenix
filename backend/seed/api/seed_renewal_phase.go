@@ -41,7 +41,8 @@ func demoStudentBirthday(i int, student DemoStudent) string {
 
 // renewalPhaseAnswers says which of the seeded parents answer the
 // re-enrollment, by position in the parents slice, and what the school did
-// with the answer. The remaining parents have the app and stay silent, and
+// with the answer. "submitted" has no school decision yet. An empty status
+// keeps the family silent. The remaining parents have the app and stay silent, and
 // every other family has no app at all. Together that is each row the response
 // overview (#3379) can show: answered and confirmed, answered and still open,
 // missing but reachable by a Mitteilung, missing and only reachable by phone.
@@ -50,7 +51,7 @@ var renewalPhaseAnswers = []struct {
 	status string
 }{
 	{parent: 0, status: "approved"},
-	{parent: 2},
+	{parent: 2, status: "submitted"},
 	{parent: 4},
 }
 
@@ -64,7 +65,7 @@ func (s parentEnrollmentSeedStep) seedRenewalPhase(rt *Runtime, adminAuth AuthRe
 		return err
 	}
 	for _, answer := range renewalPhaseAnswers {
-		if answer.parent >= len(parents) {
+		if answer.status == "" || answer.parent >= len(parents) {
 			continue
 		}
 		if err := s.submitRenewal(rt, adminAuth, phaseID, parents[answer.parent], parentAuths, answer.status); err != nil {
@@ -135,6 +136,9 @@ func renewalChildFor(rt *Runtime, parent ParentCredentials) (renewalChild, error
 }
 
 func (s parentEnrollmentSeedStep) submitRenewal(rt *Runtime, adminAuth AuthRef, phaseID int64, parent ParentCredentials, parentAuths map[string]AuthRef, status string) error {
+	if status == "" {
+		return nil
+	}
 	child, err := renewalChildFor(rt, parent)
 	if err != nil {
 		return err
@@ -151,7 +155,7 @@ func (s parentEnrollmentSeedStep) submitRenewal(rt *Runtime, adminAuth AuthRef, 
 	if err != nil {
 		return fmt.Errorf("submit renewal for %s: %w", parent.Email, err)
 	}
-	if status == "" {
+	if status == "submitted" {
 		return nil
 	}
 	request, err := parseEnrollmentSubmitResponse(respBody, "parent")

@@ -92,6 +92,62 @@ func (r *Store) ChildrenByID(ctx context.Context, ids []int64) ([]*enrollment.Re
 	}
 	return result, nil
 }
+
+type phaseResponseChildRow struct {
+	requestChildRow
+	IsPhaseChild bool `bun:"is_phase_child"`
+}
+
+// PhaseResponseChildren loads the phase children and every ancestor of their
+// rollover sources in one tenant-scoped query. UNION, rather than UNION ALL,
+// also makes a malformed source cycle terminate safely.
+func (r *Store) PhaseResponseChildren(ctx context.Context, phaseID int64, statuses []string) ([]enrollment.PhaseResponseChild, error) {
+	tenantID, err := r.tenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	db, err := r.resolve(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if phaseID <= 0 {
+		return nil, fmt.Errorf("phase id must be positive")
+	}
+	if len(statuses) == 0 {
+		return nil, nil
+	}
+	var children []phaseResponseChildRow
+	err = db.NewRaw(`
+		WITH RECURSIVE phase_response_children AS (
+			SELECT "request_child".*, TRUE AS is_phase_child
+			FROM enrollment.request_children AS "request_child"
+			INNER JOIN enrollment.requests AS "request"
+				ON "request".id = "request_child".request_id
+				AND "request".tenant_id = "request_child".tenant_id
+			WHERE "request_child".tenant_id = ?
+				AND "request".phase_id = ?
+				AND "request_child".status IN (?)
+			UNION
+			SELECT source.*, FALSE AS is_phase_child
+			FROM enrollment.request_children AS source
+			INNER JOIN phase_response_children AS child
+				ON child.rollover_source_child_id = source.id
+			WHERE source.tenant_id = ?
+		)
+		SELECT * FROM phase_response_children
+	`, tenantID, phaseID, bun.List(statuses), tenantID).Scan(ctx, &children)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list phase response children: %w", err)
+	}
+	result := make([]enrollment.PhaseResponseChild, 0, len(children))
+	for _, child := range children {
+		result = append(result, enrollment.PhaseResponseChild{
+			Child: child.value(), IsPhaseChild: child.IsPhaseChild,
+		})
+	}
+	return result, nil
+}
+
 func (r *Store) ChildrenForRequest(ctx context.Context, requestID int64, forUpdate bool) ([]*enrollment.RequestChild, error) {
 	tenantID, err := r.tenantID(ctx)
 	if err != nil {

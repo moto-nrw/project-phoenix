@@ -100,19 +100,73 @@ func checkPhaseResponseQueryBudget(t *testing.T, api *API) {
 	require.NoError(t, err)
 	staffToken := testutil.MintTestJWT(t, testutil.AdminTestClaimsForTenant(int(staff.ID), testpkg.Tenant(t)))
 
-	addStudents := func(start, count int) {
+	addStudents := func(start, count int) []int64 {
 		t.Helper()
+		ids := make([]int64, 0, count)
 		for index := start; index < start+count; index++ {
-			testpkg.CreateTestStudent(t, db, "Rücklauf", fmt.Sprintf("Budget-%d", index), "1a")
+			student := testpkg.CreateTestStudent(t, db, "Rücklauf", fmt.Sprintf("Budget-%d", index), "1a")
+			ids = append(ids, student.ID)
 		}
+		return ids
 	}
-	addStudents(0, 3)
+	addRolloverChain := func(studentID int64, depth int) {
+		t.Helper()
+		var sourceID *int64
+		for generation := 0; generation < depth; generation++ {
+			var requestID, childID int64
+			err := db.NewRaw(`INSERT INTO enrollment.requests (
+				tenant_id, phase_id, guardian_first_name, guardian_last_name,
+				guardian_email, consent_flags, legal_blocks_snapshot, custom_data,
+				source_metadata, status_token, submitted_at
+			) VALUES (?, ?, 'Rücklauf', 'Quelle', ?, '{}'::jsonb, '[]'::jsonb,
+				'{}'::jsonb, '{}'::jsonb, ?, NOW()) RETURNING id`,
+				testpkg.Tenant(t), phase.ID,
+				fmt.Sprintf("response-source-%d-%d@example.test", studentID, generation),
+				fmt.Sprintf("response-source-%d-%d", studentID, generation),
+			).Scan(context.Background(), &requestID)
+			require.NoError(t, err)
+			err = db.NewRaw(`INSERT INTO enrollment.request_children (
+				tenant_id, request_id, first_name, last_name, date_of_birth, custom_data,
+				status, activation_mode, created_student_id, rollover_source_child_id
+			) VALUES (?, ?, 'Rücklauf', 'Quelle', DATE '2018-04-15', '{}'::jsonb,
+				'withdrawn', 'scheduled', ?, ?) RETURNING id`,
+				testpkg.Tenant(t), requestID, studentID, sourceID,
+			).Scan(context.Background(), &childID)
+			require.NoError(t, err)
+			sourceID = &childID
+		}
+
+		var requestID int64
+		err := db.NewRaw(`INSERT INTO enrollment.requests (
+			tenant_id, phase_id, guardian_first_name, guardian_last_name,
+			guardian_email, consent_flags, legal_blocks_snapshot, custom_data,
+			source_metadata, status_token, submitted_at
+		) VALUES (?, ?, 'Rücklauf', 'Antwort', ?, '{}'::jsonb, '[]'::jsonb,
+			'{}'::jsonb, '{}'::jsonb, ?, NOW()) RETURNING id`,
+			testpkg.Tenant(t), phase.ID,
+			fmt.Sprintf("response-answer-%d@example.test", studentID),
+			fmt.Sprintf("response-answer-%d", studentID),
+		).Scan(context.Background(), &requestID)
+		require.NoError(t, err)
+		_, err = db.NewRaw(`INSERT INTO enrollment.request_children (
+			tenant_id, request_id, first_name, last_name, date_of_birth, custom_data,
+			status, activation_mode, rollover_source_child_id
+		) VALUES (?, ?, 'Rücklauf', 'Antwort', DATE '2018-04-15', '{}'::jsonb,
+			'submitted', 'scheduled', ?)`,
+			testpkg.Tenant(t), requestID, sourceID,
+		).Exec(context.Background())
+		require.NoError(t, err)
+	}
+
+	smallStudents := addStudents(0, 3)
+	addRolloverChain(smallStudents[0], 1)
 
 	counter := testpkg.CaptureQueries(t, api.db)
 	type queryRun struct {
-		total    []string
-		overview []string
-		settings []string
+		total     []string
+		overview  []string
+		settings  []string
+		responded int
 	}
 	run := func() queryRun {
 		counter.Reset()
@@ -122,22 +176,43 @@ func checkPhaseResponseQueryBudget(t *testing.T, api *API) {
 			Authenticated: true,
 		}, staffToken)
 		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+		var payload struct {
+			Data struct {
+				Responded int `json:"responded"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(response.Body.Bytes(), &payload))
 		return queryRun{
-			total:    counter.Queries(),
-			overview: counter.Matching(func(query string) bool { return !strings.Contains(query, "setting_values") }),
-			settings: counter.Selects("config.setting_values"),
+			total:     counter.Queries(),
+			overview:  counter.Matching(func(query string) bool { return !strings.Contains(query, "setting_values") }),
+			settings:  counter.Selects("config.setting_values"),
+			responded: payload.Data.Responded,
 		}
 	}
 
 	small := run()
-	addStudents(3, 5)
+	largeStudents := addStudents(3, 5)
+	addRolloverChain(largeStudents[0], 4)
 	large := run()
 
 	t.Logf("query budget: 3 children → %d statements, 8 children → %d statements", len(small.total), len(large.total))
 	require.NotEmpty(t, small.total, "the production router query counter must observe the response endpoint")
 	require.Equal(t, len(small.total), len(large.total), "response overview queries must not grow with the roster")
+	require.Equal(t, 1, small.responded, "the shallow rollover chain must resolve to its original child")
+	require.Equal(t, 2, large.responded, "the deeper rollover chain must resolve to its original child")
 	require.Len(t, small.settings, 1, "the route must resolve its settings once")
 	require.Len(t, large.settings, 1, "the route must resolve its settings once")
+	countRolloverSourceQueries := func(queries []string) int {
+		count := 0
+		for _, query := range queries {
+			if strings.Contains(query, "WITH RECURSIVE phase_response_children") {
+				count++
+			}
+		}
+		return count
+	}
+	require.Equal(t, 1, countRolloverSourceQueries(small.overview), "the shallow rollover chain must use one source query")
+	require.Equal(t, 1, countRolloverSourceQueries(large.overview), "a deeper rollover chain must not add source queries")
 	testpkg.AssertQueryBudget(t, "api.enrollment.phase_responses.list", large.overview)
 }
 

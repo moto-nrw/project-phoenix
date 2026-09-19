@@ -28,23 +28,35 @@ func (o responsePhaseOwner) Phase(context.Context, int64) (*enrollmentOwner.Phas
 }
 
 type responseChildren struct {
-	byPhase  []*enrollmentOwner.RequestChild
-	byID     map[int64]*enrollmentOwner.RequestChild
-	statuses []string
-	idCalls  int
+	byPhase    []*enrollmentOwner.RequestChild
+	byID       map[int64]*enrollmentOwner.RequestChild
+	statuses   []string
+	phaseCalls int
 }
 
-func (c *responseChildren) ChildrenByPhaseStatuses(_ context.Context, _ int64, statuses []string) ([]*enrollmentOwner.RequestChild, error) {
+func (c *responseChildren) PhaseResponseChildren(_ context.Context, _ int64, statuses []string) ([]enrollmentOwner.PhaseResponseChild, error) {
 	c.statuses = statuses
-	return c.byPhase, nil
-}
-
-func (c *responseChildren) ChildrenByID(_ context.Context, ids []int64) ([]*enrollmentOwner.RequestChild, error) {
-	c.idCalls++
-	result := make([]*enrollmentOwner.RequestChild, 0, len(ids))
-	for _, id := range ids {
-		if child, ok := c.byID[id]; ok {
-			result = append(result, child)
+	c.phaseCalls++
+	result := make([]enrollmentOwner.PhaseResponseChild, 0, len(c.byPhase)+len(c.byID))
+	for _, child := range c.byPhase {
+		result = append(result, enrollmentOwner.PhaseResponseChild{Child: child, IsPhaseChild: true})
+	}
+	seen := make(map[int64]struct{})
+	for _, phaseChild := range c.byPhase {
+		id := int64(0)
+		if phaseChild.RolloverSourceChildID != nil {
+			id = *phaseChild.RolloverSourceChildID
+		}
+		for child, ok := c.byID[id]; ok && child != nil; {
+			if _, repeated := seen[child.ID]; repeated {
+				break
+			}
+			seen[child.ID] = struct{}{}
+			result = append(result, enrollmentOwner.PhaseResponseChild{Child: child})
+			if child.RolloverSourceChildID == nil {
+				break
+			}
+			child, ok = c.byID[*child.RolloverSourceChildID]
 		}
 	}
 	return result, nil
@@ -215,7 +227,7 @@ func TestResponseOverview_OpenRolloverRowIsNoAnswerButIsLinked(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2, overview.Expected)
 	assert.Equal(t, 1, overview.Responded)
-	assert.Equal(t, 1, children.idCalls, "rollover sources are read in one call")
+	assert.Equal(t, 1, children.phaseCalls, "phase children and rollover sources are read together")
 
 	waiting := overview.Rows[0]
 	assert.Equal(t, int64(1), waiting.StudentID)
@@ -246,7 +258,7 @@ func TestResponseOverview_ResolvesMultiGenerationRolloverSources(t *testing.T) {
 	assert.Equal(t, 1, overview.Responded)
 	require.Len(t, overview.Rows, 1)
 	assert.True(t, overview.Rows[0].Responded)
-	assert.Equal(t, 2, children.idCalls, "each rollover generation is loaded in one batch")
+	assert.Equal(t, 1, children.phaseCalls, "the complete rollover chain is loaded in one call")
 }
 
 func TestResponseOverview_SeveralSubmissionsCountOnceAndShowTheFirst(t *testing.T) {
