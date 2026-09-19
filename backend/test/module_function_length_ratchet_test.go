@@ -255,7 +255,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/timetable/legacy/timetableplanning/instance_series_conversion.go:(*TimetableDataService).templateAssignmentsOn":              61,
 	"modules/timetable/legacy/timetableplanning/instance_series_conversion.go:(*instanceSeriesConversionService).ConvertInstanceToSeries": 92,
 	"modules/timetable/legacy/timetableplanning/instance_service.go:(*instanceService).Cancel":                                            108,
-	"modules/timetable/legacy/timetableplanning/instance_service.go:(*instanceService).Complete":                                          180,
+	"modules/timetable/legacy/timetableplanning/instance_service.go:(*instanceService).Complete":                                          178,
 	"modules/timetable/legacy/timetableplanning/instance_service.go:(*instanceService).Reopen":                                            68,
 	"modules/timetable/legacy/timetableplanning/instance_service.go:(*instanceService).ReplanWeek":                                        101,
 	"modules/timetable/legacy/timetableplanning/instance_service.go:(*instanceService).Start":                                             153,

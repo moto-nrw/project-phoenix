@@ -75,6 +75,18 @@ type ActivityInstance struct {
 	CompletionSnapshot     json.RawMessage `bun:"completion_snapshot,type:jsonb" json:"-"`
 }
 
+// MarkCompleted applies the persisted lifecycle state after the live session
+// has ended. completedAt is supplied by the persistence layer because it is
+// also the baseline for detecting later recovery conflicts.
+func (i *ActivityInstance) MarkCompleted(completedAt, reopenUntil time.Time, completedBy int64) {
+	i.Status = InstanceStatusCompleted
+	i.CompletedAt = &completedAt
+	i.ReopenUntil = &reopenUntil
+	if completedBy > 0 {
+		i.CompletedBy = &completedBy
+	}
+}
+
 type CompletionAttendanceSnapshot struct {
 	RowID              int64      `json:"row_id"`
 	Status             string     `json:"status"`

@@ -996,19 +996,8 @@ func (s *instanceService) Complete(ctx context.Context, instanceID int64) (*sche
 	if err != nil {
 		return nil, &ScheduleError{Op: "complete instance: read transaction timestamp", Err: err}
 	}
-	// The reopen window follows the service clock so lifecycle time-policy
-	// tests and the operator-visible five-minute window retain their existing
-	// semantics. completed_at instead shares PostgreSQL's transaction clock
-	// with the update triggers on the attendance and supervisor rows. Reopen
-	// can therefore distinguish later edits from the writes made by Complete.
-	reopenUntil := s.now().Add(5 * time.Minute)
-	instance.Status = scheduleModel.InstanceStatusCompleted
-	instance.CompletedAt = &completedAt
-	instance.ReopenUntil = &reopenUntil
 	completedByAccountID, _ := ctx.Value(lifecycleActorKey).(int64)
-	if completedByAccountID > 0 {
-		instance.CompletedBy = ptrTo(completedByAccountID)
-	}
+	instance.MarkCompleted(completedAt, s.now().Add(5*time.Minute), completedByAccountID)
 	if err := s.updateLifecycleColumns(ctx, instance, "status", "completed_at", "completed_by", "reopen_until", "completion_snapshot"); err != nil {
 		return nil, &ScheduleError{Op: "complete instance: update", Err: err}
 	}
