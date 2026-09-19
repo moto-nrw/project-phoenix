@@ -2077,11 +2077,11 @@ describe("SupervisionProvider school switch (#3375)", () => {
     } as unknown as ReturnType<typeof useSession>;
   }
 
-  async function mockUrlTenant(tenantId: number) {
+  async function mockUrlTenant(tenantId: number | null) {
     const tenantContext = await import("~/lib/tenant-context");
     vi.mocked(tenantContext.useTenantSafe).mockReturnValue({
       tenantSlug: "school-b",
-      tenant: { tenantId },
+      tenant: tenantId === null ? null : { tenantId },
     } as unknown as ReturnType<typeof tenantContext.useTenantSafe>);
   }
 
@@ -2149,6 +2149,38 @@ describe("SupervisionProvider school switch (#3375)", () => {
       expect(result.current.groups[0]?.name).toBe("Schule 3");
     });
     expect(groupsCalls()).toBe(2);
+  });
+
+  it("reloads a server snapshot when the resolved URL school changes", async () => {
+    await mockUrlTenant(null);
+    setupFetchMock({ groups: { groups: [{ id: 2, name: "Schule 2" }] } });
+    vi.mocked(useSession).mockReturnValue(sessionFor(2, "token-2"));
+
+    const { result, rerender } = renderHook(() => useSupervision(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <SupervisionProvider
+          initial={{
+            groups: [{ id: "1", name: "Schule 1" }],
+            supervised: [],
+            openRooms: [],
+            overviewOk: false,
+          }}
+        >
+          {children}
+        </SupervisionProvider>
+      ),
+    });
+
+    expect(result.current.groups[0]?.name).toBe("Schule 1");
+    expect(groupsCalls()).toBe(0);
+
+    await mockUrlTenant(2);
+    rerender();
+
+    await waitFor(() => {
+      expect(result.current.groups[0]?.name).toBe("Schule 2");
+    });
+    expect(groupsCalls()).toBe(1);
   });
 
   it("discards an answer of the previous school that arrives late", async () => {

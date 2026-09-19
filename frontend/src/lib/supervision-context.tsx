@@ -440,20 +440,36 @@ export function SupervisionProvider({
     void refreshRef.current?.({ silent: true, force: true });
   }, [overviewScope]);
 
-  // The session moved to another school, or started/stopped matching the URL
-  // (#3375). The token effect below cannot cover this: its load is throttled
-  // away when the switch follows the first load within five seconds, and the
-  // other school's groups then stay until the five-minute resync. Declared
-  // before the token effect so that one finds the load already started.
-  const previousSchoolRef = React.useRef({ sessionTenantId, schoolMismatch });
+  // The session moved to another school, the URL school changed, or the two
+  // started/stopped matching (#3375). The token effect below cannot cover
+  // this: its load is throttled away when the switch follows the first load
+  // within five seconds, and the other school's groups then stay until the
+  // five-minute resync. Declared before the token effect so that one finds the
+  // load already started.
+  const previousSchoolRef = React.useRef({
+    sessionTenantId,
+    urlTenantId,
+    schoolMismatch,
+  });
   useEffect(() => {
     const previous = previousSchoolRef.current;
-    previousSchoolRef.current = { sessionTenantId, schoolMismatch };
+    previousSchoolRef.current = {
+      sessionTenantId,
+      urlTenantId,
+      schoolMismatch,
+    };
     const schoolChanged =
       previous.sessionTenantId !== undefined &&
       sessionTenantId !== undefined &&
       previous.sessionTenantId !== sessionTenantId;
-    if (!schoolChanged && previous.schoolMismatch === schoolMismatch) return;
+    const urlSchoolChanged = previous.urlTenantId !== urlTenantId;
+    if (
+      !schoolChanged &&
+      !urlSchoolChanged &&
+      previous.schoolMismatch === schoolMismatch
+    ) {
+      return;
+    }
 
     schoolGenerationRef.current += 1;
     setState((s) => ({
@@ -471,7 +487,7 @@ export function SupervisionProvider({
       return;
     }
     void refreshRef.current?.({ silent: true, force: true });
-  }, [sessionTenantId, schoolMismatch]);
+  }, [sessionTenantId, urlTenantId, schoolMismatch]);
 
   // Initial load and refresh on session changes only
   useEffect(() => {

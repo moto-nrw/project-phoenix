@@ -65,7 +65,7 @@ export function TenantGuard({
   const sessionScope = session?.user?.scope;
   const sessionToken = session?.user?.token;
   const sessionError = session?.error;
-  const urlTenantId = tenant?.tenantId;
+  const urlTenantId = tenant?.tenantId ?? null;
   const urlSlug = tenant?.slug;
   // The backend resolves switch targets by subdomain, not by the slug
   // column — the two can differ (#1975).
