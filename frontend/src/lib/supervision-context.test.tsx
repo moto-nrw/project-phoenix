@@ -2079,14 +2079,30 @@ describe("SupervisionProvider school switch (#3375)", () => {
 
   async function mockUrlTenant(
     tenantId: number | null,
-    tenantSlug = "school-b",
-    tenantSubdomain = tenantSlug,
+    {
+      tenantSlug = "school-b",
+      tenantSubdomain = tenantSlug,
+      resolvedTenantSlug = tenantSlug,
+      routingMode = "subdomain",
+    }: {
+      tenantSlug?: string;
+      tenantSubdomain?: string;
+      resolvedTenantSlug?: string;
+      routingMode?: "path" | "subdomain";
+    } = {},
   ) {
     const tenantContext = await import("~/lib/tenant-context");
     vi.mocked(tenantContext.useTenantSafe).mockReturnValue({
       tenantSlug,
+      routingMode,
       tenant:
-        tenantId === null ? null : { tenantId, subdomain: tenantSubdomain },
+        tenantId === null
+          ? null
+          : {
+              tenantId,
+              slug: resolvedTenantSlug,
+              subdomain: tenantSubdomain,
+            },
     } as unknown as ReturnType<typeof tenantContext.useTenantSafe>);
   }
 
@@ -2189,7 +2205,7 @@ describe("SupervisionProvider school switch (#3375)", () => {
   });
 
   it("masks a server snapshot while URL tenant metadata is still stale", async () => {
-    await mockUrlTenant(2, "school-a");
+    await mockUrlTenant(2, { tenantSlug: "school-a" });
     setupFetchMock({ groups: { groups: [{ id: 1, name: "Schule A" }] } });
     vi.mocked(useSession).mockReturnValue(sessionFor(2, "token-2"));
 
@@ -2212,7 +2228,10 @@ describe("SupervisionProvider school switch (#3375)", () => {
 
     // The URL has already changed, but TenantProvider has not resolved the
     // new school yet and still exposes the metadata for school A.
-    await mockUrlTenant(2, "school-b", "school-a");
+    await mockUrlTenant(2, {
+      tenantSlug: "school-b",
+      tenantSubdomain: "school-a",
+    });
     rerender();
 
     expect(result.current.groups).toEqual([]);
@@ -2221,6 +2240,30 @@ describe("SupervisionProvider school switch (#3375)", () => {
       await Promise.resolve();
     });
     expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("loads supervision for a path tenant whose slug differs from its subdomain", async () => {
+    await mockUrlTenant(2, {
+      tenantSlug: "schule-im-pfad",
+      tenantSubdomain: "schule-unterdomain",
+      routingMode: "path",
+    });
+    setupFetchMock({
+      groups: { groups: [{ id: 2, name: "Schule im Pfad" }] },
+      supervised: { data: [] },
+    });
+    vi.mocked(useSession).mockReturnValue(sessionFor(2, "token-2"));
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <SupervisionProvider>{children}</SupervisionProvider>
+      ),
+    });
+
+    await waitFor(() => {
+      expect(result.current.groups[0]?.name).toBe("Schule im Pfad");
+      expect(result.current.isLoadingSupervision).toBe(false);
+    });
   });
 
   it("does not expose a server snapshot while the session catches up", async () => {

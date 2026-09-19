@@ -194,14 +194,19 @@ export function SupervisionProvider({
   // under way when the school changed.
   const tenantContext = useTenantSafe();
   const sessionTenantId = session?.user?.tenantId;
-  const urlTenantSubdomain = tenantContext?.tenantSlug;
+  const urlTenantSlug = tenantContext?.tenantSlug;
+  const urlTenantRoutingMode = tenantContext?.routingMode;
   const urlTenantId = tenantContext?.tenant?.tenantId;
   // TenantProvider keeps the previous metadata until the new URL has been
-  // resolved. The URL segment is the subdomain, whereas `slug` may identify
-  // the organisation and legitimately differ (#1975).
+  // resolved. Path routing uses the tenant slug, while subdomain routing uses
+  // the subdomain; both identifiers can legitimately differ (#1975).
+  const resolvedUrlTenantIdentifier =
+    urlTenantRoutingMode === "subdomain"
+      ? tenantContext?.tenant?.subdomain
+      : tenantContext?.tenant?.slug;
   const tenantMetadataMismatch =
     tenantContext?.tenant != null &&
-    tenantContext.tenant.subdomain !== urlTenantSubdomain;
+    resolvedUrlTenantIdentifier !== urlTenantSlug;
   const schoolMismatch =
     sessionTenantId !== undefined &&
     urlTenantId !== undefined &&
@@ -459,7 +464,8 @@ export function SupervisionProvider({
   const previousSchoolRef = React.useRef({
     sessionTenantId,
     sessionToken,
-    urlTenantSubdomain,
+    urlTenantSlug,
+    urlTenantRoutingMode,
     urlTenantId,
     tenantMetadataMismatch,
     schoolMismatch,
@@ -470,14 +476,16 @@ export function SupervisionProvider({
   const schoolTransitionPending =
     schoolDataPending ||
     previousSchoolRef.current.sessionTenantId !== sessionTenantId ||
-    previousSchoolRef.current.urlTenantSubdomain !== urlTenantSubdomain ||
+    previousSchoolRef.current.urlTenantSlug !== urlTenantSlug ||
+    previousSchoolRef.current.urlTenantRoutingMode !== urlTenantRoutingMode ||
     previousSchoolRef.current.urlTenantId !== urlTenantId;
   useEffect(() => {
     const previous = previousSchoolRef.current;
     previousSchoolRef.current = {
       sessionTenantId,
       sessionToken,
-      urlTenantSubdomain,
+      urlTenantSlug,
+      urlTenantRoutingMode,
       urlTenantId,
       tenantMetadataMismatch,
       schoolMismatch,
@@ -487,12 +495,14 @@ export function SupervisionProvider({
       previous.sessionToken !== sessionToken;
     const schoolIdentityChanged =
       previous.sessionTenantId !== sessionTenantId ||
-      previous.urlTenantSubdomain !== urlTenantSubdomain ||
+      previous.urlTenantSlug !== urlTenantSlug ||
+      previous.urlTenantRoutingMode !== urlTenantRoutingMode ||
       previous.urlTenantId !== urlTenantId ||
       previous.tenantMetadataMismatch !== tenantMetadataMismatch ||
       previous.schoolMismatch !== schoolMismatch;
     const urlSchoolChanged =
-      previous.urlTenantSubdomain !== urlTenantSubdomain ||
+      previous.urlTenantSlug !== urlTenantSlug ||
+      previous.urlTenantRoutingMode !== urlTenantRoutingMode ||
       previous.urlTenantId !== urlTenantId;
     if (
       !sessionChanged &&
@@ -530,7 +540,8 @@ export function SupervisionProvider({
   }, [
     sessionTenantId,
     sessionToken,
-    urlTenantSubdomain,
+    urlTenantSlug,
+    urlTenantRoutingMode,
     urlTenantId,
     tenantMetadataMismatch,
     schoolMismatch,
