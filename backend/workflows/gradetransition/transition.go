@@ -209,13 +209,6 @@ type Directory interface {
 	ListSchoolClasses(context.Context) ([]string, error)
 	ListStudentNamesByID(context.Context, []int64) ([]peopledirectory.StudentName, error)
 	ReadEnrollmentStudent(context.Context, int64, string) (peopledirectory.EnrollmentRecord, error)
-	// LockEnrollmentClassWritesExclusive is the tenant-wide class-writes gate,
-	// the FIRST lock of an apply or revert.
-	LockEnrollmentClassWritesExclusive(context.Context) error
-	PromoteStudents(ctx context.Context, ids []int64, fromClass, toClass string) (int64, error)
-	RevertStudentClass(ctx context.Context, id int64, fromClass, toClass string) (int64, error)
-	GraduateStudents(context.Context, []int64) (int64, error)
-	ReactivateStudents(ctx context.Context, ids []int64, status string) ([]int64, error)
 	ReleaseTags(context.Context, []int64) ([]peopledirectory.ReleasedTag, error)
 	RestoreTag(context.Context, int64, string) (bool, error)
 }
@@ -223,6 +216,11 @@ type Directory interface {
 // Membership is the School Membership port: class-teacher assignments,
 // class-list entries and the staff liveness the revert consults.
 type Membership interface {
+	// The tenant-wide class-writes gate is acquired before any row lock.
+	LockStudentClassWrites(context.Context, bool) error
+	Graduate(context.Context, []int64) (int64, error)
+	Reactivate(context.Context, []int64, string) ([]int64, error)
+	ChangeClass(context.Context, []int64, string, string) (int64, error)
 	ListClassAssignments(context.Context, schoolmembership.ClassAssignmentFilter) ([]schoolmembership.ClassAssignment, error)
 	CreateClassAssignment(context.Context, schoolmembership.CreateClassAssignment) (schoolmembership.ClassAssignment, error)
 	DeleteClassAssignment(context.Context, int64) error

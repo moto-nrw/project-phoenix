@@ -25,8 +25,10 @@ type Observation = ports.Observation
 type GuardianMembershipQuery func(context.Context) *bun.SelectQuery
 
 type Dependencies struct {
-	DB      *bun.DB
-	Observe func(Observation)
+	StudentOwners              StudentOwners
+	StudentClassWriteGateQuery func(context.Context) (*bun.SelectQuery, error)
+	DB                         *bun.DB
+	Observe                    func(Observation)
 	// StudentFieldAudit is the Audit Platform seam behind the per-child
 	// change history. Optional: without it the change-history capability
 	// reports that it is not configured, which is what graphs that never
@@ -91,7 +93,8 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships, activeAc
 	if dependencies.StudentCompanions != nil {
 		companions = studentCompanions{seam: dependencies.StudentCompanions}
 	}
-	students := application.NewStudents(postgres.NewStudentStore(database), companions, transaction{}, observe)
+	owners := studentOwners{owners: dependencies.StudentOwners}
+	students := application.NewStudents(postgres.NewStudentStore(database, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery), companions, owners, transaction{}, observe)
 	guardians := application.NewGuardians(postgres.NewGuardianStore(database, postgres.MembershipQuery(memberships), postgres.MembershipQuery(activeAccounts), postgres.MembershipQuery(guardianRoles)), transaction{}, observe)
 	var auditLog ports.StudentFieldAuditLog
 	if dependencies.StudentFieldAudit != nil {
@@ -109,7 +112,7 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships, activeAc
 		now = time.Now
 	}
 	studentPhotos := application.NewStudentPhotos(
-		postgres.NewStudentStore(database), photoRuntime, transaction{}, observe, now)
+		postgres.NewStudentStore(database, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery), photoRuntime, transaction{}, observe, now)
 	return peopledirectory.NewModule(engine{
 		service: service, students: students, guardians: guardians,
 		studentAudit: studentAudit, studentConsents: studentConsents,

@@ -55,7 +55,7 @@ func newCareLifecycleServiceWithLockAt(
 	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	return carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
-		StudentRepo:           repos.Student,
+		StudentRepo:           repositories.NewCareStudents(repos.Student, repos.SchoolMembership()),
 		PersonRepo:            repos.Person,
 		CareExitRepo:          repos.CareExit,
 		CleanupRepo:           repos.CareExitCleanup,

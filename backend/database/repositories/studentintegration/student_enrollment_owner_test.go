@@ -1,11 +1,16 @@
-package compose
+package studentintegration_test
 
 import (
 	"context"
 	"errors"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -14,7 +19,7 @@ import (
 func TestEnrollmentStudentCommandsPreserveTenantAndRollback(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module := buildModule(t, db)
+	module := buildStudentOwnersModule(t, db)
 	ctx := testpkg.Ctx(t)
 	person, err := module.CreatePerson(ctx, peopledirectory.CreatePerson{FirstName: "Anna", LastName: "Enrollment"})
 	require.NoError(t, err)
@@ -78,10 +83,42 @@ func TestEnrollmentStudentCommandsPreserveTenantAndRollback(t *testing.T) {
 	require.Equal(t, extra, storedExtra, "profile writes must roll back with the outer workflow")
 }
 
+func TestEnrollmentInitialProfileReachesAllOwners(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildStudentOwnersModule(t, db)
+	ctx := testpkg.Ctx(t)
+	person := testpkg.CreateTestPerson(t, db, "Initial", "Profile")
+	group := testpkg.CreateTestEducationGroup(t, db, "Initial profile group")
+	extra, health, street := "directory note", "care note", "Schulstraße 1"
+	created, err := module.CreateEnrollmentStudent(ctx, peopledirectory.EnrollmentStudent{
+		PersonID: person.ID, SchoolClass: "1a", Status: "active",
+		InitialProfile: &peopledirectory.EnrollmentProfilePatch{
+			ExtraInfoSet: true, ExtraInfo: &extra, HealthInfoSet: true, HealthInfo: &health,
+			AddressSet: true, AddressStreet: &street, GroupIDSet: true, GroupID: &group.ID,
+			DepartureSet: true, AllowedDepartureModes: map[string][]string{"tue": {"bus"}},
+		},
+	})
+	require.NoError(t, err)
+	record, err := module.FindStudentRecord(ctx, created.ID)
+	require.NoError(t, err)
+	require.Equal(t, &extra, record.ExtraInfo)
+	require.Equal(t, &health, record.HealthInfo)
+	require.Equal(t, &street, record.AddressStreet)
+	require.Equal(t, &group.ID, record.GroupID)
+	var modes string
+	require.NoError(t, db.NewRaw(`SELECT care.allowed_departure_modes::text
+		FROM users.student_care_profiles care
+		JOIN users.student_school_memberships membership ON membership.id = care.membership_id
+		WHERE membership.tenant_id = ? AND membership.student_profile_id = ? AND membership.deleted_at IS NULL`,
+		testpkg.Tenant(t), created.ID).Scan(ctx, &modes))
+	require.JSONEq(t, `{"tue":["bus"]}`, modes)
+}
+
 func TestEnrollmentDepartureMirrorsAndRollback(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module := buildModule(t, db)
+	module := buildStudentOwnersModule(t, db)
 	ctx := testpkg.Ctx(t)
 	person, err := module.CreatePerson(ctx, peopledirectory.CreatePerson{FirstName: "Cara", LastName: "Departure"})
 	require.NoError(t, err)
@@ -132,4 +169,29 @@ func TestEnrollmentDepartureMirrorsAndRollback(t *testing.T) {
 	require.Equal(t, "Geht alleine nach Hause", status)
 	require.Nil(t, storedNote, "an orphan note must be removed")
 	require.JSONEq(t, "{}", allowed)
+}
+
+func buildStudentOwnersModule(t *testing.T, db *bun.DB, observations ...func(peopleCompose.Observation)) peopledirectory.Capability {
+	t.Helper()
+	observe := func(peopleCompose.Observation) {}
+	if len(observations) > 0 {
+		observe = observations[0]
+	}
+	module, _, err := repositories.NewPeopleDirectoryWithPhotosAndObserver(db, observe)
+	require.NoError(t, err)
+	return module
+}
+
+func buildStudentMembership(t *testing.T, db *bun.DB) schoolmembership.Capability {
+	t.Helper()
+	membership, err := repositories.NewSchoolMembership(db)
+	require.NoError(t, err)
+	return membership
+}
+
+func otherTenantContext(t *testing.T, db *bun.DB) (context.Context, int64) {
+	t.Helper()
+	id := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, id)
+	return tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), id), id
 }

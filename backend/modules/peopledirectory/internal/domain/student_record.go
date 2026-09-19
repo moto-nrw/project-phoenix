@@ -9,6 +9,7 @@ import (
 // The weekday plans of a child, re-exported so the persistence adapter reads
 // and writes them without reaching past this package into the contract.
 type (
+	DepartureMode         = departure.DepartureMode
 	DepartureDays         = departure.DepartureDays
 	AllowedDepartureModes = departure.AllowedDepartureModes
 	PickupDays            = departure.PickupDays

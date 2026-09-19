@@ -11,8 +11,26 @@ import (
 // recordingEngine captures what the module hands to persistence so the
 // validation and normalisation the facade owns can be asserted without a
 // database.
+func (e *recordingEngine) ChangeStudentClass(_ context.Context, ids []int64, from, to string) (int64, error) {
+	e.calls++
+	e.studentIDs, e.fromClass, e.toClass = ids, from, to
+	return 0, nil
+}
+
+func (e *recordingEngine) ResumeStudentCare(ctx context.Context, id int64, from, status, on string) (bool, error) {
+	return false, nil
+}
+
+func (e *recordingEngine) EndStudentCare(ctx context.Context, ids []int64, until string) (int64, error) {
+	return 0, nil
+}
+
 type recordingEngine struct {
-	calls int
+	calls         int
+	studentIDs    []int64
+	fromClass     string
+	toClass       string
+	studentStatus string
 
 	staffLock     string
 	createdStaff  schoolmembership.CreateStaff
@@ -40,6 +58,20 @@ type recordingEngine struct {
 	revisedEntry  schoolmembership.ReviseClassListEntry
 	removedEntry  schoolmembership.RemoveClassListEntry
 	resolvedEntry schoolmembership.ResolveClassListEntry
+}
+
+func (e *recordingEngine) LockStudentClassWrites(context.Context, bool) error { return nil }
+
+func (e *recordingEngine) GraduateStudents(_ context.Context, ids []int64) (int64, error) {
+	e.calls++
+	e.studentIDs = ids
+	return 0, nil
+}
+
+func (e *recordingEngine) ReactivateStudents(_ context.Context, ids []int64, status string) ([]int64, error) {
+	e.calls++
+	e.studentIDs, e.studentStatus = ids, status
+	return nil, nil
 }
 
 func (e *recordingEngine) FindStaff(_ context.Context, _ int64, lock string) (schoolmembership.Staff, error) {

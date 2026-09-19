@@ -1127,7 +1127,7 @@ func newFactory(
 		StudentStatusRepo:        repos.StudentStatusDay,
 		CrossTenantRepo:          repos.CrossTenant,
 		Schools:                  newActiveSchoolQuery(organizations),
-		StudentRepo:              PresenceStudents(repos.Student),
+		StudentRepo:              PresenceStudents(db, repos.Student),
 		StaffRepo:                NewAttendanceStaffDirectory(repos.Staff),
 		RoomRepo:                 NewAttendanceRooms(repos.Room),
 		YardRoomColor:            yardRoomColorQuery(rooms),
@@ -1958,7 +1958,7 @@ func newFactory(
 
 	studentAuditService := users.NewStudentAuditService(repositories.NewStudentAuditFor(persons))
 	careLifecycleService := carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
-		StudentRepo:    repos.Student,
+		StudentRepo:    repositories.NewCareStudents(repos.Student, membership),
 		PersonRepo:     repos.Person,
 		CareExitRepo:   repos.CareExit,
 		CleanupRepo:    repos.CareExitCleanup,

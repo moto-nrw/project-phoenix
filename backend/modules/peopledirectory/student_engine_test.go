@@ -19,11 +19,6 @@ func (e *recordingEngine) LockEnrollmentClassWrites(context.Context) error {
 	return nil
 }
 
-func (e *recordingEngine) LockEnrollmentClassWritesExclusive(context.Context) error {
-	e.calls++
-	return nil
-}
-
 func (e *recordingEngine) CurrentFamilyProtection(context.Context, []int64) (map[int64]bool, error) {
 	e.calls++
 	return map[int64]bool{}, nil
@@ -76,9 +71,6 @@ func (e *recordingEngine) ApplyEnrollmentProfile(context.Context, int64, enrollm
 type studentCall struct {
 	ids     []int64
 	classes []string
-	from    string
-	to      string
-	status  string
 }
 
 func (e *recordingEngine) CreateEnrollmentStudent(_ context.Context, input peopledirectory.EnrollmentStudent) (peopledirectory.CreatedEnrollmentStudent, error) {
@@ -136,36 +128,6 @@ func (e *recordingEngine) LockStudent(_ context.Context, id int64) error {
 	e.calls++
 	e.student = studentCall{ids: []int64{id}}
 	return nil
-}
-
-func (e *recordingEngine) PromoteStudents(_ context.Context, ids []int64, from, to string) (int64, error) {
-	e.calls++
-	e.student = studentCall{ids: ids, from: from, to: to}
-	return int64(len(ids)), nil
-}
-
-func (e *recordingEngine) RevertStudentClass(_ context.Context, id int64, from, to string) (int64, error) {
-	e.calls++
-	e.student = studentCall{ids: []int64{id}, from: from, to: to}
-	return 1, nil
-}
-
-func (e *recordingEngine) GraduateStudentsByClasses(_ context.Context, classes []string) (int64, error) {
-	e.calls++
-	e.student = studentCall{classes: classes}
-	return int64(len(classes)), nil
-}
-
-func (e *recordingEngine) GraduateStudents(_ context.Context, ids []int64) (int64, error) {
-	e.calls++
-	e.student = studentCall{ids: ids}
-	return int64(len(ids)), nil
-}
-
-func (e *recordingEngine) ReactivateStudents(_ context.Context, ids []int64, status string) ([]int64, error) {
-	e.calls++
-	e.student = studentCall{ids: ids, status: status}
-	return ids, nil
 }
 
 func (e *recordingEngine) CountStudentGuardianLinks(_ context.Context, studentID, _ int64) (int, error) {
@@ -285,30 +247,6 @@ func (e *recordingEngine) DeleteStudentRecord(_ context.Context, id int64) error
 
 func (e *recordingEngine) VerifyStudentStrandingBatch(context.Context) error {
 	e.calls++
-	return nil
-}
-
-func (e *recordingEngine) SetStudentStatus(_ context.Context, id int64, _ string) error {
-	e.calls++
-	e.lockedRecord = id
-	return nil
-}
-
-func (e *recordingEngine) TransitionStudentStatus(_ context.Context, id int64, _, _ string) (bool, error) {
-	e.calls++
-	e.lockedRecord = id
-	return true, nil
-}
-
-func (e *recordingEngine) SetStudentCareEnd(_ context.Context, ids []int64, _ string) (int64, error) {
-	e.calls++
-	e.recordIDs = ids
-	return int64(len(ids)), nil
-}
-
-func (e *recordingEngine) ReopenStudentCare(_ context.Context, id int64, _, _ string) error {
-	e.calls++
-	e.lockedRecord = id
 	return nil
 }
 

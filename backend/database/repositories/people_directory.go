@@ -10,6 +10,7 @@ import (
 	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	membershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -45,7 +46,19 @@ func NewPeopleDirectoryWithPhotosAndObserver(
 	if err != nil {
 		return nil, nil, err
 	}
+	membership, err := NewSchoolMembership(db)
+	if err != nil {
+		return nil, nil, err
+	}
+	careProfiles, err := careplanCompose.NewStudentProfiles(db, func(careplanCompose.Observation) {})
+	if err != nil {
+		return nil, nil, err
+	}
 	capability, err := peopleCompose.NewWithGuardianMemberships(peopleCompose.Dependencies{
+		StudentClassWriteGateQuery: func(ctx context.Context) (*bun.SelectQuery, error) {
+			return membershipCompose.StudentClassWriteGateQuery(ctx, db)
+		},
+		StudentOwners:         NewStudentOwners(membership, careProfiles),
 		DB:                    db,
 		Observe:               observe,
 		StudentFieldAudit:     NewStudentFieldAuditLog(db),

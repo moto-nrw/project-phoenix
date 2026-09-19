@@ -15,7 +15,6 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/peopletest"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/enrollment/enrollmenttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -46,7 +45,7 @@ func testGuardianAccess(db *bun.DB) enrollmentService.DecisionGuardianAccess {
 }
 
 func testStudentEnrollment(db *bun.DB) enrollmentService.DecisionStudentEnrollment {
-	module, err := peopletest.NewEnrollment(db)
+	module, err := repositories.NewPeopleDirectory(db)
 	if err != nil {
 		panic(err)
 	}

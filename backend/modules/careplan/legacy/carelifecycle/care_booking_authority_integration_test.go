@@ -32,7 +32,7 @@ func bookingAuthorityService(t *testing.T, db *bun.DB, authoritative bool) carel
 	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	return carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
-		StudentRepo: repos.Student, PersonRepo: repos.Person, CareExitRepo: repos.CareExit,
+		StudentRepo: repositories.NewCareStudents(repos.Student, repos.SchoolMembership()), PersonRepo: repos.Person, CareExitRepo: repos.CareExit,
 		CleanupRepo: repos.CareExitCleanup, WithdrawalRepo: repos.CareWithdrawal,
 		TagReleaser:           repos.StudentTagReleaser(),
 		AuditService:          userService.NewStudentAuditService(repositories.NewStudentAudit(db)),
@@ -48,7 +48,7 @@ func lockedBookingAuthorityService(t *testing.T, db *bun.DB) carelifecycle.CareL
 	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	return carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
-		StudentRepo: repos.Student, PersonRepo: repos.Person, CareExitRepo: repos.CareExit,
+		StudentRepo: repositories.NewCareStudents(repos.Student, repos.SchoolMembership()), PersonRepo: repos.Person, CareExitRepo: repos.CareExit,
 		CleanupRepo: repos.CareExitCleanup, WithdrawalRepo: repos.CareWithdrawal,
 		TagReleaser:  repos.StudentTagReleaser(),
 		AuditService: userService.NewStudentAuditService(repositories.NewStudentAudit(db)),

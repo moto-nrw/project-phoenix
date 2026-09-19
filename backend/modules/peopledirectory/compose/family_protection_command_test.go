@@ -118,7 +118,10 @@ func TestSetFamilyProtectionRefusesAlumnus(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Protection", "Alumnus", "1a")
 	account := testpkg.CreateTestAccount(t, db, "family-protection-alumnus@example.test")
-	affected, err := module.GraduateStudents(ctx, []int64{student.ID})
+	result, err := db.NewUpdate().TableExpr("users.student_school_memberships").
+		Set("status = 'alumnus'").Where("tenant_id = ?", testpkg.Tenant(t)).Where("student_profile_id = ?", student.ID).Exec(ctx)
+	require.NoError(t, err)
+	affected, err := result.RowsAffected()
 	require.NoError(t, err)
 	require.Equal(t, int64(1), affected)
 

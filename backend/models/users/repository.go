@@ -124,11 +124,6 @@ type StudentRepository interface {
 	// CountWithOptions counts students matching the query options
 	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
 
-	// UpdateColumns is the generic partial-update helper promoted from the
-	// embedded base repository: updates only the named columns by primary
-	// key and returns the number of rows affected.
-	UpdateColumns(ctx context.Context, student *Student, columns ...string) (int64, error)
-
 	// CountByGroupIDs counts students per group for multiple groups in a single query
 	CountByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error)
 
@@ -210,17 +205,6 @@ type StudentRepository interface {
 	// and must not pay for departure-plan hydration to answer one question
 	// (#2487).
 	FindCareBoundsByIDs(ctx context.Context, ids []int64) (map[int64]timezone.Date, error)
-
-	// SetEnrolledUntilByIDs writes the enrollment interval's upper bound —
-	// the LAST CARE DAY, inclusive — for a whole batch in one statement, and
-	// returns how many rows changed. A nil `until` clears the bound, which is
-	// what cancelling a planned exit and resuming care both do (#2487).
-	SetEnrolledUntilByIDs(ctx context.Context, ids []int64, until *timezone.Date) (int64, error)
-
-	// SetEnrollmentWindowByID reopens one child's care from a new start day:
-	// enrolled_from moves to `from`, enrolled_until is cleared and the
-	// lifecycle status is recomputed against `today` (#2487).
-	SetEnrollmentWindowByID(ctx context.Context, id int64, from timezone.Date, status StudentStatus) error
 }
 
 // CaregiverBindingLocker serializes the caregiver blocker re-check with all

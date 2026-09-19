@@ -14,7 +14,6 @@ import (
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/peopletest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -130,7 +129,7 @@ func setupOfferingGuardRouterTest(
 	require.NoError(t, err)
 	guardianAccess, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
-	studentEnrollment, err := peopletest.NewEnrollment(db)
+	studentEnrollment, err := repositories.NewPeopleDirectory(db)
 	require.NoError(t, err)
 	decision := newOfferingGuardDecisionService(repos, offeringsEnabled, children, approvedOfferings, guardianAccess, studentEnrollment)
 	resource := enrollmentAPI.NewResource(
