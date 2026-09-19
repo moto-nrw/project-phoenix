@@ -142,13 +142,13 @@ func TestResponseOverview_CountsAnswersAgainstTheExpectedChildren(t *testing.T) 
 	assert.NotContains(t, children.statuses, enrollmentOwner.ChildStatusWithdrawn)
 }
 
-func TestResponseOverview_EveryDecidedStateCountsAsAnswered(t *testing.T) {
+func TestResponseOverview_EverySubmittedOrDecidedStateCountsAsAnswered(t *testing.T) {
 	t.Parallel()
 
 	statuses := []string{
 		enrollmentOwner.ChildStatusSubmitted, enrollmentOwner.ChildStatusUnderReview,
 		enrollmentOwner.ChildStatusApproved, enrollmentOwner.ChildStatusWaitlisted,
-		enrollmentOwner.ChildStatusRejected, enrollmentOwner.ChildStatusAutoRenewed,
+		enrollmentOwner.ChildStatusRejected,
 	}
 	roster := responseRoster{}
 	children := &responseChildren{}
@@ -165,6 +165,28 @@ func TestResponseOverview_EveryDecidedStateCountsAsAnswered(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, len(statuses), overview.Expected)
 	assert.Equal(t, len(statuses), overview.Responded)
+}
+
+func TestResponseOverview_AutoRenewedIsOpenButLinked(t *testing.T) {
+	t.Parallel()
+
+	children := &responseChildren{byPhase: []*enrollmentOwner.RequestChild{
+		{ID: 10, RequestID: 100, Status: enrollmentOwner.ChildStatusAutoRenewed, MatchedStudentID: ptr(int64(1))},
+	}}
+	svc := newResponseService(nextYearPhase(), children, responseRoster{{ID: 1, LastName: "Arslan", SchoolClass: "1a"}}, nil, nil)
+
+	overview, err := svc.ResponseOverview(context.Background(), 5)
+	require.NoError(t, err)
+	assert.Equal(t, 1, overview.Expected)
+	assert.Zero(t, overview.Responded)
+	require.Len(t, overview.Rows, 1)
+	row := overview.Rows[0]
+	assert.False(t, row.Responded)
+	assert.Nil(t, row.RequestID)
+	require.NotNil(t, row.PendingRequestID)
+	assert.Equal(t, int64(100), *row.PendingRequestID)
+	assert.Equal(t, enrollmentOwner.ChildStatusAutoRenewed, row.ChildStatus)
+	assert.Contains(t, children.statuses, enrollmentOwner.ChildStatusAutoRenewed)
 }
 
 func TestResponseOverview_OpenRolloverRowIsNoAnswerButIsLinked(t *testing.T) {

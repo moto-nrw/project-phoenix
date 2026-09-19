@@ -110,26 +110,25 @@ type PhaseResponseOverview struct {
 // phaseResponseCountedStatuses are the child statuses that count as "the
 // family answered". Sven's question in #3379 is about handing the form in,
 // not about the school's decision, so every submitted state counts whatever
-// the school did with it afterwards. auto_renewed counts too: the opt-out
-// rollover carried the child over and the family let it stand.
+// the school did with it afterwards.
 //
-// Deliberately absent: withdrawn (the family took the answer back),
-// pending_renewal (the opt-in rollover still waits for the family) and
-// pending_admin_review (a rollover the school has to sort out; the family
-// has not said anything yet).
+// Deliberately absent: withdrawn (the family took the answer back) and all
+// rollover-intermediate statuses. In particular, auto_renewed stays open
+// until the deadline worker turns it into submitted or approved: the family
+// can still decline an opt-out rollover.
 var phaseResponseCountedStatuses = []string{
 	enrollmentOwner.ChildStatusSubmitted,
 	enrollmentOwner.ChildStatusUnderReview,
 	enrollmentOwner.ChildStatusApproved,
 	enrollmentOwner.ChildStatusWaitlisted,
 	enrollmentOwner.ChildStatusRejected,
-	enrollmentOwner.ChildStatusAutoRenewed,
 }
 
 // phaseResponseWaitingStatuses are rollover rows that exist for a child but
 // are no answer. The overview links them so the school finds the open row.
 var phaseResponseWaitingStatuses = []string{
 	enrollmentOwner.ChildStatusPendingRenewal,
+	enrollmentOwner.ChildStatusAutoRenewed,
 	enrollmentOwner.ChildStatusPendingAdminReview,
 }
 
