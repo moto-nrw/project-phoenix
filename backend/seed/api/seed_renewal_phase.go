@@ -3,10 +3,21 @@ package api
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 )
+
+// demoClassGrade reads the grade out of a demo class label ("Klasse 1a" -> 1).
+// The seeder is a dev tool and may not import the school-structure domain, and
+// it does not need its grammar: every DemoStudent class has this one shape.
+func demoClassGrade(class string) (int, error) {
+	digits := strings.TrimLeft(strings.TrimPrefix(strings.TrimSpace(class), "Klasse"), " ")
+	end := 0
+	for end < len(digits) && digits[end] >= '0' && digits[end] <= '9' {
+		end++
+	}
+	return strconv.Atoi(digits[:end])
+}
 
 // demoStudentBirthday is the birthday the fixed seeder gives the demo child at
 // index i. Groups map to school classes: 1a/1b (born ~2019), 2a/2b (~2018),
@@ -114,7 +125,7 @@ func renewalChildFor(rt *Runtime, parent ParentCredentials) (renewalChild, error
 			continue
 		}
 		student := DemoStudents[index]
-		grade, err := strconv.Atoi(schoolclass.GradePrefix(student.Class))
+		grade, err := demoClassGrade(student.Class)
 		if err != nil {
 			return renewalChild{}, fmt.Errorf("demo child %s %s has no grade in class %q", student.FirstName, student.LastName, student.Class)
 		}

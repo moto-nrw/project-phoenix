@@ -69,6 +69,26 @@ func TestRenewalChildForResolvesTheChildBehindAParent(t *testing.T) {
 	require.Error(t, err, "an unknown child is reported, not skipped")
 }
 
+func TestDemoClassGradeReadsEveryDemoClass(t *testing.T) {
+	t.Parallel()
+
+	// The parser is deliberately narrow; this pins that it is wide enough for
+	// every class the demo data actually uses.
+	for i, student := range DemoStudents {
+		grade, err := demoClassGrade(student.Class)
+		require.NoError(t, err, "child %d class %q", i, student.Class)
+		assert.GreaterOrEqual(t, grade, 1, "child %d class %q", i, student.Class)
+		assert.LessOrEqual(t, grade, 4, "child %d class %q", i, student.Class)
+	}
+
+	grade, err := demoClassGrade(" Klasse 3b ")
+	require.NoError(t, err)
+	assert.Equal(t, 3, grade)
+
+	_, err = demoClassGrade("Bienen")
+	require.Error(t, err, "a class without a grade is reported, not read as 0")
+}
+
 func TestSplitSeedName(t *testing.T) {
 	t.Parallel()
 
