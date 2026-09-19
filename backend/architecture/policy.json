@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "policy_epoch": 15,
+  "policy_epoch": 16,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -4316,7 +4316,9 @@
         "users.parent_message_threads",
         "users.parent_messages",
         "users.persons",
-        "users.students",
+        "users.student_care_profiles",
+        "users.student_profiles",
+        "users.student_school_memberships",
         "users.students_guardians"
       ],
       "tenant_safe": true
@@ -4347,7 +4349,9 @@
         "users.parent_announcement_targets",
         "users.parent_announcements",
         "users.persons",
-        "users.students",
+        "users.student_care_profiles",
+        "users.student_profiles",
+        "users.student_school_memberships",
         "users.students_guardians"
       ],
       "tenant_safe": true
@@ -4382,7 +4386,9 @@
       "package": "modules/careplan/legacy/careexitview",
       "data_objects": [
         "users.persons",
-        "users.students"
+        "users.student_care_profiles",
+        "users.student_profiles",
+        "users.student_school_memberships"
       ],
       "tenant_safe": true
     },

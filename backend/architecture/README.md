@@ -1726,6 +1726,20 @@ logically overlapping rules. Change
 for a reviewed architecture decision; it does not approve or rebuild legacy
 findings.
 
+The three existing student read projections have one fixed replacement path
+([ADR 0025](../../docs/adr/0025-replace-student-read-projection-grants.md),
+[#3432](https://github.com/moto-nrw/project-phoenix/issues/3432)). In a reviewed
+epoch, `parent-message-inbox`, `parent-announcement-audience` and `care-exit-view`
+may replace their base `users.students` grant with exactly
+`users.student_profiles`, `users.student_school_memberships` and
+`users.student_care_profiles`. The last table preserves the view's care-row
+existence filter; the queries select no extra care fields. Package, projection
+ID, owner, production/test roles, tenant safety, other grants and target write
+owners must stay unchanged. The checker exempts only these exact replacement
+pairs, not other additions in the same candidate. Without the old grant in the
+immutable base, the exception cannot activate again. Epoch 16 performs this
+cutover without changing the baseline or composition surface.
+
 Reviewed data-less workflow additions may register new workflow owners when
 all their packages are candidate-created and the policy epoch increases
 ([ADR 0013](../../docs/adr/0013-staff-offboarding-is-an-application-workflow.md),

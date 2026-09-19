@@ -1,5 +1,14 @@
 package parentaudience
 
+// The care row is an existence filter, just as in the former compatibility
+// view (ADR 0025). No care fields enter this projection. The public student
+// ID belongs to s; sm.id is the separate membership ID.
+const studentMembershipJoins = `
+			JOIN users.student_school_memberships sm
+				ON sm.student_profile_id = s.id AND sm.tenant_id = s.tenant_id AND sm.deleted_at IS NULL
+			JOIN users.student_care_profiles sc
+				ON sc.membership_id = sm.id AND sc.tenant_id = sm.tenant_id`
+
 // Every statement in this projection is a compile-time constant so the
 // architecture evaluator can see which tables it reads. The fragments below
 // are the shared building blocks; each exported query assembles them once and
@@ -39,8 +48,8 @@ const activeEnrollmentFeed = `(pt.target_type = 'activity_group' AND EXISTS (
 // the activity_group branch is appended by the variants below.
 const studentTargetMatchPrefix = `
 					pt.target_type = 'school_all'
-					OR (pt.target_type = 'class' AND LOWER(TRIM(s.school_class)) = LOWER(TRIM(pt.target_ref_text)))
-					OR (pt.target_type = 'group' AND s.group_id = pt.target_ref_id)
+					OR (pt.target_type = 'class' AND LOWER(TRIM(sm.school_class)) = LOWER(TRIM(pt.target_ref_text)))
+					OR (pt.target_type = 'group' AND sm.group_id = pt.target_ref_id)
 					OR (pt.target_type = 'student' AND s.id = pt.target_ref_id)
 					OR `
 
@@ -58,10 +67,10 @@ const studentTargetMatchFeed = studentTargetMatchPrefix + activeEnrollmentFeed
 // Bind order: school, school, today, today, today.
 const reachedStudentsBound = `
 			FROM users.parent_announcement_targets pt
-			JOIN users.students s ON s.tenant_id = ? AND (` + studentTargetMatchBound + `
+			JOIN users.student_profiles s ON s.tenant_id = ?` + studentMembershipJoins + ` AND (` + studentTargetMatchBound + `
 			)
 			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
-			AND s.status <> 'alumnus'`
+			AND sm.status <> 'alumnus'`
 
 // portalGuardiansBound continues reachedStudentsBound with the guardians who
 // hold parent_portal.access on the child, a linked account, and an ACTIVE
@@ -161,10 +170,10 @@ const reachedAccountFeed = `(
 		EXISTS (
 			SELECT 1
 			FROM users.parent_announcement_targets pt
-			JOIN users.students s ON s.tenant_id = a.tenant_id AND (` + studentTargetMatchFeed + `
+			JOIN users.student_profiles s ON s.tenant_id = a.tenant_id` + studentMembershipJoins + ` AND (` + studentTargetMatchFeed + `
 			)
 			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
-			AND s.status <> 'alumnus'
+			AND sm.status <> 'alumnus'
 			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = a.tenant_id
 				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = a.tenant_id
@@ -241,10 +250,10 @@ const openPollForAccountFeed = `(
 		AND EXISTS (
 			SELECT 1
 			FROM users.parent_announcement_targets pt
-			JOIN users.students s ON s.tenant_id = a.tenant_id AND (` + studentTargetMatchFeed + `
+			JOIN users.student_profiles s ON s.tenant_id = a.tenant_id` + studentMembershipJoins + ` AND (` + studentTargetMatchFeed + `
 			)
 			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
-			AND s.status <> 'alumnus'
+			AND sm.status <> 'alumnus'
 			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = a.tenant_id
 				AND sg.permissions @> '{"parent_portal.access": true, "parent_portal.poll.response": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = a.tenant_id
