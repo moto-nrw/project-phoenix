@@ -77,8 +77,9 @@ const GuardianPermissionPortalAccess = "parent_portal.access"
 // depend on the whole guardian directory.
 type GuardianPortalReachQuery interface {
 	// StudentsWithPortalGuardian reports the children with at least one
-	// guardian who holds a portal account and portal access on that
-	// relationship. Children without one are absent from the result.
+	// guardian who holds a portal account with active school access and portal
+	// access on that relationship. Children without one are absent from the
+	// result.
 	StudentsWithPortalGuardian(context.Context, []int64) (map[int64]bool, error)
 }
 

@@ -46,3 +46,21 @@ func TestStudentsWithPortalGuardianStaysInsideTheTenant(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, result, "another school's child is not visible")
 }
+
+func TestStudentsWithPortalGuardianExcludesInactiveMembership(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	tenantID := testpkg.Tenant(t)
+	accountID, _, studentID, _ := guardianRows(t, db, tenantID, "primary_guardian")
+
+	_, err := db.NewRaw(
+		`UPDATE auth.account_tenants SET status = 'inactive', deactivated_at = NOW() WHERE account_id = ? AND tenant_id = ?`,
+		accountID, tenantID,
+	).Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+
+	result, err := module.StudentsWithPortalGuardian(testpkg.Ctx(t), []int64{studentID})
+	require.NoError(t, err)
+	assert.Empty(t, result, "a guardian without active school access cannot receive a parents-app reminder")
+}

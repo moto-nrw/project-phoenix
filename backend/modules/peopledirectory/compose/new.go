@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
@@ -75,7 +76,11 @@ func New(dependencies Dependencies) (*peopledirectory.Module, error) {
 		companions = studentCompanions{seam: dependencies.StudentCompanions}
 	}
 	students := application.NewStudents(postgres.NewStudentStore(database), companions, transaction{}, observe)
-	guardians := application.NewGuardians(postgres.NewGuardianStore(database), transaction{}, observe)
+	accountTenants, ok := authpostgres.NewAccountTenantRepository(dependencies.DB).(*authpostgres.AccountTenantRepository)
+	if !ok {
+		return nil, errors.New("people directory compose: identity membership query is not configured")
+	}
+	guardians := application.NewGuardians(postgres.NewGuardianStore(database, accountTenants.ActiveMemberships), transaction{}, observe)
 	var auditLog ports.StudentFieldAuditLog
 	if dependencies.StudentFieldAudit != nil {
 		auditLog = studentFieldAuditLog{log: dependencies.StudentFieldAudit}

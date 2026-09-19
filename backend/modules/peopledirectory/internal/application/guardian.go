@@ -54,14 +54,11 @@ func (s *GuardianService) ListByIDs(ctx context.Context, ids []int64) (result []
 }
 
 // StudentsWithPortalGuardian reports which of the children can be reached
-// through the parents portal: at least one guardian holds an account AND
-// that guardian's link to this child grants portal access. An account alone
-// is not enough, because a pickup-only contact may have one for a sibling and
-// still sees nothing of this child. Children without such a guardian are
-// absent from the result.
-//
-// Whether the account's school membership is active belongs to Identity &
-// Access and is not judged here.
+// through the parents portal: at least one guardian holds an account with an
+// active school membership AND that guardian's link to this child grants
+// portal access. An account alone is not enough, because a pickup-only contact
+// may have one for a sibling and still sees nothing of this child. Children
+// without such a guardian are absent from the result.
 func (s *GuardianService) StudentsWithPortalGuardian(ctx context.Context, studentIDs []int64) (map[int64]bool, error) {
 	result := map[int64]bool{}
 	err := observeRun(ctx, s.observe, "students_with_portal_guardian", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {

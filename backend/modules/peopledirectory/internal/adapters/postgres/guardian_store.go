@@ -49,13 +49,21 @@ type guardianLinkRow struct {
 // users.students_guardians; it shares the database runtime with the person
 // store. The application-level guardian flows stay with the owner's
 // legacy service, so this store carries only the reads foreign owners need.
-type GuardianStore struct{ database Database }
+// MembershipQuery is the Identity & Access owner query that selects the
+// active (account_id, tenant_id) mappings. Keeping it as a query lets the
+// guardian read stay one statement while the Identity owner retains its table.
+type MembershipQuery func(context.Context) *bun.SelectQuery
 
-func NewGuardianStore(database Database) *GuardianStore {
-	if database == nil {
-		panic("people directory postgres: database runtime is required")
+type GuardianStore struct {
+	database    Database
+	memberships MembershipQuery
+}
+
+func NewGuardianStore(database Database, memberships MembershipQuery) *GuardianStore {
+	if database == nil || memberships == nil {
+		panic("people directory postgres: database runtime and active membership query are required")
 	}
-	return &GuardianStore{database: database}
+	return &GuardianStore{database: database, memberships: memberships}
 }
 
 // ListLinksByAccount joins the two owned tables once: every link of every
@@ -160,8 +168,9 @@ func (s *GuardianStore) CountLinks(ctx context.Context, guardianIDs []int64) (ma
 }
 
 // ListAccountLinksByStudents returns the links of the given children whose
-// guardian holds a portal account. What such a link may do is decided by the
-// caller from its permissions, exactly as for ListLinksByAccount.
+// guardian holds a portal account with an active school membership. What such
+// a link may do is decided by the caller from its permissions, exactly as for
+// ListLinksByAccount.
 func (s *GuardianStore) ListAccountLinksByStudents(ctx context.Context, studentIDs []int64) ([]domain.GuardianLink, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
@@ -172,7 +181,8 @@ func (s *GuardianStore) ListAccountLinksByStudents(ctx context.Context, studentI
 		Join(`JOIN users.guardian_profiles AS "guardian_profile" ON "guardian_profile".id = "student_guardian".guardian_profile_id AND "guardian_profile".tenant_id = "student_guardian".tenant_id`).
 		Where(`"student_guardian".student_id IN (?)`, bun.List(studentIDs)).
 		Where(`"guardian_profile".account_id IS NOT NULL`).
-		Where(`"guardian_profile".has_account = true`)
+		Where(`"guardian_profile".has_account = true`).
+		Where(`("guardian_profile".account_id, "student_guardian".tenant_id) IN (?)`, s.memberships(ctx))
 	if tenantID > 0 {
 		query = query.Where(`"student_guardian".tenant_id = ?`, tenantID)
 	}
