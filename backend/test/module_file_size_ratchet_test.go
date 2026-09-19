@@ -14,7 +14,7 @@ import (
 // and workflows/ at 800 lines. The existing quality gates in this package all
 // stop at the api/ and models/ directory boundaries, so the 228k production
 // lines that migration #2580 moved into modules/ grew unwatched: 55 files are
-// over the cap today and the largest, instance_service.go, holds 3196 lines.
+// over the cap today and the largest, instance_service.go, holds 3194 lines.
 // A file that big has no discoverable seam — nobody can review it, split it
 // safely, or find the one function that matters in it.
 //
@@ -88,7 +88,7 @@ var moduleFileSizeAllowlist = map[string]int{
 	"modules/timetable/compose/new.go":                                               1398,
 	"modules/timetable/legacy/timetableplanning/deviation_apply.go":                  1540,
 	"modules/timetable/legacy/timetableplanning/instance_conflict.go":                815,
-	"modules/timetable/legacy/timetableplanning/instance_service.go":                 3196,
+	"modules/timetable/legacy/timetableplanning/instance_service.go":                 3194,
 	"modules/timetable/legacy/timetableplanning/materialization_service.go":          1122,
 	"modules/timetable/legacy/timetableplanning/shift_coverage_conflict.go":          884,
 	"modules/timetable/legacy/timetableplanning/template_split_service.go":           1880,

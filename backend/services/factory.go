@@ -1947,6 +1947,7 @@ func newFactory(
 		},
 		ValidateCareOfferingPhaseChange: careOfferingPhaseValidator.ValidatePhaseChange,
 		Settings:                        settingsService,
+		Responses:                       newPhaseResponseSources(repos.Enrollment(), persons, repos.CarePlan()),
 		DB:                              db,
 		Logger:                          logger.With("service", "enrollment-phase"),
 	})

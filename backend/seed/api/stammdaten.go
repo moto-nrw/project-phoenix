@@ -555,35 +555,7 @@ func (s *FixedSeeder) seedStudents(_ context.Context, result *FixedResult) error
 			return fmt.Errorf("group not found for group key %s", student.GroupKey)
 		}
 
-		// Generate birthday based on group (varied ages within each group)
-		// Groups map to school classes: 1a/1b (born ~2019), 2a/2b (~2018), 3a/3b (~2017), 4a/4b (~2016)
-		baseYear := 2019
-		switch student.GroupKey {
-		case "sternengruppe": // Klasse 1a/1b
-			baseYear = 2019
-		case "bärengruppe": // Klasse 1b/2a
-			baseYear = 2018
-		case "sonnengruppe": // Klasse 2a/2b
-			baseYear = 2018
-		case "mondgruppe": // Klasse 2b/3a
-			baseYear = 2017
-		case "regenbogengruppe": // Klasse 3a/3b
-			baseYear = 2017
-		case "blumengruppe": // Klasse 3b/4a
-			baseYear = 2016
-		case "schmetterlingsgruppe": // Klasse 4a/4b
-			baseYear = 2016
-		case "waldgruppe": // Klasse 1a/2a
-			baseYear = 2019
-		case "meeresgruppe": // Klasse 2b/3b
-			baseYear = 2017
-		case "wiesengruppe": // Klasse 3a/4b
-			baseYear = 2016
-		}
-		// Spread birthdays across the year
-		month := (i % 12) + 1
-		day := (i % 28) + 1
-		birthday := fmt.Sprintf("%d-%02d-%02d", baseYear, month, day)
+		birthday := demoStudentBirthday(i, student)
 
 		body := map[string]any{
 			"first_name":   student.FirstName,

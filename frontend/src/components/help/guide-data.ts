@@ -2102,6 +2102,29 @@ export const appChapters: readonly GuideChapter[] = [
         image: "/help/screens/anmeldungen.webp",
       },
       {
+        id: "anmeldungen-ruecklauf",
+        title: "Rücklauf der Wiederanmeldung",
+        icon: ListChecks,
+        summary:
+          "Sehen, welche Kinder der Schule die Anmeldung für das nächste Jahr schon abgegeben haben und welche noch fehlen.",
+        steps: [
+          "Bei einer Phase auf `Anmeldungen ansehen` klicken und den Reiter `Rücklauf` öffnen. Die Zahl am Reiter zeigt, wie viele Kinder noch fehlen.",
+          "Die Überschrift nennt den Stand, zum Beispiel `80 von 100 Kindern haben die Anmeldung abgegeben`. `Abgegeben` heißt: Die Eltern haben abgeschickt. Ob du die Anmeldung schon bestätigt hast, steht als eigener Status in der Zeile.",
+          "Mit `Fehlt noch` und `Abgegeben` zwischen den beiden Listen wechseln. Ein Klick auf den Namen öffnet die Kinddetailseite mit den Telefonnummern. `Ansehen` öffnet die Anmeldung.",
+          "Die Spalte `Eltern-App` zeigt, ob mindestens ein Elternteil die Eltern-App nutzt. Sie hat nichts mit der Anmeldung zu tun: Sie sagt nur, ob eine Mitteilung die Familie erreicht. Familien ohne Eltern-App rufst du an.",
+          "In der Liste `Fehlt noch` mit `… Familien erinnern` eine Elternmitteilung öffnen, die schon an alle Kinder ohne Anmeldung adressiert ist, deren Eltern die App nutzen. Du schreibst den Text selbst und sendest ihn wie jede andere Mitteilung. Den Knopf sehen nur Admins, und nur wenn Elternmitteilungen eingeschaltet sind.",
+          "Unter der Überschrift steht, welche Kinder moto nicht mitzählt: Kinder mit eingetragenem Betreuungsende, Kinder im letzten Jahrgang und Kinder aus Jahrgängen, für die die Phase nicht gilt. Hat eine dieser Familien trotzdem abgegeben, erscheint das Kind in der Liste.",
+          "Wer seine Anmeldung zurückgezogen hat, steht wieder unter `Fehlt noch`.",
+        ],
+        callout: {
+          title: "Den Reiter gibt es nur bei Wiederanmeldungen",
+          body: "`Rücklauf` erscheint, wenn die Phase die Zielgruppe `Nur bereits angemeldete Kinder` hat oder aus einer früheren Phase übernommen wurde. Nur dann weiß moto sicher, zu welchem Kind eine Anmeldung gehört. Bei `Offen für alle` fehlt der Reiter.",
+          tone: "blue",
+        },
+        screenshot:
+          "Reiter Rücklauf einer Anmeldephase mit dem Stand der abgegebenen Anmeldungen, der Liste der fehlenden Kinder und der Spalte Eltern-App.",
+      },
+      {
         id: "anmeldungen-exportieren",
         title: "Anmeldungen exportieren",
         icon: Download,

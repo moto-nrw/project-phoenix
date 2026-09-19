@@ -66,6 +66,9 @@ type PhaseService interface {
 	List(ctx context.Context) ([]*enrollmentOwner.Phase, error)
 	ListPublicOpen(ctx context.Context, now time.Time) ([]*enrollmentOwner.Phase, error)
 	GetByID(ctx context.Context, id int64) (*enrollmentOwner.Phase, error)
+	// ResponseOverview compares the school's current children with the
+	// submissions of one phase (#3379): who answered, who is still missing.
+	ResponseOverview(ctx context.Context, id int64) (*PhaseResponseOverview, error)
 
 	Create(ctx context.Context, phase *enrollmentOwner.Phase) (*enrollmentOwner.Phase, error)
 	Update(ctx context.Context, phase *enrollmentOwner.Phase) error
@@ -111,8 +114,12 @@ type PhaseServiceConfig struct {
 	// reject unsatisfiable eligibility configs. Optional: nil skips the
 	// guard (unit tests with mocks; the CHECK/model rules still apply).
 	Settings PhaseSettingsResolver
-	DB       *bun.DB
-	Logger   *slog.Logger
+	// Responses are the read ports of the response overview (#3379).
+	// Optional: without them ResponseOverview reports
+	// ErrPhaseResponseOverviewUnavailable.
+	Responses *PhaseResponseSources
+	DB        *bun.DB
+	Logger    *slog.Logger
 	// Today returns the current calendar day; tests inject a fixed date so
 	// resync/detach boundaries stay deterministic (mirrors the decision and
 	// care-offering services). Nil falls back to timezone.TodayDate.
@@ -131,6 +138,7 @@ type phaseService struct {
 	// after this one, mirroring the care-offering service.
 	sourcedTemplateResyncer CareOfferingSourcedTemplateResyncer
 	settings                PhaseSettingsResolver
+	responses               *PhaseResponseSources
 	txHandler               *tenant.TransactionRunner
 	logger                  *slog.Logger
 	today                   func() timezone.Date
@@ -164,6 +172,7 @@ func NewPhaseService(cfg PhaseServiceConfig) PhaseService {
 		lockTemplateRecurrence:          cfg.LockTemplateRecurrence,
 		validateCareOfferingPhaseChange: cfg.ValidateCareOfferingPhaseChange,
 		settings:                        cfg.Settings,
+		responses:                       cfg.Responses,
 		txHandler:                       txHandler,
 		logger:                          logger,
 		today:                           cfg.Today,
