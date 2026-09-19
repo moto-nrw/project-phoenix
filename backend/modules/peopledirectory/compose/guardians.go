@@ -42,6 +42,14 @@ func (e engine) CountGuardianLinks(ctx context.Context, guardianIDs []int64) (ma
 	return values, mapError(err)
 }
 
+func (e engine) StudentsWithPortalGuardian(ctx context.Context, studentIDs []int64) (map[int64]bool, error) {
+	values, err := e.guardians.StudentsWithPortalGuardian(ctx, studentIDs)
+	if values == nil {
+		values = map[int64]bool{}
+	}
+	return values, mapError(err)
+}
+
 func toPublicGuardians(values []domain.Guardian) []peopledirectory.Guardian {
 	result := make([]peopledirectory.Guardian, 0, len(values))
 	for _, value := range values {

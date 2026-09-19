@@ -159,6 +159,39 @@ func (s *GuardianStore) CountLinks(ctx context.Context, guardianIDs []int64) (ma
 	return result, stats, nil
 }
 
+// ListAccountLinksByStudents returns the links of the given children whose
+// guardian holds a portal account. What such a link may do is decided by the
+// caller from its permissions, exactly as for ListLinksByAccount.
+func (s *GuardianStore) ListAccountLinksByStudents(ctx context.Context, studentIDs []int64) ([]domain.GuardianLink, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	rows := []guardianLinkRow{}
+	query := db.NewSelect().Model(&rows).ModelTableExpr(`users.students_guardians AS "student_guardian"`).
+		Join(`JOIN users.guardian_profiles AS "guardian_profile" ON "guardian_profile".id = "student_guardian".guardian_profile_id AND "guardian_profile".tenant_id = "student_guardian".tenant_id`).
+		Where(`"student_guardian".student_id IN (?)`, bun.List(studentIDs)).
+		Where(`"guardian_profile".account_id IS NOT NULL`).
+		Where(`"guardian_profile".has_account = true`)
+	if tenantID > 0 {
+		query = query.Where(`"student_guardian".tenant_id = ?`, tenantID)
+	}
+	query = query.OrderExpr(`"student_guardian".student_id ASC, "student_guardian".id ASC`)
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = query.Scan(ctx)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return nil, stats, fmt.Errorf("people directory postgres: list account links by students: %w", err)
+	}
+	result := make([]domain.GuardianLink, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, toDomainLink(row))
+	}
+	stats.Rows = int64(len(result))
+	return result, stats, nil
+}
+
 func toDomainGuardian(row guardianRow) domain.Guardian {
 	return domain.Guardian{
 		ID: row.ID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, TenantID: row.TenantID,
