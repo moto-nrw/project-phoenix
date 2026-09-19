@@ -33,6 +33,10 @@ vi.mock("~/lib/tenant-path", () => ({
   useTenantAwarePath: () => (path: string) => path,
 }));
 
+vi.mock("~/lib/tenant-context", () => ({
+  useTenantSlugSafe: () => "testschule",
+}));
+
 import { PhaseResponseOverview } from "./phase-response-overview";
 
 const overview: Overview = {
@@ -182,16 +186,24 @@ describe("PhaseResponseOverview", () => {
       screen.getByRole("button", { name: "2 Familien erinnern" }),
     );
 
-    expect(mocks.push).toHaveBeenCalledWith("/parent-announcements?neu=kinder");
+    const target = mocks.push.mock.calls[0]?.[0] as string;
+    expect(target).toMatch(/^\/parent-announcements\?neu=kinder&vorbelegung=/);
+    const token = new URL(target, "https://test.invalid").searchParams.get(
+      "vorbelegung",
+    );
+    expect(token).not.toBeNull();
     expect(
       JSON.parse(
-        window.sessionStorage.getItem("moto:announcement-prefill-students") ??
-          "[]",
+        window.sessionStorage.getItem(`moto:announcement-prefill:${token}`) ??
+          "{}",
       ),
-    ).toEqual([
-      { id: "1", name: "Mia Arslan" },
-      { id: "3", name: "Ida Fuchs" },
-    ]);
+    ).toEqual({
+      tenantSlug: "testschule",
+      students: [
+        { id: "1", name: "Mia Arslan" },
+        { id: "3", name: "Ida Fuchs" },
+      ],
+    });
   });
 
   it("offers the reminder only next to the children still missing", () => {

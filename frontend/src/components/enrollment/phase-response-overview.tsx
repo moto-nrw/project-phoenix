@@ -14,9 +14,11 @@ import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { getSettingValue } from "~/lib/settings-api";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { useTenantSlugSafe } from "~/lib/tenant-context";
 import {
   ANNOUNCEMENT_PREFILL_PARAM,
   ANNOUNCEMENT_PREFILL_STUDENTS,
+  ANNOUNCEMENT_PREFILL_TOKEN_PARAM,
   stashAnnouncementStudents,
 } from "~/lib/announcement-prefill";
 import { Button } from "~/components/ui/button";
@@ -71,6 +73,7 @@ export function PhaseResponseOverview({
   const [view, setView] = useState<ResponseView>("missing");
   const tenantPath = useTenantAwarePath();
   const router = useTenantRouter();
+  const tenantSlug = useTenantSlugSafe();
   const { data: session } = useSession();
 
   // Dieselbe Bedingung wie der Eintrag „Mitteilungen" in der Seitenleiste:
@@ -168,17 +171,20 @@ export function PhaseResponseOverview({
   ];
 
   const handleRemind = () => {
-    const stashed = stashAnnouncementStudents(
-      reachable.map((child) => ({
-        id: child.studentId,
-        name: fullName(child),
-      })),
-    );
+    const token = tenantSlug
+      ? stashAnnouncementStudents(
+          tenantSlug,
+          reachable.map((child) => ({
+            id: child.studentId,
+            name: fullName(child),
+          })),
+        )
+      : null;
     // Ohne Ablage öffnet sich die Mitteilungsliste; die Kinder lassen sich
     // dort von Hand wählen.
     router.push(
-      stashed
-        ? `/parent-announcements?${ANNOUNCEMENT_PREFILL_PARAM}=${ANNOUNCEMENT_PREFILL_STUDENTS}`
+      token
+        ? `/parent-announcements?${ANNOUNCEMENT_PREFILL_PARAM}=${ANNOUNCEMENT_PREFILL_STUDENTS}&${ANNOUNCEMENT_PREFILL_TOKEN_PARAM}=${encodeURIComponent(token)}`
         : "/parent-announcements",
     );
   };

@@ -9,30 +9,30 @@ afterEach(() => {
 });
 
 describe("mapPhaseResponseOverview", () => {
-  it("turns numeric ids into strings and keeps absent links null", () => {
+  it("keeps string ids and absent links null", () => {
     const overview = mapPhaseResponseOverview({
       applicable: true,
       expected: 2,
       responded: 1,
       children: [
         {
-          student_id: 7,
+          student_id: "7",
           first_name: "Mia",
           last_name: "Arslan",
           school_class: "2a",
           has_parent_app: false,
           responded: false,
-          pending_request_id: 901,
+          pending_request_id: "901",
           child_status: "pending_renewal",
         },
         {
-          student_id: 8,
+          student_id: "8",
           first_name: "Ben",
           last_name: "Yilmaz",
           school_class: "1b",
           has_parent_app: true,
           responded: true,
-          request_id: 900,
+          request_id: "900",
           child_status: "submitted",
         },
       ],

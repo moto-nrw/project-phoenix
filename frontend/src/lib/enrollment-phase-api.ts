@@ -454,14 +454,14 @@ export interface PhaseResponseOverview {
 }
 
 interface BackendPhaseResponseChild {
-  student_id: number;
+  student_id: string;
   first_name: string;
   last_name: string;
   school_class: string;
   has_parent_app: boolean;
   responded: boolean;
-  request_id?: number | null;
-  pending_request_id?: number | null;
+  request_id?: string | null;
+  pending_request_id?: string | null;
   child_status?: string | null;
 }
 
@@ -481,14 +481,14 @@ export function mapPhaseResponseOverview(
     expected: data.expected,
     responded: data.responded,
     children: (data.children ?? []).map((child) => ({
-      studentId: child.student_id.toString(),
+      studentId: child.student_id,
       firstName: child.first_name,
       lastName: child.last_name,
       schoolClass: child.school_class,
       hasParentApp: child.has_parent_app,
       responded: child.responded,
-      requestId: child.request_id?.toString() ?? null,
-      pendingRequestId: child.pending_request_id?.toString() ?? null,
+      requestId: child.request_id ?? null,
+      pendingRequestId: child.pending_request_id ?? null,
       childStatus: child.child_status ?? null,
     })),
     excluded: data.excluded ?? [],

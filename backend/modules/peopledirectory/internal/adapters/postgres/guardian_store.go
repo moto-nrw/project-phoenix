@@ -55,15 +55,17 @@ type guardianLinkRow struct {
 type MembershipQuery func(context.Context) *bun.SelectQuery
 
 type GuardianStore struct {
-	database    Database
-	memberships MembershipQuery
+	database       Database
+	memberships    MembershipQuery
+	activeAccounts MembershipQuery
+	guardianRoles  MembershipQuery
 }
 
-func NewGuardianStore(database Database, memberships MembershipQuery) *GuardianStore {
+func NewGuardianStore(database Database, memberships, activeAccounts, guardianRoles MembershipQuery) *GuardianStore {
 	if database == nil {
 		panic("people directory postgres: database runtime is required")
 	}
-	return &GuardianStore{database: database, memberships: memberships}
+	return &GuardianStore{database: database, memberships: memberships, activeAccounts: activeAccounts, guardianRoles: guardianRoles}
 }
 
 // ListLinksByAccount joins the two owned tables once: every link of every
@@ -172,8 +174,8 @@ func (s *GuardianStore) CountLinks(ctx context.Context, guardianIDs []int64) (ma
 // a link may do is decided by the caller from its permissions, exactly as for
 // ListLinksByAccount.
 func (s *GuardianStore) ListAccountLinksByStudents(ctx context.Context, studentIDs []int64) ([]domain.GuardianLink, domain.OperationStats, error) {
-	if s.memberships == nil {
-		return nil, domain.OperationStats{}, fmt.Errorf("people directory postgres: list account links by students: active membership query is required")
+	if s.memberships == nil || s.activeAccounts == nil || s.guardianRoles == nil {
+		return nil, domain.OperationStats{}, fmt.Errorf("people directory postgres: list account links by students: portal account queries are required")
 	}
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
@@ -185,7 +187,9 @@ func (s *GuardianStore) ListAccountLinksByStudents(ctx context.Context, studentI
 		Where(`"student_guardian".student_id IN (?)`, bun.List(studentIDs)).
 		Where(`"guardian_profile".account_id IS NOT NULL`).
 		Where(`"guardian_profile".has_account = true`).
-		Where(`("guardian_profile".account_id, "student_guardian".tenant_id) IN (?)`, s.memberships(ctx))
+		Where(`("guardian_profile".account_id, "student_guardian".tenant_id) IN (?)`, s.memberships(ctx)).
+		Where(`("guardian_profile".account_id, "student_guardian".tenant_id) IN (?)`, s.guardianRoles(ctx)).
+		Where(`"guardian_profile".account_id IN (?)`, s.activeAccounts(ctx))
 	if tenantID > 0 {
 		query = query.Where(`"student_guardian".tenant_id = ?`, tenantID)
 	}

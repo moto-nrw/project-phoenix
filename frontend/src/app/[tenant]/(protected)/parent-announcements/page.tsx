@@ -56,6 +56,7 @@ import type { AnnouncementKind } from "~/components/announcements/announcement-m
 import {
   ANNOUNCEMENT_PREFILL_PARAM,
   ANNOUNCEMENT_PREFILL_STUDENTS,
+  ANNOUNCEMENT_PREFILL_TOKEN_PARAM,
   type AnnouncementPrefillStudent,
   takeAnnouncementStudents,
 } from "~/lib/announcement-prefill";
@@ -67,6 +68,7 @@ import {
 } from "~/components/announcements/announcement-lifecycle-dialogs";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
 import { WizardStepper } from "~/components/ui/wizard-stepper";
 import { SegmentedControl } from "~/components/ui/segmented-control";
@@ -210,6 +212,7 @@ function ParentAnnouncementsContent() {
   const searchParams = useSearchParams();
   const updateUrlParams = useUpdateUrlParams();
   const router = useTenantRouter();
+  const tenantSlug = useTenantSlugSafe();
   // Der Reiter steht in der Adresse (`?art=`), damit die Objektseite den
   // Rückweg auf denselben Reiter setzen kann (#3115).
   const kind = kindFromParam(searchParams.get("art"));
@@ -277,21 +280,32 @@ function ParentAnnouncementsContent() {
     updateUrlParams({ bearbeiten: null });
   }, [announcements, editRequestId, updateUrlParams]);
 
-  // Der Rücklauf einer Anmeldephase (#3379) schickt mit `?neu=kinder` hierher
-  // und hat die Kinder ohne Antwort abgelegt. Die Auswahl wird einmal gelesen;
-  // fehlt sie (Neuladen, neuer Tab), bleibt es bei der Liste. Der Parameter
-  // verschwindet wie bei `?bearbeiten=`, damit Neuladen nichts erneut öffnet.
+  // Der Rücklauf einer Anmeldephase (#3379) schickt mit `?neu=kinder` und
+  // einem Vorbelegungs-Token hierher. Die Auswahl wird einmal gelesen; fehlt
+  // sie (Neuladen, anderer Tab oder anderer Mandant), bleibt es bei der Liste.
+  // Die Parameter verschwinden wie bei `?bearbeiten=`, damit Neuladen nichts
+  // erneut öffnet.
   const prefillRequest = searchParams.get(ANNOUNCEMENT_PREFILL_PARAM);
+  const prefillToken = searchParams.get(ANNOUNCEMENT_PREFILL_TOKEN_PARAM);
   useEffect(() => {
-    if (prefillRequest !== ANNOUNCEMENT_PREFILL_STUDENTS) return;
-    const students = takeAnnouncementStudents();
+    if (
+      prefillRequest !== ANNOUNCEMENT_PREFILL_STUDENTS ||
+      !prefillToken ||
+      !tenantSlug
+    ) {
+      return;
+    }
+    const students = takeAnnouncementStudents(tenantSlug, prefillToken);
     if (students.length > 0) {
       setEditing(null);
       setPrefillStudents(students);
       setIsFormOpen(true);
     }
-    updateUrlParams({ [ANNOUNCEMENT_PREFILL_PARAM]: null });
-  }, [prefillRequest, updateUrlParams]);
+    updateUrlParams({
+      [ANNOUNCEMENT_PREFILL_PARAM]: null,
+      [ANNOUNCEMENT_PREFILL_TOKEN_PARAM]: null,
+    });
+  }, [prefillRequest, prefillToken, tenantSlug, updateUrlParams]);
 
   // Die Objektseite einer Mitteilung, mit dem aktuellen Reiter, der Suche und
   // dem Statusfilter als Rückweg.

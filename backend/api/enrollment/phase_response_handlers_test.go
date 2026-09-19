@@ -103,10 +103,10 @@ func TestPhaseResponseOverviewHandler_RendersRowsAndExclusions(t *testing.T) {
 	assert.False(t, body.Data.Children[0].Responded)
 	assert.Nil(t, body.Data.Children[0].RequestID)
 	require.NotNil(t, body.Data.Children[0].PendingRequestID)
-	assert.Equal(t, pendingID, *body.Data.Children[0].PendingRequestID)
+	assert.Equal(t, "901", *body.Data.Children[0].PendingRequestID)
 	assert.True(t, body.Data.Children[1].HasParentApp)
 	require.NotNil(t, body.Data.Children[1].RequestID)
-	assert.Equal(t, requestID, *body.Data.Children[1].RequestID)
+	assert.Equal(t, "900", *body.Data.Children[1].RequestID)
 	assert.Equal(t, []PhaseResponseExclusionResponse{{Reason: "graduating", Count: 3}}, body.Data.Excluded)
 }
 

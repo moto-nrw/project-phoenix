@@ -6,6 +6,7 @@ import {
   type Announcement,
 } from "~/lib/parent-announcements-api";
 import ParentAnnouncementsPage from "./page";
+import { stashAnnouncementStudents } from "~/lib/announcement-prefill";
 
 const { searchParams, pushMock, updateUrlParamsMock, listState } = vi.hoisted(
   () => ({
@@ -36,7 +37,7 @@ vi.mock("~/lib/tenant-router", () => ({
 
 vi.mock("~/lib/tenant-context", () => ({
   useTenantSafe: () => null,
-  useTenantSlugSafe: () => null,
+  useTenantSlugSafe: () => "testschule",
   useTenantRoutingModeSafe: () => "subdomain",
 }));
 
@@ -300,13 +301,12 @@ describe("ParentAnnouncementsPage: scheduled reminder (#3162)", () => {
 });
 
 describe("ParentAnnouncementsPage: children handed over by another page (#3379)", () => {
-  const PREFILL_KEY = "moto:announcement-prefill-students";
-
   beforeEach(() => {
     vi.clearAllMocks();
     searchParams.delete("art");
     searchParams.delete("bearbeiten");
     searchParams.delete("neu");
+    searchParams.delete("vorbelegung");
     window.sessionStorage.clear();
     listState.data = [base];
     listState.isLoading = false;
@@ -314,24 +314,28 @@ describe("ParentAnnouncementsPage: children handed over by another page (#3379)"
   });
 
   it("opens a new announcement addressed to the handed-over children", async () => {
-    window.sessionStorage.setItem(
-      PREFILL_KEY,
-      JSON.stringify([
-        { id: "7", name: "Mia Arslan" },
-        { id: "8", name: "Ben Yilmaz" },
-      ]),
-    );
+    const token = stashAnnouncementStudents("testschule", [
+      { id: "7", name: "Mia Arslan" },
+      { id: "8", name: "Ben Yilmaz" },
+    ]);
+    expect(token).not.toBeNull();
     searchParams.set("neu", "kinder");
+    searchParams.set("vorbelegung", token!);
     render(<ParentAnnouncementsPage />);
 
     expect(
       await screen.findByText("Neue Elternmitteilung"),
     ).toBeInTheDocument();
     await waitFor(() =>
-      expect(updateUrlParamsMock).toHaveBeenCalledWith({ neu: null }),
+      expect(updateUrlParamsMock).toHaveBeenCalledWith({
+        neu: null,
+        vorbelegung: null,
+      }),
     );
     // Read once: a reload must not address the same families again.
-    expect(window.sessionStorage.getItem(PREFILL_KEY)).toBeNull();
+    expect(
+      window.sessionStorage.getItem(`moto:announcement-prefill:${token}`),
+    ).toBeNull();
 
     fireEvent.change(screen.getByRole("textbox", { name: "Titel" }), {
       target: { value: "Anmeldung fehlt noch" },
@@ -347,10 +351,14 @@ describe("ParentAnnouncementsPage: children handed over by another page (#3379)"
 
   it("stays on the list when nothing was handed over", async () => {
     searchParams.set("neu", "kinder");
+    searchParams.set("vorbelegung", "missing");
     render(<ParentAnnouncementsPage />);
 
     await waitFor(() =>
-      expect(updateUrlParamsMock).toHaveBeenCalledWith({ neu: null }),
+      expect(updateUrlParamsMock).toHaveBeenCalledWith({
+        neu: null,
+        vorbelegung: null,
+      }),
     );
     expect(screen.queryByText("Neue Elternmitteilung")).not.toBeInTheDocument();
   });

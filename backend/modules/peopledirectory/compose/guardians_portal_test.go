@@ -64,3 +64,22 @@ func TestStudentsWithPortalGuardianExcludesInactiveMembership(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, result, "a guardian without active school access cannot receive a parents-app reminder")
 }
+
+func TestStudentsWithPortalGuardianExcludesInactiveAccountsAndMissingRoles(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	tenantID := testpkg.Tenant(t)
+
+	inactiveAccountID, _, inactiveStudentID, _ := guardianRows(t, db, tenantID, "primary_guardian")
+	_, err := db.NewRaw(`UPDATE auth.accounts SET active = FALSE WHERE id = ?`, inactiveAccountID).Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+
+	rolelessAccountID, _, rolelessStudentID, _ := guardianRows(t, db, tenantID, "primary_guardian")
+	_, err = db.NewRaw(`DELETE FROM auth.account_roles WHERE account_id = ? AND tenant_id = ?`, rolelessAccountID, tenantID).Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+
+	result, err := module.StudentsWithPortalGuardian(testpkg.Ctx(t), []int64{inactiveStudentID, rolelessStudentID})
+	require.NoError(t, err)
+	assert.Empty(t, result, "only active accounts with the guardian role can receive a parents-app reminder")
+}

@@ -1,9 +1,10 @@
 // Übergabe einer Kinderauswahl an den Verfasser der Elternmitteilungen.
 //
 // Eine andere Seite (der Rücklauf einer Anmeldephase, #3379) legt die Kinder
-// ab und führt mit `?neu=kinder` zur Mitteilungsliste. Dort wird die Auswahl
-// genau einmal gelesen und sofort gelöscht. Namen gehören nicht in eine URL,
-// und für achtzig Kinder wäre sie auch zu lang.
+// ab und führt mit `?neu=kinder&vorbelegung=<token>` zur Mitteilungsliste.
+// Der Token verweist nur im aktuellen Browser-Tab auf die Auswahl und bindet
+// sie an den Mandanten. Dort wird sie genau einmal gelesen und sofort gelöscht.
+// Namen gehören nicht in eine URL, und für achtzig Kinder wäre sie auch zu lang.
 //
 // sessionStorage kann leer zurückkommen oder werfen (privates Fenster,
 // gesperrte Websitedaten). Dann öffnet sich der Verfasser ohne Vorbelegung;
@@ -11,8 +12,9 @@
 
 export const ANNOUNCEMENT_PREFILL_PARAM = "neu";
 export const ANNOUNCEMENT_PREFILL_STUDENTS = "kinder";
+export const ANNOUNCEMENT_PREFILL_TOKEN_PARAM = "vorbelegung";
 
-const STORAGE_KEY = "moto:announcement-prefill-students";
+const STORAGE_PREFIX = "moto:announcement-prefill:";
 
 export interface AnnouncementPrefillStudent {
   id: string;
@@ -20,13 +22,19 @@ export interface AnnouncementPrefillStudent {
 }
 
 export function stashAnnouncementStudents(
+  tenantSlug: string,
   students: readonly AnnouncementPrefillStudent[],
-): boolean {
+): string | null {
+  const token = globalThis.crypto?.randomUUID?.();
+  if (!token) return null;
   try {
-    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(students));
-    return true;
+    window.sessionStorage.setItem(
+      `${STORAGE_PREFIX}${token}`,
+      JSON.stringify({ tenantSlug, students }),
+    );
+    return token;
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -40,13 +48,22 @@ function isPrefillStudent(value: unknown): value is AnnouncementPrefillStudent {
   );
 }
 
-export function takeAnnouncementStudents(): AnnouncementPrefillStudent[] {
+export function takeAnnouncementStudents(
+  tenantSlug: string,
+  token: string,
+): AnnouncementPrefillStudent[] {
   try {
-    const raw = window.sessionStorage.getItem(STORAGE_KEY);
-    window.sessionStorage.removeItem(STORAGE_KEY);
+    const key = `${STORAGE_PREFIX}${token}`;
+    const raw = window.sessionStorage.getItem(key);
+    window.sessionStorage.removeItem(key);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter(isPrefillStudent) : [];
+    if (typeof parsed !== "object" || parsed === null) return [];
+    const payload = parsed as Record<string, unknown>;
+    if (payload.tenantSlug !== tenantSlug || !Array.isArray(payload.students)) {
+      return [];
+    }
+    return payload.students.filter(isPrefillStudent);
   } catch {
     return [];
   }
