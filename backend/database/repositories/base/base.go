@@ -250,8 +250,9 @@ func (r *Repository[T]) List(ctx context.Context, filters map[string]any) ([]T, 
 	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
 	// Convert EntityName from CamelCase to snake_case for consistent alias
 	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
-	query := modelAtTable(GetDB(ctx, r.DB).NewSelect(), &entities, r.TableName, entityName).
-		ColumnExpr("?.*", bun.Ident(entityName))
+	// Select the model's mapped columns, not retired columns still present in
+	// a compatibility view during storage contraction.
+	query := modelAtTable(GetDB(ctx, r.DB).NewSelect(), &entities, r.TableName, entityName)
 
 	query = r.applyTenantFilter(ctx, query, entityName)
 
@@ -281,8 +282,7 @@ func (r *Repository[T]) ListWithOptions(ctx context.Context, options *modelBase.
 	entities := make([]T, 0)
 
 	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
-	query := modelAtTable(GetDB(ctx, r.DB).NewSelect(), &entities, r.TableName, entityName).
-		ColumnExpr("?.*", bun.Ident(entityName))
+	query := modelAtTable(GetDB(ctx, r.DB).NewSelect(), &entities, r.TableName, entityName)
 
 	query = r.applyTenantFilter(ctx, query, entityName)
 

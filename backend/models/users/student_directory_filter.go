@@ -28,8 +28,6 @@ type StudentDirectoryFilter struct {
 	// GradeLevels matches the first run of digits in the free-text class
 	// name, so "3a" and "Klasse 3a" both count as grade 3 and "13a" does not.
 	GradeLevels []int
-	// GuardianNameContains is a case-insensitive substring match.
-	GuardianNameContains string
 	// KeepAlumni are the graduates the page keeps anyway — a child with a
 	// still-open presence stays visible.
 	KeepAlumni []int64

@@ -155,13 +155,14 @@ func TestExportRendersTheRetainedNotfallliste(t *testing.T) {
 	sources.Settings = settings
 	sources.Students = fakeStudents{rows: map[int64]*usersModels.Student{
 		101: {PersonID: 301, SchoolClass: "Klasse 3b", HealthInfo: new("Nussallergie, Epipen im Gruppenraum")},
-		202: {PersonID: 302, SchoolClass: "Klasse 2a", GuardianName: new("Familie Schmitt"), GuardianPhone: new("02551 444")},
+		202: {PersonID: 302, SchoolClass: "Klasse 2a"},
 	}}
 	sources.Persons = fakePersons{rows: []peopledirectory.Person{
 		{ID: 301, FirstName: "Mila", LastName: "Albrecht"},
 		{ID: 302, FirstName: "Max", LastName: "Schmitt"},
 	}}
 	sources.Contacts = fakeContacts{rows: []usersModels.GuardianEmergencyContactRow{
+		{StudentID: 202, FirstName: nullString("Familie"), LastName: nullString("Schmitt"), PhoneNumber: nullString("02551 444")},
 		{StudentID: 101, FirstName: nullString("Lea"), LastName: nullString("Albrecht"), PhoneNumber: nullString("02551 111")},
 		{StudentID: 101, FirstName: nullString("Noah"), LastName: nullString("Albrecht"), PhoneNumber: nullString("02551 222")},
 		{StudentID: 101, FirstName: nullString("Lea"), LastName: nullString("Albrecht"), PhoneNumber: nullString("02551 333")},
@@ -488,10 +489,7 @@ func (s ownerStudentSource) FindByIDs(
 	for _, record := range records {
 		student := &usersModels.Student{
 			PersonID: record.PersonID, SchoolClass: record.SchoolClass,
-			HealthInfo:      record.HealthInfo,
-			GuardianName:    record.GuardianName,
-			GuardianContact: record.GuardianContact,
-			GuardianPhone:   record.GuardianPhone,
+			HealthInfo: record.HealthInfo,
 		}
 		student.ID = record.ID
 		result[record.ID] = student

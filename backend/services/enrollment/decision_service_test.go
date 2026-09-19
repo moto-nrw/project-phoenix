@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	"log/slog"
 	"sync"
@@ -3091,55 +3092,54 @@ func TestDecisionService_Decide_ExistingStudentAppliesWithdrawnConsent(t *testin
 func TestDecisionService_Decide_ExistingStudentLinksSubmittedGuardian(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
-	ctx := testpkg.Ctx(t)
+	for _, bookingsAuthoritative := range []bool{false, true} {
+		t.Run(fmt.Sprintf("bookings_authoritative=%t", bookingsAuthoritative), func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			t.Parallel()
+			env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &bookingsAuthoritative})
+			defer cleanup()
+			ctx := testpkg.Ctx(t)
 
-	// An imported child: enrolled, but with no guardian relationship at all.
-	existing := testpkg.CreateTestStudent(t, env.db, "Milo", "Import", "3b")
+			// An imported child: enrolled, but with no guardian relationship at all.
+			existing := testpkg.CreateTestStudent(t, env.db, "Milo", "Import", "3b")
 
-	guardianEmail := "reenroll-guardian@example.com"
-	guardianPhone := "015126829060"
-	reqID, childID := submitReEnrollment(t, env, "Mara", "Import", guardianEmail, &guardianPhone,
-		"Milo", "Import", map[string]any{
-			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
+			guardianEmail := fmt.Sprintf("reenroll-guardian-%t@example.com", bookingsAuthoritative)
+			guardianPhone := "015126829060"
+			reqID, childID := submitReEnrollment(t, env, "Mara", "Import", guardianEmail, &guardianPhone,
+				"Milo", "Import", map[string]any{
+					"agb": true, "data_processing": true, "email_contact": true, "photo": true,
+				})
+			matchChildToExistingStudent(t, env, childID, existing.ID)
+
+			outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+				RequestID:  reqID,
+				ChildID:    childID,
+				Status:     enrollmentService.DecisionApproved,
+				ReviewedBy: env.creatorID,
+			})
+			require.NoError(t, err)
+
+			links, err := env.repos.StudentGuardian.FindByStudentID(ctx, existing.ID)
+			require.NoError(t, err)
+			require.Len(t, links, 1, "the submitted guardian must be linked to the matched student")
+			assert.True(t, links[0].IsPrimary, "the submitted guardian becomes the primary relationship")
+			assert.True(t, links[0].CanPickup)
+
+			profile, err := env.repos.GuardianProfile.FindByID(ctx, links[0].GuardianProfileID)
+			require.NoError(t, err)
+			require.NotNil(t, profile.Email)
+			assert.Equal(t, guardianEmail, *profile.Email)
+
+			phones, err := env.repos.GuardianPhoneNumber.FindByGuardianID(ctx, profile.ID)
+			require.NoError(t, err)
+			require.Len(t, phones, 1, "the submitted phone number must reach the guardian profile")
+			assert.Equal(t, guardianPhone, phones[0].PhoneNumber)
+
+			require.NotNil(t, outcome.PendingInvite,
+				"a guardian without a portal account must be invited, or the renewal grants no portal access")
+			assert.Equal(t, profile.ID, outcome.PendingInvite.GuardianProfileID)
 		})
-	matchChildToExistingStudent(t, env, childID, existing.ID)
-
-	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
-		RequestID:  reqID,
-		ChildID:    childID,
-		Status:     enrollmentService.DecisionApproved,
-		ReviewedBy: env.creatorID,
-	})
-	require.NoError(t, err)
-
-	links, err := env.repos.StudentGuardian.FindByStudentID(ctx, existing.ID)
-	require.NoError(t, err)
-	require.Len(t, links, 1, "the submitted guardian must be linked to the matched student")
-	assert.True(t, links[0].IsPrimary, "the submitted guardian becomes the primary relationship")
-	assert.True(t, links[0].CanPickup)
-
-	profile, err := env.repos.GuardianProfile.FindByID(ctx, links[0].GuardianProfileID)
-	require.NoError(t, err)
-	require.NotNil(t, profile.Email)
-	assert.Equal(t, guardianEmail, *profile.Email)
-
-	phones, err := env.repos.GuardianPhoneNumber.FindByGuardianID(ctx, profile.ID)
-	require.NoError(t, err)
-	require.Len(t, phones, 1, "the submitted phone number must reach the guardian profile")
-	assert.Equal(t, guardianPhone, phones[0].PhoneNumber)
-
-	require.NotNil(t, outcome.PendingInvite,
-		"a guardian without a portal account must be invited, or the renewal grants no portal access")
-	assert.Equal(t, profile.ID, outcome.PendingInvite.GuardianProfileID)
-
-	student, err := env.repos.Student.FindByID(ctx, existing.ID)
-	require.NoError(t, err)
-	require.NotNil(t, student.GuardianEmail)
-	assert.Equal(t, guardianEmail, *student.GuardianEmail, "the renewal restates the guardian contact data")
-	require.NotNil(t, student.GuardianPhone)
-	assert.Equal(t, guardianPhone, *student.GuardianPhone)
+	}
 }
 
 func TestDecisionService_Decide_LateInviteRenewalLinksInviteRecipient(t *testing.T) {
@@ -3191,11 +3191,10 @@ func TestDecisionService_Decide_LateInviteRenewalLinksInviteRecipient(t *testing
 	require.NotNil(t, profile.Email)
 	assert.Equal(t, invitedEmail, *profile.Email)
 
-	student, err := env.repos.Student.FindByID(ctx, existing.ID)
+	request, err := env.repos.Enrollment().RequestByID(ctx, reqID, false)
 	require.NoError(t, err)
-	require.NotNil(t, student.GuardianEmail)
-	assert.Equal(t, unrelatedParent.Email, *student.GuardianEmail,
-		"the corrected address must remain available as contact data")
+	assert.Equal(t, unrelatedParent.Email, request.GuardianEmail, "the submitted contact remains on the enrollment, not the student")
+
 	require.NotNil(t, outcome.PendingInvite)
 	assert.Equal(t, profile.ID, outcome.PendingInvite.GuardianProfileID)
 }

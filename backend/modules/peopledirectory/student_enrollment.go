@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/enrollment"
 )
 
@@ -81,22 +80,6 @@ func normalizeEnrollmentStudent(input *EnrollmentStudent) error {
 	if err := validateBirthday(input.EnrolledUntil); err != nil {
 		return &InvalidStudentError{Reason: "invalid enrolled_until calendar date"}
 	}
-	for _, value := range []struct {
-		ptr   **string
-		valid func(string) bool
-		label string
-	}{
-		{&input.GuardianEmail, contact.IsValidEmailFormat, "guardian email"},
-		{&input.GuardianPhone, contact.IsValidPhoneFormat, "guardian phone"},
-	} {
-		if *value.ptr == nil || **value.ptr == "" {
-			continue
-		}
-		normalized := strings.TrimSpace(**value.ptr)
-		if !value.valid(normalized) {
-			return &InvalidStudentError{Reason: "invalid " + value.label + " format"}
-		}
-		*value.ptr = &normalized
-	}
+
 	return nil
 }

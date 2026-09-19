@@ -16,8 +16,6 @@ type Input struct {
 	Status        string
 	EnrolledFrom  string
 	EnrolledUntil string
-	GuardianEmail *string
-	GuardianPhone *string
 }
 
 type CreatedStudent struct {

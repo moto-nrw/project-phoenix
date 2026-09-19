@@ -58,7 +58,6 @@ vi.mock("~/lib/student-privacy-helpers", () => ({
 
 vi.mock("~/lib/student-request-helpers", () => ({
   validateStudentFields: vi.fn((body: Record<string, unknown>) => body),
-  parseGuardianContact: vi.fn(() => "test@example.com"),
   buildBackendStudentRequest: vi.fn(
     (
       validated: {
@@ -67,12 +66,10 @@ vi.mock("~/lib/student-request-helpers", () => ({
         school_class: string;
       },
       _body: Record<string, unknown>,
-      guardianContact: string,
     ) => ({
       first_name: validated.first_name,
       last_name: validated.last_name,
       school_class: validated.school_class,
-      guardian_contact: guardianContact,
     }),
   ),
   handlePrivacyConsentCreation: vi.fn(() => Promise.resolve()),
@@ -344,7 +341,6 @@ describe("POST /api/students", () => {
         first_name: "Bob",
         last_name: "Jones",
         school_class: "2b",
-        guardian_email: "bob@example.com",
       },
     });
     const response = await POST(request, createMockContext());
@@ -360,8 +356,6 @@ describe("POST /api/students", () => {
         first_name: "Bob",
         last_name: "Jones",
         school_class: "2b",
-        guardian_name: "Bob Jones",
-        guardian_contact: "bob@example.com",
         bus: false,
         created_at: "2024-01-15T10:00:00Z",
         updated_at: "2024-01-15T10:00:00Z",
@@ -375,7 +369,6 @@ describe("POST /api/students", () => {
         first_name: "Bob",
         last_name: "Jones",
         school_class: "2b",
-        guardian_email: "bob@example.com",
         privacy_consent_accepted: true,
         data_retention_days: 30,
       },

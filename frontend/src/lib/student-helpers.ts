@@ -474,10 +474,6 @@ export interface BackendStudent {
   // NOT change day_planning_status; the child stays "expected" until the OGS
   // confirms. Absent when there is no pending absence request for today.
   pending_excused_note?: string;
-  guardian_name?: string; // Optional: Legacy field, use guardian_profiles instead
-  guardian_contact?: string; // Optional: Legacy field, use guardian_profiles instead
-  guardian_email?: string;
-  guardian_phone?: string;
   group_id?: number;
   group_name?: string;
   address_street?: string;
@@ -684,10 +680,6 @@ export interface Student {
   // Informational only — the child stays "expected" (day_planning_status
   // unchanged) until an office/admin confirms the request.
   pending_excused_note?: string;
-  name_lg?: string;
-  contact_lg?: string;
-  guardian_email?: string;
-  guardian_phone?: string;
   address_street?: string;
   address_city?: string;
   address_postal_code?: string;
@@ -817,10 +809,6 @@ export function mapStudentResponse(
     care_ended: backendStudent.care_ended ?? false,
     care_exit_recorded: backendStudent.care_exit_recorded ?? false,
     pending_excused_note: backendStudent.pending_excused_note,
-    name_lg: backendStudent.guardian_name ?? undefined,
-    contact_lg: backendStudent.guardian_contact ?? undefined,
-    guardian_email: backendStudent.guardian_email,
-    guardian_phone: backendStudent.guardian_phone,
     address_street: backendStudent.address_street,
     address_city: backendStudent.address_city,
     address_postal_code: backendStudent.address_postal_code,
@@ -954,8 +942,6 @@ export function mapStudentDetailResponse(
 export function prepareStudentForBackend(
   student: Partial<Student> & {
     tag_id?: string;
-    guardian_email?: string;
-    guardian_phone?: string;
     address_street?: string;
     address_city?: string;
     address_postal_code?: string;
@@ -1001,14 +987,10 @@ export function prepareStudentForBackend(
       student.departure_days !== undefined
         ? normalizeDepartureDays(student.departure_days)
         : undefined,
-    // REMOVED: guardian_name and guardian_contact - deprecated fields
-    // Use guardian_profiles system instead
     group_id: student.group_id
       ? Number.parseInt(student.group_id, 10)
       : undefined,
     tag_id: student.tag_id,
-    guardian_email: student.guardian_email,
-    guardian_phone: student.guardian_phone,
     address_street: student.address_street,
     address_city: student.address_city,
     address_postal_code: student.address_postal_code,
@@ -1067,11 +1049,7 @@ export interface UpdateStudentRequest {
   second_name?: string; // Will be mapped to last_name for backend
   school_class?: string;
   group_id?: string;
-  name_lg?: string; // Guardian name
-  contact_lg?: string; // Guardian contact
   tag_id?: string;
-  guardian_email?: string;
-  guardian_phone?: string;
   address_street?: string;
   address_city?: string;
   address_postal_code?: string;
@@ -1104,10 +1082,6 @@ export interface BackendUpdateRequest {
   last_name?: string;
   tag_id?: string;
   school_class?: string;
-  guardian_name?: string;
-  guardian_contact?: string;
-  guardian_email?: string;
-  guardian_phone?: string;
   address_street?: string;
   address_city?: string;
   address_postal_code?: string;
@@ -1181,10 +1155,6 @@ const DIRECT_FIELD_MAPPINGS: FieldMapping[] = [
   { source: "second_name", target: "last_name" },
   { source: "tag_id", target: "tag_id" },
   { source: "school_class", target: "school_class" },
-  { source: "name_lg", target: "guardian_name" },
-  { source: "contact_lg", target: "guardian_contact" },
-  { source: "guardian_email", target: "guardian_email" },
-  { source: "guardian_phone", target: "guardian_phone" },
   { source: "address_street", target: "address_street" },
   { source: "address_city", target: "address_city" },
   { source: "address_postal_code", target: "address_postal_code" },
@@ -1253,37 +1223,6 @@ export function formatStudentName(student: Student): string {
 export function formatStudentStatus(student: Student): string {
   const parsed = parseLocation(student.current_location);
   return parsed.room ?? parsed.status ?? LOCATION_STATUSES.UNKNOWN;
-}
-
-/**
- * Extracts guardian contact information with clear precedence rules.
- * This function provides a consistent way to determine which contact
- * information to display for a student's guardian.
- *
- * Precedence order:
- * 1. guardian_email - Primary contact method (if available)
- * 2. contact_lg - Legacy contact field (fallback)
- * 3. Empty string - Final fallback when no contact info is available
- *
- * @param studentData - Object containing guardian contact fields
- * @returns The most appropriate guardian contact information
- */
-export function extractGuardianContact(studentData: {
-  guardian_email?: string;
-  contact_lg?: string;
-}): string {
-  // First priority: Use guardian_email if available
-  if (studentData.guardian_email) {
-    return studentData.guardian_email;
-  }
-
-  // Second priority: Fall back to legacy contact_lg field
-  if (studentData.contact_lg) {
-    return studentData.contact_lg;
-  }
-
-  // Final fallback: Return empty string when no contact info available
-  return "";
 }
 
 export function getStatusColor(student: Student): string {

@@ -804,11 +804,6 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 	// mismatched class. Issue #1833.
 	previousSchoolClass := student.SchoolClass
 	student.SchoolClass = s.resolveRolloverSchoolClass(child, student.SchoolClass)
-	guardianEmail := strings.TrimSpace(strings.ToLower(req.GuardianEmail))
-	if guardianEmail != "" {
-		student.GuardianEmail = &guardianEmail
-	}
-	student.GuardianPhone = req.GuardianPhone
 	if s.StudentEnrollment == nil {
 		return nil, fmt.Errorf("decision: student enrollment capability is required")
 	}

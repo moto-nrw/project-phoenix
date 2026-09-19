@@ -221,14 +221,6 @@ func (r *StudentRepository) CountByGroupIDs(context.Context, []int64) (map[int64
 	return nil, errStudentWritesMoved
 }
 
-func (r *StudentRepository) FindByGuardianEmail(context.Context, string) ([]*users.Student, error) {
-	return nil, errStudentWritesMoved
-}
-
-func (r *StudentRepository) FindByGuardianPhone(context.Context, string) ([]*users.Student, error) {
-	return nil, errStudentWritesMoved
-}
-
 func (r *StudentRepository) FindPendingDueForActivation(context.Context, timezone.Date) ([]*users.Student, error) {
 	return nil, errStudentWritesMoved
 }

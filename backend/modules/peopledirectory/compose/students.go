@@ -153,7 +153,7 @@ func toDomainStudentDirectoryFilter(filter peopledirectory.StudentDirectoryFilte
 	}
 	return domain.StudentDirectoryFilter{
 		IDs: filter.IDs, SchoolClasses: filter.SchoolClasses, GradeLevels: levels,
-		GuardianNameContains: filter.GuardianNameContains, KeepAlumni: filter.KeepAlumni,
+		KeepAlumni: filter.KeepAlumni,
 		CareStatus: filter.CareStatus, CareStatusOn: filter.CareStatusOn,
 		Page: filter.Page, PageSize: filter.PageSize,
 	}
@@ -206,11 +206,6 @@ func (e engine) ListStudentRecordsByClass(
 	scope peopledirectory.StudentScope,
 ) ([]peopledirectory.StudentRecord, error) {
 	values, err := e.students.ListRecordsByClasses(ctx, classes, string(scope))
-	return toPublicStudentRecords(values), mapError(err)
-}
-
-func (e engine) ListStudentRecordsByGuardianContact(ctx context.Context, email, phone string) ([]peopledirectory.StudentRecord, error) {
-	values, err := e.students.ListRecordsByGuardianContact(ctx, email, phone)
 	return toPublicStudentRecords(values), mapError(err)
 }
 
