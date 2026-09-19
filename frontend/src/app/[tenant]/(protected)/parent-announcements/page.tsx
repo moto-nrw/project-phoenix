@@ -54,6 +54,13 @@ import {
 } from "~/components/announcements/announcement-meta";
 import type { AnnouncementKind } from "~/components/announcements/announcement-meta";
 import {
+  ANNOUNCEMENT_PREFILL_PARAM,
+  ANNOUNCEMENT_PREFILL_STUDENTS,
+  ANNOUNCEMENT_PREFILL_TOKEN_PARAM,
+  type AnnouncementPrefillStudent,
+  takeAnnouncementStudents,
+} from "~/lib/announcement-prefill";
+import {
   buildAnnouncementMenuItems,
   DeleteAnnouncementDialog,
   PublishAnnouncementDialog,
@@ -61,6 +68,7 @@ import {
 } from "~/components/announcements/announcement-lifecycle-dialogs";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
 import { WizardStepper } from "~/components/ui/wizard-stepper";
 import { SegmentedControl } from "~/components/ui/segmented-control";
@@ -204,6 +212,7 @@ function ParentAnnouncementsContent() {
   const searchParams = useSearchParams();
   const updateUrlParams = useUpdateUrlParams();
   const router = useTenantRouter();
+  const tenantSlug = useTenantSlugSafe();
   // Der Reiter steht in der Adresse (`?art=`), damit die Objektseite den
   // Rückweg auf denselben Reiter setzen kann (#3115).
   const kind = kindFromParam(searchParams.get("art"));
@@ -218,6 +227,9 @@ function ParentAnnouncementsContent() {
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editing, setEditing] = useState<Announcement | null>(null);
+  const [prefillStudents, setPrefillStudents] = useState<
+    AnnouncementPrefillStudent[]
+  >([]);
   const [deleteTarget, setDeleteTarget] = useState<Announcement | null>(null);
   const [publishTarget, setPublishTarget] = useState<Announcement | null>(null);
   const [unpublishTarget, setUnpublishTarget] = useState<Announcement | null>(
@@ -267,6 +279,33 @@ function ParentAnnouncementsContent() {
     }
     updateUrlParams({ bearbeiten: null });
   }, [announcements, editRequestId, updateUrlParams]);
+
+  // Der Rücklauf einer Anmeldephase (#3379) schickt mit `?neu=kinder` und
+  // einem Vorbelegungs-Token hierher. Die Auswahl wird einmal gelesen; fehlt
+  // sie (Neuladen, anderer Tab oder anderer Mandant), bleibt es bei der Liste.
+  // Die Parameter verschwinden wie bei `?bearbeiten=`, damit Neuladen nichts
+  // erneut öffnet.
+  const prefillRequest = searchParams.get(ANNOUNCEMENT_PREFILL_PARAM);
+  const prefillToken = searchParams.get(ANNOUNCEMENT_PREFILL_TOKEN_PARAM);
+  useEffect(() => {
+    if (
+      prefillRequest !== ANNOUNCEMENT_PREFILL_STUDENTS ||
+      !prefillToken ||
+      !tenantSlug
+    ) {
+      return;
+    }
+    const students = takeAnnouncementStudents(tenantSlug, prefillToken);
+    if (students.length > 0) {
+      setEditing(null);
+      setPrefillStudents(students);
+      setIsFormOpen(true);
+    }
+    updateUrlParams({
+      [ANNOUNCEMENT_PREFILL_PARAM]: null,
+      [ANNOUNCEMENT_PREFILL_TOKEN_PARAM]: null,
+    });
+  }, [prefillRequest, prefillToken, tenantSlug, updateUrlParams]);
 
   // Die Objektseite einer Mitteilung, mit dem aktuellen Reiter, der Suche und
   // dem Statusfilter als Rückweg.
@@ -397,6 +436,7 @@ function ParentAnnouncementsContent() {
   const closeForm = () => {
     setIsFormOpen(false);
     setEditing(null);
+    setPrefillStudents([]);
   };
 
   const columns: DataTableColumn<Announcement>[] = [
@@ -573,6 +613,7 @@ function ParentAnnouncementsContent() {
           {isFormOpen && (
             <AnnouncementFormModal
               announcement={editing}
+              initialStudents={prefillStudents}
               kind={
                 // kindOf, not a poll/announcement ternary: editing a letter must keep
                 // its mode, otherwise saving the draft would silently downgrade it to
@@ -645,6 +686,11 @@ function ParentAnnouncementsContent() {
 interface AnnouncementFormModalProps {
   readonly announcement: Announcement | null;
   /**
+   * Kinder, an die eine NEUE Mitteilung schon adressiert ist (#3379). Beim
+   * Bearbeiten ohne Wirkung: dort gelten die gespeicherten Empfänger.
+   */
+  readonly initialStudents?: readonly AnnouncementPrefillStudent[];
+  /**
    * Which of the two things is being written. Decided by the caller (the active
    * tab for a new entry, the entry's own type when editing) so the modal never
    * has to guess and a poll can never silently lose its options.
@@ -664,6 +710,9 @@ interface AnnouncementFormModalProps {
 }
 
 const WIZARD_STEPS = ["Inhalt", "Empfänger"] as const;
+
+// Feste Referenz für den Normalfall ohne Vorbelegung.
+const NO_PREFILL_STUDENTS: readonly AnnouncementPrefillStudent[] = [];
 
 /**
  * Anhänge (#2890). Both limits mirror the backend
@@ -691,6 +740,7 @@ const ATTACHMENTS_LOCKED_HINT =
  */
 function AnnouncementFormModal({
   announcement,
+  initialStudents = NO_PREFILL_STUDENTS,
   kind,
   groups,
   activities,
@@ -800,9 +850,21 @@ function AnnouncementFormModal({
     announcement?.reminder_text ?? "",
   );
   const [targets, setTargets] = useState<AnnouncementTarget[]>(
-    announcement?.targets ?? [],
+    () =>
+      announcement?.targets ??
+      initialStudents.map((student) => ({
+        target_type: "student" as const,
+        ref_id: student.id,
+      })),
   );
-  const [studentNames, setStudentNames] = useState<Record<string, string>>({});
+  const [studentNames, setStudentNames] = useState<Record<string, string>>(
+    () =>
+      announcement
+        ? {}
+        : Object.fromEntries(
+            initialStudents.map((student) => [student.id, student.name]),
+          ),
+  );
 
   // Poll state. A fresh poll starts as the question schools ask most often, so
   // the common case is two clicks away instead of two text fields.

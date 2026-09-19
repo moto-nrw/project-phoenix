@@ -26,6 +26,10 @@ type Guardian struct {
 	AccountID              *int64
 }
 
+// GuardianPermissionPortalAccess is the link permission that lets a portal
+// account see the child.
+const GuardianPermissionPortalAccess = "parent_portal.access"
+
 // GuardianLink is one users.students_guardians row. Permissions carries the
 // granted parents-portal permission names.
 type GuardianLink struct {

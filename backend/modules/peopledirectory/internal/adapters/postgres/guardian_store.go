@@ -49,13 +49,23 @@ type guardianLinkRow struct {
 // users.students_guardians; it shares the database runtime with the person
 // store. The application-level guardian flows stay with the owner's
 // legacy service, so this store carries only the reads foreign owners need.
-type GuardianStore struct{ database Database }
+// MembershipQuery is the Identity & Access owner query that selects the
+// active (account_id, tenant_id) mappings. Keeping it as a query lets the
+// guardian read stay one statement while the Identity owner retains its table.
+type MembershipQuery func(context.Context) *bun.SelectQuery
 
-func NewGuardianStore(database Database) *GuardianStore {
+type GuardianStore struct {
+	database       Database
+	memberships    MembershipQuery
+	activeAccounts MembershipQuery
+	guardianRoles  MembershipQuery
+}
+
+func NewGuardianStore(database Database, memberships, activeAccounts, guardianRoles MembershipQuery) *GuardianStore {
 	if database == nil {
 		panic("people directory postgres: database runtime is required")
 	}
-	return &GuardianStore{database: database}
+	return &GuardianStore{database: database, memberships: memberships, activeAccounts: activeAccounts, guardianRoles: guardianRoles}
 }
 
 // ListLinksByAccount joins the two owned tables once: every link of every
@@ -156,6 +166,46 @@ func (s *GuardianStore) CountLinks(ctx context.Context, guardianIDs []int64) (ma
 		result[row.GuardianProfileID] = row.Links
 	}
 	stats.Rows = int64(len(rows))
+	return result, stats, nil
+}
+
+// ListAccountLinksByStudents returns the links of the given children whose
+// guardian holds a portal account with an active school membership. What such
+// a link may do is decided by the caller from its permissions, exactly as for
+// ListLinksByAccount.
+func (s *GuardianStore) ListAccountLinksByStudents(ctx context.Context, studentIDs []int64) ([]domain.GuardianLink, domain.OperationStats, error) {
+	if s.memberships == nil || s.activeAccounts == nil || s.guardianRoles == nil {
+		return nil, domain.OperationStats{}, fmt.Errorf("people directory postgres: list account links by students: portal account queries are required")
+	}
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	rows := []guardianLinkRow{}
+	query := db.NewSelect().Model(&rows).ModelTableExpr(`users.students_guardians AS "student_guardian"`).
+		Join(`JOIN users.guardian_profiles AS "guardian_profile" ON "guardian_profile".id = "student_guardian".guardian_profile_id AND "guardian_profile".tenant_id = "student_guardian".tenant_id`).
+		Where(`"student_guardian".student_id IN (?)`, bun.List(studentIDs)).
+		Where(`"guardian_profile".account_id IS NOT NULL`).
+		Where(`"guardian_profile".has_account = true`).
+		Where(`("guardian_profile".account_id, "student_guardian".tenant_id) IN (?)`, s.memberships(ctx)).
+		Where(`("guardian_profile".account_id, "student_guardian".tenant_id) IN (?)`, s.guardianRoles(ctx)).
+		Where(`"guardian_profile".account_id IN (?)`, s.activeAccounts(ctx))
+	if tenantID > 0 {
+		query = query.Where(`"student_guardian".tenant_id = ?`, tenantID)
+	}
+	query = query.OrderExpr(`"student_guardian".student_id ASC, "student_guardian".id ASC`)
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = query.Scan(ctx)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return nil, stats, fmt.Errorf("people directory postgres: list account links by students: %w", err)
+	}
+	result := make([]domain.GuardianLink, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, toDomainLink(row))
+	}
+	stats.Rows = int64(len(result))
 	return result, stats, nil
 }
 

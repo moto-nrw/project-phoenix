@@ -55,6 +55,7 @@ type engine interface {
 	InsertChild(ctx context.Context, child *RequestChild) error
 	ChildByID(ctx context.Context, id int64) (*RequestChild, error)
 	ChildrenByID(ctx context.Context, ids []int64) ([]*RequestChild, error)
+	PhaseResponseChildren(ctx context.Context, phaseID int64, statuses []string) ([]PhaseResponseChild, error)
 	ChildrenForRequest(ctx context.Context, requestID int64, forUpdate bool) ([]*RequestChild, error)
 	ChildrenForRequests(ctx context.Context, requestIDs []int64) ([]*RequestChild, error)
 	ChildrenByPhaseStatuses(ctx context.Context, phaseID int64, statuses []string) ([]*RequestChild, error)

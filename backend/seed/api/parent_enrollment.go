@@ -517,6 +517,9 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 	if err := s.seedEnrollmentDeletion(rt, adminAuth, phaseID, offerings, len(submissions)); err != nil {
 		return state, err
 	}
+	if err := s.seedRenewalPhase(rt, adminAuth, schemaID, parents, parentAuths); err != nil {
+		return state, err
+	}
 	return state, nil
 }
 
