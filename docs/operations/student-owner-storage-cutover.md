@@ -15,9 +15,10 @@ application dual write. [Contract #2760](https://github.com/moto-nrw/project-pho
 removes it after the rollback window.
 
 Prerequisite: [the completed backfill](student-owner-storage-backfill.md).
-`backfill student-owner status` must exit zero shortly before the release —
-`care_state_mismatch_count` is measured against today, so an older green run is
-not evidence.
+`backfill student-owner status` must exit zero before the release.
+`care_state_mismatch_count` is diagnostic only: absence flags and timestamps
+are retained in the archive, then copied and verified in Care Plan by `1.15.398`.
+Do not change absence data to make this counter zero.
 
 ## What the switch does
 
@@ -28,8 +29,8 @@ not evidence.
    and locks `users.students` and the three targets `ACCESS EXCLUSIVE`.
 3. Per school: removes target profiles whose source row is gone, copies the
    remaining delta with the backfill's own statement, then re-verifies counts,
-   canonical checksums, the row-wise mismatch, the guardian reconciliation and
-   the care-state equivalence with the backfill's own projections. Any failing
+   canonical checksums, the row-wise mismatch and guardian reconciliation with
+   the backfill's own projections. Any failing
    verdict aborts the whole transaction. A school with no completed backfill
    pass and at least one student aborts it before the copy. More than 100,000
    rows still to copy under the lock aborts it as well: that is an unfinished
@@ -73,13 +74,13 @@ write stays inside the reader's tenant policy.
   soft deletion, so a retired enrollment has to read as a row that is gone.
 - `updated_at` is the newest of the three rows, so a write to any one owner
   still moves the single timestamp the old shape exposed.
-- The eight columns without a target — `guardian_name`, `guardian_contact`,
-  `guardian_email`, `guardian_phone`, `sick`, `sick_since`, `excused`,
-  `excused_since` — are read from `users.students_legacy`. A child enrolled
-  after the switch has no archive row, so they read NULL (`sick`/`excused`
-  read `false`). Those values are not authoritative anywhere: guardians live in
-  `users.guardian_profiles` / `users.guardian_phone_numbers` and absences in
-  `active.student_status_days`.
+- Initially the eight legacy guardian and absence columns are read from
+  `users.students_legacy`. Migration `1.15.398` copies the absence flags and
+  timestamps into Care Plan, checks equality, and changes the view and routing
+  trigger to read/write those owner fields. This includes children enrolled
+  after the switch. Only the guardian copies remain archive-backed; a new child
+  without an archive row reads NULL for those copies. Authoritative contacts
+  live in `users.guardian_profiles` / `users.guardian_phone_numbers`.
 
 Writes through the view go to the owner of each column and mirror the whole old
 row into the archive, so a previous image finds its legacy columns unchanged.
@@ -111,15 +112,16 @@ endpoints against the pre-release baseline while callers still go through it.
    [backfill evidence](student-owner-storage-backfill.md). Stop application
    writers before migrating, as in the normal deployment procedure.
 2. Apply migrations. A missing checkpoint, an unequal checksum, an unreconciled
-   guardian value, a stale absence flag or a lock timeout aborts the cutover
+   guardian value or a lock timeout aborts the cutover
    transaction and changes nothing. Fix the cause, resume the existing backfill
    and retry `migrate`.
 
-   The two verdicts that need a data correction rather than another backfill
-   pass no longer have to be discovered here. `scripts/deploy-remote.sh` runs
+   Guardian reconciliation failures need not be discovered mid-migration.
+   `scripts/deploy-remote.sh` runs
    `migrate preflight` against the live database before it stops the
    application, and `1.15.397` answers it by reconciling the legacy guardian
-   values and the absence flags straight off `users.students`. An environment
+   values straight off `users.students`. Absence/status-day differences do not
+   block it. An environment
    whose data would refuse therefore aborts the release with exit 1, untouched
    and still serving, instead of failing mid-migration and restoring the
    backup. The check needs no checkpoints, so it also answers on an environment
