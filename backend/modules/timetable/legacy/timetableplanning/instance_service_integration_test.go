@@ -935,6 +935,24 @@ func TestInstance_Reopen_HappyPath(t *testing.T) {
 	assert.Nil(t, group.EndTime)
 }
 
+func TestInstance_Reopen_AcceptsCompletionWritesStampedByDatabase(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	deps := lifecycleDependencies(s, nil)
+	deps.Now = func() time.Time { return time.Now().Add(-time.Minute) }
+	s.svc = timetableplanning.NewInstanceService(deps)
+	ai := seedInstance(t, s, true, true)
+	_, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+
+	_, err = s.svc.Complete(s.ctx, ai.ID)
+	require.NoError(t, err)
+
+	_, err = s.svc.Reopen(s.ctx, ai.ID, 0, true)
+	require.NoError(t, err)
+}
+
 func TestInstance_Start_LeavesIndependentRoomStays(t *testing.T) {
 	t.Parallel()
 
