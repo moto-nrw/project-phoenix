@@ -28,6 +28,10 @@ Until #2580's exit criteria are met, the capability-first target in
 `backend/architecture/policy.json` takes precedence over legacy examples.
 The Handler → Service → Repository layout is migration state, not the target.
 
+`backend/architecture/WORKPLAN.md` holds the open ticket set: what is assignable
+today, what each carrier still owns, and the debt no ratchet counts. Read it
+before picking up or cutting a #2580 ticket.
+
 Before backend design, implementation, or review:
 
 1. Read `backend/architecture/README.md` and inspect affected owners, packages,
