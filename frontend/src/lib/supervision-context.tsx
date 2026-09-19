@@ -465,10 +465,7 @@ export function SupervisionProvider({
       urlTenantId,
       schoolMismatch,
     };
-    const schoolChanged =
-      previous.sessionTenantId !== undefined &&
-      sessionTenantId !== undefined &&
-      previous.sessionTenantId !== sessionTenantId;
+    const schoolChanged = previous.sessionTenantId !== sessionTenantId;
     const urlSchoolChanged = previous.urlTenantId !== urlTenantId;
     if (
       !schoolChanged &&

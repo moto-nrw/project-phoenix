@@ -2059,7 +2059,7 @@ describe("useOptionalSupervision", () => {
 
 // #3375: after a school switch the sidebar kept the previous school's groups.
 describe("SupervisionProvider school switch (#3375)", () => {
-  function sessionFor(tenantId: number, token: string) {
+  function sessionFor(tenantId: number | undefined, token: string | undefined) {
     return {
       data: {
         user: {
@@ -2246,6 +2246,48 @@ describe("SupervisionProvider school switch (#3375)", () => {
     });
 
     await screen.findByText("Schule 2");
+  });
+
+  it("discards an in-flight response when the session loses its school", async () => {
+    await mockUrlTenant(2);
+    let releaseOld: (() => void) | undefined;
+    let oldResponseRead = false;
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/api/groups/context") && !releaseOld) {
+        return new Promise((resolve) => {
+          releaseOld = () =>
+            resolve({
+              ok: true,
+              json: async () => {
+                oldResponseRead = true;
+                return { groups: [{ id: 2, name: "Schule 2" }] };
+              },
+            });
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+    });
+    vi.mocked(useSession).mockReturnValue(sessionFor(2, "token-2"));
+
+    const { result, rerender } = renderHook(() => useSupervision(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <SupervisionProvider>{children}</SupervisionProvider>
+      ),
+    });
+    await waitFor(() => expect(releaseOld).toBeDefined());
+
+    vi.mocked(useSession).mockReturnValue(sessionFor(undefined, undefined));
+    rerender();
+
+    await act(async () => {
+      releaseOld?.();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(oldResponseRead).toBe(true);
+      expect(result.current.groups).toEqual([]);
+    });
   });
 
   it("discards an answer of the previous school that arrives late", async () => {
