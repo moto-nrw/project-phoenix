@@ -105,6 +105,25 @@ describe("ContextHelpLink", () => {
     }
   });
 
+  it("opens a teacher article from moto schule", () => {
+    auth.mode = "school";
+    auth.roles = ["lehrkraft"];
+    try {
+      render(<ContextHelpLink topic={HELP_TOPICS.teacherClassDay} />);
+
+      const link = screen.getByRole("link", {
+        name: "Hilfe zu dieser Seite",
+      });
+      const href = link.getAttribute("href") ?? "";
+      const target = new URL(href, "https://moto.invalid");
+      expect(target.pathname).toBe("/help/meinen-klassentag-ansehen");
+      expect(target.searchParams.get("role")).toBe("teacher");
+    } finally {
+      auth.mode = "teacher";
+      auth.roles = ["admin"];
+    }
+  });
+
   // Ein Betreuungsartikel hat fuer Eltern keine Fassung. Lieber kein
   // Fragezeichen als eines in die falsche Seitenleiste.
   it("stays away from a caregiver article in the parents portal", () => {

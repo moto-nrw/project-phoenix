@@ -62,9 +62,11 @@ export function ContextHelpLink({
   const role: HelpRole =
     mode === "parent"
       ? "parent"
-      : user?.roles.includes("admin")
-        ? "lead"
-        : "caregiver";
+      : mode === "school"
+        ? "teacher"
+        : user?.roles.includes("admin")
+          ? "lead"
+          : "caregiver";
   const groupMode = openCareGroupMode ? "open_care" : "fixed_groups";
 
   // Nicht jede Seite hat fuer jede Rolle eine passende Anleitung: `/settings`

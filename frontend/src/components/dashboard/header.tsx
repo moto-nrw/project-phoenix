@@ -24,6 +24,7 @@ import { matchesPathPrefix } from "~/lib/section-navigation";
 import {
   getHelpTopicForPath,
   getParentHelpTopicForPath,
+  getSchoolHelpTopicForPath,
 } from "~/lib/help-topics";
 import { ContextHelpLink } from "~/components/help/context-help-link";
 
@@ -218,6 +219,7 @@ export function Header() {
   const contextualHelpTopic = (() => {
     if (mode === "teacher") return helpTopic ?? getHelpTopicForPath(pathname);
     if (mode === "parent") return getParentHelpTopicForPath(pathname);
+    if (mode === "school") return getSchoolHelpTopicForPath(pathname);
     return null;
   })();
 

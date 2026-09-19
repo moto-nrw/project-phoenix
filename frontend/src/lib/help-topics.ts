@@ -295,6 +295,22 @@ const PARENT_PREFIX_HELP_TOPICS: ReadonlyArray<
   ["/anmeldung", HELP_TOPICS.parentEnroll],
 ];
 
+/**
+ * Routen von moto schule. Auf dem Schul-Host laufen sie ohne `/school`-
+ * Praefix; nach dem Proxy-Rewrite kann der interne Pfad das Praefix tragen.
+ */
+const SCHOOL_EXACT_HELP_TOPICS: Readonly<Record<string, HelpTopicId>> = {
+  "/": HELP_TOPICS.teacherClassDay,
+  "/klasse": HELP_TOPICS.teacherClassList,
+  "/aufsichten": HELP_TOPICS.teacherSupervision,
+  "/tagesinformationen": HELP_TOPICS.teacherNotices,
+  "/einstellungen": HELP_TOPICS.teacherSettings,
+};
+
+const SCHOOL_PREFIX_HELP_TOPICS: ReadonlyArray<
+  readonly [prefix: string, topic: HelpTopicId]
+> = [["/nachrichten", HELP_TOPICS.teacherMessages]];
+
 /** Finds the help article for a page of the parents portal. */
 export function getParentHelpTopicForPath(
   pathname: string,
@@ -304,6 +320,20 @@ export function getParentHelpTopicForPath(
   if (exactTopic) return exactTopic;
 
   for (const [prefix, topic] of PARENT_PREFIX_HELP_TOPICS) {
+    if (matchesPathPrefix(path, prefix)) return topic;
+  }
+  return null;
+}
+
+/** Finds the help article for a page of moto schule. */
+export function getSchoolHelpTopicForPath(
+  pathname: string,
+): HelpTopicId | null {
+  const path = pathname.replace(/^\/school(?=\/|$)/, "") || "/";
+  const exactTopic = SCHOOL_EXACT_HELP_TOPICS[path];
+  if (exactTopic) return exactTopic;
+
+  for (const [prefix, topic] of SCHOOL_PREFIX_HELP_TOPICS) {
     if (matchesPathPrefix(path, prefix)) return topic;
   }
   return null;

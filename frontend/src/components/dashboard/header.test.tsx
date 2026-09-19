@@ -25,6 +25,9 @@ const mockUseProfile = vi.fn(() => ({
 const mockUseBreadcrumb = vi.fn(() => ({
   breadcrumb: {},
 }));
+const shellAuth = vi.hoisted(() => ({
+  mode: "teacher" as "teacher" | "school",
+}));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mockUsePathname(),
@@ -174,7 +177,7 @@ vi.mock("~/lib/shell-auth-context", () => ({
     status: "authenticated",
     isSessionExpired: false,
     logout: vi.fn(),
-    mode: "teacher",
+    mode: shellAuth.mode,
     homeUrl: "/dashboard",
 
     profileUrl: "/profile",
@@ -210,6 +213,7 @@ describe("Header", () => {
     mockUseBreadcrumb.mockReturnValue({
       breadcrumb: {},
     });
+    shellAuth.mode = "teacher";
     // Reset window.scrollY
     Object.defineProperty(window, "scrollY", { value: 0, writable: true });
   });
@@ -315,6 +319,18 @@ describe("Header", () => {
     render(<Header />);
 
     expect(screen.queryByTestId("context-help-link")).not.toBeInTheDocument();
+  });
+
+  it("links a moto schule page to its teacher help topic", () => {
+    shellAuth.mode = "school";
+    mockUsePathname.mockReturnValue("/aufsichten");
+
+    render(<Header />);
+
+    expect(screen.getByTestId("context-help-link")).toHaveAttribute(
+      "href",
+      "/help/meine-aufsichten-ansehen",
+    );
   });
 
   it("normalizes tenant-prefixed paths before resolving page titles", () => {

@@ -13,6 +13,7 @@ import {
 import {
   getHelpTopicForPath,
   getParentHelpTopicForPath,
+  getSchoolHelpTopicForPath,
   HELP_TOPICS,
 } from "./help-topics";
 
@@ -742,5 +743,29 @@ describe("getParentHelpTopicForPath", () => {
       .sort();
 
     expect(unmappedPages).toEqual(UNMAPPED_HELP_PAGE_BASELINE);
+  });
+});
+
+describe("getSchoolHelpTopicForPath", () => {
+  it.each([
+    ["/", HELP_TOPICS.teacherClassDay],
+    ["/school", HELP_TOPICS.teacherClassDay],
+    ["/klasse", HELP_TOPICS.teacherClassList],
+    ["/school/klasse", HELP_TOPICS.teacherClassList],
+    ["/aufsichten", HELP_TOPICS.teacherSupervision],
+    ["/school/aufsichten", HELP_TOPICS.teacherSupervision],
+    ["/nachrichten", HELP_TOPICS.teacherMessages],
+    ["/nachrichten/42", HELP_TOPICS.teacherMessages],
+    ["/school/nachrichten/42", HELP_TOPICS.teacherMessages],
+    ["/tagesinformationen", HELP_TOPICS.teacherNotices],
+    ["/school/tagesinformationen", HELP_TOPICS.teacherNotices],
+    ["/einstellungen", HELP_TOPICS.teacherSettings],
+    ["/school/einstellungen", HELP_TOPICS.teacherSettings],
+  ])("maps %s to %s", (pathname, expectedTopic) => {
+    expect(getSchoolHelpTopicForPath(pathname)).toBe(expectedTopic);
+  });
+
+  it("does not send an unrelated school page to a generic help topic", () => {
+    expect(getSchoolHelpTopicForPath("/unbekannt")).toBeNull();
   });
 });
