@@ -153,11 +153,16 @@ func (s *phaseService) ResponseOverview(ctx context.Context, phaseID int64) (*Ph
 	if !phaseResponseApplicable(phase) {
 		return &PhaseResponseOverview{Rows: []PhaseResponseRow{}, Excluded: []PhaseResponseExclusion{}}, nil
 	}
+	answers, waiting, err := s.phaseResponseLinks(ctx, phaseID)
+	if err != nil {
+		return nil, err
+	}
 	today := s.todayDate()
 	roster, err := s.responses.Roster.ListRunningStudents(ctx, today)
 	if err != nil {
 		return nil, fmt.Errorf("phase %d response overview: list roster: %w", phaseID, err)
 	}
+	roster = phaseResponseRosterWithAnswers(roster, answers)
 	ids := make([]int64, 0, len(roster))
 	for _, student := range roster {
 		ids = append(ids, student.ID)
@@ -169,10 +174,6 @@ func (s *phaseService) ResponseOverview(ctx context.Context, phaseID int64) (*Ph
 	apps, err := s.responses.PortalAccounts.StudentsWithPortalGuardian(ctx, ids)
 	if err != nil {
 		return nil, fmt.Errorf("phase %d response overview: list portal accounts: %w", phaseID, err)
-	}
-	answers, waiting, err := s.phaseResponseLinks(ctx, phaseID)
-	if err != nil {
-		return nil, err
 	}
 	gradeMax, err := s.phaseResponseGradeMax(ctx)
 	if err != nil {
@@ -195,8 +196,11 @@ func (s *phaseService) phaseResponseGradeMax(ctx context.Context) (int, error) {
 
 // phaseResponseLink is the submission that stands for one existing child.
 type phaseResponseLink struct {
-	requestID int64
-	status    string
+	requestID   int64
+	status      string
+	firstName   string
+	lastName    string
+	schoolClass string
 }
 
 // phaseResponseLinks maps existing children to their counted answer and to
@@ -225,10 +229,21 @@ func (s *phaseService) phaseResponseLinks(ctx context.Context, phaseID int64) (a
 			target = answers
 		}
 		if _, seen := target[studentID]; !seen {
-			target[studentID] = phaseResponseLink{requestID: child.RequestID, status: child.Status}
+			target[studentID] = phaseResponseLink{
+				requestID: child.RequestID, status: child.Status,
+				firstName: child.FirstName, lastName: child.LastName,
+				schoolClass: phaseResponseChildSchoolClass(child),
+			}
 		}
 	}
 	return answers, waiting, nil
+}
+
+func phaseResponseChildSchoolClass(child *enrollmentOwner.RequestChild) string {
+	if child.TargetSchoolClass == nil {
+		return ""
+	}
+	return *child.TargetSchoolClass
 }
 
 func phaseResponseCounts(status string) bool {
@@ -242,21 +257,38 @@ func phaseResponseCounts(status string) bool {
 
 func (s *phaseService) phaseResponseRolloverSources(ctx context.Context, children []*enrollmentOwner.RequestChild) (map[int64]*enrollmentOwner.RequestChild, error) {
 	ids := make([]int64, 0)
+	queued := make(map[int64]struct{})
 	for _, child := range children {
 		if child.RolloverSourceChildID != nil && phaseResponsePinnedStudent(child) == 0 {
-			ids = append(ids, *child.RolloverSourceChildID)
+			id := *child.RolloverSourceChildID
+			if id > 0 {
+				if _, seen := queued[id]; !seen {
+					queued[id] = struct{}{}
+					ids = append(ids, id)
+				}
+			}
 		}
 	}
 	result := make(map[int64]*enrollmentOwner.RequestChild, len(ids))
-	if len(ids) == 0 {
-		return result, nil
-	}
-	sources, err := s.responses.Children.ChildrenByID(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	for _, source := range sources {
-		result[source.ID] = source
+	for len(ids) > 0 {
+		sources, err := s.responses.Children.ChildrenByID(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		ids = nil
+		for _, source := range sources {
+			result[source.ID] = source
+			if source.RolloverSourceChildID == nil || phaseResponsePinnedStudent(source) != 0 {
+				continue
+			}
+			id := *source.RolloverSourceChildID
+			if id > 0 {
+				if _, seen := queued[id]; !seen {
+					queued[id] = struct{}{}
+					ids = append(ids, id)
+				}
+			}
+		}
 	}
 	return result, nil
 }
@@ -273,19 +305,28 @@ func phaseResponsePinnedStudent(child *enrollmentOwner.RequestChild) int64 {
 
 // phaseResponseStudentID resolves the existing child a submission belongs
 // to: its own pinned reference first, else the student of the row the
-// rollover copied it from.
+// rollover copied it from, walking the complete rollover chain.
 func phaseResponseStudentID(child *enrollmentOwner.RequestChild, sources map[int64]*enrollmentOwner.RequestChild) int64 {
-	if id := phaseResponsePinnedStudent(child); id != 0 {
-		return id
+	seen := map[int64]struct{}{child.ID: struct{}{}}
+	for child != nil {
+		if id := phaseResponsePinnedStudent(child); id != 0 {
+			return id
+		}
+		if child.RolloverSourceChildID == nil {
+			return 0
+		}
+		sourceID := *child.RolloverSourceChildID
+		if _, repeated := seen[sourceID]; repeated {
+			return 0
+		}
+		seen[sourceID] = struct{}{}
+		var ok bool
+		child, ok = sources[sourceID]
+		if !ok {
+			return 0
+		}
 	}
-	if child.RolloverSourceChildID == nil {
-		return 0
-	}
-	source, ok := sources[*child.RolloverSourceChildID]
-	if !ok {
-		return 0
-	}
-	return phaseResponsePinnedStudent(source)
+	return 0
 }
 
 // phaseResponseScope decides which children of the roster a phase expects.
@@ -369,7 +410,27 @@ func (s phaseResponseScope) exclusion(class string) string {
 
 func phaseResponseClassWithGrade(class string, grade int) string {
 	prefix := schoolclass.GradePrefix(class)
-	return strconv.Itoa(grade) + strings.TrimPrefix(class, prefix)
+	index := strings.Index(class, prefix)
+	if index < 0 {
+		return class
+	}
+	return class[:index] + strconv.Itoa(grade) + class[index+len(prefix):]
+}
+
+func phaseResponseRosterWithAnswers(roster []PhaseResponseStudent, answers map[int64]phaseResponseLink) []PhaseResponseStudent {
+	present := make(map[int64]struct{}, len(roster))
+	for _, student := range roster {
+		present[student.ID] = struct{}{}
+	}
+	for studentID, answer := range answers {
+		if _, exists := present[studentID]; exists {
+			continue
+		}
+		roster = append(roster, PhaseResponseStudent{
+			ID: studentID, FirstName: answer.firstName, LastName: answer.lastName, SchoolClass: answer.schoolClass,
+		})
+	}
+	return roster
 }
 
 func buildPhaseResponseOverview(

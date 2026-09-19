@@ -261,6 +261,25 @@ describe("PhaseResponseOverview", () => {
     ).toBeInTheDocument();
   });
 
+  it("names an empty search even when the selected list is empty", () => {
+    render(
+      <PhaseResponseOverview
+        overview={{
+          ...overview,
+          children: overview.children.filter((child) => child.responded),
+        }}
+        search="xyznichts"
+      />,
+    );
+
+    expect(
+      table().getByText("Kein Kind für diese Suche gefunden"),
+    ).toBeInTheDocument();
+    expect(
+      table().queryByText("Noch keine Anmeldung abgegeben"),
+    ).not.toBeInTheDocument();
+  });
+
   it("says so when every child is enrolled", () => {
     render(
       <PhaseResponseOverview

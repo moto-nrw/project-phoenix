@@ -255,7 +255,6 @@ export function PhaseResponseOverview({
             <ResponseEmptyState
               view={view}
               filtered={search.trim() !== ""}
-              total={view === "missing" ? missing.length : responded.length}
               hasNoCountedChildren={hasNoCountedChildren}
             />
           }
@@ -268,15 +267,13 @@ export function PhaseResponseOverview({
 function ResponseEmptyState({
   view,
   filtered,
-  total,
   hasNoCountedChildren,
 }: Readonly<{
   view: ResponseView;
   filtered: boolean;
-  total: number;
   hasNoCountedChildren: boolean;
 }>) {
-  if (filtered && total > 0) {
+  if (filtered) {
     return (
       <EmptyState
         variant="compact"

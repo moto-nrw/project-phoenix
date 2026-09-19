@@ -227,6 +227,28 @@ func TestResponseOverview_OpenRolloverRowIsNoAnswerButIsLinked(t *testing.T) {
 	assert.True(t, overview.Rows[1].Responded)
 }
 
+func TestResponseOverview_ResolvesMultiGenerationRolloverSources(t *testing.T) {
+	t.Parallel()
+
+	children := &responseChildren{
+		byPhase: []*enrollmentOwner.RequestChild{
+			{ID: 30, RequestID: 300, Status: enrollmentOwner.ChildStatusSubmitted, RolloverSourceChildID: ptr(int64(20))},
+		},
+		byID: map[int64]*enrollmentOwner.RequestChild{
+			20: {ID: 20, RolloverSourceChildID: ptr(int64(10))},
+			10: {ID: 10, CreatedStudentID: ptr(int64(1))},
+		},
+	}
+	svc := newResponseService(nextYearPhase(), children, responseRoster{{ID: 1, LastName: "Arslan", SchoolClass: "1a"}}, nil, nil)
+
+	overview, err := svc.ResponseOverview(context.Background(), 5)
+	require.NoError(t, err)
+	assert.Equal(t, 1, overview.Responded)
+	require.Len(t, overview.Rows, 1)
+	assert.True(t, overview.Rows[0].Responded)
+	assert.Equal(t, 2, children.idCalls, "each rollover generation is loaded in one batch")
+}
+
 func TestResponseOverview_SeveralSubmissionsCountOnceAndShowTheFirst(t *testing.T) {
 	t.Parallel()
 
@@ -258,6 +280,28 @@ func TestResponseOverview_AnsweredChildIsShownEvenWhenTheRulesWouldDropIt(t *tes
 	assert.Equal(t, 1, overview.Expected)
 	assert.Equal(t, 1, overview.Responded)
 	assert.Empty(t, overview.Excluded)
+}
+
+func TestResponseOverview_AnsweredChildStaysVisibleOutsideTheRunningRoster(t *testing.T) {
+	t.Parallel()
+
+	children := &responseChildren{byPhase: []*enrollmentOwner.RequestChild{
+		{
+			ID: 10, RequestID: 100, Status: enrollmentOwner.ChildStatusSubmitted,
+			MatchedStudentID: ptr(int64(1)), FirstName: "Mia", LastName: "Arslan",
+			TargetSchoolClass: ptr("2a"),
+		},
+	}}
+	svc := newResponseService(nextYearPhase(), children, nil, nil, nil)
+
+	overview, err := svc.ResponseOverview(context.Background(), 5)
+	require.NoError(t, err)
+	assert.Equal(t, 1, overview.Expected)
+	assert.Equal(t, 1, overview.Responded)
+	require.Len(t, overview.Rows, 1)
+	assert.Equal(t, int64(1), overview.Rows[0].StudentID)
+	assert.Equal(t, "Mia", overview.Rows[0].FirstName)
+	assert.Equal(t, "2a", overview.Rows[0].SchoolClass)
 }
 
 func TestResponseOverview_GradeRestrictionComparesNextYearsGrade(t *testing.T) {
@@ -331,6 +375,19 @@ func TestResponseOverview_FutureSchoolYearComparesConcreteClassesInTheTargetYear
 	require.Len(t, overview.Rows, 1)
 	assert.Equal(t, int64(1), overview.Rows[0].StudentID)
 	assert.Equal(t, []PhaseResponseExclusion{{Reason: PhaseResponseExcludedNotInScope, Count: 1}}, overview.Excluded)
+}
+
+func TestResponseOverview_FutureSchoolYearAdvancesAClassWithTextBeforeItsGrade(t *testing.T) {
+	t.Parallel()
+
+	phase := nextYearPhase()
+	phase.EligibleSchoolClasses = []string{"Klasse 2a"}
+	svc := newResponseService(phase, &responseChildren{}, responseRoster{{ID: 1, LastName: "Arslan", SchoolClass: "Klasse 1a"}}, nil, nil)
+
+	overview, err := svc.ResponseOverview(context.Background(), 5)
+	require.NoError(t, err)
+	require.Len(t, overview.Rows, 1)
+	assert.Equal(t, int64(1), overview.Rows[0].StudentID)
 }
 
 func TestResponseOverview_PhaseWithoutChildReferenceIsNotApplicable(t *testing.T) {
