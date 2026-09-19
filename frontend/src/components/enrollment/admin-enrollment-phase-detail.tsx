@@ -189,14 +189,14 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   );
 
   // Rücklauf der bestehenden Kinder (#3379). Der Reiter erscheint nur, wenn
-  // die Phase Anmeldungen einem bestehenden Kind zuordnet; ein Ladefehler
-  // lässt ihn weg, statt die Anmeldungsliste zu blockieren.
+  // die Phase Anmeldungen einem bestehenden Kind zuordnet.
   const [activeTab, setActiveTab] = useState<PhaseDetailTab>("requests");
-  const { data: responseOverview } = useSWRAuth<PhaseResponseOverview>(
-    `enrollment-phase-responses-${phaseId}`,
-    async () => getPhaseResponseOverview(phaseId),
-    { shouldRetryOnError: false },
-  );
+  const { data: responseOverview, error: responseOverviewError } =
+    useSWRAuth<PhaseResponseOverview>(
+      `enrollment-phase-responses-${phaseId}`,
+      async () => getPhaseResponseOverview(phaseId),
+      { shouldRetryOnError: false },
+    );
   const showResponses = responseOverview?.applicable === true;
   const responsesTabActive = showResponses && activeTab === "responses";
 
@@ -867,6 +867,13 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
           : undefined
       }
     >
+      {responseOverviewError ? (
+        <Alert
+          type="error"
+          title="Rücklauf nicht geladen"
+          message="Der Rücklauf konnte nicht geladen werden. Die Anmeldungen bleiben verfügbar."
+        />
+      ) : null}
       {responsesTabActive ? (
         <PhaseResponseOverviewPanel
           overview={responseOverview}

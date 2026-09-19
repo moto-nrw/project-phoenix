@@ -101,9 +101,10 @@ export function PhaseResponseOverview({
     [missing],
   );
   const unreachableCount = missing.length - reachable.length;
-  const hasNoCountedChildren =
-    overview.expected === 0 &&
-    overview.excluded.some((entry) => entry.count > 0);
+  const hasNoCountedChildren = overview.expected === 0;
+  const hasExcludedChildren = overview.excluded.some(
+    (entry) => entry.count > 0,
+  );
 
   const rows = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -256,6 +257,7 @@ export function PhaseResponseOverview({
               view={view}
               filtered={search.trim() !== ""}
               hasNoCountedChildren={hasNoCountedChildren}
+              hasExcludedChildren={hasExcludedChildren}
             />
           }
         />
@@ -268,10 +270,12 @@ function ResponseEmptyState({
   view,
   filtered,
   hasNoCountedChildren,
+  hasExcludedChildren,
 }: Readonly<{
   view: ResponseView;
   filtered: boolean;
   hasNoCountedChildren: boolean;
+  hasExcludedChildren: boolean;
 }>) {
   if (filtered) {
     return (
@@ -287,7 +291,11 @@ function ResponseEmptyState({
         <EmptyState
           variant="compact"
           title="Keine Kinder im Rücklauf"
-          description="Alle Kinder werden nicht mitgezählt. Die Gründe stehen oben."
+          description={
+            hasExcludedChildren
+              ? "Alle Kinder werden nicht mitgezählt. Die Gründe stehen oben."
+              : "Für diese Phase gibt es keine Kinder."
+          }
         />
       );
     }

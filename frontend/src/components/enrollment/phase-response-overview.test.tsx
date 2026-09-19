@@ -331,4 +331,27 @@ describe("PhaseResponseOverview", () => {
       table().queryByText("Alle Kinder sind angemeldet"),
     ).not.toBeInTheDocument();
   });
+
+  it("explains when the phase has no children or exclusions", () => {
+    render(
+      <PhaseResponseOverview
+        overview={{
+          applicable: true,
+          expected: 0,
+          responded: 0,
+          children: [],
+          excluded: [],
+        }}
+        search=""
+      />,
+    );
+
+    expect(table().getByText("Keine Kinder im Rücklauf")).toBeInTheDocument();
+    expect(
+      table().getByText("Für diese Phase gibt es keine Kinder."),
+    ).toBeInTheDocument();
+    expect(
+      table().queryByText("Alle Kinder sind angemeldet"),
+    ).not.toBeInTheDocument();
+  });
 });

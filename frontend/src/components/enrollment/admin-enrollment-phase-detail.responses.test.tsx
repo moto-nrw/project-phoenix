@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   listAdminRequests: vi.fn(),
   listPhases: vi.fn(),
   responses: undefined as unknown,
+  responseError: undefined as Error | undefined,
 }));
 
 vi.mock("~/lib/enrollment-admin-api", async (importOriginal) => {
@@ -31,7 +32,7 @@ vi.mock("~/lib/enrollment-report-api", async (importOriginal) => {
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: (key: string | null) =>
     key?.startsWith("enrollment-phase-responses-")
-      ? { data: mocks.responses, error: undefined, isLoading: false }
+      ? { data: mocks.responses, error: mocks.responseError, isLoading: false }
       : { data: ["1a"], error: undefined, isLoading: false },
 }));
 
@@ -103,6 +104,7 @@ beforeEach(() => {
   mocks.listPhases.mockResolvedValue([phase]);
   mocks.listAdminRequests.mockResolvedValue([]);
   mocks.getCareUsageReport.mockResolvedValue(emptyReport);
+  mocks.responseError = undefined;
   mocks.responses = {
     applicable: true,
     expected: 100,
@@ -158,13 +160,21 @@ describe("AdminEnrollmentPhaseDetail: Rücklauf (#3379)", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("has no tab when the overview could not be loaded", async () => {
+  it("shows the response error while keeping the registrations available", async () => {
     mocks.responses = undefined;
+    mocks.responseError = new Error("Rücklauf konnte nicht geladen werden");
     render(<AdminEnrollmentPhaseDetail phaseId="1" />);
 
     expect(await screen.findByText("Anmeldung 2027/2028")).toBeInTheDocument();
+    expect(screen.getByText("Rücklauf nicht geladen")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Der Rücklauf konnte nicht geladen werden. Die Anmeldungen bleiben verfügbar.",
+      ),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("tab", { name: /Rücklauf/ }),
     ).not.toBeInTheDocument();
+    expect(screen.getByText("Eingänge")).toBeInTheDocument();
   });
 });
