@@ -520,3 +520,16 @@ erneut, beginnt dabei aber einen neuen Beschäftigungsverlauf. Die frühere
 Beschäftigung bleibt als solche bestehen und wird nicht fortgeführt. Eine
 Person hat danach mehrere Beschäftigungen an derselben Schule, aber weiterhin
 nur einen Personensatz.
+
+## Schulzugehörigkeit
+
+Die **Schulzugehörigkeit** ist die Zugehörigkeit eines Kindes zu einer Schule
+mit seiner Klasse und seiner Gruppe. Sie ist von der OGS-Betreuung getrennt:
+ein Kind gehört zu seiner Schule und seiner Klasse unabhängig davon, ob und wie
+lange es betreut wird. Ein Jahrgangswechsel ändert die Schulzugehörigkeit, ein
+Austritt die OGS-Betreuung.
+
+**Angemeldet** ist ein Kind, solange es kein Abgänger ist. Der Begriff sagt
+nicht, dass der Betreuungszeitraum gerade läuft; ein inaktives Kind bleibt
+angemeldet.
+_Vermeiden_: „angemeldet" für „im Betreuungszeitraum".

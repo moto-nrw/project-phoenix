@@ -32,6 +32,16 @@ make that domain responsible for other owners' lifecycle rules. The separate
 workflow keeps the 18 domain and 10 platform owners unchanged and transfers
 no table.
 
+## Amendment of 2026-09-19
+
+[ADR 0023](0023-student-enrollment-owner-and-directory-projection.md) moves the
+class and lifecycle writes on a child, and with them the class-writes gate
+named below, from People Directory to School Membership. The acquisition order
+and the window the exclusive gate closes are unchanged; only the owner holding
+the first gate changes. The move takes effect with the caller switch in
+[#2759](https://github.com/moto-nrw/project-phoenix/issues/2759). Until then
+this section describes the running system.
+
 ## Lock order and consistency
 
 Apply and revert take the three tenant-wide gates in the project-wide order
