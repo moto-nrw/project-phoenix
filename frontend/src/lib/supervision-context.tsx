@@ -451,6 +451,13 @@ export function SupervisionProvider({
     urlTenantId,
     schoolMismatch,
   });
+  // Effects run after paint. Do not expose a preloaded snapshot during the
+  // render that starts a school transition; TenantGuard may already render
+  // its children again when the session has caught up with the URL.
+  const schoolTransitionPending =
+    schoolMismatch ||
+    previousSchoolRef.current.sessionTenantId !== sessionTenantId ||
+    previousSchoolRef.current.urlTenantId !== urlTenantId;
   useEffect(() => {
     const previous = previousSchoolRef.current;
     previousSchoolRef.current = {
@@ -564,8 +571,20 @@ export function SupervisionProvider({
   }, [session?.user?.token]);
 
   const value = useMemo<SupervisionContextType>(
-    () => ({ ...state, refresh }),
-    [state, refresh],
+    () => ({
+      ...(schoolTransitionPending
+        ? {
+            ...state,
+            hasGroups: false,
+            groups: [],
+            isLoadingGroups: true,
+            ...EMPTY_SUPERVISION_STATE,
+            isLoadingSupervision: true,
+          }
+        : state),
+      refresh,
+    }),
+    [state, refresh, schoolTransitionPending],
   );
 
   return (

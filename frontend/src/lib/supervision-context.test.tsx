@@ -2183,6 +2183,71 @@ describe("SupervisionProvider school switch (#3375)", () => {
     expect(groupsCalls()).toBe(1);
   });
 
+  it("does not expose a server snapshot while the session catches up", async () => {
+    await mockUrlTenant(2);
+    let releaseGroups: (() => void) | undefined;
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/api/groups/context")) {
+        return new Promise((resolve) => {
+          releaseGroups = () =>
+            resolve({
+              ok: true,
+              json: async () => ({ groups: [{ id: 2, name: "Schule 2" }] }),
+            });
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+    });
+    vi.mocked(useSession).mockReturnValue(sessionFor(1, "token-1"));
+
+    const observedGroups: string[][] = [];
+    function Probe() {
+      const { groups } = useSupervision();
+      observedGroups.push(groups.map((group) => group.name));
+      return <>{groups.map((group) => group.name).join(", ")}</>;
+    }
+
+    const { rerender } = render(
+      <SupervisionProvider
+        initial={{
+          groups: [{ id: "1", name: "Schule 1" }],
+          supervised: [],
+          openRooms: [],
+          overviewOk: false,
+        }}
+      >
+        <Probe />
+      </SupervisionProvider>,
+    );
+
+    expect(observedGroups.flat()).not.toContain("Schule 1");
+    expect(mockFetch).not.toHaveBeenCalled();
+
+    vi.mocked(useSession).mockReturnValue(sessionFor(2, "token-2"));
+    rerender(
+      <SupervisionProvider
+        initial={{
+          groups: [{ id: "1", name: "Schule 1" }],
+          supervised: [],
+          openRooms: [],
+          overviewOk: false,
+        }}
+      >
+        <Probe />
+      </SupervisionProvider>,
+    );
+
+    await waitFor(() => expect(releaseGroups).toBeDefined());
+    expect(observedGroups.flat()).not.toContain("Schule 1");
+
+    await act(async () => {
+      releaseGroups?.();
+      await Promise.resolve();
+    });
+
+    await screen.findByText("Schule 2");
+  });
+
   it("discards an answer of the previous school that arrives late", async () => {
     await mockUrlTenant(2);
     let releaseOld: (() => void) | undefined;
