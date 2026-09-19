@@ -93,6 +93,16 @@ const tenantB = {
   settings: {},
 };
 
+const tenantC = {
+  tenantId: 3,
+  slug: "school-c",
+  name: "School C",
+  subdomain: "school-c",
+  organizationId: 10,
+  organizationName: "Org Alpha",
+  settings: {},
+};
+
 // ============================================================================
 // Tests
 // ============================================================================
@@ -630,6 +640,45 @@ describe("TenantGuard", () => {
       expect(mockPerformTenantSwitch).toHaveBeenCalledTimes(3);
       expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
       expect(mockSignOut).not.toHaveBeenCalled();
+    });
+
+    it("starts a new retry budget when the URL target changes", async () => {
+      mismatchedSession();
+      mockPerformTenantSwitch.mockImplementation((subdomain: string) => {
+        if (subdomain === "school-c") return new Promise(vi.fn());
+        return Promise.resolve({
+          access_token: "new-access",
+          refresh_token: "new-refresh",
+        });
+      });
+
+      const { rerender } = renderGuard();
+
+      await screen.findByText(
+        "Der Wechsel zu School B hat leider nicht geklappt.",
+      );
+      expect(mockPerformTenantSwitch).toHaveBeenCalledTimes(3);
+
+      mockUseTenant.mockReturnValue({
+        tenantSlug: "school-c",
+        tenant: tenantC,
+      });
+      rerender(
+        <TenantGuard>
+          <div>Protected Content</div>
+        </TenantGuard>,
+      );
+
+      await waitFor(() => {
+        expect(mockPerformTenantSwitch).toHaveBeenLastCalledWith(
+          "school-c",
+          mockSignIn,
+          mockMutate,
+        );
+      });
+      expect(
+        screen.getByText("Mandant wird gewechselt..."),
+      ).toBeInTheDocument();
     });
 
     it("shows the way out after a failed switch instead of an endless wait", async () => {

@@ -50,9 +50,12 @@ export function TenantGuard({
 }: TenantGuardProps) {
   const { data: session, status, update } = useSession();
   const { tenant } = useTenant();
-  const switchAttempts = useRef(0);
+  const switchAttempts = useRef({
+    targetTenantId: null as number | null,
+    count: 0,
+  });
   const switchInFlight = useRef(false);
-  const [switchFailed, setSwitchFailed] = useState(false);
+  const [failedTenantId, setFailedTenantId] = useState<number | null>(null);
   const [recheck, setRecheck] = useState(0);
   const [signingOutOperator, setSigningOutOperator] = useState(false);
   const [signingOutExpiredSession, setSigningOutExpiredSession] =
@@ -161,9 +164,16 @@ export function TenantGuard({
 
     // No mismatch — reset guard for future switches
     if (sessionTenantId === urlTenantId) {
-      switchAttempts.current = 0;
-      setSwitchFailed(false);
+      switchAttempts.current = { targetTenantId: null, count: 0 };
+      setFailedTenantId(null);
       return;
+    }
+
+    // Retry limits apply to one target school. A different URL target must
+    // not inherit an exhausted retry budget or an earlier failure message.
+    if (switchAttempts.current.targetTenantId !== urlTenantId) {
+      switchAttempts.current = { targetTenantId: urlTenantId, count: 0 };
+      setFailedTenantId(null);
     }
 
     if (switchInFlight.current) return;
@@ -173,18 +183,19 @@ export function TenantGuard({
     // request of the old session that answers after signIn() writes the old
     // school back (#3375). Those requests settle, so a bounded number of
     // repeats gets through; after that the person decides, not a spinner.
-    if (switchAttempts.current >= MAX_SWITCH_ATTEMPTS) {
-      setSwitchFailed(true);
+    if (switchAttempts.current.count >= MAX_SWITCH_ATTEMPTS) {
+      setFailedTenantId(urlTenantId);
       return;
     }
-    switchAttempts.current += 1;
+    switchAttempts.current.count += 1;
     switchInFlight.current = true;
+    const switchTargetTenantId = urlTenantId;
 
     logger.info("tenant_mismatch_detected", {
       session_tenant_id: sessionTenantId,
       url_tenant_id: urlTenantId,
       url_slug: urlSlug,
-      attempt: switchAttempts.current,
+      attempt: switchAttempts.current.count,
     });
 
     void (async () => {
@@ -217,7 +228,9 @@ export function TenantGuard({
         } else {
           // A failed request is not the cookie race; repeating it unasked
           // would only hammer a backend that just said no.
-          switchAttempts.current = MAX_SWITCH_ATTEMPTS;
+          if (switchAttempts.current.targetTenantId === switchTargetTenantId) {
+            switchAttempts.current.count = MAX_SWITCH_ATTEMPTS;
+          }
         }
       } finally {
         switchInFlight.current = false;
@@ -254,6 +267,7 @@ export function TenantGuard({
   const isOperatorOnTenant =
     signingOutOperator ||
     (status === "authenticated" && sessionScope === "platform" && !!tenant);
+  const switchFailed = failedTenantId === urlTenantId;
 
   if (
     signingOutExpiredSession ||
@@ -297,8 +311,11 @@ export function TenantGuard({
                   type="button"
                   size="md"
                   onClick={() => {
-                    switchAttempts.current = 0;
-                    setSwitchFailed(false);
+                    switchAttempts.current = {
+                      targetTenantId: urlTenantId,
+                      count: 0,
+                    };
+                    setFailedTenantId(null);
                     setRecheck((n) => n + 1);
                   }}
                 >
