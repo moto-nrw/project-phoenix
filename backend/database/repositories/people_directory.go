@@ -58,7 +58,7 @@ func NewPeopleDirectoryWithPhotosAndObserver(
 		StudentClassWriteGateQuery: func(ctx context.Context) (*bun.SelectQuery, error) {
 			return membershipCompose.StudentClassWriteGateQuery(ctx, db)
 		},
-		StudentOwners:         studentOwners{membership: membership, care: careProfiles},
+		StudentOwners:         NewStudentOwners(membership, careProfiles),
 		DB:                    db,
 		Observe:               observe,
 		StudentFieldAudit:     NewStudentFieldAuditLog(db),
