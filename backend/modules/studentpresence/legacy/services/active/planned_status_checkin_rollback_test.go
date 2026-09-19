@@ -115,7 +115,7 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 	groupFault := &checkinAttributionFault{GroupRepository: repos.ActiveGroup}
 	presence := testSchoolPresence(t, db)
 	statuses := &plannedStatusFault{StudentStatusDayRepository: repos.StudentStatusDay}
-	students := &plannedStudentFault{PresenceStudents: services.PresenceStudents(repos.Student)}
+	students := &plannedStudentFault{PresenceStudents: services.PresenceStudents(db, repos.Student)}
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := activeService.NewService(activeService.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
 		SchoolPresence: presence, StudentRepo: students, StudentStatusRepo: statuses,

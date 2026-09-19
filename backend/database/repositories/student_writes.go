@@ -13,6 +13,7 @@ import (
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 )
 
 // This file is the translation seam of the student write path (#3349): People
@@ -36,10 +37,13 @@ type studentOwnerCapability interface {
 // StudentWrites adapts the owner's child lifecycle to the retained model-typed
 // contract. It satisfies the write half of models/users.StudentRepository
 // structurally, so the seam does not depend on that package's interface.
-type StudentWrites struct{ directory StudentWriteCapability }
+type StudentWrites struct {
+	directory  StudentWriteCapability
+	membership schoolmembership.Capability
+}
 
-func NewStudentWrites(directory StudentWriteCapability) *StudentWrites {
-	return &StudentWrites{directory: directory}
+func NewStudentWrites(directory StudentWriteCapability, membership schoolmembership.Capability) *StudentWrites {
+	return &StudentWrites{directory: directory, membership: membership}
 }
 
 // Create inserts the child and reflects the stored row — the assigned id, the
@@ -78,7 +82,11 @@ func (w *StudentWrites) Delete(ctx context.Context, id int64) error {
 // the same class-writes gate every other student write does, because either can
 // move a child into or out of a class a grade transition is mid-way through.
 func (w *StudentWrites) UpdateStatus(ctx context.Context, studentID int64, status userModels.StudentStatus) error {
-	return translateStudentWriteError(w.directory.SetStudentStatus(ctx, studentID, string(status)))
+	changed, err := w.membership.SetStatus(ctx, studentID, string(status))
+	if err == nil && !changed {
+		err = peopleModule.ErrStudentNotFound
+	}
+	return translateStudentWriteError(err)
 }
 
 func (w *StudentWrites) TransitionStatus(
@@ -86,27 +94,8 @@ func (w *StudentWrites) TransitionStatus(
 	studentID int64,
 	expected, next userModels.StudentStatus,
 ) (bool, error) {
-	moved, err := w.directory.TransitionStudentStatus(ctx, studentID, string(expected), string(next))
+	moved, err := w.membership.TransitionStatus(ctx, studentID, string(expected), string(next))
 	return moved, translateStudentWriteError(err)
-}
-
-func (w *StudentWrites) SetEnrolledUntilByIDs(
-	ctx context.Context,
-	ids []int64,
-	until *userModels.CalendarDate,
-) (int64, error) {
-	affected, err := w.directory.SetStudentCareEnd(ctx, ids, userModels.RenderCalendarDate(until))
-	return affected, translateStudentWriteError(err)
-}
-
-func (w *StudentWrites) SetEnrollmentWindowByID(
-	ctx context.Context,
-	id int64,
-	from userModels.CalendarDate,
-	status userModels.StudentStatus,
-) error {
-	return translateStudentWriteError(
-		w.directory.ReopenStudentCare(ctx, id, from.String(), string(status)))
 }
 
 func (w *StudentWrites) FindCareBoundsByIDs(ctx context.Context, ids []int64) (map[int64]userModels.CalendarDate, error) {
@@ -510,19 +499,6 @@ func (r studentRepositoryWithOwnerWrites) TransitionStatus(
 	return r.writes.TransitionStatus(ctx, studentID, expected, next)
 }
 
-func (r studentRepositoryWithOwnerWrites) SetEnrolledUntilByIDs(ctx context.Context, ids []int64, until *userModels.CalendarDate) (int64, error) {
-	return r.writes.SetEnrolledUntilByIDs(ctx, ids, until)
-}
-
-func (r studentRepositoryWithOwnerWrites) SetEnrollmentWindowByID(
-	ctx context.Context,
-	id int64,
-	from userModels.CalendarDate,
-	status userModels.StudentStatus,
-) error {
-	return r.writes.SetEnrollmentWindowByID(ctx, id, from, status)
-}
-
 func (r studentRepositoryWithOwnerWrites) FindCareBoundsByIDs(ctx context.Context, ids []int64) (map[int64]userModels.CalendarDate, error) {
 	return r.writes.FindCareBoundsByIDs(ctx, ids)
 }
@@ -539,13 +515,13 @@ func (r studentRepositoryWithOwnerWrites) BindTeacherStaffGroupIDs(query func(co
 }
 
 // bindStudentWrites routes the retained repository's writes through the owner.
-func bindStudentWrites(repository userModels.StudentRepository, directory studentOwnerCapability) userModels.StudentRepository {
+func bindStudentWrites(repository userModels.StudentRepository, directory studentOwnerCapability, membership schoolmembership.Capability) userModels.StudentRepository {
 	if repository == nil || directory == nil {
 		return repository
 	}
 	return studentRepositoryWithOwnerWrites{
 		StudentRepository:    repository,
-		writes:               NewStudentWrites(directory),
+		writes:               NewStudentWrites(directory, membership),
 		reads:                NewStudentReads(directory),
 		teacherGroupIDs:      new(func(context.Context, int64) ([]int64, error)),
 		teacherStaffGroupIDs: new(func(context.Context, []int64) ([]int64, error)),
@@ -556,5 +532,9 @@ func bindStudentWrites(repository userModels.StudentRepository, directory studen
 // with People Directory's writes (#3349). Every graph gets the owner by
 // default; the observed directory replaces it in BindPeopleDirectory.
 func NewStudentRepository(db *bun.DB) userModels.StudentRepository {
-	return bindStudentWrites(usersRepo.NewStudentRepository(db), MustNewPeopleDirectory(db))
+	membership, err := NewSchoolMembership(db)
+	if err != nil {
+		panic(fmt.Sprintf("student repository: compose membership: %v", err))
+	}
+	return bindStudentWrites(usersRepo.NewStudentRepository(db), MustNewPeopleDirectory(db), membership)
 }

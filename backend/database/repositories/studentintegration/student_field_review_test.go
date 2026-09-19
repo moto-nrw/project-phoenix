@@ -1,4 +1,4 @@
-package compose
+package studentintegration_test
 
 import (
 	"encoding/json"
@@ -12,7 +12,7 @@ import (
 func TestStudentFieldReviewPreservesBulkAndBaselineFacts(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module := buildModule(t, db)
+	module := buildStudentOwnersModule(t, db)
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Field", "Review", "1a")
 	_, err := module.UpdatePerson(ctx, peopledirectory.UpdatePerson{ID: student.PersonID, FirstName: "Field", LastName: "Review"})

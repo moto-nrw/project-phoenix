@@ -10,7 +10,8 @@ import (
 // StudentService serves the student directory over the same transaction
 // and observation seams as the person service.
 type StudentService struct {
-	store ports.StudentStore
+	owners ports.StudentOwners
+	store  ports.StudentStore
 	// companions is Care Plan's "läuft mit" edges. Narrowing a child's
 	// departure plan has to drop the links it no longer allows, and this is the
 	// one write path every writer passes through. Optional: a graph that never
@@ -23,13 +24,14 @@ type StudentService struct {
 func NewStudents(
 	store ports.StudentStore,
 	companions ports.StudentCompanions,
+	owners ports.StudentOwners,
 	tx ports.Transaction,
 	observe ports.Observer,
 ) *StudentService {
 	if store == nil || tx == nil || observe == nil {
 		panic("people directory application: all student dependencies are required")
 	}
-	return &StudentService{store: store, companions: companions, tx: tx, observe: observe}
+	return &StudentService{store: store, companions: companions, owners: owners, tx: tx, observe: observe}
 }
 
 func (s *StudentService) ListByIDs(ctx context.Context, ids []int64) (result []domain.Student, err error) {
@@ -126,69 +128,6 @@ func (s *StudentService) Lock(ctx context.Context, id int64) error {
 		}
 		return nil
 	})
-}
-
-func (s *StudentService) Promote(ctx context.Context, ids []int64, fromClass, toClass string) (affected int64, err error) {
-	err = s.run(ctx, "promote_students", s.tx.RunWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
-		var writeStats domain.OperationStats
-		affected, writeStats, err = s.store.Promote(txCtx, ids, fromClass, toClass)
-		stats.Add(writeStats)
-		return err
-	})
-	return affected, err
-}
-
-func (s *StudentService) RevertClass(ctx context.Context, id int64, fromClass, toClass string) (affected int64, err error) {
-	err = s.run(ctx, "revert_student_class", s.tx.RunWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
-		var writeStats domain.OperationStats
-		affected, writeStats, err = s.store.RevertClass(txCtx, id, fromClass, toClass)
-		stats.Add(writeStats)
-		return err
-	})
-	return affected, err
-}
-
-func (s *StudentService) GraduateByClasses(ctx context.Context, classes []string) (affected int64, err error) {
-	err = s.run(ctx, "graduate_students_by_class", s.tx.RunWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
-		var writeStats domain.OperationStats
-		affected, writeStats, err = s.store.GraduateByClasses(txCtx, classes)
-		stats.Add(writeStats)
-		return err
-	})
-	return affected, err
-}
-
-func (s *StudentService) GraduateByIDs(ctx context.Context, ids []int64) (affected int64, err error) {
-	err = s.run(ctx, "graduate_students", s.tx.RunWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
-		var writeStats domain.OperationStats
-		affected, writeStats, err = s.store.GraduateByIDs(txCtx, ids)
-		stats.Add(writeStats)
-		return err
-	})
-	return affected, err
-}
-
-func (s *StudentService) Reactivate(ctx context.Context, ids []int64, status string) (result []int64, err error) {
-	err = s.run(ctx, "reactivate_students", s.tx.RunWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
-		var writeStats domain.OperationStats
-		result, writeStats, err = s.store.Reactivate(txCtx, ids, status)
-		stats.Add(writeStats)
-		return err
-	})
-	if result == nil {
-		result = []int64{}
-	}
-	return result, err
-}
-
-func (s *StudentService) ClearStatusFlags(ctx context.Context, ids []int64, status string) (affected int64, err error) {
-	err = s.run(ctx, "clear_student_status_flags", s.tx.RunWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
-		var writeStats domain.OperationStats
-		affected, writeStats, err = s.store.ClearStatusFlags(txCtx, ids, status)
-		stats.Add(writeStats)
-		return err
-	})
-	return affected, err
 }
 
 func (s *StudentService) run(ctx context.Context, operation string, run func(context.Context, func(context.Context) error) error, fn func(context.Context, *domain.OperationStats) error) error {

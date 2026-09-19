@@ -1895,9 +1895,10 @@
       "declaration": "TestStudentRepository_CompanionNoteSchemaCompatibility",
       "target": "database/repositories.NewFactory",
       "lines": [
-        437
+        432
       ],
       "tables": [
+        "users.student_care_profiles",
         "users.students"
       ]
     },
@@ -1917,7 +1918,7 @@
       "declaration": "TestStudentRepository_StaleDeparturePlanIsRebased",
       "target": "database/repositories.NewFactory",
       "lines": [
-        517
+        511
       ],
       "tables": []
     },
@@ -2848,7 +2849,7 @@
       "declaration": "TestCareOfferingService_Clone_ClearsLinkedTemplateAcrossPhases",
       "target": "database/repositories.NewFactory",
       "lines": [
-        847
+        846
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -2861,7 +2862,7 @@
       "declaration": "TestCareOfferingService_Clone_RepointsToTargetPhase",
       "target": "database/repositories.NewFactory",
       "lines": [
-        793
+        792
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -2874,7 +2875,7 @@
       "declaration": "TestCareOfferingService_Create_ActiveOfferingRequiresActivePeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        610
+        609
       ],
       "tables": []
     },
@@ -2884,7 +2885,7 @@
       "declaration": "TestCareOfferingService_Create_AllowsNonOccurrencePhaseBoundaries",
       "target": "database/repositories.NewFactory",
       "lines": [
-        580
+        579
       ],
       "tables": []
     },
@@ -2894,7 +2895,7 @@
       "declaration": "TestCareOfferingService_Create_RejectsAdvertisedDayAbsentFromShortPhase",
       "target": "database/repositories.NewFactory",
       "lines": [
-        521
+        520
       ],
       "tables": []
     },
@@ -2904,7 +2905,7 @@
       "declaration": "TestCareOfferingService_Create_UsesTemplateCalendarPeriodFallback",
       "target": "database/repositories.NewFactory",
       "lines": [
-        425
+        424
       ],
       "tables": []
     },
@@ -2914,7 +2915,7 @@
       "declaration": "createCareOfferingTemplateGroup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        142
+        141
       ],
       "tables": [
         "activities.schedules"
@@ -2926,7 +2927,7 @@
       "declaration": "createCareOfferingTestPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        124
+        123
       ],
       "tables": []
     },
@@ -2936,7 +2937,7 @@
       "declaration": "setupCareTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        71
+        70
       ],
       "tables": [
         "enrollment.care_offerings",

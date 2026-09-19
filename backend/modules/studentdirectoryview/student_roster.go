@@ -1,12 +1,12 @@
-package postgres
+package studentdirectoryview
 
 import (
 	"context"
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres/calendar"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	calendar "github.com/moto-nrw/project-phoenix/internal/timezone"
+	domain "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/uptrace/bun"
 )
 
@@ -37,18 +37,18 @@ func (r studentRosterRow) toRosterEntry() domain.StudentRosterEntry {
 // Graduates are soft-deleted and invisible to every staff-facing and kiosk
 // roster; the statistics aggregate leaves them out too, so counting them here
 // would give the child table a different population than the room table.
-func (s *StudentStore) selectStudentRoster(
+func (s *Projection) selectStudentRoster(
 	ctx context.Context,
 	operation string,
 	narrow func(*bun.SelectQuery) *bun.SelectQuery,
-) ([]domain.StudentRosterEntry, domain.OperationStats, error) {
+) ([]domain.StudentRosterEntry, OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return nil, domain.OperationStats{}, err
+		return nil, OperationStats{}, err
 	}
 	rows := []studentRosterRow{}
 	query := withStudentTenant(db.NewSelect().
-		TableExpr(`users.students AS "student"`).
+		TableExpr(studentSource).
 		ColumnExpr(studentRecordColumns).
 		ColumnExpr(`"person".first_name, "person".last_name, "person".tag_id, "person".account_id`).
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
@@ -58,12 +58,12 @@ func (s *StudentStore) selectStudentRoster(
 		Distinct().
 		OrderExpr(`"person".last_name, "person".first_name, "student".id`)
 
-	stats := domain.OperationStats{Queries: 1}
+	stats := OperationStats{Queries: 1}
 	started := time.Now()
 	err = query.Scan(ctx, &rows)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return nil, stats, fmt.Errorf("people directory postgres: %s: %w", operation, err)
+		return nil, stats, fmt.Errorf("student directory projection: %s: %w", operation, err)
 	}
 	stats.Rows = int64(len(rows))
 	result := make([]domain.StudentRosterEntry, 0, len(rows))
@@ -84,21 +84,21 @@ func currentCare(query *bun.SelectQuery, today string) *bun.SelectQuery {
 }
 
 // ListRosterByGroups is the live roster of the given groups.
-func (s *StudentStore) ListRosterByGroups(
+func (s *Projection) ListRosterByGroups(
 	ctx context.Context,
 	groupIDs []int64,
 	today string,
-) ([]domain.StudentRosterEntry, domain.OperationStats, error) {
+) ([]domain.StudentRosterEntry, OperationStats, error) {
 	return s.selectStudentRoster(ctx, "list student roster by group", func(query *bun.SelectQuery) *bun.SelectQuery {
 		return currentCare(query.Where(`"student".group_id IN (?)`, bun.List(groupIDs)), today)
 	})
 }
 
 // ListRoster is the school's whole live roster.
-func (s *StudentStore) ListRoster(
+func (s *Projection) ListRoster(
 	ctx context.Context,
 	today string,
-) ([]domain.StudentRosterEntry, domain.OperationStats, error) {
+) ([]domain.StudentRosterEntry, OperationStats, error) {
 	return s.selectStudentRoster(ctx, "list student roster", func(query *bun.SelectQuery) *bun.SelectQuery {
 		return currentCare(query, today)
 	})
@@ -114,15 +114,15 @@ func (s *StudentStore) ListRoster(
 // for an active child on a window containing today — and a row with neither
 // bound carries no interval at all, so an inactive status is the only
 // remaining signal and means "no longer enrolled".
-func (s *StudentStore) ListRosterOverlapping(
+func (s *Projection) ListRosterOverlapping(
 	ctx context.Context,
 	from, to, today string,
-) ([]domain.StudentRosterEntry, domain.OperationStats, error) {
+) ([]domain.StudentRosterEntry, OperationStats, error) {
 	return s.selectStudentRoster(ctx, "list student roster overlapping", func(query *bun.SelectQuery) *bun.SelectQuery {
 		query = query.
 			Where(`("student".enrolled_until IS NULL OR "student".enrolled_until >= ?)`, studentDateParam(from)).
 			Where(`NOT ("student".enrolled_from IS NULL AND "student".enrolled_until IS NULL AND "student".status = ?)`,
-				domain.StudentStatusInactive)
+				"inactive")
 
 		if afterDay(today, to) {
 			return query.Where(

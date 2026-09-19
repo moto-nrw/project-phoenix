@@ -56,36 +56,6 @@ func (e engine) LockStudent(ctx context.Context, id int64) error {
 	return mapError(e.students.Lock(ctx, id))
 }
 
-func (e engine) PromoteStudents(ctx context.Context, ids []int64, fromClass, toClass string) (int64, error) {
-	affected, err := e.students.Promote(ctx, ids, fromClass, toClass)
-	return affected, mapError(err)
-}
-
-func (e engine) RevertStudentClass(ctx context.Context, id int64, fromClass, toClass string) (int64, error) {
-	affected, err := e.students.RevertClass(ctx, id, fromClass, toClass)
-	return affected, mapError(err)
-}
-
-func (e engine) GraduateStudentsByClasses(ctx context.Context, classes []string) (int64, error) {
-	affected, err := e.students.GraduateByClasses(ctx, classes)
-	return affected, mapError(err)
-}
-
-func (e engine) GraduateStudents(ctx context.Context, ids []int64) (int64, error) {
-	affected, err := e.students.GraduateByIDs(ctx, ids)
-	return affected, mapError(err)
-}
-
-func (e engine) ReactivateStudents(ctx context.Context, ids []int64, status string) ([]int64, error) {
-	values, err := e.students.Reactivate(ctx, ids, status)
-	return values, mapError(err)
-}
-
-func (e engine) ClearStudentStatusFlags(ctx context.Context, ids []int64, status string) (int64, error) {
-	affected, err := e.students.ClearStatusFlags(ctx, ids, status)
-	return affected, mapError(err)
-}
-
 func (e engine) SetFamilyProtection(ctx context.Context, input peopledirectory.SetFamilyProtection) (bool, error) {
 	enabled, err := e.students.SetFamilyProtection(ctx, domain.FamilyProtectionChange{
 		StudentID: input.StudentID, Enabled: input.Enabled,

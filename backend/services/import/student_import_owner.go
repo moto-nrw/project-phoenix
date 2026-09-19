@@ -223,11 +223,6 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 	if enrollmentStartsInFuture(enrolledFrom) {
 		input.Status = ports.StudentStatusPending
 	}
-	created, err := c.Students.CreateEnrollmentStudent(ctx, input)
-	if err != nil {
-		return 0, fmt.Errorf("create student: %w", err)
-	}
-
 	departure, err := importDeparturePatch(ports.AllowedDepartureModesFromDeparture(departurePlanFromImportRow(row)), boundedNotePtr(row.DepartureCompanionNote))
 	if err != nil {
 		return 0, fmt.Errorf("create student: %w", err)
@@ -246,8 +241,10 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 	patch.EmailContactAcceptedAtSet, patch.EmailContactAcceptedAt = true, parseOptionalImportDate(row.EmailContactAcceptedAt)
 	// Photo consent date is set; "given_by" is intentionally left nil on import.
 	patch.PhotoConsentGivenAtSet, patch.PhotoConsentGivenAt = true, parseOptionalImportDate(row.PhotoConsentGivenAt)
-	if err := c.Students.ApplyEnrollmentProfile(ctx, created.ID, patch); err != nil {
-		return 0, fmt.Errorf("create student profile: %w", err)
+	input.InitialProfile = &patch
+	created, err := c.Students.CreateEnrollmentStudent(ctx, input)
+	if err != nil {
+		return 0, fmt.Errorf("create student: %w", err)
 	}
 
 	if c.ConsentHistory != nil {

@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentdirectoryview"
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -574,7 +577,7 @@ func (r *GuardianProfileRepository) LoadProfileWithChildren(ctx context.Context,
 		// Per-relationship enrollment-submit permission, so the form can offer
 		// reuse only for children this guardian may actually re-enroll (#1663).
 		ColumnExpr(`COALESCE(("sg".permissions ->> ?)::boolean, false) AS enrollment_submit`, authorize.GuardianPermissionEnrollmentSubmit).
-		Join(`INNER JOIN users.students AS "s" ON "s".id = "sg".student_id`).
+		Join(`INNER JOIN (?) AS "s" ON "s".id = "sg".student_id`, studentdirectoryview.Query(repoBase.GetDB(ctx, r.db), tenant.FromContext(ctx))).
 		Join(`INNER JOIN users.persons AS "p" ON "p".id = "s".person_id`).
 		Where(`"sg".guardian_profile_id = ?`, profile.ID).
 		Where(`COALESCE(("sg".permissions ->> ?)::boolean, false) = TRUE`, authorize.GuardianPermissionPortalAccess).

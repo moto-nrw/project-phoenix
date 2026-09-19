@@ -16,13 +16,10 @@ import (
 // departure columns are deliberately absent: PersistDeparturePlan is their only
 // writer, because the plan that lands there is resolved against the stored one
 // rather than taken from the caller's struct.
-const studentWritableColumns = `person_id, school_class, group_id, status,
-	enrolled_from, enrolled_until,
-	address_street, address_city, address_postal_code,
-	extra_info, supervisor_notes, health_info, pickup_status,
-	sick, sick_since, excused, excused_since,
-	photo_path, photo_consent_given_at, photo_consent_given_by,
-	agb_accepted_at, data_processing_accepted_at, email_contact_accepted_at`
+const studentWritableColumns = `person_id,
+ address_street, address_city, address_postal_code, extra_info,
+ photo_path, photo_consent_given_at, photo_consent_given_by,
+ agb_accepted_at, data_processing_accepted_at, email_contact_accepted_at`
 
 // studentDateParam binds an unset calendar day as NULL rather than as the zero
 // date, which a DATE column would otherwise store as year zero. An unparseable
@@ -63,7 +60,7 @@ func (s *StudentStore) InsertRecord(
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	_, err = db.NewInsert().Model(&row).
-		ModelTableExpr(`users.students`).
+		ModelTableExpr(`users.student_profiles`).
 		// Only the owned columns: id and the timestamps are the database's,
 		// and the departure columns belong to PersistDeparturePlan alone.
 		Column(append([]string{"tenant_id"}, studentWritableColumnList()...)...).
@@ -95,7 +92,7 @@ func (s *StudentStore) UpdateRecord(
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := db.NewUpdate().Model(&row).
-		ModelTableExpr(`users.students AS "student"`).
+		ModelTableExpr(`users.student_profiles AS "student"`).
 		Column(studentWritableColumnList()...).
 		Set(`updated_at = NOW()`).
 		Where(`"student".id = ?`, record.ID).
@@ -137,7 +134,7 @@ func (s *StudentStore) DeleteRecord(
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := db.NewDelete().
-		TableExpr(`users.students AS "student"`).
+		TableExpr(`users.student_profiles AS "student"`).
 		Where(`"student".id = ?`, studentID).
 		Where(`"student".tenant_id = ?`, tenantID).
 		Exec(ctx)
@@ -153,116 +150,23 @@ func (s *StudentStore) DeleteRecord(
 	return affected > 0, stats, nil
 }
 
-// PersistDeparturePlan writes the unified per-weekday plan and its derived
-// legacy mirrors in one statement, so every caller that touches the plan —
-// through the mode set, the unified days or a legacy map — leaves the columns
-// consistent.
-//
-// planTouched false writes only the companion note: a caller that changed an
-// unrelated field must not have its stale plan re-persisted, but an orphan note
-// is still cleared, because the free-text "mit wem" must never outlive the
-// accompanied mode that justifies it.
-func (s *StudentStore) PersistDeparturePlan(
-	ctx context.Context,
-	studentID int64,
-	plan domain.DeparturePlan,
-	note *string,
-	planTouched bool,
-) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
-	if err != nil {
-		return domain.OperationStats{}, err
-	}
-	query := db.NewUpdate().
-		TableExpr(`users.students AS "student"`).
-		Where(`"student".id = ?`, studentID)
-	query = withStudentTenant(query, tenantID)
-
-	if planTouched {
-		query = query.
-			Set(`pickup_status = ?`, plan.AllowedDepartureModes.LegacyPickupStatus()).
-			Set(`departure_days = ?`, plan.DepartureDays).
-			Set(`allowed_departure_modes = ?`, plan.AllowedDepartureModes).
-			Set(`bus_days = ?`, plan.BusDays).
-			Set(`pickup_days = ?`, plan.PickupDays)
-	}
-	query = query.Set(`departure_companion_note = ?`, note)
-
-	stats := domain.OperationStats{Queries: 1}
-	started := time.Now()
-	result, err := query.Exec(ctx)
-	stats.StatementDuration = time.Since(started)
-	if err != nil {
-		return stats, fmt.Errorf("people directory postgres: persist departure plan: %w", err)
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return stats, fmt.Errorf("people directory postgres: persist departure plan: %w", err)
-	}
-	stats.Rows = affected
-	if affected != 1 {
-		return stats, fmt.Errorf("people directory postgres: persist departure plan: expected 1 row, got %d", affected)
-	}
-	return stats, nil
-}
-
 // FindDeparturePlan reads the plan the row currently holds, already resolved
 // through the owner's read precedence.
-func (s *StudentStore) FindDeparturePlan(
-	ctx context.Context,
-	studentID int64,
-) (domain.DeparturePlan, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
-	if err != nil {
-		return domain.DeparturePlan{}, false, domain.OperationStats{}, err
-	}
-	var rows []struct {
-		BusDays               domain.BusDays               `bun:"bus_days"`
-		PickupDays            domain.PickupDays            `bun:"pickup_days"`
-		DepartureDays         domain.DepartureDays         `bun:"departure_days"`
-		AllowedDepartureModes domain.AllowedDepartureModes `bun:"allowed_departure_modes"`
-	}
-	query := withStudentTenant(db.NewSelect().
-		TableExpr(`users.students AS "student"`).
-		ColumnExpr(`"student".bus_days, "student".pickup_days`).
-		ColumnExpr(`"student".departure_days, "student".allowed_departure_modes`).
-		Where(`"student".id = ?`, studentID), tenantID)
-
-	stats := domain.OperationStats{Queries: 1}
-	started := time.Now()
-	err = query.Scan(ctx, &rows)
-	stats.StatementDuration = time.Since(started)
-	if err != nil {
-		return domain.DeparturePlan{}, false, stats, fmt.Errorf("people directory postgres: find departure plan: %w", err)
-	}
-	if len(rows) == 0 {
-		return domain.DeparturePlan{}, false, stats, nil
-	}
-	stats.Rows = 1
+func (s *StudentStore) FindDeparturePlan(ctx context.Context, studentID int64) (domain.DeparturePlan, bool, domain.OperationStats, error) {
+	record, found, stats, err := s.FindRecord(ctx, studentID, "")
 	stored := domain.DeparturePlan{
-		AllowedDepartureModes: rows[0].AllowedDepartureModes,
-		DepartureDays:         rows[0].DepartureDays,
-		BusDays:               rows[0].BusDays,
-		PickupDays:            rows[0].PickupDays,
+		AllowedDepartureModes: record.AllowedDepartureModes,
+		DepartureDays:         record.DepartureDays, BusDays: record.BusDays, PickupDays: record.PickupDays,
 	}
-	// Effective, not merely normalized: a row whose plan lives only in the
-	// legacy maps still has to read as the plan it means, or a write comparing
-	// against it would see a change the caller never made.
-	return stored.Effective(), true, stats, nil
+	return stored.Effective(), found, stats, err
 }
 
 // studentReturningColumns is studentRecordColumns without the "student" alias,
 // which a RETURNING clause cannot use.
 const studentReturningColumns = `id, created_at, updated_at, tenant_id,
-	person_id, school_class, group_id, status,
-	enrolled_from, enrolled_until,
-	address_street, address_city, address_postal_code,
-	extra_info, supervisor_notes, health_info, pickup_status,
-	departure_days, allowed_departure_modes, pickup_days, bus_days,
-	departure_companion_note,
-	sick, sick_since, excused, excused_since,
-	photo_path, photo_consent_given_at, photo_consent_given_by,
-	agb_accepted_at, data_processing_accepted_at, email_contact_accepted_at`
+ person_id, address_street, address_city, address_postal_code, extra_info,
+ photo_path, photo_consent_given_at, photo_consent_given_by,
+ agb_accepted_at, data_processing_accepted_at, email_contact_accepted_at`
 
 // studentWriteRow is the row a write binds. It carries the same columns
 // studentRecordRow scans, so a write can return the stored row directly.

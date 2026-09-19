@@ -23,7 +23,7 @@ func NewCarePlan(db *bun.DB, students peopledirectory.Capability, slots schedule
 	if students == nil || slots == nil {
 		return nil, errors.New("compose Care Plan: People Directory and instance-student repository are required")
 	}
-	statusStudents, err := CarePlanStatusStudents(students)
+	statusStudents, err := CarePlanStatusStudents(db, students)
 	if err != nil {
 		return nil, err
 	}
@@ -59,14 +59,19 @@ func NewCarePlan(db *bun.DB, students peopledirectory.Capability, slots schedule
 type statusStudentDirectory struct {
 	students peopledirectory.Capability
 	flags    peopledirectory.StudentStatusFlagCapability
+	care     careplan.StudentProfileCommands
 }
 
-func CarePlanStatusStudents(students peopledirectory.Capability) (carePlanCompose.StatusStudentDirectory, error) {
+func CarePlanStatusStudents(db *bun.DB, students peopledirectory.Capability) (carePlanCompose.StatusStudentDirectory, error) {
 	statusFlags, ok := students.(peopledirectory.StudentStatusFlagCapability)
 	if !ok {
 		return nil, errors.New("compose Care Plan: People Directory status-flag capability is required")
 	}
-	return statusStudentDirectory{students: students, flags: statusFlags}, nil
+	care, err := carePlanCompose.NewStudentProfiles(db, func(carePlanCompose.Observation) {})
+	if err != nil {
+		return nil, err
+	}
+	return statusStudentDirectory{students: students, flags: statusFlags, care: care}, nil
 }
 
 func (d statusStudentDirectory) ListEnrolledStudents(ctx context.Context) ([]carePlanCompose.StatusStudent, error) {
@@ -80,7 +85,7 @@ func (d statusStudentDirectory) ListStudentsWithStatusFlag(ctx context.Context, 
 }
 
 func (d statusStudentDirectory) ClearStudentStatusFlags(ctx context.Context, ids []int64, status string) (int64, error) {
-	return d.flags.ClearStudentStatusFlags(ctx, ids, status)
+	return d.care.ClearStudentStatusFlags(ctx, ids, status)
 }
 
 func (d statusStudentDirectory) LockStudent(ctx context.Context, id int64) error {

@@ -5,7 +5,6 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/enrollment"
 	"github.com/uptrace/bun"
 )
 
@@ -40,8 +39,4 @@ func NewStudentQuery(db *bun.DB) (StudentQuery, error) {
 		}
 		return students, nil
 	}), nil
-}
-
-func NewEnrollment(db *bun.DB) (enrollment.Commands, error) {
-	return compose.New(compose.Dependencies{DB: db, Observe: func(compose.Observation) {}})
 }

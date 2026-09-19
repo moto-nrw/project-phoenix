@@ -50,11 +50,12 @@ type EnrollmentProfilePatch struct {
 }
 
 type EnrollmentStudent struct {
-	PersonID      int64
-	SchoolClass   string
-	Status        string
-	EnrolledFrom  string
-	EnrolledUntil string
+	InitialProfile *EnrollmentProfilePatch
+	PersonID       int64
+	SchoolClass    string
+	Status         string
+	EnrolledFrom   string
+	EnrolledUntil  string
 }
 
 // StudentStatusAlumnus is the lifecycle status of a graduated child. Rows

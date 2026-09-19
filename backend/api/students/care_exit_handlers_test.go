@@ -34,9 +34,11 @@ func wireCareLifecycle(t *testing.T, tc *testContext) {
 func wireCareLifecycleWithBookingMode(t *testing.T, tc *testContext, authoritative bool) {
 	t.Helper()
 	repos := newStudentTestRepositories(tc.db)
+	membership, err := repositories.NewSchoolMembership(tc.db)
+	require.NoError(t, err)
 	tc.resource.CareLifecycleService = carelifecycle.NewCareLifecycleService(
 		carelifecycle.CareLifecycleDependencies{
-			StudentRepo:    repos.Student,
+			StudentRepo:    repositories.NewCareStudents(repos.Student, membership),
 			PersonRepo:     repos.Person,
 			CareExitRepo:   repos.CareExit,
 			CleanupRepo:    repos.CareExitCleanup,

@@ -64,7 +64,9 @@ func TestClassListEntryStudentsIgnoreGraduates(t *testing.T) {
 	class := "grad-1a"
 
 	graduate := testpkg.CreateTestStudent(t, db, "Namensvetter", "Kid", class)
-	graduated, err := persons.GraduateStudents(ctx, []int64{graduate.ID})
+	membership, err := repositories.NewSchoolMembership(db)
+	require.NoError(t, err)
+	graduated, err := membership.Graduate(ctx, []int64{graduate.ID})
 	require.NoError(t, err)
 	require.Positive(t, graduated, "the fixture student must have graduated")
 

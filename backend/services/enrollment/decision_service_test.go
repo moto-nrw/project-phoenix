@@ -157,7 +157,7 @@ func newDecisionServiceForTestWithPickupExtensions(
 	}
 	if careWithdrawal == nil {
 		careWithdrawal = carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
-			StudentRepo: repoFactory.Student, PersonRepo: repoFactory.Person,
+			StudentRepo: repositories.NewCareStudents(repoFactory.Student, repoFactory.SchoolMembership()), PersonRepo: repoFactory.Person,
 			CareExitRepo: repoFactory.CareExit, CleanupRepo: repoFactory.CareExitCleanup,
 			WithdrawalRepo: repoFactory.CareWithdrawal, TagReleaser: repoFactory.StudentTagReleaser(),
 			AuditService:          usersService.NewStudentAuditService(repositories.NewStudentAudit(env.db)),

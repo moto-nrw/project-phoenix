@@ -27,13 +27,21 @@ type StudentWrite struct {
 	NoteSupplied bool
 }
 
+// A failed composite command must undo its own writes even when an ambient
+// transaction catches the error and continues with unrelated work.
+func (s *StudentService) runStudentWrite(ctx context.Context, write func(context.Context) error) error {
+	return s.tx.RunWrite(ctx, func(txCtx context.Context) error {
+		return s.tx.RunSavepoint(txCtx, write)
+	})
+}
+
 // CreateStudent inserts a child and writes its departure plan.
 //
 // The shared class-writes gate comes first: a brand-new row is exactly the
 // arrival a grade transition cannot row-lock against, so the insert has to wait
 // out a running apply rather than landing in a class it has already emptied.
 func (s *StudentService) CreateStudent(ctx context.Context, write StudentWrite) (result domain.StudentRecord, err error) {
-	err = s.run(ctx, "create_student", s.tx.RunWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = s.run(ctx, "create_student", s.runStudentWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
 		gateStats, err := s.store.LockEnrollmentClassWrites(txCtx)
 		stats.Add(gateStats)
 		if err != nil {
@@ -51,10 +59,11 @@ func (s *StudentService) CreateStudent(ctx context.Context, write StudentWrite) 
 		if err != nil {
 			return err
 		}
-		planStats, err := s.store.PersistDeparturePlan(
-			txCtx, record.ID, resolved, noteToStore(resolved, write.CompanionNote),
-			write.Plan.Touched() || write.NoteSupplied)
-		stats.Add(planStats)
+		membershipID, err := s.owners.Enroll(txCtx, record)
+		if err != nil {
+			return err
+		}
+		err = s.owners.SaveCare(txCtx, membershipID, record, resolved, noteToStore(resolved, write.CompanionNote), write.Plan.Touched() || write.NoteSupplied)
 		if err != nil {
 			return err
 		}
@@ -80,7 +89,7 @@ func (s *StudentService) CreateStudent(ctx context.Context, write StudentWrite) 
 //  7. drop the trimmed links last, so a failure never leaves links deleted for a
 //     plan that was never stored.
 func (s *StudentService) UpdateStudent(ctx context.Context, write StudentWrite) (result domain.StudentRecord, err error) {
-	err = s.run(ctx, "update_student", s.tx.RunWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = s.run(ctx, "update_student", s.runStudentWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
 		gateStats, err := s.store.LockEnrollmentClassWrites(txCtx)
 		stats.Add(gateStats)
 		if err != nil {
@@ -131,10 +140,7 @@ func (s *StudentService) UpdateStudent(ctx context.Context, write StudentWrite) 
 		}
 
 		note := noteToStore(resolved, write.CompanionNote)
-		persistStats, err := s.store.PersistDeparturePlan(
-			txCtx, record.ID, resolved, note, plan.Touched() || write.NoteSupplied)
-		stats.Add(persistStats)
-		if err != nil {
+		if err := s.saveStudentOwners(txCtx, record, resolved, note, plan.Touched() || write.NoteSupplied); err != nil {
 			return err
 		}
 
@@ -149,10 +155,18 @@ func (s *StudentService) UpdateStudent(ctx context.Context, write StudentWrite) 
 	return result, err
 }
 
+func (s *StudentService) saveStudentOwners(ctx context.Context, record domain.StudentRecord, plan domain.DeparturePlan, note *string, touched bool) error {
+	membershipID, err := s.owners.Renew(ctx, record)
+	if err != nil {
+		return err
+	}
+	return s.owners.SaveCare(ctx, membershipID, record, plan, note, touched)
+}
+
 // DeleteStudent removes one child. The gate comes first for the same reason it
 // does on every other student write.
 func (s *StudentService) DeleteStudent(ctx context.Context, studentID int64) error {
-	return s.run(ctx, "delete_student", s.tx.RunWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
+	return s.run(ctx, "delete_student", s.runStudentWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
 		gateStats, err := s.store.LockEnrollmentClassWrites(txCtx)
 		stats.Add(gateStats)
 		if err != nil {

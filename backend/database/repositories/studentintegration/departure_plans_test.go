@@ -1,4 +1,4 @@
-package compose
+package studentintegration_test
 
 import (
 	"testing"
@@ -11,7 +11,7 @@ import (
 func TestDeparturePlansReadCanonicalModesForRequestedChildren(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module := buildModule(t, db)
+	module := buildStudentOwnersModule(t, db)
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Departure", "Baseline", "1a")
 	unset := testpkg.CreateTestStudent(t, db, "Unset", "Departure", "1a")

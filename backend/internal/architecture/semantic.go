@@ -21,7 +21,7 @@ var (
 	writeTablePattern          = regexp.MustCompile(`(?i)\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|MERGE\s+INTO)\s+(?:ONLY\s+)?([a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)?)`)
 	truncatePattern            = regexp.MustCompile(`(?i)\bTRUNCATE(?:\s+TABLE)?\s+([^;]+)`)
 	truncateModifier           = regexp.MustCompile(`(?i)\s+(?:RESTART|CONTINUE)\s+IDENTITY\b.*$|\s+(?:CASCADE|RESTRICT)\b.*$`)
-	sqlCTEPattern              = regexp.MustCompile(`(?i)(?:\bWITH\s+(?:RECURSIVE\s+)?|,)\s*["` + "`" + `]?([a-z][a-z0-9_]*)["` + "`" + `]?(?:\s*\([^)]*\))?\s+AS\s*\(`)
+	sqlCTEPattern              = regexp.MustCompile(`(?i)(?:\bWITH\s+(?:RECURSIVE\s+)?|,)\s*["` + "`" + `]?([a-z][a-z0-9_]*)["` + "`" + `]?(?:\s*\([^)]*\))?\s+AS\s*(?:(?:NOT\s+)?MATERIALIZED\s*)?\(`)
 	sqlTokenPattern            = regexp.MustCompile(`(?i)[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)?|[(),;]`)
 	sqlSourceStops             = map[string]bool{
 		"CROSS": true, "EXCEPT": true, "FOR": true, "FULL": true, "GROUP": true,

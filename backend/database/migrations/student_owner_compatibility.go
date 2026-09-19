@@ -52,10 +52,20 @@ func installStudentOwnerCompatibility(ctx context.Context, tx bun.Tx) error {
 // dependent view without touching data or the hit counters, so a repair can
 // restore the rollback shape from the authoritative targets.
 func refreshStudentOwnerCompatibility(ctx context.Context, tx bun.Tx) error {
-	if _, err := tx.ExecContext(ctx, studentOwnerCompatibilityView); err != nil {
+	view, routing := studentOwnerCompatibilityView, studentOwnerCompatibilityRouting
+	var careAbsence bool
+	if err := tx.NewRaw(`SELECT EXISTS (SELECT FROM pg_attribute
+		WHERE attrelid = 'users.student_care_profiles'::regclass
+		AND attname = 'sick' AND NOT attisdropped)`).Scan(ctx, &careAbsence); err != nil {
+		return fmt.Errorf("inspect student care compatibility: %w", err)
+	}
+	if careAbsence {
+		view, routing = studentCareCompatibilityView, studentCareCompatibilityRouting
+	}
+	if _, err := tx.ExecContext(ctx, view); err != nil {
 		return fmt.Errorf("install student compatibility view: %w", err)
 	}
-	if _, err := tx.ExecContext(ctx, studentOwnerCompatibilityRouting); err != nil {
+	if _, err := tx.ExecContext(ctx, routing); err != nil {
 		return fmt.Errorf("install student compatibility routing: %w", err)
 	}
 	return nil

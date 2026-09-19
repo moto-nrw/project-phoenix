@@ -75,13 +75,13 @@ func (d faultyDirectory) ReleaseTags(ctx context.Context, personIDs []int64) ([]
 	return released, d.inj.after("release_tags", err)
 }
 
-func (d faultyDirectory) GraduateStudents(ctx context.Context, ids []int64) (int64, error) {
-	count, err := d.Directory.GraduateStudents(ctx, ids)
+func (d faultyMembership) Graduate(ctx context.Context, ids []int64) (int64, error) {
+	count, err := d.Membership.Graduate(ctx, ids)
 	return count, d.inj.after("graduate", err)
 }
 
-func (d faultyDirectory) PromoteStudents(ctx context.Context, ids []int64, from, to string) (int64, error) {
-	count, err := d.Directory.PromoteStudents(ctx, ids, from, to)
+func (d faultyMembership) ChangeClass(ctx context.Context, ids []int64, from, to string) (int64, error) {
+	count, err := d.Membership.ChangeClass(ctx, ids, from, to)
 	return count, d.inj.after("promote", err)
 }
 
