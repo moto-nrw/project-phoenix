@@ -2327,13 +2327,29 @@ describe("SupervisionProvider school switch (#3375)", () => {
 
     const { result, rerender } = renderHook(() => useSupervision(), {
       wrapper: ({ children }: { children: ReactNode }) => (
-        <SupervisionProvider>{children}</SupervisionProvider>
+        <SupervisionProvider
+          initial={{
+            groups: [{ id: "1", name: "Bestehende Gruppe" }],
+            supervised: [],
+            openRooms: [],
+            overviewOk: false,
+          }}
+        >
+          {children}
+        </SupervisionProvider>
       ),
     });
+
+    void result.current.refresh({ silent: true, force: true });
     await waitFor(() => expect(releaseOld).toBeDefined());
+    expect(result.current.groups[0]?.name).toBe("Bestehende Gruppe");
+    expect(result.current.isLoadingGroups).toBe(false);
 
     vi.mocked(useSession).mockReturnValue(sessionFor(2, "token-new"));
     rerender();
+
+    expect(result.current.groups[0]?.name).toBe("Bestehende Gruppe");
+    expect(result.current.isLoadingGroups).toBe(false);
 
     await act(async () => {
       releaseOld?.();
@@ -2342,7 +2358,8 @@ describe("SupervisionProvider school switch (#3375)", () => {
 
     await waitFor(() => {
       expect(oldResponseRead).toBe(true);
-      expect(result.current.groups).toEqual([]);
+      expect(result.current.groups[0]?.name).toBe("Bestehende Gruppe");
+      expect(result.current.isLoadingGroups).toBe(false);
       expect(releaseNew).toBeDefined();
     });
 

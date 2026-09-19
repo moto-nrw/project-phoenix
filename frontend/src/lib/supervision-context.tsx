@@ -459,7 +459,6 @@ export function SupervisionProvider({
   const schoolTransitionPending =
     schoolMismatch ||
     previousSchoolRef.current.sessionTenantId !== sessionTenantId ||
-    previousSchoolRef.current.sessionToken !== sessionToken ||
     previousSchoolRef.current.urlTenantId !== urlTenantId;
   useEffect(() => {
     const previous = previousSchoolRef.current;
@@ -472,6 +471,10 @@ export function SupervisionProvider({
     const sessionChanged =
       previous.sessionTenantId !== sessionTenantId ||
       previous.sessionToken !== sessionToken;
+    const schoolIdentityChanged =
+      previous.sessionTenantId !== sessionTenantId ||
+      previous.urlTenantId !== urlTenantId ||
+      previous.schoolMismatch !== schoolMismatch;
     const urlSchoolChanged = previous.urlTenantId !== urlTenantId;
     if (
       !sessionChanged &&
@@ -482,6 +485,14 @@ export function SupervisionProvider({
     }
 
     schoolGenerationRef.current += 1;
+    if (!schoolIdentityChanged) {
+      if (isRefreshingRef.current) {
+        pendingFullRefreshRef.current = true;
+      } else {
+        void refreshRef.current?.({ silent: true, force: true });
+      }
+      return;
+    }
     setState((s) => ({
       ...s,
       hasGroups: false,

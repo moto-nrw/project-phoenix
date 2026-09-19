@@ -295,6 +295,37 @@ describe("TenantGuard", () => {
     });
   });
 
+  it("offers recovery when automatic sign-out after access denial fails", async () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { tenantId: 1, token: "access-token" } },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+    mockUseTenant.mockReturnValue({
+      tenantSlug: "school-b",
+      tenant: tenantB,
+    });
+    mockPerformTenantSwitch.mockRejectedValue(
+      new TenantSwitchError(
+        "account does not have access to this tenant",
+        401,
+        "access_denied",
+      ),
+    );
+    mockSignOut.mockRejectedValue(new Error("sign-out failed"));
+
+    render(
+      <TenantGuard>
+        <div>Protected Content</div>
+      </TenantGuard>,
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "Erneut versuchen" }),
+    ).toBeInTheDocument();
+    expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: "/" });
+  });
+
   it("signs out operator session on tenant subdomain and blocks render", async () => {
     mockUseSession.mockReturnValue({
       data: {

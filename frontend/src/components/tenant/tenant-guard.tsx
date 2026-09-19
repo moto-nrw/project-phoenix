@@ -223,8 +223,23 @@ export function TenantGuard({
         });
 
         if (err instanceof TenantSwitchError && err.code === "access_denied") {
-          signingOut = true;
-          await signOut({ callbackUrl: "/" });
+          try {
+            await signOut({ callbackUrl: "/" });
+            signingOut = true;
+          } catch (signOutErr) {
+            logger.warn("tenant_auto_switch_signout_failed", {
+              error:
+                signOutErr instanceof Error
+                  ? signOutErr.message
+                  : String(signOutErr),
+            });
+            if (
+              switchAttempts.current.targetTenantId === switchTargetTenantId
+            ) {
+              switchAttempts.current.count = MAX_SWITCH_ATTEMPTS;
+            }
+            setFailedTenantId(switchTargetTenantId);
+          }
         } else {
           // A failed request is not the cookie race; repeating it unasked
           // would only hammer a backend that just said no.
