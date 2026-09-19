@@ -16,7 +16,10 @@ import {
 } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
 import { useLatest } from "~/lib/hooks/use-latest";
-import { useOperationalOverviewScope } from "~/lib/tenant-context";
+import {
+  useOperationalOverviewScope,
+  useTenantSafe,
+} from "~/lib/tenant-context";
 import {
   deriveSupervision,
   sameGroups,
@@ -183,9 +186,28 @@ export function SupervisionProvider({
     });
   }, []);
 
+  // Every request reads the school from the session cookie, never from the
+  // URL. While the session still belongs to another school (TenantGuard is
+  // switching it), an answer would be the other school's groups (#3375):
+  // nothing is fetched, and the generation discards answers that were already
+  // under way when the school changed.
+  const tenantContext = useTenantSafe();
+  const sessionTenantId = session?.user?.tenantId;
+  const urlTenantId = tenantContext?.tenant?.tenantId;
+  const schoolMismatch =
+    sessionTenantId !== undefined &&
+    urlTenantId !== undefined &&
+    sessionTenantId !== urlTenantId;
+  const schoolMismatchRef = useLatest(schoolMismatch);
+  const schoolGenerationRef = React.useRef(0);
+
   // Check if user has any groups (as teacher or representative)
   const checkGroups = useCallback(async () => {
     const token = tokenRef.current;
+    const generation = schoolGenerationRef.current;
+    const applyCurrent = (groupList: NavigationEducationalGroup[]) => {
+      if (generation === schoolGenerationRef.current) applyGroups(groupList);
+    };
     if (!token) {
       setState((prev) => ({
         ...prev,
@@ -211,14 +233,14 @@ export function SupervisionProvider({
           groups?: NavigationEducationalGroup[];
         };
         // Route wrapper wraps response as { success, data: { groups } }
-        applyGroups(
+        applyCurrent(
           sortNavigationGroups(json.data?.groups ?? json.groups ?? []),
         );
       } else {
-        applyGroups([]);
+        applyCurrent([]);
       }
     } catch {
-      applyGroups([]);
+      applyCurrent([]);
     }
   }, [applyGroups, tokenRef]);
 
@@ -235,6 +257,10 @@ export function SupervisionProvider({
   // Check if user is supervising an active room (also fetches Schulhof status)
   const checkSupervision = useCallback(async () => {
     const token = tokenRef.current;
+    const generation = schoolGenerationRef.current;
+    const applyCurrent = (next: DerivedSupervision) => {
+      if (generation === schoolGenerationRef.current) applySupervision(next);
+    };
     if (!token) {
       applySupervision(EMPTY_SUPERVISION_STATE);
       return;
@@ -328,12 +354,12 @@ export function SupervisionProvider({
         ownSupervised = responseData.data ?? [];
       }
 
-      applySupervision(
+      applyCurrent(
         deriveSupervision(supervised, openRooms, overviewOk, ownSupervised),
       );
     } catch {
       // On error the open-room list is unreachable too, so just clear.
-      applySupervision(EMPTY_SUPERVISION_STATE);
+      applyCurrent(EMPTY_SUPERVISION_STATE);
     }
   }, [applySupervision, canReadGroupsRef, mayHaveOverviewRef, tokenRef]);
 
@@ -350,6 +376,9 @@ export function SupervisionProvider({
       // Skips the supervision half (own supervised rooms + Schulhof status)
       // for triggers that provably cannot have changed it.
       const groupsOnly = options?.groupsOnly ?? false;
+      // The session belongs to another school: the loading state stays until
+      // the school effect below starts the load for the right one.
+      if (schoolMismatchRef.current) return;
       // Prevent rapid successive refreshes (min 5 seconds between refreshes).
       // `force` bypasses the throttle for deliberate external triggers
       // (e.g. after saving a setting that changes supervision visibility).
@@ -392,7 +421,7 @@ export function SupervisionProvider({
         }
       });
     },
-    [checkGroups, checkSupervision],
+    [checkGroups, checkSupervision, schoolMismatchRef],
   );
 
   // Store the refresh function only after its render commits.
@@ -410,6 +439,39 @@ export function SupervisionProvider({
     previousOverviewScopeRef.current = overviewScope;
     void refreshRef.current?.({ silent: true, force: true });
   }, [overviewScope]);
+
+  // The session moved to another school, or started/stopped matching the URL
+  // (#3375). The token effect below cannot cover this: its load is throttled
+  // away when the switch follows the first load within five seconds, and the
+  // other school's groups then stay until the five-minute resync. Declared
+  // before the token effect so that one finds the load already started.
+  const previousSchoolRef = React.useRef({ sessionTenantId, schoolMismatch });
+  useEffect(() => {
+    const previous = previousSchoolRef.current;
+    previousSchoolRef.current = { sessionTenantId, schoolMismatch };
+    const schoolChanged =
+      previous.sessionTenantId !== undefined &&
+      sessionTenantId !== undefined &&
+      previous.sessionTenantId !== sessionTenantId;
+    if (!schoolChanged && previous.schoolMismatch === schoolMismatch) return;
+
+    schoolGenerationRef.current += 1;
+    setState((s) => ({
+      ...s,
+      hasGroups: false,
+      groups: [],
+      isLoadingGroups: true,
+      ...EMPTY_SUPERVISION_STATE,
+      isLoadingSupervision: true,
+    }));
+    if (schoolMismatch) return;
+    if (isRefreshingRef.current) {
+      // The running load is discarded by its generation; this one replaces it.
+      pendingFullRefreshRef.current = true;
+      return;
+    }
+    void refreshRef.current?.({ silent: true, force: true });
+  }, [sessionTenantId, schoolMismatch]);
 
   // Initial load and refresh on session changes only
   useEffect(() => {
