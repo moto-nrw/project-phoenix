@@ -331,19 +331,19 @@ func phaseResponseStudentID(child *enrollmentOwner.RequestChild, sources map[int
 
 // phaseResponseScope decides which children of the roster a phase expects.
 type phaseResponseScope struct {
-	// nextYear is true for a school-year phase whose care starts after
-	// today: the child will be one grade further when it starts, and the
-	// top grade leaves the school.
-	nextYear bool
-	gradeMax int
-	grades   map[int]struct{}
-	classes  map[string]struct{}
+	// advanceGrade is true when the phase expects the next school year's
+	// grade. Half-year rollovers can keep the current grade explicitly.
+	advanceGrade bool
+	gradeMax     int
+	grades       map[int]struct{}
+	classes      map[string]struct{}
 }
 
 func newPhaseResponseScope(phase *enrollmentOwner.Phase, today timezone.Date, gradeMax int) phaseResponseScope {
 	scope := phaseResponseScope{
-		nextYear: phase.Kind == enrollmentOwner.PhaseKindSchoolYear &&
-			string(phase.ServiceStartDate) > today.String(),
+		advanceGrade: phase.Kind == enrollmentOwner.PhaseKindSchoolYear &&
+			string(phase.ServiceStartDate) > today.String() &&
+			(phase.RolloverSourcePhaseID == nil || phase.RolloverBumpsGrade),
 		gradeMax: gradeMax,
 		grades:   map[int]struct{}{},
 		classes:  map[string]struct{}{},
@@ -384,7 +384,7 @@ func phaseResponseGrade(class string) (int, bool) {
 func (s phaseResponseScope) exclusion(class string) string {
 	class = schoolclass.Normalize(class)
 	grade, ok := phaseResponseGrade(class)
-	if s.nextYear && ok {
+	if s.advanceGrade && ok {
 		if grade >= s.gradeMax {
 			return PhaseResponseExcludedGraduating
 		}

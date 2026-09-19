@@ -175,16 +175,14 @@ describe("PhaseResponseOverview", () => {
       screen.getByRole("columnheader", { name: /Eltern-App/ }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("1 Familie hat keine Eltern-App. Bitte anrufen."),
+      screen.getByText("1 Kind hat keine Eltern-App. Bitte anrufen."),
     ).toBeInTheDocument();
   });
 
   it("hands the reachable missing children to the announcement composer", () => {
     render(<PhaseResponseOverview overview={overview} search="" />);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "2 Familien erinnern" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "2 Kinder erinnern" }));
 
     const target = mocks.push.mock.calls[0]?.[0] as string;
     expect(target).toMatch(/^\/parent-announcements\?neu=kinder&vorbelegung=/);
@@ -209,7 +207,7 @@ describe("PhaseResponseOverview", () => {
   it("offers the reminder only next to the children still missing", () => {
     render(<PhaseResponseOverview overview={overview} search="" />);
     expect(
-      screen.getByRole("button", { name: "2 Familien erinnern" }),
+      screen.getByRole("button", { name: "2 Kinder erinnern" }),
     ).toBeInTheDocument();
 
     // Next to "Abgegeben (1)" a button with a number reads as a message to the
@@ -221,7 +219,7 @@ describe("PhaseResponseOverview", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Fehlt noch (3)" }));
     expect(
-      screen.getByRole("button", { name: "2 Familien erinnern" }),
+      screen.getByRole("button", { name: "2 Kinder erinnern" }),
     ).toBeInTheDocument();
   });
 

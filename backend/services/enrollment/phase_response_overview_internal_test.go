@@ -322,6 +322,22 @@ func TestResponseOverview_GradeRestrictionComparesNextYearsGrade(t *testing.T) {
 	assert.Equal(t, []PhaseResponseExclusion{{Reason: PhaseResponseExcludedNotInScope, Count: 1}}, overview.Excluded)
 }
 
+func TestResponseOverview_RolloverWithoutGradeBumpUsesCurrentGrade(t *testing.T) {
+	t.Parallel()
+
+	phase := nextYearPhase()
+	phase.RolloverSourcePhaseID = ptr(int64(4))
+	phase.RolloverBumpsGrade = false
+	phase.EligibleGradeLevels = []int{4}
+	svc := newResponseService(phase, &responseChildren{}, responseRoster{{ID: 1, LastName: "Arslan", SchoolClass: "4a"}}, nil, nil)
+
+	overview, err := svc.ResponseOverview(context.Background(), 5)
+	require.NoError(t, err)
+	require.Len(t, overview.Rows, 1)
+	assert.Equal(t, int64(1), overview.Rows[0].StudentID)
+	assert.Empty(t, overview.Excluded)
+}
+
 func TestResponseOverview_HolidayPhaseKeepsTheTopGradeAndTodaysGrade(t *testing.T) {
 	t.Parallel()
 

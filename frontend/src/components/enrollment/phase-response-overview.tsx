@@ -216,7 +216,7 @@ export function PhaseResponseOverview({
             className="inline-flex items-center gap-2"
           >
             <Send className="h-4 w-4" aria-hidden="true" />
-            {reachable.length} {reachable.length === 1 ? "Familie" : "Familien"}{" "}
+            {reachable.length} {reachable.length === 1 ? "Kind" : "Kinder"}{" "}
             erinnern
           </Button>
         ) : undefined
@@ -239,7 +239,7 @@ export function PhaseResponseOverview({
           {view === "missing" && unreachableCount > 0 ? (
             <p className="text-sm text-gray-600">
               {unreachableCount}{" "}
-              {unreachableCount === 1 ? "Familie hat" : "Familien haben"} keine
+              {unreachableCount === 1 ? "Kind hat" : "Kinder haben"} keine
               Eltern-App. Bitte anrufen.
             </p>
           ) : null}
