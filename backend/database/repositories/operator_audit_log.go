@@ -6,9 +6,9 @@ import (
 	"time"
 
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/platform"
+	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 )
 
 // NewOperatorAuditLogRepository serves the retained operator audit-log
@@ -37,14 +37,6 @@ func (r operatorAuditLogRepository) Create(ctx context.Context, entry *platform.
 	entry.ID = stored.ID
 	entry.CreatedAt = stored.CreatedAt
 	return nil
-}
-
-func (r operatorAuditLogRepository) FindByOperatorID(ctx context.Context, operatorID int64, limit int) ([]*platform.OperatorAuditLog, error) {
-	entries, err := r.entries.FindByOperatorID(ctx, operatorID, limit)
-	if err != nil {
-		return nil, authRepo.DatabaseError("find audit logs by operator id", err)
-	}
-	return auditLogModels(entries), nil
 }
 
 func (r operatorAuditLogRepository) FindByDateRange(ctx context.Context, start, end time.Time, limit int) ([]*platform.OperatorAuditLog, error) {

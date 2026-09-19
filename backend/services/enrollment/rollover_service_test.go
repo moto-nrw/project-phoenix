@@ -19,9 +19,8 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -45,7 +44,7 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	db := testpkg.SetupTestDB(t)
 	lock, notFound, err := repositories.NewCareStudentLock(db)
 	require.NoError(t, err)
-	scheduleService.BindCareStudentLockForDB(db, lock, notFound)
+	careschedule.BindCareStudentLockForDB(db, lock, notFound)
 	// Close the pool after all fixture cleanups registered by the test. The
 	// decision-service tests reuse this setup and may register additional
 	// t.Cleanup hooks (for example calendar periods); closing inside the
@@ -54,7 +53,6 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	repoFactory.BindTimetable(timetabletest.New(t, db))
 	settings := newStubRequestSettings()
 	settings.boolValues[configModel.KeyEnrollmentEnabled] = true
 	settings.boolValues[configModel.KeyEnrollmentAllowSubmissionEdit] = true
@@ -84,7 +82,7 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 		Children:         repoFactory.Enrollment(),
 		CareOfferingRepo: repoFactory.CareOffering,
 		Catalog:          repoFactory.Enrollment(),
-		SchoolRepo:       repoFactory.School,
+		SchoolRepo:       factorySchools{repos: repoFactory},
 		RateLimitRepo:    repoFactory.Enrollment(),
 		LateInviteRepo:   repoFactory.Enrollment(),
 		OutboxEnqueuer:   outbox,

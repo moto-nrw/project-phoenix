@@ -10,13 +10,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/operator"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/platform"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
 func TestGetProfile_Success(t *testing.T) {
@@ -61,7 +62,7 @@ func TestGetProfile_OperatorNotFound(t *testing.T) {
 
 	mockService := &mockOperatorAuthService{
 		getOperatorFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
-			return nil, &platformSvc.OperatorNotFoundError{}
+			return nil, identityoperator.ErrOperatorNotFound
 		},
 	}
 
@@ -189,7 +190,7 @@ func TestUpdateProfile_InvalidData(t *testing.T) {
 
 	mockService := &mockOperatorAuthService{
 		updateProfileFn: func(ctx context.Context, operatorID int64, displayName string) (*platform.Operator, error) {
-			return nil, &platformSvc.InvalidDataError{Err: errors.New("display name too long")}
+			return nil, &identityoperator.InvalidInputError{Err: errors.New("display name too long")}
 		},
 	}
 
@@ -314,7 +315,7 @@ func TestChangePassword_PasswordMismatch(t *testing.T) {
 
 	mockService := &mockOperatorAuthService{
 		changePasswordFn: func(ctx context.Context, operatorID int64, currentPassword, newPassword string) error {
-			return &platformSvc.PasswordMismatchError{}
+			return identityoperator.ErrOperatorPasswordMismatch
 		},
 	}
 
@@ -465,7 +466,7 @@ func TestInitiateEmailChange_PasswordMismatch(t *testing.T) {
 
 	mockService := &mockOperatorAuthService{
 		initiateEmailChangeFn: func(ctx context.Context, operatorID int64, newEmail, currentPassword string, clientIP net.IP) error {
-			return &platformSvc.PasswordMismatchError{}
+			return identityoperator.ErrOperatorPasswordMismatch
 		},
 	}
 
@@ -494,7 +495,7 @@ func TestInitiateEmailChange_SameEmail(t *testing.T) {
 
 	mockService := &mockOperatorAuthService{
 		initiateEmailChangeFn: func(ctx context.Context, operatorID int64, newEmail, currentPassword string, clientIP net.IP) error {
-			return &platformSvc.EmailChangeSameEmailError{}
+			return identityoperator.ErrOperatorEmailChangeSameEmail
 		},
 	}
 
@@ -523,7 +524,7 @@ func TestInitiateEmailChange_EmailAlreadyInUse(t *testing.T) {
 
 	mockService := &mockOperatorAuthService{
 		initiateEmailChangeFn: func(ctx context.Context, operatorID int64, newEmail, currentPassword string, clientIP net.IP) error {
-			return &platformSvc.EmailAlreadyInUseError{}
+			return identityoperator.ErrOperatorEmailInUse
 		},
 	}
 
@@ -552,7 +553,7 @@ func TestInitiateEmailChange_RateLimit(t *testing.T) {
 
 	mockService := &mockOperatorAuthService{
 		initiateEmailChangeFn: func(ctx context.Context, operatorID int64, newEmail, currentPassword string, clientIP net.IP) error {
-			return &platformSvc.EmailChangeRateLimitError{}
+			return identityoperator.ErrOperatorEmailChangeRateLimited
 		},
 	}
 
@@ -581,7 +582,7 @@ func TestInitiateEmailChange_OperatorInactive(t *testing.T) {
 
 	mockService := &mockOperatorAuthService{
 		initiateEmailChangeFn: func(ctx context.Context, operatorID int64, newEmail, currentPassword string, clientIP net.IP) error {
-			return &platformSvc.OperatorInactiveError{OperatorID: operatorID}
+			return identityoperator.ErrOperatorInactive
 		},
 	}
 
@@ -712,7 +713,7 @@ func TestConfirmEmailChange_TokenInvalid(t *testing.T) {
 	testUUID := "00000000-0000-4000-a000-000000000001"
 	mockService := &mockOperatorAuthService{
 		confirmEmailChangeFn: func(ctx context.Context, token string, clientIP net.IP) (string, error) {
-			return "", &platformSvc.EmailChangeTokenInvalidError{}
+			return "", identityoperator.ErrOperatorEmailChangeNotFound
 		},
 	}
 
@@ -738,7 +739,7 @@ func TestConfirmEmailChange_EmailAlreadyInUse(t *testing.T) {
 	testUUID := "00000000-0000-4000-a000-000000000001"
 	mockService := &mockOperatorAuthService{
 		confirmEmailChangeFn: func(ctx context.Context, token string, clientIP net.IP) (string, error) {
-			return "", &platformSvc.EmailAlreadyInUseError{}
+			return "", identityoperator.ErrOperatorEmailInUse
 		},
 	}
 
@@ -765,7 +766,7 @@ func TestConfirmEmailChange_OperatorInactive(t *testing.T) {
 	testUUID := "00000000-0000-4000-a000-000000000001"
 	mockService := &mockOperatorAuthService{
 		confirmEmailChangeFn: func(ctx context.Context, token string, clientIP net.IP) (string, error) {
-			return "", &platformSvc.OperatorInactiveError{OperatorID: 123}
+			return "", identityoperator.ErrOperatorInactive
 		},
 	}
 

@@ -32,8 +32,6 @@ func init() {
 }
 
 func mfaChallengePortalBindingUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.282: Binding auth.mfa_email_challenges rows to their portal scope and school...")
-
 	// Until now a challenge row recorded only WHO it was issued to, never
 	// WHICH portal asked for it. The verify path compensates by naming the
 	// exact row inside the challenge JWT, but the enrollment-confirm path has
@@ -100,8 +98,6 @@ func mfaChallengePortalBindingUp(ctx context.Context, db *bun.DB) error {
 }
 
 func mfaChallengePortalBindingDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.282: Dropping portal binding from auth.mfa_email_challenges...")
-
 	_, err := db.NewRaw(`
 		DROP INDEX IF EXISTS auth.idx_mfa_email_challenges_account_scope_active;
 

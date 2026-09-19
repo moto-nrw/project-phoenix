@@ -9,14 +9,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/email"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -41,13 +39,44 @@ func newEmailInUseError(email string) *ValidationError {
 	return &ValidationError{Err: fmt.Errorf(emailInUseMsgFmt, strings.TrimSpace(email))}
 }
 
+// GuardianInvitationRecord is one invitation as the guardian list reads it
+// from the owner module (#2722).
+type GuardianInvitationRecord struct {
+	ID                int64
+	TenantID          int64
+	Token             string
+	GuardianProfileID int64
+	CreatedBy         int64
+	ExpiresAt         time.Time
+	AcceptedAt        *time.Time
+	EmailSentAt       *time.Time
+	EmailError        *string
+	StudentID         *int64
+	ApprovalStatus    string
+	CreatedAt         time.Time
+}
+
+// GuardianInvitations is the consumer-owned port over the Identity & Access
+// guardian invitation capability (#2722): the guardian list shows who has an
+// open invitation, and the invitation overview lists the redeemable ones.
+// The composition root binds it; auth.guardian_invitations belongs to the
+// owner module.
+type GuardianInvitations interface {
+	// ListOpen returns the invitations of those contacts that are still
+	// going somewhere: redeemable, or awaiting a staff decision.
+	ListOpen(ctx context.Context, guardianProfileIDs []int64) ([]GuardianInvitationRecord, error)
+	// ListRedeemable returns the invitations of the school in context whose
+	// link can still be spent.
+	ListRedeemable(ctx context.Context) ([]GuardianInvitationRecord, error)
+}
+
 // GuardianServiceDependencies contains all dependencies required by the guardian service
 type GuardianServiceDependencies struct {
 	// Repository dependencies
 	GuardianProfileRepo     users.GuardianProfileRepository
 	GuardianPhoneNumberRepo users.GuardianPhoneNumberRepository
 	StudentGuardianRepo     users.StudentGuardianRepository
-	GuardianInvitationRepo  authModels.GuardianInvitationRepository
+	GuardianInvitations     GuardianInvitations
 	AccountRepo             authModels.AccountRepository
 	AccountTenantRepo       authModels.AccountTenantRepository
 	AccountRoleRepo         authModels.AccountRoleRepository
@@ -160,35 +189,6 @@ func (s *GuardianService) CreateGuardian(ctx context.Context, req GuardianCreate
 	return profile, nil
 }
 
-// CreateGuardianWithInvitation creates a guardian profile and sends an invitation
-func (s *GuardianService) CreateGuardianWithInvitation(ctx context.Context, req GuardianCreateRequest, createdBy int64) (*users.GuardianProfile, *authModels.GuardianInvitation, error) {
-	// Validate email is provided for invitation
-	if req.Email == nil || strings.TrimSpace(*req.Email) == "" {
-		return nil, nil, fmt.Errorf("email is required to send invitation")
-	}
-
-	// Check if email already has an account
-	if existingProfile, err := s.GuardianProfileRepo.FindByEmail(ctx, *req.Email); err == nil && existingProfile.HasAccount {
-		return nil, nil, fmt.Errorf("guardian with this email already has an account")
-	}
-
-	profile, err := s.CreateGuardian(ctx, req)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	invitationReq := GuardianInvitationRequest{
-		GuardianProfileID: profile.ID,
-		CreatedBy:         createdBy,
-	}
-	invitation, err := s.SendInvitation(ctx, invitationReq)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return profile, invitation, nil
-}
-
 // GetGuardianByID retrieves a guardian profile by ID with phone numbers
 func (s *GuardianService) GetGuardianByID(ctx context.Context, id int64) (*users.GuardianProfile, error) {
 	profile, err := s.GuardianProfileRepo.FindByID(ctx, id)
@@ -229,7 +229,7 @@ func (s *GuardianService) GuardianDisplays(ctx context.Context, ids []int64) ([]
 // UpdateGuardian updates a guardian profile
 func (s *GuardianService) UpdateGuardian(ctx context.Context, id int64, req GuardianCreateRequest) error {
 	// Serialize all guardian contact writers on the profile row. The
-	// parents-portal contact path (services/parent.UpdateGuardianContact) locks
+	// parents-portal contact path (workflows/parentportal/legacy.UpdateGuardianContact) locks
 	// this same row FOR UPDATE before its read-modify-write plus wholesale phone
 	// replace; taking the lock here — BEFORE the read — makes this staff profile
 	// edit serialize against it, so a stale-read full-row Update can't clobber the
@@ -462,127 +462,6 @@ func sameInt64Set(a, b []int64) bool {
 	return slices.Equal(aCopy, bCopy)
 }
 
-// SendInvitation sends an invitation to a guardian.
-//
-// Deprecated: Replaced by services/auth.GuardianInvitationService.Create
-// (parent-enrollment PR 3). Frontend does not call this. Cleanup PR pending.
-func (s *GuardianService) SendInvitation(ctx context.Context, req GuardianInvitationRequest) (*authModels.GuardianInvitation, error) {
-	// Get guardian profile
-	profile, err := s.GuardianProfileRepo.FindByID(ctx, req.GuardianProfileID)
-	if err != nil {
-		return nil, fmt.Errorf(errMsgGuardianNotFound, err)
-	}
-
-	// Validate guardian can be invited
-	if !profile.CanInvite() {
-		return nil, fmt.Errorf("guardian cannot be invited: either no email or already has account")
-	}
-
-	// Check for pending invitations
-	existingInvitations, err := s.GuardianInvitationRepo.FindByGuardianProfileID(ctx, profile.ID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check existing invitations: %w", err)
-	}
-
-	// Check if there's a valid pending invitation
-	now := time.Now()
-	for _, inv := range existingInvitations {
-		if authService.GuardianInvitationValid(inv, now) {
-			return nil, fmt.Errorf("guardian already has a pending invitation")
-		}
-	}
-
-	// Create invitation
-	token := uuid.Must(uuid.NewV4()).String()
-	invitation := &authModels.GuardianInvitation{
-		Token:             token,
-		GuardianProfileID: profile.ID,
-		CreatedBy:         req.CreatedBy,
-		ExpiresAt:         time.Now().Add(s.InvitationExpiry),
-	}
-	invitation.SetTenantID(tenant.FromContext(ctx))
-
-	if err := s.GuardianInvitationRepo.Create(ctx, invitation); err != nil {
-		return nil, fmt.Errorf("failed to create invitation: %w", err)
-	}
-
-	// Send invitation email asynchronously, pass tenant context for DB calls
-	if s.Dispatcher != nil && profile.Email != nil {
-		tenantCtx := context.WithoutCancel(tenant.ContextWithoutTransaction(ctx))
-		go s.sendInvitationEmail(tenantCtx, invitation, profile)
-	}
-
-	return invitation, nil
-}
-
-// sendInvitationEmail sends the invitation email (called asynchronously).
-// ctx should carry tenant context but not an ambient request transaction.
-func (s *GuardianService) sendInvitationEmail(ctx context.Context, invitation *authModels.GuardianInvitation, profile *users.GuardianProfile) {
-	if s.Dispatcher == nil || profile.Email == nil {
-		return
-	}
-
-	invitationURL := fmt.Sprintf("%s/guardian/invite?token=%s", s.FrontendURL, invitation.Token)
-	expiryHours := int(s.InvitationExpiry.Hours())
-
-	// P2 FIX: Handle errors gracefully in async email context
-	// If we can't load student names, log the error but continue with empty list
-	// (better to send the invitation without student names than to fail completely)
-	studentNames, err := s.getStudentNamesForGuardian(ctx, profile.ID)
-	if err != nil {
-		slog.Warn("failed to load student names for guardian invitation email",
-			slog.Int64("guardian_id", profile.ID),
-			slog.String("error", err.Error()),
-		)
-		studentNames = []string{} // Use empty list as fallback
-	}
-
-	message := email.Message{
-		From:     s.DefaultFrom,
-		ReplyTo:  s.resolveReplyTo(ctx),
-		To:       email.NewEmail("", *profile.Email),
-		Subject:  "Einladung zum Eltern-Portal",
-		Template: "guardian-invitation.html",
-		Content: map[string]interface{}{
-			"FirstName":     profile.FirstName,
-			"LastName":      profile.LastName,
-			"InvitationURL": invitationURL,
-			"ExpiryHours":   expiryHours,
-			"LogoURL":       fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", s.FrontendURL),
-			"StudentNames":  studentNames,
-		},
-	}
-
-	meta := email.DeliveryMetadata{
-		Type:        "guardian_invitation",
-		ReferenceID: invitation.ID,
-		Token:       invitation.Token,
-		Recipient:   *profile.Email,
-	}
-
-	if s.Dispatcher != nil {
-		s.Dispatcher.Dispatch(ctx, email.DeliveryRequest{
-			Message:  message,
-			Metadata: meta,
-		})
-	}
-
-	// Update email status
-	now := time.Now()
-	_ = s.GuardianInvitationRepo.UpdateEmailStatus(ctx, invitation.ID, &now, nil, 0)
-}
-
-// getStudentNamesForGuardian retrieves the full names of all students linked to a guardian
-// Returns an error if the guardian-student relationships cannot be loaded or if any student/person
-// lookup fails. This ensures callers can distinguish between "no students" and "data retrieval failure".
-func (s *GuardianService) getStudentNamesForGuardian(ctx context.Context, guardianProfileID int64) ([]string, error) {
-	impact, err := s.getGuardianDeleteImpact(ctx, guardianProfileID)
-	if err != nil {
-		return nil, err
-	}
-	return impact.StudentNames, nil
-}
-
 // getGuardianDeleteImpact retrieves the link IDs and full names of all students
 // linked to a guardian from the same relationship snapshot.
 func (s *GuardianService) getGuardianDeleteImpact(ctx context.Context, guardianProfileID int64) (*GuardianDeleteImpact, error) {
@@ -681,7 +560,7 @@ func (s *GuardianService) GetStudentGuardians(ctx context.Context, studentID int
 // WITH an account can still have an open invitation — a pending-approval
 // role-upgrade request (#2172) — but only one anchored to this child counts,
 // so a sibling's invite never marks an unrelated row as pending.
-func invitationPendingForStudent(profile *users.GuardianProfile, studentID int64, invitations []*authModels.GuardianInvitation) bool {
+func invitationPendingForStudent(profile *users.GuardianProfile, studentID int64, invitations []GuardianInvitationRecord) bool {
 	for _, inv := range invitations {
 		if profile.HasAccount && (inv.StudentID == nil || *inv.StudentID != studentID) {
 			continue
@@ -693,9 +572,9 @@ func invitationPendingForStudent(profile *users.GuardianProfile, studentID int64
 
 // openInvitationsByProfile batches the open-invitation status used by the
 // guardian list. The repository excludes accepted, expired, and rejected rows.
-func (s *GuardianService) openInvitationsByProfile(ctx context.Context, profileIDs []int64) (map[int64][]*authModels.GuardianInvitation, error) {
-	byProfile := make(map[int64][]*authModels.GuardianInvitation)
-	invitations, err := s.GuardianInvitationRepo.FindOpenByGuardianProfileIDs(ctx, profileIDs)
+func (s *GuardianService) openInvitationsByProfile(ctx context.Context, profileIDs []int64) (map[int64][]GuardianInvitationRecord, error) {
+	byProfile := make(map[int64][]GuardianInvitationRecord)
+	invitations, err := s.GuardianInvitations.ListOpen(ctx, profileIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load open guardian invitations: %w", err)
 	}
@@ -1186,14 +1065,26 @@ func (s *GuardianService) GetInvitableGuardians(ctx context.Context) ([]*users.G
 	return s.GuardianProfileRepo.FindInvitable(ctx)
 }
 
-// GetPendingInvitations retrieves all pending guardian invitations
+// GetPendingInvitations retrieves the guardian invitations whose link can
+// still be spent.
 func (s *GuardianService) GetPendingInvitations(ctx context.Context) ([]*authModels.GuardianInvitation, error) {
-	return s.GuardianInvitationRepo.FindPending(ctx)
-}
-
-// CleanupExpiredInvitations deletes expired invitations
-func (s *GuardianService) CleanupExpiredInvitations(ctx context.Context) (int, error) {
-	return s.GuardianInvitationRepo.DeleteExpired(ctx)
+	records, err := s.GuardianInvitations.ListRedeemable(ctx)
+	if err != nil {
+		return nil, err
+	}
+	invitations := make([]*authModels.GuardianInvitation, 0, len(records))
+	for _, record := range records {
+		invitation := &authModels.GuardianInvitation{
+			Token: record.Token, GuardianProfileID: record.GuardianProfileID, CreatedBy: record.CreatedBy,
+			ExpiresAt: record.ExpiresAt, AcceptedAt: record.AcceptedAt, EmailSentAt: record.EmailSentAt,
+			EmailError: record.EmailError, StudentID: record.StudentID, ApprovalStatus: record.ApprovalStatus,
+		}
+		invitation.ID = record.ID
+		invitation.CreatedAt = record.CreatedAt
+		invitation.SetTenantID(record.TenantID)
+		invitations = append(invitations, invitation)
+	}
+	return invitations, nil
 }
 
 // ============================================================================
@@ -1374,12 +1265,4 @@ func (s *GuardianService) GetGuardianPhoneNumbers(ctx context.Context, guardianI
 // GetPhoneNumberByID retrieves a phone number by ID
 func (s *GuardianService) GetPhoneNumberByID(ctx context.Context, phoneID int64) (*users.GuardianPhoneNumber, error) {
 	return s.GuardianPhoneNumberRepo.FindByID(ctx, phoneID)
-}
-
-// resolveReplyTo returns the OGS reply address for this tenant, or the zero
-// value when none is configured. This send bypasses the outbox, so it stamps
-// the header itself; the degradation policy is shared (#1936).
-func (s *GuardianService) resolveReplyTo(ctx context.Context) email.Email {
-	identity := email.ResolveReplyToIdentity(ctx, s.MailIdentity, tenant.FromContext(ctx), nil)
-	return email.NewEmail(identity.Name, identity.Address)
 }

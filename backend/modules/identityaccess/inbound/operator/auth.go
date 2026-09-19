@@ -7,9 +7,9 @@ import (
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	jwtPkg "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	jwtPkg "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
 // TrustedDeviceCookieName mirrors the tenant-side constant. The operator

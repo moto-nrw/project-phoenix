@@ -72,7 +72,8 @@ func EffectiveBaseRole(role roleGrantSource) string {
 // base_role use the same effective-permission check; unknown system roles
 // remain fail-closed.
 // Whether a guardian role may be handed out through a staff flow at all is a
-// separate question, answered by ValidateAssignableSchoolRole.
+// separate question, answered by the Identity & Access school-role policy
+// (identityaccess.ValidateAssignableSchoolRole).
 func CanGrantRole(role roleGrantSource, callerPermissions []string) bool {
 	if role == nil {
 		return false

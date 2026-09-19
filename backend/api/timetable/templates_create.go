@@ -28,7 +28,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -394,14 +395,14 @@ func buildCreateTemplateInput(
 	gradeLevelMax int,
 	rosterValidFrom timezone.Date,
 	createdBy int64,
-) scheduleSvc.CreateTemplateInput {
+) timetableplanning.CreateTemplateInput {
 	req := parsed.req
 	var createdByPtr *int64
 	if createdBy > 0 {
 		c := createdBy
 		createdByPtr = &c
 	}
-	return scheduleSvc.CreateTemplateInput{
+	return timetableplanning.CreateTemplateInput{
 		Name:                  req.Name,
 		Type:                  req.Type,
 		Weekdays:              req.Weekdays,
@@ -440,11 +441,11 @@ func buildCreateTemplateInput(
 // 400, everything else a 500.
 func renderCreateTemplateError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, scheduleSvc.ErrCategoryNotAssignable):
+	case errors.Is(err, careschedule.ErrCategoryNotAssignable):
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category is archived or unavailable")))
-	case errors.Is(err, scheduleSvc.ErrPlanningTrackNotFound), errors.Is(err, scheduleSvc.ErrPlanningTrackArchived):
+	case errors.Is(err, timetableplanning.ErrPlanningTrackNotFound), errors.Is(err, timetableplanning.ErrPlanningTrackArchived):
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("planning track is archived or unavailable")))
-	case errors.Is(err, scheduleSvc.ErrOfferingSourceInvalid):
+	case errors.Is(err, timetableplanning.ErrOfferingSourceInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case renderTemplateEducationGroupError(w, r, err):
 	case renderTemplateTargetGradeLimit(w, r, err):
@@ -471,7 +472,7 @@ func (rs *Resource) materializeTemplateWindow(
 		return
 	}
 	mat, mErr := rs.MaterializationService.MaterializeForTenant(
-		ctx, from, to, scheduleSvc.MaterializationSourceManual,
+		ctx, from, to, timetableplanning.MaterializationSourceManual,
 	)
 	if mErr != nil {
 		rs.getLogger().Warn("template create: materialize failed (template still saved)",

@@ -8,11 +8,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -53,20 +54,27 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	if err != nil {
 		return WorkforceTestModule{}, err
 	}
-	settingsService := settings.Settings
 	logger := slog.Default()
+	identityAccess, err := lifecycleTestModule(db, unit, GuardianInvitationTestConfig{Audit: command, Logger: logger})
+	if err != nil {
+		return WorkforceTestModule{}, err
+	}
+	identityRoles := roleAdministration{current: func() *identityaccess.Module { return identityAccess }}
+	settingsService := settings.Settings
 	activeLogger := logger
 	realtimeHub := deliveryCompose.NewRealtimeHub(logger)
 	usersService := users.NewPersonService(users.PersonServiceDependencies{
-		PersonRepo: repos.Person, RFIDRepo: identity.RFIDCard, AccountRepo: identity.Account, StudentRepo: repos.Student,
-		StaffRepo: repos.Staff, TeacherRepo: repos.Teacher, RoleRepo: identity.Role, PersonnelNumberAudit: repos.PersonnelNumberChange,
+		PersonDirectory:  repositories.NewPersonDirectory(repositories.MustNewPeopleDirectory(db)),
+		StudentDirectory: repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)),
+		PersonRepo:       repos.Person, RFIDRepo: identity.RFIDCard, AccountRepo: identity.Account, StudentRepo: repos.Student,
+		StaffRepo: repos.Staff, TeacherRepo: repos.Teacher, LehrkraftRoles: identityRoles, PersonnelNumberAudit: repos.PersonnelNumberChange,
 		StaffMasterDataRepo: repos.StaffMasterData, StaffQualificationRepo: repos.StaffQualification, StaffFinancialRepo: repos.StaffFinancialData,
 		StammdatenAudit: repos.StaffMasterDataChange, DataAccessLog: repos.DataAccessLog, DB: db, SettingsService: settingsService, Logger: logger,
 	})
 	staffDocumentService := users.NewStaffDocumentService(db, repos.StaffDocument, repos.Staff, repos.StaffMasterData, repos.StaffMasterDataChange, repos.DataAccessLog, logger)
-	holidayService := schedule.NewHolidayService(settingsService, schoolCalendarHolidayAdapter{query: calendar}, logger.With("service", "holidays"))
-	closingDayService := schedule.NewClosingDayService(repos.ClosingDay)
-	nonWorkingDayService := schedule.NewNonWorkingDayResolver(holidayService, closingDayService)
+	holidayService := timetableplanning.NewHolidayService(settingsService, schoolCalendarHolidayAdapter{query: calendar}, logger.With("service", "holidays"))
+	closingDayService := timetableplanning.NewClosingDayService(repos.ClosingDay)
+	nonWorkingDayService := timetableplanning.NewNonWorkingDayResolver(holidayService, closingDayService)
 	staffAbsenceTypeService := AbsenceTypes(repos.StaffAbsenceType)
 	timeTrackingEvents := TimeTrackingEvents(realtimeHub)
 	today := timezone.CalendarDateClock(optionalClock(clocks))
@@ -100,6 +108,7 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		timetracking.WithAbsenceDeletionAudit(NewTimeTrackingDeletionAudit(repos.TimeTrackingDeletion)),
 		timetracking.WithVacationOpenings(repos.StaffVacationOpening),
 		timetracking.WithAbsenceShiftPlanSyncer(ShiftPlanSyncBridge(func() shiftplanning.ShiftPlanSyncer { return shiftPlanSyncer })),
+		timetracking.WithAbsenceMonthSnapshots(MonthSnapshotCapability(repos.StaffMonthSnapshot)),
 	)
 
 	staffBalanceAdjustService := timetracking.NewStaffBalanceAdjustmentService(repos.StaffBalanceAdjust, workTimeMonthService, PresenceSettings(settingsService), activeLogger,

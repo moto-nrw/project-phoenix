@@ -41,13 +41,16 @@ trifft die eine Hälfte falsch, gleich in welche Richtung.
    und Wissingen. Kiosk-Schulen behalten die Freigabe. Keine Handarbeit in
    Produktion, keine Tenant-Liste im Code.
 
-2. **Neue Schulen.** Der provisionierte Schulhof startet ohne Freigabe. Die
-   Administration setzt sie bei der Einrichtung, wenn Kinder den Hof am Gerät
-   wählen sollen. Das ist ein Schritt in der Ersteinrichtung des Hilfe-Guides.
-   Damit gilt wieder „per Default aus“ aus
-   [#2183](https://github.com/moto-nrw/project-phoenix/issues/2183); die
-   Abweichung aus #3064 („Bestandsschulen nicht zu einem neuen Morgenschritt
-   zwingen“) bleibt nur für den Bestand über Punkt 1 bestehen.
+2. **Neue Schulen.** Kein Schulhof ist ohne Entscheidung der Schule offen.
+   moto legt den Schulhof nur an, wenn die Schule in den Geräte-Einstellungen
+   „Schulhof-Button anzeigen“ einschaltet; der Schalter ist standardmäßig aus.
+   Dieses Einschalten ist die Entscheidung, dass Kinder den Hof am Gerät
+   wählen, und gibt den neu angelegten Hof deshalb frei. Ein Hof ohne Freigabe
+   hinter einem sichtbaren Geräte-Knopf würde jeden Scan ins Leere laufen
+   lassen. Damit gilt „per Default aus“ aus
+   [#2183](https://github.com/moto-nrw/project-phoenix/issues/2183) ohne
+   zusätzlichen Einrichtungsschritt. Ein bereits vorhandener Schulhof behält
+   beim Einschalten seine Freigabe-Entscheidung.
 
 3. **Eine Ansicht statt einer Weiche.** Die Raumansicht eines offenen Raums
    zeigt im Kopf die Raumbelegung und darunter je laufende Session ein Roster
@@ -107,9 +110,10 @@ trifft die eine Hälfte falsch, gleich in welche Richtung.
 - Das Häkchen „Offener Raum“ muss die Freigabe tatsächlich schreiben. Der
   Raum-Proxy hat es bis [#3277](https://github.com/moto-nrw/project-phoenix/pull/3277)
   verworfen, weshalb die Sofortmaßnahme aus #3272 in Produktion wirkungslos war.
-- Der Kiosk-Freispiel-Weg hängt an `Name == Schulhof AND is_open_room`. Eine
-  Schule ohne Freigabe hat am Gerät keinen Schulhof-Knopf mit Auto-Session; das
-  ist für Blockschulen gewollt und für neue Schulen der Grund für den
-  Einrichtungsschritt.
+- Der Kiosk-Freispiel-Weg hängt an `Name == Schulhof AND is_open_room`. Ohne
+  Freigabe legt das Gerät keine Freispiel-Session an; Scans in laufende Blöcke
+  folgen Punkt 4. Das ist für Blockschulen gewollt.
+- Punkt 1 ist Migration 1.15.390. Ein Probelauf ihres Prädikats gegen
+  Produktion am 17.09.2026 traf genau am Berg und Wissingen.
 - #2183 ist damit erledigt. „Sichtbarkeitsregel pro Raum“ und „Filter im
   Planer“ aus #2183 werden nicht weiterverfolgt, bis eine Schule sie verlangt.

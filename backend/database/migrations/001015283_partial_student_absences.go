@@ -22,8 +22,6 @@ func init() {
 }
 
 func partialStudentAbsencesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.283: Adding partial student absence fields (#2216)...")
-
 	_, err := db.NewRaw(`
 		ALTER TABLE schedule.student_pickup_exceptions
 			ADD COLUMN IF NOT EXISTS excused_from TIME WITHOUT TIME ZONE,
@@ -76,8 +74,6 @@ func partialStudentAbsencesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func partialStudentAbsencesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.283: Removing partial student absence fields...")
-
 	_, err := db.NewRaw(`
 		DROP INDEX IF EXISTS schedule.idx_instance_students_pickup_exception;
 		ALTER TABLE schedule.instance_students

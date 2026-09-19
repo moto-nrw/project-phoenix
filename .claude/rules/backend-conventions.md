@@ -135,8 +135,6 @@ type Model struct {
 }
 func (m *Model) GetID() any / GetCreatedAt() / GetUpdatedAt()  // Rule-3 getters, live here ONCE
 // base.StringIDModel provides the same three getters for string-ID entities
-// base.StringIDModelWithoutNullZero preserves explicit zero timestamp writes
-// for the two passkey-session tables whose existing Bun mappings require it
 
 // models/base/tenant.go
 type TenantModel struct { TenantID int64 `bun:"tenant_id,notnull"` }
@@ -201,7 +199,7 @@ import "github.com/moto-nrw/project-phoenix/api/common"
 common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid student ID")))
 ```
 
-Consolidated in issue #575 B1/B2 (2026-07-12): the duplicate `ErrResponse` structs and constructor sets in `active`, `feedback`, and `suggestions` were deleted — those packages keep thin `newErrResponse` wrappers only because their wire format carries human-text `status` values (pinned by per-package `wire_format_test.go` goldens; normalizing to `"error"` is a separate frontend-audited change). `api/operator` stays deliberately divergent (`json:"message"`). Do not reintroduce local `Error*` constructor sets — declare classification in an error-rule table (see Rule 4) and let `api/common` build the responses.
+Consolidated in issue #575 B1/B2 (2026-07-12): the duplicate `ErrResponse` structs and constructor sets in `active`, `feedback`, and `suggestions` were deleted — those packages keep thin `newErrResponse` wrappers only because their wire format carries human-text `status` values (pinned by per-package `wire_format_test.go` goldens; normalizing to `"error"` is a separate frontend-audited change). The operator surface stays deliberately divergent (`json:"message"`); its one constructor set is `api/common/operator_errors.go` (`Operator*`), shared by `api/operator` and the operator handlers in the owner modules (#3232). Do not reintroduce local `Error*` constructor sets — declare classification in an error-rule table (see Rule 4) and let `api/common` build the responses.
 
 ---
 
@@ -213,19 +211,23 @@ Consolidated in issue #575 B1/B2 (2026-07-12): the duplicate `ErrResponse` struc
 
 ## 9. Auth Code Location — Audit Before Adding
 
-**RULE: Before adding new authentication or authorization code, search both `backend/auth/` and `services/auth/` (and `modules/identityaccess/legacy/usercontext/`) — match the existing layering rather than creating a third home.**
+**RULE: Before adding new authentication or authorization code, search both `backend/auth/` and `backend/modules/identityaccess/` (and `modules/identityaccess/legacy/usercontext/`) — match the existing layering rather than creating a third home.**
 
 `backend/auth/` is NOT legacy. It contains structured low-level utility packages:
 
-- `backend/auth/jwt/` — JWT plumbing (claims incl. MFA challenge/enrollment, tokenauth, tenant/parent middleware)
 - `backend/auth/authorize/` — authorization service + permission policies
 - `backend/auth/device/` — device API key + PIN authentication
 - `backend/auth/userpass/` — password hashing primitives
 
-`services/auth/` holds business-logic services (login flows, invitation flows, MFA orchestration, password reset) that depend on the lower-level `backend/auth/` packages.
+The JWT plumbing (claims incl. MFA challenge/enrollment, tokenauth,
+tenant/parent middleware) is the Identity & Access token adapter and lives in
+`backend/modules/identityaccess/legacy/jwt/` since #3226. It is `legacy/` only
+because packages outside the module still import it; do not move it back.
+
+`backend/modules/identityaccess/` owns the business flows (login, invitations, MFA orchestration, password reset, operator identity); they depend on the lower-level `backend/auth/` packages. The retained `services/auth` and `services/platform` ports are gone (#3364).
 
 - New low-level primitive (hash, parse, verify)? → `backend/auth/{subdomain}/`
-- New business flow (login, invite, reset)? → `services/auth/`
+- New business flow (login, invite, reset)? → `backend/modules/identityaccess/`
 - New permission decision? → `backend/auth/authorize/policy/` (`modules/identityaccess/legacy/usercontext/` is the retained user-context read side under #2725: do not extend it)
 - Handler needs to authorize? → call the service or middleware, never decide inline
 
@@ -263,7 +265,7 @@ Cross-repo / cross-schema cleanup operations that genuinely don't fit a single r
 
 ### Handler-side transactions (`tenant.WithTenantTx` in `api/`)
 
-A `tenant.WithTenantTx` closure in a handler is usually the smell of a missing service method — multi-step writes belong in a service method that the handler's transaction wraps as ONE call (see `UpdateGroupWithDetails`, #575 B10). The exception is a genuine cross-service composition with no natural owner: `createStudent` atomically composes Guardian + Person + Student + Arrival/Pickup-schedule services (the latter live in `services/schedule`, so a `services/users` orchestrator would import-cycle), and `updateStudent`'s locked-row invariants include an in-tx re-authorization against the caller's JWT permissions — HTTP-bound policy that doesn't belong in a service. Those handler-side transactions are sanctioned; new ones need the same written justification.
+A `tenant.WithTenantTx` closure in a handler is usually the smell of a missing service method — multi-step writes belong in a service method that the handler's transaction wraps as ONE call (see `UpdateGroupWithDetails`, #575 B10). The exception is a genuine cross-service composition with no natural owner: `createStudent` atomically composes Guardian + Person + Student + Arrival/Pickup-schedule services (the latter live in `modules/careplan/legacy/careschedule`, so a `services/users` orchestrator would import-cycle), and `updateStudent`'s locked-row invariants include an in-tx re-authorization against the caller's JWT permissions — HTTP-bound policy that doesn't belong in a service. Those handler-side transactions are sanctioned; new ones need the same written justification.
 
 ### Why
 
@@ -316,7 +318,7 @@ Business rules drift constantly. "Offline after 5 minutes" becomes "10 minutes f
 | `realtime.Broadcaster` recording fake | `test.RecordingBroadcaster` (`test/broadcaster.go`) |
 | Repo mocks for `models/*` interfaces (School, Staff, suggestions) | `test/repo_mocks.go`, `test/suggestions_mocks.go` |
 | `config.SettingsService` | `configtest.Mock` (`services/config/configtest`) |
-| `auth.MFAService` / `auth.InvitationService` | `services/auth/authtest` |
+| `identityaccess.AccountMFA` | a package-local func-field double; the behaviour suites keep theirs in `modules/identityaccess/behavior` |
 | `users.PersonService` | `services/users/userstest` |
 | API request/bootstrap helpers | `api/testutil` (`SetupAPITest`, `ExecuteWithAuth`, `ExecuteWithAuthPermissions`, `MintTestJWT`) |
 
@@ -349,8 +351,31 @@ testpkg.AssertQueryBudget(t, "api.students.list", counter.Queries())
 ```
 
 - **One counter.** `testpkg.QueryCounter` (`backend/test/query_counter.go`) is the only bun hook tests may define: `CaptureQueries(t, db)` attaches it to a DB, `NewQueryCounter()` feeds `db.WithQueryHook` for a private clone. It buckets by operation (`Operation("SELECT")`), table (`Selects("config.setting_values")`) or predicate (`Matching`). Tests that count own their database (`SetupIsolatedTestDB`) or a `WithQueryHook` clone before they run in parallel.
-- **The register is the budget.** `queryBudgets` maps a scenario name to a statement count: `max` entries are ceilings, `exact` entries pin a dedup contract (one bulk load, one settings snapshot). Shrink-only: lower a number when a fix removes statements, never raise one. A scenario that needs more statements is an N+1 until proven otherwise; batch-load by ID set (`services/schedule/timetable_read_exception_conflicts.go` is the reference shape).
+- **The register is the budget.** `queryBudgets` maps a scenario name to a statement count: `max` entries are ceilings, `exact` entries pin a dedup contract (one bulk load, one settings snapshot). Shrink-only: lower a number when a fix removes statements, never raise one. A scenario that needs more statements is an N+1 until proven otherwise; batch-load by ID set (`modules/timetable/legacy/timetableplanning/timetable_read_exception_conflicts.go` is the reference shape).
 - **Two CI halves.** `TestQueryBudgetRatchet` (source-level, runs in the no-database ratchet step) fails on register entries no test references, scenario names no entry defines, and any `_test.go` file defining its own `BeforeQuery` hook. The budget tests themselves run with the full backend suite.
+
+---
+
+## 16. Module and Workflow Ratchets — the Code #2580 Moved
+
+**RULE: Size, complexity, facade width, and layering are measured under `backend/modules/` and `backend/workflows/` too, not only up to the `api/` and `models/` boundaries.** Migration #2580 moved 228,306 of 638,717 production LOC into those trees, where no gate in this document reached them: a file could pass every threshold above by being moved rather than by being written.
+
+Eight ratchets freeze the state measured on **2026-09-18 at merge commit `ecf0003369`**. The first seed was taken at `19feca2822`; five of the eight were re-measured after the merge of `origin/development` (`a47f77b2c3`), which brought in PR #3408 (issue #3350) and with it the new legacy subtree `modules/careplan/legacy/carelifecycle`. They repair nothing today. **Every entry may only fall — lower a number when a refactor earns it, delete it when the offender is gone; never raise one and never add one.** Each test file's header records its exact measurement command and the semantics of its four failure cases.
+
+| Rule | Threshold | Test — `backend/test/…` | Seed on 2026-09-18 |
+|---|---|---|---|
+| File size | 800 lines per file | `TestModuleFileSizeRatchet` — `module_file_size_ratchet_test.go` | 55 files of 1,655; largest 3,196 lines |
+| Function length | 60 body lines per named function | `TestModuleFunctionLengthRatchet` — `module_function_length_ratchet_test.go` | 299 functions of 14,623 |
+| Cognitive complexity (Rule 4, extended) | `gocognit` ≤ 15 | `TestModuleComplexityRatchet` — `module_complexity_ratchet_test.go` | 444 functions |
+| Facade width | 12 methods per exported interface in a module's public package | `TestModuleFacadeWidthRatchet` — `module_facade_width_ratchet_test.go` | 36 interfaces of 421; widest 33 |
+| Pass-through methods (Rule 8) | budget per module, application layer only | `TestModulePassthroughRatchet` — `module_passthrough_ratchet_test.go` | 704 methods in 21 modules |
+| ORM in the inbound role | zero `github.com/uptrace/bun` imports under `*/http`, `*/inbound` | `TestModuleHTTPORMRatchet` — `module_http_orm_ratchet_test.go` | 23 files; target is 0 |
+| Legacy LOC budget | per topmost `legacy/` tree, plus a total | `TestModuleLegacyBudgetRatchet` — `module_legacy_budget_ratchet_test.go` | 12 trees, 92,928 LOC |
+| Temporary policy rules | per rule family in `architecture/policy.json` | `TestPolicyTemporaryRulesRatchet` — `policy_temporary_rules_ratchet_test.go` | 501 conversion-marked rules in 39 families; 603 compatibility rules |
+
+Scope for the first seven: non-test `.go` files under `modules/` and `workflows/`, **`legacy/` subtrees included** — a migration must not be able to silence a gate by moving code into `legacy/`. The pass-through ratchet is the deliberate exception and scans `*/internal/application/**` only, the surface the module boundary is supposed to make deep.
+
+The last one watches a surface `scripts/backend-architecture.sh check` cannot report on. The 603 compatibility rules in `backend/architecture/policy.json` are allow-rules, so the import edges they cover never reach the 682 exact tuples in `backend/architecture/legacy.jsonl`; re-running the evaluator at the first seed (19feca2822) without the 557 such rules it had then reported 1,314 violations instead of 688. Converting exact debt into a policy rule therefore looks like progress in the only number CI prints, and a rule outlives its issue silently — 34 of the 39 seeded families cite only issues that are closed today; the five exceptions all hang on #2725 or #2736.
 
 ---
 
@@ -364,13 +389,14 @@ testpkg.AssertQueryBudget(t, "api.students.list", counter.Queries())
 - [ ] State variants are filter params, not separate endpoints
 - [ ] Errors use `api/common` helpers, not local copies
 - [ ] Services encapsulate business logic, don't just delegate
-- [ ] Auth code matches the `backend/auth/` (primitives) vs `services/auth/` (flows) layering
+- [ ] Auth code matches the `backend/auth/` (primitives) vs `modules/identityaccess/` (flows) layering
 - [ ] No query construction in `services/` (CI: `TestServiceRepositoryRatchet`)
 - [ ] Models hold data, not decisions — no `Mark*/End*/Activate*` mutations, no RBAC, no magic thresholds
 - [ ] Searched for existing helpers before writing a new one (`rg` before `func`)
 - [ ] No new hand-rolled mock/fixture where a shared test double exists (Rule 13 table)
 - [ ] Calendar/date/week test fixtures use fixed Berlin values, or have an exact-function live-clock exception with a reviewed reason
 - [ ] New list endpoint → query-budget test via `testpkg.CaptureQueries` + register entry in `test/query_budgets.go`; no hand-rolled `BeforeQuery` hooks (CI: `TestQueryBudgetRatchet`)
+- [ ] Code under `modules/`/`workflows/` stays inside the Rule 16 ratchets — no new file over 800 lines, function over 60 lines or `gocognit` 15, interface over 12 methods, `bun` import in an inbound package, grown `legacy/` tree, or new temporary policy rule; entries lowered where the change earned it, never raised
 
 ## Detection commands (one-shot health check)
 
@@ -379,6 +405,9 @@ cd backend
 
 # Rules 1 + 11 — the authoritative checks are the ratchet tests:
 go test ./test/ -run 'TestHandlerLayerRatchet|TestServiceRepositoryRatchet' -v
+
+# Rule 16 — the eight modules/ + workflows/ ratchets (authoritative; no database needed)
+go test ./test/ -run 'TestModule|TestPolicyTemporaryRules' -count=1
 
 # Rule 1 — manual sweep (should be zero)
 rg --type go -g '!*_test.go' '^\s+\w+\s+[\w\.]*Repository\b|\.\w+Repository\(\)' api/

@@ -8,9 +8,9 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	modelAuth "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	modelAuth "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/uptrace/bun"
 )
 

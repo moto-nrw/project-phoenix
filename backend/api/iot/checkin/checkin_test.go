@@ -26,6 +26,7 @@ import (
 type kiosk struct {
 	db       *testpkg.DB
 	resource *checkinAPI.Resource
+	rosters  blockRosters
 }
 
 func testRuntime() checkinAPI.Runtime {
@@ -37,7 +38,7 @@ func testRuntime() checkinAPI.Runtime {
 func setupCheckinRoute(t *testing.T, clocks ...func() time.Time) *kiosk {
 	t.Helper()
 	db, module := testutil.SetupCheckinModule(t, clocks...)
-	return &kiosk{db: db, resource: checkinAPI.NewResource(module.DeviceScan, testRuntime(), nil)}
+	return &kiosk{db: db, resource: checkinAPI.NewResource(module.DeviceScan, testRuntime(), nil), rosters: module.Rosters}
 }
 
 // call performs one device-authenticated request through the tenant

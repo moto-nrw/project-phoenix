@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,10 +26,7 @@ func TestNewFactory(t *testing.T) {
 		assert.NotNil(t, factory.RolePermission)
 		assert.NotNil(t, factory.AccountRole)
 		assert.NotNil(t, factory.AccountPermission)
-		assert.NotNil(t, factory.PasswordResetToken)
-		assert.NotNil(t, factory.PasswordResetRateLimit)
 		assert.NotNil(t, factory.InvitationToken)
-		assert.NotNil(t, factory.GuardianInvitation)
 	})
 
 	// Verify users repositories are initialized
@@ -72,7 +68,7 @@ func TestNewFactory(t *testing.T) {
 		assert.NotNil(t, factory.ActivityCategory)
 		assert.NotNil(t, factory.ActivitySchedule)
 		assert.NotNil(t, factory.ActivitySupervisor)
-		factory.BindTimetable(timetabletest.New(t, db))
+
 		assert.NotNil(t, factory.ActivitySchedule)
 		assert.NotNil(t, factory.ActivitySupervisor)
 		assert.NotNil(t, factory.StudentEnrollment)

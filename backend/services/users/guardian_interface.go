@@ -19,11 +19,6 @@ type GuardianCreateRequest struct {
 }
 
 // GuardianInvitationRequest represents data for inviting a guardian
-type GuardianInvitationRequest struct {
-	GuardianProfileID int64
-	CreatedBy         int64 // Staff/admin sending the invitation
-}
-
 // StudentGuardianCreateRequest represents data for linking a guardian to a student
 type StudentGuardianCreateRequest struct {
 	StudentID          int64

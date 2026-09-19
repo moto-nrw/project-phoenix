@@ -413,9 +413,9 @@ bestätigten Anwendungsfall und eine passende Rolle.
 
 ## 13. Abweichung vom bisherigen Umbauplan
 
-Der bisherige Umbauplan und ADR 0009 ziehen die Grenze des Inhaltsbestands am Portal und nicht an
+Der bisherige Umbauplan und ADR 0025 ziehen die Grenze des Inhaltsbestands am Portal und nicht an
 der Rolle. Dieser Arbeitsentwurf sieht dagegen vier sichtbare, rollenbezogene Anleitungen und
 Seitenleisten vor.
 
-Nach der fachlichen Bestätigung müssen der Umbauplan und gegebenenfalls ADR 0009 angepasst werden.
+Nach der fachlichen Bestätigung müssen der Umbauplan und gegebenenfalls ADR 0025 angepasst werden.
 Bis dahin ist dieses Dokument ein Diskussionsentwurf und keine abgeschlossene technische Vorgabe.

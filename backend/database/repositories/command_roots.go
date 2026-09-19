@@ -5,19 +5,16 @@ import (
 	"fmt"
 
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
-	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -46,24 +43,18 @@ func auditRootRuntime(db *bun.DB) auditRepo.Runtime {
 // CLI composes. The expired session sweep runs through Identity & Access,
 // which the composition binds to the school and person lookups here (#3251).
 type AuthCleanupRepositories struct {
-	School                 platformModels.SchoolRepository
-	Person                 userModels.PersonRepository
-	PasswordResetRateLimit authModels.PasswordResetRateLimitRepository
-	AuthEvent              auditModels.AuthEventRepository
-	PushSubscription       deliveryModels.PushSubscriptionRepository
+	School           organizationtenancy.Capability
+	Person           userModels.PersonRepository
+	AuthEvent        auditModels.AuthEventRepository
+	PushSubscription deliveryModels.PushSubscriptionRepository
 }
 
 func NewAuthCleanupRepositories(db *bun.DB, command auditModels.Command) AuthCleanupRepositories {
 	authEvents := auditRepo.NewAuthEventRepository(auditRootRuntime(db))
 	return AuthCleanupRepositories{
-		School: platformRepo.NewSchoolRepository(db), Person: NewPersonRepository(db),
-		PasswordResetRateLimit: authRepo.NewPasswordResetRateLimitRepository(db),
-		AuthEvent:              RouteAuthEventWrites(authEvents, command), PushSubscription: deliveryCompose.NewPushSubscriptionRepository(db),
+		School: mustNewOrganizationTenancy(db), Person: NewPersonRepository(db),
+		AuthEvent: RouteAuthEventWrites(authEvents, command), PushSubscription: deliveryCompose.NewPushSubscriptionRepository(db),
 	}
-}
-
-func NewInvitationCleanupRepository(db *bun.DB) authModels.InvitationTokenRepository {
-	return authRepo.NewInvitationTokenRepository(db)
 }
 
 type SessionCleanupRepositories struct {

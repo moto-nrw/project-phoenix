@@ -278,8 +278,11 @@ type StaffAbsenceType struct {
 	BaseType         string
 	IsActive         bool
 	AllowanceEnabled bool
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	// CarryoverUntil is "MM-DD" in the following year until which a yearly
+	// rest stays usable, or "" when it expires on 31.12. (#3257).
+	CarryoverUntil string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 // StaffAbsenceTypeFields is the writable part of an absence type.
@@ -288,6 +291,7 @@ type StaffAbsenceTypeFields struct {
 	BaseType         string
 	IsActive         bool
 	AllowanceEnabled bool
+	CarryoverUntil   string
 }
 
 // Normalize trims the name and defaults the base type, then validates. The
@@ -306,7 +310,7 @@ func (f *StaffAbsenceTypeFields) Normalize() error {
 	if !slices.Contains(ValidAbsenceTypes, f.BaseType) {
 		return invalidAbsenceType("ungültiger Grundtyp der Abwesenheit")
 	}
-	return nil
+	return ValidateCarryoverUntil(f.CarryoverUntil)
 }
 
 // StaffAbsenceAudit is one status transition of an absence.
@@ -319,6 +323,16 @@ type StaffAbsenceAudit struct {
 	ActorID    int64
 	Note       string
 	ChangedAt  time.Time
+	// TypeChange is set when the Leitung rebooked the absence (#3258).
+	TypeChange *AbsenceTypeChange
+}
+
+// AbsenceTypeChange is the old and new type of a rebooked absence.
+type AbsenceTypeChange struct {
+	FromType   string
+	FromTypeID *int64
+	ToType     string
+	ToTypeID   *int64
 }
 
 func (a StaffAbsenceAudit) Validate() error {

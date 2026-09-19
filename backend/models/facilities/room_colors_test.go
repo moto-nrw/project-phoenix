@@ -11,7 +11,7 @@ func TestIsReservedRoomColor(t *testing.T) {
 	t.Parallel()
 	reserved := []string{
 		"#83CD2D", "#5080D8", "#FF3130", "#F78C10", "#D946EF",
-		"#EAB308", "#7C3AED", "#6B7280", "#4F46E5",
+		"#EAB308", "#7C3AED", "#6B7280", "#217A78", "#4F46E5",
 	}
 	for _, color := range reserved {
 		variants := []string{color, strings.ToLower(color), " " + color + " ", strings.TrimPrefix(color, "#")}

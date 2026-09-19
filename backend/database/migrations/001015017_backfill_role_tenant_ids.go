@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -49,15 +48,13 @@ func init() {
 // System roles (is_system = true) intentionally have NULL tenant_id and are
 // shared across all tenants, so they are left untouched.
 func backfillRoleTenantIDs(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.17: Backfilling tenant_id on non-system roles with NULL tenant_id...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -84,7 +81,10 @@ func backfillRoleTenantIDs(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error backfilling role tenant_id from account_roles: %w", err)
 	}
 	backfilledFromAR, _ := result.RowsAffected()
-	fmt.Printf("Migration 1.15.17: Backfilled %d role(s) from account_roles\n", backfilledFromAR)
+	migrationLog().InfoContext(ctx, "role tenant ids backfilled",
+		"rows", backfilledFromAR,
+		"source", "account_roles",
+	)
 
 	// Step 2: Backfill remaining NULL roles from invitation_tokens.
 	// invitation_tokens also has tenant_id (set by migration 1.14.2).
@@ -107,7 +107,10 @@ func backfillRoleTenantIDs(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error backfilling role tenant_id from invitation_tokens: %w", err)
 	}
 	backfilledFromIT, _ := result.RowsAffected()
-	fmt.Printf("Migration 1.15.17: Backfilled %d role(s) from invitation_tokens\n", backfilledFromIT)
+	migrationLog().InfoContext(ctx, "role tenant ids backfilled",
+		"rows", backfilledFromIT,
+		"source", "invitation_tokens",
+	)
 
 	// Step 3: Mark pending invitation_tokens as expired for truly orphaned roles.
 	// These roles have no derivable tenant — the invitations are unusable anyway.
@@ -126,7 +129,9 @@ func backfillRoleTenantIDs(ctx context.Context, db *bun.DB) error {
 	}
 	expiredInvites, _ := result.RowsAffected()
 	if expiredInvites > 0 {
-		fmt.Printf("Migration 1.15.17: Expired %d invitation(s) referencing orphaned roles\n", expiredInvites)
+		migrationLog().InfoContext(ctx, "invitations referencing orphaned roles expired",
+			"rows", expiredInvites,
+		)
 	}
 
 	// Step 4: Clean up account_roles and role_permissions for truly orphaned roles.
@@ -161,7 +166,9 @@ func backfillRoleTenantIDs(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error deleting orphaned non-system roles: %w", err)
 	}
 	deleted, _ := result.RowsAffected()
-	fmt.Printf("Migration 1.15.17: Deleted %d truly orphaned role(s) with no derivable tenant\n", deleted)
+	migrationLog().InfoContext(ctx, "orphaned roles with no derivable tenant deleted",
+		"rows", deleted,
+	)
 
 	return tx.Commit()
 }

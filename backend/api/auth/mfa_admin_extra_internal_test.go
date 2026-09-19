@@ -10,21 +10,22 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
-// adminAuthStub satisfies authService.AuthService via interface embed —
+// adminAuthStub satisfies identityaccess.Module via interface embed —
 // only the methods the admin handlers reach are implemented (GetAccountByID).
 // Everything else panics on nil-interface dereference, signalling a drift
 // in the handler.
 type adminAuthStub struct {
-	authService.AuthService
+	identityaccess.Module
 	getAccountByIDFn func(ctx context.Context, id int) (*authModels.Account, error)
 }
 
@@ -43,14 +44,14 @@ func (s *adminAuthStub) GetAccountByID(ctx context.Context, id int) (*authModels
 // Item #2 cross-tenant guard — tests can capture it via the per-method
 // override and assert the handler is forwarding the JWT tenant claim.
 type adminMFAStub struct {
-	stubMFAService  // reuse the broader stub from mfa_handlers_extra_internal_test.go
-	hasEnrollmentFn func(ctx context.Context, accountID int64) (bool, error)
-	setOverrideFn   func(ctx context.Context, actorID, actorTenantID, targetID int64, override, reason string, perms []string) error
-	adminDisableFn  func(ctx context.Context, actorID, actorTenantID, targetID int64, reason string, perms []string) error
-	getAdminStateFn func(ctx context.Context, actorID, actorTenantID, targetID int64, perms []string) (authService.MFAAdminState, error)
+	stubMFAService    // reuse the broader stub from mfa_handlers_extra_internal_test.go
+	hasEnrollmentFn   func(ctx context.Context, accountID int64) (bool, error)
+	setOverrideFn     func(ctx context.Context, actorID, actorTenantID, targetID int64, override, reason string, perms []string) error
+	adminDisableMFAFn func(ctx context.Context, actorID, actorTenantID, targetID int64, reason string, perms []string) error
+	getAdminStateFn   func(ctx context.Context, actorID, actorTenantID, targetID int64, perms []string) (identityaccess.MFAAdminState, error)
 }
 
-func (s *adminMFAStub) HasEnrollment(ctx context.Context, accountID int64) (bool, error) {
+func (s *adminMFAStub) HasMFAEnrollment(ctx context.Context, accountID int64) (bool, error) {
 	if s.hasEnrollmentFn != nil {
 		return s.hasEnrollmentFn(ctx, accountID)
 	}
@@ -64,18 +65,18 @@ func (s *adminMFAStub) SetMFAOverride(ctx context.Context, actorID, actorTenantI
 	return nil
 }
 
-func (s *adminMFAStub) AdminDisable(ctx context.Context, actorID, actorTenantID, targetID int64, reason string, perms []string) error {
-	if s.adminDisableFn != nil {
-		return s.adminDisableFn(ctx, actorID, actorTenantID, targetID, reason, perms)
+func (s *adminMFAStub) AdminDisableMFA(ctx context.Context, actorID, actorTenantID, targetID int64, reason string, perms []string) error {
+	if s.adminDisableMFAFn != nil {
+		return s.adminDisableMFAFn(ctx, actorID, actorTenantID, targetID, reason, perms)
 	}
 	return nil
 }
 
-func (s *adminMFAStub) GetAdminState(ctx context.Context, actorID, actorTenantID, targetID int64, perms []string) (authService.MFAAdminState, error) {
+func (s *adminMFAStub) GetMFAAdminState(ctx context.Context, actorID, actorTenantID, targetID int64, perms []string) (identityaccess.MFAAdminState, error) {
 	if s.getAdminStateFn != nil {
 		return s.getAdminStateFn(ctx, actorID, actorTenantID, targetID, perms)
 	}
-	return authService.MFAAdminState{}, nil
+	return identityaccess.MFAAdminState{}, nil
 }
 
 // withActorTenant overrides the TenantID on the AppClaims stored on the
@@ -124,10 +125,10 @@ func TestMFAAdminGetState_HappyPath(t *testing.T) {
 	// handler used previously.
 	rs := &Resource{
 		MFAService: &adminMFAStub{
-			getAdminStateFn: func(_ context.Context, _, _, _ int64, _ []string) (authService.MFAAdminState, error) {
-				return authService.MFAAdminState{
+			getAdminStateFn: func(_ context.Context, _, _, _ int64, _ []string) (identityaccess.MFAAdminState, error) {
+				return identityaccess.MFAAdminState{
 					Enrolled: true,
-					Override: authService.MFAAdminOverrideForceOff,
+					Override: identityaccess.MFAAdminOverrideForceOff,
 				}, nil
 			},
 		},
@@ -141,7 +142,7 @@ func TestMFAAdminGetState_HappyPath(t *testing.T) {
 	var resp MFAAdminStateResponse
 	require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
 	assert.True(t, resp.Enrolled)
-	assert.Equal(t, authService.MFAAdminOverrideForceOff, resp.Override)
+	assert.Equal(t, identityaccess.MFAAdminOverrideForceOff, resp.Override)
 }
 
 func TestMFAAdminGetState_BadIDReturns400(t *testing.T) {
@@ -165,9 +166,9 @@ func TestMFAAdminGetState_RequiresAuthenticatedActor(t *testing.T) {
 	// the handler must refuse before delegating. (#1430 review round 2)
 	rs := &Resource{
 		MFAService: &adminMFAStub{
-			getAdminStateFn: func(context.Context, int64, int64, int64, []string) (authService.MFAAdminState, error) {
+			getAdminStateFn: func(context.Context, int64, int64, int64, []string) (identityaccess.MFAAdminState, error) {
 				t.Fatal("GetAdminState must not run without an authenticated actor")
-				return authService.MFAAdminState{}, nil
+				return identityaccess.MFAAdminState{}, nil
 			},
 		},
 	}
@@ -188,8 +189,8 @@ func TestMFAAdminGetState_CrossTenantReturns403(t *testing.T) {
 	// foreign account_ids. (#1430 review round 2)
 	rs := &Resource{
 		MFAService: &adminMFAStub{
-			getAdminStateFn: func(context.Context, int64, int64, int64, []string) (authService.MFAAdminState, error) {
-				return authService.MFAAdminState{}, authService.ErrMFAPermissionDenied
+			getAdminStateFn: func(context.Context, int64, int64, int64, []string) (identityaccess.MFAAdminState, error) {
+				return identityaccess.MFAAdminState{}, identityaccess.ErrMFAPermissionDenied
 			},
 		},
 	}
@@ -210,8 +211,8 @@ func TestMFAAdminGetState_ServiceErrorReturns500(t *testing.T) {
 	// shape; everything else is operational.
 	rs := &Resource{
 		MFAService: &adminMFAStub{
-			getAdminStateFn: func(context.Context, int64, int64, int64, []string) (authService.MFAAdminState, error) {
-				return authService.MFAAdminState{}, errors.New("db connection lost")
+			getAdminStateFn: func(context.Context, int64, int64, int64, []string) (identityaccess.MFAAdminState, error) {
+				return identityaccess.MFAAdminState{}, errors.New("db connection lost")
 			},
 		},
 	}
@@ -240,7 +241,7 @@ func TestMFAAdminSetOverride_HappyPath(t *testing.T) {
 	}
 
 	r := reqWithAccountID(t, http.MethodPut, "200",
-		MFAAdminOverrideSetRequest{Override: authService.MFAAdminOverrideForceOff, Reason: "Account compromised"},
+		MFAAdminOverrideSetRequest{Override: identityaccess.MFAAdminOverrideForceOff, Reason: "Account compromised"},
 		7, []string{"users:manage"})
 	// The handler must forward the JWT tenant claim so the service-layer
 	// cross-tenant guard (#1430 Item #2) sees the actor's tenant.
@@ -249,7 +250,7 @@ func TestMFAAdminSetOverride_HappyPath(t *testing.T) {
 	rs.mfaAdminSetOverride(rr, r)
 
 	assert.Equal(t, http.StatusNoContent, rr.Code)
-	assert.Equal(t, authService.MFAAdminOverrideForceOff, capturedOverride)
+	assert.Equal(t, identityaccess.MFAAdminOverrideForceOff, capturedOverride)
 	assert.Equal(t, int64(70010001), capturedTenantID,
 		"handler must propagate claims.TenantID to the service for the cross-tenant guard")
 }
@@ -263,7 +264,7 @@ func TestMFAAdminSetOverride_RequiresClaim(t *testing.T) {
 	}
 
 	r := reqWithAccountID(t, http.MethodPut, "200",
-		MFAAdminOverrideSetRequest{Override: authService.MFAAdminOverrideForceOff, Reason: "ok ok"},
+		MFAAdminOverrideSetRequest{Override: identityaccess.MFAAdminOverrideForceOff, Reason: "ok ok"},
 		0, nil) // no claims
 	rr := httptest.NewRecorder()
 	rs.mfaAdminSetOverride(rr, r)
@@ -294,14 +295,14 @@ func TestMFAAdminSetOverride_PermissionDeniedMapsTo403(t *testing.T) {
 	rs := &Resource{
 		MFAService: &adminMFAStub{
 			setOverrideFn: func(context.Context, int64, int64, int64, string, string, []string) error {
-				return authService.ErrMFAPermissionDenied
+				return identityaccess.ErrMFAPermissionDenied
 			},
 		},
 		AuthService: &adminAuthStub{},
 	}
 
 	r := reqWithAccountID(t, http.MethodPut, "200",
-		MFAAdminOverrideSetRequest{Override: authService.MFAAdminOverrideForceOff, Reason: "ok ok"},
+		MFAAdminOverrideSetRequest{Override: identityaccess.MFAAdminOverrideForceOff, Reason: "ok ok"},
 		7, nil) // no permission claim
 	rr := httptest.NewRecorder()
 	rs.mfaAdminSetOverride(rr, r)
@@ -316,7 +317,7 @@ func TestMFAAdminDisable_HappyPath(t *testing.T) {
 	var capturedTenantID int64
 	rs := &Resource{
 		MFAService: &adminMFAStub{
-			adminDisableFn: func(_ context.Context, _, actorTenantID, _ int64, reason string, _ []string) error {
+			adminDisableMFAFn: func(_ context.Context, _, actorTenantID, _ int64, reason string, _ []string) error {
 				capturedReason = reason
 				capturedTenantID = actorTenantID
 				return nil
@@ -369,7 +370,7 @@ func TestMFAAdminDisable_ServiceErrorMapsTo500(t *testing.T) {
 	t.Parallel()
 
 	rs := &Resource{MFAService: &adminMFAStub{
-		adminDisableFn: func(context.Context, int64, int64, int64, string, []string) error {
+		adminDisableMFAFn: func(context.Context, int64, int64, int64, string, []string) error {
 			return errors.New("db down")
 		},
 	}}

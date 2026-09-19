@@ -6,16 +6,17 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 type CareLifecycleTestModule struct {
-	CareLifecycle users.CareLifecycleService
+	CareLifecycle carelifecycle.CareLifecycleService
 	StudentAudit  users.StudentAuditService
 	Settings      config.SettingsService
 }
@@ -33,11 +34,11 @@ func NewCareLifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork) (CareLifecyc
 	if err != nil {
 		return CareLifecycleTestModule{}, err
 	}
-	audit := users.NewStudentAuditService(r.StudentFieldEdit, slog.Default())
-	service := users.NewCareLifecycleService(users.CareLifecycleDependencies{
+	audit := users.NewStudentAuditService(repositories.NewStudentAudit(db))
+	service := carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
 		StudentRepo: r.Student, PersonRepo: r.Person, CareExitRepo: r.CareExit, CleanupRepo: r.CareExitCleanup,
 		WithdrawalRepo: r.CareWithdrawal, TagReleaser: r.TagReleaser, AuditService: audit,
-		LockCareBookingWrites: func(ctx context.Context) error { return schedule.LockTenantRecurrenceWrites(ctx, db) },
+		LockCareBookingWrites: func(ctx context.Context) error { return timetableplanning.LockTenantRecurrenceWrites(ctx, db) },
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
 			return settings.Settings.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 		},

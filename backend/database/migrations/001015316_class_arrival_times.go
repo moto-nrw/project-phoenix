@@ -41,8 +41,6 @@ func init() {
 // pickup side needed that column only to keep its legacy materialized rows
 // distinguishable.
 func classArrivalTimesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.316: Class arrival times...")
-
 	_, err := db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS education.class_arrival_times (
 			id            BIGSERIAL PRIMARY KEY,
@@ -78,8 +76,6 @@ func classArrivalTimesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func classArrivalTimesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.316: Dropping education.class_arrival_times...")
-
 	_, err := db.ExecContext(ctx, `DROP TABLE IF EXISTS education.class_arrival_times;`)
 	if err != nil {
 		return fmt.Errorf("error dropping education.class_arrival_times: %w", err)

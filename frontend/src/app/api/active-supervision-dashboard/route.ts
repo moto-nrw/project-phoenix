@@ -12,7 +12,7 @@ import { apiGet } from "~/lib/api-helpers.server";
 import { createGetHandler } from "~/lib/route-wrapper.server";
 import type { CareDayStatus } from "~/lib/timetable-types";
 
-// ===== Wire types (Go: backend/services/supervisiondashboard/service.go) =====
+// ===== Wire types (Go: backend/modules/supervisiondashboard) =====
 
 interface WireGroup {
   id: string;
@@ -68,6 +68,25 @@ interface WireOpenRoom {
   students: Array<
     WireVisit & { activity_name?: string; independent?: boolean }
   >;
+  // Every session running in the room with the block behind it (#3281).
+  // Optional: an older backend ships none.
+  sessions?: WireOpenRoomSession[];
+}
+
+interface WireOpenRoomSession {
+  active_group_id: string;
+  title: string;
+  independent: boolean;
+  is_user_supervising: boolean;
+  can_assign: boolean;
+  student_count: number;
+  block?: {
+    instance_id: string;
+    start_time: string;
+    end_time: string;
+    is_user_assigned: boolean;
+    can_operate: boolean;
+  } | null;
 }
 
 interface WireActiveSession {
@@ -279,6 +298,21 @@ interface ActiveSupervisionDashboardResponse {
     students: Array<
       SupervisionVisit & { activityName?: string; independent: boolean }
     >;
+    sessions: Array<{
+      activeGroupId: string;
+      title: string;
+      independent: boolean;
+      isUserSupervising: boolean;
+      canAssign: boolean;
+      studentCount: number;
+      block: {
+        instanceId: string;
+        startTime: string;
+        endTime: string;
+        isUserAssigned: boolean;
+        canOperate: boolean;
+      } | null;
+    }>;
   }>;
   schulhofStatus: {
     exists: boolean;
@@ -417,6 +451,23 @@ function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
         ...toSupervisionVisit(student),
         activityName: student.activity_name,
         independent: student.independent === true,
+      })),
+      sessions: (room.sessions ?? []).map((session) => ({
+        activeGroupId: session.active_group_id,
+        title: session.title,
+        independent: session.independent,
+        isUserSupervising: session.is_user_supervising,
+        canAssign: session.can_assign,
+        studentCount: session.student_count,
+        block: session.block
+          ? {
+              instanceId: session.block.instance_id,
+              startTime: session.block.start_time,
+              endTime: session.block.end_time,
+              isUserAssigned: session.block.is_user_assigned,
+              canOperate: session.block.can_operate,
+            }
+          : null,
       })),
     })),
     schulhofStatus: wire.schulhof_status

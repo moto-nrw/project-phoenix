@@ -27,10 +27,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	classdayAPI "github.com/moto-nrw/project-phoenix/modules/classday/http"
 	notificationsAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
 // StaffMessagingRouter is the school-portal mount supplied by the application
@@ -49,8 +48,11 @@ type StaffNoticesRouter interface {
 
 // Resource bundles the school-portal HTTP handlers + their deps.
 type Resource struct {
-	AuthService    authService.AuthService
-	MFAService     authService.MFAService
+	AuthService AuthRuntime
+	MFAService  MFARuntime
+	// Resets is the reset runtime the composition root binds to Identity &
+	// Access (#3332); the zero value leaves the reset routes answering 500.
+	Resets         PasswordResetRuntime
 	ClassDay       *classdayAPI.Resource
 	Timetable      *timetableAPI.Resource
 	StaffMessaging StaffMessagingRouter
@@ -58,10 +60,13 @@ type Resource struct {
 	Notifications  *notificationsAPI.Resource
 }
 
-// NewResource builds the school-portal resource.
+// NewResource builds the school-portal resource. An incomplete resets
+// runtime leaves the public reset routes answering 500, exactly as a service
+// composed without the reset dependencies did.
 func NewResource(
-	auth authService.AuthService,
-	mfa authService.MFAService,
+	auth AuthRuntime,
+	mfa MFARuntime,
+	resets PasswordResetRuntime,
 	classDay *classdayAPI.Resource,
 	timetable *timetableAPI.Resource,
 	staffMessaging StaffMessagingRouter,
@@ -71,6 +76,7 @@ func NewResource(
 	return &Resource{
 		AuthService:    auth,
 		MFAService:     mfa,
+		Resets:         resets,
 		ClassDay:       classDay,
 		Timetable:      timetable,
 		StaffMessaging: staffMessaging,

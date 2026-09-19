@@ -24,7 +24,7 @@
     "gotestsum@latest",
     "lazydocker@latest",
     "lazygit@latest",
-    "gh@latest",
+    "github:NixOS/nixpkgs/c7def046b9a883d46974757852106483d741586f#gh",
     "glow@latest",
     "yq@latest",
     "xh@latest",

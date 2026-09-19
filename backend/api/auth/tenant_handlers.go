@@ -12,10 +12,10 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 )
@@ -54,7 +54,7 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	school, err := rs.SchoolService.GetSchoolBySubdomain(r.Context(), slug)
-	if err != nil || school == nil || school.IsDeleted() || !school.Active {
+	if err != nil || school == nil || school.Deleted || !school.Active {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("tenant not found")))
 		return
 	}
@@ -63,11 +63,6 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 	settings := json.RawMessage(school.Settings)
 	if !json.Valid(settings) {
 		settings = json.RawMessage(`{}`)
-	}
-
-	var orgName string
-	if school.Organization != nil {
-		orgName = school.Organization.Name
 	}
 
 	// Shell settings resolve first: their batch includes grade_level_max, so
@@ -101,7 +96,7 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		Name:                       school.Name,
 		Subdomain:                  school.Subdomain,
 		OrganizationID:             school.OrganizationID,
-		OrganizationName:           orgName,
+		OrganizationName:           school.OrganizationName,
 		Hidden:                     school.Hidden,
 		Settings:                   settings,
 		PresenceMode:               resolved.presenceMode,
@@ -411,17 +406,13 @@ func (rs *Resource) listAccountTenants(w http.ResponseWriter, r *http.Request) {
 
 	responses := make([]AccountTenantResponse, 0, len(schools))
 	for _, school := range schools {
-		var orgName string
-		if school.Organization != nil {
-			orgName = school.Organization.Name
-		}
 		responses = append(responses, AccountTenantResponse{
 			TenantID:         school.ID,
 			Slug:             school.Slug,
 			Name:             school.Name,
 			Subdomain:        school.Subdomain,
 			OrganizationID:   school.OrganizationID,
-			OrganizationName: orgName,
+			OrganizationName: school.OrganizationName,
 		})
 	}
 
@@ -440,15 +431,11 @@ func (rs *Resource) listTenants(w http.ResponseWriter, r *http.Request) {
 
 	responses := make([]PublicTenantResponse, 0, len(schools))
 	for _, school := range schools {
-		var orgName string
-		if school.Organization != nil {
-			orgName = school.Organization.Name
-		}
 		responses = append(responses, PublicTenantResponse{
 			Slug:             school.Slug,
 			Name:             school.Name,
 			Subdomain:        school.Subdomain,
-			OrganizationName: orgName,
+			OrganizationName: school.OrganizationName,
 		})
 	}
 

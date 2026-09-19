@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"time"
 
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -47,15 +47,15 @@ func (f *Factory) SchoolCalendar() schoolcalendar.Capability { return f.schoolCa
 // NewCalendarPeriodUsage composes the School Calendar usage read from the
 // two owners that hold calendar-period references: Enrollment (phases) and
 // Timetable (planning tables), one statement each (#3124).
-func NewCalendarPeriodUsage(enrollment scheduleRepo.EnrollmentPhaseQueries, planning timetable.Capability) *scheduleRepo.CalendarPeriodUsageRepository {
-	return scheduleRepo.NewCalendarPeriodUsageRepository(enrollment, func(ctx context.Context) (map[int64]scheduleRepo.CalendarPeriodReferences, error) {
+func NewCalendarPeriodUsage(enrollment timetableCompose.EnrollmentPhaseQueries, planning timetable.Capability) *timetableCompose.CalendarPeriodUsageRepository {
+	return timetableCompose.NewCalendarPeriodUsageRepository(enrollment, func(ctx context.Context) (map[int64]timetableCompose.CalendarPeriodReferences, error) {
 		references, err := planning.CountCalendarPeriodReferences(ctx)
 		if err != nil {
 			return nil, err
 		}
-		counts := make(map[int64]scheduleRepo.CalendarPeriodReferences, len(references))
+		counts := make(map[int64]timetableCompose.CalendarPeriodReferences, len(references))
 		for id, entry := range references {
-			counts[id] = scheduleRepo.CalendarPeriodReferences(entry)
+			counts[id] = timetableCompose.CalendarPeriodReferences(entry)
 		}
 		return counts, nil
 	})
@@ -65,16 +65,13 @@ func NewCalendarPeriodUsage(enrollment scheduleRepo.EnrollmentPhaseQueries, plan
 // given capability. The raw activities and users repositories are reached
 // through their bind methods, so the binding survives the person, school and
 // group wrappers layered on top of them.
-func (f *Factory) bindSchoolCalendarAdapters(capability schoolcalendar.Capability, usage *scheduleRepo.CalendarPeriodUsageRepository) {
+func (f *Factory) bindSchoolCalendarAdapters(capability schoolcalendar.Capability, usage *timetableCompose.CalendarPeriodUsageRepository) {
 	f.schoolCalendar = capability
 	f.CalendarPeriod = newCalendarPeriodCalendarRepository(capability, usage)
 	f.ClosingDay = newClosingDayCalendarRepository(capability)
 	f.Dateframe = newDateframeCalendarRepository(capability)
-	if repo, ok := f.CareExitCleanup.(interface {
-		BindCalendarPeriods(usersRepo.CalendarPeriodDirectory)
-	}); ok {
-		repo.BindCalendarPeriods(careExitCalendarPeriods{calendar: capability})
-	}
+	// The care-exit cleanup repository reads f.schoolCalendar through the
+	// resolver it was constructed with, so the assignment above binds it too.
 }
 
 const opFindByID = "find by id"
@@ -124,15 +121,15 @@ func optionalDateString[D ~string](value *D) string {
 // (#2666). schedule.calendar_periods belongs to that owner; the reference
 // counts stay with the planning owner's usage repository.
 type calendarPeriodCalendarRepository struct {
-	scheduleRepo.UnfilteredListing[*scheduleModels.CalendarPeriod]
-	scheduleRepo.CalendarPeriodOverlapListing
+	timetableCompose.UnfilteredListing[*scheduleModels.CalendarPeriod]
+	timetableCompose.CalendarPeriodOverlapListing
 	calendar schoolcalendar.Capability
-	usage    *scheduleRepo.CalendarPeriodUsageRepository
+	usage    *timetableCompose.CalendarPeriodUsageRepository
 }
 
 var _ scheduleModels.CalendarPeriodRepository = calendarPeriodCalendarRepository{}
 
-func newCalendarPeriodCalendarRepository(capability schoolcalendar.Capability, usage *scheduleRepo.CalendarPeriodUsageRepository) calendarPeriodCalendarRepository {
+func newCalendarPeriodCalendarRepository(capability schoolcalendar.Capability, usage *timetableCompose.CalendarPeriodUsageRepository) calendarPeriodCalendarRepository {
 	repo := calendarPeriodCalendarRepository{calendar: capability, usage: usage}
 	repo.UnfilteredListing.Source = repo.FindByTenantID
 	repo.CalendarPeriodOverlapListing.Source = repo.listActiveOverlapping
@@ -312,8 +309,8 @@ func (r calendarPeriodCalendarRepository) UsageCounts(ctx context.Context) (map[
 // closingDayCalendarRepository serves the legacy schedule.ClosingDayRepository
 // over the School Calendar capability (#2666).
 type closingDayCalendarRepository struct {
-	scheduleRepo.UnfilteredListing[*scheduleModels.ClosingDay]
-	scheduleRepo.ClosingDayRangeListing
+	timetableCompose.UnfilteredListing[*scheduleModels.ClosingDay]
+	timetableCompose.ClosingDayRangeListing
 	calendar schoolcalendar.Capability
 }
 
@@ -431,7 +428,7 @@ func (r closingDayCalendarRepository) listOverlappingRange(ctx context.Context, 
 // over the School Calendar capability (#2666). Dateframes are instants, so
 // the legacy midnight normalisation of the lookups stays here.
 type dateframeCalendarRepository struct {
-	scheduleRepo.DateframeOptionsListing
+	timetableCompose.DateframeOptionsListing
 	calendar schoolcalendar.Capability
 }
 
@@ -528,7 +525,7 @@ func (r dateframeCalendarRepository) Delete(ctx context.Context, id any) error {
 	return calendarError("delete", err)
 }
 
-func (r dateframeCalendarRepository) list(ctx context.Context, listing scheduleRepo.DateframeListing) ([]*scheduleModels.Dateframe, error) {
+func (r dateframeCalendarRepository) list(ctx context.Context, listing timetableCompose.DateframeListing) ([]*scheduleModels.Dateframe, error) {
 	filter := schoolcalendar.DateframeFilter{
 		Name: listing.Name, NamePattern: listing.NamePattern, Limit: listing.Limit, Offset: listing.Offset,
 	}

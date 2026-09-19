@@ -12,11 +12,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	model "github.com/moto-nrw/project-phoenix/models/schedule"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
 type planningTrackServiceStub struct {
-	created scheduleSvc.PlanningTrackInput
+	created timetableplanning.PlanningTrackInput
 	ordered []int64
 }
 
@@ -27,18 +27,18 @@ func (s *planningTrackServiceStub) ListPlanningTracks(context.Context) ([]*model
 }
 
 func (s *planningTrackServiceStub) GetPlanningTrack(context.Context, int64) (*model.PlanningTrack, error) {
-	return nil, scheduleSvc.ErrPlanningTrackNotFound
+	return nil, timetableplanning.ErrPlanningTrackNotFound
 }
 
-func (s *planningTrackServiceStub) CreatePlanningTrack(_ context.Context, input scheduleSvc.PlanningTrackInput) (*model.PlanningTrack, error) {
+func (s *planningTrackServiceStub) CreatePlanningTrack(_ context.Context, input timetableplanning.PlanningTrackInput) (*model.PlanningTrack, error) {
 	s.created = input
 	return &model.PlanningTrack{
 		Model: model.Model{ID: 5}, Name: input.Name, Color: input.Color, SortOrder: input.SortOrder,
 	}, nil
 }
 
-func (s *planningTrackServiceStub) UpdatePlanningTrack(context.Context, int64, scheduleSvc.PlanningTrackInput) (*model.PlanningTrack, error) {
-	return nil, scheduleSvc.ErrPlanningTrackNotFound
+func (s *planningTrackServiceStub) UpdatePlanningTrack(context.Context, int64, timetableplanning.PlanningTrackInput) (*model.PlanningTrack, error) {
+	return nil, timetableplanning.ErrPlanningTrackNotFound
 }
 
 func (s *planningTrackServiceStub) ReorderPlanningTracks(_ context.Context, ids []int64) error {
@@ -47,11 +47,11 @@ func (s *planningTrackServiceStub) ReorderPlanningTracks(_ context.Context, ids 
 }
 
 func (s *planningTrackServiceStub) ArchivePlanningTrack(context.Context, int64) (*model.PlanningTrack, error) {
-	return nil, scheduleSvc.ErrPlanningTrackNotFound
+	return nil, timetableplanning.ErrPlanningTrackNotFound
 }
 
 func (s *planningTrackServiceStub) RestorePlanningTrack(context.Context, int64) (*model.PlanningTrack, error) {
-	return nil, scheduleSvc.ErrPlanningTrackNotFound
+	return nil, timetableplanning.ErrPlanningTrackNotFound
 }
 
 func (s *planningTrackServiceStub) ValidatePlanningTrackAssignment(context.Context, *int64) error {

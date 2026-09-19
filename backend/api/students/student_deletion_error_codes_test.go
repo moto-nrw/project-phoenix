@@ -6,11 +6,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 )
 
@@ -31,7 +31,7 @@ func TestWithdrawalDeletionErrorRendererUsesStableCodes(t *testing.T) {
 		{"retention not ended", studentdeletion.ErrRetentionNotEnded, http.StatusBadRequest, errCodeStudentDeletionRetentionNotEnded},
 		{"companion blocker", studentdeletion.ErrCompanionWouldLoseDeparture, http.StatusConflict, errCodeStudentDeletionCompanionBlocked},
 		{"companion lock", studentdeletion.ErrCompanionLockBusy, http.StatusConflict, errCodeStudentDeletionCompanionLockBusy},
-		{"completion missing", userService.ErrCareWithdrawalNotFound, http.StatusNotFound, errCodeCareWithdrawalNotFound},
+		{"completion missing", carelifecycle.ErrCareWithdrawalNotFound, http.StatusNotFound, errCodeCareWithdrawalNotFound},
 		{"completion missing under lock", studentdeletion.ErrWithdrawalNotFound, http.StatusNotFound, errCodeCareWithdrawalNotFound},
 		{"completion resolved", userModels.ErrCareWithdrawalAlreadyResolved, http.StatusConflict, errCodeCareWithdrawalAlreadyResolved},
 		{"completion resolved under lock", studentdeletion.ErrWithdrawalAlreadyResolved, http.StatusConflict, errCodeCareWithdrawalAlreadyResolved},

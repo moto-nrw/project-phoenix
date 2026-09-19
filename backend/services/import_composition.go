@@ -16,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
-	authsvc "github.com/moto-nrw/project-phoenix/services/auth"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 )
 
@@ -35,7 +34,7 @@ type importWiring struct {
 	Presence      studentpresence.Capability
 
 	// InvitationService issues the staff invitation through Identity & Access.
-	InvitationService authsvc.InvitationService
+	InvitationService identityaccess.SchoolInvitations
 
 	// Opening balances use Workforce's preview and booking capabilities.
 	OpeningBalance importService.OpeningBalanceImportDeps

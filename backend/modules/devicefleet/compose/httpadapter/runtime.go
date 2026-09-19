@@ -13,9 +13,9 @@ import (
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	displayHTTP "github.com/moto-nrw/project-phoenix/api/display"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	projectJWT "github.com/moto-nrw/project-phoenix/auth/jwt"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	projectJWT "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 

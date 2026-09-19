@@ -14,8 +14,8 @@ import (
 
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -97,7 +97,7 @@ func TestAccountManagementOwnTenantAllowed(t *testing.T) {
 	e := newAccountIsolationEnv(t)
 	account := testpkg.CreateTestAccount(t, e.tc.db, "account-scope-local")
 
-	got, err := e.tc.resource.AuthService.GetAccountByID(tenant.WithTenantID(context.Background(), e.tenantID), int(account.ID))
+	got, err := e.tc.resource.Sessions.FindManageableAccount(tenant.WithTenantID(context.Background(), e.tenantID), account.ID)
 	require.NoError(t, err)
 	assert.Equal(t, account.ID, got.ID)
 
@@ -339,10 +339,10 @@ func TestAccountManagementForeignGetDoesNotLeakExistence(t *testing.T) {
 	missingID := e.missingAccountID(t)
 	ctx := tenant.WithTenantID(context.Background(), e.tenantID)
 
-	_, foreignErr := e.tc.resource.AuthService.GetAccountByID(ctx, int(foreignID))
-	_, missingErr := e.tc.resource.AuthService.GetAccountByID(ctx, int(missingID))
-	require.ErrorIs(t, foreignErr, authService.ErrAccountNotFound)
-	require.ErrorIs(t, missingErr, authService.ErrAccountNotFound)
+	_, foreignErr := e.tc.resource.Sessions.FindManageableAccount(ctx, foreignID)
+	_, missingErr := e.tc.resource.Sessions.FindManageableAccount(ctx, missingID)
+	require.ErrorIs(t, foreignErr, identityaccess.ErrAccountNotFound)
+	require.ErrorIs(t, missingErr, identityaccess.ErrAccountNotFound)
 	assert.Equal(t, missingErr.Error(), foreignErr.Error())
 }
 
@@ -408,8 +408,8 @@ func TestAccountManagementInactiveMembershipDenied(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := tenant.WithTenantID(context.Background(), e.tenantID)
-	_, err = e.tc.resource.AuthService.GetAccountByID(ctx, int(account.ID))
-	require.ErrorIs(t, err, authService.ErrAccountNotFound)
+	_, err = e.tc.resource.Sessions.FindManageableAccount(ctx, account.ID)
+	require.ErrorIs(t, err, identityaccess.ErrAccountNotFound)
 	assert.NotContains(t, accountIDs(e.listAccounts(t, e.claims)), account.ID)
 	assertAccountActionStatus(t, e, e.claims, http.MethodPut, fmt.Sprintf("/auth/accounts/%d", account.ID), map[string]string{"email": account.Email}, http.StatusNotFound)
 }
@@ -422,11 +422,11 @@ func TestAccountManagementOrganizationScopeStaysWithinOrganization(t *testing.T)
 	foreignID, _ := e.foreignAccount(t, "account-scope-org-foreign")
 	ctx := testpkg.WithTestTenantRuntime(t, tenant.WithScope(tenant.WithOrgID(context.Background(), organizationID), tenant.ScopeOrg))
 
-	got, err := e.tc.resource.AuthService.GetAccountByID(ctx, int(sameOrgID))
+	got, err := e.tc.resource.Sessions.FindManageableAccount(ctx, sameOrgID)
 	require.NoError(t, err)
 	assert.Equal(t, sameOrgID, got.ID)
-	_, err = e.tc.resource.AuthService.GetAccountByID(ctx, int(foreignID))
-	require.ErrorIs(t, err, authService.ErrAccountNotFound)
+	_, err = e.tc.resource.Sessions.FindManageableAccount(ctx, foreignID)
+	require.ErrorIs(t, err, identityaccess.ErrAccountNotFound)
 
 	claims := e.claims
 	claims.Scope = tenant.ScopeOrg
@@ -455,11 +455,11 @@ func TestAccountManagementPlatformScopeRemainsGlobal(t *testing.T) {
 	foreignID, _ := e.foreignAccount(t, "account-scope-platform")
 	ctx := tenant.WithScope(context.Background(), tenant.ScopePlatform)
 
-	got, err := e.tc.resource.AuthService.GetAccountByID(ctx, int(foreignID))
+	got, err := e.tc.resource.Sessions.FindManageableAccount(ctx, foreignID)
 	require.NoError(t, err)
 	assert.Equal(t, foreignID, got.ID)
-	require.NoError(t, e.tc.resource.AuthService.DeactivateAccount(ctx, int(foreignID)))
-	require.NoError(t, e.tc.resource.AuthService.ActivateAccount(ctx, int(foreignID)))
+	require.NoError(t, e.tc.resource.Sessions.DeactivateAccount(ctx, foreignID))
+	require.NoError(t, e.tc.resource.Sessions.ActivateAccount(ctx, foreignID))
 
 	claims := e.claims
 	claims.Scope = tenant.ScopePlatform

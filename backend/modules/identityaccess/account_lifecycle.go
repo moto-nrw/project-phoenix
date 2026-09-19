@@ -37,6 +37,12 @@ var (
 	ErrEmailAlreadyExists    = errors.New("Diese E-Mail-Adresse ist bereits registriert") //nolint:staticcheck // ST1005: user-facing German message
 	ErrUsernameAlreadyExists = errors.New("Dieser Benutzername ist bereits vergeben")     //nolint:staticcheck // ST1005: user-facing German message
 
+	// ErrPasswordTooWeak reports a credential that does not meet the
+	// complexity requirements Security Runtime owns. The module reports it
+	// wherever it accepts a password: registration, the invitation
+	// acceptances, the password reset and the self-service change.
+	ErrPasswordTooWeak = errors.New("password doesn't meet complexity requirements")
+
 	ErrCannotRemovePrimaryGuardian      = errors.New("the primary guardian cannot be removed by a parent")
 	ErrCannotRemoveStaffManagedGuardian = errors.New("staff-managed guardian contacts cannot be removed by a parent")
 	ErrCannotRemoveOwnAccess            = errors.New("a parent cannot remove their own access to a child")
@@ -50,6 +56,17 @@ var (
 	// only read).
 	ErrAccountLifecycleUnavailable = errors.New("account lifecycle is not composed")
 )
+
+// IsSchoolIdentityRequestError reports whether the error is the caller's
+// fault rather than the server's: a missing name, a child's record, an
+// unknown or conflicting transponder. Handlers render these as 400.
+func IsSchoolIdentityRequestError(err error) bool {
+	return errors.Is(err, ErrSchoolIdentityNamesRequired) ||
+		errors.Is(err, ErrSchoolIdentityPersonIsStudent) ||
+		errors.Is(err, ErrSchoolIdentityTagUnknown) ||
+		errors.Is(err, ErrSchoolIdentityTagConflict) ||
+		errors.Is(err, ErrSchoolIdentityTagTaken)
+}
 
 // AuthenticatedStaff is the staff member a verified PIN binds a kiosk action to.
 type AuthenticatedStaff struct {
@@ -268,6 +285,11 @@ type SchoolIdentity struct {
 // an account without a person when CreatePerson is false.
 type SchoolIdentityProvisioning interface {
 	EnsureSchoolIdentity(ctx context.Context, input SchoolIdentityInput) (*SchoolIdentity, error)
+	// HasLiveCaregiverProfile reports whether the account's identity at the
+	// tenant in context carries a live caregiver profile, the fact every path
+	// that guards the Lehrkraft role reads (#1772). Offboarded records do not
+	// count.
+	HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error)
 }
 
 // ParentAccount is one parent authentication account of the school in
@@ -396,6 +418,7 @@ type AccountLifecycle interface {
 	SchoolIdentityProvisioning
 	ParentAccountAccess
 	GuardianRelativeAccess
+	GuardianInvitations
 }
 
 func (m *Module) AuthenticateStaffPIN(ctx context.Context, tenantID, staffID int64, pin string) (AuthenticatedStaff, error) {
@@ -436,6 +459,10 @@ func (m *Module) ExecuteStaffOffboarding(ctx context.Context, accountID int64, r
 
 func (m *Module) EnsureSchoolIdentity(ctx context.Context, input SchoolIdentityInput) (*SchoolIdentity, error) {
 	return m.engine.EnsureSchoolIdentity(ctx, input)
+}
+
+func (m *Module) HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
+	return m.engine.HasLiveCaregiverProfile(ctx, accountID)
 }
 
 func (m *Module) CreateParentAccount(ctx context.Context, email, username, password string) (ParentAccount, error) {

@@ -11,8 +11,8 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -178,7 +178,7 @@ func (rs *Resource) createManualApprovedEnrollment(w http.ResponseWriter, r *htt
 		return
 	}
 
-	if result.PendingInvite != nil && rs.GuardianInvitationService != nil {
+	if result.PendingInvite != nil && rs.GuardianInvitations.configured() {
 		go rs.dispatchPostDecisionInvite(r.Context(), result.PendingInvite)
 	}
 

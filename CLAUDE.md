@@ -42,8 +42,8 @@ All paths below are relative to the repository root.
   IDs map to frontend strings. Load the date rule before changing date logic.
 - **API contracts:** paths use kebab-case; migrate touched legacy snake_case
   paths with their consumers. IoT errors and auth headers are also consumed by
-  `../PyrePortal/`; coordinate both sides. `../moto-balenaOS/` runs the kiosk,
-  not the backend. Details: [docs/agents/contracts.md](docs/agents/contracts.md).
+  `../PyrePortal/`; coordinate both sides.
+  Details: [docs/agents/contracts.md](docs/agents/contracts.md).
 
 ## Read when the task matches
 
@@ -64,7 +64,7 @@ path-scoped rules automatically.
 | New/changed tenant feature flow or help content | [.claude/rules/help-guide-sync.md](.claude/rules/help-guide-sync.md); update guide and affected screenshots in the same PR (exemptions in the rule) |
 | Failing or changing tests | [.claude/rules/no-test-modifications.md](.claude/rules/no-test-modifications.md); [backend fixture rules](docs/agents/backend-testing.md); [frontend test clock](docs/agents/frontend-testing.md) for date- or timer-sensitive Vitest tests |
 | Domain terminology or architecture decisions | [CONTEXT.md](CONTEXT.md), relevant `docs/adr/`, [docs/agents/domain.md](docs/agents/domain.md) |
-| Issues or labels | [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md), [docs/agents/triage-labels.md](docs/agents/triage-labels.md), [docs/agents/github-labels.md](docs/agents/github-labels.md) |
+| Issues or labels | [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md), [docs/agents/triage-labels.md](docs/agents/triage-labels.md) |
 | PR screenshots or service/test-DB commands | [docs/agents/operations.md](docs/agents/operations.md) |
 | Pushed fixes for a quorum review | [docs/agents/quorum-review-loop.md](docs/agents/quorum-review-loop.md); run `scripts/quorum-rerequest.sh` after the push |
 | Agent instructions, skills, hooks, or context maintenance | `writing-for-agents` skill and [.claude/README.md](.claude/README.md) |
@@ -89,7 +89,8 @@ a missing tool or failed command is not a passed check.
 
 ## Git and skills
 
-PRs target `development` (moto-balenaOS: `main`). Commit types: `feat`, `fix`,
+PRs target `development`, or the branch of the PR below them when stacking;
+the `stacked-pr` skill owns that flow. Commit types: `feat`, `fix`,
 `refactor`, `chore`, `docs`, `test`, `style`. Use descriptive titles and names,
 without AI/tool branding or `Co-Authored-By: Claude`.
 

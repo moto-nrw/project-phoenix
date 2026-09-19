@@ -39,7 +39,9 @@ import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import {
   LOCATION_STATUSES,
   parseLocation,
+  isAtSchoolLocation,
   isHomeLocation,
+  isNotCheckedInLocation,
   isPresentLocation,
   isSchoolyardLocation,
   isTransitLocation,
@@ -117,6 +119,7 @@ const EMPTY_STUDENT_ARRAY: Student[] = [];
 type StatusFilter =
   | "all"
   | "anwesend"
+  | "schule"
   | "abwesend"
   | "unterwegs"
   | "schulhof"
@@ -139,6 +142,7 @@ type GroupMode =
 const STATUS_FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
   { value: "all", label: "Alle" },
   { value: "anwesend", label: "Anwesend" },
+  { value: "schule", label: "Schule" },
   { value: "abwesend", label: "Abwesend" },
   { value: "krank", label: "Krank" },
   { value: "klassenfahrt", label: "Klassenfahrt" },
@@ -280,7 +284,8 @@ const STATUS_GROUP_ORDER = new Map([
   ["Schulhof", 2],
   ["Krank", 3],
   ["Entschuldigt", 4],
-  ["Abwesend", 5],
+  ["Schule", 5],
+  ["Abwesend", 6],
 ]);
 
 const BOOLEAN_FILTER_VALUES: readonly BooleanFilter[] = ["all", "yes", "no"];
@@ -321,6 +326,7 @@ const PICKUP_STATUS_FILTER_OPTIONS: Array<{
 // date is selected (#1939).
 const LIVE_STATUS_FILTER_OPTIONS = [
   { value: "anwesend", label: "Anwesend" },
+  { value: "schule", label: "Schule" },
   { value: "abwesend", label: "Abwesend" },
   { value: "unterwegs", label: "Unterwegs" },
   { value: "schulhof", label: "Schulhof" },
@@ -342,6 +348,7 @@ const STATUS_FILTER_LABELS: Record<
   Exclude<StatusFilter, "all" | "anwesend">,
   string
 > = {
+  schule: "Schule",
   abwesend: "Abwesend",
   unterwegs: "Unterwegs",
   schulhof: "Schulhof",
@@ -613,6 +620,7 @@ function statusLabelForStudent(student: Student): string {
   if (student.excused) return "Entschuldigt";
   if (isSchoolyardLocation(student.current_location)) return "Schulhof";
   if (isTransitLocation(student.current_location)) return "Unterwegs";
+  if (isAtSchoolLocation(student.current_location)) return "Schule";
   if (isHomeLocation(student.current_location)) return "Abwesend";
   return "Anwesend";
 }
@@ -621,7 +629,7 @@ function roomLabelForStudent(student: Student): string {
   if (student.has_full_access === false) return "Nicht einsehbar";
 
   const location = student.current_location?.trim();
-  if (!location || isHomeLocation(location)) return "Kein Raum";
+  if (isNotCheckedInLocation(location)) return "Kein Raum";
   if (isTransitLocation(location)) return "Unterwegs";
   if (isSchoolyardLocation(location)) return "Schulhof";
   const separatorIndex = location.indexOf("-");
@@ -2318,6 +2326,7 @@ function SearchPageContent() {
     if (effectiveAttendanceFilter !== "all") {
       const statusLabels: Record<Exclude<StatusFilter, "all">, string> = {
         anwesend: "Anwesend",
+        schule: "Schule",
         abwesend: "Abwesend",
         unterwegs: "Unterwegs",
         schulhof: "Schulhof",
@@ -2587,11 +2596,11 @@ function SearchPageContent() {
         return compareByPickupTime(a, b, planningNow);
       }
 
-      // Whether a child is currently at home only orders today's list; for a
+      // Whether a child has checked in yet only orders today's list; for a
       // non-today planning date the live location is irrelevant.
       if (isToday) {
-        const aHome = isHomeLocation(a.current_location);
-        const bHome = isHomeLocation(b.current_location);
+        const aHome = isNotCheckedInLocation(a.current_location);
+        const bHome = isNotCheckedInLocation(b.current_location);
         if (!aHome && bHome) return 1;
         if (aHome && !bHome) return -1;
       }
@@ -2639,9 +2648,11 @@ function SearchPageContent() {
       return `${total} ${total === 1 ? "Kind" : "Kinder"}`;
     }
     // Wie im Dashboard: Zuhause ist jedes Kind, das weder anwesend noch krank
-    // oder entschuldigt ist. Ohne eingecheckten Aufenthaltsort ist es deshalb
-    // zuhause, auch wenn der Status noch unbekannt ist.
+    // oder entschuldigt ist und auch nicht mehr in der Schule erwartet wird
+    // (#3260). Ohne eingecheckten Aufenthaltsort ist es deshalb zuhause, auch
+    // wenn der Status noch unbekannt ist.
     let sick = 0;
+    let atSchool = 0;
     let atHome = 0;
     for (const student of students) {
       if (student.sick === true) {
@@ -2660,6 +2671,10 @@ function SearchPageContent() {
       ) {
         continue;
       }
+      if (status === LOCATION_STATUSES.AT_SCHOOL) {
+        atSchool += 1;
+        continue;
+      }
       if (
         status === LOCATION_STATUSES.HOME ||
         status === LOCATION_STATUSES.UNKNOWN ||
@@ -2668,7 +2683,7 @@ function SearchPageContent() {
         atHome += 1;
       }
     }
-    return `${total} ${total === 1 ? "Kind" : "Kinder"} · ${atHome} zuhause · ${sick} krank`;
+    return `${total} ${total === 1 ? "Kind" : "Kinder"} · ${atSchool} in der Schule · ${atHome} zuhause · ${sick} krank`;
   }, [isToday, students]);
 
   const selectedStudentsForBulk = useMemo(

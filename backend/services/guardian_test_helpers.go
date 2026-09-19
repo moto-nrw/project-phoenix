@@ -8,10 +8,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	"github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -19,7 +21,10 @@ import (
 
 type GuardianTestModule struct {
 	PeopleDirectory peopledirectory.Capability
-	runtime         GuardianDirectoryRuntime
+	// PhotoRuntime is the slot the directory resolves its photo runtime from,
+	// filled by the graph that also owns the feature gate and the file cleanup.
+	PhotoRuntime *peopleCompose.StudentPhotoRuntime
+	runtime      GuardianDirectoryRuntime
 }
 
 func (m GuardianTestModule) NewGuardianDirectoryRuntime(*bun.DB) GuardianDirectoryRuntime {
@@ -40,7 +45,7 @@ func NewGuardianTestModule(db *bun.DB, unit tenant.UnitOfWork) (GuardianTestModu
 		return GuardianTestModule{}, err
 	}
 	g := repositories.NewGuardianTestRepositories(db, command)
-	people, err := repositories.NewPeopleDirectory(db)
+	people, photoRuntime, err := repositories.NewPeopleDirectoryWithPhotos(db)
 	if err != nil {
 		return GuardianTestModule{}, err
 	}
@@ -60,12 +65,12 @@ func NewGuardianTestModule(db *bun.DB, unit tenant.UnitOfWork) (GuardianTestModu
 		from = email.NewEmail("moto", "no-reply@moto.local")
 	}
 	mailer := email.NewMockMailer()
-	mailIdentity := platform.NewTenantMailIdentityService(r.School, func(ctx context.Context, tenantID int64) (string, error) {
+	mailIdentity := emailoutbox.NewTenantMailIdentity(schoolContactDirectory{schools: r.School}, func(ctx context.Context, tenantID int64) (string, error) {
 		return auth.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
 	}, slog.Default())
 	guardian := users.NewGuardianService(users.GuardianServiceDependencies{
 		GuardianProfileRepo: r.GuardianProfile, GuardianPhoneNumberRepo: g.Phone, StudentGuardianRepo: r.StudentGuardian,
-		GuardianInvitationRepo: r.GuardianInvitation, AccountRepo: r.Account,
+		GuardianInvitations: newGuardianInvitationReads(func() identityaccess.GuardianInvitations { return auth.AccountAuthentication }), AccountRepo: r.Account,
 		AccountTenantRepo: r.AccountTenant, AccountRoleRepo: r.AccountRole, RoleRepo: r.Role, StudentRepo: r.Student, PersonRepo: r.Person,
 		GuardianFinancialRepo: g.Financial, GuardianFinancialAudit: g.FinancialAudit, DataAccessLog: g.AccessLog,
 		Mailer: mailer, Dispatcher: email.NewDispatcher(mailer, slog.Default()), FrontendURL: cfg.FrontendURL, DefaultFrom: from,
@@ -75,5 +80,5 @@ func NewGuardianTestModule(db *bun.DB, unit tenant.UnitOfWork) (GuardianTestModu
 	// The compatibility carrier only maps the existing four capabilities to
 	// the production runtime closures. It constructs no additional services.
 	carrier := &Factory{Guardian: guardian, GuardianInvitation: auth.GuardianInvitation, UserContext: identity, ListExport: listexport.NewService()}
-	return GuardianTestModule{PeopleDirectory: people, runtime: carrier.NewGuardianDirectoryRuntime(db)}, nil
+	return GuardianTestModule{PeopleDirectory: people, PhotoRuntime: photoRuntime, runtime: carrier.NewGuardianDirectoryRuntime(db)}, nil
 }

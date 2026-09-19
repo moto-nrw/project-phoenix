@@ -22,7 +22,6 @@ func init() {
 }
 
 func careWithdrawalCompletionsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.324: Creating care-withdrawal completions...")
 	if _, err := db.NewRaw(`
 		ALTER TABLE audit.enrollment_offering_adjustments
 			ADD COLUMN IF NOT EXISTS complete_withdrawal_confirmed BOOLEAN NOT NULL DEFAULT FALSE;
@@ -105,7 +104,6 @@ func careWithdrawalCompletionsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func careWithdrawalCompletionsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back 1.15.324: Dropping care-withdrawal completions...")
 	if _, err := db.NewRaw(`
 		ALTER TABLE users.student_care_exits
 			DROP CONSTRAINT IF EXISTS fk_student_care_exit_withdrawal_completion,

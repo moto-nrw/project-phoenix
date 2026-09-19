@@ -16,31 +16,33 @@ import (
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
-	"github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	pwaSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	"github.com/uptrace/bun"
 )
 
-// AuthCleanup exposes the cleanup routines required from the auth service.
+// AuthCleanup exposes the identity maintenance the composition root binds:
+// the expired session sweep of the retained auth service plus the spent
+// reset links and stale rate-limit windows Identity & Access owns (#3332).
 type AuthCleanup interface {
 	CleanupExpiredTokens(ctx context.Context) (int, error)
-	CleanupExpiredPasswordResetTokens(ctx context.Context) (int, error)
-	CleanupExpiredRateLimits(ctx context.Context) (int, error)
+	DeleteSpentPasswordResetTokens(ctx context.Context) (int, error)
+	DeleteStalePasswordResetWindows(ctx context.Context) (int, error)
 }
 
-// InvitationCleaner exposes the cleanup routine required from the invitation service.
+// InvitationCleaner exposes the school invitation maintenance Identity &
+// Access owns (#2722): the links whose expiry has passed.
 type InvitationCleaner interface {
-	CleanupExpiredInvitations(ctx context.Context) (int, error)
+	DeleteExpiredSchoolInvitations(ctx context.Context) (int, error)
 }
 
 // StaffMessageCleanupResult reports the records removed by one tenant's
@@ -102,14 +104,17 @@ type AutoCheckouter interface {
 	AutoCheckoutDueSessions(ctx context.Context, grace time.Duration) (int, error)
 }
 
-// EmailChangeTokenCleaner exposes the cleanup routine for email change tokens.
+// EmailChangeTokenCleaner exposes the cleanup routine for operator e-mail
+// change links: expired links are spent so their operator can request a new
+// one, then the rows nobody counts any more are deleted.
 type EmailChangeTokenCleaner interface {
-	CleanupExpiredEmailChangeTokens(ctx context.Context) (int, error)
+	CleanupOperatorEmailChanges(ctx context.Context) (int, error)
 }
 
-// OperatorInvitationCleaner exposes the cleanup routine for operator invitation tokens.
+// OperatorInvitationCleaner exposes the cleanup routine for operator
+// invitation links.
 type OperatorInvitationCleaner interface {
-	CleanupExpiredOperatorInvitations(ctx context.Context) (int, error)
+	DeleteExpiredOperatorInvitations(ctx context.Context) (int, error)
 }
 
 type CalendarFeedCleaner interface {
@@ -165,8 +170,8 @@ type Scheduler struct {
 	staffDocumentFileCleaner   StaffDocumentFileCleaner
 	studentDocumentFileCleaner StudentDocumentFileCleaner
 	fileStoreCleaner           FileStoreCleaner
-	materializer               scheduleSvc.MaterializationService
-	timetableCleanup           scheduleSvc.TimetableCleanupService
+	materializer               timetableplanning.MaterializationService
+	timetableCleanup           timetableplanning.TimetableCleanupService
 	calendarFeedCleanup        CalendarFeedCleaner
 	timeTrackingCleanup        TimeTrackingCleanupService
 	studentChangeLogCleanup    usersSvc.StudentChangeLogCleanupService
@@ -174,11 +179,11 @@ type Scheduler struct {
 	staffMessageCleanup        StaffMessageCleanup
 	bookingConsistency         auditModel.BookingConsistencyRepository
 	enrollmentRejectedCleanup  enrollmentSvc.RejectedEnrollmentCleaner
-	autoStart                  scheduleSvc.AutoStartService
-	autoEnd                    scheduleSvc.AutoEndService
+	autoStart                  timetableplanning.AutoStartService
+	autoEnd                    timetableplanning.AutoEndService
 	settings                   SettingsResolver
 	db                         *bun.DB
-	schoolRepo                 platform.SchoolRepository
+	schoolRepo                 TenantDirectory
 	tenantRuntime              tenant.UnitOfWork
 	tenantRuntimeConfigured    bool
 	tenantRuntimeObserver      func(entryPoint, outcome string)
@@ -495,19 +500,14 @@ func (s *Scheduler) forEachTenantIncludingInactive(ctx context.Context, opName s
 			return fmt.Errorf("load tenants for %s: %w", opName, err)
 		}
 	} else {
-		var schools []platform.School
 		if err := tenant.WithinAdmin(ctx, func(txCtx context.Context) error {
 			var listErr error
-			schools, listErr = s.schoolRepo.ListNonDeleted(txCtx)
+			tenantIDs, listErr = s.schoolRepo.ListNonDeletedTenantIDs(txCtx)
 			return listErr
 		}); err != nil {
 			recordJobCommandFailure(ctx, err)
 			s.observeTenantRuntime("transaction_failure")
 			return fmt.Errorf("load tenants for %s: %w", opName, err)
-		}
-		tenantIDs = make([]int64, 0, len(schools))
-		for _, school := range schools {
-			tenantIDs = append(tenantIDs, school.ID)
 		}
 	}
 	result := s.runTenantBatches(ctx, tenantIDs, opName, adaptTenantCommand(func(txCtx context.Context, _ int64) error {
@@ -1123,23 +1123,26 @@ func buildCleanupJobs(authService AuthCleanup, invitationService InvitationClean
 	var jobs []CleanupJob
 
 	if authService != nil {
-		jobs = append(jobs,
-			CleanupJob{
-				Description: "Auth token cleanup",
-				Run: func(ctx context.Context) (int, error) {
-					return authService.CleanupExpiredTokens(ctx)
-				},
+		jobs = append(jobs, CleanupJob{
+			Description: "Auth token cleanup",
+			Run: func(ctx context.Context) (int, error) {
+				return authService.CleanupExpiredTokens(ctx)
 			},
+		})
+	}
+
+	if authService != nil {
+		jobs = append(jobs,
 			CleanupJob{
 				Description: "Password reset token cleanup",
 				Run: func(ctx context.Context) (int, error) {
-					return authService.CleanupExpiredPasswordResetTokens(ctx)
+					return authService.DeleteSpentPasswordResetTokens(ctx)
 				},
 			},
 			CleanupJob{
 				Description: "Password reset rate limit cleanup",
 				Run: func(ctx context.Context) (int, error) {
-					return authService.CleanupExpiredRateLimits(ctx)
+					return authService.DeleteStalePasswordResetWindows(ctx)
 				},
 			},
 		)
@@ -1149,7 +1152,7 @@ func buildCleanupJobs(authService AuthCleanup, invitationService InvitationClean
 		jobs = append(jobs, CleanupJob{
 			Description: "Invitation cleanup",
 			Run: func(ctx context.Context) (int, error) {
-				return invitationService.CleanupExpiredInvitations(ctx)
+				return invitationService.DeleteExpiredSchoolInvitations(ctx)
 			},
 		})
 	}
@@ -1158,7 +1161,7 @@ func buildCleanupJobs(authService AuthCleanup, invitationService InvitationClean
 		jobs = append(jobs, CleanupJob{
 			Description: "Email change token cleanup",
 			Run: func(ctx context.Context) (int, error) {
-				return emailChangeCleaner.CleanupExpiredEmailChangeTokens(ctx)
+				return emailChangeCleaner.CleanupOperatorEmailChanges(ctx)
 			},
 		})
 	}
@@ -1167,7 +1170,7 @@ func buildCleanupJobs(authService AuthCleanup, invitationService InvitationClean
 		jobs = append(jobs, CleanupJob{
 			Description: "Operator invitation token cleanup",
 			Run: func(ctx context.Context) (int, error) {
-				return operatorInvitationCleaner.CleanupExpiredOperatorInvitations(ctx)
+				return operatorInvitationCleaner.DeleteExpiredOperatorInvitations(ctx)
 			},
 		})
 	}
@@ -1848,7 +1851,7 @@ func (s *Scheduler) checkAndRunMaterializationWithContext(ctx context.Context, t
 			slog.String("to", to.String()),
 		)
 
-		result, err := s.materializer.MaterializeForTenant(tenantCtx, from, to, scheduleSvc.MaterializationSourceScheduler)
+		result, err := s.materializer.MaterializeForTenant(tenantCtx, from, to, timetableplanning.MaterializationSourceScheduler)
 		if err != nil {
 			// Keep the today-mark so every subsequent minute does not retry a
 			// known-failing run. It naturally expires on the next scheduler day.

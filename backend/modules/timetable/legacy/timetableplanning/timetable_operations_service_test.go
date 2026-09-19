@@ -1,0 +1,2607 @@
+package timetableplanning
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/constants"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	educationModel "github.com/moto-nrw/project-phoenix/models/education"
+	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/realtime"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+)
+
+func TestTimetableOperationsPlannedNowFiltersByAssignmentAndWindow(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
+	assignedID := int64(210)
+	absentID := int64(211)
+	instanceID := int64(320)
+	outsideWindowID := int64(321)
+
+	deps := newTimetableOpsDeps()
+	deps.personService.accountPerson = &usersModel.Person{}
+	deps.personService.accountPerson.ID = 410
+	deps.personService.staffByPersonID[410] = &usersModel.Staff{}
+	deps.personService.staffByPersonID[410].ID = assignedID
+	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
+		instanceWithTimes(instanceID, scheduleModel.InstanceStatusPlanned, now.Add(10*time.Minute), now.Add(time.Hour)),
+		instanceWithTimes(outsideWindowID, scheduleModel.InstanceStatusPlanned, now.Add(20*time.Minute), now.Add(time.Hour)),
+	}
+	deps.staffRepo.byInstance[instanceID] = []*scheduleModel.InstanceStaff{
+		{StaffID: assignedID, IsPrimary: true},
+		{StaffID: absentID, IsAbsent: true},
+	}
+	deps.staffRepo.byInstance[outsideWindowID] = []*scheduleModel.InstanceStaff{{StaffID: assignedID}}
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		{StudentID: 520, Status: scheduleModel.AttendanceStatusExpected},
+		{StudentID: 521, Status: scheduleModel.AttendanceStatusPresent},
+	}
+
+	result, err := deps.service.PlannedNow(context.Background(), 610, false, timezone.DateFromTime(now), now, PlannedNowOptions{})
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, instanceID, result[0].ID)
+	require.NotNil(t, result[0].RoomName)
+	assert.Equal(t, "Lernraum", *result[0].RoomName)
+	assert.Equal(t, []int64{assignedID}, result[0].AssignedStaffIDs)
+	assert.True(t, result[0].IsAssigned)
+	assert.True(t, result[0].IsPrimary)
+	assert.Equal(t, 1, result[0].ExpectedStudentsCount)
+	assert.Equal(t, 1, result[0].PresentStudentsCount)
+	assert.False(t, result[0].IsOverdue)
+	assert.Equal(t, 10, result[0].MinutesUntilStart)
+	assert.NotEmpty(t, result[0].StartExpiresAt)
+}
+
+func TestTimetableOperationsPlannedNowKeepsSpontaneousAfterEnd(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
+	assignedID := int64(212)
+	instanceID := int64(340)
+	deps := newTimetableOpsDeps()
+	deps.personService.accountPerson = &usersModel.Person{}
+	deps.personService.accountPerson.ID = 411
+	deps.personService.staffByPersonID[411] = &usersModel.Staff{}
+	deps.personService.staffByPersonID[411].ID = assignedID
+	inst := instanceWithTimes(instanceID, scheduleModel.InstanceStatusPlanned, now.Add(-time.Hour), now)
+	inst.IsSpontaneous = true
+	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{inst}
+	deps.staffRepo.byInstance[instanceID] = []*scheduleModel.InstanceStaff{{StaffID: assignedID}}
+
+	result, err := deps.service.PlannedNow(context.Background(), 611, false, timezone.DateFromTime(now), now, PlannedNowOptions{})
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, instanceID, result[0].ID)
+	assert.True(t, result[0].CanStart)
+	assert.Empty(t, result[0].StartExpiresAt)
+}
+
+func TestTimetableOperationsPlannedNowAllowsAdminOverview(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
+	deps := newTimetableOpsDeps()
+	deps.settings.scope = configModel.OverviewScopeAdmins
+	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
+		instanceWithTimes(330, scheduleModel.InstanceStatusPlanned, now.Add(-time.Minute), now.Add(time.Hour)),
+	}
+	deps.staffRepo.byInstance[330] = []*scheduleModel.InstanceStaff{{StaffID: 220}}
+
+	result, err := deps.service.PlannedNow(context.Background(), 620, true, timezone.DateFromTime(now), now, PlannedNowOptions{})
+
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.True(t, result[0].IsOverdue)
+}
+
+// Since #2161 the Schulhof is a regular plannable room: its planned blocks
+// appear in the "Jetzt starten" list exactly like any other room's.
+func TestTimetableOperationsPlannedNowIncludesSchulhof(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
+	const schulhofRoomID int64 = 811
+	deps := newTimetableOpsDeps()
+	deps.settings.scope = configModel.OverviewScopeAdmins
+	deps.rooms.rooms = append(deps.rooms.rooms, &facilitiesModel.Room{
+		ID:   schulhofRoomID,
+		Name: constants.SchulhofRoomName,
+	})
+	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
+		instanceWithRoomAndTimes(330, schulhofRoomID, scheduleModel.InstanceStatusPlanned, now.Add(-time.Minute), now.Add(time.Hour)),
+		instanceWithTimes(331, scheduleModel.InstanceStatusPlanned, now.Add(-time.Minute), now.Add(time.Hour)),
+	}
+	deps.staffRepo.byInstance[330] = []*scheduleModel.InstanceStaff{{StaffID: 220}}
+	deps.staffRepo.byInstance[331] = []*scheduleModel.InstanceStaff{{StaffID: 220}}
+
+	result, err := deps.service.PlannedNow(context.Background(), 620, true, timezone.DateFromTime(now), now, PlannedNowOptions{})
+
+	require.NoError(t, err)
+	require.Len(t, result, 2)
+	ids := []int64{result[0].ID, result[1].ID}
+	assert.ElementsMatch(t, []int64{330, 331}, ids)
+}
+
+func TestTimetableOperationsPlannedNowUsesInstanceDate(t *testing.T) {
+	t.Parallel()
+
+	t.Run("does not return future-date instances as overdue today", func(t *testing.T) {
+		now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
+		tomorrowStart := time.Date(2026, time.May, 11, 8, 0, 0, 0, time.UTC)
+		deps := newTimetableOpsDeps()
+		deps.settings.scope = configModel.OverviewScopeAdmins
+		deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
+			instanceWithTimes(334, scheduleModel.InstanceStatusPlanned, tomorrowStart, tomorrowStart.Add(time.Hour)),
+		}
+		deps.staffRepo.byInstance[334] = []*scheduleModel.InstanceStaff{{StaffID: 224}}
+
+		result, err := deps.service.PlannedNow(context.Background(), 625, true, timezone.DateFromTime(tomorrowStart), now, PlannedNowOptions{})
+
+		require.NoError(t, err)
+		assert.Empty(t, result)
+	})
+
+	t.Run("calculates overdue metadata from instance date", func(t *testing.T) {
+		now := time.Date(2026, time.May, 10, 23, 55, 0, 0, time.UTC)
+		tomorrowStart := time.Date(2026, time.May, 11, 0, 5, 0, 0, time.UTC)
+		inst := instanceWithTimes(335, scheduleModel.InstanceStatusPlanned, tomorrowStart, tomorrowStart.Add(time.Hour))
+
+		result := mapPlannedInstance(inst, []*scheduleModel.InstanceStaff{{StaffID: 225}}, nil, now, 225, nil, nil)
+
+		assert.False(t, result.IsOverdue)
+		assert.Equal(t, 10, result.MinutesUntilStart)
+	})
+}
+
+func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
+
+	t.Run("forbids accounts without staff when admin overview is disabled", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.personService.accountErr = usersSvc.ErrPersonNotFound
+
+		result, err := deps.service.PlannedNow(context.Background(), 621, false, timezone.DateFromTime(now), now, PlannedNowOptions{})
+
+		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+		assert.Nil(t, result)
+	})
+
+	t.Run("admin overview allows missing person profile", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.settings.scope = configModel.OverviewScopeAdmins
+		deps.personService.accountErr = usersSvc.ErrPersonNotFound
+		deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
+			instanceWithTimes(336, scheduleModel.InstanceStatusPlanned, now.Add(-time.Minute), now.Add(time.Hour)),
+		}
+		deps.staffRepo.byInstance[336] = []*scheduleModel.InstanceStaff{{StaffID: 226}}
+
+		result, err := deps.service.PlannedNow(context.Background(), 626, true, timezone.DateFromTime(now), now, PlannedNowOptions{})
+
+		require.NoError(t, err)
+		require.Len(t, result, 1)
+		assert.Equal(t, int64(336), result[0].ID)
+	})
+
+	t.Run("propagates unexpected person lookup errors", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.personService.accountErr = errors.New("person lookup failed")
+
+		result, err := deps.service.PlannedNow(context.Background(), 627, true, timezone.DateFromTime(now), now, PlannedNowOptions{})
+
+		require.EqualError(t, err, "person lookup failed")
+		assert.Nil(t, result)
+	})
+
+	t.Run("propagates instance listing errors", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		wireAssignedStaff(deps, 622, 431, 221, 331)
+		deps.instanceRepo.findByDateErr = errors.New("date query failed")
+
+		result, err := deps.service.PlannedNow(context.Background(), 622, false, timezone.DateFromTime(now), now, PlannedNowOptions{})
+
+		require.EqualError(t, err, "date query failed")
+		assert.Nil(t, result)
+	})
+
+	t.Run("propagates staff lookup errors", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		wireAssignedStaff(deps, 623, 432, 222, 332)
+		deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
+			instanceWithTimes(332, scheduleModel.InstanceStatusPlanned, now, now.Add(time.Hour)),
+		}
+		deps.staffRepo.err = errors.New("staff query failed")
+
+		result, err := deps.service.PlannedNow(context.Background(), 623, false, timezone.DateFromTime(now), now, PlannedNowOptions{})
+
+		require.EqualError(t, err, "staff query failed")
+		assert.Nil(t, result)
+	})
+
+	t.Run("propagates student lookup errors", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		wireAssignedStaff(deps, 624, 433, 223, 333)
+		deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
+			instanceWithTimes(333, scheduleModel.InstanceStatusPlanned, now, now.Add(time.Hour)),
+		}
+		deps.studentRepo.err = errors.New("student query failed")
+
+		result, err := deps.service.PlannedNow(context.Background(), 624, false, timezone.DateFromTime(now), now, PlannedNowOptions{})
+
+		require.EqualError(t, err, "student query failed")
+		assert.Nil(t, result)
+	})
+
+	t.Run("propagates room lookup errors", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		wireAssignedStaff(deps, 629, 435, 228, 339)
+		deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
+			instanceWithTimes(339, scheduleModel.InstanceStatusPlanned, now, now.Add(time.Hour)),
+		}
+		deps.rooms.err = errors.New("room query failed")
+
+		result, err := deps.service.PlannedNow(context.Background(), 629, false, timezone.DateFromTime(now), now, PlannedNowOptions{})
+
+		require.EqualError(t, err, "room query failed")
+		assert.Nil(t, result)
+	})
+}
+
+func TestTimetableOperationsPlannedNowIncludesStartLeadWindow(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
+	deps := newTimetableOpsDeps()
+	deps.settings.leadMinutes = 60
+	wireAssignedStaff(deps, 631, 436, 229, 341)
+	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
+		instanceWithTimes(341, scheduleModel.InstanceStatusPlanned, now.Add(45*time.Minute), now.Add(2*time.Hour)),
+	}
+
+	result, err := deps.service.PlannedNow(context.Background(), 631, false, timezone.DateFromTime(now), now, PlannedNowOptions{})
+
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, int64(341), result[0].ID)
+}
+
+func TestTimetableOperationsPlannedNowSupportsUpcomingOptions(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 628, 434, 227, 337)
+	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
+		instanceWithTimes(337, scheduleModel.InstanceStatusPlanned, now.Add(90*time.Minute), now.Add(2*time.Hour)),
+		instanceWithTimes(338, scheduleModel.InstanceStatusPlanned, now.Add(100*time.Minute), now.Add(2*time.Hour)),
+	}
+	for _, inst := range deps.instanceRepo.byDate {
+		deps.instanceRepo.byID[inst.ID] = inst
+	}
+	deps.staffRepo.byInstance[338] = []*scheduleModel.InstanceStaff{{StaffID: 227}}
+	deps.studentRepo.byInstance[337] = []*scheduleModel.InstanceStudent{
+		{StudentID: 527, Status: scheduleModel.AttendanceStatusExpected},
+	}
+	deps.students.byID[527] = &usersModel.Student{PersonID: 437, SchoolClass: "2a"}
+	deps.personService.people[437] = &usersModel.Person{FirstName: "Lina", LastName: "Lang"}
+	pickup := time.Date(1, time.January, 1, 15, 20, 0, 0, time.UTC)
+	deps.pickupService.byStudent[527] = &careschedule.EffectivePickupTime{Date: timezone.Date(deps.instanceRepo.byDate[0].Date), PickupTime: &pickup}
+
+	result, err := deps.service.PlannedNow(context.Background(), 628, false, timezone.DateFromTime(now), now, PlannedNowOptions{
+		HorizonMinutes: 120,
+		Limit:          1,
+		IncludeRoster:  true,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, int64(337), result[0].ID)
+	require.Len(t, result[0].RosterPreview, 1)
+	assert.Equal(t, "Lina Lang", result[0].RosterPreview[0].StudentName)
+	assert.True(t, result[0].PickupTimesLoaded)
+	require.NotNil(t, result[0].RosterPreview[0].PickupTime)
+	assert.Equal(t, "15:20", *result[0].RosterPreview[0].PickupTime)
+}
+
+// scope=past is the complement of the default window (#2335): completed
+// blocks and never-started planned blocks whose end has passed. Running,
+// cancelled, still-open planned, and spontaneous planned instances stay out.
+func TestTimetableOperationsPlannedNowPastScopeSelectsFinishedBlocks(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 632, 438, 231, 360)
+	completed := instanceWithTimes(361, scheduleModel.InstanceStatusCompleted, now.Add(-3*time.Hour), now.Add(-2*time.Hour))
+	expiredSpontaneous := instanceWithTimes(364, scheduleModel.InstanceStatusPlanned, now.Add(-3*time.Hour), now.Add(-2*time.Hour))
+	expiredSpontaneous.IsSpontaneous = true
+	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
+		instanceWithTimes(360, scheduleModel.InstanceStatusPlanned, now.Add(-135*time.Minute), now.Add(-30*time.Minute)),
+		completed,
+		instanceWithTimes(362, scheduleModel.InstanceStatusPlanned, now.Add(-time.Hour), now.Add(time.Hour)),
+		instanceWithTimes(363, scheduleModel.InstanceStatusCancelled, now.Add(-3*time.Hour), now.Add(-2*time.Hour)),
+		expiredSpontaneous,
+		instanceWithTimes(365, scheduleModel.InstanceStatusActive, now.Add(-time.Hour), now.Add(-30*time.Minute)),
+	}
+	for _, inst := range deps.instanceRepo.byDate {
+		deps.staffRepo.byInstance[inst.ID] = []*scheduleModel.InstanceStaff{{StaffID: 231}}
+	}
+
+	result, err := deps.service.PlannedNow(context.Background(), 632, false, timezone.DateFromTime(now), now, PlannedNowOptions{Scope: PlannedNowScopePast})
+
+	require.NoError(t, err)
+	require.Len(t, result, 2)
+	ids := []int64{result[0].ID, result[1].ID}
+	assert.ElementsMatch(t, []int64{360, 361}, ids)
+	for _, inst := range result {
+		assert.False(t, inst.CanStart)
+		assert.Empty(t, inst.StartExpiresAt)
+	}
+}
+
+// Past-scope visibility mirrors the default scope: unassigned staff see
+// nothing, the admin overview sees everything (#2335).
+func TestTimetableOperationsPlannedNowPastScopeKeepsVisibilityRules(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 633, 439, 232, 370)
+	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
+		instanceWithTimes(370, scheduleModel.InstanceStatusCompleted, now.Add(-3*time.Hour), now.Add(-2*time.Hour)),
+		instanceWithTimes(371, scheduleModel.InstanceStatusCompleted, now.Add(-3*time.Hour), now.Add(-2*time.Hour)),
+	}
+	deps.staffRepo.byInstance[370] = []*scheduleModel.InstanceStaff{{StaffID: 232}}
+	deps.staffRepo.byInstance[371] = []*scheduleModel.InstanceStaff{{StaffID: 999}}
+
+	result, err := deps.service.PlannedNow(context.Background(), 633, false, timezone.DateFromTime(now), now, PlannedNowOptions{Scope: PlannedNowScopePast})
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, int64(370), result[0].ID)
+
+	deps.settings.scope = configModel.OverviewScopeAdmins
+	result, err = deps.service.PlannedNow(context.Background(), 633, true, timezone.DateFromTime(now), now, PlannedNowOptions{Scope: PlannedNowScopePast})
+	require.NoError(t, err)
+	require.Len(t, result, 2)
+}
+
+// Day scope follows the operational-overview rule (#2383): under all_staff a
+// verified staff member sees the whole day including foreign blocks, decorated
+// with the planned colour, Zielgruppe and staff names; without the setting the
+// day stays own-only (#2527).
+func TestTimetableOperationsPlannedNowDayScopeFollowsOperationalOverview(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 634, 441, 233, 380)
+
+	activeGroupID := int64(910)
+	activityGroupID := int64(720)
+	trackID := int64(55)
+	educationGroupID := int64(66)
+	cancelReason := "Personalausfall"
+
+	own := instanceWithTimes(380, scheduleModel.InstanceStatusPlanned, now.Add(time.Hour), now.Add(2*time.Hour))
+	foreignActive := instanceWithTimes(381, scheduleModel.InstanceStatusActive, now.Add(-30*time.Minute), now.Add(30*time.Minute))
+	foreignActive.ActiveGroupID = &activeGroupID
+	foreignActive.ActivityGroupID = &activityGroupID
+	foreignCancelled := instanceWithTimes(382, scheduleModel.InstanceStatusCancelled, now.Add(-2*time.Hour), now.Add(-time.Hour))
+	foreignCancelled.CancelReason = &cancelReason
+	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{own, foreignActive, foreignCancelled}
+	deps.staffRepo.byInstance[381] = []*scheduleModel.InstanceStaff{{StaffID: 998, IsSubstitute: true}}
+	deps.staffRepo.byInstance[382] = []*scheduleModel.InstanceStaff{{StaffID: 999}}
+
+	track := &scheduleModel.PlanningTrack{Name: "Angebote", Color: "#5080D8"}
+	track.ID = trackID
+	deps.tracks.byID[trackID] = track
+	activityGroup := &activitiesModel.Group{PlanningTrackID: &trackID, EducationGroupID: &educationGroupID}
+	activityGroup.ID = activityGroupID
+	deps.activityGroups.byID[activityGroupID] = activityGroup
+	educationGroup := &educationModel.Group{Name: "Gruppe Sonne"}
+	educationGroup.ID = educationGroupID
+	deps.groups.byID[educationGroupID] = educationGroup
+	substitute := &usersModel.Staff{Person: &usersModel.Person{FirstName: "Vera", LastName: "Vertretung"}}
+	substitute.ID = 998
+	deps.personService.staffWithPerson[998] = substitute
+
+	// Without the school-wide overview the day stays own-only.
+	result, err := deps.service.PlannedNow(context.Background(), 634, false, timezone.DateFromTime(now), now, PlannedNowOptions{Scope: PlannedNowScopeDay})
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, int64(380), result[0].ID)
+
+	deps.settings.scope = configModel.OverviewScopeAllStaff
+	result, err = deps.service.PlannedNow(context.Background(), 634, false, timezone.DateFromTime(now), now, PlannedNowOptions{Scope: PlannedNowScopeDay})
+	require.NoError(t, err)
+	require.Len(t, result, 3)
+	byID := map[int64]OperationPlannedInstance{}
+	for _, inst := range result {
+		byID[inst.ID] = inst
+	}
+	require.Contains(t, byID, int64(381))
+	require.NotNil(t, byID[381].ActiveGroupID)
+	assert.Equal(t, activeGroupID, *byID[381].ActiveGroupID)
+	require.NotNil(t, byID[381].PlanningTrackColor)
+	assert.Equal(t, "#5080D8", *byID[381].PlanningTrackColor)
+	require.NotNil(t, byID[381].PlanningTrackName)
+	assert.Equal(t, "Angebote", *byID[381].PlanningTrackName)
+	require.NotNil(t, byID[381].GroupName)
+	assert.Equal(t, "Gruppe Sonne", *byID[381].GroupName)
+	require.Len(t, byID[381].StaffNames, 1)
+	assert.Equal(t, "Vera Vertretung", byID[381].StaffNames[0].DisplayName)
+	assert.True(t, byID[381].StaffNames[0].IsSubstitute)
+	// A running or cancelled foreign block is never startable from the day list.
+	assert.False(t, byID[381].CanStart)
+	require.Contains(t, byID, int64(382))
+	require.NotNil(t, byID[382].CancelReason)
+	assert.Equal(t, cancelReason, *byID[382].CancelReason)
+	assert.False(t, byID[382].CanStart)
+}
+
+func TestTimetableOperationsStartRequiresAStaffIdentity(t *testing.T) {
+	t.Parallel()
+
+	deps := newTimetableOpsDeps()
+	deps.settings.scope = configModel.OverviewScopeAdmins
+	deps.personService.accountPerson = &usersModel.Person{}
+	deps.personService.accountPerson.ID = 430
+
+	result, err := deps.service.Start(context.Background(), 630, true, 340)
+
+	require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+	assert.Nil(t, result)
+	assert.Empty(t, deps.instanceService.started)
+}
+
+func TestTimetableOperationsStartDelegatesWhenStaffIsAssigned(t *testing.T) {
+	t.Parallel()
+
+	staffID := int64(230)
+	instanceID := int64(350)
+	deps := newTimetableOpsDeps()
+	deps.personService.accountPerson = &usersModel.Person{}
+	deps.personService.accountPerson.ID = 440
+	deps.personService.staffByPersonID[440] = &usersModel.Staff{}
+	deps.personService.staffByPersonID[440].ID = staffID
+	deps.instanceRepo.byID[instanceID] = instanceWithTimes(instanceID, scheduleModel.InstanceStatusPlanned, time.Now(), time.Now().Add(time.Hour))
+	deps.staffRepo.byInstance[instanceID] = []*scheduleModel.InstanceStaff{{StaffID: staffID}}
+
+	result, err := deps.service.Start(context.Background(), 640, false, instanceID)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, instanceID, deps.instanceService.started[0].instanceID)
+	assert.Equal(t, staffID, deps.instanceService.started[0].staffID)
+}
+
+func TestTimetableOperationsRosterCombinesPlannedStudentsAndLiveDropIns(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(360)
+	activeGroupID := int64(260)
+	groupID := int64(270)
+	visitID := int64(370)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 650, 450, 240, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		{StudentID: 530, Status: scheduleModel.AttendanceStatusExpected},
+	}
+	deps.visitRepo.byActiveGroup[activeGroupID] = []*studentpresence.Visit{
+		{StudentID: 531, ActiveGroupID: activeGroupID, EntryTime: time.Date(2026, time.May, 10, 14, 5, 0, 0, time.UTC)},
+	}
+	deps.visitRepo.byActiveGroup[activeGroupID][0].ID = visitID
+	deps.students.byID[530] = &usersModel.Student{PersonID: 460, SchoolClass: "3a", GroupID: &groupID}
+	deps.students.byID[531] = &usersModel.Student{PersonID: 461, SchoolClass: "4b"}
+	deps.personService.people[460] = &usersModel.Person{FirstName: "Zoe", LastName: "Zimmer"}
+	deps.personService.people[461] = &usersModel.Person{FirstName: "Anna", LastName: "Anlauf"}
+	deps.groups.byID[groupID] = &educationModel.Group{Name: "OGS Blau"}
+
+	roster, err := deps.service.Roster(context.Background(), 650, false, instanceID)
+
+	require.NoError(t, err)
+	require.Len(t, roster.Rows, 2)
+	assert.Equal(t, "Anna Anlauf", roster.Rows[0].StudentName)
+	assert.True(t, roster.Rows[0].IsUnplanned)
+	assert.True(t, roster.Rows[0].CurrentlyPresent)
+	assert.Equal(t, &visitID, roster.Rows[0].VisitID)
+	assert.Equal(t, "Zoe Zimmer", roster.Rows[1].StudentName)
+	assert.True(t, roster.Rows[1].Planned)
+	assert.Equal(t, "OGS Blau", roster.Rows[1].GroupName)
+}
+
+// A child recorded present in another running block of the same day gets a
+// parallel-presence marker on their roster row, so two supervisors working
+// consecutive blocks of the same lane see the overlap instead of a seemingly
+// contradictory attendance state (#2265). Rows without such an overlap stay
+// unmarked, and rosters of non-active instances never query for it.
+func TestTimetableOperationsRosterFlagsParallelPresence(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(368)
+	activeGroupID := int64(268)
+	otherInstanceID := int64(369)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 660, 480, 250, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		{StudentID: 540, Status: scheduleModel.AttendanceStatusExpected},
+		{StudentID: 541, Status: scheduleModel.AttendanceStatusExpected},
+	}
+	deps.studentRepo.parallelPresence = []scheduleModel.ParallelPresence{
+		{
+			StudentID:  540,
+			InstanceID: otherInstanceID,
+			Title:      "GT 1",
+			StartTime:  time.Date(2026, time.May, 10, 12, 45, 0, 0, time.UTC),
+			EndTime:    time.Date(2026, time.May, 10, 13, 45, 0, 0, time.UTC),
+		},
+	}
+	deps.students.byID[540] = &usersModel.Student{PersonID: 481, SchoolClass: "1a"}
+	deps.students.byID[541] = &usersModel.Student{PersonID: 482, SchoolClass: "1a"}
+	deps.personService.people[481] = &usersModel.Person{FirstName: "Mia", LastName: "Muster"}
+	deps.personService.people[482] = &usersModel.Person{FirstName: "Tom", LastName: "Test"}
+
+	roster, err := deps.service.Roster(context.Background(), 660, false, instanceID)
+
+	require.NoError(t, err)
+	require.Len(t, roster.Rows, 2)
+	rowsByStudent := map[int64]OperationRosterRow{}
+	for _, row := range roster.Rows {
+		rowsByStudent[row.StudentID] = row
+	}
+	flagged := rowsByStudent[540]
+	require.NotNil(t, flagged.ParallelPresentIn)
+	assert.Equal(t, otherInstanceID, flagged.ParallelPresentIn.InstanceID)
+	assert.Equal(t, "GT 1", flagged.ParallelPresentIn.Title)
+	assert.Equal(t, "12:45", flagged.ParallelPresentIn.StartTime)
+	assert.Equal(t, "13:45", flagged.ParallelPresentIn.EndTime)
+	assert.Nil(t, rowsByStudent[541].ParallelPresentIn)
+}
+
+func TestTimetableOperationsRosterLoadsEffectivePickupTimesForBlockDate(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(374)
+	activeGroupID := int64(274)
+	blockDate := timezone.NewDate(2026, time.May, 12)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 664, 489, 254, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+	deps.instanceRepo.byID[instanceID].Date = scheduleModel.Date(blockDate)
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		{StudentID: 548, Status: scheduleModel.AttendanceStatusExpected},
+		{StudentID: 549, Status: scheduleModel.AttendanceStatusExpected},
+		{StudentID: 550, Status: scheduleModel.AttendanceStatusExpected},
+	}
+	deps.students.byID[548] = &usersModel.Student{PersonID: 490, SchoolClass: "1a"}
+	deps.students.byID[549] = &usersModel.Student{PersonID: 491, SchoolClass: "1a"}
+	deps.students.byID[550] = &usersModel.Student{PersonID: 492, SchoolClass: "1a"}
+	deps.personService.people[490] = &usersModel.Person{FirstName: "Wochenplan", LastName: "Kind"}
+	deps.personService.people[491] = &usersModel.Person{FirstName: "Tagesänderung", LastName: "Kind"}
+	deps.personService.people[492] = &usersModel.Person{FirstName: "Ohne", LastName: "Gehzeit"}
+	weekly := time.Date(1, time.January, 1, 15, 0, 0, 0, time.UTC)
+	override := time.Date(1, time.January, 1, 13, 30, 0, 0, time.UTC)
+	deps.pickupService.byStudent[548] = &careschedule.EffectivePickupTime{Date: blockDate, PickupTime: &weekly}
+	deps.pickupService.byStudent[549] = &careschedule.EffectivePickupTime{Date: blockDate, PickupTime: &override, IsException: true}
+	deps.pickupService.byStudent[550] = &careschedule.EffectivePickupTime{Date: blockDate}
+
+	roster, err := deps.service.Roster(context.Background(), 664, false, instanceID)
+
+	require.NoError(t, err)
+	assert.True(t, roster.PickupTimesLoaded)
+	assert.Equal(t, 1, deps.pickupService.calls, "one roster must use one bulk pickup lookup")
+	assert.Equal(t, blockDate, deps.pickupService.date, "the block date, not today, selects the effective time")
+	assert.ElementsMatch(t, []int64{548, 549, 550}, deps.pickupService.studentIDs)
+	rowsByStudent := make(map[int64]OperationRosterRow, len(roster.Rows))
+	for _, row := range roster.Rows {
+		rowsByStudent[row.StudentID] = row
+	}
+	require.NotNil(t, rowsByStudent[548].PickupTime)
+	assert.Equal(t, "15:00", *rowsByStudent[548].PickupTime)
+	require.NotNil(t, rowsByStudent[549].PickupTime)
+	assert.Equal(t, "13:30", *rowsByStudent[549].PickupTime)
+	assert.Nil(t, rowsByStudent[550].PickupTime, "a successful lookup without a time stays an explicit empty value")
+}
+
+func TestTimetableOperationsRosterKeepsAttendanceUsableWhenPickupTimesFail(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(375)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 665, 493, 255, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, 275)
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		{StudentID: 551, Status: scheduleModel.AttendanceStatusExpected},
+	}
+	deps.students.byID[551] = &usersModel.Student{PersonID: 494, SchoolClass: "2b"}
+	deps.personService.people[494] = &usersModel.Person{FirstName: "Nora", LastName: "Nutzbar"}
+	deps.pickupService.err = errors.New("pickup lookup failed")
+
+	roster, err := deps.service.Roster(context.Background(), 665, false, instanceID)
+
+	require.NoError(t, err, "pickup data must not take down attendance control")
+	assert.False(t, roster.PickupTimesLoaded)
+	require.Len(t, roster.Rows, 1)
+	assert.Equal(t, int64(551), roster.Rows[0].StudentID)
+	assert.Nil(t, roster.Rows[0].PickupTime)
+}
+
+func TestTimetableOperationsRosterSkipsParallelPresenceForInactiveInstance(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(371)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 661, 483, 251, instanceID)
+	completed := instanceWithTimes(instanceID, scheduleModel.InstanceStatusCompleted,
+		time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC),
+		time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC))
+	completed.ID = instanceID
+	deps.instanceRepo.byID[instanceID] = completed
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		{StudentID: 545, Status: scheduleModel.AttendanceStatusPresent},
+	}
+	deps.students.byID[545] = &usersModel.Student{PersonID: 484, SchoolClass: "2b"}
+	deps.personService.people[484] = &usersModel.Person{FirstName: "Lea", LastName: "Lang"}
+
+	roster, err := deps.service.Roster(context.Background(), 661, false, instanceID)
+
+	require.NoError(t, err)
+	require.Len(t, roster.Rows, 1)
+	assert.Nil(t, roster.Rows[0].ParallelPresentIn)
+	assert.Zero(t, deps.studentRepo.parallelPresenceCall)
+}
+
+func TestTimetableOperationsRosterParallelPresenceLookupErrorFails(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(372)
+	activeGroupID := int64(272)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 662, 485, 252, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		{StudentID: 546, Status: scheduleModel.AttendanceStatusExpected},
+	}
+	deps.students.byID[546] = &usersModel.Student{PersonID: 486, SchoolClass: "2b"}
+	deps.personService.people[486] = &usersModel.Person{FirstName: "Ben", LastName: "Berg"}
+	deps.studentRepo.parallelPresenceErr = errors.New("boom")
+
+	_, err := deps.service.Roster(context.Background(), 662, false, instanceID)
+
+	require.Error(t, err)
+}
+
+// Two independent reads of the same instance after an attendance write must
+// return the same roster state — the backend truth two parallel clients
+// converge on via SSE-triggered refetches (#2265 acceptance criterion).
+func TestTimetableOperationsTwoReadsAfterAttendanceWriteAgree(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(373)
+	activeGroupID := int64(273)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 663, 487, 253, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+	row := &scheduleModel.InstanceStudent{StudentID: 547, Status: scheduleModel.AttendanceStatusExpected}
+	row.ID = 900
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{row}
+	deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, 547}] = row
+	deps.students.byID[547] = &usersModel.Student{PersonID: 488, SchoolClass: "3c"}
+	deps.personService.people[488] = &usersModel.Person{FirstName: "Ida", LastName: "Igel"}
+
+	status := scheduleModel.AttendanceStatusAbsent
+	_, err := deps.service.PatchAttendance(context.Background(), 663, false, instanceID, 547, scheduleModel.AttendanceFieldPatch{Status: &status})
+	require.NoError(t, err)
+	// The fake stores patches in `updates` without mutating the row; apply it
+	// the way the real repository would so both reads see the written state.
+	require.Len(t, deps.studentRepo.updates, 1)
+	row.Status = status
+
+	first, err := deps.service.Roster(context.Background(), 663, false, instanceID)
+	require.NoError(t, err)
+	second, err := deps.service.Roster(context.Background(), 663, false, instanceID)
+	require.NoError(t, err)
+
+	assert.Equal(t, first.Rows, second.Rows)
+	require.Len(t, first.Rows, 1)
+	assert.Equal(t, scheduleModel.AttendanceStatusAbsent, first.Rows[0].Status)
+}
+
+// A completed block's verdict is frozen in the stored marker: the care plan may
+// have been edited or deleted since, and reading it here would relabel a
+// historical row while the weekly list, parent calendar, and attendance history
+// keep the completion-time answer (#1747 review).
+func TestTimetableOperationsRosterFreezesCareDayVerdictOnCompletedInstance(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(366)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 656, 456, 246, instanceID)
+	completed := instanceWithTimes(instanceID, scheduleModel.InstanceStatusCompleted,
+		time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC),
+		time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC))
+	completed.ID = instanceID
+	deps.instanceRepo.byID[instanceID] = completed
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		{StudentID: 536, Status: scheduleModel.AttendanceStatusExpected, NotScheduled: true},
+	}
+	deps.students.byID[536] = &usersModel.Student{PersonID: 466, SchoolClass: "3a"}
+	deps.personService.people[466] = &usersModel.Person{FirstName: "Nora", LastName: "Neu"}
+	// The plan says "booked" today — a later edit. It must not win over the marker.
+	deps.careDayService.byStudent[536] = careschedule.CareDayScheduled
+
+	roster, err := deps.service.Roster(context.Background(), 656, false, instanceID)
+
+	require.NoError(t, err)
+	require.Len(t, roster.Rows, 1)
+	assert.Equal(t, careschedule.CareDayNotScheduled, roster.Rows[0].CareDayStatus)
+	assert.False(t, roster.Rows[0].CareDayStatus.Expected())
+}
+
+// The counterpart: a completed row without the marker reports "unknown" rather
+// than a re-derived plan verdict, so a plan edit cannot retroactively push a
+// finished row out of the expected block either.
+func TestTimetableOperationsRosterCompletedWithoutMarkerReportsUnknown(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(367)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 657, 457, 247, instanceID)
+	completed := instanceWithTimes(instanceID, scheduleModel.InstanceStatusCompleted,
+		time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC),
+		time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC))
+	completed.ID = instanceID
+	deps.instanceRepo.byID[instanceID] = completed
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		{StudentID: 537, Status: scheduleModel.AttendanceStatusAbsent},
+	}
+	deps.students.byID[537] = &usersModel.Student{PersonID: 467, SchoolClass: "3a"}
+	deps.personService.people[467] = &usersModel.Person{FirstName: "Ole", LastName: "Ohm"}
+	deps.careDayService.byStudent[537] = careschedule.CareDayNotScheduled
+
+	roster, err := deps.service.Roster(context.Background(), 657, false, instanceID)
+
+	require.NoError(t, err)
+	require.Len(t, roster.Rows, 1)
+	assert.Equal(t, careschedule.CareDayUnknown, roster.Rows[0].CareDayStatus)
+}
+
+// A broad day status (sick / excused / class trip) stamps every expected row of
+// the day, including days the care plan never booked. Until the block ends and
+// MarkNotScheduled undoes it, that absence is a claim about care that was never
+// owed — the roster has to report the non-booking verdict so the frontend groups
+// the row under "Heute nicht eingeplant" instead of "Abwesend" (#1747 review).
+func TestTimetableOperationsRosterReportsStatusDayAbsenceOnUnbookedDay(t *testing.T) {
+	t.Parallel()
+
+	statusDayID := int64(9100)
+	instanceID := int64(368)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 658, 458, 248, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, 268)
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		// Owned by a day status, on a day the plan does not book.
+		{StudentID: 538, Status: scheduleModel.AttendanceStatusAbsent, StudentStatusDayID: &statusDayID},
+		// Same verdict, but the absence is a human decision: it stays an absence.
+		{StudentID: 539, Status: scheduleModel.AttendanceStatusAbsent},
+	}
+	deps.students.byID[538] = &usersModel.Student{PersonID: 468, SchoolClass: "3a"}
+	deps.students.byID[539] = &usersModel.Student{PersonID: 469, SchoolClass: "3a"}
+	deps.personService.people[468] = &usersModel.Person{FirstName: "Pia", LastName: "Plan"}
+	deps.personService.people[469] = &usersModel.Person{FirstName: "Rudi", LastName: "Rot"}
+	deps.careDayService.byStudent[538] = careschedule.CareDayNotScheduled
+	deps.careDayService.byStudent[539] = careschedule.CareDayNotScheduled
+
+	roster, err := deps.service.Roster(context.Background(), 658, false, instanceID)
+
+	require.NoError(t, err)
+	require.Len(t, roster.Rows, 2)
+	byStudent := map[int64]careschedule.CareDayStatus{}
+	for _, row := range roster.Rows {
+		byStudent[row.StudentID] = row.CareDayStatus
+	}
+	assert.Equal(t, careschedule.CareDayNotScheduled, byStudent[538])
+	assert.Equal(t, careschedule.CareDayUnknown, byStudent[539])
+}
+
+// The planned-now card counts the same rows the roster groups: a status-day
+// absence on an unbooked day belongs under "nicht eingeplant", or the card
+// reports 0 while the slide-over shows one (#1747 review).
+func TestTimetableOperationsPlannedCardCountsStatusDayNonBookings(t *testing.T) {
+	t.Parallel()
+
+	statusDayID := int64(9101)
+	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
+	inst := instanceWithTimes(369, scheduleModel.InstanceStatusPlanned, now, now.Add(time.Hour))
+	rows := []*scheduleModel.InstanceStudent{
+		{StudentID: 540, Status: scheduleModel.AttendanceStatusAbsent, StudentStatusDayID: &statusDayID},
+		{StudentID: 541, Status: scheduleModel.AttendanceStatusAbsent},
+		{StudentID: 542, Status: scheduleModel.AttendanceStatusExpected},
+		{StudentID: 543, Status: scheduleModel.AttendanceStatusExpected},
+	}
+	careDay := map[int64]careschedule.CareDayStatus{
+		540: careschedule.CareDayNotScheduled,
+		541: careschedule.CareDayNotScheduled,
+		542: careschedule.CareDayNotScheduled,
+		543: careschedule.CareDayScheduled,
+	}
+
+	result := mapPlannedInstance(inst, []*scheduleModel.InstanceStaff{{StaffID: 249}}, rows, now, 249, nil, careDay)
+
+	assert.Equal(t, 1, result.ExpectedStudentsCount)
+	assert.Equal(t, 0, result.PresentStudentsCount)
+	assert.Equal(t, 2, result.NotScheduledCount, "the status-day non-booking and the unbooked expected row")
+}
+
+func TestTimetableOperationsRosterFlagsArrivalAndClassMismatch(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(361)
+	activeGroupID := int64(261)
+	activityGroupID := int64(271)
+	expectedGroupID := int64(281)
+	actualGroupID := int64(282)
+	studentID := int64(532)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 651, 451, 241, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+	deps.instanceRepo.byID[instanceID].ActivityGroupID = &activityGroupID
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		{StudentID: studentID, Status: scheduleModel.AttendanceStatusExpected},
+	}
+	deps.activityGroups.byID[activityGroupID] = &activitiesModel.Group{EducationGroupID: &expectedGroupID}
+	deps.students.byID[studentID] = &usersModel.Student{PersonID: 462, SchoolClass: "3b", GroupID: &actualGroupID}
+	deps.personService.people[462] = &usersModel.Person{FirstName: "Nina", LastName: "Nachmittag"}
+	deps.groups.byID[expectedGroupID] = &educationModel.Group{Name: "Klasse 2a"}
+	deps.groups.byID[actualGroupID] = &educationModel.Group{Name: "Klasse 3b"}
+	lateArrival := time.Date(2000, time.January, 1, 14, 30, 0, 0, time.UTC)
+	deps.arrivalService.byStudent[studentID] = &careschedule.EffectiveArrivalTime{ArrivalTime: &lateArrival}
+
+	roster, err := deps.service.Roster(context.Background(), 651, false, instanceID)
+
+	require.NoError(t, err)
+	require.Len(t, roster.Rows, 1)
+	require.Len(t, roster.Rows[0].Warnings, 2)
+	assert.Equal(t, "arrival_after_slot_start", roster.Rows[0].Warnings[0].Kind)
+	assert.Equal(t, "14:30", *roster.Rows[0].Warnings[0].ExpectedArrival)
+	assert.Equal(t, "14:00", *roster.Rows[0].Warnings[0].SlotStart)
+	assert.Equal(t, "template_class_mismatch", roster.Rows[0].Warnings[1].Kind)
+	assert.Equal(t, expectedGroupID, *roster.Rows[0].Warnings[1].ExpectedGroupID)
+	assert.Equal(t, "Klasse 2a", *roster.Rows[0].Warnings[1].ExpectedGroupName)
+	assert.Equal(t, actualGroupID, *roster.Rows[0].Warnings[1].CurrentEducationGroup)
+}
+
+func TestTimetableOperationsRosterChecksAllGroupTargets(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(363)
+	activeGroupID := int64(263)
+	activityGroupID := int64(273)
+	firstGroupID := int64(283)
+	secondGroupID := int64(284)
+	studentID := int64(534)
+	outsideStudentID := int64(535)
+	outsideGroupID := int64(285)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 653, 453, 243, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+	deps.instanceRepo.byID[instanceID].ActivityGroupID = &activityGroupID
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		{StudentID: studentID, Status: scheduleModel.AttendanceStatusExpected},
+		{StudentID: outsideStudentID, Status: scheduleModel.AttendanceStatusExpected},
+	}
+	deps.activityGroups.byID[activityGroupID] = &activitiesModel.Group{EducationGroupID: &firstGroupID}
+	deps.activityGroups.targetsByGroup[activityGroupID] = []*activitiesModel.GroupTarget{
+		{TargetGroupType: activitiesModel.TargetGroupTypeGruppe, EducationGroupID: &firstGroupID},
+		{TargetGroupType: activitiesModel.TargetGroupTypeGruppe, EducationGroupID: &secondGroupID},
+	}
+	deps.students.byID[studentID] = &usersModel.Student{PersonID: 464, GroupID: &secondGroupID}
+	deps.students.byID[outsideStudentID] = &usersModel.Student{PersonID: 465, GroupID: &outsideGroupID}
+	deps.personService.people[464] = &usersModel.Person{FirstName: "Mia", LastName: "Mehrfach"}
+	deps.personService.people[465] = &usersModel.Person{FirstName: "Noah", LastName: "Außerhalb"}
+
+	roster, err := deps.service.Roster(context.Background(), 653, false, instanceID)
+
+	require.NoError(t, err)
+	require.Len(t, roster.Rows, 2)
+	rowsByStudent := make(map[int64]OperationRosterRow, len(roster.Rows))
+	for _, row := range roster.Rows {
+		rowsByStudent[row.StudentID] = row
+	}
+	for _, warning := range rowsByStudent[studentID].Warnings {
+		assert.NotEqual(t, "template_class_mismatch", warning.Kind)
+	}
+	var mismatch *OperationRosterWarning
+	outsideWarnings := rowsByStudent[outsideStudentID].Warnings
+	for i := range outsideWarnings {
+		if outsideWarnings[i].Kind == "template_class_mismatch" {
+			mismatch = &outsideWarnings[i]
+			break
+		}
+	}
+	require.NotNil(t, mismatch)
+	assert.Nil(t, mismatch.ExpectedGroupID)
+	assert.Nil(t, mismatch.ExpectedGroupName)
+	assert.Equal(t, outsideGroupID, *mismatch.CurrentEducationGroup)
+}
+
+func TestTimetableOperationsRosterWarningsBranches(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(362)
+	activeGroupID := int64(262)
+	studentID := int64(533)
+
+	t.Run("missing arrival schedule warning is skipped for exceptions", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		wireAssignedStaff(deps, 652, 452, 242, instanceID)
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+		deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+			{StudentID: studentID, Status: scheduleModel.AttendanceStatusExpected},
+		}
+		deps.students.byID[studentID] = &usersModel.Student{PersonID: 463, SchoolClass: "3c"}
+		deps.personService.people[463] = &usersModel.Person{FirstName: "Kai", LastName: "Kurz"}
+		deps.arrivalService.byStudent[studentID] = &careschedule.EffectiveArrivalTime{IsException: true}
+
+		roster, err := deps.service.Roster(context.Background(), 652, false, instanceID)
+
+		require.NoError(t, err)
+		require.Len(t, roster.Rows, 1)
+		assert.Empty(t, roster.Rows[0].Warnings)
+	})
+
+	t.Run("arrival lookup errors do not break roster building", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		wireAssignedStaff(deps, 653, 453, 243, instanceID)
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+		deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+			{StudentID: studentID, Status: scheduleModel.AttendanceStatusExpected},
+		}
+		deps.students.byID[studentID] = &usersModel.Student{PersonID: 464, SchoolClass: "3c"}
+		deps.personService.people[464] = &usersModel.Person{FirstName: "Eli", LastName: "Error"}
+		deps.arrivalService.err = errors.New("arrival failed")
+
+		roster, err := deps.service.Roster(context.Background(), 653, false, instanceID)
+
+		require.NoError(t, err)
+		require.Len(t, roster.Rows, 1)
+		assert.Empty(t, roster.Rows[0].Warnings)
+	})
+}
+
+func TestTimetableOperationsCheckInCreatesVisitAndMarksPlannedPresent(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(380)
+	activeGroupID := int64(280)
+	studentID := int64(540)
+	rowID := int64(390)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 660, 470, 250, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		{StudentID: studentID, Status: scheduleModel.AttendanceStatusExpected},
+	}
+	deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}] = &scheduleModel.InstanceStudent{
+		InstanceID: instanceID,
+		StudentID:  studentID,
+		Status:     scheduleModel.AttendanceStatusExpected,
+	}
+	deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}].ID = rowID
+	deps.students.byID[studentID] = &usersModel.Student{PersonID: 480, SchoolClass: "2c"}
+	deps.personService.people[480] = &usersModel.Person{FirstName: "Mila", LastName: "Muster"}
+
+	roster, err := deps.service.CheckInStudent(tenant.WithTenantID(context.Background(), 720), 660, false, instanceID, studentID)
+
+	require.NoError(t, err)
+	require.Len(t, deps.activeService.created, 1)
+	assert.Equal(t, int64(720), deps.activeService.created[0].TenantID)
+	assert.Equal(t, activeGroupID, deps.activeService.created[0].ActiveGroupID)
+	require.Len(t, deps.studentRepo.updates, 1)
+	assert.Equal(t, rowID, deps.studentRepo.updates[0].rowID)
+	assert.Equal(t, scheduleModel.AttendanceStatusPresent, *deps.studentRepo.updates[0].patch.Status)
+	assert.True(t, deps.studentRepo.updates[0].patch.SubstatusClear)
+	assert.True(t, deps.activeGroups.lastActivity[activeGroupID].After(time.Time{}))
+	assert.Equal(t, studentID, roster.Rows[0].StudentID)
+}
+
+func TestTimetableOperationsCheckInStopsWhenPresenceReadFails(t *testing.T) {
+	t.Parallel()
+
+	const instanceID, studentID = int64(381), int64(541)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 661, 471, 251, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, 281)
+	readErr := errors.New("presence unavailable")
+	deps.visitRepo.err = readErr
+
+	roster, err := deps.service.CheckInStudent(context.Background(), 661, false, instanceID, studentID)
+
+	require.ErrorIs(t, err, readErr)
+	assert.Nil(t, roster)
+	assert.Empty(t, deps.activeService.created)
+	assert.Empty(t, deps.activeService.moveCalls)
+	assert.Empty(t, deps.studentRepo.updates)
+	assert.Empty(t, deps.activeGroups.lastActivity)
+}
+
+func TestTimetableOperationsCheckInMovesVisitCreatedDuringCheckIn(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(381)
+	targetActiveGroupID := int64(281)
+	originActiveGroupID := int64(282)
+	studentID := int64(541)
+	rowID := int64(391)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 661, 471, 251, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, targetActiveGroupID)
+	row := &scheduleModel.InstanceStudent{InstanceID: instanceID, StudentID: studentID, Status: scheduleModel.AttendanceStatusExpected}
+	row.ID = rowID
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{row}
+	deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}] = row
+	deps.students.byID[studentID] = &usersModel.Student{PersonID: 481, SchoolClass: "2c"}
+	deps.personService.people[481] = &usersModel.Person{FirstName: "Mila", LastName: "Muster"}
+	deps.visitRepo.currentByStudentSequence[studentID] = []*studentpresence.Visit{
+		nil,
+		{StudentID: studentID, ActiveGroupID: originActiveGroupID, EntryTime: time.Now()},
+	}
+	deps.activeService.createErr = activeSvc.ErrStudentAlreadyActive
+
+	roster, err := deps.service.CheckInStudent(context.Background(), 661, false, instanceID, studentID)
+
+	require.NoError(t, err)
+	require.NotNil(t, roster)
+	require.Len(t, deps.activeService.moveCalls, 1)
+	assert.Equal(t, []int64{studentID}, deps.activeService.moveCalls[0].studentIDs)
+	assert.Equal(t, targetActiveGroupID, deps.activeService.moveCalls[0].activeGroupID)
+	require.Len(t, deps.studentRepo.updates, 1)
+	assert.Equal(t, rowID, deps.studentRepo.updates[0].rowID)
+	assert.Equal(t, scheduleModel.AttendanceStatusPresent, *deps.studentRepo.updates[0].patch.Status)
+}
+
+// The cross-group 409 was retired with #2386: a child still recorded present
+// in another running block now moves automatically instead of being rejected.
+func TestTimetableOperationsCheckInMovesStudentActiveElsewhere(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(400)
+	activeGroupID := int64(290)
+	originInstanceID := int64(405)
+	originActiveGroupID := int64(291)
+	studentID := int64(550)
+	rowID := int64(395)
+
+	newDeps := func() *timetableOpsTestDeps {
+		deps := newTimetableOpsDeps()
+		wireAssignedStaff(deps, 670, 490, 251, instanceID)
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+		deps.visitRepo.currentByStudent[studentID] = &studentpresence.Visit{StudentID: studentID, ActiveGroupID: originActiveGroupID, EntryTime: time.Now()}
+		deps.activeService.moveResult = &activeSvc.StudentMoveResult{
+			Moved:                  []int64{studentID},
+			PreviousActiveGroupIDs: map[int64]int64{studentID: originActiveGroupID},
+			ActiveGroupID:          &activeGroupID,
+		}
+		return deps
+	}
+
+	t.Run("moves via active service and names the origin instance", func(t *testing.T) {
+		deps := newDeps()
+		origin := activeInstance(originInstanceID, originActiveGroupID)
+		origin.Title = "GT 1"
+		deps.instanceRepo.byID[originInstanceID] = origin
+		row := &scheduleModel.InstanceStudent{InstanceID: instanceID, StudentID: studentID, Status: scheduleModel.AttendanceStatusExpected}
+		row.ID = rowID
+		deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}] = row
+		deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{row}
+		deps.students.byID[studentID] = &usersModel.Student{PersonID: 491, SchoolClass: "2b"}
+		deps.personService.people[491] = &usersModel.Person{FirstName: "Marie", LastName: "Muster"}
+
+		roster, err := deps.service.CheckInStudent(context.Background(), 670, false, instanceID, studentID)
+
+		require.NoError(t, err)
+		assert.Empty(t, deps.activeService.created)
+		require.Len(t, deps.activeService.moveCalls, 1)
+		assert.Equal(t, []int64{studentID}, deps.activeService.moveCalls[0].studentIDs)
+		assert.Equal(t, activeGroupID, deps.activeService.moveCalls[0].activeGroupID)
+		assert.Equal(t, int64(251), deps.activeService.moveCalls[0].auth.StaffID)
+		assert.True(t, deps.activeService.moveCalls[0].auth.BypassResourceChecks)
+		require.NotNil(t, roster.MovedFrom)
+		assert.Equal(t, "GT 1", *roster.MovedFrom)
+		require.Len(t, deps.studentRepo.updates, 1)
+		assert.Equal(t, rowID, deps.studentRepo.updates[0].rowID)
+		assert.Equal(t, scheduleModel.AttendanceStatusPresent, *deps.studentRepo.updates[0].patch.Status)
+	})
+
+	t.Run("names the origin observed by the serialized move", func(t *testing.T) {
+		deps := newDeps()
+		const concurrentOriginActiveGroupID int64 = 292
+		origin := activeInstance(originInstanceID, concurrentOriginActiveGroupID)
+		origin.Title = "GT 2"
+		deps.instanceRepo.byID[originInstanceID] = origin
+		deps.activeService.moveResult.PreviousActiveGroupIDs[studentID] = concurrentOriginActiveGroupID
+
+		roster, err := deps.service.CheckInStudent(context.Background(), 670, false, instanceID, studentID)
+
+		require.NoError(t, err)
+		require.NotNil(t, roster.MovedFrom)
+		assert.Equal(t, "GT 2", *roster.MovedFrom)
+	})
+
+	t.Run("falls back to the activity group name when no instance owns the origin session", func(t *testing.T) {
+		deps := newDeps()
+		originGroup := &activeModel.Group{GroupID: testpkg.Int64Ptr(640), RoomID: 810}
+		originGroup.ID = originActiveGroupID
+		deps.activeGroups.byID = map[int64]*activeModel.Group{originActiveGroupID: originGroup}
+		activityGroup := &activitiesModel.Group{Name: "Fußball AG"}
+		activityGroup.ID = 640
+		deps.activityGroups.byID[640] = activityGroup
+
+		roster, err := deps.service.CheckInStudent(context.Background(), 670, false, instanceID, studentID)
+
+		require.NoError(t, err)
+		require.NotNil(t, roster.MovedFrom)
+		assert.Equal(t, "Fußball AG", *roster.MovedFrom)
+	})
+
+	t.Run("still reports a move when no origin name is resolvable", func(t *testing.T) {
+		deps := newDeps()
+
+		roster, err := deps.service.CheckInStudent(context.Background(), 670, false, instanceID, studentID)
+
+		require.NoError(t, err)
+		require.NotNil(t, roster.MovedFrom)
+		assert.Equal(t, "", *roster.MovedFrom)
+	})
+
+	t.Run("propagates move errors", func(t *testing.T) {
+		deps := newDeps()
+		deps.activeService.moveErr = errors.New("move failed")
+
+		_, err := deps.service.CheckInStudent(context.Background(), 670, false, instanceID, studentID)
+
+		require.EqualError(t, err, "move failed")
+	})
+
+	t.Run("maps a skipped move to a conflict", func(t *testing.T) {
+		deps := newDeps()
+		deps.activeService.moveResult = &activeSvc.StudentMoveResult{
+			Skipped: []activeSvc.StudentMoveSkipped{{StudentID: studentID, Reason: activeSvc.StudentMoveSkipConflict}},
+		}
+		ctx := tenant.WithRollbackMarker(context.Background())
+
+		_, err := deps.service.CheckInStudent(ctx, 670, false, instanceID, studentID)
+
+		require.ErrorIs(t, err, ErrTimetableOperationConflict)
+		assert.True(t, tenant.RollbackRequested(ctx))
+		assert.Empty(t, deps.studentRepo.updates)
+	})
+
+	t.Run("treats an unchanged result as same-group success without move notice", func(t *testing.T) {
+		deps := newDeps()
+		deps.activeService.moveResult = &activeSvc.StudentMoveResult{Unchanged: []int64{studentID}}
+
+		roster, err := deps.service.CheckInStudent(context.Background(), 670, false, instanceID, studentID)
+
+		require.NoError(t, err)
+		assert.Nil(t, roster.MovedFrom)
+	})
+}
+
+func TestTimetableOperationsCheckOutEndsMatchingVisit(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(401)
+	activeGroupID := int64(292)
+	studentID := int64(551)
+	visitID := int64(402)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 671, 491, 252, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+	deps.visitRepo.byActiveGroup[activeGroupID] = []*studentpresence.Visit{{StudentID: studentID, ActiveGroupID: activeGroupID, EntryTime: time.Now()}}
+	deps.visitRepo.byActiveGroup[activeGroupID][0].ID = visitID
+	deps.students.byID[studentID] = &usersModel.Student{PersonID: 492, SchoolClass: "1a"}
+	deps.personService.people[492] = &usersModel.Person{FirstName: "Ben", LastName: "Beispiel"}
+
+	_, err := deps.service.CheckOutStudent(context.Background(), 671, false, instanceID, studentID)
+
+	require.NoError(t, err)
+	assert.Equal(t, []int64{visitID}, deps.activeService.ended)
+}
+
+func TestTimetableOperationsCheckOutAlreadyEndedReturnsRoster(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(413)
+	activeGroupID := int64(299)
+	studentID := int64(559)
+	visitID := int64(414)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 682, 504, 263, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+	deps.visitRepo.byActiveGroup[activeGroupID] = []*studentpresence.Visit{{StudentID: studentID, ActiveGroupID: activeGroupID, EntryTime: time.Now()}}
+	deps.visitRepo.byActiveGroup[activeGroupID][0].ID = visitID
+	deps.activeService.endErr = activeSvc.ErrVisitAlreadyEnded
+
+	roster, err := deps.service.CheckOutStudent(context.Background(), 682, false, instanceID, studentID)
+
+	require.NoError(t, err)
+	require.NotNil(t, roster)
+	assert.Equal(t, int64(413), roster.Instance.ID)
+}
+
+func TestTimetableOperationsPatchAttendanceUpdatesRowAndBroadcasts(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(403)
+	activeGroupID := int64(293)
+	studentID := int64(552)
+	rowID := int64(404)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 672, 493, 253, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+	deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}] = &scheduleModel.InstanceStudent{
+		InstanceID: instanceID,
+		StudentID:  studentID,
+		Status:     scheduleModel.AttendanceStatusExpected,
+	}
+	deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}].ID = rowID
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}],
+	}
+	deps.students.byID[studentID] = &usersModel.Student{PersonID: 494, SchoolClass: "1b"}
+	deps.personService.people[494] = &usersModel.Person{FirstName: "Lea", LastName: "Lern"}
+	status := scheduleModel.AttendanceStatusAbsent
+	note := "krank gemeldet"
+
+	row, err := deps.service.PatchAttendance(tenant.WithTenantID(context.Background(), 721), 672, false, instanceID, studentID, scheduleModel.AttendanceFieldPatch{
+		Status: &status,
+		Note:   &note,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, row)
+	assert.Equal(t, studentID, row.StudentID)
+	require.Len(t, deps.studentRepo.updates, 1)
+	assert.Equal(t, rowID, deps.studentRepo.updates[0].rowID)
+	assert.Equal(t, &note, deps.studentRepo.updates[0].patch.Note)
+	calls := deps.broadcaster.Calls()
+	require.Len(t, calls, 1)
+	assert.Equal(t, int64(721), calls[0].TenantID)
+	assert.Equal(t, realtime.EventActiveSupervisionChanged, calls[0].Event.Type)
+
+	// #2085: the refresh is tenant-wide, so it must not name the child whose
+	// attendance was patched — every staff client of the school receives it,
+	// including colleagues outside gdpr.student_data_scope. The instance id
+	// (block scope, not child identity) is what clients refetch on.
+	assert.Equal(t, "tenant", calls[0].Method)
+	testpkg.AssertNoTenantWideStudentIdentity(t, deps.broadcaster)
+	require.NotNil(t, calls[0].Event.Data.InstanceID)
+	assert.Equal(t, "403", *calls[0].Event.Data.InstanceID)
+}
+
+func TestTimetableOperationsPatchAttendanceRejectsCompletedInstance(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(427)
+	studentID := int64(567)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 693, 515, 274, instanceID)
+	completed := activeInstance(instanceID, 305)
+	completed.Status = scheduleModel.InstanceStatusCompleted
+	deps.instanceRepo.byID[instanceID] = completed
+	deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}] = &scheduleModel.InstanceStudent{
+		InstanceID: instanceID,
+		StudentID:  studentID,
+		Status:     scheduleModel.AttendanceStatusPresent,
+	}
+	status := scheduleModel.AttendanceStatusAbsent
+
+	row, err := deps.service.PatchAttendance(context.Background(), 693, false, instanceID, studentID, scheduleModel.AttendanceFieldPatch{Status: &status})
+
+	require.ErrorIs(t, err, ErrTimetableOperationConflict)
+	assert.Nil(t, row)
+	assert.Empty(t, deps.studentRepo.updates)
+}
+
+func TestTimetableOperationsReopenRequiresCompleterOrAdmin(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(428)
+	deps := newTimetableOpsDeps()
+	completed := activeInstance(instanceID, 306)
+	completed.Status = scheduleModel.InstanceStatusCompleted
+	deps.instanceRepo.byID[instanceID] = completed
+
+	result, err := deps.service.Reopen(context.Background(), 694, false, instanceID)
+	require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+	assert.Nil(t, result)
+
+	wireAssignedStaff(deps, 694, 516, 275, instanceID)
+	result, err = deps.service.Reopen(context.Background(), 694, false, instanceID)
+	require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+	assert.Nil(t, result)
+
+	completedBy := int64(694)
+	completed.CompletedBy = &completedBy
+	deps.staffRepo.byInstance[instanceID] = nil
+	result, err = deps.service.Reopen(context.Background(), 694, false, instanceID)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, instanceID, result.Instance.ID)
+
+	other := int64(701)
+	completed.CompletedBy = &other
+	result, err = deps.service.Reopen(context.Background(), 694, true, instanceID)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+}
+
+func TestTimetableOperationsCompleteDelegatesAfterPermissionCheck(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(405)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 673, 495, 254, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, 294)
+
+	result, err := deps.service.Complete(context.Background(), 673, false, instanceID)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, []int64{instanceID}, deps.instanceService.completed)
+}
+
+func TestTimetableOperationsRosterByActiveGroupReturnsNotFound(t *testing.T) {
+	t.Parallel()
+
+	deps := newTimetableOpsDeps()
+
+	result, err := deps.service.RosterByActiveGroup(context.Background(), 674, false, 295)
+
+	require.ErrorIs(t, err, ErrTimetableOperationNotFound)
+	assert.Nil(t, result)
+}
+
+func TestTimetableOperationsRosterByActiveGroupSuccess(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(416)
+	activeGroupID := int64(301)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 684, 506, 264, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+
+	roster, err := deps.service.RosterByActiveGroup(context.Background(), 684, false, activeGroupID)
+
+	require.NoError(t, err)
+	require.NotNil(t, roster)
+	assert.Equal(t, instanceID, roster.Instance.ID)
+}
+
+func TestTimetableOperationsPermissionBranches(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(409)
+	activeGroupID := int64(296)
+
+	t.Run("assigned active supervisor can operate without instance staff assignment", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		wireAssignedStaff(deps, 675, 496, 256, instanceID)
+		deps.staffRepo.byInstance[instanceID] = nil
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+		deps.supervisors.byActiveGroup[activeGroupID] = []*activeModel.GroupSupervisor{{StaffID: 256}}
+
+		_, err := deps.service.Complete(context.Background(), 675, false, instanceID)
+
+		require.NoError(t, err)
+		assert.Equal(t, []int64{instanceID}, deps.instanceService.completed)
+	})
+
+	t.Run("unassigned staff is forbidden", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.settings.mode = configModel.GroupModeFixedGroups
+		wireAssignedStaff(deps, 676, 497, 257, instanceID)
+		deps.staffRepo.byInstance[instanceID] = []*scheduleModel.InstanceStaff{{StaffID: 258}}
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+
+		_, err := deps.service.Roster(context.Background(), 676, false, instanceID)
+
+		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+	})
+
+	t.Run("all_staff scope grants visibility but no action rights", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.settings.scope = configModel.OverviewScopeAllStaff
+		wireAssignedStaff(deps, 693, 515, 274, instanceID)
+		deps.staffRepo.byInstance[instanceID] = nil
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+
+		_, err := deps.service.Roster(context.Background(), 693, false, instanceID)
+		require.NoError(t, err)
+
+		_, err = deps.service.Complete(context.Background(), 693, false, instanceID)
+		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+		assert.Empty(t, deps.instanceService.completed)
+	})
+
+	t.Run("all_staff scope rejects non-running rosters", func(t *testing.T) {
+		now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
+		for _, tc := range []struct {
+			name     string
+			instance *scheduleModel.ActivityInstance
+		}{
+			{
+				name:     "planned",
+				instance: instanceWithTimes(instanceID, scheduleModel.InstanceStatusPlanned, now, now.Add(time.Hour)),
+			},
+			{
+				name:     "completed",
+				instance: instanceWithTimes(instanceID, scheduleModel.InstanceStatusCompleted, now.Add(-time.Hour), now),
+			},
+			{
+				name:     "cancelled",
+				instance: instanceWithTimes(instanceID, scheduleModel.InstanceStatusCancelled, now, now.Add(time.Hour)),
+			},
+			{
+				name:     "active without active group",
+				instance: instanceWithTimes(instanceID, scheduleModel.InstanceStatusActive, now, now.Add(time.Hour)),
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				deps := newTimetableOpsDeps()
+				deps.settings.scope = configModel.OverviewScopeAllStaff
+				wireAssignedStaff(deps, 694, 516, 275, instanceID)
+				deps.staffRepo.byInstance[instanceID] = nil
+				deps.instanceRepo.byID[instanceID] = tc.instance
+
+				_, err := deps.service.Roster(context.Background(), 694, false, instanceID)
+
+				require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+			})
+		}
+	})
+
+	// The organisational group mode no longer opens running modules (#2380):
+	// on its own it leaves the school on the restrictive default.
+	t.Run("open care alone does not open foreign modules", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.settings.mode = configModel.GroupModeOpenCare
+		wireAssignedStaff(deps, 698, 518, 277, instanceID)
+		deps.staffRepo.byInstance[instanceID] = []*scheduleModel.InstanceStaff{{StaffID: 279}}
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+
+		_, err := deps.service.Roster(context.Background(), 698, false, instanceID)
+
+		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+	})
+
+	t.Run("overview scope resolution failure keeps fixed-group checks", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.settings.stringErr = errors.New("settings unavailable")
+		wireAssignedStaff(deps, 694, 516, 275, instanceID)
+		deps.staffRepo.byInstance[instanceID] = nil
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+
+		_, err := deps.service.Complete(context.Background(), 694, false, instanceID)
+
+		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+		assert.Empty(t, deps.instanceService.completed)
+	})
+
+	t.Run("missing settings keeps fixed-group checks", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		wireAssignedStaff(deps, 696, 517, 276, instanceID)
+		deps.staffRepo.byInstance[instanceID] = nil
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+		deps.service.(*timetableOperationsService).deps.Settings = nil
+
+		_, err := deps.service.Complete(context.Background(), 696, false, instanceID)
+
+		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+		assert.Empty(t, deps.instanceService.completed)
+	})
+
+	t.Run("all_staff scope still requires a staff identity", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.settings.scope = configModel.OverviewScopeAllStaff
+
+		_, err := deps.service.Roster(context.Background(), 695, false, instanceID)
+
+		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+	})
+
+	t.Run("admin can operate regardless of overview scope", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.settings.scope = configModel.OverviewScopeOwn
+
+		_, err := deps.service.Complete(context.Background(), 697, true, instanceID)
+
+		require.NoError(t, err)
+		assert.Equal(t, []int64{instanceID}, deps.instanceService.completed)
+	})
+
+	t.Run("missing account id is forbidden before repository lookup", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+
+		_, err := deps.service.Roster(context.Background(), 0, false, instanceID)
+
+		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+	})
+
+	t.Run("missing person cannot use staff-only operations", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+
+		_, err := deps.service.Start(context.Background(), 677, false, instanceID)
+
+		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+	})
+}
+
+func TestTimetableOperationsCheckInBranches(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(410)
+	activeGroupID := int64(297)
+	studentID := int64(557)
+
+	t.Run("rejects planned instance", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		wireAssignedStaff(deps, 678, 498, 259, instanceID)
+		deps.instanceRepo.byID[instanceID] = instanceWithTimes(instanceID, scheduleModel.InstanceStatusPlanned, time.Now(), time.Now().Add(time.Hour))
+
+		_, err := deps.service.CheckInStudent(context.Background(), 678, false, instanceID, studentID)
+
+		require.ErrorIs(t, err, ErrTimetableOperationConflict)
+	})
+
+	t.Run("marks planned present when active visit already belongs to same group", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		wireAssignedStaff(deps, 679, 499, 260, instanceID)
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+		row := &scheduleModel.InstanceStudent{InstanceID: instanceID, StudentID: studentID, Status: scheduleModel.AttendanceStatusExpected}
+		row.ID = 411
+		deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}] = row
+		deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{row}
+		deps.visitRepo.currentByStudent[studentID] = &studentpresence.Visit{StudentID: studentID, ActiveGroupID: activeGroupID, EntryTime: time.Now()}
+		deps.visitRepo.byActiveGroup[activeGroupID] = []*studentpresence.Visit{deps.visitRepo.currentByStudent[studentID]}
+		deps.students.byID[studentID] = &usersModel.Student{PersonID: 500, SchoolClass: "4a"}
+		deps.personService.people[500] = &usersModel.Person{FirstName: "Tom", LastName: "Test"}
+
+		_, err := deps.service.CheckInStudent(context.Background(), 679, false, instanceID, studentID)
+
+		require.NoError(t, err)
+		assert.Empty(t, deps.activeService.created)
+		require.Len(t, deps.studentRepo.updates, 1)
+		assert.Equal(t, int64(411), deps.studentRepo.updates[0].rowID)
+	})
+
+	t.Run("does not fail when active group last-activity update fails", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		wireAssignedStaff(deps, 680, 501, 261, instanceID)
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+		deps.activeGroups.updateErr = errors.New("update failed")
+		deps.students.byID[studentID] = &usersModel.Student{PersonID: 502, SchoolClass: "4a"}
+		deps.personService.people[502] = &usersModel.Person{FirstName: "Noa", LastName: "Neben"}
+
+		_, err := deps.service.CheckInStudent(context.Background(), 680, false, instanceID, studentID)
+
+		require.NoError(t, err)
+		require.Len(t, deps.activeService.created, 1)
+	})
+
+	t.Run("propagates visit creation errors", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		wireAssignedStaff(deps, 687, 509, 267, instanceID)
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+		deps.activeService.createErr = errors.New("create visit failed")
+
+		result, err := deps.service.CheckInStudent(context.Background(), 687, false, instanceID, studentID)
+
+		require.EqualError(t, err, "create visit failed")
+		assert.Nil(t, result)
+	})
+
+	t.Run("propagates attendance update errors after visit creation", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		wireAssignedStaff(deps, 688, 510, 268, instanceID)
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+		row := &scheduleModel.InstanceStudent{InstanceID: instanceID, StudentID: studentID, Status: scheduleModel.AttendanceStatusExpected}
+		row.ID = 420
+		deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}] = row
+		deps.studentRepo.updateErr = errors.New("attendance update failed")
+
+		result, err := deps.service.CheckInStudent(context.Background(), 688, false, instanceID, studentID)
+
+		require.EqualError(t, err, "attendance update failed")
+		assert.Nil(t, result)
+		require.Len(t, deps.activeService.created, 1)
+	})
+}
+
+func TestTimetableOperationsCheckOutBranches(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(412)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 681, 503, 262, instanceID)
+	deps.instanceRepo.byID[instanceID] = instanceWithTimes(instanceID, scheduleModel.InstanceStatusActive, time.Now(), time.Now().Add(time.Hour))
+
+	_, err := deps.service.CheckOutStudent(context.Background(), 681, false, instanceID, 558)
+
+	require.ErrorIs(t, err, ErrTimetableOperationConflict)
+
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, 298)
+	_, err = deps.service.CheckOutStudent(context.Background(), 681, false, instanceID, 558)
+	require.ErrorIs(t, err, ErrTimetableOperationNotFound)
+}
+
+func TestTimetableOperationsActiveVisitLookupPropagatesErrors(t *testing.T) {
+	t.Parallel()
+
+	deps := newTimetableOpsDeps()
+	deps.visitRepo.err = errors.New("visit query failed")
+
+	visit, err := deps.service.(*timetableOperationsService).findActiveVisitForInstanceStudent(context.Background(), 305, 567)
+
+	require.EqualError(t, err, "visit query failed")
+	assert.Nil(t, visit)
+}
+
+func TestTimetableOperationsPatchAttendanceBranches(t *testing.T) {
+	t.Parallel()
+
+	deps := newTimetableOpsDeps()
+	instanceID := int64(413)
+	wireAssignedStaff(deps, 682, 504, 263, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, 299)
+
+	row, err := deps.service.PatchAttendance(context.Background(), 682, false, instanceID, 559, scheduleModel.AttendanceFieldPatch{})
+
+	require.ErrorIs(t, err, ErrTimetableOperationNotFound)
+	assert.Nil(t, row)
+
+	t.Run("forbidden before attendance row validation", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		instanceID := int64(423)
+		studentID := int64(565)
+		wireAssignedStaff(deps, 691, 513, 271, instanceID)
+		deps.staffRepo.byInstance[instanceID] = []*scheduleModel.InstanceStaff{{StaffID: 272}}
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, 303)
+		excused := scheduleModel.AttendanceSubstatusExcused
+		row := &scheduleModel.InstanceStudent{InstanceID: instanceID, StudentID: studentID, Status: scheduleModel.AttendanceStatusPresent, Substatus: &excused}
+		row.ID = 424
+		deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}] = row
+		expected := scheduleModel.AttendanceStatusExpected
+
+		result, err := deps.service.PatchAttendance(context.Background(), 691, false, instanceID, studentID, scheduleModel.AttendanceFieldPatch{Status: &expected})
+
+		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+		assert.Nil(t, result)
+		assert.Empty(t, deps.studentRepo.updates)
+	})
+
+	t.Run("authorized invalid patch returns field validation error", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		instanceID := int64(425)
+		studentID := int64(566)
+		wireAssignedStaff(deps, 692, 514, 273, instanceID)
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, 304)
+		row := &scheduleModel.InstanceStudent{InstanceID: instanceID, StudentID: studentID, Status: scheduleModel.AttendanceStatusExpected}
+		row.ID = 426
+		deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}] = row
+		late := scheduleModel.AttendanceSubstatusLate
+
+		result, err := deps.service.PatchAttendance(context.Background(), 692, false, instanceID, studentID, scheduleModel.AttendanceFieldPatch{Substatus: &late})
+
+		var validationErr *TimetableAttendanceValidationError
+		require.ErrorAs(t, err, &validationErr)
+		require.Len(t, validationErr.Fields, 1)
+		assert.Equal(t, "substatus", validationErr.Fields[0].Field)
+		assert.Nil(t, result)
+		assert.Empty(t, deps.studentRepo.updates)
+	})
+}
+
+func TestTimetableOperationsDependencyErrorsPropagate(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(417)
+	activeGroupID := int64(302)
+
+	t.Run("check-out propagates end visit errors", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		wireAssignedStaff(deps, 685, 507, 265, instanceID)
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+		visit := &studentpresence.Visit{StudentID: 561, ActiveGroupID: activeGroupID, EntryTime: time.Now()}
+		visit.ID = 418
+		deps.visitRepo.byActiveGroup[activeGroupID] = []*studentpresence.Visit{visit}
+		deps.activeService.endErr = errors.New("end failed")
+
+		result, err := deps.service.CheckOutStudent(context.Background(), 685, false, instanceID, 561)
+
+		require.EqualError(t, err, "end failed")
+		assert.Nil(t, result)
+	})
+
+	t.Run("patch propagates update errors", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		wireAssignedStaff(deps, 686, 508, 266, instanceID)
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+		row := &scheduleModel.InstanceStudent{InstanceID: instanceID, StudentID: 562, Status: scheduleModel.AttendanceStatusExpected}
+		row.ID = 419
+		deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, 562}] = row
+		deps.studentRepo.updateErr = errors.New("update failed")
+
+		result, err := deps.service.PatchAttendance(context.Background(), 686, false, instanceID, 562, scheduleModel.AttendanceFieldPatch{})
+
+		require.EqualError(t, err, "update failed")
+		assert.Nil(t, result)
+	})
+
+	t.Run("patch propagates roster rebuild errors", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		wireAssignedStaff(deps, 689, 511, 269, instanceID)
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+		row := &scheduleModel.InstanceStudent{InstanceID: instanceID, StudentID: 563, Status: scheduleModel.AttendanceStatusExpected}
+		row.ID = 421
+		deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, 563}] = row
+		deps.studentRepo.err = errors.New("roster failed")
+
+		result, err := deps.service.PatchAttendance(context.Background(), 689, false, instanceID, 563, scheduleModel.AttendanceFieldPatch{})
+
+		require.EqualError(t, err, "roster failed")
+		assert.Nil(t, result)
+	})
+
+	t.Run("patch returns not found when rebuilt roster omits student", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		wireAssignedStaff(deps, 690, 512, 270, instanceID)
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+		row := &scheduleModel.InstanceStudent{InstanceID: instanceID, StudentID: 564, Status: scheduleModel.AttendanceStatusExpected}
+		row.ID = 422
+		deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, 564}] = row
+
+		result, err := deps.service.PatchAttendance(context.Background(), 690, false, instanceID, 564, scheduleModel.AttendanceFieldPatch{})
+
+		require.ErrorIs(t, err, ErrTimetableOperationNotFound)
+		assert.Nil(t, result)
+	})
+
+	t.Run("load instance propagates ordinary repository errors", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.instanceRepo.err = errors.New("db down")
+
+		inst, err := deps.service.(*timetableOperationsService).loadInstance(context.Background(), instanceID)
+
+		require.EqualError(t, err, "db down")
+		assert.Nil(t, inst)
+	})
+
+	t.Run("complete returns permission errors before delegation", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+
+		result, err := deps.service.Complete(context.Background(), 0, false, instanceID)
+
+		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+		assert.Nil(t, result)
+		assert.Empty(t, deps.instanceService.completed)
+	})
+}
+
+func TestTimetableOperationsBroadcastBranches(t *testing.T) {
+	t.Parallel()
+
+	ctx := tenant.WithTenantID(context.Background(), 722)
+
+	t.Run("skips when broadcaster is nil", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.service.(*timetableOperationsService).deps.Broadcaster = nil
+
+		deps.service.(*timetableOperationsService).broadcastAttendanceChanged(ctx, 414)
+	})
+
+	t.Run("skips inactive instance without active group", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.instanceRepo.byID[414] = instanceWithTimes(414, scheduleModel.InstanceStatusPlanned, time.Now(), time.Now().Add(time.Hour))
+
+		deps.service.(*timetableOperationsService).broadcastAttendanceChanged(ctx, 414)
+
+		assert.Empty(t, deps.broadcaster.Calls())
+	})
+
+	t.Run("logs and continues when broadcast fails", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.broadcaster.Err = errors.New("send failed")
+		deps.instanceRepo.byID[414] = activeInstance(414, 300)
+
+		deps.service.(*timetableOperationsService).broadcastAttendanceChanged(ctx, 414)
+
+		require.Len(t, deps.broadcaster.Calls(), 1)
+	})
+
+	t.Run("logs and skips when instance lookup fails", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.instanceRepo.err = errors.New("instance failed")
+
+		deps.service.(*timetableOperationsService).broadcastAttendanceChanged(ctx, 414)
+
+		assert.Empty(t, deps.broadcaster.Calls())
+	})
+}
+
+func TestTimetableOperationsDependencyAndErrorBranches(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "timetable attendance validation failed", (&TimetableAttendanceValidationError{}).Error())
+
+	assert.Panics(t, func() {
+		NewTimetableOperationsService(TimetableOperationsDependencies{})
+	})
+
+	deps := newTimetableOpsDeps()
+	// A settings fault must fail closed for every caller shape (#2380).
+	deps.settings.stringErr = errors.New("settings down")
+	assert.False(t, deps.service.(*timetableOperationsService).operationalOverview(context.Background(), true, true))
+	assert.False(t, deps.service.(*timetableOperationsService).operationalOverview(context.Background(), false, true))
+	assert.False(t, deps.service.(*timetableOperationsService).operationalOverview(context.Background(), false, false))
+
+	deps.personService.accountPerson = &usersModel.Person{}
+	deps.personService.accountPerson.ID = 505
+	deps.personService.staffErr = modelBase.ErrNotFound
+	staffID, hasStaff, err := deps.service.(*timetableOperationsService).resolveStaffID(context.Background(), 683)
+	require.NoError(t, err)
+	assert.Zero(t, staffID)
+	assert.False(t, hasStaff)
+
+	deps.instanceRepo.err = modelBase.ErrNotFound
+	inst, err := deps.service.(*timetableOperationsService).loadInstance(context.Background(), 415)
+	require.ErrorIs(t, err, ErrTimetableOperationNotFound)
+	assert.Nil(t, inst)
+
+	deps.instanceRepo.err = nil
+	deps.instanceRepo.byID[416] = nil
+	inst, err = deps.service.(*timetableOperationsService).loadInstance(context.Background(), 416)
+	require.ErrorIs(t, err, ErrTimetableOperationNotFound)
+	assert.Nil(t, inst)
+}
+
+func TestTimetableOperationHelpers(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
+	assert.True(t, plannedNowWindow(instanceWithTimes(406, scheduleModel.InstanceStatusPlanned, now.Add(-16*time.Minute), now.Add(time.Hour)), now, 0))
+	assert.True(t, plannedNowWindow(instanceWithTimes(407, scheduleModel.InstanceStatusPlanned, now.Add(14*time.Minute), now.Add(2*time.Hour)), now, 0))
+	assert.False(t, plannedNowWindow(instanceWithTimes(408, scheduleModel.InstanceStatusPlanned, now.Add(16*time.Minute), now.Add(2*time.Hour)), now, 0))
+	assert.True(t, plannedNowWindow(instanceWithTimes(409, scheduleModel.InstanceStatusPlanned, now.Add(90*time.Minute), now.Add(3*time.Hour)), now, 120))
+	assert.False(t, plannedNowWindow(instanceWithTimes(410, scheduleModel.InstanceStatusPlanned, now.Add(-time.Hour), now), now, 0))
+	spontaneous := instanceWithTimes(411, scheduleModel.InstanceStatusPlanned, now.Add(-time.Hour), now)
+	spontaneous.IsSpontaneous = true
+	assert.True(t, plannedNowWindow(spontaneous, now, 0))
+	assert.True(t, staffAssigned([]*scheduleModel.InstanceStaff{{StaffID: 255}}, 255))
+	assert.False(t, staffAssigned([]*scheduleModel.InstanceStaff{{StaffID: 255, IsAbsent: true}}, 255))
+	planned, ok := findPlanned([]*scheduleModel.InstanceStudent{{StudentID: 556}}, 556)
+	require.True(t, ok)
+	assert.Equal(t, int64(556), planned.StudentID)
+	assert.False(t, modelBase.IsNoRows(errors.New("ordinary error")))
+}
+
+func TestTimetableOperationDirectHelperBranches(t *testing.T) {
+	t.Parallel()
+
+	t.Run("load roster template group ignores missing and unbound groups", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		svc := deps.service.(*timetableOperationsService)
+
+		group, err := svc.loadRosterTemplateGroup(context.Background(), nil)
+		require.NoError(t, err)
+		assert.Nil(t, group)
+
+		zero := int64(0)
+		group, err = svc.loadRosterTemplateGroup(context.Background(), &zero)
+		require.NoError(t, err)
+		assert.Nil(t, group)
+
+		missing := int64(599)
+		group, err = svc.loadRosterTemplateGroup(context.Background(), &missing)
+		require.NoError(t, err)
+		assert.Nil(t, group)
+	})
+
+	t.Run("load roster template group propagates ordinary errors", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.activityGroups.err = errors.New("group failed")
+		groupID := int64(600)
+
+		group, err := deps.service.(*timetableOperationsService).loadRosterTemplateGroup(context.Background(), &groupID)
+
+		require.EqualError(t, err, "group failed")
+		assert.Nil(t, group)
+	})
+
+	t.Run("room name map skips nil rooms", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.rooms.rooms = append(deps.rooms.rooms, nil)
+
+		names, err := deps.service.(*timetableOperationsService).roomNameMap(context.Background())
+
+		require.NoError(t, err)
+		require.NotNil(t, names[810])
+		assert.Equal(t, "Lernraum", *names[810])
+	})
+
+	t.Run("logger falls back to default", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.service.(*timetableOperationsService).deps.Logger = nil
+
+		assert.NotNil(t, deps.service.(*timetableOperationsService).logger())
+	})
+}
+
+func wireAssignedStaff(deps *timetableOpsTestDeps, accountID, personID, staffID, instanceID int64) {
+	deps.personService.accountPerson = &usersModel.Person{}
+	deps.personService.accountPerson.ID = personID
+	deps.personService.staffByPersonID[personID] = &usersModel.Staff{}
+	deps.personService.staffByPersonID[personID].ID = staffID
+	deps.staffRepo.assign(instanceID, &scheduleModel.InstanceStaff{StaffID: staffID})
+}
+
+func instanceWithTimes(id int64, status string, start, end time.Time) *scheduleModel.ActivityInstance {
+	return instanceWithRoomAndTimes(id, 810, status, start, end)
+}
+
+func instanceWithRoomAndTimes(id, roomID int64, status string, start, end time.Time) *scheduleModel.ActivityInstance {
+	inst := &scheduleModel.ActivityInstance{
+		Date:      scheduleModel.NewDate(start.Year(), start.Month(), start.Day()),
+		Title:     "Lernzeit",
+		StartTime: start,
+		EndTime:   end,
+		RoomID:    roomID,
+		Status:    status,
+	}
+	inst.ID = id
+	return inst
+}
+
+func activeInstance(id, activeGroupID int64) *scheduleModel.ActivityInstance {
+	inst := instanceWithTimes(id, scheduleModel.InstanceStatusActive, time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC), time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC))
+	inst.ID = id
+	inst.ActiveGroupID = &activeGroupID
+	return inst
+}
+
+type timetableOpsTestDeps struct {
+	service         TimetableOperationsService
+	instanceRepo    *fakeOpsInstanceRepo
+	staffRepo       *fakeOpsStaffRepo
+	studentRepo     *fakeOpsInstanceStudentRepo
+	instanceService *fakeOpsInstanceService
+	activeGroups    *fakeOpsActiveGroupRepo
+	activityGroups  *fakeOpsActivityGroupRepo
+	activeService   *fakeOpsActiveService
+	arrivalService  *fakeOpsArrivalService
+	pickupService   *fakeOpsPickupService
+	supervisors     *fakeOpsSupervisorRepo
+	visitRepo       *fakeOpsVisitRepo
+	students        *fakeOpsStudentRepo
+	groups          *fakeOpsEducationGroupRepo
+	rooms           *fakeOpsRoomRepo
+	personService   *fakeOpsPersonService
+	tracks          *fakeOpsPlanningTrackRepo
+	settings        *fakeOpsSettings
+	broadcaster     *testpkg.RecordingBroadcaster
+	careDayService  *fakeOpsCareDayService
+}
+
+type fakeOpsPlanningTrackRepo struct {
+	scheduleModel.PlanningTrackRepository
+	byID map[int64]*scheduleModel.PlanningTrack
+}
+
+func (r *fakeOpsPlanningTrackRepo) FindByIDs(_ context.Context, ids []int64) ([]*scheduleModel.PlanningTrack, error) {
+	tracks := make([]*scheduleModel.PlanningTrack, 0, len(ids))
+	for _, id := range ids {
+		if track := r.byID[id]; track != nil {
+			tracks = append(tracks, track)
+		}
+	}
+	return tracks, nil
+}
+
+// fakeOpsCareDayService reports the care-plan verdict per student. Empty by
+// default, which reads as "unknown" everywhere — the pre-#1747 behaviour.
+type fakeOpsCareDayService struct {
+	byStudent map[int64]careschedule.CareDayStatus
+}
+
+func (f *fakeOpsCareDayService) ResolveForDate(_ context.Context, studentIDs []int64, _ timezone.Date) (map[int64]careschedule.CareDayStatus, error) {
+	out := make(map[int64]careschedule.CareDayStatus, len(studentIDs))
+	for _, id := range studentIDs {
+		if status, ok := f.byStudent[id]; ok {
+			out[id] = status
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeOpsCareDayService) ResolveForRange(ctx context.Context, studentIDs []int64, from, to timezone.Date) (map[int64]map[timezone.Date]careschedule.CareDayStatus, error) {
+	byDate, err := f.ResolveForDate(ctx, studentIDs, from)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[int64]map[timezone.Date]careschedule.CareDayStatus, len(byDate))
+	for studentID, status := range byDate {
+		out[studentID] = map[timezone.Date]careschedule.CareDayStatus{}
+		for date := from; !date.After(to); date = date.AddDays(1) {
+			out[studentID][date] = status
+		}
+	}
+	return out, nil
+}
+
+func newTimetableOpsDeps() *timetableOpsTestDeps {
+	deps := &timetableOpsTestDeps{
+		instanceRepo:    &fakeOpsInstanceRepo{byID: map[int64]*scheduleModel.ActivityInstance{}},
+		staffRepo:       &fakeOpsStaffRepo{byInstance: map[int64][]*scheduleModel.InstanceStaff{}},
+		studentRepo:     &fakeOpsInstanceStudentRepo{byInstance: map[int64][]*scheduleModel.InstanceStudent{}, byInstanceStudent: map[instanceStudentKey]*scheduleModel.InstanceStudent{}},
+		instanceService: &fakeOpsInstanceService{},
+		activeGroups:    &fakeOpsActiveGroupRepo{lastActivity: map[int64]time.Time{}},
+		activityGroups:  &fakeOpsActivityGroupRepo{byID: map[int64]*activitiesModel.Group{}, targetsByGroup: map[int64][]*activitiesModel.GroupTarget{}},
+		activeService:   &fakeOpsActiveService{},
+		arrivalService:  &fakeOpsArrivalService{byStudent: map[int64]*careschedule.EffectiveArrivalTime{}},
+		pickupService:   &fakeOpsPickupService{byStudent: map[int64]*careschedule.EffectivePickupTime{}},
+		careDayService:  &fakeOpsCareDayService{byStudent: map[int64]careschedule.CareDayStatus{}},
+		supervisors:     &fakeOpsSupervisorRepo{byActiveGroup: map[int64][]*activeModel.GroupSupervisor{}},
+		visitRepo: &fakeOpsVisitRepo{
+			byActiveGroup:            map[int64][]*studentpresence.Visit{},
+			currentByStudent:         map[int64]*studentpresence.Visit{},
+			currentByStudentSequence: map[int64][]*studentpresence.Visit{},
+		},
+		students:      &fakeOpsStudentRepo{byID: map[int64]*usersModel.Student{}},
+		groups:        &fakeOpsEducationGroupRepo{byID: map[int64]*educationModel.Group{}},
+		rooms:         &fakeOpsRoomRepo{rooms: []*facilitiesModel.Room{{ID: 810, Name: "Lernraum"}}},
+		personService: &fakeOpsPersonService{people: map[int64]*usersModel.Person{}, staffByPersonID: map[int64]*usersModel.Staff{}, staffWithPerson: map[int64]*usersModel.Staff{}},
+		tracks:        &fakeOpsPlanningTrackRepo{byID: map[int64]*scheduleModel.PlanningTrack{}},
+		settings:      &fakeOpsSettings{attendanceScope: configModel.AttendanceEditScopeOwn, absenceScope: configModel.StudentAbsenceEditScopeAllStaff},
+		broadcaster:   testpkg.NewRecordingBroadcaster(),
+	}
+	deps.service = NewTimetableOperationsService(TimetableOperationsDependencies{
+		InstanceRepo:       deps.instanceRepo,
+		InstanceStaffRepo:  deps.staffRepo,
+		InstanceStudents:   deps.studentRepo,
+		InstanceService:    deps.instanceService,
+		ActiveGroupRepo:    deps.activeGroups,
+		ActivityGroupRepo:  deps.activityGroups,
+		ActiveService:      deps.activeService,
+		CareDayService:     deps.careDayService,
+		ArrivalService:     deps.arrivalService,
+		PickupService:      deps.pickupService,
+		SupervisorRepo:     deps.supervisors,
+		Presence:           deps.visitRepo,
+		StudentRepo:        deps.students,
+		EducationGroupRepo: deps.groups,
+		RoomRepo:           deps.rooms,
+		PersonService:      deps.personService,
+		PlanningTrackRepo:  deps.tracks,
+		Settings:           deps.settings,
+		Broadcaster:        deps.broadcaster,
+		DB:                 &bun.DB{},
+	})
+	return deps
+}
+
+type fakeOpsInstanceRepo struct {
+	scheduleModel.ActivityInstanceRepository
+	byID          map[int64]*scheduleModel.ActivityInstance
+	byDate        []*scheduleModel.ActivityInstance
+	err           error
+	findByDateErr error
+}
+
+func (r *fakeOpsInstanceRepo) FindByID(_ context.Context, id interface{}) (*scheduleModel.ActivityInstance, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	return r.byID[id.(int64)], nil
+}
+
+func (r *fakeOpsInstanceRepo) FindByTenantAndDate(_ context.Context, _ scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
+	if r.findByDateErr != nil {
+		return nil, r.findByDateErr
+	}
+	return r.byDate, nil
+}
+
+func (r *fakeOpsInstanceRepo) FindByActiveGroupID(_ context.Context, activeGroupID int64) (*scheduleModel.ActivityInstance, error) {
+	for _, inst := range r.byID {
+		if inst.ActiveGroupID != nil && *inst.ActiveGroupID == activeGroupID {
+			return inst, nil
+		}
+	}
+	return nil, nil
+}
+
+type fakeOpsStaffRepo struct {
+	scheduleModel.InstanceStaffRepository
+	byInstance map[int64][]*scheduleModel.InstanceStaff
+	err        error
+}
+
+func (r *fakeOpsStaffRepo) FindByInstanceID(_ context.Context, instanceID int64) ([]*scheduleModel.InstanceStaff, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	return r.byInstance[instanceID], nil
+}
+
+// assign seeds the staff rows FindByInstanceID returns for one instance.
+func (r *fakeOpsStaffRepo) assign(instanceID int64, rows ...*scheduleModel.InstanceStaff) {
+	r.byInstance[instanceID] = rows
+}
+
+type instanceStudentKey struct {
+	instanceID int64
+	studentID  int64
+}
+
+type fakeOpsInstanceStudentRepo struct {
+	scheduleModel.InstanceStudentRepository
+	byInstance        map[int64][]*scheduleModel.InstanceStudent
+	byInstanceStudent map[instanceStudentKey]*scheduleModel.InstanceStudent
+	err               error
+	updateErr         error
+	updates           []struct {
+		rowID int64
+		patch scheduleModel.AttendanceFieldPatch
+	}
+	parallelPresence     []scheduleModel.ParallelPresence
+	parallelPresenceErr  error
+	parallelPresenceCall int
+}
+
+func (r *fakeOpsInstanceStudentRepo) FindPresentInOtherActiveInstances(_ context.Context, excludeInstanceID int64, _ scheduleModel.Date, studentIDs []int64) ([]scheduleModel.ParallelPresence, error) {
+	r.parallelPresenceCall++
+	if r.parallelPresenceErr != nil {
+		return nil, r.parallelPresenceErr
+	}
+	requested := map[int64]bool{}
+	for _, id := range studentIDs {
+		requested[id] = true
+	}
+	rows := make([]scheduleModel.ParallelPresence, 0, len(r.parallelPresence))
+	for _, row := range r.parallelPresence {
+		if row.InstanceID != excludeInstanceID && requested[row.StudentID] {
+			rows = append(rows, row)
+		}
+	}
+	return rows, nil
+}
+
+func (r *fakeOpsInstanceStudentRepo) FindByInstanceID(_ context.Context, instanceID int64) ([]*scheduleModel.InstanceStudent, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	return r.byInstance[instanceID], nil
+}
+
+func (r *fakeOpsInstanceStudentRepo) FindByInstanceAndStudent(_ context.Context, instanceID, studentID int64) (*scheduleModel.InstanceStudent, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	return r.byInstanceStudent[instanceStudentKey{instanceID, studentID}], nil
+}
+
+func (r *fakeOpsInstanceStudentRepo) UpdateAttendanceFields(_ context.Context, id int64, patch scheduleModel.AttendanceFieldPatch) error {
+	if r.updateErr != nil {
+		return r.updateErr
+	}
+	r.updates = append(r.updates, struct {
+		rowID int64
+		patch scheduleModel.AttendanceFieldPatch
+	}{rowID: id, patch: patch})
+	return nil
+}
+
+type fakeOpsInstanceService struct {
+	InstanceService
+	started   []struct{ instanceID, staffID int64 }
+	completed []int64
+}
+
+func (s *fakeOpsInstanceService) Start(_ context.Context, instanceID, startedByStaffID int64) (*StartInstanceResult, error) {
+	s.started = append(s.started, struct{ instanceID, staffID int64 }{instanceID: instanceID, staffID: startedByStaffID})
+	inst := &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusActive}
+	inst.ID = instanceID
+	return &StartInstanceResult{Instance: inst, ActiveGroupID: 910}, nil
+}
+
+func (s *fakeOpsInstanceService) Complete(_ context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error) {
+	s.completed = append(s.completed, instanceID)
+	inst := &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusCompleted}
+	inst.ID = instanceID
+	return inst, nil
+}
+
+func (s *fakeOpsInstanceService) Reopen(_ context.Context, instanceID, _ int64, _ bool) (*StartInstanceResult, error) {
+	inst := &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusActive}
+	inst.ID = instanceID
+	return &StartInstanceResult{Instance: inst, ActiveGroupID: 911}, nil
+}
+
+type fakeOpsActiveGroupRepo struct {
+	activeModel.GroupRepository
+	byID         map[int64]*activeModel.Group
+	lastActivity map[int64]time.Time
+	updateErr    error
+}
+
+func (r *fakeOpsActiveGroupRepo) FindByID(_ context.Context, id int64) (*activeModel.Group, error) {
+	group := r.byID[id]
+	if group == nil {
+		return nil, modelBase.ErrNotFound
+	}
+	return group, nil
+}
+
+func (r *fakeOpsActiveGroupRepo) UpdateLastActivity(_ context.Context, id int64, lastActivity time.Time) error {
+	if r.updateErr != nil {
+		return r.updateErr
+	}
+	r.lastActivity[id] = lastActivity
+	return nil
+}
+
+type fakeOpsActivityGroupRepo struct {
+	activitiesModel.GroupRepository
+	byID           map[int64]*activitiesModel.Group
+	targetsByGroup map[int64][]*activitiesModel.GroupTarget
+	err            error
+}
+
+func (r *fakeOpsActivityGroupRepo) FindTargetsByGroupIDs(_ context.Context, groupIDs []int64) (map[int64][]*activitiesModel.GroupTarget, error) {
+	result := make(map[int64][]*activitiesModel.GroupTarget, len(groupIDs))
+	for _, groupID := range groupIDs {
+		result[groupID] = r.targetsByGroup[groupID]
+	}
+	return result, nil
+}
+
+func (r *fakeOpsActivityGroupRepo) FindByID(_ context.Context, id interface{}) (*activitiesModel.Group, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	group := r.byID[id.(int64)]
+	if group == nil {
+		return nil, modelBase.ErrNotFound
+	}
+	return group, nil
+}
+
+func (r *fakeOpsActivityGroupRepo) FindByIDs(_ context.Context, ids []int64) ([]*activitiesModel.Group, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	groups := make([]*activitiesModel.Group, 0, len(ids))
+	for _, id := range ids {
+		if group := r.byID[id]; group != nil {
+			groups = append(groups, group)
+		}
+	}
+	return groups, nil
+}
+
+type fakeOpsActiveService struct {
+	created    []*studentpresence.Visit
+	ended      []int64
+	createErr  error
+	endErr     error
+	moveCalls  []opsMoveCall
+	moveResult *activeSvc.StudentMoveResult
+	moveErr    error
+}
+
+type opsMoveCall struct {
+	studentIDs    []int64
+	activeGroupID int64
+	auth          activeSvc.StudentMoveAuthorization
+}
+
+func (s *fakeOpsActiveService) MoveStudentsToActiveGroupAuthorized(_ context.Context, studentIDs []int64, activeGroupID int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
+	s.moveCalls = append(s.moveCalls, opsMoveCall{studentIDs: studentIDs, activeGroupID: activeGroupID, auth: auth})
+	if s.moveErr != nil {
+		return nil, s.moveErr
+	}
+	if s.moveResult != nil {
+		return s.moveResult, nil
+	}
+	return &activeSvc.StudentMoveResult{Moved: studentIDs, ActiveGroupID: &activeGroupID}, nil
+}
+
+func (s *fakeOpsActiveService) CreateVisit(_ context.Context, visit *studentpresence.Visit) error {
+	if s.createErr != nil {
+		return s.createErr
+	}
+	s.created = append(s.created, visit)
+	return nil
+}
+
+func (s *fakeOpsActiveService) EndVisit(_ context.Context, id int64) error {
+	if s.endErr != nil {
+		return s.endErr
+	}
+	s.ended = append(s.ended, id)
+	return nil
+}
+
+type fakeOpsArrivalService struct {
+	byStudent map[int64]*careschedule.EffectiveArrivalTime
+	err       error
+}
+
+type fakeOpsPickupService struct {
+	byStudent  map[int64]*careschedule.EffectivePickupTime
+	err        error
+	calls      int
+	studentIDs []int64
+	date       timezone.Date
+}
+
+func (s *fakeOpsPickupService) GetBulkEffectivePickupTimesForDate(_ context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careschedule.EffectivePickupTime, error) {
+	s.calls++
+	s.studentIDs = append([]int64(nil), studentIDs...)
+	s.date = date
+	if s.err != nil {
+		return nil, s.err
+	}
+	out := make(map[int64]*careschedule.EffectivePickupTime, len(studentIDs))
+	for _, studentID := range studentIDs {
+		if pickup := s.byStudent[studentID]; pickup != nil {
+			out[studentID] = pickup
+			continue
+		}
+		out[studentID] = &careschedule.EffectivePickupTime{Date: date}
+	}
+	return out, nil
+}
+
+func (s *fakeOpsArrivalService) GetBulkEffectiveArrivalTimesForDate(_ context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careschedule.EffectiveArrivalTime, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	out := make(map[int64]*careschedule.EffectiveArrivalTime, len(studentIDs))
+	for _, studentID := range studentIDs {
+		if arrival := s.byStudent[studentID]; arrival != nil {
+			out[studentID] = arrival
+			continue
+		}
+		out[studentID] = &careschedule.EffectiveArrivalTime{Date: date}
+	}
+	return out, nil
+}
+
+type fakeOpsSupervisorRepo struct {
+	activeModel.GroupSupervisorRepository
+	byActiveGroup map[int64][]*activeModel.GroupSupervisor
+}
+
+func (r *fakeOpsSupervisorRepo) FindByActiveGroupID(_ context.Context, activeGroupID int64, _ bool) ([]*activeModel.GroupSupervisor, error) {
+	return r.byActiveGroup[activeGroupID], nil
+}
+
+type fakeOpsVisitRepo struct {
+	StudentVisitReader
+	byActiveGroup            map[int64][]*studentpresence.Visit
+	currentByStudent         map[int64]*studentpresence.Visit
+	currentByStudentSequence map[int64][]*studentpresence.Visit
+	err                      error
+}
+
+func (r *fakeOpsVisitRepo) ListVisits(_ context.Context, filter studentpresence.VisitFilter) ([]studentpresence.Visit, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	if len(filter.ActiveGroupIDs) > 0 {
+		var visits []studentpresence.Visit
+		for _, visit := range r.byActiveGroup[filter.ActiveGroupIDs[0]] {
+			visits = append(visits, *visit)
+		}
+		return visits, nil
+	}
+	studentID := filter.StudentIDs[0]
+	current := r.currentByStudent[studentID]
+	if sequence := r.currentByStudentSequence[studentID]; len(sequence) > 0 {
+		current = sequence[0]
+		r.currentByStudentSequence[studentID] = sequence[1:]
+	}
+	if current == nil {
+		return nil, nil
+	}
+	return []studentpresence.Visit{*current}, nil
+}
+
+type fakeOpsStudentRepo struct {
+	usersModel.StudentRepository
+	byID map[int64]*usersModel.Student
+}
+
+func (r *fakeOpsStudentRepo) FindByIDs(_ context.Context, ids []int64) (map[int64]*usersModel.Student, error) {
+	out := map[int64]*usersModel.Student{}
+	for _, id := range ids {
+		if st := r.byID[id]; st != nil {
+			out[id] = st
+		}
+	}
+	return out, nil
+}
+
+type fakeOpsEducationGroupRepo struct {
+	educationModel.GroupRepository
+	byID map[int64]*educationModel.Group
+}
+
+func (r *fakeOpsEducationGroupRepo) FindByIDs(_ context.Context, ids []int64) (map[int64]*educationModel.Group, error) {
+	out := map[int64]*educationModel.Group{}
+	for _, id := range ids {
+		if group := r.byID[id]; group != nil {
+			out[id] = group
+		}
+	}
+	return out, nil
+}
+
+type fakeOpsRoomRepo struct {
+	facilitiesModel.RoomRepository
+	rooms []*facilitiesModel.Room
+	err   error
+}
+
+func (r *fakeOpsRoomRepo) List(_ context.Context, _ map[string]interface{}) ([]*facilitiesModel.Room, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	return r.rooms, nil
+}
+
+type fakeOpsPersonService struct {
+	accountPerson   *usersModel.Person
+	accountErr      error
+	people          map[int64]*usersModel.Person
+	staffByPersonID map[int64]*usersModel.Staff
+	staffWithPerson map[int64]*usersModel.Staff
+	staffErr        error
+}
+
+func (s *fakeOpsPersonService) FindByAccountID(_ context.Context, _ int64) (*usersModel.Person, error) {
+	if s.accountErr != nil {
+		return nil, s.accountErr
+	}
+	return s.accountPerson, nil
+}
+
+func (s *fakeOpsPersonService) GetByIDs(_ context.Context, ids []int64) (map[int64]*usersModel.Person, error) {
+	out := map[int64]*usersModel.Person{}
+	for _, id := range ids {
+		if person := s.people[id]; person != nil {
+			out[id] = person
+		}
+	}
+	return out, nil
+}
+
+func (s *fakeOpsPersonService) GetStaffByPersonID(_ context.Context, personID int64) (*usersModel.Staff, error) {
+	if s.staffErr != nil {
+		return nil, s.staffErr
+	}
+	return s.staffByPersonID[personID], nil
+}
+
+func (s *fakeOpsPersonService) GetStaffWithPersonByIDs(_ context.Context, ids []int64) (map[int64]*usersModel.Staff, error) {
+	out := map[int64]*usersModel.Staff{}
+	for _, id := range ids {
+		if staff := s.staffWithPerson[id]; staff != nil {
+			out[id] = staff
+		}
+	}
+	return out, nil
+}
+
+type fakeOpsSettings struct {
+	attendanceScope string
+	absenceScope    string
+	err             error
+	mode            string
+	scope           string
+	stringErr       error
+	leadMinutes     int
+}
+
+func (s *fakeOpsSettings) ResolveBool(_ context.Context, _ string) (bool, error) {
+	return false, s.err
+}
+
+func (s *fakeOpsSettings) ResolveString(_ context.Context, key string) (string, error) {
+	if s.stringErr != nil {
+		return "", s.stringErr
+	}
+	if key == configModel.KeyOperationalOverviewScope {
+		return s.scope, nil
+	}
+	if key == configModel.KeyAttendanceEditScope {
+		return s.attendanceScope, nil
+	}
+	if key == configModel.KeyStudentAbsenceEditScope {
+		return s.absenceScope, nil
+	}
+	return s.mode, nil
+}
+
+func (s *fakeOpsSettings) ResolveInt(_ context.Context, _ string) (int, error) {
+	if s.leadMinutes > 0 {
+		return s.leadMinutes, s.err
+	}
+	return 15, s.err
+}
+
+// ActiveSessions lists today's running instances with their plan windows so
+// the supervision UI can label session tabs "Aktivitätsname · Planzeit"
+// (#2265). Planned and completed instances stay out; so do active rows
+// without a live session.
+func TestTimetableOperationsActiveSessions(t *testing.T) {
+	t.Parallel()
+
+	deps := newTimetableOpsDeps()
+	now := time.Date(2026, time.May, 10, 13, 0, 0, 0, time.UTC)
+
+	running := instanceWithTimes(910, scheduleModel.InstanceStatusActive,
+		time.Date(2026, time.May, 10, 12, 45, 0, 0, time.UTC),
+		time.Date(2026, time.May, 10, 13, 45, 0, 0, time.UTC))
+	running.ID = 910
+	running.Title = "GT 1"
+	runningGroup := int64(310)
+	running.ActiveGroupID = &runningGroup
+
+	planned := instanceWithTimes(911, scheduleModel.InstanceStatusPlanned,
+		time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC),
+		time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC))
+	planned.ID = 911
+
+	orphan := instanceWithTimes(912, scheduleModel.InstanceStatusActive,
+		time.Date(2026, time.May, 10, 12, 0, 0, 0, time.UTC),
+		time.Date(2026, time.May, 10, 13, 0, 0, 0, time.UTC))
+	orphan.ID = 912
+
+	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{running, planned, orphan}
+
+	sessions, err := deps.service.ActiveSessions(context.Background(), timezone.DateFromTime(now))
+
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+	assert.Equal(t, runningGroup, sessions[0].ActiveGroupID)
+	assert.Equal(t, int64(910), sessions[0].InstanceID)
+	assert.Equal(t, "GT 1", sessions[0].Title)
+	assert.Equal(t, "12:45", sessions[0].StartTime)
+	assert.Equal(t, "13:45", sessions[0].EndTime)
+}

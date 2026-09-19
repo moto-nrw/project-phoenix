@@ -28,9 +28,8 @@ production-request and credential guards remain unconditional. Other rules,
 including UI comprehension, test contracts, and guardian permissions, have
 path scopes. Semantic triggers in the root table cover tasks that need a rule
 before touching those paths (including kiosk changes in a sibling repo).
-Label and quorum workflows have no reliable source-file trigger: they live in
-`docs/agents/github-labels.md` and `docs/agents/quorum-review-loop.md`, loaded
-by the root task table. The quorum Stop hook remains unchanged.
+The quorum workflow has no reliable source-file trigger: it lives in
+`docs/agents/quorum-review-loop.md`, loaded by the root task table. The quorum Stop hook remains unchanged.
 
 ## Skills
 

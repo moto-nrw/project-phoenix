@@ -32,8 +32,8 @@ var roomColorPattern = regexp.MustCompile(`^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$`)
 var reservedRoomColors = map[string]struct{}{
 	"#83CD2D": {}, "#5080D8": {}, "#6B7280": {}, "#F78C10": {},
 	"#D946EF": {}, "#78716C": {}, "#DC2626": {}, "#7C3AED": {},
-	"#0891B2": {}, "#365D83": {}, "#FF3130": {}, "#EAB308": {},
-	"#4F46E5": {},
+	"#0891B2": {}, "#365D83": {}, "#217A78": {}, "#FF3130": {},
+	"#EAB308": {}, "#4F46E5": {},
 }
 
 // IsToiletRoomName reports whether name is one of the accepted canonical

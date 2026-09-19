@@ -177,6 +177,9 @@ func (m *mockStaffAbsenceService) DeleteAbsenceFor(ctx context.Context, subjectS
 func (m *mockStaffAbsenceService) PreviewCompTimeBalance(_ context.Context, _ int64, _, _ string, _ bool) (*workforce.CompTimeBalancePreview, error) {
 	return &workforce.CompTimeBalancePreview{}, nil
 }
+func (m *mockStaffAbsenceService) RebookAbsences(context.Context, int64, int64, workforce.RebookAbsencesRequest) (*workforce.AbsenceRebookingResult, error) {
+	return &workforce.AbsenceRebookingResult{}, nil
+}
 func (m *mockStaffAbsenceService) AbsencesForRange(ctx context.Context, staffID int64, from, to string) ([]*workforce.StaffAbsenceResponse, error) {
 	if m.getAbsencesForRange != nil {
 		return m.getAbsencesForRange(ctx, staffID, from, to)
@@ -1782,6 +1785,20 @@ func TestClassifyAbsenceError(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, http.StatusForbidden, w.Code)
 		assert.JSONEq(t, `{"status":"error","error":"absence type is manager-controlled","code":"manager_controlled_absence"}`, w.Body.String())
+	})
+
+	t.Run("allowance booking overlap returns conflict", func(t *testing.T) {
+		err := &workforce.TimeTrackingError{
+			Kind:  workforce.ErrAllowanceBookingOverlap,
+			Cause: errors.New("Diese Buchung überschneidet sich. Bitte löschen Sie die alte Buchung. Tragen Sie alle Tage zusammen ein."),
+		}
+		renderer := classifyAbsenceError(err)
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		renderErr := render.Render(w, r, renderer)
+		require.NoError(t, renderErr)
+		require.Equal(t, http.StatusConflict, w.Code)
+		assert.JSONEq(t, `{"status":"error","error":"Diese Buchung überschneidet sich. Bitte löschen Sie die alte Buchung. Tragen Sie alle Tage zusammen ein."}`, w.Body.String())
 	})
 
 }

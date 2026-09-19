@@ -42,6 +42,9 @@ type Runtime struct {
 	ActiveSessionDeviceKeys []string
 	DeviceKeys              []string
 	ActivityNames           []string
+	// OpenRoomBlockInstanceID is the block started in a released room (#3281),
+	// 0 when none runs.
+	OpenRoomBlockInstanceID int64
 	Counts                  RuntimeCounts
 }
 
@@ -58,6 +61,9 @@ type RuntimeCounts struct {
 	// IndependentStays counts children moved into a released room without
 	// joining an activity there (#3066).
 	IndependentStays int
+	// OpenRoomBlockChildren counts children checked into the block running in
+	// a released room (#3281).
+	OpenRoomBlockChildren int
 }
 
 type Action interface {

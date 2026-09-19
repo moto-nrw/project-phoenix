@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -863,7 +864,12 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		trace = traces[0]
 	}
 
+	// The mock state is not goroutine-safe, and the time-tracking step sends
+	// requests from parallel workers, so the handler serves one at a time.
+	var mu sync.Mutex
 	return newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		mu.Lock()
+		defer mu.Unlock()
 		if weeklyMock.serve(t, w, r) {
 			return
 		}

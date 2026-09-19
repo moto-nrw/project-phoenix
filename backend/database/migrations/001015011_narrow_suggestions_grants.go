@@ -21,8 +21,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.11: Removing overly broad default privileges for suggestions schema...")
-
 			// The blanket ALTER DEFAULT PRIVILEGES from 1.15.10 auto-grants
 			// full CRUD on any future table in the suggestions schema.
 			// Remove this so new tables require explicit grants in their
@@ -42,8 +40,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.11: Restoring broad default privileges for suggestions schema...")
-
 			_, err := db.ExecContext(ctx, `
 				ALTER DEFAULT PRIVILEGES IN SCHEMA suggestions
 					GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO phoenix_auth;

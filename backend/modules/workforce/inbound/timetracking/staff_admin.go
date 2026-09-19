@@ -260,5 +260,8 @@ func (rs *StaffAdminResource) registerAbsenceRoutes(r chi.Router, withTx common.
 	// Freizeitausgleich modal shows before the create.
 	r.With(timeTracking, withTx).Get("/{id}/time-tracking/comp-time-preview", rs.getCompTimeBalancePreview)
 	r.With(timeTracking, withTx).Post("/{id}/absences", rs.adminCreateStaffAbsence)
+	// Rebooking stored entries to another type (#3258), with a dry run for
+	// the preview the modal shows before the Leitung confirms.
+	r.With(timeTracking, withTx).Post("/{id}/absences/rebook", rs.adminRebookStaffAbsences)
 	r.With(timeTracking, withTx).Delete("/{id}/absences/{absenceId}", rs.adminDeleteStaffAbsence)
 }

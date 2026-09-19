@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -8,9 +9,9 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -19,38 +20,27 @@ func (rs *Resource) getAccount(w http.ResponseWriter, r *http.Request) {
 	// Get user ID and permissions from JWT claims
 	claims := jwt.ClaimsFromCtx(r.Context())
 
-	account, err := rs.AuthService.GetAccountByID(r.Context(), claims.ID)
+	account, err := rs.Sessions.FindOwnAccount(r.Context(), int64(claims.ID))
 	if err != nil {
-		var authErr *authService.AuthError
-		if errors.As(err, &authErr) {
-			if errors.Is(authErr.Err, authService.ErrAccountNotFound) {
-				common.RenderError(w, r, common.ErrorNotFound(authService.ErrAccountNotFound))
-				return
-			}
+		if errors.Is(err, identityaccess.ErrAccountNotFound) {
+			common.RenderError(w, r, common.ErrorNotFound(identityaccess.ErrAccountNotFound))
+			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
-	// Convert account to response
+	// Convert account to response. The role assignment is not part of the
+	// account row, so the list stays empty here as it was; the caller's
+	// roles and permissions travel in their session.
 	resp := &AccountResponse{
-		ID:     account.ID,
-		Email:  account.Email,
-		Active: account.Active,
+		ID:          account.ID,
+		Email:       account.Email,
+		Username:    account.Username,
+		Active:      account.Active,
+		Roles:       []string{},
+		Permissions: claims.Permissions,
 	}
-
-	if account.Username != nil {
-		resp.Username = *account.Username
-	}
-
-	roleNames := make([]string, 0, len(account.Roles))
-	for _, role := range account.Roles {
-		roleNames = append(roleNames, role.Name)
-	}
-	resp.Roles = roleNames
-
-	// Include permissions from JWT claims
-	resp.Permissions = claims.Permissions
 
 	common.Respond(w, r, http.StatusOK, resp, "Account information retrieved successfully")
 }
@@ -140,7 +130,11 @@ func caregiverCapabilityErrorRenderer(err error) render.Renderer {
 			blockedErr.Error(),
 			blockedErr.Reasons,
 		)
-	case errors.Is(err, authService.ErrAccountNotFound), errors.As(err, &accountTenantErr):
+	// The caregiver capability is People Directory's and reports its own
+	// sentinel; the account administration reports Identity & Access's.
+	case errors.Is(err, usersService.ErrAccountNotFound),
+		errors.Is(err, identityaccess.ErrAccountNotFound),
+		errors.As(err, &accountTenantErr):
 		return common.ErrorNotFound(errors.New("account not found"))
 	case errors.As(err, &usersErr) && errors.As(err, &validationErr):
 		return common.ErrorInvalidRequest(validationErr)
@@ -153,9 +147,11 @@ func caregiverCapabilityErrorRenderer(err error) render.Renderer {
 
 // Permission Management Endpoints
 
-// updateAccount handles updating an account
+// updateAccount handles updating an account. The write carries the
+// account-management boundary itself, so an account the caller may not
+// administer is reported as missing without a separate read.
 func (rs *Resource) updateAccount(w http.ResponseWriter, r *http.Request) {
-	id, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
+	id, ok := common.ParseInt64IDWithError(w, r, "accountId", common.MsgInvalidAccountID)
 	if !ok {
 		return
 	}
@@ -166,19 +162,13 @@ func (rs *Resource) updateAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	account, err := rs.AuthService.GetAccountByID(r.Context(), id)
-	if err != nil {
-		common.RenderError(w, r, accountManagementErrorRenderer(err))
-		return
-	}
-
-	account.Email = req.Email
+	update := identityaccess.AccountIdentityUpdate{AccountID: id, Email: req.Email}
 	if req.Username != "" {
 		username := req.Username
-		account.Username = &username
+		update.Username = &username
 	}
 
-	if err := rs.AuthService.UpdateAccount(r.Context(), account); err != nil {
+	if err := rs.Sessions.UpdateManageableAccount(r.Context(), update); err != nil {
 		common.RenderError(w, r, accountManagementErrorRenderer(err))
 		return
 	}
@@ -186,81 +176,73 @@ func (rs *Resource) updateAccount(w http.ResponseWriter, r *http.Request) {
 	common.RespondNoContent(w, r)
 }
 
-var accountManagementErrorRenderer = common.UnwrapRenderer[*authService.AuthError](
+var accountManagementErrorRenderer = common.UnwrapRenderer[*identityaccess.AuthenticationError](
 	[]common.ErrorRule{
-		{Target: authService.ErrAccountNotFound, Render: common.ErrorNotFound},
+		{Target: identityaccess.ErrAccountNotFound, Render: common.ErrorNotFound},
 	},
 	common.ErrorInternalServer,
 )
 
 // listAccounts handles listing accounts
 func (rs *Resource) listAccounts(w http.ResponseWriter, r *http.Request) {
-	// Parse query parameters for filtering
-	filters := make(map[string]interface{})
+	filter := identityaccess.AccountListFilter{Email: r.URL.Query().Get("email")}
 
-	if email := r.URL.Query().Get("email"); email != "" {
-		filters["email"] = email
+	switch r.URL.Query().Get("active") {
+	case "true":
+		active := true
+		filter.Active = &active
+	case "false":
+		active := false
+		filter.Active = &active
 	}
 
-	if active := r.URL.Query().Get("active"); active != "" {
-		switch active {
-		case "true":
-			filters["active"] = true
-		case "false":
-			filters["active"] = false
-		}
-	}
-
-	accounts, err := rs.AuthService.ListAccounts(r.Context(), filters)
+	accounts, err := rs.Sessions.ListManageableAccounts(r.Context(), filter)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
-	responses := make([]*AccountResponse, 0, len(accounts))
-	for _, account := range accounts {
-		resp := &AccountResponse{
-			ID:     account.ID,
-			Email:  account.Email,
-			Active: account.Active,
-		}
-
-		if account.Username != nil {
-			resp.Username = *account.Username
-		}
-
-		responses = append(responses, resp)
-	}
-
-	common.Respond(w, r, http.StatusOK, responses, "Accounts retrieved successfully")
+	common.Respond(w, r, http.StatusOK, accountResponses(accounts), "Accounts retrieved successfully")
 }
 
 // getAccountsByRole handles getting accounts by role
 func (rs *Resource) getAccountsByRole(w http.ResponseWriter, r *http.Request) {
 	roleName := chi.URLParam(r, "roleName")
 
-	accounts, err := rs.AuthService.GetAccountsByRole(r.Context(), roleName)
+	accounts, err := rs.Sessions.ListManageableAccountsByRole(r.Context(), roleName)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
+	common.Respond(w, r, http.StatusOK, accountResponses(accounts), "Accounts retrieved successfully")
+}
+
+// activateAccount and deactivateAccount re-enable and disable an account
+// the caller may administer. A deactivation also revokes the account's
+// sessions, which is why it is its own command and not a field of the
+// account update.
+func (rs *Resource) activateAccount(ctx context.Context, accountID int64) error {
+	return rs.Sessions.ActivateAccount(ctx, accountID)
+}
+
+func (rs *Resource) deactivateAccount(ctx context.Context, accountID int64) error {
+	return rs.Sessions.DeactivateAccount(ctx, accountID)
+}
+
+// accountResponses is the account listing's wire shape: the identifying
+// fields only, never a role or a credential of another school.
+func accountResponses(accounts []identityaccess.ManagedAccount) []*AccountResponse {
 	responses := make([]*AccountResponse, 0, len(accounts))
 	for _, account := range accounts {
-		resp := &AccountResponse{
-			ID:     account.ID,
-			Email:  account.Email,
-			Active: account.Active,
-		}
-
-		if account.Username != nil {
-			resp.Username = *account.Username
-		}
-
-		responses = append(responses, resp)
+		responses = append(responses, &AccountResponse{
+			ID:       account.ID,
+			Email:    account.Email,
+			Username: account.Username,
+			Active:   account.Active,
+		})
 	}
-
-	common.Respond(w, r, http.StatusOK, responses, "Accounts retrieved successfully")
+	return responses
 }
 
 // Password Reset Endpoints

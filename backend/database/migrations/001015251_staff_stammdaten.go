@@ -47,8 +47,6 @@ func init() {
 // admins match via the admin:* wildcard anyway, and a Träger-Lohnbüro role can
 // be granted the permission explicitly without another migration.
 func staffStammdatenUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.251: Creating staff Stammdaten tables + staff:financial permission...")
-
 	if _, err := db.NewRaw(`
 		CREATE TABLE IF NOT EXISTS users.staff_master_data (
 			id BIGSERIAL PRIMARY KEY,
@@ -226,7 +224,6 @@ func staffStammdatenUp(ctx context.Context, db *bun.DB) error {
 }
 
 func staffStammdatenDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.251: Dropping staff Stammdaten objects...")
 	if _, err := db.NewRaw(`
 		DELETE FROM auth.permissions WHERE name = 'staff:financial';
 		DROP TABLE IF EXISTS audit.staff_master_data_changes CASCADE;

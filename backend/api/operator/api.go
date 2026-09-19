@@ -1,21 +1,22 @@
 package operator
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-nrw/project-phoenix/modules/communication/http/operatorannouncements"
 	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	provisioningoperator "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
+	settingsoperator "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
-	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
 )
@@ -23,14 +24,15 @@ import (
 // Resource defines the operator API resource
 type Resource struct {
 	identity                *identityoperator.Resource
-	passkeyService          platformSvc.OperatorPasskeyService
+	passkeyService          identityoperator.OperatorPasskeys
 	mfaResource             *MFAResource
-	provisioningResource    *ProvisioningResource
-	settingsResource        *SettingsResource
-	announcementsResource   *AnnouncementsResource
+	provisioningResource    *provisioningoperator.ProvisioningResource
+	mfaAdminResource        *SchoolAccountMFAResource
+	settingsResource        *settingsoperator.SettingsResource
+	announcementsResource   *operatorannouncements.AnnouncementsResource
 	profileResource         *ProfileResource
 	invitationsResource     *InvitationsResource
-	unregisteredTagScans    auditSvc.UnregisteredTagScanService
+	unregisteredTagScans    http.Handler
 	tokenAuth               *jwt.TokenAuth
 	authRateLimiter         func(http.Handler) http.Handler
 	emailConfirmRateLimiter func(http.Handler) http.Handler
@@ -41,19 +43,21 @@ type Resource struct {
 // ResourceConfig holds dependencies for the operator resource
 type ResourceConfig struct {
 	AppEnv      string
-	AuthService platformSvc.OperatorAuthService
+	AuthService OperatorAccess
 	// Identity serves operator login, refresh, the profile and password
 	// changes and the school access of accounts from Identity & Access
 	// (#3252). Without it those routes are not mounted.
 	Identity                   *identityoperator.Resource
-	PasskeyService             platformSvc.OperatorPasskeyService
-	MFAService                 platformSvc.OperatorMFAService
-	InvitationService          platformSvc.OperatorInvitationService
-	ProvisioningService        platformSvc.OperatorProvisioningService
+	PasskeyService             identityoperator.OperatorPasskeys
+	MFAService                 identityoperator.OperatorMFA
+	InvitationService          OperatorAccess
+	ProvisioningService        organizationtenancy.Provisioning
 	CaregiverCapabilityService usersSvc.CaregiverCapabilityService
 	AnnouncementsService       communication.Capability
-	UnregisteredTagScanService auditSvc.UnregisteredTagScanService
-	SettingsService            configSvc.SettingsService
+	// UnregisteredTagScans serves the Device Fleet review of unregistered
+	// RFID scans (#3232). Without it those routes are not mounted.
+	UnregisteredTagScans http.Handler
+	SettingsService      configSvc.SettingsService
 	// Broadcaster is optional. When supplied, the inner SettingsResource emits
 	// a tenant_settings_changed SSE event after every successful Set/Reset so
 	// open tenant tabs invalidate their settings caches across origins.
@@ -61,14 +65,21 @@ type ResourceConfig struct {
 	// SchoolRepo lets the SettingsResource emit `school_slug` in set/reset
 	// responses so the frontend operator proxy can bust the slug-keyed
 	// `tenant-${slug}` cache after tenant-resolve-affecting toggles.
-	SchoolService platformSvc.SchoolService
+	SchoolService settingsoperator.SchoolLookup
 	ActiveService activeSvc.Service
-	CareLifecycle usersSvc.CareLifecycleService
+	CareLifecycle carelifecycle.CareLifecycleService
+	// SettingValueSet runs the settings side effects of an operator write
+	// (e.g. auto-provisioning system rooms when checkout toggles flip on).
+	// It runs in the tenant transaction; the optional postCommit closure it
+	// returns runs only on a successful commit, so non-transactional side
+	// effects (file unlinks, external API calls) never outlive a rolled-back
+	// write.
+	SettingValueSet configSvc.OperatorValueSetHook
 	// TenantMFAService is the tenant-side MFA service (auth package).
 	// The operator dashboard reuses it to read + write per-account MFA
 	// state on behalf of school staff. Distinct from MFAService above,
 	// which is the operator's own MFA service (operator login flow).
-	TenantMFAService authSvc.MFAService
+	TenantMFAService identityoperator.AccountMFA
 	TokenAuth        *jwt.TokenAuth
 	DB               *bun.DB
 }
@@ -92,21 +103,6 @@ func (rs *Resource) SetInvitationRateLimiter(mw func(http.Handler) http.Handler)
 	rs.invitationRateLimiter = mw
 }
 
-// OnSettingValueSet forwards to the internal SettingsResource.OnValueSet hook
-// so the caller can register a side-effect callback (e.g. auto-provisioning
-// system rooms when checkout toggles flip on). The callback runs in-tx; the
-// optional postCommit closure it returns runs only on successful commit so
-// non-transactional side effects (file unlinks, external API calls) never
-// outlive a rolled-back DB write.
-//
-// No-op when the settings resource is unconfigured (cfg.SettingsService was nil).
-func (rs *Resource) OnSettingValueSet(fn func(ctx context.Context, tenantID int64, key string, value any) (postCommit func(), err error)) {
-	if rs.settingsResource == nil {
-		return
-	}
-	rs.settingsResource.OnValueSet(fn)
-}
-
 // NewResource creates a new operator resource
 func NewResource(cfg ResourceConfig) *Resource {
 	tokenAuth := cfg.TokenAuth
@@ -116,24 +112,34 @@ func NewResource(cfg ResourceConfig) *Resource {
 	}
 
 	resource := &Resource{
-		identity:              cfg.Identity,
-		passkeyService:        cfg.PasskeyService,
-		mfaResource:           NewMFAResource(cfg.AuthService, cfg.MFAService, tokenAuth),
-		provisioningResource:  NewProvisioningResource(cfg.ProvisioningService),
-		announcementsResource: NewAnnouncementsResource(cfg.AnnouncementsService),
+		identity:       cfg.Identity,
+		passkeyService: cfg.PasskeyService,
+		mfaResource:    NewMFAResource(cfg.AuthService, cfg.MFAService, tokenAuth),
+		provisioningResource: provisioningoperator.NewProvisioningResource(provisioningoperator.ProvisioningConfig{
+			Service:             cfg.ProvisioningService,
+			CaregiverCapability: cfg.CaregiverCapabilityService,
+			DB:                  cfg.DB,
+			AppEnv:              cfg.AppEnv,
+		}),
+		mfaAdminResource:      &SchoolAccountMFAResource{TenantMFAService: cfg.TenantMFAService},
+		announcementsResource: operatorannouncements.NewAnnouncementsResource(cfg.AnnouncementsService),
 		profileResource:       NewProfileResource(cfg.AuthService),
 		invitationsResource:   NewInvitationsResource(cfg.InvitationService),
-		unregisteredTagScans:  cfg.UnregisteredTagScanService,
+		unregisteredTagScans:  cfg.UnregisteredTagScans,
 		tokenAuth:             tokenAuth,
 		operatorLookup:        cfg.AuthService,
 	}
-	resource.provisioningResource.appEnv = cfg.AppEnv
 	if cfg.SettingsService != nil {
-		resource.settingsResource = NewSettingsResource(cfg.SettingsService, cfg.DB, cfg.Broadcaster, cfg.SchoolService, cfg.ActiveService, cfg.CareLifecycle)
+		resource.settingsResource = settingsoperator.NewSettingsResource(settingsoperator.SettingsConfig{
+			Settings:      cfg.SettingsService,
+			DB:            cfg.DB,
+			Broadcaster:   cfg.Broadcaster,
+			Schools:       cfg.SchoolService,
+			Active:        cfg.ActiveService,
+			CareLifecycle: cfg.CareLifecycle,
+			OnValueSet:    cfg.SettingValueSet,
+		})
 	}
-	resource.provisioningResource.CaregiverCapabilityService = cfg.CaregiverCapabilityService
-	resource.provisioningResource.db = cfg.DB
-	resource.provisioningResource.TenantMFAService = cfg.TenantMFAService
 	return resource
 }
 
@@ -320,9 +326,9 @@ func (rs *Resource) mountSchoolRoutes(r chi.Router) {
 		// tenant-admin MFA endpoints — same write semantics, separate
 		// audit metadata (actor_type=operator).
 		r.Route("/{id}/accounts/{accountId}/mfa", func(r chi.Router) {
-			r.Get("/", rs.provisioningResource.GetSchoolAccountMFAState)
-			r.Delete("/", rs.provisioningResource.ResetSchoolAccountMFA)
-			r.Put("/override", rs.provisioningResource.SetSchoolAccountMFAOverride)
+			r.Get("/", rs.mfaAdminResource.GetSchoolAccountMFAState)
+			r.Delete("/", rs.mfaAdminResource.ResetSchoolAccountMFA)
+			r.Put("/override", rs.mfaAdminResource.SetSchoolAccountMFAOverride)
 		})
 		r.Get("/{id}/devices", rs.provisioningResource.ListSchoolDevices)
 		r.Get("/{id}/persons", rs.provisioningResource.ListSchoolPersons)
@@ -346,15 +352,13 @@ func (rs *Resource) mountPersonRoutes(r chi.Router) {
 	})
 }
 
-// mountTagScanRoutes registers the optional unregistered-tag-scan surface.
+// mountTagScanRoutes mounts the optional Device Fleet review of unregistered
+// RFID scans (GET / and POST /{id}/resolve).
 func (rs *Resource) mountTagScanRoutes(r chi.Router) {
 	if rs.unregisteredTagScans == nil {
 		return
 	}
-	r.Route("/unregistered-tag-scans", func(r chi.Router) {
-		r.Get("/", rs.ListUnregisteredTagScans)
-		r.Post("/{id}/resolve", rs.ResolveUnregisteredTagScan)
-	})
+	r.Mount("/unregistered-tag-scans", rs.unregisteredTagScans)
 }
 
 // mountAccountMFARoutes registers the account-wide MFA override surface
@@ -363,8 +367,8 @@ func (rs *Resource) mountTagScanRoutes(r chi.Router) {
 // regardless of which school an account belongs to — see #1430 review round 2.
 func (rs *Resource) mountAccountMFARoutes(r chi.Router) {
 	r.Route("/accounts/{accountId}/mfa", func(r chi.Router) {
-		r.Get("/global-override", rs.provisioningResource.GetAccountMFAGlobalOverride)
-		r.Put("/global-override", rs.provisioningResource.SetAccountMFAGlobalOverride)
+		r.Get("/global-override", rs.mfaAdminResource.GetAccountMFAGlobalOverride)
+		r.Put("/global-override", rs.mfaAdminResource.SetAccountMFAGlobalOverride)
 	})
 }
 

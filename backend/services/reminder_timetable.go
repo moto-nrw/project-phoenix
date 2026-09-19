@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 )
 
@@ -20,13 +20,13 @@ type reminderTimetableReader struct {
 func (r reminderTimetableReader) FindByTenantAndDate(ctx context.Context, date string) ([]*ports.ActivityInstance, error) {
 	values, err := r.source.ListActivityInstances(ctx, timetable.ActivityInstanceFilter{Date: &date, OrderByDateAndTime: true})
 	if err != nil {
-		return nil, scheduleRepo.WrapDatabaseError("find by tenant and date", err)
+		return nil, timetableCompose.WrapDatabaseError("find by tenant and date", err)
 	}
 	result := make([]*ports.ActivityInstance, 0, len(values))
 	for _, value := range values {
 		instance, err := reminderInstance(value)
 		if err != nil {
-			return nil, scheduleRepo.WrapDatabaseError("find by tenant and date", err)
+			return nil, timetableCompose.WrapDatabaseError("find by tenant and date", err)
 		}
 		result = append(result, instance)
 	}
@@ -35,7 +35,7 @@ func (r reminderTimetableReader) FindByTenantAndDate(ctx context.Context, date s
 
 func reminderInstance(value timetable.ActivityInstance) (*ports.ActivityInstance, error) {
 	// Retain the compatibility adapter's validation and error contract.
-	if _, err := scheduleRepo.ParseActivityInstanceDate(value.Date); err != nil {
+	if _, err := timetableCompose.ParseActivityInstanceDate(value.Date); err != nil {
 		return nil, fmt.Errorf("parse activity instance date: %w", err)
 	}
 	start, err := time.Parse("15:04:05", value.StartTime)
@@ -55,7 +55,7 @@ func (r reminderTimetableReader) FindByInstanceIDs(ctx context.Context, ids []in
 	}
 	values, err := r.source.ListInstanceStaff(ctx, timetable.InstanceStaffFilter{InstanceIDs: ids, OrderByInstanceAndCreated: true})
 	if err != nil {
-		return nil, scheduleRepo.WrapDatabaseError("find by instance ids", err)
+		return nil, timetableCompose.WrapDatabaseError("find by instance ids", err)
 	}
 	result := make([]*ports.InstanceStaff, 0, len(values))
 	for _, value := range values {

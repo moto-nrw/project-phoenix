@@ -21,11 +21,11 @@ import (
 
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -135,7 +135,7 @@ func setupOfferingGuardRouterTest(
 	decision := newOfferingGuardDecisionService(repos, offeringsEnabled, children, approvedOfferings, guardianAccess, studentEnrollment)
 	resource := enrollmentAPI.NewResource(
 		nil, nil, nil, nil, nil, decision, nil, nil, nil,
-		nil, nil, nil, nil, db,
+		nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, nil, db,
 	)
 	token := mintOfferingGuardReviewerToken(t, reviewer.ID, reviewer.Email)
 	return offeringGuardHarness{testpkg.TenantRuntimeMiddleware(t, db)(resource.Router()), request.ID, child.ID, token, repos, ctx}

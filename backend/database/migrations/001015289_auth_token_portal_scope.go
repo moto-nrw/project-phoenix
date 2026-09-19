@@ -22,7 +22,6 @@ func init() {
 }
 
 func authTokenPortalScopeUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.289: Adding portal scope to refresh-token sessions...")
 	_, err := db.ExecContext(ctx, `
 		ALTER TABLE auth.tokens
 			ADD COLUMN IF NOT EXISTS portal_scope VARCHAR(16) NOT NULL DEFAULT 'unknown';

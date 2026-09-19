@@ -2,13 +2,12 @@ package repositories
 
 import (
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/uptrace/bun"
 )
 
@@ -31,17 +30,17 @@ func NewAuthTestRepositories(db *bun.DB, command auditModels.Command) (*Factory,
 		AccountRole:   authRepo.NewAccountRoleRepository(db), AccountPermission: authRepo.NewAccountPermissionRepository(db),
 		Role: authRepo.NewRoleRepository(db), RolePermission: authRepo.NewRolePermissionRepository(db),
 		Permission: authRepo.NewPermissionRepository(db),
-		RFIDCard:   authRepo.NewRFIDCardRepository(db), Student: usersRepo.NewStudentRepository(db),
-		PasswordResetToken:     authRepo.NewPasswordResetTokenRepository(db),
-		PasswordResetRateLimit: authRepo.NewPasswordResetRateLimitRepository(db),
-		InvitationToken:        authRepo.NewInvitationTokenRepository(db), GuardianInvitation: authRepo.NewGuardianInvitationRepository(db),
-		GuardianProfile: NewGuardianProfileRepository(db), StudentGuardian: usersRepo.NewStudentGuardianRepository(db),
+		RFIDCard:   authRepo.NewRFIDCardRepository(db), Student: NewStudentRepository(db),
+		InvitationToken: authRepo.NewInvitationTokenRepository(db),
+		GuardianProfile: NewGuardianProfileRepository(db), StudentGuardian: NewStudentGuardianRepository(db),
 		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(carePlanLegacy.NewParentRuntime(db), enrollmentCompose.New(), identityAccountDirectory{accounts: newIdentityAccess(db, nil)}),
 		MFACredential:           authRepo.NewMFACredentialRepository(db), MFAEmailChallenge: authRepo.NewMFAEmailChallengeRepository(db),
 		MFATrustedDevice: authRepo.NewMFATrustedDeviceRepository(db), MFAOverride: authRepo.NewMFAOverrideRepository(db),
-		PasskeyCredential: authRepo.NewPasskeyCredentialRepository(db), PasskeySession: authRepo.NewPasskeySessionRepository(db),
 		PushSubscription: deliveryCompose.NewPushSubscriptionRepository(db),
 		AuthEvent:        authEventCommand{auditRepo.NewAuthEventRepository(newTestAuditRuntime(db)), command},
+		// The operator second factor appends to the operator ledger
+		// (#3331), so the composed test module needs it bound.
+		OperatorAuditLog: newOperatorAuditLog(newTestAuditRuntime(db)),
 	}
 	r.BindOrganizationTenancy(organizations)
 	return r, nil

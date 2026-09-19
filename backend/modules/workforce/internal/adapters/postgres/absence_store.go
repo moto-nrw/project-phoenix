@@ -62,6 +62,7 @@ type staffAbsenceTypeRow struct {
 	BaseType         string    `bun:"base_type,notnull"`
 	IsActive         bool      `bun:"is_active,notnull"`
 	AllowanceEnabled bool      `bun:"allowance_enabled,notnull"`
+	CarryoverUntil   *string   `bun:"carryover_until"`
 	CreatedAt        time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
 	UpdatedAt        time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 }
@@ -76,6 +77,11 @@ type staffAbsenceAuditRow struct {
 	ActorID       int64     `bun:"actor_id,notnull"`
 	Note          string    `bun:"note"`
 	ChangedAt     time.Time `bun:"changed_at,nullzero,notnull,default:current_timestamp"`
+	// The type columns are only set on a rebooking (#3258).
+	FromAbsenceType   *string `bun:"from_absence_type"`
+	ToAbsenceType     *string `bun:"to_absence_type"`
+	FromAbsenceTypeID *int64  `bun:"from_absence_type_id"`
+	ToAbsenceTypeID   *int64  `bun:"to_absence_type_id"`
 }
 
 // AcquireXactLock takes the transaction-scoped advisory lock for key on the
@@ -455,7 +461,7 @@ func (s *Store) CreateStaffAbsenceType(ctx context.Context, fields domain.StaffA
 	}
 	row := &staffAbsenceTypeRow{
 		TenantID: tenantID, Name: fields.Name, BaseType: fields.BaseType, IsActive: fields.IsActive,
-		AllowanceEnabled: fields.AllowanceEnabled,
+		AllowanceEnabled: fields.AllowanceEnabled, CarryoverUntil: nullableCarryover(fields.CarryoverUntil),
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -481,12 +487,12 @@ func (s *Store) UpdateStaffAbsenceType(ctx context.Context, value domain.StaffAb
 	}
 	row := &staffAbsenceTypeRow{
 		ID: value.ID, TenantID: value.TenantID, Name: value.Name, BaseType: value.BaseType, IsActive: value.IsActive,
-		AllowanceEnabled: value.AllowanceEnabled,
+		AllowanceEnabled: value.AllowanceEnabled, CarryoverUntil: nullableCarryover(value.CarryoverUntil),
 	}
 	query := db.NewUpdate().
 		Model(row).
 		ModelTableExpr(tableStaffAbsenceTypes+` AS "staff_absence_type"`).
-		Column("name", "is_active", "allowance_enabled").
+		Column("name", "is_active", "allowance_enabled", "carryover_until").
 		Set("updated_at = NOW()").
 		Where(`"staff_absence_type".id = ?`, value.ID).
 		Returning("*")
@@ -525,6 +531,10 @@ func (s *Store) RecordStaffAbsenceAudit(ctx context.Context, value domain.StaffA
 		TenantID: value.TenantID, AbsenceID: value.AbsenceID, FromStatus: value.FromStatus, ToStatus: value.ToStatus,
 		ActorID: value.ActorID, Note: value.Note, ChangedAt: value.ChangedAt,
 	}
+	if change := value.TypeChange; change != nil {
+		row.FromAbsenceType, row.ToAbsenceType = &change.FromType, &change.ToType
+		row.FromAbsenceTypeID, row.ToAbsenceTypeID = change.FromTypeID, change.ToTypeID
+	}
 	if row.TenantID == 0 {
 		row.TenantID = tenantID
 	}
@@ -538,7 +548,7 @@ func (s *Store) RecordStaffAbsenceAudit(ctx context.Context, value domain.StaffA
 	stats.Rows = 1
 	return domain.StaffAbsenceAudit{
 		ID: row.ID, TenantID: row.TenantID, AbsenceID: row.AbsenceID, FromStatus: row.FromStatus, ToStatus: row.ToStatus,
-		ActorID: row.ActorID, Note: row.Note, ChangedAt: row.ChangedAt,
+		ActorID: row.ActorID, Note: row.Note, ChangedAt: row.ChangedAt, TypeChange: value.TypeChange,
 	}, stats, nil
 }
 
@@ -575,10 +585,21 @@ func staffAbsencesToDomain(rows []staffAbsenceRow) []domain.StaffAbsence {
 }
 
 func staffAbsenceTypeToDomain(row staffAbsenceTypeRow) domain.StaffAbsenceType {
-	return domain.StaffAbsenceType{
+	value := domain.StaffAbsenceType{
 		ID: row.ID, TenantID: row.TenantID, Name: row.Name, BaseType: row.BaseType, IsActive: row.IsActive,
 		AllowanceEnabled: row.AllowanceEnabled, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
+	if row.CarryoverUntil != nil {
+		value.CarryoverUntil = *row.CarryoverUntil
+	}
+	return value
+}
+
+func nullableCarryover(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
 }
 
 // execAffected runs a write and reports the affected rows as Stats.Rows.

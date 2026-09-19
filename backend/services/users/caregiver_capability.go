@@ -7,14 +7,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -34,8 +33,18 @@ type CaregiverCapabilityServiceDependencies struct {
 	GroupSubstitutionRepo  educationModels.GroupSubstitutionRepository
 	GroupSupervisorRepo    activeModels.GroupSupervisorRepository
 	ActivitySupervisorRepo activitiesModels.SupervisorPlannedRepository
-	AuthService            authSvc.AuthService
-	DB                     *bun.DB
+	// RoleAssignments assigns and removes the caregiver role through the
+	// Identity & Access role administration (#3314).
+	RoleAssignments CaregiverRoleAssignments
+	DB              *bun.DB
+}
+
+// CaregiverRoleAssignments is the consumer-owned port over the Identity &
+// Access role administration. Both commands join the caller's transaction
+// and revoke the account's sessions at the school.
+type CaregiverRoleAssignments interface {
+	AssignRoleToAccount(ctx context.Context, accountID, roleID int64) error
+	RemoveRoleFromAccount(ctx context.Context, accountID, roleID int64) error
 }
 
 type caregiverCapabilityService struct {
@@ -159,7 +168,7 @@ func (s *caregiverCapabilityService) EnableCaregiverCapability(
 			details["requested_position"] = input.Position
 		}
 
-		userRole, err := authSvc.ResolveSystemRoleByName(txCtx, s.RoleRepo, "user")
+		userRole, err := authModels.ResolveSystemRoleByName(txCtx, s.RoleRepo, "user")
 		if err != nil {
 			return err
 		}
@@ -167,7 +176,7 @@ func (s *caregiverCapabilityService) EnableCaregiverCapability(
 			return &UsersError{Op: "enable caregiver capability", Err: fmt.Errorf("user role not found")}
 		}
 
-		if err := s.AuthService.AssignRoleToAccount(txCtx, int(accountID), int(userRole.ID)); err != nil {
+		if err := s.RoleAssignments.AssignRoleToAccount(txCtx, accountID, userRole.ID); err != nil {
 			return err
 		}
 
@@ -248,7 +257,7 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 		}
 
 		for _, roleName := range roleNamesToRemove {
-			role, err := authSvc.ResolveSystemRoleByName(txCtx, s.RoleRepo, roleName)
+			role, err := authModels.ResolveSystemRoleByName(txCtx, s.RoleRepo, roleName)
 			if err != nil {
 				return err
 			}
@@ -259,7 +268,7 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 				}
 			}
 
-			if err := s.AuthService.RemoveRoleFromAccount(txCtx, int(accountID), int(role.ID)); err != nil {
+			if err := s.RoleAssignments.RemoveRoleFromAccount(txCtx, accountID, role.ID); err != nil {
 				return err
 			}
 		}
@@ -489,7 +498,7 @@ func (s *caregiverCapabilityService) loadAccountAndTenant(
 		return nil, 0, err
 	}
 	if account == nil {
-		return nil, 0, authSvc.ErrAccountNotFound
+		return nil, 0, ErrAccountNotFound
 	}
 
 	exists, err := s.AccountTenantRepo.ExistsByAccountAndTenant(ctx, accountID, tenantID)

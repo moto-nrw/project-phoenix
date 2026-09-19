@@ -6,14 +6,17 @@ import (
 	"strings"
 
 	validation "github.com/go-ozzo/ozzo-validation"
-
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
 // MFA and passkey request bodies shared verbatim by the tenant (api/auth)
 // and operator (api/operator) portals. Both portals alias these types so
 // their wire formats cannot drift; portal-specific requests (e.g. the
 // tenant-only passkey login-options body) stay in their portal package.
+
+// MFAEmailCodeLength is the digit count of an e-mail second-factor code.
+// The shared request bodies validate against it, so a code of the wrong
+// length is refused before it reaches the gate (#3364).
+const MFAEmailCodeLength = 6
 
 // MFAVerifyRequest is the body for the mfa/verify endpoints.
 type MFAVerifyRequest struct {
@@ -28,7 +31,7 @@ func (req *MFAVerifyRequest) Bind(_ *http.Request) error {
 	req.Code = strings.TrimSpace(req.Code)
 	return validation.ValidateStruct(req,
 		validation.Field(&req.ChallengeToken, validation.Required),
-		validation.Field(&req.Code, validation.Required, validation.Length(authService.MFAEmailCodeLength, authService.MFAEmailCodeLength)),
+		validation.Field(&req.Code, validation.Required, validation.Length(MFAEmailCodeLength, MFAEmailCodeLength)),
 	)
 }
 
@@ -65,7 +68,7 @@ type MFAEnrollConfirmRequest struct {
 func (req *MFAEnrollConfirmRequest) Bind(_ *http.Request) error {
 	req.Code = strings.TrimSpace(req.Code)
 	return validation.ValidateStruct(req,
-		validation.Field(&req.Code, validation.Required, validation.Length(authService.MFAEmailCodeLength, authService.MFAEmailCodeLength)),
+		validation.Field(&req.Code, validation.Required, validation.Length(MFAEmailCodeLength, MFAEmailCodeLength)),
 	)
 }
 

@@ -35,8 +35,6 @@ func init() {
 
 // fixPermissionNames updates permission names to match the backend constants
 func fixPermissionNames(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.5.3: Fixing permission names to match backend constants...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -178,8 +176,6 @@ func fixPermissionNames(ctx context.Context, db *bun.DB) error {
 
 // revertPermissionNames reverts permission names back to dot notation
 func revertPermissionNames(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.5.3: Reverting permission names...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

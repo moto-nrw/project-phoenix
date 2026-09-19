@@ -41,8 +41,6 @@ func init() {
 }
 
 func createOperatorAccount(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.11.3: Creating default operator account...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -56,11 +54,14 @@ func createOperatorAccount(ctx context.Context, db *bun.DB) error {
 	operatorEmail := os.Getenv("OPERATOR_EMAIL")
 	if operatorEmail == "" {
 		operatorEmail = "operator@example.com"
-		fmt.Printf("WARNING: OPERATOR_EMAIL environment variable not set, using default: %s\n", operatorEmail)
+		migrationLog().WarnContext(ctx, "OPERATOR_EMAIL not set, using the default address",
+			"email", operatorEmail,
+		)
 	}
 
 	operatorPassword := os.Getenv("OPERATOR_PASSWORD")
 	appEnv := os.Getenv("APP_ENV")
+	usingDefaultPassword := false
 	if operatorPassword == "" {
 		// In production, require explicit password configuration
 		if appEnv == "production" {
@@ -68,8 +69,7 @@ func createOperatorAccount(ctx context.Context, db *bun.DB) error {
 		}
 		// In development/test, use a default password with clear warnings
 		operatorPassword = generateDevDefaultPassword()
-		fmt.Printf("WARNING: OPERATOR_PASSWORD environment variable not set, using development default!\n")
-		fmt.Printf("WARNING: Please set OPERATOR_PASSWORD environment variable for production!\n")
+		usingDefaultPassword = true
 	}
 
 	operatorName := os.Getenv("OPERATOR_DISPLAY_NAME")
@@ -98,25 +98,21 @@ func createOperatorAccount(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	fmt.Printf("\n=== Operator Account Created ===\n")
-	fmt.Printf("Email: %s\n", operatorEmail)
-	fmt.Printf("Display Name: %s\n", operatorName)
-
-	if operatorPassword == generateDevDefaultPassword() {
-		fmt.Printf("Password: (DEVELOPMENT DEFAULT - CHANGE FOR PRODUCTION!)\n")
-		fmt.Printf("WARNING: Using default password! Set OPERATOR_PASSWORD environment variable!\n")
-	} else {
-		fmt.Printf("Password: Set via OPERATOR_PASSWORD environment variable\n")
+	log := migrationLog()
+	log.InfoContext(ctx, "operator account created",
+		"email", operatorEmail,
+		"display_name", operatorName,
+	)
+	// The password is never logged, not even to say which one it is — see the
+	// note in 001006002_create_admin_account.go.
+	if usingDefaultPassword {
+		log.WarnContext(ctx, "operator account uses the development default password; set OPERATOR_PASSWORD")
 	}
-
-	fmt.Printf("================================\n\n")
 
 	return nil
 }
 
 func dropOperatorAccount(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.11.3: Removing default operator account...")
-
 	operatorEmail := os.Getenv("OPERATOR_EMAIL")
 	if operatorEmail == "" {
 		operatorEmail = "operator@example.com"

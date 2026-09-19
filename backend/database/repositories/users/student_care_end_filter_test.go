@@ -54,8 +54,8 @@ func TestStudentRepository_EndedCareExcludedFromRosterReads(t *testing.T) {
 	yesterday := today.AddDays(-1)
 	// The interval's upper bound is INCLUSIVE: a child whose last care day is
 	// today is still there today and leaves tomorrow.
-	setLifecycle(t, db, lastDayToday.ID, users.StudentStatusActive, nil, &today)
-	setLifecycle(t, db, departed.ID, users.StudentStatusActive, nil, &yesterday)
+	testpkg.SetStudentLifecycle(t, db, lastDayToday.ID, users.StudentStatusActive, nil, &today)
+	testpkg.SetStudentLifecycle(t, db, departed.ID, users.StudentStatusActive, nil, &yesterday)
 
 	t.Run("FindAllWithGroups keeps the last care day and drops the day after", func(t *testing.T) {
 		infos, err := repos.Student.FindAllWithGroups(ctx)

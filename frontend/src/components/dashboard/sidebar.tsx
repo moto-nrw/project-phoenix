@@ -1677,10 +1677,10 @@ function SidebarContent({
             />
           ))}
         </SidebarAccordionSection>
-        {/* "Offene Räume" trägt dasselbe Icon wie "Aktuelle Aufsicht" und
-            verhält sich im Streifen wie "Weitere Gruppen": dort stünden zwei
-            nicht unterscheidbare Icons untereinander, deshalb blendet der
-            Bereich mit derselben Bewegung aus und zieht seine Höhe auf null. */}
+        {/* Offene Räume sind ein Raum-Bereich, keine zweite eigene Aufsicht:
+            Das Tür-Icon trennt sie in der Navigation sichtbar von der
+            aktuellen Aufsicht. Im eingeklappten Streifen blendet der Bereich
+            wie „Weitere Gruppen“ aus und zieht seine Höhe auf null. */}
         {openSupervisedRooms.length > 0 && (!collapsed || labelsMounted) && (
           <div
             aria-hidden={!labelsVisible}
@@ -1695,7 +1695,7 @@ function SidebarContent({
             <div className="overflow-hidden" inert={!labelsVisible}>
               <SidebarAccordionSection
                 icon={SUPERVISION_NAV_ICON}
-                concept="supervision"
+                concept="rooms"
                 label="Offene Räume"
                 activeColor="text-moto-purple"
                 isExpanded={areOpenRoomsExpanded}

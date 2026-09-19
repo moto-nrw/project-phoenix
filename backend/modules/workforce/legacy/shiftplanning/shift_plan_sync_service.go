@@ -15,11 +15,10 @@ import (
 	"log/slog"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/services/schedule"
-
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/uptrace/bun"
 )
@@ -35,8 +34,8 @@ const (
 
 type shiftPlanSyncService struct {
 	shifts            StaffShiftService
-	instances         schedule.InstanceService
-	timetableData     *schedule.TimetableDataService
+	instances         timetableplanning.InstanceService
+	timetableData     *timetableplanning.TimetableDataService
 	shiftRepo         scheduleModel.StaffShiftRepository
 	instanceStaffRepo scheduleModel.InstanceStaffRepository
 	broadcaster       realtime.Broadcaster
@@ -57,8 +56,8 @@ func (s *shiftPlanSyncService) todayDate() timezone.Date {
 // staff absence service via SetShiftPlanSyncer.
 func NewShiftPlanSyncService(
 	shifts StaffShiftService,
-	instances schedule.InstanceService,
-	timetableData *schedule.TimetableDataService,
+	instances timetableplanning.InstanceService,
+	timetableData *timetableplanning.TimetableDataService,
 	shiftRepo scheduleModel.StaffShiftRepository,
 	instanceStaffRepo scheduleModel.InstanceStaffRepository,
 	broadcaster realtime.Broadcaster,

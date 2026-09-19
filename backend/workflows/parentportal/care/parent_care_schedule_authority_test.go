@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
@@ -74,7 +74,7 @@ func TestExistingCareScheduleRequestCanBeDecidedAfterAuthorityChange(t *testing.
 
 	_, db, repos := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	var requests scheduleService.CareScheduleRequestService
+	var requests careschedule.CareScheduleRequestService
 	weeklyPlan := careScheduleServiceWithSettings(t, db, repos, weeklyPlanSettings(false), &requests)
 	created, err := weeklyPlan.CreateCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, carePayload())
 	require.NoError(t, err)
@@ -89,10 +89,10 @@ func TestExistingCareScheduleRequestCanBeDecidedAfterAuthorityChange(t *testing.
 	staffCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	staffCtx = context.WithValue(staffCtx, jwt.CtxClaims, jwt.AppClaims{ID: int(staffAccount.ID)})
 	staffCtx = context.WithValue(staffCtx, jwt.CtxPermissions, []string{"admin:*"})
-	var decided *scheduleService.CareRequestReviewItem
+	var decided *careschedule.CareRequestReviewItem
 	err = testpkg.WithTenantTx(t, staffCtx, db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var decideErr error
-		decided, decideErr = requests.Decide(txCtx, scheduleService.CareRequestDecideInput{
+		decided, decideErr = requests.Decide(txCtx, careschedule.CareRequestDecideInput{
 			RequestID: view.PendingRequest.ID, Approve: true, ReviewedBy: staffAccount.ID,
 		})
 		return decideErr

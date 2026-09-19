@@ -15,18 +15,18 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 	"github.com/uptrace/bun"
@@ -84,6 +84,7 @@ func (rs *Resource) prefetchListSettings(ctx context.Context) (context.Context, 
 	snapshot, err := batch.ResolveMany(ctx, []string{
 		configModel.KeyEnrollmentBookingsAuthoritative,
 		configModel.KeyPresenceMode,
+		configModel.KeySessionEndTime,
 		configModel.KeyStudentPhotosEnabled,
 	})
 	if err != nil {
@@ -185,6 +186,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
+	responses = applyLocationFilter(responses, params.location)
 	responses = applyDayPlanningFilter(responses, params.dayStatus)
 	// Administrative filters (#1492): bus / photo consent / pickup rule.
 	// Applied here, before in-memory pagination, so server-side counts and
@@ -445,15 +447,12 @@ func (rs *Resource) resolveGroupFilter(ctx context.Context, params *studentListP
 // params.studentIDs (if set by a pre-filter above) and combines it with
 // school_class / guardian_name and pagination.
 func (rs *Resource) runStandardStudentQuery(ctx context.Context, params *studentListParams) ([]*users.Student, int, error) {
-	queryOptions := params.buildQueryOptions()
-	countOptions := params.buildCountOptions()
-
-	totalCount, err := rs.StudentService.CountWithOptions(ctx, countOptions)
+	totalCount, err := rs.StudentService.CountStudents(ctx, params.buildDirectoryFilter())
 	if err != nil {
 		return nil, 0, err
 	}
 
-	students, err := rs.StudentService.ListWithOptions(ctx, queryOptions)
+	students, err := rs.StudentService.ListStudents(ctx, params.buildPagedDirectoryFilter())
 	if err != nil {
 		return nil, 0, err
 	}
@@ -480,10 +479,10 @@ func (rs *Resource) listSchoolClasses(w http.ResponseWriter, r *http.Request) {
 // children are all list entries must still be selectable for class lists.
 // Dedupe uses the LOWER(TRIM(...)) identity every class comparison uses.
 func (rs *Resource) appendClassListEntryClasses(ctx context.Context, classes []string) ([]string, error) {
-	if rs.ClassListEntryService == nil {
+	if rs.ClassListEntries == nil {
 		return classes, nil
 	}
-	entries, err := rs.ClassListEntryService.ListAll(ctx)
+	entries, err := rs.ClassListEntries.ListClassListEntriesInDisplayOrder(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -1591,13 +1590,13 @@ func updateStudentTxErrorRenderer(err error) render.Renderer {
 	// Companion input the client should not have sent: a day the child's own
 	// plan does not allow, a duplicate, a self-link, an unknown child. All 4xx,
 	// with the German sentinel text going straight to the UI.
-	case errors.Is(err, userService.ErrCompanionNotFound):
+	case errors.Is(err, carelifecycle.ErrCompanionNotFound):
 		return common.ErrorNotFound(err)
-	case errors.Is(err, userService.ErrCompanionDayNotAllowed),
-		errors.Is(err, userService.ErrDuplicateCompanion),
-		errors.Is(err, userService.ErrCompanionWeekdayRequired),
-		errors.Is(err, userService.ErrTooManyCompanions),
-		errors.Is(err, userService.ErrCompanionAtLimit),
+	case errors.Is(err, carelifecycle.ErrCompanionDayNotAllowed),
+		errors.Is(err, carelifecycle.ErrDuplicateCompanion),
+		errors.Is(err, carelifecycle.ErrCompanionWeekdayRequired),
+		errors.Is(err, carelifecycle.ErrTooManyCompanions),
+		errors.Is(err, carelifecycle.ErrCompanionAtLimit),
 		errors.Is(err, users.ErrCompanionSelfLink),
 		errors.Is(err, users.ErrCompanionStudentIDRequired),
 		errors.Is(err, users.ErrCompanionInvalidWeekday):

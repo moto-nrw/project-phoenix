@@ -8,36 +8,36 @@ import (
 	workforceCapability "github.com/moto-nrw/project-phoenix/modules/workforce"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	"github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	"github.com/moto-nrw/project-phoenix/database/repositories/config"
 	"github.com/moto-nrw/project-phoenix/database/repositories/education"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
-	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	"github.com/moto-nrw/project-phoenix/database/repositories/pwausage"
-	"github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
+	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
@@ -48,6 +48,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
@@ -96,29 +97,23 @@ type Factory struct {
 	RolePermission         authModels.RolePermissionRepository
 	AccountRole            authModels.AccountRoleRepository
 	AccountPermission      authModels.AccountPermissionRepository
-	PasswordResetToken     authModels.PasswordResetTokenRepository
-	PasswordResetRateLimit authModels.PasswordResetRateLimitRepository
 	InvitationToken        authModels.InvitationTokenRepository
-	GuardianInvitation     authModels.GuardianInvitationRepository
 	MFACredential          authModels.MFACredentialRepository
 	MFAEmailChallenge      authModels.MFAEmailChallengeRepository
 	MFATrustedDevice       authModels.MFATrustedDeviceRepository
 	MFAOverride            authModels.MFAOverrideRepository
-	PasskeyCredential      authModels.PasskeyCredentialRepository
-	PasskeySession         authModels.PasskeySessionRepository
 
 	// Users domain
 	Person              userModels.PersonRepository
 	RFIDCard            authModels.RFIDCardRepository
 	Staff               userModels.StaffRepository
 	Student             userModels.StudentRepository
-	ClassListEntry      userModels.ClassListEntryRepository
 	CareExit            userModels.CareExitRepository
 	CareExitCleanup     userModels.CareExitCleanupRepository
 	CareWithdrawal      userModels.CareWithdrawalCompletionRepository
 	Teacher             userModels.TeacherRepository
 	Guest               userModels.GuestRepository
-	Profile             userModels.ProfileRepository
+	Profile             authModels.ProfileRepository
 	StudentGuardian     userModels.StudentGuardianRepository
 	StudentCompanion    userModels.StudentCompanionRepository
 	GuardianProfile     userModels.GuardianProfileRepository
@@ -244,18 +239,15 @@ type Factory struct {
 	BookingConsistency           auditModels.BookingConsistencyRepository
 
 	// Platform domain (operator dashboard)
-	OperatorAuditLog         platformModels.OperatorAuditLogRepository
-	OperatorEmailChangeToken platformModels.OperatorEmailChangeTokenRepository
-	OperatorInvitationToken  platformModels.OperatorInvitationTokenRepository
-	OperatorSummaries        platformModels.OperatorSummariesRepository
-	School                   platformModels.SchoolRepository
-
-	// Operator MFA (issue #1308 phase 7b)
-	OperatorMFACredential     platformModels.OperatorMFACredentialRepository
-	OperatorMFAEmailChallenge platformModels.OperatorMFAEmailChallengeRepository
-	OperatorMFATrustedDevice  platformModels.OperatorMFATrustedDeviceRepository
-	OperatorPasskeyCredential platformModels.OperatorPasskeyCredentialRepository
-	OperatorPasskeySession    platformModels.OperatorPasskeySessionRepository
+	// The operator invitation and e-mail change links are owned by Identity
+	// & Access (#2722).
+	OperatorAuditLog platformModels.OperatorAuditLogRepository
+	// School is the Organisation & Tenancy capability that owns
+	// platform.schools (#3253); BindOrganizationTenancy replaces the
+	// unobserved default with the serving root's module.
+	School organizationtenancy.Capability
+	// The operator MFA and passkey records are owned by Identity & Access
+	// (#2723, #2724).
 
 	// Enrollment domain (parent-enrollment PR 5+)
 	CareOffering enrollmentModels.CareOfferingRepository
@@ -358,7 +350,6 @@ func (f *Factory) BindOrganizationTenancy(capability organizationtenancy.Capabil
 		return
 	}
 	f.organizationTenancyBound = true
-	memberships := f.AccountTenant
 	rawAccountTenant, ok := f.AccountTenant.(interface {
 		ListAccountsBySchoolIDs(context.Context, []int64) ([]authModels.OrgAccountInfo, error)
 	})
@@ -368,7 +359,7 @@ func (f *Factory) BindOrganizationTenancy(capability organizationtenancy.Capabil
 	if f.Account != nil {
 		f.Account = schoolAccountRepository{AccountRepository: f.Account, schools: capability}
 	}
-	f.School = NewSchoolCapabilityAdapter(capability, memberships)
+	f.School = capability
 	if f.ParentChild != nil {
 		f.ParentChild = schoolChildRepository{ChildRepository: f.ParentChild, schools: capability}
 	}
@@ -394,6 +385,14 @@ func NewOrganizationTenancy(db *bun.DB) (organizationtenancy.Capability, error) 
 		DB:      db,
 		Observe: func(organizationCompose.Observation) {},
 	})
+}
+
+func mustNewOrganizationTenancy(db *bun.DB) organizationtenancy.Capability {
+	capability, err := NewOrganizationTenancy(db)
+	if err != nil {
+		panic(fmt.Sprintf("repository factory: organization tenancy: %v", err))
+	}
+	return capability
 }
 
 // BindPeopleDirectory replaces the legacy adapters that used to join
@@ -479,7 +478,6 @@ func (f *Factory) bindStaffMembershipAdapters(capability schoolmembership.Capabi
 	f.Staff = staffMembershipRepository{membership: capability, deps: f.membershipDeps}
 	f.Teacher = teacherMembershipRepository{membership: capability, deps: f.membershipDeps}
 	f.Guest = guestMembershipRepository{membership: capability}
-	f.ClassListEntry = classListEntryMembershipRepository{membership: capability}
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -518,49 +516,49 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	}
 	studentDeletionAudit := audit.NewStudentDeletionRepository(auditRepositoryRuntime)
 	enrollmentOfferingAdjustment := audit.NewEnrollmentOfferingAdjustmentRepository(auditRepositoryRuntime)
-	accountRepo := auth.NewAccountRepository(db)
-	accountTenantRepo := auth.NewAccountTenantRepository(db)
-	roleRepo := auth.NewRoleRepository(db)
-	permissionRepo := auth.NewPermissionRepository(db)
+	accountRepo := authpostgres.NewAccountRepository(db)
+	accountTenantRepo := authpostgres.NewAccountTenantRepository(db)
+	roleRepo := authpostgres.NewRoleRepository(db)
+	permissionRepo := authpostgres.NewPermissionRepository(db)
 	// The account facts other owners read belong to Identity & Access
 	// (#2720): the account lookups the People Directory and Care Plan
 	// repositories need are bound at construction.
 	identity := newIdentityAccess(db, timetableDependencies.ObserveIdentityAccess)
 	personRepo := NewPersonRepository(db)
-	studentRepo := users.NewStudentRepository(db)
+	studentRepo := NewStudentRepository(db)
 	groupRepo := education.NewGroupRepository(db)
-	factory := &Factory{
+	// The care-exit repositories read their owners through resolvers over this
+	// pointer, because Care Plan and the School Calendar are composed after
+	// the factory; its own bind methods fill the fields they read.
+	var factory *Factory
+	factory = &Factory{
 		db: db,
 		// Auth repositories
 		Account:                accountRepo,
-		AccountParent:          auth.NewAccountParentRepository(db),
+		AccountParent:          authpostgres.NewAccountParentRepository(db),
 		AccountTenant:          accountTenantRepo,
-		StaffCalendarFeedToken: auth.NewStaffCalendarFeedTokenRepository(db),
+		StaffCalendarFeedToken: authpostgres.NewStaffCalendarFeedTokenRepository(db),
 		Role:                   roleRepo,
 		Permission:             permissionRepo,
-		RolePermission:         auth.NewRolePermissionRepository(db),
-		AccountRole:            auth.NewAccountRoleRepository(db),
-		AccountPermission:      auth.NewAccountPermissionRepository(db),
-		PasswordResetToken:     auth.NewPasswordResetTokenRepository(db),
-		PasswordResetRateLimit: auth.NewPasswordResetRateLimitRepository(db),
-		InvitationToken:        auth.NewInvitationTokenRepository(db),
-		GuardianInvitation:     auth.NewGuardianInvitationRepository(db),
-		MFACredential:          auth.NewMFACredentialRepository(db),
-		MFAEmailChallenge:      auth.NewMFAEmailChallengeRepository(db),
-		MFATrustedDevice:       auth.NewMFATrustedDeviceRepository(db),
-		MFAOverride:            auth.NewMFAOverrideRepository(db),
-		PasskeyCredential:      auth.NewPasskeyCredentialRepository(db),
-		PasskeySession:         auth.NewPasskeySessionRepository(db),
+		RolePermission:         authpostgres.NewRolePermissionRepository(db),
+		AccountRole:            authpostgres.NewAccountRoleRepository(db),
+		AccountPermission:      authpostgres.NewAccountPermissionRepository(db),
+		InvitationToken:        authpostgres.NewInvitationTokenRepository(db),
+		MFACredential:          authpostgres.NewMFACredentialRepository(db),
+		MFAEmailChallenge:      authpostgres.NewMFAEmailChallengeRepository(db),
+		MFATrustedDevice:       authpostgres.NewMFATrustedDeviceRepository(db),
+		MFAOverride:            authpostgres.NewMFAOverrideRepository(db),
 
 		// Users repositories
-		Person:              personRepo,
-		RFIDCard:            auth.NewRFIDCardRepository(db),
-		Student:             studentRepo,
-		CareExit:            users.NewCareExitRepository(db),
-		CareExitCleanup:     users.NewCareExitCleanupRepository(db, NewEnrollmentBookingProjection(enrollmentModule), careExitAssignments{capability: timetableCapability}, presenceCapability),
-		CareWithdrawal:      users.NewCareWithdrawalCompletionRepository(db),
-		Profile:             users.NewProfileRepository(db),
-		StudentGuardian:     users.NewStudentGuardianRepository(db),
+		Person:   personRepo,
+		RFIDCard: authpostgres.NewRFIDCardRepository(db),
+		Student:  studentRepo,
+		CareExit: carelifecycle.NewCareExitRepository(db, careExitReasonsOf(&factory)),
+		CareExitCleanup: carelifecycle.NewCareExitCleanupRepository(db, newCareExitCleanup(
+			db, &factory, NewEnrollmentBookingProjection(enrollmentModule), presenceCapability, timetableCapability,
+		)),
+		Profile:             authpostgres.NewProfileRepository(db),
+		StudentGuardian:     NewStudentGuardianRepository(db),
 		StudentCompanion:    nil, // bound to Care Plan below
 		GuardianProfile:     NewGuardianProfileRepository(db),
 		GuardianPhoneNumber: users.NewGuardianPhoneNumberRepository(db),
@@ -595,7 +593,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		// Education repositories
 		Group:                 groupRepo,
 		ClassArrivalTime:      education.NewClassArrivalTimeRepository(db),
-		ClassArrivalException: schedule.NewClassArrivalExceptionRepository(db),
+		ClassArrivalException: timetableCompose.NewClassArrivalExceptionRepository(db),
 		GroupSubstitution:     nil, // bound to Workforce below
 
 		// Schedule repositories. Dateframe, CalendarPeriod and ClosingDay
@@ -686,50 +684,41 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		// Platform repositories. Operators and their refresh sessions are
 		// served by the public Identity & Access capability the service root
 		// binds (#3252); the operator audit ledger belongs to Audit (#2720).
-		OperatorAuditLog:         newOperatorAuditLog(auditRepositoryRuntime),
-		OperatorEmailChangeToken: platformRepo.NewOperatorEmailChangeTokenRepository(db),
-		OperatorInvitationToken:  platformRepo.NewOperatorInvitationTokenRepository(db),
-		OperatorSummaries:        platformRepo.NewOperatorSummariesRepository(db),
-		School:                   platformRepo.NewSchoolRepository(db),
-
-		OperatorMFACredential:     platformRepo.NewOperatorMFACredentialRepository(db),
-		OperatorMFAEmailChallenge: platformRepo.NewOperatorMFAEmailChallengeRepository(db),
-		OperatorMFATrustedDevice:  platformRepo.NewOperatorMFATrustedDeviceRepository(db),
-		OperatorPasskeyCredential: platformRepo.NewOperatorPasskeyCredentialRepository(db),
-		OperatorPasskeySession:    platformRepo.NewOperatorPasskeySessionRepository(db),
+		OperatorAuditLog: newOperatorAuditLog(auditRepositoryRuntime),
+		School:           mustNewOrganizationTenancy(db),
 
 		// Enrollment repositories
 		SubmissionRateLimit: enrollmentModule,
 
 		// Parent (cross-tenant guardian portal — PR 9+)
-		ParentChild:             parentRepo.NewChildRepository(parentRuntime),
-		ParentEnrollablePhase:   parentRepo.NewEnrollablePhaseRepository(parentRuntime, enrollmentModule),
+		ParentChild:             parentRepo.NewChildRepository(parentRuntime, activeMembershipQuery(db)),
+		ParentEnrollablePhase:   parentRepo.NewEnrollablePhaseRepository(parentRuntime, enrollmentModule, activeMembershipQuery(db)),
 		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(parentRuntime, enrollmentModule, identityAccountDirectory{accounts: identity}),
 
 		// Parent Stammdaten direct-edit audit + change-request review
 		StudentDataChangeRequest: nil, // bound to Care Plan below
 
 		// Parent-OGS messaging (tenant-scoped two-way conversation per child)
-		ParentMessageThread: parentStore.NewParentMessageThreadRepository(db, users.NewMessageableGuardianRepository(db)),
+		ParentMessageThread: parentStore.NewParentMessageThreadRepository(db, NewMessageableGuardianRepository(db)),
 		ParentMessage:       parentStore.NewParentMessageRepository(db),
 		// ParentMessageRead and StaffMessageRead are bound by
 		// bindStaffMembershipDecorators, they need the membership owner.
 
-		StaffMessageThread: users.NewStaffMessageThreadRepository(db),
-		StaffMessage:       users.NewStaffMessageRepository(db),
+		StaffMessageThread: staffStore.NewStaffMessageThreadRepository(db),
+		StaffMessage:       staffStore.NewStaffMessageRepository(db),
 
 		// Calendar repositories
 		CalendarStaffFeedTombstone: schoolCalendarCompose.NewFeedHistory(db),
 		ParentAnnouncement:         parentAnnouncement,
-		StaffNotice:                schedule.NewStaffNoticeRepository(db),
+		StaffNotice:                timetableCompose.NewStaffNoticeRepository(db),
 	}
+	// Care withdrawal completions belong to Care Plan (#3221); the adapter
+	// follows the factory's current Care Plan and People Directory bindings.
+	factory.CareWithdrawal = newCareWithdrawalCompletionRepository(
+		func() careplan.Capability { return factory.carePlan },
+		func() peopledirectory.StudentQuery { return factory.students },
+	)
 	factory.appointments = appointmentsModule
-	// iot.devices belongs to the Device Fleet owner (#2676): the operator
-	// dashboard reads its counts and device rows through that capability
-	// instead of joining the table from platform SQL.
-	factory.OperatorSummaries = deviceOperatorSummariesRepository{
-		OperatorSummariesRepository: factory.OperatorSummaries, devices: deviceFleet,
-	}
 	studentRepo.(interface {
 		BindTeacherGroupIDs(func(context.Context, int64) ([]int64, error))
 	}).BindTeacherGroupIDs(func(ctx context.Context, teacherID int64) ([]int64, error) {
@@ -822,7 +811,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	factory.PlanningTrack, factory.RecurrenceRule = adapters.PlanningTrack, adapters.RecurrenceRule
 	factory.ActivityException, factory.ActivityInstance = adapters.ActivityException, adapters.ActivityInstance
 	factory.InstanceIdempotency, factory.InstanceStaff = adapters.InstanceIdempotency, adapters.InstanceStaff
-	factory.BindTimetable(timetableCapability)
 	return factory
 }
 

@@ -3,7 +3,6 @@ package migrations
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -33,8 +32,6 @@ func init() {
 }
 
 func createScheduledCheckoutsTable(ctx context.Context, db *bun.DB) error {
-	log.Println("Creating active.scheduled_checkouts table...")
-
 	// Create the scheduled_checkouts table in the active schema
 	query := `
 	CREATE TABLE IF NOT EXISTS active.scheduled_checkouts (
@@ -83,17 +80,13 @@ func createScheduledCheckoutsTable(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to grant permissions on scheduled_checkouts: %w", err)
 	}
 
-	log.Println("Created active.scheduled_checkouts table successfully")
 	return nil
 }
 
 func rollbackScheduledCheckoutsTable(ctx context.Context, db *bun.DB) error {
-	log.Println("Rolling back active.scheduled_checkouts table...")
-
 	if _, err := db.ExecContext(ctx, `DROP TABLE IF EXISTS active.scheduled_checkouts CASCADE`); err != nil {
 		return fmt.Errorf("failed to drop scheduled_checkouts table: %w", err)
 	}
 
-	log.Println("Rolled back active.scheduled_checkouts table successfully")
 	return nil
 }

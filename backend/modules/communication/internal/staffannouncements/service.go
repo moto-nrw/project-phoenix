@@ -19,16 +19,16 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	platformService "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
 // OutboxEnqueuer is the slice of the email outbox service this package needs:
 // queue e-mail rows inside the current tenant transaction, and cancel not-yet-
 // sent rows when an announcement is retracted before the worker drains them.
 type OutboxEnqueuer interface {
-	Enqueue(ctx context.Context, req platformService.EnqueueRequest) (*platformModels.EmailOutbox, error)
+	Enqueue(ctx context.Context, req emailoutbox.EnqueueRequest) (*emailoutbox.Enqueued, error)
 	// CancelPendingByRelatedEntity cancels the still-pending outbox rows queued
 	// for an announcement when it is unpublished or deleted, so a retracted or
 	// corrected announcement can never deliver its stale title + portal link.
@@ -886,7 +886,7 @@ func (s *service) enqueueAnnouncementEmailsAs(ctx context.Context, a *usersModel
 		// Deliberately NO announcement body here: e-mail is the least trusted
 		// channel, so the mail carries only the title plus a link into the
 		// parent portal, where reading also counts for the read stats.
-		request := platformService.EnqueueRequest{
+		request := emailoutbox.EnqueueRequest{
 			Kind: platformModels.EmailKindParentAnnouncement,
 			Payload: map[string]any{
 				emailPayloadRecipient:     rcpt.Email,

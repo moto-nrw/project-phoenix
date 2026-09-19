@@ -5,7 +5,7 @@
  * - proxy.ts (blocks reserved subdomains at request level)
  * - [tenant]/layout.tsx (blocks reserved slugs at route level)
  *
- * Backend equivalent: backend/models/platform/organization.go (reservedSlugs map).
+ * Backend equivalent: backend/modules/organizationtenancy/organizationtenancy.go (reservedSlugs map).
  * Both lists MUST stay in sync. If you add a slug here, add it in the backend too.
  */
 export const RESERVED_SLUGS = new Set([

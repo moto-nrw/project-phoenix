@@ -15,9 +15,10 @@ import (
 // remain unexpected calls through the embedded interface.
 type absTypeReaderMock struct {
 	AbsenceTypeReader
-	rows      []*StaffAbsenceType
-	labelsErr error
-	listCalls int
+	rows                         []*StaffAbsenceType
+	labelsErr                    error
+	listCalls                    int
+	previewAllowanceBookingError error
 }
 
 func (m *absTypeReaderMock) GetAbsenceType(_ context.Context, id int64) (*StaffAbsenceType, error) {
@@ -43,6 +44,14 @@ func (m *absTypeReaderMock) LabelsByID(context.Context) (map[int64]string, error
 		labels[row.ID] = row.Name
 	}
 	return labels, nil
+}
+
+func (m *absTypeReaderMock) PreviewAllowanceBooking(context.Context, int64, int64, Date, Date, bool) ([]*AbsenceTypeAllowanceSummary, error) {
+	return nil, m.previewAllowanceBookingError
+}
+
+func (m *absTypeReaderMock) PreviewAllowanceRebooking(context.Context, int64, int64, []int64) ([]*AbsenceTypeAllowanceSummary, error) {
+	return nil, m.previewAllowanceBookingError
 }
 
 func TestStampAbsenceTypeLabelsFillsOnlyCustomRows(t *testing.T) {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func addPauseStartedAt(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.10.3: Adding pause_started_at to active.work_sessions...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -52,20 +49,17 @@ func addPauseStartedAt(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error adding pause_started_at column: %w", err)
 	}
 
-	fmt.Println("Migration 1.10.3: Successfully added pause_started_at column")
 	return tx.Commit()
 }
 
 func dropPauseStartedAt(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.10.3: Dropping pause_started_at column...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -77,6 +71,5 @@ func dropPauseStartedAt(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error dropping pause_started_at column: %w", err)
 	}
 
-	fmt.Println("Migration 1.10.3: Successfully dropped pause_started_at column")
 	return tx.Commit()
 }

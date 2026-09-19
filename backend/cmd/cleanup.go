@@ -12,8 +12,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/cobra"
 )
@@ -491,7 +491,7 @@ func runCleanupInvitations(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	count, err := ctx.InvitationCleanupService.CleanupExpiredInvitations(context.Background())
+	count, err := ctx.InvitationCleanupService.DeleteExpiredSchoolInvitations(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to clean up invitations: %w", err)
 	}
@@ -508,7 +508,7 @@ func runCleanupRateLimits(cmd *cobra.Command, _ []string) error {
 	defer ctx.Close()
 	ctx.Output = cmd.OutOrStdout()
 
-	count, err := ctx.AuthCleanupService.CleanupExpiredRateLimits(context.Background())
+	count, err := ctx.AuthCleanupService.DeleteStalePasswordResetWindows(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to clean up password reset rate limits: %w", err)
 	}
@@ -936,13 +936,13 @@ func forEachActiveTenant(
 	return nil
 }
 
-func printTimetableCleanupLine(output io.Writer, tenantID int64, r *schedule.TimetableCleanupResult) {
+func printTimetableCleanupLine(output io.Writer, tenantID int64, r *timetableplanning.TimetableCleanupResult) {
 	mustFprintf(output, "[tenant %d] instances=%d exceptions=%d students=%d retention=%dd cutoff=%s duration_ms=%d\n",
 		tenantID, r.InstancesDeleted, r.ExceptionsDeleted, r.StudentsAffected,
 		r.RetentionDays, r.CutoffDate.Format(dateFormat), r.DurationMS)
 }
 
-func printTimetablePreviewLine(output io.Writer, tenantID int64, p *schedule.TimetableCleanupPreview) {
+func printTimetablePreviewLine(output io.Writer, tenantID int64, p *timetableplanning.TimetableCleanupPreview) {
 	mustFprintf(output, "[tenant %d] would-delete instances=%d exceptions=%d students=%d retention=%dd cutoff=%s",
 		tenantID, p.InstancesToDelete, p.ExceptionsToDelete, p.StudentsAffected,
 		p.RetentionDays, p.CutoffDate.Format(dateFormat))
@@ -955,7 +955,7 @@ func printTimetablePreviewLine(output io.Writer, tenantID int64, p *schedule.Tim
 	mustFprintln(output)
 }
 
-func printTimetableStatsLine(output io.Writer, tenantID int64, s *schedule.TimetableCleanupStats) {
+func printTimetableStatsLine(output io.Writer, tenantID int64, s *timetableplanning.TimetableCleanupStats) {
 	mustFprintf(output, "[tenant %d] instances_total=%d exceptions_total=%d retention=%dd cutoff=%s",
 		tenantID, s.TotalInstances, s.TotalExceptions,
 		s.RetentionDays, s.CutoffDate.Format(dateFormat))

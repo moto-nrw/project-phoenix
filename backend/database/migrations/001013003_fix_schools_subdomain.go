@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func fixSchoolsSubdomain(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.13.3: Fixing schools.subdomain column and dropping redundant index...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -56,20 +53,17 @@ func fixSchoolsSubdomain(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error dropping redundant index: %w", err)
 	}
 
-	fmt.Println("Migration 1.13.3: Successfully fixed schools.subdomain and dropped redundant index")
 	return tx.Commit()
 }
 
 func rollbackFixSchoolsSubdomain(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.13.3: Restoring original subdomain column and index...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -85,6 +79,5 @@ func rollbackFixSchoolsSubdomain(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error recreating index: %w", err)
 	}
 
-	fmt.Println("Migration 1.13.3: Successfully rolled back subdomain fix")
 	return tx.Commit()
 }

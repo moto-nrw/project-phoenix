@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"time"
 )
@@ -24,8 +25,12 @@ import (
 // renders the message it always rendered.
 var (
 	ErrManagerControlledAbsence = errors.New("absence type is manager-controlled")
-	ErrVacationQuotaInvalid     = errors.New("vacation quota is invalid")
-	ErrVacationQuotaExceeded    = errors.New("vacation quota exceeded")
+	ErrAllowanceBookingOverlap  = errors.New("allowance booking overlaps")
+	// ErrAbsenceRebookingBlocked carries a German reason the Leitung has to
+	// resolve before a rebooking (#3258).
+	ErrAbsenceRebookingBlocked = errors.New("absence rebooking blocked")
+	ErrVacationQuotaInvalid    = errors.New("vacation quota is invalid")
+	ErrVacationQuotaExceeded   = errors.New("vacation quota exceeded")
 
 	ErrAdjustmentInvalid           = errors.New("balance adjustment is invalid")
 	ErrAdjustmentNotFound          = errors.New("balance adjustment not found")
@@ -293,6 +298,46 @@ type UpdateAbsenceRequest struct {
 	Note             *string `json:"note"`
 }
 
+// UnmarshalJSON accepts absence_type_id as decimal string: browser clients
+// cannot hold every BIGINT as a number.
+func (r *CreateAbsenceRequest) UnmarshalJSON(data []byte) error {
+	type plain CreateAbsenceRequest
+	var raw struct {
+		plain
+		AbsenceTypeID json.RawMessage `json:"absence_type_id"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	typeID, err := decimalID(raw.AbsenceTypeID)
+	if err != nil {
+		return fmt.Errorf("ungültige Abwesenheitsart-ID: %w", err)
+	}
+	*r = CreateAbsenceRequest(raw.plain)
+	r.AbsenceTypeID = typeID
+	return nil
+}
+
+// UnmarshalJSON accepts absence_type_id as decimal string and records whether
+// the field was sent at all, so JSON null can clear a school-defined type.
+func (r *UpdateAbsenceRequest) UnmarshalJSON(data []byte) error {
+	type plain UpdateAbsenceRequest
+	var raw struct {
+		plain
+		AbsenceTypeID json.RawMessage `json:"absence_type_id"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	typeID, err := decimalID(raw.AbsenceTypeID)
+	if err != nil {
+		return fmt.Errorf("ungültige Abwesenheitsart-ID: %w", err)
+	}
+	*r = UpdateAbsenceRequest(raw.plain)
+	r.AbsenceTypeID, r.AbsenceTypeIDSet = typeID, len(raw.AbsenceTypeID) != 0
+	return nil
+}
+
 // RequestVacationRequest is what a staff member submits via "Urlaub
 // beantragen"; the half-day flags cover the first and last day only.
 type RequestVacationRequest struct {
@@ -358,6 +403,93 @@ type CompTimeBalancePreview struct {
 	ProjectedBalanceMinutes  int `json:"projected_balance_minutes"`
 }
 
+// RebookAbsencesRequest moves stored absences of one staff member to another
+// type (#3258). Browser clients send the BIGINT identifiers as decimal
+// strings; numbers are accepted too.
+type RebookAbsencesRequest struct {
+	AbsenceIDs    []int64
+	AbsenceType   string
+	AbsenceTypeID *int64
+	Reason        string
+	DryRun        bool
+}
+
+func (r *RebookAbsencesRequest) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		AbsenceIDs    []json.RawMessage `json:"absence_ids"`
+		AbsenceType   string            `json:"absence_type"`
+		AbsenceTypeID json.RawMessage   `json:"absence_type_id"`
+		Reason        string            `json:"reason"`
+		DryRun        bool              `json:"dry_run"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.AbsenceType, r.Reason, r.DryRun = raw.AbsenceType, raw.Reason, raw.DryRun
+	r.AbsenceIDs = make([]int64, 0, len(raw.AbsenceIDs))
+	for _, value := range raw.AbsenceIDs {
+		id, err := decimalID(value)
+		if err != nil || id == nil {
+			return fmt.Errorf("invalid absence_ids: %w", errors.Join(err, errors.New("id is required")))
+		}
+		r.AbsenceIDs = append(r.AbsenceIDs, *id)
+	}
+	typeID, err := decimalID(raw.AbsenceTypeID)
+	if err != nil {
+		return fmt.Errorf("invalid absence_type_id: %w", err)
+	}
+	r.AbsenceTypeID = typeID
+	return nil
+}
+
+// decimalID reads a BIGINT sent as JSON number or decimal string; absent and
+// null yield nil.
+func decimalID(raw json.RawMessage) (*int64, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
+	var text string
+	if err := json.Unmarshal(raw, &text); err != nil {
+		text = string(raw)
+	}
+	id, err := strconv.ParseInt(text, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	return &id, nil
+}
+
+// AbsenceRebookingResult is what a rebooking does: the entries with their new
+// type, the Stundenkonto change in minutes, and the touched accounts.
+type AbsenceRebookingResult struct {
+	Absences            []*StaffAbsenceResponse  `json:"absences"`
+	Days                float64                  `json:"days"`
+	BalanceDeltaMinutes int                      `json:"balance_delta_minutes"`
+	Allowances          []RebookingAllowanceYear `json:"allowances,omitempty"`
+	AllowanceExceeded   bool                     `json:"allowance_exceeded"`
+	Vacation            []RebookingVacationYear  `json:"vacation,omitempty"`
+	VacationExceeded    bool                     `json:"vacation_exceeded"`
+	Applied             bool                     `json:"applied"`
+}
+
+// RebookingAllowanceYear is the target allowance of one year after the
+// rebooking; BookingDays is what the rebooked entries take from it.
+type RebookingAllowanceYear struct {
+	Year          int     `json:"year"`
+	EntitledDays  float64 `json:"entitled_days"`
+	TakenDays     float64 `json:"taken_days"`
+	ReservedDays  float64 `json:"reserved_days"`
+	RemainingDays float64 `json:"remaining_days"`
+	BookingDays   float64 `json:"booking_days"`
+}
+
+// RebookingVacationYear is the Resturlaub of one year before and after.
+type RebookingVacationYear struct {
+	Year            int     `json:"year"`
+	RemainingBefore float64 `json:"remaining_before"`
+	RemainingAfter  float64 `json:"remaining_after"`
+}
+
 // StaffAbsences is the absence and vacation administration of the web app.
 type StaffAbsences interface {
 	ListAbsences(ctx context.Context, staffID int64, filter StaffAbsenceListFilter) ([]*StaffAbsenceResponse, error)
@@ -368,6 +500,9 @@ type StaffAbsences interface {
 	DeleteOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64) error
 	DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error
 	PreviewCompTimeBalance(ctx context.Context, staffID int64, start, end string, halfDay bool) (*CompTimeBalancePreview, error)
+	// RebookAbsences changes the type of stored absences with a reason; with
+	// DryRun it only reports the effects (#3258).
+	RebookAbsences(ctx context.Context, staffID, actorAccountID int64, request RebookAbsencesRequest) (*AbsenceRebookingResult, error)
 	RequestVacation(ctx context.Context, staffID int64, request RequestVacationRequest) (*StaffAbsenceResponse, error)
 	CancelAbsence(ctx context.Context, staffID, actorAccountID, absenceID int64) error
 	ResubmitAbsence(ctx context.Context, staffID, actorAccountID, absenceID int64, note string) (*StaffAbsenceResponse, error)

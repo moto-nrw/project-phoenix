@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	repoUsers "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -112,7 +111,9 @@ func TestCareWithdrawalCompletionRepository_UpsertPreservesSchoolConfirmation(t 
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := repoUsers.NewCareWithdrawalCompletionRepository(db)
+	lifecycle, err := repositories.NewCareLifecycleTestRepositories(db, nil)
+	require.NoError(t, err)
+	repo := lifecycle.CareWithdrawal
 	actor := testpkg.CreateTestAccount(t, db, "withdrawal-confirmer")
 	gap := timezone.NewDate(2026, 8, 24)
 
@@ -170,7 +171,15 @@ func TestCareWithdrawalCompletionRepository_ParticipationBoundaryUsesPendingComp
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repo := factory.CareWithdrawal
+	// Callers pass the tenant rows they read through FindByIDs (#3221).
+	studentsByID := func(ids ...int64) map[int64]*userModels.Student {
+		t.Helper()
+		students, err := factory.Student.FindByIDs(ctx, ids)
+		require.NoError(t, err)
+		return students
+	}
 	student := testpkg.CreateTestStudent(t, db, "Offen", "Grenze", "3b")
 	studentID := student.ID
 	firstGap := timezone.NewDate(2026, 8, 24).AddDays(4)
@@ -180,9 +189,56 @@ func TestCareWithdrawalCompletionRepository_ParticipationBoundaryUsesPendingComp
 		Trigger: userModels.CareWithdrawalTriggerDirectSchool, WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
 	}))
 
-	boundaries, err := repo.ListParticipationBoundaries(ctx, []int64{student.ID}, false)
+	boundaries, err := repo.ListParticipationBoundaries(ctx, studentsByID(student.ID), false)
 	require.NoError(t, err)
 	assert.Equal(t, firstGap, boundaries[student.ID])
+
+	// The boundary merge moved out of SQL with #3221: the earlier of the day
+	// after enrolled_until and the pending completion wins, booking-expiry
+	// tasks count only on request, and a child with neither has no boundary.
+	day := timezone.NewDate(2026, 9, 7)
+	setEnrolledUntil := func(studentID int64, until timezone.Date) {
+		t.Helper()
+		_, err := db.NewUpdate().TableExpr("users.students").Set("enrolled_until = ?", until).Where("id = ?", studentID).Exec(ctx)
+		require.NoError(t, err)
+	}
+	upsert := func(studentID int64, gap timezone.Date, trigger string) {
+		t.Helper()
+		require.NoError(t, repo.UpsertPending(ctx, &userModels.CareWithdrawalCompletion{
+			StudentID: &studentID, FirstBookinglessDay: gap,
+			Trigger: trigger, WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
+		}))
+	}
+
+	enrollmentFirst := testpkg.CreateTestStudent(t, db, "Früh", "Ende", "4a")
+	setEnrolledUntil(enrollmentFirst.ID, day)
+	upsert(enrollmentFirst.ID, day.AddDays(5), userModels.CareWithdrawalTriggerDirectSchool)
+
+	completionFirst := testpkg.CreateTestStudent(t, db, "Früh", "Abmeldung", "4a")
+	setEnrolledUntil(completionFirst.ID, day.AddDays(10))
+	upsert(completionFirst.ID, day.AddDays(3), userModels.CareWithdrawalTriggerDirectSchool)
+
+	bookingOnly := testpkg.CreateTestStudent(t, db, "Nur", "Buchung", "4a")
+	upsert(bookingOnly.ID, day.AddDays(2), userModels.CareWithdrawalTriggerBookingExpired)
+
+	open := testpkg.CreateTestStudent(t, db, "Ohne", "Ende", "4a")
+	students := studentsByID(enrollmentFirst.ID, completionFirst.ID, bookingOnly.ID, open.ID)
+	require.Len(t, students, 4)
+
+	boundaries, err = repo.ListParticipationBoundaries(ctx, students, false)
+	require.NoError(t, err)
+	assert.Equal(t, map[int64]timezone.Date{
+		enrollmentFirst.ID: day.AddDays(1),
+		completionFirst.ID: day.AddDays(3),
+	}, boundaries)
+
+	boundaries, err = repo.ListParticipationBoundaries(ctx, students, true)
+	require.NoError(t, err)
+	assert.Equal(t, map[int64]timezone.Date{
+		enrollmentFirst.ID: day.AddDays(1),
+		completionFirst.ID: day.AddDays(3),
+		bookingOnly.ID:     day.AddDays(2),
+	}, boundaries)
 }
 
 func TestCareWithdrawalCompletionRepository_WeeklyPlansObsoletePending(t *testing.T) {

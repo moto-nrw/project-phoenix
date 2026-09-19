@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func createOrganizationsAndSchools(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.13.1: Creating platform.organizations and platform.schools tables...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -112,20 +109,17 @@ func createOrganizationsAndSchools(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating updated_at triggers: %w", err)
 	}
 
-	fmt.Println("Migration 1.13.1: Successfully created platform.organizations and platform.schools tables")
 	return tx.Commit()
 }
 
 func rollbackOrganizationsAndSchools(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.13.1: Dropping organizations and schools tables...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -149,6 +143,5 @@ func rollbackOrganizationsAndSchools(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error dropping platform.organizations table: %w", err)
 	}
 
-	fmt.Println("Migration 1.13.1: Successfully rolled back organizations and schools tables")
 	return tx.Commit()
 }

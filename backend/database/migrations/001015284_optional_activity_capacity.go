@@ -22,7 +22,6 @@ func init() {
 }
 
 func optionalActivityCapacityUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.284: Making activity participant limits optional...")
 	_, err := db.ExecContext(ctx, `
 		ALTER TABLE activities.groups
 			ALTER COLUMN max_participants DROP NOT NULL;
@@ -53,7 +52,6 @@ func optionalActivityCapacityUp(ctx context.Context, db *bun.DB) error {
 }
 
 func optionalActivityCapacityDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.284: Restoring required activity participant limits...")
 	_, err := db.ExecContext(ctx, `
 		ALTER TABLE activities.groups
 			DROP CONSTRAINT IF EXISTS chk_activities_groups_max_participants;

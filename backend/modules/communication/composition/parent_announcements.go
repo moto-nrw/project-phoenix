@@ -7,20 +7,19 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/email"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	staff "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffannouncements"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	platformService "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
 // ParentAnnouncementConfig is the compatibility composition seam for the
 // users.parent_* persistence that moves in #2675. Callers receive only the
 // Communication public capability.
 type ParentAnnouncementOutbox interface {
-	Enqueue(context.Context, platformService.EnqueueRequest) (*platformModels.EmailOutbox, error)
+	Enqueue(context.Context, emailoutbox.EnqueueRequest) (*emailoutbox.Enqueued, error)
 	CancelPendingByRelatedEntity(context.Context, string, int64, string) (int64, error)
 }
 
@@ -64,7 +63,7 @@ func NewParentAnnouncements(cfg ParentAnnouncementConfig) communication.ParentAn
 	})}
 }
 
-func NewParentAnnouncementRenderer(cfg ParentAnnouncementEmailConfig) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error) {
+func NewParentAnnouncementRenderer(cfg ParentAnnouncementEmailConfig) func(context.Context, *emailoutbox.Intent) (*email.Message, error) {
 	return staff.NewAnnouncementRenderer(staff.EmailConfig{DefaultFrom: cfg.DefaultFrom})
 }
 

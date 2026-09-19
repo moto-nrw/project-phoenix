@@ -16,7 +16,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -27,6 +27,8 @@ import (
 // Mock Services for Cleanup Jobs
 // =============================================================================
 
+// fakeAuthCleanup stands in for both the session token maintenance and the
+// Identity & Access password reset maintenance the scheduler runs (#3332).
 type fakeAuthCleanup struct {
 	mu              sync.Mutex
 	tokenCalls      int
@@ -47,14 +49,14 @@ func (f *fakeAuthCleanup) CleanupExpiredTokens(_ context.Context) (int, error) {
 	return f.tokenResult, f.tokenErr
 }
 
-func (f *fakeAuthCleanup) CleanupExpiredPasswordResetTokens(_ context.Context) (int, error) {
+func (f *fakeAuthCleanup) DeleteSpentPasswordResetTokens(_ context.Context) (int, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.passwordCalls++
 	return f.passwordResult, f.passwordErr
 }
 
-func (f *fakeAuthCleanup) CleanupExpiredRateLimits(_ context.Context) (int, error) {
+func (f *fakeAuthCleanup) DeleteStalePasswordResetWindows(_ context.Context) (int, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.rateLimitCalls++
@@ -68,7 +70,7 @@ type fakeInvitationCleaner struct {
 	callErr error
 }
 
-func (f *fakeInvitationCleaner) CleanupExpiredInvitations(_ context.Context) (int, error) {
+func (f *fakeInvitationCleaner) DeleteExpiredSchoolInvitations(_ context.Context) (int, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++
@@ -2350,7 +2352,7 @@ type fakeEmailChangeCleaner struct {
 	called bool
 }
 
-func (f *fakeEmailChangeCleaner) CleanupExpiredEmailChangeTokens(ctx context.Context) (int, error) {
+func (f *fakeEmailChangeCleaner) CleanupOperatorEmailChanges(ctx context.Context) (int, error) {
 	f.called = true
 	return f.result, f.err
 }
@@ -2405,12 +2407,12 @@ type fakeMaterializer struct {
 	lastFrom         timezone.Date
 	lastTo           timezone.Date
 	lastWeeksAhead   int
-	lastSource       scheduleSvc.MaterializationSource
+	lastSource       timetableplanning.MaterializationSource
 	returnErr        error
-	returnResult     *scheduleSvc.MaterializationResult
+	returnResult     *timetableplanning.MaterializationResult
 }
 
-func (f *fakeMaterializer) MaterializeForTenant(_ context.Context, from, to timezone.Date, source scheduleSvc.MaterializationSource) (*scheduleSvc.MaterializationResult, error) {
+func (f *fakeMaterializer) MaterializeForTenant(_ context.Context, from, to timezone.Date, source timetableplanning.MaterializationSource) (*timetableplanning.MaterializationResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.materializeCalls++
@@ -2423,7 +2425,7 @@ func (f *fakeMaterializer) MaterializeForTenant(_ context.Context, from, to time
 	if f.returnResult != nil {
 		return f.returnResult, nil
 	}
-	return &scheduleSvc.MaterializationResult{From: from, To: to}, nil
+	return &timetableplanning.MaterializationResult{From: from, To: to}, nil
 }
 
 func (f *fakeMaterializer) ResolveWindow(baseDate timezone.Date, weeksAhead int) (timezone.Date, timezone.Date) {
@@ -2437,7 +2439,7 @@ func (f *fakeMaterializer) ResolveWindow(baseDate timezone.Date, weeksAhead int)
 	return from, to
 }
 
-func (f *fakeMaterializer) DetectEditedInWindow(_ context.Context, _ int64, _, _ timezone.Date, _ bool) ([]scheduleSvc.EditedOccurrence, error) {
+func (f *fakeMaterializer) DetectEditedInWindow(_ context.Context, _ int64, _, _ timezone.Date, _ bool) ([]timetableplanning.EditedOccurrence, error) {
 	return nil, nil
 }
 
@@ -2636,7 +2638,7 @@ func TestCheckAndRunMaterialization_HappyPath(t *testing.T) {
 	t.Parallel()
 
 	m := &fakeMaterializer{
-		returnResult: &scheduleSvc.MaterializationResult{
+		returnResult: &timetableplanning.MaterializationResult{
 			InstancesCreated: 7,
 			CandidatesRaced:  2,
 			DurationMS:       123,
@@ -2663,7 +2665,7 @@ func TestCheckAndRunMaterialization_HappyPath(t *testing.T) {
 	assert.Equal(t, 1, m.materializeCalls, "materializer must be called exactly once")
 	assert.Equal(t, 1, m.resolveCalls, "ResolveWindow must be called exactly once")
 	assert.Equal(t, 3, m.lastWeeksAhead, "weeks-ahead setting must propagate to ResolveWindow")
-	assert.Equal(t, scheduleSvc.MaterializationSourceScheduler, m.lastSource,
+	assert.Equal(t, timetableplanning.MaterializationSourceScheduler, m.lastSource,
 		"source tag must be scheduler (not manual) for scheduled runs")
 
 	// Verify lastMaterialization was stamped so the next poll skips.
@@ -2677,7 +2679,7 @@ func TestCheckAndRunMaterialization_ZeroCounters(t *testing.T) {
 	// When the result has zero created and zero raced, the success info log
 	// is suppressed — but the call still counts and the today-mark is set.
 	m := &fakeMaterializer{
-		returnResult: &scheduleSvc.MaterializationResult{
+		returnResult: &timetableplanning.MaterializationResult{
 			InstancesCreated: 0,
 			CandidatesRaced:  0,
 		},
@@ -2735,7 +2737,7 @@ func TestCheckAndRunMaterialization_OnlyRacedCounter(t *testing.T) {
 	// Triggers the "successful completion" info log branch where
 	// InstancesCreated==0 but CandidatesRaced>0.
 	m := &fakeMaterializer{
-		returnResult: &scheduleSvc.MaterializationResult{
+		returnResult: &timetableplanning.MaterializationResult{
 			CandidatesRaced: 4,
 			DurationMS:      55,
 		},

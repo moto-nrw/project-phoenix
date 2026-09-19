@@ -9,22 +9,20 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
-// fakeClassListEntryRepo serves in-memory class-list entries (#2382).
-type fakeClassListEntryRepo struct {
-	userModels.ClassListEntryRepository
-	entries []*userModels.ClassListEntry
+// fakeClassListEntries serves in-memory class-list entries (#2382) through
+// the reader slice the report consumes.
+type fakeClassListEntries struct {
+	entries []ClassListEntry
 }
 
-func (r *fakeClassListEntryRepo) List(_ context.Context, _ map[string]any) ([]*userModels.ClassListEntry, error) {
-	return r.entries, nil
-}
-
-func (r *fakeClassListEntryRepo) FindBySchoolClass(_ context.Context, schoolClass string) ([]*userModels.ClassListEntry, error) {
+func (r *fakeClassListEntries) ListClassListEntries(_ context.Context, schoolClass string) ([]ClassListEntry, error) {
+	if schoolClass == "" {
+		return r.entries, nil
+	}
 	key := strings.ToLower(strings.TrimSpace(schoolClass))
-	var out []*userModels.ClassListEntry
+	var out []ClassListEntry
 	for _, entry := range r.entries {
 		if strings.ToLower(strings.TrimSpace(entry.SchoolClass)) == key {
 			out = append(out, entry)
@@ -33,21 +31,20 @@ func (r *fakeClassListEntryRepo) FindBySchoolClass(_ context.Context, schoolClas
 	return out, nil
 }
 
-func classListEntry(id int64, firstName, lastName, schoolClass string) *userModels.ClassListEntry {
-	entry := &userModels.ClassListEntry{
+func classListEntry(id int64, firstName, lastName, schoolClass string) ClassListEntry {
+	return ClassListEntry{
+		ID:          id,
 		FirstName:   firstName,
 		LastName:    lastName,
 		SchoolClass: schoolClass,
 	}
-	entry.ID = id
-	return entry
 }
 
 func TestClassRosterMergesClassListEntries(t *testing.T) {
 	t.Parallel()
 
 	svc := allClassesTestService()
-	svc.ClassListEntryRepo = &fakeClassListEntryRepo{entries: []*userModels.ClassListEntry{
+	svc.ClassListEntries = &fakeClassListEntries{entries: []ClassListEntry{
 		classListEntry(101, "Zoe", "Aalders", "1a"),
 		classListEntry(102, "Ben", "Zorn", "3c"),
 	}}
@@ -88,7 +85,7 @@ func TestClassRosterSingleClassMergesOnlyThatClass(t *testing.T) {
 	t.Parallel()
 
 	svc := allClassesTestService()
-	svc.ClassListEntryRepo = &fakeClassListEntryRepo{entries: []*userModels.ClassListEntry{
+	svc.ClassListEntries = &fakeClassListEntries{entries: []ClassListEntry{
 		classListEntry(101, "Zoe", "Aalders", "1a"),
 		classListEntry(102, "Ben", "Zorn", "3c"),
 	}}

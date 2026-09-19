@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -35,8 +34,6 @@ func init() {
 
 // createFeedbackEntriesTable creates the feedback.entries table
 func createFeedbackEntriesTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.5.2: Creating feedback.entries table...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -44,7 +41,7 @@ func createFeedbackEntriesTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -98,8 +95,6 @@ func createFeedbackEntriesTable(ctx context.Context, db *bun.DB) error {
 
 // dropFeedbackEntriesTable drops the feedback.entries table
 func dropFeedbackEntriesTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.5.2: Removing feedback.entries table...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -107,7 +102,7 @@ func dropFeedbackEntriesTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

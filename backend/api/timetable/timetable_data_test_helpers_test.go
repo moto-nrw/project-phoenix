@@ -14,17 +14,18 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule/carescheduletest"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 )
 
 // testTimetableData builds the full TimetableDataService against the test
 // database — the test-side equivalent of the factory wiring.
-func testTimetableData(db *bun.DB, clocks ...func() time.Time) *scheduleSvc.TimetableDataService {
+func testTimetableData(db *bun.DB, clocks ...func() time.Time) *timetableplanning.TimetableDataService {
 	return testTimetableDataWithCareValidator(db, nil, clocks...)
 }
 
@@ -32,7 +33,7 @@ func testTimetableDataWithCareValidator(
 	db *bun.DB,
 	validateCareOfferingSeries func(context.Context, int64) error,
 	clocks ...func() time.Time,
-) *scheduleSvc.TimetableDataService {
+) *timetableplanning.TimetableDataService {
 	return testTimetableDataWithOfferingCallbacks(db, validateCareOfferingSeries, nil, nil, clocks...)
 }
 
@@ -40,51 +41,51 @@ func testTimetableDataWithOfferingCallbacks(
 	db *bun.DB,
 	validateCareOfferingSeries func(context.Context, int64) error,
 	validateOfferingSource func(context.Context, []int64, []int64, *int64) error,
-	resyncOfferingRoster func(context.Context, scheduleSvc.OfferingRosterResyncInput) error,
+	resyncOfferingRoster func(context.Context, timetableplanning.OfferingRosterResyncInput) error,
 	clocks ...func() time.Time,
-) *scheduleSvc.TimetableDataService {
+) *timetableplanning.TimetableDataService {
 	boundRepos := mustTimetableTestRepositories(db, clocks...)
 	approvedOfferings, err := testutil.NewApprovedOfferingProjection(db, boundRepos.Enrollment())
 	if err != nil {
 		panic(err)
 	}
-	activityInstanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
+	activityInstanceRepo := timetablesqltest.NewActivityInstanceRepository(db)
 	supervisorRepo := presenceCompose.NewLegacyGroupSupervisorRepository(repositories.NewPresenceSupervisionRecords(db))
 	var today func() timezone.Date
 	if len(clocks) > 0 && clocks[0] != nil {
 		clock := clocks[0]
 		today = func() timezone.Date { return timezone.DateFromTime(clock()) }
-		activityInstanceRepo = scheduleRepo.NewActivityInstanceRepository(db, clock)
+		activityInstanceRepo = timetablesqltest.NewActivityInstanceRepository(db, clock)
 		supervisorRepo = presenceCompose.NewLegacyGroupSupervisorRepository(repositories.NewPresenceSupervisionRecords(db), clock)
 	}
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	if err != nil {
 		panic(err)
 	}
-	deps := scheduleSvc.TimetableDataDependencies{
+	deps := timetableplanning.TimetableDataDependencies{
 		InstanceStudentRepo:   boundRepos.InstanceStudent,
 		ActivityInstanceRepo:  activityInstanceRepo,
-		ActivityExceptionRepo: scheduleRepo.NewActivityExceptionRepository(db),
+		ActivityExceptionRepo: timetablesqltest.NewActivityExceptionRepository(db),
 		ActivityScheduleRepo:  boundRepos.ActivitySchedule,
-		InstanceStaffRepo:     scheduleRepo.NewInstanceStaffRepository(db),
+		InstanceStaffRepo:     timetablesqltest.NewInstanceStaffRepository(db),
 		StaffShiftRepo:        boundRepos.StaffShift,
 		StaffRepo:             boundRepos.Staff,
 		CalendarPeriodRepo:    boundRepos.CalendarPeriod,
 		ActiveGroupRepo:       boundRepos.ActiveGroup,
 		SupervisorRepo:        supervisorRepo,
 		ArrivalScheduleRepo:   boundRepos.StudentArrivalSchedule,
-		ArrivalBaselines: scheduleSvc.NewArrivalBaselineService(
+		ArrivalBaselines: careschedule.NewArrivalBaselineService(
 			boundRepos.StudentArrivalSchedule,
-			usersRepo.NewStudentRepository(db),
+			repositories.NewStudentRepository(db),
 			educationRepo.NewClassArrivalTimeRepository(db),
-			scheduleRepo.NewClassArrivalExceptionRepository(db),
+			boundRepos.ClassArrivalException,
 			approvedOfferings,
 			boundRepos.CareOffering,
 			nil,
 		),
 		ArrivalExceptionRepo: boundRepos.StudentArrivalException,
 		PickupScheduleRepo:   boundRepos.StudentPickupSchedule,
-		PickupBaselines: scheduletest.NewPickupBaselineService(
+		PickupBaselines: carescheduletest.NewPickupBaselineService(
 			boundRepos.StudentPickupSchedule,
 			approvedOfferings,
 			boundRepos.CareOffering,
@@ -109,7 +110,7 @@ func testTimetableDataWithOfferingCallbacks(
 		DB:                         db,
 		Today:                      today,
 	}
-	return scheduleSvc.NewTimetableDataService(deps)
+	return timetableplanning.NewTimetableDataService(deps)
 }
 
 type panicTestTB struct{}

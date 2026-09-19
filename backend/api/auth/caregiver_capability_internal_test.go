@@ -9,10 +9,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -255,7 +256,7 @@ func TestDisableCaregiverCapability_RendersBlockedConflict(t *testing.T) {
 func TestCaregiverCapabilityErrorRenderer_MapsNotFound(t *testing.T) {
 	t.Parallel()
 
-	renderer := caregiverCapabilityErrorRenderer(authService.ErrAccountNotFound)
+	renderer := caregiverCapabilityErrorRenderer(identityaccess.ErrAccountNotFound)
 	errResponse, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusNotFound, errResponse.HTTPStatusCode)

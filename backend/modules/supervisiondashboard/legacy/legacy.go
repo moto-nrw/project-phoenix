@@ -18,18 +18,19 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // Sources are the retained owner services the projection's ports adapt.
@@ -41,10 +42,10 @@ type Sources struct {
 	UserContext  userContextService.UserContextService
 	Education    educationService.Service
 	Schulhof     facilitiesService.SchulhofService
-	Operations   scheduleService.TimetableOperationsService
+	Operations   timetableplanning.TimetableOperationsService
 	Settings     configService.SettingsService
-	Pickups      scheduleService.PickupScheduleService
-	Arrivals     scheduleService.ArrivalScheduleService
+	Pickups      careschedule.PickupScheduleService
+	Arrivals     careschedule.ArrivalScheduleService
 	Now          func() time.Time
 }
 
@@ -338,7 +339,7 @@ func (g groups) MyGroups(ctx context.Context) ([]supervisiondashboard.Educationa
 }
 
 type schedule struct {
-	operations scheduleService.TimetableOperationsService
+	operations timetableplanning.TimetableOperationsService
 }
 
 func (s schedule) PlannedNow(ctx context.Context, query supervisiondashboard.PlannedNowQuery) ([]supervisiondashboard.PlannedInstance, error) {
@@ -346,7 +347,7 @@ func (s schedule) PlannedNow(ctx context.Context, query supervisiondashboard.Pla
 	if err != nil {
 		return nil, err
 	}
-	planned, err := s.operations.PlannedNow(ctx, query.AccountID, query.TokenAdmin, day, query.Now, scheduleService.PlannedNowOptions{
+	planned, err := s.operations.PlannedNow(ctx, query.AccountID, query.TokenAdmin, day, query.Now, timetableplanning.PlannedNowOptions{
 		HorizonMinutes: query.HorizonMinutes,
 		Limit:          query.Limit,
 		IncludeRoster:  query.IncludeRoster,
@@ -366,7 +367,7 @@ func (s schedule) ActiveSessions(ctx context.Context, date supervisiondashboard.
 	if err != nil {
 		return nil, err
 	}
-	return mapSlice(sessions, func(session scheduleService.OperationActiveSession) supervisiondashboard.ActiveSession {
+	return mapSlice(sessions, func(session timetableplanning.OperationActiveSession) supervisiondashboard.ActiveSession {
 		return supervisiondashboard.ActiveSession{
 			ActiveGroupID: session.ActiveGroupID,
 			InstanceID:    session.InstanceID,
@@ -377,7 +378,29 @@ func (s schedule) ActiveSessions(ctx context.Context, date supervisiondashboard.
 	}), nil
 }
 
-func plannedInstance(instance scheduleService.OperationPlannedInstance) supervisiondashboard.PlannedInstance {
+func (s schedule) SessionBlocks(ctx context.Context, query supervisiondashboard.SessionBlocksQuery) ([]supervisiondashboard.SessionBlock, error) {
+	day, err := parseDay(query.Date)
+	if err != nil {
+		return nil, err
+	}
+	blocks, err := s.operations.SessionBlocks(ctx, query.AccountID, query.TokenAdmin, day, query.Supervisors)
+	if err != nil {
+		return nil, err
+	}
+	return mapSlice(blocks, func(block timetableplanning.OperationSessionBlock) supervisiondashboard.SessionBlock {
+		return supervisiondashboard.SessionBlock{
+			ActiveGroupID: block.ActiveGroupID,
+			InstanceID:    block.InstanceID,
+			Title:         block.Title,
+			StartTime:     block.StartTime,
+			EndTime:       block.EndTime,
+			IsAssigned:    block.IsAssigned,
+			CanOperate:    block.CanOperate,
+		}
+	}), nil
+}
+
+func plannedInstance(instance timetableplanning.OperationPlannedInstance) supervisiondashboard.PlannedInstance {
 	return supervisiondashboard.PlannedInstance{
 		ID:                    instance.ID,
 		Title:                 instance.Title,
@@ -409,13 +432,13 @@ func plannedInstance(instance scheduleService.OperationPlannedInstance) supervis
 		PlanningTrackName:     instance.PlanningTrackName,
 		PlanningTrackColor:    instance.PlanningTrackColor,
 		GroupName:             instance.GroupName,
-		StaffNames: mapSlice(instance.StaffNames, func(name scheduleService.OperationStaffName) supervisiondashboard.StaffName {
+		StaffNames: mapSlice(instance.StaffNames, func(name timetableplanning.OperationStaffName) supervisiondashboard.StaffName {
 			return supervisiondashboard.StaffName{StaffID: name.StaffID, DisplayName: name.DisplayName, IsSubstitute: name.IsSubstitute}
 		}),
 	}
 }
 
-func rosterRow(row scheduleService.OperationRosterRow) supervisiondashboard.RosterRow {
+func rosterRow(row timetableplanning.OperationRosterRow) supervisiondashboard.RosterRow {
 	var parallel *supervisiondashboard.ParallelPresence
 	if row.ParallelPresentIn != nil {
 		parallel = &supervisiondashboard.ParallelPresence{
@@ -441,7 +464,7 @@ func rosterRow(row scheduleService.OperationRosterRow) supervisiondashboard.Rost
 		CheckedOutAt:     row.CheckedOutAt,
 		VisitEntryTime:   row.VisitEntryTime,
 		PickupTime:       row.PickupTime,
-		Warnings: mapSlice(row.Warnings, func(warning scheduleService.OperationRosterWarning) supervisiondashboard.RosterWarning {
+		Warnings: mapSlice(row.Warnings, func(warning timetableplanning.OperationRosterWarning) supervisiondashboard.RosterWarning {
 			return supervisiondashboard.RosterWarning{
 				Kind:                  warning.Kind,
 				Message:               warning.Message,
@@ -457,7 +480,7 @@ func rosterRow(row scheduleService.OperationRosterRow) supervisiondashboard.Rost
 	}
 }
 
-func conflictWarning(warning scheduleService.InstanceConflictWarning) supervisiondashboard.ConflictWarning {
+func conflictWarning(warning timetableplanning.InstanceConflictWarning) supervisiondashboard.ConflictWarning {
 	return supervisiondashboard.ConflictWarning{
 		Kind:                  warning.Kind,
 		ResourceID:            warning.ResourceID,
@@ -545,8 +568,8 @@ func (p presence) TrackingIndicators(ctx context.Context, studentIDs []int64, la
 }
 
 type planning struct {
-	pickups  scheduleService.PickupScheduleService
-	arrivals scheduleService.ArrivalScheduleService
+	pickups  careschedule.PickupScheduleService
+	arrivals careschedule.ArrivalScheduleService
 }
 
 func (p planning) Pickups(ctx context.Context, studentIDs []int64, date supervisiondashboard.Date) (map[int64]supervisiondashboard.Pickup, error) {
@@ -569,7 +592,7 @@ func (p planning) Pickups(ctx context.Context, studentIDs []int64, date supervis
 			PickupTime:  wallClock(pickup.PickupTime),
 			IsException: pickup.IsException,
 			Notes:       pickup.Notes,
-			DayNotes: mapSlice(pickup.DayNotes, func(note scheduleService.NoteData) supervisiondashboard.DayNote {
+			DayNotes: mapSlice(pickup.DayNotes, func(note careschedule.NoteData) supervisiondashboard.DayNote {
 				return supervisiondashboard.DayNote{ID: note.ID, Content: note.Content}
 			}),
 		}
@@ -597,7 +620,7 @@ func (p planning) Arrivals(ctx context.Context, studentIDs []int64, date supervi
 			ArrivalTime: wallClock(arrival.ArrivalTime),
 			IsException: arrival.IsException,
 			Notes:       arrival.Notes,
-			DayNotes: mapSlice(arrival.DayNotes, func(note scheduleService.ArrivalNoteData) supervisiondashboard.DayNote {
+			DayNotes: mapSlice(arrival.DayNotes, func(note careschedule.ArrivalNoteData) supervisiondashboard.DayNote {
 				return supervisiondashboard.DayNote{ID: note.ID, Content: note.Content}
 			}),
 		}

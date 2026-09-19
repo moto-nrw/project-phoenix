@@ -18,10 +18,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -418,14 +419,14 @@ func TestListInstances_CompletedExpectedRowStaysNotScheduled(t *testing.T) {
 	// The per-child rows must carry the same verdict the counts used, or the
 	// planner lists a child under "Erwartet" that its own header count leaves
 	// out — and offers "abmelden" for a day that was never care (#1747 review).
-	careDayByStudent := map[int64]scheduleSvc.CareDayStatus{}
+	careDayByStudent := map[int64]careschedule.CareDayStatus{}
 	for _, row := range item.Students {
 		careDayByStudent[row.StudentID] = row.CareDayStatus
 	}
-	assert.Equal(t, scheduleSvc.CareDayNotScheduled, careDayByStudent[student1.ID])
-	assert.Equal(t, scheduleSvc.CareDayUnknown, careDayByStudent[student2.ID],
+	assert.Equal(t, careschedule.CareDayNotScheduled, careDayByStudent[student1.ID])
+	assert.Equal(t, careschedule.CareDayUnknown, careDayByStudent[student2.ID],
 		"a row with a real attendance status tells its own story")
-	assert.Equal(t, scheduleSvc.CareDayUnknown, careDayByStudent[student3.ID],
+	assert.Equal(t, careschedule.CareDayUnknown, careDayByStudent[student3.ID],
 		"an unmarked expected row must not be relabelled as never booked")
 }
 
@@ -435,11 +436,11 @@ type stubListCareDays struct{ notScheduled map[int64]bool }
 
 func (s stubListCareDays) ResolveForDate(
 	_ context.Context, studentIDs []int64, date timezone.Date,
-) (map[int64]scheduleSvc.CareDayStatus, error) {
-	out := map[int64]scheduleSvc.CareDayStatus{}
+) (map[int64]careschedule.CareDayStatus, error) {
+	out := map[int64]careschedule.CareDayStatus{}
 	for _, id := range studentIDs {
 		if s.notScheduled[id] {
-			out[id] = scheduleSvc.CareDayNotScheduled
+			out[id] = careschedule.CareDayNotScheduled
 		}
 	}
 	return out, nil
@@ -447,13 +448,13 @@ func (s stubListCareDays) ResolveForDate(
 
 func (s stubListCareDays) ResolveForRange(
 	_ context.Context, studentIDs []int64, from, to timezone.Date,
-) (map[int64]map[timezone.Date]scheduleSvc.CareDayStatus, error) {
-	out := map[int64]map[timezone.Date]scheduleSvc.CareDayStatus{}
+) (map[int64]map[timezone.Date]careschedule.CareDayStatus, error) {
+	out := map[int64]map[timezone.Date]careschedule.CareDayStatus{}
 	for _, id := range studentIDs {
-		byDate := map[timezone.Date]scheduleSvc.CareDayStatus{}
+		byDate := map[timezone.Date]careschedule.CareDayStatus{}
 		for date := from; !date.After(to); date = date.AddDays(1) {
 			if s.notScheduled[id] {
-				byDate[date] = scheduleSvc.CareDayNotScheduled
+				byDate[date] = careschedule.CareDayNotScheduled
 			}
 		}
 		out[id] = byDate
@@ -515,15 +516,15 @@ func TestListInstances_StatusDayAbsenceOnUnbookedDayReadsAsNotScheduled(t *testi
 	assert.Equal(t, 0, item.ExpectedStudentsCount)
 	assert.Equal(t, 0, item.PresentStudentsCount)
 
-	careDayByStudent := map[int64]scheduleSvc.CareDayStatus{}
+	careDayByStudent := map[int64]careschedule.CareDayStatus{}
 	for _, row := range item.Students {
 		careDayByStudent[row.StudentID] = row.CareDayStatus
 	}
-	assert.Equal(t, scheduleSvc.CareDayNotScheduled, careDayByStudent[sickUnbooked.ID],
+	assert.Equal(t, careschedule.CareDayNotScheduled, careDayByStudent[sickUnbooked.ID],
 		"a status-day absence on a day the plan never booked is a false absence")
-	assert.Equal(t, scheduleSvc.CareDayUnknown, careDayByStudent[manualUnbooked.ID],
+	assert.Equal(t, careschedule.CareDayUnknown, careDayByStudent[manualUnbooked.ID],
 		"a manual absence is a human decision and outranks the plan")
-	assert.Equal(t, scheduleSvc.CareDayUnknown, careDayByStudent[sickBooked.ID],
+	assert.Equal(t, careschedule.CareDayUnknown, careDayByStudent[sickBooked.ID],
 		"the child was booked, so their absence is real")
 }
 
@@ -569,7 +570,7 @@ func TestListInstances_IncludesWindowConflictWarnings(t *testing.T) {
 	warningsB := byTitle["Window-Conflict-B"].ConflictWarnings
 	require.Len(t, warningsA, 1)
 	require.Len(t, warningsB, 1)
-	assert.Equal(t, scheduleSvc.ConflictKindStudent, warningsA[0].Kind)
+	assert.Equal(t, timetableplanning.ConflictKindStudent, warningsA[0].Kind)
 	assert.Equal(t, student.ID, warningsA[0].ResourceID)
 	assert.True(t, warningsA[0].CanOverride)
 	assert.Equal(t, instB.ID, warningsA[0].ConflictingInstanceID)
@@ -630,7 +631,7 @@ func TestEnforcePlannedEndPropagatesResolveError(t *testing.T) {
 		},
 	})
 	_, err := res.enforcePlannedEnd(context.Background())
-	require.ErrorIs(t, err, scheduleSvc.ErrLifecycleSettings)
+	require.ErrorIs(t, err, timetableplanning.ErrLifecycleSettings)
 }
 
 func TestListInstances_IsLive(t *testing.T) {

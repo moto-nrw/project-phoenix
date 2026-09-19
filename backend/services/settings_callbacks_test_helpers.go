@@ -4,8 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/users"
@@ -28,14 +28,17 @@ func NewSettingsCallbacksTestModule(db *bun.DB, unit tenant.UnitOfWork, unlinker
 	if err != nil {
 		return SettingsCallbacksTestModule{}, err
 	}
-	parents, err := repositories.NewParentRouteTestRepositories(db)
+	hub := deliveryCompose.NewRealtimeHub(slog.Default())
+	photoRuntime := new(peopleCompose.StudentPhotoRuntime)
+	directory, err := peopleCompose.New(peopleCompose.Dependencies{
+		DB: db, Observe: func(peopleCompose.Observation) {},
+		StudentPhotoRuntime: func() peopleCompose.StudentPhotoRuntime { return *photoRuntime },
+	})
 	if err != nil {
 		return SettingsCallbacksTestModule{}, err
 	}
-	hub := deliveryCompose.NewRealtimeHub(slog.Default())
-	photos := users.NewStudentPhotoService(users.StudentPhotoServiceDependencies{
-		StudentRepo: parents.Student, Settings: settings.Settings, UserContext: module.UserContext,
-		Broadcaster: hub, Unlinker: unlinker, DB: db, Logger: slog.Default(),
+	photos := NewStudentPhotos(directory, photoRuntime, StudentPhotoRuntimeDependencies{
+		Settings: settings.Settings, Broadcaster: hub, Unlinker: unlinker, Logger: slog.Default(),
 	})
 	users.RegisterStudentPhotoSettingsSideEffects(module.SettingsSideEffects, photos)
 	operations := config.NewTenantOperations(settings.Settings, settings.payroll, settings.runtime,

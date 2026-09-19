@@ -8,8 +8,6 @@ import (
 
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
@@ -17,11 +15,13 @@ import (
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	facilitiesAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -101,12 +101,15 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
-	repos := &Factory{
+	var repos *Factory
+	repos = &Factory{
 		db: db, Person: members.Person, Staff: members.Staff, Teacher: members.Teacher,
 		Group: members.Group, GroupTeacher: members.GroupTeacher, ClassTeacher: members.ClassTeacher,
-		Student:         usersRepo.NewStudentRepository(db),
-		CareExitCleanup: usersRepo.NewCareExitCleanupRepository(db, NewEnrollmentBookingProjection(enrollmentCompose.New()), careExitAssignments{capability: bookings}, newStudentPresence(db)),
-		StaffShift:      newWorkforceStaffShiftRepository(workTime), StaffShiftSeries: newWorkforceStaffShiftSeriesRepository(workTime),
+		Student: NewStudentRepository(db),
+		CareExitCleanup: carelifecycle.NewCareExitCleanupRepository(db, newCareExitCleanup(
+			db, &repos, NewEnrollmentBookingProjection(enrollmentCompose.New()), newStudentPresence(db), bookings,
+		)),
+		StaffShift: newWorkforceStaffShiftRepository(workTime), StaffShiftSeries: newWorkforceStaffShiftSeriesRepository(workTime),
 		StaffShiftSeriesException: newWorkforceStaffShiftSeriesExceptionRepository(workTime),
 		ShiftType:                 newWorkforceShiftTypeRepository(workTime),
 		InstanceStudent:           timetableInstanceStudentRepository{timetable: bookings},
@@ -115,7 +118,7 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 		Room:                      facilitiesAdapter.New(),
 		DeviationEvent:            auditRepo.NewDeviationEventRepository(newTestAuditRuntime(db)),
 		ClassArrivalTime:          educationRepo.NewClassArrivalTimeRepository(db),
-		ClassArrivalException:     scheduleRepo.NewClassArrivalExceptionRepository(db),
+		ClassArrivalException:     timetableCompose.NewClassArrivalExceptionRepository(db),
 		SubmissionRateLimit:       enrollmentCompose.New(),
 	}
 	repos.bindDefaultFacilities(db)
@@ -141,7 +144,6 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	repos.PlanningTrack, repos.RecurrenceRule = adapters.PlanningTrack, adapters.RecurrenceRule
 	repos.ActivityException, repos.ActivityInstance = adapters.ActivityException, adapters.ActivityInstance
 	repos.InstanceIdempotency, repos.InstanceStaff = adapters.InstanceIdempotency, adapters.InstanceStaff
-	repos.BindTimetable(bookings)
 	result := timetableTestRepositories(repos)
 	result.Timetable = bookings
 	return result, nil

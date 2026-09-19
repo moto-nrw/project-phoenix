@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -35,8 +34,6 @@ func init() {
 
 // createAuditDataImportsTable creates the audit.data_imports table
 func createAuditDataImportsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.6.17: Creating audit.data_imports table...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -44,7 +41,7 @@ func createAuditDataImportsTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			log.Printf("Failed to rollback transaction in up migration: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -109,19 +106,15 @@ func createAuditDataImportsTable(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	log.Println("✓ Migration 1.6.17: audit.data_imports table created successfully")
 	return nil
 }
 
 // dropAuditDataImportsTable drops the audit.data_imports table (rollback)
 func dropAuditDataImportsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.6.17: Rolling back audit.data_imports table...")
-
 	_, err := db.ExecContext(ctx, `DROP TABLE IF EXISTS audit.data_imports CASCADE`)
 	if err != nil {
 		return fmt.Errorf("error dropping audit.data_imports table: %w", err)
 	}
 
-	log.Println("✓ Migration 1.6.17: audit.data_imports table dropped successfully")
 	return nil
 }

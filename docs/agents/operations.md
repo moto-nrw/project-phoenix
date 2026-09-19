@@ -48,6 +48,7 @@ go run . cleanup visits             # REAL deletion — there is no `cleanup vis
 go run . cleanup timetable|time-tracking [preview|stats]      # nested dry-runs exist only for these two
 go run . cleanup tokens|invitations|rate-limits|attendance|sessions|supervisors
 go run . backfill staff-owner [status|reset]   # resumable users.staff → Membership/Workforce copy (#2752); exits 1 while unstable
+go run . backfill student-owner [status|reset] # resumable users.students → People/Membership/Care Plan copy (#2758); exits 1 while unstable
 go run . gendoc                     # Generates routes.md + docs/openapi.yaml
 ```
 
@@ -118,8 +119,15 @@ keys through 1Password/Signal, never Slack/email.
 1. `sops environments/staging.sops.env` decrypts into the editor and re-encrypts.
 2. Push to `development` deploys staging; push to `main` deploys production.
 3. CI decrypts and copies `.env`, compose, and `deploy-remote.sh` to the server.
-4. Deployment pulls images, backs up the DB, migrates, starts, and healthchecks;
-   failures trigger rollback.
+4. Deployment pulls images, runs `migrate preflight`, backs up the DB, migrates,
+   starts, and healthchecks; failures after the backup trigger rollback.
+
+The preflight runs while the previous release is still serving and runs no
+migration. It asks every pending migration that declares a `Precondition` whether
+the data it needs is already in the shape it requires, so a migration that would
+refuse on data somebody has to correct aborts the release with exit 1 — nothing
+stopped, nothing restored — instead of failing mid-migration. A migration whose
+refusal a human has to resolve registers that same check next to its `Up`.
 
 | File | Purpose |
 |---|---|
@@ -147,14 +155,27 @@ For env changes, read `.claude/rules/env-docker-sync.md` before editing.
 
 ## PR screenshots and QA evidence
 
-Use GitHub native attachments in the PR description or comment
-(`https://github.com/user-attachments/assets/...`). If native upload is
-unavailable, provide local paths for the user to attach manually.
-Do not create releases, prereleases, tags, Gists, branches, or commits solely
-to host QA images, except the explicit workflow below.
+Upload images and videos with `gh --attach` (gh >= 2.99, pinned in
+`devbox.json`). GitHub hosts them as `https://github.com/user-attachments/assets/...`.
 
-**Exception:** `frontend/.claude/skills/responsive-screenshots/SKILL.md` permits
-one orphan `pr-<NR>-screenshots` branch per PR for responsive sweeps and other
-agent-produced QA imagery. Link by commit SHA in the PR comment; delete the
-branch after merge once links are no longer needed. Use only within an
-authorized PR-posting workflow.
+```bash
+gh pr comment <NR> --body-file comment.md \
+  --attach './shots/01-overview.png#Übersicht nach der Änderung' \
+  --attach ./shots/02-detail.png
+```
+
+- Works the same on `gh pr create`, `gh issue create`, and `gh issue comment`.
+  Up to 50 files per command; PNG, JPEG, GIF, WebP, SVG, MP4, MOV, WebM.
+- Text after `#` is the alt text; without it gh uses the filename.
+- An image in the body that points at the local path of an attached file is
+  rewritten to the uploaded URL, so the body controls order and captions. Files the body
+  does not reference are appended at the end.
+- Copy files with spaces or `@` in the name to a plain filename first.
+- Updating a series: rerun the same command with `--edit-last` so one comment
+  holds the current series. It edits your newest comment on that PR or issue;
+  check it is the screenshot comment first.
+- After posting, read the comment body back and confirm every image points at
+  `user-attachments/assets`.
+
+Host QA images only through attachments: no releases, tags, Gists, or
+screenshot branches.

@@ -21,18 +21,20 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -45,11 +47,11 @@ type Sources struct {
 	UserContext       userContextService.UserContextService
 	Active            activeService.Service
 	Settings          configService.SettingsService
-	Pickups           scheduleService.PickupScheduleService
-	Arrivals          scheduleService.ArrivalScheduleService
-	Instances         scheduleService.InstanceService
-	CareDays          scheduleService.CareDayService
-	CareParticipation userService.CareLifecycleService
+	Pickups           careschedule.PickupScheduleService
+	Arrivals          careschedule.ArrivalScheduleService
+	Instances         timetableplanning.InstanceService
+	CareDays          careschedule.CareDayService
+	CareParticipation carelifecycle.CareLifecycleService
 	ExcusedRequests   grouplive.PendingExcusedReader
 	StatusDays        *activeService.StudentStatusDayService
 	Logger            *slog.Logger
@@ -180,7 +182,7 @@ func (d directory) GroupRoomNames(ctx context.Context, groupIDs []int64) (map[in
 
 type roster struct {
 	people            userService.PersonService
-	careParticipation userService.CareLifecycleService
+	careParticipation carelifecycle.CareLifecycleService
 }
 
 func (r roster) GroupMembers(ctx context.Context, groupID int64) ([]grouplive.RosterStudent, error) {
@@ -364,10 +366,10 @@ func (p presence) TrackingIndicators(ctx context.Context, studentIDs []int64, la
 }
 
 type planning struct {
-	arrivals  scheduleService.ArrivalScheduleService
-	pickups   scheduleService.PickupScheduleService
-	instances scheduleService.InstanceService
-	careDays  scheduleService.CareDayService
+	arrivals  careschedule.ArrivalScheduleService
+	pickups   careschedule.PickupScheduleService
+	instances timetableplanning.InstanceService
+	careDays  careschedule.CareDayService
 }
 
 func (p planning) Arrivals(ctx context.Context, studentIDs []int64, date grouplive.Date) (map[int64]grouplive.Arrival, error) {
@@ -388,7 +390,7 @@ func (p planning) Arrivals(ctx context.Context, studentIDs []int64, date groupli
 	return result, nil
 }
 
-func arrivalRecord(arrival *scheduleService.EffectiveArrivalTime) grouplive.Arrival {
+func arrivalRecord(arrival *careschedule.EffectiveArrivalTime) grouplive.Arrival {
 	notes := make([]string, 0, len(arrival.DayNotes))
 	for _, note := range arrival.DayNotes {
 		notes = append(notes, note.Content)
@@ -414,7 +416,7 @@ func (p planning) Pickups(ctx context.Context, studentIDs []int64, date groupliv
 	return result, nil
 }
 
-func pickupRecord(pickup *scheduleService.EffectivePickupTime) grouplive.Pickup {
+func pickupRecord(pickup *careschedule.EffectivePickupTime) grouplive.Pickup {
 	notes := make([]grouplive.DayNote, 0, len(pickup.DayNotes))
 	for _, note := range pickup.DayNotes {
 		notes = append(notes, grouplive.DayNote{ID: note.ID, Content: note.Content})
@@ -457,22 +459,35 @@ func (p planning) TimetablePlannedStudentIDs(ctx context.Context, studentIDs []i
 // precedence so it never disagrees with the student search or the
 // timetable's care-day derivation.
 func (p planning) DecideDay(inputs grouplive.DayInputs) grouplive.DayDecision {
-	decisionInputs := scheduleService.DayPlanningInputs{
+	decisionInputs := careschedule.DayPlanningInputs{
 		HasActualAttendance: inputs.Present, Sick: inputs.Sick, ClassTrip: inputs.ClassTrip,
 		Excused: inputs.Excused, HasTimetable: inputs.HasTimetable,
 	}
 	if inputs.Arrival != nil {
-		decisionInputs.Arrival = &scheduleService.EffectiveArrivalTime{
+		decisionInputs.Arrival = &careschedule.EffectiveArrivalTime{
 			ArrivalTime: inputs.Arrival.ArrivalTime, IsException: inputs.Arrival.IsException, Notes: inputs.Arrival.Notes,
 		}
 	}
 	if inputs.Pickup != nil {
-		decisionInputs.Pickup = &scheduleService.EffectivePickupTime{
+		decisionInputs.Pickup = &careschedule.EffectivePickupTime{
 			PickupTime: inputs.Pickup.PickupTime, IsException: inputs.Pickup.IsException, Notes: inputs.Pickup.Notes,
 		}
 	}
-	decision := scheduleService.ResolveDayPlanning(decisionInputs)
+	decision := careschedule.ResolveDayPlanning(decisionInputs)
 	return grouplive.DayDecision{ComesToday: decision.ComesToday, Reason: decision.Reason, ExceptionNotes: decision.ExceptionNotes}
+}
+
+// AtSchoolBeforeCheckIn delegates to the day-planning owner's "Schule" rule.
+func (p planning) AtSchoolBeforeCheckIn(inputs grouplive.AtSchoolInputs) bool {
+	return careschedule.IsAtSchoolBeforeCheckIn(careschedule.AtSchoolInputs{
+		Decision: careschedule.DayPlanningDecision{
+			ComesToday: inputs.Decision.ComesToday, Reason: inputs.Decision.Reason,
+		},
+		CheckedInToday: inputs.CheckedIn,
+		PickupTime:     inputs.PickupTime,
+		CareDayEnd:     inputs.CareDayEnd,
+		Now:            inputs.Now,
+	})
 }
 
 type transfers struct {
@@ -520,6 +535,7 @@ func (s settings) Prepare(ctx context.Context) (context.Context, error) {
 		configModel.KeyOperationalOverviewScope,
 		configModel.KeyEnrollmentBookingsAuthoritative,
 		configModel.KeyPresenceMode,
+		configModel.KeySessionEndTime,
 		configModel.KeyStudentPhotosEnabled,
 		configModel.KeyTrackingIndicatorsEnabled,
 		configModel.KeyTrackingIndicator1,
@@ -530,6 +546,10 @@ func (s settings) Prepare(ctx context.Context) (context.Context, error) {
 		return ctx, err
 	}
 	return configService.WithSettingsSnapshot(ctx, snapshot), nil
+}
+
+func (s settings) CareDayEnd(ctx context.Context) (string, error) {
+	return s.settings.ResolveString(ctx, configModel.KeySessionEndTime)
 }
 
 func (s settings) StudentPhotosEnabled(ctx context.Context) (bool, error) {
@@ -561,3 +581,5 @@ func (c calendar) Today() grouplive.Date {
 }
 
 func (c calendar) Clock(at time.Time) string { return at.In(timezone.Berlin).Format("15:04") }
+
+func (c calendar) Now() time.Time { return c.now() }

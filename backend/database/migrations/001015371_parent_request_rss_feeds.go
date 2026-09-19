@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -23,18 +22,13 @@ func init() {
 }
 
 func parentRequestRSSFeedsUp(ctx context.Context, db *bun.DB) error {
-	slog.Info("migration starting", "migration", parentRequestRSSFeedsVersion)
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("begin parent request RSS migration: %w", err)
 	}
 	defer func() {
 		if rollbackErr := tx.Rollback(); rollbackErr != nil && rollbackErr != sql.ErrTxDone {
-			slog.Warn(
-				"migration rollback failed",
-				"migration", parentRequestRSSFeedsVersion,
-				"error", rollbackErr,
-			)
+			logRollbackFailure(ctx, rollbackErr)
 		}
 	}()
 
@@ -84,7 +78,6 @@ func parentRequestRSSFeedsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func parentRequestRSSFeedsDown(ctx context.Context, db *bun.DB) error {
-	slog.Info("migration rollback starting", "migration", parentRequestRSSFeedsVersion)
 	_, err := db.NewRaw(`
 		DROP INDEX IF EXISTS users.idx_student_data_change_requests_rss;
 		DROP INDEX IF EXISTS schedule.idx_care_schedule_change_requests_rss;

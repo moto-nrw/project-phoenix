@@ -14,12 +14,12 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
@@ -35,7 +35,7 @@ const (
 // UserContextRepositories groups all repository dependencies for UserContextService
 // This struct reduces the number of parameters passed to the constructor
 type UserContextRepositories struct {
-	AccountRepo        auth.AccountRepository
+	AccountRepo        authmodels.AccountRepository
 	PersonRepo         users.PersonRepository
 	StaffRepo          users.StaffRepository
 	TeacherRepo        users.TeacherRepository
@@ -45,7 +45,7 @@ type UserContextRepositories struct {
 	ActiveGroupRepo    active.GroupRepository
 	Presence           VisitReader
 	SupervisorRepo     active.GroupSupervisorRepository
-	ProfileRepo        users.ProfileRepository
+	ProfileRepo        authmodels.ProfileRepository
 	SubstitutionRepo   education.GroupSubstitutionRepository
 	ClassTeacherRepo   education.ClassTeacherRepository
 
@@ -58,7 +58,7 @@ type UserContextRepositories struct {
 
 // userContextService implements the UserContextService interface
 type userContextService struct {
-	accountRepo        auth.AccountRepository
+	accountRepo        authmodels.AccountRepository
 	personRepo         users.PersonRepository
 	staffRepo          users.StaffRepository
 	teacherRepo        users.TeacherRepository
@@ -68,7 +68,7 @@ type userContextService struct {
 	activeGroupRepo    active.GroupRepository
 	presence           VisitReader
 	supervisorRepo     active.GroupSupervisorRepository
-	profileRepo        users.ProfileRepository
+	profileRepo        authmodels.ProfileRepository
 	substitutionRepo   education.GroupSubstitutionRepository
 	classTeacherRepo   education.ClassTeacherRepository
 	sseActiveSvc       SSEPresence
@@ -118,7 +118,7 @@ func (s *userContextService) getUserIDFromContext(ctx context.Context) (int, err
 }
 
 // GetCurrentUser retrieves the currently authenticated user account
-func (s *userContextService) GetCurrentUser(ctx context.Context) (*auth.Account, error) {
+func (s *userContextService) GetCurrentUser(ctx context.Context) (*authmodels.Account, error) {
 	userID, err := s.getUserIDFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -783,7 +783,7 @@ func (s *userContextService) GetCurrentProfile(ctx context.Context) (map[string]
 }
 
 // buildBaseResponse builds the base response with account data
-func buildBaseResponse(account *auth.Account) map[string]interface{} {
+func buildBaseResponse(account *authmodels.Account) map[string]interface{} {
 	response := map[string]interface{}{
 		"email":      account.Email,
 		"username":   account.Username,
@@ -796,7 +796,7 @@ func buildBaseResponse(account *auth.Account) map[string]interface{} {
 }
 
 // addPersonOrAccountData adds person data if available, otherwise account fallback
-func addPersonOrAccountData(response map[string]interface{}, account *auth.Account, person *users.Person) {
+func addPersonOrAccountData(response map[string]interface{}, account *authmodels.Account, person *users.Person) {
 	if person != nil {
 		addPersonData(response, person)
 	} else {
@@ -818,7 +818,7 @@ func addPersonData(response map[string]interface{}, person *users.Person) {
 }
 
 // addAccountFallbackData adds account data as fallback when person doesn't exist
-func addAccountFallbackData(response map[string]interface{}, account *auth.Account) {
+func addAccountFallbackData(response map[string]interface{}, account *authmodels.Account) {
 	response["id"] = account.ID
 	response["created_at"] = account.CreatedAt
 	response["updated_at"] = account.UpdatedAt
@@ -878,7 +878,7 @@ func (s *userContextService) UpdateCurrentProfile(ctx context.Context, updates m
 }
 
 // updatePersonDataInTx handles person creation or update within transaction
-func (s *userContextService) updatePersonDataInTx(ctx context.Context, account *auth.Account, person *users.Person, personErr error, updates map[string]interface{}) error {
+func (s *userContextService) updatePersonDataInTx(ctx context.Context, account *authmodels.Account, person *users.Person, personErr error, updates map[string]interface{}) error {
 	firstName, hasFirstName := updates["first_name"].(string)
 	lastName, hasLastName := updates["last_name"].(string)
 
@@ -931,7 +931,7 @@ func (s *userContextService) updateExistingPersonFields(ctx context.Context, per
 }
 
 // updateAccountUsernameInTx updates account username within transaction
-func (s *userContextService) updateAccountUsernameInTx(ctx context.Context, account *auth.Account, updates map[string]interface{}) error {
+func (s *userContextService) updateAccountUsernameInTx(ctx context.Context, account *authmodels.Account, updates map[string]interface{}) error {
 	username, ok := updates["username"].(string)
 	if !ok {
 		return nil
@@ -963,7 +963,7 @@ func (s *userContextService) updateProfileBioInTx(ctx context.Context, accountID
 
 // createProfileWithBio creates a new profile with bio
 func (s *userContextService) createProfileWithBio(ctx context.Context, accountID int64, bio string) error {
-	profile := &users.Profile{
+	profile := &authmodels.Profile{
 		AccountID: accountID,
 		Bio:       bio,
 		Settings:  "{}",
@@ -972,7 +972,7 @@ func (s *userContextService) createProfileWithBio(ctx context.Context, accountID
 }
 
 // updateExistingProfileBio updates existing profile's bio
-func (s *userContextService) updateExistingProfileBio(ctx context.Context, profile *users.Profile, bio string) error {
+func (s *userContextService) updateExistingProfileBio(ctx context.Context, profile *authmodels.Profile, bio string) error {
 	profile.Bio = bio
 	return s.profileRepo.Update(ctx, profile)
 }

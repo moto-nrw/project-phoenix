@@ -11,15 +11,42 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/email"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
-	"github.com/moto-nrw/project-phoenix/services/auth/authtest"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// invitationsStub is a func-field double for the Invitations capability the
+// routes consume. It embeds the interface so a route that reaches for a
+// method the test did not configure nil-derefs and fails loudly, which is
+// the guardrail these tests want.
+type invitationsStub struct {
+	Invitations
+	createSchool   func(ctx context.Context, request identityaccess.SchoolInvitationRequest) (identityaccess.SchoolInvitation, error)
+	validateSchool func(ctx context.Context, token string) (identityaccess.InvitationPreview, error)
+	acceptSchool   func(ctx context.Context, token string, registration identityaccess.InvitationRegistration) (identityaccess.Account, error)
+	listPending    func(ctx context.Context) ([]identityaccess.SchoolInvitation, error)
+}
+
+func (s *invitationsStub) CreateSchoolInvitation(ctx context.Context, request identityaccess.SchoolInvitationRequest) (identityaccess.SchoolInvitation, error) {
+	return s.createSchool(ctx, request)
+}
+
+func (s *invitationsStub) ValidateSchoolInvitation(ctx context.Context, token string) (identityaccess.InvitationPreview, error) {
+	return s.validateSchool(ctx, token)
+}
+
+func (s *invitationsStub) AcceptSchoolInvitation(ctx context.Context, token string, registration identityaccess.InvitationRegistration) (identityaccess.Account, error) {
+	return s.acceptSchool(ctx, token, registration)
+}
+
+func (s *invitationsStub) ListPendingSchoolInvitations(ctx context.Context) ([]identityaccess.SchoolInvitation, error) {
+	return s.listPending(ctx)
+}
+
+func (s *invitationsStub) SchoolInvitationSubdomain(context.Context, string) string { return "" }
 
 func decodeJSONBody(t *testing.T, rr *httptest.ResponseRecorder) map[string]any {
 	t.Helper()
@@ -39,37 +66,35 @@ func TestInvitationHandlers_CreateInvitationAndListPending(t *testing.T) {
 	tokenErr := "smtp failed"
 	now := time.Now().UTC()
 
-	service := &authtest.InvitationServiceMock{
-		CreateInvitationFn: func(_ context.Context, req authService.InvitationRequest) (*authModels.InvitationToken, error) {
-			assert.Equal(t, "invitee@example.com", req.Email)
-			assert.Equal(t, int64(9007199254740993), req.RoleID)
-			assert.Equal(t, int64(44), req.CreatedBy)
-			return &authModels.InvitationToken{
-				Model:           modelBase.Model{ID: 1},
-				Email:           req.Email,
-				RoleID:          req.RoleID,
-				Token:           "tok-1",
-				ExpiresAt:       now,
-				FirstName:       &first,
-				LastName:        &last,
-				Position:        &position,
-				CreatedBy:       nil,
-				Role:            &authModels.Role{Name: roleName},
-				Creator:         &authModels.Account{Email: creator},
-				EmailError:      &tokenErr,
-				EmailRetryCount: 2,
+	service := &invitationsStub{
+		createSchool: func(_ context.Context, request identityaccess.SchoolInvitationRequest) (identityaccess.SchoolInvitation, error) {
+			assert.Equal(t, "invitee@example.com", request.Email)
+			assert.Equal(t, int64(9007199254740993), request.RoleID)
+			assert.Equal(t, int64(44), request.CreatedBy)
+			return identityaccess.SchoolInvitation{
+				ID:           1,
+				Email:        request.Email,
+				RoleID:       request.RoleID,
+				RoleName:     roleName,
+				Token:        "tok-1",
+				ExpiresAt:    now,
+				FirstName:    &first,
+				LastName:     &last,
+				Position:     &position,
+				CreatedBy:    nil,
+				CreatorEmail: creator,
+				Delivery:     identityaccess.TokenDelivery{Error: &tokenErr, RetryCount: 2},
 			}, nil
 		},
-		ListPendingInvitationsFn: func(context.Context) ([]*authModels.InvitationToken, error) {
-			return []*authModels.InvitationToken{{
-				Model:           modelBase.Model{ID: 2},
-				Email:           "pending@example.com",
-				RoleID:          9,
-				Token:           "tok-2",
-				ExpiresAt:       now,
-				Role:            &authModels.Role{Name: "teacher"},
-				EmailSentAt:     &now,
-				EmailRetryCount: 1,
+		listPending: func(context.Context) ([]identityaccess.SchoolInvitation, error) {
+			return []identityaccess.SchoolInvitation{{
+				ID:        2,
+				Email:     "pending@example.com",
+				RoleID:    9,
+				RoleName:  "teacher",
+				Token:     "tok-2",
+				ExpiresAt: now,
+				Delivery:  identityaccess.TokenDelivery{SentAt: &now, RetryCount: 1},
 			}}, nil
 		},
 	}
@@ -104,9 +129,11 @@ func TestInvitationHandlers_CreateInvitationAndListPending(t *testing.T) {
 func TestInvitationHandlers_CreateInvitation_AccountAlreadyHasTenantAccess(t *testing.T) {
 	t.Parallel()
 
-	service := &authtest.InvitationServiceMock{
-		CreateInvitationFn: func(context.Context, authService.InvitationRequest) (*authModels.InvitationToken, error) {
-			return nil, &authService.AuthError{Op: "create invitation", Err: authService.ErrAccountAlreadyHasTenantAccess}
+	service := &invitationsStub{
+		createSchool: func(context.Context, identityaccess.SchoolInvitationRequest) (identityaccess.SchoolInvitation, error) {
+			return identityaccess.SchoolInvitation{}, &identityaccess.AuthenticationError{
+				Op: "create invitation", Err: identityaccess.ErrAccountAlreadyHasTenantAccess,
+			}
 		},
 	}
 
@@ -127,15 +154,17 @@ func TestInvitationHandlers_CreateInvitation_AccountAlreadyHasTenantAccess(t *te
 func TestInvitationHandlers_ValidateAndAccept(t *testing.T) {
 	t.Parallel()
 
-	service := &authtest.InvitationServiceMock{
-		ValidateInvitationFn: func(_ context.Context, token string) (*authService.InvitationValidationResult, error) {
+	service := &invitationsStub{
+		validateSchool: func(_ context.Context, token string) (identityaccess.InvitationPreview, error) {
 			assert.Equal(t, "abc123", token)
-			return &authService.InvitationValidationResult{Email: "invitee@example.com", RoleName: "admin", ExpiresAt: time.Now().Add(time.Hour)}, nil
+			return identityaccess.InvitationPreview{
+				Email: "invitee@example.com", RoleName: "admin", ExpiresAt: time.Now().Add(time.Hour),
+			}, nil
 		},
-		AcceptInvitationFn: func(_ context.Context, token string, userData authService.UserRegistrationData) (*authModels.Account, error) {
+		acceptSchool: func(_ context.Context, token string, registration identityaccess.InvitationRegistration) (identityaccess.Account, error) {
 			assert.Equal(t, "abc123", token)
-			assert.Equal(t, "Grace", userData.FirstName)
-			return &authModels.Account{Model: modelBase.Model{ID: 77}, Email: "invitee@example.com"}, nil
+			assert.Equal(t, "Grace", registration.FirstName)
+			return identityaccess.Account{ID: 77, Email: "invitee@example.com"}, nil
 		},
 	}
 	resource := NewResource(nil, service, nil, nil, nil)
@@ -197,12 +226,12 @@ func TestInvitationHandlerHelpersAndErrors(t *testing.T) {
 	resource.validateInvitation(rr, req)
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 
-	errService := &authtest.InvitationServiceMock{
-		ValidateInvitationFn: func(context.Context, string) (*authService.InvitationValidationResult, error) {
-			return nil, errors.New("db fail")
+	errService := &invitationsStub{
+		validateSchool: func(context.Context, string) (identityaccess.InvitationPreview, error) {
+			return identityaccess.InvitationPreview{}, errors.New("db fail")
 		},
-		AcceptInvitationFn: func(context.Context, string, authService.UserRegistrationData) (*authModels.Account, error) {
-			return nil, authService.ErrPasswordMismatch
+		acceptSchool: func(context.Context, string, identityaccess.InvitationRegistration) (identityaccess.Account, error) {
+			return identityaccess.Account{}, identityaccess.ErrInvitationPasswordMismatch
 		},
 	}
 	resource = NewResource(nil, errService, nil, nil, nil)

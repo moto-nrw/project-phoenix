@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/displayorder"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -82,6 +84,21 @@ func (s *Store) ListClassListEntries(ctx context.Context, filter domain.ClassLis
 	return result, stats, nil
 }
 
+// ListClassListEntriesInDisplayOrder returns the same rows a class list is
+// read in: class first (grade-aware), then the names in German dictionary
+// order. PostgreSQL cannot express either leg, so the rows are fetched with
+// the plain listing and ordered here.
+func (s *Store) ListClassListEntriesInDisplayOrder(ctx context.Context, filter domain.ClassListEntryFilter) ([]domain.ClassListEntry, domain.OperationStats, error) {
+	entries, stats, err := s.ListClassListEntries(ctx, filter)
+	if err != nil {
+		return nil, stats, err
+	}
+	sort.SliceStable(entries, func(i, j int) bool {
+		return displayorder.CompareClassListEntry(displayOrderKey(entries[i]), displayOrderKey(entries[j])) < 0
+	})
+	return entries, stats, nil
+}
+
 func (s *Store) CreateClassListEntry(ctx context.Context, fields domain.ClassListEntryFields, createdBy *int64) (domain.ClassListEntry, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
@@ -154,6 +171,12 @@ func (s *Store) DeleteClassListEntry(ctx context.Context, id int64) (domain.Oper
 	}
 	stats.Rows = rows
 	return stats, nil
+}
+
+func displayOrderKey(entry domain.ClassListEntry) displayorder.ClassListEntry {
+	return displayorder.ClassListEntry{
+		SchoolClass: entry.SchoolClass, LastName: entry.LastName, FirstName: entry.FirstName, ID: entry.ID,
+	}
 }
 
 func classListEntrySelect(db bun.IDB, model any) *bun.SelectQuery {

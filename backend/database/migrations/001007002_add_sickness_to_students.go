@@ -32,8 +32,6 @@ func init() {
 }
 
 func addSicknessToStudentsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.7.2: Adding sick and sick_since columns to users.students...")
-
 	// Add sick boolean column (defaults to false)
 	_, err := db.NewRaw(`
 		ALTER TABLE users.students
@@ -64,8 +62,6 @@ func addSicknessToStudentsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func addSicknessToStudentsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.7.2: Removing sick and sick_since columns from users.students...")
-
 	// Drop index first
 	_, err := db.NewRaw(`
 		DROP INDEX IF EXISTS users.idx_students_sick;

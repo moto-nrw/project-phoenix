@@ -3,7 +3,6 @@ package migrations
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -26,8 +25,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.68: Repointing enrollment tables to phase_id...")
-
 			// Safety log: count rows that will be deleted so the blast radius
 			// is visible in deploy logs. The migration intentionally wipes
 			// dependent tables - partially-pointed rows would otherwise block
@@ -49,7 +46,7 @@ func init() {
 			}
 			total := counts.Offerings + counts.RequestChildren + counts.Requests + counts.CareOfferings
 			if total > 0 {
-				slog.Warn("migration 1.15.68: deleting enrollment rows for schema repoint",
+				migrationLog().WarnContext(ctx, "deleting enrollment rows for the phase repoint",
 					"request_child_offerings", counts.Offerings,
 					"request_children", counts.RequestChildren,
 					"requests", counts.Requests,
@@ -122,7 +119,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.68: Restoring calendar_period_id columns...")
 			// Best-effort rollback. Restores the columns but does not refill
 			// data - there was no data to preserve.
 			if _, err := db.NewRaw(`

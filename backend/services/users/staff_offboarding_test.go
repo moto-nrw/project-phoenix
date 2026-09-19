@@ -5,20 +5,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
-	authSvcPkg "github.com/moto-nrw/project-phoenix/services/auth"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -33,10 +32,18 @@ func offboardingCredential(prefix string, suffix string) string {
 	return prefix + suffix + "!"
 }
 
+// offboardingIdentity is what the suite drives on the composed identity
+// module: the membership the offboarding revokes and the login it must
+// refuse afterwards.
+type offboardingIdentity interface {
+	VerifyAccountTenantMembership(ctx context.Context, accountID, tenantID int64) (bool, error)
+	LoginWithAudit(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug string) (string, string, error)
+}
+
 type offboardingScenario struct {
 	db      *bun.DB
 	repos   *repositories.Factory
-	authSvc authSvcPkg.AuthService
+	authSvc offboardingIdentity
 	svc     *offboardingTestRunner
 	deps    offboardingcompose.Dependencies
 	ctx     context.Context
@@ -55,16 +62,16 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	repos.SetConfigRuntime(testpkg.ConfigRuntime(db))
 
-	authCfg, err := authSvcPkg.NewServiceConfig(nil, email.Email{}, "http://localhost:3000", time.Hour)
+	authService, err := services.IdentityAccessForTests(repos, services.IdentityAccessTestConfig{
+		TenantRuntime: testpkg.TenantRuntime(t, db),
+		Audit:         testpkg.NewAuthEventCommand(repos.AuthEvent),
+		FrontendURL:   "http://localhost:3000", PasswordResetExpiry: time.Hour,
+	}, db, nil)
 	require.NoError(t, err)
-	authCfg.Audit = testpkg.NewAuthEventCommand(repos.AuthEvent)
-	authService, err := services.NewAuthServiceForTests(repos, *authCfg, db, nil)
-	require.NoError(t, err)
-	testpkg.SetTenantRuntime(t, authService, db)
 
 	actorAccount := testpkg.CreateTestAccount(t, db, "offboarding-audit-actor@example.org")
 	deps := offboardingcompose.Dependencies{
-		DB: db, Access: authService,
+		DB: db, Access: services.StaffOffboardingAccess(authService),
 		Authorize: func(ctx context.Context) (staffoffboarding.Actor, error) {
 			actor, _ := ctx.Value(offboardingTestActorKey{}).(staffoffboarding.Actor)
 			actor.AccountID = actorAccount.ID
@@ -195,16 +202,16 @@ func TestOffboardStaff_CleanupIntentFailureRestoresAccessAndAllOwnerWrites(t *te
 	require.NoError(t, err)
 	require.NotNil(t, person.AccountID)
 	require.Equal(t, account.ID, *person.AccountID)
-	roles, err := sc.authSvc.GetAccountRoles(sc.ctx, int(account.ID))
+	roles, err := sc.repos.Role.FindByAccountID(sc.ctx, account.ID)
 	require.NoError(t, err)
 	require.NotEmpty(t, roles)
 	active, err := sc.authSvc.VerifyAccountTenantMembership(sc.ctx, account.ID, testpkg.Tenant(t))
 	require.NoError(t, err)
 	require.True(t, active)
-	tokens, err := sc.authSvc.GetActiveTokens(sc.ctx, int(account.ID))
-	require.NoError(t, err)
-	require.Len(t, tokens, 1, "rolled-back account cleanup must not revoke credentials after commit")
-	require.Equal(t, token.ID, tokens[0].ID)
+	var liveTokens int
+	require.NoError(t, sc.db.NewSelect().TableExpr("auth.tokens").ColumnExpr("count(*)").
+		Where("account_id = ?", account.ID).Where("id = ?", token.ID).Scan(sc.ctx, &liveTokens))
+	require.Equal(t, 1, liveTokens, "rolled-back account cleanup must not revoke credentials after commit")
 	var auditRows int
 	require.NoError(t, sc.db.NewSelect().TableExpr("audit.data_deletions").ColumnExpr("count(*)").Where("staff_id = ?", staff.ID).Scan(sc.ctx, &auditRows))
 	require.Zero(t, auditRows, "the deletion audit and owner writes must roll back together")
@@ -212,9 +219,9 @@ func TestOffboardStaff_CleanupIntentFailureRestoresAccessAndAllOwnerWrites(t *te
 	sc.svc.deps.Cleanup = func(context.Context, int64) error { return nil }
 	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
 	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
-	tokens, err = sc.authSvc.GetActiveTokens(sc.ctx, int(account.ID))
-	require.NoError(t, err)
-	require.Empty(t, tokens)
+	require.NoError(t, sc.db.NewSelect().TableExpr("auth.tokens").ColumnExpr("count(*)").
+		Where("account_id = ?", account.ID).Scan(sc.ctx, &liveTokens))
+	require.Zero(t, liveTokens)
 }
 
 func TestOffboardStaff_ConcurrentPlanningCannotAttachAfterRetirement(t *testing.T) {
@@ -432,7 +439,7 @@ func TestOffboardStaff_RevokesAccountAccess(t *testing.T) {
 	assignTenantRole(t, sc.db, account.ID, role.ID)
 	testpkg.CreateTestToken(t, sc.db, account.ID, "refresh")
 
-	_, _, err := sc.authSvc.Login(context.Background(), emailAddr, credential)
+	_, _, err := sc.authSvc.LoginWithAudit(context.Background(), emailAddr, credential, "", "", "")
 	require.NoError(t, err, "login must work before offboarding")
 
 	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
@@ -477,7 +484,7 @@ func TestOffboardStaff_RevokesAccountAccess(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, roleCount, "tenant roles must be removed")
 
-	_, _, err = sc.authSvc.Login(context.Background(), emailAddr, credential)
+	_, _, err = sc.authSvc.LoginWithAudit(context.Background(), emailAddr, credential, "", "", "")
 	require.Error(t, err, "login must fail after offboarding")
 }
 
@@ -518,34 +525,38 @@ func TestOffboardStaff_MultiTenantAccountKeepsOtherSchool(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, existsB, "other school mapping must stay active")
 
-	_, _, err = sc.authSvc.Login(context.Background(), emailAddr, credential)
+	_, _, err = sc.authSvc.LoginWithAudit(context.Background(), emailAddr, credential, "", "", "")
 	require.NoError(t, err, "login at the other school must keep working")
 }
 
 // TestOffboardStaff_ReinviteSameEmailSameSchool covers bug 2 of issue #695:
 // the same email must be re-invitable at the same school after offboarding,
-// but a token alone must not reactivate the globally disabled account.
+// and acceptance restores a working Betreuer on the same account.
+//
+// The rule changed with #3376. Until then a token alone could not reactivate
+// the disabled account, which read as security but left the school with no
+// way back at all: the invitee was sent to a login for an account nobody can
+// sign in to, and a password reset cannot clear the disabled flag. What the
+// invitation now restores is an account that holds nothing — disabled and
+// without an active mapping at any school — to a school whose admin issued
+// the invitation, for whoever holds the invited mailbox. That is the same
+// proof a reset link already accepts for this account's password.
+//
+// The boundary that protects a live account is unchanged and covered
+// elsewhere: an account that is disabled while it still holds school access
+// was disabled deliberately and still demands the owner's session
+// (TestInvitationLeavesDisabledAccountWithSchoolAccessAlone), and an active
+// account is never taken over by a token
+// (TestInvitationTokenCannotTakeOverExistingAccount).
 func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 	t.Parallel()
 
 	sc := newOffboardingScenario(t)
 
-	schoolIdentity, identityErr := services.NewSchoolIdentityForTests(sc.db, testpkg.TenantRuntime(t, sc.db))
-	require.NoError(t, identityErr)
-	invSvc := authSvcPkg.NewInvitationService(authSvcPkg.InvitationServiceConfig{
-		SchoolIdentity:    schoolIdentity,
-		InvitationRepo:    sc.repos.InvitationToken,
-		AccountRepo:       sc.repos.Account,
-		AccountTenantRepo: sc.repos.AccountTenant,
-		RoleRepo:          sc.repos.Role,
-		AccountRoleRepo:   sc.repos.AccountRole,
-		SchoolRepo:        sc.repos.School,
-		Mailer:            email.NewMockMailer(),
-		FrontendURL:       "http://localhost:3000",
-		InvitationExpiry:  time.Hour,
-		DB:                sc.db,
-	})
-	testpkg.SetTenantRuntime(t, invSvc, sc.db)
+	factory, factoryErr := services.NewFactoryForTests(sc.repos, sc.db, slog.Default())
+	require.NoError(t, factoryErr)
+	require.NoError(t, factory.SetTenantRuntime(testpkg.TenantRuntime(t, sc.db)))
+	invSvc := factory.Invitation
 
 	oldCredential := offboardingCredential("Offboard", "123")
 	newCredential := offboardingCredential("Reinvited", "456")
@@ -563,18 +574,18 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 	})
 
 	// Before offboarding the re-invite is blocked (current production behavior).
-	_, err := invSvc.CreateInvitation(sc.ctx, authSvcPkg.InvitationRequest{
+	_, err := invSvc.CreateSchoolInvitation(sc.ctx, services.SchoolInvitationRequest{
 		Email:     emailAddr,
 		RoleID:    role.ID,
 		TenantID:  testpkg.Tenant(t),
 		CreatedBy: account.ID,
 	})
 	require.Error(t, err, "re-invite must be blocked while the mapping is active")
-	require.ErrorIs(t, err, authSvcPkg.ErrAccountAlreadyHasTenantAccess)
+	require.ErrorIs(t, err, services.ErrAccountAlreadyHasTenantAccess)
 
 	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
 
-	invitation, err := invSvc.CreateInvitation(sc.ctx, authSvcPkg.InvitationRequest{
+	invitation, err := invSvc.CreateSchoolInvitation(sc.ctx, services.SchoolInvitationRequest{
 		Email:     emailAddr,
 		RoleID:    role.ID,
 		TenantID:  testpkg.Tenant(t),
@@ -582,18 +593,18 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 	})
 	require.NoError(t, err, "re-invite must succeed after offboarding")
 
-	reactivated, err := invSvc.AcceptInvitation(context.Background(), invitation.Token, authSvcPkg.UserRegistrationData{
+	reactivated, err := invSvc.AcceptSchoolInvitation(context.Background(), invitation.Token, services.InvitationRegistration{
 		FirstName:       "Re",
 		LastName:        "Invited",
 		Password:        newCredential,
 		ConfirmPassword: newCredential,
 	})
-	require.ErrorIs(t, err, authSvcPkg.ErrInvitationOwnerRequired)
-	require.Nil(t, reactivated)
+	require.NoError(t, err, "a dormant account is restored by its invitation")
+	require.Equal(t, account.ID, reactivated.ID, "the invitee keeps the account the address belongs to")
 
 	exists, err := sc.repos.AccountTenant.ExistsByAccountAndTenant(sc.ctx, account.ID, testpkg.Tenant(t))
 	require.NoError(t, err)
-	assert.False(t, exists, "token-only acceptance must not reactivate the tenant mapping")
+	assert.True(t, exists, "the accepted invitation restores the tenant mapping")
 
 	var staffCount int
 	err = sc.db.NewSelect().
@@ -603,14 +614,17 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 		Where(`"person".account_id = ? AND "staff".deleted_at IS NULL AND "person".deleted_at IS NULL`, account.ID).
 		Scan(context.Background(), &staffCount)
 	require.NoError(t, err)
-	assert.Zero(t, staffCount, "rejected acceptance must not recreate a live staff record")
+	assert.Equal(t, 1, staffCount, "the restored Betreuer has a live staff record again")
 	stored, err := sc.repos.Account.FindByID(context.Background(), account.ID)
 	require.NoError(t, err)
-	assert.False(t, stored.Active)
-	assert.Equal(t, account.PasswordHash, stored.PasswordHash)
+	assert.True(t, stored.Active)
+	assert.NotEqual(t, account.PasswordHash, stored.PasswordHash, "the invitee's new credential replaced the old one")
 
-	_, _, err = sc.authSvc.Login(context.Background(), emailAddr, newCredential)
-	require.Error(t, err, "the proposed invitation password must grant no access")
+	_, _, err = sc.authSvc.LoginWithAudit(context.Background(), emailAddr, newCredential, "", "", "")
+	require.NoError(t, err, "the password chosen in the invitation grants access")
+
+	_, _, err = sc.authSvc.LoginWithAudit(context.Background(), emailAddr, oldCredential, "", "", "")
+	require.Error(t, err, "the credential from before the offboarding must not survive")
 }
 
 // TestOffboardStaff_ActiveSupervisionBlocks: an active room supervision still
@@ -927,9 +941,9 @@ func TestOffboardStaff_PreservesGuardianAccess(t *testing.T) {
 
 	// Staff portal login is refused for the now guardian-only account; the
 	// parents portal remains the entry point.
-	_, _, err = sc.authSvc.Login(context.Background(), emailAddr, credential)
+	_, _, err = sc.authSvc.LoginWithAudit(context.Background(), emailAddr, credential, "", "", "")
 	require.Error(t, err, "staff login must be refused for the guardian-only account")
-	assert.ErrorIs(t, err, authSvcPkg.ErrParentMustUseParentPortal)
+	assert.ErrorIs(t, err, services.ErrParentMustUseParentPortal)
 }
 
 // TestOffboardStaff_RemovesSameDayPlannedInstanceAssignments: same-day

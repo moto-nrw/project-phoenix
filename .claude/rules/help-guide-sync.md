@@ -22,7 +22,7 @@ The help is the public, school-facing manual served under `/help`. When it lies,
 | `/help/gruppe/<group>` | One category, as cards of its articles |
 | `/help/nfc/erste-schritte` | **Not an article.** The printed onepager for the tablet box, and the only PDF left |
 
-Four roles: `caregiver`, `lead`, `parent`, `teacher`. Each has its own sidebar over **one** shared content set (ADR 0009).
+Four roles: `caregiver`, `lead`, `parent`, `teacher`. Each has its own sidebar over **one** shared content set (ADR 0025).
 
 Five optional URL parameters carry context; none of them is an access check:
 
@@ -133,7 +133,7 @@ This rule covers the **in-app, school-facing help only**. It does NOT govern: de
 
 ## Background
 
-`docs/hilfebereich-umbau-plan.md` holds the rework plan and the decisions behind this structure; ADR 0008 (format and platform: typed TS, no docs framework) and ADR 0009 (audiences: separate entries, one content set) are the binding ones.
+`docs/hilfebereich-umbau-plan.md` holds the rework plan and the decisions behind this structure; ADR 0024 (format and platform: typed TS, no docs framework) and ADR 0025 (audiences: separate entries, one content set) are the binding ones.
 
 ## Paired Skill
 

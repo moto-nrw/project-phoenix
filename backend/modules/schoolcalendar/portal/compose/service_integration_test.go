@@ -14,22 +14,21 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
+	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	usercontextSvc "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	calendarRuntime "github.com/moto-nrw/project-phoenix/services"
-	platformService "github.com/moto-nrw/project-phoenix/services/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -141,25 +140,25 @@ func (r *recordingAppointmentCreate) CreateAppointment(ctx context.Context, inpu
 }
 
 type recordingOutbox struct {
-	enqueued  []platformService.EnqueueRequest
+	enqueued  []emailoutbox.EnqueueRequest
 	cancelled int
 	nextID    int64
 	keys      map[string]struct{}
 }
 
-func (r *recordingOutbox) Enqueue(_ context.Context, req platformService.EnqueueRequest) (*platformModels.EmailOutbox, error) {
+func (r *recordingOutbox) Enqueue(_ context.Context, req emailoutbox.EnqueueRequest) (*emailoutbox.Enqueued, error) {
 	if req.IdempotencyKey != "" {
 		if r.keys == nil {
 			r.keys = make(map[string]struct{})
 		}
 		if _, exists := r.keys[req.IdempotencyKey]; exists {
-			return &platformModels.EmailOutbox{}, nil
+			return &emailoutbox.Enqueued{}, nil
 		}
 		r.keys[req.IdempotencyKey] = struct{}{}
 	}
 	r.enqueued = append(r.enqueued, req)
 	r.nextID++
-	return &platformModels.EmailOutbox{Model: base.Model{ID: r.nextID}}, nil
+	return &emailoutbox.Enqueued{ID: r.nextID}, nil
 }
 
 func (r *recordingOutbox) CancelPendingByRelatedEntity(context.Context, string, int64, string) (int64, error) {

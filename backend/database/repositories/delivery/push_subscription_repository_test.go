@@ -7,9 +7,8 @@ import (
 	"time"
 
 	deliveryRepo "github.com/moto-nrw/project-phoenix/database/repositories/delivery"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -37,7 +36,17 @@ func createAccountTenantMapping(t *testing.T, db *bun.DB, accountID, tenantID in
 	require.NoError(t, err)
 }
 
-func createPushTestSchool(t *testing.T, db *bun.DB) *platformModels.School {
+// pushTestSchool is the platform.schools row the cross-school cases insert.
+type pushTestSchool struct {
+	ID             int64  `bun:"id,pk,autoincrement"`
+	OrganizationID int64  `bun:"organization_id,notnull"`
+	Name           string `bun:"name,notnull"`
+	Slug           string `bun:"slug,notnull"`
+	Subdomain      string `bun:"subdomain,notnull"`
+	Active         bool   `bun:"active,notnull"`
+}
+
+func createPushTestSchool(t *testing.T, db *bun.DB) *pushTestSchool {
 	t.Helper()
 	var organizationID int64
 	require.NoError(t, db.NewSelect().
@@ -48,7 +57,7 @@ func createPushTestSchool(t *testing.T, db *bun.DB) *platformModels.School {
 		Scan(context.Background(), &organizationID))
 
 	suffix := time.Now().UnixNano()
-	school := &platformModels.School{
+	school := &pushTestSchool{
 		OrganizationID: organizationID,
 		Name:           fmt.Sprintf("Push Test School %d", suffix),
 		Slug:           fmt.Sprintf("push-test-%d", suffix),

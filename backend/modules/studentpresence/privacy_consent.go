@@ -66,3 +66,39 @@ func (m *Module) ListAcceptedRetentionSettings(ctx context.Context) ([]StudentRe
 func (m *Module) RevisePrivacyConsent(ctx context.Context, value PrivacyConsent) (PrivacyConsent, error) {
 	return m.engine.RevisePrivacyConsent(ctx, value)
 }
+
+// DataRetentionDaysOrDefault is the retention window a child without a
+// recorded consent falls back to. override is the tenant's resolved
+// gdpr.privacy_consent_retention_days value, or 0 when the tenant has none —
+// the settings lookup belongs to the Settings Platform consumer, the fallback
+// rule to this owner.
+func DataRetentionDaysOrDefault(override int) int {
+	if override > 0 {
+		return override
+	}
+	return DefaultPrivacyConsentRetentionDays
+}
+
+// AcceptPrivacyConsent marks a consent accepted at now and derives the expiry
+// from the configured duration. It returns the changed value; persisting it is
+// the caller's job. This is the consent lifecycle the owner decides, not the
+// model (issue #586, Rule 12).
+func AcceptPrivacyConsent(value PrivacyConsent, now time.Time) PrivacyConsent {
+	value.Accepted = true
+	value.AcceptedAt = &now
+	return DerivePrivacyConsentExpiry(value)
+}
+
+// DerivePrivacyConsentExpiry stamps ExpiresAt = AcceptedAt + DurationDays when
+// a positive duration is set and no expiry is present yet.
+func DerivePrivacyConsentExpiry(value PrivacyConsent) PrivacyConsent {
+	if value.DurationDays == nil || *value.DurationDays <= 0 {
+		return value
+	}
+	if value.ExpiresAt != nil || value.AcceptedAt == nil {
+		return value
+	}
+	expiresAt := value.AcceptedAt.AddDate(0, 0, *value.DurationDays)
+	value.ExpiresAt = &expiresAt
+	return value
+}

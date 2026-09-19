@@ -2,7 +2,6 @@ package migrations
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/uptrace/bun"
 )
@@ -30,7 +29,6 @@ func init() {
 }
 
 func archiveTimetableTemplatesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.41: Adding archived_at to activities.groups...")
 	_, err := db.NewRaw(`
 		ALTER TABLE activities.groups
 			ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
@@ -43,7 +41,6 @@ func archiveTimetableTemplatesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func archiveTimetableTemplatesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.41: Removing archived_at from activities.groups...")
 	_, _ = db.NewRaw(`
 		DROP INDEX IF EXISTS activities.idx_activity_groups_active_templates;
 		ALTER TABLE activities.groups

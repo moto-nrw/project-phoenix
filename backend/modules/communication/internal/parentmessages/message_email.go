@@ -12,6 +12,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 )
 
@@ -53,9 +54,12 @@ type GuardianProfileFinder interface {
 	FindByAccountID(ctx context.Context, accountID int64) (*usersModels.GuardianProfile, error)
 }
 
-// SchoolFinder resolves the school that sends the mail.
+// SchoolFinder resolves the name of the school that sends the mail.
+// Organisation & Tenancy owns the row; the root binds this port.
 type SchoolFinder interface {
-	FindByID(ctx context.Context, id int64) (*platformModels.School, error)
+	// FindSchoolName returns the school's name; found is false when the
+	// school does not exist.
+	FindSchoolName(ctx context.Context, id int64) (name string, found bool, err error)
 }
 
 // LoginImageResolver resolves the school's logo for the mail header. Optional:
@@ -135,8 +139,8 @@ func (s *Service) notifyGuardianEmail(ctx context.Context, thread *usersModels.P
 	return nil
 }
 
-func NewParentMessageRenderer(cfg ParentMessageRendererConfig) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error) {
-	return func(_ context.Context, row *platformModels.EmailOutbox) (*email.Message, error) {
+func NewParentMessageRenderer(cfg ParentMessageRendererConfig) func(context.Context, *emailoutbox.Intent) (*email.Message, error) {
+	return func(_ context.Context, row *emailoutbox.Intent) (*email.Message, error) {
 		recipient, _ := row.Payload[messagePayloadRecipient].(string)
 		if strings.TrimSpace(recipient) == "" {
 			return nil, fmt.Errorf("%s payload missing recipient_email", row.Kind)
@@ -315,8 +319,8 @@ func (s *Service) resolveSchoolBrand(ctx context.Context, tenantID int64) (strin
 	if s.Schools == nil || tenantID <= 0 {
 		return "", ""
 	}
-	school, err := s.Schools.FindByID(ctx, tenantID)
-	if err != nil || school == nil {
+	name, found, err := s.Schools.FindSchoolName(ctx, tenantID)
+	if err != nil || !found {
 		return "", ""
 	}
 	logoURL := ""
@@ -325,5 +329,5 @@ func (s *Service) resolveSchoolBrand(ctx context.Context, tenantID int64) (strin
 			logoURL = emailbranding.SchoolLogoURL(s.ParentsURL, raw)
 		}
 	}
-	return school.Name, logoURL
+	return name, logoURL
 }

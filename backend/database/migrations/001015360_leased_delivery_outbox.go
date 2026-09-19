@@ -21,7 +21,6 @@ func init() {
 }
 
 func leasedDeliveryOutboxUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.360: Expanding durable delivery into fenced email and push outboxes...")
 	if _, err := db.NewRaw(`
 		DROP INDEX IF EXISTS platform.idx_email_outbox_worker_pickup;
 
@@ -219,7 +218,6 @@ func leasedDeliveryOutboxUp(ctx context.Context, db *bun.DB) error {
 }
 
 func leasedDeliveryOutboxDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.360: Restoring the legacy email outbox schema...")
 	if _, err := db.NewRaw(`
 		DROP VIEW IF EXISTS platform.delivery_email_deliveries;
 		DROP VIEW IF EXISTS platform.delivery_push_subscriptions;

@@ -17,8 +17,6 @@ import (
 
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -28,8 +26,7 @@ func TestResolveTenant_IssuesOneSettingValuesQuery(t *testing.T) {
 	db, authRoute := setupAuthDependenciesRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
-	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), authRoute.Sessions, db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, db)
 	resource.SettingsService = authRoute.SettingsService
 
 	// The blanket attachment in api/base.go is what production requests run

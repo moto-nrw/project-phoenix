@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	usercontextSvc "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"

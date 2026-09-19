@@ -17,11 +17,10 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -152,7 +151,7 @@ type AdminRequestChild struct {
 // The attribute and validity fields carry the same facts the parent
 // portal renders for this booking (#2185), in the same wire shape:
 // ValidUntil is the INCLUSIVE last covered day, matching
-// api/parent/care_offerings_handlers.go. The stored column is
+// modules/careplan/inbound/parent/care_offerings_handlers.go. The stored column is
 // exclusive; one JSON name must not mean two different days depending
 // on which endpoint answered.
 //
@@ -491,7 +490,7 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 	// asked for one. Best-effort — failure here doesn't roll back the
 	// approval (records are already committed). Logging captures the
 	// failure for the admin to chase via "Re-send invitation".
-	if outcome != nil && outcome.PendingInvite != nil && rs.GuardianInvitationService != nil {
+	if outcome != nil && outcome.PendingInvite != nil && rs.GuardianInvitations.configured() {
 		go rs.dispatchPostDecisionInvite(r.Context(), outcome.PendingInvite)
 	}
 
@@ -799,7 +798,7 @@ func optionalDateString(value *timezone.Date) string {
 
 // optionalInclusiveEndDateString renders a stored EXCLUSIVE interval end
 // as the inclusive last covered day, the shape the parent endpoint has
-// always used (api/parent/care_offerings_handlers.go).
+// always used (modules/careplan/inbound/parent/care_offerings_handlers.go).
 func optionalInclusiveEndDateString(value *timezone.Date) string {
 	if value == nil || value.IsZero() {
 		return ""
@@ -907,15 +906,11 @@ func (rs *Resource) dispatchPostDecisionInvite(parentCtx context.Context, invite
 	defer cancel()
 	bgCtx = tenant.WithTenant(bgCtx, tenantID)
 
-	// Wrap in a tenant tx so the invitation service's repo writes pick
-	// up the right RLS scope. The service has its own RunInTx that
-	// reuses an existing tx context, so this stays a single tx.
+	// Wrap in a tenant tx so the owner's writes pick up the right RLS
+	// scope. The owner joins an existing tx from the context, so this stays
+	// a single tx.
 	err = tenant.WithTenantTx(bgCtx, rs.db, tenantID.Int64(), func(txCtx context.Context, _ bun.Tx) error {
-		_, e := rs.GuardianInvitationService.Create(txCtx, authService.GuardianInvitationCreateRequest{
-			GuardianProfileID: invite.GuardianProfileID,
-			CreatedBy:         invite.CreatedBy,
-		})
-		return e
+		return rs.GuardianInvitations.Create(txCtx, invite.GuardianProfileID, invite.CreatedBy)
 	})
 	if err != nil {
 		slog.Default().Warn("post-decision guardian invitation failed",

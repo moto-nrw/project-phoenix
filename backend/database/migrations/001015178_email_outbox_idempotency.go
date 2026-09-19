@@ -2,7 +2,6 @@ package migrations
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/uptrace/bun"
 )
@@ -22,7 +21,6 @@ func init() {
 }
 
 func addEmailOutboxIdempotencyUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.178: Adding email outbox idempotency keys...")
 	_, err := db.NewRaw(`
 		ALTER TABLE platform.email_outbox ADD COLUMN idempotency_key TEXT;
 		CREATE UNIQUE INDEX uq_email_outbox_tenant_idempotency
@@ -33,7 +31,6 @@ func addEmailOutboxIdempotencyUp(ctx context.Context, db *bun.DB) error {
 }
 
 func addEmailOutboxIdempotencyDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.178: Removing email outbox idempotency keys...")
 	_, err := db.NewRaw(`
 		DROP INDEX IF EXISTS platform.uq_email_outbox_tenant_idempotency;
 		ALTER TABLE platform.email_outbox DROP COLUMN IF EXISTS idempotency_key;

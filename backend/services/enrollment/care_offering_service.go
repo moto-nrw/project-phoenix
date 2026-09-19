@@ -17,7 +17,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -127,7 +127,7 @@ type CareOfferingSeriesValidator interface {
 	// onto a successor pinned to a different Planungszeitraum — create/update
 	// run the same check via the roster resync, and a split must not be able
 	// to persist a state those paths reject. Failures wrap
-	// services/schedule.ErrOfferingSourceInvalid.
+	// timetableplanning.ErrOfferingSourceInvalid.
 	//
 	// storedOfferingIDs are the ids ALREADY persisted on the template being
 	// validated (nil on create). An id that does not resolve is rejected
@@ -723,7 +723,7 @@ func careOfferingOccurrenceCovered(
 	for _, segment := range segments {
 		for _, schedule := range segment.schedules {
 			if schedule == nil || schedule.Weekday != weekday || !scheduleCoversDate(schedule, date) ||
-				!scheduleService.ShouldMaterializeWeekPattern(schedule.WeekPattern, date, segment.period) {
+				!timetableplanning.ShouldMaterializeWeekPattern(schedule.WeekPattern, date, segment.period) {
 				continue
 			}
 			if requireActivePeriod && (segment.period == nil || !segment.period.IsActive) {
@@ -909,7 +909,7 @@ func (s *careOfferingService) ValidateTemplateOfferingSource(ctx context.Context
 	}
 	for _, id := range dropped {
 		if !stored[id] {
-			return fmt.Errorf("%w: care offering %d not found", scheduleService.ErrOfferingSourceInvalid, id)
+			return fmt.Errorf("%w: care offering %d not found", timetableplanning.ErrOfferingSourceInvalid, id)
 		}
 	}
 	s.Logger.Warn("offering source validation: ignoring vanished stored source offerings",
@@ -1157,7 +1157,7 @@ func (s *careOfferingService) resyncSourcedTemplates(ctx context.Context, offeri
 		return nil
 	}
 	if err := s.sourcedTemplateResyncer.ResyncTemplatesSourcedFromOffering(ctx, offeringID, s.todayDate()); err != nil {
-		if errors.Is(err, scheduleService.ErrOfferingSourceInvalid) {
+		if errors.Is(err, timetableplanning.ErrOfferingSourceInvalid) {
 			// TenantTxMiddleware commits ordinary 4xx responses. Mark the
 			// ambient transaction so the already-written offering update is
 			// discarded together with the rejection.

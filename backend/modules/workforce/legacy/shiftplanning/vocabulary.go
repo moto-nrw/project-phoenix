@@ -9,20 +9,21 @@
 package shiftplanning
 
 import (
-	"github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
 // The retained timetable vocabulary these services still speak. The coverage
-// interval math and the calendar-week helpers stay in services/schedule
-// because the timetable-side coverage probe and the staff pool share them;
-// every entry goes with the retained service that uses it.
+// interval math and the calendar-week helpers live in the retained timetable
+// package (modules/timetable/legacy/timetableplanning, #3218) because the
+// timetable-side coverage probe and the staff pool share them; every entry
+// goes with the retained service that uses it.
 
-type staffDateKey = schedule.StaffDateKey
+type staffDateKey = timetableplanning.StaffDateKey
 
 var (
-	sortOverviewStaff       = schedule.SortOverviewStaff
-	indexCalendarWeeks      = schedule.IndexCalendarWeeks
-	indexShifts             = schedule.IndexShiftsByStaffDate
-	uncoveredShiftIntervals = schedule.UncoveredShiftIntervals
-	containingCalendarWeek  = schedule.ContainingCalendarWeek
+	sortOverviewStaff       = timetableplanning.SortOverviewStaff
+	indexCalendarWeeks      = timetableplanning.IndexCalendarWeeks
+	indexShifts             = timetableplanning.IndexShiftsByStaffDate
+	uncoveredShiftIntervals = timetableplanning.UncoveredShiftIntervals
+	containingCalendarWeek  = timetableplanning.ContainingCalendarWeek
 )

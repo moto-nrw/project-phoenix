@@ -26,8 +26,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,12 +48,11 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	repos.BindTimetable(timetabletest.New(t, db))
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	// Real attendance syncer, wired the same way services.NewFactory does.
-	syncer := scheduleSvc.NewAttendanceSyncService(
+	syncer := timetableplanning.NewAttendanceSyncService(
 		repos.ActivityInstance,
 		repos.InstanceStudent,
 		slog.Default(),
@@ -210,7 +208,7 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	suffix := time.Now().UnixNano()
-	syncer := scheduleSvc.NewAttendanceSyncService(
+	syncer := timetableplanning.NewAttendanceSyncService(
 		repos.ActivityInstance,
 		repos.InstanceStudent,
 		slog.Default(),

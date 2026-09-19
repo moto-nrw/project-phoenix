@@ -122,8 +122,6 @@ const effectiveAdminAt115240SQL = `EXISTS (
 // services/notifications/types.go; a renamed key simply leaves these rows inert,
 // which 1.15.239 already documents.
 func notificationPreferencesBackfillUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.240: Backfilling notification consent from existing push subscriptions...")
-
 	guardianBackfillQuery := fmt.Sprintf(`
 		INSERT INTO users.notification_preferences (tenant_id, account_id, notification_type, enabled)
 		SELECT DISTINCT "sub".tenant_id, "sub".account_id, 'parent_announcement', TRUE
@@ -188,6 +186,5 @@ func notificationPreferencesBackfillUp(ctx context.Context, db *bun.DB) error {
 // migration is the worse failure. Dropping the table entirely is what 1.15.239
 // is for.
 func notificationPreferencesBackfillDown(_ context.Context, _ *bun.DB) error {
-	fmt.Println("Rolling back 1.15.240: nothing to do (backfilled consent is indistinguishable from a user's own choice)")
 	return nil
 }

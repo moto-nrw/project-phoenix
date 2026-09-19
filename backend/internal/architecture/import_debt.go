@@ -14,14 +14,36 @@ import (
 // CompareCandidateLegacyBaselines permits a policy tightening to record an
 // already-existing, previously allowed import as debt. It never approves an
 // import from the candidate tree or a violation that the base already forbade.
+//
+// It first reads the base baseline at the candidate's package paths, so a
+// reviewed relocation (ADR 0020) keeps its debt instead of dropping the old
+// keys and inventing new ones. The relocation renames keys; everything below
+// still judges the renamed entries exactly as it judges every other one.
 func CompareCandidateLegacyBaselines(project, ref string, candidate, base *LegacyManifest, basePolicy, candidatePolicy *Policy) error {
+	moves, err := relocatedPackages(project, ref, basePolicy, candidatePolicy)
+	if err != nil {
+		return err
+	}
+	base, err = relocateManifest(base, moves)
+	if err != nil {
+		return err
+	}
 	augmented := &LegacyManifest{byKey: make(map[string]LegacyEntry, len(base.Entries))}
 	for key, entry := range base.byKey {
 		augmented.byKey[key] = entry
 	}
+	relocatedSources := make(map[string]struct{}, len(moves))
+	for _, target := range moves {
+		relocatedSources[target] = struct{}{}
+	}
 	imports := make(map[string]map[Edge]struct{})
 	for _, entry := range candidate.Entries {
 		if _, exists := base.byKey[entry.Key()]; exists || entry.Rule != "imports.forbidden" {
+			continue
+		}
+		// A relocated package has no imports under its new path at the base
+		// commit, so it can never supply the evidence the conversion needs.
+		if _, relocated := relocatedSources[entry.Source]; relocated {
 			continue
 		}
 		edge := Edge{Scope: entry.Scope, Source: entry.Source, Target: entry.Target}

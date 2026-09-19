@@ -1,9 +1,9 @@
 // Unit tests for the WP-B10 attendance PATCH handler that don't require a
 // database. The DB-backed tests in instance_students_test.go cover the happy
-// path and cross-field rule end-to-end; these tests close the coverage gap on
-// the branches SonarQube flagged as missing: repo-not-wired guard, path
-// parsing errors, body decode errors, response mapping, and the
-// DatabaseError-wrapped not-found branch in isNotFoundDBError.
+// path and cross-field rule end-to-end; these tests close the remaining
+// branches: repo-not-wired guard, path parsing errors, body decode errors,
+// response mapping, and the DatabaseError-wrapped not-found branch in
+// isNotFoundDBError.
 package timetable
 
 import (
@@ -19,11 +19,10 @@ import (
 	"testing"
 	"time"
 
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-
 	"github.com/go-chi/chi/v5"
 	modelsBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -222,7 +221,7 @@ func TestPatchHandler_500_RepoNotWired(t *testing.T) {
 func TestPatchHandler_400_InvalidInstanceID(t *testing.T) {
 	t.Parallel()
 
-	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/abc/students/2", map[string]any{"status": "absent"}))
@@ -233,7 +232,7 @@ func TestPatchHandler_400_InvalidInstanceID(t *testing.T) {
 func TestPatchHandler_400_InvalidStudentID(t *testing.T) {
 	t.Parallel()
 
-	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/xyz", map[string]any{"status": "absent"}))
@@ -244,7 +243,7 @@ func TestPatchHandler_400_InvalidStudentID(t *testing.T) {
 func TestPatchHandler_400_ZeroInstanceID(t *testing.T) {
 	t.Parallel()
 
-	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/0/students/2", map[string]any{"status": "absent"}))
@@ -254,7 +253,7 @@ func TestPatchHandler_400_ZeroInstanceID(t *testing.T) {
 func TestPatchHandler_400_NegativeIDs(t *testing.T) {
 	t.Parallel()
 
-	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/-1/students/2", map[string]any{"status": "absent"}))
@@ -268,7 +267,7 @@ func TestPatchHandler_400_NegativeIDs(t *testing.T) {
 func TestPatchHandler_400_MalformedJSON(t *testing.T) {
 	t.Parallel()
 
-	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", "{not json"))
@@ -279,7 +278,7 @@ func TestPatchHandler_400_MalformedJSON(t *testing.T) {
 func TestPatchHandler_400_EmptyBody_MeansNoChanges(t *testing.T) {
 	t.Parallel()
 
-	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
 	router := unitRouter(res)
 
 	// Empty body → parser returns zero patch → HasChanges false → 400.
@@ -294,7 +293,7 @@ func TestPatchHandler_400_BodyReadError(t *testing.T) {
 
 	// A broken reader forces io.ReadAll to return an error, exercising the
 	// "failed to read request body" branch.
-	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
 	router := unitRouter(res)
 
 	req := httptest.NewRequest(http.MethodPatch, "/instances/1/students/2", brokenReader{})
@@ -307,7 +306,7 @@ func TestPatchHandler_400_BodyReadError(t *testing.T) {
 func TestPatchHandler_400_NonStringNote(t *testing.T) {
 	t.Parallel()
 
-	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", `{"note": 5}`))
@@ -333,7 +332,7 @@ func TestPatchHandler_404_NotFound(t *testing.T) {
 			return nil, modelsBase.ErrNotFound
 		},
 	}
-	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: repo})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", map[string]any{"status": "absent"}))
@@ -350,7 +349,7 @@ func TestPatchHandler_404_NotFound_WrappedDatabaseError(t *testing.T) {
 			return nil, &modelsBase.DatabaseError{Op: "find", Err: modelsBase.ErrNotFound}
 		},
 	}
-	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: repo})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", map[string]any{"status": "absent"}))
@@ -366,7 +365,7 @@ func TestPatchHandler_404_NotFound_NilRowNilError(t *testing.T) {
 			return nil, nil
 		},
 	}
-	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: repo})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", map[string]any{"status": "absent"}))
@@ -381,7 +380,7 @@ func TestPatchHandler_500_FindError_NotNotFound(t *testing.T) {
 			return nil, errors.New("connection reset")
 		},
 	}
-	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: repo})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", map[string]any{"status": "absent"}))
@@ -420,7 +419,7 @@ func TestPatchHandler_500_LockAttendanceFails(t *testing.T) {
 			return errors.New("could not acquire lock")
 		},
 	}
-	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{
+	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{
 		InstanceStudentRepo: repo,
 		RecoveryRepo:        recovery,
 	})}}
@@ -445,7 +444,7 @@ func TestPatchHandler_500_UpdateError(t *testing.T) {
 			return updateErr
 		},
 	}
-	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: repo})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", map[string]any{"status": "absent"}))
@@ -471,7 +470,7 @@ func TestPatchHandler_500_ReloadAfterUpdateFails(t *testing.T) {
 			return nil, errors.New("reload failure")
 		},
 	}
-	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: repo})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", map[string]any{"status": "absent"}))
@@ -498,7 +497,7 @@ func TestPatchHandler_500_ReloadReturnsNil(t *testing.T) {
 			return nil, nil
 		},
 	}
-	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: repo})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", map[string]any{"status": "absent"}))
@@ -518,7 +517,7 @@ func TestPatchHandler_400_CrossFieldRuleAfterFind(t *testing.T) {
 	current.ID = 11
 
 	repo := &fakeRepo{currentState: current}
-	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: repo})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", map[string]any{"substatus": "late"}))
@@ -565,7 +564,7 @@ func TestPatchHandler_200_HappyPath(t *testing.T) {
 			return updated, nil
 		},
 	}
-	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: repo})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/100/students/200", map[string]any{

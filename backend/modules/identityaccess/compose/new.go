@@ -34,9 +34,27 @@ type Dependencies struct {
 	Operators *OperatorDependencies
 	// Lifecycle composes the account lifecycle flows (#3225): staff PIN,
 	// staff preview, staff offboarding, school identity, parent accounts and
-	// guardian relative access. It requires Sessions; compositions without
-	// it report ErrAccountLifecycleUnavailable.
+	// guardian relative access, together with the role and permission
+	// administration (#3314). It requires Sessions; compositions without it
+	// report ErrAccountLifecycleUnavailable and
+	// ErrRoleAdministrationUnavailable.
 	Lifecycle *LifecycleDependencies
+	// Resets composes the password reset flows (#2722). It requires Sessions;
+	// compositions without it report ErrPasswordResetUnavailable.
+	Resets *PasswordResetDependencies
+	// Invitations composes the school invitation flows (#2722). They require
+	// Sessions and Lifecycle; compositions without it report
+	// ErrSchoolInvitationUnavailable.
+	Invitations *SchoolInvitationDependencies
+	// MFA composes the account and operator second factor and, with its
+	// relying-party facts, both portals' passkey ceremonies (#3331). It
+	// requires Sessions; compositions without it report
+	// ErrAccountMFAUnavailable and ErrOperatorMFAUnavailable.
+	MFA *MFADependencies
+	// OperatorProvisioning composes the operator invitation and e-mail
+	// change flows (#3332). They require Sessions and Operators;
+	// compositions without it report ErrOperatorProvisioningUnavailable.
+	OperatorProvisioning *OperatorProvisioningDependencies
 }
 
 // New composes the Identity & Access module. Guardian operations run on the
@@ -52,6 +70,17 @@ type Dependencies struct {
 func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("identity access compose: all dependencies are required")
+	}
+	// Every flow attaches the unit of work through the same reference, so
+	// a root that only has its runtime after the module is composed binds
+	// it once and every flow composed above sees it (#3364). The caller's
+	// own attachment stays the fallback until then.
+	runtime := tenant.NewRuntimeRef(nil)
+	if dependencies.Sessions != nil {
+		sessions := *dependencies.Sessions
+		runtime = tenant.NewRuntimeRef(sessions.TenantRuntime)
+		sessions.TenantRuntime = runtime.Attach
+		dependencies.Sessions = &sessions
 	}
 	scope := func(ctx context.Context) postgres.TenantScope {
 		return postgres.TenantScope{TenantID: tenant.FromContext(ctx), AdminTransaction: tenant.IsAdminTx(ctx)}
@@ -77,23 +106,63 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		observation.Err = mapError(observation.Err)
 		dependencies.Observe(observation)
 	})
-	auth, err := newAccountAuthentication(service, store, dependencies.Sessions)
+	operatorMFARecords := application.NewOperatorMFA(service, store)
+	// The second factor is composed first: every login path consults its
+	// gate, and the passkey ceremonies below need the sessions it gates.
+	flows, err := newMFACore(service, operatorMFARecords, dependencies.Sessions, dependencies.MFA)
 	if err != nil {
 		return nil, err
 	}
-	lifecycle, err := newAccountLifecycle(service, auth, store, dependencies.Sessions, dependencies.Lifecycle)
+	auth, err := newAccountAuthentication(service, store, dependencies.Sessions, capabilityGate{flows.capability})
 	if err != nil {
 		return nil, err
 	}
-	operatorAuth, accountAccess, err := newOperatorFlows(service, store, auth, dependencies.Sessions, dependencies.Operators, lifecycle)
+	administration, err := newAccountAdministration(store, auth, dependencies.Sessions, dependencies.Lifecycle)
 	if err != nil {
 		return nil, err
 	}
-	e := engine{service: service, auth: auth, operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle}
-	if dependencies.Sessions != nil {
-		e.runtime = dependencies.Sessions.TenantRuntime
+	lifecycle, roles, err := newAccountLifecycle(service, auth, store, dependencies.Sessions, dependencies.Lifecycle, administration)
+	if err != nil {
+		return nil, err
 	}
-	return identityaccess.NewModule(e), nil
+	resets, err := newPasswordReset(auth, store, dependencies.Sessions, dependencies.Resets)
+	if err != nil {
+		return nil, err
+	}
+	invitations, err := newSchoolInvitation(store, roles, lifecycle, dependencies.Sessions, dependencies.Lifecycle, dependencies.Invitations)
+	if err != nil {
+		return nil, err
+	}
+	provisioning, err := newAccountProvisioning(store, lifecycle, dependencies.Sessions, dependencies.Lifecycle)
+	if err != nil {
+		return nil, err
+	}
+	tokens := application.NewOperatorTokens(service, store)
+	operatorAuth, accountAccess, err := newOperatorFlows(service, store, tokens, auth, dependencies.Sessions, dependencies.Operators, lifecycle, operatorMFAGate{flows.operator})
+	if err != nil {
+		return nil, err
+	}
+	operatorPasskeys := application.NewOperatorPasskey(service, store)
+	accountPasskeys := application.NewAccountPasskey(service, store)
+	flows, err = withPasskeyFlows(flows, service, auth, operatorAuth, accountPasskeys, operatorPasskeys,
+		dependencies.Sessions, dependencies.MFA)
+	if err != nil {
+		return nil, err
+	}
+	operatorProvisioning, err := newOperatorProvisioning(service, tokens, dependencies.Sessions, dependencies.Operators, dependencies.OperatorProvisioning)
+	if err != nil {
+		return nil, err
+	}
+	e := engine{
+		service: service, mfa: operatorMFARecords, tokens: tokens,
+		passkeys: operatorPasskeys, accountPasskeys: accountPasskeys,
+		auth: auth, operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle, roles: roles,
+		resets: resets, invitations: invitations, provisioning: provisioning, administration: administration,
+		mfaFlows: flows, operatorProvisioning: operatorProvisioning,
+		invitationMaintenance: application.NewSchoolInvitationMaintenance(store, invitationLogger(dependencies.Invitations)),
+	}
+	e.runtime = runtime.Attach
+	return identityaccess.NewModule(e, runtime), nil
 }
 
 type transaction struct{}
@@ -126,7 +195,11 @@ func (transaction) RunPlatform(ctx context.Context, callback func(context.Contex
 }
 
 type engine struct {
-	service *application.Service
+	service         *application.Service
+	mfa             *application.OperatorMFA
+	tokens          *application.OperatorTokens
+	passkeys        *application.OperatorPasskey
+	accountPasskeys *application.AccountPasskey
 	// auth is nil when the module was composed without session dependencies.
 	auth *application.AccountAuthentication
 	// operatorAuth and accountAccess are nil when the module was composed
@@ -136,6 +209,30 @@ type engine struct {
 	// lifecycle is nil when the module was composed without lifecycle
 	// dependencies.
 	lifecycle *application.AccountLifecycle
+	// roles is nil when the module was composed without lifecycle
+	// dependencies.
+	roles *application.RoleAdministration
+	// resets is nil when the module was composed without password reset
+	// dependencies.
+	resets *application.PasswordReset
+	// invitations is nil when the module was composed without the school
+	// invitation dependencies.
+	invitations *application.SchoolInvitation
+	// provisioning is nil when the module was composed without lifecycle
+	// dependencies.
+	provisioning *application.AccountProvisioning
+	// administration is nil when the module was composed without lifecycle
+	// dependencies.
+	administration *application.AccountAdministration
+	// operatorProvisioning is nil when the module was composed without the
+	// operator provisioning dependencies.
+	operatorProvisioning *application.OperatorProvisioning
+	// invitationMaintenance is always composed: spending a deleted school's
+	// invitations and deleting expired ones need no flow dependencies.
+	invitationMaintenance *application.SchoolInvitationMaintenance
+	// mfaFlows carries the second factor and the passkey ceremonies. Its
+	// members are nil when the module was composed without them.
+	mfaFlows mfaFlows
 	// runtime attaches the composed unit of work ahead of every session flow.
 	runtime func(context.Context) context.Context
 }
@@ -388,6 +485,26 @@ func mapError(err error) error {
 		return identityaccess.ErrAccountSessionNotFound
 	case errors.Is(err, domain.ErrAccountSessionRotated):
 		return identityaccess.ErrAccountSessionRotated
+	case errors.Is(err, domain.ErrOperatorMFACredentialNotFound):
+		return identityaccess.ErrOperatorMFACredentialNotFound
+	case errors.Is(err, domain.ErrOperatorMFAChallengeNotFound):
+		return identityaccess.ErrOperatorMFAChallengeNotFound
+	case errors.Is(err, domain.ErrOperatorMFAChallengeStateChanged):
+		return identityaccess.ErrOperatorMFAChallengeStateChanged
+	case errors.Is(err, domain.ErrOperatorTrustedDeviceNotFound):
+		return identityaccess.ErrOperatorTrustedDeviceNotFound
+	case errors.Is(err, domain.ErrOperatorInvitationNotFound):
+		return identityaccess.ErrOperatorInvitationNotFound
+	case errors.Is(err, domain.ErrOperatorEmailChangeNotFound):
+		return identityaccess.ErrOperatorEmailChangeNotFound
+	case errors.Is(err, domain.ErrOperatorPasskeyNotFound):
+		return identityaccess.ErrOperatorPasskeyNotFound
+	case errors.Is(err, domain.ErrOperatorPasskeySessionNotFound):
+		return identityaccess.ErrOperatorPasskeySessionNotFound
+	case errors.Is(err, domain.ErrAccountPasskeyNotFound):
+		return identityaccess.ErrAccountPasskeyNotFound
+	case errors.Is(err, domain.ErrAccountPasskeySessionNotFound):
+		return identityaccess.ErrAccountPasskeySessionNotFound
 	default:
 		return err
 	}

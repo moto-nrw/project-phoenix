@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
@@ -161,9 +160,13 @@ func (f *Factory) NewStaffMembershipRuntime(db *bun.DB, logger *slog.Logger, hoo
 	if logger == nil {
 		logger = slog.Default()
 	}
-	access, ok := f.Auth.(offboardingcompose.Access)
-	if !ok {
+	if f.Auth == nil {
 		panic("staff membership runtime: identity offboarding capability is required")
+	}
+	access := StaffOffboardingAccess(f.Auth)
+	roles := f.AccountAuthentication()
+	if roles == nil {
+		panic("staff membership runtime: identity role administration is required")
 	}
 	offboarding, err := offboardingcompose.New(offboardingcompose.Dependencies{
 		DB: db, Access: access, Cleanup: hooks.QueueOffboardedDocumentCleanup,
@@ -209,15 +212,15 @@ func (f *Factory) NewStaffMembershipRuntime(db *bun.DB, logger *slog.Logger, hoo
 		WorkStatusMap:   f.WorkSession.GetTodayPresenceMap,
 		AbsenceMap:      f.StaffAbsence.GetTodayAbsenceMap,
 		AbsenceLabelMap: f.StaffAbsence.GetTodayAbsenceLabelMap,
-		AccountRoles:    f.Auth.GetAccountRoleNames,
-		AccountEmails:   f.Auth.GetAccountEmailsByIDs,
-		AccountAvatars:  f.Auth.GetAccountAvatarsByIDs,
+		AccountRoles:    roles.GetAccountRoleNames,
+		AccountEmails:   roles.GetAccountEmails,
+		AccountAvatars:  roles.GetAccountAvatars,
 		AccountHasRole: func(ctx context.Context, accountID int64, roleName string) bool {
-			roles, err := f.Auth.GetAccountRoles(ctx, int(accountID))
+			held, err := roles.GetAccountRoles(ctx, accountID)
 			if err != nil {
 				return false
 			}
-			for _, role := range roles {
+			for _, role := range held {
 				if role.Name == roleName {
 					return true
 				}
@@ -226,7 +229,7 @@ func (f *Factory) NewStaffMembershipRuntime(db *bun.DB, logger *slog.Logger, hoo
 		},
 
 		GrantDefaultPermissions: func(ctx context.Context, accountID int64, isTeacher bool) {
-			authSvc.GrantStaffDefaultPermissions(ctx, f.Auth, logger, accountID, isTeacher, usersSvc.DefaultStaffAccountPermission)
+			roles.GrantStaffDefaultPermission(ctx, accountID, isTeacher, usersSvc.DefaultStaffAccountPermission)
 		},
 
 		TeacherGroups: func(ctx context.Context, teacherID int64) ([]StaffGroup, error) {
@@ -408,4 +411,28 @@ func staffTeacherAction(action usersSvc.TeacherAction) StaffTeacherAction {
 	default:
 		return StaffTeacherActionNone
 	}
+}
+
+// StaffOffboardingAccess binds the staff offboarding workflow to the
+// Identity & Access access step. The workflow declares the snapshot and the
+// result itself and may not name the owner, so the root maps them (#3364).
+func StaffOffboardingAccess(module identityaccess.StaffOffboardingAccess) offboardingcompose.Access {
+	if module == nil {
+		return nil
+	}
+	return staffOffboardingAccess{module: module}
+}
+
+type staffOffboardingAccess struct {
+	module identityaccess.StaffOffboardingAccess
+}
+
+func (a staffOffboardingAccess) PreviewStaffOffboarding(ctx context.Context, accountID int64) (offboardingcompose.StaffOffboardingPreview, error) {
+	preview, err := a.module.PreviewStaffOffboarding(ctx, accountID)
+	return offboardingcompose.StaffOffboardingPreview(preview), err
+}
+
+func (a staffOffboardingAccess) ExecuteStaffOffboarding(ctx context.Context, accountID int64, revision string) (offboardingcompose.StaffOffboardingResult, error) {
+	result, err := a.module.ExecuteStaffOffboarding(ctx, accountID, revision)
+	return offboardingcompose.StaffOffboardingResult(result), err
 }

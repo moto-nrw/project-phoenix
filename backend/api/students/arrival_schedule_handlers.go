@@ -11,12 +11,12 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -101,10 +101,10 @@ const maxArrivalScheduleDateRangeDays = 7
 // BulkUpsertArrivalScheduleRequest represents a request to bulk upsert arrival
 // schedules for exactly one filtered student cohort.
 type BulkUpsertArrivalScheduleRequest struct {
-	SchoolClass string                                 `json:"school_class"`
-	GroupID     int64                                  `json:"group_id"`
-	StudentIDs  []int64                                `json:"student_ids"`
-	Schedules   []scheduleService.ArrivalScheduleInput `json:"schedules"`
+	SchoolClass string                              `json:"school_class"`
+	GroupID     int64                               `json:"group_id"`
+	StudentIDs  []int64                             `json:"student_ids"`
+	Schedules   []careschedule.ArrivalScheduleInput `json:"schedules"`
 }
 
 // Bind implements render.Binder for ArrivalNoteRequest
@@ -344,7 +344,7 @@ func (rs *Resource) getStudentArrivalSchedules(w http.ResponseWriter, r *http.Re
 		date = parsed
 	}
 	var (
-		data *scheduleService.StudentArrivalData
+		data *careschedule.StudentArrivalData
 		err  error
 	)
 	toRaw := r.URL.Query().Get("to")
@@ -378,7 +378,7 @@ func (rs *Resource) getStudentArrivalSchedules(w http.ResponseWriter, r *http.Re
 }
 
 // buildArrivalDataResponse converts service arrival data to API response
-func buildArrivalDataResponse(data *scheduleService.StudentArrivalData) ArrivalDataResponse {
+func buildArrivalDataResponse(data *careschedule.StudentArrivalData) ArrivalDataResponse {
 	response := ArrivalDataResponse{
 		Schedules:  make([]ArrivalScheduleResponse, 0, len(data.Schedules)),
 		Exceptions: make([]ArrivalExceptionResponse, 0, len(data.Exceptions)),
@@ -604,7 +604,7 @@ func (rs *Resource) deleteStudentArrivalException(w http.ResponseWriter, r *http
 
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := scheduleService.LockCareExceptionDay(ctx, rs.DB, student.ID, timezone.Date(existingException.ExceptionDate)); err != nil {
+		if err := careschedule.LockCareExceptionDay(ctx, rs.DB, student.ID, timezone.Date(existingException.ExceptionDate)); err != nil {
 			return err
 		}
 		freshException, err := rs.ArrivalScheduleService.GetStudentArrivalExceptionByID(ctx, exceptionID)
@@ -775,7 +775,7 @@ func (rs *Resource) bulkUpsertArrivalSchedules(w http.ResponseWriter, r *http.Re
 	tenantID := tenant.FromContext(r.Context())
 	result, err := rs.ArrivalScheduleService.BulkUpsertArrivalSchedules(
 		r.Context(),
-		scheduleService.ArrivalScheduleBulkFilter{
+		careschedule.ArrivalScheduleBulkFilter{
 			SchoolClass: req.SchoolClass,
 			GroupID:     req.GroupID,
 			StudentIDs:  req.StudentIDs,
@@ -787,11 +787,11 @@ func (rs *Resource) bulkUpsertArrivalSchedules(w http.ResponseWriter, r *http.Re
 		staffID,
 	)
 	if err != nil {
-		if errors.Is(err, scheduleService.ErrBulkStudentUnauthorized) {
+		if errors.Is(err, careschedule.ErrBulkStudentUnauthorized) {
 			renderError(w, r, common.ErrorForbidden(err))
 			return
 		}
-		if errors.Is(err, scheduleService.ErrBulkStudentNotFound) {
+		if errors.Is(err, careschedule.ErrBulkStudentNotFound) {
 			renderError(w, r, common.ErrorNotFound(err))
 			return
 		}
@@ -889,7 +889,7 @@ func (rs *Resource) getBulkArrivalScheduleStatus(w http.ResponseWriter, r *http.
 
 func mapBulkArrivalTimeResponse(
 	studentID int64,
-	effectiveTime *scheduleService.EffectiveArrivalTime,
+	effectiveTime *careschedule.EffectiveArrivalTime,
 ) BulkArrivalTimeResponse {
 	response := BulkArrivalTimeResponse{
 		StudentID:   studentID,

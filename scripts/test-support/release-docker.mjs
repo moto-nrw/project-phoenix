@@ -10,7 +10,10 @@ const input = isCompose && args.includes('psql') && !args.includes('-c') ? readF
 const exit = () => process.exit(9);
 if ((fail === 'stop' && isCompose && args.includes('stop')) ||
     (fail === 'pull' && (args[0] === 'pull' || args.includes('pull'))) ||
-    (fail === 'migrate' && isCompose && args.includes('run')) ||
+    // The preflight and the migration are both `compose run migrate`; only the
+    // trailing command separates them, so each failure mode names its own.
+    (fail === 'migrate' && isCompose && args.includes('run') && !call.includes('migrate preflight')) ||
+    (fail === 'preflight' && isCompose && args.includes('run') && call.includes('migrate preflight')) ||
     (fail === 'health' && isCompose && args.includes('up') && args.includes('frontend')) ||
     (fail === 'roles' && isCompose && args.includes('pg_dumpall')) ||
     (fail === 'restore-db' && isCompose && args.includes('pg_restore')) ||

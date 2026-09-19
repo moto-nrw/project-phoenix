@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	usersService "github.com/moto-nrw/project-phoenix/services/users"
 
 	"log/slog"
 	"testing"
@@ -22,7 +23,6 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -73,7 +73,7 @@ func setupAutoApproveIntegrationEnvWithSettings(
 		DepartureCompanions:       repoFactory.StudentCompanion,
 		DeleteDepartureCompanions: repoFactory.CarePlan().DeleteCompanionEdges,
 		OutboxEnqueuer:            env.outbox,
-		StudentAudit:              usersService.NewStudentAuditService(repoFactory.StudentFieldEdit, slog.Default()),
+		StudentAudit:              usersService.NewStudentAuditService(repositories.NewStudentAudit(env.db)),
 		FrontendURL:               "http://localhost:3000",
 		ParentsURL:                "http://parents.localhost:3000",
 		Settings:                  settings,

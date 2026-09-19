@@ -8,14 +8,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
-	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -31,8 +28,7 @@ func TestResolveTenant_HiddenSchoolReturnsHiddenFlag(t *testing.T) {
 		`UPDATE platform.schools SET hidden = true WHERE id = ?`, tenantID)
 	require.NoError(t, err)
 
-	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), authRoute.Sessions, db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, db)
 	resource.SettingsService = authRoute.SettingsService
 
 	router := chi.NewRouter()

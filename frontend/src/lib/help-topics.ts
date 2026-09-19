@@ -252,6 +252,7 @@ const PREFIX_HELP_TOPICS: ReadonlyArray<
   ["/students", HELP_TOPICS.studentSearch],
   ["/staff", HELP_TOPICS.findStaff],
   ["/messages", HELP_TOPICS.parentMessage],
+  ["/parent-announcements", HELP_TOPICS.leadParentAnnouncement],
   ["/rooms", HELP_TOPICS.rooms],
   ["/team-chat", HELP_TOPICS.teamChat],
   // Der erste Treffer gewinnt, nicht der längste: die Unterbereiche der

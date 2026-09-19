@@ -8,6 +8,7 @@ import { redirect } from "next/navigation";
 import { HomeBlockContent } from "~/components/home/home-block-content";
 import { HomeBoard } from "~/components/home/home-board";
 import { NowStrip } from "~/components/home/now-strip";
+import { PickupExtensionTodos } from "~/components/home/pickup-extension-todos";
 import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -68,6 +69,7 @@ const ANALYTICS_BLOCKS: readonly HomeBlockKey[] = [
   "tile.students_on_playground",
   "tile.students_sick",
   "tile.students_excused",
+  "tile.students_at_school",
   "tile.students_home",
   "tile.active_activities",
   "tile.capacity_utilization",
@@ -455,6 +457,14 @@ function HomeContent() {
       }
     >
       {canReadPhaseExpiryWarnings && !editing ? <PhaseExpiryWarnings /> : null}
+
+      {/* Spätere Abholzeit ohne Termin (#3261): eine Aufgabe, keine
+          Kennzahl, deshalb fest über dem Brett wie die Hinweise davor. */}
+      {!editing ? (
+        <PickupExtensionTodos
+          enabled={timetableEnabled && access.has("schedules:manage")}
+        />
+      ) : null}
 
       {/* Die Jetzt-Zone steht fest über dem Brett und ist kein Baustein: die
           Frage „was steht jetzt an" beantwortet die Startseite immer, egal

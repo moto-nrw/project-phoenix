@@ -6,7 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
 // Middleware is the standard chi middleware shape.

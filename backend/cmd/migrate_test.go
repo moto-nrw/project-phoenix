@@ -17,9 +17,10 @@ func TestMigrateRootMapsCommandsToStableOperations(t *testing.T) {
 
 	root := defaultMigrateRoot
 	expected := map[string]migrationOperation{
-		"migrate": migrations.Migrate,
-		"reset":   migrations.Reset,
-		"status":  migrations.MigrateStatus,
+		"migrate":   migrations.Migrate,
+		"reset":     migrations.Reset,
+		"status":    migrations.MigrateStatus,
+		"preflight": migrations.MigratePreflight,
 	}
 	for command, want := range expected {
 		op, err := root.operation(command)
@@ -40,6 +41,26 @@ func TestMigrateCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "use bun migration tool", migrateCmd.Short)
 	assert.Equal(t, "run bun migrations", migrateCmd.Long)
 	assert.NotNil(t, migrateCmd.RunE)
+}
+
+func TestMigratePreflightCmd_Metadata(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "preflight", migratePreflightCmd.Use)
+	assert.NotNil(t, migratePreflightCmd.RunE)
+	assert.Contains(t, migratePreflightCmd.Long, "Exits non-zero when a precondition fails",
+		"the deployment script relies on the exit status to abort before stopping the application")
+}
+
+// The subcommand has to be reachable as `migrate preflight`: the deployment
+// script invokes it by that path, and a command registered nowhere would make
+// the preflight step a silent no-op.
+func TestMigratePreflightCmdIsRegisteredUnderMigrate(t *testing.T) {
+	t.Parallel()
+	names := make([]string, 0, len(migrateCmd.Commands()))
+	for _, command := range migrateCmd.Commands() {
+		names = append(names, command.Name())
+	}
+	assert.Contains(t, names, "preflight")
 }
 
 func TestMigrateRootFailsFastWithoutDatabaseDependency(t *testing.T) {

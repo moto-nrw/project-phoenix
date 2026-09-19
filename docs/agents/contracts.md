@@ -7,9 +7,8 @@ repository root unless the section says otherwise.
 ## Ecosystem and IoT
 
 The sibling `../PyrePortal/` repository runs the Raspberry Pi kiosk (Tauri +
-React). `../moto-balenaOS/` deploys it on Pi 5 hardware; the Phoenix backend
-runs on the server, never on the Pi. PRs target `development` except in
-moto-balenaOS (`main`).
+React). The Phoenix backend runs on the server, never on the Pi. PRs target
+`development`.
 
 PyrePortal consumes `/api/iot/*` using a device API key and staff PIN.
 `../PyrePortal/src/services/api.ts` maps backend error strings to German UI
@@ -75,8 +74,8 @@ Backend paths in this section are relative to `backend/`:
 - `TenantMiddleware` rejects both parent and school scopes.
   `TestSchoolScopeRejectedOnAllAPIRoutes` checks school-token rejection under `/api`.
 - MFA can insert a challenge between credentials and session. Inspect
-  `services/auth/mfa_service.go`, `api/auth/mfa_handlers.go`, `api/operator/mfa.go`,
-  the challenge/enrollment claims in `auth/jwt/`, and trusted-device settings
+  `modules/identityaccess/account_mfa.go`, `api/auth/mfa_handlers.go`, `api/operator/mfa.go`,
+  the challenge/enrollment claims in `modules/identityaccess/legacy/jwt/`, and trusted-device settings
   `security.mfa_*`. Include the school frontend's MFA chain when changing its login.
 
 Token lifetimes come from `AUTH_JWT_EXPIRY` / `AUTH_JWT_REFRESH_EXPIRY`;

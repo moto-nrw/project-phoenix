@@ -3,20 +3,20 @@ package services
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // planningCalendarCapability serves workforce.PlanningCalendar from the
 // retained holiday and closing-day services.
 type planningCalendarCapability struct {
-	holidays    schedule.HolidayService
-	closingDays schedule.ClosingDayService
+	holidays    timetableplanning.HolidayService
+	closingDays timetableplanning.ClosingDayService
 }
 
 // PlanningCalendarCapability adapts the holiday and closing-day services; a
 // nil service leaves its half of the calendar empty.
-func PlanningCalendarCapability(holidays schedule.HolidayService, closingDays schedule.ClosingDayService) workforce.PlanningCalendar {
+func PlanningCalendarCapability(holidays timetableplanning.HolidayService, closingDays timetableplanning.ClosingDayService) workforce.PlanningCalendar {
 	return planningCalendarCapability{holidays: holidays, closingDays: closingDays}
 }
 

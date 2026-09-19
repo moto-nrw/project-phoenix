@@ -12,10 +12,10 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
 // CompanionResponse is one child this child walks home with, plus the weekdays
@@ -66,7 +66,7 @@ func companionPlanErrorRenderer(err error) render.Renderer {
 	// user has to give that child a note (or another link) first. The German
 	// sentinel text goes straight to the UI, and the code lets the client tell
 	// this expected refusal apart from any other 400 the write can produce.
-	case errors.Is(err, usersService.ErrCompanionWouldLoseDeparture):
+	case errors.Is(err, carelifecycle.ErrCompanionWouldLoseDeparture):
 		return common.ErrorInvalidRequestWithCode(err, CodeCompanionWouldLoseDeparture)
 	// A linked child was being edited elsewhere and this transaction could not
 	// wait for its row without risking a deadlock. Nothing was written and the
@@ -75,14 +75,14 @@ func companionPlanErrorRenderer(err error) render.Renderer {
 	// with the companion-plan question (which the client answers with
 	// extend_companion_plans): without the code the client would ask the user
 	// whether to widen another child's plan for what is really a lock collision.
-	case errors.Is(err, usersService.ErrCompanionLockBusy):
+	case errors.Is(err, carelifecycle.ErrCompanionLockBusy):
 		return common.ErrorConflictWithCode(err, CodeCompanionLockBusy)
 	// The stored links no longer match the snapshot the submitted list replaces.
 	// Nothing was written, and the same list must NOT simply be re-sent — it
 	// would delete the change this refusal is protecting. A 409 with its own
 	// code lets the client reload and let the user redo the edit on the current
 	// state.
-	case errors.Is(err, usersService.ErrCompanionsChanged):
+	case errors.Is(err, carelifecycle.ErrCompanionsChanged):
 		return common.ErrorConflictWithCode(err, CodeCompanionsChanged)
 	}
 	return nil
@@ -93,8 +93,8 @@ func companionPlanErrorRenderer(err error) render.Renderer {
 // "Tom darf donnerstags noch nicht mit anderen Kindern gehen. Ergänzen?"
 // confirmation and resends with extend_companion_plans.
 type CompanionConflictResponse struct {
-	Conflicts []usersService.CompanionConflict `json:"conflicts"`
-	Message   string                           `json:"message"`
+	Conflicts []carelifecycle.CompanionConflict `json:"conflicts"`
+	Message   string                            `json:"message"`
 }
 
 // Render satisfies render.Renderer.
@@ -165,8 +165,8 @@ func validateCompanionEntries(entries *[]CompanionEntry) error {
 	if entries == nil {
 		return nil
 	}
-	if len(*entries) > usersService.MaxStudentCompanions {
-		return usersService.ErrTooManyCompanions
+	if len(*entries) > carelifecycle.MaxStudentCompanions {
+		return carelifecycle.ErrTooManyCompanions
 	}
 	return nil
 }
@@ -216,7 +216,7 @@ func (rs *Resource) getStudentCompanions(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	links, err := rs.StudentService.ListCompanions(r.Context(), student.ID)
+	links, err := rs.CompanionService.ListCompanions(r.Context(), student.ID)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServerWrap("failed to load departure companions", err))
 		return
@@ -351,14 +351,14 @@ func (rs *Resource) lockCompanionRows(ctx context.Context, student *userModels.S
 // writes SEVERAL children in one transaction and has to take their whole
 // student set in this order, or its per-child locks invert against this one.
 func (rs *Resource) lockStudentCompanionGraph(ctx context.Context, studentID int64, submitted []int64) error {
-	return rs.StudentService.LockCompanionGraph(ctx, []int64{studentID}, submitted)
+	return rs.CompanionService.LockCompanionGraph(ctx, []int64{studentID}, submitted)
 }
 
 // companionConflictError carries the conflicting companions out of the update
 // transaction so the closure can abort (rolling back every write) while the
 // handler still renders the 409 the client needs to ask its question.
 type companionConflictError struct {
-	Conflicts []usersService.CompanionConflict
+	Conflicts []carelifecycle.CompanionConflict
 }
 
 func (e *companionConflictError) Error() string {
@@ -401,7 +401,7 @@ func (rs *Resource) checkCompanionConflicts(ctx context.Context, student *userMo
 	// holds, so a mismatch is answered with a retriable 409 before anything is
 	// written.
 	if !req.hasCompanionUpdate() {
-		return nil, rs.StudentService.CheckCompanionTrimForPlan(ctx, student.ID, accompaniedDays, req.CompanionsFingerprint)
+		return nil, rs.CompanionService.CheckCompanionTrimForPlan(ctx, student.ID, accompaniedDays, req.CompanionsFingerprint)
 	}
 	if len(accompaniedDays) == 0 {
 		// A NON-EMPTY list on a plan that allows "Anderes Kind" on no weekday is
@@ -415,12 +415,12 @@ func (rs *Resource) checkCompanionConflicts(ctx context.Context, student *userMo
 		// obeyed. The EMPTY list stays allowed: it says the same thing the plan
 		// does, and it is what the form sends when the user takes the mode away.
 		if len(*req.Companions) > 0 {
-			return nil, usersService.ErrCompanionDayNotAllowed
+			return nil, carelifecycle.ErrCompanionDayNotAllowed
 		}
-		return nil, rs.StudentService.CheckCompanionTrimForPlan(ctx, student.ID, nil, req.CompanionsFingerprint)
+		return nil, rs.CompanionService.CheckCompanionTrimForPlan(ctx, student.ID, nil, req.CompanionsFingerprint)
 	}
 
-	conflicts, err := rs.StudentService.CheckCompanionConflicts(ctx, student.ID, usersService.CompanionUpdate{
+	conflicts, err := rs.CompanionService.CheckCompanionConflicts(ctx, student.ID, carelifecycle.CompanionUpdate{
 		Links:                toCompanionLinks(*req.Companions),
 		ExpectedFingerprint:  req.CompanionsFingerprint,
 		AccompaniedDays:      accompaniedDays,
@@ -447,7 +447,7 @@ func (rs *Resource) checkCompanionConflicts(ctx context.Context, student *userMo
 // companionConflictsConfirmed reports whether every conflicting weekday of every
 // conflicting companion appears in the set the client confirmed. Extra confirmed
 // entries are fine — they only mean a conflict resolved itself in the meantime.
-func companionConflictsConfirmed(conflicts []usersService.CompanionConflict, confirmed []CompanionEntry) bool {
+func companionConflictsConfirmed(conflicts []carelifecycle.CompanionConflict, confirmed []CompanionEntry) bool {
 	byStudent := make(map[int64]map[string]bool, len(confirmed))
 	for _, entry := range confirmed {
 		days := byStudent[entry.CompanionStudentID]
@@ -489,7 +489,7 @@ func companionConflictsConfirmed(conflicts []usersService.CompanionConflict, con
 // conflict set. The returned set is passed on as CompanionUpdate.
 // AuthorizedExtensions so that assumption is enforced rather than trusted, down
 // to the individual weekdays these conflicts name.
-func (rs *Resource) authorizeCompanionExtension(ctx context.Context, conflicts []usersService.CompanionConflict, userPermissions []string) (map[int64]map[string]bool, error) {
+func (rs *Resource) authorizeCompanionExtension(ctx context.Context, conflicts []carelifecycle.CompanionConflict, userPermissions []string) (map[int64]map[string]bool, error) {
 	ids := make([]int64, 0, len(conflicts))
 	for _, conflict := range conflicts {
 		ids = append(ids, conflict.StudentID)
@@ -503,7 +503,7 @@ func (rs *Resource) authorizeCompanionExtension(ctx context.Context, conflicts [
 	for _, conflict := range conflicts {
 		companion := companions[conflict.StudentID]
 		if companion == nil {
-			return nil, usersService.ErrCompanionNotFound
+			return nil, carelifecycle.ErrCompanionNotFound
 		}
 		if ok, _ := canUpdateStudent(ctx, userPermissions, companion, rs.UserContextService); !ok {
 			return nil, errCompanionExtendForbidden
@@ -548,7 +548,7 @@ func (rs *Resource) applyCompanionUpdate(ctx context.Context, student *userModel
 		return false, err
 	}
 
-	current, err := rs.StudentService.ListCompanions(ctx, student.ID)
+	current, err := rs.CompanionService.ListCompanions(ctx, student.ID)
 	if err != nil {
 		return false, err
 	}
@@ -575,7 +575,7 @@ func (rs *Resource) reconcileCompanions(ctx context.Context, student *userModels
 	// Otherwise the Kindersuche would keep grouping a child whose Stammdaten say
 	// "fährt Bus".
 	if len(accompaniedDays) == 0 {
-		if _, err := rs.StudentService.ReplaceCompanions(ctx, student.ID, usersService.CompanionUpdate{
+		if _, err := rs.CompanionService.ReplaceCompanions(ctx, student.ID, carelifecycle.CompanionUpdate{
 			AccompaniedDays: accompaniedDays,
 		}); err != nil {
 			return nil, err
@@ -597,7 +597,7 @@ func (rs *Resource) reconcileCompanions(ctx context.Context, student *userModels
 		// taken before that check is held for the rest of the transaction, and
 		// every writer that adds an edge touching this child takes this child's
 		// row too, so the links cannot have moved in between.
-		links, err := rs.StudentService.TrimCompanionsToDays(ctx, student.ID, accompaniedDays)
+		links, err := rs.CompanionService.TrimCompanionsToDays(ctx, student.ID, accompaniedDays)
 		if err != nil {
 			return nil, err
 		}
@@ -606,7 +606,7 @@ func (rs *Resource) reconcileCompanions(ctx context.Context, student *userModels
 	}
 
 	links := toCompanionLinks(*req.Companions)
-	conflicts, err := rs.StudentService.ReplaceCompanions(ctx, student.ID, usersService.CompanionUpdate{
+	conflicts, err := rs.CompanionService.ReplaceCompanions(ctx, student.ID, carelifecycle.CompanionUpdate{
 		Links:                links,
 		ExpectedFingerprint:  req.CompanionsFingerprint,
 		AccompaniedDays:      accompaniedDays,
@@ -651,7 +651,7 @@ func (rs *Resource) enrichWithCompanions(ctx context.Context, responses []Studen
 	}
 
 	weekday := companionWeekdayForDate(day)
-	byStudent, err := rs.StudentService.CompanionIDsForWeekday(ctx, studentIDs, weekday)
+	byStudent, err := rs.CompanionService.CompanionIDsForWeekday(ctx, studentIDs, weekday)
 	if err != nil {
 		rs.Logger.Error("failed to load departure companions for list",
 			slog.String("error", err.Error()),
@@ -692,7 +692,7 @@ func (rs *Resource) enrichWithCompanionLinks(ctx context.Context, responses []St
 		return nil
 	}
 
-	byStudent, err := rs.StudentService.ListCompanionsForStudents(ctx, studentIDs)
+	byStudent, err := rs.CompanionService.ListCompanionsForStudents(ctx, studentIDs)
 	if err != nil {
 		rs.Logger.Error("failed to load departure companions for export",
 			slog.String("error", err.Error()),

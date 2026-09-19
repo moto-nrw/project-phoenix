@@ -7,12 +7,11 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,15 +47,14 @@ func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
+	instanceRepo := timetablesqltest.NewActivityInstanceRepository(db)
 	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	factory.BindTimetable(timetabletest.New(t, db))
 	instanceStudentRepo := factory.InstanceStudent
 	s := unitScheduler(&Scheduler{
 		instanceRepo:        instanceRepo,
 		instanceStudentRepo: instanceStudentRepo,
 
-		timetableBridge: scheduleSvc.NewTimetableBridgeService(scheduleSvc.TimetableBridgeDependencies{
+		timetableBridge: timetableplanning.NewTimetableBridgeService(timetableplanning.TimetableBridgeDependencies{
 			Instances:        instanceRepo,
 			InstanceStudents: instanceStudentRepo,
 		}),

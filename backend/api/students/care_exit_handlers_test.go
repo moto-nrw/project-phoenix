@@ -13,14 +13,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
@@ -33,16 +34,15 @@ func wireCareLifecycle(t *testing.T, tc *testContext) {
 func wireCareLifecycleWithBookingMode(t *testing.T, tc *testContext, authoritative bool) {
 	t.Helper()
 	repos := newStudentTestRepositories(tc.db)
-	repos.BindTimetable(timetabletest.New(t, tc.db))
-	tc.resource.CareLifecycleService = userService.NewCareLifecycleService(
-		userService.CareLifecycleDependencies{
+	tc.resource.CareLifecycleService = carelifecycle.NewCareLifecycleService(
+		carelifecycle.CareLifecycleDependencies{
 			StudentRepo:    repos.Student,
 			PersonRepo:     repos.Person,
 			CareExitRepo:   repos.CareExit,
 			CleanupRepo:    repos.CareExitCleanup,
 			WithdrawalRepo: repos.CareWithdrawal,
 			TagReleaser:    repos.TagReleaser,
-			AuditService:   userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default()),
+			AuditService:   userService.NewStudentAuditService(repositories.NewStudentAudit(tc.db)),
 			BookingsAuthoritative: func(context.Context) (bool, error) {
 				return authoritative, nil
 			},
@@ -346,8 +346,9 @@ func TestCareExitHandlers_PreviewThenConfirm(t *testing.T) {
 		for key, value := range body {
 			stale[key] = value
 		}
-		// Same shape, different content: a token from another state.
-		stale["token"] = "00" + preview.Data.Token[2:]
+		// Same length and hex alphabet, different digest. Prefixing "00"
+		// is a no-op when the SHA-256 already starts with 00.
+		stale["token"] = flipCareExitTokenHex(t, preview.Data.Token)
 		request := testutil.NewAuthenticatedRequest(t, http.MethodPost, "/care-end", stale)
 		response := authExec(t, tc, request, claims, []string{"admin:*"})
 		assert.Equal(t, http.StatusConflict, response.Code, "Body: %s", response.Body.String())
@@ -617,6 +618,18 @@ func confirmCareExitVia(t *testing.T, tc *testContext, claims jwt.AppClaims, stu
 	confirmRequest := testutil.NewAuthenticatedRequest(t, http.MethodPost, "/care-end", body)
 	confirmResponse := authExec(t, tc, confirmRequest, claims, []string{"admin:*"})
 	require.Equal(t, http.StatusOK, confirmResponse.Code, "Body: %s", confirmResponse.Body.String())
+}
+
+func flipCareExitTokenHex(t *testing.T, token string) string {
+	t.Helper()
+	require.GreaterOrEqual(t, len(token), 2, "care-exit tokens are SHA-256 hex")
+	flipped := []byte(token)
+	if flipped[0] == '0' {
+		flipped[0] = '1'
+	} else {
+		flipped[0] = '0'
+	}
+	return string(flipped)
 }
 
 func setEnrolledUntil(t *testing.T, tc *testContext, studentID int64, day timezone.Date) {

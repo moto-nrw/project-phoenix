@@ -20,8 +20,8 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -414,14 +414,14 @@ func TestRunInstanceOverdueTaskPolling_ExitsOnDone(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 type fakeAutoStartService struct {
-	run    func(context.Context) (*scheduleSvc.AutoStartResult, error)
+	run    func(context.Context) (*timetableplanning.AutoStartResult, error)
 	mu     sync.Mutex
 	calls  int
 	err    error
-	result *scheduleSvc.AutoStartResult
+	result *timetableplanning.AutoStartResult
 }
 
-func (f *fakeAutoStartService) RunForTenant(ctx context.Context, _ time.Time) (*scheduleSvc.AutoStartResult, error) {
+func (f *fakeAutoStartService) RunForTenant(ctx context.Context, _ time.Time) (*timetableplanning.AutoStartResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++
@@ -431,7 +431,7 @@ func (f *fakeAutoStartService) RunForTenant(ctx context.Context, _ time.Time) (*
 	if f.result != nil {
 		return f.result, f.err
 	}
-	return &scheduleSvc.AutoStartResult{}, f.err
+	return &timetableplanning.AutoStartResult{}, f.err
 }
 
 type autoStartFailureObservations struct {
@@ -490,7 +490,7 @@ func autoStartFailureScheduler(t *testing.T, tenantIDs []int64, commandErr error
 	s.minuteSnapshotLoader = func(context.Context) (*schedulerMinuteSnapshot, error) {
 		return &schedulerMinuteSnapshot{tenantIDs: tenantIDs}, errSchedulerSettingsBatchUnsupported
 	}
-	s.autoStart = &fakeAutoStartService{run: func(ctx context.Context) (*scheduleSvc.AutoStartResult, error) {
+	s.autoStart = &fakeAutoStartService{run: func(ctx context.Context) (*timetableplanning.AutoStartResult, error) {
 		id := tenant.FromContext(ctx)
 		observed.called = append(observed.called, id)
 		if id == tenantIDs[0] {
@@ -499,7 +499,7 @@ func autoStartFailureScheduler(t *testing.T, tenantIDs []int64, commandErr error
 		}
 		_, stored := s.tenantBatchCursors.Load(JobID("timetable-auto-start"))
 		assert.False(t, stored, "failed tenant must not advance the successful cursor")
-		return &scheduleSvc.AutoStartResult{}, nil
+		return &timetableplanning.AutoStartResult{}, nil
 	}}
 	return s, observed
 }
@@ -587,7 +587,7 @@ func TestCheckAndRunAutoStart_DefaultDisabled(t *testing.T) {
 func TestCheckAndRunAutoStart_EnabledBySettings(t *testing.T) {
 	t.Parallel()
 
-	svc := &fakeAutoStartService{result: &scheduleSvc.AutoStartResult{Checked: 2, Started: 1}}
+	svc := &fakeAutoStartService{result: &timetableplanning.AutoStartResult{Checked: 2, Started: 1}}
 	s := unitScheduler(&Scheduler{
 		autoStart: svc,
 		logger:    slog.Default(),
@@ -611,10 +611,10 @@ type fakeAutoEndService struct {
 	calls  int
 	grace  time.Duration
 	err    error
-	result *scheduleSvc.AutoEndResult
+	result *timetableplanning.AutoEndResult
 }
 
-func (f *fakeAutoEndService) RunForTenant(_ context.Context, _ time.Time, grace time.Duration) (*scheduleSvc.AutoEndResult, error) {
+func (f *fakeAutoEndService) RunForTenant(_ context.Context, _ time.Time, grace time.Duration) (*timetableplanning.AutoEndResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++
@@ -622,7 +622,7 @@ func (f *fakeAutoEndService) RunForTenant(_ context.Context, _ time.Time, grace 
 	if f.result != nil {
 		return f.result, f.err
 	}
-	return &scheduleSvc.AutoEndResult{}, f.err
+	return &timetableplanning.AutoEndResult{}, f.err
 }
 
 func TestScheduleAutoEndTask_MissingService(t *testing.T) {
@@ -669,7 +669,7 @@ func TestCheckAndRunAutoEnd_DefaultDisabled(t *testing.T) {
 func TestCheckAndRunAutoEnd_PassesConfiguredGrace(t *testing.T) {
 	t.Parallel()
 
-	svc := &fakeAutoEndService{result: &scheduleSvc.AutoEndResult{Checked: 1, Completed: 1}}
+	svc := &fakeAutoEndService{result: &timetableplanning.AutoEndResult{Checked: 1, Completed: 1}}
 	s := unitScheduler(&Scheduler{
 		autoEnd: svc,
 		logger:  slog.Default(),

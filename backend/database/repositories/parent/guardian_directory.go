@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"github.com/uptrace/bun"
 )
 
 // DirectoryGuardianLink is the People Directory projection of one
@@ -57,18 +59,27 @@ func guardianLinksByAccount(ctx context.Context, directory GuardianDirectory, ac
 	return directory.ListGuardianLinksByAccount(ctx, accountID)
 }
 
+// ActiveMembershipQuery returns the Identity & Access owner statement
+// selecting (account_id, tenant_id) of every ACTIVE school mapping (#2721).
+// It is a plain function type so this package does not depend on that owner.
+type ActiveMembershipQuery func(ctx context.Context) *bun.SelectQuery
+
+var errMembershipQueryRequired = errors.New("parent repositories: active membership query is not bound")
+
 // activeMappingTenants returns the tenants the account holds an ACTIVE
-// auth.account_tenants mapping at. The membership is the only safe scope
-// for a cross-tenant parent read; a deactivated mapping hides the school's
-// rows even when guardian links linger.
-func activeMappingTenants(ctx context.Context, runtime Runtime, accountID int64) (map[int64]struct{}, error) {
+// school mapping at. The membership is the only safe scope for a
+// cross-tenant parent read; a deactivated mapping hides the school's rows
+// even when guardian links linger.
+func activeMappingTenants(ctx context.Context, runtime Runtime, memberships ActiveMembershipQuery, accountID int64) (map[int64]struct{}, error) {
+	if memberships == nil {
+		return nil, errMembershipQueryRequired
+	}
 	var tenantIDs []int64
 	err := runtimeDB(ctx, runtime).NewRaw(`
 		SELECT at.tenant_id AS tenant_id
-		FROM auth.account_tenants AS at
+		FROM (?) AS at
 		WHERE at.account_id = ?
-		  AND at.status     = 'active'
-	`, accountID).Scan(ctx, &tenantIDs)
+	`, memberships(ctx), accountID).Scan(ctx, &tenantIDs)
 	if err != nil {
 		return nil, fmt.Errorf("list active memberships: %w", err)
 	}
@@ -81,8 +92,8 @@ func activeMappingTenants(ctx context.Context, runtime Runtime, accountID int64)
 
 // activeGuardianLinks returns the account's guardian links at the tenants
 // where it holds an ACTIVE mapping, in directory order (tenant, student).
-func activeGuardianLinks(ctx context.Context, runtime Runtime, directory GuardianDirectory, accountID int64) ([]DirectoryGuardianLink, error) {
-	tenants, err := activeMappingTenants(ctx, runtime, accountID)
+func activeGuardianLinks(ctx context.Context, runtime Runtime, memberships ActiveMembershipQuery, directory GuardianDirectory, accountID int64) ([]DirectoryGuardianLink, error) {
+	tenants, err := activeMappingTenants(ctx, runtime, memberships, accountID)
 	if err != nil {
 		return nil, err
 	}

@@ -12,7 +12,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -20,15 +21,15 @@ import (
 )
 
 type stubInstanceSeriesConverter struct {
-	result *scheduleSvc.ConvertInstanceToSeriesResult
+	result *timetableplanning.ConvertInstanceToSeriesResult
 	err    error
-	input  *scheduleSvc.ConvertInstanceToSeriesInput
+	input  *timetableplanning.ConvertInstanceToSeriesInput
 }
 
 func (s *stubInstanceSeriesConverter) ConvertInstanceToSeries(
 	_ context.Context,
-	in scheduleSvc.ConvertInstanceToSeriesInput,
-) (*scheduleSvc.ConvertInstanceToSeriesResult, error) {
+	in timetableplanning.ConvertInstanceToSeriesInput,
+) (*timetableplanning.ConvertInstanceToSeriesResult, error) {
 	s.input = &in
 	return s.result, s.err
 }
@@ -69,7 +70,7 @@ func TestConvertInstanceToSeries_MapsRequestAndResponse(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	converter := &stubInstanceSeriesConverter{result: &scheduleSvc.ConvertInstanceToSeriesResult{
+	converter := &stubInstanceSeriesConverter{result: &timetableplanning.ConvertInstanceToSeriesResult{
 		TemplateID:       81,
 		TimeframeID:      91,
 		ScheduleIDs:      []int64{101, 102},
@@ -138,11 +139,11 @@ func TestConvertInstanceToSeries_PreservesTemplateValidationErrorContract(t *tes
 		err         error
 		wantMessage string
 	}{
-		{name: "inactive calendar period", err: scheduleSvc.ErrInstanceOutsideActiveCalendarPeriod, wantMessage: "instance date must lie within an active calendar period"},
-		{name: "archived category", err: scheduleSvc.ErrCategoryNotAssignable, wantMessage: "category is archived or unavailable"},
-		{name: "archived planning track", err: scheduleSvc.ErrPlanningTrackArchived, wantMessage: "planning track is archived or unavailable"},
-		{name: "education group", err: &scheduleSvc.TemplateEducationGroupError{Err: errors.New("education group is unavailable")}, wantMessage: "education group is unavailable"},
-		{name: "grade limit", err: scheduleSvc.ErrTemplateTargetGradeExceedsLimit, wantMessage: "template target grade exceeds tenant limit"},
+		{name: "inactive calendar period", err: timetableplanning.ErrInstanceOutsideActiveCalendarPeriod, wantMessage: "instance date must lie within an active calendar period"},
+		{name: "archived category", err: careschedule.ErrCategoryNotAssignable, wantMessage: "category is archived or unavailable"},
+		{name: "archived planning track", err: timetableplanning.ErrPlanningTrackArchived, wantMessage: "planning track is archived or unavailable"},
+		{name: "education group", err: &timetableplanning.TemplateEducationGroupError{Err: errors.New("education group is unavailable")}, wantMessage: "education group is unavailable"},
+		{name: "grade limit", err: timetableplanning.ErrTemplateTargetGradeExceedsLimit, wantMessage: "template target grade exceeds tenant limit"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -233,7 +234,7 @@ func TestConvertInstanceToSeries_UsesOfferingRosterForExistingSeed(t *testing.T)
 		s.db,
 		nil,
 		func(context.Context, []int64, []int64, *int64) error { return nil },
-		func(ctx context.Context, in scheduleSvc.OfferingRosterResyncInput) error {
+		func(ctx context.Context, in timetableplanning.OfferingRosterResyncInput) error {
 			for _, enrollment := range []*activitiesModel.StudentEnrollment{
 				{
 					StudentID:        s.studentA,
@@ -259,8 +260,8 @@ func TestConvertInstanceToSeries_UsesOfferingRosterForExistingSeed(t *testing.T)
 		},
 	)
 	s.res.TimetableData = timetableData
-	s.res.InstanceSeriesConverter = scheduleSvc.NewInstanceSeriesConversionService(
-		scheduleSvc.InstanceSeriesConversionDependencies{
+	s.res.InstanceSeriesConverter = timetableplanning.NewInstanceSeriesConversionService(
+		timetableplanning.InstanceSeriesConversionDependencies{
 			DB:              s.db,
 			InstanceRepo:    repoFactory.ActivityInstance,
 			InstanceService: s.res.InstanceService,
@@ -305,8 +306,8 @@ func TestConvertInstanceToSeries_RollsBackTemplateWhenLinkFails(t *testing.T) {
 
 	failingInstanceService := &mockInstanceService{updateErr: errors.New("link failed")}
 	repoFactory := mustTimetableTestRepositories(s.db)
-	s.res.InstanceSeriesConverter = scheduleSvc.NewInstanceSeriesConversionService(
-		scheduleSvc.InstanceSeriesConversionDependencies{
+	s.res.InstanceSeriesConverter = timetableplanning.NewInstanceSeriesConversionService(
+		timetableplanning.InstanceSeriesConversionDependencies{
 			DB:              s.db,
 			InstanceRepo:    repoFactory.ActivityInstance,
 			InstanceService: failingInstanceService,
@@ -388,7 +389,7 @@ func TestConvertInstanceToSeries_MarksRollbackOnServiceError(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	s.res.InstanceSeriesConverter = &stubInstanceSeriesConverter{err: scheduleSvc.ErrInstanceAlreadyInSeries}
+	s.res.InstanceSeriesConverter = &stubInstanceSeriesConverter{err: timetableplanning.ErrInstanceAlreadyInSeries}
 	body := createTemplateBody(s, "Tpl-Convert-MarkRollback")
 	body["calendar_period_id"] = period.ID
 	body["start_date"] = "2026-05-04"

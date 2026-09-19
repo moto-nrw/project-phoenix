@@ -11,29 +11,43 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
-type familyProtectionManagerStub struct {
-	input   userService.SetFamilyProtectionInput
-	current map[int64]*userModels.FamilyProtectionEvent
-	// setErr is what Set returns alongside the event, so the unchanged
-	// sentinel can be exercised.
+type familyProtectionCapabilityStub struct {
+	input   peopleModule.SetFamilyProtection
+	current map[int64]bool
+	enabled bool
+	// setErr is what SetFamilyProtection returns alongside the state, so the
+	// unchanged sentinel can be exercised.
 	setErr error
 }
 
-func (s *familyProtectionManagerStub) Current(context.Context, []int64) (map[int64]*userModels.FamilyProtectionEvent, error) {
+func (s *familyProtectionCapabilityStub) CurrentFamilyProtection(context.Context, []int64) (map[int64]bool, error) {
 	return s.current, nil
+}
+
+func (s *familyProtectionCapabilityStub) SetFamilyProtection(_ context.Context, input peopleModule.SetFamilyProtection) (bool, error) {
+	s.input = input
+	if s.setErr != nil {
+		return s.enabled, s.setErr
+	}
+	return input.Enabled, nil
+}
+
+// withConfigManage puts the gate the route enforces into the request, so the
+// handler's own re-check passes.
+func withConfigManage(req *http.Request, accountID int) *http.Request {
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: accountID})
+	return req.WithContext(context.WithValue(ctx, jwt.CtxPermissions, []string{permissions.ConfigManage}))
 }
 
 func TestGetFamilyProtectionReturnsCurrentState(t *testing.T) {
 	t.Parallel()
-	svc := &familyProtectionManagerStub{current: map[int64]*userModels.FamilyProtectionEvent{
-		42: {StudentID: 42, Enabled: true, Reason: "Schutz nötig"},
-	}}
-	rs := &Resource{ResourceConfig: ResourceConfig{FamilyProtectionService: svc}}
+	svc := &familyProtectionCapabilityStub{current: map[int64]bool{42: true}}
+	rs := &Resource{ResourceConfig: ResourceConfig{FamilyProtection: svc}}
 	req := httptest.NewRequest(http.MethodGet, "/students/42/family-protection", nil)
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "42")
@@ -46,15 +60,41 @@ func TestGetFamilyProtectionReturnsCurrentState(t *testing.T) {
 	assert.JSONEq(t, `{"status":"success","data":{"student_id":"42","enabled":true},"message":"Family protection retrieved"}`, w.Body.String())
 }
 
-func (s *familyProtectionManagerStub) Set(_ context.Context, input userService.SetFamilyProtectionInput) (*userModels.FamilyProtectionEvent, error) {
-	s.input = input
-	return &userModels.FamilyProtectionEvent{StudentID: input.StudentID, Enabled: input.Enabled, Reason: input.Reason}, s.setErr
-}
-
 func TestSetFamilyProtectionForwardsActorAndReason(t *testing.T) {
 	t.Parallel()
-	svc := &familyProtectionManagerStub{}
-	rs := &Resource{ResourceConfig: ResourceConfig{FamilyProtectionService: svc}}
+	svc := &familyProtectionCapabilityStub{}
+	rs := &Resource{ResourceConfig: ResourceConfig{FamilyProtection: svc}}
+	req := staffRequest(http.MethodPut, "/students/42/family-protection", `{"enabled":true,"reason":"Schutz nötig"}`, "")
+	req = withConfigManage(req, 55)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "42")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	w := httptest.NewRecorder()
+
+	rs.setFamilyProtection(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, peopleModule.SetFamilyProtection{StudentID: 42, Enabled: true, Reason: "Schutz nötig", ActorAccountID: 55}, svc.input)
+}
+
+func TestSetFamilyProtectionRejectsMissingReason(t *testing.T) {
+	t.Parallel()
+	svc := &familyProtectionCapabilityStub{}
+	rs := &Resource{ResourceConfig: ResourceConfig{FamilyProtection: svc}}
+	req := httptest.NewRequest(http.MethodPut, "/students/42/family-protection", strings.NewReader(`{"enabled":true,"reason":" "}`))
+	w := httptest.NewRecorder()
+
+	rs.setFamilyProtection(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// The privacy ledger is an admin decision; without config:manage the handler
+// refuses even though the body is well formed.
+func TestSetFamilyProtectionRequiresConfigManage(t *testing.T) {
+	t.Parallel()
+	svc := &familyProtectionCapabilityStub{}
+	rs := &Resource{ResourceConfig: ResourceConfig{FamilyProtection: svc}}
 	req := staffRequest(http.MethodPut, "/students/42/family-protection", `{"enabled":true,"reason":"Schutz nötig"}`, "")
 	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 55}))
 	rctx := chi.NewRouteContext()
@@ -64,20 +104,8 @@ func TestSetFamilyProtectionForwardsActorAndReason(t *testing.T) {
 
 	rs.setFamilyProtection(w, req)
 
-	require.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, userService.SetFamilyProtectionInput{StudentID: 42, Enabled: true, Reason: "Schutz nötig", ActorAccountID: 55}, svc.input)
-}
-
-func TestSetFamilyProtectionRejectsMissingReason(t *testing.T) {
-	t.Parallel()
-	svc := &familyProtectionManagerStub{}
-	rs := &Resource{ResourceConfig: ResourceConfig{FamilyProtectionService: svc}}
-	req := httptest.NewRequest(http.MethodPut, "/students/42/family-protection", strings.NewReader(`{"enabled":true,"reason":" "}`))
-	w := httptest.NewRecorder()
-
-	rs.setFamilyProtection(w, req)
-
-	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Zero(t, svc.input.StudentID)
 }
 
 // Switching a protection to the state it already has is not a failure the
@@ -85,10 +113,10 @@ func TestSetFamilyProtectionRejectsMissingReason(t *testing.T) {
 // state and says that nothing changed (#2267).
 func TestSetFamilyProtectionUnchangedAnswersOk(t *testing.T) {
 	t.Parallel()
-	svc := &familyProtectionManagerStub{setErr: userService.ErrFamilyProtectionUnchanged}
-	rs := &Resource{ResourceConfig: ResourceConfig{FamilyProtectionService: svc}}
+	svc := &familyProtectionCapabilityStub{enabled: true, setErr: peopleModule.ErrFamilyProtectionUnchanged}
+	rs := &Resource{ResourceConfig: ResourceConfig{FamilyProtection: svc}}
 	req := staffRequest(http.MethodPut, "/students/42/family-protection", `{"enabled":true,"reason":"Schutz nötig"}`, "")
-	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 55}))
+	req = withConfigManage(req, 55)
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "42")
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))

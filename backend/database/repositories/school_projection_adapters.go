@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"slices"
 
-	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
+	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 )
 
@@ -77,38 +77,6 @@ func (r schoolAccountRepository) FindManageableByID(ctx context.Context, id int6
 		return nil, err
 	}
 	return r.AccountRepository.FindManageableByID(ctx, id)
-}
-
-func (r schoolAccountRepository) ListManageable(ctx context.Context, filters map[string]interface{}) ([]*authModels.Account, error) {
-	ctx, err := r.withSchoolScope(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return r.AccountRepository.ListManageable(ctx, filters)
-}
-
-func (r schoolAccountRepository) FindByRole(ctx context.Context, role string) ([]*authModels.Account, error) {
-	ctx, err := r.withSchoolScope(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return r.AccountRepository.FindByRole(ctx, role)
-}
-
-func (r schoolAccountRepository) UpdateManageable(ctx context.Context, account *authModels.Account) error {
-	ctx, err := r.withSchoolScope(ctx)
-	if err != nil {
-		return err
-	}
-	return r.AccountRepository.UpdateManageable(ctx, account)
-}
-
-func (r schoolAccountRepository) FindAccountsWithRolesAndPermissions(ctx context.Context, filters map[string]interface{}) ([]*authModels.Account, error) {
-	ctx, err := r.withSchoolScope(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return r.AccountRepository.FindAccountsWithRolesAndPermissions(ctx, filters)
 }
 
 func (r schoolAccountRepository) withSchoolScope(ctx context.Context) (context.Context, error) {

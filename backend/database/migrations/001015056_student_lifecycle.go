@@ -32,8 +32,6 @@ func init() {
 }
 
 func studentLifecycleUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.56: Adding lifecycle columns (status, enrolled_from, enrolled_until) to users.students...")
-
 	_, err := db.NewRaw(`
 		ALTER TABLE users.students
 		ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active'
@@ -89,8 +87,6 @@ func studentLifecycleUp(ctx context.Context, db *bun.DB) error {
 }
 
 func studentLifecycleDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.56: Removing lifecycle columns from users.students...")
-
 	_, err := db.NewRaw(`DROP INDEX IF EXISTS users.idx_students_tenant_enrolled_until_active;`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed dropping idx_students_tenant_enrolled_until_active: %w", err)

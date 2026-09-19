@@ -9,11 +9,9 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -31,30 +29,49 @@ const (
 
 // AccountSessions is the Identity & Access capability the login, refresh,
 // logout, tenant-switch, session-validation, MFA exchange and token routes
-// call directly (#3251).
+// (#3251), the role and permission routes (#3314) and the public password
+// reset, account registration, link and account administration routes
+// (#3332) call directly.
 type AccountSessions interface {
 	identityaccess.AccountAuthentication
 	identityaccess.AccountSessionMaintenance
+	identityaccess.RoleAdministration
+	identityaccess.PasswordResets
+	identityaccess.AccountProvisioning
+	identityaccess.AccountAdministration
+}
+
+// AccountLifecycle is the Identity & Access capability the admin
+// staff-view preview (#2893) and the parent account routes call directly
+// (#3364). The retained port that used to carry them is gone; the routes
+// name the owner's contract, as the session routes already do.
+type AccountLifecycle interface {
+	identityaccess.StaffPreview
+	identityaccess.ParentAccountAccess
 }
 
 // Resource defines the auth resource
 type Resource struct {
-	AuthService                authService.AuthService
-	Sessions                   AccountSessions
-	InvitationService          authService.InvitationService
-	GuardianInvitationService  authService.GuardianInvitationService
+	AuthService AccountLifecycle
+	Sessions    AccountSessions
+	// Invitations is the Identity & Access invitation capability the
+	// invitation routes call directly (#3332).
+	Invitations Invitations
+	// GuardianInvitations is the Identity & Access guardian invitation
+	// capability the public accept page and the admin resend call (#3332).
+	GuardianInvitations        identityaccess.GuardianInvitations
 	CaregiverCapabilityService usersService.CaregiverCapabilityService
-	SchoolService              platformSvc.SchoolService
+	SchoolService              SchoolDirectory
 	// SettingsService enriches tenant-shell metadata. Some optional feature
 	// flags retain defensive fallbacks, but resolveTenant requires this service
 	// for the grade-level validation contract and returns 500 when it is absent.
 	SettingsService configSvc.SettingsService
-	// MFAService is optional during the rollout window — handlers gate on
-	// nil and return 503 so deployments without the service wired in don't
-	// crash. Once Phase 7 lands the login-flow integration this will become
-	// effectively mandatory.
-	MFAService      authService.MFAService
-	PasskeyService  authService.PasskeyService
+	// MFAService and PasskeyService are the Identity & Access second factor
+	// and the school-portal WebAuthn ceremonies (#3331). Both stay optional:
+	// handlers gate on nil and answer 503, so a deployment composed without
+	// them does not crash.
+	MFAService      identityaccess.AccountMFA
+	PasskeyService  identityaccess.AccountPasskeyFlows
 	db              *bun.DB
 	authRateLimiter func(http.Handler) http.Handler
 }
@@ -67,32 +84,34 @@ func (rs *Resource) SetAuthRateLimiter(mw func(http.Handler) http.Handler) {
 // SetMFAService wires the optional MFA service. Setter pattern matches
 // SetSettingsService — keeps the NewResource constructor signature
 // backward-compatible while phases roll in.
-func (rs *Resource) SetMFAService(svc authService.MFAService) {
+func (rs *Resource) SetMFAService(svc identityaccess.AccountMFA) {
 	rs.MFAService = svc
 }
 
-func (rs *Resource) SetPasskeyService(svc authService.PasskeyService) {
+func (rs *Resource) SetPasskeyService(svc identityaccess.AccountPasskeyFlows) {
 	rs.PasskeyService = svc
 }
 
-// SetGuardianInvitationService injects the guardian invitation service.
-// Wired via setter (not constructor) so existing test call sites that pass 4
-// positional args keep compiling. When nil, the public guardian invitation
-// routes return 500 with errGuardianInvitationServiceUnavailable.
-func (rs *Resource) SetGuardianInvitationService(svc authService.GuardianInvitationService) {
-	rs.GuardianInvitationService = svc
+// NewResource creates a new auth resource. sessions is the Identity & Access
+// capability the session routes (#3251) and the RBAC routes (#3314) call.
+func NewResource(lifecycle AccountLifecycle, invitations Invitations, schoolService SchoolDirectory, sessions AccountSessions, db *bun.DB) *Resource {
+	return &Resource{
+		AuthService:         lifecycle,
+		Sessions:            sessions,
+		Invitations:         invitations,
+		GuardianInvitations: invitations,
+		SchoolService:       schoolService,
+		db:                  db,
+	}
 }
 
-// NewResource creates a new auth resource. sessions is the Identity & Access
-// account-authentication capability the session routes call (#3251).
-func NewResource(authService authService.AuthService, invitationService authService.InvitationService, schoolService platformSvc.SchoolService, sessions AccountSessions, db *bun.DB) *Resource {
-	return &Resource{
-		AuthService:       authService,
-		Sessions:          sessions,
-		InvitationService: invitationService,
-		SchoolService:     schoolService,
-		db:                db,
-	}
+// Invitations is what the invitation routes need from Identity & Access: the
+// school invitation flows the staff screens drive and the guardian
+// invitation flows the public accept page and the admin resend drive. One
+// owner serves both, so the resource takes them as one dependency (#3332).
+type Invitations interface {
+	identityaccess.SchoolInvitations
+	identityaccess.GuardianInvitations
 }
 
 func requirePlatformScope(next http.Handler) http.Handler {
@@ -282,8 +301,11 @@ func (rs *Resource) Router() chi.Router {
 				r.Route("/{accountId}", func(r chi.Router) {
 					// Account update operations
 					r.With(common.RequiresPermission(permUsersUpdate)).Put("/", rs.updateAccount)
-					r.With(common.RequiresPermission(permUsersUpdate)).Put("/activate", common.IDAction("accountId", common.MsgInvalidAccountID, rs.AuthService.ActivateAccount, accountManagementErrorRenderer))
-					r.With(common.RequiresPermission(permUsersUpdate)).Put("/deactivate", common.IDAction("accountId", common.MsgInvalidAccountID, rs.AuthService.DeactivateAccount, accountManagementErrorRenderer))
+					// Bound through the resource rather than as a method value
+					// on rs.Sessions: the router must build before the
+					// capability is wired, as it does for every other route.
+					r.With(common.RequiresPermission(permUsersUpdate)).Put("/activate", common.IDAction("accountId", common.MsgInvalidAccountID, rs.activateAccount, accountManagementErrorRenderer))
+					r.With(common.RequiresPermission(permUsersUpdate)).Put("/deactivate", common.IDAction("accountId", common.MsgInvalidAccountID, rs.deactivateAccount, accountManagementErrorRenderer))
 					r.With(common.RequiresPermission(permUsersManage)).Get("/caregiver-capability", rs.getCaregiverCapability)
 					r.With(common.RequiresPermission(permUsersManage)).Post("/caregiver-capability", rs.enableCaregiverCapability)
 					r.With(common.RequiresPermission(permUsersManage)).Delete("/caregiver-capability", rs.disableCaregiverCapability)
@@ -293,16 +315,16 @@ func (rs *Resource) Router() chi.Router {
 						r.With(common.RequiresPermission(permUsersManage)).Get("/", rs.getAccountRoles)
 						r.With(common.RequiresPermission(permUsersManage)).Put("/", rs.replaceAccountRole)
 						r.With(common.RequiresPermission(permUsersManage)).Post("/{roleId}", rs.assignRoleToAccount)
-						r.With(common.RequiresPermission(permUsersManage)).Delete("/{roleId}", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "roleId", common.MsgInvalidRoleID, rs.AuthService.RemoveRoleFromAccount, accountManagementErrorRenderer))
+						r.With(common.RequiresPermission(permUsersManage)).Delete("/{roleId}", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "roleId", common.MsgInvalidRoleID, rs.removeRoleFromAccount, accountRoleErrorRenderer))
 					})
 
 					// Permission assignments
 					r.Route(pathPermissions, func(r chi.Router) {
 						r.With(common.RequiresPermission(permUsersManage)).Get("/", rs.getAccountPermissions)
 						r.With(common.RequiresPermission(permUsersManage)).Get("/direct", rs.getAccountDirectPermissions)
-						r.With(common.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/grant", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.GrantPermissionToAccount, accountManagementErrorRenderer))
-						r.With(common.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/deny", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.DenyPermissionToAccount, accountManagementErrorRenderer))
-						r.With(common.RequiresPermission(permUsersManage)).Delete(pathPermissionID, common.TwoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.RemovePermissionFromAccount, accountManagementErrorRenderer))
+						r.With(common.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/grant", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.grantPermissionToAccount, accountRoleErrorRenderer))
+						r.With(common.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/deny", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.denyPermissionToAccount, accountRoleErrorRenderer))
+						r.With(common.RequiresPermission(permUsersManage)).Delete(pathPermissionID, common.TwoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.removePermissionFromAccount, accountRoleErrorRenderer))
 					})
 
 					// Token management
@@ -326,8 +348,8 @@ func (rs *Resource) Router() chi.Router {
 			r.Route("/roles/{roleId}/permissions", func(r chi.Router) {
 				r.With(common.RequiresPermission(permRolesManage)).Get("/", rs.getRolePermissions)
 				r.With(common.RequiresPermission(permRolesManage)).Put("/", rs.replaceRolePermissions)
-				r.With(common.RequiresPermission(permRolesManage)).Post(pathPermissionID, common.TwoIDAction("roleId", common.MsgInvalidRoleID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.AssignPermissionToRole, renderRoleMutationError))
-				r.With(common.RequiresPermission(permRolesManage)).Delete(pathPermissionID, common.TwoIDAction("roleId", common.MsgInvalidRoleID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.RemovePermissionFromRole, renderRoleMutationError))
+				r.With(common.RequiresPermission(permRolesManage)).Post(pathPermissionID, common.TwoIDAction("roleId", common.MsgInvalidRoleID, "permissionId", common.MsgInvalidPermissionID, rs.assignPermissionToRole, renderRoleMutationError))
+				r.With(common.RequiresPermission(permRolesManage)).Delete(pathPermissionID, common.TwoIDAction("roleId", common.MsgInvalidRoleID, "permissionId", common.MsgInvalidPermissionID, rs.removePermissionFromRole, renderRoleMutationError))
 			})
 
 			// Token cleanup

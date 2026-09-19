@@ -39,11 +39,18 @@ var seedCoverageExemptions = map[string]string{
 	"users.student_guardian_relationships":      "empty Expand target (#2716); users.students_guardians remains authoritative until Cutover",
 	"users.student_guardian_pickup_permissions": "empty Expand target (#2716); users.students_guardians remains authoritative until Cutover",
 	"auth.guardian_student_access":              "empty Expand target (#2716); users.students_guardians remains authoritative until Cutover",
-	"active.combined_groups":                    "empty in prod too",
-	"active.group_mappings":                     "empty in prod too",
-	"active.scheduled_checkouts":                "empty in prod too",
-	"active.staff_month_balance_snapshots":      "empty in prod too",
-	"active.staff_vacation_openings":            "empty in prod too",
+	// users.student_profiles, users.student_school_memberships and
+	// users.student_care_profiles held no rows while Expand #2717 kept them
+	// empty. Cutover #2759 made them the authoritative student storage, so a
+	// seeded stack finds them filled and they carry no exemption any more.
+	// users.students_legacy is not exempt either: it is the rollback archive
+	// the compatibility view still mirrors every seeded student into, and
+	// #2760 removes it rather than leaving it empty.
+	"active.combined_groups":               "empty in prod too",
+	"active.group_mappings":                "empty in prod too",
+	"active.scheduled_checkouts":           "empty in prod too",
+	"active.staff_month_balance_snapshots": "empty in prod too",
+	"active.staff_vacation_openings":       "empty in prod too",
 
 	"audit.class_list_entry_changes":    "not in prod yet (migration newer than the deployed image)",
 	"audit.enrollment_restorations":     "empty in prod too",

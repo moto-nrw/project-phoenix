@@ -27,9 +27,9 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	importsvc "github.com/moto-nrw/project-phoenix/services/import"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -403,7 +403,7 @@ type DecisionServiceConfig struct {
 	DataAccessLogRepo         auditModels.DataAccessLogRepository // append-only GDPR audit row written on phase export
 	OfferingAdjustmentRepo    auditModels.EnrollmentOfferingAdjustmentRepository
 	RestorationAuditRepo      auditModels.EnrollmentRestorationRepository // append-only trail for RestoreWithdrawn (#2157)
-	SchoolRepo                platformModels.SchoolRepository
+	SchoolRepo                SchoolDirectory
 	PersonRepo                users.PersonRepository
 	StaffRepo                 users.StaffRepository
 	StudentRepo               users.StudentRepository
@@ -459,6 +459,16 @@ type DecisionServiceConfig struct {
 	// Runs in the caller's transaction. Production wires the schedule
 	// PickupAutoExcusalSyncer; tests may leave it nil.
 	ResyncPickupAutoExcusals func(ctx context.Context, studentIDs []int64) error
+	// SnapshotPickupWeekdayChanges and RecordPickupWeekdayChanges compare a
+	// submitted weekly pickup plan with the preceding projection. Production
+	// delegates both calls to PickupAutoExcusalSyncer, which records later
+	// pickups as Timetable tasks in the same transaction.
+	SnapshotPickupWeekdayChanges func(ctx context.Context, studentID int64, date timezone.Date) (map[int]string, error)
+	RecordPickupWeekdayChanges   func(ctx context.Context, studentID int64, date timezone.Date, before map[int]string) error
+	// ClearPickupWeekdayExtension closes a task that was created for a manual
+	// weekly pickup once that override is reset to an offering projection.
+	// Tests without the timetable owner may leave it nil.
+	ClearPickupWeekdayExtension func(ctx context.Context, studentID int64, weekday int) error
 	// LockPickupStudents takes the students' care locks (users.students row
 	// FOR UPDATE, ascending order) BEFORE the reconciler writes weekly
 	// Gehzeit rows. Staff weekly editors lock the student first and schedule
@@ -3076,7 +3086,7 @@ func (s *decisionService) resyncMultiSourceTemplates(
 	slices.Sort(templateIDs)
 	for _, templateID := range templateIDs {
 		tmpl := templates[templateID]
-		err := s.ResyncTemplateOfferingRoster(ctx, scheduleService.OfferingRosterResyncInput{
+		err := s.ResyncTemplateOfferingRoster(ctx, timetableplanning.OfferingRosterResyncInput{
 			TemplateID:           tmpl.ID,
 			OfferingIDs:          tmpl.SourceCareOfferingIDs,
 			GradeLevels:          tmpl.SourceGradeLevels,
@@ -3086,7 +3096,7 @@ func (s *decisionService) resyncMultiSourceTemplates(
 			ScopeRequestChildIDs: scopeRequestChildIDs,
 		})
 		if err != nil {
-			if errors.Is(err, scheduleService.ErrOfferingSourceInvalid) {
+			if errors.Is(err, timetableplanning.ErrOfferingSourceInvalid) {
 				s.logSkippedSourcedTemplate(tmpl.ID, tmpl.SourceCareOfferingIDs, "decision fan-out: multi-source template invalid", err)
 				continue
 			}
@@ -3680,6 +3690,9 @@ func (s *decisionService) applyTargetedFields(
 	arrivalScheduleDeleted := false
 	pickupScheduleLockTaken := false
 	pickupScheduleChanged := false
+	var pickupScheduleBefore map[int]string
+	pickupScheduleSnapshotTaken := false
+	pickupScheduleSnapshotFailed := false
 
 	for i := range schema.Fields {
 		field := schema.Fields[i]
@@ -3770,6 +3783,9 @@ func (s *decisionService) applyTargetedFields(
 				studentDirty = true
 			}
 		case capability.TargetSchedulePickup:
+			if pickupScheduleSnapshotFailed {
+				continue
+			}
 			// Student lock BEFORE the weekly rewrite — the shared first lock of
 			// every care-day writer — so the auto-excusal resync after the loop
 			// keeps the student → care-day lock order (#2360 review).
@@ -3779,6 +3795,16 @@ func (s *decisionService) applyTargetedFields(
 					continue
 				}
 				pickupScheduleLockTaken = true
+			}
+			if !pickupScheduleSnapshotTaken {
+				pickupScheduleSnapshotTaken = true
+				var snapshotErr error
+				pickupScheduleBefore, snapshotErr = s.snapshotPickupWeekdayChanges(ctx, student.ID, s.Today())
+				if snapshotErr != nil {
+					errs = append(errs, fmt.Sprintf("%s: snapshot existing: %v", field.Target, snapshotErr))
+					pickupScheduleSnapshotFailed = true
+					continue
+				}
 			}
 			if replaceSchedules && s.PickupScheduleRepo != nil && !pickupScheduleDeleted {
 				pickupScheduleDeleted = true
@@ -3844,6 +3870,9 @@ func (s *decisionService) applyTargetedFields(
 	// state after re-enrollment until someone edits it.
 	if pickupScheduleChanged {
 		if err := s.resyncPickupAutoExcusals(ctx, []int64{student.ID}); err != nil {
+			errs = append(errs, err.Error())
+		}
+		if err := s.recordPickupWeekdayChanges(ctx, student.ID, s.Today(), pickupScheduleBefore); err != nil {
 			errs = append(errs, err.Error())
 		}
 	}

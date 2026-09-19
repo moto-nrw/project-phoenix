@@ -6,7 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
 // SlotResponse describes an arrival or pickup slot for a single day.
@@ -24,9 +24,9 @@ type SlotResponse struct {
 // service so the wire strings and the shared ResolveSlotSource precedence rule
 // stay in lockstep — one source of truth.
 const (
-	SlotSourceSchedule  = scheduleSvc.SlotSourceSchedule
-	SlotSourceException = scheduleSvc.SlotSourceException
-	SlotSourceNone      = scheduleSvc.SlotSourceNone
+	SlotSourceSchedule  = timetableplanning.SlotSourceSchedule
+	SlotSourceException = timetableplanning.SlotSourceException
+	SlotSourceNone      = timetableplanning.SlotSourceNone
 )
 
 // AttendanceDayResponse is the per-student attendance payload on a day

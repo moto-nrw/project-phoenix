@@ -3,7 +3,6 @@ package migrations
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -31,8 +30,6 @@ func init() {
 // reader treats NULL as "unknown author" and hides the note rather than showing
 // it to the wrong co-guardian.
 func parentStatusAuthorBackfillUp(ctx context.Context, db *bun.DB) error {
-	slog.Info("migration starting", slog.String("migration", parentStatusAuthorBackfillVersion))
-
 	result, err := db.ExecContext(ctx, `
 		WITH candidates AS (
 			SELECT day.id AS day_id,
@@ -67,9 +64,9 @@ func parentStatusAuthorBackfillUp(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("count backfilled parent status day authors: %w", err)
 	}
-	slog.Info("migration finished",
-		slog.String("migration", parentStatusAuthorBackfillVersion),
-		slog.Int64("status_days_stamped", rows))
+	migrationLog().InfoContext(ctx, "parent-reported status days stamped with their guardian author",
+		"rows", rows,
+	)
 	return nil
 }
 
@@ -77,7 +74,5 @@ func parentStatusAuthorBackfillUp(ctx context.Context, db *bun.DB) error {
 // so clearing the column on rollback would destroy real authorship. Rolling back
 // 1.15.345 drops the column outright, which is the only safe reversal.
 func parentStatusAuthorBackfillDown(_ context.Context, _ *bun.DB) error {
-	slog.Info("migration rollback is a no-op",
-		slog.String("migration", parentStatusAuthorBackfillVersion))
 	return nil
 }

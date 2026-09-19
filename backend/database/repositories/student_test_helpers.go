@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/uptrace/bun"
 )
 
@@ -41,10 +40,6 @@ type StudentTestRepositories struct {
 	DataDeletion                 auditModels.DataDeletionRepository
 	ParentMessageThread          usersModels.ParentMessageThreadRepository
 	ParentMessage                usersModels.ParentMessageRepository
-}
-
-func (r StudentTestRepositories) BindTimetable(capability timetable.Capability) {
-	r.CareExitCleanup.(*usersRepo.CareExitCleanupRepository).BindActivityBookings(activityBookingDirectory{capability: capability})
 }
 
 func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (StudentTestRepositories, error) {
@@ -83,7 +78,6 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (Studen
 	r.BindPeopleDirectory(people)
 	r.bindCarePlanAdapters(care)
 	r.BindAppointments(appointments)
-	r.CareExitCleanup.(*usersRepo.CareExitCleanupRepository).BindActivityBookings(activityBookingDirectory{capability: enrollment.Timetable})
 	r.RouteAuditWrites(command)
 	return StudentTestRepositories{
 		CarePlan:                     care,
@@ -103,7 +97,7 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (Studen
 		CareWithdrawal: lifecycle.CareWithdrawal, TagReleaser: lifecycle.TagReleaser,
 		StudentDeletionAudit: r.StudentDeletionAudit, StudentFieldEdit: lifecycle.StudentFieldEdit,
 		StudentConsentChange: r.StudentConsentChange, DataDeletion: r.DataDeletion,
-		ParentMessageThread: parentStore.NewParentMessageThreadRepository(db, usersRepo.NewMessageableGuardianRepository(db)),
+		ParentMessageThread: parentStore.NewParentMessageThreadRepository(db, NewMessageableGuardianRepository(db)),
 		ParentMessage:       parentStore.NewParentMessageRepository(db),
 	}, nil
 }

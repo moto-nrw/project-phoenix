@@ -32,8 +32,6 @@ func init() {
 }
 
 func timeframesUseTimeWithoutTimezoneUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.50: Converting schedule.timeframes clock values to TIME...")
-
 	_, err := db.NewRaw(`
 		ALTER TABLE schedule.timeframes
 			ALTER COLUMN start_time TYPE TIME WITHOUT TIME ZONE
@@ -51,8 +49,6 @@ func timeframesUseTimeWithoutTimezoneUp(ctx context.Context, db *bun.DB) error {
 }
 
 func timeframesUseTimeWithoutTimezoneDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.50: Converting schedule.timeframes clock values back to TIMESTAMPTZ...")
-
 	_, err := db.NewRaw(`
 		ALTER TABLE schedule.timeframes
 			ALTER COLUMN start_time TYPE TIMESTAMPTZ

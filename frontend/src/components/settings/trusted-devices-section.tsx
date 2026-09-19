@@ -80,7 +80,7 @@ export function TrustedDevicesSection({
     if (sessionStatus === "authenticated") {
       // Fire-and-forget pattern is the project convention for async work in
       // useEffect; errors are surfaced via the function's own try/catch.
-      void load(); // NOSONAR typescript:S3735 fire-and-forget pattern matches project convention (10+ existing sites)
+      void load();
     }
   }, [sessionStatus, load]);
 

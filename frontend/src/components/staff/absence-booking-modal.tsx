@@ -37,37 +37,30 @@ import {
 import {
   absenceTypeService,
   type AbsenceType,
+  type AbsenceTypeAllowancePreview,
   type AbsenceTypeAllowanceSummary,
 } from "~/lib/absence-type-api";
-import { todayISO, toISODate } from "~/lib/date-helpers";
+import { formatDate, todayISO, toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
-import { staffAbsenceService, type StaffAbsenceRow } from "~/lib/staff-api";
+import { staffAbsenceService } from "~/lib/staff-api";
 
 const logger = createLogger({ component: "AbsenceBookingModal" });
 
-const COUNTED_STATUSES = new Set([
-  "reported",
-  "approved",
-  "requested",
-  "question",
-]);
-
 /** Everything one calendar year holds for the booking decision. */
-interface YearAccount {
+export interface YearAccount {
   readonly vacationRemaining: number;
   readonly allowances: ReadonlyMap<string, AbsenceTypeAllowanceSummary>;
-  readonly absences: readonly StaffAbsenceRow[];
 }
 
-type OptionKind = "quota" | "comp_time" | "plain";
+export type OptionKind = "quota" | "comp_time" | "plain";
 
-interface BookingOption {
+export interface BookingOption {
   readonly value: string;
   readonly label: string;
   readonly kind: OptionKind;
 }
 
-function bookingOptions(types: readonly AbsenceType[]): BookingOption[] {
+export function bookingOptions(types: readonly AbsenceType[]): BookingOption[] {
   const active = types.filter((type) => type.isActive);
   return [
     { value: "vacation", label: "Urlaub", kind: "quota" },
@@ -111,26 +104,15 @@ function eachDay(
   }
 }
 
-function coverageOn(row: StaffAbsenceRow, date: string): number {
-  if (date < row.date_start || date > row.date_end) return 0;
-  if (row.date_start === row.date_end) return row.half_day ? 0.5 : 1;
-  if (date === row.date_start && row.start_half_day) return 0.5;
-  if (date === row.date_end && row.end_half_day) return 0.5;
-  return 1;
-}
-
 /**
- * Days the booking spends from `value` in `year`. Mirrors the server: Monday
- * to Friday count, a half day counts 0.5, and an own art only charges days
- * that are not already booked under the same art.
+ * Urlaubstage, die die Buchung in `year` braucht. Wie auf dem Server zählen
+ * Montag bis Freitag, ein halber Tag zählt 0,5.
  */
-function daysNeeded(args: {
-  value: string;
+function vacationDaysNeeded(args: {
   year: number;
   dateStart: string;
   dateEnd: string;
   halfDay: boolean;
-  absences: readonly StaffAbsenceRow[];
 }): number {
   const from =
     args.dateStart > `${args.year}-01-01`
@@ -140,36 +122,102 @@ function daysNeeded(args: {
     args.dateEnd < `${args.year}-12-31` ? args.dateEnd : `${args.year}-12-31`;
   if (to < from) return 0;
   const unit = args.halfDay ? 0.5 : 1;
-  const customId = args.value.startsWith("custom:")
-    ? customIdFromOptionValue(args.value)
-    : null;
   let days = 0;
-  eachDay(from, to, (iso, day) => {
-    if (!isWeekday(day)) return;
-    if (customId === null) {
-      days += unit;
-      return;
-    }
-    const booked = Math.max(
-      0,
-      ...args.absences
-        .filter(
-          (row) =>
-            row.absence_type_id === customId &&
-            COUNTED_STATUSES.has(row.status),
-        )
-        .map((row) => coverageOn(row, iso)),
-    );
-    days += Math.max(0, unit - booked);
+  eachDay(from, to, (_iso, day) => {
+    if (isWeekday(day)) days += unit;
   });
   return days;
 }
 
-function remainingFor(value: string, account: YearAccount): number {
+/**
+ * Was am ersten Tag der Buchung für `value` noch da ist. Ein Rest aus dem
+ * Vorjahr zählt mit, solange er an diesem Tag noch nutzbar ist (#3257).
+ */
+function remainingFor(
+  value: string,
+  account: YearAccount,
+  firstDay: string,
+): number {
   if (value === "vacation") return account.vacationRemaining;
-  return (
-    account.allowances.get(customIdFromOptionValue(value))?.remainingDays ?? 0
+  const summary = account.allowances.get(customIdFromOptionValue(value));
+  if (!summary) return 0;
+  const carried = summary.carriedIn;
+  const carriedUsable =
+    carried && firstDay <= carried.expiresOn ? carried.remainingDays : 0;
+  return summary.remainingDays + carriedUsable;
+}
+
+/** Offene Kontingente, die ein Freizeitausgleich stehen lassen würde. */
+function openAllowances(
+  account: YearAccount | undefined,
+  types: readonly AbsenceType[],
+): { name: string; days: number; expiresOn: string }[] {
+  if (!account) return [];
+  return types.flatMap((type) => {
+    const summary = account.allowances.get(type.id);
+    if (!summary) return [];
+    const open: { name: string; days: number; expiresOn: string }[] = [];
+    if (summary.carriedIn && summary.carriedIn.remainingDays > 0) {
+      open.push({
+        name: type.name,
+        days: summary.carriedIn.remainingDays,
+        expiresOn: summary.carriedIn.expiresOn,
+      });
+    }
+    if (summary.remainingDays > 0) {
+      open.push({
+        name: type.name,
+        days: summary.remainingDays,
+        expiresOn: summary.expiresOn,
+      });
+    }
+    return open;
+  });
+}
+
+/**
+ * Für eigene Arten rechnet der Server, von welchem Jahr die Tage abgehen:
+ * im Übergangszeitraum zuerst vom Rest des Vorjahres (#3257).
+ */
+function useAllowancePreview(args: {
+  typeId: string | null;
+  staffId: string;
+  dateStart: string;
+  dateEnd: string;
+  halfDay: boolean;
+}) {
+  const { typeId, staffId, dateStart, dateEnd, halfDay } = args;
+  const [preview, setPreview] = useState<AbsenceTypeAllowancePreview | null>(
+    null,
   );
+  const [failed, setFailed] = useState(false);
+  const valid = Boolean(typeId && dateStart && dateEnd && dateEnd >= dateStart);
+
+  useEffect(() => {
+    setPreview(null);
+    setFailed(false);
+    if (!valid || !typeId) return;
+    let stale = false;
+    absenceTypeService
+      .previewAllowance(typeId, staffId, { dateStart, dateEnd, halfDay })
+      .then((result) => {
+        if (!stale) setPreview(result);
+      })
+      .catch((err: unknown) => {
+        if (stale) return;
+        logger.error("allowance_preview_failed", {
+          staff_id: staffId,
+          absence_type_id: typeId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setFailed(true);
+      });
+    return () => {
+      stale = true;
+    };
+  }, [valid, typeId, staffId, dateStart, dateEnd, halfDay]);
+
+  return { preview, loading: valid && preview === null && !failed, failed };
 }
 
 async function loadYear(
@@ -177,9 +225,8 @@ async function loadYear(
   year: number,
   quotaTypes: readonly AbsenceType[],
 ): Promise<YearAccount> {
-  const [vacation, absences, summaries] = await Promise.all([
+  const [vacation, summaries] = await Promise.all([
     staffAbsenceService.getVacationQuota(staffId, year),
-    staffAbsenceService.getAbsences(staffId, `${year}-01-01`, `${year}-12-31`),
     Promise.all(
       quotaTypes.map((type) =>
         absenceTypeService.getAllowance(type.id, staffId, year),
@@ -191,11 +238,10 @@ async function loadYear(
     allowances: new Map(
       quotaTypes.map((type, index) => [type.id, summaries[index]!]),
     ),
-    absences,
   };
 }
 
-function yearsBetween(dateStart: string, dateEnd: string): number[] {
+export function yearsBetween(dateStart: string, dateEnd: string): number[] {
   const first = Number(dateStart.slice(0, 4));
   const last = Number((dateEnd || dateStart).slice(0, 4));
   if (!Number.isFinite(first) || !Number.isFinite(last) || last < first)
@@ -203,7 +249,7 @@ function yearsBetween(dateStart: string, dateEnd: string): number[] {
   return Array.from({ length: last - first + 1 }, (_, index) => first + index);
 }
 
-function useYearAccounts(
+export function useYearAccounts(
   staffId: string,
   types: readonly AbsenceType[],
   years: readonly number[],
@@ -249,18 +295,30 @@ function useYearAccounts(
   return { accounts, loading: missing.length > 0 && !failed, failed };
 }
 
-interface Projection {
+export interface Projection {
   readonly year: number;
   readonly remaining: number;
   readonly needed: number;
+  /** Letzter Tag, an dem der Rest dieses Jahres nutzbar ist. */
+  readonly expiresOn?: string;
+}
+
+interface AccountHint {
+  readonly year?: number;
+  readonly account: YearAccount | undefined;
+  readonly firstDay: string;
 }
 
 function OptionHint({
   option,
   account,
+  firstDay,
+  accountHints,
 }: {
   option: BookingOption;
   account: YearAccount | undefined;
+  firstDay: string;
+  accountHints?: readonly AccountHint[];
 }) {
   if (option.kind === "comp_time") {
     return (
@@ -276,34 +334,64 @@ function OptionHint({
       </span>
     );
   }
-  if (!account) {
+  const hints: readonly AccountHint[] = accountHints ?? [{ account, firstDay }];
+  if (hints.length === 1 && !hints[0]!.account) {
     return <span className="text-xs text-gray-400">…</span>;
   }
-  const remaining = remainingFor(option.value, account);
   return (
-    <span
-      className={`shrink-0 text-xs whitespace-nowrap tabular-nums ${remaining <= 0 ? "text-moto-red-strong" : "text-gray-600"}`}
-    >
-      noch {formatDayCount(remaining)}
+    <span className="flex shrink-0 flex-col items-end text-xs whitespace-nowrap tabular-nums">
+      {hints.map((hint) => {
+        if (!hint.account) {
+          return (
+            <span key={hint.year ?? hint.firstDay} className="text-gray-400">
+              {hints.length > 1 ? `${hint.year}: ` : ""}…
+            </span>
+          );
+        }
+        const remaining = remainingFor(
+          option.value,
+          hint.account,
+          hint.firstDay,
+        );
+        return (
+          <span
+            key={hint.year ?? hint.firstDay}
+            className={
+              remaining <= 0 ? "text-moto-red-strong" : "text-gray-600"
+            }
+          >
+            {hints.length > 1 ? `${hint.year}: ` : ""}noch{" "}
+            {formatDayCount(remaining)}
+          </span>
+        );
+      })}
     </span>
   );
 }
 
-function TypeChoice({
+export function TypeChoice({
   options,
   value,
   account,
+  firstDay,
+  accountHints,
   onChange,
+  legend = "Von welchem Kontingent?",
+  name = "absence-booking-type",
 }: {
   options: readonly BookingOption[];
   value: string;
   account: YearAccount | undefined;
+  firstDay: string;
+  accountHints?: readonly AccountHint[];
   onChange: (value: string) => void;
+  legend?: string;
+  name?: string;
 }) {
   return (
     <fieldset>
       <legend className="mb-2 text-sm font-medium text-gray-700">
-        Von welchem Kontingent?
+        {legend}
       </legend>
       <div className="grid grid-cols-1 gap-2">
         {options.map((option) => (
@@ -314,14 +402,19 @@ function TypeChoice({
           >
             <span className="flex min-w-0 items-center gap-3">
               <Radio
-                name="absence-booking-type"
+                name={name}
                 value={option.value}
                 checked={value === option.value}
                 onChange={() => onChange(option.value)}
               />
               <span className="truncate">{option.label}</span>
             </span>
-            <OptionHint option={option} account={account} />
+            <OptionHint
+              option={option}
+              account={account}
+              firstDay={firstDay}
+              accountHints={accountHints}
+            />
           </ChoiceTile>
         ))}
       </div>
@@ -329,16 +422,18 @@ function TypeChoice({
   );
 }
 
-function QuotaSummary({
+export function QuotaSummary({
   label,
   projections,
+  neededLabel = "Diese Eintragung",
 }: {
   label: string;
   projections: readonly Projection[];
+  neededLabel?: string;
 }) {
   const multiYear = projections.length > 1;
   return (
-    <div className="space-y-2 rounded-lg bg-gray-50 p-3">
+    <div className="divide-y divide-gray-200 rounded-lg bg-gray-50 px-3 [&>*]:py-2">
       {projections.map((item) => (
         <DataGrid key={item.year} columns={1}>
           <DataField
@@ -351,7 +446,7 @@ function QuotaSummary({
               {formatDayCount(item.remaining)}
             </span>
           </DataField>
-          <DataField inline label="Diese Eintragung">
+          <DataField inline label={neededLabel}>
             <span className="tabular-nums">{formatDayCount(item.needed)}</span>
           </DataField>
           <DataField inline label="Danach übrig">
@@ -363,10 +458,19 @@ function QuotaSummary({
               {formatDayCount(item.remaining - item.needed)}
             </span>
           </DataField>
+          {item.expiresOn ? (
+            <DataField inline label="Rest nutzbar bis">
+              <span className="tabular-nums">{formatDate(item.expiresOn)}</span>
+            </DataField>
+          ) : null}
         </DataGrid>
       ))}
     </div>
   );
+}
+
+function isCompTimeSelected(option: BookingOption | undefined): boolean {
+  return option?.kind === "comp_time";
 }
 
 function effectLine(kind: OptionKind): string {
@@ -380,17 +484,20 @@ export function AbsenceBookingModal({
   types,
   onClose,
   onSaved,
+  initialDate,
 }: {
   readonly staff: SickReportStaff;
   readonly types: readonly AbsenceType[];
   readonly onClose: () => void;
   readonly onSaved: () => Promise<void>;
+  /** Vorbelegter Tag, z. B. ein vergangener Tag ohne Eintrag (#3258). */
+  readonly initialDate?: string;
 }) {
   const toast = useToast();
   const options = useMemo(() => bookingOptions(types), [types]);
   const [value, setValue] = useState("");
-  const [dateStart, setDateStart] = useState(todayISO());
-  const [dateEnd, setDateEnd] = useState(todayISO());
+  const [dateStart, setDateStart] = useState(initialDate ?? todayISO());
+  const [dateEnd, setDateEnd] = useState(initialDate ?? todayISO());
   const [halfDay, setHalfDay] = useState(false);
   const [note, setNote] = useState("");
   const [overdraftConfirmed, setOverdraftConfirmed] = useState(false);
@@ -419,27 +526,68 @@ export function AbsenceBookingModal({
     setSaveError(null);
   }, [value, dateStart, effectiveEnd, halfDay, setSaveError]);
 
-  const projections: Projection[] =
-    selected?.kind === "quota"
+  const customTypeId =
+    selected?.kind === "quota" && value.startsWith("custom:")
+      ? customIdFromOptionValue(value)
+      : null;
+  const {
+    preview: allowancePreview,
+    loading: allowanceLoading,
+    failed: allowanceFailed,
+  } = useAllowancePreview({
+    typeId: customTypeId,
+    staffId: staff.id,
+    dateStart,
+    dateEnd: effectiveEnd,
+    halfDay,
+  });
+
+  const vacationProjections: Projection[] =
+    value === "vacation"
       ? years.flatMap((year) => {
           const account = accounts.get(year);
           if (!account) return [];
-          const needed = daysNeeded({
-            value,
+          const needed = vacationDaysNeeded({
             year,
             dateStart,
             dateEnd: effectiveEnd,
             halfDay,
-            absences: account.absences,
           });
           return needed > 0 || years.length === 1
-            ? [{ year, remaining: remainingFor(value, account), needed }]
+            ? [
+                {
+                  year,
+                  remaining: remainingFor(value, account, dateStart),
+                  needed,
+                },
+              ]
             : [];
         })
       : [];
+  const customProjections: Projection[] = (allowancePreview?.years ?? [])
+    .filter(
+      (item) => item.bookingDays > 0 || allowancePreview?.years.length === 1,
+    )
+    .map((item) => ({
+      year: item.year,
+      remaining: item.remainingDays + item.bookingDays,
+      needed: item.bookingDays,
+      expiresOn: item.expiresOn,
+    }));
+  const projections =
+    customTypeId === null ? vacationProjections : customProjections;
   const shortfall = projections.find(
     (item) => item.remaining - item.needed < 0,
   );
+  // Der Server sperrt auch, wenn die Buchung eine spätere Eintragung auf ein
+  // Jahr schiebt, das dafür nicht reicht.
+  const customBlocked = allowancePreview?.blocked ?? false;
+  const openQuotas = isCompTimeSelected(selected)
+    ? openAllowances(
+        years.length > 0 ? accounts.get(years[0]!) : undefined,
+        types.filter((type) => type.isActive && type.allowanceEnabled),
+      )
+    : [];
   const isOverdraft =
     isCompTime && preview !== null && preview.projectedBalanceMinutes < 0;
   const firstAccount = years.length > 0 ? accounts.get(years[0]!) : undefined;
@@ -452,6 +600,8 @@ export function AbsenceBookingModal({
     effectiveEnd < dateStart ||
     (selected.kind === "quota" &&
       (loading || failed || shortfall !== undefined)) ||
+    (customTypeId !== null &&
+      (allowanceLoading || allowanceFailed || customBlocked)) ||
     (isCompTime && (previewLoading || (isOverdraft && !overdraftConfirmed)));
 
   const save = async () => {
@@ -558,9 +708,10 @@ export function AbsenceBookingModal({
           options={options}
           value={value}
           account={firstAccount}
+          firstDay={dateStart}
           onChange={setValue}
         />
-        {failed ? (
+        {failed || allowanceFailed ? (
           <Alert
             type="error"
             message="Die Kontingente konnten nicht geladen werden. Bitte schließen und noch einmal öffnen."
@@ -575,7 +726,26 @@ export function AbsenceBookingModal({
         {shortfall && selected ? (
           <Alert
             type="error"
-            message={`Nicht genug Tage: ${selected.label} hat noch ${formatDayCount(shortfall.remaining)}, diese Eintragung braucht ${formatDayCount(shortfall.needed)}. Ändern Sie zuerst den Anspruch oder wählen Sie eine andere Art.`}
+            message={`Nicht genug Tage: ${selected.label}${projections.length > 1 ? ` ${shortfall.year}` : ""} hat noch ${formatDayCount(shortfall.remaining)}, diese Eintragung braucht ${formatDayCount(shortfall.needed)}. Ändern Sie zuerst den Anspruch oder wählen Sie eine andere Art.`}
+          />
+        ) : null}
+        {customBlocked && !shortfall && selected ? (
+          <Alert
+            type="error"
+            message={`Nicht genug Tage: Diese Eintragung braucht Tage aus dem Vorjahr, die für spätere Eintragungen von ${selected.label} schon verplant sind. Ändern Sie zuerst den Anspruch.`}
+          />
+        ) : null}
+        {openQuotas.length > 0 ? (
+          <Alert
+            type="info"
+            message={`Noch offen: ${openQuotas
+              .map(
+                (quota) =>
+                  `${formatDayCount(quota.days)} ${quota.name}, nutzbar bis ${formatDate(quota.expiresOn)}`,
+              )
+              .join(
+                "; ",
+              )}. Diese Tage verfallen danach. Freizeitausgleich geht vom Stundenkonto ab.`}
           />
         ) : null}
         {isCompTime ? (

@@ -40,6 +40,7 @@ func TestSeedPlanningDemoStepCreatesRealPlanningFlows(t *testing.T) {
 	fs.studentIDByIndex = map[int]int64{
 		0: 21, 1: 22, 2: 30, 3: 31, 4: 32,
 		5: 33, 6: 34, 7: 35, 8: 36, 9: 37,
+		10: 38, 11: 39, 12: 40, 13: 41, 14: 42, 15: 43,
 	}
 	fs.groupIDs = map[string]int64{"sternengruppe": 23}
 	fs.roomIDs = map[string]int64{"OGS-Raum 1": 24}
@@ -61,6 +62,12 @@ func TestSeedPlanningDemoStepCreatesRealPlanningFlows(t *testing.T) {
 		"/api/students/35/arrival-schedules",
 		"/api/students/36/arrival-schedules",
 		"/api/students/37/arrival-schedules",
+		"/api/students/38/arrival-schedules",
+		"/api/students/39/arrival-schedules",
+		"/api/students/40/arrival-schedules",
+		"/api/students/41/arrival-schedules",
+		"/api/students/42/arrival-schedules",
+		"/api/students/43/arrival-schedules",
 		"/api/students/21/arrival-exceptions",
 		"/api/students/21/arrival-notes",
 		"/api/students/22/pickup-exceptions",
@@ -74,8 +81,12 @@ func TestSeedPlanningDemoStepCreatesRealPlanningFlows(t *testing.T) {
 		"/api/timetable/instances/61/deviations",
 		"/api/timetable/instances/62",
 		"/api/timetable/instances/64/deviations",
+		"/api/timetable/templates",
+		"/api/timetable/templates",
+		"/api/students/35/pickup-exceptions",
+		"/api/students/37/pickup-schedules",
 	}, paths)
-	require.Len(t, templates, 3)
+	require.Len(t, templates, 5)
 	assert.Equal(t, "care", templates[0]["type"])
 	assert.Equal(t, "gruppe", templates[0]["target_group_type"])
 	assert.EqualValues(t, 23, templates[0]["education_group_id"])
@@ -86,6 +97,13 @@ func TestSeedPlanningDemoStepCreatesRealPlanningFlows(t *testing.T) {
 	assert.Equal(t, "learning_time", templates[1]["list_kind"])
 	assert.Equal(t, "klasse", templates[2]["target_group_type"])
 	assert.Equal(t, "activity", templates[2]["list_kind"])
+	// #3261: an afternoon block with children and an office appointment
+	// without children, which the later-pickup choice must leave out.
+	assert.Equal(t, "Freies Spiel", templates[3]["name"])
+	assert.Equal(t, "none", templates[3]["target_group_type"])
+	assert.Equal(t, []any{float64(38), float64(39), float64(40), float64(41), float64(42), float64(43)}, templates[3]["student_ids"])
+	assert.Equal(t, "Teamsitzung", templates[4]["name"])
+	assert.Nil(t, templates[4]["student_ids"])
 }
 
 func TestSeedPlanningDemoStepRequiresPlanningReferences(t *testing.T) {

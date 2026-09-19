@@ -27,7 +27,7 @@ type decisionNotificationDependencies struct {
 	requests   decisionNotificationRequestRepository
 	settings   decisionNotificationSettings
 	outbox     platformModels.OutboxEnqueuer
-	schools    platformModels.SchoolRepository
+	schools    SchoolDirectory
 	parentsURL string
 }
 
@@ -191,7 +191,7 @@ func decisionChildStateVector(child *RequestChild) string {
 func enqueueDecisionDigest(
 	ctx context.Context,
 	outbox platformModels.OutboxEnqueuer,
-	schoolRepo platformModels.SchoolRepository,
+	schoolRepo SchoolDirectory,
 	parentsURL string,
 	request *enrollmentModels.Request,
 	children []*RequestChild,
@@ -255,7 +255,7 @@ func enqueueDecisionDigest(
 func enqueueImmediateDecisionEmail(
 	ctx context.Context,
 	outbox platformModels.OutboxEnqueuer,
-	schoolRepo platformModels.SchoolRepository,
+	schoolRepo SchoolDirectory,
 	parentsURL string,
 	request *enrollmentModels.Request,
 	child *RequestChild,

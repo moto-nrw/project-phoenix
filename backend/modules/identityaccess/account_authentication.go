@@ -167,19 +167,20 @@ type School struct {
 	OrganizationID int64
 	Name           string
 	Slug           string
-	Active         bool
-	Deleted        bool
+	// Subdomain is the host label tenant routing resolves by (#1977); the
+	// invitation answers carry it so the client lands on the right host.
+	Subdomain string
+	Active    bool
+	Deleted   bool
+	// LogoURL is the school's branding image, as the public invitation
+	// pages show it. Empty when the school configured none.
+	LogoURL string
 }
 
 // MFAPolicy is a resolved MFA verdict waiting for the role set it applies to.
 type MFAPolicy interface {
 	RequiredFor(roleNames []string) bool
 }
-
-// MFAPolicyFunc adapts a predicate to MFAPolicy.
-type MFAPolicyFunc func(roleNames []string) bool
-
-func (f MFAPolicyFunc) RequiredFor(roleNames []string) bool { return f(roleNames) }
 
 // Authentication audit event types, as the Audit platform stores them.
 const (
@@ -206,6 +207,8 @@ type AuthEvent struct {
 	RevokedSessions *RevokedSessionsEvidence
 	PendingWipe     *PendingWipeEvidence
 	CompletedWipe   *CompletedWipeEvidence
+	// MFA is set on the mfa_* events (#3331).
+	MFA *MFAEvidence
 }
 
 // TenantAccessEvidence describes an operator-led change of the school

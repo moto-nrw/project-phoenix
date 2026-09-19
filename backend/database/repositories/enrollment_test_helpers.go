@@ -2,18 +2,19 @@ package repositories
 
 import (
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
+	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/uptrace/bun"
 )
 
 type EnrollmentTestRepositories struct {
 	TimetableTestRepositories
-	School              platformModels.SchoolRepository
+	School              organizationtenancy.Capability
 	Account             authModels.AccountRepository
 	AccountTenant       authModels.AccountTenantRepository
 	AccountRole         authModels.AccountRoleRepository
@@ -22,7 +23,7 @@ type EnrollmentTestRepositories struct {
 	GuardianProfile     usersModels.GuardianProfileRepository
 	GuardianPhoneNumber usersModels.GuardianPhoneNumberRepository
 	StudentCompanion    usersModels.StudentCompanionRepository
-	ClassListEntry      usersModels.ClassListEntryRepository
+	Membership          schoolmembership.Capability
 	DataAccessLog       auditModels.DataAccessLogRepository
 }
 
@@ -56,7 +57,7 @@ func NewEnrollmentTestRepositories(db *bun.DB, command auditModels.Command) (Enr
 	return EnrollmentTestRepositories{TimetableTestRepositories: tt,
 		School: r.School, Account: r.Account, AccountTenant: r.AccountTenant,
 		AccountRole: authRepo.NewAccountRoleRepository(db), Role: authRepo.NewRoleRepository(db),
-		StudentGuardian: usersRepo.NewStudentGuardianRepository(db), GuardianProfile: NewGuardianProfileRepository(db), GuardianPhoneNumber: usersRepo.NewGuardianPhoneNumberRepository(db),
-		StudentCompanion: r.StudentCompanion, ClassListEntry: members.ClassListEntry,
+		StudentGuardian: NewStudentGuardianRepository(db), GuardianProfile: NewGuardianProfileRepository(db), GuardianPhoneNumber: usersRepo.NewGuardianPhoneNumberRepository(db),
+		StudentCompanion: r.StudentCompanion, Membership: members.Membership,
 		DataAccessLog: dataAccessLogCommand{auditRepo.NewDataAccessLogRepository(newTestAuditRuntime(db)), command}}, nil
 }

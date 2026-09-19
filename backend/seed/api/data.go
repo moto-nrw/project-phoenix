@@ -69,8 +69,9 @@ var DemoRooms = []DemoRoom{
 	// Sporthalle - Separate Building
 	{Name: "Sporthalle", Category: "Sport", Capacity: 40, Building: "Sporthalle", Floor: floor(0), IsOpenRoom: true},
 	{Name: "Bewegungsraum", Category: "Sport", Capacity: 15, Building: "Sporthalle", Floor: floor(0)},
-	// Note: Schulhof is auto-created as a system room by schulhof_service, and
-	// is released there — so the demo carries three open rooms in total.
+	// Note: the Schulhof is a system room that moto creates, already released,
+	// only when a school switches on the kiosk Schulhof button (ADR 0019). The
+	// demo leaves that switch off, so its open rooms are the two above.
 }
 
 // DemoStaff defines staff members for the demo environment
@@ -233,7 +234,8 @@ var DemoStudents = []DemoStudent{
 // room: that pairing is what makes the shared open-room view demonstrable
 // (#3065) — several offerings in one open room, each child listed once. Moving
 // either of them to a different room would quietly remove the only place in
-// the demo where that can be seen.
+// the demo where that can be seen. The full-day simulation also runs a planned
+// block there, which gives the room page its block sections (#3281).
 var DemoActivities = []DemoActivity{
 	{Name: "Hausaufgaben", DefaultRoom: "OGS-Raum 1", DurationMins: 60},
 	{Name: "Fußball", DefaultRoom: "Sporthalle", DurationMins: 90},

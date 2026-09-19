@@ -4,14 +4,14 @@ import (
 	"context"
 
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
+	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 )
 
@@ -27,7 +27,7 @@ type CalendarFacts struct {
 	RoomRepo             facilitiesModels.RoomRepository
 	StaffShiftRepo       scheduleModels.StaffShiftRepository
 	ShiftTypeRepo        scheduleModels.ShiftTypeRepository
-	SchoolRepo           platformModels.SchoolRepository
+	SchoolRepo           organizationtenancy.Query
 	AccountRepo          CalendarFeedAccounts
 	StaffFeedRepo        authModels.StaffCalendarFeedTokenRepository
 	PersonRepo           userModels.PersonRepository
@@ -171,17 +171,15 @@ func (p calendarPersonPort) FindByAccountID(ctx context.Context, id int64) (*cal
 }
 
 type calendarSchoolPort struct {
-	source platformModels.SchoolRepository
+	source organizationtenancy.Query
 }
 
 func (p calendarSchoolPort) FindByID(ctx context.Context, id int64) (*calendarCompose.School, error) {
-	value, err := p.source.FindByID(ctx, id)
-	return func() *calendarCompose.School {
-		if value == nil {
-			return nil
-		}
-		return &calendarCompose.School{Name: value.Name}
-	}(), err
+	value, err := p.source.FindSchool(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return &calendarCompose.School{Name: value.Name}, nil
 }
 
 type calendarChildPort struct{ source parentModels.ChildRepository }

@@ -3,62 +3,13 @@ package platform
 import (
 	"context"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // The operator identity rows and their refresh sessions are owned by the
 // Identity & Access module (#2720, #3252); the retained flows in
-// services/platform reach them through their own consumer-owned ports.
-
-// SchoolRepository defines operations for school (tenant) records.
-type SchoolRepository interface {
-	Create(ctx context.Context, school *School) error
-	FindByID(ctx context.Context, id int64) (*School, error)
-	FindByIDForShare(ctx context.Context, id int64) (*School, error)
-	FindByIDForUpdate(ctx context.Context, id int64) (*School, error)
-	FindBySlug(ctx context.Context, slug string) (*School, error)
-	FindByOrganizationAndSlug(ctx context.Context, organizationID int64, slug string) (*School, error)
-	FindBySubdomain(ctx context.Context, subdomain string) (*School, error)
-	List(ctx context.Context) ([]*School, error)
-	// ListNonDeleted returns all non-deleted schools, regardless of whether
-	// they currently admit users. Retention recovery uses this to clean files
-	// for inactive tenants too.
-	ListNonDeleted(ctx context.Context) ([]School, error)
-	ListActive(ctx context.Context) ([]School, error)
-	ListPublic(ctx context.Context) ([]School, error)
-	FindActiveByAccountID(ctx context.Context, accountID int64) ([]School, error)
-	Update(ctx context.Context, school *School) error
-	SoftDelete(ctx context.Context, id int64) error
-	Restore(ctx context.Context, id int64) error
-	CountByIDs(ctx context.Context, ids []int64) (int, error)
-}
-
-// OperatorEmailChangeTokenRepository defines operations for email change verification tokens
-type OperatorEmailChangeTokenRepository interface {
-	Create(ctx context.Context, token *OperatorEmailChangeToken) error
-	ConsumeByToken(ctx context.Context, tokenStr string) (*OperatorEmailChangeToken, error)
-	InvalidateByOperatorID(ctx context.Context, operatorID int64) error
-	UpdateDeliveryResult(ctx context.Context, tokenID int64, sentAt *time.Time, emailError *string, retryCount int) error
-	CountRecentByOperatorID(ctx context.Context, operatorID int64, since time.Time) (int, error)
-	InvalidateExpiredTokens(ctx context.Context) (int, error)
-	DeleteStaleTokens(ctx context.Context) (int, error)
-}
-
-// OperatorInvitationTokenRepository defines operations for operator invitation tokens
-type OperatorInvitationTokenRepository interface {
-	Create(ctx context.Context, token *OperatorInvitationToken) error
-	FindByID(ctx context.Context, id int64) (*OperatorInvitationToken, error)
-	FindValidByToken(ctx context.Context, tokenStr string) (*OperatorInvitationToken, error)
-	ConsumeByToken(ctx context.Context, tokenStr string) (*OperatorInvitationToken, error)
-	MarkAsUsed(ctx context.Context, id int64) (bool, error)
-	ListPending(ctx context.Context) ([]*OperatorInvitationToken, error)
-	InvalidateByEmail(ctx context.Context, email string) (int, error)
-	ExtendExpiry(ctx context.Context, id int64, newExpiresAt time.Time) (bool, error)
-	UpdateDeliveryResult(ctx context.Context, tokenID int64, sentAt *time.Time, emailError *string, retryCount int) error
-	DeleteExpired(ctx context.Context) (int, error)
-	CountRecentByCreatedBy(ctx context.Context, createdByID int64, since time.Time) (int, error)
-}
+// services/platform reach them through their own consumer-owned ports. The
+// same holds for the operator MFA records (#2723), the operator invitation
+// and e-mail change links (#2722) and the operator passkey records (#2724).
 
 // OperatorAuditLogRepository defines operations for the audit log
 type OperatorAuditLogRepository interface {
@@ -66,56 +17,5 @@ type OperatorAuditLogRepository interface {
 	Create(ctx context.Context, entry *OperatorAuditLog) error
 
 	// Query audit logs
-	FindByOperatorID(ctx context.Context, operatorID int64, limit int) ([]*OperatorAuditLog, error)
 	FindByDateRange(ctx context.Context, start, end time.Time, limit int) ([]*OperatorAuditLog, error)
-}
-
-// OperatorMFACredentialRepository persists per-operator MFA enrollment.
-// Mirror of auth.MFACredentialRepository for the platform.operator_*
-// schema.
-type OperatorMFACredentialRepository interface {
-	base.CRUDRepository[*OperatorMFACredential]
-	FindByOperatorID(ctx context.Context, operatorID int64) (*OperatorMFACredential, error)
-	UpdateLastUsedAt(ctx context.Context, id int64, when time.Time) error
-	DeleteByOperatorID(ctx context.Context, operatorID int64) error
-}
-
-// OperatorMFAEmailChallengeRepository persists time-limited 6-digit codes
-// for moto-Operators. Mirror of auth.MFAEmailChallengeRepository.
-type OperatorMFAEmailChallengeRepository interface {
-	Create(ctx context.Context, challenge *OperatorMFAEmailChallenge) error
-	FindByID(ctx context.Context, id interface{}) (*OperatorMFAEmailChallenge, error)
-	FindActiveByOperatorID(ctx context.Context, operatorID int64) (*OperatorMFAEmailChallenge, error)
-	MarkActive(ctx context.Context, id int64) error
-	MarkConsumed(ctx context.Context, id int64, consumedAt time.Time) error
-	CountRecentByOperatorID(ctx context.Context, operatorID int64, since time.Time) (int, error)
-	DeleteExpired(ctx context.Context) (int, error)
-}
-
-// OperatorMFATrustedDeviceRepository persists HMAC-signed trusted-device
-// records for moto-Operators. Mirror of auth.MFATrustedDeviceRepository.
-type OperatorMFATrustedDeviceRepository interface {
-	Create(ctx context.Context, device *OperatorMFATrustedDevice) error
-	FindActiveByOperatorIDAndTokenHash(ctx context.Context, operatorID int64, tokenHash string) (*OperatorMFATrustedDevice, error)
-	ListActiveByOperatorID(ctx context.Context, operatorID int64) ([]*OperatorMFATrustedDevice, error)
-	UpdateLastUsedAt(ctx context.Context, id int64, when time.Time) error
-	Revoke(ctx context.Context, id int64, revokedAt time.Time) error
-	RevokeAllByOperatorID(ctx context.Context, operatorID int64, revokedAt time.Time) error
-	DeleteExpired(ctx context.Context) (int, error)
-}
-
-// OperatorPasskeyCredentialRepository persists WebAuthn credentials for moto operators.
-type OperatorPasskeyCredentialRepository interface {
-	Create(ctx context.Context, credential *OperatorPasskeyCredential) error
-	FindActiveByOperatorID(ctx context.Context, operatorID int64) ([]*OperatorPasskeyCredential, error)
-	FindActiveByCredentialIDAndUserHandle(ctx context.Context, credentialID, userHandle []byte) (*OperatorPasskeyCredential, error)
-	UpdateAfterUse(ctx context.Context, id int64, credentialJSON []byte, usedAt time.Time) error
-	Revoke(ctx context.Context, operatorID, id int64, revokedAt time.Time) error
-}
-
-// OperatorPasskeySessionRepository persists server-side WebAuthn ceremony state for operators.
-type OperatorPasskeySessionRepository interface {
-	Create(ctx context.Context, session *OperatorPasskeySession) error
-	Consume(ctx context.Context, id, purpose string, now time.Time) (*OperatorPasskeySession, error)
-	DeleteExpired(ctx context.Context, now time.Time) (int, error)
 }

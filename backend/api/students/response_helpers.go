@@ -2,6 +2,7 @@ package students
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -13,8 +14,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -470,8 +472,15 @@ func newStudentResponseFromSnapshot(_ context.Context, student *users.Student, p
 	return response
 }
 
-// newPrivacyConsentResponse converts a privacy consent model to a response
-func newPrivacyConsentResponse(consent *users.PrivacyConsent) PrivacyConsentResponse {
+// newPrivacyConsentResponse converts an owner consent record to a response.
+// Details travels as the recorded JSON document and is decoded for the wire.
+func newPrivacyConsentResponse(consent studentpresence.PrivacyConsent) (PrivacyConsentResponse, error) {
+	var details map[string]interface{}
+	if len(consent.Details) > 0 {
+		if err := json.Unmarshal(consent.Details, &details); err != nil {
+			return PrivacyConsentResponse{}, err
+		}
+	}
 	return PrivacyConsentResponse{
 		ID:                consent.ID,
 		StudentID:         consent.StudentID,
@@ -482,10 +491,10 @@ func newPrivacyConsentResponse(consent *users.PrivacyConsent) PrivacyConsentResp
 		DurationDays:      consent.DurationDays,
 		RenewalRequired:   consent.RenewalRequired,
 		DataRetentionDays: consent.DataRetentionDays,
-		Details:           consent.Details,
+		Details:           details,
 		CreatedAt:         consent.CreatedAt,
 		UpdatedAt:         consent.UpdatedAt,
-	}
+	}, nil
 }
 
 // teacherToSupervisorContact converts a teacher to a supervisor contact if valid
@@ -548,7 +557,7 @@ func (rs *Resource) enrichWithCareExitFlag(ctx context.Context, responses []Stud
 // applyPickupTimesFromMap writes already-loaded effective pickup times onto the
 // responses without touching the database, so a pipeline stage that has the
 // bulk map in hand does not re-run the three pickup SELECTs (#2098).
-func applyPickupTimesFromMap(responses []StudentResponse, pickupTimes map[int64]*schedule.EffectivePickupTime) {
+func applyPickupTimesFromMap(responses []StudentResponse, pickupTimes map[int64]*careschedule.EffectivePickupTime) {
 	for i := range responses {
 		if !responses[i].HasFullAccess {
 			continue
@@ -567,7 +576,7 @@ func applyPickupTimesFromMap(responses []StudentResponse, pickupTimes map[int64]
 // applyArrivalTimesFromMap writes already-loaded effective arrival times onto
 // the responses without touching the database, so a pipeline stage that has the
 // bulk map in hand does not re-run the three arrival SELECTs (#2098).
-func applyArrivalTimesFromMap(responses []StudentResponse, arrivalTimes map[int64]*schedule.EffectiveArrivalTime) {
+func applyArrivalTimesFromMap(responses []StudentResponse, arrivalTimes map[int64]*careschedule.EffectiveArrivalTime) {
 	for i := range responses {
 		if !responses[i].HasFullAccess {
 			continue
@@ -584,7 +593,7 @@ func applyArrivalTimesFromMap(responses []StudentResponse, arrivalTimes map[int6
 }
 
 // buildPickupNotes combines exception reason and day notes into a single string.
-func buildPickupNotes(ept *schedule.EffectivePickupTime) string {
+func buildPickupNotes(ept *careschedule.EffectivePickupTime) string {
 	var parts []string
 	if ept.Notes != "" {
 		parts = append(parts, ept.Notes)
@@ -598,7 +607,7 @@ func buildPickupNotes(ept *schedule.EffectivePickupTime) string {
 }
 
 // buildArrivalNotes combines exception reason and day notes into a single string.
-func buildArrivalNotes(eat *schedule.EffectiveArrivalTime) string {
+func buildArrivalNotes(eat *careschedule.EffectiveArrivalTime) string {
 	var parts []string
 	if eat.Notes != "" {
 		parts = append(parts, eat.Notes)
@@ -740,11 +749,6 @@ func (rs *Resource) buildSingleStudentResponse(ctx context.Context, student *use
 
 	// Build response
 	studentResponse := newStudentResponseFromSnapshot(ctx, student, person, group, hasFullAccess, dataSnapshot, photosEnabled)
-
-	// Apply location filter
-	if !matchesLocationFilter(params.location, studentResponse.Location, hasFullAccess) {
-		return nil
-	}
 
 	return &studentResponse
 }

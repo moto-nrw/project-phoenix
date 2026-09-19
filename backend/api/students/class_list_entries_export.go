@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
@@ -40,11 +39,11 @@ func classListEntryExportEligible(preset listexport.Preset, f studentExportFilte
 // the search matches names, the class filter (comma-separated, #2218) and
 // the year filter match the class string — the same dimensions the student
 // side filters by.
-func (rs *Resource) classListEntriesForExport(r *http.Request, filters studentExportFilters) ([]*userModels.ClassListEntry, error) {
-	if rs.ClassListEntryService == nil {
+func (rs *Resource) classListEntriesForExport(r *http.Request, filters studentExportFilters) ([]ClassListEntry, error) {
+	if rs.ClassListEntries == nil {
 		return nil, nil
 	}
-	entries, err := rs.ClassListEntryService.ListAll(r.Context())
+	entries, err := rs.ClassListEntries.ListClassListEntriesInDisplayOrder(r.Context())
 	if err != nil {
 		return nil, err
 	}
@@ -54,11 +53,8 @@ func (rs *Resource) classListEntriesForExport(r *http.Request, filters studentEx
 			classFilter[key] = true
 		}
 	}
-	kept := make([]*userModels.ClassListEntry, 0, len(entries))
+	kept := make([]ClassListEntry, 0, len(entries))
 	for _, entry := range entries {
-		if entry == nil {
-			continue
-		}
 		if len(classFilter) > 0 && !classFilter[schoolclass.Normalize(entry.SchoolClass)] {
 			continue
 		}
@@ -73,7 +69,7 @@ func (rs *Resource) classListEntriesForExport(r *http.Request, filters studentEx
 	return kept, nil
 }
 
-func classListEntryMatchesSearch(entry *userModels.ClassListEntry, search string) bool {
+func classListEntryMatchesSearch(entry ClassListEntry, search string) bool {
 	if search == "" {
 		return true
 	}
@@ -87,7 +83,7 @@ func classListEntryMatchesSearch(entry *userModels.ClassListEntry, search string
 // marker, class, and "—" in the weekday cells like a non-care day of a
 // student row. Every other column stays empty — the entry has no data there,
 // and an invented value is exactly what #2382 forbids.
-func classListEntryExportRow(entry *userModels.ClassListEntry) listexport.Row {
+func classListEntryExportRow(entry ClassListEntry) listexport.Row {
 	return listexport.Row{Values: map[listexport.ColumnID]string{
 		listexport.ColumnName:              strings.TrimSpace(entry.FirstName+" "+entry.LastName) + " (" + enrollmentService.ClassListEntryNoCareLabel + ")",
 		listexport.ColumnSchoolClass:       entry.SchoolClass,

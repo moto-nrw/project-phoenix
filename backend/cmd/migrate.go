@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/moto-nrw/project-phoenix/applog"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/migrations"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 )
 
@@ -18,6 +20,7 @@ type migrateRoot struct {
 	migrate      migrationOperation
 	reset        migrationOperation
 	status       migrationOperation
+	preflight    migrationOperation
 }
 
 func (root migrateRoot) operation(command string) (migrationOperation, error) {
@@ -28,6 +31,8 @@ func (root migrateRoot) operation(command string) (migrationOperation, error) {
 		return root.reset, nil
 	case "status":
 		return root.status, nil
+	case "preflight":
+		return root.preflight, nil
 	default:
 		return nil, fmt.Errorf("unknown migration operation %q", command)
 	}
@@ -38,7 +43,26 @@ func (root migrateRoot) runCommand(ctx context.Context, command string) error {
 	if err != nil {
 		return err
 	}
+	configureMigrationLogger()
 	return root.run(ctx, operation)
+}
+
+// configureMigrationLogger installs the application logger for migration
+// commands, the way serve does for the server (#3300). Without it the runner's
+// per-migration lines would go out in slog's unconfigured default format, so
+// deployed runs would not produce the JSON that Loki indexes. It also captures
+// the standard-library log.Printf calls that the older migrations still make,
+// which otherwise bypass the handler and go straight to stderr.
+func configureMigrationLogger() {
+	format := "json"
+	if viper.GetBool("log_textlogging") {
+		format = "text"
+	}
+	applog.ConfigureDefault(applog.New(applog.Config{
+		Level:  viper.GetString("log_level"),
+		Format: format,
+		Env:    viper.GetString("app_env"),
+	}))
 }
 
 func (root migrateRoot) run(ctx context.Context, operation migrationOperation) error {
@@ -64,6 +88,7 @@ var defaultMigrateRoot = migrateRoot{
 	migrate:      migrations.Migrate,
 	reset:        migrations.Reset,
 	status:       migrations.MigrateStatus,
+	preflight:    migrations.MigratePreflight,
 }
 
 // migrateCmd represents the migrate command
@@ -93,6 +118,25 @@ var migrateStatusCmd = &cobra.Command{
 	Long:  `Display the status of all migrations, showing which ones have been applied`,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		return defaultMigrateRoot.runCommand(cmd.Context(), "status")
+	},
+}
+
+// migratePreflightCmd represents the migrate preflight command
+var migratePreflightCmd = &cobra.Command{
+	Use:   "preflight",
+	Short: "check the data preconditions of pending migrations without changing anything",
+	Long: `Ask every pending migration that declares one whether the data it needs is already in the shape
+it requires. Nothing is written and no migration runs.
+
+Deployments run this while the previous release is still serving, so a migration that would refuse
+on data somebody has to correct aborts the release before the application is stopped, instead of
+failing mid-migration and forcing a restore of the backup. Exits non-zero when a precondition fails.`,
+	// The failure names the schools and the values to correct. Cobra would
+	// print the whole usage block underneath it, burying the one line the
+	// operator reading a deployment log actually needs.
+	SilenceUsage: true,
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		return defaultMigrateRoot.runCommand(cmd.Context(), "preflight")
 	},
 }
 
@@ -130,5 +174,6 @@ func init() {
 	RootCmd.AddCommand(migrateCmd)
 	migrateCmd.AddCommand(migrateResetCmd)
 	migrateCmd.AddCommand(migrateStatusCmd)
+	migrateCmd.AddCommand(migratePreflightCmd)
 	migrateCmd.AddCommand(migrateValidateCmd)
 }

@@ -18,8 +18,8 @@ import (
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // createInstanceRequest is the JSON body accepted by POST /instances.
@@ -216,7 +216,7 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 		createdByCopy := createdBy
 		createdByPtr = &createdByCopy
 	}
-	inst, err := rs.InstanceService.Create(r.Context(), scheduleSvc.CreateInstanceInput{
+	inst, err := rs.InstanceService.Create(r.Context(), timetableplanning.CreateInstanceInput{
 		Date:             parsed.date,
 		StartTime:        parsed.startTime,
 		EndTime:          parsed.endTime,
@@ -246,7 +246,7 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 	// counts that quietly read every assigned child as expected again (#1747
 	// review).
 	var enriched enrichedInstance
-	var rows *scheduleSvc.InstanceRows
+	var rows *timetableplanning.InstanceRows
 	careDays, err := rs.careDaysForInstance(r.Context(), inst)
 	if err == nil {
 		rows, err = rs.TimetableData.GetInstanceRows(r.Context(), []*scheduleModel.ActivityInstance{inst})
@@ -280,12 +280,12 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 var createInstanceErrorRules = []common.ErrorRule{
 	{
 		Match: func(err error) bool {
-			return errors.Is(err, scheduleSvc.ErrInvalidInstanceReference) ||
-				errors.Is(err, scheduleSvc.ErrInstanceOutsideActiveCalendarPeriod)
+			return errors.Is(err, timetableplanning.ErrInvalidInstanceReference) ||
+				errors.Is(err, timetableplanning.ErrInstanceOutsideActiveCalendarPeriod)
 		},
 		Render: common.ErrorInvalidRequest,
 	},
-	{Target: scheduleSvc.ErrIdempotencyKeyReuse, Render: conflictCode("idempotency_key_reused")},
+	{Target: timetableplanning.ErrIdempotencyKeyReuse, Render: conflictCode("idempotency_key_reused")},
 	{
 		Match: func(err error) bool {
 			return base.IsUniqueViolationOn(err, "idx_activity_instances_template_unique")

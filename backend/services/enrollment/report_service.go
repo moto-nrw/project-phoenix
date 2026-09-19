@@ -19,14 +19,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 var (
@@ -284,23 +283,24 @@ type ReportServiceConfig struct {
 	// the CURRENT truth — the enrollment form answer is only the snapshot the
 	// plan was materialized from. REQUIRED for ClassDay (same fail-fast as
 	// StudentStatusDayRepo); no other report path consumes them.
-	PickupScheduleSvc  scheduleService.PickupScheduleService
-	ArrivalScheduleSvc scheduleService.ArrivalScheduleService
+	PickupScheduleSvc  careschedule.PickupScheduleService
+	ArrivalScheduleSvc careschedule.ArrivalScheduleService
 	// ClassArrivalExceptions supplies the class-wide arrival day exception
 	// (#2962) the class day view shows as one line on top (#2970).
 	// Optional: nil serves the sheet without that line.
 	ClassArrivalExceptions ClassArrivalExceptionReader
-	// ClassListEntryRepo supplies the class-list-only entries (#2382) the
-	// class roster and the class day view append to the Klassenverband.
+	// ClassListEntries supplies the class-list-only entries (#2382) the
+	// class roster and the class day view append to the Klassenverband,
+	// read through their School Membership owner.
 	// Optional: nil (older tests, report paths that never show class lists)
 	// simply serves rosters without list entries.
-	ClassListEntryRepo userModels.ClassListEntryRepository
+	ClassListEntries ClassListEntryReader
 	// CareDaySvc owns the "kommt heute / kommt nicht" decision (timeless
 	// exception on EITHER leg cancels the day). The class day view consumes
 	// it instead of re-deriving the precedence from raw schedule entries —
 	// re-implementations are explicitly forbidden (care_day_resolver.go).
 	// REQUIRED for ClassDay (same fail-fast); unused by the other reports.
-	CareDaySvc scheduleService.CareDayService
+	CareDaySvc careschedule.CareDayService
 	// Settings supplies enrollment.care_offerings_enabled so the class
 	// roster matches the form: a leftover active catalog must not constrain
 	// pickup times when offerings are turned off. Optional in tests; nil
@@ -310,11 +310,27 @@ type ReportServiceConfig struct {
 	Now               func() time.Time
 }
 
+// ClassListEntry is one class-list-only child (#2382) as the roster reads
+// it: a name and a free-text class, nothing else exists.
+type ClassListEntry struct {
+	ID          int64
+	FirstName   string
+	LastName    string
+	SchoolClass string
+}
+
+// ClassListEntryReader hands over the class-list-only entries of one class,
+// or of every class when schoolClass is empty. The root binds it to the
+// School Membership capability that owns them.
+type ClassListEntryReader interface {
+	ListClassListEntries(ctx context.Context, schoolClass string) ([]ClassListEntry, error)
+}
+
 // CareParticipationResolver is the dated operational-participation seam owned
 // by CareLifecycleService. Keeping the narrow interface here avoids teaching
 // enrollment reports about withdrawal states.
 type CareParticipationResolver interface {
-	ResolveListParticipation(ctx context.Context, studentIDs []int64, on, today timezone.Date, includePending bool) (*userService.CareParticipationResolution, error)
+	ResolveListParticipation(ctx context.Context, studentIDs []int64, on, today timezone.Date, includePending bool) (*carelifecycle.CareParticipationResolution, error)
 }
 
 type reportService struct {
@@ -635,24 +651,18 @@ func (s *reportService) appendClassListEntries(ctx context.Context, filters Clas
 // and renders them as roster rows. A nil repo (feature not wired) yields no
 // rows.
 func (s *reportService) classListEntryRows(ctx context.Context, schoolClass string, allClasses bool) ([]ClassRosterRow, error) {
-	if s.ClassListEntryRepo == nil {
+	if s.ClassListEntries == nil {
 		return nil, nil
 	}
-	var entries []*userModels.ClassListEntry
-	var err error
 	if allClasses {
-		entries, err = s.ClassListEntryRepo.List(ctx, nil)
-	} else {
-		entries, err = s.ClassListEntryRepo.FindBySchoolClass(ctx, schoolClass)
+		schoolClass = ""
 	}
+	entries, err := s.ClassListEntries.ListClassListEntries(ctx, schoolClass)
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: list class list entries: %w", err)
 	}
 	rows := make([]ClassRosterRow, 0, len(entries))
 	for _, entry := range entries {
-		if entry == nil {
-			continue
-		}
 		rows = append(rows, ClassRosterRow{
 			ListEntry:         true,
 			ListEntryID:       entry.ID,
@@ -1165,11 +1175,11 @@ func (s *reportService) classRosterGroupNames(ctx context.Context, students []*u
 // non-empty class name. The shared participation rule filters that candidate
 // set after the one bulk query.
 func (s *reportService) classRosterStudents(ctx context.Context, filters ClassRosterFilters) ([]*userModels.Student, error) {
-	options := modelBase.NewQueryOptions()
+	schoolClass := ""
 	if !filters.AllClasses {
-		options.Filter.TrimEqual("school_class", filters.SchoolClass)
+		schoolClass = filters.SchoolClass
 	}
-	students, err := s.StudentRepo.ListWithOptions(ctx, options)
+	students, err := s.StudentRepo.ListClassRoster(ctx, schoolClass)
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: list students: %w", err)
 	}

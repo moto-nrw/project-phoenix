@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -20,8 +21,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 )
 
 func TestCareUsageRowCountsEffectiveDaysAsUnion(t *testing.T) {
@@ -528,20 +528,20 @@ type fakeClassCareParticipation map[int64]bool
 
 func (f fakeClassCareParticipation) ResolveListParticipation(
 	_ context.Context, studentIDs []int64, _, _ timezone.Date, _ bool,
-) (*userService.CareParticipationResolution, error) {
-	return &userService.CareParticipationResolution{CandidateIDs: studentIDs, ParticipatingIDs: f}, nil
+) (*carelifecycle.CareParticipationResolution, error) {
+	return &carelifecycle.CareParticipationResolution{CandidateIDs: studentIDs, ParticipatingIDs: f}, nil
 }
 
 type allClassCareParticipation struct{}
 
 func (allClassCareParticipation) ResolveListParticipation(
 	_ context.Context, studentIDs []int64, _, _ timezone.Date, _ bool,
-) (*userService.CareParticipationResolution, error) {
+) (*carelifecycle.CareParticipationResolution, error) {
 	result := make(map[int64]bool, len(studentIDs))
 	for _, studentID := range studentIDs {
 		result[studentID] = true
 	}
-	return &userService.CareParticipationResolution{CandidateIDs: studentIDs, ParticipatingIDs: result}, nil
+	return &carelifecycle.CareParticipationResolution{CandidateIDs: studentIDs, ParticipatingIDs: result}, nil
 }
 
 type recordingClassCareParticipation struct {
@@ -551,9 +551,9 @@ type recordingClassCareParticipation struct {
 
 func (f *recordingClassCareParticipation) ResolveListParticipation(
 	_ context.Context, studentIDs []int64, on, today timezone.Date, _ bool,
-) (*userService.CareParticipationResolution, error) {
+) (*carelifecycle.CareParticipationResolution, error) {
 	f.on, f.today = on, today
-	return &userService.CareParticipationResolution{
+	return &carelifecycle.CareParticipationResolution{
 		CandidateIDs: studentIDs, ParticipatingIDs: map[int64]bool{studentIDs[0]: true},
 	}, nil
 }
@@ -1204,7 +1204,7 @@ type fakeClassRosterStudentRepo struct {
 	students []*userModels.Student
 }
 
-func (r *fakeClassRosterStudentRepo) ListWithOptions(_ context.Context, _ *baseModels.QueryOptions) ([]*userModels.Student, error) {
+func (r *fakeClassRosterStudentRepo) ListClassRoster(_ context.Context, _ string) ([]*userModels.Student, error) {
 	return r.students, nil
 }
 
@@ -1525,7 +1525,7 @@ func (r *fakeCareUsageRequestRepo) AdminRequests(_ context.Context, _ capability
 }
 
 type fakeCareUsagePickupScheduleSvc struct {
-	scheduleService.PickupScheduleService
+	careschedule.PickupScheduleService
 	rows       []*scheduleModels.StudentPickupSchedule
 	err        error
 	studentIDs []int64

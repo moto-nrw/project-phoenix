@@ -11,8 +11,8 @@ import (
 	"github.com/go-chi/render"
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
 // InvitationsResource handles operator invitation endpoints. Depends on the
@@ -20,11 +20,11 @@ import (
 // OperatorAuthService, so tests can mock only the methods this handler
 // actually calls.
 type InvitationsResource struct {
-	invitationService platformSvc.OperatorInvitationService
+	invitationService OperatorAccess
 }
 
 // NewInvitationsResource creates a new invitations resource
-func NewInvitationsResource(invitationService platformSvc.OperatorInvitationService) *InvitationsResource {
+func NewInvitationsResource(invitationService OperatorAccess) *InvitationsResource {
 	return &InvitationsResource{
 		invitationService: invitationService,
 	}
@@ -146,8 +146,9 @@ func (rs *InvitationsResource) CreateInvitation(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	clientIP := getClientIP(r)
-	if err := rs.invitationService.InviteOperator(r.Context(), req.Email, req.DisplayName, operatorID, clientIP); err != nil {
+	if err := rs.invitationService.InviteOperator(r.Context(), identityoperator.OperatorInvitationRequest{
+		Email: req.Email, DisplayName: req.DisplayName, CreatedBy: operatorID, IPAddress: clientAddress(r),
+	}); err != nil {
 		common.RenderError(w, r, invitationErrorRenderer(err))
 		return
 	}
@@ -184,9 +185,9 @@ func (rs *InvitationsResource) ListInvitations(w http.ResponseWriter, r *http.Re
 			CreatedBy:       t.CreatedBy,
 			CreatorName:     operatorNames[t.CreatedBy],
 			ExpiresAt:       t.ExpiresAt,
-			EmailSentAt:     t.EmailSentAt,
-			EmailError:      t.EmailError,
-			EmailRetryCount: t.EmailRetryCount,
+			EmailSentAt:     t.Delivery.SentAt,
+			EmailError:      t.Delivery.Error,
+			EmailRetryCount: t.Delivery.RetryCount,
 			CreatedAt:       t.CreatedAt,
 		}
 		invitations = append(invitations, inv)
@@ -222,8 +223,7 @@ func (rs *InvitationsResource) ResendInvitation(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	clientIP := getClientIP(r)
-	if err := rs.invitationService.ResendOperatorInvitation(r.Context(), invitationID, operatorID, clientIP); err != nil {
+	if err := rs.invitationService.ResendOperatorInvitationByActor(r.Context(), invitationID, operatorID, clientAddress(r)); err != nil {
 		common.RenderError(w, r, invitationErrorRenderer(err))
 		return
 	}
@@ -243,8 +243,7 @@ func (rs *InvitationsResource) RevokeInvitation(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	clientIP := getClientIP(r)
-	if err := rs.invitationService.RevokeOperatorInvitation(r.Context(), invitationID, operatorID, clientIP); err != nil {
+	if err := rs.invitationService.RevokeOperatorInvitationByActor(r.Context(), invitationID, operatorID, clientAddress(r)); err != nil {
 		common.RenderError(w, r, invitationErrorRenderer(err))
 		return
 	}
@@ -281,8 +280,9 @@ func (rs *InvitationsResource) AcceptInvitation(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	clientIP := getClientIP(r)
-	operator, err := rs.invitationService.AcceptOperatorInvitation(r.Context(), req.Token, req.DisplayName, req.Password, clientIP)
+	operator, err := rs.invitationService.AcceptOperatorInvitation(r.Context(), identityoperator.OperatorInvitationAcceptance{
+		Token: req.Token, DisplayName: req.DisplayName, Password: req.Password, IPAddress: clientAddress(r),
+	})
 	if err != nil {
 		common.RenderError(w, r, publicInvitationErrorRenderer(err))
 		return
@@ -319,20 +319,16 @@ func translateInvitationValidationError(err error) string {
 // --- Error renderers ---
 
 func invitationErrorRenderer(err error) render.Renderer {
-	var notFound *platformSvc.OperatorInvitationNotFoundError
-	var emailExists *platformSvc.OperatorInvitationEmailExistsError
-	var rateLimit *platformSvc.OperatorInvitationRateLimitError
-	var invalidData *platformSvc.InvalidDataError
-
+	if invalid, ok := identityoperator.InvalidInput(err); ok {
+		return ErrInvalidRequest(errors.New(translateInvitationValidationError(invalid)))
+	}
 	switch {
-	case errors.As(err, &notFound):
+	case errors.Is(err, identityoperator.ErrOperatorInvitationNotFound):
 		return ErrNotFound("Einladung nicht gefunden oder abgelaufen")
-	case errors.As(err, &emailExists):
+	case errors.Is(err, identityoperator.ErrOperatorEmailExists):
 		return ErrConflict("Ein Operator mit dieser E-Mail existiert bereits")
-	case errors.As(err, &rateLimit):
+	case errors.Is(err, identityoperator.ErrOperatorInvitationRateLimited):
 		return ErrTooManyRequests("Zu viele Einladungen. Bitte warte eine Stunde.")
-	case errors.As(err, &invalidData):
-		return ErrInvalidRequest(errors.New(translateInvitationValidationError(invalidData.Unwrap())))
 	default:
 		return ErrInternal("Ein Fehler ist aufgetreten")
 	}
@@ -341,16 +337,14 @@ func invitationErrorRenderer(err error) render.Renderer {
 // publicInvitationErrorRenderer maps errors on unauthenticated endpoints.
 // Uses generic messages to prevent enumeration.
 func publicInvitationErrorRenderer(err error) render.Renderer {
-	var notFound *platformSvc.OperatorInvitationNotFoundError
-	var emailExists *platformSvc.OperatorInvitationEmailExistsError
-	var invalidData *platformSvc.InvalidDataError
-
+	if invalid, ok := identityoperator.InvalidInput(err); ok {
+		return ErrInvalidRequest(errors.New(translateInvitationValidationError(invalid)))
+	}
 	switch {
-	case errors.As(err, &notFound), errors.As(err, &emailExists):
+	case errors.Is(err, identityoperator.ErrOperatorInvitationNotFound),
+		errors.Is(err, identityoperator.ErrOperatorEmailExists):
 		// Generic message for both cases to prevent email enumeration
 		return ErrInvalidRequest(errors.New("dieser Link ist abgelaufen oder ungültig"))
-	case errors.As(err, &invalidData):
-		return ErrInvalidRequest(errors.New(translateInvitationValidationError(invalidData.Unwrap())))
 	default:
 		return ErrInternal("Ein Serverfehler ist aufgetreten")
 	}

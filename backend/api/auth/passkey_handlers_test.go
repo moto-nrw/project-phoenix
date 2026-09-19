@@ -11,21 +11,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	platformModel "github.com/moto-nrw/project-phoenix/models/platform"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type passkeyServiceStub struct {
-	beginLoginReq         authService.PasskeyLoginStartRequest
-	finishLoginReq        authService.PasskeyLoginFinishRequest
-	beginRegistrationReq  authService.PasskeyRegistrationStartRequest
-	finishRegistrationReq authService.PasskeyRegistrationFinishRequest
+	beginLoginReq         identityaccess.AccountPasskeyLoginStart
+	finishLoginReq        identityaccess.AccountPasskeyLoginFinish
+	beginRegistrationReq  identityaccess.AccountPasskeyRegistrationStart
+	finishRegistrationReq identityaccess.AccountPasskeyRegistrationFinish
 	enrollmentAccountID   int64
 	enrollmentTenantID    int64
 	listAccountID         int64
@@ -40,83 +39,79 @@ type passkeyServiceStub struct {
 	revokeErr             error
 }
 
-func (s *passkeyServiceStub) StartEnrollmentChallenge(_ context.Context, accountID, tenantID int64, _ net.IP) (*authService.PasskeyEnrollmentChallenge, error) {
+func (s *passkeyServiceStub) StartAccountPasskeyEnrollment(_ context.Context, accountID, tenantID int64, _ net.IP) (identityaccess.PasskeyEnrollmentChallenge, error) {
 	s.enrollmentAccountID = accountID
 	s.enrollmentTenantID = tenantID
 	if s.startEnrollmentErr != nil {
-		return nil, s.startEnrollmentErr
+		return identityaccess.PasskeyEnrollmentChallenge{}, s.startEnrollmentErr
 	}
-	return &authService.PasskeyEnrollmentChallenge{ChallengeToken: "challenge-token", MaskedEmail: "m***@example.test"}, nil
+	return identityaccess.PasskeyEnrollmentChallenge{ChallengeToken: "challenge-token", MaskedEmail: "m***@example.test"}, nil
 }
 
-func (s *passkeyServiceStub) BeginRegistration(_ context.Context, req authService.PasskeyRegistrationStartRequest) (*authService.PasskeyCredentialCreation, error) {
+func (s *passkeyServiceStub) BeginAccountPasskeyRegistration(_ context.Context, req identityaccess.AccountPasskeyRegistrationStart) (identityaccess.PasskeyCeremonyOptions, error) {
 	s.beginRegistrationReq = req
 	if s.beginRegistrationErr != nil {
-		return nil, s.beginRegistrationErr
+		return identityaccess.PasskeyCeremonyOptions{}, s.beginRegistrationErr
 	}
-	return &authService.PasskeyCredentialCreation{SessionID: "registration-session", Options: map[string]string{"challenge": "register"}}, nil
+	return identityaccess.PasskeyCeremonyOptions{SessionID: "registration-session", Options: map[string]string{"challenge": "register"}}, nil
 }
 
-func (s *passkeyServiceStub) FinishRegistration(_ context.Context, req authService.PasskeyRegistrationFinishRequest) (*authService.PasskeyCredentialSummary, error) {
+func (s *passkeyServiceStub) FinishAccountPasskeyRegistration(_ context.Context, req identityaccess.AccountPasskeyRegistrationFinish) (identityaccess.PasskeyCredentialSummary, error) {
 	s.finishRegistrationReq = req
 	if s.finishRegistrationErr != nil {
-		return nil, s.finishRegistrationErr
+		return identityaccess.PasskeyCredentialSummary{}, s.finishRegistrationErr
 	}
-	return &authService.PasskeyCredentialSummary{ID: "7", Name: "Laptop", CreatedAt: time.Unix(1, 0).UTC()}, nil
+	return identityaccess.PasskeyCredentialSummary{ID: "7", Name: "Laptop", CreatedAt: time.Unix(1, 0).UTC()}, nil
 }
 
-func (s *passkeyServiceStub) BeginLogin(_ context.Context, req authService.PasskeyLoginStartRequest) (*authService.PasskeyCredentialAssertion, error) {
+func (s *passkeyServiceStub) BeginAccountPasskeyLogin(_ context.Context, req identityaccess.AccountPasskeyLoginStart) (identityaccess.PasskeyCeremonyOptions, error) {
 	s.beginLoginReq = req
 	if s.beginLoginErr != nil {
-		return nil, s.beginLoginErr
+		return identityaccess.PasskeyCeremonyOptions{}, s.beginLoginErr
 	}
-	return &authService.PasskeyCredentialAssertion{SessionID: "login-session", Options: map[string]string{"challenge": "login"}}, nil
+	return identityaccess.PasskeyCeremonyOptions{SessionID: "login-session", Options: map[string]string{"challenge": "login"}}, nil
 }
 
-func (s *passkeyServiceStub) FinishLogin(_ context.Context, req authService.PasskeyLoginFinishRequest) (*authService.PasskeyLoginResult, error) {
+func (s *passkeyServiceStub) FinishAccountPasskeyLogin(_ context.Context, req identityaccess.AccountPasskeyLoginFinish) (identityaccess.PasskeyLoginResult, error) {
 	s.finishLoginReq = req
 	if s.finishLoginErr != nil {
-		return nil, s.finishLoginErr
+		return identityaccess.PasskeyLoginResult{}, s.finishLoginErr
 	}
-	return &authService.PasskeyLoginResult{AccessToken: "access", RefreshToken: "refresh"}, nil
+	return identityaccess.PasskeyLoginResult{AccessToken: "access", RefreshToken: "refresh"}, nil
 }
 
-func (s *passkeyServiceStub) ListCredentials(_ context.Context, accountID int64) ([]authService.PasskeyCredentialSummary, error) {
+func (s *passkeyServiceStub) ListAccountPasskeyCredentials(_ context.Context, accountID int64) ([]identityaccess.PasskeyCredentialSummary, error) {
 	s.listAccountID = accountID
 	if s.listErr != nil {
 		return nil, s.listErr
 	}
-	return []authService.PasskeyCredentialSummary{{ID: "8", Name: "Phone", CreatedAt: time.Unix(2, 0).UTC()}}, nil
+	return []identityaccess.PasskeyCredentialSummary{{ID: "8", Name: "Phone", CreatedAt: time.Unix(2, 0).UTC()}}, nil
 }
 
-func (s *passkeyServiceStub) RevokeCredential(_ context.Context, accountID, credentialID int64) error {
+func (s *passkeyServiceStub) RevokeAccountPasskeyCredential(_ context.Context, accountID, credentialID int64) error {
 	s.revokeAccountID = accountID
 	s.revokeCredentialID = credentialID
 	return s.revokeErr
 }
 
 type passkeySchoolServiceStub struct {
-	byID        *platformModel.School
-	bySubdomain *platformModel.School
+	byID        *TenantSchool
+	bySubdomain *TenantSchool
 }
 
-func (s passkeySchoolServiceStub) GetSchoolByID(context.Context, int64) (*platformModel.School, error) {
+func (s passkeySchoolServiceStub) GetSchoolByID(context.Context, int64) (*TenantSchool, error) {
 	return s.byID, nil
 }
 
-func (s passkeySchoolServiceStub) GetSchoolBySlug(context.Context, string) (*platformModel.School, error) {
-	return nil, nil
-}
-
-func (s passkeySchoolServiceStub) GetSchoolBySubdomain(context.Context, string) (*platformModel.School, error) {
+func (s passkeySchoolServiceStub) GetSchoolBySubdomain(context.Context, string) (*TenantSchool, error) {
 	return s.bySubdomain, nil
 }
 
-func (s passkeySchoolServiceStub) ListPublicSchools(context.Context) ([]platformModel.School, error) {
+func (s passkeySchoolServiceStub) ListPublicSchools(context.Context) ([]TenantSchool, error) {
 	return nil, nil
 }
 
-func (s passkeySchoolServiceStub) ListActiveSchoolsByAccountID(context.Context, int64) ([]platformModel.School, error) {
+func (s passkeySchoolServiceStub) ListActiveSchoolsByAccountID(context.Context, int64) ([]TenantSchool, error) {
 	return nil, nil
 }
 
@@ -124,8 +119,8 @@ func TestPasskeyLoginHandlers(t *testing.T) {
 	t.Parallel()
 
 	svc := &passkeyServiceStub{}
-	school := &platformModel.School{
-		Model:     base.Model{ID: 42},
+	school := &TenantSchool{
+		ID:        42,
 		Subdomain: "school-a",
 		Active:    true,
 	}
@@ -163,8 +158,8 @@ func TestPasskeyAuthenticatedHandlers(t *testing.T) {
 	t.Parallel()
 
 	svc := &passkeyServiceStub{}
-	school := &platformModel.School{
-		Model:     base.Model{ID: 42},
+	school := &TenantSchool{
+		ID:        42,
 		Subdomain: "school-a",
 		Active:    true,
 	}
@@ -355,30 +350,75 @@ func TestPasskeyHandlerErrors(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
 	w = httptest.NewRecorder()
-	mapPasskeyError(w, httptest.NewRequest(http.MethodPost, "/", nil), authService.ErrPasskeyNotFound)
+	mapPasskeyError(w, httptest.NewRequest(http.MethodPost, "/", nil), identityaccess.ErrPasskeyNotFound)
 	assert.Equal(t, http.StatusNotFound, w.Code)
 
 	w = httptest.NewRecorder()
-	mapPasskeyError(w, httptest.NewRequest(http.MethodPost, "/", nil), &authService.AuthError{Op: "issue tokens", Err: authService.ErrAccountInactive})
+	mapPasskeyError(w, httptest.NewRequest(http.MethodPost, "/", nil), &identityaccess.AuthenticationError{Op: "issue tokens", Err: identityaccess.ErrAccountInactive})
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 
 	w = httptest.NewRecorder()
-	mapPasskeyError(w, httptest.NewRequest(http.MethodPost, "/", nil), &authService.AuthError{Op: "issue tokens", Err: authService.ErrTenantAccessDenied})
+	mapPasskeyError(w, httptest.NewRequest(http.MethodPost, "/", nil), &identityaccess.AuthenticationError{Op: "issue tokens", Err: identityaccess.ErrTenantAccessDenied})
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 
 	w = httptest.NewRecorder()
-	mapPasskeyError(w, httptest.NewRequest(http.MethodPost, "/", nil), &authService.AuthError{Op: "issue tokens", Err: authService.ErrTenantNotFound})
+	mapPasskeyError(w, httptest.NewRequest(http.MethodPost, "/", nil), &identityaccess.AuthenticationError{Op: "issue tokens", Err: identityaccess.ErrTenantNotFound})
 	assert.Equal(t, http.StatusNotFound, w.Code)
 
 	w = httptest.NewRecorder()
 	// Passkey enrollment issues an email challenge, so it inherits the MFA
 	// service's fail-closed status/rate-limit errors — those are transient.
-	mapPasskeyError(w, httptest.NewRequest(http.MethodPost, "/", nil), authService.ErrMFAStatusUnavailable)
+	mapPasskeyError(w, httptest.NewRequest(http.MethodPost, "/", nil), identityaccess.ErrMFAStatusUnavailable)
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 
 	w = httptest.NewRecorder()
 	mapPasskeyError(w, httptest.NewRequest(http.MethodPost, "/", nil), errors.New("boom"))
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+// TestPasskeyStoreFailuresAreNotClientErrors pins the wire outcome of the
+// school-portal passkey completions (#2724): a refused ceremony or a missing
+// passkey stays a client error, a store failure behind them is a server
+// error.
+func TestPasskeyStoreFailuresAreNotClientErrors(t *testing.T) {
+	t.Parallel()
+
+	storeDown := &identityaccess.AuthenticationError{Op: "consume passkey login session", Err: errors.New("connection reset")}
+	claims := jwt.AppClaims{ID: 11, TenantID: 7}
+	loginVerify := func(rs *Resource, w http.ResponseWriter) {
+		req := passkeyJSONRequest("/passkeys/login/verify", `{"session_id":"s","response":{"id":"a"}}`)
+		rs.passkeyLoginVerify(w, req)
+	}
+	registerVerify := func(rs *Resource, w http.ResponseWriter) {
+		req := passkeyJSONRequest("/passkeys/register/verify", `{"session_id":"s","response":{"id":"a"}}`)
+		rs.passkeyRegisterVerify(w, withPasskeyClaims(req, claims))
+	}
+	revoke := func(rs *Resource, w http.ResponseWriter) {
+		req := withPasskeyClaims(httptest.NewRequest(http.MethodDelete, "/passkeys/7", nil), claims)
+		rs.passkeyRevoke(w, withPasskeyRouteParam(req, "passkeyId", "7"))
+	}
+	tests := []struct {
+		name     string
+		svc      *passkeyServiceStub
+		call     func(*Resource, http.ResponseWriter)
+		wantCode int
+	}{
+		{"login with a spent ceremony", &passkeyServiceStub{finishLoginErr: identityaccess.ErrPasskeySessionInvalid}, loginVerify, http.StatusUnauthorized},
+		{"login without access to the school", &passkeyServiceStub{finishLoginErr: identityaccess.ErrTenantAccessDenied}, loginVerify, http.StatusUnauthorized},
+		{"login with a store failure", &passkeyServiceStub{finishLoginErr: storeDown}, loginVerify, http.StatusInternalServerError},
+		{"registration with a spent ceremony", &passkeyServiceStub{finishRegistrationErr: identityaccess.ErrPasskeySessionInvalid}, registerVerify, http.StatusUnauthorized},
+		{"registration with a store failure", &passkeyServiceStub{finishRegistrationErr: storeDown}, registerVerify, http.StatusInternalServerError},
+		{"revoke of a missing passkey", &passkeyServiceStub{revokeErr: identityaccess.ErrPasskeyNotFound}, revoke, http.StatusNotFound},
+		{"revoke with a store failure", &passkeyServiceStub{revokeErr: storeDown}, revoke, http.StatusInternalServerError},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			tt.call(&Resource{PasskeyService: tt.svc}, w)
+			assert.Equal(t, tt.wantCode, w.Code)
+			assert.NotContains(t, w.Body.String(), "connection reset", "store details stay out of the response")
+		})
+	}
 }
 
 func passkeyJSONRequest(path, body string) *http.Request {

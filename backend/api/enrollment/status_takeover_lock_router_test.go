@@ -133,7 +133,7 @@ func setupTakeoverLockTest(t *testing.T) (*takeoverLockEnv, func()) {
 		Guardians:        repos.Enrollment(),
 		CareOfferingRepo: repos.CareOffering,
 		Catalog:          repos.Enrollment(),
-		SchoolRepo:       repos.School,
+		SchoolRepo:       capabilitySchools{schools: repos.School},
 		RateLimitRepo:    repos.Enrollment(),
 		OutboxEnqueuer:   discardingOutbox{},
 		Settings:         settings,
@@ -149,7 +149,7 @@ func setupTakeoverLockTest(t *testing.T) (*takeoverLockEnv, func()) {
 		LateInviteRepo:      repos.Enrollment(),
 		CareOfferingRepo:    repos.CareOffering,
 		Catalog:             repos.Enrollment(),
-		SchoolRepo:          repos.School,
+		SchoolRepo:          capabilitySchools{schools: repos.School},
 		GuardianProfileRepo: repos.GuardianProfile,
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		StudentRepo:         repos.Student,
@@ -164,7 +164,7 @@ func setupTakeoverLockTest(t *testing.T) (*takeoverLockEnv, func()) {
 
 	resource := enrollmentAPI.NewResource(
 		nil, nil, requestSvc, nil, nil, nil, nil, nil, changeRequestSvc,
-		nil, nil, nil, nil, db,
+		nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, nil, db,
 	)
 
 	submitted, err := requestSvc.Submit(ctx, enrollmentService.SubmitRequest{

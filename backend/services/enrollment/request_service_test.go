@@ -261,7 +261,7 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 		Guardians:        repoFactory.Enrollment(),
 		CareOfferingRepo: repoFactory.CareOffering,
 		Catalog:          repoFactory.Enrollment(),
-		SchoolRepo:       repoFactory.School,
+		SchoolRepo:       factorySchools{repos: repoFactory},
 		RateLimitRepo:    repoFactory.Enrollment(),
 		LateInviteRepo:   repoFactory.Enrollment(),
 		OutboxEnqueuer:   outbox,

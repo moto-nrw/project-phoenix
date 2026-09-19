@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -28,7 +28,7 @@ func TestListPeriodsQueryBudget(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	res := NewResource(Dependencies{
-		CalendarPeriodService: scheduleSvc.NewCalendarPeriodServiceWithConfig(scheduleSvc.CalendarPeriodServiceConfig{
+		CalendarPeriodService: timetableplanning.NewCalendarPeriodServiceWithConfig(timetableplanning.CalendarPeriodServiceConfig{
 			Repo: mustTimetableTestRepositories(db).CalendarPeriod,
 		}),
 		DB: db,

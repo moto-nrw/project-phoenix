@@ -13,8 +13,7 @@ import (
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,7 +47,6 @@ func createOverviewTenantFixture(
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Overview", fmt.Sprintf("Tenant-%d", tenantID))
 	room := testpkg.CreateTestRoomForTenant(t, db, tenantID, fmt.Sprintf("Overview-%d", tenantID))
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	repos.BindTimetable(timetabletest.New(t, db))
 	ctx := testpkg.TenantContext(tenantID)
 
 	instance := &scheduleModel.ActivityInstance{
@@ -347,7 +345,6 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 	localRoom := testpkg.CreateTestRoomForTenant(t, db, testpkg.Tenant(t), "Coverage-Local")
 	foreignRoom := testpkg.CreateTestRoomForTenant(t, db, foreignTenantID, "Coverage-Foreign")
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	repos.BindTimetable(timetabletest.New(t, db))
 	localCtx := testpkg.Ctx(t)
 	foreignCtx := testpkg.TenantContext(foreignTenantID)
 
@@ -420,9 +417,9 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 	foreignException.SetTenantID(foreignTenantID)
 	require.NoError(t, repos.ActivityException.Create(foreignCtx, foreignException))
 
-	instanceReader, ok := repos.ActivityInstance.(scheduleSvc.ActivityGroupInstanceRangeReader)
+	instanceReader, ok := repos.ActivityInstance.(timetableplanning.ActivityGroupInstanceRangeReader)
 	require.True(t, ok)
-	exceptionReader, ok := repos.ActivityException.(scheduleSvc.ActivityExceptionRangeReader)
+	exceptionReader, ok := repos.ActivityException.(timetableplanning.ActivityExceptionRangeReader)
 	require.True(t, ok)
 	foreignInstances, err := instanceReader.FindByActivityGroupAndDateRange(localCtx, foreignGroup.ID, scheduleModel.Date(monday), scheduleModel.Date(nextWednesday))
 	require.NoError(t, err)
@@ -430,7 +427,7 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 	foreignExceptions, err := exceptionReader.FindByActivityGroupAndDateRange(localCtx, foreignGroup.ID, scheduleModel.Date(monday), scheduleModel.Date(nextWednesday))
 	require.NoError(t, err)
 	assert.Empty(t, foreignExceptions, "foreign exceptions must not cross the tenant boundary")
-	scheduleReader, ok := repos.ActivitySchedule.(scheduleSvc.ActivityScheduleGroupReader)
+	scheduleReader, ok := repos.ActivitySchedule.(timetableplanning.ActivityScheduleGroupReader)
 	require.True(t, ok)
 	foreignSchedules, err := scheduleReader.FindByGroupID(localCtx, foreignGroup.ID)
 	require.NoError(t, err)
@@ -438,18 +435,17 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 
 	queryCounter := testpkg.NewQueryCounter()
 	countedRepos := repositories.NewFactory(db.WithQueryHook(queryCounter), repositories.NewUnobservedTimetableDependencies(db.WithQueryHook(queryCounter)))
-	countedRepos.BindTimetable(timetabletest.New(t, db.WithQueryHook(queryCounter)))
-	countedInstances, ok := countedRepos.ActivityInstance.(scheduleSvc.ActivityGroupInstanceRangeReader)
+	countedInstances, ok := countedRepos.ActivityInstance.(timetableplanning.ActivityGroupInstanceRangeReader)
 	require.True(t, ok)
-	countedExceptions, ok := countedRepos.ActivityException.(scheduleSvc.ActivityExceptionRangeReader)
+	countedExceptions, ok := countedRepos.ActivityException.(timetableplanning.ActivityExceptionRangeReader)
 	require.True(t, ok)
 	pattern := 0
-	coverage, err := scheduleSvc.DetectShiftCoverage(localCtx, scheduleSvc.ShiftCoverageDependencies{
+	coverage, err := timetableplanning.DetectShiftCoverage(localCtx, timetableplanning.ShiftCoverageDependencies{
 		Shifts: countedRepos.StaffShift, Instances: countedInstances, Exceptions: countedExceptions,
 		Schedules:     countedRepos.ActivitySchedule,
 		InstanceStaff: countedRepos.InstanceStaff, Staff: countedRepos.Staff,
 		CalendarPeriods: countedRepos.CalendarPeriod,
-	}, scheduleSvc.ShiftCoverageQuery{
+	}, timetableplanning.ShiftCoverageQuery{
 		Dates:     []timezone.Date{monday, wednesday, friday, nextMonday, nextWednesday},
 		StartTime: integrationClock(t, "09:00"), EndTime: integrationClock(t, "10:00"),
 		StaffIDs: []int64{localBase.ID}, ReplanActivityGroupID: &localGroup.ID,

@@ -10,38 +10,26 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	repoUsers "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	staffmessaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffmessages"
+	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// newReadRepo wires the read repository with the staff-account lookup School
-// Membership owns in production. The test resolves the same set directly so it
-// keeps exercising the repository's own predicates.
-func newReadRepo(db *bun.DB) usersModels.StaffMessageReadRepository {
-	return repoUsers.NewStaffMessageReadRepository(db, func(ctx context.Context) ([]int64, error) {
-		var accountIDs []int64
-		err := db.NewSelect().
-			TableExpr(`users.staff AS "staff"`).
-			ColumnExpr(`"person".account_id`).
-			Join(`JOIN users.persons AS "person" ON "person".id = "staff".person_id AND "person".deleted_at IS NULL`).
-			Where(`"staff".deleted_at IS NULL`).
-			Where(`"person".account_id IS NOT NULL`).
-			Where(`"staff".tenant_id = ?`, tenant.FromContext(ctx)).
-			Scan(ctx, &accountIDs)
-		return accountIDs, err
-	}, func(context.Context) *bun.SelectQuery {
-		// Identity & Access owns the global account switch; the test resolves
-		// the same set directly so the repository predicate stays exercised.
-		return db.NewSelect().TableExpr(`auth.accounts AS "account"`).ColumnExpr(`"account".id`).Where(`"account".active = TRUE`)
-	})
+// newRepositories wires the staff messaging stores the way production does:
+// Communication owns the conversations, cursors and inbox projection (#3221),
+// and the colleague lookups filter through the School Membership and
+// Identity & Access owners.
+func newRepositories(t *testing.T, db *bun.DB) repositories.StaffMessagingTestRepositories {
+	t.Helper()
+	repos, err := repositories.NewStaffMessagingTestRepositories(db)
+	require.NoError(t, err)
+	return repos
 }
 
 // newService wires a service against the real repositories with messaging
@@ -78,10 +66,11 @@ func newServiceWithEnabled(t *testing.T, db *bun.DB, enabled bool, retentionDays
 		PersonRepo: repoUsers.NewPersonRepository(db),
 	})
 
+	repos := newRepositories(t, db)
 	return staffmessaging.NewService(staffmessaging.Config{
-		ThreadRepo:  repoUsers.NewStaffMessageThreadRepository(db),
-		MessageRepo: repoUsers.NewStaffMessageRepository(db),
-		ReadRepo:    newReadRepo(db),
+		ThreadRepo:  repos.Thread,
+		MessageRepo: repos.Message,
+		ReadRepo:    repos.Read,
 		Persons:     persons,
 		Settings:    settings,
 		DB:          db,
@@ -98,10 +87,11 @@ func newServiceWithBrokenRetention(t *testing.T, db *bun.DB) *staffmessaging.Ser
 			return 0, errors.New("settings unavailable")
 		},
 	}
+	repos := newRepositories(t, db)
 	return staffmessaging.NewService(staffmessaging.Config{
-		ThreadRepo:  repoUsers.NewStaffMessageThreadRepository(db),
-		MessageRepo: repoUsers.NewStaffMessageRepository(db),
-		ReadRepo:    newReadRepo(db),
+		ThreadRepo:  repos.Thread,
+		MessageRepo: repos.Message,
+		ReadRepo:    repos.Read,
 		Settings:    settings,
 		DB:          db,
 	})

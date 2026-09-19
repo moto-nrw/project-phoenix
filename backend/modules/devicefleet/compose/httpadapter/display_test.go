@@ -18,17 +18,17 @@ import (
 
 	displayHTTP "github.com/moto-nrw/project-phoenix/api/display"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule/carescheduletest"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -73,14 +73,14 @@ func newDisplayRouter(t *testing.T, db *bun.DB, clocks ...func() time.Time) http
 	require.NoError(t, err)
 	settingsService := configSvc.NewSettingsService(repos.Values, repos.Audit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
 	testpkg.SetTenantRuntime(t, settingsService, db)
-	pickup := schedule.NewPickupScheduleServiceWithBulk(
+	pickup := careschedule.NewPickupScheduleServiceWithBulk(
 		repos.StudentPickupSchedule,
 		repos.StudentPickupException,
 		repos.StudentPickupNote,
 		repos.Student,
 		repos.Person,
 		nil,
-		scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, approvedOfferings, repos.CareOffering),
+		carescheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, approvedOfferings, repos.CareOffering),
 		db,
 		slog.Default(),
 	)
@@ -95,7 +95,7 @@ func newDisplayRouter(t *testing.T, db *bun.DB, clocks ...func() time.Time) http
 			PickupSchedule: pickup,
 		}),
 		Tenants: devicefleetLegacy.NewTenantFacts(devicefleetLegacy.TenantFactDependencies{
-			Schools:  repos.School,
+			Schools:  displaySchools{db: db},
 			Settings: settingsService,
 		}),
 		Now:     firstClock(clocks),
@@ -103,6 +103,27 @@ func newDisplayRouter(t *testing.T, db *bun.DB, clocks ...func() time.Time) http
 	})
 	require.NoError(t, err)
 	return testpkg.TenantRuntimeMiddleware(t, db)(NewResource(fleet, settingsService).Router())
+}
+
+// displaySchools reads the display facts straight from the seeded
+// platform.schools rows.
+type displaySchools struct{ db *bun.DB }
+
+func (d displaySchools) FindDisplaySchool(ctx context.Context, tenantID int64) (devicefleetCompose.School, bool, error) {
+	var rows []struct {
+		Name      string     `bun:"name"`
+		Active    bool       `bun:"active"`
+		DeletedAt *time.Time `bun:"deleted_at"`
+	}
+	err := d.db.NewSelect().
+		TableExpr(`platform.schools AS "school"`).
+		Column("school.name", "school.active", "school.deleted_at").
+		Where(`"school".id = ?`, tenantID).
+		Scan(ctx, &rows)
+	if err != nil || len(rows) == 0 {
+		return devicefleetCompose.School{}, false, err
+	}
+	return devicefleetCompose.School{Name: rows[0].Name, Active: rows[0].Active, Deleted: rows[0].DeletedAt != nil}, true, nil
 }
 
 func displayTestJWT(t *testing.T, accountID, tenantID int64, permissions []string) string {

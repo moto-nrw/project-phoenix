@@ -32,8 +32,6 @@ func init() {
 }
 
 func nullableAttendanceStaffUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.226: Allowing device-authenticated attendance without staff attribution...")
-
 	_, err := db.NewRaw(`
 		ALTER TABLE active.attendance
 			ALTER COLUMN checked_in_by DROP NOT NULL;
@@ -48,8 +46,6 @@ func nullableAttendanceStaffUp(ctx context.Context, db *bun.DB) error {
 }
 
 func nullableAttendanceStaffDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.226: Restoring required attendance staff attribution...")
-
 	var nullCount int
 	err := db.NewRaw(`SELECT COUNT(*) FROM active.attendance WHERE checked_in_by IS NULL`).Scan(ctx, &nullCount)
 	if err != nil {

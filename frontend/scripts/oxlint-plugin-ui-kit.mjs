@@ -474,7 +474,7 @@ src/components/enrollment/enrollment-form.tsx|text-[11px]@2090
 src/components/enrollment/phases-editor.tsx|text-[11px]@668 text-[11px]@673
 src/components/files/files-page.tsx|text-[11px]@158 text-[11px]@275
 src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141
-src/components/guardians/guardian-list.tsx|text-[10px]@333
+src/components/guardians/guardian-list.tsx|text-[10px]@373
 src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@676 text-[11px]@741
 src/components/parent/parent-enroll-picker.tsx|text-[11px]@205 text-[11px]@209
 src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
@@ -514,7 +514,7 @@ src/components/ui/page-header/OverflowMenu.tsx|text-[10px]@393 text-[11px]@456
 src/components/ui/parent-visible-badge.tsx|text-[11px]@44
 src/components/ui/plan-block.tsx|text-[11px]@126 text-[11px]@133
 src/components/ui/plan-legend.tsx|text-[11px]@106
-src/components/ui/presence-badge.tsx|text-[11px]@78 text-[11px]@79 text-[10px]@248
+src/components/ui/presence-badge.tsx|text-[11px]@80 text-[11px]@81 text-[10px]@257
 `);
 
 const noTinyText = makeClassStringRule({

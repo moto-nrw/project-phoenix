@@ -9,34 +9,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
-
-// setLifecycle directly mutates the lifecycle columns on a fresh student
-// fixture so tests can stage the pre-conditions FindPending* /
-// FindActive* expect. CreateTestStudent does not currently expose status /
-// enrolled_from / enrolled_until knobs, so we patch via a direct UPDATE
-// scoped to the test row's ID.
-func setLifecycle(t *testing.T, db *bun.DB, studentID int64, status users.StudentStatus, enrolledFrom, enrolledUntil *timezone.Date) {
-	t.Helper()
-	ctx := testpkg.Ctx(t)
-	q := db.NewUpdate().
-		TableExpr("users.students").
-		Set("status = ?", string(status)).
-		Where("id = ?", studentID)
-	if enrolledFrom != nil {
-		q = q.Set("enrolled_from = ?", *enrolledFrom)
-	} else {
-		q = q.Set("enrolled_from = NULL")
-	}
-	if enrolledUntil != nil {
-		q = q.Set("enrolled_until = ?", *enrolledUntil)
-	} else {
-		q = q.Set("enrolled_until = NULL")
-	}
-	_, err := q.Exec(ctx)
-	require.NoError(t, err, "failed to seed lifecycle columns")
-}
 
 func TestStudentRepository_FindPendingDueForActivation(t *testing.T) {
 	t.Parallel()
@@ -55,9 +28,9 @@ func TestStudentRepository_FindPendingDueForActivation(t *testing.T) {
 		futureStudent := testpkg.CreateTestStudent(t, db, "PendingFuture", "Lifecycle", "1a")
 		activeStudent := testpkg.CreateTestStudent(t, db, "Active", "Lifecycle", "1a")
 
-		setLifecycle(t, db, dueStudent.ID, users.StudentStatusPending, &yesterday, nil)
-		setLifecycle(t, db, futureStudent.ID, users.StudentStatusPending, &tomorrow, nil)
-		setLifecycle(t, db, activeStudent.ID, users.StudentStatusActive, &yesterday, nil)
+		testpkg.SetStudentLifecycle(t, db, dueStudent.ID, users.StudentStatusPending, &yesterday, nil)
+		testpkg.SetStudentLifecycle(t, db, futureStudent.ID, users.StudentStatusPending, &tomorrow, nil)
+		testpkg.SetStudentLifecycle(t, db, activeStudent.ID, users.StudentStatusActive, &yesterday, nil)
 
 		results, err := repo.FindPendingDueForActivation(ctx, asOf)
 		require.NoError(t, err)
@@ -73,7 +46,7 @@ func TestStudentRepository_FindPendingDueForActivation(t *testing.T) {
 
 	t.Run("ignores pending students with NULL enrolled_from", func(t *testing.T) {
 		nullStudent := testpkg.CreateTestStudent(t, db, "PendingNull", "Lifecycle", "1a")
-		setLifecycle(t, db, nullStudent.ID, users.StudentStatusPending, nil, nil)
+		testpkg.SetStudentLifecycle(t, db, nullStudent.ID, users.StudentStatusPending, nil, nil)
 
 		results, err := repo.FindPendingDueForActivation(ctx, asOf)
 		require.NoError(t, err)
@@ -100,9 +73,9 @@ func TestStudentRepository_FindActiveDueForDeactivation(t *testing.T) {
 		futureStudent := testpkg.CreateTestStudent(t, db, "ActiveFuture", "Lifecycle", "1a")
 		pendingStudent := testpkg.CreateTestStudent(t, db, "PendingNotInactive", "Lifecycle", "1a")
 
-		setLifecycle(t, db, dueStudent.ID, users.StudentStatusActive, nil, &yesterday)
-		setLifecycle(t, db, futureStudent.ID, users.StudentStatusActive, nil, &tomorrow)
-		setLifecycle(t, db, pendingStudent.ID, users.StudentStatusPending, nil, &yesterday)
+		testpkg.SetStudentLifecycle(t, db, dueStudent.ID, users.StudentStatusActive, nil, &yesterday)
+		testpkg.SetStudentLifecycle(t, db, futureStudent.ID, users.StudentStatusActive, nil, &tomorrow)
+		testpkg.SetStudentLifecycle(t, db, pendingStudent.ID, users.StudentStatusPending, nil, &yesterday)
 
 		results, err := repo.FindActiveDueForDeactivation(ctx, asOf)
 		require.NoError(t, err)
@@ -127,7 +100,7 @@ func TestStudentRepository_UpdateStatus(t *testing.T) {
 
 	t.Run("transitions pending student to active", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Activate", "Lifecycle", "1a")
-		setLifecycle(t, db, student.ID, users.StudentStatusPending, nil, nil)
+		testpkg.SetStudentLifecycle(t, db, student.ID, users.StudentStatusPending, nil, nil)
 
 		err := repo.UpdateStatus(ctx, student.ID, users.StudentStatusActive)
 		require.NoError(t, err)
@@ -151,7 +124,7 @@ func TestStudentRepository_TransitionStatus(t *testing.T) {
 	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Conditional", "Lifecycle", "1a")
-	setLifecycle(t, db, student.ID, users.StudentStatusPending, nil, nil)
+	testpkg.SetStudentLifecycle(t, db, student.ID, users.StudentStatusPending, nil, nil)
 
 	applied, err := repo.TransitionStatus(
 		ctx,

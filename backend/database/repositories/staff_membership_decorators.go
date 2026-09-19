@@ -7,6 +7,7 @@ import (
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
+	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
@@ -30,9 +31,9 @@ func (f *Factory) bindStaffMembershipDecorators(workTime workforce.Capability) {
 	f.ParentMessageRead = parentMessageStaffRepository{
 		ParentMessageReads: parentStore.NewParentMessageReadRepository(f.db), membership: capability, persons: persons,
 	}
-	f.StaffMessageRead = usersRepo.NewStaffMessageReadRepository(f.db, func(ctx context.Context) ([]int64, error) {
+	f.StaffMessageRead = staffStore.NewStaffMessageReadRepository(f.db, usersRepo.NewMessageableStaffRepository(f.db, func(ctx context.Context) ([]int64, error) {
 		return currentTenantStaffAccounts(ctx, capability(), persons())
-	}, activeAccountQuery(mustAccountRepository(f.Account)))
+	}, staffMessageIdentity(f.db, f.Account)))
 }
 
 // staffAccountsByTenant maps every tenant visible in the caller's transaction

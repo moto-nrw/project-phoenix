@@ -6,16 +6,17 @@ import (
 	"log/slog"
 	"time"
 
-	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
-	"github.com/moto-nrw/project-phoenix/services/auth"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -63,40 +64,68 @@ func NewCleanupAuditCommand(logger *slog.Logger) (AuditCommand, error) {
 // making the CLI import the Audit domain package directly.
 type AuditCommand = auditModels.Command
 
+// AuthMaintenance is the identity maintenance the cleanup CLI and the
+// scheduler run: the expired session sweep and the revocation follow-ups
+// (#3251) and the password reset maintenance (#3332), both called on the
+// Identity & Access module directly (#3364).
+type AuthMaintenance struct {
+	identityaccess.AccountSessionMaintenance
+	identityaccess.PasswordResets
+}
+
+// AuthMaintenanceRuntime is the maintenance the worker root schedules. It
+// pairs the retained session sweep with the module's reset maintenance, so
+// the worker keeps one identity dependency.
+func (f *Factory) AuthMaintenanceRuntime() *AuthMaintenance {
+	if f.Auth == nil {
+		return nil
+	}
+	resets := f.AccountAuthentication()
+	if resets == nil {
+		return nil
+	}
+	return &AuthMaintenance{AccountSessionMaintenance: resets, PasswordResets: resets}
+}
+
 // NewAuthCleanupService composes the token and rate-limit maintenance the
 // cleanup CLI runs. The expired session sweep and the revocation follow-ups
 // are Identity & Access flows (#3251); the module is composed with the
 // cleanup repositories and a signer the sweep never uses.
-func NewAuthCleanupService(db *bun.DB, runtime tenant.UnitOfWork, logger *slog.Logger, command AuditCommand) (*auth.Service, error) {
+func NewAuthCleanupService(db *bun.DB, runtime tenant.UnitOfWork, logger *slog.Logger, command AuditCommand) (*AuthMaintenance, error) {
 	repos := repositories.NewAuthCleanupRepositories(db, command)
 	tokenAuth, err := authjwt.NewTokenAuth()
 	if err != nil {
 		return nil, fmt.Errorf("auth cleanup service: token auth: %w", err)
 	}
-	var service *auth.Service
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
 		repos: sessionRepositories{
-			schools: repos.School, persons: repos.Person, authEvents: repos.AuthEvent, pushSubscriptions: repos.PushSubscription,
+			schools: newSchoolDirectory(repos.School, nil), persons: repos.Person, authEvents: repos.AuthEvent, pushSubscriptions: repos.PushSubscription,
 		},
 		tokenAuth: tokenAuth, audit: command, logger: logger,
-		tenantRuntime: func(ctx context.Context) context.Context { return service.WithTenantRuntime(ctx) },
+		// The cleanup root only removes spent links and stale windows; it
+		// never issues a link, so it composes the flows without a mailer.
+		resets: &passwordResetWiring{expiry: cleanupResetExpiry},
 	})
 	if err != nil {
 		return nil, err
 	}
-	service = auth.NewCleanupService(auth.CleanupDependencies{
-		PasswordResetRateLimit: repos.PasswordResetRateLimit,
-		Sessions:               newAccountSessions(identityAccess),
-		Audit:                  command,
-		DB:                     db, Logger: logger, TenantRuntime: runtime,
-	})
-	return service, nil
+	if err := identityAccess.SetTenantRuntime(runtime); err != nil {
+		return nil, err
+	}
+	return &AuthMaintenance{AccountSessionMaintenance: identityAccess, PasswordResets: identityAccess}, nil
 }
 
-func NewInvitationCleanupService(db *bun.DB, logger *slog.Logger) auth.InvitationService {
-	return auth.NewInvitationService(auth.InvitationServiceConfig{
-		InvitationRepo: repositories.NewInvitationCleanupRepository(db), DB: db, Logger: logger,
+// NewInvitationCleanupService composes the invitation maintenance the
+// cleanup CLI runs. The invitation flows themselves stay unavailable: the
+// CLI only deletes expired links (#2722).
+func NewInvitationCleanupService(db *bun.DB, logger *slog.Logger) (identityaccess.SchoolInvitations, error) {
+	module, err := identityaccessCompose.New(identityaccessCompose.Dependencies{
+		DB: db, Observe: func(identityaccessCompose.Observation) {},
 	})
+	if err != nil {
+		return nil, fmt.Errorf("invitation cleanup service: %w", err)
+	}
+	return module, nil
 }
 
 func NewSessionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger) active.Service {
@@ -117,9 +146,9 @@ func NewRetentionCleanupService(db *bun.DB, logger *slog.Logger, command AuditCo
 	)
 }
 
-func NewTimetableCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger, command AuditCommand) schedule.TimetableCleanupService {
+func NewTimetableCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger, command AuditCommand) timetableplanning.TimetableCleanupService {
 	repos := repositories.NewTimetableCleanupRepositories(db, command, timetableCapability)
-	return schedule.NewTimetableCleanupService(
+	return timetableplanning.NewTimetableCleanupService(
 		repos.Instance, repos.Exception, repos.Student, repos.Deletion, repos.Deviation,
 		NewCleanupSettingsService(db, runtime, schools, logger), logger,
 	)

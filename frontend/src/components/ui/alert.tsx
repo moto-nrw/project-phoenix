@@ -1,10 +1,10 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 
-type AlertType = "error" | "success" | "warning" | "info";
+export type AlertType = "error" | "success" | "warning" | "info";
 
-interface AlertProps {
+interface AlertProps extends HTMLAttributes<HTMLDivElement> {
   readonly type: AlertType;
   readonly title?: string;
   readonly message: string;
@@ -16,6 +16,8 @@ interface AlertProps {
    * bleibt.
    */
   readonly action?: ReactNode;
+  /** Keep compact controls on the same row, for example inside a toast. */
+  readonly actionLayout?: "responsive" | "inline";
   /** Zusätzliche Klassen für den Rahmen, z. B. Außenabstände. */
   readonly className?: string;
 }
@@ -26,7 +28,9 @@ export function Alert({
   message,
   announce,
   action,
+  actionLayout = "responsive",
   className = "",
+  ...props
 }: Readonly<AlertProps>) {
   if (!message) return null;
   const isAssertive = type === "error" || type === "warning";
@@ -108,6 +112,7 @@ export function Alert({
 
   return (
     <div
+      {...props}
       role={
         announcement === "off"
           ? undefined
@@ -115,6 +120,8 @@ export function Alert({
             ? "alert"
             : "status"
       }
+      aria-live={announcement === "off" ? undefined : announcement}
+      aria-atomic={announcement === "off" ? undefined : "true"}
       className={`flex items-center rounded-lg border p-4 text-sm shadow-sm ${action ? "flex-wrap gap-y-2" : ""} ${styles[type]} ${className}`}
     >
       {icons[type]}
@@ -132,7 +139,13 @@ export function Alert({
           Meldung, statt den Text in eine schmale Spalte zu quetschen. Ab sm
           steht sie wieder rechts in derselben Zeile. */}
       {action ? (
-        <span className="shrink-0 basis-full sm:ml-auto sm:basis-auto sm:pl-4">
+        <span
+          className={
+            actionLayout === "inline"
+              ? "ml-auto shrink-0 pl-2"
+              : "shrink-0 basis-full sm:ml-auto sm:basis-auto sm:pl-4"
+          }
+        >
           {action}
         </span>
       ) : null}

@@ -18,10 +18,8 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	repoAudit "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	repoEducation "github.com/moto-nrw/project-phoenix/database/repositories/education"
-	repoUsers "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -66,7 +64,7 @@ func TestTenantIsolation_StudentVisibility(t *testing.T) {
 	sA := CreateTestStudentForTenant(t, db, tenantA, "TenantA", "Student", "1a")
 	sB := CreateTestStudentForTenant(t, db, tenantB, "TenantB", "Student", "1a")
 
-	repo := repoUsers.NewStudentRepository(db)
+	repo := repositories.NewStudentRepository(db)
 
 	// --- Tenant A perspective ---
 	ctx42 := ctxForTenant(tenantA)
@@ -205,7 +203,6 @@ func TestTenantIsolation_TimeframeVisibility(t *testing.T) {
 	tfB := CreateTestTimeframeForTenant(t, db, tenantB, "TimeframeB")
 
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	repos.BindTimetable(timetabletest.New(t, db))
 	repo := repos.Timeframe
 
 	// --- Tenant A ---
@@ -523,11 +520,14 @@ func TestCrossTenantWrite_RowsAffectedGuard(t *testing.T) {
 	// ------------------------------------------------------------------
 
 	t.Run("student update blocked", func(t *testing.T) {
-		repo := repoUsers.NewStudentRepository(db)
+		// The child's write path is People Directory's (#3349), so this has to
+		// be the composed repository the composition root hands out — the raw
+		// one no longer performs the write at all.
+		repo := repositories.NewStudentRepository(db)
 		err := repo.Update(ctxB, studentA)
 		require.Error(t, err, "cross-tenant student update must fail")
-		assert.Contains(t, err.Error(), "rows affected",
-			"error should mention rows affected guard")
+		require.ErrorIs(t, err, users.ErrStudentRowMissing,
+			"another tenant's child must not exist for this writer")
 	})
 
 	t.Run("room update blocked", func(t *testing.T) {
@@ -549,11 +549,13 @@ func TestCrossTenantWrite_RowsAffectedGuard(t *testing.T) {
 	// ------------------------------------------------------------------
 
 	t.Run("student UpdateStatus blocked", func(t *testing.T) {
-		repo := repoUsers.NewStudentRepository(db)
+		// The lifecycle status is the owner's write (#3349), so this has to be
+		// the composed repository the composition root hands out.
+		repo := repositories.NewStudentRepository(db)
 		err := repo.UpdateStatus(ctxB, studentA.ID, users.StudentStatusInactive)
 		require.Error(t, err, "cross-tenant UpdateStatus must fail")
-		assert.Contains(t, err.Error(), "rows affected",
-			"error should mention rows affected guard")
+		require.ErrorIs(t, err, users.ErrStudentRowMissing,
+			"another tenant's child must not exist for this writer")
 	})
 
 	// ------------------------------------------------------------------

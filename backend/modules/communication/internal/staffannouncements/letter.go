@@ -10,8 +10,8 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	platformService "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
 // letterIntro is the opening line of an Elternbrief mail. The body follows it,
@@ -267,7 +267,7 @@ func (s *service) queueLetterMailsAs(ctx context.Context, a *usersModels.ParentA
 		if portalAccessByAddress[address] {
 			recipientPortalURL = portalURL
 		}
-		row, err := s.outbox.Enqueue(ctx, platformService.EnqueueRequest{
+		row, err := s.outbox.Enqueue(ctx, emailoutbox.EnqueueRequest{
 			Kind: platformModels.EmailKindParentAnnouncement,
 			Payload: map[string]any{
 				emailPayloadRecipient:   address,
@@ -549,7 +549,7 @@ func (s *service) ResendFailedEmails(ctx context.Context, id int64) (int, error)
 	}
 
 	resent := 0
-	byAddress := make(map[string]*platformModels.EmailOutbox)
+	byAddress := make(map[string]*emailoutbox.Enqueued)
 	portalAccessByAddress := make(map[string]bool, len(rows))
 	for _, row := range rows {
 		if row.RecipientEmail != nil && row.Reachability == reachabilityOK {
@@ -575,7 +575,7 @@ func (s *service) ResendFailedEmails(ctx context.Context, id int64) (int, error)
 			if portalAccessByAddress[address] {
 				recipientPortalURL = portalURL
 			}
-			outboxRow, err = s.outbox.Enqueue(ctx, platformService.EnqueueRequest{
+			outboxRow, err = s.outbox.Enqueue(ctx, emailoutbox.EnqueueRequest{
 				Kind: platformModels.EmailKindParentAnnouncement,
 				Payload: map[string]any{
 					emailPayloadRecipient:   address,

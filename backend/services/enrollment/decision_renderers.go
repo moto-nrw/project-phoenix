@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/email"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 )
 
 // Payload keys specific to the parent-decision emails. Submission
@@ -22,7 +22,7 @@ const (
 // just picks subject + template name.
 func renderDecisionMessage(
 	cfg EmailRendererConfig,
-	row *platformModels.EmailOutbox,
+	row *emailoutbox.Intent,
 	subject string,
 	templateName string,
 ) (*email.Message, error) {
@@ -74,8 +74,8 @@ func decisionSubject(subject string, schoolName string) string {
 // Triggered by DecisionService when a child transitions to status
 // 'approved'. Register at startup with kind
 // platform.EmailKindEnrollmentApproved.
-func NewEnrollmentApprovedRenderer(cfg EmailRendererConfig) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error) {
-	return func(_ context.Context, row *platformModels.EmailOutbox) (*email.Message, error) {
+func NewEnrollmentApprovedRenderer(cfg EmailRendererConfig) func(context.Context, *emailoutbox.Intent) (*email.Message, error) {
+	return func(_ context.Context, row *emailoutbox.Intent) (*email.Message, error) {
 		return renderDecisionMessage(
 			cfg, row,
 			"Anmeldung bestätigt",
@@ -87,8 +87,8 @@ func NewEnrollmentApprovedRenderer(cfg EmailRendererConfig) func(context.Context
 // NewEnrollmentWaitlistedRenderer renders the "you're on the waitlist"
 // email. Phase capacity overflow + admin manual waitlisting both fire
 // this renderer.
-func NewEnrollmentWaitlistedRenderer(cfg EmailRendererConfig) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error) {
-	return func(_ context.Context, row *platformModels.EmailOutbox) (*email.Message, error) {
+func NewEnrollmentWaitlistedRenderer(cfg EmailRendererConfig) func(context.Context, *emailoutbox.Intent) (*email.Message, error) {
+	return func(_ context.Context, row *emailoutbox.Intent) (*email.Message, error) {
 		return renderDecisionMessage(
 			cfg, row,
 			"Anmeldung auf Warteliste",
@@ -101,8 +101,8 @@ func NewEnrollmentWaitlistedRenderer(cfg EmailRendererConfig) func(context.Conte
 // your child" email. Reason text is included only when the phase has
 // show_status_reason_to_parent enabled (the service strips it from
 // the payload otherwise).
-func NewEnrollmentRejectedRenderer(cfg EmailRendererConfig) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error) {
-	return func(_ context.Context, row *platformModels.EmailOutbox) (*email.Message, error) {
+func NewEnrollmentRejectedRenderer(cfg EmailRendererConfig) func(context.Context, *emailoutbox.Intent) (*email.Message, error) {
+	return func(_ context.Context, row *emailoutbox.Intent) (*email.Message, error) {
 		return renderDecisionMessage(
 			cfg, row,
 			"Anmeldung abgelehnt",
@@ -113,8 +113,8 @@ func NewEnrollmentRejectedRenderer(cfg EmailRendererConfig) func(context.Context
 
 // NewEnrollmentDecisionDigestRenderer renders the single request-level
 // summary emitted after every child has a parent-visible final decision.
-func NewEnrollmentDecisionDigestRenderer(cfg EmailRendererConfig) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error) {
-	return func(_ context.Context, row *platformModels.EmailOutbox) (*email.Message, error) {
+func NewEnrollmentDecisionDigestRenderer(cfg EmailRendererConfig) func(context.Context, *emailoutbox.Intent) (*email.Message, error) {
+	return func(_ context.Context, row *emailoutbox.Intent) (*email.Message, error) {
 		message, err := renderDecisionMessage(cfg, row, "Entscheidung zu Ihrer Anmeldung", "enrollment-decision-digest.html")
 		if err != nil {
 			return nil, err

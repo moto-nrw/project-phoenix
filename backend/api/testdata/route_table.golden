@@ -116,6 +116,7 @@ GET /
 GET /.well-known/caldav
 GET /api/absence-types/
 GET /api/absence-types/{id}/allowances/{staffId}
+GET /api/absence-types/{id}/allowances/{staffId}/preview
 GET /api/active/analytics/dashboard
 GET /api/active/combined/
 GET /api/active/combined/active
@@ -449,6 +450,7 @@ GET /api/timetable/operations/instances/{id}/roster
 GET /api/timetable/operations/planned-now
 GET /api/timetable/periods/
 GET /api/timetable/periods/{id}
+GET /api/timetable/pickup-extensions/
 GET /api/timetable/planning-tracks/
 GET /api/timetable/student/{id}/day
 GET /api/timetable/student/{id}/week
@@ -752,6 +754,7 @@ POST /api/staff/absences/{absenceId}/question
 POST /api/staff/time-tracking/export/sftp
 POST /api/staff/time-tracking/month-close
 POST /api/staff/{id}/absences
+POST /api/staff/{id}/absences/rebook
 POST /api/staff/{id}/documents
 POST /api/staff/{id}/stammdaten/bank-steuer/reveal
 POST /api/staff/{id}/time-tracking/adjustments
@@ -834,6 +837,7 @@ POST /api/timetable/operations/instances/{id}/students/{student_id}/check-out
 POST /api/timetable/operations/spontaneous/start
 POST /api/timetable/periods/
 POST /api/timetable/periods/bootstrap
+POST /api/timetable/pickup-extensions/{id}/resolve
 POST /api/timetable/planning-tracks/
 POST /api/timetable/planning-tracks/{id}/restore
 POST /api/timetable/shift-coverage

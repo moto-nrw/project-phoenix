@@ -14,7 +14,6 @@ package users_test
 // without waiting and surfaces as the retriable ErrCompanionLockBusy.
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -23,24 +22,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
-
-// holdStudentRowLock keeps the student's row locked from a second transaction
-// for the rest of the test — "this child is being edited elsewhere".
-func holdStudentRowLock(t *testing.T, db *bun.DB, studentID int64) {
-	t.Helper()
-
-	tx, err := db.BeginTx(context.Background(), nil)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = tx.Rollback() })
-
-	var locked int64
-	require.NoError(t, tx.NewRaw(
-		`SELECT id FROM users.students WHERE id = ? FOR UPDATE`, studentID,
-	).Scan(context.Background(), &locked))
-	require.Equal(t, studentID, locked)
-}
 
 // TestStudentRepository_Update_RefusesWhenFarEndLocked pins that a plan change
 // which would drop a link waits for nobody it may not wait for: the far child
@@ -67,7 +49,7 @@ func TestStudentRepository_Update_RefusesWhenFarEndLocked(t *testing.T) {
 		newCompanionEdge(t, subject.ID, companion.ID, 2),
 	}))
 
-	holdStudentRowLock(t, db, companion.ID)
+	testpkg.HoldStudentRowLock(t, db, companion.ID)
 
 	// ACT — narrow the plan so the Tuesday edge loses its basis and has to be
 	// dropped, which is what makes the far end's state relevant.
@@ -116,7 +98,7 @@ func TestStudentRepository_Update_UnaffectedWhenNoEdgeIsDropped(t *testing.T) {
 		newCompanionEdge(t, subject.ID, companion.ID, 1),
 	}))
 
-	holdStudentRowLock(t, db, companion.ID)
+	testpkg.HoldStudentRowLock(t, db, companion.ID)
 
 	// ACT — Tuesday gains the accompanied mode; the Monday edge keeps its basis.
 	loaded, err := factory.Student.FindByID(ctx, subject.ID)

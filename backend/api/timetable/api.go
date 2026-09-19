@@ -18,13 +18,15 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	usercontextSvc "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	userSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -96,16 +98,16 @@ type Resource struct {
 // subset — readable and lets us add future deps without churning every call
 // site.
 type Dependencies struct {
-	CalendarPeriodService   scheduleSvc.CalendarPeriodService
-	ClosingDayService       scheduleSvc.ClosingDayService
-	MaterializationService  scheduleSvc.MaterializationService
-	InstanceService         scheduleSvc.InstanceService
-	InstanceSeriesConverter scheduleSvc.InstanceSeriesConverter
-	OperationsService       scheduleSvc.TimetableOperationsService
-	TemplateSplitService    *scheduleSvc.TemplateSplitService
+	CalendarPeriodService   timetableplanning.CalendarPeriodService
+	ClosingDayService       timetableplanning.ClosingDayService
+	MaterializationService  timetableplanning.MaterializationService
+	InstanceService         timetableplanning.InstanceService
+	InstanceSeriesConverter timetableplanning.InstanceSeriesConverter
+	OperationsService       timetableplanning.TimetableOperationsService
+	TemplateSplitService    *timetableplanning.TemplateSplitService
 	PersonService           userSvc.PersonService
-	TimetableData           *scheduleSvc.TimetableDataService
-	CareDayService          scheduleSvc.CareDayService
+	TimetableData           *timetableplanning.TimetableDataService
+	CareDayService          careschedule.CareDayService
 	UserContextService      usercontextSvc.UserContextService
 	SettingsService         configSvc.SettingsService
 	SlotListsService        classday.SlotLists
@@ -117,11 +119,14 @@ type Dependencies struct {
 	ReportService enrollmentSvc.ReportService
 	// PlanExportService renders the printable Betreuungsplan week (#2079).
 	PlanExportService    planexport.Service
-	PlanningTrackService scheduleSvc.PlanningTrackService
-	Broadcaster          realtime.Broadcaster
-	Logger               *slog.Logger
-	DB                   *bun.DB
-	Now                  func() time.Time
+	PlanningTrackService timetableplanning.PlanningTrackService
+	// PickupExtensions serves the open block decisions for later pickup
+	// times (#3261).
+	PickupExtensions timetable.PickupExtensionCapability
+	Broadcaster      realtime.Broadcaster
+	Logger           *slog.Logger
+	DB               *bun.DB
+	Now              func() time.Time
 }
 
 // NewResource creates a new timetable resource from the given Dependencies.
@@ -288,6 +293,15 @@ func (rs *Resource) Router() chi.Router {
 		// advisory). Same permission + tx middleware as /exception-conflicts.
 		r.With(common.RequiresPermission(permissions.SchedulesRead), withTx).
 			Get("/conflicts", rs.getPlannedConflicts)
+
+		// Later pickup times without a block (#3261). Resolving changes
+		// rosters, so both routes need SchedulesManage.
+		r.Route("/pickup-extensions", func(r chi.Router) {
+			r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
+				Get("/", rs.listPickupExtensions)
+			r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
+				Post("/{id}/resolve", rs.resolvePickupExtension)
+		})
 
 		// Per-user conflict acknowledgements (#2139). SchedulesRead on
 		// purpose: whoever sees the banner may manage their own view state;
@@ -882,7 +896,7 @@ func (rs *Resource) enforcePlannedEnd(ctx context.Context) (bool, error) {
 	}
 	enforce, err := rs.SettingsService.ResolveBool(ctx, configModel.KeyTimetableEnforcePlannedEnd)
 	if err != nil {
-		return false, fmt.Errorf("%w: resolve planned end policy: %v", scheduleSvc.ErrLifecycleSettings, err)
+		return false, fmt.Errorf("%w: resolve planned end policy: %v", timetableplanning.ErrLifecycleSettings, err)
 	}
 	return enforce, nil
 }

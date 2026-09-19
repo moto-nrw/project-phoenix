@@ -3,9 +3,10 @@ package repositories
 import (
 	"context"
 
-	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
+	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/uptrace/bun"
 )
 
@@ -25,10 +26,10 @@ func NewStaffMessagingTestRepositories(db *bun.DB) (StaffMessagingTestRepositori
 		return StaffMessagingTestRepositories{}, err
 	}
 	return StaffMessagingTestRepositories{
-		Thread:  usersRepo.NewStaffMessageThreadRepository(db),
-		Message: usersRepo.NewStaffMessageRepository(db),
-		Read: usersRepo.NewStaffMessageReadRepository(db, func(ctx context.Context) ([]int64, error) {
+		Thread:  staffStore.NewStaffMessageThreadRepository(db),
+		Message: staffStore.NewStaffMessageRepository(db),
+		Read: staffStore.NewStaffMessageReadRepository(db, usersRepo.NewMessageableStaffRepository(db, func(ctx context.Context) ([]int64, error) {
 			return currentTenantStaffAccounts(ctx, membership, members.Person)
-		}, activeAccountQuery(mustAccountRepository(authRepo.NewAccountRepository(db)))),
+		}, staffMessageIdentity(db, authRepo.NewAccountRepository(db)))),
 	}, nil
 }

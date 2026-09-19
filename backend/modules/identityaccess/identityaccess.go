@@ -5,7 +5,9 @@
 // acceptance (#2699), the platform operator identity and refresh sessions
 // behind operator login, refresh and revocation, and the account refresh
 // sessions behind tenant, parent and school login, refresh, switching and
-// revocation (#2720).
+// revocation (#2720). The role and permission administration behind the RBAC
+// routes, staff membership, operator provisioning and staff offboarding
+// followed with #3314.
 //
 // Accounts are platform-wide rows without a tenant. The school mapping
 // (`auth.account_tenants`), the guardian base role assignment
@@ -51,9 +53,15 @@ func ErrorCode(err error) string {
 		return "none"
 	case errors.Is(err, ErrAccountNotFound), errors.Is(err, ErrRoleNotFound), errors.Is(err, ErrGuardianRoleMissing),
 		errors.Is(err, ErrOperatorNotFound), errors.Is(err, ErrOperatorSessionNotFound),
-		errors.Is(err, ErrAccountSessionNotFound), errors.Is(err, ErrSchoolNotFound), errors.Is(err, ErrAccountTenantAccessNotFound):
+		errors.Is(err, ErrAccountSessionNotFound), errors.Is(err, ErrSchoolNotFound), errors.Is(err, ErrAccountTenantAccessNotFound),
+		errors.Is(err, ErrOperatorMFACredentialNotFound), errors.Is(err, ErrOperatorMFAChallengeNotFound),
+		errors.Is(err, ErrOperatorTrustedDeviceNotFound), errors.Is(err, ErrOperatorInvitationNotFound),
+		errors.Is(err, ErrOperatorEmailChangeNotFound), errors.Is(err, ErrOperatorPasskeyNotFound),
+		errors.Is(err, ErrOperatorPasskeySessionNotFound), errors.Is(err, ErrAccountPasskeyNotFound),
+		errors.Is(err, ErrAccountPasskeySessionNotFound):
 		return "not_found"
-	case errors.Is(err, ErrOperatorSessionRotated), errors.Is(err, ErrAccountSessionRotated), errors.Is(err, ErrAccountTenantAccessExists):
+	case errors.Is(err, ErrOperatorSessionRotated), errors.Is(err, ErrAccountSessionRotated), errors.Is(err, ErrAccountTenantAccessExists),
+		errors.Is(err, ErrOperatorMFAChallengeStateChanged):
 		return "conflict"
 	case errors.Is(err, ErrTenantRequired):
 		return "tenant_required"
@@ -317,6 +325,16 @@ type AccountSessionAccess interface {
 type Engine interface {
 	GuardianAccess
 	OperatorAccess
+	OperatorMFARecords
+	OperatorMFAFlows
+	OperatorTokens
+	OperatorPasskeyRecords
+	OperatorPasskeyFlows
+	AccountPasskeyRecords
+	AccountPasskeyFlows
+	AccountMFA
+	PasswordResets
+	SchoolInvitations
 	AccountSessionAccess
 	RFIDQuery
 	SchoolAccountQuery
@@ -331,6 +349,10 @@ type Engine interface {
 	OperatorAuthentication
 	OperatorAccountAccess
 	AccountLifecycle
+	RoleAdministration
+	AccountProvisioning
+	AccountAdministration
+	OperatorProvisioning
 }
 
 // InvitedPersonQuery retains the person identities of unused invitations in
@@ -394,18 +416,46 @@ func (m *Module) FindRFIDCard(ctx context.Context, tag string) (string, bool, er
 	return id, found, nil
 }
 
+// TenantRuntimeBinding is the seam the composition root binds the unit of
+// work through that the module opens its own session, lifecycle and operator
+// transactions under. modules/identityaccess/compose supplies the reference
+// and the root supplies the runtime, each naming the runtime package it
+// already depends on; the facade names only its own types, so the module's
+// contract stays free of the transaction infrastructure (#3364).
+type TenantRuntimeBinding interface {
+	// BindRuntime binds the unit of work. A value the reference cannot use
+	// is a composition mistake and is reported.
+	BindRuntime(runtime any) error
+}
+
 // Module is the public Identity & Access facade.
 type Module struct {
 	engine Engine
+	// runtime is the binding for the unit of work the module opens its own
+	// transactions under. The root composes the module before it has built
+	// the runtime, so it is bound afterwards through SetTenantRuntime.
+	runtime TenantRuntimeBinding
 }
 
-// NewModule wraps the composed engine. Composition supplies it; consumers
-// depend on the interfaces above.
-func NewModule(engine Engine) *Module {
+// NewModule wraps the composed engine and the runtime binding the
+// composition captured for its transactions. Composition supplies both;
+// consumers depend on the interfaces above.
+func NewModule(engine Engine, runtime TenantRuntimeBinding) *Module {
 	if engine == nil {
 		panic("identity access: engine is required")
 	}
-	return &Module{engine: engine}
+	return &Module{engine: engine, runtime: runtime}
+}
+
+// SetTenantRuntime binds the unit of work the module opens its session,
+// lifecycle and operator transactions under. The composition root wires it
+// once the runtime exists and passes the unit of work it owns; a module
+// composed without a binding accepts the call and keeps its own fallback.
+func (m *Module) SetTenantRuntime(runtime any) error {
+	if m.runtime == nil {
+		return nil
+	}
+	return m.runtime.BindRuntime(runtime)
 }
 
 func (m *Module) FindAccount(ctx context.Context, id int64) (Account, error) {

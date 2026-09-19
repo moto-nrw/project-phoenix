@@ -13,7 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -179,7 +179,7 @@ func templateRequiredStaffCount(row templateRow, childrenPerStaffRatio int) int 
 	if !row.CapacityOccurrenceFound {
 		override = nil
 	}
-	return scheduleSvc.EffectiveRequiredStaff(override, row.CapacityEnrollmentCount, childrenPerStaffRatio)
+	return timetableplanning.EffectiveRequiredStaff(override, row.CapacityEnrollmentCount, childrenPerStaffRatio)
 }
 
 // templateRequiredStaffOverride converts the nullable required_staff column
@@ -288,7 +288,7 @@ type templateResponse struct {
 	EnrollmentCount int    `json:"enrollment_count"`
 	SupervisorCount int    `json:"supervisor_count"`
 	// RequiredStaffCount/AssignedStaffCount drive the Betreuungsplan capacity
-	// indicator (issue #1838) — see services/schedule/capacity_service.go.
+	// indicator (issue #1838) — see modules/timetable/legacy/timetableplanning/capacity_service.go.
 	RequiredStaffCount int `json:"required_staff_count"`
 	AssignedStaffCount int `json:"assigned_staff_count"`
 	// RequiredStaffOverride is the raw manual override (#1839), nil when the

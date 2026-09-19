@@ -583,6 +583,10 @@ var adminAbsenceErrorRules = []common.ErrorRule{
 	{Target: workforce.ErrVacationQuotaExceeded, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, "vacation_quota_exceeded")
 	}},
+	{Target: workforce.ErrAllowanceBookingOverlap, Render: common.ErrorConflict},
+	{Target: workforce.ErrAbsenceRebookingBlocked, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, "absence_rebooking_blocked")
+	}},
 	{Match: absenceMsgIs("absence not found"), Render: common.ErrorNotFound},
 	{Match: absenceMsgIs("can only delete own absences"), Render: common.ErrorForbidden},
 	{Match: absenceMsgPrefix("absence overlaps"), Render: common.ErrorConflict},
@@ -676,6 +680,40 @@ func (rs *StaffAdminResource) adminDeleteStaffAbsence(w http.ResponseWriter, r *
 		return
 	}
 	common.RespondNoContent(w, r)
+}
+
+// adminRebookStaffAbsences handles POST /api/staff/{id}/absences/rebook
+// (#3258): the Leitung moves stored entries to another type, for example a
+// past Freizeitausgleich to a Krank-Urlaubstag. With dry_run the response only
+// describes the effects; the write needs a reason and fails when an
+// allowance or the vacation account would run out.
+func (rs *StaffAdminResource) adminRebookStaffAbsences(w http.ResponseWriter, r *http.Request) {
+	staffID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	if _, err := rs.PersonService.StaffByID(r.Context(), staffID); err != nil {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
+		return
+	}
+	claims := rs.identity(r.Context())
+	if claims.AccountID == 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("invalid token")))
+		return
+	}
+	var req workforce.RebookAbsencesRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	result, err := rs.StaffAbsenceService.RebookAbsences(r.Context(), staffID, claims.AccountID, req)
+	if err != nil {
+		tenant.MarkRollback(r.Context())
+		common.RenderError(w, r, common.RenderWithRules(err, adminAbsenceErrorRules, common.ErrorInternalServer))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, result, "Absences rebooked successfully")
 }
 
 // getCompTimeBalancePreview handles

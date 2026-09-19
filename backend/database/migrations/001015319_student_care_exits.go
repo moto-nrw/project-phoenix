@@ -47,7 +47,6 @@ var careEndedStatusTables = []struct {
 // the users:delete gate, which is why the reason never lives on the student
 // row that half the app reads.
 func studentCareExitsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.319: Creating users.student_care_exits...")
 	if _, err := db.NewRaw(`
 		CREATE TABLE IF NOT EXISTS users.student_care_exits (
 			id BIGSERIAL PRIMARY KEY,
@@ -173,8 +172,6 @@ func widenStatusCheck(ctx context.Context, db *bun.DB, schema, table string, val
 }
 
 func studentCareExitsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.319: Dropping users.student_care_exits...")
-
 	// Rows in the new terminal state would violate the narrowed constraint.
 	// Refuse loudly rather than silently rewriting parent-visible decisions.
 	for _, target := range careEndedStatusTables {

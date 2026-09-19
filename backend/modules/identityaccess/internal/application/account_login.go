@@ -195,6 +195,14 @@ func (s *AccountAuthentication) IssueTokensForAuthenticatedAccount(ctx context.C
 
 // validateLoginCredentials checks the address, the password and the account
 // state. Failures are audited when the caller passed an IP address.
+//
+// The password is verified before the account state is judged, for the same
+// reason the wrong-portal refusals sit behind it: "this account is
+// deactivated" is a fact about a foreign account, and answering it to a
+// caller who did not present the credential would let anyone probe which
+// addresses exist and are disabled. Behind a correct password it leaks
+// nothing and is the only way the owner learns why the portal refuses them
+// (#3376).
 func (s *AccountAuthentication) validateLoginCredentials(ctx context.Context, email, password, ipAddress, userAgent string) (domain.LoginAccount, error) {
 	email = strings.TrimSpace(strings.ToLower(email))
 	account, found, _, err := s.store.FindLoginAccountByEmail(ctx, email)
@@ -202,13 +210,13 @@ func (s *AccountAuthentication) validateLoginCredentials(ctx context.Context, em
 		s.logFailedLogin(ctx, 0, ipAddress, userAgent, "Account not found")
 		return domain.LoginAccount{}, failed("login", domain.ErrAccountNotFound)
 	}
-	if !account.Active {
-		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Account inactive")
-		return domain.LoginAccount{}, failed("login", domain.ErrAccountInactive)
-	}
 	if err := s.verifyPassword(account, password); err != nil {
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Invalid password")
 		return domain.LoginAccount{}, err
+	}
+	if !account.Active {
+		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Account inactive")
+		return domain.LoginAccount{}, failed("login", domain.ErrAccountInactive)
 	}
 	return account, nil
 }

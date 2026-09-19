@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -17,27 +18,10 @@ import (
 // values so the root can implement them without the module's internal
 // vocabulary; this package adapts them to the consumer-owned ports.
 
-// OperatorMFAGate is the retained operator MFA service as login consults
-// it. Configured false means the gate is not wired and token pairs are
-// issued directly.
-type OperatorMFAGate interface {
-	Configured() bool
-	HasEnrollment(ctx context.Context, operatorID int64) (bool, error)
-	VerifyTrustedDevice(ctx context.Context, operatorID int64, cookie string) (bool, error)
-	StartChallenge(ctx context.Context, operatorID int64, ipAddress string) (string, error)
-	TrustedDeviceDays() int
-}
-
 // OperatorAudit appends operator actions to the Audit platform's
 // platform-scoped ledger on the caller's transaction.
 type OperatorAudit interface {
 	RecordOperatorAction(ctx context.Context, entry identityaccess.OperatorAuditEntry) error
-}
-
-// OperatorCredentialCleanup invalidates the pending e-mail change links a
-// password rotation must not leave alive.
-type OperatorCredentialCleanup interface {
-	InvalidateEmailChangeTokens(ctx context.Context, operatorID int64) error
 }
 
 // PasswordHasher hashes a new password and applies the strength policy.
@@ -104,32 +88,18 @@ type SchoolIdentityProvisioner interface {
 	ListAccountIdentityFacts(ctx context.Context, accountID int64) ([]AccountIdentityFact, error)
 }
 
-// SchoolRolePolicy is the retained role assignment policy every
-// school-access path shares. A role with ID zero is one that does not
-// exist; ValidateAssignableSchoolRole reports why a role may not be handed
-// out at the school with the message the operator sees.
-type SchoolRolePolicy interface {
-	ValidateAssignableSchoolRole(role identityaccess.SchoolRole, tenantID int64) error
-	IsLehrkraftSystemRole(role identityaccess.SchoolRole) bool
-	RoleNeedsStaffRecord(role identityaccess.SchoolRole) bool
-	LehrkraftRoleImmutable() error
-}
-
 // OperatorDependencies are the seams the operator flows need beyond the
 // account-session dependencies they share (the password verifier, the JWT
 // codec, the auth ledger, the schools and the tenant runtime).
 type OperatorDependencies struct {
-	MFA           OperatorMFAGate
 	Audit         OperatorAudit
-	Credentials   OperatorCredentialCleanup
 	Passwords     PasswordHasher
 	Organizations OrganizationDirectory
 	Identities    SchoolIdentityProvisioner
-	RolePolicy    SchoolRolePolicy
 	Logger        *slog.Logger
 }
 
-func newOperatorFlows(service *application.Service, store *postgres.Store, auth *application.AccountAuthentication, sessions *SessionDependencies, deps *OperatorDependencies, lifecycle *application.AccountLifecycle) (*application.OperatorAuthentication, *application.OperatorAccountAccess, error) {
+func newOperatorFlows(service *application.Service, store *postgres.Store, tokens *application.OperatorTokens, auth *application.AccountAuthentication, sessions *SessionDependencies, deps *OperatorDependencies, lifecycle *application.AccountLifecycle, mfa ports.OperatorMFAGate) (*application.OperatorAuthentication, *application.OperatorAccountAccess, error) {
 	if deps == nil {
 		return nil, nil, nil
 	}
@@ -137,8 +107,8 @@ func newOperatorFlows(service *application.Service, store *postgres.Store, auth 
 		return nil, nil, errors.New("identity access compose: the operator flows require the session dependencies")
 	}
 	switch {
-	case deps.MFA == nil, deps.Audit == nil, deps.Credentials == nil, deps.Passwords == nil,
-		deps.Organizations == nil, deps.Identities == nil, deps.RolePolicy == nil:
+	case deps.Audit == nil, deps.Passwords == nil,
+		deps.Organizations == nil, deps.Identities == nil:
 		return nil, nil, errors.New("identity access compose: every operator dependency is required")
 	}
 	attach := sessions.TenantRuntime
@@ -150,9 +120,9 @@ func newOperatorFlows(service *application.Service, store *postgres.Store, auth 
 		Passwords:   sessions.Passwords,
 		Hasher:      deps.Passwords,
 		Codec:       tokenCodec{sessions.Codec},
-		MFA:         deps.MFA,
+		MFA:         mfa,
 		Audit:       operatorAudit{deps.Audit},
-		Credentials: deps.Credentials,
+		Credentials: emailChangeRevocation{tokens},
 		Runtime:     runtime,
 		Rotation:    rotationPolicy{},
 		Logger:      deps.Logger,
@@ -168,7 +138,7 @@ func newOperatorFlows(service *application.Service, store *postgres.Store, auth 
 		Schools:       schoolDirectory{sessions.Schools},
 		Organizations: organizationDirectory{deps.Organizations},
 		Identities:    schoolIdentityProvisioner{source: deps.Identities, lifecycle: lifecycle},
-		Policy:        schoolRolePolicy{deps.RolePolicy},
+		Policy:        schoolRolePolicy{},
 		Audit:         authAudit{sessions.Audit},
 		OperatorAudit: operatorAudit{deps.Audit},
 		Runtime:       runtime,
@@ -183,6 +153,12 @@ func newOperatorFlows(service *application.Service, store *postgres.Store, auth 
 type operatorAudit struct{ source OperatorAudit }
 
 func (a operatorAudit) RecordOperatorAction(ctx context.Context, entry domain.OperatorAuditEntry) error {
+	return a.source.RecordOperatorAction(ctx, publicOperatorAuditEntry(entry))
+}
+
+// publicOperatorAuditEntry renders one ledger entry across the module
+// boundary, with the typed evidence each action carries.
+func publicOperatorAuditEntry(entry domain.OperatorAuditEntry) identityaccess.OperatorAuditEntry {
 	public := identityaccess.OperatorAuditEntry{
 		OperatorID: entry.OperatorID, Action: entry.Action, ResourceType: entry.ResourceType,
 		ResourceID: entry.ResourceID, IPAddress: entry.IPAddress,
@@ -195,7 +171,15 @@ func (a operatorAudit) RecordOperatorAction(ctx context.Context, entry domain.Op
 		change := identityaccess.OperatorAccessChange(*entry.AccessChange)
 		public.AccessChange = &change
 	}
-	return a.source.RecordOperatorAction(ctx, public)
+	if entry.MFA != nil {
+		evidence := identityaccess.OperatorMFAEvidence{Reason: entry.MFA.Reason, LockedUntil: entry.MFA.LockedUntil}
+		if entry.MFA.Override != nil {
+			override := identityaccess.OperatorMFAOverrideEvidence(*entry.MFA.Override)
+			evidence.Override = &override
+		}
+		public.MFA = &evidence
+	}
+	return public
 }
 
 type organizationDirectory struct{ source OrganizationDirectory }
@@ -286,21 +270,40 @@ func (p schoolIdentityProvisioner) ListAccountIdentityFacts(ctx context.Context,
 	return result, nil
 }
 
-type schoolRolePolicy struct{ source SchoolRolePolicy }
+// schoolRolePolicy binds the public school-role policy every school-access
+// path shares (#3314). A role with ID zero is one that does not exist; the
+// validation reports why a role may not be handed out at the school with the
+// message the operator sees.
+type schoolRolePolicy struct{}
 
-func (p schoolRolePolicy) ValidateAssignableSchoolRole(role domain.RoleFact, tenantID int64) error {
-	return p.source.ValidateAssignableSchoolRole(schoolRoleFact(role), tenantID)
+func (schoolRolePolicy) ValidateAssignableSchoolRole(role domain.RoleFact, tenantID int64) error {
+	return identityaccess.ValidateAssignableSchoolRole(operatorRoleFacts(role), tenantID)
 }
 
-func (p schoolRolePolicy) IsLehrkraftSystemRole(role domain.RoleFact) bool {
-	return p.source.IsLehrkraftSystemRole(schoolRoleFact(role))
+func (schoolRolePolicy) IsLehrkraftSystemRole(role domain.RoleFact) bool {
+	return identityaccess.IsLehrkraftSystemRole(operatorRoleFacts(role))
 }
 
-func (p schoolRolePolicy) RoleNeedsStaffRecord(role domain.RoleFact) bool {
-	return p.source.RoleNeedsStaffRecord(schoolRoleFact(role))
+// RoleNeedsStaffRecord classifies the fact as given, ID zero included, as the
+// operator flows always did; only the lookup-shaped decisions treat ID zero
+// as no role.
+func (schoolRolePolicy) RoleNeedsStaffRecord(role domain.RoleFact) bool {
+	return identityaccess.RoleNeedsStaffRecord(&identityaccess.RoleFacts{
+		ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole,
+	})
 }
 
-func (p schoolRolePolicy) LehrkraftRoleImmutable() error { return p.source.LehrkraftRoleImmutable() }
+func (schoolRolePolicy) LehrkraftRoleImmutable() error {
+	return identityaccess.ErrLehrkraftRoleImmutable
+}
+
+// operatorRoleFacts projects a resolved role; ID zero is no role at all.
+func operatorRoleFacts(role domain.RoleFact) *identityaccess.RoleFacts {
+	if role.ID <= 0 {
+		return nil
+	}
+	return &identityaccess.RoleFacts{ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole}
+}
 
 func schoolRoleFact(role domain.RoleFact) identityaccess.SchoolRole {
 	return identityaccess.SchoolRole{ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole}
@@ -474,4 +477,13 @@ func operatorError(err error) error {
 		return &translatedError{text: err.Error(), public: sentinel.public, cause: err}
 	}
 	return authenticationError(err)
+}
+
+// emailChangeRevocation spends the operator's pending e-mail change links
+// when the password changes. The module owns both, so the revocation joins
+// the password change's transaction (#2722).
+type emailChangeRevocation struct{ tokens *application.OperatorTokens }
+
+func (r emailChangeRevocation) InvalidateEmailChangeTokens(ctx context.Context, operatorID int64) error {
+	return r.tokens.RevokeEmailChanges(ctx, operatorID)
 }

@@ -309,7 +309,7 @@ func (s *Service) checkAbsenceTypeName(ctx context.Context, candidate string, ex
 	return nil
 }
 
-func (s *Service) UpdateAbsenceType(ctx context.Context, id int64, name *string, isActive, allowanceEnabled *bool) (domain.StaffAbsenceType, error) {
+func (s *Service) UpdateAbsenceType(ctx context.Context, id int64, name *string, isActive, allowanceEnabled *bool, carryoverUntil *string) (domain.StaffAbsenceType, error) {
 	if id <= 0 {
 		return domain.StaffAbsenceType{}, domain.ErrAbsenceTypeNotFound
 	}
@@ -322,7 +322,7 @@ func (s *Service) UpdateAbsenceType(ctx context.Context, id int64, name *string,
 	}
 	fields := domain.StaffAbsenceTypeFields{
 		Name: existing.Name, BaseType: existing.BaseType, IsActive: existing.IsActive,
-		AllowanceEnabled: existing.AllowanceEnabled,
+		AllowanceEnabled: existing.AllowanceEnabled, CarryoverUntil: existing.CarryoverUntil,
 	}
 	if name != nil {
 		fields.Name = *name
@@ -348,11 +348,14 @@ func (s *Service) UpdateAbsenceType(ctx context.Context, id int64, name *string,
 	if allowanceEnabled != nil {
 		fields.AllowanceEnabled = *allowanceEnabled
 	}
+	if carryoverUntil != nil {
+		fields.CarryoverUntil = *carryoverUntil
+	}
 	if err := fields.Normalize(); err != nil {
 		return domain.StaffAbsenceType{}, err
 	}
 	existing.Name, existing.IsActive = fields.Name, fields.IsActive
-	existing.AllowanceEnabled = fields.AllowanceEnabled
+	existing.AllowanceEnabled, existing.CarryoverUntil = fields.AllowanceEnabled, fields.CarryoverUntil
 	updated, err := s.UpdateStaffAbsenceType(ctx, existing)
 	if err != nil {
 		if errors.Is(err, domain.ErrAbsenceTypeNotFound) {
@@ -383,7 +386,7 @@ func (s *Service) CreateStaffAbsenceType(ctx context.Context, fields domain.Staf
 func (s *Service) UpdateStaffAbsenceType(ctx context.Context, value domain.StaffAbsenceType) (result domain.StaffAbsenceType, err error) {
 	fields := domain.StaffAbsenceTypeFields{
 		Name: value.Name, BaseType: value.BaseType, IsActive: value.IsActive,
-		AllowanceEnabled: value.AllowanceEnabled,
+		AllowanceEnabled: value.AllowanceEnabled, CarryoverUntil: value.CarryoverUntil,
 	}
 	if validationErr := fields.Normalize(); validationErr != nil {
 		return domain.StaffAbsenceType{}, validationErr

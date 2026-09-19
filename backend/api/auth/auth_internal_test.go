@@ -11,8 +11,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
-	authModel "github.com/moto-nrw/project-phoenix/models/auth"
-	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	authModel "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -453,8 +453,8 @@ func TestToRoleResponse(t *testing.T) {
 	baseRole := "admin"
 
 	t.Run("maps all fields including base_role", func(t *testing.T) {
-		role := &authModel.Role{
-			Model:       base.Model{ID: 42, CreatedAt: now, UpdatedAt: now},
+		role := identityaccess.Role{
+			ID: 42, CreatedAt: now, UpdatedAt: now,
 			Name:        "custom-admin",
 			Description: "A custom admin role",
 			IsSystem:    false,
@@ -475,8 +475,8 @@ func TestToRoleResponse(t *testing.T) {
 	})
 
 	t.Run("nil base_role preserved", func(t *testing.T) {
-		role := &authModel.Role{
-			Model:    base.Model{ID: 1, CreatedAt: now, UpdatedAt: now},
+		role := identityaccess.Role{
+			ID: 1, CreatedAt: now, UpdatedAt: now,
 			Name:     "legacy-role",
 			BaseRole: nil,
 		}
@@ -486,8 +486,8 @@ func TestToRoleResponse(t *testing.T) {
 	})
 
 	t.Run("system role flag preserved", func(t *testing.T) {
-		role := &authModel.Role{
-			Model:    base.Model{ID: 1, CreatedAt: now, UpdatedAt: now},
+		role := identityaccess.Role{
+			ID: 1, CreatedAt: now, UpdatedAt: now,
 			Name:     "admin",
 			IsSystem: true,
 			BaseRole: nil,

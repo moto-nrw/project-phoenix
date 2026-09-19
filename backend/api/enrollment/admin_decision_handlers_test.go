@@ -22,10 +22,10 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	permissions2 "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
@@ -477,7 +477,7 @@ func TestGetAdminRequestHandler_StitchesChildOfferings(t *testing.T) {
 }
 
 // #2185: valid_until goes over the wire as the INCLUSIVE last covered day,
-// the shape api/parent/care_offerings_handlers.go has always used. One JSON
+// the shape modules/careplan/inbound/parent/care_offerings_handlers.go has always used. One JSON
 // name must not mean two different days depending on which endpoint answered.
 func TestGetAdminRequestHandler_ReportsInclusiveOfferingEndDate(t *testing.T) {
 	t.Parallel()

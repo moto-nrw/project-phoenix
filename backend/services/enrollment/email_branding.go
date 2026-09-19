@@ -5,18 +5,17 @@ import (
 	"encoding/json"
 	"strings"
 
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
 )
 
 const schoolLoginImageKey = "loginImageUrl"
 
-func emailBrandForSchool(ctx context.Context, schoolRepo platformModels.SchoolRepository, tenantID int64, baseURL string) (string, string) {
+func emailBrandForSchool(ctx context.Context, schoolRepo SchoolDirectory, tenantID int64, baseURL string) (string, string) {
 	if schoolRepo == nil || tenantID == 0 {
 		return "", ""
 	}
-	school, err := schoolRepo.FindByID(ctx, tenantID)
-	if err != nil || school == nil || school.IsDeleted() {
+	school, err := schoolRepo.FindSchool(ctx, tenantID)
+	if err != nil || school == nil || school.Deleted {
 		return "", ""
 	}
 	return school.Name, schoolEmailLogoURL(baseURL, schoolLoginImageURL(school.Settings))

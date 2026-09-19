@@ -11,7 +11,7 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
 type careOfferingMaterializationDeps struct {
@@ -245,7 +245,7 @@ func isCareOfferingMaterializationCandidate(
 	}
 	return schedule.Weekday == weekday &&
 		scheduleCoversDate(schedule, date) &&
-		scheduleService.ShouldMaterializeWeekPattern(schedule.WeekPattern, date, segment.period)
+		timetableplanning.ShouldMaterializeWeekPattern(schedule.WeekPattern, date, segment.period)
 }
 
 func careOfferingScheduleTimeframe(
