@@ -129,8 +129,8 @@ func inboxSelect(q *bun.SelectQuery, accountID int64, staffReader bool, staffAcc
 		ColumnExpr("t.tenant_id AS tenant_id").
 		ColumnExpr("t.student_id AS student_id").
 		ColumnExpr("btrim(COALESCE(pn.first_name,'') || ' ' || COALESCE(pn.last_name,'')) AS student_name").
-		ColumnExpr("s.school_class AS school_class").
-		ColumnExpr("s.group_id AS group_id").
+		ColumnExpr("sm.school_class AS school_class").
+		ColumnExpr("sm.group_id AS group_id").
 		ColumnExpr("t.guardian_account_id AS guardian_account_id").
 		ColumnExpr("btrim(COALESCE(gp.first_name,'') || ' ' || COALESCE(gp.last_name,'')) AS guardian_name").
 		ColumnExpr("COALESCE(sg.relationship_type,'') AS relationship_type").
@@ -147,9 +147,11 @@ func inboxSelect(q *bun.SelectQuery, accountID int64, staffReader bool, staffAcc
 		ColumnExpr("COALESCE(lm.request_type,'') AS last_request_type").
 		ColumnExpr("COALESCE(lm.request_status,'') AS last_request_status").
 		ColumnExpr("lm.payload AS last_message_payload").
-		Join("JOIN users.students AS s ON s.id = t.student_id").
+		Join("JOIN users.student_profiles AS s ON s.id = t.student_id AND s.tenant_id = t.tenant_id").
+		Join("JOIN users.student_school_memberships AS sm ON sm.student_profile_id = s.id AND sm.tenant_id = s.tenant_id AND sm.deleted_at IS NULL").
+		Join("JOIN users.student_care_profiles AS sc ON sc.membership_id = sm.id AND sc.tenant_id = sm.tenant_id").
 		Join("JOIN users.persons AS pn ON pn.id = s.person_id AND pn.deleted_at IS NULL").
-		Where("s.status <> ?", studentStatusAlumnus).
+		Where("sm.status <> ?", studentStatusAlumnus).
 		// gp.tenant_id = t.tenant_id is REQUIRED: guardian_profiles is
 		// UNIQUE(tenant_id, account_id), so a guardian with children at two schools
 		// has one row per school. Joining on account_id alone would duplicate each
@@ -177,10 +179,12 @@ func unreadMessageCountSelect(q *bun.SelectQuery, accountID int64, staffReader b
 	query := q.
 		TableExpr("users.parent_messages AS um").
 		Join("JOIN users.parent_message_threads AS t ON t.id = um.thread_id AND t.tenant_id = um.tenant_id").
-		Join("JOIN users.students AS s ON s.id = t.student_id").
+		Join("JOIN users.student_profiles AS s ON s.id = t.student_id AND s.tenant_id = t.tenant_id").
+		Join("JOIN users.student_school_memberships AS sm ON sm.student_profile_id = s.id AND sm.tenant_id = s.tenant_id AND sm.deleted_at IS NULL").
+		Join("JOIN users.student_care_profiles AS sc ON sc.membership_id = sm.id AND sc.tenant_id = sm.tenant_id").
 		Join("JOIN users.persons AS pn ON pn.id = s.person_id AND pn.deleted_at IS NULL").
 		Join("LEFT JOIN users.parent_message_reads AS r ON r.thread_id = t.id AND r.account_id = ? AND r.tenant_id = t.tenant_id", accountID).
-		Where("s.status <> ?", studentStatusAlumnus).
+		Where("sm.status <> ?", studentStatusAlumnus).
 		Where(afterReadCursorUM).
 		Where(notReaderAuthoredUM, accountID)
 	if staffReader {
@@ -342,7 +346,9 @@ func (p *Projection) FindThreadHeader(ctx context.Context, threadID int64) (*dom
 		ColumnExpr("btrim(COALESCE(pn.first_name,'') || ' ' || COALESCE(pn.last_name,'')) AS student_name").
 		ColumnExpr("btrim(COALESCE(gp.first_name,'') || ' ' || COALESCE(gp.last_name,'')) AS guardian_name").
 		ColumnExpr("COALESCE(sg.relationship_type,'') AS relationship_type").
-		Join("JOIN users.students AS s ON s.id = t.student_id").
+		Join("JOIN users.student_profiles AS s ON s.id = t.student_id AND s.tenant_id = t.tenant_id").
+		Join("JOIN users.student_school_memberships AS sm ON sm.student_profile_id = s.id AND sm.tenant_id = s.tenant_id AND sm.deleted_at IS NULL").
+		Join("JOIN users.student_care_profiles AS sc ON sc.membership_id = sm.id AND sc.tenant_id = sm.tenant_id").
 		Join("JOIN users.persons AS pn ON pn.id = s.person_id AND pn.deleted_at IS NULL").
 		// gp.tenant_id = t.tenant_id is REQUIRED: joining on account_id alone
 		// duplicates the row once per school for a guardian with two schools.

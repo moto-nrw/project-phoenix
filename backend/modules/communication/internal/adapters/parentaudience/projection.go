@@ -223,13 +223,13 @@ const letterChildStatusesSQL = `WITH reached AS (` + letterReachedStudentsBound 
 			SELECT s.id AS student_id,
 				COALESCE(p.first_name, '') AS first_name,
 				COALESCE(p.last_name, '')  AS last_name,
-				COALESCE(s.school_class, '') AS school_class,
+				COALESCE(sm.school_class, '') AS school_class,
 				EXISTS (SELECT 1 FROM confirmable c WHERE c.student_id = s.id) AS can_confirm,
 				ack.acknowledged_at AS acknowledged_at,
 				COALESCE(ack.first_name, '') AS ack_first_name,
 				COALESCE(ack.last_name, '')  AS ack_last_name
 			FROM reached
-			JOIN users.students s ON s.id = reached.student_id
+			JOIN users.student_profiles s ON s.id = reached.student_id` + studentMembershipJoins + `
 			JOIN users.persons p ON p.id = s.person_id
 			LEFT JOIN LATERAL (
 				SELECT par.acknowledged_at, gp.first_name, gp.last_name
@@ -419,7 +419,7 @@ func (p *Projection) AudienceRecipients(ctx context.Context, schoolID, announcem
 // of children that no announcement targets yet.
 const reachableGuardiansSQL = `
 			SELECT COUNT(DISTINCT gp.account_id)
-			FROM users.students s
+			FROM users.student_profiles s` + studentMembershipJoins + `
 			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
 			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
 				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
@@ -427,7 +427,7 @@ const reachableGuardiansSQL = `
 				AND gp.account_id IS NOT NULL
 			JOIN auth.account_tenants act ON act.account_id = gp.account_id
 				AND act.tenant_id = gp.tenant_id AND act.status = 'active'
-			WHERE s.tenant_id = ? AND s.id IN (?) AND s.status <> 'alumnus'`
+			WHERE s.tenant_id = ? AND s.id IN (?) AND sm.status <> 'alumnus'`
 
 // CountReachableGuardiansForStudents counts the distinct guardian accounts a
 // student-targeted announcement for the given children would reach right now.
@@ -621,10 +621,10 @@ const answerableChildrenSQL = `
 			FROM users.parent_announcements a
 			JOIN users.parent_announcement_targets pt
 				ON pt.announcement_id = a.id AND pt.tenant_id = a.tenant_id
-			JOIN users.students s ON s.tenant_id = a.tenant_id AND (` + studentTargetMatchFeed + `
+			JOIN users.student_profiles s ON s.tenant_id = a.tenant_id` + studentMembershipJoins + ` AND (` + studentTargetMatchFeed + `
 			)
 			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
-				AND s.status <> 'alumnus'
+				AND sm.status <> 'alumnus'
 			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = a.tenant_id
 				AND sg.permissions @> '{"parent_portal.access": true, "parent_portal.poll.response": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = a.tenant_id
@@ -806,12 +806,12 @@ const pollChildrenSQL = `WITH audience AS (` + pollAudienceStudentsBound + `),
 			SELECT s.id AS student_id,
 				COALESCE(p.first_name, '') AS first_name,
 				COALESCE(p.last_name, '') AS last_name,
-				COALESCE(s.school_class, '') AS school_class,
+				COALESCE(sm.school_class, '') AS school_class,
 				COALESCE(ans.labels, ARRAY[]::text[]) AS answer_labels,
 				ans.responded_at AS responded_at,
 				EXISTS (SELECT 1 FROM answerable_audience aa WHERE aa.student_id = s.id) AS can_answer
 			FROM audience
-			JOIN users.students s ON s.id = audience.student_id
+			JOIN users.student_profiles s ON s.id = audience.student_id` + studentMembershipJoins + `
 			JOIN users.persons p ON p.id = s.person_id
 			LEFT JOIN LATERAL (
 				SELECT array_agg(o.label ORDER BY o.position) AS labels,
