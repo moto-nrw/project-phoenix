@@ -29,7 +29,6 @@ type studentListParams struct {
 	// once (#2218: two groups supervised together need "3a AND 4b" in one
 	// list); an empty slice means every class.
 	schoolClasses []string
-	guardianName  string
 	firstName     string
 	lastName      string
 	location      string
@@ -70,7 +69,7 @@ type studentListParams struct {
 	// studentIDs is an optional pre-filter populated by upstream resolution
 	// (e.g., room_id → active visits) before the SQL list query runs. When
 	// set, buildBaseFilter adds `student.id IN (...)` so the standard
-	// school_class / guardian_name / pagination pipeline still applies.
+	// school_class / pagination pipeline still applies.
 	studentIDs []int64
 	// actuallyPresentIDs bypass only the legacy alumnus visibility guard. The
 	// shared participation rule has already decided these children must remain
@@ -242,7 +241,6 @@ func parseStudentListParams(r *http.Request) *studentListParams {
 	today := timezone.TodayDate()
 	params := &studentListParams{
 		schoolClasses:   parseMultiValueParam(r.URL.Query()["school_class"]),
-		guardianName:    r.URL.Query().Get("guardian_name"),
 		firstName:       r.URL.Query().Get("first_name"),
 		lastName:        r.URL.Query().Get("last_name"),
 		location:        r.URL.Query().Get("location"),
@@ -323,7 +321,6 @@ func (p *studentListParams) hasAdministrativeFilters() bool {
 func (p *studentListParams) canUseGroupOnlyShortcut() bool {
 	return len(p.schoolClasses) == 0 &&
 		len(p.gradeLevels) == 0 &&
-		p.guardianName == "" &&
 		p.roomID == 0 &&
 		len(p.studentIDs) == 0 &&
 		p.careStatus == CareStatusAll &&
@@ -389,9 +386,8 @@ func parseDayStatusParam(value string) string {
 // which of its columns a caller may narrow by is the owner's decision (#3349).
 func (p *studentListParams) buildDirectoryFilter() users.StudentDirectoryFilter {
 	return users.StudentDirectoryFilter{
-		SchoolClasses:        p.schoolClasses,
-		GradeLevels:          p.gradeLevels,
-		GuardianNameContains: p.guardianName,
+		SchoolClasses: p.schoolClasses,
+		GradeLevels:   p.gradeLevels,
 		// actuallyPresentIDs bypass the alumnus guard only.
 		KeepAlumni:   p.actuallyPresentIDs,
 		IDs:          p.studentIDs,

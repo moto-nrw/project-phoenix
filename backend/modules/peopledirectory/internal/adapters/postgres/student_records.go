@@ -97,21 +97,6 @@ func (s *StudentStore) ListRecordsByClasses(
 	})
 }
 
-// ListRecordsByGuardianContact finds children by one of the two retained
-// guardian contact columns. The guardian tables are authoritative; these
-// survive for the import and search paths that still carry a bare address.
-func (s *StudentStore) ListRecordsByGuardianContact(
-	ctx context.Context,
-	email, phone string,
-) ([]domain.StudentRecord, domain.OperationStats, error) {
-	return s.selectStudentRecords(ctx, "list student records by guardian contact", func(query *bun.SelectQuery) *bun.SelectQuery {
-		if email != "" {
-			return query.Where(`"student".guardian_email = ?`, email)
-		}
-		return query.Where(`"student".guardian_phone = ?`, phone)
-	})
-}
-
 // ListRecordsDueForStatus drives the two halves of the activate-students tick:
 // the children whose start day has arrived, and those whose last care day has
 // passed.

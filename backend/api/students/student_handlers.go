@@ -255,7 +255,7 @@ func enrichPaginatedPlanningTimes(responses []StudentResponse, params *studentLi
 // fetchStudentsForList fetches students based on the provided parameters. The
 // location/room/group pre-filters each resolve a set of student IDs (or a fully
 // materialized slice for the group-only fast path) before the standard query
-// path applies school_class / guardian_name / pagination on top.
+// path applies school_class / pagination on top.
 func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListParams) ([]*users.Student, int, error) {
 	ctx := r.Context()
 
@@ -365,7 +365,7 @@ func (rs *Resource) resolveLocationStateFilter(ctx context.Context, params *stud
 
 // resolveRoomFilter resolves the room_id pre-filter (#1323): students currently
 // checked-in to any active group in the room, pushed through the standard query
-// path so school_class / guardian_name / pagination still apply. The visit join
+// path so school_class / pagination still apply. The visit join
 // lives in the active service (rule 11: services own queries, not handlers). It
 // reports nonEmpty=false when the resolved set is empty.
 func (rs *Resource) resolveRoomFilter(ctx context.Context, params *studentListParams) (bool, error) {
@@ -445,7 +445,7 @@ func (rs *Resource) resolveGroupFilter(ctx context.Context, params *studentListP
 
 // runStandardStudentQuery runs the SQL list/count path. buildBaseFilter picks up
 // params.studentIDs (if set by a pre-filter above) and combines it with
-// school_class / guardian_name and pagination.
+// school_class and pagination.
 func (rs *Resource) runStandardStudentQuery(ctx context.Context, params *studentListParams) ([]*users.Student, int, error) {
 	totalCount, err := rs.StudentService.CountStudents(ctx, params.buildDirectoryFilter())
 	if err != nil {
@@ -658,24 +658,6 @@ func createStudentFromRequest(req *StudentRequest, personID int64) *users.Studen
 	student := &users.Student{
 		PersonID:    personID,
 		SchoolClass: req.SchoolClass,
-	}
-
-	// Set optional legacy guardian fields if provided
-	if req.GuardianName != "" {
-		name := req.GuardianName
-		student.GuardianName = &name
-	}
-	if req.GuardianContact != "" {
-		contact := req.GuardianContact
-		student.GuardianContact = &contact
-	}
-	if req.GuardianEmail != "" {
-		email := req.GuardianEmail
-		student.GuardianEmail = &email
-	}
-	if req.GuardianPhone != "" {
-		phone := req.GuardianPhone
-		student.GuardianPhone = &phone
 	}
 
 	if req.GroupID != nil {
@@ -1016,7 +998,6 @@ func applyStudentFieldUpdates(req *UpdateStudentRequest, student *users.Student)
 	if req.SchoolClass != nil {
 		student.SchoolClass = *req.SchoolClass
 	}
-	applyGuardianUpdates(req, student)
 	applyOptionalStudentFields(req, student)
 	applySickStatus(req, student)
 	applyExcusedStatus(req, student)
@@ -1045,32 +1026,6 @@ func reconcilePhotoConsentRequest(requested *bool, snapshot, fresh *users.Studen
 	}
 
 	return requested
-}
-
-// applyGuardianUpdates handles legacy guardian field updates
-func applyGuardianUpdates(req *UpdateStudentRequest, student *users.Student) {
-	if req.GuardianName != nil {
-		trimmed := strings.TrimSpace(*req.GuardianName)
-		if trimmed == "" {
-			student.GuardianName = nil
-		} else {
-			student.GuardianName = &trimmed
-		}
-	}
-	if req.GuardianContact != nil {
-		trimmed := strings.TrimSpace(*req.GuardianContact)
-		if trimmed == "" {
-			student.GuardianContact = nil
-		} else {
-			student.GuardianContact = &trimmed
-		}
-	}
-	if req.GuardianEmail != nil {
-		student.GuardianEmail = req.GuardianEmail
-	}
-	if req.GuardianPhone != nil {
-		student.GuardianPhone = req.GuardianPhone
-	}
 }
 
 // applyOptionalStudentFields applies optional fields like GroupID, ExtraInfo, etc.

@@ -160,11 +160,6 @@ func studentModelToRecord(student *userModels.Student) peopleModule.StudentRecor
 		PersonID: student.PersonID, SchoolClass: student.SchoolClass,
 		GroupID: student.GroupID, Status: string(student.Status),
 
-		GuardianName:    student.GuardianName,
-		GuardianContact: student.GuardianContact,
-		GuardianEmail:   student.GuardianEmail,
-		GuardianPhone:   student.GuardianPhone,
-
 		AddressStreet:     student.AddressStreet,
 		AddressCity:       student.AddressCity,
 		AddressPostalCode: student.AddressPostalCode,
@@ -405,14 +400,6 @@ func (r studentRepositoryWithOwnerWrites) FindByGroupIDs(ctx context.Context, gr
 
 func (r studentRepositoryWithOwnerWrites) FindBySchoolClass(ctx context.Context, schoolClass string) ([]*userModels.Student, error) {
 	return r.reads.FindBySchoolClass(ctx, schoolClass)
-}
-
-func (r studentRepositoryWithOwnerWrites) FindByGuardianEmail(ctx context.Context, email string) ([]*userModels.Student, error) {
-	return r.reads.FindByGuardianEmail(ctx, email)
-}
-
-func (r studentRepositoryWithOwnerWrites) FindByGuardianPhone(ctx context.Context, phone string) ([]*userModels.Student, error) {
-	return r.reads.FindByGuardianPhone(ctx, phone)
 }
 
 func (r studentRepositoryWithOwnerWrites) FindPendingDueForActivation(ctx context.Context, asOf userModels.CalendarDate) ([]*userModels.Student, error) {

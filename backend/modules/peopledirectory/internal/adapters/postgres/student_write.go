@@ -18,7 +18,6 @@ import (
 // rather than taken from the caller's struct.
 const studentWritableColumns = `person_id, school_class, group_id, status,
 	enrolled_from, enrolled_until,
-	guardian_name, guardian_contact, guardian_email, guardian_phone,
 	address_street, address_city, address_postal_code,
 	extra_info, supervisor_notes, health_info, pickup_status,
 	sick, sick_since, excused, excused_since,
@@ -257,7 +256,6 @@ func (s *StudentStore) FindDeparturePlan(
 const studentReturningColumns = `id, created_at, updated_at, tenant_id,
 	person_id, school_class, group_id, status,
 	enrolled_from, enrolled_until,
-	guardian_name, guardian_contact, guardian_email, guardian_phone,
 	address_street, address_city, address_postal_code,
 	extra_info, supervisor_notes, health_info, pickup_status,
 	departure_days, allowed_departure_modes, pickup_days, bus_days,
@@ -279,8 +277,6 @@ func newStudentWriteRow(record domain.StudentRecord, tenantID int64) studentWrit
 	row.GroupID, row.Status = record.GroupID, record.Status
 	row.EnrolledFrom = studentDateParam(record.EnrolledFrom)
 	row.EnrolledUntil = studentDateParam(record.EnrolledUntil)
-	row.GuardianName, row.GuardianContact = record.GuardianName, record.GuardianContact
-	row.GuardianEmail, row.GuardianPhone = record.GuardianEmail, record.GuardianPhone
 	row.AddressStreet, row.AddressCity = record.AddressStreet, record.AddressCity
 	row.AddressPostalCode = record.AddressPostalCode
 	row.ExtraInfo, row.SupervisorNotes = record.ExtraInfo, record.SupervisorNotes

@@ -151,7 +151,6 @@ func seedApprovedChildWithStudent(
 
 	startDate := timezone.Date(env.sourcePhase.ServiceStartDate)
 	endDate := timezone.Date(env.sourcePhase.ServiceEndDate)
-	guardianEmailCopy := guardianEmail
 	classFromGrade := classForGrade(grade)
 	student := &usersModels.Student{
 		PersonID:      person.ID,
@@ -159,7 +158,6 @@ func seedApprovedChildWithStudent(
 		Status:        usersModels.StudentStatusActive,
 		EnrolledFrom:  &startDate,
 		EnrolledUntil: &endDate,
-		GuardianEmail: &guardianEmailCopy,
 	}
 	student.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, env.repos.Student.Create(ctx, student))

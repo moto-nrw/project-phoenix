@@ -624,8 +624,6 @@ func TestCreateStudent(t *testing.T) {
 			"last_name":           "Fields",
 			"school_class":        "2b",
 			"birthday":            "2015-06-15",
-			"guardian_name":       "Parent Name",
-			"guardian_email":      "parent@example.com",
 			"address_street":      "Musterstraße 12",
 			"address_city":        "Köln",
 			"address_postal_code": "50667",
@@ -818,19 +816,15 @@ func TestCreateStudent_WithAllOptionalFields(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, tc.db, "FullCreateGroup")
 
 		body := map[string]interface{}{
-			"first_name":       "Full",
-			"last_name":        "Create",
-			"school_class":     "FC1",
-			"birthday":         "2015-03-25",
-			"group_id":         group.ID,
-			"guardian_name":    "Parent Full",
-			"guardian_email":   "fullparent@test.com",
-			"guardian_phone":   "+4912345678",
-			"guardian_contact": "Emergency info",
-			"health_info":      "No allergies",
-			"extra_info":       "Extra notes",
-			"pickup_status":    "bus",
-			"bus":              true,
+			"first_name":    "Full",
+			"last_name":     "Create",
+			"school_class":  "FC1",
+			"birthday":      "2015-03-25",
+			"group_id":      group.ID,
+			"health_info":   "No allergies",
+			"extra_info":    "Extra notes",
+			"pickup_status": "bus",
+			"bus":           true,
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
 
@@ -909,7 +903,7 @@ func TestUpdateStudent_WithGuardianInfo(t *testing.T) {
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
-		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
 	})
 
 	t.Run("update_guardian_email", func(t *testing.T) {
@@ -919,7 +913,7 @@ func TestUpdateStudent_WithGuardianInfo(t *testing.T) {
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
-		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
 	})
 
 	t.Run("update_guardian_phone", func(t *testing.T) {
@@ -929,7 +923,7 @@ func TestUpdateStudent_WithGuardianInfo(t *testing.T) {
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
-		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
 	})
 }
 
@@ -1372,7 +1366,7 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
-		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
 	})
 }
 
@@ -1427,7 +1421,7 @@ func TestUpdateStudent_PersonFields(t *testing.T) {
 
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
-		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
 	})
 }
 
@@ -1625,7 +1619,7 @@ func TestUpdateStudent_AllPersonFields(t *testing.T) {
 
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
-		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+		assert.Equal(t, http.StatusBadRequest, rr.Code, "Expected 400 Bad Request. Body: %s", rr.Body.String())
 	})
 
 	t.Run("update_student_specific_fields", func(t *testing.T) {
@@ -1701,10 +1695,6 @@ func TestCreateStudent_ExtendedValidation(t *testing.T) {
 			"postal_code":         "10115",
 			"bus":                 true,
 			"extra_info":          "Test student with all fields",
-			"guardian_first_name": "Parent",
-			"guardian_last_name":  "Name",
-			"guardian_email":      "parent@example.com",
-			"guardian_phone":      "+49111222333",
 			"responsible_person":  "Teacher",
 			"responsible_phone":   "+49444555666",
 			"data_retention_days": 20,

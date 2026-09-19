@@ -55,8 +55,6 @@ type EnrollmentStudent struct {
 	Status        string
 	EnrolledFrom  string
 	EnrolledUntil string
-	GuardianEmail *string
-	GuardianPhone *string
 }
 
 // StudentStatusAlumnus is the lifecycle status of a graduated child. Rows

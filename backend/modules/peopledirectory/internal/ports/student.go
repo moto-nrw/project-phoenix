@@ -42,8 +42,6 @@ type StudentStore interface {
 	ListRecords(context.Context, string) ([]domain.StudentRecord, domain.OperationStats, error)
 	// ListRecordsByClasses returns the non-alumni children of the classes.
 	ListRecordsByClasses(context.Context, []string, string) ([]domain.StudentRecord, domain.OperationStats, error)
-	// ListRecordsByGuardianContact finds children by a retained guardian column.
-	ListRecordsByGuardianContact(context.Context, string, string) ([]domain.StudentRecord, domain.OperationStats, error)
 	// ListRecordsDueForStatus returns the children a lifecycle tick is due to move.
 	ListRecordsDueForStatus(context.Context, string, string, string) ([]domain.StudentRecord, domain.OperationStats, error)
 	// LockRecordsByIDs reads and locks the given rows in ascending id order.

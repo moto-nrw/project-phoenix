@@ -124,18 +124,6 @@ func (r *StudentReads) FindBySchoolClass(ctx context.Context, schoolClass string
 	})
 }
 
-func (r *StudentReads) FindByGuardianEmail(ctx context.Context, email string) ([]*userModels.Student, error) {
-	return r.listRecords(ctx, "find by guardian email", func() ([]peopleModule.StudentRecord, error) {
-		return r.directory.ListStudentRecordsByGuardianContact(ctx, email, "")
-	})
-}
-
-func (r *StudentReads) FindByGuardianPhone(ctx context.Context, phone string) ([]*userModels.Student, error) {
-	return r.listRecords(ctx, "find by guardian phone", func() ([]peopleModule.StudentRecord, error) {
-		return r.directory.ListStudentRecordsByGuardianContact(ctx, "", phone)
-	})
-}
-
 func (r *StudentReads) FindPendingDueForActivation(
 	ctx context.Context,
 	asOf userModels.CalendarDate,

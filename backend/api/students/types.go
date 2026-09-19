@@ -72,10 +72,6 @@ type StudentResponse struct {
 	Location           string           `json:"current_location"`
 	LocationSince      *time.Time       `json:"location_since,omitempty"`     // When student entered current location
 	RoomColor          *string          `json:"current_room_color,omitempty"` // Hex of the current room when set; nil for status-only locations or rooms without override
-	GuardianName       string           `json:"guardian_name,omitempty"`
-	GuardianContact    string           `json:"guardian_contact,omitempty"`
-	GuardianEmail      string           `json:"guardian_email,omitempty"`
-	GuardianPhone      string           `json:"guardian_phone,omitempty"`
 	GroupID            int64            `json:"group_id,omitempty"`
 	GroupName          string           `json:"group_name,omitempty"`
 	AddressStreet      string           `json:"address_street,omitempty"`
@@ -273,10 +269,6 @@ type StudentRequest struct {
 	SchoolClass string `json:"school_class"`
 
 	// Legacy guardian fields (optional - use guardian_profiles system instead)
-	GuardianName    string `json:"guardian_name,omitempty"`
-	GuardianContact string `json:"guardian_contact,omitempty"`
-	GuardianEmail   string `json:"guardian_email,omitempty"`
-	GuardianPhone   string `json:"guardian_phone,omitempty"`
 
 	// Optional fields
 	GroupID           *int64  `json:"group_id,omitempty"`
@@ -323,10 +315,6 @@ type UpdateStudentRequest struct {
 
 	// Student-specific details (optional for update)
 	SchoolClass       *string `json:"school_class,omitempty"`
-	GuardianName      *string `json:"guardian_name,omitempty"`
-	GuardianContact   *string `json:"guardian_contact,omitempty"`
-	GuardianEmail     *string `json:"guardian_email,omitempty"`
-	GuardianPhone     *string `json:"guardian_phone,omitempty"`
 	GroupID           *int64  `json:"group_id,omitempty"`
 	AddressStreet     *string `json:"address_street,omitempty"`
 	AddressCity       *string `json:"address_city,omitempty"`

@@ -144,12 +144,6 @@ func (s *StudentStore) CreateEnrollment(ctx context.Context, input domain.Enroll
 	return result, stats, nil
 }
 
-type enrollmentStudentRow struct {
-	studentRow
-	GuardianEmail *string `bun:"guardian_email"`
-	GuardianPhone *string `bun:"guardian_phone"`
-}
-
 func createEnrollmentStudent(ctx context.Context, db bun.IDB, tenantID int64, input domain.EnrollmentStudent, stats *domain.OperationStats) (domain.Student, error) {
 	if err := lockEnrollmentClassWrites(ctx, db, tenantID); err != nil {
 		return domain.Student{}, err
@@ -180,19 +174,16 @@ func createEnrollmentStudent(ctx context.Context, db bun.IDB, tenantID int64, in
 	if status == "" {
 		status = "active"
 	}
-	row := enrollmentStudentRow{
-		studentRow:    studentRow{TenantID: tenantID, PersonID: personID, SchoolClass: input.SchoolClass, Status: status, EnrolledFrom: from, EnrolledUntil: until},
-		GuardianEmail: input.GuardianEmail, GuardianPhone: input.GuardianPhone,
-	}
+	row := studentRow{TenantID: tenantID, PersonID: personID, SchoolClass: input.SchoolClass, Status: status, EnrolledFrom: from, EnrolledUntil: until}
 	stats.Queries++
 	err = db.NewInsert().Model(&row).ModelTableExpr("users.students").
-		Column("tenant_id", "person_id", "school_class", "status", "enrolled_from", "enrolled_until", "guardian_email", "guardian_phone").
+		Column("tenant_id", "person_id", "school_class", "status", "enrolled_from", "enrolled_until").
 		Returning("id, created_at, updated_at").Scan(ctx)
 	if err != nil {
 		return domain.Student{}, err
 	}
 	stats.Rows = 1
-	return toStudent(row.studentRow), nil
+	return toStudent(row), nil
 }
 
 func (s *StudentStore) RenewEnrollment(ctx context.Context, id int64, input domain.EnrollmentStudent) (domain.OperationStats, error) {
@@ -216,7 +207,6 @@ func (s *StudentStore) RenewEnrollment(ctx context.Context, id int64, input doma
 	query := withStudentTenant(studentUpdate(db).
 		Set("school_class = ?", input.SchoolClass).Set("status = ?", input.Status).
 		Set("enrolled_from = ?", from).Set("enrolled_until = ?", until).
-		Set("guardian_email = ?", input.GuardianEmail).Set("guardian_phone = ?", input.GuardianPhone).
 		Where(`"student".id = ?`, id), tenantID)
 	affected, stats, err := execStudents(ctx, query, "renew enrollment student")
 	stats.Queries++

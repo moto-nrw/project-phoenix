@@ -18,8 +18,7 @@ func TestEnrollmentStudentCommandsPreserveTenantAndRollback(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	person, err := module.CreatePerson(ctx, peopledirectory.CreatePerson{FirstName: "Anna", LastName: "Enrollment"})
 	require.NoError(t, err)
-	email := "anna@example.test"
-	input := peopledirectory.EnrollmentStudent{PersonID: person.ID, SchoolClass: "1a", Status: "pending", EnrolledFrom: "2026-08-01", EnrolledUntil: "2027-07-31", GuardianEmail: &email}
+	input := peopledirectory.EnrollmentStudent{PersonID: person.ID, SchoolClass: "1a", Status: "pending", EnrolledFrom: "2026-08-01", EnrolledUntil: "2027-07-31"}
 	created, err := module.CreateEnrollmentStudent(ctx, input)
 	require.NoError(t, err)
 	require.Equal(t, testpkg.Tenant(t), created.TenantID)
@@ -77,20 +76,6 @@ func TestEnrollmentStudentCommandsPreserveTenantAndRollback(t *testing.T) {
 	require.Equal(t, "2a", rows[0].SchoolClass)
 	require.NoError(t, db.NewRaw("SELECT extra_info FROM users.students WHERE id = ?", created.ID).Scan(ctx, &storedExtra))
 	require.Equal(t, extra, storedExtra, "profile writes must roll back with the outer workflow")
-}
-
-func TestEnrollmentStudentCommandsValidateContactBeforeWriting(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	module := buildModule(t, db)
-	person, err := module.CreatePerson(testpkg.Ctx(t), peopledirectory.CreatePerson{FirstName: "Ben", LastName: "Enrollment"})
-	require.NoError(t, err)
-	invalidPhone := "not a phone"
-	_, err = module.CreateEnrollmentStudent(testpkg.Ctx(t), peopledirectory.EnrollmentStudent{PersonID: person.ID, SchoolClass: "1a", GuardianPhone: &invalidPhone})
-	require.ErrorIs(t, err, peopledirectory.ErrInvalidStudent)
-	rows, err := module.ListEnrolledStudents(testpkg.Ctx(t))
-	require.NoError(t, err)
-	require.Empty(t, rows)
 }
 
 func TestEnrollmentDepartureMirrorsAndRollback(t *testing.T) {

@@ -72,30 +72,6 @@ func TestStudentRepository_Create(t *testing.T) {
 		// Cleanup
 	})
 
-	t.Run("creates student with optional guardian fields", func(t *testing.T) {
-		person := testpkg.CreateTestPerson(t, db, "Guardian", "Test")
-
-		guardianEmail := "guardian@example.com"
-		guardianPhone := "+49 123 456789"
-		student := &users.Student{
-			PersonID:      person.ID,
-			SchoolClass:   "2b",
-			GuardianEmail: &guardianEmail,
-			GuardianPhone: &guardianPhone,
-		}
-
-		err := repo.Create(ctx, student)
-		require.NoError(t, err)
-
-		found, err := repo.FindByID(ctx, student.ID)
-		require.NoError(t, err)
-		require.NotNil(t, found.GuardianEmail)
-		assert.Equal(t, "guardian@example.com", *found.GuardianEmail)
-		require.NotNil(t, found.GuardianPhone)
-		assert.Equal(t, "+49 123 456789", *found.GuardianPhone)
-
-	})
-
 	t.Run("persists all bus days", func(t *testing.T) {
 		requireStudentsBusDaysColumn(t, db)
 
@@ -156,21 +132,6 @@ func TestStudentRepository_Create(t *testing.T) {
 		err := repo.Create(ctx, student)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "school class")
-	})
-
-	t.Run("fails with invalid email format", func(t *testing.T) {
-		person := testpkg.CreateTestPerson(t, db, "Invalid", "Email")
-
-		badEmail := "not-an-email"
-		student := &users.Student{
-			PersonID:      person.ID,
-			SchoolClass:   "1a",
-			GuardianEmail: &badEmail,
-		}
-
-		err := repo.Create(ctx, student)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "guardian email")
 	})
 
 	t.Run("fails with invalid bus days before persistence", func(t *testing.T) {
@@ -269,16 +230,6 @@ func TestStudentRepository_Update(t *testing.T) {
 		assert.Contains(t, err.Error(), "nil")
 	})
 
-	t.Run("fails with invalid guardian email on update", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "InvalidUpdate", "Test", "1a")
-
-		badEmail := "invalid"
-		student.GuardianEmail = &badEmail
-
-		err := repo.Update(ctx, student)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "guardian email")
-	})
 }
 
 func TestStudentRepository_Delete(t *testing.T) {

@@ -14,10 +14,6 @@ type Record struct {
 	Status                   string
 	EnrolledFrom             string
 	EnrolledUntil            string
-	GuardianName             *string
-	GuardianContact          *string
-	GuardianEmail            *string
-	GuardianPhone            *string
 	AddressStreet            *string
 	AddressCity              *string
 	AddressPostalCode        *string

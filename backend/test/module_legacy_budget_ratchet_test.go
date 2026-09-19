@@ -63,7 +63,7 @@ const moduleLegacyBudgetCheck = "legacy LOC budget"
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 92928
+const moduleLegacyBudgetTotal = 92925
 
 // moduleLegacyBudgets maps a legacy tree to its production LOC on 2026-09-18.
 // The comment on each entry names the ticket that is supposed to dissolve the
@@ -81,7 +81,7 @@ var moduleLegacyBudgets = map[string]int{
 	// No ticket today.
 	"modules/devicefleet/compose/legacy": 231,
 	// No ticket today.
-	"modules/emergencysnapshot/legacy": 322,
+	"modules/emergencysnapshot/legacy": 319,
 	// No ticket today.
 	"modules/facilities/compose/legacy": 518,
 	// No ticket today. One line more than at the first seed: PR #3408 (#3350)

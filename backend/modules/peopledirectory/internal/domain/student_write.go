@@ -93,9 +93,6 @@ func ValidateStudentRecord(
 	if strings.TrimSpace(record.SchoolClass) == "" {
 		return invalidStudentRecord("school class is required")
 	}
-	if err := validateStudentContact(record.GuardianEmail, record.GuardianPhone); err != nil {
-		return err
-	}
 	for _, plan := range []DeparturePlan{supplied, resolved} {
 		if err := validateDeparturePlan(plan); err != nil {
 			return err
@@ -117,51 +114,6 @@ func validateDeparturePlan(plan DeparturePlan) error {
 		return err
 	}
 	return plan.PickupDays.Validate()
-}
-
-// validateStudentContact keeps the two retained guardian contact columns
-// well-formed. They predate the guardian tables and are still imported into.
-func validateStudentContact(email, phone *string) error {
-	if email != nil {
-		if trimmed := strings.TrimSpace(*email); trimmed != "" && !validEmail(trimmed) {
-			return invalidStudentRecord("invalid guardian email format")
-		}
-	}
-	if phone != nil {
-		if trimmed := strings.TrimSpace(*phone); trimmed != "" && !validPhone(trimmed) {
-			return invalidStudentRecord("invalid guardian phone format")
-		}
-	}
-	return nil
-}
-
-// validEmail is deliberately the shape check the retained model applied, not a
-// deliverability test: the column also holds values imported from a school's
-// own records.
-func validEmail(value string) bool {
-	at := strings.Index(value, "@")
-	if at <= 0 || at == len(value)-1 {
-		return false
-	}
-	domain := value[at+1:]
-	dot := strings.LastIndex(domain, ".")
-	return dot > 0 && dot < len(domain)-1 && !strings.Contains(domain, "@")
-}
-
-// validPhone accepts the digits, separators and leading + a written phone
-// number uses; anything else is a typo rather than a number.
-func validPhone(value string) bool {
-	digits := 0
-	for _, symbol := range value {
-		switch {
-		case symbol >= '0' && symbol <= '9':
-			digits++
-		case strings.ContainsRune("+-/() .", symbol):
-		default:
-			return false
-		}
-	}
-	return digits >= 3
 }
 
 // InvalidStudentRecordError refuses a child whose own fields do not hold up.
