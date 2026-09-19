@@ -298,3 +298,60 @@ describe("ParentAnnouncementsPage: scheduled reminder (#3162)", () => {
     expect(updateAnnouncement).not.toHaveBeenCalled();
   });
 });
+
+describe("ParentAnnouncementsPage: children handed over by another page (#3379)", () => {
+  const PREFILL_KEY = "moto:announcement-prefill-students";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    searchParams.delete("art");
+    searchParams.delete("bearbeiten");
+    searchParams.delete("neu");
+    window.sessionStorage.clear();
+    listState.data = [base];
+    listState.isLoading = false;
+    listState.error = null;
+  });
+
+  it("opens a new announcement addressed to the handed-over children", async () => {
+    window.sessionStorage.setItem(
+      PREFILL_KEY,
+      JSON.stringify([
+        { id: "7", name: "Mia Arslan" },
+        { id: "8", name: "Ben Yilmaz" },
+      ]),
+    );
+    searchParams.set("neu", "kinder");
+    render(<ParentAnnouncementsPage />);
+
+    expect(
+      await screen.findByText("Neue Elternmitteilung"),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(updateUrlParamsMock).toHaveBeenCalledWith({ neu: null }),
+    );
+    // Read once: a reload must not address the same families again.
+    expect(window.sessionStorage.getItem(PREFILL_KEY)).toBeNull();
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Titel" }), {
+      target: { value: "Anmeldung fehlt noch" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Text" }), {
+      target: { value: "Bitte melden Sie Ihr Kind an." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+
+    expect(await screen.findByText("Mia Arslan")).toBeInTheDocument();
+    expect(screen.getByText("Ben Yilmaz")).toBeInTheDocument();
+  });
+
+  it("stays on the list when nothing was handed over", async () => {
+    searchParams.set("neu", "kinder");
+    render(<ParentAnnouncementsPage />);
+
+    await waitFor(() =>
+      expect(updateUrlParamsMock).toHaveBeenCalledWith({ neu: null }),
+    );
+    expect(screen.queryByText("Neue Elternmitteilung")).not.toBeInTheDocument();
+  });
+});

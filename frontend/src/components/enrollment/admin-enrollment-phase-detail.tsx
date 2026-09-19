@@ -27,7 +27,13 @@ import {
   decideAdminChild,
   listAdminRequests,
 } from "~/lib/enrollment-admin-api";
-import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
+import {
+  getPhaseResponseOverview,
+  listPhases,
+  type Phase,
+  type PhaseResponseOverview,
+} from "~/lib/enrollment-phase-api";
+import { PhaseResponseOverview as PhaseResponseOverviewPanel } from "~/components/enrollment/phase-response-overview";
 import {
   type EnrollmentExportFormat,
   exportPhaseRegistrations,
@@ -81,6 +87,8 @@ import {
 } from "~/components/enrollment/child-status-badge";
 
 const logger = createLogger({ component: "AdminEnrollmentPhaseDetail" });
+
+type PhaseDetailTab = "requests" | "responses";
 
 const ALL_STATUS_FILTER = "all";
 const ALL_VALUE = "all";
@@ -179,6 +187,18 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     () => coerceSchoolClassOptions(schoolClassOptionsData),
     [schoolClassOptionsData],
   );
+
+  // Rücklauf der bestehenden Kinder (#3379). Der Reiter erscheint nur, wenn
+  // die Phase Anmeldungen einem bestehenden Kind zuordnet; ein Ladefehler
+  // lässt ihn weg, statt die Anmeldungsliste zu blockieren.
+  const [activeTab, setActiveTab] = useState<PhaseDetailTab>("requests");
+  const { data: responseOverview } = useSWRAuth<PhaseResponseOverview>(
+    `enrollment-phase-responses-${phaseId}`,
+    async () => getPhaseResponseOverview(phaseId),
+    { shouldRetryOnError: false },
+  );
+  const showResponses = responseOverview?.applicable === true;
+  const responsesTabActive = showResponses && activeTab === "responses";
 
   const handleExport = useCallback(
     async (format: EnrollmentExportFormat) => {
@@ -819,78 +839,119 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       search={{
         value: search,
         onChange: setSearch,
-        placeholder: "Nach Kind oder Elternkontakt suchen…",
+        placeholder: responsesTabActive
+          ? "Nach Kind oder Klasse suchen…"
+          : "Nach Kind oder Elternkontakt suchen…",
       }}
-      filters={filterConfigs}
-      activeFilters={activeFilters}
-      onClearAllFilters={clearAllFilters}
+      // Die Filter gehören zur Anmeldungsliste; im Rücklauf gibt es nur
+      // „Fehlt noch" und „Abgegeben".
+      filters={responsesTabActive ? undefined : filterConfigs}
+      activeFilters={responsesTabActive ? undefined : activeFilters}
+      onClearAllFilters={responsesTabActive ? undefined : clearAllFilters}
+      tabs={
+        showResponses
+          ? {
+              value: activeTab,
+              onChange: (value) =>
+                setActiveTab(value === "responses" ? "responses" : "requests"),
+              label: "Bereiche der Anmeldephase",
+              items: [
+                { value: "requests", label: "Anmeldungen" },
+                {
+                  value: "responses",
+                  label: "Rücklauf",
+                  badge: responseOverview.expected - responseOverview.responded,
+                },
+              ],
+            }
+          : undefined
+      }
     >
-      <div className="grid gap-3 md:grid-cols-4">
-        <EnrollmentStatTile icon={Inbox} label="Eingänge" value={stats.total} />
-        <EnrollmentStatTile icon={Clock} label="Offen" value={stats.open} />
-        <EnrollmentStatTile
-          icon={Check}
-          label="Bestätigt"
-          value={stats.approved}
+      {responsesTabActive ? (
+        <PhaseResponseOverviewPanel
+          overview={responseOverview}
+          search={search}
         />
-        <EnrollmentStatTile icon={X} label="Abgelehnt" value={stats.rejected} />
-      </div>
-
-      <ClassRosterExportPanel
-        schoolClassOptions={schoolClassOptions}
-        selectedSchoolClass={classRosterSchoolClass}
-        onSelectedSchoolClassChange={setClassRosterSchoolClass}
-        exportingFormat={exportingClassRosterFormat}
-        onExport={(format) => void handleClassRosterExport(format)}
-      />
-
-      {reportError ? <Alert type="error" message={reportError} /> : null}
-
-      <ReportStats
-        report={report}
-        loading={reportLoading}
-        exportingFormat={exportingReportFormat}
-        onExport={(format, layout) => void handleReportExport(format, layout)}
-      />
-
-      <DataTable
-        columns={columns}
-        rows={report?.rows ?? []}
-        getRowKey={(row) => row.child_id}
-        defaultSortKey="child"
-        defaultSortDirection="asc"
-        isLoading={reportLoading}
-        emptyState={
-          <div className="mx-auto max-w-md py-6">
-            <p className="font-medium text-gray-900">
-              {requests.length === 0 && !reportLoading
-                ? "Noch keine Anmeldungen eingegangen"
-                : "Keine Kinder für diese Filter gefunden"}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              {requests.length === 0 && !reportLoading
-                ? "Sobald Eltern das Formular absenden, erscheinen die Eingänge hier."
-                : "Passe Status, Angebot, Betreuungstage, Zielklasse oder Suche an."}
-            </p>
+      ) : (
+        <>
+          <div className="grid gap-3 md:grid-cols-4">
+            <EnrollmentStatTile
+              icon={Inbox}
+              label="Eingänge"
+              value={stats.total}
+            />
+            <EnrollmentStatTile icon={Clock} label="Offen" value={stats.open} />
+            <EnrollmentStatTile
+              icon={Check}
+              label="Bestätigt"
+              value={stats.approved}
+            />
+            <EnrollmentStatTile
+              icon={X}
+              label="Abgelehnt"
+              value={stats.rejected}
+            />
           </div>
-        }
-      />
-      <ConfirmationModal
-        isOpen={approvalWithoutOfferingRow !== null}
-        onClose={() => setApprovalWithoutOfferingRow(null)}
-        onConfirm={() => {
-          const row = approvalWithoutOfferingRow;
-          setApprovalWithoutOfferingRow(null);
-          if (row !== null) void handleQuickDecision(row, "approved");
-        }}
-        title="Anmeldung bestätigen"
-        confirmText="Trotzdem bestätigen"
-      >
-        <Alert
-          type="warning"
-          message="Für dieses Kind ist kein Betreuungsangebot gebucht. Das Kind wird trotzdem in die OGS aufgenommen."
-        />
-      </ConfirmationModal>
+
+          <ClassRosterExportPanel
+            schoolClassOptions={schoolClassOptions}
+            selectedSchoolClass={classRosterSchoolClass}
+            onSelectedSchoolClassChange={setClassRosterSchoolClass}
+            exportingFormat={exportingClassRosterFormat}
+            onExport={(format) => void handleClassRosterExport(format)}
+          />
+
+          {reportError ? <Alert type="error" message={reportError} /> : null}
+
+          <ReportStats
+            report={report}
+            loading={reportLoading}
+            exportingFormat={exportingReportFormat}
+            onExport={(format, layout) =>
+              void handleReportExport(format, layout)
+            }
+          />
+
+          <DataTable
+            columns={columns}
+            rows={report?.rows ?? []}
+            getRowKey={(row) => row.child_id}
+            defaultSortKey="child"
+            defaultSortDirection="asc"
+            isLoading={reportLoading}
+            emptyState={
+              <div className="mx-auto max-w-md py-6">
+                <p className="font-medium text-gray-900">
+                  {requests.length === 0 && !reportLoading
+                    ? "Noch keine Anmeldungen eingegangen"
+                    : "Keine Kinder für diese Filter gefunden"}
+                </p>
+                <p className="mt-1 text-sm text-gray-500">
+                  {requests.length === 0 && !reportLoading
+                    ? "Sobald Eltern das Formular absenden, erscheinen die Eingänge hier."
+                    : "Passe Status, Angebot, Betreuungstage, Zielklasse oder Suche an."}
+                </p>
+              </div>
+            }
+          />
+          <ConfirmationModal
+            isOpen={approvalWithoutOfferingRow !== null}
+            onClose={() => setApprovalWithoutOfferingRow(null)}
+            onConfirm={() => {
+              const row = approvalWithoutOfferingRow;
+              setApprovalWithoutOfferingRow(null);
+              if (row !== null) void handleQuickDecision(row, "approved");
+            }}
+            title="Anmeldung bestätigen"
+            confirmText="Trotzdem bestätigen"
+          >
+            <Alert
+              type="warning"
+              message="Für dieses Kind ist kein Betreuungsangebot gebucht. Das Kind wird trotzdem in die OGS aufgenommen."
+            />
+          </ConfirmationModal>
+        </>
+      )}
     </TenantPage>
   );
 }
