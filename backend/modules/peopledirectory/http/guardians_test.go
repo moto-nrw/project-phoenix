@@ -98,6 +98,9 @@ type guardianHarness struct {
 	actorID     int64
 	exposeToken bool
 	rollbacks   int
+	bulkInvites []usersHTTP.GuardianBulkInvite
+	bulkResult  usersHTTP.GuardianBulkInviteResult
+	bulkErr     error
 	observed    []string
 	rendered    []string
 }
@@ -156,6 +159,10 @@ func newGuardianHarness(t *testing.T, directory *fakeGuardianDirectory) *guardia
 		ListPendingInvitations: func(context.Context) ([]usersHTTP.PendingGuardianInvitation, error) { return nil, nil },
 		InviteGuardianToStudent: func(context.Context, usersHTTP.GuardianInvite) (usersHTTP.GuardianInviteResult, error) {
 			return usersHTTP.GuardianInviteResult{}, errors.New("managed contact")
+		},
+		BulkInviteGuardians: func(_ context.Context, input usersHTTP.GuardianBulkInvite) (usersHTTP.GuardianBulkInviteResult, error) {
+			h.bulkInvites = append(h.bulkInvites, input)
+			return h.bulkResult, h.bulkErr
 		},
 		InviteFailureKind:          func(error) usersHTTP.FailureKind { return usersHTTP.FailureForbidden },
 		ListPendingApprovals:       func(context.Context) ([]usersHTTP.GuardianPendingApproval, error) { return nil, nil },

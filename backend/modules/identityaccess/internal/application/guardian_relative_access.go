@@ -720,7 +720,7 @@ func (l *AccountLifecycle) revokeAccess(ctx context.Context, req domain.RevokeAc
 		return failed(opGuardianRevokeAccess, fmt.Errorf("student and guardian profile IDs are required"))
 	}
 
-	links, err := l.guardians.ListStudentGuardianLinksByStudent(ctx, req.StudentID)
+	links, err := l.guardians.ListStudentGuardianLinksByStudents(ctx, []int64{req.StudentID})
 	if err != nil {
 		return failed(opGuardianRevokeAccess, err)
 	}

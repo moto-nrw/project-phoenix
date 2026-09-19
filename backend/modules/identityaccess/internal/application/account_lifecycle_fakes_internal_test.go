@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -709,11 +710,11 @@ func (g *lifecycleGuardians) sortedLinks(match func(domain.StudentGuardianLink) 
 	return result
 }
 
-func (g *lifecycleGuardians) ListStudentGuardianLinksByStudent(_ context.Context, studentID int64) ([]domain.StudentGuardianLink, error) {
+func (g *lifecycleGuardians) ListStudentGuardianLinksByStudents(_ context.Context, studentIDs []int64) ([]domain.StudentGuardianLink, error) {
 	if g.listByStudentErr != nil {
 		return nil, g.listByStudentErr
 	}
-	return g.sortedLinks(func(link domain.StudentGuardianLink) bool { return link.StudentID == studentID }), nil
+	return g.sortedLinks(func(link domain.StudentGuardianLink) bool { return slices.Contains(studentIDs, link.StudentID) }), nil
 }
 
 func (g *lifecycleGuardians) ListStudentGuardianLinksByProfile(_ context.Context, profileID int64) ([]domain.StudentGuardianLink, error) {

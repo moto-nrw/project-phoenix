@@ -163,7 +163,7 @@ type GuardianDirectory interface {
 	FindStudentGuardianLinkForUpdate(ctx context.Context, studentID, guardianProfileID int64) (StudentGuardianLink, bool, error)
 	LinkStudentGuardianIfAbsent(ctx context.Context, link StudentGuardianLink) (bool, error)
 	PromoteStudentGuardianLink(ctx context.Context, linkID int64) error
-	ListStudentGuardianLinksByStudent(ctx context.Context, studentID int64) ([]StudentGuardianLink, error)
+	ListStudentGuardianLinksByStudents(ctx context.Context, studentIDs []int64) ([]StudentGuardianLink, error)
 	ListStudentGuardianLinksByProfile(ctx context.Context, guardianProfileID int64) ([]StudentGuardianLink, error)
 	DeleteStudentGuardianLink(ctx context.Context, linkID int64) error
 	GuardianRoleClass(role string) GuardianRoleClass
@@ -457,8 +457,8 @@ func studentGuardianLinks(links []StudentGuardianLink) []domain.StudentGuardianL
 	return result
 }
 
-func (d guardianDirectory) ListStudentGuardianLinksByStudent(ctx context.Context, studentID int64) ([]domain.StudentGuardianLink, error) {
-	links, err := d.source.ListStudentGuardianLinksByStudent(ctx, studentID)
+func (d guardianDirectory) ListStudentGuardianLinksByStudents(ctx context.Context, studentIDs []int64) ([]domain.StudentGuardianLink, error) {
+	links, err := d.source.ListStudentGuardianLinksByStudents(ctx, studentIDs)
 	return studentGuardianLinks(links), err
 }
 

@@ -447,8 +447,8 @@ func studentGuardianLinks(links []*userModels.StudentGuardian) []identityaccessC
 	return result
 }
 
-func (d guardianDirectory) ListStudentGuardianLinksByStudent(ctx context.Context, studentID int64) ([]identityaccessCompose.StudentGuardianLink, error) {
-	links, err := d.repos.studentGuardians.FindByStudentID(ctx, studentID)
+func (d guardianDirectory) ListStudentGuardianLinksByStudents(ctx context.Context, studentIDs []int64) ([]identityaccessCompose.StudentGuardianLink, error) {
+	links, err := d.repos.studentGuardians.FindByStudentIDs(ctx, studentIDs)
 	if err != nil {
 		return nil, err
 	}

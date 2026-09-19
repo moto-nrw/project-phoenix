@@ -401,6 +401,7 @@ type PendingApprovalView struct {
 // which opens one for the tenant in context and locks the child's row.
 type GuardianRelativeAccess interface {
 	InviteToStudent(ctx context.Context, req InviteToStudentRequest) (*InviteToStudentResult, error)
+	BulkInviteToStudents(ctx context.Context, req BulkInviteRequest) (*BulkInviteResult, error)
 	ApproveInvitation(ctx context.Context, invitationID, approverAccountID int64) error
 	RejectInvitation(ctx context.Context, invitationID, approverAccountID int64) error
 	PendingInvitationStudentID(ctx context.Context, invitationID int64) (int64, error)

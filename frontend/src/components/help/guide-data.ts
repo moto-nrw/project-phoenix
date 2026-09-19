@@ -811,6 +811,9 @@ export const appChapters: readonly GuideChapter[] = [
           "Im Tab `Erziehungsberechtigte` eines Kindes am Status erkennen, wer bereits ein Konto hat (`Konto aktiv`), eingeladen ist (`Einladung offen`) oder noch keinen Zugang hat (`Kein Konto`).",
           "Das Menü mit den drei Punkten bei der Person öffnen und `Einladen` wählen.",
           "Bei `Einladung offen` im Menü `Erneut einladen` wählen.",
+          "Viele Eltern auf einmal einladen: Unter `Datenverwaltung` -> `Kinder` auf `Auswählen` klicken. Kinder anhaken oder `Alle auswählen` nutzen, vorher bei Bedarf nach Gruppe oder Klasse filtern. Dann `Eltern einladen` klicken.",
+          "Das Fenster zeigt zuerst nur Zahlen: wie viele Eltern eine E-Mail bekommen, wer das Elternportal schon nutzt und bei wem die E-Mail-Adresse fehlt. Erst mit dem grünen Knopf werden die E-Mails verschickt. Eltern mit mehreren Kindern bekommen nur eine E-Mail. Reine Abhol- oder Notfallkontakte werden nicht eingeladen.",
+          "Sagen Sie den Eltern vorher auf Ihrem gewohnten Weg Bescheid, dass eine E-Mail von moto kommt.",
           "Bei `Konto aktiv, kein Portalzugriff` im Menü `Zugriff gewähren` wählen.",
           "Fehlt die E-Mail-Adresse, im Menü `Bearbeiten` wählen und sie eintragen.",
           "Einen bestehenden Zugang über `Bearbeiten` -> `Entfernen` wieder trennen – die Person sieht das Kind danach nicht mehr im Elternportal.",
@@ -834,6 +837,11 @@ export const appChapters: readonly GuideChapter[] = [
             image: "/help/screens/konto-anfragen.webp",
             caption:
               "Seite „Elternzugänge“: von Eltern angestoßene Einladungen mit „Freigeben“ bestätigen oder mit „Ablehnen“ abweisen.",
+          },
+          {
+            image: "/help/screens/eltern-sammeleinladung.webp",
+            caption:
+              "Fenster „Eltern ins Elternportal einladen“: erst die Zahlen prüfen, dann mit dem grünen Knopf verschicken. Wer nicht eingeladen werden kann, steht mit Kind und Grund darunter.",
           },
         ],
       },

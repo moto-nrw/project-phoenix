@@ -611,6 +611,12 @@ type GuardianInviteResult struct {
 	ExistingRole      string
 }
 
+// The bulk invitation (#3378) passes Identity & Access' own contract through.
+type (
+	GuardianBulkInviteRequest = identityaccess.BulkInviteRequest
+	GuardianBulkInviteResult  = identityaccess.BulkInviteResult
+)
+
 // GuardianPendingApproval is one parent-initiated request awaiting staff.
 type GuardianPendingApproval struct {
 	InvitationID      int64
@@ -645,7 +651,10 @@ type GuardianDirectoryRuntime struct {
 	SendInvitation         func(ctx context.Context, guardianID, actorAccountID int64) (GuardianInvitationSummary, error)
 	ListPendingInvitations func(context.Context) ([]PendingGuardianInvitation, error)
 
-	InviteGuardianToStudent    func(context.Context, GuardianInviteInput) (GuardianInviteResult, error)
+	InviteGuardianToStudent func(context.Context, GuardianInviteInput) (GuardianInviteResult, error)
+	// BulkInviteGuardians invites the guardians of many children (#3378); a
+	// failed run rolls the request's transaction back.
+	BulkInviteGuardians        func(context.Context, GuardianBulkInviteRequest) (*GuardianBulkInviteResult, error)
 	ListPendingApprovals       func(context.Context) ([]GuardianPendingApproval, error)
 	PendingInvitationStudentID func(context.Context, int64) (int64, error)
 	ApproveInvitation          func(ctx context.Context, invitationID, actorAccountID int64) error
@@ -713,6 +722,13 @@ func (f *Factory) NewGuardianDirectoryRuntime(db *bun.DB) GuardianDirectoryRunti
 				Outcome: string(result.Outcome), GuardianProfileID: result.GuardianProfileID,
 				InvitationID: result.InvitationID, ExistingRole: result.ExistingRole,
 			}, nil
+		},
+		BulkInviteGuardians: func(ctx context.Context, req GuardianBulkInviteRequest) (*GuardianBulkInviteResult, error) {
+			result, err := f.GuardianInvitation.BulkInviteToStudents(ctx, req)
+			if err != nil {
+				tenant.MarkRollback(ctx)
+			}
+			return result, err
 		},
 		ListPendingApprovals: func(ctx context.Context) ([]GuardianPendingApproval, error) {
 			views, err := f.GuardianInvitation.ListPendingApprovalsDetailed(ctx)
