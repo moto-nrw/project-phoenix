@@ -315,6 +315,24 @@ func TestResponseOverview_ConcreteClassRestrictionExcludesOtherClassesOfTheSameG
 	assert.Equal(t, []PhaseResponseExclusion{{Reason: PhaseResponseExcludedNotInScope, Count: 1}}, overview.Excluded)
 }
 
+func TestResponseOverview_FutureSchoolYearComparesConcreteClassesInTheTargetYear(t *testing.T) {
+	t.Parallel()
+
+	phase := nextYearPhase()
+	phase.EligibleSchoolClasses = []string{"2a"}
+	roster := responseRoster{
+		{ID: 1, LastName: "Arslan", SchoolClass: "1a"},
+		{ID: 2, LastName: "Becker", SchoolClass: "1b"},
+	}
+	svc := newResponseService(phase, &responseChildren{}, roster, nil, nil)
+
+	overview, err := svc.ResponseOverview(context.Background(), 5)
+	require.NoError(t, err)
+	require.Len(t, overview.Rows, 1)
+	assert.Equal(t, int64(1), overview.Rows[0].StudentID)
+	assert.Equal(t, []PhaseResponseExclusion{{Reason: PhaseResponseExcludedNotInScope, Count: 1}}, overview.Excluded)
+}
+
 func TestResponseOverview_PhaseWithoutChildReferenceIsNotApplicable(t *testing.T) {
 	t.Parallel()
 

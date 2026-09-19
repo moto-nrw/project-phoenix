@@ -338,24 +338,25 @@ func phaseResponseGrade(class string) (int, bool) {
 
 // exclusion returns why the phase does not expect this child, or "". A class
 // without a grade number ("Bienen") is checked against a concrete class
-// restriction; otherwise it stays expected because asking one family too many
-// is cheaper than silently dropping one.
+// restriction without progression; otherwise it stays expected because asking
+// one family too many is cheaper than silently dropping one.
 func (s phaseResponseScope) exclusion(class string) string {
 	class = strings.TrimSpace(class)
+	grade, ok := phaseResponseGrade(class)
+	if s.nextYear && ok {
+		if grade >= s.gradeMax {
+			return PhaseResponseExcludedGraduating
+		}
+		grade++
+		class = phaseResponseClassWithGrade(class, grade)
+	}
 	if len(s.classes) > 0 {
 		if _, eligible := s.classes[class]; !eligible {
 			return PhaseResponseExcludedNotInScope
 		}
 	}
-	grade, ok := phaseResponseGrade(class)
 	if !ok {
 		return ""
-	}
-	if s.nextYear {
-		if grade >= s.gradeMax {
-			return PhaseResponseExcludedGraduating
-		}
-		grade++
 	}
 	if len(s.grades) == 0 {
 		return ""
@@ -364,6 +365,11 @@ func (s phaseResponseScope) exclusion(class string) string {
 		return PhaseResponseExcludedNotInScope
 	}
 	return ""
+}
+
+func phaseResponseClassWithGrade(class string, grade int) string {
+	prefix := schoolclass.GradePrefix(class)
+	return strconv.Itoa(grade) + strings.TrimPrefix(class, prefix)
 }
 
 func buildPhaseResponseOverview(
