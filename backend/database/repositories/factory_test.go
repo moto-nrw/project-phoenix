@@ -27,7 +27,6 @@ func TestNewFactory(t *testing.T) {
 		assert.NotNil(t, factory.RolePermission)
 		assert.NotNil(t, factory.AccountRole)
 		assert.NotNil(t, factory.AccountPermission)
-		assert.NotNil(t, factory.Token)
 		assert.NotNil(t, factory.PasswordResetToken)
 		assert.NotNil(t, factory.PasswordResetRateLimit)
 		assert.NotNil(t, factory.InvitationToken)
@@ -45,7 +44,6 @@ func TestNewFactory(t *testing.T) {
 		assert.NotNil(t, factory.Profile)
 		assert.NotNil(t, factory.StudentGuardian)
 		assert.NotNil(t, factory.GuardianProfile)
-		assert.NotNil(t, factory.PrivacyConsent)
 	})
 
 	// Verify facilities repositories are initialized
@@ -87,8 +85,6 @@ func TestNewFactory(t *testing.T) {
 	t.Run("active repositories", func(t *testing.T) {
 		assert.NotNil(t, factory.ActiveGroup)
 		assert.NotNil(t, factory.GroupSupervisor)
-		assert.NotNil(t, factory.CombinedGroup)
-		assert.NotNil(t, factory.GroupMapping)
 	})
 
 	// Verify feedback repositories are initialized

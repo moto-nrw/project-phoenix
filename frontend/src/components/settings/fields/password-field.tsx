@@ -1,6 +1,11 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { Eye, EyeOff, Pencil } from "lucide-react";
+import { Button } from "~/components/ui/button";
+import { EditActions } from "~/components/ui/edit-actions";
+import { SpinnerIcon } from "~/components/ui/icons";
+import { Input } from "~/components/ui/input";
 import { revealSettingValue } from "~/lib/settings-api";
 
 interface PasswordFieldProps {
@@ -36,6 +41,13 @@ function getInputHints(pattern?: string): {
   return { inputMode: "text", placeholder: "Neuen Wert eingeben" };
 }
 
+/**
+ * Das einzige Einstellungsfeld, das NICHT sofort speichert: ein Passwort
+ * oder eine PIN wird erst mit „Speichern“ übernommen. Weil die
+ * Einstellungsseite ringsum Sofort-Speichern verspricht, benennt das Feld
+ * diese Ausnahme im Bearbeiten-Zustand selbst (Bauart 4 Regel 3, #3117).
+ * Knöpfe, Eingabefeld und Auge kommen aus dem Kit.
+ */
 export function PasswordField({
   hasValue,
   settingKey,
@@ -49,6 +61,7 @@ export function PasswordField({
   const [showValue, setShowValue] = useState(false);
   const [revealedValue, setRevealedValue] = useState<string | null>(null);
   const [isRevealing, setIsRevealing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const hints = getInputHints(pattern);
   const isPin = hints.inputMode === "numeric";
@@ -68,6 +81,22 @@ export function PasswordField({
     setIsRevealing(false);
   }, [showValue, settingKey, revealFn]);
 
+  const stopEditing = useCallback(() => {
+    setNewValue("");
+    setIsEditing(false);
+  }, []);
+
+  const save = useCallback(async () => {
+    if (!newValue) return;
+    setIsSaving(true);
+    try {
+      await onChange(newValue);
+      stopEditing();
+    } finally {
+      setIsSaving(false);
+    }
+  }, [newValue, onChange, stopEditing]);
+
   // Display mode
   if (!isEditing) {
     const displayText =
@@ -80,105 +109,51 @@ export function PasswordField({
           : "Nicht gesetzt";
 
     return (
-      <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
         {/* Pill with value + eye toggle inside */}
         <span
-          className={`inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2 text-sm tabular-nums ${showValue && revealedValue ? "font-mono tracking-widest text-gray-900" : "text-gray-500"}`}
+          className={`inline-flex items-center gap-1 rounded-lg bg-gray-100 py-1 pr-1 pl-3 text-sm tabular-nums ${showValue && revealedValue ? "font-mono tracking-widest text-gray-900" : "text-gray-500"}`}
         >
           {isRevealing ? (
-            <svg
-              className="h-3.5 w-3.5 animate-spin"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              />
-            </svg>
+            <SpinnerIcon className="my-1.5 h-3.5 w-3.5" />
           ) : (
-            displayText
+            <span className="py-1">{displayText}</span>
           )}
-          {hasValue && !disabled && (
-            <button
+          {hasValue && !disabled ? (
+            <Button
               type="button"
-              onClick={handleRevealToggle}
-              className="text-gray-400 transition-colors hover:text-gray-600"
+              variant="ghost"
+              size="icon"
+              className="h-7 text-gray-400"
+              onClick={() => void handleRevealToggle()}
               aria-label={showValue ? "Wert verbergen" : "Wert anzeigen"}
             >
               {showValue ? (
-                <svg
-                  className="h-3.5 w-3.5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"
-                  />
-                </svg>
+                <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
               ) : (
-                <svg
-                  className="h-3.5 w-3.5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                  />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                  />
-                </svg>
+                <Eye className="h-3.5 w-3.5" aria-hidden="true" />
               )}
-            </button>
+            </Button>
+          ) : (
+            <span className="w-2" aria-hidden="true" />
           )}
         </span>
 
         {/* Edit button */}
         {!disabled && (
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => {
               setIsEditing(true);
               setShowValue(false);
               setRevealedValue(null);
             }}
-            className="rounded-lg p-2.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
             aria-label="Wert ändern"
           >
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-              />
-            </svg>
-          </button>
+            <Pencil className="h-4 w-4" aria-hidden="true" />
+          </Button>
         )}
       </div>
     );
@@ -186,103 +161,62 @@ export function PasswordField({
 
   // Edit mode
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="relative">
-        <input
-          type={showValue ? "text" : "password"}
-          inputMode={hints.inputMode}
-          maxLength={hints.maxLength}
-          value={newValue}
-          onChange={(e) => {
-            let val = e.target.value;
-            if (isPin) val = val.replace(/\D/g, "");
-            setNewValue(val);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && newValue) {
-              void onChange(newValue).then(() => {
-                setNewValue("");
-                setIsEditing(false);
-              });
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className={`relative ${isPin ? "w-28" : "w-full sm:w-48"}`}>
+          <Input
+            aria-label="Neuer Wert"
+            type={showValue ? "text" : "password"}
+            inputMode={hints.inputMode}
+            maxLength={hints.maxLength}
+            value={newValue}
+            controlSize="compact"
+            autoComplete="off"
+            onChange={(e) => {
+              let val = e.target.value;
+              if (isPin) val = val.replace(/\D/g, "");
+              setNewValue(val);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && newValue) {
+                void save();
+              }
+              if (e.key === "Escape") {
+                stopEditing();
+              }
+            }}
+            placeholder={hints.placeholder}
+            className={
+              isPin ? "pr-9 text-center tracking-widest tabular-nums" : "pr-9"
             }
-            if (e.key === "Escape") {
-              setNewValue("");
-              setIsEditing(false);
-            }
-          }}
-          placeholder={hints.placeholder}
-          className={`block rounded-lg border-0 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 ${
-            isPin
-              ? "w-28 pr-9 text-center tracking-widest tabular-nums"
-              : "w-full pr-9 sm:w-48"
-          }`}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowValue(!showValue)}
+            className="absolute inset-y-0 right-1 my-auto h-7 text-gray-400"
+            tabIndex={-1}
+            aria-label={showValue ? "Wert verbergen" : "Wert anzeigen"}
+          >
+            {showValue ? (
+              <EyeOff className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <Eye className="h-4 w-4" aria-hidden="true" />
+            )}
+          </Button>
+        </div>
+        <EditActions
+          className="justify-start"
+          onCancel={stopEditing}
+          onSave={() => void save()}
+          saving={isSaving}
+          disabled={!newValue}
         />
-        <button
-          type="button"
-          onClick={() => setShowValue(!showValue)}
-          className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-gray-400 hover:text-gray-600"
-          tabIndex={-1}
-          aria-label={showValue ? "Wert verbergen" : "Wert anzeigen"}
-        >
-          {showValue ? (
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"
-              />
-            </svg>
-          ) : (
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-              />
-            </svg>
-          )}
-        </button>
       </div>
-      <button
-        type="button"
-        onClick={async () => {
-          if (newValue) {
-            await onChange(newValue);
-            setNewValue("");
-            setIsEditing(false);
-          }
-        }}
-        className="rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white transition-all hover:bg-gray-700"
-      >
-        Speichern
-      </button>
-      <button
-        type="button"
-        onClick={() => {
-          setNewValue("");
-          setIsEditing(false);
-        }}
-        className="px-2 text-sm text-gray-500 hover:text-gray-700"
-      >
-        Abbrechen
-      </button>
+      <p className="text-xs text-gray-500">
+        Der neue Wert gilt erst nach „Speichern“.
+      </p>
     </div>
   );
 }

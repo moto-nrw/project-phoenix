@@ -402,7 +402,10 @@ func (w *ExcusedRequests) ListPending(ctx context.Context, filter careplan.Reque
 	if err != nil {
 		return nil, nil, err
 	}
-	today := w.today()
+	today, dayErr := careplan.ParseDate(filter.UrgentDate)
+	if dayErr != nil {
+		today = w.today()
+	}
 	items = make([]*careplan.ExcusedRequestReviewItem, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
@@ -421,7 +424,7 @@ func (w *ExcusedRequests) ListPending(ctx context.Context, filter careplan.Reque
 		if viewErr != nil {
 			return nil, nil, fmt.Errorf("care plan: resolve current absence statuses: %w", viewErr)
 		}
-		eligible, reasonCode, reasonText, eligibilityErr := w.excusedBulkEligibility(ctx, r, st, view)
+		eligible, reasonCode, reasonText, eligibilityErr := w.excusedBulkEligibility(ctx, r, st, view, today)
 		if eligibilityErr != nil {
 			return nil, nil, fmt.Errorf("care plan: resolve absence bulk eligibility: %w", eligibilityErr)
 		}
@@ -807,7 +810,7 @@ func (w *ExcusedRequests) GetExcusedBulkCandidate(ctx context.Context, requestID
 	if err != nil {
 		return nil, err
 	}
-	eligible, _, _, err := w.excusedBulkEligibility(ctx, &req, student, view)
+	eligible, _, _, err := w.excusedBulkEligibility(ctx, &req, student, view, w.today())
 	if err != nil {
 		return nil, err
 	}
@@ -992,8 +995,8 @@ func (w *ExcusedRequests) validateAbsenceApproval(
 // excusedBulkEligibility answers whether this request can ride a bulk
 // approval. It takes the already-resolved status view so the queue reads the
 // child's current days exactly once per request, whichever branch decides.
-func (w *ExcusedRequests) excusedBulkEligibility(ctx context.Context, req *careplan.ExcusedAbsenceRequest, student ports.ReviewStudent, view currentStatusView) (bool, string, string, error) {
-	if !absenceBulkEligible(req.Dates, w.today()) {
+func (w *ExcusedRequests) excusedBulkEligibility(ctx context.Context, req *careplan.ExcusedAbsenceRequest, student ports.ReviewStudent, view currentStatusView, today careplan.Date) (bool, string, string, error) {
+	if !absenceBulkEligible(req.Dates, today) {
 		return false, careplan.BulkIneligiblePast, "Mindestens ein Tag ist vorbei.", nil
 	}
 	if requestExtendsBeyondCare(req, &student) {
@@ -1362,7 +1365,7 @@ func probeLimit(filter careplan.RequestQueueFilter) careplan.RequestQueueFilter 
 
 // nextCursor trims the probe row off a page and returns the position to
 // resume from, or nil on the last page.
-func nextCursor(rows []careplan.ExcusedAbsenceRequest, limit int, key func(careplan.ExcusedAbsenceRequest) (time.Time, int64)) ([]careplan.ExcusedAbsenceRequest, *careplan.RequestCursor) {
+func nextCursor[T any](rows []T, limit int, key func(T) (time.Time, int64)) ([]T, *careplan.RequestCursor) {
 	if limit <= 0 || len(rows) <= limit {
 		return rows, nil
 	}

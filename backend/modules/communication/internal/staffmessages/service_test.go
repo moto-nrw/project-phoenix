@@ -37,6 +37,10 @@ func newReadRepo(db *bun.DB) usersModels.StaffMessageReadRepository {
 			Where(`"staff".tenant_id = ?`, tenant.FromContext(ctx)).
 			Scan(ctx, &accountIDs)
 		return accountIDs, err
+	}, func(context.Context) *bun.SelectQuery {
+		// Identity & Access owns the global account switch; the test resolves
+		// the same set directly so the repository predicate stays exercised.
+		return db.NewSelect().TableExpr(`auth.accounts AS "account"`).ColumnExpr(`"account".id`).Where(`"account".active = TRUE`)
 	})
 }
 

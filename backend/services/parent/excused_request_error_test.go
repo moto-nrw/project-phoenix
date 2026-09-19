@@ -12,8 +12,8 @@ import (
 
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/uptrace/bun"

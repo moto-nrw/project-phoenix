@@ -67,6 +67,10 @@ func (rs *Resource) Router() chi.Router {
 		// person, plus which children the letter is already fulfilled for.
 		r.With(announce, withTx).Get("/{announcementId}/letter-status", rs.letterStatus)
 		r.With(announce, withTx).Post("/{announcementId}/resend-failed", rs.resendFailed)
+		// Scheduled reminder (#3162): the one post-publish edit. Distinct from
+		// POST /remind above, which is the manual nudge to whoever still owes
+		// an answer.
+		r.With(announce, withTx).Put("/{announcementId}/reminder", rs.updateReminder)
 	})
 
 	return r
@@ -99,6 +103,18 @@ type announcementRequest struct {
 	// so pre-#2384 clients keep working unchanged.
 	DeliveryMode  string `json:"delivery_mode,omitempty"`
 	EmailAudience string `json:"email_audience,omitempty"`
+	// Scheduled reminder (#3162): an instant (the client turns the chosen
+	// Berlin day and clock time into it) and an optional short wording.
+	ReminderAt   *time.Time `json:"reminder_at,omitempty"`
+	ReminderText *string    `json:"reminder_text,omitempty"`
+}
+
+// reminderRequest is the post-publish reminder edit. The raw value preserves
+// the distinction between an omitted reminder_at (invalid PUT body) and an
+// explicit null (remove the reminder).
+type reminderRequest struct {
+	ReminderAt   json.RawMessage `json:"reminder_at"`
+	ReminderText *string         `json:"reminder_text,omitempty"`
 }
 
 // optionResponse is one answer option of a poll.
@@ -135,6 +151,11 @@ type announcementResponse struct {
 	EmailAudience           string           `json:"email_audience"`
 	// SystemKind marks rows the system wrote (cancellation notice, #2601).
 	SystemKind *string `json:"system_kind,omitempty"`
+	// Scheduled reminder (#3162): when it is due, its wording, and when it
+	// actually went out.
+	ReminderAt     *time.Time `json:"reminder_at,omitempty"`
+	ReminderText   *string    `json:"reminder_text,omitempty"`
+	ReminderSentAt *time.Time `json:"reminder_sent_at,omitempty"`
 }
 
 type statsResponse struct {
@@ -189,6 +210,9 @@ func toAnnouncementResponse(a *announcementService.ParentAnnouncement) announcem
 		Status:                  announcementStatus(a),
 		PublishedAt:             a.PublishedAt,
 		ExpiresAt:               a.ExpiresAt,
+		ReminderAt:              a.ReminderAt,
+		ReminderText:            a.ReminderText,
+		ReminderSentAt:          a.ReminderSentAt,
 		Active:                  a.Active,
 		CreatedAt:               a.CreatedAt,
 		UpdatedAt:               a.UpdatedAt,
@@ -218,6 +242,8 @@ func toInput(req announcementRequest) (announcementService.ParentAnnouncementInp
 		Options:                 req.Options,
 		DeliveryMode:            req.DeliveryMode,
 		EmailAudience:           req.EmailAudience,
+		ReminderAt:              req.ReminderAt,
+		ReminderText:            req.ReminderText,
 		Targets:                 make([]announcementService.ParentAnnouncementTargetInput, 0, len(req.Targets)),
 	}
 	for _, t := range req.Targets {
@@ -290,6 +316,38 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, toAnnouncementResponse(a), "Announcement updated")
+}
+
+// updateReminder moves, rewords or removes the scheduled reminder of an
+// announcement — the one edit that stays open after publishing, until the
+// reminder has been sent.
+func (rs *Resource) updateReminder(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseAnnouncementID(w, r)
+	if !ok {
+		return
+	}
+	var req reminderRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
+		return
+	}
+	if len(req.ReminderAt) == 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("reminder_at is required")))
+		return
+	}
+	var reminderAt *time.Time
+	if err := json.Unmarshal(req.ReminderAt, &reminderAt); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid reminder_at")))
+		return
+	}
+	a, err := rs.Service.UpdateParentAnnouncementReminder(r.Context(), id, announcementService.ParentAnnouncementReminderInput{
+		ReminderAt: reminderAt, ReminderText: req.ReminderText,
+	})
+	if err != nil {
+		renderAnnouncementError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, toAnnouncementResponse(a), "Announcement reminder updated")
 }
 
 func (rs *Resource) delete(w http.ResponseWriter, r *http.Request) {
@@ -619,6 +677,8 @@ func renderAnnouncementError(w http.ResponseWriter, r *http.Request, err error) 
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "announcement_not_published"))
 	case errors.Is(err, announcementService.ErrParentAnnouncementNothingDue):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	case errors.Is(err, announcementService.ErrParentAnnouncementReminderSent):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "announcement_reminder_sent"))
 	case errors.Is(err, announcementService.ErrParentAnnouncementValidation):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:

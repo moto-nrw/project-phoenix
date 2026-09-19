@@ -244,7 +244,11 @@ describe("CaregiverBlockerResolutionPanel", () => {
 
     fireEvent.click(screen.getByRole("combobox"));
     fireEvent.click(screen.getByRole("option", { name: "Other Caregiver" }));
-    fireEvent.click(screen.getByText("Übertragen"));
+    fireEvent.click(screen.getByRole("button", { name: /^Aktionen für/ }));
+    expect(
+      screen.queryByRole("menuitem", { name: "Entfernen" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Übertragen" }));
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
@@ -285,7 +289,11 @@ describe("CaregiverBlockerResolutionPanel", () => {
     );
 
     // #3109: removing without a replacement asks first (ConfirmDeleteModal).
-    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Aktionen für/ }));
+    expect(
+      screen.queryByRole("menuitem", { name: "Übertragen" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
     expect(mockFetch).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Ja, entfernen" }));
     fireEvent.click(
@@ -324,7 +332,8 @@ describe("CaregiverBlockerResolutionPanel", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Aktionen für/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
     fireEvent.click(screen.getByRole("button", { name: "Ja, entfernen" }));
     fireEvent.click(
       screen.getByRole("button", { name: "Ohne Ersatz entfernen" }),
@@ -357,7 +366,8 @@ describe("CaregiverBlockerResolutionPanel", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Aktionen für/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
     expect(mockFetch).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Ja, entfernen" }));
     fireEvent.click(
@@ -404,7 +414,8 @@ describe("CaregiverBlockerResolutionPanel", () => {
 
     fireEvent.click(screen.getByRole("combobox"));
     fireEvent.click(screen.getByRole("option", { name: "Other Caregiver" }));
-    fireEvent.click(screen.getByText("Übertragen"));
+    fireEvent.click(screen.getByRole("button", { name: /^Aktionen für/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Übertragen" }));
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(

@@ -28,6 +28,7 @@ import {
 } from "~/components/ui/drawer";
 import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { DataField } from "~/components/ui/detail-modal-components";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
 import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
@@ -2651,24 +2652,20 @@ function EditSessionModal({
                     type="info"
                     message="Freizeitausgleich wird von der Leitung eingetragen und kann hier nicht geändert oder gelöscht werden."
                   />
-                  <dl className="grid grid-cols-1 gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm sm:grid-cols-2">
-                    <div>
-                      <dt className="font-medium text-gray-500">Zeitraum</dt>
-                      <dd className="mt-1 text-gray-900">
-                        {absence.dateStart} bis {absence.dateEnd}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="font-medium text-gray-500">Umfang</dt>
-                      <dd className="mt-1 text-gray-900">
-                        {absence.halfDay ? "Halber Tag" : "Ganzer Tag"}
-                      </dd>
-                    </div>
+                  {/* Felder zur Einordnung im Formular-Slide-over, kein
+                      Detailbaum: nur DataField, kein DataGrid
+                      (bauart/one-detail-per-type, #3115). */}
+                  <dl className="grid grid-cols-1 gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 sm:grid-cols-2">
+                    <DataField label="Zeitraum">
+                      {absence.dateStart} bis {absence.dateEnd}
+                    </DataField>
+                    <DataField label="Umfang">
+                      {absence.halfDay ? "Halber Tag" : "Ganzer Tag"}
+                    </DataField>
                     {absence.note && (
-                      <div className="sm:col-span-2">
-                        <dt className="font-medium text-gray-500">Bemerkung</dt>
-                        <dd className="mt-1 text-gray-900">{absence.note}</dd>
-                      </div>
+                      <DataField label="Bemerkung" fullWidth>
+                        {absence.note}
+                      </DataField>
                     )}
                   </dl>
                 </div>

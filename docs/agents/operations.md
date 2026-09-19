@@ -41,6 +41,7 @@ does not make it a dry-run.
 ```bash
 # CLI (run inside the container via `docker compose run server go run . <cmd>`)
 go run . migrate status|validate|reset
+go run . migrate backfill request-child-storage [--tenant ID] [--verify-only] [--restart]  # resumable #2713 copy; see docs/operations/enrollment-storage-backfill-2713.md
 go run . seed --email <op-email> --password <pw> --pin 1234   # flags required; seeds via the HTTP API, server must be running
 go run . cleanup preview|stats      # visit-retention dry-run / statistics
 go run . cleanup visits             # REAL deletion — there is no `cleanup visits preview`; extra args are silently ignored
@@ -137,7 +138,11 @@ before changing deployment environments or maintenance jobs.
 CI uses `SOPS_AGE_KEY`, `STAGING_SSH_*`, and `PRODUCTION_SSH_*` secrets;
 failure recipients are in the `DEPLOY_NOTIFY_EMAILS` repository variable.
 Server layout is `~/{staging,production}/` (`.env`, `docker-compose.yml`,
-`.deploy-state`) and `~/backups/{env}/` (3 staging / 7 production dumps).
+`.deploy-state`) and `~/backups/{env}/` (3 staging / 7 production complete
+snapshot sets). See [complete release backup and rollback](../operations/release-backup-rollback.md)
+for snapshot contents, verification, manual recovery and data-loss boundaries.
+Rollbacks restore matching images, configuration, roles, database and uploads;
+an old image alone is not compatible with every newer schema.
 For env changes, read `.claude/rules/env-docker-sync.md` before editing.
 
 ## PR screenshots and QA evidence

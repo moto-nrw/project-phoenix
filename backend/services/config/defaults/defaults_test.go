@@ -145,6 +145,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.parent_master_data_request_enabled",
 		"operations.parent_request_group_leader_review_enabled",
 		"operations.parent_news_enabled",
+		// OGS-internal Team-Chat (#2598), opt-out since #3254.
+		"operations.staff_messaging_enabled",
 		"operations.meal_plan_enabled",
 		"operations.meal_registration_enabled",
 		"operations.meal_registration_cutoff_time",
@@ -248,6 +250,28 @@ func TestMealRegistrationSettings(t *testing.T) {
 	assert.Equal(t, true, cutoff.DependsOn.Value)
 }
 
+// #3163: the same-day pickup cutoff is off unless a school sets a time, and it
+// only shows while the one-day pickup change itself is on.
+func TestParentPickupChangeCutoffSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyParentPickupChangeCutoffTime)
+	require.NotNil(t, def)
+	assert.Equal(t, config.FieldTime, def.Type)
+	assert.Equal(t, "", def.Default, "no cutoff unless a school sets one")
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "elternportal", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+	require.NotNil(t, def.DependsOn)
+	assert.Equal(t, config.KeyParentPickupChangeEnabled, def.DependsOn.Key)
+	assert.Equal(t, "eq", def.DependsOn.Condition)
+	assert.Equal(t, true, def.DependsOn.Value)
+
+	parent := config.GetDefinition(config.KeyParentPickupChangeEnabled)
+	require.NotNil(t, parent)
+	assert.Greater(t, def.SortOrder, parent.SortOrder, "sits below the setting it depends on")
+}
+
 func TestAbsenceApprovalEmailSetting(t *testing.T) {
 	t.Parallel()
 
@@ -269,6 +293,7 @@ func TestPresenceModeSetting(t *testing.T) {
 	assert.Equal(t, config.PresenceModeDetailed, def.Default, "default must be detailed for backwards compatibility")
 	assert.Equal(t, config.AccessOperatorOnly, def.AccessPolicy, "presence_mode is operator-only - cascading impact too large for tenant admins")
 	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "anwesenheit-erfassen", def.Category)
 	require.NotNil(t, def.Options)
 	require.Len(t, def.Options.Static, 2)
 	values := []any{def.Options.Static[0].Value, def.Options.Static[1].Value}
@@ -364,6 +389,24 @@ func TestParentMessageStaffNameVisibleSetting(t *testing.T) {
 	assert.Equal(t, true, def.DependsOn.Value)
 }
 
+// TestStaffMessagingEnabledSetting pins the Team-Chat as opt-out (#3254): a
+// school gets the colleague chat without doing anything and switches it off in
+// the settings if it does not want it.
+func TestStaffMessagingEnabledSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyStaffMessagingEnabled)
+	require.NotNil(t, def, "operations.staff_messaging_enabled should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, true, def.Default, "Team-Chat must default on (opt-out)")
+	assert.Equal(t, "config:update", def.WritePermission)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "team", def.Category)
+	// Schools must be able to switch it off themselves, so it stays tenant-visible.
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Nil(t, def.DependsOn, "the switch itself must always be visible")
+}
+
 // TestRemovedStudentGroupScopeSettings pins the #2329 deletion: per-child
 // access no longer depends on a tenant scope setting, so re-registering one of
 // these keys would silently reintroduce a policy the code no longer reads.
@@ -405,7 +448,7 @@ func TestAttendanceSetupSettings(t *testing.T) {
 	assert.Equal(t, true, webDef.Default, "web attendance should default on")
 	assert.Equal(t, config.AccessOperatorOnly, webDef.AccessPolicy, "web attendance is a provisioning flag, not a tenant-admin setting")
 	assert.Equal(t, "operations", webDef.Tab)
-	assert.Equal(t, "anwesenheit", webDef.Category)
+	assert.Equal(t, "anwesenheit-erfassen", webDef.Category)
 	assert.Equal(t, "config:manage", webDef.WritePermission)
 
 	nfcDef := config.GetDefinition(config.KeyAttendanceNFCEnabled)
@@ -414,8 +457,10 @@ func TestAttendanceSetupSettings(t *testing.T) {
 	assert.Equal(t, false, nfcDef.Default, "nfc attendance should default off")
 	assert.Equal(t, config.AccessOperatorOnly, nfcDef.AccessPolicy, "nfc attendance is provisioned by operators after NFC setup")
 	assert.Equal(t, "operations", nfcDef.Tab)
-	assert.Equal(t, "anwesenheit", nfcDef.Category)
+	assert.Equal(t, "anwesenheit-erfassen", nfcDef.Category)
 	assert.Equal(t, "config:manage", nfcDef.WritePermission)
+	assert.Nil(t, webDef.DependsOn, "web must remain independent from NFC")
+	assert.Nil(t, nfcDef.DependsOn, "NFC must remain independent from web")
 }
 
 // TestOperationalOverviewScopeSetting pins the two modes that decide which
@@ -429,11 +474,11 @@ func TestOperationalOverviewScopeSetting(t *testing.T) {
 	assert.Equal(t, config.OverviewScopeAllStaff, def.Default, "new schools start with the whole-team scope")
 	assert.Equal(t, config.AccessShared, def.AccessPolicy)
 	assert.Equal(t, "operations", def.Tab)
-	assert.Equal(t, "aufsicht", def.Category)
+	assert.Equal(t, "sehen-und-bearbeiten", def.Category)
 	assert.Equal(t, "config:update", def.WritePermission)
 	require.NotNil(t, def.Options)
 	require.Equal(t, []config.SelectOption{
-		{Label: "Ganzes Team", Value: config.OverviewScopeAllStaff},
+		{Label: "Alle Gruppen und Blöcke", Value: config.OverviewScopeAllStaff},
 		{Label: "Eigene Zuständigkeiten", Value: config.OverviewScopeOwn},
 	}, def.Options.Static)
 

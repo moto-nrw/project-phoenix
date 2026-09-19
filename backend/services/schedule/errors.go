@@ -4,6 +4,8 @@ package schedule
 import (
 	"errors"
 	"fmt"
+
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // Common schedule errors
@@ -21,6 +23,9 @@ var (
 	ErrInvalidDateRange                = errors.New("invalid date range")
 	ErrInvalidTimeRange                = errors.New("invalid time range")
 	ErrInvalidDuration                 = errors.New("invalid duration")
+	// ErrRoomCapacityExceeded is the presence admission failure a reopened
+	// instance surfaces when the room cannot take its snapshot back.
+	ErrRoomCapacityExceeded = studentpresence.ErrRoomCapacityExceeded
 )
 
 // Sentinel errors returned from the pickup/arrival care-exception write flows so

@@ -5,13 +5,13 @@ import (
 
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/uptrace/bun"
 )
 
@@ -48,8 +48,8 @@ func NewParentRouteTestRepositories(db *bun.DB) (ParentRouteTestRepositories, er
 	}
 	r := &Factory{db: db,
 		ParentChild: parentRepo.NewChildRepository(carePlanLegacy.NewParentRuntime(db)),
-		Student:     usersRepo.NewStudentRepository(db), Person: usersRepo.NewPersonRepository(db),
-		GuardianProfile: usersRepo.NewGuardianProfileRepository(db), StudentGuardian: usersRepo.NewStudentGuardianRepository(db),
+		Student:     usersRepo.NewStudentRepository(db), Person: NewPersonRepository(db),
+		GuardianProfile: NewGuardianProfileRepository(db), StudentGuardian: usersRepo.NewStudentGuardianRepository(db),
 	}
 	r.BindPeopleDirectory(people)
 	r.bindCarePlanAdapters(care)

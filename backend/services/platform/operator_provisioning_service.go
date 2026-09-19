@@ -13,9 +13,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/randstr"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -23,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -130,11 +129,6 @@ type OperatorProvisioningService interface {
 	ListSchoolSummaries(ctx context.Context) ([]*SchoolSummary, error)
 	ListOrganizationSchoolSummaries(ctx context.Context, organizationID int64) ([]*SchoolSummary, error)
 	ListOrganizationPersons(ctx context.Context, organizationID int64) ([]OperatorPersonInfo, error)
-	ListAccountTenantAccess(ctx context.Context, accountID int64) ([]AccountTenantAccessEntry, error)
-	ListAssignableSchoolRoles(ctx context.Context, schoolID int64) ([]*authModels.Role, error)
-	GrantAccountTenantAccess(ctx context.Context, accountID, schoolID int64, req GrantAccountTenantAccessRequest, operatorID int64, clientIP net.IP) ([]AccountTenantAccessEntry, error)
-	UpdateAccountTenantRole(ctx context.Context, accountID, schoolID, roleID, operatorID int64, clientIP net.IP) ([]AccountTenantAccessEntry, error)
-	RevokeAccountTenantAccess(ctx context.Context, accountID, schoolID, operatorID int64, clientIP net.IP) ([]AccountTenantAccessEntry, error)
 }
 
 type OrganizationCapability interface {
@@ -211,29 +205,29 @@ func (s *operatorProvisioningService) withAdminTx(ctx context.Context, fn func(c
 
 // OperatorProvisioningServiceConfig holds dependencies for operator provisioning.
 type OperatorProvisioningServiceConfig struct {
-	Organizations         OrganizationCapability
-	SchoolRepo            platform.SchoolRepository
-	SummariesRepo         platform.OperatorSummariesRepository
-	CategoryRepo          activityModels.CategoryRepository
-	DeviceRepo            iotModels.DeviceRepository
-	RoleRepo              authModels.RoleRepository
-	AccountTenantRepo     authModels.AccountTenantRepository
-	AccountRoleRepo       authModels.AccountRoleRepository
-	AccountPermissionRepo authModels.AccountPermissionRepository
-	AuthEventRepo         auditModels.AuthEventRepository
-	PersonRepo            userModels.PersonRepository
-	StaffRepo             userModels.StaffRepository
-	AccountRepo           authModels.AccountRepository
-	TeacherRepo           userModels.TeacherRepository
-	StudentRepo           userModels.StudentRepository
-	GroupSupervisorRepo   activeModels.GroupSupervisorRepository
-	ActiveGroupRepo       ActiveDeviceSessionFinder
-	Settings              TenantSettingsResolver
-	InvitationService     authSvc.InvitationService
-	AuthService           authSvc.AuthService
-	AuditLogRepo          platform.OperatorAuditLogRepository
-	DB                    *bun.DB
-	Logger                *slog.Logger
+	Organizations       OrganizationCapability
+	SchoolRepo          platform.SchoolRepository
+	SummariesRepo       platform.OperatorSummariesRepository
+	CategoryRepo        activityModels.CategoryRepository
+	DeviceRepo          iotModels.DeviceRepository
+	RoleRepo            authModels.RoleRepository
+	AccountTenantRepo   authModels.AccountTenantRepository
+	PersonRepo          userModels.PersonRepository
+	StaffRepo           userModels.StaffRepository
+	AccountRepo         authModels.AccountRepository
+	TeacherRepo         userModels.TeacherRepository
+	StudentRepo         userModels.StudentRepository
+	GroupSupervisorRepo activeModels.GroupSupervisorRepository
+	ActiveGroupRepo     ActiveDeviceSessionFinder
+	Settings            TenantSettingsResolver
+	InvitationService   authSvc.InvitationService
+	AuthService         authSvc.AuthService
+	// SchoolIdentity provisions the person, staff and caregiver chain a
+	// school role requires (#2222) through Identity & Access.
+	SchoolIdentity authSvc.SchoolIdentityProvisioning
+	AuditLogRepo   platform.OperatorAuditLogRepository
+	DB             *bun.DB
+	Logger         *slog.Logger
 }
 
 // NewOperatorProvisioningService creates a provisioning service.
@@ -588,7 +582,7 @@ func (s *operatorProvisioningService) ensureSchoolIdentityWithCaregiver(
 	if err := s.ensureSchoolIdentityForCaregiverRequest(ctx, accountID, schoolID, role, req); err != nil {
 		return err
 	}
-	if req.CaregiverEnabled && !authSvc.IsPlatformCaregiverRole(role) {
+	if req.CaregiverEnabled && !s.SchoolIdentity.IsPlatformCaregiverRole(authSvc.RoleFactsOf(role)) {
 		if err := s.ensureUserRole(ctx, accountID); err != nil {
 			return fmt.Errorf("assign caregiver role: %w", err)
 		}
@@ -602,15 +596,14 @@ func (s *operatorProvisioningService) ensureSchoolIdentityForCaregiverRequest(
 	role *authModels.Role,
 	req CreateSchoolAccountRequest,
 ) error {
-	_, err := authSvc.EnsureSchoolIdentity(ctx, authSvc.SchoolIdentityRepos{
-		Persons:  s.PersonRepo,
-		Staff:    s.StaffRepo,
-		Teachers: s.TeacherRepo,
-		Students: s.StudentRepo,
-	}, authSvc.SchoolIdentityInput{
+	provisioning, err := s.schoolIdentityProvisioning()
+	if err != nil {
+		return err
+	}
+	_, err = provisioning.EnsureSchoolIdentity(ctx, authSvc.SchoolIdentityInput{
 		AccountID:        accountID,
 		TenantID:         schoolID,
-		Role:             role,
+		Role:             authSvc.RoleFactsOf(role),
 		FirstName:        req.FirstName,
 		LastName:         req.LastName,
 		Position:         req.Position,
@@ -622,6 +615,15 @@ func (s *operatorProvisioningService) ensureSchoolIdentityForCaregiverRequest(
 		return &InvalidDataError{Err: err}
 	}
 	return err
+}
+
+// schoolIdentityProvisioning reports the Identity & Access port the school
+// identity chain is provisioned through; a missing port is a wiring error.
+func (s *operatorProvisioningService) schoolIdentityProvisioning() (authSvc.SchoolIdentityProvisioning, error) {
+	if s.SchoolIdentity == nil {
+		return nil, errors.New("operator provisioning service: school identity provisioning is not composed")
+	}
+	return s.SchoolIdentity, nil
 }
 
 func (s *operatorProvisioningService) ensureUserRole(ctx context.Context, accountID int64) error {
@@ -1325,7 +1327,10 @@ func (s *operatorProvisioningService) SoftDeletePerson(ctx context.Context, pers
 		if staffErr == nil && staff != nil {
 			// Staff exists — check active supervisions
 			if s.GroupSupervisorRepo != nil {
-				supervisors, supErr := s.GroupSupervisorRepo.FindActiveByStaffID(adminCtx, staff.ID)
+				// The operator transaction is cross-tenant, but the presence owner
+				// requires the resolved staff member's tenant for this read.
+				supervisionCtx := tenant.WithTenantID(adminCtx, staff.TenantID)
+				supervisors, supErr := s.GroupSupervisorRepo.FindActiveByStaffID(supervisionCtx, staff.ID)
 				if supErr != nil {
 					s.getLogger().Warn("soft_delete_supervision_check_failed",
 						slog.Int64("person_id", personID),

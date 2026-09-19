@@ -82,6 +82,67 @@ describe("Arbeitszeitmodell decimal-hours editor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
   }
 
+  // Bearbeitet wird am Objekt (BAUARTEN-SPEC Bauart 2 Regeln 3 und 4, #3119):
+  // „Bearbeiten“ schaltet den Reiter selbst um, es öffnet kein Slide-over.
+  it("replaces the read view with the editor in place and restores it on cancel", () => {
+    openEditor();
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Bearbeiten" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Vorschau (nächste 4 Wochen)")).toBeNull();
+    expect(screen.getByRole("radio", { name: /Eigenes Modell/ })).toBeChecked();
+
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Dezimalstunden Montag" }),
+      { target: { value: "8" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+
+    expect(mocks.updateSchedule).not.toHaveBeenCalled();
+    expect(screen.getByText("Vorschau (nächste 4 Wochen)")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Bearbeiten" }),
+    ).toBeInTheDocument();
+
+    // Der verworfene Entwurf kommt beim nächsten Bearbeiten nicht zurück.
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    expect(
+      screen.getByRole("textbox", { name: "Dezimalstunden Montag" }),
+    ).toHaveValue("4,45");
+  });
+
+  it("requires a template in template mode and reports it in the alert", () => {
+    openEditor();
+
+    fireEvent.click(screen.getByRole("radio", { name: /Vorlage zuweisen/ }));
+    expect(
+      screen.queryByRole("textbox", { name: "Dezimalstunden Montag" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(mocks.updateSchedule).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Bitte eine Vorlage auswählen.",
+    );
+    expect(mocks.toastError).not.toHaveBeenCalled();
+  });
+
+  it("returns to the read view after a successful save", async () => {
+    openEditor();
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => expect(mocks.updateSchedule).toHaveBeenCalledTimes(1));
+    expect(
+      await screen.findByRole("button", { name: "Bearbeiten" }),
+    ).toBeInTheDocument();
+    expect(mocks.mutateSchedule).toHaveBeenCalledTimes(1);
+    expect(mocks.mutate).toHaveBeenCalledTimes(1);
+  });
+
   it("loads existing minutes as decimal hours and updates totals while typing", () => {
     openEditor();
 

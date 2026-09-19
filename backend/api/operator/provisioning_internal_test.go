@@ -65,46 +65,6 @@ type mockProvisioningService struct {
 	listSchoolSummariesFn     func(context.Context) ([]*platformSvc.SchoolSummary, error)
 	listOrgSchoolSummariesFn  func(context.Context, int64) ([]*platformSvc.SchoolSummary, error)
 	listOrgPersonsFn          func(context.Context, int64) ([]platformSvc.OperatorPersonInfo, error)
-	listTenantAccessFn        func(context.Context, int64) ([]platformSvc.AccountTenantAccessEntry, error)
-	listAssignableRolesFn     func(context.Context, int64) ([]*authModels.Role, error)
-	grantTenantAccessFn       func(context.Context, int64, int64, platformSvc.GrantAccountTenantAccessRequest, int64, net.IP) ([]platformSvc.AccountTenantAccessEntry, error)
-	updateTenantRoleFn        func(context.Context, int64, int64, int64, int64, net.IP) ([]platformSvc.AccountTenantAccessEntry, error)
-	revokeTenantAccessFn      func(context.Context, int64, int64, int64, net.IP) ([]platformSvc.AccountTenantAccessEntry, error)
-}
-
-func (m *mockProvisioningService) ListAccountTenantAccess(ctx context.Context, accountID int64) ([]platformSvc.AccountTenantAccessEntry, error) {
-	if m.listTenantAccessFn != nil {
-		return m.listTenantAccessFn(ctx, accountID)
-	}
-	return nil, nil
-}
-
-func (m *mockProvisioningService) ListAssignableSchoolRoles(ctx context.Context, schoolID int64) ([]*authModels.Role, error) {
-	if m.listAssignableRolesFn != nil {
-		return m.listAssignableRolesFn(ctx, schoolID)
-	}
-	return nil, nil
-}
-
-func (m *mockProvisioningService) GrantAccountTenantAccess(ctx context.Context, accountID, schoolID int64, req platformSvc.GrantAccountTenantAccessRequest, operatorID int64, clientIP net.IP) ([]platformSvc.AccountTenantAccessEntry, error) {
-	if m.grantTenantAccessFn != nil {
-		return m.grantTenantAccessFn(ctx, accountID, schoolID, req, operatorID, clientIP)
-	}
-	return nil, nil
-}
-
-func (m *mockProvisioningService) UpdateAccountTenantRole(ctx context.Context, accountID, schoolID, roleID, operatorID int64, clientIP net.IP) ([]platformSvc.AccountTenantAccessEntry, error) {
-	if m.updateTenantRoleFn != nil {
-		return m.updateTenantRoleFn(ctx, accountID, schoolID, roleID, operatorID, clientIP)
-	}
-	return nil, nil
-}
-
-func (m *mockProvisioningService) RevokeAccountTenantAccess(ctx context.Context, accountID, schoolID, operatorID int64, clientIP net.IP) ([]platformSvc.AccountTenantAccessEntry, error) {
-	if m.revokeTenantAccessFn != nil {
-		return m.revokeTenantAccessFn(ctx, accountID, schoolID, operatorID, clientIP)
-	}
-	return nil, nil
 }
 
 func (m *mockProvisioningService) CreateOrganization(ctx context.Context, org *organizationtenancy.CreateOrganization, operatorID int64, clientIP net.IP) (*organizationtenancy.Organization, error) {
@@ -1643,12 +1603,12 @@ func TestProvisioningResource_CreateSchoolAccount(t *testing.T) {
 			assert.Equal(t, "Secure123!", req.Password)
 			assert.Equal(t, "Lehrerin", req.Position)
 			require.NotNil(t, req.RoleID)
-			assert.Equal(t, int64(3), *req.RoleID)
+			assert.Equal(t, int64(9007199254740993), *req.RoleID)
 			return &authModels.Account{Model: modelBase.Model{ID: 99}, Email: "teacher@example.com"}, nil
 		},
 	})
 
-	body := `{"email":" TEACHER@example.com ","first_name":" Ada ","last_name":" Lovelace ","password":"Secure123!","confirm_password":"Secure123!","role_id":3,"position":" Lehrerin "}`
+	body := `{"email":" TEACHER@example.com ","first_name":" Ada ","last_name":" Lovelace ","password":"Secure123!","confirm_password":"Secure123!","role_id":"9007199254740993","position":" Lehrerin "}`
 	req := httptest.NewRequest(http.MethodPost, "/operator/schools/7/create-account", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.RemoteAddr = "203.0.113.50:1234"
@@ -1729,7 +1689,7 @@ func TestProvisioningResource_ListSystemRoles(t *testing.T) {
 
 	resource := NewProvisioningResource(&mockProvisioningService{
 		listSystemRolesFn: func(_ context.Context) ([]*authModels.Role, error) {
-			return []*authModels.Role{{Name: "admin"}, {Name: "teacher"}}, nil
+			return []*authModels.Role{{Model: modelBase.Model{ID: 9007199254740993}, Name: "admin"}, {Name: "teacher"}}, nil
 		},
 	})
 	req := httptest.NewRequest(http.MethodGet, "/operator/roles", nil)
@@ -1737,6 +1697,9 @@ func TestProvisioningResource_ListSystemRoles(t *testing.T) {
 
 	resource.ListSystemRoles(rr, req)
 	assert.Equal(t, http.StatusOK, rr.Code)
+	body := decodeBody(t, rr)
+	roles := body["data"].([]any)
+	assert.Equal(t, "9007199254740993", roles[0].(map[string]any)["id"])
 }
 
 func TestProvisioningResource_ListSystemRoles_Error(t *testing.T) {
@@ -1759,7 +1722,7 @@ func TestProvisioningResource_ListSystemRoles_Error(t *testing.T) {
 func TestCreateSchoolAccountRequest_Bind_TrimAndLowercaseEmail(t *testing.T) {
 	t.Parallel()
 
-	roleID := int64(3)
+	roleID := common.JSONID(3)
 	req := &createSchoolAccountRequest{
 		Email:           "  TEACHER@EXAMPLE.COM  ",
 		FirstName:       "  Ada  ",

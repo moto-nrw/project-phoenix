@@ -72,6 +72,12 @@ type UnitOfWork struct {
 	withTransaction func(context.Context, any) context.Context
 }
 
+// IsZero reports whether the unit of work carries no transaction functions,
+// which is the state of a composition root that never configured one.
+func (uow UnitOfWork) IsZero() bool {
+	return uow.withinTenant == nil && uow.withinAdmin == nil && uow.savepoint == nil && uow.retryable == nil
+}
+
 // WithTransactionDetacher installs the persistence adapter operation used to
 // mask its private transaction context. It keeps context-key ownership inside
 // the adapter that reads the key.
@@ -168,6 +174,20 @@ func WithUnitOfWork(ctx context.Context, uow UnitOfWork) context.Context {
 // without coupling this package to HTTP or worker metrics.
 func WithUnitOfWorkObserver(ctx context.Context, observer func(UnitOfWorkEvent)) context.Context {
 	return context.WithValue(ctx, runtimeObserverKey{}, observer)
+}
+
+// WithAdditionalUnitOfWorkObserver attributes runtime evidence to a workflow
+// without replacing the root's transaction metrics observer.
+func WithAdditionalUnitOfWorkObserver(ctx context.Context, observer func(UnitOfWorkEvent)) context.Context {
+	previous, _ := ctx.Value(runtimeObserverKey{}).(func(UnitOfWorkEvent))
+	return WithUnitOfWorkObserver(ctx, func(event UnitOfWorkEvent) {
+		if previous != nil {
+			previous(event)
+		}
+		if observer != nil {
+			observer(event)
+		}
+	})
 }
 
 func WithRuntimeObserver(ctx context.Context, observer func(RuntimeEvent)) context.Context {

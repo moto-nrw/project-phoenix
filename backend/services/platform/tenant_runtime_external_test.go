@@ -3,12 +3,16 @@ package platform_test
 import (
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/services"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func newTestOperatorProvisioningService(t testing.TB, cfg platformSvc.OperatorProvisioningServiceConfig) platformSvc.OperatorProvisioningService {
 	t.Helper()
+	if cfg.SchoolIdentity == nil {
+		cfg.SchoolIdentity = services.NewRepositorySchoolIdentityForTests(cfg.PersonRepo, cfg.StaffRepo, cfg.TeacherRepo)
+	}
 	service := platformSvc.NewOperatorProvisioningService(cfg)
 	if cfg.DB != nil {
 		testpkg.SetTenantRuntime(t, service, cfg.DB)

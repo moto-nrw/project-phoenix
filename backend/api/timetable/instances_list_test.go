@@ -16,9 +16,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -46,6 +46,13 @@ func (s *stubOfferingSourceLister) CombinedOfferingSourceCounts(
 	_ []int64,
 	_ *int64,
 ) (*enrollmentSvc.OfferingSourceCombinedCounts, error) {
+	return nil, nil
+}
+
+func (s *stubOfferingSourceLister) TemplateRosterMaintenanceFeeds(
+	_ context.Context,
+	_ []enrollmentSvc.TemplateRosterFeedQuery,
+) (map[int64]enrollmentSvc.TemplateRosterFeeds, error) {
 	return nil, nil
 }
 
@@ -224,6 +231,8 @@ func TestListInstances_ReportsOfferingEmptyRosterReason(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 	got := decodeTemplateData[weeklyInstancesResponse](t, w)
 	require.Len(t, got.Instances, 1)
+	require.NotNil(t, got.Instances[0].CalendarPeriodID)
+	assert.Equal(t, period.ID, *got.Instances[0].CalendarPeriodID)
 	require.NotNil(t, got.Instances[0].EmptyRosterReason)
 	assert.Equal(t, enrollmentSvc.EmptyOfferingRosterBeforeServiceStart, got.Instances[0].EmptyRosterReason.Kind)
 	assert.Equal(t, "2026-08-13", got.Instances[0].EmptyRosterReason.ServiceStartDate)

@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -60,7 +61,7 @@ func setupAuthRoute(t *testing.T) *testContext {
 func setupAuthDependenciesRoute(t *testing.T) (*bun.DB, *authAPI.Resource) {
 	t.Helper()
 	db, svc := testutil.SetupAuthModule(t)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, svc.Schools, db)
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, svc.Schools, svc.AccountAuthentication, db)
 	resource.SettingsService = svc.Settings
 	resource.SetGuardianInvitationService(svc.GuardianInvitation)
 	return db, resource
@@ -967,7 +968,8 @@ func TestRoleManagement(t *testing.T) {
 
 		createResp := testutil.ParseJSONResponse(t, createRr.Body.Bytes())
 		data := createResp["data"].(map[string]interface{})
-		roleID := int64(data["id"].(float64))
+		roleID, err := strconv.ParseInt(data["id"].(string), 10, 64)
+		require.NoError(t, err)
 
 		// Now get the role
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/auth/roles/%d", roleID), nil)
@@ -1165,7 +1167,8 @@ func TestPermissionManagement(t *testing.T) {
 		assert.Equal(t, "read", data["action"])
 
 		// Cleanup: delete the created permission
-		permID := int64(data["id"].(float64))
+		permID, err := strconv.ParseInt(data["id"].(string), 10, 64)
+		require.NoError(t, err)
 		_, _ = tc.db.NewDelete().TableExpr("auth.permissions").Where("id = ?", permID).Exec(context.Background())
 	})
 
@@ -1319,6 +1322,29 @@ func TestRolePermissionAssignment(t *testing.T) {
 		rr = testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"roles:manage"})
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Remove failed: %s", rr.Body.String())
 	})
+
+	t.Run("replaces permissions on a role", func(t *testing.T) {
+		role := testpkg.CreateTestRole(t, tc.db, "ReplacePermRole")
+		permission := testpkg.CreateTestPermission(t, tc.db, "ReplaceRolePermission", "test", "read")
+
+		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/roles/%d/permissions", role.ID), map[string][]string{
+			"permission_ids": {fmt.Sprintf("%d", permission.ID)},
+		})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"roles:manage"})
+
+		assert.Equal(t, http.StatusNoContent, rr.Code, "Replace failed: %s", rr.Body.String())
+	})
+
+	t.Run("rejects an unknown permission while replacing permissions", func(t *testing.T) {
+		role := testpkg.CreateTestRole(t, tc.db, "ReplacePermMissing")
+
+		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/roles/%d/permissions", role.ID), map[string][]int64{
+			"permission_ids": {99999},
+		})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"roles:manage"})
+
+		testutil.AssertNotFound(t, rr)
+	})
 }
 
 // ============================================================================
@@ -1429,6 +1455,34 @@ func TestAccountRoleAssignment(t *testing.T) {
 		req = testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/auth/accounts/%d/roles/%d", account.ID, role.ID), nil)
 		rr = testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Remove failed: %s", rr.Body.String())
+	})
+
+	t.Run("replaces roles on an account", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("replacerole%d", time.Now().UnixNano()))
+		oldRole := testpkg.CreateTestRole(t, tc.db, "ReplaceAccRoleOld")
+		extraRole := testpkg.CreateTestRole(t, tc.db, "ReplaceAccRoleExtra")
+		role := testpkg.CreateTestRole(t, tc.db, "ReplaceAccRole")
+		for _, current := range []int64{oldRole.ID, extraRole.ID} {
+			assignReq := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/accounts/%d/roles/%d", account.ID, current), nil)
+			assignResp := testutil.ExecuteWithAuthPermissions(t, router, assignReq, adminClaims, []string{"users:manage"})
+			require.Equal(t, http.StatusNoContent, assignResp.Code, "Assign failed: %s", assignResp.Body.String())
+		}
+
+		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/accounts/%d/roles", account.ID), map[string]string{
+			"role_id": fmt.Sprintf("%d", role.ID),
+		})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
+
+		assert.Equal(t, http.StatusNoContent, rr.Code, "Replace failed: %s", rr.Body.String())
+
+		// The target is the only staff role left; both previous roles are gone.
+		var remaining []int64
+		require.NoError(t, tc.db.NewSelect().
+			TableExpr("auth.account_roles").
+			Column("role_id").
+			Where("account_id = ?", account.ID).
+			Scan(context.Background(), &remaining))
+		assert.ElementsMatch(t, []int64{role.ID}, remaining)
 	})
 
 	t.Run("rejects direct assignment of guardian roles", func(t *testing.T) {
@@ -1955,7 +2009,7 @@ func TestListTenants(t *testing.T) {
 	db, authRoute := setupAuthDependenciesRoute(t)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), authRoute.Sessions, db)
 
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())
@@ -2027,7 +2081,7 @@ func setupAuthRouteWithSchoolRepo(t *testing.T) *testContext {
 
 	db, authRoute := setupAuthDependenciesRoute(t)
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), authRoute.Sessions, db)
 
 	return &testContext{
 		db:       db,
@@ -2249,7 +2303,7 @@ func TestResolveTenant_DeletedSchool_ReturnsNotFound(t *testing.T) {
 	require.NoError(t, err)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), authRoute.Sessions, db)
 
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())
@@ -2368,16 +2422,17 @@ func TestRoleAssignmentEndpointsRejectEscalation(t *testing.T) {
 	})
 }
 
-// TestListRoles_UsersCreateReadsNamesOnly pins the users:create carve-out on
-// the role list (#2906): whoever may create users assigns a role by name (the
-// staff import's "Rolle" column), so the name list is theirs to read, while
-// role details and permission sets stay behind roles:read.
-func TestListRoles_UsersCreateReadsNamesOnly(t *testing.T) {
+// TestListRoles_UserManagementPermissionsReadNamesOnly pins the role-list
+// carve-out (#2906): whoever may create or manage users assigns a role by
+// name, so the name list is theirs to read, while role details and permission
+// sets stay behind roles:read.
+func TestListRoles_UserManagementPermissionsReadNamesOnly(t *testing.T) {
 	t.Parallel()
 	_, router := setupProtectedRouter(t)
 
 	claims := testutil.AdminTestClaims(1)
 	usersCreateOnly := []string{"users:create"}
+	usersManageOnly := []string{"users:manage"}
 
 	t.Run("list roles with users:create", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/roles", nil)
@@ -2397,9 +2452,34 @@ func TestListRoles_UsersCreateReadsNamesOnly(t *testing.T) {
 		}
 	})
 
+	t.Run("list roles with users:manage", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "GET", "/auth/roles", nil)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, claims, usersManageOnly)
+
+		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+		data, ok := response["data"].([]interface{})
+		require.True(t, ok, "Expected data to be an array")
+		require.NotEmpty(t, data, "Expected at least one role")
+		for _, entry := range data {
+			role, ok := entry.(map[string]interface{})
+			require.True(t, ok, "Expected role objects")
+			assert.NotEmpty(t, role["name"])
+			assert.NotContains(t, role, "permissions", "the list must not carry permission sets")
+		}
+	})
+
 	t.Run("role details stay behind roles:read", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/roles/1", nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, claims, usersCreateOnly)
+
+		testutil.AssertForbidden(t, rr)
+	})
+
+	t.Run("role details stay behind roles:read for users:manage", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "GET", "/auth/roles/1", nil)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, claims, usersManageOnly)
 
 		testutil.AssertForbidden(t, rr)
 	})

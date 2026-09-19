@@ -325,6 +325,9 @@ type GuardianQuery interface {
 	ListInvitableGuardians(context.Context) ([]Guardian, error)
 	// SearchGuardians matches name and email; limit caps the slice.
 	SearchGuardians(ctx context.Context, text string, limit int) ([]GuardianMatch, error)
+	// FindGuardianByEmail returns the tenant's guardian whose e-mail equals
+	// the given one, ignoring case; ErrGuardianNotFound when there is none.
+	FindGuardianByEmail(context.Context, string) (Guardian, error)
 	GuardianDeleteImpact(context.Context, int64) (GuardianDeleteImpact, error)
 	ListGuardianPhones(context.Context, int64) ([]GuardianPhone, error)
 	FindGuardianPhone(context.Context, int64) (GuardianPhone, error)
@@ -381,6 +384,7 @@ type GuardianProvider interface {
 	ListGuardiansWithoutAccount(context.Context) ([]Guardian, error)
 	ListInvitableGuardians(context.Context) ([]Guardian, error)
 	SearchGuardians(ctx context.Context, text string, limit int) ([]GuardianMatch, error)
+	FindGuardianByEmail(context.Context, string) (Guardian, error)
 	GuardianDeleteImpact(context.Context, int64) (GuardianDeleteImpact, error)
 	ListGuardianPhones(context.Context, int64) ([]GuardianPhone, error)
 	FindGuardianPhone(context.Context, int64) (GuardianPhone, error)

@@ -2,7 +2,8 @@ import type { Session } from "next-auth";
 
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 
-export type ParentRequestReviewAccess = "admin" | "group_leader" | "none";
+export type ParentRequestReviewAccess =
+  "admin" | "team" | "group_leader" | "none";
 
 export interface EffectiveChangeRequestAccess {
   readonly parentReviewAccess: ParentRequestReviewAccess;

@@ -48,12 +48,15 @@ function canUseAllMoveTargets(session: Session | null): boolean {
 
 interface TransitStudentsSectionProps {
   readonly onSelectionActiveChange?: (active: boolean) => void;
+  /** Meldet die geladene Zahl für die Statuszeile der eigenständigen Seite. */
+  readonly onTotalCountChange?: (totalCount: number | null) => void;
   readonly fromReferrer?: string;
   readonly collapsible?: boolean;
 }
 
 export function TransitStudentsSection({
   onSelectionActiveChange,
+  onTotalCountChange,
   fromReferrer: fromReferrerOverride,
   collapsible = false,
 }: TransitStudentsSectionProps) {
@@ -158,15 +161,21 @@ export function TransitStudentsSection({
   const totalCount = studentsData?.pagination?.total_records ?? students.length;
   const allSelected =
     students.length > 0 && selectedVisibleCount === students.length;
+  // Die Kindakte kehrt auf die Seite „Unterwegs" zurück (#3115); ihre
+  // Abfrage (etwa der Rückweg zur Übersicht) reist mit.
   const defaultFromReferrer = (() => {
     const qs = sectionSearchParams?.toString() ?? "";
-    return qs ? `/rooms?${qs}` : "/rooms?room=__transit__";
+    return qs ? `/rooms/unterwegs?${qs}` : "/rooms/unterwegs";
   })();
   const fromReferrer = fromReferrerOverride ?? defaultFromReferrer;
 
   useEffect(() => {
     onSelectionActiveChange?.(selectedVisibleCount > 0);
   }, [onSelectionActiveChange, selectedVisibleCount]);
+
+  useEffect(() => {
+    onTotalCountChange?.(studentsData ? totalCount : null);
+  }, [onTotalCountChange, studentsData, totalCount]);
 
   useEffect(() => {
     if (

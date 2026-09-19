@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
 
@@ -58,4 +60,36 @@ func TestVerifyProfileSettings_RejectsReadBackMismatch(t *testing.T) {
 	}})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "expected true, got false")
+}
+
+func TestConfigureDemoProfilesOrdersAttendanceScopeChanges(t *testing.T) {
+	t.Parallel()
+	for _, definition := range []demoProfileDefinition{fullOperationProfileDefinition(), manualProfileDefinition()} {
+		t.Run(definition.Key, func(t *testing.T) {
+			var keys []string
+			srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+				keys = append(keys, r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:])
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = fmt.Fprint(w, `{"status":"success"}`)
+			})
+			defer srv.Close()
+			rt := &Runtime{
+				Client: newTestClient(srv.URL, false), Bootstrap: &bootstrapSeedState{SchoolID: 42},
+				TenantAuth: AuthRef{Kind: AuthBearer, Token: "tenant"}, OperatorAuth: AuthRef{Kind: AuthBearer, Token: "operator"},
+			}
+			require.NoError(t, (configureProfileStep{definition: definition}).Run(context.Background(), rt))
+			visibility := slices.Index(keys, profileSettingOverviewScope)
+			attendance := slices.Index(keys, profileSettingAttendanceScope)
+			require.NotEqual(t, -1, visibility)
+			require.NotEqual(t, -1, attendance)
+			if definition.Key == DefaultProfileKey {
+				assert.Less(t, visibility, attendance)
+			} else {
+				assert.Less(t, attendance, visibility)
+			}
+			require.Contains(t, keys, profileSettingParentSickMode)
+			require.Contains(t, keys, profileSettingParentExcusedMode)
+			require.NotEqual(t, definition.Settings[profileSettingParentSickMode].Value, definition.Settings[profileSettingParentExcusedMode].Value)
+		})
+	}
 }

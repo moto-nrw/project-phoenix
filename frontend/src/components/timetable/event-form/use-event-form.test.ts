@@ -454,7 +454,7 @@ describe("useEventForm offering source roster stash", () => {
     expect(result.current.form.studentIds).toEqual([]);
   });
 
-  it("asks for confirmation before a source flattens per-weekday staffing", () => {
+  it("keeps the per-weekday staffing when a source is selected (#3165)", () => {
     vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
     vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);
     vi.spyOn(
@@ -489,35 +489,102 @@ describe("useEventForm offering source roster stash", () => {
       result.current.setPerWeekdayRoster(true);
     });
     act(() => {
-      result.current.setWeekdayRoster(2, {
+      result.current.setWeekdayRoster(1, {
         staffIds: ["7"],
+        primaryStaffId: "7",
+        studentIds: ["11"],
+      });
+    });
+    act(() => {
+      result.current.setWeekdayRoster(2, {
+        staffIds: ["8"],
         primaryStaffId: "",
-        studentIds: [],
+        studentIds: ["12"],
       });
     });
 
-    // The pick is parked, not applied — saving now would silently replace
-    // the deviating weekday staffing with the shared list.
+    // Nothing is lost any more, so the source applies at once: no pending
+    // confirmation, each weekday keeps its own supervisors.
     act(() => {
       result.current.changeSourceOfferings(["5"]);
     });
-    expect(result.current.pendingSourceOfferingIds).toEqual(["5"]);
-    expect(result.current.form.sourceCareOfferingIds).toEqual([]);
-
-    act(() => {
-      result.current.cancelPendingSourceOffering();
-    });
-    expect(result.current.pendingSourceOfferingIds).toBeNull();
-    expect(result.current.form.sourceCareOfferingIds).toEqual([]);
-
-    act(() => {
-      result.current.changeSourceOfferings(["5"]);
-    });
-    act(() => {
-      result.current.confirmPendingSourceOffering();
-    });
-    expect(result.current.pendingSourceOfferingIds).toBeNull();
+    expect(result.current).not.toHaveProperty("pendingSourceOfferingIds");
     expect(result.current.form.sourceCareOfferingIds).toEqual(["5"]);
+    expect(result.current.form.perWeekdayRoster).toBe(true);
+    expect(result.current.form.weekdayRosters[1]?.staffIds).toEqual(["7"]);
+    expect(result.current.form.weekdayRosters[1]?.primaryStaffId).toBe("7");
+    expect(result.current.form.weekdayRosters[2]?.staffIds).toEqual(["8"]);
+    // The source replaces the manual children on every weekday.
+    expect(result.current.form.weekdayRosters[1]?.studentIds).toEqual([]);
+    expect(result.current.form.weekdayRosters[2]?.studentIds).toEqual([]);
+
+    // Clearing the source brings the manual per-weekday child lists back,
+    // like the shared list — saving must not wipe them.
+    act(() => {
+      result.current.changeSourceOfferings([]);
+    });
+    expect(result.current.form.weekdayRosters[1]?.studentIds).toEqual(["11"]);
+    expect(result.current.form.weekdayRosters[2]?.studentIds).toEqual(["12"]);
+  });
+
+  it("hands the shared manual list to every weekday when per-weekday mode started under a source (#3165)", () => {
+    vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
+    vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);
+    vi.spyOn(
+      plannerReferenceApi,
+      "fetchPlannerActivityCategories",
+    ).mockResolvedValue([]);
+    vi.spyOn(formModel, "fetchAllStudentOptions").mockResolvedValue([]);
+    vi.spyOn(staffService, "getAllStaff").mockResolvedValue([]);
+
+    const { result } = renderHook(() =>
+      useEventForm({
+        isOpen: true,
+        onClose: vi.fn(),
+        onSaved: vi.fn(),
+        defaultDate: "2026-08-03",
+        calendarPeriods: [],
+        defaultCalendarPeriodId: null,
+        planningPeriods: null,
+        initialInstance: null,
+        initialSeries: null,
+        convertInstance: null,
+        defaultRepeat: "none",
+        variant: "full",
+        canCheckShiftCoverage: false,
+      }),
+    );
+
+    act(() => {
+      result.current.update("weekdays", [1, 2]);
+    });
+    act(() => {
+      result.current.update("studentIds", ["11", "12"]);
+    });
+    act(() => {
+      result.current.changeSourceOfferings(["5"]);
+    });
+    // Per-weekday staffing is now reachable under a source; switching it on
+    // seeds every day from the (empty) sourced shared list.
+    act(() => {
+      result.current.setPerWeekdayRoster(true);
+    });
+    expect(result.current.form.weekdayRosters[1]?.studentIds).toEqual([]);
+
+    // Clearing the source must give the manual children back on every day,
+    // or the next save would send empty per-weekday child lists.
+    act(() => {
+      result.current.changeSourceOfferings([]);
+    });
+    expect(result.current.form.studentIds).toEqual(["11", "12"]);
+    expect(result.current.form.weekdayRosters[1]?.studentIds).toEqual([
+      "11",
+      "12",
+    ]);
+    expect(result.current.form.weekdayRosters[2]?.studentIds).toEqual([
+      "11",
+      "12",
+    ]);
   });
 
   it("restores the manual roster when the target group leaves 'angebot'", () => {
@@ -567,120 +634,6 @@ describe("useEventForm offering source roster stash", () => {
     });
     expect(result.current.form.sourceCareOfferingIds).toEqual([]);
     expect(result.current.form.studentIds).toEqual(["11", "12"]);
-  });
-
-  it("clears the shared staffing when a confirmed source replaces deviating weekday staff", () => {
-    vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
-    vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);
-    vi.spyOn(
-      plannerReferenceApi,
-      "fetchPlannerActivityCategories",
-    ).mockResolvedValue([]);
-    vi.spyOn(formModel, "fetchAllStudentOptions").mockResolvedValue([]);
-    vi.spyOn(staffService, "getAllStaff").mockResolvedValue([]);
-
-    const { result } = renderHook(() =>
-      useEventForm({
-        isOpen: true,
-        onClose: vi.fn(),
-        onSaved: vi.fn(),
-        defaultDate: "2026-08-03",
-        calendarPeriods: [],
-        defaultCalendarPeriodId: null,
-        planningPeriods: null,
-        initialInstance: null,
-        initialSeries: null,
-        convertInstance: null,
-        defaultRepeat: "none",
-        variant: "full",
-        canCheckShiftCoverage: false,
-      }),
-    );
-
-    act(() => {
-      result.current.update("staffIds", ["7"]);
-    });
-    act(() => {
-      result.current.update("weekdays", [1, 2]);
-    });
-    act(() => {
-      result.current.setPerWeekdayRoster(true);
-    });
-    act(() => {
-      result.current.setWeekdayRoster(2, {
-        staffIds: ["8"],
-        primaryStaffId: "8",
-        studentIds: [],
-      });
-    });
-
-    act(() => {
-      result.current.changeSourceOfferings(["5"]);
-    });
-    act(() => {
-      result.current.confirmPendingSourceOffering();
-    });
-
-    // Nobody chose an all-weekdays union: per-weekday mode ends and the
-    // shared Besetzung starts empty until it is picked explicitly.
-    expect(result.current.form.sourceCareOfferingIds).toEqual(["5"]);
-    expect(result.current.form.perWeekdayRoster).toBe(false);
-    expect(result.current.form.staffIds).toEqual([]);
-    expect(result.current.form.primaryStaffId).toBe("");
-  });
-
-  it("adopts the identical day staffing when a source ends per-weekday mode without deviation", () => {
-    vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
-    vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);
-    vi.spyOn(
-      plannerReferenceApi,
-      "fetchPlannerActivityCategories",
-    ).mockResolvedValue([]);
-    vi.spyOn(formModel, "fetchAllStudentOptions").mockResolvedValue([]);
-    vi.spyOn(staffService, "getAllStaff").mockResolvedValue([]);
-
-    const { result } = renderHook(() =>
-      useEventForm({
-        isOpen: true,
-        onClose: vi.fn(),
-        onSaved: vi.fn(),
-        defaultDate: "2026-08-03",
-        calendarPeriods: [],
-        defaultCalendarPeriodId: null,
-        planningPeriods: null,
-        initialInstance: null,
-        initialSeries: null,
-        convertInstance: null,
-        defaultRepeat: "none",
-        variant: "full",
-        canCheckShiftCoverage: false,
-      }),
-    );
-
-    act(() => {
-      result.current.update("staffIds", ["7"]);
-    });
-    act(() => {
-      result.current.update("weekdays", [1, 2]);
-    });
-    act(() => {
-      result.current.setPerWeekdayRoster(true);
-    });
-    // The shared list goes stale while the concrete day rosters still agree.
-    act(() => {
-      result.current.update("staffIds", ["9"]);
-    });
-
-    act(() => {
-      result.current.changeSourceOfferings(["5"]);
-    });
-
-    // No deviation between days, so no confirmation — and the collapse takes
-    // the concrete day staffing, not the stale shared list.
-    expect(result.current.pendingSourceOfferingIds).toBeNull();
-    expect(result.current.form.sourceCareOfferingIds).toEqual(["5"]);
-    expect(result.current.form.perWeekdayRoster).toBe(false);
-    expect(result.current.form.staffIds).toEqual(["7"]);
   });
 });
 

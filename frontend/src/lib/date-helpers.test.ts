@@ -1,5 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import {
+  berlinClockFromISO,
+  berlinDateTimeISO,
   berlinDayFromISO,
   formatStatusDate,
   groupByDate,
@@ -699,5 +701,38 @@ describe("formatStatusDate", () => {
   it("rendert Wochentag und numerisches Datum", () => {
     expect(formatStatusDate("2026-08-27")).toBe("Donnerstag, 27.08.2026");
     expect(formatStatusDate("2026-01-04")).toBe("Sonntag, 04.01.2026");
+  });
+});
+
+describe("berlinDateTimeISO / berlinClockFromISO (#3162)", () => {
+  it("pins a picker day plus a clock time to Berlin, across DST", () => {
+    // CEST: 08:00 Berlin is 06:00 UTC.
+    expect(berlinDateTimeISO(new Date(2026, 8, 24), "08:00")).toBe(
+      "2026-09-24T06:00:00.000Z",
+    );
+    // CET: 08:00 Berlin is 07:00 UTC.
+    expect(berlinDateTimeISO(new Date(2026, 11, 3), "08:00")).toBe(
+      "2026-12-03T07:00:00.000Z",
+    );
+  });
+
+  it("reads the Berlin clock back from the stored instant", () => {
+    expect(berlinClockFromISO("2026-09-24T06:00:00.000Z")).toBe("08:00");
+    expect(berlinClockFromISO("2026-12-03T07:30:00.000Z")).toBe("08:30");
+    expect(berlinClockFromISO("kaputt")).toBe("");
+  });
+
+  it("round-trips a moment through day, clock and back", () => {
+    const iso = berlinDateTimeISO(new Date(2026, 8, 24), "13:45");
+    expect(berlinClockFromISO(iso)).toBe("13:45");
+  });
+
+  it("rejects wall-clock times that are missing or repeated during daylight saving changes", () => {
+    expect(() => berlinDateTimeISO(new Date(2026, 2, 29), "02:30")).toThrow(
+      RangeError,
+    );
+    expect(() => berlinDateTimeISO(new Date(2026, 9, 25), "02:30")).toThrow(
+      RangeError,
+    );
   });
 });

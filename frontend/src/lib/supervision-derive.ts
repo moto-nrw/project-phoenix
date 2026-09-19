@@ -1,8 +1,8 @@
 import type { NavigationEducationalGroup } from "~/lib/usercontext-helpers";
 
 /**
- * Pure derivation of the supervision navigation state from the three backend
- * payloads (group navigation, supervised groups, Schulhof status). Shared by
+ * Pure derivation of the supervision navigation state from the backend
+ * payloads (group navigation, supervised groups, released rooms). Shared by
  * SupervisionProvider (browser fetches through the Next API routes) and the
  * server-side shell bootstrap (#2973), so both sides produce the same rooms.
  */
@@ -12,16 +12,24 @@ export interface SupervisedRoom {
   name: string;
   groupId: string;
   groupName?: string;
-  /** Special flag for the permanent Schulhof tab. */
-  isSchulhof?: boolean;
+  /**
+   * True for a permanently released room ("offener Raum", #3065). Such a room
+   * is shared: reachable by every caregiver, empty or not, and seeing it grants
+   * no supervision and no booking right. The flag exists so the UI can keep
+   * shared rooms visibly apart from the caller's own supervisions.
+   */
+  isOpenRoom?: boolean;
+  /** Active sessions in this released room, used to mark a `?session=` link. */
+  sessionIds?: readonly string[];
 }
 
-export interface SchulhofStatus {
-  exists: boolean;
-  room_id?: number;
-  room_name: string;
-  active_group_id?: number;
-  is_user_supervising: boolean;
+/**
+ * One released room as the rooms endpoint reports it
+ * (GET /api/rooms?is_open_room=true).
+ */
+export interface OpenRoomPayload {
+  id: number;
+  name: string;
 }
 
 /** One entry of /api/active/supervisors/all or /api/me/groups/supervised. */
@@ -42,24 +50,26 @@ export interface SupervisionSnapshot {
   supervised: SupervisedGroupPayload[] | null;
   /** Eigene laufende Aufsichten zusätzlich zur schulweiten Übersicht. */
   ownSupervised?: SupervisedGroupPayload[] | null;
-  schulhof: SchulhofStatus | null;
+  /** Released rooms, or null when the request did not succeed. */
+  openRooms: OpenRoomPayload[] | null;
   /** True when `supervised` came from the school-wide overview endpoint. */
   overviewOk: boolean;
 }
 
 export interface DerivedSupervision {
   /**
-   * Es gibt etwas zu beaufsichtigen: eigene Räume, die schulweite Übersicht
-   * oder der Schulhof, dem sich jede Person anschließen kann. Steuert die
-   * Sichtbarkeit von „Aufsicht" in der Navigation — NICHT, ob die Person
-   * selbst gerade Aufsicht führt.
+   * Es gibt laufende Aufsichten: eigene Räume oder die schulweite Übersicht.
+   * Steuert die Sichtbarkeit von „Aufsicht" in der Navigation — NICHT, ob die
+   * Person selbst gerade Aufsicht führt. Offene Räume zählen hier nicht: sie
+   * sind für alle erreichbar, auch wenn dort nichts läuft.
    */
   isSupervising: boolean;
   /**
-   * Die Person führt gerade selbst eine Aufsicht: ein eigener laufender Raum
-   * oder der Schulhof, dem sie sich angeschlossen hat. Mit der schulweiten
-   * Übersicht sind eigene Räume nicht von fremden zu unterscheiden; dann
-   * zählt nur der Schulhof. Steuert „Aufsicht fortsetzen" auf der Startseite.
+   * Die Person führt gerade selbst eine Aufsicht — in einem eigenen Raum oder
+   * in einem offenen Raum, dem sie sich angeschlossen hat. Mit der schulweiten
+   * Übersicht sind eigene Aufsichten nicht von fremden zu unterscheiden; dann
+   * liefert die zusätzliche eigene Abfrage das Signal. Steuert „Aufsicht
+   * fortsetzen" auf der Startseite.
    * Optional, damit die vielen Test-Fixturen des Kontexts unverändert bleiben;
    * `deriveSupervision` setzt es immer, fehlend heißt „nein".
    */
@@ -70,59 +80,95 @@ export interface DerivedSupervision {
   overviewEnabled: boolean;
 }
 
-const SCHULHOF_ROOM_NAME = "Schulhof";
-const SCHULHOF_TAB_ID = "schulhof";
-
 export function sortNavigationGroups(
   groups: readonly NavigationEducationalGroup[],
 ): NavigationEducationalGroup[] {
   return [...groups].sort((a, b) => a.name.localeCompare(b.name, "de"));
 }
 
-function schulhofRoom(status: SchulhofStatus | null): SupervisedRoom | null {
-  // Intentionally check `exists` only, NOT `is_user_supervising`. The
-  // Schulhof tab must be visible to ALL staff so anyone can opt in to
-  // supervise; `is_user_supervising` is for UI hints, never tab visibility.
-  if (!status?.exists) return null;
-  return {
-    id: SCHULHOF_TAB_ID,
-    name: SCHULHOF_ROOM_NAME,
-    groupId: status.active_group_id?.toString() ?? SCHULHOF_TAB_ID,
-    isSchulhof: true,
-  };
+/**
+ * Own running supervision — the signal behind „Aufsicht fortsetzen" (#2180).
+ * A released room counts only when the caller actually supervises a session in
+ * it; being able to reach a shared room is not supervising it. The answer
+ * therefore comes from the supervised-groups payload, never from the room list.
+ */
+function hasOwnSupervision(
+  groups: SupervisedGroupPayload[] | null | undefined,
+): boolean {
+  return groups?.some((group) => group.room_id !== undefined) === true;
+}
+
+/**
+ * Released rooms as navigation entries. Deliberately independent of who
+ * supervises what: a released room is reachable for everyone, including when
+ * nothing runs in it. The room id is the identity — no synthetic tab id and no
+ * name matching — so sidebar, mobile navigation and target page all address
+ * the same thing.
+ */
+function openRoomEntries(
+  rooms: OpenRoomPayload[] | null,
+  supervised: SupervisedGroupPayload[] | null,
+): SupervisedRoom[] {
+  if (!rooms) return [];
+  const sessionIdsByRoom = new Map<string, string[]>();
+  for (const session of supervised ?? []) {
+    if (!session.room_id) continue;
+    const roomId = session.room_id.toString();
+    const sessionIds = sessionIdsByRoom.get(roomId) ?? [];
+    sessionIds.push(session.id.toString());
+    sessionIdsByRoom.set(roomId, sessionIds);
+  }
+  return rooms
+    .map((room) => {
+      const sessionIds = sessionIdsByRoom.get(room.id.toString());
+      return {
+        id: room.id.toString(),
+        name: room.name,
+        // A released room has a physical room identity, not a session key.
+        // Keeping this empty prevents a stale session id from matching the
+        // unrelated facilities id.
+        groupId: "",
+        isOpenRoom: true,
+        ...(sessionIds ? { sessionIds } : {}),
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, "de"));
 }
 
 export function deriveSupervision(
   supervised: SupervisedGroupPayload[] | null,
-  schulhof: SchulhofStatus | null,
+  openRooms: OpenRoomPayload[] | null,
   overviewOk: boolean,
   ownSupervised: SupervisedGroupPayload[] | null = null,
 ): DerivedSupervision {
-  const schulhofEntry = schulhofRoom(schulhof);
+  const openEntries = openRoomEntries(openRooms, supervised);
+  const openRoomIDs = new Set(openEntries.map((room) => room.id));
   const first = supervised?.[0];
-  const ownsRegularRoom =
-    overviewOk &&
-    ownSupervised?.some(
-      (group) =>
-        group.room_id !== undefined && group.room?.name !== SCHULHOF_ROOM_NAME,
-    ) === true;
+  // Ohne Übersicht stammt jede Zeile aus /api/me/groups/supervised und ist
+  // eine eigene Aufsicht. Mit Übersicht liefert die zusätzliche eigene
+  // Abfrage das Signal für „Aufsicht fortsetzen".
+  const ownSupervision = overviewOk
+    ? hasOwnSupervision(ownSupervised)
+    : hasOwnSupervision(supervised);
 
   if (!supervised || !first) {
-    // No regular supervision (or the request failed): Schulhof alone still
-    // counts, so anyone can join it.
+    // No own supervision (or that request failed). Released rooms are still
+    // reachable — that is the point of releasing them — but reaching one is
+    // not supervising it, so isSupervising stays false and no room is
+    // preselected as "mine".
     return {
-      isSupervising: schulhofEntry !== null,
-      ownSupervision: ownsRegularRoom || schulhof?.is_user_supervising === true,
-      supervisedRoomId: schulhofEntry ? SCHULHOF_TAB_ID : undefined,
-      supervisedRoomName: schulhofEntry ? SCHULHOF_ROOM_NAME : undefined,
-      supervisedRooms: schulhofEntry ? [schulhofEntry] : [],
+      isSupervising: false,
+      ownSupervision,
+      supervisedRooms: openEntries,
       overviewEnabled: supervised !== null && overviewOk,
     };
   }
 
-  // Schulhof is handled separately, so keep it out of the regular rooms.
+  // Released rooms are contributed once, from the room list. A supervision
+  // that happens to run in one of them must not add a second entry for the
+  // same place — that is the duplicate-tab problem this replaces.
   const eligible = supervised.filter(
-    (g) => g.room_id && g.room && g.room.name !== SCHULHOF_ROOM_NAME,
+    (g) => g.room_id && g.room && !openRoomIDs.has(g.room_id.toString()),
   );
   // Parallel sessions can share one room (#2265): a room-name-only label
   // would render indistinguishable entries, so suffix the activity name
@@ -149,17 +195,14 @@ export function deriveSupervision(
 
   return {
     isSupervising: true,
-    // Ohne Übersicht stammt jede Zeile aus /api/me/groups/supervised und ist
-    // eine eigene Aufsicht. Mit Übersicht liefert die zusätzliche eigene
-    // Abfrage das Signal für „Aufsicht fortsetzen“.
-    ownSupervision:
-      (!overviewOk && eligible.length > 0) ||
-      ownsRegularRoom ||
-      schulhof?.is_user_supervising === true,
+    ownSupervision,
     supervisedRoomId: first.room_id?.toString(),
     supervisedRoomName:
       first.room?.name ?? (first.room_id ? `Room ${first.room_id}` : undefined),
-    supervisedRooms: schulhofEntry ? [...rooms, schulhofEntry] : rooms,
+    // Own supervisions first, shared rooms after them: the order is the
+    // separation the criterion asks for, and isOpenRoom carries it for any
+    // stronger treatment the UI wants.
+    supervisedRooms: [...rooms, ...openEntries],
     overviewEnabled: overviewOk,
   };
 }
@@ -171,7 +214,9 @@ export function sameSupervision(
   // Active groups can change while the physical room stays the same, so the
   // group id is part of the identity.
   const keys = (rooms: SupervisedRoom[]) =>
-    rooms.map((r) => `${r.id}:${r.groupId}`).join(",");
+    rooms
+      .map((r) => `${r.id}:${r.groupId}:${r.sessionIds?.join(".") ?? ""}`)
+      .join(",");
   return (
     prev.isSupervising === next.isSupervising &&
     prev.ownSupervision === next.ownSupervision &&

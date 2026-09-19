@@ -50,12 +50,21 @@ func authTestFactoryConfig(rateLimitEnabled bool) services.FactoryConfig {
 }
 
 func setupAuthService(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) auth.AuthService {
+	serviceFactory := setupAuthFactory(t, db, rateLimitEnabled...)
+	return &fixtureOwnedAuthService{AuthService: serviceFactory.Auth, t: t, db: db}
+}
+
+// setupAuthFactory composes the service factory the auth service and the
+// Identity & Access module are wired through, for tests that drive the
+// module's public contract directly.
+func setupAuthFactory(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) *services.Factory {
+	t.Helper()
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	enabled := len(rateLimitEnabled) > 0 && rateLimitEnabled[0]
 	serviceFactory, err := services.NewFactoryForTestsWithConfig(repoFactory, db, slog.Default(), authTestFactoryConfig(enabled))
 	require.NoError(t, err, "Failed to create service factory")
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
-	return &fixtureOwnedAuthService{AuthService: serviceFactory.Auth, t: t, db: db}
+	return serviceFactory
 }
 
 func setupInvitationService(t *testing.T, db *bun.DB) auth.InvitationService {
@@ -65,7 +74,10 @@ func setupInvitationService(t *testing.T, db *bun.DB) auth.InvitationService {
 	require.NoError(t, err)
 	repos, compositionErr := repositories.NewInvitationPersistence(db)
 	require.NoError(t, compositionErr)
+	schoolIdentity, compositionErr := services.NewSchoolIdentityForTests(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, compositionErr)
 	service := auth.NewInvitationService(auth.InvitationServiceConfig{
+		SchoolIdentity:    schoolIdentity,
 		TokenAuth:         signer,
 		InvitationRepo:    repos.InvitationToken,
 		AccountRepo:       repos.Account,
@@ -73,12 +85,9 @@ func setupInvitationService(t *testing.T, db *bun.DB) auth.InvitationService {
 		RoleRepo:          repos.Role,
 		PermissionRepo:    repos.Permission,
 		AccountRoleRepo:   repos.AccountRole,
-		PersonRepo:        repos.Person,
-		StaffRepo:         repos.Staff, TeacherRepo: repos.Teacher,
-		StudentRepo: repos.Student,
-		SchoolRepo:  repos.School,
-		Mailer:      email.NewMockMailer(),
-		FrontendURL: config.FrontendURL, SchoolURL: config.SchoolURL,
+		SchoolRepo:        repos.School,
+		Mailer:            email.NewMockMailer(),
+		FrontendURL:       config.FrontendURL, SchoolURL: config.SchoolURL,
 		InvitationExpiry: 48 * time.Hour, DB: db,
 	})
 	testpkg.SetTenantRuntime(t, service, db)
@@ -1320,6 +1329,68 @@ func TestAuthService_AssignRoleToAccount(t *testing.T) {
 	})
 }
 
+func TestAuthService_ReplaceAccountRole(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupAuthService(t, db)
+	ctx := testpkg.Ctx(t)
+
+	account := testpkg.CreateTestAccount(t, db, "replace-account-role")
+	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
+	oldRole, err := service.CreateRole(ctx, fmt.Sprintf("replace-old-%d", time.Now().UnixNano()), "old role", testpkg.StrPtr("user"))
+	require.NoError(t, err)
+	newRole, err := service.CreateRole(ctx, fmt.Sprintf("replace-new-%d", time.Now().UnixNano()), "new role", testpkg.StrPtr("user"))
+	require.NoError(t, err)
+	// A second staff role is the state a half-finished swap or a direct POST
+	// leaves behind; the Konto field is single-valued, so it must go too.
+	extraRole, err := service.CreateRole(ctx, fmt.Sprintf("replace-extra-%d", time.Now().UnixNano()), "extra role", testpkg.StrPtr("user"))
+	require.NoError(t, err)
+	// Guardian access is a parent-portal relationship, not a staff role, and
+	// survives every staff role change (parent who later became staff).
+	guardianRole, err := service.CreateRole(ctx, fmt.Sprintf("replace-guardian-%d", time.Now().UnixNano()), "guardian role", testpkg.StrPtr(authModels.BaseRoleGuardian))
+	require.NoError(t, err)
+	require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(guardianRole.ID)))
+	require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(oldRole.ID)))
+	require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(extraRole.ID)))
+
+	require.NoError(t, service.ReplaceAccountRole(ctx, int(account.ID), int(newRole.ID)))
+
+	roles, err := service.GetAccountRoles(ctx, int(account.ID))
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []int64{guardianRole.ID, newRole.ID}, roleIDs(roles))
+
+	// Replacing with a role the account already holds keeps that role and
+	// still drops every other staff role.
+	require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(extraRole.ID)))
+	require.NoError(t, service.ReplaceAccountRole(ctx, int(account.ID), int(newRole.ID)))
+
+	roles, err = service.GetAccountRoles(ctx, int(account.ID))
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []int64{guardianRole.ID, newRole.ID}, roleIDs(roles))
+
+	sentinelErr := errors.New("force outer rollback")
+	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+		if err := service.ReplaceAccountRole(txCtx, int(account.ID), int(oldRole.ID)); err != nil {
+			return err
+		}
+		return sentinelErr
+	})
+	require.ErrorIs(t, err, sentinelErr)
+
+	roles, err = service.GetAccountRoles(ctx, int(account.ID))
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []int64{guardianRole.ID, newRole.ID}, roleIDs(roles))
+}
+
+func roleIDs(roles []*authModels.Role) []int64 {
+	ids := make([]int64, 0, len(roles))
+	for _, role := range roles {
+		ids = append(ids, role.ID)
+	}
+	return ids
+}
+
 func TestAuthService_RemoveRoleFromAccount(t *testing.T) {
 	t.Parallel()
 
@@ -1826,6 +1897,45 @@ func TestAuthService_AssignPermissionToRole(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 	})
+}
+
+func TestAuthService_ReplaceRolePermissions(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupAuthService(t, db)
+	ctx := testpkg.Ctx(t)
+	uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+	role, err := service.CreateRole(ctx, "replace-permissions-"+uniqueID, "Test role", testpkg.StrPtr("user"))
+	require.NoError(t, err)
+	oldPermission, err := service.CreatePermission(ctx, "replace-old-"+uniqueID, "Old permission", "replace-old-"+uniqueID, "read")
+	require.NoError(t, err)
+	testpkg.OwnTestPermission(t, db, oldPermission.ID)
+	newPermission, err := service.CreatePermission(ctx, "replace-new-"+uniqueID, "New permission", "replace-new-"+uniqueID, "read")
+	require.NoError(t, err)
+	testpkg.OwnTestPermission(t, db, newPermission.ID)
+	require.NoError(t, service.AssignPermissionToRole(ctx, int(role.ID), int(oldPermission.ID)))
+
+	require.NoError(t, service.ReplaceRolePermissions(ctx, int(role.ID), []int64{newPermission.ID}))
+
+	permissions, err := service.GetRolePermissions(ctx, int(role.ID))
+	require.NoError(t, err)
+	require.Len(t, permissions, 1)
+	assert.Equal(t, newPermission.ID, permissions[0].ID)
+
+	sentinelErr := errors.New("force outer rollback")
+	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+		if err := service.ReplaceRolePermissions(txCtx, int(role.ID), []int64{oldPermission.ID}); err != nil {
+			return err
+		}
+		return sentinelErr
+	})
+	require.ErrorIs(t, err, sentinelErr)
+
+	permissions, err = service.GetRolePermissions(ctx, int(role.ID))
+	require.NoError(t, err)
+	require.Len(t, permissions, 1)
+	assert.Equal(t, newPermission.ID, permissions[0].ID)
 }
 
 func TestAuthService_RemovePermissionFromRole(t *testing.T) {

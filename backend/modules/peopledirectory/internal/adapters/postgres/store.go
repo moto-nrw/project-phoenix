@@ -212,6 +212,12 @@ func (s *Store) Search(ctx context.Context, filter domain.Filter) ([]domain.Pers
 	if filter.LastNamePrefix != "" {
 		query = query.Where(`"person".last_name ILIKE ?`, escapeLike(filter.LastNamePrefix)+"%")
 	}
+	if filter.FirstNameEquals != "" {
+		query = query.Where(`LOWER(BTRIM("person".first_name)) = LOWER(BTRIM(?))`, filter.FirstNameEquals)
+	}
+	if filter.LastNameEquals != "" {
+		query = query.Where(`LOWER(BTRIM("person".last_name)) = LOWER(BTRIM(?))`, filter.LastNameEquals)
+	}
 	if filter.FullNameContains != "" {
 		query = query.Where(`("person".first_name || ' ' || "person".last_name) ILIKE ?`, "%"+escapeLike(filter.FullNameContains)+"%")
 	}
@@ -485,6 +491,12 @@ func wrapWriteError(operation string, err error) error {
 		return domain.ErrAccountConflict
 	}
 	return fmt.Errorf("people directory postgres: %s person: %w", operation, err)
+}
+
+// isLockNotAvailable reports PostgreSQL 55P03, the NOWAIT refusal.
+func isLockNotAvailable(err error) bool {
+	var postgresError pgdriver.Error
+	return errors.As(err, &postgresError) && postgresError.Field('C') == "55P03"
 }
 
 func isUniqueViolationOn(err error, index string) bool {

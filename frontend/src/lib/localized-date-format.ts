@@ -1,34 +1,46 @@
+import {
+  normalizeLocale,
+  SUPPORTED_LOCALES,
+  type AppLocale,
+} from "~/i18n/locales";
+
 const DATE_OPTIONS = {
   day: "2-digit",
   month: "2-digit",
   year: "numeric",
 } as const;
 
-const berlinDateFormatters: Record<string, Intl.DateTimeFormat> = {
-  de: new Intl.DateTimeFormat("de", {
-    ...DATE_OPTIONS,
-    timeZone: "Europe/Berlin",
-  }),
-  en: new Intl.DateTimeFormat("en", {
-    ...DATE_OPTIONS,
-    timeZone: "Europe/Berlin",
-  }),
-  ru: new Intl.DateTimeFormat("ru", {
-    ...DATE_OPTIONS,
-    timeZone: "Europe/Berlin",
-  }),
-  sq: new Intl.DateTimeFormat("sq", {
-    ...DATE_OPTIONS,
-    timeZone: "Europe/Berlin",
-  }),
-};
+const DATE_TIME_OPTIONS = {
+  ...DATE_OPTIONS,
+  hour: "2-digit",
+  minute: "2-digit",
+} as const;
 
-const utcDateFormatters: Record<string, Intl.DateTimeFormat> = {
-  de: new Intl.DateTimeFormat("de", { ...DATE_OPTIONS, timeZone: "UTC" }),
-  en: new Intl.DateTimeFormat("en", { ...DATE_OPTIONS, timeZone: "UTC" }),
-  ru: new Intl.DateTimeFormat("ru", { ...DATE_OPTIONS, timeZone: "UTC" }),
-  sq: new Intl.DateTimeFormat("sq", { ...DATE_OPTIONS, timeZone: "UTC" }),
-};
+// One formatter per registered locale, built from the shared locale list.
+// Adding a language to locales.json therefore gives it its own date format
+// automatically instead of silently rendering German dates.
+function formattersFor(
+  options: Intl.DateTimeFormatOptions,
+): Record<AppLocale, Intl.DateTimeFormat> {
+  return Object.fromEntries(
+    SUPPORTED_LOCALES.map(({ code }) => [
+      code,
+      new Intl.DateTimeFormat(code, options),
+    ]),
+  ) as Record<AppLocale, Intl.DateTimeFormat>;
+}
+
+const berlinDateFormatters = formattersFor({
+  ...DATE_OPTIONS,
+  timeZone: "Europe/Berlin",
+});
+
+const utcDateFormatters = formattersFor({ ...DATE_OPTIONS, timeZone: "UTC" });
+
+const berlinDateTimeFormatters = formattersFor({
+  ...DATE_TIME_OPTIONS,
+  timeZone: "Europe/Berlin",
+});
 
 /**
  * Format a DATE-column value without converting it through the viewer's
@@ -53,33 +65,8 @@ export function formatLocalizedDate(iso: string, locale: string): string {
   const date = new Date(isDateOnly ? `${iso}T00:00:00Z` : iso);
   if (Number.isNaN(date.getTime())) return iso;
   const formatters = isDateOnly ? utcDateFormatters : berlinDateFormatters;
-  return (formatters[locale] ?? formatters.de!).format(date);
+  return formatters[normalizeLocale(locale)].format(date);
 }
-
-const DATE_TIME_OPTIONS = {
-  ...DATE_OPTIONS,
-  hour: "2-digit",
-  minute: "2-digit",
-} as const;
-
-const berlinDateTimeFormatters: Record<string, Intl.DateTimeFormat> = {
-  de: new Intl.DateTimeFormat("de", {
-    ...DATE_TIME_OPTIONS,
-    timeZone: "Europe/Berlin",
-  }),
-  en: new Intl.DateTimeFormat("en", {
-    ...DATE_TIME_OPTIONS,
-    timeZone: "Europe/Berlin",
-  }),
-  ru: new Intl.DateTimeFormat("ru", {
-    ...DATE_TIME_OPTIONS,
-    timeZone: "Europe/Berlin",
-  }),
-  sq: new Intl.DateTimeFormat("sq", {
-    ...DATE_TIME_OPTIONS,
-    timeZone: "Europe/Berlin",
-  }),
-};
 
 /**
  * Format an instant (RFC3339 timestamp) as a localized date AND time, pinned to
@@ -91,7 +78,5 @@ const berlinDateTimeFormatters: Record<string, Intl.DateTimeFormat> = {
 export function formatLocalizedDateTime(iso: string, locale: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  return (
-    berlinDateTimeFormatters[locale] ?? berlinDateTimeFormatters.de!
-  ).format(date);
+  return berlinDateTimeFormatters[normalizeLocale(locale)].format(date);
 }

@@ -255,8 +255,8 @@ describe("useCompanionRemoteRefresh", () => {
   });
 
   it("drops the stale flag when the view switches to another child", () => {
-    // The Stammdaten tab stays mounted and `active` while the master-detail
-    // list selects another child, so `active` never ends the flag there. A
+    // A Stammdaten tab may stay mounted and `active` while the record
+    // switches to another child, so `active` never ends the flag there. A
     // warning about the previous child's draft would block saving a form the
     // user has not touched yet.
     const onRefresh = vi.fn();

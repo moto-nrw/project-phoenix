@@ -63,7 +63,8 @@ func (r *RoleRepository) FindByName(ctx context.Context, name string) (*auth.Rol
 	return role, nil
 }
 
-// FindByAccountID retrieves all roles assigned to an account.
+// FindByAccountID retrieves all roles assigned to an account, ordered by their
+// account-role assignment. The first role is the primary role shown elsewhere.
 // When tenant context is present, account-role assignments are scoped to that tenant.
 func (r *RoleRepository) FindByAccountID(ctx context.Context, accountID int64) ([]*auth.Role, error) {
 	var roles []*auth.Role
@@ -71,7 +72,8 @@ func (r *RoleRepository) FindByAccountID(ctx context.Context, accountID int64) (
 		Model(&roles).
 		ModelTableExpr(roleTableAlias).
 		Join("JOIN auth.account_roles ar ON ar.role_id = role.id").
-		Where("ar.account_id = ?", accountID)
+		Where("ar.account_id = ?", accountID).
+		OrderExpr("ar.created_at ASC, ar.id ASC")
 
 	query = base.WithTenantFilter(ctx, query, "ar")
 
@@ -88,7 +90,7 @@ func (r *RoleRepository) FindByAccountID(ctx context.Context, accountID int64) (
 }
 
 // FindRoleNamesByAccountIDs batch-loads the primary role name for each account ID.
-// Returns a map of accountID → role name (first role found per account).
+// Returns a map of accountID → role name (oldest account-role assignment per account).
 func (r *RoleRepository) FindRoleNamesByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
 	if len(accountIDs) == 0 {
 		return make(map[int64]string), nil
@@ -106,7 +108,7 @@ func (r *RoleRepository) FindRoleNamesByAccountIDs(ctx context.Context, accountI
 		ColumnExpr("ar.account_id").
 		ColumnExpr("role.name AS role_name").
 		Where("ar.account_id IN (?)", bun.List(accountIDs)).
-		OrderExpr("ar.created_at ASC")
+		OrderExpr("ar.created_at ASC, ar.id ASC")
 
 	query = base.WithTenantFilter(ctx, query, "ar")
 
@@ -121,7 +123,7 @@ func (r *RoleRepository) FindRoleNamesByAccountIDs(ctx context.Context, accountI
 
 	result := make(map[int64]string, len(rows))
 	for _, row := range rows {
-		// Keep first role found per account (don't overwrite)
+		// Keep the oldest role assignment per account (don't overwrite).
 		if _, exists := result[row.AccountID]; !exists {
 			result[row.AccountID] = row.RoleName
 		}
@@ -169,6 +171,31 @@ func (r *RoleRepository) FindByID(ctx context.Context, id any) (*auth.Role, erro
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by id",
+			Err: base.TranslateNotFound(err),
+		}
+	}
+
+	return role, nil
+}
+
+// FindByIDForUpdate finds a role with the same tenant visibility as FindByID
+// and locks it until the surrounding transaction finishes. The role is the
+// serialization point for complete permission replacements.
+func (r *RoleRepository) FindByIDForUpdate(ctx context.Context, id int64) (*auth.Role, error) {
+	role := new(auth.Role)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(role).
+		ModelTableExpr(roleTableAlias).
+		Where(whereRoleID, id).
+		For("UPDATE")
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("(role.tenant_id = ? OR role.tenant_id IS NULL)", tenantID)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by id for update",
 			Err: base.TranslateNotFound(err),
 		}
 	}
@@ -284,9 +311,9 @@ func (r *RoleRepository) List(ctx context.Context, filters map[string]interface{
 func (r *RoleRepository) applyRoleFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
 	switch field {
 	case "name":
-		return r.applyRoleStringEqualFilter(query, "role.name", value)
+		return r.applyRoleStringEqualFilter(query, bun.Safe("role.name"), value)
 	case "name_like":
-		return r.applyRoleStringLikeFilter(query, "role.name", value)
+		return r.applyRoleStringLikeFilter(query, bun.Safe("role.name"), value)
 	case "is_system":
 		return query.Where("role.is_system = ?", value)
 	default:
@@ -295,17 +322,18 @@ func (r *RoleRepository) applyRoleFilter(query *bun.SelectQuery, field string, v
 }
 
 // applyRoleStringEqualFilter applies case-insensitive equality filter for role fields
-func (r *RoleRepository) applyRoleStringEqualFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+// The field is a column written in this file, never request input.
+func (r *RoleRepository) applyRoleStringEqualFilter(query *bun.SelectQuery, field bun.Safe, value interface{}) *bun.SelectQuery {
 	if strValue, ok := value.(string); ok {
-		return query.Where("LOWER("+field+") = LOWER(?)", strValue)
+		return query.Where("LOWER(?) = LOWER(?)", field, strValue)
 	}
-	return query.Where(field+" = ?", value)
+	return query.Where("? = ?", field, value)
 }
 
 // applyRoleStringLikeFilter applies case-insensitive LIKE filter for role fields
-func (r *RoleRepository) applyRoleStringLikeFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+func (r *RoleRepository) applyRoleStringLikeFilter(query *bun.SelectQuery, field bun.Safe, value interface{}) *bun.SelectQuery {
 	if strValue, ok := value.(string); ok {
-		return query.Where("LOWER("+field+") LIKE LOWER(?)", "%"+strValue+"%")
+		return query.Where("LOWER(?) LIKE LOWER(?)", field, "%"+strValue+"%")
 	}
 	return query
 }

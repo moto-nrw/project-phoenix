@@ -16,11 +16,34 @@ describe("DEFAULT_LOCALE", () => {
   });
 });
 
+describe("SUPPORTED_LOCALES", () => {
+  it("lists every parent-app language with its own name", () => {
+    expect(SUPPORTED_LOCALES.map((l) => [l.code, l.label])).toEqual([
+      ["de", "Deutsch"],
+      ["en", "English"],
+      ["ru", "Русский"],
+      ["sq", "Shqip"],
+      ["pl", "Polski"],
+      ["tr", "Türkçe"],
+      ["uk", "Українська"],
+    ]);
+  });
+});
+
 describe("normalizeLocale", () => {
   it("passes a registered locale through unchanged", () => {
     expect(normalizeLocale("en")).toBe("en");
     expect(normalizeLocale("ru")).toBe("ru");
     expect(normalizeLocale("sq")).toBe("sq");
+    expect(normalizeLocale("pl")).toBe("pl");
+    expect(normalizeLocale("tr")).toBe("tr");
+    expect(normalizeLocale("uk")).toBe("uk");
+  });
+
+  it("maps browser tags of the new languages to their locale", () => {
+    expect(normalizeLocale("pl-PL")).toBe("pl");
+    expect(normalizeLocale("tr-TR")).toBe("tr");
+    expect(normalizeLocale("uk-UA")).toBe("uk");
   });
 
   it("lowercases", () => {

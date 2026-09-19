@@ -56,7 +56,7 @@ func NewEnrollmentTestRepositories(db *bun.DB, command auditModels.Command) (Enr
 	return EnrollmentTestRepositories{TimetableTestRepositories: tt,
 		School: r.School, Account: r.Account, AccountTenant: r.AccountTenant,
 		AccountRole: authRepo.NewAccountRoleRepository(db), Role: authRepo.NewRoleRepository(db),
-		StudentGuardian: usersRepo.NewStudentGuardianRepository(db), GuardianProfile: usersRepo.NewGuardianProfileRepository(db), GuardianPhoneNumber: usersRepo.NewGuardianPhoneNumberRepository(db),
+		StudentGuardian: usersRepo.NewStudentGuardianRepository(db), GuardianProfile: NewGuardianProfileRepository(db), GuardianPhoneNumber: usersRepo.NewGuardianPhoneNumberRepository(db),
 		StudentCompanion: r.StudentCompanion, ClassListEntry: members.ClassListEntry,
 		DataAccessLog: dataAccessLogCommand{auditRepo.NewDataAccessLogRepository(newTestAuditRuntime(db)), command}}, nil
 }

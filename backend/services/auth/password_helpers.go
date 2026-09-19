@@ -1,6 +1,9 @@
 package auth
 
 import (
+	"crypto/rand"
+	"errors"
+	"io"
 	"regexp"
 
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
@@ -38,3 +41,16 @@ func ValidatePasswordStrength(password string) error {
 
 	return nil
 }
+
+// Password policy outcomes.
+var (
+	// ErrPasswordTooWeak returned when password doesn't meet complexity requirements
+	ErrPasswordTooWeak = errors.New("password doesn't meet complexity requirements")
+
+	// ErrPasswordMismatch returned when passwords don't match
+	ErrPasswordMismatch = errors.New("passwords don't match")
+)
+
+// SecureRandomSource supplies command roots with the same cryptographic
+// entropy source used by authentication secrets.
+func SecureRandomSource() io.Reader { return rand.Reader }

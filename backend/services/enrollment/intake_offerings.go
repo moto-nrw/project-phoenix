@@ -8,58 +8,6 @@ import (
 	owner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
-type OfferingSelectionWriter interface {
-	ReplaceRequestChildOfferings(context.Context, int64, []*owner.RequestChildOffering) error
-	ScheduleRequestChildOfferings(context.Context, int64, owner.Date, []*owner.RequestChildOffering) error
-}
-
-func writeOwnerOfferingSelections(ctx context.Context, writer OfferingSelectionWriter, childID int64, effectiveFrom *timezone.Date, selections []*RequestChildOffering) error {
-	values := make([]*owner.RequestChildOffering, len(selections))
-	for index, selection := range selections {
-		if selection == nil {
-			continue
-		}
-		value := &owner.RequestChildOffering{
-			ID: selection.ID, TenantID: selection.TenantID, CreatedAt: selection.CreatedAt, UpdatedAt: selection.UpdatedAt,
-			RequestChildID: selection.RequestChildID, CareOfferingID: selection.CareOfferingID,
-			SelectedDays: selection.SelectedDays, ManualSelectedDays: selection.ManualSelectedDays, AutomaticSelectedDays: selection.AutomaticSelectedDays, Notes: selection.Notes,
-		}
-		if selection.ValidFrom != nil {
-			date := owner.Date(*selection.ValidFrom)
-			value.ValidFrom = &date
-		}
-		if selection.ValidUntil != nil {
-			date := owner.Date(*selection.ValidUntil)
-			value.ValidUntil = &date
-		}
-		values[index] = value
-	}
-	var err error
-	if effectiveFrom == nil {
-		err = writer.ReplaceRequestChildOfferings(ctx, childID, values)
-	} else {
-		err = writer.ScheduleRequestChildOfferings(ctx, childID, owner.Date(*effectiveFrom), values)
-	}
-	if err != nil {
-		return err
-	}
-	for index, value := range values {
-		selection := selections[index]
-		selection.ID, selection.TenantID = value.ID, value.TenantID
-		selection.CreatedAt, selection.UpdatedAt = value.CreatedAt, value.UpdatedAt
-		selection.RequestChildID = value.RequestChildID
-		if value.ValidFrom != nil {
-			date := timezone.Date(*value.ValidFrom)
-			selection.ValidFrom = &date
-		}
-		if value.ValidUntil != nil {
-			date := timezone.Date(*value.ValidUntil)
-			selection.ValidUntil = &date
-		}
-	}
-	return nil
-}
-
 type OfferingHistoryReader interface {
 	RequestChildOfferingHistory(context.Context, int64) ([]*owner.RequestChildOffering, error)
 }

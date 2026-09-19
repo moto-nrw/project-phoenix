@@ -70,15 +70,23 @@ const (
 func SetupSettingsModule(t *testing.T) (*bun.DB, services.SettingsTestModule) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := services.NewSettingsTestModule(db, testpkg.TenantRuntime(t, db))
-	require.NoError(t, err)
-	return db, module
+	return db, SetupSettingsModuleWithDB(t, db)
 }
 
-func SetupFileStoreModule(t *testing.T) (*bun.DB, services.FileStoreTestModule) {
+// SetupSettingsModuleWithDB preserves an isolated pool for query-budget tests.
+func SetupSettingsModuleWithDB(t *testing.T, db *bun.DB) services.SettingsTestModule {
+	t.Helper()
+	module, err := services.NewSettingsTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return module
+}
+
+// SetupFileStoreModule composes the File Storage capability over the test
+// database and the caller's uploads object store (#2707).
+func SetupFileStoreModule(t *testing.T, objects services.UploadsBackend) (*bun.DB, services.FileStoreTestModule) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := services.NewFileStoreTestModule(db, testpkg.TenantRuntime(t, db))
+	module, err := services.NewFileStoreTestModule(db, testpkg.TenantRuntime(t, db), objects)
 	require.NoError(t, err)
 	return db, module
 }
@@ -158,7 +166,7 @@ func SetupStatisticsModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, s
 func SetupGradeTransitionModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, services.GradeTransitionTestModule) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := services.NewGradeTransitionTestModule(db, clocks...)
+	module, err := services.NewGradeTransitionTestModule(db, nil, clocks...)
 	require.NoError(t, err)
 	return db, module
 }
@@ -317,9 +325,14 @@ func SetupStudentModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, serv
 	return db, module
 }
 
-func SetupImportModule(t *testing.T) (*bun.DB, services.ImportTestModule) {
+func SetupImportModule(t *testing.T, databases ...*bun.DB) (*bun.DB, services.ImportTestModule) {
 	t.Helper()
-	db := testpkg.SetupTestDB(t)
+	var db *bun.DB
+	if len(databases) > 0 {
+		db = databases[0]
+	} else {
+		db = testpkg.SetupTestDB(t)
+	}
 	module, err := services.NewImportTestModule(db, testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	return db, module
@@ -550,7 +563,7 @@ func SeedTestJWTConfig() {
 func NewDeviceAuthenticators(
 	devices deviceauth.Fleet,
 	schools deviceauth.SchoolDirectory,
-	staffPIN func(ctx context.Context, tenantID, staffID int64, pin string) (*users.Staff, error),
+	staffPIN func(ctx context.Context, tenantID, staffID int64, pin string) (*services.StaffPINPrincipal, error),
 	settings deviceauth.Settings,
 	fallbackPIN string,
 ) *deviceauth.Authenticators {
@@ -728,9 +741,16 @@ func NewMultipartRequest(t *testing.T, method, target string, fieldName, fileNam
 // themselves run it unchanged underneath, since their requests arrive here
 // unauthenticated and pass through.
 func NewTenantRouter(db *bun.DB) chi.Router {
+	router := NewJSONRouter()
+	router.Use(testpkg.TenantTxMiddleware(db))
+	return router
+}
+
+// NewJSONRouter provides the JSON response middleware for isolated handler
+// tests that supply their own identity and do not need a database transaction.
+func NewJSONRouter() chi.Router {
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))
-	router.Use(testpkg.TenantTxMiddleware(db))
 	return router
 }
 

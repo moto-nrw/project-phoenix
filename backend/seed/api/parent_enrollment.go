@@ -1028,6 +1028,15 @@ func (s parentEnrollmentSeedStep) seedParentPortalActions(rt *Runtime, parentAut
 			},
 		},
 		{
+			actionType: "excused-note",
+			path:       fmt.Sprintf("/parent/me/children/%d/sick-note", studentID),
+			body: map[string]any{
+				"dates":  []string{todaySeedDate().AddDays(4).String()},
+				"status": "excused",
+				"reason": "Demo-Entschuldigung aus dem Elternportal",
+			},
+		},
+		{
 			actionType: "care-exception",
 			path:       fmt.Sprintf("/parent/me/children/%d/care-exception", studentID),
 			body: map[string]any{

@@ -23,6 +23,10 @@ type SubmissionRateLimitState struct {
 }
 
 type engine interface {
+	ApprovedOfferingChildrenForStudents(context.Context, []int64) ([]OfferingChildFacts, error)
+	OfferingChildren(context.Context, []int64) ([]OfferingChildFacts, error)
+	SubmittedOfferingQueries
+	SubmittedOfferingCommands
 	DeletionRequestCounts(context.Context, int64) (*DeletionRequestCounts, error)
 	DeletionChildTarget(context.Context, int64, int64) (*DeletionChildTarget, error)
 	DeletionChildCounts(context.Context, int64, int64) (*DeletionChildCounts, error)
@@ -42,20 +46,6 @@ type engine interface {
 	SetChangeRequestStatus(context.Context, int64, string) error
 	MarkChangeRequestReviewed(context.Context, int64, string, *string, int64, time.Time) error
 	CountChangeRequestsForReview(context.Context, []string) (int, error)
-	ApprovedSelectionsForStudents(context.Context, []int64, Date, Date) ([]*ApprovedOfferingSelection, error)
-	OfferingGradeCounts(context.Context, []int64, Date, Date) ([]*OfferingGradeCount, error)
-	MaterializableOfferingCount(context.Context, int64, Date) (int, error)
-	OfferingCapacityPeaks(context.Context, []int64, Date, Date) (map[int64]int, error)
-	OfferingCapacityPeak(context.Context, int64, []int64, Date, Date) (int, error)
-	ApprovedSelectionsForOfferings(context.Context, []int64, Date) ([]*ApprovedOfferingSelection, error)
-	RequestChildOfferingsAtDates(context.Context, map[int64]Date) ([]*RequestChildOffering, error)
-	RequestChildOfferingHistoryForChildren(context.Context, []int64) ([]*RequestChildOffering, error)
-	RequestChildOfferingsForChildrenAtDate(context.Context, []int64, Date) ([]*RequestChildOffering, error)
-	RequestChildOfferingsAtDate(context.Context, int64, Date) ([]*RequestChildOffering, error)
-	RequestChildOfferingHistory(context.Context, int64) ([]*RequestChildOffering, error)
-	ScheduleRequestChildOfferings(context.Context, int64, Date, []*RequestChildOffering) error
-	ReplaceRequestChildOfferings(context.Context, int64, []*RequestChildOffering) error
-	InsertRequestChildOffering(context.Context, *RequestChildOffering) error
 	InsertLateInvite(context.Context, *LateInvite) error
 	UsableLateInvite(context.Context, string, int64, time.Time, bool) (*LateInvite, error)
 	LateInviteByUsedRequestID(context.Context, int64) (*LateInvite, error)
@@ -106,12 +96,6 @@ type engine interface {
 	CreatedStudentRequestChildIDs(context.Context, []int64) ([]int64, error)
 	CountStudentReferences(context.Context, int64) (int, error)
 	ApprovedBookings(context.Context) ([]ApprovedBooking, error)
-	ApprovedBookingOfferingLinks(context.Context) ([]CareOfferingLink, error)
-	CareExitOfferingLinks(context.Context, []int64) ([]CareOfferingLink, error)
-	LockCareExitOfferingLinks(context.Context, []int64, Date) error
-	CareExitOfferingSnapshots(context.Context, []int64, Date, *int64) ([]CareExitOfferingSnapshot, error)
-	EndCareExitOfferingLinks(context.Context, []int64, *int64, Date) (int64, error)
-	RestoreCareExitOfferingLinks(context.Context, []CareExitOfferingSnapshotRestore) (int64, error)
 	OpenPhaseCandidates(context.Context) ([]*Phase, error)
 	AccountRequests(context.Context, int64, string) ([]AccountRequest, error)
 	InsertPhase(ctx context.Context, phase *Phase) error
@@ -150,19 +134,24 @@ type engine interface {
 
 // Module owns enrollment operations. Persistence remains behind its private ports.
 type Module struct {
-	engine       engine
-	transactions interface {
+	offeringStorageObserver func(OfferingStorageObservation)
+	engine                  engine
+	transactions            interface {
 		RunInTx(context.Context, func(context.Context) error) error
 	}
 }
 
 func NewModule(engine engine, transactions interface {
 	RunInTx(context.Context, func(context.Context) error) error
-}) *Module {
+}, observers ...func(OfferingStorageObservation)) *Module {
 	if engine == nil || transactions == nil {
 		panic("enrollment: engine is required")
 	}
-	return &Module{engine: engine, transactions: transactions}
+	module := &Module{engine: engine, transactions: transactions}
+	if len(observers) > 0 {
+		module.offeringStorageObserver = observers[0]
+	}
+	return module
 }
 
 // IncrementAttempts atomically records an attempt in the school's IP or email bucket.

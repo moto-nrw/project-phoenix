@@ -66,11 +66,11 @@ function selectCustomOption(
 }
 
 const defaultRoles = [
-  { id: "1", name: "admin" },
-  { id: "2", name: "user" },
-  { id: "3", name: "teacher" },
-  { id: "4", name: "guardian" },
-  { id: "5", name: "lehrkraft" },
+  { id: "1", name: "admin", isSystem: true },
+  { id: "2", name: "user", isSystem: true },
+  { id: "3", name: "teacher", isSystem: true },
+  { id: "4", name: "guardian", isSystem: true },
+  { id: "5", name: "lehrkraft", isSystem: true },
 ];
 
 function renderModal(
@@ -276,7 +276,7 @@ describe("CreateAccountModal", () => {
       last_name: "Mustermann",
       password: "Test1234!",
       confirm_password: "Test1234!",
-      role_id: 1,
+      role_id: "1",
       position: undefined,
     });
   });

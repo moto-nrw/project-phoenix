@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
@@ -76,3 +77,15 @@ type InvitationService interface {
 	// schools, so accept responses can still succeed without it.
 	GetTenantSubdomainForToken(ctx context.Context, token string) string
 }
+
+var (
+	// Invitation errors
+	ErrInvitationOwnerRequired       = errors.New("sign in to the invited account before accepting")
+	ErrInvitationOwnerMismatch       = errors.New("the signed-in account does not own this invitation")
+	ErrInvitationNotFound            = errors.New("invitation not found")
+	ErrInvitationExpired             = errors.New("invitation has expired")
+	ErrInvitationUsed                = errors.New("invitation has already been used")
+	ErrInvitationTenantDeleted       = errors.New("the school for this invitation has been deleted")
+	ErrInvitationNameRequired        = errors.New("first name and last name are required")
+	ErrAccountAlreadyHasTenantAccess = errors.New("account already has access to tenant")
+)

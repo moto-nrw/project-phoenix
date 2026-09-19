@@ -29,8 +29,8 @@ import (
 // They span schemas no single domain repository owns (users, active,
 // enrollment, schedule, activities), which is the documented exception in
 // backend-conventions rule 11 — the raw SQL lives here, never in the service.
-// Enrollment's application and offering-link facts arrive as owner
-// projections and commands (#2695); the remaining SQL joins those recordsets.
+// Enrollment's application identity and Care Plan's effective bookings arrive
+// through a composed owner capability; the remaining SQL joins those recordsets.
 // Keeping them together also keeps the counting half (the preview) and the
 // writing half (the confirmation) side by side, where a divergence is
 // visible.
@@ -397,16 +397,8 @@ func (r *CareExitCleanupRepository) LockImpactRowsForCareExit(ctx context.Contex
 			return &modelBase.DatabaseError{Op: "lock source offerings for care exit", Err: err}
 		}
 	}
-	statements := []struct {
-		op  string
-		sql string
-	}{
-		{"lock people for care exit", `SELECT person.id FROM users.persons AS person JOIN users.students AS student ON student.person_id = person.id AND student.tenant_id = person.tenant_id WHERE student.tenant_id = ? AND student.id IN (?) FOR UPDATE OF person`},
-	}
-	for _, statement := range statements {
-		if _, err := db.ExecContext(ctx, statement.sql, tenantID, bun.List(studentIDs)); err != nil {
-			return &modelBase.DatabaseError{Op: statement.op, Err: base.TranslateNotFound(err)}
-		}
+	if _, err := db.ExecContext(ctx, `SELECT person.id FROM users.persons AS person JOIN users.students AS student ON student.person_id = person.id AND student.tenant_id = person.tenant_id WHERE student.tenant_id = ? AND student.id IN (?) FOR UPDATE OF person`, tenantID, bun.List(studentIDs)); err != nil {
+		return &modelBase.DatabaseError{Op: "lock people for care exit", Err: base.TranslateNotFound(err)}
 	}
 	if err := r.presence.LockOpenPresence(ctx, studentIDs); err != nil {
 		return &modelBase.DatabaseError{Op: "lock presence for care exit", Err: err}
@@ -1232,9 +1224,9 @@ func (r *CareExitCleanupRepository) DiscardRemovals(
 	return nil
 }
 
-// CareExitEnrollmentQueries is the Enrollment capability care-exit cleanup
-// reads source applications and their offering links through. The offering
-// link writes (#2695) are Enrollment commands on the caller's transaction.
+// CareExitEnrollmentQueries is the composed application and booking capability
+// used by cleanup. Booking commands belong to Care Plan and participate in the
+// caller's transaction.
 type CareExitEnrollmentQueries interface {
 	CreatedStudentRequestChildIDs(context.Context, []int64) ([]int64, error)
 	CareExitApplicationLinks(context.Context, []int64) ([]enrollment.CareExitApplicationLink, error)

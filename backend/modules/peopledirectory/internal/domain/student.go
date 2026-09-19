@@ -5,7 +5,12 @@ import (
 	"time"
 )
 
-var ErrStudentNotFound = errors.New("student not found")
+var (
+	ErrStudentNotFound = errors.New("student not found")
+	// ErrStudentLockBusy reports a NOWAIT row lock that another transaction
+	// holds. Callers retry instead of waiting head-on against that writer.
+	ErrStudentLockBusy = errors.New("student row is locked by another transaction")
+)
 
 // EnrollmentProfilePatch distinguishes unchanged fields from an explicit NULL.
 type EnrollmentProfilePatch struct {
@@ -32,6 +37,16 @@ type EnrollmentProfilePatch struct {
 	DataProcessingAcceptedAt    *time.Time
 	EmailContactAcceptedAtSet   bool
 	EmailContactAcceptedAt      *time.Time
+	// The data import patches the directory columns below; enrollment
+	// decisions leave them unset.
+	GroupIDSet         bool
+	GroupID            *int64
+	AddressSet         bool
+	AddressStreet      *string
+	AddressCity        *string
+	AddressPostalCode  *string
+	SupervisorNotesSet bool
+	SupervisorNotes    *string
 }
 
 type EnrollmentStudent struct {

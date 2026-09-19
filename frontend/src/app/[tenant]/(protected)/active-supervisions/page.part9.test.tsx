@@ -49,7 +49,7 @@ vi.mock("next-auth/react", () => ({
 const mockPush = vi.fn();
 const mockRedirect = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, replace: vi.fn() }),
   useSearchParams: () => ({
     get: (key: string) => {
       if (key === "room") return navigationMockState.roomParam;
@@ -87,8 +87,22 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
 
 // Mock Alert
 vi.mock("~/components/ui/alert", () => ({
-  Alert: ({ message, type }: { message: string; type: string }) => (
-    <div data-testid={`alert-${type}`}>{message}</div>
+  // The action slot is part of the real Alert: the released-room notice and
+  // the reopen banner both carry their action in it, so a stub that drops it
+  // would hide the only control on those blocks.
+  Alert: ({
+    message,
+    type,
+    action,
+  }: {
+    message: string;
+    type: string;
+    action?: React.ReactNode;
+  }) => (
+    <div data-testid={`alert-${type}`}>
+      {message}
+      {action}
+    </div>
   ),
 }));
 
@@ -215,6 +229,7 @@ vi.mock("~/components/students/student-card", () => ({
   ),
   SchoolClassIcon: () => <span data-testid="school-class-icon" />,
   GroupIcon: () => <span data-testid="group-icon" />,
+  ActivityIcon: () => <span data-testid="activity-icon" />,
   PickupTimeRow: ({
     pickupTime,
     isException,
@@ -361,6 +376,7 @@ describe("ID-based selection coverage: first room visit enrichment", () => {
       ],
       firstRoomId: "g1",
       schulhofStatus: null,
+      openRooms: [],
     };
 
     vi.mocked(useSWRAuth)
@@ -407,6 +423,7 @@ describe("ID-based selection coverage: first room visit enrichment", () => {
       firstRoomVisits: [],
       firstRoomId: "g1",
       schulhofStatus: null,
+      openRooms: [],
     };
 
     vi.mocked(useSWRAuth)
@@ -462,6 +479,7 @@ describe("ID-based selection coverage: first room visit enrichment", () => {
       ],
       firstRoomId: "room-abc",
       schulhofStatus: null,
+      openRooms: [],
     };
 
     vi.mocked(useSWRAuth)
@@ -536,6 +554,7 @@ describe("ID-based selection coverage: stale room reset", () => {
       ],
       firstRoomId: "room-1",
       schulhofStatus: null,
+      openRooms: [],
     };
 
     const swrNull = {
@@ -591,6 +610,7 @@ describe("ID-based selection coverage: stale room reset", () => {
       ],
       firstRoomId: "room-1",
       schulhofStatus: null,
+      openRooms: [],
     };
 
     vi.mocked(useSWRAuth)
@@ -708,6 +728,7 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
       ],
       firstRoomId: "room-1",
       schulhofStatus: null,
+      openRooms: [],
     };
 
     const swrNull = {
@@ -771,7 +792,7 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
     });
   });
 
-  it("shows the selected parallel Schulhof group's student count", async () => {
+  it("merges parallel sessions of a released room into one entry", async () => {
     const dashboardData = {
       supervisedGroups: [
         {
@@ -812,6 +833,16 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
           },
         ],
       },
+      openRooms: [
+        {
+          roomId: "yard-room",
+          name: "Schulhof",
+          isUserSupervising: true,
+          activeGroupIds: ["yard-primary"],
+          studentCount: 9,
+          students: [],
+        },
+      ],
     };
     const swrNull = {
       data: null,
@@ -863,29 +894,23 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
 
     render(<MeinRaumPage />);
 
-    // Beide Schulhof-Reiter tragen denselben Namen; der parallele steht vor
-    // dem festen Schulhof-Reiter.
-    const parallelTab = (
-      await screen.findAllByRole("tab", {
-        name: "Schulhof",
-      })
-    )[0]!;
-    fireEvent.click(parallelTab);
-
+    // Beide Sitzungen laufen im freigegebenen Raum, also steht der Raum
+    // genau einmal da — vorher trug jede Sitzung ihren eigenen Reiter mit
+    // demselben Namen (#3065).
     await waitFor(() => {
-      expect(mockMutate).toHaveBeenCalled();
+      expect(screen.getByText("Schulhof · 9 Kinder")).toBeInTheDocument();
     });
-    await waitFor(() => {
-      // Die Zahl stand früher als Zähler im Kopf; sie steht jetzt in der
-      // Statuszeile der Kopfkarte.
-      expect(screen.getByText("Schulhof · 2 Kinder")).toBeInTheDocument();
-    });
+    expect(screen.queryAllByRole("tab", { name: "Schulhof" })).toHaveLength(0);
+    // Der Zähler kommt aus dem Raum, nicht aus einer der Sitzungen: er zählt
+    // alle Kinder, die dort gerade erfasst sind.
+    expect(mockMutate).not.toHaveBeenCalled();
+    // Eigene Aufsicht im Raum bleibt eigene Aufsicht: die Abgabe steht.
     expect(
-      screen.queryByRole("button", { name: "Aufsicht abgeben" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", { name: "Aufsicht abgeben" }),
+    ).toBeInTheDocument();
   });
 
-  it("keeps a parallel Schulhof session visible when the permanent status is unclaimed", async () => {
+  it("reports the released room's own occupancy, not the caller's session", async () => {
     const dashboardData = {
       supervisedGroups: [
         {
@@ -923,6 +948,16 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
         studentCount: 9,
         supervisors: [],
       },
+      openRooms: [
+        {
+          roomId: "yard-room",
+          name: "Schulhof",
+          isUserSupervising: false,
+          activeGroupIds: ["yard-primary"],
+          studentCount: 9,
+          students: [],
+        },
+      ],
     };
     const swrNull = {
       data: null,
@@ -944,8 +979,11 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
 
     render(<MeinRaumPage />);
 
-    expect(await screen.findByText("Parallel Student")).toBeInTheDocument();
-    expect(screen.getByText("Schulhof · 1 Kind")).toBeInTheDocument();
+    // The caller's own session runs in the released room, so the room is the
+    // entry — with the occupancy the room reports, not the one session's.
+    expect(await screen.findByText("Schulhof · 9 Kinder")).toBeInTheDocument();
+    expect(screen.getByText("Offener Raum")).toBeInTheDocument();
+    expect(screen.queryByText("Eigene Aufsicht")).not.toBeInTheDocument();
   });
 
   it("shows the permission notice when switching to a forbidden session", async () => {
@@ -986,6 +1024,7 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
       ],
       firstRoomId: "room-1",
       schulhofStatus: null,
+      openRooms: [],
     };
 
     const swrNull = {
@@ -1063,6 +1102,7 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
       ],
       firstRoomId: "room-1",
       schulhofStatus: null,
+      openRooms: [],
     };
 
     const swrNull = {
@@ -1135,6 +1175,7 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
       ],
       firstRoomId: "room-1",
       schulhofStatus: null,
+      openRooms: [],
     };
 
     const swrNull = {
@@ -1243,6 +1284,7 @@ describe("ID-based selection coverage: localStorage room restore", () => {
       ],
       firstRoomId: "room-1",
       schulhofStatus: null,
+      openRooms: [],
     };
 
     const swrNull = {
@@ -1314,6 +1356,7 @@ describe("ID-based selection coverage: localStorage room restore", () => {
       firstRoomVisits: [],
       firstRoomId: "room-1",
       schulhofStatus: null,
+      openRooms: [],
     };
 
     const swrNull = {
@@ -1367,6 +1410,7 @@ describe("ID-based selection coverage: localStorage room restore", () => {
       firstRoomVisits: [],
       firstRoomId: "room-1",
       schulhofStatus: null,
+      openRooms: [],
     };
     const swrNull = {
       data: null,
@@ -1393,7 +1437,7 @@ describe("ID-based selection coverage: localStorage room restore", () => {
   });
 });
 
-describe("ID-based selection coverage: Schulhof skip guard", () => {
+describe("ID-based selection coverage: released-room skip guard", () => {
   const mockMutate = vi.fn();
 
   beforeEach(() => {
@@ -1408,10 +1452,9 @@ describe("ID-based selection coverage: Schulhof skip guard", () => {
     cleanup();
   });
 
-  it("skips first-room preload when Schulhof is the only option and auto-selected", async () => {
-    // When there are no regular rooms but Schulhof exists,
-    // isSchulhofTabSelected becomes true via auto-select effect.
-    // The first-room preload should NOT run (lines 668-670).
+  it("skips the first-room preload when a released room is the only option", async () => {
+    // With no own supervision, the first released room opens by itself.
+    // Its occupancy came with the dashboard, so no session preload runs.
     const dashboardData = {
       supervisedGroups: [],
       unclaimedGroups: [],
@@ -1439,6 +1482,16 @@ describe("ID-based selection coverage: Schulhof skip guard", () => {
           },
         ],
       },
+      openRooms: [
+        {
+          roomId: "schulhof-r1",
+          name: "Schulhof",
+          isUserSupervising: true,
+          activeGroupIds: ["active-schulhof"],
+          studentCount: 0,
+          students: [],
+        },
+      ],
     };
 
     vi.mocked(useSWRAuth)
@@ -1465,9 +1518,9 @@ describe("ID-based selection coverage: Schulhof skip guard", () => {
     });
   });
 
-  it("does not overwrite Schulhof students with first-room data when Schulhof is active", async () => {
-    // Even when there are supervised rooms AND Schulhof, if Schulhof tab is selected
-    // (auto-selected because it's the only option initially), first-room preload should skip
+  it("does not show a session roster while a released room is open", async () => {
+    // The shared room lists what is in the room; the visits of whichever
+    // session the aggregate happened to resolve must not leak into it.
     const dashboardData = {
       supervisedGroups: [],
       unclaimedGroups: [],
@@ -1505,6 +1558,16 @@ describe("ID-based selection coverage: Schulhof skip guard", () => {
           },
         ],
       },
+      openRooms: [
+        {
+          roomId: "schulhof-r1",
+          name: "Schulhof",
+          isUserSupervising: true,
+          activeGroupIds: ["active-schulhof"],
+          studentCount: 2,
+          students: [],
+        },
+      ],
     };
 
     vi.mocked(useSWRAuth)
@@ -1525,7 +1588,7 @@ describe("ID-based selection coverage: Schulhof skip guard", () => {
 
     render(<MeinRaumPage />);
 
-    // The "First Room Student" should NOT appear because Schulhof is auto-selected
+    // The session's student must not appear under the shared room.
     await waitFor(() => {
       expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
     });
@@ -1578,6 +1641,7 @@ describe("ID-based selection coverage: currentRoom useMemo", () => {
       ],
       firstRoomId: "room-only",
       schulhofStatus: null,
+      openRooms: [],
     };
 
     vi.mocked(useSWRAuth)
@@ -1607,9 +1671,9 @@ describe("ID-based selection coverage: currentRoom useMemo", () => {
     expect(screen.getByText(/· 1 Kind$/)).toBeInTheDocument();
   });
 
-  it("returns Schulhof room object when Schulhof tab is selected and user is supervising", async () => {
-    // When isSchulhofTabSelected is true and user is supervising,
-    // currentRoom should be the Schulhof virtual room object
+  it("names the released room and its occupancy in the status line", async () => {
+    // The room carries its own name and count; the caller's supervision in
+    // it changes neither.
     const dashboardData = {
       supervisedGroups: [],
       unclaimedGroups: [],
@@ -1637,6 +1701,16 @@ describe("ID-based selection coverage: currentRoom useMemo", () => {
           },
         ],
       },
+      openRooms: [
+        {
+          roomId: "schulhof-room",
+          name: "Schulhof",
+          isUserSupervising: true,
+          activeGroupIds: ["active-schulhof-id"],
+          studentCount: 5,
+          students: [],
+        },
+      ],
     };
 
     vi.mocked(useSWRAuth)
@@ -1657,12 +1731,12 @@ describe("ID-based selection coverage: currentRoom useMemo", () => {
 
     render(<MeinRaumPage />);
 
-    // Schulhof auto-selects when it's the only option
+    // The released room opens by itself when it is the only option.
     await waitFor(() => {
       expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
     });
 
-    // The student count should reflect Schulhof's student count (5)
+    // The count is the room's, reported by the shared view.
     await waitFor(() => {
       expect(screen.getByText("Schulhof · 5 Kinder")).toBeInTheDocument();
     });
@@ -1765,6 +1839,7 @@ describe("ID-based selection coverage: forbidden-session 403 handling", () => {
       ],
       firstRoomId: "room-1",
       schulhofStatus: null,
+      openRooms: [],
     };
 
     const swrNull = {

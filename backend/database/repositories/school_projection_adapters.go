@@ -22,40 +22,6 @@ type schoolAccountTenantRepository struct {
 	schools organizationtenancy.Query
 }
 
-func (r schoolAccountTenantRepository) ListTenantAccessByAccountID(ctx context.Context, accountID int64) ([]authModels.AccountTenantAccessInfo, error) {
-	rows, err := r.AccountTenantRepository.ListTenantAccessByAccountID(ctx, accountID)
-	if err != nil || len(rows) == 0 {
-		return rows, err
-	}
-	ids := make([]int64, 0, len(rows))
-	for _, row := range rows {
-		ids = append(ids, row.TenantID)
-	}
-	schools, err := schoolsByID(ctx, r.schools, ids)
-	if err != nil {
-		return nil, fmt.Errorf("load schools for account access: %w", err)
-	}
-	result := make([]authModels.AccountTenantAccessInfo, 0, len(rows))
-	for _, row := range rows {
-		school, found := schools[row.TenantID]
-		if !found {
-			return nil, fmt.Errorf("school %d missing for account access", row.TenantID)
-		}
-		if school.IsDeleted() {
-			continue
-		}
-		row.SchoolName = school.Name
-		row.SchoolSlug = school.Slug
-		row.SchoolActive = school.Active
-		row.OrganizationID = school.OrganizationID
-		result = append(result, row)
-	}
-	slices.SortStableFunc(result, func(left, right authModels.AccountTenantAccessInfo) int {
-		return compareStrings(left.SchoolName, right.SchoolName)
-	})
-	return result, nil
-}
-
 func (r schoolAccountTenantRepository) ListAccountsByOrganizationID(ctx context.Context, organizationID int64) ([]authModels.OrgAccountInfo, error) {
 	schools, err := r.schools.ListSchoolsByOrganization(ctx, organizationID)
 	if err != nil {

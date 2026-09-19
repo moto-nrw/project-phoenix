@@ -15,9 +15,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
+	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/requestreview"
+	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	activityService "github.com/moto-nrw/project-phoenix/services/activities"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
@@ -27,8 +29,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
-	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 	"github.com/uptrace/bun"
 )
 
@@ -40,14 +42,9 @@ type Resource struct {
 // ResourceConfig holds all dependencies for creating a students Resource.
 // Using a config struct instead of individual parameters improves maintainability.
 type ResourceConfig struct {
-	PersonService    userService.PersonService
-	PeopleDirectory  peopleModule.Capability
-	EducationService educationService.Service
-	// GradeTransitionService is required by the purge route only: it strips the
-	// child's name from the transition ledger in the same transaction as the
-	// delete. Optional so bare test Resources still compile; the purge handler
-	// refuses rather than silently skipping the anonymization when it is nil.
-	GradeTransitionService *educationService.GradeTransitionService
+	PersonService          userService.PersonService
+	PeopleDirectory        peopleModule.Capability
+	EducationService       educationService.Service
 	UserContextService     userContextService.UserContextService
 	ActiveService          activeService.Service
 	IoTService             iotSvc.Service
@@ -67,8 +64,12 @@ type ResourceConfig struct {
 	// ClassListEntryService supplies the class-list-only entries (#2382) the
 	// "Klassenliste" export merges into the Klassenverband. Optional: nil
 	// exports without entries (bare test Resources).
-	ClassListEntryService  userService.ClassListEntryService
-	StudentDeletionService userService.StudentDeletionService
+	ClassListEntryService userService.ClassListEntryService
+	// StudentDeletion is the owner workflow behind the permanent deletion
+	// routes (#2710): delete-impact, DELETE /{id}, the graduate purge and the
+	// withdrawal deletion. Optional so bare test Resources still compile; the
+	// routes answer 500 rather than deleting through a second path when nil.
+	StudentDeletion *studentdeletion.Workflow
 	// CareLifecycleService backs "Betreuung beenden" (#2487) — the regular
 	// exit, which is deliberately NOT a deletion.
 	CareLifecycleService    userService.CareLifecycleService
@@ -90,7 +91,11 @@ type ResourceConfig struct {
 	// RequestReviewAccess reports the caller's coarse reach over the parent
 	// request queues so the empty list can explain itself. Optional: a nil
 	// policy omits the field (bare test Resources).
-	RequestReviewAccess     ParentRequestReviewAccess
+	RequestReviewAccess ParentRequestReviewAccess
+	// RequestReview is the shared request-review projection (#2705) behind
+	// the aggregated list and the pending-count badge. Optional for bare
+	// test Resources; the two routes answer 500 without it.
+	RequestReview           requestreview.Query
 	StudentStatusDayService *activeService.StudentStatusDayService
 	AbsenceOverview         *activeService.StudentStatusDayOverviewService
 	StudentHistoryService   activeService.StudentHistoryService

@@ -2,7 +2,6 @@ package parent
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 
@@ -17,15 +16,31 @@ import (
 type EnrollmentRequestRepository struct {
 	runtime   Runtime
 	guardians GuardianDirectory
+	accounts  AccountDirectory
 	commands  EnrollmentCommands
 }
 
+// AccountDirectory is the narrow Identity & Access fact the parent dashboard
+// needs: the e-mail address behind a platform account. An unknown account
+// resolves to an empty address, which matches applications by id only.
+type AccountDirectory interface {
+	AccountEmail(ctx context.Context, accountID int64) (string, error)
+}
+
+var errAccountDirectoryRequired = errors.New("parent repository: account directory is required")
+
 // NewEnrollmentRequestRepository wires a fresh repository.
-func NewEnrollmentRequestRepository(runtime Runtime, commands EnrollmentCommands) parentModels.EnrollmentRequestRepository {
+//
+// accounts is the Identity & Access lookup the account's e-mail is read
+// through (#2720); auth.accounts is not read here.
+func NewEnrollmentRequestRepository(runtime Runtime, commands EnrollmentCommands, accounts AccountDirectory) parentModels.EnrollmentRequestRepository {
 	if commands == nil {
 		panic("parent repository: enrollment commands are required")
 	}
-	return &EnrollmentRequestRepository{runtime: requireRuntime(runtime), commands: commands}
+	if accounts == nil {
+		panic(errAccountDirectoryRequired)
+	}
+	return &EnrollmentRequestRepository{runtime: requireRuntime(runtime), commands: commands, accounts: accounts}
 }
 
 // BindGuardianDirectory installs the People Directory the account's guardian
@@ -43,9 +58,11 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 		return nil, fmt.Errorf("parent: account_id must be positive")
 	}
 
-	var accountEmail string
-	err := runtimeDB(ctx, r.runtime).NewRaw("SELECT email FROM auth.accounts WHERE id = ?", accountID).Scan(ctx, &accountEmail)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if r.accounts == nil {
+		return nil, errAccountDirectoryRequired
+	}
+	accountEmail, err := r.accounts.AccountEmail(ctx, accountID)
+	if err != nil {
 		return nil, fmt.Errorf("parent: load enrollment account identity: %w", err)
 	}
 	rows, err := r.commands.AccountRequests(ctx, accountID, accountEmail)

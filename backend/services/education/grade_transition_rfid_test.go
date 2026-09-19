@@ -29,24 +29,23 @@ func tagOf(t *testing.T, ctx context.Context, db *bun.DB, personID int64) string
 	return tags[0]
 }
 
-// TestGradeTransitionService_Apply_ReleasesRFIDTag covers the P1 fix (#405
+// TestGradeTransitionWorkflow_Apply_ReleasesRFIDTag covers the P1 fix (#405
 // review): graduation is a soft delete, so a graduate keeps their person row and
 // would keep holding the bracelet — a state the kiosk can SEE (GET
 // /api/iot/rfid/{tagId} resolves the person unfiltered) but never resolve
 // (DELETE /api/students/{id}/rfid runs through the alumnus gate). The apply
-// releases the tag and ledgers it in grade_transition_history so the revert can
+// releases the tag and ledgers it in the transition history so the revert can
 // hand it back.
-func TestGradeTransitionService_Apply_ReleasesRFIDTag(t *testing.T) {
+func TestGradeTransitionWorkflow_Apply_ReleasesRFIDTag(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	service := newRosterReconcilingTransitionService(t, db)
+	f := newTransitionFixture(t, db)
+	wf := f.workflow(t)
 
 	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
-
-	account := testpkg.CreateTestAccount(t, db, "transition-rfid-release@test.local")
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	gradClass := fmt.Sprintf("4rfid-%s", suffix)
@@ -69,49 +68,43 @@ func TestGradeTransitionService_Apply_ReleasesRFIDTag(t *testing.T) {
 			Exec(context.Background())
 	}()
 
-	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, gradClass, nil) // graduate
+	transitionID := f.createDraft(t, ctx, "2025-2026", graduate(gradClass))
 
-	_, err := service.Apply(ctx, transition.ID, account.ID)
+	_, err := wf.Apply(ctx, transitionID, "")
 	require.NoError(t, err)
 
 	assert.Empty(t, tagOf(t, ctx, db, student.PersonID),
 		"graduation must free the bracelet so it can be issued to a current child")
 
-	var ledgered []*string
-	require.NoError(t, db.NewSelect().
-		TableExpr(`education.grade_transition_history`).
-		Column("rfid_tag").
-		Where("transition_id = ?", transition.ID).
-		Where("student_id = ?", student.ID).
-		Scan(ctx, &ledgered))
-	require.Len(t, ledgered, 1)
-	require.NotNil(t, ledgered[0], "the released tag must be recorded for the revert")
-	assert.Equal(t, card.ID, *ledgered[0])
+	history, err := f.deps.Structure.ListTransitionHistory(ctx, transitionID)
+	require.NoError(t, err)
+	require.Len(t, history, 1)
+	require.Equal(t, student.ID, history[0].StudentID)
+	require.NotNil(t, history[0].RFIDTag, "the released tag must be recorded for the revert")
+	assert.Equal(t, card.ID, *history[0].RFIDTag)
 
-	_, err = service.Revert(ctx, transition.ID, account.ID)
+	_, err = wf.Revert(ctx, transitionID)
 	require.NoError(t, err)
 
 	assert.Equal(t, card.ID, tagOf(t, ctx, db, student.PersonID),
 		"the revert must hand the bracelet back")
 }
 
-// TestGradeTransitionService_Revert_KeepsReissuedRFIDTag pins the other half:
+// TestGradeTransitionWorkflow_Revert_KeepsReissuedRFIDTag pins the other half:
 // the bracelet is a physical object. If it was handed to a current child during
 // the alumnus window, the revert must leave it with that child (users.persons
 // carries UNIQUE (tenant_id, tag_id), so the alternative is a failed revert) and
 // say so in the result warnings.
-func TestGradeTransitionService_Revert_KeepsReissuedRFIDTag(t *testing.T) {
+func TestGradeTransitionWorkflow_Revert_KeepsReissuedRFIDTag(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	service := newRosterReconcilingTransitionService(t, db)
+	f := newTransitionFixture(t, db)
+	wf := f.workflow(t)
 
 	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
-
-	account := testpkg.CreateTestAccount(t, db, "transition-rfid-reissue@test.local")
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	gradClass := fmt.Sprintf("4reissue-%s", suffix)
@@ -133,17 +126,16 @@ func TestGradeTransitionService_Revert_KeepsReissuedRFIDTag(t *testing.T) {
 			Exec(context.Background())
 	}()
 
-	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, gradClass, nil) // graduate
+	transitionID := f.createDraft(t, ctx, "2025-2026", graduate(gradClass))
 
-	_, err := service.Apply(ctx, transition.ID, account.ID)
+	_, err := wf.Apply(ctx, transitionID, "")
 	require.NoError(t, err)
 	require.Empty(t, tagOf(t, ctx, db, leaver.PersonID))
 
 	// The freed bracelet goes to a child who is still here.
 	testpkg.LinkRFIDToStudent(t, db, newcomer.PersonID, card.ID)
 
-	result, err := service.Revert(ctx, transition.ID, account.ID)
+	result, err := wf.Revert(ctx, transitionID)
 	require.NoError(t, err)
 
 	assert.Empty(t, tagOf(t, ctx, db, leaver.PersonID),

@@ -12,7 +12,10 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const tableExprStaffMessageThreadsAsThread = `users.staff_message_threads AS "staff_message_thread"`
+const (
+	tableStaffMessageThreads             = "users.staff_message_threads"
+	tableExprStaffMessageThreadsAsThread = tableStaffMessageThreads + ` AS "staff_message_thread"`
+)
 
 // StaffMessageThreadRepository is the tenant-scoped data-access layer for
 // OGS-internal colleague conversations (#2598).
@@ -22,7 +25,7 @@ type StaffMessageThreadRepository struct {
 
 // NewStaffMessageThreadRepository wires a fresh repository.
 func NewStaffMessageThreadRepository(db *bun.DB) users.StaffMessageThreadRepository {
-	repo := base.NewRepository[*users.StaffMessageThread](db, "users.staff_message_threads", "StaffMessageThread")
+	repo := base.NewRepository[*users.StaffMessageThread](db, tableStaffMessageThreads, "StaffMessageThread")
 	repo.TenantScoped = true
 	return &StaffMessageThreadRepository{Repository: repo}
 }
@@ -80,7 +83,7 @@ func (r *StaffMessageThreadRepository) GetOrCreateDirect(ctx context.Context, ac
 	// "relation staff_message_threads does not exist".
 	if _, err := base.GetDB(ctx, r.DB).NewInsert().
 		Model(thread).
-		ModelTableExpr(r.TableName).
+		ModelTableExpr(tableStaffMessageThreads).
 		On("CONFLICT (tenant_id, participant_key) DO NOTHING").
 		Exec(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "get-or-create staff message thread", Err: base.TranslateNotFound(err)}

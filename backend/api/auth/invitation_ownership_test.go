@@ -21,7 +21,7 @@ func TestInvitationHTTPRequiresVerifiedOwner(t *testing.T) {
 	db, module := testutil.SetupInvitationModule(t)
 	repos, service := module.Persistence, module.Invitation
 	// Unrelated route registrations capture method values but never call this auth service.
-	resource := authAPI.NewResource(&authService.Service{}, service, nil, db)
+	resource := authAPI.NewResource(&authService.Service{}, service, nil, nil, db)
 	router := testutil.NewTenantRouter(db)
 	router.Mount("/auth", resource.Router())
 	owner := testpkg.CreateTestAccountWithPassword(t, db, fmt.Sprintf("http-owner-%d@example.com", testpkg.Tenant(t)), "OwnerPass123!")

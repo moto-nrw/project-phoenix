@@ -141,7 +141,7 @@ func listByAccount(t *testing.T, db *bun.DB, accountID int64) []*parentModels.En
 // returns the affected row count.
 func backfill(t *testing.T, db *bun.DB, accountID int64, email string) int {
 	t.Helper()
-	repo := parentRepo.NewEnrollmentRequestRepository(staticParentRuntime(db), enrollmentCompose.New())
+	repo := parentRepo.NewEnrollmentRequestRepository(staticParentRuntime(db), enrollmentCompose.New(), staticAccountDirectory{db: db})
 	var n int
 	err := tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, _ bun.Tx) error {
 		got, bErr := repo.BackfillGuardianAccountID(ctx, accountID, email)
@@ -500,7 +500,7 @@ func TestEnrollmentRequestRepository_ListByAccount_RejectsZeroAccount(t *testing
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := parentRepo.NewEnrollmentRequestRepository(staticParentRuntime(db), enrollmentCompose.New())
+	repo := parentRepo.NewEnrollmentRequestRepository(staticParentRuntime(db), enrollmentCompose.New(), staticAccountDirectory{db: db})
 	err := tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, _ bun.Tx) error {
 		_, listErr := repo.ListByAccount(ctx, 0)
 		return listErr
@@ -732,11 +732,25 @@ func TestEnrollmentRequestRepository_Backfill_RejectsZeroAccount(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := parentRepo.NewEnrollmentRequestRepository(staticParentRuntime(db), enrollmentCompose.New())
+	repo := parentRepo.NewEnrollmentRequestRepository(staticParentRuntime(db), enrollmentCompose.New(), staticAccountDirectory{db: db})
 	err := tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, _ bun.Tx) error {
 		_, bErr := repo.BackfillGuardianAccountID(ctx, 0, "x@example.com")
 		return bErr
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "account_id must be positive")
+}
+
+// staticAccountDirectory resolves the account address the way the production
+// composition does through the Identity & Access owner; the test reads the
+// same row directly so the repository stays under test on its own.
+type staticAccountDirectory struct{ db *bun.DB }
+
+func (d staticAccountDirectory) AccountEmail(ctx context.Context, accountID int64) (string, error) {
+	var email string
+	err := d.db.NewRaw("SELECT email FROM auth.accounts WHERE id = ?", accountID).Scan(ctx, &email)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return email, err
 }

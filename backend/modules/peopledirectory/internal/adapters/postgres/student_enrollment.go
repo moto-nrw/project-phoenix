@@ -79,6 +79,20 @@ func (s *StudentStore) ApplyEnrollmentProfile(ctx context.Context, id int64, inp
 		query = query.Set("email_contact_accepted_at = ?", input.EmailContactAcceptedAt)
 		changed = true
 	}
+	if input.GroupIDSet {
+		query = query.Set("group_id = ?", input.GroupID)
+		changed = true
+	}
+	if input.AddressSet {
+		query = query.Set("address_street = ?", input.AddressStreet).
+			Set("address_city = ?", input.AddressCity).
+			Set("address_postal_code = ?", input.AddressPostalCode)
+		changed = true
+	}
+	if input.SupervisorNotesSet {
+		query = query.Set("supervisor_notes = ?", input.SupervisorNotes)
+		changed = true
+	}
 	if !changed {
 		return domain.OperationStats{}, nil
 	}
@@ -97,6 +111,21 @@ func lockEnrollmentClassWrites(ctx context.Context, db bun.IDB, tenantID int64) 
 		return fmt.Errorf("lockClassWrites: tenant_id %d exceeds advisory-lock obj id range", tenantID)
 	}
 	_, err := db.NewRaw("SELECT pg_advisory_xact_lock_shared(?, ?)", enrollmentClassWritesLockClass, int32(tenantID)).Exec(ctx)
+	return err
+}
+
+// lockEnrollmentClassWritesExclusive takes the class-writes gate exclusively.
+// Every shared holder (student creation, class edits, locked enrollment
+// reads) waits until the exclusive holder commits, which is how a grade
+// transition closes the window between its cohort re-read and its writes.
+func lockEnrollmentClassWritesExclusive(ctx context.Context, db bun.IDB, tenantID int64) error {
+	if err := requireStudentWriteTenant(tenantID); err != nil {
+		return err
+	}
+	if tenantID > 0x7fffffff {
+		return fmt.Errorf("lockClassWritesExclusive: tenant_id %d exceeds advisory-lock obj id range", tenantID)
+	}
+	_, err := db.NewRaw("SELECT pg_advisory_xact_lock(?, ?)", enrollmentClassWritesLockClass, int32(tenantID)).Exec(ctx)
 	return err
 }
 

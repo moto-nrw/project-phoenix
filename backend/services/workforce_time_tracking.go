@@ -6,11 +6,10 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/services/active"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
+	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -25,34 +24,35 @@ var timeTrackingSentinels = []struct {
 	legacy error
 	kind   error
 }{
-	{active.ErrManagerControlledAbsence, workforce.ErrManagerControlledAbsence},
-	{active.ErrAbsenceTypeInactive, workforce.ErrAbsenceTypeInactive},
-	{active.ErrAbsenceTypeNotFound, workforce.ErrAbsenceTypeNotFound},
-	{active.ErrAbsenceTypeAllowanceExceeded, workforce.ErrAbsenceTypeAllowanceExceeded},
-	{active.ErrAbsenceTypeAllowanceInvalid, workforce.ErrAbsenceTypeAllowanceInvalid},
-	{active.ErrVacationQuotaInvalid, workforce.ErrVacationQuotaInvalid},
-	{active.ErrAdjustmentInvalid, workforce.ErrAdjustmentInvalid},
-	{active.ErrAdjustmentNotFound, workforce.ErrAdjustmentNotFound},
-	{active.ErrAdjustmentExceedsBalance, workforce.ErrAdjustmentExceedsBalance},
-	{active.ErrAdjustmentInClosedMonth, workforce.ErrAdjustmentInClosedMonth},
-	{active.ErrAdjustmentHasDependentReset, workforce.ErrAdjustmentHasDependentReset},
-	{active.ErrBalanceAlreadyReset, workforce.ErrBalanceAlreadyReset},
-	{active.ErrOpeningAlreadyExists, workforce.ErrOpeningAlreadyExists},
-	{active.ErrMonthCloseInvalid, workforce.ErrMonthCloseInvalid},
-	{active.ErrMonthNotClosable, workforce.ErrMonthNotClosable},
-	{active.ErrMonthNotClosed, workforce.ErrMonthNotClosed},
-	{active.ErrLaterMonthClosed, workforce.ErrLaterMonthClosed},
-	{active.ErrMonthOutOfRange, workforce.ErrMonthOutOfRange},
-	{active.ErrVacationOpeningInvalid, workforce.ErrVacationOpeningInvalid},
-	{active.ErrVacationOpeningNotFound, workforce.ErrVacationOpeningNotFound},
-	{active.ErrVacationOpeningExists, workforce.ErrVacationOpeningExists},
-	{active.ErrVacationOpeningAbsencesBeforeCutoff, workforce.ErrVacationOpeningAbsencesBeforeCutoff},
-	{active.ErrInvalidTargetRange, workforce.ErrInvalidTargetRange},
-	{active.ErrOverviewInvalid, workforce.ErrOverviewInvalid},
-	{active.ErrAuditLogInvalid, workforce.ErrAuditLogInvalid},
-	{active.ErrTimeExportInvalid, workforce.ErrTimeExportInvalid},
-	{active.ErrPayrollConfigIncomplete, workforce.ErrPayrollConfigIncomplete},
-	{active.ErrScheduleValidation, workforce.ErrScheduleValidation},
+	{timetracking.ErrManagerControlledAbsence, workforce.ErrManagerControlledAbsence},
+	{timetracking.ErrAbsenceTypeInactive, workforce.ErrAbsenceTypeInactive},
+	{timetracking.ErrAbsenceTypeNotFound, workforce.ErrAbsenceTypeNotFound},
+	{timetracking.ErrAbsenceTypeAllowanceExceeded, workforce.ErrAbsenceTypeAllowanceExceeded},
+	{timetracking.ErrAbsenceTypeAllowanceInvalid, workforce.ErrAbsenceTypeAllowanceInvalid},
+	{timetracking.ErrVacationQuotaInvalid, workforce.ErrVacationQuotaInvalid},
+	{timetracking.ErrVacationQuotaExceeded, workforce.ErrVacationQuotaExceeded},
+	{timetracking.ErrAdjustmentInvalid, workforce.ErrAdjustmentInvalid},
+	{timetracking.ErrAdjustmentNotFound, workforce.ErrAdjustmentNotFound},
+	{timetracking.ErrAdjustmentExceedsBalance, workforce.ErrAdjustmentExceedsBalance},
+	{timetracking.ErrAdjustmentInClosedMonth, workforce.ErrAdjustmentInClosedMonth},
+	{timetracking.ErrAdjustmentHasDependentReset, workforce.ErrAdjustmentHasDependentReset},
+	{timetracking.ErrBalanceAlreadyReset, workforce.ErrBalanceAlreadyReset},
+	{timetracking.ErrOpeningAlreadyExists, workforce.ErrOpeningAlreadyExists},
+	{timetracking.ErrMonthCloseInvalid, workforce.ErrMonthCloseInvalid},
+	{timetracking.ErrMonthNotClosable, workforce.ErrMonthNotClosable},
+	{timetracking.ErrMonthNotClosed, workforce.ErrMonthNotClosed},
+	{timetracking.ErrLaterMonthClosed, workforce.ErrLaterMonthClosed},
+	{timetracking.ErrMonthOutOfRange, workforce.ErrMonthOutOfRange},
+	{timetracking.ErrVacationOpeningInvalid, workforce.ErrVacationOpeningInvalid},
+	{timetracking.ErrVacationOpeningNotFound, workforce.ErrVacationOpeningNotFound},
+	{timetracking.ErrVacationOpeningExists, workforce.ErrVacationOpeningExists},
+	{timetracking.ErrVacationOpeningAbsencesBeforeCutoff, workforce.ErrVacationOpeningAbsencesBeforeCutoff},
+	{timetracking.ErrInvalidTargetRange, workforce.ErrInvalidTargetRange},
+	{timetracking.ErrOverviewInvalid, workforce.ErrOverviewInvalid},
+	{timetracking.ErrAuditLogInvalid, workforce.ErrAuditLogInvalid},
+	{timetracking.ErrTimeExportInvalid, workforce.ErrTimeExportInvalid},
+	{timetracking.ErrPayrollConfigIncomplete, workforce.ErrPayrollConfigIncomplete},
+	{timetracking.ErrScheduleValidation, workforce.ErrScheduleValidation},
 }
 
 // mapTimeTrackingFailure reports a retained sentinel as its public kind and
@@ -64,7 +64,7 @@ func mapTimeTrackingFailure(err error) error {
 	}
 	// The #1843 sick cascade wraps the planning layer's overlap: a shift whose
 	// freed window was re-planned collides when the report is reversed.
-	if errors.Is(err, schedule.ErrShiftOverlap) {
+	if errors.Is(err, shiftplanning.ErrShiftOverlap) {
 		return &workforce.TimeTrackingError{Kind: workforce.ErrStaffShiftOverlap, Cause: err}
 	}
 	for _, pair := range timeTrackingSentinels {
@@ -119,14 +119,14 @@ func publicOptionalDate(value *timezone.Date) string {
 // --- work sessions ----------------------------------------------------------
 
 type workSessionCapability struct {
-	sessions active.WorkSessionService
+	sessions timetracking.WorkSessionService
 	people   users.PersonService
 }
 
 // WorkSessionCapability serves workforce.WorkSessions from the retained work
 // session service; the people service resolves the staff record a schedule
 // update is written for.
-func WorkSessionCapability(sessions active.WorkSessionService, people users.PersonService) workforce.WorkSessions {
+func WorkSessionCapability(sessions timetracking.WorkSessionService, people users.PersonService) workforce.WorkSessions {
 	if sessions == nil || people == nil {
 		panic("work session capability: work session and person services are required")
 	}
@@ -166,7 +166,7 @@ func publicWorkSessionBreaks(entities []*activeModels.WorkSessionBreak) []*workf
 	return result
 }
 
-func publicSessionResponse(value *active.SessionResponse) *workforce.SessionResponse {
+func publicSessionResponse(value *timetracking.SessionResponse) *workforce.SessionResponse {
 	if value == nil {
 		return nil
 	}
@@ -177,7 +177,7 @@ func publicSessionResponse(value *active.SessionResponse) *workforce.SessionResp
 	}
 }
 
-func publicHistory(value *active.HistoryResponse) *workforce.HistoryResponse {
+func publicHistory(value *timetracking.HistoryResponse) *workforce.HistoryResponse {
 	if value == nil {
 		return nil
 	}
@@ -197,7 +197,7 @@ func publicHistory(value *active.HistoryResponse) *workforce.HistoryResponse {
 	return result
 }
 
-func publicWorkSessionEdit(entity *auditModels.WorkSessionEdit) *workforce.WorkSessionEdit {
+func publicWorkSessionEdit(entity *timetracking.WorkSessionEdit) *workforce.WorkSessionEdit {
 	if entity == nil {
 		return nil
 	}
@@ -207,7 +207,7 @@ func publicWorkSessionEdit(entity *auditModels.WorkSessionEdit) *workforce.WorkS
 	}
 }
 
-func publicWorkSessionEdits(values []*active.WorkSessionEditView) []*workforce.WorkSessionEditView {
+func publicWorkSessionEdits(values []*timetracking.WorkSessionEditView) []*workforce.WorkSessionEditView {
 	if values == nil {
 		return nil
 	}
@@ -224,21 +224,21 @@ func publicWorkSessionEdits(values []*active.WorkSessionEditView) []*workforce.W
 	return result
 }
 
-func legacySessionUpdate(value workforce.SessionUpdateRequest) active.SessionUpdateRequest {
-	result := active.SessionUpdateRequest{
+func legacySessionUpdate(value workforce.SessionUpdateRequest) timetracking.SessionUpdateRequest {
+	result := timetracking.SessionUpdateRequest{
 		Date: value.Date, CheckInTime: value.CheckInTime, CheckOutTime: value.CheckOutTime, BreakMinutes: value.BreakMinutes,
 		Status: value.Status, Notes: value.Notes,
 	}
 	if value.Breaks != nil {
-		result.Breaks = make([]active.BreakDurationUpdate, 0, len(value.Breaks))
+		result.Breaks = make([]timetracking.BreakDurationUpdate, 0, len(value.Breaks))
 		for _, update := range value.Breaks {
-			result.Breaks = append(result.Breaks, active.BreakDurationUpdate(update))
+			result.Breaks = append(result.Breaks, timetracking.BreakDurationUpdate(update))
 		}
 	}
 	return result
 }
 
-func publicExportFile(value *active.ExportFile) *workforce.ExportFile {
+func publicExportFile(value *timetracking.ExportFile) *workforce.ExportFile {
 	if value == nil {
 		return nil
 	}
@@ -310,7 +310,7 @@ func (c workSessionCapability) UpdateSessionAsAdmin(ctx context.Context, editorS
 }
 
 func (c workSessionCapability) CreateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID int64, request workforce.AdminCreateSessionRequest) (*workforce.WorkSession, error) {
-	session, err := c.sessions.CreateSessionAsAdmin(ctx, editorStaffID, targetStaffID, active.AdminCreateSessionRequest(request))
+	session, err := c.sessions.CreateSessionAsAdmin(ctx, editorStaffID, targetStaffID, timetracking.AdminCreateSessionRequest(request))
 	if err != nil {
 		return nil, mapTimeTrackingFailure(err)
 	}
@@ -366,28 +366,28 @@ func (c workSessionCapability) UpdateStaffSchedule(ctx context.Context, staffID 
 	if err != nil {
 		return err
 	}
-	legacyInput := active.ScheduleUpdateInput{
+	legacyInput := timetracking.ScheduleUpdateInput{
 		Mode: input.Mode, ModelID: input.ModelID, RotationLength: input.RotationLength,
 		RotationAnchorDate: input.RotationAnchorDate, SaveAsTemplateName: input.SaveAsTemplateName,
 	}
 	if input.Entries != nil {
-		legacyInput.Entries = make([]active.ScheduleEntry, 0, len(input.Entries))
+		legacyInput.Entries = make([]timetracking.ScheduleEntry, 0, len(input.Entries))
 		for _, entry := range input.Entries {
-			legacyInput.Entries = append(legacyInput.Entries, active.ScheduleEntry(entry))
+			legacyInput.Entries = append(legacyInput.Entries, timetracking.ScheduleEntry(entry))
 		}
 	}
-	return mapTimeTrackingFailure(c.sessions.UpdateSchedule(ctx, staff, legacyInput))
+	return mapTimeTrackingFailure(c.sessions.UpdateSchedule(ctx, &timetracking.StaffScheduleBinding{ID: staff.ID, WorkTimeModelID: staff.WorkTimeModelID, RotationAnchorDate: staff.RotationAnchorDate}, legacyInput))
 }
 
 // --- absences ---------------------------------------------------------------
 
 type staffAbsenceCapability struct {
-	absences active.StaffAbsenceService
+	absences timetracking.StaffAbsenceService
 }
 
 // StaffAbsenceCapability serves workforce.StaffAbsences from the retained
 // absence service.
-func StaffAbsenceCapability(absences active.StaffAbsenceService) workforce.StaffAbsences {
+func StaffAbsenceCapability(absences timetracking.StaffAbsenceService) workforce.StaffAbsences {
 	if absences == nil {
 		panic("staff absence capability: absence service is required")
 	}
@@ -407,7 +407,7 @@ func publicStaffAbsence(entity *activeModels.StaffAbsence) *workforce.StaffAbsen
 	}
 }
 
-func publicAbsenceResponse(value *active.StaffAbsenceResponse) *workforce.StaffAbsenceResponse {
+func publicAbsenceResponse(value *timetracking.StaffAbsenceResponse) *workforce.StaffAbsenceResponse {
 	if value == nil {
 		return nil
 	}
@@ -416,7 +416,7 @@ func publicAbsenceResponse(value *active.StaffAbsenceResponse) *workforce.StaffA
 	}
 }
 
-func publicAbsenceResponses(values []*active.StaffAbsenceResponse) []*workforce.StaffAbsenceResponse {
+func publicAbsenceResponses(values []*timetracking.StaffAbsenceResponse) []*workforce.StaffAbsenceResponse {
 	if values == nil {
 		return nil
 	}
@@ -438,7 +438,7 @@ func publicVacationOpening(entity *activeModels.StaffVacationOpening) *workforce
 	}
 }
 
-func (c staffAbsenceCapability) absence(value *active.StaffAbsenceResponse, err error) (*workforce.StaffAbsenceResponse, error) {
+func (c staffAbsenceCapability) absence(value *timetracking.StaffAbsenceResponse, err error) (*workforce.StaffAbsenceResponse, error) {
 	if err != nil {
 		return nil, mapTimeTrackingFailure(err)
 	}
@@ -454,7 +454,7 @@ func (c staffAbsenceCapability) ListAbsences(ctx context.Context, staffID int64,
 	if err != nil {
 		return nil, err
 	}
-	values, err := c.absences.ListAbsences(ctx, staffID, active.StaffAbsenceListFilter{From: from, To: to, Status: filter.Status})
+	values, err := c.absences.ListAbsences(ctx, staffID, timetracking.StaffAbsenceListFilter{From: from, To: to, Status: filter.Status})
 	if err != nil {
 		return nil, mapTimeTrackingFailure(err)
 	}
@@ -474,15 +474,15 @@ func (c staffAbsenceCapability) AbsencesForRange(ctx context.Context, staffID in
 }
 
 func (c staffAbsenceCapability) CreateOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, error) {
-	return c.absence(c.absences.CreateOwnAbsence(ctx, staffID, actorAccountID, active.CreateAbsenceRequest(request)))
+	return c.absence(c.absences.CreateOwnAbsence(ctx, staffID, actorAccountID, timetracking.CreateAbsenceRequest(request)))
 }
 
 func (c staffAbsenceCapability) CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, error) {
-	return c.absence(c.absences.CreateAbsenceFor(ctx, subjectStaffID, createdByStaffID, actorAccountID, active.CreateAbsenceRequest(request)))
+	return c.absence(c.absences.CreateAbsenceFor(ctx, subjectStaffID, createdByStaffID, actorAccountID, timetracking.CreateAbsenceRequest(request)))
 }
 
 func (c staffAbsenceCapability) UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, request workforce.UpdateAbsenceRequest) (*workforce.StaffAbsenceResponse, error) {
-	return c.absence(c.absences.UpdateAbsence(ctx, staffID, actorAccountID, absenceID, active.UpdateAbsenceRequest(request)))
+	return c.absence(c.absences.UpdateAbsence(ctx, staffID, actorAccountID, absenceID, timetracking.UpdateAbsenceRequest(request)))
 }
 
 func (c staffAbsenceCapability) DeleteOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64) error {
@@ -513,7 +513,7 @@ func (c staffAbsenceCapability) PreviewCompTimeBalance(ctx context.Context, staf
 }
 
 func (c staffAbsenceCapability) RequestVacation(ctx context.Context, staffID int64, request workforce.RequestVacationRequest) (*workforce.StaffAbsenceResponse, error) {
-	return c.absence(c.absences.RequestVacation(ctx, staffID, active.RequestVacationRequest(request)))
+	return c.absence(c.absences.RequestVacation(ctx, staffID, timetracking.RequestVacationRequest(request)))
 }
 
 func (c staffAbsenceCapability) CancelAbsence(ctx context.Context, staffID, actorAccountID, absenceID int64) error {
@@ -545,7 +545,7 @@ func (c staffAbsenceCapability) ListPendingRequests(ctx context.Context) ([]*wor
 }
 
 func (c staffAbsenceCapability) ListAbsenceRequests(ctx context.Context, query workforce.AbsenceRequestListQuery) ([]*workforce.StaffAbsenceRequestItem, error) {
-	values, err := c.absences.ListAbsenceRequests(ctx, active.AbsenceRequestListQuery(query))
+	values, err := c.absences.ListAbsenceRequests(ctx, timetracking.AbsenceRequestListQuery(query))
 	if err != nil {
 		return nil, mapTimeTrackingFailure(err)
 	}
@@ -584,12 +584,32 @@ func (c staffAbsenceCapability) UpsertVacationQuota(ctx context.Context, staffID
 	return mapTimeTrackingFailure(c.absences.UpsertVacationQuota(ctx, staffID, year, entitled, carryover))
 }
 
+func (c staffAbsenceCapability) SetVacationQuota(ctx context.Context, change workforce.VacationQuotaChange) error {
+	return mapTimeTrackingFailure(c.absences.SetVacationQuota(ctx, timetracking.VacationQuotaChange(change)))
+}
+
+// VacationTakeoverCapability binds the import to the public Workforce contract.
+func VacationTakeoverCapability(absences timetracking.StaffAbsenceService) workforce.VacationTakeovers {
+	if absences == nil {
+		return nil
+	}
+	return staffAbsenceCapability{absences: absences}
+}
+
+func (c staffAbsenceCapability) ValidateVacationOpeningAbsencesBefore(ctx context.Context, staffID int64, effectiveDate string) error {
+	effective, err := parseCapabilityDate(effectiveDate, "effective_date")
+	if err != nil {
+		return err
+	}
+	return mapTimeTrackingFailure(c.absences.ValidateVacationOpeningAbsencesBefore(ctx, staffID, effective))
+}
+
 func (c staffAbsenceCapability) SetVacationOpening(ctx context.Context, staffID, decidedBy int64, request workforce.SetVacationOpeningRequest) (*workforce.StaffVacationOpening, error) {
 	effective, err := parseCapabilityDate(request.EffectiveDate, "effective_date")
 	if err != nil {
 		return nil, err
 	}
-	opening, err := c.absences.SetVacationOpening(ctx, staffID, decidedBy, active.SetVacationOpeningRequest{
+	opening, err := c.absences.SetVacationOpening(ctx, staffID, decidedBy, timetracking.SetVacationOpeningRequest{
 		EffectiveDate: effective, RemainingDays: request.RemainingDays, Note: request.Note,
 	})
 	if err != nil {
@@ -605,12 +625,12 @@ func (c staffAbsenceCapability) DeleteVacationOpening(ctx context.Context, staff
 // --- months -----------------------------------------------------------------
 
 type workTimeMonthCapability struct {
-	months active.WorkTimeMonthService
+	months timetracking.WorkTimeMonthService
 }
 
 // WorkTimeMonthCapability serves workforce.WorkTimeMonths from the retained
 // month service.
-func WorkTimeMonthCapability(months active.WorkTimeMonthService) workforce.WorkTimeMonths {
+func WorkTimeMonthCapability(months timetracking.WorkTimeMonthService) workforce.WorkTimeMonths {
 	if months == nil {
 		panic("work time month capability: month service is required")
 	}
@@ -693,12 +713,12 @@ func (c workTimeMonthCapability) DailyProjection(ctx context.Context, staffID in
 // --- balance ledger ---------------------------------------------------------
 
 type balanceAdjustmentCapability struct {
-	ledger active.StaffBalanceAdjustmentService
+	ledger timetracking.StaffBalanceAdjustmentService
 }
 
 // BalanceAdjustmentCapability serves workforce.BalanceAdjustments from the
 // retained ledger service.
-func BalanceAdjustmentCapability(ledger active.StaffBalanceAdjustmentService) workforce.BalanceAdjustments {
+func BalanceAdjustmentCapability(ledger timetracking.StaffBalanceAdjustmentService) workforce.BalanceAdjustments {
 	if ledger == nil {
 		panic("balance adjustment capability: ledger service is required")
 	}
@@ -747,7 +767,7 @@ func (c balanceAdjustmentCapability) CreateAdjustment(ctx context.Context, staff
 	if err != nil {
 		return nil, err
 	}
-	return c.adjustment(c.ledger.CreateAdjustment(ctx, staffID, decidedBy, active.CreateBalanceAdjustmentRequest{
+	return c.adjustment(c.ledger.CreateAdjustment(ctx, staffID, decidedBy, timetracking.CreateBalanceAdjustmentRequest{
 		Type: request.Type, MinutesDelta: request.MinutesDelta, EffectiveDate: effective, Note: request.Note,
 	}))
 }
@@ -772,43 +792,36 @@ func (c balanceAdjustmentCapability) CreateOpeningBalance(ctx context.Context, s
 	return c.adjustment(c.ledger.CreateOpeningBalance(ctx, staffID, decidedBy, effective, balanceMinutes, note))
 }
 
+// OpeningBalanceBookingCapability exposes preview and booking through one
+// Workforce boundary without widening the general ledger administration port.
+func OpeningBalanceBookingCapability(ledger timetracking.StaffBalanceAdjustmentService) workforce.OpeningBalanceBookings {
+	if ledger == nil {
+		return nil
+	}
+	return balanceAdjustmentCapability{ledger: ledger}
+}
+
+func (c balanceAdjustmentCapability) ValidateOpeningBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate string, balanceMinutes int, note string) error {
+	effective, err := parseCapabilityDate(effectiveDate, "effective_date")
+	if err != nil {
+		return err
+	}
+	return mapTimeTrackingFailure(c.ledger.ValidateOpeningBalance(ctx, staffID, decidedBy, effective, balanceMinutes, note))
+}
+
 // --- month close ------------------------------------------------------------
 
 type monthClosingCapability struct {
-	closing active.StaffMonthCloseService
+	closing timetracking.StaffMonthCloseService
 }
 
 // MonthClosingCapability serves workforce.MonthClosing from the retained
 // month-close service.
-func MonthClosingCapability(closing active.StaffMonthCloseService) workforce.MonthClosing {
+func MonthClosingCapability(closing timetracking.StaffMonthCloseService) workforce.MonthClosing {
 	if closing == nil {
 		panic("month closing capability: month close service is required")
 	}
 	return monthClosingCapability{closing: closing}
-}
-
-func publicSnapshot(entity *activeModels.StaffMonthBalanceSnapshot) *workforce.StaffMonthBalanceSnapshot {
-	if entity == nil {
-		return nil
-	}
-	return &workforce.StaffMonthBalanceSnapshot{
-		ID: entity.ID, CreatedAt: entity.CreatedAt, UpdatedAt: entity.UpdatedAt, TenantID: entity.TenantID, StaffID: entity.StaffID,
-		Year: entity.Year, Month: entity.Month, ClosingBalanceMinutes: entity.ClosingBalanceMinutes, CarryInMinutes: entity.CarryInMinutes,
-		TargetMinutes: entity.TargetMinutes, ActualMinutes: entity.ActualMinutes, CreditedMinutes: entity.CreditedMinutes,
-		AdjustmentMinutes: entity.AdjustmentMinutes, ClosedAt: entity.ClosedAt, ClosedBy: entity.ClosedBy, CloseReason: entity.CloseReason,
-		Source: entity.Source, ReopenedAt: entity.ReopenedAt, ReopenedBy: entity.ReopenedBy, ReopenReason: entity.ReopenReason,
-	}
-}
-
-func publicSnapshots(entities []*activeModels.StaffMonthBalanceSnapshot) []*workforce.StaffMonthBalanceSnapshot {
-	if entities == nil {
-		return nil
-	}
-	result := make([]*workforce.StaffMonthBalanceSnapshot, 0, len(entities))
-	for _, entity := range entities {
-		result = append(result, publicSnapshot(entity))
-	}
-	return result
 }
 
 func (c monthClosingCapability) CloseMonth(ctx context.Context, closedBy int64, year, month int, reason string) (*workforce.MonthCloseResult, error) {
@@ -821,7 +834,7 @@ func (c monthClosingCapability) CloseMonth(ctx context.Context, closedBy int64, 
 	}
 	return &workforce.MonthCloseResult{
 		Year: result.Year, Month: result.Month, ClosedStaff: result.ClosedStaff, SkippedStaff: result.SkippedStaff,
-		Snapshots: publicSnapshots(result.Snapshots),
+		Snapshots: publicMonthSnapshots(result.Snapshots),
 	}, nil
 }
 
@@ -834,18 +847,18 @@ func (c monthClosingCapability) ListMonthStatus(ctx context.Context, year, month
 	if err != nil {
 		return nil, mapTimeTrackingFailure(err)
 	}
-	return publicSnapshots(snapshots), nil
+	return publicMonthSnapshots(snapshots), nil
 }
 
 // --- overview ---------------------------------------------------------------
 
 type staffOverviewCapability struct {
-	overview active.StaffOverviewService
+	overview timetracking.StaffOverviewService
 }
 
 // StaffOverviewCapability serves workforce.StaffOverview from the retained
 // overview service.
-func StaffOverviewCapability(overview active.StaffOverviewService) workforce.StaffOverview {
+func StaffOverviewCapability(overview timetracking.StaffOverviewService) workforce.StaffOverview {
 	if overview == nil {
 		panic("staff overview capability: overview service is required")
 	}
@@ -869,7 +882,7 @@ func (c staffOverviewCapability) DashboardSummary(ctx context.Context, period st
 }
 
 func (c staffOverviewCapability) TimeTrackingOverview(ctx context.Context, filters workforce.OverviewFilters) (*workforce.TimeTrackingOverview, error) {
-	overview, err := c.overview.GetTimeTrackingOverview(ctx, active.OverviewFilters(filters))
+	overview, err := c.overview.GetTimeTrackingOverview(ctx, timetracking.OverviewFilters(filters))
 	if err != nil {
 		return nil, mapTimeTrackingFailure(err)
 	}
@@ -886,12 +899,12 @@ func (c staffOverviewCapability) TimeTrackingOverview(ctx context.Context, filte
 // --- audit log --------------------------------------------------------------
 
 type timeTrackingAuditLogCapability struct {
-	log active.TimeTrackingAuditLogService
+	log timetracking.TimeTrackingAuditLogService
 }
 
 // TimeTrackingAuditLogCapability serves workforce.TimeTrackingAuditLog from
 // the retained audit-log service.
-func TimeTrackingAuditLogCapability(log active.TimeTrackingAuditLogService) workforce.TimeTrackingAuditLog {
+func TimeTrackingAuditLogCapability(log timetracking.TimeTrackingAuditLogService) workforce.TimeTrackingAuditLog {
 	if log == nil {
 		panic("time tracking audit log capability: audit log service is required")
 	}
@@ -907,7 +920,7 @@ func (c timeTrackingAuditLogCapability) ListAuditLog(ctx context.Context, reques
 	if err != nil {
 		return nil, err
 	}
-	page, err := c.log.ListAuditLog(ctx, active.AuditLogListRequest{
+	page, err := c.log.ListAuditLog(ctx, timetracking.AuditLogListRequest{
 		From: from, To: to, StaffID: request.StaffID, ActorStaffID: request.ActorStaffID, Sources: request.Sources,
 		Cursor: request.Cursor, Limit: request.Limit,
 	})
@@ -941,12 +954,12 @@ func (c timeTrackingAuditLogCapability) ListAuditLog(ctx context.Context, reques
 // --- export -----------------------------------------------------------------
 
 type staffTimeExportCapability struct {
-	export active.StaffTimeExportService
+	export timetracking.StaffTimeExportService
 }
 
 // StaffTimeExportCapability serves workforce.StaffTimeExport from the retained
 // export service.
-func StaffTimeExportCapability(export active.StaffTimeExportService) workforce.StaffTimeExport {
+func StaffTimeExportCapability(export timetracking.StaffTimeExportService) workforce.StaffTimeExport {
 	if export == nil {
 		panic("staff time export capability: export service is required")
 	}
@@ -954,7 +967,7 @@ func StaffTimeExportCapability(export active.StaffTimeExportService) workforce.S
 }
 
 func (c staffTimeExportCapability) ExportStaffTime(ctx context.Context, request workforce.TimeExportRequest, actorAccountID int64, actorRole string) (*workforce.ExportFile, error) {
-	file, err := c.export.Export(ctx, active.TimeExportRequest(request), actorAccountID, actorRole)
+	file, err := c.export.Export(ctx, timetracking.TimeExportRequest(request), actorAccountID, actorRole)
 	if err != nil {
 		return nil, mapTimeTrackingFailure(err)
 	}
@@ -962,7 +975,7 @@ func (c staffTimeExportCapability) ExportStaffTime(ctx context.Context, request 
 }
 
 func (c staffTimeExportCapability) DatevReport(ctx context.Context, request workforce.TimeExportRequest) (*workforce.DatevExportReport, error) {
-	report, err := c.export.DatevReport(ctx, active.TimeExportRequest(request))
+	report, err := c.export.DatevReport(ctx, timetracking.TimeExportRequest(request))
 	if err != nil {
 		return nil, mapTimeTrackingFailure(err)
 	}

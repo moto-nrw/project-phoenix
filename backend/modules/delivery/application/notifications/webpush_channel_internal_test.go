@@ -192,7 +192,9 @@ func TestWebPushDeliverSnapshotsGDPRSafeIntent(t *testing.T) {
 		Data:           map[string]string{"student_name": "MUST-NEVER-LEAVE-THE-APP"},
 	}
 
-	require.NoError(t, channel.Deliver(context.Background(), event))
+	accepted, err := channel.DeliverDurably(context.Background(), event)
+	require.NoError(t, err)
+	require.Equal(t, 1, accepted)
 	require.Len(t, outbox.intents, 1)
 	intent := outbox.intents[0]
 	assert.Equal(t, "reminder:1:subscription:1", intent.IdempotencyKey)
@@ -205,6 +207,23 @@ func TestWebPushDeliverSnapshotsGDPRSafeIntent(t *testing.T) {
 	encoded, err := json.Marshal(intent)
 	require.NoError(t, err)
 	assert.NotContains(t, string(encoded), "MUST-NEVER-LEAVE-THE-APP")
+}
+
+func TestWebPushDeliverDurablyReportsNoIntentWithoutVAPID(t *testing.T) {
+	t.Parallel()
+
+	channel := testChannel(&fakePushRepo{}, &fakeSender{})
+	channel.vapid = VAPIDConfig{}
+
+	accepted, err := channel.DeliverDurably(context.Background(), Event{
+		Type:           "reminders_due",
+		IdempotencyKey: "reminder:1",
+		Audience:       Audience{TenantID: 41, Scope: ScopeTenant},
+		Title:          "Erinnerung",
+	})
+
+	require.NoError(t, err)
+	assert.Zero(t, accepted)
 }
 
 func TestWebPushResolveSubscriptionsScopes(t *testing.T) {

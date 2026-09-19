@@ -1,0 +1,1684 @@
+[
+  {
+    "concurrency": 1,
+    "deadlocks": 0,
+    "fixtures": "20 folders (7 all_staff, 7 admins, 6 selected), 20 files in the listed folder, local storage backend",
+    "go": "go1.27.0",
+    "lock_samples": {
+      "max_sample_gap_ms": 8.012584,
+      "max_waiting_backends": 0,
+      "samples": 47,
+      "waiting_backend_samples": 0
+    },
+    "max_ms": 3.157167,
+    "p50_ms": 2.7905,
+    "p95_ms": 3.13675,
+    "postgres": "17.11",
+    "queries": 11,
+    "samples": [
+      {
+        "duration_ms": 3.13675,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 3.006167,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.919083,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.845834,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.737667,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.884458,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.84125,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 3.057584,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 3.157167,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.703958,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.821834,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.805417,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.920375,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.955791,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.704625,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.629292,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.727584,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.720292,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.7905,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.609417,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.819084,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 3.045208,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.637459,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.724292,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.7455,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.629542,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.743542,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.672083,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.627167,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.984833,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 11,
+        "rows_affected": 34,
+        "statements_with_rows": 8,
+        "status": 200,
+        "write_rows_affected": 0
+      }
+    ],
+    "scenario": "list-folders-manager",
+    "statements": [
+      "BEGIN",
+      "SET LOCAL ROLE phoenix_tenant",
+      "SELECT set_config('app.current_tenant_id', '1777800001', tru",
+      "SELECT auth.account_tenants",
+      "SELECT documents.files",
+      "SELECT config.setting_values",
+      "SELECT documents.folder_roles",
+      "SELECT documents.folder_accounts",
+      "SELECT documents.files",
+      "SELECT config.setting_values",
+      "COMMIT"
+    ],
+    "unexpected_errors": 0,
+    "warmup": 5
+  },
+  {
+    "concurrency": 1,
+    "deadlocks": 0,
+    "fixtures": "20 folders (7 all_staff, 7 admins, 6 selected), 20 files in the listed folder, local storage backend",
+    "go": "go1.27.0",
+    "lock_samples": {
+      "max_sample_gap_ms": 3.498208,
+      "max_waiting_backends": 0,
+      "samples": 47,
+      "waiting_backend_samples": 0
+    },
+    "max_ms": 5.417791,
+    "p50_ms": 2.188125,
+    "p95_ms": 4.587542,
+    "postgres": "17.11",
+    "queries": 8,
+    "samples": [
+      {
+        "duration_ms": 2.117375,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.187542,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 1.979667,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.109875,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.068625,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.343792,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 4.336708,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 4.543833,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 3.78475,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 3.584125,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 3.075916,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 4.587542,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 5.417791,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.796167,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.156959,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.349083,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.471,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.21925,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.269584,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.151125,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.042459,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.027791,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.042459,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.222625,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.188125,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.388166,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.093417,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.082667,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.007459,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.119917,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 8,
+        "rows_affected": 15,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      }
+    ],
+    "scenario": "list-folders-member",
+    "statements": [
+      "BEGIN",
+      "SET LOCAL ROLE phoenix_tenant",
+      "SELECT set_config('app.current_tenant_id', '1777800001', tru",
+      "SELECT auth.account_tenants",
+      "SELECT auth.account_roles",
+      "SELECT documents.files",
+      "SELECT config.setting_values",
+      "COMMIT"
+    ],
+    "unexpected_errors": 0,
+    "warmup": 5
+  },
+  {
+    "concurrency": 1,
+    "deadlocks": 0,
+    "fixtures": "20 folders (7 all_staff, 7 admins, 6 selected), 20 files in the listed folder, local storage backend",
+    "go": "go1.27.0",
+    "lock_samples": {
+      "max_sample_gap_ms": 2.669167,
+      "max_waiting_backends": 0,
+      "samples": 39,
+      "waiting_backend_samples": 0
+    },
+    "max_ms": 2.726291,
+    "p50_ms": 2.210833,
+    "p95_ms": 2.537541,
+    "postgres": "17.11",
+    "queries": 9,
+    "samples": [
+      {
+        "duration_ms": 2.136875,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.101417,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.130666,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.2795,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.215917,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.187084,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.195584,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.139916,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.25025,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.310291,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.331667,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.48225,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.353125,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.2925,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.152667,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.1275,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.2715,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.537541,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.455917,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.344208,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.499959,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.175125,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.11575,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.097666,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.105541,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.314584,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.210833,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.726291,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.182083,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.114334,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 22,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      }
+    ],
+    "scenario": "list-files-20",
+    "statements": [
+      "BEGIN",
+      "SET LOCAL ROLE phoenix_tenant",
+      "SELECT set_config('app.current_tenant_id', '1777800001', tru",
+      "SELECT documents.folders",
+      "SELECT auth.account_tenants",
+      "SELECT documents.folders",
+      "SELECT documents.files",
+      "SELECT documents.files",
+      "COMMIT"
+    ],
+    "unexpected_errors": 0,
+    "warmup": 5
+  },
+  {
+    "concurrency": 1,
+    "deadlocks": 0,
+    "fixtures": "20 folders (7 all_staff, 7 admins, 6 selected), 20 files in the listed folder, local storage backend",
+    "go": "go1.27.0",
+    "lock_samples": {
+      "max_sample_gap_ms": 2.596375,
+      "max_waiting_backends": 0,
+      "samples": 38,
+      "waiting_backend_samples": 0
+    },
+    "max_ms": 2.568583,
+    "p50_ms": 2.165833,
+    "p95_ms": 2.502459,
+    "postgres": "17.11",
+    "queries": 9,
+    "samples": [
+      {
+        "duration_ms": 2.115542,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.147458,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.121875,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.076291,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.165833,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.263917,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.268666,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.146125,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.205,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.091542,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.124625,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.121375,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.272,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.406958,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.162583,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.187208,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.120167,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.27575,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.225041,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.420667,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.502459,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.268209,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.107125,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.231042,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.111792,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.04825,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.041917,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.365125,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.291708,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      },
+      {
+        "duration_ms": 2.568583,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 9,
+        "rows_affected": 4,
+        "statements_with_rows": 5,
+        "status": 200,
+        "write_rows_affected": 0
+      }
+    ],
+    "scenario": "download-pdf",
+    "statements": [
+      "BEGIN",
+      "SET LOCAL ROLE phoenix_tenant",
+      "SELECT set_config('app.current_tenant_id', '1777800001', tru",
+      "SELECT documents.folders",
+      "SELECT auth.account_tenants",
+      "SELECT auth.account_roles",
+      "SELECT documents.folders",
+      "SELECT documents.files",
+      "COMMIT"
+    ],
+    "unexpected_errors": 0,
+    "warmup": 5
+  },
+  {
+    "concurrency": 1,
+    "deadlocks": 0,
+    "fixtures": "20 folders (7 all_staff, 7 admins, 6 selected), 20 files in the listed folder, local storage backend",
+    "go": "go1.27.0",
+    "lock_samples": {
+      "max_sample_gap_ms": 2.675583,
+      "max_waiting_backends": 0,
+      "samples": 89,
+      "waiting_backend_samples": 0
+    },
+    "max_ms": 7.110125,
+    "p50_ms": 5.095875,
+    "p95_ms": 5.788625,
+    "postgres": "17.11",
+    "queries": 25,
+    "samples": [
+      {
+        "duration_ms": 4.681375,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 4.40675,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 4.393125,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 5.2215,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 4.528041,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 4.2405,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 7.110125,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 5.269458,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 5.331208,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 4.963458,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 5.2595,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 4.526042,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 4.485708,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 5.059,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 5.19425,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 4.663084,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 5.540542,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 5.788625,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 5.066958,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 5.532583,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 5.253875,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 4.741416,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 5.389166,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 5.095875,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 4.973,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 5.297,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 5.216708,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 5.082958,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 5.219542,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      },
+      {
+        "duration_ms": 5.223291,
+        "pool_wait_count": 0,
+        "pool_wait_ms": 0,
+        "queries": 25,
+        "rows_affected": 11,
+        "statements_with_rows": 15,
+        "status": 201,
+        "write_rows_affected": 4
+      }
+    ],
+    "scenario": "upload-pdf",
+    "statements": [
+      "BEGIN",
+      "SET LOCAL ROLE phoenix_tenant",
+      "SELECT set_config('app.current_tenant_id', '1777800001', tru",
+      "SELECT documents.folders",
+      "SELECT auth.account_tenants",
+      "SELECT documents.folders",
+      "COMMIT",
+      "BEGIN",
+      "SET LOCAL ROLE phoenix_tenant",
+      "SELECT set_config('app.current_tenant_id', '1777800001', tru",
+      "INSERT documents.file_cleanup",
+      "COMMIT",
+      "BEGIN",
+      "SET LOCAL ROLE phoenix_tenant",
+      "SELECT set_config('app.current_tenant_id', '1777800001', tru",
+      "SELECT documents.folders",
+      "SELECT auth.account_tenants",
+      "SELECT documents.folders",
+      "SELECT pg_advisory_xact_lock(hashtextextended('filestore-quo",
+      "SELECT config.setting_values",
+      "SELECT documents.files",
+      "INSERT documents.files",
+      "UPDATE documents.file_cleanup",
+      "INSERT audit.file_event_ledger",
+      "COMMIT"
+    ],
+    "unexpected_errors": 0,
+    "warmup": 5
+  }
+]

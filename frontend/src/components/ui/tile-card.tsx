@@ -67,7 +67,7 @@ export function TileCard({
 }>) {
   const shared = cn(
     TILE_CARD_SURFACE,
-    padding === "md" && "p-4 sm:p-5",
+    padding === "md" && "p-5 max-sm:p-4 compact:p-4",
     disabled ? "cursor-not-allowed opacity-70" : "cursor-pointer",
     className,
   );

@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
 // AutoStartService starts due planned timetable instances when a tenant opts
@@ -50,8 +50,7 @@ type AutoStartDependencies struct {
 	InstanceService   InstanceService
 	RoomRepo          facilitiesModel.RoomRepository
 	ActiveGroupRepo   activeModel.GroupRepository
-	SupervisorRepo    activeModel.GroupSupervisorRepository
-	Presence          StudentVisitReader
+	Presence          ConflictPresence
 	ConflictDetector  AutoStartConflictDetector
 	Logger            *slog.Logger
 }
@@ -81,9 +80,6 @@ func NewAutoStartService(deps AutoStartDependencies) AutoStartService {
 		if deps.ActiveGroupRepo == nil {
 			panic("schedule auto-start: ActiveGroupRepo is required")
 		}
-		if deps.SupervisorRepo == nil {
-			panic("schedule auto-start: SupervisorRepo is required")
-		}
 		if deps.Presence == nil {
 			panic("schedule auto-start: Presence is required")
 		}
@@ -99,7 +95,6 @@ func NewAutoStartService(deps AutoStartDependencies) AutoStartService {
 		AutoStartDependencies: deps,
 		conflictDeps: ConflictDependencies{
 			GroupRepo:         deps.ActiveGroupRepo,
-			SupervisorRepo:    deps.SupervisorRepo,
 			Presence:          deps.Presence,
 			InstanceRepo:      deps.InstanceRepo,
 			InstanceStaffRepo: deps.InstanceStaffRepo,

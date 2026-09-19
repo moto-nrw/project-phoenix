@@ -11,9 +11,9 @@ import (
 
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/services"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
@@ -31,6 +31,7 @@ type reasonPolicySettings struct {
 func (reasonPolicySettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
 	switch key {
 	case configModels.KeyParentSickNoteEnabled,
+		configModels.KeyParentSickReportsEnabled, configModels.KeyParentExcusedReportsEnabled,
 		configModels.KeyParentSickRequiresApproval,
 		configModels.KeyParentExcusedRequiresApproval:
 		return true, nil

@@ -5,10 +5,10 @@ import (
 	"sort"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
 const additionalSupervisorRole = "additional_supervisor"

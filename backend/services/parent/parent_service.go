@@ -19,7 +19,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/localization"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -29,6 +28,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
@@ -37,6 +37,8 @@ import (
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
 )
 
 // MealPlan is the narrow provider capability used by the parents workflow.
@@ -367,8 +369,9 @@ type ChildFeatureFlags struct {
 	// capability: when it is true every write flag below is false, and the
 	// portal shows a read-only profile with one sentence explaining why
 	// instead of buttons that would all fail the same way.
-	CareEnded       bool
-	SickNoteEnabled bool
+	CareEnded          bool
+	SickNoteEnabled    bool
+	ExcusedNoteEnabled bool
 	// SickRequiresApproval is true when a Krankmeldung stays pending until the
 	// OGS confirms it (operations.parent_sick_requires_approval, #2449).
 	SickRequiresApproval bool
@@ -376,7 +379,7 @@ type ChildFeatureFlags struct {
 	// by the office before it takes effect (operations.parent_excused_requires_approval,
 	// #1845). The parent UI uses it to explain that the absence will be pending
 	// and to keep the mandatory-note requirement visible. Only meaningful while
-	// SickNoteEnabled is true.
+	// ExcusedNoteEnabled is true.
 	ExcusedRequiresApproval bool
 	NotesEnabled            bool
 	// RequestSubmitEnabled is true when messaging is on AND the guardian holds
@@ -384,7 +387,14 @@ type ChildFeatureFlags struct {
 	// quick actions (care schedule / master data) in the parent UI.
 	RequestSubmitEnabled bool
 	PickupChangeEnabled  bool
-	PickupManageAllowed  bool
+	// PickupChangeCutoffTime is the school's same-day cutoff for the one-day
+	// pickup change as HH:MM (#3163); empty when there is none or the pickup
+	// change is off. PickupChangeTodayClosed says the cutoff has passed, so
+	// today is closed for guardians while later days stay open. The portal
+	// shows both before anyone types, instead of rebuilding the rule.
+	PickupChangeCutoffTime  string
+	PickupChangeTodayClosed bool
+	PickupManageAllowed     bool
 	// GuardianContactManageAllowed is true when the caller may create and edit
 	// accountless contacts for this child.
 	GuardianContactManageAllowed bool
@@ -470,25 +480,6 @@ type Profile struct {
 	LastName  string
 	Locale    string
 	Explicit  bool
-}
-
-// ConversationCore is the consumer-owned port for Communication's shared
-// parent-OGS conversation rules. Both portals mark reads, stamp receipts, and
-// fan out over the SAME implementation, so the two chats' unread counts and
-// receipts cannot drift; Communication supplies it at the composition seam.
-type ConversationCore interface {
-	// AppendMessage serializes the thread, persists the message, and advances
-	// the thread preview off the row's DB-stamped created_at.
-	AppendMessage(ctx context.Context, msg *usersModels.ParentMessage) error
-	// MarkReadToNewest advances the reader's cursor to the newest counterpart
-	// message in the snapshot and reports whether it moved.
-	MarkReadToNewest(ctx context.Context, tenantID, threadID, accountID int64, staffReader bool, messages []*usersModels.ParentMessage) (bool, error)
-	// DecorateReadReceipts stamps the "OGS hat gelesen" indicator.
-	DecorateReadReceipts(ctx context.Context, threadID, otherAccountID int64, messages []*usersModels.ParentMessage)
-	// Broadcast wakes the guardian's tabs and the school's staff after a commit.
-	Broadcast(tenantID, guardianAccountID, threadID, studentID int64)
-	// BroadcastRead wakes the same fan-out for a read-receipt refresh.
-	BroadcastRead(tenantID, guardianAccountID, threadID, studentID int64)
 }
 
 // ServiceConfig is the dependency-injection bundle.
@@ -599,6 +590,8 @@ type enrollmentSettingsQueries interface {
 
 type service struct {
 	ServiceConfig
+	care      *care.Service
+	messaging *messaging.Service
 }
 
 // NewService wires a parent-portal service.
@@ -609,7 +602,52 @@ func NewService(cfg ServiceConfig) Service {
 	if cfg.Now == nil {
 		cfg.Now = timezone.Now
 	}
-	return &service{ServiceConfig: cfg}
+	s := &service{ServiceConfig: cfg}
+	s.care = care.New(care.Config{
+		DB:               cfg.DB,
+		Logger:           cfg.Logger,
+		Now:              cfg.Now,
+		ChildRepo:        cfg.ChildRepo,
+		StudentRepo:      cfg.StudentRepo,
+		Settings:         cfg.Settings,
+		Attendance:       cfg.Attendance,
+		StatusDayRepo:    cfg.StatusDayRepo,
+		ArrivalSchedules: cfg.ArrivalSchedules,
+		PickupSchedules:  cfg.PickupSchedules,
+		CareRequests:     cfg.CareRequests,
+		CarePeriods:      cfg.CarePeriods,
+		OfferingHistory:  cfg.OfferingHistory,
+		CareOfferingRepo: cfg.CareOfferingRepo,
+		OfferingChanges:  cfg.OfferingChanges,
+		RequestSharing:   s,
+	})
+	s.messaging = messaging.New(messaging.Config{
+		DB:                        cfg.DB,
+		Logger:                    cfg.Logger,
+		Now:                       cfg.Now,
+		Children:                  s,
+		ChildRepo:                 cfg.ChildRepo,
+		EnrollmentRequestRepo:     cfg.EnrollmentRequestRepo,
+		Settings:                  cfg.Settings,
+		StudentRepo:               cfg.StudentRepo,
+		StudentGuardianRepo:       cfg.StudentGuardianRepo,
+		GuardianProfileRepo:       cfg.GuardianProfileRepo,
+		AnnouncementRepo:          cfg.AnnouncementRepo,
+		MessageThreadRepo:         cfg.MessageThreadRepo,
+		MessageRepo:               cfg.MessageRepo,
+		MessageReadRepo:           cfg.MessageReadRepo,
+		Conversations:             cfg.Conversations,
+		ParentMessageNotifier:     cfg.ParentMessageNotifier,
+		Emitter:                   cfg.Emitter,
+		ChangeRequestRepo:         cfg.ChangeRequestRepo,
+		CareRequestRepo:           cfg.CareRequestRepo,
+		ExcusedRequestRepo:        cfg.ExcusedRequestRepo,
+		OfferingChangeRequestRepo: cfg.OfferingChangeRequestRepo,
+		FamilyProtectionEvents:    cfg.FamilyProtectionEvents,
+		ParentRequestShares:       cfg.ParentRequestShares,
+		ParentRequestEvents:       cfg.ParentRequestEvents,
+	})
+	return s
 }
 
 func (s *service) now() time.Time {

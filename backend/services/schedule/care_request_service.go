@@ -31,10 +31,10 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -486,9 +486,11 @@ func (s *careScheduleRequestService) CreateRequest(ctx context.Context, studentI
 // (operations.parent_request_reason_policy, #2267 story 28); a school that
 // asks nobody for a reason accepts a blank one, everything else is validated
 // the same either way.
+// cutoff carries the school's same-day cutoff (#3163): once it has passed,
+// today is refused while later days stay open.
 func validatePickupChangeInput(
 	studentID, guardianAccountID int64, date timezone.Date, pickupTime time.Time, reason string, reasonRequired bool,
-	today timezone.Date,
+	cutoff SameDayCutoff, today timezone.Date,
 ) (string, error) {
 	reason = strings.TrimSpace(reason)
 	if studentID <= 0 || guardianAccountID <= 0 || date.IsZero() || pickupTime.IsZero() ||
@@ -497,6 +499,9 @@ func validatePickupChangeInput(
 	}
 	if date.Before(today) || date.After(timezone.NewDate(today.Year(), today.Month()+2, today.Day())) {
 		return "", ErrInvalidCareRequestPayload
+	}
+	if cutoff.Closed(date) {
+		return "", ErrPickupChangeCutoffPassed
 	}
 	return reason, nil
 }
@@ -521,6 +526,9 @@ type PickupChangeCreateInput struct {
 	PickupTime        time.Time
 	Reason            string
 	ReasonRequired    bool
+	// Cutoff is the school's same-day cutoff for this request kind (#3163),
+	// resolved by the same caller. The zero value has no cutoff.
+	Cutoff SameDayCutoff
 }
 
 func (s *careScheduleRequestService) CreatePickupChange(
@@ -529,7 +537,7 @@ func (s *careScheduleRequestService) CreatePickupChange(
 	studentID, guardianAccountID, date, pickupTime := input.StudentID, input.GuardianAccountID, input.Date, input.PickupTime
 	reason, err := validatePickupChangeInput(
 		studentID, guardianAccountID, date, pickupTime, input.Reason, input.ReasonRequired,
-		s.todayDate(),
+		input.Cutoff, s.todayDate(),
 	)
 	if err != nil {
 		return nil, err
@@ -593,6 +601,9 @@ type CareRequestEditInput struct {
 	// ReasonRequired carries the school's reason policy for the pickup kind,
 	// resolved by the caller that knows the tenant (#2267, story 28).
 	ReasonRequired bool
+	// Cutoff is the school's same-day cutoff for the pickup kind (#3163). It
+	// guards both the day the request is for now and the day it is moved to.
+	Cutoff SameDayCutoff
 	// Payload is the weekly-plan proposal (care_schedule requests).
 	Payload map[string]any
 	// Date, PickupTime and Reason are the pickup-change proposal.
@@ -651,9 +662,16 @@ func (s *careScheduleRequestService) editedCarePayload(
 	if req.RequestKind != scheduleModels.CareRequestKindPickupChange {
 		return canonicalizeCareSchedulePayload(input.Payload)
 	}
+	// After the cutoff today is closed in both directions: a request for today
+	// can neither be changed nor moved to another day (#3163).
+	if current, ok := req.Payload["date"].(string); ok {
+		if currentDate, parseErr := timezone.ParseDate(current); parseErr == nil && input.Cutoff.Closed(currentDate) {
+			return nil, ErrPickupChangeCutoffPassed
+		}
+	}
 	reason, err := validatePickupChangeInput(
 		input.StudentID, input.GuardianAccountID, input.Date, input.PickupTime, input.Reason, input.ReasonRequired,
-		s.todayDate(),
+		input.Cutoff, s.todayDate(),
 	)
 	if err != nil {
 		return nil, err

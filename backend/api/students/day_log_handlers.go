@@ -15,16 +15,16 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
-	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 )
 
 // Group day log ("Tagesauswertung", issue #1456): for one calendar day and one
@@ -647,7 +647,7 @@ func (rs *Resource) writeDayLogAudit(r *http.Request, date timezone.Date, groups
 		groupIDs = append(groupIDs, group.ID)
 	}
 
-	entry := &auditModels.DataAccessLog{
+	entry := &activeService.DataAccessEvent{
 		ActorAccountID: int64(claims.ID),
 		ActorRole:      actorRole,
 		ResourceType:   auditModels.ResourceTypeAttendanceDayLog,
@@ -655,8 +655,7 @@ func (rs *Resource) writeDayLogAudit(r *http.Request, date timezone.Date, groups
 		RangeEnd:       date.EndOfDay(),
 		AccessedAt:     time.Now(),
 	}
-	entry.SetMetadata("group_ids", groupIDs)
-	entry.SetMetadata("date", date.String())
+	entry.Metadata = map[string]interface{}{"group_ids": groupIDs, "date": date.String()}
 
 	if err := rs.StudentHistoryService.RecordDataAccess(r.Context(), entry); err != nil {
 		logger.Error("audit log write failed, refusing to serve day log",

@@ -59,7 +59,7 @@ func newCareLifecycleServiceWithLockAt(
 		CareExitRepo:          repos.CareExit,
 		CleanupRepo:           repos.CareExitCleanup,
 		WithdrawalRepo:        repos.CareWithdrawal,
-		TagReleaser:           repos.GradeTransition,
+		TagReleaser:           repos.StudentTagReleaser(),
 		AuditService:          userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default()),
 		LockCareBookingWrites: lockCareBookingWrites,
 		BookingsAuthoritative: func(context.Context) (bool, error) { return false, nil },
@@ -645,57 +645,6 @@ func TestCareLifecycle_ArchiveHoldsEveryRegularlyEndedCare(t *testing.T) {
 }
 
 func ptrInt64(value int64) *int64 { return &value }
-
-// The retention reason describes a record whose keeping period has run out.
-// For a child still in care nothing is running out yet, so choosing it would
-// put a false statement into the deletion audit (#2487).
-func TestStudentDeletion_RetentionReasonOnlyForEndedCare(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.Ctx(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	actorID := careActor(t, db)
-
-	studentService := userService.NewStudentService(
-		repos.Student, repos.PrivacyConsent, repos.StudentCompanion, nil)
-	deletion := userService.NewStudentDeletionService(
-		studentService, repos.Student, repos.Person, repos.StudentDeletion,
-		repos.GradeTransition, repos.DataDeletion, repos.StudentDeletionAudit,
-		&testpkg.FeedbackEntryCounterMock{}, db)
-
-	student := testpkg.CreateTestStudent(t, db, "Nora", "Winter", "4a")
-	preview, err := deletion.Preview(ctx, student.ID)
-	require.NoError(t, err)
-
-	input := userService.StudentDeletionInput{
-		StudentID:           student.ID,
-		ActorAccountID:      actorID,
-		ExpectedFingerprint: preview.Fingerprint,
-		ConfirmationName:    preview.ConfirmationName,
-		Reason:              userService.StudentDeletionReasonRetentionExpired,
-		Acknowledged:        true,
-	}
-
-	_, err = deletion.Delete(ctx, input)
-	require.ErrorIs(t, err, userService.ErrStudentDeletionRetentionNotEnded)
-	assert.NotNil(t, loadStudent(t, db, ctx, student.ID),
-		"the refused deletion left the child untouched")
-
-	// After the care has ended the same reason is accepted.
-	_, err = db.NewUpdate().
-		TableExpr("users.students").
-		Set("enrolled_until = ?", timezone.TodayDate().AddDays(-1)).
-		Where("id = ?", student.ID).
-		Exec(context.Background())
-	require.NoError(t, err)
-
-	fresh, err := deletion.Preview(ctx, student.ID)
-	require.NoError(t, err)
-	input.ExpectedFingerprint = fresh.Fingerprint
-	_, err = deletion.Delete(ctx, input)
-	require.NoError(t, err)
-}
 
 // A planned exit that has not taken effect can be CANCELLED — and a
 // cancellation that leaves the child active with an emptied timetable and

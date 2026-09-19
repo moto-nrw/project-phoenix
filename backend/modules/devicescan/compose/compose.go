@@ -16,7 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
@@ -33,7 +33,10 @@ type DeviceScan = devicescan.DeviceScan
 type Fleet = application.Fleet
 
 // Presence is the part of the Student Presence capability the scans read.
-type Presence = application.Presence
+type Presence interface {
+	application.Presence
+	roomSessionQuery
+}
 
 // Rooms is the part of the Facilities capability the scans use.
 type Rooms = application.Rooms
@@ -106,7 +109,7 @@ func New(deps Dependencies) DeviceScan {
 		Principals: principals{},
 		People:     people{users: deps.Users},
 		Visits:     visits{active: deps.Active, clock: clock},
-		Sessions:   sessions{active: deps.Active, clock: clock},
+		Sessions:   sessions{active: deps.Active, presence: deps.Presence, clock: clock},
 		Attendance: attendance{active: deps.Active},
 		Activities: activities,
 		Groups:     groups,

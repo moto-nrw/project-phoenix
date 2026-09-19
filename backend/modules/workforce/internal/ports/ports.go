@@ -11,6 +11,11 @@ import (
 // config.work_time_model_entries and config.staff_work_schedules. Reads and
 // writes honour the tenant in context when one is bound.
 type Store interface {
+	ClosedMonthSnapshotsForStaff(context.Context, []int64) ([]*domain.StaffMonthBalanceSnapshot, domain.OperationStats, error)
+	LatestClosedMonth(context.Context, int64, int, int) (*domain.StaffMonthBalanceSnapshot, domain.OperationStats, error)
+	ClosedMonthSnapshots(context.Context, int, int) ([]*domain.StaffMonthBalanceSnapshot, domain.OperationStats, error)
+	RecordClosedMonth(context.Context, domain.StaffMonthBalanceSnapshot) (domain.StaffMonthBalanceSnapshot, domain.OperationStats, error)
+	ReopenMonthSnapshot(context.Context, int64, int64, time.Time, string) (int64, domain.OperationStats, error)
 	PreviewStaffOffboarding(context.Context, int64, string) (domain.OffboardingSnapshot, domain.OperationStats, error)
 	ListWorkTimeModels(context.Context) ([]domain.WorkTimeModel, domain.OperationStats, error)
 	FindWorkTimeModel(context.Context, int64) (domain.WorkTimeModel, bool, domain.OperationStats, error)
@@ -203,6 +208,9 @@ type ShiftStore interface {
 // active.staff_absence_types and active.staff_absence_audit. A missing row
 // reports found=false; a duplicate reports domain.ConflictError.
 type AbsenceStore interface {
+	StaffAbsenceTypeEntitlement(ctx context.Context, staffID, absenceTypeID int64, year int) (float64, bool, domain.OperationStats, error)
+	UpsertStaffAbsenceTypeAllowance(context.Context, domain.SetAbsenceTypeAllowance) (domain.OperationStats, error)
+	RecordStaffAbsenceTypeAllowanceChange(context.Context, domain.SetAbsenceTypeAllowance, *float64) (domain.OperationStats, error)
 	FindStaffAbsence(context.Context, int64) (domain.StaffAbsence, bool, domain.OperationStats, error)
 	ListStaffAbsences(context.Context, domain.StaffAbsenceFilter) ([]domain.StaffAbsence, domain.OperationStats, error)
 	CountStaffAbsences(context.Context, domain.StaffAbsenceFilter) (int, domain.OperationStats, error)
@@ -234,6 +242,7 @@ type SubstitutionStore interface {
 	UpdateGroupSubstitution(context.Context, domain.GroupSubstitution) (domain.GroupSubstitution, bool, domain.OperationStats, error)
 	DeleteGroupSubstitution(context.Context, int64) (domain.OperationStats, error)
 	DeleteGroupSubstitutionsForStaff(ctx context.Context, staffID int64, from string) (int64, domain.OperationStats, error)
+	LockGroupSubstitutions(context.Context) (domain.OperationStats, error)
 }
 
 // StaffAssignments is the consumer-owned port over the School Membership rows

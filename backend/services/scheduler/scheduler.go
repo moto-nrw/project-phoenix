@@ -13,15 +13,15 @@ import (
 
 	"github.com/getsentry/sentry-go"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	pwaSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
+	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -168,7 +168,7 @@ type Scheduler struct {
 	materializer               scheduleSvc.MaterializationService
 	timetableCleanup           scheduleSvc.TimetableCleanupService
 	calendarFeedCleanup        CalendarFeedCleaner
-	timeTrackingCleanup        active.TimeTrackingCleanupService
+	timeTrackingCleanup        TimeTrackingCleanupService
 	studentChangeLogCleanup    usersSvc.StudentChangeLogCleanupService
 	pwaUsageCleanup            pwaSvc.UsageService
 	staffMessageCleanup        StaffMessageCleanup
@@ -265,6 +265,12 @@ type Scheduler struct {
 	appointmentReminders         reminder.Command
 	appointmentReminderScannedAt map[int64]time.Time
 	appointmentReminderScanMu    sync.Mutex
+
+	// Scheduled parent-announcement reminders (#3162). Same bookkeeping as the
+	// appointment reminders: one successful-scan boundary per tenant.
+	announcementReminders         reminder.ParentAnnouncementCommand
+	announcementReminderScannedAt map[int64]time.Time
+	announcementReminderScanMu    sync.Mutex
 }
 
 // OutboxWorkerRunner is the narrow contract the scheduler needs from the
@@ -296,13 +302,15 @@ type ScheduledTask struct {
 func newScheduler(deps WorkerDependencies) *Scheduler {
 	lifecycleCtx, stopLifecycle := context.WithCancel(context.Background())
 	scheduler := &Scheduler{
-		tasks:                        make(map[string]*ScheduledTask),
-		done:                         make(chan struct{}),
-		logger:                       deps.Logger,
-		getenv:                       deps.Getenv,
-		lifecycleCtx:                 lifecycleCtx,
-		stopLifecycle:                stopLifecycle,
-		appointmentReminderScannedAt: make(map[int64]time.Time),
+		tasks:                         make(map[string]*ScheduledTask),
+		done:                          make(chan struct{}),
+		logger:                        deps.Logger,
+		getenv:                        deps.Getenv,
+		lifecycleCtx:                  lifecycleCtx,
+		stopLifecycle:                 stopLifecycle,
+		appointmentReminderScannedAt:  make(map[int64]time.Time),
+		announcementReminders:         deps.AppointmentReminders,
+		announcementReminderScannedAt: make(map[int64]time.Time),
 	}
 	addCleanupDependencies(scheduler, deps)
 	addScheduleDependencies(scheduler, deps)

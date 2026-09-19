@@ -7,9 +7,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
+	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -96,6 +97,21 @@ type absorbInstanceRepo struct {
 
 func (r *absorbInstanceRepo) FindByActiveGroupID(_ context.Context, groupID int64) (*scheduleModel.ActivityInstance, error) {
 	return r.byGroup[groupID], nil
+}
+
+type absorbActivityGroupRepo struct {
+	activitiesModel.GroupRepository
+	byID map[int64]*activitiesModel.Group
+}
+
+func (r *absorbActivityGroupRepo) FindByIDs(_ context.Context, ids []int64) ([]*activitiesModel.Group, error) {
+	out := make([]*activitiesModel.Group, 0, len(ids))
+	for _, id := range ids {
+		if group := r.byID[id]; group != nil {
+			out = append(out, group)
+		}
+	}
+	return out, nil
 }
 
 func (r *absorbVisitRepo) TransferOpenVisits(_ context.Context, oldGroupID, newGroupID int64) (int64, error) {
@@ -191,8 +207,11 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 	bridged.ID = 13
 	staleFallback := &activeModel.Group{StartTime: now.AddDate(0, 0, -1), RoomID: 42}
 	staleFallback.ID = 14
+	systemActivityID := int64(88)
+	independent := &activeModel.Group{StartTime: now, RoomID: 42, GroupID: &systemActivityID}
+	independent.ID = 15
 
-	groupRepo := &absorbGroupRepo{openGroups: []*activeModel.Group{newGroup, unsupervised, supervised, bridged, staleFallback}}
+	groupRepo := &absorbGroupRepo{openGroups: []*activeModel.Group{newGroup, unsupervised, supervised, bridged, staleFallback, independent}}
 	supervisorRepo := &absorbSupervisorRepo{byGroup: map[int64][]*activeModel.GroupSupervisor{
 		12: {{StaffID: 7, GroupID: 12}},
 	}}
@@ -217,14 +236,17 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 			ActiveGroupID: &bridged.ID,
 		},
 	}}
+	systemActivity := &activitiesModel.Group{IsSystem: true}
+	systemActivity.ID = systemActivityID
 
 	svc := &instanceService{deps: InstanceServiceDependencies{
-		InstanceRepo:     instanceRepo,
-		InstanceStudents: instanceStudents,
-		ActiveGroupRepo:  groupRepo,
-		SupervisorRepo:   supervisorRepo,
-		Presence:         visitRepo,
-		Logger:           slog.New(slog.DiscardHandler),
+		InstanceRepo:      instanceRepo,
+		InstanceStudents:  instanceStudents,
+		ActiveGroupRepo:   groupRepo,
+		ActivityGroupRepo: &absorbActivityGroupRepo{byID: map[int64]*activitiesModel.Group{systemActivityID: systemActivity}},
+		SupervisorRepo:    supervisorRepo,
+		Presence:          visitRepo,
+		Logger:            slog.New(slog.DiscardHandler),
 	}}
 
 	err := svc.absorbUnsupervisedOpenGroups(context.Background(), instanceID, 42, newGroupID)

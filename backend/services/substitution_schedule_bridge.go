@@ -5,15 +5,16 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 type scheduleSubstitutionBridge struct {
-	adapter *schedule.SubstitutionAdapter
+	adapter *shiftplanning.SubstitutionAdapter
 }
 
-func newScheduleSubstitutionBridge(adapter *schedule.SubstitutionAdapter) education.ScheduleSubstitutionAdapter {
+func newScheduleSubstitutionBridge(adapter *shiftplanning.SubstitutionAdapter) education.ScheduleSubstitutionAdapter {
 	return &scheduleSubstitutionBridge{adapter: adapter}
 }
 
@@ -45,7 +46,7 @@ func (b *scheduleSubstitutionBridge) apply(
 	ctx context.Context,
 	assignment education.ScheduleSubstitutionAssignment,
 	actorAccountID int64,
-) (*schedule.SubstitutionMutation, error) {
+) (*shiftplanning.SubstitutionMutation, error) {
 	if assignment.WholeDays == nil {
 		return b.adapter.ApplyAppointment(
 			ctx,
@@ -141,7 +142,7 @@ func mapSchedulePresences(source []education.SchedulePresenceChange) []schedule.
 	return result
 }
 
-func mapScheduleOverview(source *schedule.SubstitutionOverview) *education.ScheduleOverview {
+func mapScheduleOverview(source *shiftplanning.SubstitutionOverview) *education.ScheduleOverview {
 	result := &education.ScheduleOverview{
 		Appointments: make([]education.ScheduleAppointmentOverview, 0, len(source.Appointments)),
 		Targets:      mapScheduleStaffRefs(source.Targets),
@@ -157,7 +158,7 @@ func mapScheduleOverview(source *schedule.SubstitutionOverview) *education.Sched
 	return result
 }
 
-func mapScheduleStaffRefs(source []schedule.SubstitutionStaffRef) []education.StaffRef {
+func mapScheduleStaffRefs(source []shiftplanning.SubstitutionStaffRef) []education.StaffRef {
 	result := make([]education.StaffRef, 0, len(source))
 	for _, staff := range source {
 		result = append(result, education.StaffRef{ID: staff.ID, FullName: staff.FullName})
@@ -165,7 +166,7 @@ func mapScheduleStaffRefs(source []schedule.SubstitutionStaffRef) []education.St
 	return result
 }
 
-func mapScheduleAppointmentStaff(source []schedule.SubstitutionAppointmentStaff) []education.ScheduleAppointmentStaff {
+func mapScheduleAppointmentStaff(source []shiftplanning.SubstitutionAppointmentStaff) []education.ScheduleAppointmentStaff {
 	result := make([]education.ScheduleAppointmentStaff, 0, len(source))
 	for _, staff := range source {
 		result = append(result, education.ScheduleAppointmentStaff{
@@ -177,7 +178,7 @@ func mapScheduleAppointmentStaff(source []schedule.SubstitutionAppointmentStaff)
 	return result
 }
 
-func mapScheduleMutation(source *schedule.SubstitutionMutation) (*education.ScheduleSubstitutionResult, error) {
+func mapScheduleMutation(source *shiftplanning.SubstitutionMutation) (*education.ScheduleSubstitutionResult, error) {
 	if source == nil {
 		return nil, education.ErrInvalidTarget
 	}
@@ -190,7 +191,7 @@ func mapScheduleMutation(source *schedule.SubstitutionMutation) (*education.Sche
 	return nil, education.ErrInvalidTarget
 }
 
-func mapAppointmentMutation(source *schedule.SubstitutionMutation) *education.ScheduleSubstitutionResult {
+func mapAppointmentMutation(source *shiftplanning.SubstitutionMutation) *education.ScheduleSubstitutionResult {
 	result := source.Appointment
 	return &education.ScheduleSubstitutionResult{
 		InstanceID: result.InstanceID, UnderstaffedAck: result.UnderstaffedAck,
@@ -200,7 +201,7 @@ func mapAppointmentMutation(source *schedule.SubstitutionMutation) *education.Sc
 	}
 }
 
-func mapWholeDayMutation(source *schedule.SubstitutionMutation) *education.ScheduleSubstitutionResult {
+func mapWholeDayMutation(source *shiftplanning.SubstitutionMutation) *education.ScheduleSubstitutionResult {
 	result := source.WholeDays
 	days := make([]education.ScheduleSubstitutionDayResult, 0, len(result.Days))
 	for _, day := range result.Days {
@@ -238,15 +239,15 @@ func mapScheduleWarnings(source []schedule.SubstituteTimeConflict) []education.S
 
 func mapScheduleSubstitutionError(err error) error {
 	switch {
-	case errors.Is(err, schedule.ErrSubstitutionInvalidPeriod):
+	case errors.Is(err, shiftplanning.ErrSubstitutionInvalidPeriod):
 		return &education.OperationError{
 			Target: education.ErrInvalidPeriod, Code: "invalid_period", Message: "Der Zeitraum ist ungültig.",
 		}
-	case errors.Is(err, schedule.ErrSubstitutionNotFound):
+	case errors.Is(err, shiftplanning.ErrSubstitutionNotFound):
 		return &education.OperationError{
 			Target: education.ErrNotFound, Code: "not_found", Message: "Die Terminvertretung wurde nicht gefunden.",
 		}
-	case errors.Is(err, schedule.ErrSubstitutionNotRunning):
+	case errors.Is(err, shiftplanning.ErrSubstitutionNotRunning):
 		return &education.OperationError{
 			Target: education.ErrNotRunning, Code: "not_running", Message: "Die Terminvertretung ist nicht mehr aktiv.",
 		}

@@ -17,6 +17,7 @@ import { useFormError } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
 import { Textarea } from "~/components/ui/textarea";
 import { useToast } from "~/contexts/ToastContext";
@@ -185,16 +186,20 @@ export function StundenkontoPanel({
                 <span className="text-sm font-medium text-gray-900 tabular-nums">
                   {formatSignedDuration(adjustment.minutesDelta)}
                 </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setDeleteTarget(adjustment)}
-                  aria-label={`Buchung ${balanceAdjustmentTypeLabel(adjustment.type)} vom ${formatDate(adjustment.effectiveDate)} löschen`}
-                  title="Buchung löschen"
-                >
-                  <Trash2 className="h-4 w-4" aria-hidden />
-                </Button>
+                {/* Zeilenaktion nur im Kebab der Zeile (BAUARTEN-SPEC
+                    Bauart 1 Regel 4); Löschen fragt weiter im
+                    ConfirmDeleteModal nach. */}
+                <OverflowMenu
+                  ariaLabel={`Aktionen für Buchung ${balanceAdjustmentTypeLabel(adjustment.type)} vom ${formatDate(adjustment.effectiveDate)}`}
+                  items={[
+                    {
+                      label: "Buchung löschen",
+                      icon: <Trash2 className="h-4 w-4" aria-hidden />,
+                      destructive: true,
+                      onClick: () => setDeleteTarget(adjustment),
+                    },
+                  ]}
+                />
               </div>
             </li>
           ))}

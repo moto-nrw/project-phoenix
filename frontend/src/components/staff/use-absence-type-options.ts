@@ -29,7 +29,6 @@ export interface AbsenceTypeOption {
    */
   readonly inactive?: boolean;
   readonly allowanceEnabled?: boolean;
-  readonly overrunPolicy?: "warn" | "block";
 }
 
 /**
@@ -91,7 +90,6 @@ export function useAbsenceTypeOptions(
           label: type.name,
           inactive: !type.isActive,
           allowanceEnabled: type.allowanceEnabled,
-          overrunPolicy: type.overrunPolicy,
         })),
     ],
     [standardOptions, custom, canManage, currentValue],

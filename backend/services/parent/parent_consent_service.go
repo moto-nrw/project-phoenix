@@ -43,12 +43,12 @@ func (s *service) GetChildConsents(ctx context.Context, accountID, studentID int
 	}
 
 	var consents []ChildConsent
-	err = tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		student, loadErr := s.StudentRepo.FindByID(txCtx, studentID)
 		if loadErr != nil {
 			return loadErr
 		}
-		consents, loadErr = s.loadChildConsents(txCtx, student, child.hasPermission(authorize.GuardianPermissionConsentManage))
+		consents, loadErr = s.loadChildConsents(txCtx, student, child.HasPermission(authorize.GuardianPermissionConsentManage))
 		return loadErr
 	})
 	if err != nil {
@@ -76,7 +76,7 @@ func (s *service) setPhotoConsent(ctx context.Context, accountID, studentID int6
 	if err != nil {
 		return nil, err
 	}
-	if err := child.requireCareRunning(); err != nil {
+	if err := child.RequireCareRunning(); err != nil {
 		return nil, err
 	}
 	if s.StudentRepo == nil || s.StudentGuardianRepo == nil || s.StudentConsents == nil {
@@ -84,12 +84,12 @@ func (s *service) setPhotoConsent(ctx context.Context, accountID, studentID int6
 	}
 
 	var consents []ChildConsent
-	err = tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		allowed, checkErr := s.StudentGuardianRepo.AccountHasStudentPermission(
 			txCtx,
 			accountID,
 			studentID,
-			child.tenantID,
+			child.TenantID,
 			authorize.GuardianPermissionConsentManage,
 		)
 		if checkErr != nil {
@@ -159,7 +159,7 @@ func (s *service) setPhotoConsent(ctx context.Context, accountID, studentID int6
 				}
 				s.StudentPhotos.ScheduleUnlinkAfterCommit(txCtx, storedURL)
 			}
-			tenantID := child.tenantID
+			tenantID := child.TenantID
 			tenant.RegisterAfterCommit(txCtx, func() {
 				s.broadcastStudentUpdated(tenantID, studentID)
 			})

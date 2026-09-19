@@ -26,7 +26,7 @@ func TestOperatorMFACredentialRepository_Update_PersistsChanges(t *testing.T) {
 	ctx := context.Background()
 	repo := platformRepo.NewOperatorMFACredentialRepository(db)
 
-	op := createTestOperator(t, db, fmt.Sprintf("op-cred-update-%d@test.local", time.Now().UnixNano()), "Cred Update Op")
+	op := testpkg.CreateTestOperatorWithEmail(t, db, fmt.Sprintf("op-cred-update-%d@test.local", time.Now().UnixNano()), "Cred Update Op")
 
 	cred := &platform.OperatorMFACredential{
 		OperatorID: op.ID,
@@ -63,7 +63,7 @@ func TestOperatorMFACredentialRepository_List_FilterByOperatorID(t *testing.T) {
 	ctx := context.Background()
 	repo := platformRepo.NewOperatorMFACredentialRepository(db)
 
-	op := createTestOperator(t, db, fmt.Sprintf("op-cred-list-%d@test.local", time.Now().UnixNano()), "Cred List Op")
+	op := testpkg.CreateTestOperatorWithEmail(t, db, fmt.Sprintf("op-cred-list-%d@test.local", time.Now().UnixNano()), "Cred List Op")
 
 	require.NoError(t, repo.Create(ctx, &platform.OperatorMFACredential{
 		OperatorID: op.ID,

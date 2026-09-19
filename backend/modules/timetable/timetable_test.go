@@ -31,7 +31,7 @@ type recordingEngine struct {
 
 func (e *recordingEngine) BindCarePlan(timetable.CarePlanDirectory) { e.calls++ }
 
-func (e *recordingEngine) CountPlannedSupervisorsByCalendarPeriod(context.Context) (map[int64]int, error) {
+func (e *recordingEngine) CountCalendarPeriodReferences(context.Context) (map[int64]timetable.CalendarPeriodReferences, error) {
 	e.calls++
 	return nil, nil
 }
@@ -71,6 +71,11 @@ func (e *recordingEngine) CloseOpenStudentAssignments(ctx context.Context, stude
 }
 
 func (e *recordingEngine) CountStudentAssignments(ctx context.Context, studentID int64) (int, error) {
+	e.calls++
+	return 0, nil
+}
+
+func (e *recordingEngine) CountStudentRosterRemovals(ctx context.Context, studentID int64) (int, error) {
 	e.calls++
 	return 0, nil
 }
@@ -274,6 +279,11 @@ func (e *recordingEngine) SetPrimaryPlannedSupervisor(context.Context, int64) er
 func (e *recordingEngine) DeletePlannedSupervisorsByStaff(context.Context, int64) (int64, error) {
 	e.calls++
 	return 0, nil
+}
+
+func (e *recordingEngine) LockPlannedSupervisors(context.Context) error {
+	e.calls++
+	return nil
 }
 
 func (e *recordingEngine) CapActivePlannedSupervisors(context.Context, int64, string) (int64, error) {

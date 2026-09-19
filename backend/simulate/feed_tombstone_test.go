@@ -16,7 +16,8 @@ func TestRunFullDaySeedsStaffFeedTombstone(t *testing.T) {
 
 	berlin, err := time.LoadLocation("Europe/Berlin")
 	require.NoError(t, err)
-	today, err := time.ParseInLocation("2006-01-02", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC).In(berlin).Format("2006-01-02"), berlin)
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
+	today, err := time.ParseInLocation("2006-01-02", now.In(berlin).Format("2006-01-02"), berlin)
 	require.NoError(t, err)
 	periodStart := today.AddDate(0, 0, 14)
 	for periodStart.Weekday() == time.Saturday || periodStart.Weekday() == time.Sunday {
@@ -98,7 +99,11 @@ func TestRunFullDaySeedsStaffFeedTombstone(t *testing.T) {
 	}
 	require.NoError(t, WriteSeedState(state, statePath))
 
-	require.NoError(t, RunFullDay(context.Background(), FullDayOptions{Client: newTestClientFactory, StatePath: statePath}))
+	require.NoError(t, RunFullDay(context.Background(), FullDayOptions{
+		Client:    newTestClientFactory,
+		StatePath: statePath,
+		Now:       func() time.Time { return now },
+	}))
 	require.True(t, bootstrappedPeriods)
 	require.Equal(t, []int64{10}, createdStaffIDs)
 	createdDay, err := time.ParseInLocation("2006-01-02", createdDate, berlin)

@@ -35,6 +35,13 @@ Die dauerhafte Raumfreigabe bleibt bestehen.
 Die Freigabe als offener Raum erlaubt nicht automatisch die Abmeldung nach
 Hause am NFC-Gerät. Für diese gelten eigene Abmelderegeln.
 
+Die Freigabe ist eine Entscheidung der Schule. Kein Raum ist wegen seines
+Namens offen, auch der Schulhof nicht. Ein offener Raum kann zugleich Ort
+laufender Blöcke sein (**Blockbetrieb im offenen Raum**): Die Raumansicht
+zeigt dann die Raumbelegung und die laufenden Blöcke mit ihren Kindern
+nebeneinander; Blockteilnahme und angebotsunabhängiger Aufenthalt bleiben
+getrennt erkennbar.
+
 ## Demo-Daten
 
 Ein **Demo-Schulprofil** ist ein stabil benanntes, synthetisches Szenario für
@@ -173,8 +180,11 @@ eingereicht werden dürfen, legt die OGS je Änderungsart fest.
 ## Elternanfrage
 
 Eine **Elternanfrage** ist eine eingereichte Elternänderung, über die ein
-OGS-Admin noch entscheiden muss. Sie verändert die wirksamen Betreuungsdaten
-erst nach der Bestätigung.
+OGS-Admin oder eine dafür berechtigte Person noch entscheiden muss; bei
+Krankmeldungen und Entschuldigungen kann die OGS diese Entscheidung an
+zuständige Gruppenleitungen oder das berechtigte Team freigeben.
+Sie verändert die wirksamen Betreuungsdaten erst nach der Bestätigung;
+die Zuständigkeiten für andere Anfragearten bleiben unverändert.
 
 ## Elternmitteilung
 

@@ -158,6 +158,20 @@ type SettingsService interface {
 	// TenantTxMiddleware and carry the resolved school in an argument, not in
 	// the context. Same best-effort tx semantics.
 	LockMFAPolicySharedForTenant(ctx context.Context, tenantID int64) error
+
+	// LockParentPickupChangePolicy takes the per-tenant transaction-scoped
+	// EXCLUSIVE advisory lock guarding the parent pickup-change enablement and
+	// same-day cutoff settings. SetValue and ResetValue take it before either
+	// setting changes, so a guardian write cannot commit based on a policy
+	// combination that was never committed. Same best-effort tx semantics.
+	LockParentPickupChangePolicy(ctx context.Context) error
+
+	// LockParentPickupChangePolicySharedForTenant is the SHARED counterpart
+	// taken by guardian pickup-change writes before they re-read both settings
+	// at their write boundary. The tenant is explicit because the child lookup
+	// determines the tenant outside the parent transaction. Same best-effort tx
+	// semantics.
+	LockParentPickupChangePolicySharedForTenant(ctx context.Context, tenantID int64) error
 }
 
 // BatchSettingsService extends SettingsService with query-coalescing reads.

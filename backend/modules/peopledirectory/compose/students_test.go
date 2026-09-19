@@ -214,3 +214,34 @@ func TestStudentDirectoryRequiresATransactionForWrites(t *testing.T) {
 	assert.NotErrorIs(t, err, sql.ErrNoRows)
 	assert.NotErrorIs(t, err, peopledirectory.ErrStudentNotFound, "a missing runtime is not reported as a missing student")
 }
+
+// The Abgänge view reads a transition's ledger through this lookup: a child
+// whose row was purged since the apply must be absent from the result, so the
+// caller can tell "purged" apart from "still an alumnus" (#2711, ported from
+// the deleted grade-transition repository test).
+func TestStudentLookupOmitsPurgedChildren(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+	active := testpkg.CreateTestStudent(t, db, "Aktives", "Kind", "1a")
+	graduate := testpkg.CreateTestStudent(t, db, "Abgang", "Kind", "4a")
+
+	graduated, err := module.GraduateStudents(ctx, []int64{graduate.ID})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, graduated, "exactly the one child in the cohort graduates")
+
+	// A student id that no longer has a row at all.
+	missingID := graduate.ID + 1_000_000
+
+	found, err := module.ListStudentsByID(ctx, []int64{active.ID, graduate.ID, missingID})
+	require.NoError(t, err)
+	states := make(map[int64]bool, len(found))
+	for _, student := range found {
+		states[student.ID] = student.IsAlumnus()
+	}
+	require.Len(t, found, 2)
+	assert.True(t, states[graduate.ID], "this is the one read whose whole purpose is to see graduates")
+	assert.False(t, states[active.ID])
+	assert.NotContains(t, states, missingID)
+}

@@ -204,6 +204,38 @@ die Kosten einer Desktop-Karte in einer 390-px-Spalte. Das entscheidet
   und zwei Radien standen übereinander. Kein `max-sm:rounded-*` auf einer
   Karte.
 
+## `compact`: die Dichte-Stufe kleiner und flacher Bildschirme
+
+Zwischen Telefon und grossem Monitor liegt eine dritte Stufe (#2824). Sie
+greift auf zwei Achsen, weil es zwei verschiedene Engen sind: zu schmal
+(unter 1024 px — Tablet, halbes Fenster) oder zu flach (unter 900 px Höhe —
+der 13-Zoll-Laptop bei 1440x900, der breit genug ist und dem nur die Höhe
+fehlt). Eine reine Breiten-Stufe hätte genau den im Issue zuerst genannten
+Fall nicht erwischt.
+
+Die Variante heisst `compact:` und ist in `globals.css` als
+`@custom-variant` definiert. Sie beginnt bei 768 px und überschneidet sich
+deshalb mit KEINEM `max-sm:`: es gilt immer genau eine der beiden Stufen,
+nie beide. Wer eine Eigenschaft in die Stufe aufnimmt, schreibt den
+Desktop-Wert unvariiert als Grundwert (`p-5`, nicht `sm:p-5`) — sonst
+stehen zwei Varianten-Regeln für dieselbe Eigenschaft nebeneinander und
+welche gewinnt, hängt an der internen Sortierung von Tailwind.
+
+| Mass | Desktop | `compact` | Telefon |
+|---|---|---|---|
+| Seitenrand der Hülle | 32 px | 20 px | 16 px |
+| Kopfkarte, `SectionCard`, `InfoCard` | 20/24 px | 16 px | 16 px |
+| `StatCard`, `TileCard` | 20 px | 16 px | 12/16 px |
+| Titel (`prominent`) | 28 px | 24 px | 24 px |
+| Titel (Standard) | 24 px | 20 px | 20 px |
+| Rumpf-Rhythmus | 24 px | 16 px | 12 px |
+| Reiterband | 12 px, `text-base` | 8 px, `text-sm` | Pillen |
+| Tabellenzelle senkrecht | 12 px | 8 px | 12 px |
+
+Nicht in der Stufe: die Bedienhöhe. 768–1023 px ist genau der Tablet-
+Bereich, und ein 36-px-Knopf unterschreitet dort das Touch-Mass. Regel 17
+gilt unverändert auf allen Breiten.
+
 ## Planungsflächen
 
 Betreuungsplan, Dienstplan, Vertretung und Kalender haben keinen zweiten

@@ -62,6 +62,14 @@ func (p *guardianDirectoryProvider) FindGuardian(ctx context.Context, id int64) 
 	return toDirectoryGuardian(profile), nil
 }
 
+func (p *guardianDirectoryProvider) FindGuardianByEmail(ctx context.Context, email string) (peopledirectory.Guardian, error) {
+	profile, err := p.guardians.GuardianProfileRepo.FindByEmail(ctx, email)
+	if err != nil {
+		return peopledirectory.Guardian{}, mapGuardianError(err)
+	}
+	return toDirectoryGuardian(profile), nil
+}
+
 func (p *guardianDirectoryProvider) ListGuardians(ctx context.Context, page, pageSize int) ([]peopledirectory.Guardian, error) {
 	profiles, err := p.guardians.ListGuardiansPage(ctx, page, pageSize)
 	if err != nil {

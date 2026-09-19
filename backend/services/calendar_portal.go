@@ -13,11 +13,11 @@ import (
 	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	calendarPortal "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	platformService "github.com/moto-nrw/project-phoenix/services/platform"
-	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )

@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/auth"
@@ -82,17 +81,6 @@ func (r *AccountParentRepository) FindByUsername(ctx context.Context, username s
 	return account, nil
 }
 
-// UpdateLastLogin updates the last login timestamp for a parent account
-func (r *AccountParentRepository) UpdateLastLogin(ctx context.Context, id int64) error {
-	now := time.Now()
-	account := &auth.AccountParent{Model: modelBase.Model{ID: id}, LastLogin: &now}
-	updated, err := r.UpdateColumns(ctx, account, "last_login")
-	if err != nil {
-		return base.UpdateOperationError(err, "update last login")
-	}
-	return base.AssertRowsAffectedCount(updated, 1, "update last login")
-}
-
 // UpdatePassword updates the password hash for a parent account
 func (r *AccountParentRepository) UpdatePassword(ctx context.Context, id int64, passwordHash string) error {
 	account := &auth.AccountParent{Model: modelBase.Model{ID: id}, PasswordHash: &passwordHash}
@@ -134,34 +122,30 @@ func (r *AccountParentRepository) List(ctx context.Context, filters map[string]i
 func (r *AccountParentRepository) applyAccountParentFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
 	switch field {
 	case "email":
-		return r.applyStringEqualFilter(query, "email", value)
+		if strValue, ok := value.(string); ok {
+			return query.Where("LOWER(email) = LOWER(?)", strValue)
+		}
+		return query.Where("email = ?", value)
 	case "username":
-		return r.applyStringEqualFilter(query, "username", value)
+		if strValue, ok := value.(string); ok {
+			return query.Where("LOWER(username) = LOWER(?)", strValue)
+		}
+		return query.Where("username = ?", value)
 	case "email_like":
-		return r.applyStringLikeFilter(query, "email", value)
+		if strValue, ok := value.(string); ok {
+			return query.Where("LOWER(email) LIKE LOWER(?)", "%"+strValue+"%")
+		}
+		return query
 	case "username_like":
-		return r.applyStringLikeFilter(query, "username", value)
+		if strValue, ok := value.(string); ok {
+			return query.Where("LOWER(username) LIKE LOWER(?)", "%"+strValue+"%")
+		}
+		return query
 	case "active":
 		return query.Where("active = ?", value)
 	default:
 		return query.Where("? = ?", bun.Ident(field), value)
 	}
-}
-
-// applyStringEqualFilter applies case-insensitive equality filter for string fields
-func (r *AccountParentRepository) applyStringEqualFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
-	if strValue, ok := value.(string); ok {
-		return query.Where("LOWER("+field+") = LOWER(?)", strValue)
-	}
-	return query.Where(field+" = ?", value)
-}
-
-// applyStringLikeFilter applies case-insensitive LIKE filter for string fields
-func (r *AccountParentRepository) applyStringLikeFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
-	if strValue, ok := value.(string); ok {
-		return query.Where("LOWER("+field+") LIKE LOWER(?)", "%"+strValue+"%")
-	}
-	return query
 }
 
 // Create overrides the base Create method for schema consistency

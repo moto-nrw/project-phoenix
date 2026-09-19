@@ -11,9 +11,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
@@ -285,22 +285,28 @@ func parseSickDayRange(r *http.Request) (timezone.Date, timezone.Date, error) {
 type ChildFeaturesResponse struct {
 	// CareEnded is state, not a capability: the child has left the OGS, so
 	// every write flag below is false (#2487).
-	CareEnded                    bool `json:"care_ended"`
-	SickNoteEnabled              bool `json:"sick_note_enabled"`
-	SickRequiresApproval         bool `json:"sick_requires_approval"`
-	ExcusedRequiresApproval      bool `json:"excused_requires_approval"`
-	NotesEnabled                 bool `json:"notes_enabled"`
-	RequestSubmitEnabled         bool `json:"request_submit_enabled"`
-	PickupChangeEnabled          bool `json:"pickup_change_enabled"`
-	PickupManageAllowed          bool `json:"pickup_manage_allowed"`
-	GuardianContactManageAllowed bool `json:"guardian_contact_manage_allowed"`
-	RelatedAccountsInviteEnabled bool `json:"related_accounts_invite_enabled"`
-	RelatedAccountsRemoveEnabled bool `json:"related_accounts_remove_enabled"`
-	MasterDataEditEnabled        bool `json:"master_data_edit_enabled"`
-	MasterDataContactEditEnabled bool `json:"master_data_contact_edit_enabled"`
-	MasterDataRequestEnabled     bool `json:"master_data_request_enabled"`
-	MealPlanEnabled              bool `json:"meal_plan_enabled"`
-	MealRegistrationEnabled      bool `json:"meal_registration_enabled"`
+	CareEnded               bool `json:"care_ended"`
+	SickNoteEnabled         bool `json:"sick_note_enabled"`
+	ExcusedNoteEnabled      bool `json:"excused_note_enabled"`
+	SickRequiresApproval    bool `json:"sick_requires_approval"`
+	ExcusedRequiresApproval bool `json:"excused_requires_approval"`
+	NotesEnabled            bool `json:"notes_enabled"`
+	RequestSubmitEnabled    bool `json:"request_submit_enabled"`
+	PickupChangeEnabled     bool `json:"pickup_change_enabled"`
+	// PickupChangeCutoffTime is the same-day cutoff for the one-day pickup
+	// change as HH:MM, "" without one (#3163). PickupChangeTodayClosed is true
+	// once it has passed: today is closed for guardians, later days are not.
+	PickupChangeCutoffTime       string `json:"pickup_change_cutoff_time"`
+	PickupChangeTodayClosed      bool   `json:"pickup_change_today_closed"`
+	PickupManageAllowed          bool   `json:"pickup_manage_allowed"`
+	GuardianContactManageAllowed bool   `json:"guardian_contact_manage_allowed"`
+	RelatedAccountsInviteEnabled bool   `json:"related_accounts_invite_enabled"`
+	RelatedAccountsRemoveEnabled bool   `json:"related_accounts_remove_enabled"`
+	MasterDataEditEnabled        bool   `json:"master_data_edit_enabled"`
+	MasterDataContactEditEnabled bool   `json:"master_data_contact_edit_enabled"`
+	MasterDataRequestEnabled     bool   `json:"master_data_request_enabled"`
+	MealPlanEnabled              bool   `json:"meal_plan_enabled"`
+	MealRegistrationEnabled      bool   `json:"meal_registration_enabled"`
 	// HasOpenChangeRequest is STATE (not a capability): the child has a pending
 	// change request awaiting an OGS decision, so the overview can badge the
 	// Stammdaten entry.
@@ -332,11 +338,14 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, ChildFeaturesResponse{
 		CareEnded:                    flags.CareEnded,
 		SickNoteEnabled:              flags.SickNoteEnabled,
+		ExcusedNoteEnabled:           flags.ExcusedNoteEnabled,
 		SickRequiresApproval:         flags.SickRequiresApproval,
 		ExcusedRequiresApproval:      flags.ExcusedRequiresApproval,
 		NotesEnabled:                 flags.NotesEnabled,
 		RequestSubmitEnabled:         flags.RequestSubmitEnabled,
 		PickupChangeEnabled:          flags.PickupChangeEnabled,
+		PickupChangeCutoffTime:       flags.PickupChangeCutoffTime,
+		PickupChangeTodayClosed:      flags.PickupChangeTodayClosed,
 		PickupManageAllowed:          flags.PickupManageAllowed,
 		GuardianContactManageAllowed: flags.GuardianContactManageAllowed,
 		RelatedAccountsInviteEnabled: flags.RelatedAccountsInviteEnabled,
@@ -593,6 +602,8 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "invalid_meal_participation"))
 	case errors.Is(err, parentService.ErrPickupChangeDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "pickup_change_disabled"))
+	case errors.Is(err, parentService.ErrPickupChangeCutoffPassed):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "pickup_change_cutoff_passed"))
 	case errors.Is(err, parentService.ErrMasterDataEditDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "master_data_edit_disabled"))
 	case errors.Is(err, parentService.ErrMasterDataRequestDisabled):

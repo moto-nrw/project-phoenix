@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
@@ -59,8 +60,8 @@ func NewIoTDataTestModule(db *bun.DB, unit tenant.UnitOfWork) (IoTDataTestModule
 		CalendarPeriodRepo: r.CalendarPeriod, TimeframeRepo: r.Timeframe, ActivityExceptionRepo: r.ActivityException,
 	}).(enrollment.CareOfferingMaterializationResourceValidator)
 	facility := facilities.NewServiceWithConfig(facilities.ServiceConfig{
-		Rooms: rooms, Occupancy: facilitiesLegacy.OccupancyProjection(r.ActiveGroup, r.ActivityGroup, membership, people),
-		History: facilitiesLegacy.HistoryProjection(r.ActiveGroup),
+		Rooms: rooms, Occupancy: facilitiesLegacy.OccupancyProjection(roomOccupancyPresence{newStudentPresence(db, slog.Default())}, r.ActivityGroup, membership, people),
+		History: facilitiesLegacy.HistoryProjection(roomHistoryPresence{newStudentPresence(db, slog.Default())}, r.ActivityGroup, membership, people),
 		ValidateDeletion: func(ctx context.Context, roomID int64) error {
 			groups, err := r.ActiveGroup.FindActiveByRoomID(ctx, roomID)
 			if err != nil {

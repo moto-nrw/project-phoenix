@@ -12,16 +12,15 @@ import (
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/auth/authtest"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
@@ -353,6 +352,9 @@ func (m *mockRoleRepo) FindByID(ctx context.Context, id interface{}) (*authModel
 	}
 	return nil, nil
 }
+func (m *mockRoleRepo) FindByIDForUpdate(ctx context.Context, id int64) (*authModels.Role, error) {
+	return m.FindByID(ctx, id)
+}
 func (m *mockRoleRepo) Update(context.Context, *authModels.Role) error { return nil }
 func (m *mockRoleRepo) Delete(context.Context, interface{}) error      { return nil }
 func (m *mockRoleRepo) List(context.Context, map[string]interface{}) ([]*authModels.Role, error) {
@@ -484,6 +486,7 @@ func (m *mockAuthService) ListRoles(context.Context, map[string]interface{}) ([]
 	return nil, nil
 }
 func (m *mockAuthService) AssignRoleToAccount(context.Context, int, int) error   { return nil }
+func (m *mockAuthService) ReplaceAccountRole(context.Context, int, int) error    { return nil }
 func (m *mockAuthService) RemoveRoleFromAccount(context.Context, int, int) error { return nil }
 func (m *mockAuthService) GetAccountRoles(context.Context, int) ([]*authModels.Role, error) {
 	return nil, nil
@@ -520,8 +523,9 @@ func (m *mockAuthService) GetAccountPermissions(context.Context, int) ([]*authMo
 func (m *mockAuthService) GetAccountDirectPermissions(context.Context, int) ([]*authModels.Permission, error) {
 	return nil, nil
 }
-func (m *mockAuthService) AssignPermissionToRole(context.Context, int, int) error   { return nil }
-func (m *mockAuthService) RemovePermissionFromRole(context.Context, int, int) error { return nil }
+func (m *mockAuthService) AssignPermissionToRole(context.Context, int, int) error     { return nil }
+func (m *mockAuthService) ReplaceRolePermissions(context.Context, int, []int64) error { return nil }
+func (m *mockAuthService) RemovePermissionFromRole(context.Context, int, int) error   { return nil }
 func (m *mockAuthService) GetRolePermissions(context.Context, int) ([]*authModels.Permission, error) {
 	return nil, nil
 }
@@ -553,6 +557,7 @@ func (m *mockAuthService) ResetPassword(context.Context, string, string) error {
 func (m *mockAuthService) CleanupExpiredRateLimits(context.Context) (int, error) {
 	return 0, nil
 }
+func (m *mockAuthService) CountExpiredTokens(context.Context) (int, error)   { return 0, nil }
 func (m *mockAuthService) CleanupExpiredTokens(context.Context) (int, error) { return 0, nil }
 func (m *mockAuthService) CleanupExpiredPasswordResetTokens(context.Context) (int, error) {
 	return 0, nil
@@ -4195,8 +4200,8 @@ func TestOperatorProvisioningService_GetDeviceTransferStatus_IncludesSessionName
 			return &activeModels.Group{
 				Model:       base.Model{ID: 300},
 				StartTime:   startedAt,
-				ActualGroup: &activityModels.Group{Name: "Mensa"},
-				Room:        &facilitiesModels.Room{Name: "Speisesaal"},
+				ActualGroup: &activeModels.SessionActivity{Name: "Mensa"},
+				Room:        &activeModels.SessionRoom{Name: "Speisesaal"},
 			}, nil
 		}},
 	})

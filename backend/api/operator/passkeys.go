@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
@@ -72,7 +73,7 @@ func (rs *Resource) PasskeyLoginVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	render.JSON(w, r, LoginResponse{
-		Status:       string(platformSvc.OperatorLoginStatusAuthenticated),
+		Status:       identityoperator.LoginStatusAuthenticated,
 		AccessToken:  result.AccessToken,
 		RefreshToken: result.RefreshToken,
 	})

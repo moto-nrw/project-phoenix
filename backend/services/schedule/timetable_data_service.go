@@ -14,13 +14,13 @@ import (
 
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -582,6 +582,9 @@ func (s *TimetableDataService) attachTemplateTargets(ctx context.Context, rows [
 	if err != nil {
 		return err
 	}
+	if !hasTemplateTargets(targetsByGroup) {
+		return nil
+	}
 	targetStudentsByGroup, err := targetRepo.FindTargetStudentIDsByGroupIDs(ctx, templateIDs)
 	if err != nil {
 		return err
@@ -591,6 +594,15 @@ func (s *TimetableDataService) attachTemplateTargets(ctx context.Context, rows [
 		rows[i].EnrollmentCount = unionCount(rows[i].StudentIDs, targetStudentsByGroup[rows[i].TemplateID])
 	}
 	return nil
+}
+
+func hasTemplateTargets(targetsByGroup map[int64][]*activitiesModel.GroupTarget) bool {
+	for _, targets := range targetsByGroup {
+		if len(targets) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func unionCount(left, right []int64) int {

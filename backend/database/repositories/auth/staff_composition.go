@@ -49,7 +49,7 @@ func (r *AccountTenantRepository) ListActiveAccountIDsForTenant(ctx context.Cont
 // FindEffectivePermissionNamesByAccountIDsForTenant resolves the effective
 // permission names (resource:action, matching Permission.GetFullName) of every
 // given account at one tenant: role-granted UNION directly-granted, exactly
-// the union FindByAccountIDForTenant performs for a single account. The names
+// the union FindByAccountID performs for a single account. The names
 // are returned raw so the caller can apply the same wildcard-aware matcher
 // route authorization uses.
 func (r *PermissionRepository) FindEffectivePermissionNamesByAccountIDsForTenant(ctx context.Context, accountIDs []int64, tenantID int64) (map[int64][]string, error) {
@@ -79,12 +79,13 @@ func (r *PermissionRepository) FindEffectivePermissionNamesByAccountIDsForTenant
 		AccountID      int64  `bun:"account_id"`
 		PermissionName string `bun:"permission_name"`
 	}
+	// The union is joined as a derived table so the evaluator resolves every
+	// table this read touches.
 	err := db.NewSelect().
-		With("effective_permissions", effective).
 		ColumnExpr(`DISTINCT "effective_permission".account_id AS account_id`).
 		ColumnExpr(`("permission".resource || ':' || "permission".action) AS permission_name`).
 		TableExpr(`auth.permissions AS "permission"`).
-		Join(`JOIN effective_permissions AS "effective_permission" ON "effective_permission".permission_id = "permission".id`).
+		Join(`JOIN (?) AS "effective_permission" ON "effective_permission".permission_id = "permission".id`, effective).
 		Scan(ctx, &rows)
 	if err != nil {
 		return nil, err

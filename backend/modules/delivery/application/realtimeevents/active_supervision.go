@@ -11,7 +11,7 @@ import (
 
 // QueueActiveSupervisionChanged refreshes tenant-wide live-supervision views
 // after the surrounding transaction commits.
-func QueueActiveSupervisionChanged(ctx context.Context, broadcaster realtime.Broadcaster, logger *slog.Logger, activeGroupID int64, reason string) {
+func QueueActiveSupervisionChanged(ctx context.Context, broadcaster Publisher, logger *slog.Logger, activeGroupID int64, reason string) {
 	if broadcaster == nil || activeGroupID <= 0 {
 		return
 	}

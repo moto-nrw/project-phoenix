@@ -168,6 +168,15 @@ describe("ParentSidebar", () => {
     ).toBeInTheDocument();
   });
 
+  it("starts below the compact header with the shared sidebar spacing", () => {
+    const { container } = renderSidebar();
+
+    expect(container.querySelector("aside > div")).toHaveClass(
+      "top-[57px]",
+      "h-[calc(100vh-57px)]",
+    );
+  });
+
   it("asks for confirmation before signing out from the pinned navigation", async () => {
     renderSidebar();
 

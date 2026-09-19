@@ -159,6 +159,7 @@ type ReplaceStaffSchedule struct {
 }
 
 type Query interface {
+	MonthSnapshotQuery
 	AbsenceQuery
 	SubstitutionQuery
 	ShiftQuery
@@ -193,6 +194,7 @@ type Query interface {
 }
 
 type Command interface {
+	MonthSnapshotCommand
 	AbsenceCommand
 	SubstitutionCommand
 	ShiftCommand
@@ -218,6 +220,7 @@ type Capability interface {
 }
 
 type engine interface {
+	monthSnapshotEngine
 	absenceEngine
 	substitutionEngine
 	shiftEngine

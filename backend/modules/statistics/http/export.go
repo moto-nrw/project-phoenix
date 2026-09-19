@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
+	statisticsService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/statistics"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	statisticsService "github.com/moto-nrw/project-phoenix/services/statistics"
 )
 
 // Column IDs: catalog IDs where the PDF has a layout weight for them

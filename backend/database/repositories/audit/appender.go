@@ -6,6 +6,9 @@ import (
 	"reflect"
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/moto-nrw/project-phoenix/modules/auditlog/classlist"
+	"github.com/moto-nrw/project-phoenix/modules/auditlog/consents"
+	auditImports "github.com/moto-nrw/project-phoenix/modules/auditlog/imports"
 	"github.com/uptrace/bun"
 )
 
@@ -40,6 +43,15 @@ func (a *Appender) AppendOnce(ctx context.Context, event any) (bool, error) {
 func (a *Appender) prepare(ctx context.Context, event any) (bun.IDB, error) {
 	if event == nil || (reflect.ValueOf(event).Kind() == reflect.Pointer && reflect.ValueOf(event).IsNil()) {
 		return nil, fmt.Errorf("audit event is required")
+	}
+	// Platform-scoped ledgers (operator actions) have no tenant column; they
+	// still join the caller's transaction but skip the tenant handshake.
+	if platform, ok := event.(interface{ PlatformScoped() bool }); ok && platform.PlatformScoped() {
+		if err := validateEvent(event); err != nil {
+			return nil, err
+		}
+		db, _, err := database(ctx, a.runtime)
+		return db, err
 	}
 	scoped, ok := event.(interface {
 		GetTenantID() int64
@@ -80,6 +92,30 @@ func appendQuery(db bun.IDB, event any) (string, *bun.InsertQuery, error) {
 	var query *bun.InsertQuery
 	var table string
 	switch value := event.(type) {
+	case *classlist.ClassListEntryChange:
+		row := classListChangeRow(value)
+		table, query = "audit.class_list_entry_changes", db.NewInsert().Model(row).ModelTableExpr("audit.class_list_entry_changes")
+	case *auditImports.DataImport:
+		row := &auditModels.DataImport{
+			EntityType: value.EntityType, Filename: value.Filename, TotalRows: value.TotalRows,
+			CreatedCount: value.CreatedCount, UpdatedCount: value.UpdatedCount, SkippedCount: value.SkippedCount,
+			ErrorCount: value.ErrorCount, WarningCount: value.WarningCount, DryRun: value.DryRun,
+			ImportedBy: value.ImportedBy, StartedAt: value.StartedAt, CompletedAt: value.CompletedAt,
+			Metadata: auditModels.JSONBMap{},
+		}
+		row.SetTenantID(value.TenantID)
+		if value.Checkpoint != nil {
+			row.Metadata["import_checkpoint"] = value.Checkpoint
+		}
+		table, query = "audit.data_imports", db.NewInsert().Model(row).ModelTableExpr("audit.data_imports")
+	case *consents.ConsentChange:
+		row := &auditModels.StudentConsentChange{
+			Model:     auditModels.Model{CreatedAt: value.ChangedAt, UpdatedAt: value.ChangedAt},
+			StudentID: value.StudentID, ConsentKey: value.ConsentKey, Action: value.Action,
+			Source: value.Source, ActorAccountID: value.ActorAccountID,
+		}
+		row.SetTenantID(value.TenantID)
+		table, query = "audit.student_consent_changes", db.NewInsert().Model(row).ModelTableExpr("audit.student_consent_changes")
 	case *auditModels.AttendanceCorrection:
 		table, query = "audit.attendance_corrections", db.NewInsert().Model(value).ModelTableExpr("audit.attendance_corrections")
 	case *auditModels.AuthEvent:
@@ -106,6 +142,8 @@ func appendQuery(db bun.IDB, event any) (string, *bun.InsertQuery, error) {
 		table, query = "audit.guardian_changes", db.NewInsert().Model(value).ModelTableExpr("audit.guardian_changes")
 	case *auditModels.GuardianFinancialChange:
 		table, query = "audit.guardian_financial_changes", db.NewInsert().Model(value).ModelTableExpr("audit.guardian_financial_change_ledger")
+	case *auditModels.OperatorAuditEntry:
+		table, query = "platform.operator_audit_log", db.NewInsert().Model(value).ModelTableExpr("platform.operator_audit_log").Returning("id, created_at")
 	case *auditModels.PersonnelNumberChange:
 		table, query = "audit.personnel_number_changes", db.NewInsert().Model(value).ModelTableExpr("audit.personnel_number_changes")
 	case *auditModels.StaffMasterDataChange:
@@ -131,6 +169,8 @@ func appendQuery(db bun.IDB, event any) (string, *bun.InsertQuery, error) {
 func validateEvent(event any) error {
 	var err error
 	switch value := event.(type) {
+	case *classlist.ClassListEntryChange:
+		err = classListChangeRow(value).Validate()
 	case *auditModels.AttendanceCorrection:
 		err = value.Validate()
 	case *auditModels.AuthEvent:
@@ -160,4 +200,12 @@ func validateEvent(event any) error {
 		return fmt.Errorf("invalid audit event %T: %w", event, err)
 	}
 	return nil
+}
+
+func classListChangeRow(value *classlist.ClassListEntryChange) *auditModels.ClassListEntryChange {
+	row := &auditModels.ClassListEntryChange{EntryID: value.EntryID, Action: value.Action,
+		OldValue: value.OldValue, NewValue: value.NewValue, MatchedStudentID: value.MatchedStudentID,
+		ChangedBy: value.ChangedBy, OccurredAt: value.OccurredAt}
+	row.SetTenantID(value.TenantID)
+	return row
 }

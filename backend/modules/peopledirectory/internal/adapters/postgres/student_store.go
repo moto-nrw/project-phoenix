@@ -87,6 +87,16 @@ func (s *StudentStore) ListByClasses(ctx context.Context, classes []string) ([]d
 	return scanStudents(ctx, &rows, query.OrderExpr(`"student".school_class ASC, "student".id ASC`), "list students by class")
 }
 
+func (s *StudentStore) ListByPersonIDs(ctx context.Context, personIDs []int64) ([]domain.Student, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	rows := []studentRow{}
+	query := withStudentTenant(studentSelect(db, &rows).Where(`"student".person_id IN (?)`, bun.List(personIDs)), tenantID)
+	return scanStudents(ctx, &rows, query.OrderExpr(`"student".id ASC`), "list students by person")
+}
+
 func (s *StudentStore) ListEnrolled(ctx context.Context) ([]domain.Student, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {

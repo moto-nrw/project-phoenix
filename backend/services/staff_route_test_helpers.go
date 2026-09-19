@@ -4,16 +4,16 @@ import (
 	"log/slog"
 	"time"
 
+	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
-	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -31,8 +31,8 @@ func newStaffIdentityForTests(db *bun.DB) (usercontext.UserContextService, repos
 }
 
 type AbsenceTypeTestModule struct {
-	StaffAbsenceType active.StaffAbsenceTypeService
-	UserContext      usercontext.UserContextService
+	Catalog     workforce.Capability
+	UserContext usercontext.UserContextService
 }
 
 func NewAbsenceTypeTestModule(db *bun.DB) (AbsenceTypeTestModule, error) {
@@ -40,13 +40,7 @@ func NewAbsenceTypeTestModule(db *bun.DB) (AbsenceTypeTestModule, error) {
 	if err != nil {
 		return AbsenceTypeTestModule{}, err
 	}
-	repos := repositories.NewAbsenceTypeTestRepositories(db)
-	types := active.NewStaffAbsenceTypeService(repos.Types, slog.Default())
-	types.(interface {
-		SetAllowanceRepositories(activeModels.StaffAbsenceTypeAllowanceRepository,
-			activeModels.StaffAbsenceTypeAllowanceChangeRepository, activeModels.StaffAbsenceRepository)
-	}).SetAllowanceRepositories(repos.Allowances, repos.Changes, repos.Absences)
-	return AbsenceTypeTestModule{StaffAbsenceType: types, UserContext: identity}, nil
+	return AbsenceTypeTestModule{Catalog: repositories.NewAbsenceTypeTestCapability(db), UserContext: identity}, nil
 }
 
 type BirthdayTestModule struct {
@@ -73,7 +67,7 @@ func NewBirthdayTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() 
 }
 
 type ShiftTypeTestModule struct {
-	ShiftTypes   schedule.ShiftTypeService
+	ShiftTypes   shiftplanning.ShiftTypeService
 	Activities   activities.ActivityService
 	Repositories repositories.ShiftTypeTestRepositories
 }
@@ -85,7 +79,7 @@ func NewShiftTypeTestModule(db *bun.DB) (ShiftTypeTestModule, error) {
 		return ShiftTypeTestModule{}, err
 	}
 	return ShiftTypeTestModule{
-		ShiftTypes: schedule.NewShiftTypeService(repos.Types, slog.Default()), Activities: linker, Repositories: repos,
+		ShiftTypes: shiftplanning.NewShiftTypeService(repos.Types, slog.Default()), Activities: linker, Repositories: repos,
 	}, nil
 }
 

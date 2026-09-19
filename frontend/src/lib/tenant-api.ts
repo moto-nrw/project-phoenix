@@ -64,9 +64,10 @@ export interface TenantInfo {
   messagingEnabled: boolean;
   /**
    * Whether the OGS-internal Team-Chat is switched on for this school
-   * (operations.staff_messaging_enabled, #2598). Defaults to FALSE: an
-   * internal staff channel must never appear at a school that did not ask for
-   * it, so a missing flag hides the whole area rather than showing it.
+   * (operations.staff_messaging_enabled, #2598). The registry default is ON
+   * (opt-out since #3254), but a missing flag still maps to FALSE: an internal
+   * staff channel must never appear at a school that switched it off, so a
+   * missing flag hides the whole area rather than showing it.
    */
   staffMessagingEnabled: boolean;
   /**

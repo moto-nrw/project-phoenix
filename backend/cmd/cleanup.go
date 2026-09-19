@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -10,7 +11,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/cobra"
@@ -467,11 +469,13 @@ func runCleanupTokens(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
+// countExpiredTokens previews the cleanup through the Identity & Access
+// owner; the CLI does not read auth.tokens itself (#2720).
 func countExpiredTokens(ctx *cleanupContext) (int, error) {
-	return ctx.DB.NewSelect().
-		TableExpr("auth.tokens").
-		Where("expiry < ?", time.Now()).
-		Count(context.Background())
+	if ctx.AuthCleanupService == nil {
+		return 0, errors.New("auth cleanup service is not available")
+	}
+	return ctx.AuthCleanupService.CountExpiredTokens(context.Background())
 }
 
 func runCleanupInvitations(cmd *cobra.Command, _ []string) error {
@@ -637,13 +641,13 @@ func runAbandonedSessionCleanup(ctx *cleanupContext, threshold time.Duration, dr
 		return nil
 	}
 
-	count, err := ctx.SessionCleanupService.CleanupAbandonedSessions(context.Background(), threshold)
-	if err != nil {
-		return fmt.Errorf("abandoned session cleanup failed: %w", err)
-	}
-
-	printAbandonedSessionSummary(ctx.output(), threshold, count)
-	return nil
+	return forEachPresenceTenant(ctx, "abandoned session cleanup", func(txCtx context.Context, _ int64) (func(), error) {
+		count, err := ctx.SessionCleanupService.CleanupAbandonedSessions(txCtx, threshold)
+		if err != nil {
+			return nil, fmt.Errorf("abandoned session cleanup failed: %w", err)
+		}
+		return func() { printAbandonedSessionSummary(ctx.output(), threshold, count) }, nil
+	})
 }
 
 func printAbandonedSessionSummary(output io.Writer, threshold time.Duration, count int) {
@@ -659,13 +663,16 @@ func runDailySessionCleanup(ctx *cleanupContext, dryRun bool, verbose bool) erro
 		return nil
 	}
 
-	result, err := ctx.SessionCleanupService.EndDailySessions(context.Background())
-	if err != nil {
-		return fmt.Errorf("daily session cleanup failed: %w", err)
-	}
-
-	printDailySessionSummary(ctx.output(), result, verbose)
-	return nil
+	return forEachPresenceTenant(ctx, "daily session cleanup", func(txCtx context.Context, _ int64) (func(), error) {
+		result, err := ctx.SessionCleanupService.EndDailySessions(txCtx)
+		if err != nil {
+			return nil, fmt.Errorf("daily session cleanup failed: %w", err)
+		}
+		if !result.Success {
+			return nil, fmt.Errorf("daily session cleanup failed: %v", result.Errors)
+		}
+		return func() { printDailySessionSummary(ctx.output(), result, verbose) }, nil
+	})
 }
 
 func printDailySessionSummary(output io.Writer, result *active.DailySessionCleanupResult, verbose bool) {
@@ -697,19 +704,19 @@ func runCleanupSupervisors(cmd *cobra.Command, _ []string) error {
 func runSupervisorsDryRun(ctx *cleanupContext, verbose bool) error {
 	mustFprintln(ctx.output(), "DRY RUN MODE - No data will be modified")
 
-	preview, err := ctx.CleanupService.PreviewSupervisorCleanup(context.Background())
-	if err != nil {
-		return fmt.Errorf("failed to preview supervisor cleanup: %w", err)
-	}
-
-	printSupervisorPreviewHeader(ctx.output(), preview)
-
-	if verbose {
-		printStaffBreakdown(ctx.output(), "Per-staff breakdown", "Stale Records", preview.StaffRecords)
-		printDateBreakdown(ctx.output(), preview.RecordsByDate)
-	}
-
-	return nil
+	return forEachPresenceTenant(ctx, "supervisor cleanup preview", func(txCtx context.Context, _ int64) (func(), error) {
+		preview, err := ctx.CleanupService.PreviewSupervisorCleanup(txCtx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to preview supervisor cleanup: %w", err)
+		}
+		return func() {
+			printSupervisorPreviewHeader(ctx.output(), preview)
+			if verbose {
+				printStaffBreakdown(ctx.output(), "Per-staff breakdown", "Stale Records", preview.StaffRecords)
+				printDateBreakdown(ctx.output(), preview.RecordsByDate)
+			}
+		}, nil
+	})
 }
 
 func printSupervisorPreviewHeader(output io.Writer, preview *active.SupervisorCleanupPreview) {
@@ -726,13 +733,16 @@ func printSupervisorPreviewHeader(output io.Writer, preview *active.SupervisorCl
 }
 
 func runSupervisorsCleanup(ctx *cleanupContext, verbose bool) error {
-	result, err := ctx.CleanupService.CleanupStaleSupervisors(context.Background())
-	if err != nil {
-		return fmt.Errorf("supervisor cleanup failed: %w", err)
-	}
-
-	printSupervisorCleanupSummary(ctx.output(), result, verbose)
-	return nil
+	return forEachPresenceTenant(ctx, "supervisor cleanup", func(txCtx context.Context, _ int64) (func(), error) {
+		result, err := ctx.CleanupService.CleanupStaleSupervisors(txCtx)
+		if err != nil {
+			return nil, fmt.Errorf("supervisor cleanup failed: %w", err)
+		}
+		if !result.Success {
+			return nil, fmt.Errorf("supervisor cleanup failed: %v", result.Errors)
+		}
+		return func() { printSupervisorCleanupSummary(ctx.output(), result, verbose) }, nil
+	})
 }
 
 func printSupervisorCleanupSummary(output io.Writer, result *active.SupervisorCleanupResult, verbose bool) {
@@ -1098,13 +1108,13 @@ func forEachTenantTimeTrackingStats(cc *cleanupContext) error {
 	return nil
 }
 
-func printTimeTrackingCleanupLine(output io.Writer, tenantID int64, r *active.TimeTrackingCleanupResult) {
+func printTimeTrackingCleanupLine(output io.Writer, tenantID int64, r *services.TimeTrackingCleanupResult) {
 	mustFprintf(output, "[tenant %d] sessions=%d absences=%d staff=%d retention=%dd cutoff=%s duration_ms=%d\n",
 		tenantID, r.SessionsDeleted, r.AbsencesDeleted, r.StaffAffected,
 		r.RetentionDays, r.CutoffDate.Format(dateFormat), r.DurationMS)
 }
 
-func printTimeTrackingPreviewLine(output io.Writer, tenantID int64, p *active.TimeTrackingCleanupPreview) {
+func printTimeTrackingPreviewLine(output io.Writer, tenantID int64, p *services.TimeTrackingCleanupPreview) {
 	mustFprintf(output, "[tenant %d] would-delete sessions=%d absences=%d staff=%d retention=%dd cutoff=%s",
 		tenantID, p.SessionsToDelete, p.AbsencesToDelete, p.StaffAffected,
 		p.RetentionDays, p.CutoffDate.Format(dateFormat))
@@ -1117,7 +1127,7 @@ func printTimeTrackingPreviewLine(output io.Writer, tenantID int64, p *active.Ti
 	mustFprintln(output)
 }
 
-func printTimeTrackingStatsLine(output io.Writer, tenantID int64, s *active.TimeTrackingCleanupStats) {
+func printTimeTrackingStatsLine(output io.Writer, tenantID int64, s *services.TimeTrackingCleanupStats) {
 	mustFprintf(output, "[tenant %d] sessions_total=%d absences_total=%d retention=%dd cutoff=%s",
 		tenantID, s.TotalSessions, s.TotalAbsences,
 		s.RetentionDays, s.CutoffDate.Format(dateFormat))

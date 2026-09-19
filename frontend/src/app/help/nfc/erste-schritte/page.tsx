@@ -65,9 +65,9 @@ export default function NfcQuickstartPage() {
       <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-8 print:block print:w-[210mm]">
         <OnepagerHeader pdf={quickstartPdf} />
         <section className="relative mx-auto flex min-h-[297mm] w-full max-w-[210mm] flex-col overflow-hidden rounded-[28px] print:h-[296mm] print:min-h-0 print:w-[210mm]">
-          <header className="relative overflow-hidden rounded-[28px] bg-[#17231F] text-white">
+          <header className="relative overflow-hidden rounded-[28px] bg-gray-900 text-white">
             <div
-              className="absolute right-0 bottom-0 hidden h-full w-[42%] bg-[#F3F4F6] sm:block"
+              className="absolute right-0 bottom-0 hidden h-full w-[42%] bg-gray-100 sm:block"
               aria-hidden="true"
             />
             <div className="relative grid min-h-[168px] grid-cols-1 gap-5 px-6 pt-7 pb-7 sm:grid-cols-[1fr_240px] sm:gap-7 sm:px-8 md:grid-cols-[1fr_290px] md:gap-8 md:px-10 md:pt-9 md:pb-8 print:min-h-[142px] print:grid-cols-[1fr_240px] print:px-8 print:pt-6 print:pb-6">
@@ -111,7 +111,7 @@ export default function NfcQuickstartPage() {
           <div className="flex flex-1 flex-col px-10 py-9 print:px-8 print:py-6">
             <div className="relative grid gap-4 print:gap-3">
               <div
-                className="absolute top-10 bottom-10 left-1/2 hidden w-[2px] -translate-x-1/2 rounded-full bg-[#CBD5E1] md:block print:block"
+                className="absolute top-10 bottom-10 left-1/2 hidden w-[2px] -translate-x-1/2 rounded-full bg-gray-300 md:block print:block"
                 aria-hidden="true"
               />
               {steps.map((step, index) => {
@@ -126,7 +126,7 @@ export default function NfcQuickstartPage() {
                   >
                     <span
                       className={[
-                        "flex h-8 w-9 items-center justify-center bg-[#17231F] text-sm font-bold text-white print:h-7 print:w-8 print:text-xs",
+                        "flex h-8 w-9 items-center justify-center bg-gray-900 text-sm font-bold text-white print:h-7 print:w-8 print:text-xs",
                         isRight
                           ? "order-2 [clip-path:polygon(0_0,100%_0,100%_100%,0_100%,18%_50%)]"
                           : "order-1 [clip-path:polygon(0_0,100%_0,82%_50%,100%_100%,0_100%)]",

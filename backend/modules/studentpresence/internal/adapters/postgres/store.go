@@ -45,6 +45,23 @@ func (s *Store) ListOpenPresence(ctx context.Context, ids []int64) ([]int64, por
 	return result, stats, nil
 }
 
+// LockGroupSupervisions takes a table-level SHARE ROW EXCLUSIVE lock on
+// active.group_supervisors: unlike the row locks above it also blocks
+// inserts, which is what a caregiver capability re-check needs.
+func (s *Store) LockGroupSupervisions(ctx context.Context) (ports.Stats, error) {
+	db, _, err := s.database(ctx)
+	if err != nil {
+		return ports.Stats{}, err
+	}
+	started := time.Now()
+	_, err = db.ExecContext(ctx, "LOCK TABLE active.group_supervisors IN SHARE ROW EXCLUSIVE MODE")
+	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
+	if err != nil {
+		return stats, fmt.Errorf("lock group supervisions: %w", err)
+	}
+	return stats, nil
+}
+
 func (s *Store) LockOpenVisits(ctx context.Context, groupID int64) (ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
@@ -159,6 +176,24 @@ func (s *Store) CountAttendanceRecords(ctx context.Context, studentID int64) (in
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return 0, stats, fmt.Errorf("count attendance records: %w", err)
+	}
+	return count, stats, nil
+}
+
+// CountStudentVisitsForDeletion calls the SECURITY DEFINER function that
+// counts a child's visits across hosting tenants. The function verifies that
+// the child belongs to the calling tenant before it bypasses RLS.
+func (s *Store) CountStudentVisitsForDeletion(ctx context.Context, studentID int64) (int, ports.Stats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return 0, ports.Stats{}, err
+	}
+	started := time.Now()
+	var count int
+	err = db.NewRaw(`SELECT active.count_student_visits_for_deletion(?, ?)::int`, tenantID, studentID).Scan(ctx, &count)
+	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
+	if err != nil {
+		return 0, stats, fmt.Errorf("count student visits for deletion: %w", err)
 	}
 	return count, stats, nil
 }

@@ -7,7 +7,6 @@ import (
 	"sort"
 	"time"
 
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
@@ -161,54 +160,11 @@ func (f *Factory) bindCarePlanAdapters(capability careplan.Capability) {
 	if repository, ok := f.CareExit.(*usersRepo.CareExitRepository); ok {
 		repository.BindCarePlan(careExitDirectory{capability: capability})
 	}
-	if repository, ok := f.StudentDeletion.(*usersRepo.StudentDeletionRepository); ok {
-		repository.BindCarePlan(studentDeletionCarePlanDirectory{capability: capability})
-	}
 	if repository, ok := f.InstanceStudent.(interface {
 		BindCarePlan(scheduleRepo.PickupExceptionDirectory)
 	}); ok {
 		repository.BindCarePlan(pickupExceptionDirectory{query: capability})
 	}
-	if repository, ok := f.Statistics.(*activeRepo.StatisticsRepository); ok {
-		repository.BindCarePlan(statisticsCarePlanDirectory{query: capability})
-	}
-}
-
-type statisticsCarePlanDirectory struct {
-	query careplan.StudentStatusDaysQuery
-}
-
-func (d statisticsCarePlanDirectory) ListStatusDaySummaries(ctx context.Context, from, to string) ([]activeRepo.StatusDaySummary, error) {
-	values, err := d.query.ListStatusDaySummaries(ctx, careplan.Date(from), careplan.Date(to))
-	if err != nil {
-		return nil, err
-	}
-	result := make([]activeRepo.StatusDaySummary, 0, len(values))
-	for _, value := range values {
-		result = append(result, activeRepo.StatusDaySummary{StudentID: value.StudentID, Date: value.Date.String(), Status: value.Status})
-	}
-	return result, nil
-}
-
-type studentDeletionCarePlanDirectory struct{ capability careplan.Capability }
-
-func (d studentDeletionCarePlanDirectory) CountCompanionLinks(ctx context.Context, studentID int64) (int, error) {
-	return d.capability.CountCompanionLinks(ctx, studentID)
-}
-
-func (d studentDeletionCarePlanDirectory) CountStudentScheduleRows(ctx context.Context, studentID int64) (int, error) {
-	return d.capability.CountStudentScheduleRows(ctx, studentID)
-}
-
-func (d studentDeletionCarePlanDirectory) CountCarePlanDeletionRecords(ctx context.Context, studentID int64) (usersRepo.CarePlanDeletionCounts, error) {
-	counts, err := d.capability.CountCarePlanDeletionRecords(ctx, studentID)
-	if err != nil {
-		return usersRepo.CarePlanDeletionCounts{}, err
-	}
-	return usersRepo.CarePlanDeletionCounts{
-		StatusDays: counts.StatusDays, ExcusedRequests: counts.ExcusedRequests,
-		CareRequests: counts.CareRequests, DataRequests: counts.DataRequests,
-	}, nil
 }
 
 type pickupExceptionDirectory struct {

@@ -1,17 +1,31 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { SchulhofNotSupervisingView } from "./states";
+import { SchulhofSuperviseButton } from "./states";
 
-describe("SchulhofNotSupervisingView", () => {
-  it("keeps an empty-yard weekend start visible and explains why it is blocked", () => {
+describe("SchulhofSuperviseButton", () => {
+  it("takes the Schulhof supervision on click", () => {
+    const onToggle = vi.fn();
+    render(<SchulhofSuperviseButton isToggling={false} onToggle={onToggle} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Beaufsichtigen" }));
+
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it("stays disabled while the supervision is being taken", () => {
+    render(<SchulhofSuperviseButton isToggling onToggle={vi.fn()} />);
+
+    expect(
+      screen.getByRole("button", { name: "Wird übernommen…" }),
+    ).toBeDisabled();
+  });
+
+  it("is disabled when the action is blocked", () => {
     render(
-      <SchulhofNotSupervisingView
-        supervisorCount={0}
-        supervisorNames={[]}
+      <SchulhofSuperviseButton
         isToggling={false}
-        startDisabled
-        startDisabledReason="Spontane Aktivitäten sind nur montags bis freitags möglich."
+        disabled
         onToggle={vi.fn()}
       />,
     );
@@ -19,10 +33,5 @@ describe("SchulhofNotSupervisingView", () => {
     expect(
       screen.getByRole("button", { name: "Beaufsichtigen" }),
     ).toBeDisabled();
-    expect(
-      screen.getByText(
-        "Spontane Aktivitäten sind nur montags bis freitags möglich.",
-      ),
-    ).toBeInTheDocument();
   });
 });

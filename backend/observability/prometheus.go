@@ -341,6 +341,26 @@ var (
 		prometheus.HistogramOpts{Name: "phoenix_facilities_statement_duration_seconds", Help: "Cumulative Facilities database-statement duration by operation.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
 		[]string{"operation"},
 	)
+	fileStorageOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_file_storage_operations_total", Help: "File Storage operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	fileStorageDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_file_storage_operation_duration_seconds", Help: "File Storage operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5}},
+		[]string{"operation"},
+	)
+	fileStorageQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_file_storage_queries_total", Help: "Persistence queries issued by File Storage operations."},
+		[]string{"operation"},
+	)
+	fileStorageRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_file_storage_rows_total", Help: "Rows returned or changed by File Storage operations."},
+		[]string{"operation"},
+	)
+	fileStorageStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_file_storage_statement_duration_seconds", Help: "Cumulative File Storage database-statement duration by operation.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
 	deviceFleetOperations = prometheus.NewCounterVec(
 		prometheus.CounterOpts{Name: "phoenix_device_fleet_operations_total", Help: "Device Fleet operations by operation, outcome, and stable error code."},
 		[]string{"operation", "outcome", "code"},
@@ -424,6 +444,38 @@ var (
 	workforceStatementDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{Name: "phoenix_workforce_statement_duration_seconds", Help: "Cumulative Workforce work-time database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
 		[]string{"operation"},
+	)
+	dataImportRuns = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_data_import_runs_total", Help: "Data Import runs by entity and mode (preview or import)."},
+		[]string{"entity", "mode"},
+	)
+	dataImportRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_data_import_rows_total", Help: "Data Import rows by entity, mode and outcome (parsed, accepted, rejected, created, updated)."},
+		[]string{"entity", "mode", "outcome"},
+	)
+	dataImportDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_data_import_duration_seconds", Help: "Data Import run duration by entity and mode.", Buckets: []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30}},
+		[]string{"entity", "mode"},
+	)
+	dataImportBatches = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_data_import_batches_total", Help: "Data Import batches committed or retried and deadlocks observed."},
+		[]string{"entity", "outcome"},
+	)
+	dataImportCheckpointLag = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_data_import_checkpoint_lag_rows", Help: "Rows remaining after the last durable checkpoint when an import request finishes.", Buckets: []float64{0, 1, 10, 100, 1000, 10000, 100000}},
+		[]string{"entity"},
+	)
+	dataImportWait = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_data_import_wait_seconds", Help: "Cumulative UnitOfWork pool and lock waits per import request.", Buckets: []float64{0.0001, 0.001, 0.01, 0.1, 1, 5, 30}},
+		[]string{"entity", "kind"},
+	)
+	dataImportCommands = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_data_import_owner_commands_total", Help: "Owner command attempts made by Data Import, including rolled-back attempts."},
+		[]string{"entity", "owner", "operation", "outcome"},
+	)
+	dataImportCommandDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_data_import_owner_command_duration_seconds", Help: "Owner command latency during Data Import.", Buckets: []float64{0.0001, 0.001, 0.01, 0.1, 1, 5, 30}},
+		[]string{"entity", "owner", "operation"},
 	)
 	appointmentsOperations = prometheus.NewCounterVec(
 		prometheus.CounterOpts{Name: "phoenix_appointments_operations_total", Help: "Appointments operations by operation, outcome, and stable error code."},
@@ -768,6 +820,11 @@ func init() {
 		facilitiesQueries,
 		facilitiesRows,
 		facilitiesStatementDuration,
+		fileStorageOperations,
+		fileStorageDuration,
+		fileStorageQueries,
+		fileStorageRows,
+		fileStorageStatementDuration,
 		deviceFleetOperations,
 		deviceFleetDuration,
 		deviceFleetQueries,
@@ -789,6 +846,14 @@ func init() {
 		workforceQueries,
 		workforceRows,
 		workforceStatementDuration,
+		dataImportRuns,
+		dataImportRows,
+		dataImportDuration,
+		dataImportBatches,
+		dataImportCheckpointLag,
+		dataImportWait,
+		dataImportCommands,
+		dataImportCommandDuration,
 		appointmentsOperations,
 		appointmentsDuration,
 		appointmentsQueries,
@@ -1087,6 +1152,29 @@ func ObserveFacilitiesOperation(operation string, duration time.Duration, querie
 	}
 }
 
+// ObserveFileStorageOperation records one File Storage operation: its
+// outcome, duration, statement count, rows, and statement duration (#2707).
+func ObserveFileStorageOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	fileStorageOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	fileStorageDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		fileStorageQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		fileStorageRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		fileStorageStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
 // ObserveDeviceFleetOperation records one Device Fleet operation: its
 // outcome, duration, statement count, affected rows, and statement duration.
 func ObserveDeviceFleetOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
@@ -1177,6 +1265,47 @@ func ObserveWorkforceOperation(operation string, duration time.Duration, queries
 	if statementDuration > 0 {
 		workforceStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
 	}
+}
+
+// ObserveDataImport records one Data Import run (#2708): rows parsed,
+// accepted, rejected, created and updated plus the run duration, by entity
+// and mode. It carries no personal data.
+func ObserveDataImport(entity string, dryRun bool, rows, accepted, rejected, created, updated int, duration time.Duration) {
+	entity = sanitizeLabel(entity)
+	mode := "import"
+	if dryRun {
+		mode = "preview"
+	}
+	dataImportRuns.WithLabelValues(entity, mode).Inc()
+	for outcome, count := range map[string]int{"parsed": rows, "accepted": accepted, "rejected": rejected, "created": created, "updated": updated} {
+		if count > 0 {
+			dataImportRows.WithLabelValues(entity, mode, outcome).Add(float64(count))
+		}
+	}
+	dataImportDuration.WithLabelValues(entity, mode).Observe(duration.Seconds())
+}
+
+// ObserveDataImportRuntime contains no upload, tenant, account or row labels.
+func ObserveDataImportRuntime(entity string, committed, retried, lag, deadlocks int, poolWait, lockWait time.Duration) {
+	entity = sanitizeLabel(entity)
+	for outcome, count := range map[string]int{"committed": committed, "retried": retried, "deadlock": deadlocks} {
+		if count > 0 {
+			dataImportBatches.WithLabelValues(entity, outcome).Add(float64(count))
+		}
+	}
+	dataImportCheckpointLag.WithLabelValues(entity).Observe(float64(lag))
+	dataImportWait.WithLabelValues(entity, "pool").Observe(poolWait.Seconds())
+	dataImportWait.WithLabelValues(entity, "lock").Observe(lockWait.Seconds())
+}
+
+func ObserveDataImportCommand(entity, owner, operation string, duration time.Duration, failed bool) {
+	entity, owner, operation = sanitizeLabel(entity), sanitizeLabel(owner), sanitizeLabel(operation)
+	outcome := "success"
+	if failed {
+		outcome = "error"
+	}
+	dataImportCommands.WithLabelValues(entity, owner, operation, outcome).Inc()
+	dataImportCommandDuration.WithLabelValues(entity, owner, operation).Observe(duration.Seconds())
 }
 
 func ObserveAppointmentsOperation(operation string, duration time.Duration, queries, rows, duplicatePreventionConflicts int64, statementDuration time.Duration, code string, err error) {

@@ -3,10 +3,11 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
+	"log/slog"
 
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 )
 
 // capabilityError reports a Workforce sentinel through errors.Is while keeping
@@ -21,101 +22,104 @@ func (e *capabilityError) Error() string        { return e.cause.Error() }
 func (e *capabilityError) Is(target error) bool { return target == e.kind }
 func (e *capabilityError) Unwrap() error        { return e.cause }
 
-// absenceTypeAdministration serves workforce.AbsenceTypeAdministration from
-// the retained staff absence type service while that service's own move into
-// the Workforce module is pending (#2688).
-type absenceTypeAdministration struct {
-	service active.StaffAbsenceTypeService
+type absenceTypeCatalog interface {
+	SetAllowance(context.Context, workforce.SetAbsenceTypeAllowance) (workforce.AbsenceTypeAllowanceSummary, error)
+	AllowanceSummary(ctx context.Context, staffID, absenceTypeID int64, year int) (workforce.AbsenceTypeAllowanceSummary, error)
+	ListStaffAbsenceTypes(context.Context) ([]workforce.StaffAbsenceType, error)
+	CreateAbsenceType(context.Context, workforce.CreateAbsenceType) (workforce.StaffAbsenceType, error)
+	UpdateAbsenceType(context.Context, workforce.UpdateAbsenceType) (workforce.StaffAbsenceType, error)
 }
 
-// AbsenceTypeAdministration binds the /api/absence-types capability to the
-// staff absence type service.
-func AbsenceTypeAdministration(service active.StaffAbsenceTypeService) workforce.AbsenceTypeAdministration {
-	if service == nil {
-		panic("absence type administration: staff absence type service is required")
+// absenceTypeAdministration adapts native Workforce results to the retained
+// HTTP wording and success logs; it invokes no legacy service.
+type absenceTypeAdministration struct {
+	catalog absenceTypeCatalog
+	logger  *slog.Logger
+}
+
+// AbsenceTypeAdministration binds Workforce to /api/absence-types.
+func AbsenceTypeAdministration(catalog absenceTypeCatalog, logger *slog.Logger) workforce.AbsenceTypeAdministration {
+	if catalog == nil || logger == nil {
+		panic("absence type administration: all dependencies are required")
 	}
-	return absenceTypeAdministration{service: service}
+	return absenceTypeAdministration{catalog: catalog, logger: logger}
 }
 
 func (a absenceTypeAdministration) ListAbsenceTypes(ctx context.Context) ([]workforce.StaffAbsenceType, error) {
-	types, err := a.service.ListAbsenceTypes(ctx)
+	types, err := a.catalog.ListStaffAbsenceTypes(ctx)
 	if err != nil {
-		return nil, mapAbsenceTypeError(err)
+		return nil, mapAbsenceTypeError(fmt.Errorf("database error during list all staff absence types: %w", err))
 	}
-	result := make([]workforce.StaffAbsenceType, 0, len(types))
-	for _, value := range types {
-		if value == nil {
-			continue
-		}
-		result = append(result, absenceTypeToCapability(value))
+	if types == nil {
+		return []workforce.StaffAbsenceType{}, nil
 	}
-	return result, nil
+	return types, nil
 }
 
 func (a absenceTypeAdministration) CreateAbsenceType(ctx context.Context, input workforce.CreateAbsenceType) (workforce.StaffAbsenceType, error) {
-	created, err := a.service.CreateAbsenceTypeWithConfig(ctx, input.Name, input.AllowanceEnabled, input.OverrunPolicy)
+	created, err := a.catalog.CreateAbsenceType(ctx, input)
 	if err != nil {
-		return workforce.StaffAbsenceType{}, mapAbsenceTypeError(err)
+		return workforce.StaffAbsenceType{}, mapNativeAbsenceTypeError(err)
 	}
-	return absenceTypeToCapability(created), nil
+	a.logger.Info("staff absence type created", "absence_type_id", created.ID)
+	return created, nil
 }
 
 func (a absenceTypeAdministration) UpdateAbsenceType(ctx context.Context, input workforce.UpdateAbsenceType) (workforce.StaffAbsenceType, error) {
-	updated, err := a.service.UpdateAbsenceTypeWithConfig(ctx, input.ID, input.Name, input.IsActive, input.AllowanceEnabled, input.OverrunPolicy)
+	updated, err := a.catalog.UpdateAbsenceType(ctx, input)
 	if err != nil {
-		return workforce.StaffAbsenceType{}, mapAbsenceTypeError(err)
+		return workforce.StaffAbsenceType{}, mapNativeAbsenceTypeError(err)
 	}
-	return absenceTypeToCapability(updated), nil
+	a.logger.Info("staff absence type updated",
+		"absence_type_id", updated.ID,
+		"is_active", updated.IsActive,
+	)
+	return updated, nil
 }
 
 func (a absenceTypeAdministration) AllowanceSummary(ctx context.Context, staffID, absenceTypeID int64, year int) (workforce.AbsenceTypeAllowanceSummary, error) {
-	summary, err := a.service.GetAllowanceSummary(ctx, staffID, absenceTypeID, year)
+	summary, err := a.catalog.AllowanceSummary(ctx, staffID, absenceTypeID, year)
 	if err != nil {
-		return workforce.AbsenceTypeAllowanceSummary{}, mapAbsenceTypeError(err)
+		return workforce.AbsenceTypeAllowanceSummary{}, mapNativeAbsenceTypeError(err)
 	}
-	return allowanceSummaryToCapability(summary), nil
+	return summary, nil
 }
 
 func (a absenceTypeAdministration) SetAllowance(ctx context.Context, input workforce.SetAbsenceTypeAllowance) (workforce.AbsenceTypeAllowanceSummary, error) {
-	summary, err := a.service.SetAllowance(ctx, active.SetAbsenceTypeAllowanceRequest{
-		StaffID: input.StaffID, AbsenceTypeID: input.AbsenceTypeID, Year: input.Year,
-		EntitledDays: input.EntitledDays, Reason: input.Reason, ChangedBy: input.ChangedBy,
-	})
+	summary, err := a.catalog.SetAllowance(ctx, input)
 	if err != nil {
-		return workforce.AbsenceTypeAllowanceSummary{}, mapAbsenceTypeError(err)
+		return workforce.AbsenceTypeAllowanceSummary{}, mapNativeAbsenceTypeError(err)
 	}
-	return allowanceSummaryToCapability(summary), nil
+	return summary, nil
 }
 
-func absenceTypeToCapability(value *activeModels.StaffAbsenceType) workforce.StaffAbsenceType {
-	return workforce.StaffAbsenceType{
-		ID: value.ID, TenantID: value.TenantID, Name: value.Name, BaseType: value.BaseType, IsActive: value.IsActive,
-		AllowanceEnabled: value.AllowanceEnabled, OverrunPolicy: value.OverrunPolicy, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+func mapNativeAbsenceTypeError(err error) error {
+	if validation, ok := errors.AsType[*workforce.InvalidAbsenceAllowanceError](err); ok {
+		return mapAbsenceTypeError(fmt.Errorf("%w: %s", timetracking.ErrAbsenceTypeAllowanceInvalid, validation.Reason))
 	}
-}
-
-func allowanceSummaryToCapability(summary *active.AbsenceTypeAllowanceSummary) workforce.AbsenceTypeAllowanceSummary {
-	if summary == nil {
-		return workforce.AbsenceTypeAllowanceSummary{}
+	if errors.Is(err, workforce.ErrAbsenceTypeInvalid) {
+		return mapAbsenceTypeError(fmt.Errorf("%w: %s", timetracking.ErrAbsenceTypeInvalid, err.Error()))
 	}
-	return workforce.AbsenceTypeAllowanceSummary{
-		StaffID: summary.StaffID, AbsenceTypeID: summary.AbsenceTypeID, Year: summary.Year,
-		EntitledDays: summary.EntitledDays, TakenDays: summary.TakenDays, ReservedDays: summary.ReservedDays, RemainingDays: summary.RemainingDays,
+	for _, kind := range absenceTypeErrorKinds {
+		if errors.Is(err, kind.capability) {
+			return mapAbsenceTypeError(kind.service)
+		}
 	}
+	return err
 }
 
 var absenceTypeErrorKinds = []struct {
 	service    error
 	capability error
 }{
-	{active.ErrAbsenceTypeNameTaken, workforce.ErrAbsenceTypeNameTaken},
-	{active.ErrAbsenceTypeNameReserved, workforce.ErrAbsenceTypeNameReserved},
-	{active.ErrAbsenceTypeInUse, workforce.ErrAbsenceTypeInUse},
-	{active.ErrAbsenceTypeInactive, workforce.ErrAbsenceTypeInactive},
-	{active.ErrAbsenceTypeNotFound, workforce.ErrAbsenceTypeNotFound},
-	{active.ErrAbsenceTypeInvalid, workforce.ErrAbsenceTypeInvalid},
-	{active.ErrAbsenceTypeAllowanceInvalid, workforce.ErrAbsenceTypeAllowanceInvalid},
-	{active.ErrAbsenceTypeAllowanceExceeded, workforce.ErrAbsenceTypeAllowanceExceeded},
+	{timetracking.ErrAbsenceTypeNameTaken, workforce.ErrAbsenceTypeNameTaken},
+	{timetracking.ErrAbsenceTypeNameReserved, workforce.ErrAbsenceTypeNameReserved},
+	{timetracking.ErrAbsenceTypeInUse, workforce.ErrAbsenceTypeInUse},
+	{timetracking.ErrAbsenceTypeInactive, workforce.ErrAbsenceTypeInactive},
+	{timetracking.ErrAbsenceTypeNotFound, workforce.ErrAbsenceTypeNotFound},
+	{timetracking.ErrAbsenceTypeInvalid, workforce.ErrAbsenceTypeInvalid},
+	{timetracking.ErrAbsenceTypeAllowanceInvalid, workforce.ErrAbsenceTypeAllowanceInvalid},
+	{timetracking.ErrAbsenceTypeAllowanceExceeded, workforce.ErrAbsenceTypeAllowanceExceeded},
 }
 
 func mapAbsenceTypeError(err error) error {

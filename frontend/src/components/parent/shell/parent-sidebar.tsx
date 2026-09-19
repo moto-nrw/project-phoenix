@@ -99,7 +99,7 @@ export function ParentSidebar({ badges, gates, childCount }: ParentNavCounts) {
   return (
     <>
       <aside className="hidden min-h-screen w-64 shrink-0 border-r border-gray-200/70 bg-white/95 lg:block">
-        <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
+        <div className="sticky top-[57px] flex h-[calc(100vh-57px)] flex-col">
           <nav
             aria-label={t("mainNav")}
             className="flex-1 overflow-y-auto p-3 lg:p-4 xl:p-3"

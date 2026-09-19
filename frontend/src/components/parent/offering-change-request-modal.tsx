@@ -8,6 +8,7 @@ import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { Checkbox } from "~/components/ui/checkbox";
+import { Skeleton } from "~/components/ui/skeleton";
 import { RequestSharingSelector } from "~/components/parent/request-sharing-control";
 import { useRequestVersion } from "~/components/parent/request-edit-modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
@@ -370,8 +371,8 @@ export function OfferingChangeRequestModal({
 
           {loading && (
             <div className="space-y-2">
-              <div className="h-16 animate-pulse rounded-xl bg-gray-100" />
-              <div className="h-16 animate-pulse rounded-xl bg-gray-100" />
+              <Skeleton className="h-16 rounded-xl" />
+              <Skeleton className="h-16 rounded-xl" />
             </div>
           )}
 
@@ -418,7 +419,7 @@ export function OfferingChangeRequestModal({
                               </span>
                             )}
                             {full && (
-                              <span className="rounded-full bg-[#FF3130]/10 px-2 py-0.5 text-xs font-medium text-[#CC2626]">
+                              <span className="bg-parent-red-soft text-parent-red-strong rounded-full px-2 py-0.5 text-xs font-medium">
                                 {t("careOfferingsModal.fullBadge")}
                               </span>
                             )}

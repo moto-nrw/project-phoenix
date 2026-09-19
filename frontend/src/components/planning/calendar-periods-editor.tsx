@@ -14,7 +14,7 @@
  */
 
 import { useCallback, useMemo } from "react";
-import { Plus } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 
 import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
 import { Alert } from "~/components/ui/alert";
@@ -26,6 +26,7 @@ import {
 } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
 import {
   type CalendarPeriod,
@@ -221,15 +222,19 @@ export function CalendarPeriodsEditor({
         // Mindestbreite zu geben — der Rest bleibt für den Namen (#2033).
         className: "w-px whitespace-nowrap",
         headerClassName: "w-px",
+        // Zeilenaktionen nur im Kebab der Zeile (BAUARTEN-SPEC Bauart 1
+        // Regel 4), auch wenn es nur eine ist.
         render: (period) => (
-          <Button
-            type="button"
-            variant="ghost"
-            size="compact"
-            onClick={() => beginEdit(period)}
-          >
-            Bearbeiten
-          </Button>
+          <OverflowMenu
+            ariaLabel={`Aktionen für ${period.name}`}
+            items={[
+              {
+                label: "Bearbeiten",
+                icon: <Pencil className="h-4 w-4" aria-hidden />,
+                onClick: () => beginEdit(period),
+              },
+            ]}
+          />
         ),
       },
     ],

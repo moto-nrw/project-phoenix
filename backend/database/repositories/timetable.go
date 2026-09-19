@@ -25,6 +25,11 @@ type TimetableDependencies struct {
 	Calendar   schoolcalendar.Capability
 	Membership schoolmembership.Capability
 	Workforce  workforce.Capability
+	// ObserveIdentityAccess records the Identity & Access operations behind
+	// the retained operator repositories and account lookups (#2720). The
+	// serving root passes its metrics sink; nil composes the module
+	// unobserved, which repository tests and CLI roots use.
+	ObserveIdentityAccess IdentityAccessObserver
 }
 
 func NewUnobservedTimetableDependencies(db *bun.DB) TimetableDependencies {

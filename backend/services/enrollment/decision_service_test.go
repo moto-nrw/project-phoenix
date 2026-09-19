@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+
 	"log/slog"
 	"sync"
 	"testing"
@@ -142,13 +143,14 @@ func newDecisionServiceForTestWithDependencies(
 		careWithdrawal = usersService.NewCareLifecycleService(usersService.CareLifecycleDependencies{
 			StudentRepo: repoFactory.Student, PersonRepo: repoFactory.Person,
 			CareExitRepo: repoFactory.CareExit, CleanupRepo: repoFactory.CareExitCleanup,
-			WithdrawalRepo: repoFactory.CareWithdrawal, TagReleaser: repoFactory.GradeTransition,
+			WithdrawalRepo: repoFactory.CareWithdrawal, TagReleaser: repoFactory.StudentTagReleaser(),
 			AuditService:          usersService.NewStudentAuditService(repoFactory.StudentFieldEdit, slog.Default()),
 			BookingsAuthoritative: testBookingsAuthority(settings),
 			DB:                    env.db, Logger: slog.Default(),
 		})
 	}
 	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
+		Bookings:               requestTestBookingCommands(),
 		Requests:               repoFactory.Enrollment(),
 		Children:               repoFactory.Enrollment(),
 		Guardians:              repoFactory.Enrollment(),
@@ -3899,7 +3901,7 @@ func createChildOfferingLink(
 		ValidUntil:     (*capability.Date)(validUntil),
 	}
 	link.TenantID = testpkg.Tenant(t)
-	require.NoError(t, env.repos.Enrollment().InsertRequestChildOffering(ctx, link))
+	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, link))
 }
 
 // #2185: the staff view and the parent portal must judge "starts later" from

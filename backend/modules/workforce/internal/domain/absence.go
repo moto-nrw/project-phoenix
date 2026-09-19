@@ -23,9 +23,6 @@ const (
 	AbsenceStatusDeclined  = "declined"
 	AbsenceStatusCanceled  = "canceled"
 
-	AbsenceTypeOverrunWarn  = "warn"
-	AbsenceTypeOverrunBlock = "block"
-
 	StaffAbsenceDateStart = "date_start"
 	StaffAbsenceDateEnd   = "date_end"
 
@@ -59,14 +56,18 @@ var AbsenceTypePriority = map[string]int{
 }
 
 var (
-	ErrStaffAbsenceNotFound      = errors.New("staff absence not found")
-	ErrInvalidStaffAbsence       = errors.New("invalid staff absence input")
-	ErrAbsenceTypeNotFound       = errors.New("staff absence type not found")
-	ErrAbsenceTypeNameTaken      = errors.New("staff absence type name is already taken")
-	ErrAbsenceTypeInvalid        = errors.New("invalid staff absence type")
-	ErrGroupSubstitutionNotFound = errors.New("group substitution not found")
-	ErrGroupSubstitutionExists   = errors.New("group substitution already exists")
-	ErrInvalidGroupSubstitution  = errors.New("invalid group substitution input")
+	ErrStaffAbsenceNotFound         = errors.New("staff absence not found")
+	ErrInvalidStaffAbsence          = errors.New("invalid staff absence input")
+	ErrAbsenceTypeNotFound          = errors.New("staff absence type not found")
+	ErrAbsenceTypeNameTaken         = errors.New("staff absence type name is already taken")
+	ErrAbsenceTypeNameReserved      = errors.New("staff absence type name is a standard type")
+	ErrAbsenceTypeInUse             = errors.New("staff absence type is in use")
+	ErrAbsenceTypeAllowanceInvalid  = errors.New("invalid staff absence type allowance")
+	ErrAbsenceTypeAllowanceExceeded = errors.New("staff absence type allowance exceeded")
+	ErrAbsenceTypeInvalid           = errors.New("invalid staff absence type")
+	ErrGroupSubstitutionNotFound    = errors.New("group substitution not found")
+	ErrGroupSubstitutionExists      = errors.New("group substitution already exists")
+	ErrInvalidGroupSubstitution     = errors.New("invalid group substitution input")
 )
 
 // InvalidStaffAbsenceError carries the caller-facing validation reason.
@@ -277,7 +278,6 @@ type StaffAbsenceType struct {
 	BaseType         string
 	IsActive         bool
 	AllowanceEnabled bool
-	OverrunPolicy    string
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 }
@@ -288,12 +288,10 @@ type StaffAbsenceTypeFields struct {
 	BaseType         string
 	IsActive         bool
 	AllowanceEnabled bool
-	OverrunPolicy    string
 }
 
-// Normalize trims the name and defaults the base type and overrun policy,
-// then validates. The German reasons are the established contract of the
-// absence-type route.
+// Normalize trims the name and defaults the base type, then validates. The
+// German reasons are the established contract of the absence-type route.
 func (f *StaffAbsenceTypeFields) Normalize() error {
 	f.Name = strings.TrimSpace(f.Name)
 	if f.Name == "" {
@@ -307,12 +305,6 @@ func (f *StaffAbsenceTypeFields) Normalize() error {
 	}
 	if !slices.Contains(ValidAbsenceTypes, f.BaseType) {
 		return invalidAbsenceType("ungültiger Grundtyp der Abwesenheit")
-	}
-	if f.OverrunPolicy == "" {
-		f.OverrunPolicy = AbsenceTypeOverrunWarn
-	}
-	if f.OverrunPolicy != AbsenceTypeOverrunWarn && f.OverrunPolicy != AbsenceTypeOverrunBlock {
-		return invalidAbsenceType("ungültige Regel bei Überschreitung")
 	}
 	return nil
 }

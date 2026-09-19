@@ -7,11 +7,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -19,11 +21,48 @@ type SessionLifecycle = devicescan.SessionLifecycle
 
 // NewSessionLifecycle binds manual kiosk controls to the retained presence
 // and people services without constructing a legacy service graph.
-func NewSessionLifecycle(active activeSvc.Service, people usersSvc.PersonService, heartbeat application.SessionHeartbeat, mirror application.SessionMirror, logger *slog.Logger) SessionLifecycle {
-	return application.NewSessionLifecycle(lifecycleStore{active: active}, lifecyclePeople{people}, principals{}, heartbeat, mirror, clock{now: time.Now}, logger)
+func NewSessionLifecycle(active activeSvc.Service, presence SupervisionQuery, people usersSvc.PersonService, heartbeat application.SessionHeartbeat, mirror application.SessionMirror, logger *slog.Logger) SessionLifecycle {
+	return application.NewSessionLifecycle(lifecycleStore{active: active, presence: presence}, lifecyclePeople{people}, principals{}, heartbeat, mirror, clock{now: time.Now}, logger)
 }
 
-type lifecycleStore struct{ active activeSvc.Service }
+type SupervisionQuery interface {
+	ActiveSupervisions(context.Context, int64) ([]Supervision, error)
+}
+
+type Supervision struct {
+	StaffID int64
+	Role    string
+	Ended   bool
+}
+
+type nativeSupervisionQuery interface {
+	QueryGroupSupervisions(context.Context, studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error)
+}
+
+func NewSupervisionQuery(source nativeSupervisionQuery) SupervisionQuery {
+	return supervisionQuery{source: source}
+}
+
+type supervisionQuery struct{ source nativeSupervisionQuery }
+
+func (q supervisionQuery) ActiveSupervisions(ctx context.Context, sessionID int64) ([]Supervision, error) {
+	today := timezone.TodayDate()
+	day := today.String()
+	rows, err := q.source.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{sessionID}, ActiveOn: &day})
+	if err != nil {
+		return nil, &activeSvc.ActiveError{Op: "FindSupervisorsByActiveGroupID", Err: activeSvc.ErrDatabaseOperation}
+	}
+	result := make([]Supervision, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, Supervision{StaffID: row.StaffID, Role: row.Role, Ended: supervisionEnded(row.EndDate, today.String())})
+	}
+	return result, nil
+}
+
+type lifecycleStore struct {
+	active   activeSvc.Service
+	presence SupervisionQuery
+}
 
 func lifecycleSession(group *active.Group) application.LifecycleSession {
 	if group == nil {
@@ -40,13 +79,39 @@ func lifecycleSession(group *active.Group) application.LifecycleSession {
 }
 
 func lifecycleSupervisors(rows []*active.GroupSupervisor) []application.LifecycleSupervisor {
+	today := timezone.TodayDate().String()
 	result := make([]application.LifecycleSupervisor, 0, len(rows))
 	for _, row := range rows {
 		if row != nil {
-			result = append(result, application.LifecycleSupervisor{StaffID: row.StaffID, Role: row.Role, Ended: row.EndDate != nil})
+			result = append(result, application.LifecycleSupervisor{StaffID: row.StaffID, Role: row.Role, Ended: supervisionEnded(groupSupervisorEndDate(row.EndDate), today)})
 		}
 	}
 	return result
+}
+
+// supervisionEnded matches ActiveOn: a row is over only when end_date <= today.
+// A planned future end_date is still supervising and must stay on the kiosk roster.
+func supervisionEnded(endDate *string, today string) bool {
+	if endDate == nil {
+		return false
+	}
+	end, err := timezone.ParseDate(*endDate)
+	if err != nil {
+		return false
+	}
+	day, err := timezone.ParseDate(today)
+	if err != nil {
+		return false
+	}
+	return !day.Before(end)
+}
+
+func groupSupervisorEndDate(endDate *timezone.Date) *string {
+	if endDate == nil {
+		return nil
+	}
+	value := endDate.String()
+	return &value
 }
 
 func (s lifecycleStore) Start(ctx context.Context, deviceID int64, command devicescan.StartSessionCommand) (application.LifecycleSession, error) {
@@ -94,8 +159,15 @@ func (s lifecycleStore) Conflict(ctx context.Context, activityID, deviceID int64
 }
 
 func (s lifecycleStore) Supervisors(ctx context.Context, sessionID int64) ([]application.LifecycleSupervisor, error) {
-	rows, err := s.active.FindSupervisorsByActiveGroupID(ctx, sessionID)
-	return lifecycleSupervisors(rows), err
+	rows, err := s.presence.ActiveSupervisions(ctx, sessionID)
+	if err != nil {
+		return []application.LifecycleSupervisor{}, err
+	}
+	result := make([]application.LifecycleSupervisor, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, application.LifecycleSupervisor{StaffID: row.StaffID, Role: row.Role, Ended: row.Ended})
+	}
+	return result, nil
 }
 
 func (s lifecycleStore) ReplaceSupervisors(ctx context.Context, sessionID int64, ids []int64) (application.LifecycleSession, error) {

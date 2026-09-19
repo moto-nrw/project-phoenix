@@ -3,7 +3,6 @@ package users
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -22,6 +21,10 @@ type StaffMessageReadRepository struct {
 	// School Membership owns those rows, so the relation that used to be a
 	// join is injected as a lookup; without one the repository fails closed.
 	staffAccounts StaffAccountsFunc
+	// activeAccounts is the Identity & Access owner query "every active
+	// platform account"; the global account switch is joined through it
+	// instead of reading auth.accounts here (#2720).
+	activeAccounts ActiveAccountQuery
 }
 
 // StaffAccountsFunc returns the login accounts of the live staff members of
@@ -36,9 +39,10 @@ type StaffAccountsFunc func(ctx context.Context) ([]int64, error)
 // explicit queries, mirroring ParentMessageReadRepository.
 //
 // The "is a colleague at this school" relation needs the staff rows School
-// Membership owns, so the caller injects the lookup that resolves them.
-func NewStaffMessageReadRepository(db *bun.DB, staffAccounts StaffAccountsFunc) users.StaffMessageReadRepository {
-	return &StaffMessageReadRepository{db: db, staffAccounts: staffAccounts}
+// Membership owns and the account switch Identity & Access owns, so the
+// caller injects both lookups.
+func NewStaffMessageReadRepository(db *bun.DB, staffAccounts StaffAccountsFunc, activeAccounts ActiveAccountQuery) users.StaffMessageReadRepository {
+	return &StaffMessageReadRepository{db: db, staffAccounts: staffAccounts, activeAccounts: activeAccounts}
 }
 
 // resolveStaffAccounts fails closed: without a resolver nobody is a colleague,
@@ -48,6 +52,16 @@ func (r *StaffMessageReadRepository) resolveStaffAccounts(ctx context.Context) (
 		return nil, &modelBase.DatabaseError{Op: "resolve staff accounts", Err: errors.New("staff account resolver is required")}
 	}
 	return r.staffAccounts(ctx)
+}
+
+// activeAccountFilter narrows a query on auth.account_tenants to accounts
+// whose global switch is on. It fails closed like resolveStaffAccounts: a
+// graph without the owner query addresses nobody.
+func (r *StaffMessageReadRepository) activeAccountFilter(ctx context.Context, query *bun.SelectQuery) (*bun.SelectQuery, error) {
+	if r.activeAccounts == nil {
+		return nil, &modelBase.DatabaseError{Op: "resolve active accounts", Err: errors.New("active account query is required")}
+	}
+	return query.Where(`at.account_id IN (?)`, r.activeAccounts(ctx)), nil
 }
 
 // staffJoin is the "this account belongs to a colleague at this school"
@@ -68,14 +82,13 @@ func (r *StaffMessageReadRepository) resolveStaffAccounts(ctx context.Context) (
 //   - auth.accounts.active is the GLOBAL switch. Account management
 //     (services/auth/account_management.go) deactivates an account there
 //     WITHOUT touching account_tenants, so a per-tenant check alone still lets
-//     a globally disabled account be addressed and keep writing.
+//     a globally disabled account be addressed and keep writing. Identity &
+//     Access owns that table, so activeAccountFilter joins the owner's
+//     active-account query instead of the table.
 const staffJoin = `JOIN users.persons AS "person"
 		ON person.account_id = at.account_id
 		AND person.tenant_id = at.tenant_id
-		AND person.deleted_at IS NULL
-	JOIN auth.accounts AS "account"
-		ON account.id = at.account_id
-		AND account.active = TRUE`
+		AND person.deleted_at IS NULL`
 
 // staffAccountFilter narrows a query on auth.account_tenants to the accounts of
 // the school's live staff. An empty set matches nothing, which is what the
@@ -87,27 +100,31 @@ func staffAccountFilter(query *bun.SelectQuery, staffAccountIDs []int64) *bun.Se
 	return query.Where(`at.account_id IN (?)`, bun.List(staffAccountIDs))
 }
 
-// unreadPredicate is the correctness core of every unread number in this
+// The unread predicate is the correctness core of every unread number in this
 // feature: "message <alias> is strictly after the reader's cursor AND the
 // reader did not write it".
 //
-// It lives in exactly ONE place on purpose. The inbox's per-thread unread_count
-// column, the onlyUnread filter, and the sidebar badge all consume it, so a fix
-// here cannot land in one copy and silently skip the others — which is how an
-// inbox count and a sidebar badge start disagreeing.
+// The three constants below are the SAME predicate over three message aliases
+// (m for the sidebar badge, cm for the inbox's per-thread unread_count column,
+// um for the onlyUnread filter). They are spelled out because the query
+// analyser attributes only constant SQL fragments to their tables; keep the
+// three bodies textually identical apart from the alias, so a fix cannot land
+// in one copy and silently skip the others — which is how an inbox count and a
+// sidebar badge start disagreeing.
 //
 // The comparison is a TUPLE, not two independent tests: clock_timestamp() can
 // stamp two messages with the same created_at, and the message list breaks
 // those ties by id. Comparing the pair keeps a newer timestamp from mixing with
 // an older id and skipping a message out of the unread set. The `?` binds the
 // reader's account id.
-func unreadPredicate(alias string) string {
-	return fmt.Sprintf(
-		`(%[1]s.created_at, %[1]s.id) > (COALESCE(r.last_read_at, '1970-01-01'::timestamptz), COALESCE(r.last_read_message_id, 0))
-		 AND %[1]s.sender_account_id <> ?`,
-		alias,
-	)
-}
+const (
+	unreadPredicateM = `(m.created_at, m.id) > (COALESCE(r.last_read_at, '1970-01-01'::timestamptz), COALESCE(r.last_read_message_id, 0))
+		 AND m.sender_account_id <> ?`
+	unreadPredicateCM = `(cm.created_at, cm.id) > (COALESCE(r.last_read_at, '1970-01-01'::timestamptz), COALESCE(r.last_read_message_id, 0))
+		 AND cm.sender_account_id <> ?`
+	unreadPredicateUM = `(um.created_at, um.id) > (COALESCE(r.last_read_at, '1970-01-01'::timestamptz), COALESCE(r.last_read_message_id, 0))
+		 AND um.sender_account_id <> ?`
+)
 
 // MarkReadUpTo advances the account's cursor in one thread to the supplied
 // composite.
@@ -151,7 +168,7 @@ func (r *StaffMessageReadRepository) UnreadCount(ctx context.Context, accountID 
 			ON p.thread_id = m.thread_id AND p.account_id = ?`, accountID).
 		Join(`LEFT JOIN users.staff_message_reads AS "r"
 			ON r.thread_id = m.thread_id AND r.account_id = ?`, accountID).
-		Where(unreadPredicate("m"), accountID)
+		Where(unreadPredicateM, accountID)
 
 	query = base.WithTenantFilter(ctx, query, "m")
 
@@ -170,12 +187,12 @@ func (r *StaffMessageReadRepository) UnreadCount(ctx context.Context, accountID 
 // the viewer. Threads without any message are skipped — a get-or-create that
 // was never followed by a send must not clutter the inbox.
 func (r *StaffMessageReadRepository) ListInbox(ctx context.Context, accountID int64, onlyUnread bool) ([]*users.StaffInboxThread, error) {
-	unreadSub := fmt.Sprintf(`(
+	const unreadSub = `(
 		SELECT COUNT(*)
 		FROM users.staff_messages cm
 		WHERE cm.thread_id = t.id
-		  AND %s
-	) AS unread_count`, unreadPredicate("cm"))
+		  AND ` + unreadPredicateCM + `
+	) AS unread_count`
 
 	var rows []*users.StaffInboxThread
 	query := base.GetDB(ctx, r.db).NewSelect().
@@ -207,10 +224,10 @@ func (r *StaffMessageReadRepository) ListInbox(ctx context.Context, accountID in
 	query = base.WithTenantFilter(ctx, query, "t")
 
 	if onlyUnread {
-		query = query.Where(fmt.Sprintf(`EXISTS (
+		query = query.Where(`EXISTS (
 			SELECT 1 FROM users.staff_messages um
-			WHERE um.thread_id = t.id AND %s
-		)`, unreadPredicate("um")), accountID)
+			WHERE um.thread_id = t.id AND `+unreadPredicateUM+`
+		)`, accountID)
 	}
 
 	if err := query.Scan(ctx); err != nil {
@@ -241,7 +258,10 @@ func (r *StaffMessageReadRepository) ListMessageableStaff(ctx context.Context, v
 		Where(`at.account_id <> ?`, viewerAccountID).
 		Where(`at.tenant_id = ?`, tenant.FromContext(ctx)).
 		OrderExpr(`name ASC`)
-	query = staffAccountFilter(query, staffAccountIDs)
+	query, err = r.activeAccountFilter(ctx, staffAccountFilter(query, staffAccountIDs))
+	if err != nil {
+		return nil, err
+	}
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list messageable staff", Err: base.TranslateNotFound(err)}
@@ -277,7 +297,11 @@ func (r *StaffMessageReadRepository) IsMessageableStaff(ctx context.Context, acc
 		Where(`at.tenant_id = ?`, tenant.FromContext(ctx)).
 		Where(`at.status = ?`, authModels.AccountTenantStatusActive).
 		Limit(1)
-	exists, existsErr := staffAccountFilter(query, staffAccountIDs).Exists(ctx)
+	query, err = r.activeAccountFilter(ctx, staffAccountFilter(query, staffAccountIDs))
+	if err != nil {
+		return false, err
+	}
+	exists, existsErr := query.Exists(ctx)
 	err = existsErr
 	if err != nil {
 		return false, &modelBase.DatabaseError{Op: "check messageable staff", Err: base.TranslateNotFound(err)}

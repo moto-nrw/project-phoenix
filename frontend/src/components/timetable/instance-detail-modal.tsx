@@ -63,7 +63,9 @@ import type { InstanceParticipantNames } from "~/lib/timetable-api";
 import type {
   GuardianNoticeInput,
   GuardianNoticeReach,
+  TemplateRosterMaintenance,
 } from "~/lib/timetable-types";
+import { RosterMaintenanceBadge } from "./roster-maintenance-badge";
 import {
   getActivityTypeBadge,
   getGermanWeekdayAdverb,
@@ -180,6 +182,14 @@ interface InstanceDetailModalProps {
    * studentNames-Map des Aufrufers.
    */
   fetchParticipantNames?: boolean;
+  /**
+   * Teilnehmerpflege des Regeltermins (#3140), wenn der Aufrufer die Serie
+   * schon geladen hat. Fehlt sie, lädt das Panel den Regeltermin für
+   * `seriesPeriodId` selbst nach.
+   */
+  seriesRosterMaintenance?: TemplateRosterMaintenance;
+  /** Planungszeitraum, in dem der Termin liegt; nötig für das Nachladen. */
+  seriesPeriodId?: string;
 }
 
 const EMPTY_STAFF_NAMES = new Map<string, string>();
@@ -213,36 +223,61 @@ function regelterminOriginLabel(instance: EnrichedInstance): string {
     .join(" ");
 }
 
+/**
+ * Teilnehmerpflege des Regeltermins (#3140) im Detail-Panel. Nimmt den Stand
+ * aus der geladenen Serienliste, sonst den einzelnen Regeltermin; eine
+ * Serie ohne ableitbaren Stand zeigt nichts statt einer Vermutung.
+ */
+function SeriesRosterMaintenance({
+  templateId,
+  periodId,
+  known,
+}: Readonly<{
+  templateId: string;
+  periodId?: string;
+  known?: TemplateRosterMaintenance;
+}>) {
+  const { data } = useSWRAuth(
+    known || !periodId
+      ? null
+      : `timetable-template-roster-maintenance-${templateId}-${periodId}`,
+    () => timetableService.getTemplate(templateId, periodId ?? ""),
+  );
+  const state = known ?? data?.rosterMaintenance;
+  if (!state) return null;
+  return <RosterMaintenanceBadge state={state} />;
+}
+
 interface StatusBadgeProps {
   status: InstanceStatus;
 }
 
 /** Schrift auf den beiden gefüllten Statusflächen (grün, rot). */
-const STATUS_BADGE_ON_COLOR = "#FFFFFF";
+const STATUS_BADGE_ON_CLASS = "text-white";
 
 function StatusBadge({ status }: StatusBadgeProps) {
-  // Alle vier Zeilen kommen aus derselben Quelle: die beiden Statusfarben aus
-  // LOCATION_COLORS, die neutralen Stufen aus der Palette — kein Hex-Literal
-  // neben einem Token in derselben Tabelle.
+  // Flächen aus LOCATION_COLORS bzw. der neutralen Palette, die Schrift als
+  // Tailwind-Klasse (gray-700 = neutral.strong, gray-500 = neutral.base) —
+  // kein Hex-Literal neben einem Token in derselben Tabelle.
   const palette: Record<InstanceStatus, { bg: string; text: string }> = {
     planned: {
       bg: MOTO_COLOR_PALETTE.neutral.soft,
-      text: MOTO_COLOR_PALETTE.neutral.strong,
+      text: "text-gray-700",
     },
-    active: { bg: LOCATION_COLORS.GROUP_ROOM, text: STATUS_BADGE_ON_COLOR },
+    active: { bg: LOCATION_COLORS.GROUP_ROOM, text: STATUS_BADGE_ON_CLASS },
     // Abgeschlossen steht auf derselben neutralen Fläche wie "Geplant", trägt
     // aber die hellere Schrift: erledigt, nicht offen.
     completed: {
       bg: MOTO_COLOR_PALETTE.neutral.soft,
-      text: MOTO_COLOR_PALETTE.neutral.base,
+      text: "text-gray-500",
     },
-    cancelled: { bg: LOCATION_COLORS.DANGER, text: STATUS_BADGE_ON_COLOR },
+    cancelled: { bg: LOCATION_COLORS.DANGER, text: STATUS_BADGE_ON_CLASS },
   };
   const { bg, text } = palette[status];
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase"
-      style={{ backgroundColor: bg, color: text }}
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase ${text}`}
+      style={{ backgroundColor: bg }}
     >
       {status === "active" && (
         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
@@ -550,6 +585,8 @@ export function InstanceDetailModal({
   canManageStaffPool = false,
   canManage = true,
   fetchParticipantNames = false,
+  seriesRosterMaintenance,
+  seriesPeriodId,
 }: InstanceDetailModalProps) {
   const attendanceWebEnabled = useAttendanceWebEnabled();
   const showTimetableCounts = useShowTimetableCounts();
@@ -950,10 +987,14 @@ export function InstanceDetailModal({
                 {instance.endTime}
               </p>
               {instance.activityGroupId && (
-                <OriginChip
-                  label={regelterminOriginLabel(instance)}
-                  className="mt-1.5"
-                />
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  <OriginChip label={regelterminOriginLabel(instance)} />
+                  <SeriesRosterMaintenance
+                    templateId={instance.activityGroupId}
+                    periodId={seriesPeriodId}
+                    known={seriesRosterMaintenance}
+                  />
+                </div>
               )}
             </div>
             {instance.conflictWarnings.length > 0 && (

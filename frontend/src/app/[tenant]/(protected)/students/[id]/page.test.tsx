@@ -199,7 +199,7 @@ vi.mock("~/components/students/student-detail-components", () => ({
 }));
 
 // Mock des Bearbeiten-Zustands im Stammdaten-Reiter (kein Modal mehr).
-vi.mock("~/components/students/personal-info-form-modal", () => ({
+vi.mock("~/components/students/personal-info-edit-panel", () => ({
   PersonalInfoEditPanel: ({
     onCancel,
     student,
@@ -471,6 +471,7 @@ interface MockStudentDataResult {
   hasFullAccess: boolean;
   hasWriteAccess: boolean;
   hasAbsenceWriteAccess: boolean;
+  hasSickExcusedWriteAccess: boolean;
   supervisors: Array<{ name: string; phone?: string }>;
   myGroups: string[];
   myGroupRooms: string[];
@@ -590,6 +591,7 @@ describe("StudentDetailPage", () => {
       hasFullAccess: true,
       hasWriteAccess: true,
       hasAbsenceWriteAccess: true,
+      hasSickExcusedWriteAccess: true,
       supervisors: [{ name: "Frau Schmidt", phone: "0123456" }],
       myGroups: ["1"],
       myGroupRooms: ["Raum 101"],
@@ -621,6 +623,7 @@ describe("StudentDetailPage", () => {
         hasFullAccess: false,
         hasWriteAccess: false,
         hasAbsenceWriteAccess: false,
+        hasSickExcusedWriteAccess: false,
         supervisors: [],
         myGroups: [],
         myGroupRooms: [],
@@ -652,6 +655,7 @@ describe("StudentDetailPage", () => {
         hasFullAccess: false,
         hasWriteAccess: false,
         hasAbsenceWriteAccess: false,
+        hasSickExcusedWriteAccess: false,
         supervisors: [],
         myGroups: [],
         myGroupRooms: [],
@@ -673,6 +677,7 @@ describe("StudentDetailPage", () => {
         hasFullAccess: false,
         hasWriteAccess: false,
         hasAbsenceWriteAccess: false,
+        hasSickExcusedWriteAccess: false,
         supervisors: [],
         myGroups: [],
         myGroupRooms: [],
@@ -693,6 +698,7 @@ describe("StudentDetailPage", () => {
         hasFullAccess: false,
         hasWriteAccess: false,
         hasAbsenceWriteAccess: false,
+        hasSickExcusedWriteAccess: false,
         supervisors: [],
         myGroups: [],
         myGroupRooms: [],
@@ -747,6 +753,7 @@ describe("StudentDetailPage", () => {
         hasFullAccess: true,
         hasWriteAccess: true,
         hasAbsenceWriteAccess: true,
+        hasSickExcusedWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: ["Raum 101"],
@@ -762,6 +769,23 @@ describe("StudentDetailPage", () => {
         }),
       ).toBeInTheDocument();
       expect(screen.getByText("Widerrufen am 31.08.2026")).toBeInTheDocument();
+    });
+
+    it("hides sick and excused actions without hiding class trips or child edits", () => {
+      const current: MockStudentDataResult = mockUseStudentData("1");
+      mockUseStudentData.mockReturnValue({
+        ...current,
+        hasSickExcusedWriteAccess: false,
+      });
+      render(<StudentDetailPage />);
+      expect(
+        screen.queryByTestId("sick-report-section"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("excused-report-section"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText("Klassenfahrt planen")).toBeInTheDocument();
+      expect(screen.getByTestId("edit-personal-info")).toBeInTheDocument();
     });
 
     it("passes enrollment extra fields into full access personal info", () => {
@@ -822,6 +846,7 @@ describe("StudentDetailPage", () => {
         hasFullAccess: false,
         hasWriteAccess: false,
         hasAbsenceWriteAccess: false,
+        hasSickExcusedWriteAccess: false,
         supervisors: [{ name: "Frau Schmidt", phone: "0123456" }],
         myGroups: ["1"],
         myGroupRooms: ["Raum 101"],
@@ -918,6 +943,12 @@ describe("StudentDetailPage", () => {
         expect(mockRefreshData).toHaveBeenCalled();
         expect(mockToastSuccess).toHaveBeenCalled();
       });
+      const payload = mockUpdateStudent.mock.calls[0]?.[1] as Record<
+        string,
+        unknown
+      >;
+      expect(payload).not.toHaveProperty("privacy_consent_accepted");
+      expect(payload).not.toHaveProperty("data_retention_days");
     });
 
     it("revalidates field history after saving personal info", async () => {
@@ -954,6 +985,7 @@ describe("StudentDetailPage", () => {
         hasFullAccess: true,
         hasWriteAccess: true,
         hasAbsenceWriteAccess: true,
+        hasSickExcusedWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: ["Raum 101"],
@@ -1097,6 +1129,7 @@ describe("StudentDetailPage", () => {
         hasFullAccess: true,
         hasWriteAccess: true,
         hasAbsenceWriteAccess: true,
+        hasSickExcusedWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1175,14 +1208,28 @@ describe("StudentDetailPage", () => {
       expect(backButton).toHaveAttribute("data-referrer", "/students/search");
     });
 
-    it("uses custom referrer from URL params", () => {
-      mockSearchParams.set("from", "/my-room");
+    it("falls back for an external referrer from URL params", () => {
+      mockSearchParams.set("from", "//attacker.example");
 
       render(<StudentDetailPage />);
 
       const backButton = screen.getByTestId("back-button");
-      expect(backButton).toHaveAttribute("data-referrer", "/my-room");
+      expect(backButton).toHaveAttribute("data-referrer", "/students/search");
     });
+
+    it.each(["/messages", "/absences", "/ogs-groups"])(
+      "keeps %s as a valid referrer",
+      (referrer) => {
+        mockSearchParams.set("from", referrer);
+
+        render(<StudentDetailPage />);
+
+        expect(screen.getByTestId("back-button")).toHaveAttribute(
+          "data-referrer",
+          referrer,
+        );
+      },
+    );
   });
 
   describe("Embedded Manager Updates", () => {
@@ -1272,6 +1319,7 @@ describe("StudentDetailPage", () => {
         hasFullAccess: true,
         hasWriteAccess: true,
         hasAbsenceWriteAccess: true,
+        hasSickExcusedWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1362,6 +1410,7 @@ describe("StudentDetailPage", () => {
         hasFullAccess: true,
         hasWriteAccess: true,
         hasAbsenceWriteAccess: true,
+        hasSickExcusedWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1412,6 +1461,7 @@ describe("StudentDetailPage", () => {
         hasFullAccess: false,
         hasWriteAccess: false,
         hasAbsenceWriteAccess: false,
+        hasSickExcusedWriteAccess: false,
         supervisors: [{ name: "Frau Schmidt" }],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1437,6 +1487,7 @@ describe("StudentDetailPage", () => {
         hasFullAccess: true,
         hasWriteAccess: false,
         hasAbsenceWriteAccess: true,
+        hasSickExcusedWriteAccess: true,
         supervisors: [{ name: "Frau Schmidt" }],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1461,6 +1512,7 @@ describe("StudentDetailPage", () => {
         hasFullAccess: false,
         hasWriteAccess: false,
         hasAbsenceWriteAccess: true,
+        hasSickExcusedWriteAccess: true,
         supervisors: [{ name: "Frau Schmidt" }],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1484,6 +1536,7 @@ describe("StudentDetailPage", () => {
         hasFullAccess: false,
         hasWriteAccess: false,
         hasAbsenceWriteAccess: true,
+        hasSickExcusedWriteAccess: true,
         supervisors: [{ name: "Frau Schmidt" }],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1512,6 +1565,7 @@ describe("StudentDetailPage", () => {
         hasFullAccess: false,
         hasWriteAccess: false,
         hasAbsenceWriteAccess: false,
+        hasSickExcusedWriteAccess: false,
         supervisors: [{ name: "Frau Schmidt" }],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1538,6 +1592,7 @@ describe("StudentDetailPage", () => {
         hasFullAccess: true,
         hasWriteAccess: false,
         hasAbsenceWriteAccess: true,
+        hasSickExcusedWriteAccess: true,
         supervisors: [{ name: "Frau Schmidt" }],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1642,6 +1697,7 @@ describe("StudentDetailPage", () => {
         hasFullAccess: true,
         hasWriteAccess: true,
         hasAbsenceWriteAccess: true,
+        hasSickExcusedWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1667,6 +1723,7 @@ describe("StudentDetailPage", () => {
         hasFullAccess: true,
         hasWriteAccess: true,
         hasAbsenceWriteAccess: true,
+        hasSickExcusedWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1701,6 +1758,7 @@ describe("StudentDetailPage", () => {
         hasFullAccess: true,
         hasWriteAccess: true,
         hasAbsenceWriteAccess: true,
+        hasSickExcusedWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1724,6 +1782,7 @@ describe("StudentDetailPage", () => {
         hasFullAccess: true,
         hasWriteAccess: true,
         hasAbsenceWriteAccess: true,
+        hasSickExcusedWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1748,6 +1807,7 @@ describe("StudentDetailPage", () => {
         hasFullAccess: true,
         hasWriteAccess: true,
         hasAbsenceWriteAccess: true,
+        hasSickExcusedWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1782,6 +1842,7 @@ describe("StudentDetailPage", () => {
         hasFullAccess: true,
         hasWriteAccess: true,
         hasAbsenceWriteAccess: true,
+        hasSickExcusedWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1811,6 +1872,7 @@ describe("StudentDetailPage", () => {
         hasFullAccess: true,
         hasWriteAccess: true,
         hasAbsenceWriteAccess: true,
+        hasSickExcusedWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1855,6 +1917,7 @@ describe("StudentDetailPage", () => {
         hasFullAccess: true,
         hasWriteAccess: true,
         hasAbsenceWriteAccess: true,
+        hasSickExcusedWriteAccess: true,
         supervisors: [],
         myGroups: [],
         myGroupRooms: [],
@@ -1876,6 +1939,7 @@ describe("StudentDetailPage", () => {
         hasFullAccess: true,
         hasWriteAccess: true,
         hasAbsenceWriteAccess: true,
+        hasSickExcusedWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1898,6 +1962,7 @@ describe("StudentDetailPage", () => {
       hasFullAccess: false,
       hasWriteAccess: false,
       hasAbsenceWriteAccess: false,
+      hasSickExcusedWriteAccess: false,
       supervisors: [{ name: "Frau Schmidt" }],
       myGroups: ["1"],
       myGroupRooms: [],
@@ -2196,6 +2261,7 @@ describe("StudentDetailPage", () => {
         hasFullAccess: false,
         hasWriteAccess: false,
         hasAbsenceWriteAccess: false,
+        hasSickExcusedWriteAccess: false,
         supervisors: [],
         myGroups: [],
         myGroupRooms: [],
@@ -2214,6 +2280,7 @@ describe("StudentDetailPage", () => {
         hasFullAccess: true,
         hasWriteAccess: true,
         hasAbsenceWriteAccess: true,
+        hasSickExcusedWriteAccess: true,
         supervisors: [{ name: "Frau Schmidt", phone: "0123456" }],
         myGroups: ["1"],
         myGroupRooms: ["Raum 101"],

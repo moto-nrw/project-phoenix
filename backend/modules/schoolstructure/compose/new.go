@@ -55,6 +55,22 @@ func New(dependencies Dependencies) (*schoolstructure.Module, error) {
 
 type engine struct{ service *application.Service }
 
+func (e engine) ListGroups(ctx context.Context, limit int) ([]schoolstructure.Group, error) {
+	tenantID, err := tenant.TenantFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	values, err := e.service.List(ctx, tenantID.Int64(), limit)
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make([]schoolstructure.Group, 0, len(values))
+	for _, value := range values {
+		result = append(result, toPublic(value))
+	}
+	return result, nil
+}
+
 func (e engine) FindGroup(ctx context.Context, id int64) (schoolstructure.Group, error) {
 	value, err := e.service.FindByID(ctx, id)
 	return toPublic(value), mapError(err)

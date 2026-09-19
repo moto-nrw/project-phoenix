@@ -38,60 +38,101 @@ func OrganizationScope(ctx context.Context) (int64, bool) {
 	return id, tenant.ScopeFromContext(ctx) == tenant.ScopeOrg && id > 0
 }
 
-func accountMembershipScope(ctx context.Context) (string, []any) {
-	if tenant.ScopeFromContext(ctx) == tenant.ScopeOrg {
-		schoolIDs := manageableSchoolIDs(ctx)
-		if tenant.OrgFromContext(ctx) == 0 || len(schoolIDs) == 0 {
-			return "FALSE", nil
-		}
-		return `EXISTS (
+// membershipScopeKind names the account-visibility predicate a caller's
+// context selects. The predicates are compile-time SQL so the architecture
+// evaluator resolves the tables they read.
+type membershipScopeKind int
+
+const (
+	// membershipScopeGlobal keeps the global lookup (platform and admin
+	// contexts).
+	membershipScopeGlobal membershipScopeKind = iota
+	// membershipScopeDenied matches no account: an organization or tenant
+	// context without a resolvable scope.
+	membershipScopeDenied
+	// membershipScopeOrganization restricts to active memberships in the
+	// organization's manageable schools.
+	membershipScopeOrganization
+	// membershipScopeTenant restricts to an active membership in the tenant
+	// from the caller's context.
+	membershipScopeTenant
+)
+
+const (
+	membershipScopeDeniedSQL       = "FALSE"
+	membershipScopeOrganizationSQL = `EXISTS (
 			SELECT 1
 			FROM auth.account_tenants AS "account_tenant"
 			WHERE "account_tenant".account_id = "account".id
 			  AND "account_tenant".status = ?
 			  AND "account_tenant".tenant_id IN (?)
-		)`, []any{auth.AccountTenantStatusActive, bun.List(schoolIDs)}
-	}
-	if tenant.IsAdminTx(ctx) || tenant.ScopeFromContext(ctx) == tenant.ScopePlatform {
-		return "", nil
-	}
-
-	tenantID := tenant.FromContext(ctx)
-	if tenantID == 0 {
-		return "FALSE", nil
-	}
-	return `EXISTS (
+		)`
+	membershipScopeTenantSQL = `EXISTS (
 		SELECT 1
 		FROM auth.account_tenants AS "account_tenant"
 		WHERE "account_tenant".account_id = "account".id
 		  AND "account_tenant".tenant_id = ?
 		  AND "account_tenant".status = ?
-	)`, []any{tenantID, auth.AccountTenantStatusActive}
+	)`
+)
+
+func accountMembershipScope(ctx context.Context) (membershipScopeKind, []any) {
+	if tenant.ScopeFromContext(ctx) == tenant.ScopeOrg {
+		schoolIDs := manageableSchoolIDs(ctx)
+		if tenant.OrgFromContext(ctx) == 0 || len(schoolIDs) == 0 {
+			return membershipScopeDenied, nil
+		}
+		return membershipScopeOrganization, []any{auth.AccountTenantStatusActive, bun.List(schoolIDs)}
+	}
+	if tenant.IsAdminTx(ctx) || tenant.ScopeFromContext(ctx) == tenant.ScopePlatform {
+		return membershipScopeGlobal, nil
+	}
+
+	tenantID := tenant.FromContext(ctx)
+	if tenantID == 0 {
+		return membershipScopeDenied, nil
+	}
+	return membershipScopeTenant, []any{tenantID, auth.AccountTenantStatusActive}
 }
 
-// EffectiveAdminExistsSQL builds the SQL predicate that decides whether an
-// account holds effective admin scope within one tenant: the literal admin
-// role, or an admin:* / *:* permission granted either through a tenant role or
-// directly to the account.
+// scopeToMembership applies the caller's membership scope to an account read
+// or write; the global scope leaves the query untouched. It is generic over
+// the query kind for the same reason base.WithTenantFilter is: selects and
+// updates must apply the identical predicate, and one definition is what
+// keeps them from drifting apart.
+func scopeToMembership[Q interface{ Where(string, ...any) Q }](ctx context.Context, query Q) Q {
+	switch kind, args := accountMembershipScope(ctx); kind {
+	case membershipScopeDenied:
+		return query.Where(membershipScopeDeniedSQL)
+	case membershipScopeOrganization:
+		return query.Where(membershipScopeOrganizationSQL, args...)
+	case membershipScopeTenant:
+		return query.Where(membershipScopeTenantSQL, args...)
+	default:
+		return query
+	}
+}
+
+// effectiveAdminExistsSQL decides whether an account holds effective admin
+// scope within one tenant: the literal admin role, or an admin:* / *:*
+// permission granted either through a tenant role or directly to the account.
 //
-// It takes the caller's qualified account and tenant columns so the same
-// predicate can be applied to auth.accounts and to any other table carrying an
-// (account_id, tenant_id) pair. The arguments are SQL identifiers written by
-// callers in this repository, never request input.
+// The four placeholders take the caller's qualified account and tenant columns
+// (account, tenant, account, tenant) as bun.Safe identifiers written in this
+// repository, never request input.
 //
 // There must stay exactly one definition of "effective admin" in SQL. It
 // decides who receives admin-scoped data, so a second, drifting copy is a
 // disclosure bug waiting to happen. The Go-side counterpart is
 // authorize.HasEffectiveAdminScope.
-func EffectiveAdminExistsSQL(accountColumn, tenantColumn string) string {
-	return fmt.Sprintf(`EXISTS (
+const effectiveAdminExistsSQL = `EXISTS (
 		SELECT 1
 		FROM auth.account_roles AS "ar"
 		INNER JOIN auth.roles AS "r" ON "r".id = "ar".role_id
 		LEFT JOIN auth.role_permissions AS "rp" ON "rp".role_id = "ar".role_id
 		LEFT JOIN auth.permissions AS "p" ON "p".id = "rp".permission_id
-		WHERE "ar".account_id = %[1]s
-		  AND "ar".tenant_id = %[2]s
+		WHERE "ar".account_id = ?
+		  AND "ar".tenant_id = ?
 		  AND (
 		    LOWER("r".name) = 'admin'
 		    OR ("p".resource = 'admin' AND "p".action = '*')
@@ -101,15 +142,14 @@ func EffectiveAdminExistsSQL(accountColumn, tenantColumn string) string {
 		SELECT 1
 		FROM auth.account_permissions AS "ap"
 		INNER JOIN auth.permissions AS "p" ON "p".id = "ap".permission_id
-		WHERE "ap".account_id = %[1]s
-		  AND "ap".tenant_id = %[2]s
+		WHERE "ap".account_id = ?
+		  AND "ap".tenant_id = ?
 		  AND "ap".granted = TRUE
 		  AND (
 		    ("p".resource = 'admin' AND "p".action = '*')
 		    OR ("p".resource = '*' AND "p".action = '*')
 		  )
-	)`, accountColumn, tenantColumn)
-}
+	)`
 
 // AccountRepository implements auth.AccountRepository interface
 type AccountRepository struct {
@@ -142,11 +182,13 @@ func (r *AccountRepository) FindByIDForUpdate(ctx context.Context, id int64) (*a
 //
 // Callers that need to decide, for many people at once, whether someone sees
 // tenant-wide data use this instead of asking per account. The predicate is
-// shared with the push-subscription admin finder through
-// EffectiveAdminExistsSQL, so both agree by construction.
+// the one effectiveAdminExistsSQL definition, so every reader agrees by
+// construction.
 func (r *AccountRepository) ListEffectiveAdminAccountIDs(ctx context.Context) ([]int64, error) {
 	var ids []int64
 
+	accountColumn := bun.Safe(`"account".id`)
+	tenantColumn := bun.Safe(`"account_tenant".tenant_id`)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Distinct().
 		TableExpr(accountTableAlias).
@@ -154,7 +196,7 @@ func (r *AccountRepository) ListEffectiveAdminAccountIDs(ctx context.Context) ([
 		Join(`INNER JOIN auth.account_tenants AS "account_tenant" ON "account_tenant".account_id = "account".id`).
 		Where(`"account".active = ?`, true).
 		Where(`"account_tenant".status = ?`, auth.AccountTenantStatusActive).
-		Where(EffectiveAdminExistsSQL(`"account".id`, `"account_tenant".tenant_id`))
+		Where(effectiveAdminExistsSQL, accountColumn, tenantColumn, accountColumn, tenantColumn)
 
 	// auth.accounts is cross-tenant, so the tenant predicate belongs on the
 	// mapping table rather than on the account itself.
@@ -165,6 +207,17 @@ func (r *AccountRepository) ListEffectiveAdminAccountIDs(ctx context.Context) ([
 	}
 
 	return ids, nil
+}
+
+// ActiveAccountIDs is the owner query "every active platform account". Other
+// owners that must not read auth.accounts themselves join it as a subquery
+// (guardian portal reachability, staff messaging) so their statements stay
+// single round trips.
+func (r *AccountRepository) ActiveAccountIDs(ctx context.Context) *bun.SelectQuery {
+	return base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(accountTableAlias).
+		ColumnExpr(`"account".id`).
+		Where(`"account".active = ?`, true)
 }
 
 // NewAccountRepository creates a new AccountRepository
@@ -179,18 +232,16 @@ func NewAccountRepository(db *bun.DB) auth.AccountRepository {
 // in the tenant or organization from the caller's context. Platform and admin
 // contexts keep the global lookup used by operator flows.
 func (r *AccountRepository) FindManageableByID(ctx context.Context, id int64) (*auth.Account, error) {
-	predicate, args := accountMembershipScope(ctx)
-	if predicate == "" {
+	if kind, _ := accountMembershipScope(ctx); kind == membershipScopeGlobal {
 		return r.FindByID(ctx, id)
 	}
 
 	account := new(auth.Account)
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(account).
 		ModelTableExpr(accountTableAlias).
-		Where(`"account".id = ?`, id).
-		Where(predicate, args...).
-		Scan(ctx)
+		Where(`"account".id = ?`, id)
+	err := scopeToMembership(ctx, query).Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find by id", Err: base.TranslateNotFound(err)}
 	}
@@ -317,14 +368,6 @@ func (r *AccountRepository) FindByUsername(ctx context.Context, username string)
 	return account, nil
 }
 
-// UpdateLastLogin updates the last login timestamp for an account
-func (r *AccountRepository) UpdateLastLogin(ctx context.Context, id int64) error {
-	now := time.Now()
-	account := &auth.Account{Model: modelBase.Model{ID: id}, LastLogin: &now}
-	_, err := r.UpdateColumns(ctx, account, "last_login")
-	return err
-}
-
 // UpdatePassword updates the password hash for an account and resets the
 // OTP flag (a permanent password replaces any one-time password).
 func (r *AccountRepository) UpdatePassword(ctx context.Context, id int64, passwordHash string) error {
@@ -396,67 +439,6 @@ func (r *AccountRepository) ResetMFAAttempts(ctx context.Context, id int64) erro
 	return nil
 }
 
-// IncrementPINAttempts atomically bumps pin_attempts by one and sets the lock
-// deadline from the application clock when the post-increment count is >=
-// threshold. Returns the post-update counter and lock timestamp so the caller
-// can detect the lockout transition (exact threshold equality means *this*
-// call crossed the line).
-//
-// This replaces the old model-level Account.IncrementPINAttempts() +
-// accountRepo.Update() read-modify-write, which was racy: two concurrent
-// failed PIN entries both read pin_attempts=N and both wrote N+1, advancing
-// the counter by only 1 and letting an attacker double their attempt budget.
-// A single SQL statement removes the race (issue #586, mirrors the MFA fix).
-func (r *AccountRepository) IncrementPINAttempts(ctx context.Context, id int64, threshold int, lockoutDuration time.Duration) (auth.PINAttemptResult, error) {
-	type incrementRow struct {
-		PINAttempts    int        `bun:"pin_attempts"`
-		PINLockedUntil *time.Time `bun:"pin_locked_until"`
-	}
-	row := new(incrementRow)
-	lockedUntil := time.Now().Add(lockoutDuration)
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*auth.Account)(nil)).
-		ModelTableExpr(accountTable).
-		Set("pin_attempts = pin_attempts + 1").
-		Set(
-			"pin_locked_until = CASE WHEN pin_attempts + 1 >= ? THEN ? ELSE pin_locked_until END",
-			threshold, lockedUntil,
-		).
-		Where(whereID, id).
-		Returning("pin_attempts, pin_locked_until").
-		Exec(ctx, row)
-	if err != nil {
-		return auth.PINAttemptResult{}, &modelBase.DatabaseError{
-			Op:  "increment pin attempts",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-	return auth.PINAttemptResult{
-		Attempts:    row.PINAttempts,
-		LockedUntil: row.PINLockedUntil,
-	}, nil
-}
-
-// ResetPINAttempts atomically clears pin_attempts and pin_locked_until after a
-// successful PIN verify so a stale in-memory Account.Update can't re-set a
-// concurrent racer's incremented counter.
-func (r *AccountRepository) ResetPINAttempts(ctx context.Context, id int64) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*auth.Account)(nil)).
-		ModelTableExpr(accountTable).
-		Set("pin_attempts = 0").
-		Set("pin_locked_until = NULL").
-		Where(whereID, id).
-		Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "reset pin attempts",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-	return nil
-}
-
 // UpdateAvatar updates the global avatar path for an account.
 func (r *AccountRepository) UpdateAvatar(ctx context.Context, id int64, avatar string) error {
 	account := &auth.Account{Model: modelBase.Model{ID: id}, Avatar: avatar}
@@ -494,9 +476,7 @@ func (r *AccountRepository) list(ctx context.Context, filters map[string]interfa
 	var accounts []*auth.Account
 	query := base.GetDB(ctx, r.db).NewSelect().Model(&accounts).ModelTableExpr(accountTableAlias)
 	if manageable {
-		if predicate, args := accountMembershipScope(ctx); predicate != "" {
-			query = query.Where(predicate, args...)
-		}
+		query = scopeToMembership(ctx, query)
 	}
 
 	// Apply filters
@@ -521,13 +501,13 @@ func (r *AccountRepository) list(ctx context.Context, filters map[string]interfa
 func (r *AccountRepository) applyAccountFilter(ctx context.Context, query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
 	switch field {
 	case "email":
-		return r.applyStringEqualFilter(query, "email", value)
+		return r.applyStringEqualFilter(query, bun.Safe("email"), value)
 	case "username":
-		return r.applyStringEqualFilter(query, "username", value)
+		return r.applyStringEqualFilter(query, bun.Safe("username"), value)
 	case "email_like":
-		return r.applyStringLikeFilter(query, "email", value)
+		return r.applyStringLikeFilter(query, bun.Safe("email"), value)
 	case "username_like":
-		return r.applyStringLikeFilter(query, "username", value)
+		return r.applyStringLikeFilter(query, bun.Safe("username"), value)
 	case "active":
 		return query.Where("active = ?", value)
 	case "role":
@@ -538,17 +518,18 @@ func (r *AccountRepository) applyAccountFilter(ctx context.Context, query *bun.S
 }
 
 // applyStringEqualFilter applies case-insensitive equality filter for string fields
-func (r *AccountRepository) applyStringEqualFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+// The field is a column written in this file, never request input.
+func (r *AccountRepository) applyStringEqualFilter(query *bun.SelectQuery, field bun.Safe, value interface{}) *bun.SelectQuery {
 	if strValue, ok := value.(string); ok {
-		return query.Where("LOWER("+field+") = LOWER(?)", strValue)
+		return query.Where("LOWER(?) = LOWER(?)", field, strValue)
 	}
-	return query.Where(field+" = ?", value)
+	return query.Where("? = ?", field, value)
 }
 
 // applyStringLikeFilter applies case-insensitive LIKE filter for string fields
-func (r *AccountRepository) applyStringLikeFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+func (r *AccountRepository) applyStringLikeFilter(query *bun.SelectQuery, field bun.Safe, value interface{}) *bun.SelectQuery {
 	if strValue, ok := value.(string); ok {
-		return query.Where("LOWER("+field+") LIKE LOWER(?)", "%"+strValue+"%")
+		return query.Where("LOWER(?) LIKE LOWER(?)", field, "%"+strValue+"%")
 	}
 	return query
 }
@@ -838,9 +819,7 @@ func (r *AccountRepository) update(ctx context.Context, account *auth.Account, m
 		ModelTableExpr(accountTableAlias).
 		Where(`"account".id = ?`, account.ID)
 	if manageable {
-		if predicate, args := accountMembershipScope(ctx); predicate != "" {
-			query = query.Where(predicate, args...)
-		}
+		query = scopeToMembership(ctx, query)
 	}
 
 	result, err := query.Exec(ctx)

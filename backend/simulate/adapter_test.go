@@ -12,8 +12,11 @@ type simulationHTTPTestServer = testpkg.HTTPTestServer
 
 const (
 	simulationHTTPMethodPost                = testpkg.HTTPMethodPost
+	simulationHTTPMethodPut                 = testpkg.HTTPMethodPut
 	simulationHTTPMethodDelete              = testpkg.HTTPMethodDelete
+	simulationHTTPStatusNotFound            = testpkg.HTTPStatusNotFound
 	simulationHTTPStatusOK                  = testpkg.HTTPStatusOK
+	simulationHTTPStatusCreated             = testpkg.HTTPStatusCreated
 	simulationHTTPStatusNoContent           = testpkg.HTTPStatusNoContent
 	simulationHTTPStatusUnauthorized        = testpkg.HTTPStatusUnauthorized
 	simulationHTTPStatusConflict            = testpkg.HTTPStatusConflict

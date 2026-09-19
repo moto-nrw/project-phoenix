@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
 // unknownGroupName is the caregiver-capability blocker label for a
@@ -115,18 +115,18 @@ type groupSupervisorRepository struct {
 	groups schoolstructure.Query
 }
 
-func (r groupSupervisorRepository) ListActiveSupervisionBlockers(ctx context.Context, staffID, tenantID int64) ([]usersModels.BlockerSupervision, error) {
-	rows, err := r.GroupSupervisorRepository.ListActiveSupervisionBlockers(ctx, staffID, tenantID)
+func (r groupSupervisorRepository) ListActiveSupervisionBlockers(ctx context.Context, staffID int64) ([]activeModels.SupervisionBlocker, error) {
+	rows, err := r.GroupSupervisorRepository.ListActiveSupervisionBlockers(ctx, staffID)
 	if err != nil {
 		return nil, err
 	}
-	pointers := make([]*usersModels.BlockerSupervision, len(rows))
+	pointers := make([]*activeModels.SupervisionBlocker, len(rows))
 	for index := range rows {
 		pointers[index] = &rows[index]
 	}
 	if _, err := enrichGroupNames(ctx, r.groups, pointers,
-		func(row *usersModels.BlockerSupervision) int64 { return row.GroupID },
-		func(row *usersModels.BlockerSupervision, name string) { row.GroupName = name },
+		func(row *activeModels.SupervisionBlocker) int64 { return row.GroupID },
+		func(row *activeModels.SupervisionBlocker, name string) { row.GroupName = name },
 		unknownGroupName, "supervision blockers"); err != nil {
 		return nil, err
 	}

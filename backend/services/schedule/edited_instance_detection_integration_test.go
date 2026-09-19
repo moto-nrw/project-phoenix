@@ -9,9 +9,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )

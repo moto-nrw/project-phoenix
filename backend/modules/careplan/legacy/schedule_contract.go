@@ -81,6 +81,6 @@ func NotFoundError(op string) error {
 	return &modelBase.DatabaseError{Op: op, Err: errors.Join(modelBase.ErrNotFound, sql.ErrNoRows)}
 }
 
-func NoRowsError() error { return sql.ErrNoRows }
+func NoRowsError() error { return errors.Join(modelBase.ErrNotFound, sql.ErrNoRows) }
 
 func TodayScheduleDate() careplan.Date { return careplan.Date(timezone.TodayDate().String()) }

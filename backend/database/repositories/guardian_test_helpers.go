@@ -20,10 +20,6 @@ func NewGuardianTestRepositories(db *bun.DB, command auditModels.Command) Guardi
 		FinancialAudit: guardianFinancialChangeCommand{command}, AccessLog: dataAccessLogCommand{auditRepo.NewDataAccessLogRepository(newTestAuditRuntime(db)), command}}
 }
 
-func NewImportAuditTestRepository(db *bun.DB, command auditModels.Command) auditModels.DataImportRepository {
-	return dataImportCommand{auditRepo.NewDataImportRepository(newTestAuditRuntime(db)), command}
-}
-
 func NewDataDeletionTestRepository(db *bun.DB, command auditModels.Command) auditModels.DataDeletionRepository {
 	return dataDeletionCommand{auditRepo.NewDataDeletionRepository(newTestAuditRuntime(db)), command}
 }

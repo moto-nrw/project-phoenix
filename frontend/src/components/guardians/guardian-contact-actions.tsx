@@ -136,9 +136,9 @@ export function GuardianContactActions({
                               {phoneOption.label}
                             </span>
                             {phoneOption.isPrimary && (
-                              // Brand purple (LOCATION_COLORS.EXCUSED), not a
-                              // generic Tailwind hue
-                              <span className="rounded bg-[#7C3AED]/10 px-1 py-0.5 text-[10px] font-medium text-[#7C3AED]">
+                              // Brand purple (moto-purple = LOCATION_COLORS.EXCUSED),
+                              // not a generic Tailwind hue
+                              <span className="bg-moto-purple/10 text-moto-purple rounded px-1 py-0.5 text-[10px] font-medium">
                                 Primär
                               </span>
                             )}

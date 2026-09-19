@@ -7,6 +7,7 @@ import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import Link from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
+import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { BlockState } from "~/components/home/day-flow-block";
 import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
@@ -131,8 +132,8 @@ export function MyDayBlock() {
                   key={i}
                   className="flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2"
                 >
-                  <div className="h-4 w-20 animate-pulse rounded bg-gray-200"></div>
-                  <div className="h-4 flex-1 animate-pulse rounded bg-gray-200"></div>
+                  <Skeleton className="h-4 w-20 rounded" />
+                  <Skeleton className="h-4 flex-1 rounded" />
                 </div>
               ))}
             </div>

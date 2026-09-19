@@ -13,9 +13,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/services"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
@@ -36,7 +36,7 @@ type excusedApprovalSettings struct {
 
 func (s excusedApprovalSettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
 	switch key {
-	case configModels.KeyParentSickNoteEnabled:
+	case configModels.KeyParentSickNoteEnabled, configModels.KeyParentSickReportsEnabled, configModels.KeyParentExcusedReportsEnabled:
 		return true, nil
 	case configModels.KeyParentSickRequiresApproval:
 		return s.sickRequiresApproval, nil

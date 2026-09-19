@@ -6,15 +6,14 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/services/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 type WorkSessionTestModule struct {
-	WorkSession active.WorkSessionService
+	WorkSession timetracking.WorkSessionService
 	StaffClock  *staffclock.Service
 }
 
@@ -35,9 +34,8 @@ func NewWorkSessionTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func
 	if err != nil {
 		return WorkSessionTestModule{}, err
 	}
-	service := active.NewWorkSessionService(r.WorkSession, r.WorkSessionBreak, r.WorkSessionEdit,
-		r.StaffAbsence, r.GroupSupervisor, r.ActiveGroup, r.Staff, r.StaffWorkSchedule, r.WorkTimeModel, settings.Settings, slog.Default(), db)
-	service.SetStaffShiftRepo(r.StaffShift)
-	service.(interface{ SetBroadcaster(realtime.Broadcaster) }).SetBroadcaster(deliveryCompose.NewRealtimeHub(slog.Default()))
+	service := timetracking.NewWorkSessionService(r.WorkSession, r.WorkSessionBreak, NewWorkSessionAudit(r.WorkSessionEdit),
+		r.StaffAbsence, r.GroupSupervisor, r.ActiveGroup, WorkSessionStaff(r.Staff), NewWorkSessionSchedules(r.StaffWorkSchedule), NewWorkSessionTimeModels(r.WorkTimeModel), PresenceSettings(settings.Settings), slog.Default(), db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook,
+		timetracking.WithWorkSessionShifts(NewTimeTrackingShifts(r.StaffShift)), timetracking.WithWorkSessionEvents(TimeTrackingEvents(deliveryCompose.NewRealtimeHub(slog.Default()))))
 	return WorkSessionTestModule{WorkSession: service, StaffClock: newStaffClockService(identity.Users, rfid.RFID.FindByID, service)}, nil
 }

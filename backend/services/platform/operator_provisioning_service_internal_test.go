@@ -44,15 +44,6 @@ type internalOrgRepoStub struct {
 	restoreFn    func(context.Context, int64) error
 }
 
-type orderedOrganizationCapability struct {
-	organizationtenancy.Capability
-	organizations []organizationtenancy.Organization
-}
-
-func (c orderedOrganizationCapability) ListOrganizationsByID(context.Context, []int64) ([]organizationtenancy.Organization, error) {
-	return c.organizations, nil
-}
-
 func (s *internalOrgRepoStub) Create(ctx context.Context, org *platformModels.Organization) error {
 	if s.createFn != nil {
 		return s.createFn(ctx, org)
@@ -390,6 +381,9 @@ type internalRoleRepoStub struct {
 func (s *internalRoleRepoStub) Create(context.Context, *authModels.Role) error { return nil }
 func (s *internalRoleRepoStub) FindByID(context.Context, interface{}) (*authModels.Role, error) {
 	return nil, nil
+}
+func (s *internalRoleRepoStub) FindByIDForUpdate(ctx context.Context, id int64) (*authModels.Role, error) {
+	return s.FindByID(ctx, id)
 }
 func (s *internalRoleRepoStub) Update(context.Context, *authModels.Role) error { return nil }
 func (s *internalRoleRepoStub) Delete(context.Context, interface{}) error      { return nil }
@@ -2572,69 +2566,6 @@ func TestRestoreOrganization_ConcurrentRestoreMapsToNotDeleted(t *testing.T) {
 	err := svc.RestoreOrganization(context.Background(), 42, 7, net.IPv4(127, 0, 0, 1))
 	var notDeletedErr *OrganizationNotDeletedError
 	require.ErrorAs(t, err, &notDeletedErr)
-}
-
-// ---------------------------------------------------------------------------
-// IsPlatformCaregiverRole (was the package-local shouldCreateTeacher)
-// ---------------------------------------------------------------------------
-
-// The local copy was folded into the shared predicate in services/auth (#2222)
-// so the four school-access paths stop answering the same question differently.
-// One case changed with it: the retired "teacher" role now counts as a platform
-// caregiver role, matching the invitation flow and the caregiver-profile guard.
-// Nothing reaches this decision with that role — every school-access path
-// refuses it before provisioning (ErrRoleLegacyTeacherNotAssignable).
-func TestIsPlatformCaregiverRole(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		roleName string
-		want     bool
-	}{
-		{"user role", "user", true},
-		{"teacher role", "teacher", true},
-		{"admin role", "admin", false},
-		{"uppercase Teacher", "Teacher", true},
-		{"whitespace user", " user ", true},
-		{"mixed case USER", "USER", true},
-		{"empty string", "", false},
-		{"unknown role", "moderator", false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			role := &authModels.Role{Name: tt.roleName, IsSystem: true}
-			assert.Equal(t, tt.want, authSvc.IsPlatformCaregiverRole(role))
-		})
-	}
-
-	t.Run("a school's own role of the same tier is not the platform role", func(t *testing.T) {
-		base := authModels.BaseRoleUser
-		assert.False(t, authSvc.IsPlatformCaregiverRole(&authModels.Role{Name: "OGS-Kraft", BaseRole: &base}))
-	})
-}
-
-func TestEnrichAccountTenantOrganizationsPreservesDatabaseNameOrdering(t *testing.T) {
-	t.Parallel()
-
-	service := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{
-		Organizations: orderedOrganizationCapability{organizations: []organizationtenancy.Organization{
-			{ID: 3, Name: "Alpha"},
-			{ID: 1, Name: "Same"},
-			{ID: 2, Name: "Same"},
-		}},
-	}}
-	rows := []authModels.AccountTenantAccessInfo{
-		{OrganizationID: 2, SchoolName: "A"},
-		{OrganizationID: 3, SchoolName: "B"},
-		{OrganizationID: 1, SchoolName: "C"},
-	}
-
-	got, err := service.enrichAccountTenantOrganizations(context.Background(), rows)
-	require.NoError(t, err)
-	require.Len(t, got, 3)
-	assert.Equal(t, []int64{3, 2, 1}, []int64{got[0].OrganizationID, got[1].OrganizationID, got[2].OrganizationID})
-	assert.Equal(t, []string{"Alpha", "Same", "Same"}, []string{got[0].OrganizationName, got[1].OrganizationName, got[2].OrganizationName})
 }
 
 // ---------------------------------------------------------------------------

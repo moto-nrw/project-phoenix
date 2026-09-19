@@ -7,11 +7,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/active"
+	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
@@ -23,14 +21,14 @@ import (
 type WorkforceTestModule struct {
 	Users                users.PersonService
 	StaffDocuments       users.StaffDocumentService
-	WorkSession          active.WorkSessionService
-	StaffAbsence         active.StaffAbsenceService
-	WorkTimeMonth        active.WorkTimeMonthService
-	StaffBalanceAdjust   active.StaffBalanceAdjustmentService
-	StaffMonthClose      active.StaffMonthCloseService
-	StaffOverview        active.StaffOverviewService
-	TimeTrackingAuditLog active.TimeTrackingAuditLogService
-	StaffTimeExport      active.StaffTimeExportService
+	WorkSession          timetracking.WorkSessionService
+	StaffAbsence         timetracking.StaffAbsenceService
+	WorkTimeMonth        timetracking.WorkTimeMonthService
+	StaffBalanceAdjust   timetracking.StaffBalanceAdjustmentService
+	StaffMonthClose      timetracking.StaffMonthCloseService
+	StaffOverview        timetracking.StaffOverviewService
+	TimeTrackingAuditLog timetracking.TimeTrackingAuditLogService
+	StaffTimeExport      timetracking.StaffTimeExportService
 	Settings             config.SettingsService
 }
 
@@ -66,126 +64,76 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		StammdatenAudit: repos.StaffMasterDataChange, DataAccessLog: repos.DataAccessLog, DB: db, SettingsService: settingsService, Logger: logger,
 	})
 	staffDocumentService := users.NewStaffDocumentService(db, repos.StaffDocument, repos.Staff, repos.StaffMasterData, repos.StaffMasterDataChange, repos.DataAccessLog, logger)
-	workSessionService := active.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, repos.WorkSessionEdit, repos.StaffAbsence, repos.GroupSupervisor, repos.ActiveGroup, repos.Staff, repos.StaffWorkSchedule, repos.WorkTimeModel, settingsService, activeLogger, db)
-	workSessionService.SetStaffShiftRepo(repos.StaffShift)
-	if broadcastAware, ok := workSessionService.(interface {
-		SetBroadcaster(realtime.Broadcaster)
-	}); ok {
-		broadcastAware.SetBroadcaster(realtimeHub)
-	}
-	workTimeMonthService := active.NewWorkTimeMonthService(
-		repos.WorkSession,
-		repos.WorkSessionBreak,
-		repos.StaffAbsence,
-		repos.Staff,
-		repos.StaffWorkSchedule,
-		repos.WorkTimeModel,
-		repos.StaffShift,
-		settingsService,
-		activeLogger,
-	)
-
 	holidayService := schedule.NewHolidayService(settingsService, schoolCalendarHolidayAdapter{query: calendar}, logger.With("service", "holidays"))
 	closingDayService := schedule.NewClosingDayService(repos.ClosingDay)
 	nonWorkingDayService := schedule.NewNonWorkingDayResolver(holidayService, closingDayService)
-	workTimeMonthService.SetHolidayReader(nonWorkingDayService)
-	workTimeMonthService.SetAdjustmentReader(repos.StaffBalanceAdjust)
-	workTimeMonthService.SetSnapshotReader(repos.StaffMonthSnapshot)
-	if holidayAware, ok := workSessionService.(interface {
-		SetHolidayReader(active.HolidayDatesReader)
-	}); ok {
-		holidayAware.SetHolidayReader(nonWorkingDayService)
-	}
-
-	staffAbsenceTypeService := active.NewStaffAbsenceTypeService(repos.StaffAbsenceType, activeLogger)
-	if allowanceAware, ok := staffAbsenceTypeService.(interface {
-		SetAllowanceRepositories(
-			activeModels.StaffAbsenceTypeAllowanceRepository,
-			activeModels.StaffAbsenceTypeAllowanceChangeRepository,
-			activeModels.StaffAbsenceRepository,
-		)
-	}); ok {
-		allowanceAware.SetAllowanceRepositories(
-			repos.StaffAbsenceTypeAllowance,
-			repos.StaffAbsenceTypeAllowanceChange,
-			repos.StaffAbsence,
-		)
-	}
-	if typeAware, ok := workSessionService.(interface {
-		SetAbsenceTypeService(active.StaffAbsenceTypeService)
-	}); ok {
-		typeAware.SetAbsenceTypeService(staffAbsenceTypeService)
-	}
-
-	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit, settingsService, workTimeMonthService)
-	if typeAware, ok := staffAbsenceService.(interface {
-		SetAbsenceTypeService(active.StaffAbsenceTypeService)
-	}); ok {
-		typeAware.SetAbsenceTypeService(staffAbsenceTypeService)
-	}
-	if broadcastAware, ok := staffAbsenceService.(interface {
-		SetBroadcaster(realtime.Broadcaster)
-	}); ok {
-		broadcastAware.SetBroadcaster(realtimeHub)
-	}
-	if loggerAware, ok := staffAbsenceService.(interface {
-		SetLogger(*slog.Logger)
-	}); ok {
-		loggerAware.SetLogger(activeLogger)
-	}
-
-	staffBalanceAdjustService := active.NewStaffBalanceAdjustmentService(repos.StaffBalanceAdjust, workTimeMonthService, settingsService, activeLogger)
-	if broadcastAware, ok := staffBalanceAdjustService.(interface {
-		SetBroadcaster(realtime.Broadcaster)
-	}); ok {
-		broadcastAware.SetBroadcaster(realtimeHub)
-	}
-	staffBalanceAdjustService.SetSnapshotReader(repos.StaffMonthSnapshot)
-	if deletionAware, ok := staffBalanceAdjustService.(interface {
-		SetDeletionAudit(auditModels.TimeTrackingDeletionRepository)
-	}); ok {
-		deletionAware.SetDeletionAudit(repos.TimeTrackingDeletion)
-	}
-	if deletionAware, ok := staffAbsenceService.(interface {
-		SetDeletionAudit(auditModels.TimeTrackingDeletionRepository)
-	}); ok {
-		deletionAware.SetDeletionAudit(repos.TimeTrackingDeletion)
-	}
-	if openingAware, ok := staffAbsenceService.(interface {
-		SetVacationOpeningRepository(activeModels.StaffVacationOpeningRepository)
-	}); ok {
-		openingAware.SetVacationOpeningRepository(repos.StaffVacationOpening)
-	}
-
-	staffMonthCloseService := active.NewStaffMonthCloseService(
-		repos.StaffMonthSnapshot,
-		workTimeMonthService,
-		repos.Staff,
-		settingsService,
-		activeLogger,
+	staffAbsenceTypeService := AbsenceTypes(repos.StaffAbsenceType)
+	timeTrackingEvents := TimeTrackingEvents(realtimeHub)
+	today := timezone.CalendarDateClock(optionalClock(clocks))
+	var shiftPlanSyncer shiftplanning.ShiftPlanSyncer
+	workSessionService := timetracking.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, NewWorkSessionAudit(repos.WorkSessionEdit), repos.StaffAbsence, repos.GroupSupervisor, repos.ActiveGroup, WorkSessionStaff(repos.Staff), NewWorkSessionSchedules(repos.StaffWorkSchedule), NewWorkSessionTimeModels(repos.WorkTimeModel), PresenceSettings(settingsService), activeLogger, db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook,
+		timetracking.WithWorkSessionShifts(NewTimeTrackingShifts(repos.StaffShift)),
+		timetracking.WithWorkSessionEvents(timeTrackingEvents),
+		timetracking.WithWorkSessionHolidays(nonWorkingDayService),
+		timetracking.WithWorkSessionAbsenceTypes(staffAbsenceTypeService),
 	)
-	if broadcastAware, ok := staffMonthCloseService.(interface {
-		SetBroadcaster(realtime.Broadcaster)
-	}); ok {
-		broadcastAware.SetBroadcaster(realtimeHub)
-	}
+	workTimeMonthService := timetracking.NewWorkTimeMonthService(
+		repos.WorkSession,
+		repos.WorkSessionBreak,
+		repos.StaffAbsence,
+		StaffScheduleAssignments(repos.Staff),
+		NewWorkScheduleTargets(repos.StaffWorkSchedule),
+		NewWorkTimeTargetModels(repos.WorkTimeModel),
+		NewTimeTrackingShifts(repos.StaffShift),
+		PresenceSettings(settingsService),
+		activeLogger,
+		timetracking.WithMonthHolidays(nonWorkingDayService),
+		timetracking.WithMonthAdjustments(repos.StaffBalanceAdjust),
+		timetracking.WithMonthSnapshots(MonthSnapshotCapability(repos.StaffMonthSnapshot)),
+	)
 
-	staffOverviewService := active.NewStaffOverviewService(
-		repos.Staff,
+	staffAbsenceService := timetracking.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit, PresenceSettings(settingsService), workTimeMonthService,
+		timetracking.WithAbsenceToday(today),
+		timetracking.WithAbsenceTypes(staffAbsenceTypeService),
+		timetracking.WithAbsenceEvents(timeTrackingEvents),
+		timetracking.WithAbsenceLogger(activeLogger),
+		timetracking.WithAbsenceDeletionAudit(NewTimeTrackingDeletionAudit(repos.TimeTrackingDeletion)),
+		timetracking.WithVacationOpenings(repos.StaffVacationOpening),
+		timetracking.WithAbsenceShiftPlanSyncer(ShiftPlanSyncBridge(func() shiftplanning.ShiftPlanSyncer { return shiftPlanSyncer })),
+	)
+
+	staffBalanceAdjustService := timetracking.NewStaffBalanceAdjustmentService(repos.StaffBalanceAdjust, workTimeMonthService, PresenceSettings(settingsService), activeLogger,
+		timetracking.WithAdjustmentToday(today),
+		timetracking.WithAdjustmentEvents(timeTrackingEvents),
+		timetracking.WithAdjustmentSnapshots(MonthSnapshotCapability(repos.StaffMonthSnapshot)),
+		timetracking.WithAdjustmentDeletionAudit(NewTimeTrackingDeletionAudit(repos.TimeTrackingDeletion)),
+	)
+
+	staffMonthCloseService := timetracking.NewStaffMonthCloseService(
+		MonthSnapshotCapability(repos.StaffMonthSnapshot),
+		workTimeMonthService,
+		MonthCloseStaff(repos.Staff),
+		PresenceSettings(settingsService),
+		activeLogger,
+		timetracking.WithMonthCloseEvents(timeTrackingEvents),
+	)
+
+	staffOverviewService := timetracking.NewStaffOverviewService(
+		OverviewStaff(repos.Staff),
 		repos.WorkSession,
 		repos.WorkSessionBreak,
 		repos.StaffAbsence,
 		repos.StaffBalanceAdjust,
 		repos.StaffVacationQuota,
-		repos.StaffMonthSnapshot,
-		repos.StaffWorkSchedule,
-		repos.WorkTimeModel,
-		repos.StaffShift,
-		settingsService,
+		MonthSnapshotCapability(repos.StaffMonthSnapshot),
+		NewWorkScheduleTargets(repos.StaffWorkSchedule),
+		NewWorkTimeTargetModels(repos.WorkTimeModel),
+		NewTimeTrackingShifts(repos.StaffShift),
+		PresenceSettings(settingsService),
 		activeLogger,
+		timetracking.WithOverviewHolidays(nonWorkingDayService),
+		timetracking.WithOverviewVacationOpenings(repos.StaffVacationOpening),
 	)
-	staffOverviewService.SetHolidayReader(nonWorkingDayService)
-	staffOverviewService.SetVacationOpeningReader(repos.StaffVacationOpening)
 
 	payrollStatusService := config.NewPayrollStatusService(settingsService, func(ctx context.Context) (int, int, error) {
 		staff, err := repos.Staff.List(ctx, nil)
@@ -201,30 +149,38 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		return len(staff), withoutPersonnelNumber, nil
 	})
 
-	staffTimeExportService := active.NewStaffTimeExportService(
+	staffTimeExportService := timetracking.NewStaffTimeExportService(
 		staffOverviewService,
 		workSessionService,
-		repos.Staff,
-		repos.DataAccessLog,
-		payrollStatusService,
+		TimeExportStaff(repos.Staff),
+		NewTimeTrackingDataAccessAudit(repos.DataAccessLog),
+		PayrollExportSettings{Source: payrollStatusService},
 		activeLogger,
+		RenderTimeTrackingWorkbook,
 	)
 
-	timeTrackingAuditLogService := active.NewTimeTrackingAuditLogService(
-		repos.TimeTrackingAuditLog,
-		repos.Staff,
-		settingsService,
+	timeTrackingAuditLogService := timetracking.NewTimeTrackingAuditLogService(
+		NewTimeTrackingAuditReader(repos.TimeTrackingAuditLog),
+		StaffDisplayNames(repos.Staff),
+		PresenceSettings(settingsService),
 	)
 
 	timetable, err := NewTimetableTestModule(db, unit, clocks...)
 	if err != nil {
 		return WorkforceTestModule{}, err
 	}
-	shifts := schedule.NewStaffShiftService(repos.StaffShift, repos.Staff, schedule.NewShiftTypeService(repos.ShiftType, logger), db, logger)
-	shifts.SetSeriesExceptionRepo(repos.StaffShiftSeriesException)
-	shifts.SetDeviationEventRepo(repos.DeviationEvent)
-	shifts.(interface{ SetBroadcaster(realtime.Broadcaster) }).SetBroadcaster(realtimeHub)
-	staffAbsenceService.SetShiftPlanSyncer(schedule.NewShiftPlanSyncService(shifts, timetable.Instance, timetable.TimetableData,
-		repos.StaffShift, repos.InstanceStaff, realtimeHub, db, logger, timezone.CalendarDateClock(optionalClock(clocks))))
+	shifts := shiftplanning.NewStaffShiftService(repos.StaffShift, repos.Staff, shiftplanning.NewShiftTypeService(repos.ShiftType, logger), db, logger,
+		shiftplanning.WithStaffShiftSeriesExceptions(repos.StaffShiftSeriesException),
+		shiftplanning.WithStaffShiftDeviationEvents(repos.DeviationEvent),
+		shiftplanning.WithStaffShiftBroadcaster(realtimeHub))
+	shiftPlanSyncer = shiftplanning.NewShiftPlanSyncService(shifts, timetable.Instance, timetable.TimetableData,
+		repos.StaffShift, repos.InstanceStaff, realtimeHub, db, logger, today)
 	return WorkforceTestModule{Users: usersService, StaffDocuments: staffDocumentService, WorkSession: workSessionService, StaffAbsence: staffAbsenceService, WorkTimeMonth: workTimeMonthService, StaffBalanceAdjust: staffBalanceAdjustService, StaffMonthClose: staffMonthCloseService, StaffOverview: staffOverviewService, TimeTrackingAuditLog: timeTrackingAuditLogService, StaffTimeExport: staffTimeExportService, Settings: settingsService}, nil
 }
+
+// CreateAbsenceRequest is the request shape behaviour tests hand the retained
+// absence service of a WorkforceTestModule.
+type CreateAbsenceRequest = timetracking.CreateAbsenceRequest
+
+// UpdateAbsenceRequest is the matching update shape for the same tests.
+type UpdateAbsenceRequest = timetracking.UpdateAbsenceRequest

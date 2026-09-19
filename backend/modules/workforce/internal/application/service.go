@@ -15,12 +15,14 @@ import (
 
 // Service is the single entry point behind the Workforce facade.
 type Service struct {
-	store               ports.Store
-	transaction         ports.Transaction
-	assignments         ports.StaffAssignments
-	lockStaffAssignment func(context.Context, int64) error
-	clock               ports.Clock
-	observe             ports.Observer
+	store                 ports.Store
+	transaction           ports.Transaction
+	assignments           ports.StaffAssignments
+	lockStaffAssignment   func(context.Context, int64) error
+	clock                 ports.Clock
+	absenceDays           func(domain.StaffAbsence, int) (float64, error)
+	additionalAbsenceDays func(domain.StaffAbsence, []domain.StaffAbsence, int) (float64, error)
+	observe               ports.Observer
 }
 
 func New(
@@ -29,12 +31,14 @@ func New(
 	assignments ports.StaffAssignments,
 	lockStaffAssignment func(context.Context, int64) error,
 	clock ports.Clock,
+	absenceDays func(domain.StaffAbsence, int) (float64, error),
+	additionalAbsenceDays func(domain.StaffAbsence, []domain.StaffAbsence, int) (float64, error),
 	observe ports.Observer,
 ) *Service {
-	if store == nil || transaction == nil || assignments == nil || lockStaffAssignment == nil || clock == nil || observe == nil {
+	if store == nil || transaction == nil || assignments == nil || lockStaffAssignment == nil || clock == nil || absenceDays == nil || additionalAbsenceDays == nil || observe == nil {
 		panic("workforce application: all dependencies are required")
 	}
-	return &Service{store: store, transaction: transaction, assignments: assignments, lockStaffAssignment: lockStaffAssignment, clock: clock, observe: observe}
+	return &Service{store: store, transaction: transaction, assignments: assignments, lockStaffAssignment: lockStaffAssignment, clock: clock, absenceDays: absenceDays, additionalAbsenceDays: additionalAbsenceDays, observe: observe}
 }
 
 // --- work-time templates ---

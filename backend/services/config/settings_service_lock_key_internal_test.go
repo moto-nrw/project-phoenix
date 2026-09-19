@@ -38,3 +38,14 @@ func TestMFAPolicyLockKey_IsPerTenant(t *testing.T) {
 	assert.Equal(t, mfaPolicyLockKey(1), mfaPolicyLockKey(1), "the same tenant must always land on the same lock")
 	assert.NotEqual(t, mfaPolicyLockKey(1), mfaPolicyLockKey(2), "different tenants must not block each other")
 }
+
+// TestParentPickupChangePolicyLockKey_IsPerTenant pins the key shared by the
+// two settings writers and guardian pickup-change writes. A different key on
+// either side would make the enablement/cutoff re-read non-atomic again.
+func TestParentPickupChangePolicyLockKey_IsPerTenant(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "parent-pickup-change-policy:1", parentPickupChangePolicyLockKey(1))
+	assert.Equal(t, parentPickupChangePolicyLockKey(1), parentPickupChangePolicyLockKey(1), "the same tenant must always land on the same lock")
+	assert.NotEqual(t, parentPickupChangePolicyLockKey(1), parentPickupChangePolicyLockKey(2), "different tenants must not block each other")
+}

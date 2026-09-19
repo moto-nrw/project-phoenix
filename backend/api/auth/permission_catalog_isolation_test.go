@@ -3,6 +3,7 @@ package auth_test
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"testing"
 	"time"
 
@@ -113,7 +114,8 @@ func TestPlatformScopeCanMutateGlobalPermissionCatalog(t *testing.T) {
 	createResp := testutil.ExecuteWithAuthPermissions(t, router, createReq, claims, permissions)
 	require.Equal(t, http.StatusCreated, createResp.Code, "Body: %s", createResp.Body.String())
 	data := testutil.ParseJSONResponse(t, createResp.Body.Bytes())["data"].(map[string]interface{})
-	permissionID := int64(data["id"].(float64))
+	permissionID, err := strconv.ParseInt(data["id"].(string), 10, 64)
+	require.NoError(t, err)
 
 	updateReq := testutil.NewJSONRequest(t, http.MethodPut, fmt.Sprintf("/auth/permissions/%d", permissionID), map[string]string{
 		"name":        resource + ":write",
@@ -139,7 +141,7 @@ func setupPlatformPermissionRoute(t *testing.T) chi.Router {
 
 	svc, err := services.NewAuthTestModule(serveDB, testpkg.TenantRuntime(t, serveDB))
 	require.NoError(t, err)
-	authResource := authAPI.NewResource(svc.Auth, svc.Invitation, nil, serveDB)
+	authResource := authAPI.NewResource(svc.Auth, svc.Invitation, nil, svc.AccountAuthentication, serveDB)
 	router := testutil.NewTenantRouter(serveDB)
 	router.Mount("/auth", authResource.Router())
 	return router

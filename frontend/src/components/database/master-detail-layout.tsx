@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useModal } from "~/components/dashboard/modal-context";
 import { cn } from "~/lib/utils";
@@ -10,7 +10,15 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "~/components/ui/drawer";
+import { useFillHeight } from "./use-fill-height";
 
+/**
+ * Liste links, Objekt rechts. Zulässig nur, wo das Pane die EINZIGE Ansicht
+ * des Objekttyps ist und die Auswahl in der Adresse steht (BAUARTEN-SPEC
+ * Bauart 1 Regel 2, #3115). Hat der Typ eine Objektroute, ist die Sammlung
+ * einspaltig (`DatabaseListLayout`) und jede Zeile ein Link dorthin; die
+ * Ratsche `bauart/one-detail-per-type` hält die Liste der erlaubten Flächen.
+ */
 interface MasterDetailLayoutProps {
   list: ReactNode;
   detail: ReactNode;
@@ -42,28 +50,8 @@ export function MasterDetailLayout({
 }: MasterDetailLayoutProps) {
   const isMobile = useIsMobile();
   const { isModalOpen } = useModal();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [height, setHeight] = useState<string>("100dvh");
-
-  useEffect(() => {
-    const node = containerRef.current;
-    if (!node) return;
-
-    const measure = () => {
-      const top = Math.max(0, Math.round(node.getBoundingClientRect().top));
-      const next = `calc(100dvh - ${top + bottomOffset}px)`;
-      setHeight((prev) => (prev === next ? prev : next));
-    };
-
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(document.documentElement);
-    window.addEventListener("resize", measure);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", measure);
-    };
-  }, [bottomOffset]);
+  const { ref: containerRef, height } =
+    useFillHeight<HTMLDivElement>(bottomOffset);
 
   if (isMobile) {
     return (

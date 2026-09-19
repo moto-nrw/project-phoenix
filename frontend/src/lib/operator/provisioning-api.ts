@@ -337,10 +337,10 @@ class OperatorProvisioningService {
     { id: string; name: string; isSystem: boolean }[]
   > {
     const result = await operatorFetch<
-      { id: number; name: string; is_system: boolean }[]
+      { id: string; name: string; is_system: boolean }[]
     >(`/api/operator/provisioning/roles`);
     return result.map((r) => ({
-      id: r.id.toString(),
+      id: r.id,
       name: r.name,
       isSystem: r.is_system,
     }));

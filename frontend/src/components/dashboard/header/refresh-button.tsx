@@ -65,7 +65,7 @@ export function RefreshButton({
       className={
         drawer
           ? "w-full justify-start gap-3 px-4"
-          : "h-10 w-10 text-gray-500 hover:text-gray-700"
+          : "h-9 w-9 text-gray-500 hover:text-gray-700"
       }
     >
       <div className="relative h-5 w-5">

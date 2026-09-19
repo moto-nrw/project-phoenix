@@ -12,11 +12,20 @@ import (
 )
 
 const (
-	DefaultCategoryColor         = "#CCCCCC"
-	SchulhofCategoryName         = "Schulhof"
-	WCCategoryName               = "WC"
-	SchulhofActivityName         = "Schulhof Freispiel"
-	WCActivityName               = "WC"
+	DefaultCategoryColor = "#CCCCCC"
+	SchulhofCategoryName = "Schulhof"
+	WCCategoryName       = "WC"
+	SchulhofActivityName = "Schulhof Freispiel"
+	WCActivityName       = "WC"
+	// The shared system activity and category of released rooms other than
+	// the Schulhof (#3066). A room session under this activity holds the
+	// independent room stays of one released room; it is not an activity
+	// children participate in.
+	OpenRoomCategoryName         = "Offene Räume"
+	OpenRoomCategoryDescription  = "Aufenthalte in freigegebenen Räumen ohne Angebot"
+	OpenRoomCategoryColor        = "#5080D8"
+	OpenRoomActivityName         = "Offener Raum"
+	OpenRoomMaxParticipants      = 300
 	categoryNameMaxLength        = 60
 	categoryDescriptionMaxLength = 255
 )
@@ -166,7 +175,7 @@ type ScheduleCapability interface {
 }
 
 type Query interface {
-	CountPlannedSupervisorsByCalendarPeriod(context.Context) (map[int64]int, error)
+	CountCalendarPeriodReferences(context.Context) (map[int64]CalendarPeriodReferences, error)
 	CourseInstances(context.Context, string, string, string) ([]CourseInstanceRow, error)
 	CourseParticipation(context.Context, string, string, string) ([]CourseParticipationRow, error)
 	CourseGroupQuery
@@ -488,6 +497,10 @@ func (m *Module) SetPrimaryPlannedSupervisor(ctx context.Context, id int64) erro
 		return m.reject("set_primary_planned_supervisor", ErrInvalidPlannedSupervisor)
 	}
 	return m.engine.SetPrimaryPlannedSupervisor(ctx, id)
+}
+
+func (m *Module) LockPlannedSupervisors(ctx context.Context) error {
+	return m.engine.LockPlannedSupervisors(ctx)
 }
 
 func (m *Module) DeletePlannedSupervisorsByStaff(ctx context.Context, staffID int64) (int64, error) {
@@ -1418,11 +1431,12 @@ func normalizeCategory(name, description, color *string) error {
 }
 
 func reservedCategoryName(name string) bool {
-	return strings.EqualFold(name, WCCategoryName) || strings.EqualFold(name, SchulhofCategoryName)
+	return strings.EqualFold(name, WCCategoryName) || strings.EqualFold(name, SchulhofCategoryName) ||
+		strings.EqualFold(name, OpenRoomCategoryName)
 }
 
 func IsSystemActivityName(name string) bool {
-	return name == SchulhofActivityName || name == WCActivityName
+	return name == SchulhofActivityName || name == WCActivityName || name == OpenRoomActivityName
 }
 
 func hasInvalidID(ids []int64) bool {

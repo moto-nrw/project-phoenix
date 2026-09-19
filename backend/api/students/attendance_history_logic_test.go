@@ -14,11 +14,11 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -349,23 +349,23 @@ func TestAttachSlotAttendance_KeepsOpposingStatusesOnSameDay(t *testing.T) {
 	t.Parallel()
 
 	date := timezone.NewDate(2026, 7, 15)
-	morning := &schedule.ActivityInstance{
-		Date: schedule.Date(date), Title: "Morgenbetreuung",
+	morning := &activeService.HistorySlotInstance{
+		Date: timezone.Date(date), Title: "Morgenbetreuung",
 		StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
 	}
 	morning.ID = 101
-	afternoon := &schedule.ActivityInstance{
-		Date: schedule.Date(date), Title: "Nachmittagsbetreuung",
+	afternoon := &activeService.HistorySlotInstance{
+		Date: timezone.Date(date), Title: "Nachmittagsbetreuung",
 		StartTime: time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
 	}
 	afternoon.ID = 102
 	sick := schedule.AttendanceSubstatusSick
 
-	days := attachSlotAttendance(nil, []*schedule.ScheduledInstanceRow{
-		{Instance: morning, Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent}},
-		{Instance: afternoon, Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusAbsent, Substatus: &sick}},
+	days := attachSlotAttendance(nil, []*activeService.HistorySlot{
+		{Instance: morning, Attendance: &activeService.HistorySlotAttendance{Status: schedule.AttendanceStatusPresent}},
+		{Instance: afternoon, Attendance: &activeService.HistorySlotAttendance{Status: schedule.AttendanceStatusAbsent, Substatus: &sick}},
 	}, nil, date.BerlinMidnight())
 
 	require.Len(t, days, 1)
@@ -383,14 +383,14 @@ func TestAttachSlotAttendance_SlotOnlyDayRespectsRoomRetention(t *testing.T) {
 	t.Parallel()
 
 	date := timezone.NewDate(2026, 7, 10)
-	instance := &schedule.ActivityInstance{
-		Date: schedule.Date(date), Title: "Morgenbetreuung",
+	instance := &activeService.HistorySlotInstance{
+		Date: timezone.Date(date), Title: "Morgenbetreuung",
 		StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
 	}
 	instance.ID = 201
-	rows := []*schedule.ScheduledInstanceRow{
-		{Instance: instance, Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent}},
+	rows := []*activeService.HistorySlot{
+		{Instance: instance, Attendance: &activeService.HistorySlotAttendance{Status: schedule.AttendanceStatusPresent}},
 	}
 
 	t.Run("outside window stays unavailable", func(t *testing.T) {
@@ -617,21 +617,21 @@ func TestHasPlannedSlotRow(t *testing.T) {
 
 	date := timezone.NewDate(2026, 7, 15)
 	assert.False(t, hasPlannedSlotRow(nil))
-	assert.False(t, hasPlannedSlotRow([]*schedule.ScheduledInstanceRow{
+	assert.False(t, hasPlannedSlotRow([]*activeService.HistorySlot{
 		nil,
-		{Instance: &schedule.ActivityInstance{Date: schedule.Date(date)}, Attendance: nil},
+		{Instance: &activeService.HistorySlotInstance{Date: timezone.Date(date)}, Attendance: nil},
 	}))
-	assert.False(t, hasPlannedSlotRow([]*schedule.ScheduledInstanceRow{{
-		Instance:   &schedule.ActivityInstance{Date: schedule.Date(date), Title: "Spontan-AG"},
-		Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent, IsUnplanned: true},
+	assert.False(t, hasPlannedSlotRow([]*activeService.HistorySlot{{
+		Instance:   &activeService.HistorySlotInstance{Date: timezone.Date(date), Title: "Spontan-AG"},
+		Attendance: &activeService.HistorySlotAttendance{Status: schedule.AttendanceStatusPresent, IsUnplanned: true},
 	}}), "walk-in rows must not count as care-plan evidence")
-	assert.False(t, hasPlannedSlotRow([]*schedule.ScheduledInstanceRow{{
-		Instance:   &schedule.ActivityInstance{Date: schedule.Date(date), Title: "Ausgefallene AG", Status: schedule.InstanceStatusCancelled},
-		Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusExpected},
+	assert.False(t, hasPlannedSlotRow([]*activeService.HistorySlot{{
+		Instance:   &activeService.HistorySlotInstance{Date: timezone.Date(date), Title: "Ausgefallene AG", Status: schedule.InstanceStatusCancelled},
+		Attendance: &activeService.HistorySlotAttendance{Status: schedule.AttendanceStatusExpected},
 	}}), "cancelled instances must not count as care-plan evidence")
-	assert.True(t, hasPlannedSlotRow([]*schedule.ScheduledInstanceRow{{
-		Instance:   &schedule.ActivityInstance{Date: schedule.Date(date), Title: "Morgenbetreuung"},
-		Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent},
+	assert.True(t, hasPlannedSlotRow([]*activeService.HistorySlot{{
+		Instance:   &activeService.HistorySlotInstance{Date: timezone.Date(date), Title: "Morgenbetreuung"},
+		Attendance: &activeService.HistorySlotAttendance{Status: schedule.AttendanceStatusPresent},
 	}}))
 }
 
@@ -639,17 +639,17 @@ func TestAttachSlotAttendance_SerializesInt64InstanceIDAsDecimalString(t *testin
 	t.Parallel()
 
 	date := timezone.NewDate(2026, 7, 15)
-	instance := &schedule.ActivityInstance{
-		Date:      schedule.Date(date),
+	instance := &activeService.HistorySlotInstance{
+		Date:      timezone.Date(date),
 		StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
 		Status:    schedule.InstanceStatusCompleted,
 	}
 	instance.ID = math.MaxInt64
 
-	days := attachSlotAttendance(nil, []*schedule.ScheduledInstanceRow{{
+	days := attachSlotAttendance(nil, []*activeService.HistorySlot{{
 		Instance:   instance,
-		Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusExpected},
+		Attendance: &activeService.HistorySlotAttendance{Status: schedule.AttendanceStatusExpected},
 	}}, nil, date.BerlinMidnight())
 
 	require.Len(t, days, 1)
@@ -662,14 +662,14 @@ func TestAttachSlotAttendance_CarriesInstanceLifecycleStatus(t *testing.T) {
 	t.Parallel()
 
 	date := timezone.NewDate(2026, 7, 15)
-	instance := &schedule.ActivityInstance{
-		Date: schedule.Date(date), Status: schedule.InstanceStatusActive,
+	instance := &activeService.HistorySlotInstance{
+		Date: timezone.Date(date), Status: schedule.InstanceStatusActive,
 	}
 	instance.ID = 203
 
-	days := attachSlotAttendance(nil, []*schedule.ScheduledInstanceRow{{
+	days := attachSlotAttendance(nil, []*activeService.HistorySlot{{
 		Instance:   instance,
-		Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent},
+		Attendance: &activeService.HistorySlotAttendance{Status: schedule.AttendanceStatusPresent},
 	}}, nil, date.BerlinMidnight())
 
 	require.Len(t, days, 1)
@@ -685,8 +685,8 @@ func TestAttachSlotAttendance_CarriesTheAttendanceNote(t *testing.T) {
 	t.Parallel()
 
 	date := timezone.NewDate(2026, 7, 15)
-	instance := &schedule.ActivityInstance{
-		Date: schedule.Date(date), Title: "Fußball-AG",
+	instance := &activeService.HistorySlotInstance{
+		Date: timezone.Date(date), Title: "Fußball-AG",
 		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
 	}
@@ -694,8 +694,8 @@ func TestAttachSlotAttendance_CarriesTheAttendanceNote(t *testing.T) {
 	note := "Hat sich am Knie gestoßen, Eltern informiert"
 	late := schedule.AttendanceSubstatusLate
 
-	days := attachSlotAttendance(nil, []*schedule.ScheduledInstanceRow{
-		{Instance: instance, Attendance: &schedule.InstanceStudent{
+	days := attachSlotAttendance(nil, []*activeService.HistorySlot{
+		{Instance: instance, Attendance: &activeService.HistorySlotAttendance{
 			Status:    schedule.AttendanceStatusPresent,
 			Substatus: &late,
 			Note:      &note,
@@ -714,15 +714,15 @@ func TestAttachSlotAttendance_OmitsMissingNote(t *testing.T) {
 	t.Parallel()
 
 	date := timezone.NewDate(2026, 7, 15)
-	instance := &schedule.ActivityInstance{
-		Date: schedule.Date(date), Title: "Betreuung",
+	instance := &activeService.HistorySlotInstance{
+		Date: timezone.Date(date), Title: "Betreuung",
 		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
 	}
 	instance.ID = 202
 
-	days := attachSlotAttendance(nil, []*schedule.ScheduledInstanceRow{
-		{Instance: instance, Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent}},
+	days := attachSlotAttendance(nil, []*activeService.HistorySlot{
+		{Instance: instance, Attendance: &activeService.HistorySlotAttendance{Status: schedule.AttendanceStatusPresent}},
 	}, nil, date.BerlinMidnight())
 
 	require.Len(t, days, 1)

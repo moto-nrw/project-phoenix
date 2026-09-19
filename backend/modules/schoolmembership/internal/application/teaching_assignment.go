@@ -104,6 +104,16 @@ func (s *Service) DeleteGroupAssignment(ctx context.Context, id int64) error {
 	})
 }
 
+// LockGroupAssignments joins the caller's transaction; the table lock is
+// released with it.
+func (s *Service) LockGroupAssignments(ctx context.Context) error {
+	return s.runWrite(ctx, "lock_group_assignments", func(txCtx context.Context, stats *domain.OperationStats) error {
+		queryStats, err := s.store.LockGroupAssignments(txCtx)
+		stats.Add(queryStats)
+		return err
+	})
+}
+
 func (s *Service) DeleteGroupAssignmentsByTeacher(ctx context.Context, teacherID int64) (rows int64, err error) {
 	return s.deleteGroupAssignments(ctx, "delete_group_assignments_by_teacher", func(txCtx context.Context) (domain.OperationStats, error) {
 		return s.store.DeleteGroupAssignmentsByTeacher(txCtx, teacherID)

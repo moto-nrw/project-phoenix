@@ -25,10 +25,14 @@ type ParentAnnouncement struct {
 	DeliveryMode            string
 	EmailAudience           string
 	SystemKind              *string
-	CreatedAt               time.Time
-	UpdatedAt               time.Time
-	Targets                 []*ParentAnnouncementTarget
-	Options                 []*ParentAnnouncementOption
+	// Scheduled one-off reminder (#3162): moment, optional wording, sent mark.
+	ReminderAt     *time.Time
+	ReminderText   *string
+	ReminderSentAt *time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	Targets        []*ParentAnnouncementTarget
+	Options        []*ParentAnnouncementOption
 }
 
 // ParentAnnouncementTarget is one audience selector of an announcement.
@@ -83,6 +87,8 @@ type ParentAnnouncementFeedItem struct {
 	SystemKind              *string
 	ReadAt                  *time.Time
 	AcknowledgedAt          *time.Time
+	ReminderSentAt          *time.Time
+	ReminderText            *string
 }
 
 // ParentAnnouncementPollChild is one child a guardian may answer a poll for,

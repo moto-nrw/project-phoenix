@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
 // staffGroupSupervisorRepository attaches the supervising staff member to
@@ -50,10 +50,20 @@ func (r staffGroupSupervisorRepository) attachStaff(ctx context.Context, rows []
 			continue
 		}
 		if member, found := members[row.StaffID]; found {
-			row.Staff = toLegacyStaff(member)
+			row.Staff = sessionStaff(member)
 		}
 	}
 	return nil
+}
+
+func sessionStaff(member schoolmembership.Staff) *activeModels.SessionStaff {
+	row := toLegacyStaff(member)
+	return &activeModels.SessionStaff{
+		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		PersonID: row.PersonID, StaffNotes: row.StaffNotes, EmploymentType: row.EmploymentType,
+		WorkTimeModelID: row.WorkTimeModelID, RotationAnchorDate: row.RotationAnchorDate,
+		BirthdayDisplayOptOut: row.BirthdayDisplayOptOut,
+	}
 }
 
 // absenceRequestRowsQuery is the staff-ID-shaped listing the concrete

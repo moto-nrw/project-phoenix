@@ -188,19 +188,6 @@ type StudentRepository interface {
 	// rationale.
 	LockPhotoFeature(ctx context.Context) error
 
-	// LockStudentClassWrites acquires the per-tenant advisory gate that keeps
-	// students from being created in — or moved into — a class while the caller
-	// runs. Taken EXCLUSIVELY by the grade transition apply/revert; every
-	// ordinary student write takes the shared form inside the repository, so no
-	// caller has to remember it. Row locks cannot cover this case: a child who
-	// arrives in a mapped class during an apply has no row the apply could have
-	// locked, and would otherwise be left behind in a class the transition just
-	// emptied while the transition reported success (#405 review).
-	//
-	// Must be called inside a tenant tx; releases on commit/rollback. Take it
-	// BEFORE the recurrence and grade-transition gates.
-	LockStudentClassWrites(ctx context.Context) error
-
 	// LockStudentClassWritesShared acquires the SHARED form of the class-writes
 	// gate. The repository takes it implicitly in front of every student
 	// insert/update/row lock; callers only need it explicitly when they must
@@ -564,33 +551,6 @@ type StudentCompanionRepository interface {
 	// "mit wem" cover is per weekday, so removal checks need this per-day view.
 	CompanionDaysCoveredExcluding(ctx context.Context, studentIDs []int64, excludeID int64) (map[int64]map[string]bool, error)
 	CompanionWeekdays(ctx context.Context, studentID int64) ([]int, error)
-}
-
-// StudentRetentionSetting is the projection used by the GDPR visit-cleanup
-// worklist: one row per distinct (student, retention-days) pair with an
-// accepted privacy consent.
-type StudentRetentionSetting struct {
-	StudentID         int64 `bun:"student_id"`
-	DataRetentionDays int   `bun:"data_retention_days"`
-}
-
-// PrivacyConsentRepository defines operations for managing privacy consents
-type PrivacyConsentRepository interface {
-	base.CRUDRepository[*PrivacyConsent]
-
-	// FindByStudentID retrieves privacy consents for a student
-	FindByStudentID(ctx context.Context, studentID int64) ([]*PrivacyConsent, error)
-
-	// Accept marks a privacy consent as accepted
-	Accept(ctx context.Context, id int64, acceptedAt time.Time) error
-
-	// Revoke revokes a privacy consent
-	Revoke(ctx context.Context, id int64) error
-
-	// ListAcceptedRetentionSettings returns the distinct (student_id,
-	// data_retention_days) pairs of accepted privacy consents, ordered by
-	// student_id. Feeds the GDPR visit-cleanup worklist.
-	ListAcceptedRetentionSettings(ctx context.Context) ([]StudentRetentionSetting, error)
 }
 
 // GuardianProfileRepository defines operations for managing guardian profiles

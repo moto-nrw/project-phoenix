@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	bookingFixtures "github.com/moto-nrw/project-phoenix/services"
+
 	enrollmentFixture "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -31,7 +33,7 @@ func bookingAuthorityService(t *testing.T, db *bun.DB, authoritative bool) userS
 	return userService.NewCareLifecycleService(userService.CareLifecycleDependencies{
 		StudentRepo: repos.Student, PersonRepo: repos.Person, CareExitRepo: repos.CareExit,
 		CleanupRepo: repos.CareExitCleanup, WithdrawalRepo: repos.CareWithdrawal,
-		TagReleaser:           repos.GradeTransition,
+		TagReleaser:           repos.StudentTagReleaser(),
 		AuditService:          userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default()),
 		LockCareBookingWrites: func(context.Context) error { return nil },
 		BookingsAuthoritative: func(context.Context) (bool, error) { return authoritative, nil },
@@ -47,7 +49,7 @@ func lockedBookingAuthorityService(t *testing.T, db *bun.DB) userService.CareLif
 	return userService.NewCareLifecycleService(userService.CareLifecycleDependencies{
 		StudentRepo: repos.Student, PersonRepo: repos.Person, CareExitRepo: repos.CareExit,
 		CleanupRepo: repos.CareExitCleanup, WithdrawalRepo: repos.CareWithdrawal,
-		TagReleaser:  repos.GradeTransition,
+		TagReleaser:  repos.StudentTagReleaser(),
 		AuditService: userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default()),
 		LockCareBookingWrites: func(ctx context.Context) error {
 			return scheduleService.LockTenantRecurrenceWrites(ctx, db)
@@ -76,7 +78,7 @@ func createCareBooking(
 		link.ValidUntil = &until
 	}
 	link.TenantID = scope.TenantID
-	require.NoError(t, enrollmentFixture.New().InsertRequestChildOffering(testpkg.WithTenantRuntime(t, scope.Context(), db), link))
+	require.NoError(t, bookingFixtures.NewEnrollmentBookingFixture().InsertRequestChildOffering(testpkg.WithTenantRuntime(t, scope.Context(), db), link))
 	// These scenarios include legacy unbounded bookings. The owner defaults new
 	// bookings to the phase window, so restore only the intentional legacy nulls.
 	if validFrom == nil || validUntil == nil {

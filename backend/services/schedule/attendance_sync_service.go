@@ -26,7 +26,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 

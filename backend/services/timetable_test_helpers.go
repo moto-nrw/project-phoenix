@@ -8,8 +8,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -59,15 +59,15 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	// Instance completion consumes only the active-session end capability.
 	// Retain its real transaction, visit sync, supervision and SSE paths.
 	ender := active.NewService(active.ServiceDependencies{
-		SchoolPresence: newStudentPresence(db, logger),
-		GroupRepo:      r.ActiveGroup, SupervisorRepo: r.GroupSupervisor,
-		StudentRepo: r.Student, PersonRepo: r.Person, RoomRepo: r.Room, ActivityGroupRepo: r.ActivityGroup,
-		EducationGroupRepo: r.Group, StaffRepo: r.Staff, TeacherRepo: r.Teacher,
+		PrincipalReader: AttendancePrincipal,
+		SchoolPresence:  newStudentPresence(db, logger),
+		GroupRepo:       r.ActiveGroup, SupervisorRepo: r.GroupSupervisor,
+		StudentRepo: PresenceStudents(r.Student), RoomRepo: NewAttendanceRooms(r.Room), ActivityGroupRepo: repositories.NewSessionActivities(r.ActivityGroup),
+		EducationGroupRepo: NewAttendanceEducationGroups(r.Group, r.Student), StaffRepo: NewAttendanceStaffDirectory(r.Staff),
 		DB: db, Broadcaster: hub, Logger: logger, Now: now,
 		AttendanceSyncer:         schedule.NewAttendanceSyncService(r.ActivityInstance, r.InstanceStudent, logger),
 		TimetableBridgeCompleter: bridge,
-	})
-	ender.SetSettingsService(settings.Settings)
+	}, active.WithSettings(PresenceSettings(settings.Settings)))
 	offerings := enrollment.NewCareOfferingService(enrollment.CareOfferingServiceConfig{
 		Repo: r.CareOffering, Bookings: r.Enrollment(), ActivityGroupRepo: r.ActivityGroup,
 		ActivityScheduleRepo: r.ActivitySchedule, CalendarPeriodRepo: r.CalendarPeriod, TimeframeRepo: r.Timeframe,

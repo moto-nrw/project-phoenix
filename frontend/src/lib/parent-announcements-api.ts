@@ -69,6 +69,14 @@ export interface Announcement {
   options: AnnouncementOption[];
   delivery_mode: AnnouncementDeliveryMode;
   email_audience: AnnouncementEmailAudience;
+  /**
+   * Scheduled reminder (#3162): the moment the announcement goes out a second
+   * time to its whole audience, the optional short wording of that second
+   * delivery, and the moment it actually went out. All absent = no reminder.
+   */
+  reminder_at?: string;
+  reminder_text?: string;
+  reminder_sent_at?: string;
 }
 
 /** True when the announcement is a binding Elternbrief. */
@@ -144,6 +152,18 @@ export interface AnnouncementInput {
    */
   delivery_mode?: AnnouncementDeliveryMode;
   email_audience?: AnnouncementEmailAudience;
+  /** Scheduled reminder (#3162): an instant (ISO) or null for none. */
+  reminder_at?: string | null;
+  reminder_text?: string | null;
+}
+
+/**
+ * The one edit a published announcement still accepts (#3162): move, reword
+ * or remove (reminder_at null) its scheduled reminder, until it has been sent.
+ */
+export interface AnnouncementReminderInput {
+  reminder_at: string | null;
+  reminder_text?: string | null;
 }
 
 /**
@@ -251,6 +271,21 @@ export async function fetchAnnouncements(
   return data ?? [];
 }
 
+/**
+ * One announcement with its targets, for the object page
+ * /parent-announcements/[id] (#3115). Resolves to undefined when the backend
+ * answers without a body; the page treats that as "nicht gefunden".
+ */
+export async function fetchAnnouncement(
+  id: string,
+): Promise<Announcement | undefined> {
+  return request<Announcement>(
+    `${BASE}/${encodeURIComponent(id)}`,
+    undefined,
+    "Elternmitteilung konnte nicht geladen werden",
+  );
+}
+
 function jsonBody(body: AnnouncementInput): RequestInit {
   return {
     method: "POST",
@@ -282,6 +317,23 @@ export async function updateAnnouncement(
   );
   if (!data)
     throw new Error("Elternmitteilung konnte nicht gespeichert werden");
+  return data;
+}
+
+export async function updateAnnouncementReminder(
+  id: string,
+  input: AnnouncementReminderInput,
+): Promise<Announcement> {
+  const data = await request<Announcement>(
+    `${BASE}/${encodeURIComponent(id)}/reminder`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+    "Erinnerung konnte nicht gespeichert werden",
+  );
+  if (!data) throw new Error("Erinnerung konnte nicht gespeichert werden");
   return data;
 }
 

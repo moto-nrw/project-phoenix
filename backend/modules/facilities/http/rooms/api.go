@@ -196,6 +196,18 @@ func (rs *Resource) listRooms(w http.ResponseWriter, r *http.Request) {
 	if value := r.URL.Query().Get("category"); value != "" {
 		filter.Category = &value
 	}
+	// is_open_room selects by the permanent release (#3065). Absent means "no
+	// opinion" — the navigation asks for released rooms, every other caller
+	// keeps seeing all of them. Any value other than the two below is treated
+	// as absent rather than guessed at.
+	switch r.URL.Query().Get("is_open_room") {
+	case "true":
+		released := true
+		filter.IsOpenRoom = &released
+	case "false":
+		released := false
+		filter.IsOpenRoom = &released
+	}
 	includeSystem := r.URL.Query().Get("include_system") == "true"
 	filter.ExcludeSystem = !includeSystem
 	page, pageSize := rs.runtime.Pagination(r)
@@ -384,10 +396,9 @@ func visibleRooms(rooms []facilities.Room, includeSystem bool) []facilities.Room
 	visible := make([]facilities.Room, 0, len(rooms))
 	for _, room := range rooms {
 		// Mirrors the owner's ExcludeSystem predicate: toilet rooms are never
-		// staff-visible, any other system room stays visible while it is
-		// released. Reading the stored release rather than the Schulhof name
-		// keeps this in step with a deactivated yard (#3064).
-		if facilities.IsToiletRoomName(room.Name) || (room.IsSystem && !room.IsOpenRoom) {
+		// staff-visible, and the Schulhof stays selectable whether or not it
+		// is released (ADR 0019).
+		if facilities.IsToiletRoomName(room.Name) || (room.IsSystem && room.Name != facilities.SchulhofRoomName) {
 			continue
 		}
 		visible = append(visible, room)

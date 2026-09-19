@@ -6,7 +6,7 @@ import (
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 )
 
 var errSettingsNotConfigured = errors.New("settings service is not configured")

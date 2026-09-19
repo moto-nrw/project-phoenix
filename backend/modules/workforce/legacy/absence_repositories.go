@@ -7,8 +7,8 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
@@ -333,112 +333,6 @@ func applyStaffAbsenceCondition(filter *workforce.StaffAbsenceFilter, condition 
 	return nil
 }
 
-// staffAbsenceTypeRepository serves
-// activeModels.StaffAbsenceTypeRepository from the Workforce capability.
-type staffAbsenceTypeRepository struct{ workforce workforce.Capability }
-
-func NewStaffAbsenceTypeRepository(capability workforce.Capability) activeModels.StaffAbsenceTypeRepository {
-	if capability == nil {
-		panic("staff absence type repository adapter: Workforce capability is required")
-	}
-	return staffAbsenceTypeRepository{workforce: capability}
-}
-
-func (r staffAbsenceTypeRepository) Create(ctx context.Context, entity *activeModels.StaffAbsenceType) error {
-	if entity == nil {
-		return errors.New("absence type cannot be nil")
-	}
-	if err := entity.Validate(); err != nil {
-		return err
-	}
-	created, err := r.workforce.CreateStaffAbsenceType(ctx, workforce.StaffAbsenceTypeFields{
-		Name: entity.Name, BaseType: entity.BaseType, IsActive: entity.IsActive,
-		AllowanceEnabled: entity.AllowanceEnabled, OverrunPolicy: entity.OverrunPolicy,
-	})
-	if err != nil {
-		return writeError("create", err)
-	}
-	applyAbsenceTypeToLegacy(entity, created)
-	return nil
-}
-
-func (r staffAbsenceTypeRepository) FindByID(ctx context.Context, id any) (*activeModels.StaffAbsenceType, error) {
-	typeID, err := legacyID(id)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find by id", Err: err}
-	}
-	value, err := r.workforce.FindStaffAbsenceType(ctx, typeID)
-	if err != nil {
-		return nil, readError("find by id", err, workforce.ErrAbsenceTypeNotFound)
-	}
-	return absenceTypeToLegacy(value), nil
-}
-
-func (r staffAbsenceTypeRepository) Update(ctx context.Context, entity *activeModels.StaffAbsenceType) error {
-	if entity == nil {
-		return errors.New("absence type cannot be nil")
-	}
-	if err := entity.Validate(); err != nil {
-		return err
-	}
-	updated, err := r.workforce.UpdateStaffAbsenceType(ctx, workforce.StaffAbsenceType{
-		ID: entity.ID, TenantID: entity.TenantID, Name: entity.Name, BaseType: entity.BaseType, IsActive: entity.IsActive,
-		AllowanceEnabled: entity.AllowanceEnabled, OverrunPolicy: entity.OverrunPolicy,
-	})
-	if err != nil {
-		if errors.Is(err, workforce.ErrAbsenceTypeNotFound) {
-			return rowsAffectedError("update staff absence type")
-		}
-		return writeError("update staff absence type", err)
-	}
-	applyAbsenceTypeToLegacy(entity, updated)
-	return nil
-}
-
-// Delete is deliberately unsupported: a name that was used must stay readable
-// on its historical absences, so retirement is is_active = false.
-func (r staffAbsenceTypeRepository) Delete(context.Context, any) error {
-	return errors.New("staff absence types cannot be deleted; deactivate them instead")
-}
-
-func (r staffAbsenceTypeRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*activeModels.StaffAbsenceType, error) {
-	if options != nil && options.Filter != nil && len(options.Filter.Conditions()) > 0 {
-		return nil, &modelBase.DatabaseError{Op: "list with options", Err: errors.New("staff absence type filters are not supported")}
-	}
-	return r.ListAll(ctx)
-}
-
-func (r staffAbsenceTypeRepository) ListAll(ctx context.Context) ([]*activeModels.StaffAbsenceType, error) {
-	values, err := r.workforce.ListStaffAbsenceTypes(ctx)
-	if err != nil {
-		return nil, readError("list all staff absence types", err, nil)
-	}
-	result := make([]*activeModels.StaffAbsenceType, 0, len(values))
-	for _, value := range values {
-		result = append(result, absenceTypeToLegacy(value))
-	}
-	return result, nil
-}
-
-func (r staffAbsenceTypeRepository) LockByID(ctx context.Context, id int64) (*activeModels.StaffAbsenceType, error) {
-	value, err := r.workforce.LockStaffAbsenceType(ctx, id)
-	if err != nil {
-		if errors.Is(err, workforce.ErrAbsenceTypeNotFound) {
-			return nil, nil
-		}
-		return nil, readError("lock staff absence type", err, nil)
-	}
-	return absenceTypeToLegacy(value), nil
-}
-
-func (r staffAbsenceTypeRepository) IsInUse(ctx context.Context, id int64) (bool, error) {
-	inUse, err := r.workforce.StaffAbsenceTypeInUse(ctx, id)
-	if err != nil {
-		return false, readError("check staff absence type usage", err, nil)
-	}
-	return inUse, nil
-}
-
 // staffAbsenceAuditRepository serves
 // activeModels.StaffAbsenceAuditRepository from the Workforce capability.
 type staffAbsenceAuditRepository struct{ workforce workforce.Capability }
@@ -511,24 +405,6 @@ func applyAbsenceToLegacy(entity *activeModels.StaffAbsence, value workforce.Sta
 	entity.DecisionNote = value.DecisionNote
 	entity.RequestedAt = value.RequestedAt
 	entity.SubstituteStaffID = value.SubstituteStaffID
-}
-
-func absenceTypeToLegacy(value workforce.StaffAbsenceType) *activeModels.StaffAbsenceType {
-	entity := &activeModels.StaffAbsenceType{}
-	applyAbsenceTypeToLegacy(entity, value)
-	return entity
-}
-
-func applyAbsenceTypeToLegacy(entity *activeModels.StaffAbsenceType, value workforce.StaffAbsenceType) {
-	entity.ID = value.ID
-	entity.CreatedAt = value.CreatedAt
-	entity.UpdatedAt = value.UpdatedAt
-	entity.TenantID = value.TenantID
-	entity.Name = value.Name
-	entity.BaseType = value.BaseType
-	entity.IsActive = value.IsActive
-	entity.AllowanceEnabled = value.AllowanceEnabled
-	entity.OverrunPolicy = value.OverrunPolicy
 }
 
 // --- shared helpers ---

@@ -607,8 +607,8 @@ func containsCoverageDate(dates []timezone.Date, target timezone.Date) bool {
 }
 
 func loadShiftCoverageData(ctx context.Context, shifts StaffShiftCoverageReader, dates []timezone.Date, staffIDs []int64) ([]*scheduleModel.StaffShift, map[timezone.Date]bool, error) {
-	firstWeekFrom, _ := containingCalendarWeek(dates[0])
-	_, lastWeekTo := containingCalendarWeek(dates[len(dates)-1])
+	firstWeekFrom, _ := ContainingCalendarWeek(dates[0])
+	_, lastWeekTo := ContainingCalendarWeek(dates[len(dates)-1])
 	scheduleDates := make([]scheduleModel.Date, len(dates))
 	for index, date := range dates {
 		scheduleDates[index] = scheduleModel.Date(date)
@@ -625,7 +625,7 @@ func loadShiftCoverageData(ctx context.Context, shifts StaffShiftCoverageReader,
 	for index, week := range weeks {
 		weekDates[index] = timezone.Date(week)
 	}
-	return rows, indexCalendarWeeks(weekDates), nil
+	return rows, IndexCalendarWeeks(weekDates), nil
 }
 
 type pendingShiftCoverageWarning struct {
@@ -642,7 +642,7 @@ func collectPendingCoverageWarnings(
 	shifts []*scheduleModel.StaffShift,
 	usedWeeks map[timezone.Date]bool,
 ) ([]pendingShiftCoverageWarning, int) {
-	shiftIndex := indexShifts(shifts)
+	shiftIndex := IndexShiftsByStaffDate(shifts)
 	pending := make([]pendingShiftCoverageWarning, 0, maxReturnedShiftCoverageWarnings)
 	total := 0
 	for _, date := range dates {
@@ -650,12 +650,12 @@ func collectPendingCoverageWarnings(
 		if !day.active {
 			continue
 		}
-		weekFrom, _ := containingCalendarWeek(date)
+		weekFrom, _ := ContainingCalendarWeek(date)
 		if !usedWeeks[weekFrom] {
 			continue
 		}
 		for _, staffID := range day.staffIDs {
-			gaps := uncoveredShiftIntervals(day.start, day.end, shiftIndex[staffDateKey{staffID: staffID, date: date}])
+			gaps := UncoveredShiftIntervals(day.start, day.end, shiftIndex[StaffDateKey{StaffID: staffID, Date: date}])
 			for _, gap := range gaps {
 				total++
 				if len(pending) >= maxReturnedShiftCoverageWarnings {
@@ -865,7 +865,7 @@ func effectiveCoverageStaffIDs(submitted []int64, prior []*scheduleModel.Instanc
 	return effective
 }
 
-func containingCalendarWeek(date timezone.Date) (timezone.Date, timezone.Date) {
+func ContainingCalendarWeek(date timezone.Date) (timezone.Date, timezone.Date) {
 	// time.Weekday is Sunday=0. Rotate it so Monday=0 and move back to that
 	// Monday. Dienstplan comparison accepts all seven ISO weekdays even though
 	// the current weekly grid renders Monday-Friday.

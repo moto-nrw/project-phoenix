@@ -11,10 +11,10 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"

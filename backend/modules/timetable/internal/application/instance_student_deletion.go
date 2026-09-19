@@ -16,6 +16,16 @@ func (s *Service) CountStudentAssignments(ctx context.Context, studentID int64) 
 	return count, err
 }
 
+func (s *Service) CountStudentRosterRemovals(ctx context.Context, studentID int64) (count int, err error) {
+	err = s.run("count_student_roster_removals", func(stats *domain.OperationStats) error {
+		value, queryStats, countErr := s.store.CountStudentRosterRemovals(ctx, studentID)
+		stats.Add(queryStats)
+		count = value
+		return countErr
+	})
+	return count, err
+}
+
 func (s *Service) DeleteStudentAssignments(ctx context.Context, studentID int64) (rows int64, err error) {
 	err = s.runWrite(ctx, "delete_student_assignments", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		queryStats, deleteErr := s.store.DeleteStudentAssignments(txCtx, studentID)

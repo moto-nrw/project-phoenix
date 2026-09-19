@@ -36,7 +36,6 @@ import (
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -46,8 +45,9 @@ import (
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	announcement "github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -491,6 +491,15 @@ func (s *instanceService) notScheduledStudentIDs(
 // (TenantTxMiddleware); any failure rolls back the whole thing — no dangling
 // active.group, no half-linked instance, no stale supervisors.
 func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffID int64) (*StartInstanceResult, error) {
+	if !s.hasTx(ctx) {
+		var result *StartInstanceResult
+		err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+			var startErr error
+			result, startErr = s.Start(txCtx, instanceID, startedByStaffID)
+			return startErr
+		})
+		return result, err
+	}
 	instance, err := s.loadForTransition(ctx, instanceID)
 	if err != nil {
 		return nil, err
@@ -537,7 +546,6 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 	// Conflicts are advisory; failed presence reads abort before any writes.
 	warnings, err := DetectStartConflicts(ctx, ConflictDependencies{
 		GroupRepo:         s.deps.ActiveGroupRepo,
-		SupervisorRepo:    s.deps.SupervisorRepo,
 		Presence:          s.deps.Presence,
 		InstanceRepo:      s.deps.InstanceRepo,
 		InstanceStaffRepo: s.deps.InstanceStaffRepo,
@@ -640,13 +648,15 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 // active supervisor in the given room into the freshly started bridge group:
 // their open visits move over, then the orphan session is ended. Typical case:
 // a kiosk scan into the room auto-created an unsupervised fallback session
-// (e.g. Schulhof, #2161) before the planned block started. A group already
-// linked to any timetable instance is not a fallback and must retain its
-// bridge, even when the instance currently has no active supervisor. Supervised
-// sessions are also left alone: parallel supervised groups in one room are a
-// sanctioned pattern (#2139). Absorbed open visits are mirrored into the
-// target instance's attendance rows before commit. No per-student SSE fires
-// here; the EventInstanceStarted broadcast that follows makes clients refetch.
+// before the planned block started (#2161). Independent room stays (device-less
+// sessions of a system activity, #3066) are not fallbacks: they stay in the
+// room and are not pulled into the started activity. A group already linked to
+// any timetable instance is not a fallback and must retain its bridge, even
+// when the instance currently has no active supervisor. Supervised sessions
+// are also left alone: parallel supervised groups in one room are a sanctioned
+// pattern (#2139). Absorbed open visits are mirrored into the target instance's
+// attendance rows before commit. No per-student SSE fires here; the
+// EventInstanceStarted broadcast that follows makes clients refetch.
 func (s *instanceService) absorbUnsupervisedOpenGroups(ctx context.Context, instanceID, roomID, newGroupID int64) error {
 	openGroups, err := s.deps.ActiveGroupRepo.FindActiveByRoomID(ctx, roomID)
 	if err != nil {
@@ -661,6 +671,11 @@ func (s *instanceService) absorbUnsupervisedOpenGroups(ctx context.Context, inst
 		return cmp.Compare(a.ID, b.ID)
 	})
 
+	systemByActivity, err := s.systemActivitiesByID(ctx, openGroups)
+	if err != nil {
+		return fmt.Errorf("load system activities for room %d: %w", roomID, err)
+	}
+
 	today := timezone.TodayDate()
 	movedTotal := int64(0)
 	for _, group := range openGroups {
@@ -668,6 +683,9 @@ func (s *instanceService) absorbUnsupervisedOpenGroups(ctx context.Context, inst
 			continue
 		}
 		if timezone.DateFromTime(group.StartTime) != today {
+			continue
+		}
+		if templateID, ok := group.TemplateID(); ok && group.IsIndependentRoomSession(systemByActivity[templateID]) {
 			continue
 		}
 
@@ -729,6 +747,39 @@ func (s *instanceService) absorbUnsupervisedOpenGroups(ctx context.Context, inst
 	}
 
 	return nil
+}
+
+func (s *instanceService) systemActivitiesByID(ctx context.Context, groups []*activeModel.Group) (map[int64]bool, error) {
+	ids := make([]int64, 0, len(groups))
+	seen := make(map[int64]struct{}, len(groups))
+	for _, group := range groups {
+		if group.DeviceID != nil {
+			continue
+		}
+		templateID, ok := group.TemplateID()
+		if !ok {
+			continue
+		}
+		if _, dup := seen[templateID]; dup {
+			continue
+		}
+		seen[templateID] = struct{}{}
+		ids = append(ids, templateID)
+	}
+	result := make(map[int64]bool, len(ids))
+	if len(ids) == 0 || s.deps.ActivityGroupRepo == nil {
+		return result, nil
+	}
+	activities, err := s.deps.ActivityGroupRepo.FindByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, activity := range activities {
+		if activity != nil {
+			result[activity.ID] = activity.IsSystem
+		}
+	}
+	return result, nil
 }
 
 func (s *instanceService) syncAbsorbedVisitAttendance(ctx context.Context, instanceID, activeGroupID int64) error {
@@ -1230,7 +1281,7 @@ func (s *instanceService) validateReopenOccupancy(ctx context.Context, instance 
 		return &ScheduleError{Op: "reopen instance: count room occupancy", Err: err}
 	}
 	if currentOccupancy+len(snapshot.VisitIDs) > *room.Capacity {
-		return activeSvc.ErrRoomCapacityExceeded
+		return ErrRoomCapacityExceeded
 	}
 	return nil
 }
@@ -1277,11 +1328,10 @@ func (s *instanceService) validateReopenSupervisorsUnchanged(ctx context.Context
 			staffIDs = append(staffIDs, row.StaffID)
 		}
 	}
-	activeByStaff := make(map[int64][]*activeModel.GroupSupervisor, len(staffIDs))
+	activeByStaff := make(map[int64][]studentpresence.GroupSupervision, len(staffIDs))
 	if len(staffIDs) > 0 {
-		options := modelBase.NewQueryOptions()
-		options.Filter = modelBase.NewFilter().Equal("active_only", true).In("staff_id", int64FilterArgs(staffIDs)...)
-		activeRows, listErr := s.deps.SupervisorRepo.List(ctx, options)
+		day := timezone.TodayDate().String()
+		activeRows, listErr := s.deps.Presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{ActiveOn: &day, StaffIDs: staffIDs})
 		if listErr != nil {
 			return &ScheduleError{Op: "reopen instance: load staff supervisions", Err: listErr}
 		}

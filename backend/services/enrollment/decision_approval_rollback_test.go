@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -162,7 +163,9 @@ func TestDecisionService_ApprovalRollsBackEveryOwnerAfterMaterialization(t *test
 	require.NoError(t, err)
 	require.Len(t, submitted.Children, 1)
 
-	instance := testpkg.CreateTestActivityInstance(t, env.db, timezone.NewDate(2026, 9, 15), room.ID, testpkg.ActivityInstanceOpts{
+	// The offering runs on Tuesdays; the occurrence must not lie in the past or
+	// the approval projects no roster row for it.
+	instance := testpkg.CreateTestActivityInstance(t, env.db, nextWeekday(timezone.TodayDate(), time.Tuesday), room.ID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID: &group.ID, CalendarPeriodID: &period.ID,
 	})
 	registerSourcedInstanceCleanup(t, env, instance.ID)

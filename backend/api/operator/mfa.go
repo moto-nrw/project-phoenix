@@ -23,8 +23,8 @@ import (
 var errOperatorMFAServiceUnavailable = errors.New("operator mfa service is not configured for this deployment")
 
 // MFAResource exposes the operator-side MFA endpoints. Mirror of the tenant
-// auth.Resource handlers — split into its own file/struct so the existing
-// AuthResource stays focused on credential login + email-change.
+// auth.Resource handlers — split into its own file/struct so the credential
+// login routes of Identity & Access stay focused on the password step.
 type MFAResource struct {
 	authService platformSvc.OperatorAuthService
 	mfaService  platformSvc.OperatorMFAService

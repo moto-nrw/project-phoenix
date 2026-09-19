@@ -48,7 +48,7 @@ vi.mock("next-auth/react", () => ({
 const mockPush = vi.fn();
 const mockRedirect = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, replace: vi.fn() }),
   useSearchParams: () => ({
     get: (key: string) =>
       key === "room" ? navigationMockState.roomParam : null,
@@ -83,8 +83,22 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
 
 // Mock Alert
 vi.mock("~/components/ui/alert", () => ({
-  Alert: ({ message, type }: { message: string; type: string }) => (
-    <div data-testid={`alert-${type}`}>{message}</div>
+  // The action slot is part of the real Alert: the released-room notice and
+  // the reopen banner both carry their action in it, so a stub that drops it
+  // would hide the only control on those blocks.
+  Alert: ({
+    message,
+    type,
+    action,
+  }: {
+    message: string;
+    type: string;
+    action?: React.ReactNode;
+  }) => (
+    <div data-testid={`alert-${type}`}>
+      {message}
+      {action}
+    </div>
   ),
 }));
 
@@ -211,6 +225,7 @@ vi.mock("~/components/students/student-card", () => ({
   ),
   SchoolClassIcon: () => <span data-testid="school-class-icon" />,
   GroupIcon: () => <span data-testid="group-icon" />,
+  ActivityIcon: () => <span data-testid="activity-icon" />,
   PickupTimeRow: ({
     pickupTime,
     isException,
@@ -1403,7 +1418,7 @@ describe("MeinRaumPage SWR visits sync", () => {
   });
 });
 
-describe("Schulhof permanent tab functionality", () => {
+describe("the Schulhof as a released room", () => {
   const mockMutate = vi.fn();
 
   beforeEach(() => {
@@ -1415,7 +1430,7 @@ describe("Schulhof permanent tab functionality", () => {
     cleanup();
   });
 
-  it("shows Schulhof tab when no other supervised rooms but Schulhof exists", async () => {
+  it("opens the released room when the caller supervises nothing else", async () => {
     vi.mocked(useSWRAuth)
       .mockReturnValueOnce({
         data: {
@@ -1438,6 +1453,16 @@ describe("Schulhof permanent tab functionality", () => {
             studentCount: 0,
             supervisors: [],
           },
+          openRooms: [
+            {
+              roomId: "schulhof-1",
+              name: "Schulhof",
+              isUserSupervising: false,
+              activeGroupIds: [],
+              studentCount: 0,
+              students: [],
+            },
+          ],
         },
         isLoading: false,
         error: null,
@@ -1455,12 +1480,15 @@ describe("Schulhof permanent tab functionality", () => {
     render(<MeinRaumPage />);
 
     await waitFor(() => {
-      // Should show the Schulhof not supervising view
-      expect(screen.getByText("Schulhof ohne Aufsicht")).toBeInTheDocument();
+      // The head card names the room an open room, without "Eigene Aufsicht".
+      // The former empty state hid the room's children from everyone who was
+      // not supervising; a released room is open to all caregivers (#3065).
+      expect(screen.getByText("Offener Raum")).toBeInTheDocument();
     });
+    expect(screen.queryByText("Eigene Aufsicht")).not.toBeInTheDocument();
   });
 
-  it("shows current supervisors when Schulhof has supervisors", async () => {
+  it("names the Schulhof's current supervisors", async () => {
     vi.mocked(useSWRAuth)
       .mockReturnValueOnce({
         data: {
@@ -1496,6 +1524,16 @@ describe("Schulhof permanent tab functionality", () => {
               },
             ],
           },
+          openRooms: [
+            {
+              roomId: "schulhof-1",
+              name: "Schulhof",
+              isUserSupervising: false,
+              activeGroupIds: ["active-1"],
+              studentCount: 5,
+              students: [],
+            },
+          ],
         },
         isLoading: false,
         error: null,
@@ -1513,14 +1551,15 @@ describe("Schulhof permanent tab functionality", () => {
     render(<MeinRaumPage />);
 
     await waitFor(() => {
-      // Names are shown inline with "Aktuelle Aufsicht:" prefix
       expect(
-        screen.getByText("Aktuelle Aufsicht: Max Mustermann, Erika Schmidt"),
+        screen.getByText(
+          "Schulhof · 5 Kinder · Aktuelle Aufsicht: Max Mustermann, Erika Schmidt",
+        ),
       ).toBeInTheDocument();
     });
   });
 
-  it("shows no supervision warning when Schulhof has no supervisors", async () => {
+  it("says plainly that nobody here is the reader's supervision", async () => {
     vi.mocked(useSWRAuth)
       .mockReturnValueOnce({
         data: {
@@ -1543,6 +1582,16 @@ describe("Schulhof permanent tab functionality", () => {
             studentCount: 0,
             supervisors: [],
           },
+          openRooms: [
+            {
+              roomId: "schulhof-1",
+              name: "Schulhof",
+              isUserSupervising: false,
+              activeGroupIds: [],
+              studentCount: 0,
+              students: [],
+            },
+          ],
         },
         isLoading: false,
         error: null,
@@ -1560,13 +1609,18 @@ describe("Schulhof permanent tab functionality", () => {
     render(<MeinRaumPage />);
 
     await waitFor(() => {
+      expect(screen.getByText("Offener Raum")).toBeInTheDocument();
+      // And the offer to take it is still there for the Schulhof (#2161).
       expect(
-        screen.getByText("Übernehmen Sie die Aufsicht, um Kinder zu sehen."),
+        screen.getByRole("button", { name: "Beaufsichtigen" }),
       ).toBeInTheDocument();
     });
+    expect(screen.queryByText("Eigene Aufsicht")).not.toBeInTheDocument();
+    // Nobody supervises, so the status line names no one.
+    expect(screen.getByText("Schulhof · 0 Kinder")).toBeInTheDocument();
   });
 
-  it("shows student count on Schulhof view", async () => {
+  it("shows the released room's occupancy in the status line", async () => {
     vi.mocked(useSWRAuth)
       .mockReturnValueOnce({
         data: {
@@ -1596,6 +1650,16 @@ describe("Schulhof permanent tab functionality", () => {
               },
             ],
           },
+          openRooms: [
+            {
+              roomId: "schulhof-1",
+              name: "Schulhof",
+              isUserSupervising: false,
+              activeGroupIds: ["active-1"],
+              studentCount: 15,
+              students: [],
+            },
+          ],
         },
         isLoading: false,
         error: null,
@@ -1613,9 +1677,12 @@ describe("Schulhof permanent tab functionality", () => {
     render(<MeinRaumPage />);
 
     await waitFor(() => {
-      // When not supervising, shows the current supervisor name instead of student count
+      // The count comes from the room, not from the caller's own supervision:
+      // a shared room reports what is in it whoever is looking.
       expect(
-        screen.getByText("Aktuelle Aufsicht: Test Aufsicht"),
+        screen.getByText(
+          "Schulhof · 15 Kinder · Aktuelle Aufsicht: Test Aufsicht",
+        ),
       ).toBeInTheDocument();
     });
   });
@@ -1683,6 +1750,16 @@ describe("Schulhof status from BFF response", () => {
           },
         ],
       },
+      openRooms: [
+        {
+          roomId: "room-1",
+          name: "Schulhof",
+          isUserSupervising: true,
+          activeGroupIds: ["active-1"],
+          studentCount: 25,
+          students: [],
+        },
+      ],
     };
 
     const status = bffData.schulhofStatus;
@@ -1696,6 +1773,7 @@ describe("Schulhof status from BFF response", () => {
   it("handles null Schulhof status", () => {
     const bffData = {
       schulhofStatus: null,
+      openRooms: [],
     };
 
     const status = bffData.schulhofStatus;
@@ -3412,6 +3490,16 @@ describe("Enhanced rendering: action buttons and search/filter interaction", () 
               },
             ],
           },
+          openRooms: [
+            {
+              roomId: "schulhof-r1",
+              name: "Schulhof",
+              isUserSupervising: true,
+              activeGroupIds: ["active-schulhof"],
+              studentCount: 3,
+              students: [],
+            },
+          ],
         },
         isLoading: false,
         error: null,
@@ -3460,6 +3548,16 @@ describe("Enhanced rendering: action buttons and search/filter interaction", () 
             studentCount: 0,
             supervisors: [],
           },
+          openRooms: [
+            {
+              roomId: "schulhof-r1",
+              name: "Schulhof",
+              isUserSupervising: false,
+              activeGroupIds: [],
+              studentCount: 0,
+              students: [],
+            },
+          ],
         },
         isLoading: false,
         error: null,

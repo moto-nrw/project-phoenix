@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
 func boolPtrValue(v *bool) bool {

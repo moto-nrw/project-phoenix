@@ -10,9 +10,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -364,7 +363,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_GroupEmptyRoom
 				GroupID:   ptrtest.Ptr(int64(789)),
 				RoomID:    1,
 				StartTime: startTime,
-				Room: &facilities.Room{
+				Room: &activeModels.SessionRoom{
 					Name: "", // Empty name
 				},
 			},
@@ -402,7 +401,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_WithRoom(t *te
 				GroupID:   ptrtest.Ptr(int64(789)),
 				RoomID:    1,
 				StartTime: startTime,
-				Room: &facilities.Room{
+				Room: &activeModels.SessionRoom{
 					Name:     "Room 101",
 					Building: "Main Building",
 				},
@@ -441,7 +440,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_RoomColor(t *testing.T) 
 					GroupID:   ptrtest.Ptr(int64(789)),
 					RoomID:    1,
 					StartTime: startTime,
-					Room: &facilities.Room{
+					Room: &activeModels.SessionRoom{
 						Name:     "Bibliothek",
 						Building: "Main Building",
 						Color:    &roomColor,
@@ -470,7 +469,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_RoomColor(t *testing.T) 
 					GroupID:   ptrtest.Ptr(int64(789)),
 					RoomID:    1,
 					StartTime: startTime,
-					Room:      &facilities.Room{Name: "Sportraum"},
+					Room:      &activeModels.SessionRoom{Name: "Sportraum"},
 				},
 			},
 		}
@@ -568,7 +567,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocationWithTime_CheckedIn_WithRo
 				GroupID:   ptrtest.Ptr(int64(789)),
 				RoomID:    1,
 				StartTime: startTime,
-				Room: &facilities.Room{
+				Room: &activeModels.SessionRoom{
 					Name: "Art Room",
 				},
 			},
@@ -615,7 +614,7 @@ func TestDetailedMode_OpenVisitWithoutAttendanceRemainsVisible(t *testing.T) {
 			42: {StudentID: 42, ActiveGroupID: 99, EntryTime: entryTime},
 		},
 		Groups: map[int64]*activeModels.Group{
-			99: {RoomID: 1, Room: &facilities.Room{Name: "Kunstraum"}},
+			99: {RoomID: 1, Room: &activeModels.SessionRoom{Name: "Kunstraum"}},
 		},
 	}
 
@@ -654,7 +653,7 @@ func TestStudentLocationSnapshot_MultipleStudents(t *testing.T) {
 		Groups: map[int64]*activeModels.Group{
 			10: {
 				GroupID: ptrtest.Ptr(int64(100)), RoomID: 1, StartTime: startTime,
-				Room: &facilities.Room{Name: "Cafeteria"},
+				Room: &activeModels.SessionRoom{Name: "Cafeteria"},
 			},
 		},
 	}
@@ -857,7 +856,7 @@ func TestBinaryMode_IgnoresVisitsAndGroups(t *testing.T) {
 			42: {StudentID: 42, ActiveGroupID: 99, EntryTime: entryTime},
 		},
 		Groups: map[int64]*activeModels.Group{
-			99: {RoomID: 1, Room: &facilities.Room{Name: "Art Room"}},
+			99: {RoomID: 1, Room: &activeModels.SessionRoom{Name: "Art Room"}},
 		},
 	}
 

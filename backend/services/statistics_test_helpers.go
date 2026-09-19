@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/statistics"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/services/statistics"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -40,13 +40,17 @@ func NewStatisticsTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func(
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
+	rooms, err := repositories.NewFacilities(db)
+	if err != nil {
+		return StatisticsTestModule{}, err
+	}
 	students := overlappingRosterGroupNames{StudentRepository: r.Timetable.Student, groups: groups}
 	closing := schedule.NewClosingDayService(r.Timetable.ClosingDay)
 	service := statistics.NewService(statistics.Config{
-		Statistics: r.Statistics, Courses: r.Courses,
+		Statistics: statisticsRoomUtilization{newStudentPresence(db, slog.Default())}, Attendance: statisticsAttendance{newStudentPresence(db, slog.Default())}, StatusDays: statisticsStatusDays{r.CarePlan}, Courses: statisticsReportCourses{r.Timetable.Timetable},
 		Holidays:    schedule.NewHolidayService(settings.Settings, schoolCalendarHolidayAdapter{query: calendar}, slog.Default()),
-		ClosingDays: closing, Periods: r.Timetable.CalendarPeriod, Students: students, Rooms: r.Timetable.Room,
-		AccessLog: r.AccessLog, Settings: settings.Settings, PrivacyConsents: r.Privacy, Logger: slog.Default(), Now: optionalClock(clocks),
+		ClosingDays: closing, Periods: statisticsReportPeriods{calendar}, Students: statisticsReportStudents{students}, Rooms: statisticsReportRooms{rooms},
+		AccessLog: statisticsAuditLog{r.AccessLog}, Retention: statisticsRetention{settings.Settings}, PrivacyConsents: statisticsRetentionSettings{newStudentPresence(db, slog.Default())}, Logger: slog.Default(), Now: optionalClock(clocks),
 	})
 	return StatisticsTestModule{Statistics: service, ClosingDays: closing, ListExport: listexport.NewService()}, nil
 }

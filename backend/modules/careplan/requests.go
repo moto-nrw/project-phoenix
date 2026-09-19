@@ -6,7 +6,9 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 )
 
 var (
@@ -24,6 +26,8 @@ var (
 // RequestQueueFilter is the owner-neutral paging contract shared by the
 // immediate-notice and approval-request queues.
 type RequestQueueFilter = excusedrequests.QueueFilter
+
+func ParseDate(value string) (Date, error) { return excusedrequests.ParseDate(value) }
 
 // ExcusedAbsenceRequest is one excused-absence request row.
 type ExcusedAbsenceRequest = excusedrequests.Request
@@ -46,22 +50,7 @@ type ExcusedAbsenceDecision struct {
 	Applied    bool
 }
 
-type CareScheduleChangeRequest struct {
-	ID               int64
-	TenantID         int64
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
-	StudentID        int64
-	SubmittedBy      int64
-	RequestKind      string
-	Payload          json.RawMessage
-	Status           string
-	DecisionReason   *string
-	ReviewedBy       *int64
-	ReviewedAt       *time.Time
-	AppliedAt        *time.Time
-	DecisionSnapshot json.RawMessage
-}
+type CareScheduleChangeRequest = carerequests.Request
 
 type CareScheduleRequestFilter struct {
 	StudentID    int64
@@ -79,24 +68,7 @@ type CareScheduleRequestDecision struct {
 	Applied    bool
 }
 
-type StudentDataChangeRequest struct {
-	ID           int64
-	TenantID     int64
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-	StudentID    int64
-	SubmittedBy  int64
-	Target       string
-	TargetRefID  *int64
-	FieldKey     string
-	OldValue     json.RawMessage
-	NewValue     json.RawMessage
-	Status       string
-	ReviewReason *string
-	ReviewedBy   *int64
-	ReviewedAt   *time.Time
-	AppliedAt    *time.Time
-}
+type StudentDataChangeRequest = masterdatarequests.Request
 
 type StudentDataRequestFilter struct {
 	StudentID     int64

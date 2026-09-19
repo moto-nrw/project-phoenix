@@ -49,7 +49,6 @@ type GuardianServiceDependencies struct {
 	StudentGuardianRepo     users.StudentGuardianRepository
 	GuardianInvitationRepo  authModels.GuardianInvitationRepository
 	AccountRepo             authModels.AccountRepository
-	AccountParentRepo       authModels.AccountParentRepository
 	AccountTenantRepo       authModels.AccountTenantRepository
 	AccountRoleRepo         authModels.AccountRoleRepository
 	RoleRepo                authModels.RoleRepository

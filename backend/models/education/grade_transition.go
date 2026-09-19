@@ -1,11 +1,7 @@
 package education
 
 import (
-	"context"
-	"errors"
 	"fmt"
-	"regexp"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -23,8 +19,9 @@ const (
 // tenant. It lives on the model because it has TWO independent holders that
 // must agree on the exact string:
 //
-//   - GradeTransitionRepository.LockTenantTransitions — taken by Apply and
-//     Revert before reading any class or lifecycle state.
+//   - The School Structure transition gate (modules/schoolstructure), taken
+//     by the grade transition workflow's apply and revert before reading any
+//     class or lifecycle state, and by draft edits.
 //   - The timetable materializer (services/schedule) — taken for the whole
 //     materialization pass.
 //
@@ -47,7 +44,9 @@ func TenantTransitionsLockKey(tenantID int64) string {
 	return fmt.Sprintf("education.grade_transitions:%d", tenantID)
 }
 
-// GradeTransition represents a bulk grade level change operation
+// GradeTransition is the persistence shape of a school-year rollover draft.
+// The owner capability lives in modules/schoolstructure (#2711); this struct
+// remains for direct row fixtures.
 type GradeTransition struct {
 	base.Model `bun:"schema:education,table:grade_transitions"`
 	base.TenantModel
@@ -76,195 +75,3 @@ type GradeTransition struct {
 
 // JSONMap is a helper type for JSONB columns
 type JSONMap map[string]interface{}
-
-// academicYearPattern validates the academic year format (e.g., "2025-2026")
-var academicYearPattern = regexp.MustCompile(`^\d{4}-\d{4}$`)
-
-// Validate ensures grade transition data is valid
-func (t *GradeTransition) Validate() error {
-	t.AcademicYear = strings.TrimSpace(t.AcademicYear)
-
-	if t.AcademicYear == "" {
-		return errors.New("academic year is required")
-	}
-
-	if !academicYearPattern.MatchString(t.AcademicYear) {
-		return errors.New("academic year must be in format YYYY-YYYY (e.g., 2025-2026)")
-	}
-
-	if t.Status == "" {
-		t.Status = TransitionStatusDraft
-	}
-
-	if t.Status != TransitionStatusDraft &&
-		t.Status != TransitionStatusApplied &&
-		t.Status != TransitionStatusReverted {
-		return errors.New("invalid status: must be draft, applied, or reverted")
-	}
-
-	if t.CreatedBy <= 0 {
-		return errors.New("created_by is required")
-	}
-
-	return nil
-}
-
-// IsDraft returns true if the transition is in draft status
-func (t *GradeTransition) IsDraft() bool {
-	return t.Status == TransitionStatusDraft
-}
-
-// IsApplied returns true if the transition has been applied
-func (t *GradeTransition) IsApplied() bool {
-	return t.Status == TransitionStatusApplied
-}
-
-// IsReverted returns true if the transition has been reverted
-func (t *GradeTransition) IsReverted() bool {
-	return t.Status == TransitionStatusReverted
-}
-
-// CanModify returns true if the transition can be modified (only drafts)
-func (t *GradeTransition) CanModify() bool {
-	return t.IsDraft()
-}
-
-// CanApply returns true if the transition can be applied
-func (t *GradeTransition) CanApply() bool {
-	return t.IsDraft() && len(t.Mappings) > 0
-}
-
-// CanRevert returns true if the transition can be reverted
-func (t *GradeTransition) CanRevert() bool {
-	return t.IsApplied()
-}
-
-// GradeTransitionRepository defines the interface for grade transition data access
-type GradeTransitionRepository interface {
-	// Transition CRUD
-	Create(ctx context.Context, t *GradeTransition) error
-	FindByID(ctx context.Context, id int64) (*GradeTransition, error)
-	FindByIDWithMappings(ctx context.Context, id int64) (*GradeTransition, error)
-	Update(ctx context.Context, t *GradeTransition) error
-	Delete(ctx context.Context, id int64) error
-
-	// Query methods
-	List(ctx context.Context, options *base.QueryOptions) ([]*GradeTransition, int, error)
-	FindByAcademicYear(ctx context.Context, year string) ([]*GradeTransition, error)
-	FindByStatus(ctx context.Context, status string) ([]*GradeTransition, error)
-	// LockLatestApplied returns the most recently applied transition (highest
-	// applied_at, id as tiebreaker) with a FOR UPDATE lock, or nil when none is
-	// applied. Reverts call it inside their transaction to enforce a strict
-	// reverse-order unwind: only the latest applied transition may be reverted,
-	// and the lock serializes concurrent reverts of the same row.
-	LockLatestApplied(ctx context.Context) (*GradeTransition, error)
-	// LockTenantTransitions takes a tenant-wide transaction-scoped advisory lock
-	// that BOTH Apply and Revert acquire before doing any work. It is the shared
-	// resource that serializes the two operations against each other: without it
-	// an apply of a new draft can interleave with a revert of the current latest
-	// transition, snapshotting pre-revert classes, losing its guarded class
-	// update after the revert changes them, and still marking itself applied with
-	// history describing changes it never made (#405 review). Requires the
-	// caller's tenant transaction in context; the lock releases at COMMIT/ROLLBACK.
-	LockTenantTransitions(ctx context.Context) error
-	// LockTenantRecurrenceWrites takes the tenant-wide recurrence gate
-	// (`template-recurrence:<tenant>`) that guards re-planning and
-	// materialization. Apply and Revert must take it BEFORE
-	// LockTenantTransitions: they delete and re-insert instance_students rows a
-	// re-plan may already hold row locks on while it waits for the transition
-	// gate, and the reverse order deadlocks (#405 review). Requires the caller's
-	// tenant transaction in context; the lock releases at COMMIT/ROLLBACK.
-	LockTenantRecurrenceWrites(ctx context.Context) error
-
-	// Mapping operations
-	CreateMapping(ctx context.Context, m *GradeTransitionMapping) error
-	CreateMappings(ctx context.Context, mappings []*GradeTransitionMapping) error
-	DeleteMappings(ctx context.Context, transitionID int64) error
-	GetMappings(ctx context.Context, transitionID int64) ([]*GradeTransitionMapping, error)
-	GetMappingsByTransitionIDs(ctx context.Context, transitionIDs []int64) (map[int64][]*GradeTransitionMapping, error)
-
-	// History operations
-	CreateHistory(ctx context.Context, h *GradeTransitionHistory) error
-	CreateHistoryBatch(ctx context.Context, history []*GradeTransitionHistory) error
-	GetHistory(ctx context.Context, transitionID int64) ([]*GradeTransitionHistory, error)
-
-	// Class-teacher ledger (#1772): what the apply did to
-	// education.class_teachers, replayed exactly by the revert.
-	CreateClassTeacherHistoryBatch(ctx context.Context, history []*GradeTransitionClassTeacher) error
-	GetClassTeacherHistory(ctx context.Context, transitionID int64) ([]*GradeTransitionClassTeacher, error)
-
-	// Class-list-entry ledger (#2382): what the apply did to
-	// users.class_list_entries, replayed exactly by the revert.
-	CreateClassListEntryHistoryBatch(ctx context.Context, history []*GradeTransitionClassListEntry) error
-	GetClassListEntryHistory(ctx context.Context, transitionID int64) ([]*GradeTransitionClassListEntry, error)
-
-	// Bulk operations
-	GetDistinctClasses(ctx context.Context) ([]string, error)
-	GetStudentCountByClass(ctx context.Context, className string) (int, error)
-	GetStudentCountsByClasses(ctx context.Context, classes []string) (map[string]int, error)
-	GetStudentsByClasses(ctx context.Context, classes []string) ([]*StudentClassInfo, error)
-	// UpdateStudentClasses promotes every student currently sitting in a mapped
-	// from-class. Apply does NOT use it: a class-wide update re-evaluates
-	// membership at write time and therefore promotes students the history
-	// snapshot never captured (unrevertable) while missing students it did
-	// capture. Use PromoteStudentsByIDs for transition writes (#405 review).
-	UpdateStudentClasses(ctx context.Context, transitionID int64) (int64, error)
-	// PromoteStudentsByIDs moves exactly the given students from fromClass to
-	// toClass, guarded on them still being in fromClass and not alumni. Apply
-	// promotes the same FOR UPDATE-locked rows it recorded in history, so every
-	// promotion is revertable and every history row describes a real one.
-	PromoteStudentsByIDs(ctx context.Context, studentIDs []int64, fromClass, toClass string) (int64, error)
-	// RevertStudentClass moves a promoted student back to fromClass, but ONLY
-	// while their current class still equals toClass (the class this transition
-	// assigned). A student manually moved to another class since — or promoted
-	// again by a later transition — is left untouched (0 rows affected) so the
-	// revert never clobbers a newer correction.
-	RevertStudentClass(ctx context.Context, studentID int64, fromClass, toClass string) (int64, error)
-	GraduateStudentsByClasses(ctx context.Context, classes []string) (int64, error)
-	// GraduateStudentsByIDs soft-deletes exactly the given student IDs (status
-	// flips to alumnus) provided they are not already alumni. Apply graduates the
-	// same locked rows it checked for open check-ins and recorded in history, so
-	// a student inserted or moved into a graduating class after the initial lookup
-	// is never silently graduated without those guards (#405 review).
-	GraduateStudentsByIDs(ctx context.Context, studentIDs []int64) (int64, error)
-	ReactivateStudentsByIDs(ctx context.Context, studentIDs []int64) (int64, error)
-	// ReactivateStudentsToStatus restores still-alumnus students to the given
-	// lifecycle status and returns the ids it actually restored. Students whose
-	// status was changed by hand since the graduation are skipped, and the
-	// caller must treat them as not reverted — including for roster
-	// reconciliation (#405 review).
-	ReactivateStudentsToStatus(ctx context.Context, studentIDs []int64, targetStatus string) ([]int64, error)
-	// FindStudentStatesByIDs maps each id to its current lifecycle status. Ids
-	// absent from the result have no student row left — they were hard-deleted
-	// after graduation. It is the ONE student read without the alumnus filter,
-	// because listing graduates is exactly its purpose.
-	FindStudentStatesByIDs(ctx context.Context, studentIDs []int64) (map[int64]string, error)
-	// AnonymizeHistoryForStudent replaces the denormalized name and clears the
-	// RFID snapshot on the student's ledger rows. Those values carry no foreign
-	// key and outlive both the student and the person row, so without this the
-	// "endgültig löschen" would leave identifying data in the database.
-	AnonymizeHistoryForStudent(ctx context.Context, studentID int64) error
-	// PersonIDsByStudentIDs maps each given student id to its person id. The
-	// tag commands below run against the persons through the People
-	// Directory (#2661); this is the student-side half of that seam.
-	PersonIDsByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]int64, error)
-	// ReleaseStudentTagsByIDs clears the RFID tag on the given students' person
-	// rows and returns what each of them was holding, keyed by student id.
-	// Graduation must free the bracelet: an alumnus is invisible to every
-	// staff-facing student route (including the kiosk's unassign call), so a tag
-	// left on them can never be reassigned through the normal flow (#405 review).
-	ReleaseStudentTagsByIDs(ctx context.Context, studentIDs []int64) (map[int64]string, error)
-	// RestoreStudentTag re-links a released tag on revert, but only while the
-	// student still has no tag and nobody else holds this one. Returns whether it
-	// was re-linked.
-	RestoreStudentTag(ctx context.Context, studentID int64, tagID string) (bool, error)
-}
-
-// StudentClassInfo contains basic student information for class transitions
-type StudentClassInfo struct {
-	StudentID   int64  `bun:"student_id"`
-	PersonID    int64  `bun:"person_id"`
-	PersonName  string `bun:"person_name"`
-	SchoolClass string `bun:"school_class"`
-	Status      string `bun:"status"`
-}

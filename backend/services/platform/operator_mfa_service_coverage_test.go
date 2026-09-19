@@ -42,6 +42,7 @@ func newOperatorMFAWithDispatcher(t *testing.T) (platform.OperatorMFAService, *r
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc, err := platform.NewOperatorMFAService(platform.OperatorMFAServiceConfig{
 		Repos:       repos,
+		Operators:   newTestOperatorDirectory(db),
 		TokenAuth:   tokenAuth,
 		Dispatcher:  dispatcher,
 		DefaultFrom: email.NewEmail("Operator Tests", "ops-tests@example.test"),

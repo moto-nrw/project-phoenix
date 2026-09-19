@@ -2,6 +2,7 @@ package peopledirectory_test
 
 import (
 	"context"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/enrollment"
 
@@ -16,6 +17,21 @@ func (e *recordingEngine) ReadEnrollmentStudent(context.Context, int64, string) 
 func (e *recordingEngine) LockEnrollmentClassWrites(context.Context) error {
 	e.calls++
 	return nil
+}
+
+func (e *recordingEngine) LockEnrollmentClassWritesExclusive(context.Context) error {
+	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) CurrentFamilyProtection(context.Context, []int64) (map[int64]bool, error) {
+	e.calls++
+	return map[int64]bool{}, nil
+}
+
+func (e *recordingEngine) ListStudentDepartureModes(context.Context, []int64) (map[int64]map[string][]string, error) {
+	e.calls++
+	return map[int64]map[string][]string{}, nil
 }
 
 func (e *recordingEngine) ApplyEnrollmentProfile(context.Context, int64, enrollment.ProfilePatch) error {
@@ -42,6 +58,12 @@ func (e *recordingEngine) CreateEnrollmentStudent(_ context.Context, input peopl
 func (e *recordingEngine) RenewEnrollmentStudent(context.Context, int64, peopledirectory.EnrollmentStudent) error {
 	e.calls++
 	return nil
+}
+
+func (e *recordingEngine) ListStudentsByPersonIDs(_ context.Context, ids []int64) ([]peopledirectory.Student, error) {
+	e.calls++
+	e.student = studentCall{ids: ids}
+	return nil, nil
 }
 
 func (e *recordingEngine) ListStudentsByIDs(_ context.Context, ids []int64) ([]peopledirectory.Student, error) {
@@ -113,4 +135,26 @@ func (e *recordingEngine) ReactivateStudents(_ context.Context, ids []int64, sta
 	e.calls++
 	e.student = studentCall{ids: ids, status: status}
 	return ids, nil
+}
+
+func (e *recordingEngine) CountStudentGuardianLinks(_ context.Context, studentID, _ int64) (int, error) {
+	e.calls++
+	e.student = studentCall{ids: []int64{studentID}}
+	return 0, nil
+}
+
+func (e *recordingEngine) DeleteLegacyGuardianLinks(context.Context, int64) (int64, error) {
+	e.calls++
+	return 0, nil
+}
+
+func (e *recordingEngine) DeleteStudent(_ context.Context, id int64) (int64, error) {
+	e.calls++
+	e.student = studentCall{ids: []int64{id}}
+	return 1, nil
+}
+
+func (e *recordingEngine) AnonymizeDeletedStudentPerson(context.Context, int64, time.Time) (bool, error) {
+	e.calls++
+	return true, nil
 }

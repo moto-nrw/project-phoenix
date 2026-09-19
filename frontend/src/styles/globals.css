@@ -3,6 +3,38 @@
 @import "@moto-nrw/design-system/tailwind";
 
 /*
+ * `compact` — die Dichte-Stufe kleiner Bildschirme (#2824).
+ *
+ * Das Portal kannte bis hierher zwei Dichten: unter `sm` (640 px) die enge
+ * Telefon-Stufe, ab 640 px das Desktop-Mass — unverändert bis 2560 px. Ein
+ * 1024er-Tablet, ein halbes Fenster und ein 13-Zoll-Laptop bekamen also
+ * dieselben 32-px-Ränder, dieselbe 24-px-Kopfkarte und dieselbe 28-px-
+ * Überschrift wie ein 27-Zoll-Monitor. Nach Kopfzeile, Seitenleiste und
+ * Kopfkarte blieb dort kaum Inhalt übrig.
+ *
+ * Die Stufe greift auf ZWEI Achsen, weil es zwei verschiedene Engen sind:
+ *
+ *   - zu schmal  (max-width < 64rem): Tablet, halbes Fenster. Dort fehlt
+ *     waagerecht Platz, und senkrecht ebenso.
+ *   - zu flach   (max-height < 56.25rem): der 13-Zoll-Laptop bei 1440x900.
+ *     Der ist breit genug — ihm fehlt nur die Höhe. Eine reine Breiten-
+ *     Stufe (`max-lg:`) hätte genau diesen, im Issue zuerst genannten Fall
+ *     nicht erwischt.
+ *
+ * `min-width: 48rem` schneidet die Telefon- und die kleine Tablet-Stufe
+ * bewusst ab: unter 768 px gelten weiter die `max-sm:`- und `max-md:`-Masse
+ * des Gerüsts. Dadurch überschneidet sich `compact:` mit KEINEM `max-sm:`
+ * und die Reihenfolge im erzeugten CSS ist nie eine Ermessensfrage — genau
+ * eine der beiden Stufen trifft zu, nie beide.
+ *
+ * Wer eine Eigenschaft in diese Stufe aufnimmt, schreibt den Desktop-Wert
+ * unvariiert als Grundwert (`p-5`), nicht als `sm:`/`lg:`-Variante — sonst
+ * stehen zwei Varianten-Regeln für dieselbe Eigenschaft nebeneinander und
+ * welche gewinnt, hängt an der internen Sortierung von Tailwind.
+ */
+@custom-variant compact (@media (min-width: 48rem) and ((max-width: 63.9375rem) or (max-height: 56.25rem)));
+
+/*
  * moto brand tokens
  *
  * Green, blue, and orange mirror the public website design system in
@@ -387,14 +419,16 @@
   inset: 0;
 }
 
+/* Beginnt unter der 48px hohen Kopfzeile (#2827), die das Schul-Portal auf
+   jeder Breite zeigt. */
 .moto-dotted-background--app-fixed {
   position: fixed;
-  inset: 3.5rem 0 0;
+  inset: 3rem 0 0;
 }
 
 /* Vollhöhe für Portale ohne mobile Kopfzeile (Eltern-App und seit dem
    Kopfzeilen-Aus auch das Personal-Portal): ohne die Überschreibung stünde
-   über dem Muster ein 56-px-weißer-Balken, wo früher die Kopfzeile saß. */
+   über dem Muster ein 48-px-weißer-Balken, wo früher die Kopfzeile saß. */
 .moto-dotted-background--parent,
 .moto-dotted-background--full {
   inset: 0;
@@ -538,14 +572,17 @@
 /* Jede sichtbare Hülle auf dem Weg zur letzten Kartenfläche wird selbst zur
    Flex-Spalte. `flex: 1` allein wirkt nur auf Flex-Elemente und ließ bei
    verschachtelten Seitenhüllen ansonsten den Punkthintergrund unter der
-   letzten Karte frei. */
+   letzten Karte frei. Eine Hülle, die ab `md` ausgeblendet ist (die
+   gestapelten Telefonzeilen einer `DataTable`), bleibt außen vor: sonst
+   schlägt dieses `display: flex` ihr `md:hidden` und die Zeilen stehen auf
+   dem Desktop doppelt, als Karten und als Tabelle. */
 .moto-tenant-body
-  > :last-child:not(.grid, .moto-content-surface, .hidden):has(
+  > :last-child:not(.grid, .moto-content-surface, .hidden, .md\:hidden):has(
     .moto-content-surface:last-child:is(section, div)
   ),
 .moto-tenant-body
-  > :last-child:not(.grid, .moto-content-surface, .hidden)
-  :not(.grid, .moto-content-surface, .hidden):has(
+  > :last-child:not(.grid, .moto-content-surface, .hidden, .md\:hidden)
+  :not(.grid, .moto-content-surface, .hidden, .md\:hidden):has(
     .moto-content-surface:last-child:is(section, div)
   ) {
   display: flex;

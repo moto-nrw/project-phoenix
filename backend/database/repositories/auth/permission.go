@@ -53,47 +53,35 @@ func (r *PermissionRepository) FindByName(ctx context.Context, name string) (*au
 // FindByAccountID retrieves all permissions assigned to an account (direct + role-based).
 // When tenant context is available, filters assignments by tenant_id for tenant isolation.
 func (r *PermissionRepository) FindByAccountID(ctx context.Context, accountID int64) ([]*auth.Permission, error) {
-	return r.FindByAccountIDForTenant(ctx, accountID, 0)
-}
-
-// FindByAccountIDForTenant retrieves all permissions for an account scoped to a specific tenant.
-// tenantID > 0: filter account_permissions and account_roles by that tenant (login/switch flows).
-// tenantID == 0: fall back to context-based filtering via TenantWhere (authenticated requests).
-func (r *PermissionRepository) FindByAccountIDForTenant(ctx context.Context, accountID int64, tenantID int64) ([]*auth.Permission, error) {
 	var permissions []*auth.Permission
 
-	// Build direct permissions CTE with tenant filter
-	directCTE := base.GetDB(ctx, r.db).NewSelect().
-		Table("auth.account_permissions").
-		Where("account_id = ? AND granted = true", accountID)
+	// Direct grants, filtered by tenant
+	direct := base.GetDB(ctx, r.db).NewSelect().
+		ColumnExpr(`"account_permission".permission_id`).
+		TableExpr(`auth.account_permissions AS "account_permission"`).
+		Where(`"account_permission".account_id = ? AND "account_permission".granted = true`, accountID)
 
-	// Build role-based permissions CTE with tenant filter
-	roleCTE := base.GetDB(ctx, r.db).NewSelect().
-		Table(rolePermissionsTable).
-		Join("JOIN auth.account_roles ar ON ar.role_id = role_permissions.role_id").
-		Where("ar.account_id = ?", accountID)
+	// Role-granted permissions, filtered by tenant
+	fromRoles := base.GetDB(ctx, r.db).NewSelect().
+		ColumnExpr(`"role_permission".permission_id`).
+		TableExpr(`auth.role_permissions AS "role_permission"`).
+		Join(`JOIN auth.account_roles AS "ar" ON "ar".role_id = "role_permission".role_id`).
+		Where(`"ar".account_id = ?`, accountID)
 
-	// Apply tenant filtering: explicit tenant ID takes priority, then context
-	if tenantID > 0 {
-		directCTE = directCTE.Where("account_permissions.tenant_id = ?", tenantID)
-		roleCTE = roleCTE.Where("ar.tenant_id = ?", tenantID)
-	} else if where, val, ok := base.TenantWhere(ctx, "account_permissions"); ok {
-		directCTE = directCTE.Where(where, val)
-		// Use same tenant ID for role CTE
-		roleCTE = roleCTE.Where(`ar.tenant_id = ?`, val)
+	// Apply the tenant filter the context carries.
+	if _, val, ok := base.TenantWhere(ctx, "account_permission"); ok {
+		direct = direct.Where(`"account_permission".tenant_id = ?`, val)
+		// Use same tenant ID for the role-granted set
+		fromRoles = fromRoles.Where(`"ar".tenant_id = ?`, val)
 	}
 
+	// The union is joined as a derived table so the evaluator resolves every
+	// table this read touches.
 	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&permissions).
 		ModelTableExpr(permissionTableAlias).
 		Distinct().
-		With("account_permissions_direct", directCTE).
-		With("account_permissions_from_roles", roleCTE).
-		With("all_account_permissions", base.GetDB(ctx, r.db).NewSelect().
-			Column("permission_id").
-			TableExpr("account_permissions_direct").
-			UnionAll(base.GetDB(ctx, r.db).NewSelect().TableExpr("account_permissions_from_roles").Column("permission_id"))).
-		Join(`JOIN all_account_permissions aap ON aap.permission_id = "permission".id`).
+		Join(`JOIN (?) AS "aap" ON "aap".permission_id = "permission".id`, direct.UnionAll(fromRoles)).
 		Scan(ctx)
 
 	if err != nil {
@@ -104,68 +92,6 @@ func (r *PermissionRepository) FindByAccountIDForTenant(ctx context.Context, acc
 	}
 
 	return permissions, nil
-}
-
-// LockAccountPermissionSourcesForTenant takes FOR SHARE row locks on every row
-// that feeds an account's effective permission set at one tenant: the direct
-// grants in auth.account_permissions and the auth.role_permissions rows of the
-// roles the account holds there. Must be called inside a transaction; it
-// returns no data, only the locks.
-//
-// FindByAccountIDForTenant reads through two CTEs and a UNION, which Postgres
-// refuses to attach a locking clause to. Taking the locks in two plain
-// statements first is equivalent for the purpose they serve: once they are
-// held, no concurrent revocation can commit until this transaction ends, so
-// the permission set read afterwards — and written into a JWT — is provably
-// the one that still existed at commit time. Role revocation and membership
-// revocation are already pinned this way (FindByAccountIDForTenantForShare,
-// ExistsActiveByAccountAndTenantForShare); without this the permission half of
-// the same token was still read from an unlocked snapshot.
-//
-// Only revocations are serialized, deliberately: a FOR SHARE lock cannot cover
-// rows that do not exist yet, so a permission GRANTED mid-mint may or may not
-// make it into the token. That direction is harmless — the next token has it.
-//
-// LOCK ORDER — callers must already hold the account row (auth.accounts FOR
-// UPDATE) and take these locks AFTER the account-role read, matching the order
-// every revocation path walks (account → roles → permissions; see
-// operator_account_access.go and staff_offboarding.go).
-// Both statements are consumed with Scan into a throwaway slice rather than
-// Exec. A locking SELECT returns rows, and pgdriver's Exec path (readQuery)
-// has no case for the DataRow message — it survives today only because the
-// protocol tag 'D' collides with Describe, which that switch happens to
-// discard. Scanning the rows uses readQueryData, which handles them by
-// contract instead of by coincidence. Do not "simplify" this back to Exec.
-func (r *PermissionRepository) LockAccountPermissionSourcesForTenant(ctx context.Context, accountID int64, tenantID int64) error {
-	db := base.GetDB(ctx, r.db)
-
-	var lockedDirect []int
-	if err := db.NewSelect().
-		ColumnExpr("1").
-		TableExpr("auth.account_permissions AS ap").
-		Where("ap.account_id = ? AND ap.tenant_id = ?", accountID, tenantID).
-		For("SHARE OF ap").
-		Scan(ctx, &lockedDirect); err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "lock direct account permissions",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	var lockedFromRoles []int
-	if err := db.NewSelect().
-		ColumnExpr("1").
-		TableExpr(rolePermissionsTable+" AS rp").
-		Where(`rp.role_id IN (SELECT ar.role_id FROM auth.account_roles AS ar WHERE ar.account_id = ? AND ar.tenant_id = ?)`, accountID, tenantID).
-		For("SHARE OF rp").
-		Scan(ctx, &lockedFromRoles); err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "lock role permissions",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	return nil
 }
 
 // FindDirectByAccountID retrieves only direct permissions assigned to an account (not role-based)
@@ -325,13 +251,13 @@ func (r *PermissionRepository) List(ctx context.Context, filters map[string]inte
 func (r *PermissionRepository) applyPermissionFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
 	switch field {
 	case "name":
-		return r.applyPermissionStringEqualFilter(query, `"permission".name`, value)
+		return r.applyPermissionStringEqualFilter(query, bun.Safe(`"permission".name`), value)
 	case "resource":
-		return r.applyPermissionStringEqualFilter(query, `"permission".resource`, value)
+		return r.applyPermissionStringEqualFilter(query, bun.Safe(`"permission".resource`), value)
 	case "action":
-		return r.applyPermissionStringEqualFilter(query, `"permission".action`, value)
+		return r.applyPermissionStringEqualFilter(query, bun.Safe(`"permission".action`), value)
 	case "name_like":
-		return r.applyPermissionStringLikeFilter(query, `"permission".name`, value)
+		return r.applyPermissionStringLikeFilter(query, bun.Safe(`"permission".name`), value)
 	case "is_system":
 		return query.Where(`"permission".is_system = ?`, value)
 	default:
@@ -340,17 +266,18 @@ func (r *PermissionRepository) applyPermissionFilter(query *bun.SelectQuery, fie
 }
 
 // applyPermissionStringEqualFilter applies case-insensitive equality filter for permission fields
-func (r *PermissionRepository) applyPermissionStringEqualFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+// The field is a column written in this file, never request input.
+func (r *PermissionRepository) applyPermissionStringEqualFilter(query *bun.SelectQuery, field bun.Safe, value interface{}) *bun.SelectQuery {
 	if strValue, ok := value.(string); ok {
-		return query.Where("LOWER("+field+") = LOWER(?)", strValue)
+		return query.Where("LOWER(?) = LOWER(?)", field, strValue)
 	}
-	return query.Where(field+" = ?", value)
+	return query.Where("? = ?", field, value)
 }
 
 // applyPermissionStringLikeFilter applies case-insensitive LIKE filter for permission fields
-func (r *PermissionRepository) applyPermissionStringLikeFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+func (r *PermissionRepository) applyPermissionStringLikeFilter(query *bun.SelectQuery, field bun.Safe, value interface{}) *bun.SelectQuery {
 	if strValue, ok := value.(string); ok {
-		return query.Where("LOWER("+field+") LIKE LOWER(?)", "%"+strValue+"%")
+		return query.Where("LOWER(?) LIKE LOWER(?)", field, "%"+strValue+"%")
 	}
 	return query
 }

@@ -177,6 +177,14 @@ vi.mock("lucide-react", () => ({
   House: (props: Record<string, unknown>) => (
     <svg data-testid="house-icon" {...props} />
   ),
+  // Used by DetailIcons in ui/detail-modal-components, which the profile
+  // page imports for its DataField/DataGrid read view (#3117).
+  Check: (props: Record<string, unknown>) => (
+    <svg data-testid="check-icon" {...props} />
+  ),
+  X: (props: Record<string, unknown>) => (
+    <svg data-testid="x-icon" {...props} />
+  ),
 }));
 
 // Mock Next.js Image component

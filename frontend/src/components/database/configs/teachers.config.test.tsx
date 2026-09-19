@@ -254,11 +254,11 @@ describe("teachersConfig", () => {
       email: "nested@example.com",
       avatar: "/uploads/avatars/global/nora.jpg",
       account_role: "admin",
-      account_id: 55,
+      account_id: "55",
     });
     expect(consoleDebug).toHaveBeenCalledWith("teacher_mapped", {
       teacher_id: "42",
-      account_id: 55,
+      account_id: "55",
     });
     expect(JSON.stringify(consoleDebug.mock.calls)).not.toContain(
       "nested@example.com",
@@ -294,7 +294,7 @@ describe("teachersConfig", () => {
       email: "direct@example.com",
       avatar: "/avatars/direct.png",
       tag_id: "RFID-9",
-      account_id: 123,
+      account_id: "123",
     });
   });
 

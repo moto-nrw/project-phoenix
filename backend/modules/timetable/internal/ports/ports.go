@@ -9,7 +9,7 @@ import (
 
 type Store interface {
 	PreviewStaffOffboarding(context.Context, int64, string) (domain.OffboardingSnapshot, domain.OperationStats, error)
-	CountPlannedSupervisorsByCalendarPeriod(context.Context) (map[int64]int, domain.OperationStats, error)
+	CountCalendarPeriodReferences(context.Context) (map[int64]domain.CalendarPeriodReferences, domain.OperationStats, error)
 	LockInstanceStudentAssignments(context.Context, int64) (domain.OperationStats, error)
 	RestoreInstanceStudentAttendanceRow(context.Context, int64, domain.CompletionAttendance) (domain.OperationStats, error)
 	CourseInstances(context.Context, string, string, string) ([]domain.CourseInstanceRow, domain.OperationStats, error)
@@ -20,6 +20,7 @@ type Store interface {
 	LatestStudentAssignmentAttendanceDate(ctx context.Context, studentID int64) (*string, domain.OperationStats, error)
 	CloseOpenStudentAssignments(ctx context.Context, studentIDs []int64, at time.Time) (int64, domain.OperationStats, error)
 	CountStudentAssignments(context.Context, int64) (int, domain.OperationStats, error)
+	CountStudentRosterRemovals(context.Context, int64) (int, domain.OperationStats, error)
 	DeleteStudentAssignments(context.Context, int64) (domain.OperationStats, error)
 	LockPlannedRosterForCareExit(context.Context, []int64, string) (domain.OperationStats, error)
 	RemovePlannedRosterForCareExit(context.Context, []int64, string) ([]domain.CareExitRosterRow, domain.OperationStats, error)
@@ -70,6 +71,7 @@ type Store interface {
 	DeletePlannedSupervisor(context.Context, int64) (domain.OperationStats, error)
 	SetPrimaryPlannedSupervisor(context.Context, int64) (bool, domain.OperationStats, error)
 	DeletePlannedSupervisorsByStaff(context.Context, int64) (int64, domain.OperationStats, error)
+	LockPlannedSupervisors(context.Context) (domain.OperationStats, error)
 	CapActivePlannedSupervisors(context.Context, int64, string) (int64, domain.OperationStats, error)
 	SetPlannedSupervisorValidUntil(context.Context, int64, string) (bool, domain.OperationStats, error)
 	CloseOpenPlannedSupervisors(context.Context, int64, *int64, string) (domain.OperationStats, error)

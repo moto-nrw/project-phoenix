@@ -524,6 +524,32 @@ describe("breadcrumb-utils", () => {
       });
     });
 
+    describe("room detail page (#3115)", () => {
+      it("identifies the room page and not the collection or Unterwegs", () => {
+        expect(getPageTypeInfo("/rooms/12").isRoomDetailPage).toBe(true);
+        expect(getPageTypeInfo("/rooms").isRoomDetailPage).toBe(false);
+        expect(getPageTypeInfo("/rooms/unterwegs").isRoomDetailPage).toBe(
+          false,
+        );
+      });
+
+      it("titles the room page and Unterwegs", () => {
+        expect(getPageTitle("/rooms/12")).toBe("Raum");
+        expect(getPageTitle("/rooms/unterwegs")).toBe("Unterwegs");
+      });
+    });
+
+    describe("announcement detail page (#3115)", () => {
+      it("identifies the announcement page and not the list", () => {
+        expect(
+          getPageTypeInfo("/parent-announcements/12").isAnnouncementDetailPage,
+        ).toBe(true);
+        expect(
+          getPageTypeInfo("/parent-announcements").isAnnouncementDetailPage,
+        ).toBe(false);
+      });
+    });
+
     describe("combined page types", () => {
       it("should return all false for root path", () => {
         const result = getPageTypeInfo("/");
@@ -531,6 +557,8 @@ describe("breadcrumb-utils", () => {
           isStudentDetailPage: false,
           isStudentHistoryPage: false,
           isStaffDetailPage: false,
+          isRoomDetailPage: false,
+          isAnnouncementDetailPage: false,
           isEnrollmentPage: false,
         };
         expect(result).toEqual(expected);

@@ -278,7 +278,7 @@ describe("PlannedNowSection", () => {
     expect(screen.queryByLabelText(/Planungs-Hinweis/)).toBeNull();
   });
 
-  it("keeps future-only slots collapsed until opened", () => {
+  it("keeps slots the caller is not assigned to collapsed until opened", () => {
     render(
       <PlannedNowSection
         plannedNow={[
@@ -303,7 +303,7 @@ describe("PlannedNowSection", () => {
 
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(
-      screen.getByRole("button", { name: "Noch nicht verfügbar" }),
+      screen.getByRole("button", { name: "Nur für Eingeplante" }),
     ).toBeInTheDocument();
   });
 

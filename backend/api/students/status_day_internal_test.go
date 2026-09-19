@@ -2,7 +2,6 @@ package students
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -19,11 +18,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -163,7 +161,7 @@ func TestApplyAndClearLiveStatusForToday(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 5, 25, 9, 30, 0, 0, time.UTC)
-	student := &users.Student{}
+	student := &activeService.StudentRecord{}
 
 	activeService.ApplyLiveStatusForToday(student, active.StudentStatusDaySick, now)
 	require.NotNil(t, student.Sick)
@@ -287,7 +285,7 @@ func TestApplyStatusDaysForDateUsesRequestedDate(t *testing.T) {
 			},
 		},
 	}
-	resource := &Resource{ResourceConfig: ResourceConfig{StudentStatusDayService: activeService.NewStudentStatusDayServiceWithPartialAbsences(repo, nil, nil), Logger: slog.Default()}}
+	resource := &Resource{ResourceConfig: ResourceConfig{StudentStatusDayService: activeService.NewStudentStatusDayServiceWithPartialAbsences(repo, nil, nil, nil), Logger: slog.Default()}}
 	responses := []StudentResponse{{ID: 90}, {ID: 91}}
 
 	require.NoError(t, resource.applyStatusDaysForDate(context.Background(), responses, now))
@@ -612,10 +610,11 @@ func TestStudentStatusDayHandlers_RepositoryErrors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "StatusErrors", "Student", "SE1")
+	lockExceptionDay := newStudentTestRepositories(db).CarePlan.LockExceptionDay
 	baseResource := newStatusDayTestResource(db)
 
 	t.Run("get maps repository error to internal server error", func(t *testing.T) {
-		baseResource.StudentStatusDayService = activeService.NewStudentStatusDayServiceWithPartialAbsences(&fakeStatusDayRepo{findRangeErr: errors.New("find failed")}, nil, nil)
+		baseResource.StudentStatusDayService = activeService.NewStudentStatusDayServiceWithPartialAbsences(&fakeStatusDayRepo{findRangeErr: errors.New("find failed")}, nil, nil, lockExceptionDay)
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/status-days?from=2026-05-25&to=2026-05-26", student.ID), nil)
 		rr := executeStatusDayHandler(t, statusDayTestRouter(baseResource), req, testutil.AdminTestClaims(42), []string{"admin:*"})
 		assert.Equal(t, http.StatusInternalServerError, rr.Code)
@@ -626,7 +625,7 @@ func TestStudentStatusDayHandlers_RepositoryErrors(t *testing.T) {
 		resource.StudentStatusDayService = activeService.NewStudentStatusDayServiceWithPartialAbsences(&fakeStatusDayRepo{
 			clearForDatesErr: errors.New("clear failed"),
 			findRangeRows:    []*active.StudentStatusDay{},
-		}, nil, nil)
+		}, nil, nil, lockExceptionDay)
 		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/status-days", student.ID), map[string]any{
 			"status": active.StudentStatusDaySick,
 			"dates":  []string{"2026-05-25"},
@@ -640,7 +639,7 @@ func TestStudentStatusDayHandlers_RepositoryErrors(t *testing.T) {
 		resource.StudentStatusDayService = activeService.NewStudentStatusDayServiceWithPartialAbsences(&fakeStatusDayRepo{
 			upsertErr:     errors.New("upsert failed"),
 			findRangeRows: []*active.StudentStatusDay{},
-		}, nil, nil)
+		}, nil, nil, lockExceptionDay)
 		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/status-days", student.ID), map[string]any{
 			"status": active.StudentStatusDayExcused,
 			"dates":  []string{"2026-05-25"},
@@ -651,7 +650,7 @@ func TestStudentStatusDayHandlers_RepositoryErrors(t *testing.T) {
 
 	t.Run("create maps conflict lookup error to internal server error", func(t *testing.T) {
 		resource := newStatusDayTestResource(db)
-		resource.StudentStatusDayService = activeService.NewStudentStatusDayServiceWithPartialAbsences(&fakeStatusDayRepo{findRangeErr: errors.New("fetch failed")}, nil, nil)
+		resource.StudentStatusDayService = activeService.NewStudentStatusDayServiceWithPartialAbsences(&fakeStatusDayRepo{findRangeErr: errors.New("fetch failed")}, nil, nil, lockExceptionDay)
 		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/status-days", student.ID), map[string]any{
 			"status": active.StudentStatusDaySick,
 			"dates":  []string{"2026-05-25"},
@@ -662,12 +661,12 @@ func TestStudentStatusDayHandlers_RepositoryErrors(t *testing.T) {
 
 	t.Run("delete maps missing or foreign status day to not found", func(t *testing.T) {
 		resource := newStatusDayTestResource(db)
-		resource.StudentStatusDayService = activeService.NewStudentStatusDayServiceWithPartialAbsences(&fakeStatusDayRepo{findByIDErr: sql.ErrNoRows}, nil, nil)
+		resource.StudentStatusDayService = activeService.NewStudentStatusDayServiceWithPartialAbsences(&fakeStatusDayRepo{findByIDErr: modelBase.ErrNotFound}, nil, nil, lockExceptionDay)
 		missingReq := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/status-days/42", student.ID), nil)
 		missingRR := executeStatusDayHandler(t, statusDayTestRouter(resource), missingReq, testutil.AdminTestClaims(42), []string{"admin:*"})
 		assert.Equal(t, http.StatusNotFound, missingRR.Code)
 
-		resource.StudentStatusDayService = activeService.NewStudentStatusDayServiceWithPartialAbsences(&fakeStatusDayRepo{findByIDRow: &active.StudentStatusDay{StudentID: 99}}, nil, nil)
+		resource.StudentStatusDayService = activeService.NewStudentStatusDayServiceWithPartialAbsences(&fakeStatusDayRepo{findByIDRow: &active.StudentStatusDay{StudentID: 99}}, nil, nil, lockExceptionDay)
 		foreignReq := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/status-days/42", student.ID), nil)
 		foreignRR := executeStatusDayHandler(t, statusDayTestRouter(resource), foreignReq, testutil.AdminTestClaims(42), []string{"admin:*"})
 		assert.Equal(t, http.StatusNotFound, foreignRR.Code)
@@ -678,7 +677,7 @@ func TestStudentStatusDayHandlers_RepositoryErrors(t *testing.T) {
 		resource.StudentStatusDayService = activeService.NewStudentStatusDayServiceWithPartialAbsences(&fakeStatusDayRepo{
 			findByIDRow:  &active.StudentStatusDay{Model: modelBase.Model{ID: 42}, StudentID: student.ID, Date: timezone.TodayDate(), Status: active.StudentStatusDaySick},
 			clearByIDErr: errors.New("clear failed"),
-		}, nil, nil)
+		}, nil, nil, lockExceptionDay)
 		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/status-days/42", student.ID), nil)
 		rr := executeStatusDayHandler(t, statusDayTestRouter(resource), req, testutil.AdminTestClaims(42), []string{"admin:*"})
 		assert.Equal(t, http.StatusInternalServerError, rr.Code)
@@ -701,8 +700,8 @@ func newStatusDayTestResource(db *bun.DB, clocks ...func() time.Time) *Resource 
 	}
 	return NewResource(ResourceConfig{
 		PersonService:           usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{StudentRepo: repoFactory.Student}),
-		StudentService:          usersSvc.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil),
-		StudentStatusDayService: activeService.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil, clock),
+		StudentService:          usersSvc.NewStudentService(repoFactory.Student, repositories.NewStudentPrivacyConsentStore(db), repoFactory.StudentCompanion, nil),
+		StudentStatusDayService: activeService.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil, repoFactory.CarePlan.LockExceptionDay, clock),
 		Logger:                  slog.Default(),
 		Now:                     clock,
 		DB:                      db,
@@ -745,7 +744,7 @@ func (r *fakeStatusDayRepo) FindActiveByID(_ context.Context, _ int64) (*active.
 	if r.findByIDRow != nil {
 		return r.findByIDRow, nil
 	}
-	return nil, sql.ErrNoRows
+	return nil, modelBase.ErrNotFound
 }
 
 func (r *fakeStatusDayRepo) FindActiveByStudentAndDateRange(_ context.Context, studentID int64, startDate, _ timezone.Date) ([]*active.StudentStatusDay, error) {

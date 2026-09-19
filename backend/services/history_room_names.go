@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 )
 
 func historyRoomNames(rooms facilities.Query) active.HistoryRoomReader {

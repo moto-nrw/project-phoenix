@@ -18,6 +18,21 @@ function session(roles: string[], permissions: string[]): Session {
 }
 
 describe("change request access", () => {
+  it("opens parent requests for an eligible absence reviewer without granting unrelated permissions", () => {
+    const staff = session(["user"], ["users:read", "users:absence"]);
+    expect(resolveChangeRequestAccess(staff, "team")).toMatchObject({
+      canReviewParentRequests: true,
+      canOpenParentRequestsTab: true,
+      canOpenRequestsPage: true,
+      canReviewStudentDataRequests: false,
+      canReviewEnrollmentChangeRequests: false,
+      canReviewStaffAbsenceRequests: false,
+    });
+    expect(
+      resolveChangeRequestAccess(session(["user"], ["users:read"]), "team")
+        .canReviewParentRequests,
+    ).toBe(false);
+  });
   it("hält Betreuer ohne effektive Elternanfragen-Freigabe aus dem Modul", () => {
     const staff = session(["user"], ["users:read", "users:update"]);
 

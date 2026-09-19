@@ -124,6 +124,14 @@ function NewsCardMeta({
   return (
     <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold tracking-wide uppercase">
       <span className={typeClass}>{type}</span>
+      {item.reminder_sent_at && (
+        <>
+          <span className="text-gray-300" aria-hidden="true">
+            ·
+          </span>
+          <span className="text-moto-blue-strong">{t("newsReminder")}</span>
+        </>
+      )}
       {isBindingLetter(item) && !item.acknowledged && (
         <>
           <span className="text-gray-300" aria-hidden="true">
@@ -515,7 +523,9 @@ export function NewsCard({
             : ""}
         </span>
         <span className="mt-1.5 line-clamp-2 block text-sm leading-5 text-gray-600">
-          {item.body}
+          {item.reminder_sent_at && item.reminder_text
+            ? item.reminder_text
+            : item.body}
         </span>
         <span className="mt-2 block">
           <NewsCardState item={item} />
@@ -621,6 +631,32 @@ function NewsAttachments({
   );
 }
 
+/**
+ * The school's scheduled reminder (#3162): the same message, sent again at a
+ * moment the school chose, with its own short wording. It sits above the full
+ * text so the reason the message is back on top is the first thing read. It
+ * asks for nothing: read and confirmation state are untouched by a reminder.
+ */
+function NewsReminderNote({
+  sentAt,
+  text,
+}: Readonly<{ sentAt: string; text?: string }>): React.ReactNode {
+  const t = useTranslations("parentDashboard");
+  const locale = useLocale();
+  return (
+    <div className="bg-moto-blue-soft mt-4 rounded-xl px-4 py-3">
+      <p className="text-moto-blue-strong text-xs font-semibold tracking-wide uppercase">
+        {t("newsReminderFrom", { date: formatBerlinDate(sentAt, locale) })}
+      </p>
+      {text && (
+        <p className="mt-1 text-base leading-7 whitespace-pre-line text-gray-900">
+          <LinkifiedText text={text} />
+        </p>
+      )}
+    </div>
+  );
+}
+
 function NewsMessageSection({
   item,
 }: Readonly<{ item: ParentAnnouncement }>): React.ReactNode {
@@ -643,6 +679,13 @@ function NewsMessageSection({
           </time>
         )}
       </div>
+      {item.reminder_sent_at && (
+        <NewsReminderNote
+          sentAt={item.reminder_sent_at}
+          text={item.reminder_text}
+        />
+      )}
+
       <p className="mt-4 text-base leading-7 whitespace-pre-line text-gray-800">
         <LinkifiedText text={item.body} />
       </p>

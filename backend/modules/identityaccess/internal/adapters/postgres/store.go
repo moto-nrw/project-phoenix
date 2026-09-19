@@ -16,13 +16,27 @@ import (
 // Database resolves the connection of the current request.
 type Database func(context.Context) (bun.IDB, error)
 
-type Store struct{ database Database }
+// TenantScope is the tenant filter of the current request: the tenant the
+// runtime scoped the caller to (zero for tenantless callers) and whether the
+// caller holds an administrative transaction.
+type TenantScope struct {
+	TenantID         int64
+	AdminTransaction bool
+}
 
-func New(database Database) *Store {
-	if database == nil {
-		panic("identity access postgres: database runtime is required")
+// Scope resolves the tenant scope of the current request.
+type Scope func(context.Context) TenantScope
+
+type Store struct {
+	database Database
+	scope    Scope
+}
+
+func New(database Database, scope Scope) *Store {
+	if database == nil || scope == nil {
+		panic("identity access postgres: database runtime and tenant scope are required")
 	}
-	return &Store{database: database}
+	return &Store{database: database, scope: scope}
 }
 
 type accountRow struct {

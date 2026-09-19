@@ -2,13 +2,16 @@ package students_test
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -19,10 +22,15 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
+	reviewidentity "github.com/moto-nrw/project-phoenix/modules/identityaccess/requestreview"
+	"github.com/moto-nrw/project-phoenix/modules/requestreview"
+	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
+	reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	studentdeletioncompose "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/compose"
 )
 
 // testContext holds shared test dependencies.
@@ -74,11 +82,111 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
+	// The shared request-review projection over the same retained queues the
+	// production root binds (#2705).
+	reviewStudents, err := requestreviewcompose.NewStudentDirectory(db, svc.PeopleDirectory, func(requestreviewcompose.DirectoryObservation) {})
+	require.NoError(t, err)
+	reviewAccess, err := requestreviewcompose.NewAccess(studentsAPI.RequestReviewPrincipal, nil)
+	require.NoError(t, err)
+	policy, err := reviewidentity.New(reviewidentity.Dependencies{
+		Principal: studentsAPI.RequestReviewPrincipal,
+		GroupLeaderEnabled: func(ctx context.Context) (bool, error) {
+			return svc.Settings.ResolveBool(ctx, reviewsettings.GroupLeaderEnabled)
+		},
+		GroupIDs: func(ctx context.Context) ([]int64, error) {
+			groups, err := svc.UserContext.GetMyGroups(ctx)
+			if err != nil {
+				return nil, err
+			}
+			ids := make([]int64, 0, len(groups))
+			for _, group := range groups {
+				if group != nil {
+					ids = append(ids, group.ID)
+				}
+			}
+			return ids, nil
+		},
+	})
+	require.NoError(t, err)
+	clock := firstClock(clocks)
+	if clock == nil {
+		clock = time.Now
+	}
+	masterDataReviews, err := requestreviewcompose.NewMasterDataReviews(db, svc.PeopleDirectory,
+		func(ctx context.Context) (requestreviewcompose.ReviewScope, error) {
+			scope, err := policy.Scope(ctx)
+			return requestreviewcompose.ReviewScope{SchoolWide: scope.SchoolWide, GroupIDs: scope.GroupIDs}, err
+		}, func() requestreviewcompose.ReviewDate {
+			return requestreviewcompose.ReviewDate(timezone.DateFromTime(clock()))
+		},
+		func(requestreviewcompose.CareObservation) {})
+	require.NoError(t, err)
+	careReviews, err := requestreviewcompose.NewScheduleReviews(db, requestreviewcompose.ScheduleReviewDependencies{
+		People: svc.PeopleDirectory,
+		Scope: func(ctx context.Context) (requestreviewcompose.ReviewScope, error) {
+			scope, err := policy.Scope(ctx)
+			return requestreviewcompose.ReviewScope{SchoolWide: scope.SchoolWide, GroupIDs: scope.GroupIDs}, err
+		},
+		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
+			return svc.Settings.ResolveBool(ctx, reviewsettings.BookingsAuthoritative)
+		},
+		Today: func() requestreviewcompose.ReviewDate {
+			return requestreviewcompose.ReviewDate(timezone.DateFromTime(clock()))
+		},
+		ObserveCare: func(requestreviewcompose.CareObservation) {}, ObserveTimetable: func(requestreviewcompose.TimetableObservation) {},
+	})
+	require.NoError(t, err)
+	careQueue, err := requestreviewcompose.NewCareScheduleQueue(careReviews, func() requestreviewcompose.ReviewDate {
+		return requestreviewcompose.ReviewDate(timezone.DateFromTime(clock()))
+	})
+	require.NoError(t, err)
+	offeringReviews, err := requestreviewcompose.NewOfferingReviews(db, requestreviewcompose.OfferingReviewDependencies{
+		People: svc.PeopleDirectory,
+		Scope: func(ctx context.Context) (requestreviewcompose.ReviewScope, error) {
+			scope, err := policy.Scope(ctx)
+			return requestreviewcompose.ReviewScope{SchoolWide: scope.SchoolWide, GroupIDs: scope.GroupIDs}, err
+		},
+		Today: func() requestreviewcompose.ReviewDate {
+			return requestreviewcompose.ReviewDate(timezone.DateFromTime(clock()))
+		},
+		ObserveCare: func(requestreviewcompose.CareObservation) {}, ObserveTimetable: func(requestreviewcompose.TimetableObservation) {},
+	})
+	require.NoError(t, err)
+	offeringQueue, err := requestreviewcompose.NewOfferingQueue(offeringReviews, func() requestreviewcompose.ReviewDate {
+		return requestreviewcompose.ReviewDate(timezone.DateFromTime(clock()))
+	})
+	require.NoError(t, err)
+	corrections, err := requestreviewcompose.NewCorrectionLog(db, svc.PeopleDirectory, func(ctx context.Context) bool {
+		return studentsAPI.RequestReviewCorrectionAccess(ctx, svc.UserContext.HasCurrentStaff)
+	}, func(requestreviewcompose.AuditObservation) {})
+	require.NoError(t, err)
+	masterQueue, err := requestreviewcompose.NewMasterDataQueue(masterDataReviews)
+	require.NoError(t, err)
+	excusedQueue, err := requestreviewcompose.NewExcusedQueue(svc.ExcusedRequests, func() requestreviewcompose.ReviewDate {
+		return requestreviewcompose.ReviewDate(timezone.DateFromTime(clock()))
+	})
+	require.NoError(t, err)
+	requestReview, err := requestreview.NewChecked(requestreview.Dependencies{
+		Queues: requestreview.Queues{DirectCorrections: corrections, MasterData: masterQueue, CareSchedule: careQueue, Offering: offeringQueue, Excused: excusedQueue},
+		Access: reviewAccess, Students: reviewStudents, FamilyProtection: requestreviewcompose.NewFamilyProtection(svc.PeopleDirectory),
+		Today: func() requestreview.Date { return requestreview.Date(timezone.DateFromTime(clock())) },
+	})
+	require.NoError(t, err)
+	// The permanent-deletion routes run the owner workflow (#2710) over the
+	// same capabilities the production root binds.
+	studentDeletion, err := studentdeletioncompose.New(studentdeletioncompose.Dependencies{
+		DB: db, Directory: svc.PeopleDirectory, CarePlan: repoFactory.CarePlan, Timetable: repoFactory.Timetable,
+		Feedback: &testpkg.FeedbackEntryCounterMock{}, IsVerifiedStaff: svc.UserContext.HasCurrentStaff,
+		LockCareBookingWrites: func(ctx context.Context) error { return scheduleSvc.LockTenantRecurrenceWrites(ctx, db) },
+		UnlinkPhoto:           studentPhotos.ScheduleUnlinkAfterCommit, Broadcaster: broadcaster, Audit: svc.Audit,
+		Now: clock,
+	})
+	require.NoError(t, err)
 	resource := studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:          svc.Users,
 		PeopleDirectory:        svc.PeopleDirectory,
-		GradeTransitionService: svc.GradeTransition,
-		StudentService:         userService.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil),
+		StudentDeletion:        studentDeletion,
+		StudentService:         userService.NewStudentService(repoFactory.Student, repositories.NewStudentPrivacyConsentStore(db), repoFactory.StudentCompanion, nil),
 		EducationService:       svc.Education,
 		UserContextService:     svc.UserContext,
 		ActiveService:          svc.Active,
@@ -99,13 +207,13 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 				names[room.ID] = room.Name
 			}
 			return names, nil
-		}, repoFactory.DataAccessLog, repoFactory.InstanceStudent),
+		}, svc.DataAccessAudit(), svc.HistorySlots(repoFactory.InstanceStudent)),
 		OGSGroupLiveService:     svc.OGSGroupLive,
 		InstanceService:         svc.Instance,
 		CareDayService:          svc.CareDay,
 		CareLifecycleService:    svc.CareLifecycle,
-		StudentStatusDayService: activeSvc.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, repoFactory.StudentPickupException, db),
-		AbsenceOverview:         activeSvc.NewStudentStatusDayOverviewService(repoFactory.StudentStatusDay, svc.Users),
+		StudentStatusDayService: activeSvc.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, svc.ManualPartialAbsences(repoFactory.CarePlan), db, repoFactory.CarePlan.LockExceptionDay),
+		AbsenceOverview:         activeSvc.NewStudentStatusDayOverviewService(repoFactory.StudentStatusDay, svc.StatusDayOverviewPeople()),
 		ExcusedRequestService:   svc.ExcusedRequests,
 		StudentAuditService:     svc.StudentAudit,
 		EnrollmentDecision:      svc.EnrollmentDecision,
@@ -117,6 +225,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		PickupAdjustmentService:  svc.PickupAdjustments,
 		ParentRequestBulkService: svc.ParentRequests,
 		FamilyProtectionService:  svc.FamilyProtection,
+		RequestReview:            requestReview,
 		Broadcaster:              broadcaster,
 		ParentEventEmitter:       parentEventEmitter,
 		StudentPhotos:            studentPhotos,
@@ -132,6 +241,40 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		resource:    resource,
 		broadcaster: broadcaster,
 	}
+}
+
+// previewStudentDeletion reads the delete-impact preview the confirmed
+// deletion has to quote back (#2710): the permanent deletion is never
+// reachable without it.
+func previewStudentDeletion(t *testing.T, tc *testContext, claims jwt.AppClaims, studentID int64) map[string]any {
+	t.Helper()
+	request := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/%d/delete-impact", studentID), nil)
+	response := authExec(t, tc, request, claims, []string{"admin:*"})
+	require.Equal(t, http.StatusOK, response.Code, "Body: %s", response.Body.String())
+	var body struct {
+		Data map[string]any `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
+	return body.Data
+}
+
+// confirmStudentDeletion sends the confirmed DELETE for a preview.
+func confirmStudentDeletion(t *testing.T, tc *testContext, claims jwt.AppClaims, studentID int64, preview map[string]any) *httptest.ResponseRecorder {
+	t.Helper()
+	request := testutil.NewAuthenticatedRequest(t, http.MethodDelete, fmt.Sprintf("/%d", studentID), map[string]any{
+		"expected_fingerprint": preview["fingerprint"],
+		"confirmation_name":    preview["confirmation_name"],
+		"reason":               "test_data",
+		"acknowledged":         true,
+	})
+	return authExec(t, tc, request, claims, []string{"admin:*"})
+}
+
+// deleteStudentConfirmed previews and confirms in one step for tests whose
+// subject is the deletion's side effect, not the confirmation itself.
+func deleteStudentConfirmed(t *testing.T, tc *testContext, claims jwt.AppClaims, studentID int64) *httptest.ResponseRecorder {
+	t.Helper()
+	return confirmStudentDeletion(t, tc, claims, studentID, previewStudentDeletion(t, tc, claims, studentID))
 }
 
 func firstClock(clocks []func() time.Time) func() time.Time {

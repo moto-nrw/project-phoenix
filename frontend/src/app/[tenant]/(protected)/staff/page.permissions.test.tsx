@@ -248,7 +248,9 @@ describe("/staff — Berechtigungs-Split", () => {
     render(<StaffPage />);
 
     fireEvent.click(screen.getByRole("button", { name: /Datensatz Test/ }));
-    expect(routerPush).toHaveBeenCalledWith("/database/personal?staff=42");
+    // Seit #3115 trägt die Personalakte den Datensatz im Reiter „Konto";
+    // das Pane der Datenverwaltung gibt es nicht mehr.
+    expect(routerPush).toHaveBeenCalledWith("/staff/42?tab=konto");
   });
 
   it("behält mit time_tracking:manage die Zeitkonten statt der Dokumentenansicht", () => {

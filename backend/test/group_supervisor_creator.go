@@ -3,12 +3,12 @@ package test
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // GroupSupervisorCreator persists supervisors for cross-module service tests.
-// Production composition injects services/active, whose own tests cover the
+// Production composition injects modules/studentpresence/legacy/services/active, whose own tests cover the
 // additional validation and automatic work-session check-in.
 type GroupSupervisorCreator struct {
 	Repository active.GroupSupervisorRepository

@@ -32,7 +32,7 @@ func TestResolveTenant_HiddenSchoolReturnsHiddenFlag(t *testing.T) {
 	require.NoError(t, err)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), authRoute.Sessions, db)
 	resource.SettingsService = authRoute.SettingsService
 
 	router := chi.NewRouter()

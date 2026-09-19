@@ -32,7 +32,7 @@ func NewParentMessagingTestRepositories(db *bun.DB) (ParentMessagingTestReposito
 		return ParentMessagingTestRepositories{}, err
 	}
 	deps := newStaffMembershipDeps(
-		usersRepo.NewPersonRepository(db),
+		NewPersonRepository(db),
 		authRepo.NewAccountRepository(db),
 		authRepo.NewAccountTenantRepository(db),
 		authRepo.NewPermissionRepository(db),

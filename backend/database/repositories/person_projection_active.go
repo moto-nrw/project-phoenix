@@ -2,23 +2,47 @@ package repositories
 
 import (
 	"context"
+	"errors"
 	"strings"
 
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
-// personCrossTenantRepository attaches the visiting students' names.
-type personCrossTenantRepository struct {
-	activeModels.CrossTenantRepository
-	persons peopledirectory.Query
+// visitorProjection composes open visits and home-school identity through
+// their public owners. It never reads another owner's tables.
+type visitorProjection struct {
+	visits interface {
+		ListOpenVisitStudentIDs(context.Context, int64) ([]int64, error)
+	}
+	students peopledirectory.StudentQuery
+	persons  peopledirectory.Query
 }
 
-func (r personCrossTenantRepository) FindCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]activeModels.CrossTenantStudent, error) {
-	students, err := r.CrossTenantRepository.FindCrossTenantStudents(ctx, hostingTenantID)
-	if err != nil || len(students) == 0 {
-		return students, err
+func (r *visitorProjection) FindCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]activeModels.CrossTenantStudent, error) {
+	if r.students == nil {
+		return nil, errors.New("visitor projection: people directory is required")
+	}
+	visitingIDs, err := r.visits.ListOpenVisitStudentIDs(ctx, hostingTenantID)
+	if err != nil {
+		return nil, err
+	}
+	students := []activeModels.CrossTenantStudent{}
+	if len(visitingIDs) == 0 {
+		return students, nil
+	}
+	visitors, err := r.students.ListStudentsAcrossTenantsByID(ctx, visitingIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, visitor := range visitors {
+		if visitor.TenantID == hostingTenantID {
+			continue
+		}
+		students = append(students, activeModels.CrossTenantStudent{StudentID: visitor.ID, PersonID: visitor.PersonID, HomeTenantID: visitor.TenantID, GroupID: visitor.GroupID})
+	}
+	if len(students) == 0 || r.persons == nil {
+		return students, nil
 	}
 	ids := make([]int64, 0, len(students))
 	for _, student := range students {
@@ -69,30 +93,27 @@ func (r personGroupSupervisorRepository) FindByActiveGroupIDs(ctx context.Contex
 }
 
 func attachSupervisionPersons(ctx context.Context, query peopledirectory.Query, rows []*activeModels.GroupSupervisor) error {
-	staff := make([]*usersModels.Staff, 0, len(rows))
+	ids := make([]int64, 0, len(rows))
 	for _, row := range rows {
 		if row != nil && row.Staff != nil {
-			staff = append(staff, row.Staff)
+			ids = append(ids, row.Staff.PersonID)
 		}
-	}
-	return attachStaffPersons(ctx, query, staff)
-}
-
-// attachStaffPersons resolves Staff.Person for every staff row through the
-// owner query. Staff without a resolvable person keep a nil Person, which
-// is what the previous LEFT JOIN produced.
-func attachStaffPersons(ctx context.Context, query peopledirectory.Query, staff []*usersModels.Staff) error {
-	ids := make([]int64, 0, len(staff))
-	for _, member := range staff {
-		ids = append(ids, member.PersonID)
 	}
 	persons, err := personsByID(ctx, query, ids)
 	if err != nil {
 		return err
 	}
-	for _, member := range staff {
-		if person, found := persons[member.PersonID]; found {
-			member.Person = toLegacyPerson(person)
+	for _, row := range rows {
+		if row == nil || row.Staff == nil {
+			continue
+		}
+		if person, found := persons[row.Staff.PersonID]; found {
+			value := toLegacyPerson(person)
+			row.Staff.Person = &activeModels.SessionStaffPerson{
+				ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+				FirstName: value.FirstName, LastName: value.LastName, Birthday: value.Birthday,
+				TagID: value.TagID, AccountID: value.AccountID,
+			}
 		}
 	}
 	return nil

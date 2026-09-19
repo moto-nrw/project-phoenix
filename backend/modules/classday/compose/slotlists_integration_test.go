@@ -19,7 +19,6 @@ import (
 
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -36,6 +35,7 @@ import (
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"

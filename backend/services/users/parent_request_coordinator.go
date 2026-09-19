@@ -12,8 +12,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 

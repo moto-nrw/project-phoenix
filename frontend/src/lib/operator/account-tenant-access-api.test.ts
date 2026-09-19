@@ -35,7 +35,9 @@ describe("accountTenantAccessService", () => {
             deactivated_at: null,
             has_person: true,
             has_staff: false,
-            roles: [{ id: 1, name: "admin", is_system: true, base_role: null }],
+            roles: [
+              { id: "1", name: "admin", is_system: true, base_role: null },
+            ],
           },
         ],
       }),
@@ -90,12 +92,15 @@ describe("accountTenantAccessService", () => {
     expect(entry?.roles).toEqual([]);
   });
 
-  it("sends numeric ids on grant", async () => {
-    mockFetch.mockResolvedValue(jsonResponse({ data: [] }));
+  it("preserves decimal role IDs on grant and update", async () => {
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse({ data: [] }))
+      .mockResolvedValueOnce(jsonResponse({ data: [] }));
+    const roleId = "9007199254740993";
 
     await accountTenantAccessService.grant("42", {
       schoolId: "7",
-      roleId: "1",
+      roleId,
       firstName: "Ada",
       lastName: "Lovelace",
     });
@@ -106,17 +111,26 @@ describe("accountTenantAccessService", () => {
         method: "POST",
         body: JSON.stringify({
           school_id: 7,
-          role_id: 1,
+          role_id: roleId,
           first_name: "Ada",
           last_name: "Lovelace",
         }),
+      }),
+    );
+
+    await accountTenantAccessService.updateRole("42", "7", roleId);
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      "/api/operator/accounts/42/tenants/7",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ role_id: roleId }),
       }),
     );
   });
 
   it("loads assignable roles for the selected school", async () => {
     mockFetch.mockResolvedValue(
-      jsonResponse({ data: [{ id: 4, name: "teamleitung" }] }),
+      jsonResponse({ data: [{ id: "4", name: "teamleitung" }] }),
     );
 
     await expect(

@@ -5,14 +5,14 @@ import (
 	"log/slog"
 	"time"
 
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	pwaSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
+	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/active"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -50,7 +50,7 @@ type WorkerDependencies struct {
 	Materializer              scheduleSvc.MaterializationService
 	TimetableCleanup          scheduleSvc.TimetableCleanupService
 	CalendarFeedCleanup       CalendarFeedCleaner
-	TimeTrackingCleanup       active.TimeTrackingCleanupService
+	TimeTrackingCleanup       TimeTrackingCleanupService
 	StudentChangeLogCleanup   usersSvc.StudentChangeLogCleanupService
 	PWAUsageCleanup           pwaSvc.UsageService
 	StaffMessageCleanup       StaffMessageCleanup
@@ -70,7 +70,10 @@ type WorkerDependencies struct {
 	OutboxWorker              OutboxWorkerRunner
 	RolloverDeadlineRunner    RolloverDeadlineRunner
 	ReminderNotifications     ReminderNotificationDeps
-	AppointmentReminders      reminder.Command
+	// AppointmentReminders is the established reminder capability consumed by
+	// the scheduler. It also exposes scheduled parent-announcement delivery,
+	// avoiding a second dependency in this shrink-only worker composition.
+	AppointmentReminders reminder.Capability
 }
 
 // NewWorker constructs and validates the complete embedded worker before the
@@ -140,6 +143,7 @@ func requiredWorkerJobIDs() []JobID {
 		"email-outbox",
 		"rollover-deadline",
 		"appointment-reminders",
+		"announcement-reminders",
 	}
 }
 
@@ -175,6 +179,7 @@ func (s *Scheduler) jobDefinitions() []Job {
 	add(!isNilDependency(s.outboxWorker), "email-outbox", s.scheduleOutboxWorkerTask)
 	add(!isNilDependency(s.rolloverDeadlineRunner), "rollover-deadline", s.scheduleRolloverDeadlineTask)
 	add(!isNilDependency(s.appointmentReminders), "appointment-reminders", s.scheduleAppointmentReminderTask)
+	add(!isNilDependency(s.announcementReminders), "announcement-reminders", s.scheduleAnnouncementReminderTask)
 	return jobs
 }
 

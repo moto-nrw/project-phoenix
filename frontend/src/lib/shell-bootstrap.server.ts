@@ -22,9 +22,9 @@ import type { RemindersResult } from "~/lib/reminders-api";
 import type { SettingsSchema } from "~/lib/settings-api";
 import type { ShellBootstrap, ShellCounts } from "~/lib/shell-seed";
 import type {
-  SchulhofStatus,
   SupervisedGroupPayload,
   SupervisionSnapshot,
+  OpenRoomPayload,
 } from "~/lib/supervision-derive";
 import type { TenantInfo } from "~/lib/tenant-api";
 import { loadUserContext } from "~/lib/user-context.server";
@@ -137,7 +137,7 @@ async function loadSupervision(
     };
   };
 
-  const [groups, supervision, schulhof] = await Promise.all([
+  const [groups, supervision, openRooms] = await Promise.all([
     optional("groups", async (signal) => {
       const response = await apiGet<Envelope<NavigationEducationalGroup[]>>(
         "/api/students/ogs-group-navigation",
@@ -147,16 +147,17 @@ async function loadSupervision(
       return response.data;
     }),
     optional("supervised", loadSupervised),
-    canReadGroups
-      ? optional("schulhof", async (signal) => {
-          const response = await apiGet<Envelope<SchulhofStatus>>(
-            "/api/active/schulhof/status",
-            token,
-            { signal },
-          );
-          return response.data;
-        })
-      : Promise.resolve(undefined),
+    // Released rooms come from the room list, by stable room id (#3065).
+    // rooms:read is the same permission every caregiver already holds for the
+    // rest of the navigation, so no extra gate is needed here.
+    optional("openRooms", async (signal) => {
+      const response = await apiGet<Envelope<OpenRoomPayload[] | null>>(
+        "/api/rooms?is_open_room=true",
+        token,
+        { signal },
+      );
+      return response.data ?? [];
+    }),
   ]);
 
   // SupervisionProvider treats any snapshot as a complete initial load. Do
@@ -164,7 +165,7 @@ async function loadSupervision(
   if (
     groups === undefined ||
     supervision === undefined ||
-    (canReadGroups && schulhof === undefined)
+    openRooms === undefined
   ) {
     return null;
   }
@@ -173,7 +174,7 @@ async function loadSupervision(
     groups,
     supervised: supervision.supervised,
     ownSupervised: supervision.ownSupervised,
-    schulhof: schulhof ?? null,
+    openRooms: openRooms ?? null,
     overviewOk: supervision.overviewOk,
   };
 }

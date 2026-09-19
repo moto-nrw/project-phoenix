@@ -211,7 +211,13 @@ describe("StaffSessionTable Arbeitsblöcke (#2402)", () => {
     const onEditDay = vi.fn();
     renderTable({ onEditDay });
 
-    fireEvent.click(screen.getByLabelText("Block 2 bearbeiten"));
+    // Zeilenaktionen liegen im Kebab der Zeile (Bauart 1 Regel 4).
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Block 2" }),
+    );
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Block 2 bearbeiten" }),
+    );
 
     expect(onEditDay).toHaveBeenCalledTimes(1);
     const [, session] = onEditDay.mock.calls[0] as [
@@ -234,7 +240,10 @@ describe("StaffSessionTable Arbeitsblöcke (#2402)", () => {
     };
     renderTable({ sessions: [nightBlock], onEditDay });
 
-    fireEvent.click(screen.getByLabelText("Eintrag bearbeiten"));
+    fireEvent.click(screen.getByRole("button", { name: /^Aktionen für \d/ }));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Eintrag bearbeiten" }),
+    );
 
     const [date, session] = onEditDay.mock.calls[0] as [
       Date,
@@ -254,7 +263,9 @@ describe("StaffSessionTable Arbeitsblöcke (#2402)", () => {
     const onEditDay = vi.fn();
     renderTable({ onEditDay });
 
-    fireEvent.click(screen.getByLabelText("Block nachtragen"));
+    // Das Menü der Tageszeile (nicht der Blockzeilen) bietet das Nachtragen an.
+    fireEvent.click(screen.getByRole("button", { name: /^Aktionen für \d/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Block nachtragen" }));
 
     expect(onEditDay).toHaveBeenCalledTimes(1);
     const [, session] = onEditDay.mock.calls[0] as [
@@ -270,7 +281,10 @@ describe("StaffSessionTable Arbeitsblöcke (#2402)", () => {
 
     expect(screen.queryByText("Block 1")).not.toBeInTheDocument();
     expect(screen.queryByText("2 Blöcke")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Eintrag bearbeiten")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^Aktionen für \d/ }));
+    expect(
+      screen.getByRole("menuitem", { name: "Eintrag bearbeiten" }),
+    ).toBeInTheDocument();
   });
 
   it("markiert den Tag als eingestempelt, wenn ein Block offen ist", () => {

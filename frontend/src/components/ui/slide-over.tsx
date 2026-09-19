@@ -294,15 +294,13 @@ const SlideOverDescription = React.forwardRef<
 ));
 SlideOverDescription.displayName = DrawerPrimitive.Description.displayName;
 
-const SlideOverClose = DrawerPrimitive.Close;
-
 /**
  * SlideOverCloseButton — the shared close (X) control for slide-over headers.
  *
  * The SlideOver primitive (Vaul) ships no styled close button, so every panel
  * used to hand-roll its own — which is why the close-X drifted across the app.
  * This is the single source of truth: a round icon button matching the
- * canonical slide-over close (room-detail-panel's closeButtonClass). Renders a
+ * canonical slide-over close. Renders a
  * default X; pass children to override, and aria-label to retitle it.
  */
 const SlideOverCloseButton = React.forwardRef<
@@ -331,6 +329,5 @@ export {
   SlideOverFooter,
   SlideOverTitle,
   SlideOverDescription,
-  SlideOverClose,
   SlideOverCloseButton,
 };

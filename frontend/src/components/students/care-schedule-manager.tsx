@@ -13,12 +13,16 @@ import {
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
+import { Button } from "~/components/ui/button";
 import {
   type CareExceptionSubmit,
-  type CarePlanWeeklyAdjustment,
-  type CarePlanWeeklySubmit,
   CarePlanEditorModal,
 } from "./care-plan-editor-modal";
+import {
+  type CarePlanWeeklyAdjustment,
+  type CarePlanWeeklySubmit,
+  CareWeeklyPlanEditForm,
+} from "./care-weekly-plan-editor";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import {
   type ArrivalData,
@@ -147,6 +151,7 @@ interface CareScheduleManagerProps {
   readonly isExcused?: boolean;
   readonly statusDays?: StudentStatusDay[];
   readonly onDeleteStatusDay?: (statusDayId: string) => Promise<void>;
+  readonly canDeleteStatusDay?: (day: StudentStatusDay) => boolean;
   readonly onVisibleDateRangeChange?: (from: string, to: string) => void;
 }
 
@@ -240,6 +245,7 @@ export function CareScheduleManager({
   isExcused = false,
   statusDays = EMPTY_STATUS_DAYS,
   onDeleteStatusDay,
+  canDeleteStatusDay,
   onVisibleDateRangeChange,
 }: CareScheduleManagerProps) {
   const [arrivalData, setArrivalData] = useState<ArrivalData>({
@@ -259,12 +265,12 @@ export function CareScheduleManager({
   const [error, setError] = useState<string | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
-  // The single care-plan editor. null = closed; { date: Date } = opened from a
-  // day card (all three scopes offered); { date: null } = opened from the week
-  // header, where there is no day context and only the weekly plan applies.
-  const [editorTarget, setEditorTarget] = useState<{
-    date: Date | null;
-  } | null>(null);
+  // The day exception slide-over. null = closed; { date } = opened from a day
+  // card for that date.
+  const [editorTarget, setEditorTarget] = useState<{ date: Date } | null>(null);
+  // The section's Bearbeiten-Zustand (BAUARTEN-SPEC Bauart 2 Regel 3, #3119):
+  // the weekly grid replaces the day cards in place, no overlay.
+  const [isEditingWeekly, setIsEditingWeekly] = useState(false);
   const [statusDayToDelete, setStatusDayToDelete] =
     useState<StudentStatusDay | null>(null);
   const [deletingStatusDayId, setDeletingStatusDayId] = useState<string | null>(
@@ -276,6 +282,10 @@ export function CareScheduleManager({
     () => formatWeekRange(weekDays[0] ?? new Date(), weekDays[4] ?? new Date()),
     [weekDays],
   );
+  // The edit state needs the care-days source and write access; without either
+  // the section stays on its display, so the header never loses its controls.
+  const isEditingWeeklyView =
+    isEditingWeekly && careDaysSource !== null && !readOnly;
 
   function showWeek(offset: number): void {
     setWeekOffset(offset);
@@ -480,11 +490,11 @@ export function CareScheduleManager({
     loadCareData().catch(() => undefined);
   }, [loadCareData]);
 
-  // An open modal holds an unsaved draft that is seeded from arrivalData /
-  // pickupData: CareWeeklyPlanModal re-runs its row-building effect whenever
-  // those props change identity, so writing them mid-edit silently discards
-  // whatever the user has typed.
-  const isEditorOpen = editorTarget !== null;
+  // An open editor holds an unsaved draft that was seeded from arrivalData /
+  // pickupData: the exception slide-over re-reads its day whenever those props
+  // change identity, and the weekly edit state measures its removals against
+  // them, so writing them mid-edit silently changes what the user is editing.
+  const isEditorOpen = editorTarget !== null || isEditingWeekly;
   // Read through a ref inside the listener so opening/closing a modal does not
   // resubscribe it, and so the check uses the state at event time.
   const isEditorOpenRef = useRef(isEditorOpen);
@@ -829,126 +839,149 @@ export function CareScheduleManager({
           concept="careTimes"
           subtitle={weekRange}
           actions={
-            <div className="flex items-center gap-2">
+            // While the section is in its edit state the week controls step
+            // aside: the plan applies to every week, and the only ways out are
+            // Speichern and Abbrechen at the bottom (Bauart 2 Regel 4).
+            isEditingWeeklyView ? undefined : (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => showWeek(0)}
+                  disabled={weekOffset === 0}
+                  className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-100 px-3 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:hidden"
+                >
+                  Heute
+                </button>
+                {/* Labelled on purpose, on every layout: an unlabelled pencil
+                  here was indistinguishable from the per-day pencils below,
+                  which is the confusion issue #893 reports. The word
+                  „bearbeiten“ names the edit state it switches to. */}
+                {!readOnly ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    className="gap-1.5"
+                    onClick={() => setIsEditingWeekly(true)}
+                  >
+                    <SquarePen
+                      className="h-4 w-4 shrink-0"
+                      aria-hidden="true"
+                    />
+                    Wochenplan bearbeiten
+                  </Button>
+                ) : null}
+              </div>
+            )
+          }
+        />
+        {isEditingWeeklyView ? null : (
+          <div className="relative mt-4 hidden items-center justify-between gap-2 @4xl:flex">
+            <div>
+              <WeekNavButton
+                ariaLabel="Vorherige Woche"
+                onClick={() => showWeek(weekOffset - 1)}
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                <span className="hidden sm:inline">Vorherige Woche</span>
+              </WeekNavButton>
+            </div>
+            {weekOffset === 0 ? (
+              <span className="absolute left-1/2 hidden h-9 -translate-x-1/2 items-center justify-center rounded-full bg-gray-100 px-3 text-sm font-semibold text-gray-500 sm:inline-flex">
+                Aktuelle Woche
+              </span>
+            ) : (
               <button
                 type="button"
                 onClick={() => showWeek(0)}
-                disabled={weekOffset === 0}
-                className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-100 px-3 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:hidden"
+                className="absolute left-1/2 hidden h-9 -translate-x-1/2 items-center justify-center rounded-full bg-gray-100 px-3 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:inline-flex"
               >
-                Heute
+                Zurück zur aktuellen Woche
               </button>
-              {/* Labelled on purpose: an unlabelled pencil here was
-                indistinguishable from the per-day pencils below, which is the
-                confusion issue #893 reports. */}
-              {!readOnly ? (
-                <button
-                  type="button"
-                  onClick={() => setEditorTarget({ date: null })}
-                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                  title="Wochenplan bearbeiten"
-                >
-                  <SquarePen className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  {/* Label kept on mobile too: an icon-only pencil here is the
-                    exact ambiguity with the per-day pencils that #893 reports,
-                    and the header has room for the word on both layouts. */}
-                  <span>Wochenplan</span>
-                </button>
-              ) : null}
+            )}
+            <div>
+              <WeekNavButton
+                ariaLabel="Nächste Woche"
+                onClick={() => showWeek(weekOffset + 1)}
+              >
+                <span className="hidden sm:inline">Nächste Woche</span>
+                <ChevronRight className="h-4 w-4" aria-hidden="true" />
+              </WeekNavButton>
             </div>
-          }
-        />
-        <div className="relative mt-4 hidden items-center justify-between gap-2 @4xl:flex">
-          <div>
-            <WeekNavButton
-              ariaLabel="Vorherige Woche"
-              onClick={() => showWeek(weekOffset - 1)}
-            >
-              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden sm:inline">Vorherige Woche</span>
-            </WeekNavButton>
           </div>
-          {weekOffset === 0 ? (
-            <span className="absolute left-1/2 hidden h-9 -translate-x-1/2 items-center justify-center rounded-full bg-gray-100 px-3 text-sm font-semibold text-gray-500 sm:inline-flex">
-              Aktuelle Woche
-            </span>
-          ) : (
-            <button
-              type="button"
-              onClick={() => showWeek(0)}
-              className="absolute left-1/2 hidden h-9 -translate-x-1/2 items-center justify-center rounded-full bg-gray-100 px-3 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:inline-flex"
-            >
-              Zurück zur aktuellen Woche
-            </button>
-          )}
-          <div>
-            <WeekNavButton
-              ariaLabel="Nächste Woche"
-              onClick={() => showWeek(weekOffset + 1)}
-            >
-              <span className="hidden sm:inline">Nächste Woche</span>
-              <ChevronRight className="h-4 w-4" aria-hidden="true" />
-            </WeekNavButton>
-          </div>
-        </div>
+        )}
       </div>
 
       <div className="p-3 sm:p-4">
-        <div className="@4xl:hidden">
-          <MobileCareWeek
-            days={days}
-            weekMonth={weekMonth}
-            selectedDay={selectedMobileDay}
-            readOnly={readOnly}
-            deletingStatusDayId={deletingStatusDayId}
-            onPreviousWeek={() => showWeek(weekOffset - 1)}
-            onNextWeek={() => showWeek(weekOffset + 1)}
-            onSelectDay={(day) => setSelectedDateKey(formatDateISO(day.date))}
-            onEditDay={(day) => setEditorTarget({ date: day })}
-            onRequestDeleteStatusDay={setStatusDayToDelete}
+        {isEditingWeeklyView && careDaysSource ? (
+          // Mounted only while editing: the form seeds its draft once, so a
+          // refresh of arrivalData / pickupData cannot overwrite the typing.
+          <CareWeeklyPlanEditForm
+            careDaysSource={careDaysSource}
+            weeklyArrival={mergeArrivalSchedulesWithTemplate(
+              arrivalData.schedules,
+            )}
+            weeklyPickup={mergePickupSchedulesWithTemplate(
+              pickupData.schedules,
+            )}
+            onSubmitWeekly={handleUpdateWeeklyPlan}
+            onCancel={() => setIsEditingWeekly(false)}
+            onSaved={() => setIsEditingWeekly(false)}
           />
-        </div>
-        <div className="hidden @4xl:block">
-          <div className="grid grid-cols-5 gap-3">
-            {days.map((day) => (
-              <CareDayCard
-                key={formatDateISO(day.date)}
-                day={day}
+        ) : (
+          <>
+            <div className="@4xl:hidden">
+              <MobileCareWeek
+                days={days}
+                weekMonth={weekMonth}
+                selectedDay={selectedMobileDay}
                 readOnly={readOnly}
-                onEditDay={(day) => setEditorTarget({ date: day })}
                 deletingStatusDayId={deletingStatusDayId}
+                onPreviousWeek={() => showWeek(weekOffset - 1)}
+                onNextWeek={() => showWeek(weekOffset + 1)}
+                onSelectDay={(day) =>
+                  setSelectedDateKey(formatDateISO(day.date))
+                }
+                onEditDay={(day) => setEditorTarget({ date: day })}
                 onRequestDeleteStatusDay={setStatusDayToDelete}
+                canDeleteStatusDay={canDeleteStatusDay}
               />
-            ))}
-          </div>
-        </div>
+            </div>
+            <div className="hidden @4xl:block">
+              <div className="grid grid-cols-5 gap-3">
+                {days.map((day) => (
+                  <CareDayCard
+                    key={formatDateISO(day.date)}
+                    day={day}
+                    readOnly={readOnly}
+                    onEditDay={(day) => setEditorTarget({ date: day })}
+                    deletingStatusDayId={deletingStatusDayId}
+                    onRequestDeleteStatusDay={setStatusDayToDelete}
+                    canDeleteStatusDay={canDeleteStatusDay}
+                  />
+                ))}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
-      {careDaysSource ? (
-        <CarePlanEditorModal
-          isOpen={editorTarget !== null}
-          careDaysSource={careDaysSource}
-          onClose={() => setEditorTarget(null)}
-          date={editingDayDate}
-          arrivalDay={currentEditingArrivalDay}
-          pickupDay={currentEditingPickupDay}
-          weeklyArrival={mergeArrivalSchedulesWithTemplate(
-            arrivalData.schedules,
-          )}
-          weeklyPickup={mergePickupSchedulesWithTemplate(pickupData.schedules)}
-          onSubmitException={handleSubmitException}
-          onSubmitWeekly={handleUpdateWeeklyPlan}
-          onCreateArrivalNote={handleCreateArrivalNote}
-          onUpdateArrivalNote={handleUpdateArrivalNote}
-          onDeleteArrivalNote={handleDeleteArrivalNote}
-          onCreatePickupNote={handleCreatePickupNote}
-          onUpdatePickupNote={handleUpdatePickupNote}
-          onDeletePickupNote={handleDeletePickupNote}
-          onResetPickupToOffering={
-            readOnly ? undefined : handleResetPickupToOffering
-          }
-        />
-      ) : null}
+      <CarePlanEditorModal
+        isOpen={editorTarget !== null}
+        onClose={() => setEditorTarget(null)}
+        arrivalDay={currentEditingArrivalDay}
+        pickupDay={currentEditingPickupDay}
+        onSubmitException={handleSubmitException}
+        onCreateArrivalNote={handleCreateArrivalNote}
+        onUpdateArrivalNote={handleUpdateArrivalNote}
+        onDeleteArrivalNote={handleDeleteArrivalNote}
+        onCreatePickupNote={handleCreatePickupNote}
+        onUpdatePickupNote={handleUpdatePickupNote}
+        onDeletePickupNote={handleDeletePickupNote}
+        onResetPickupToOffering={
+          readOnly ? undefined : handleResetPickupToOffering
+        }
+      />
       <ConfirmDeleteModal
         isOpen={statusDayToDelete !== null}
         title="Geplanten Status entfernen"
@@ -1008,6 +1041,7 @@ function MobileCareWeek({
   onSelectDay,
   onEditDay,
   onRequestDeleteStatusDay,
+  canDeleteStatusDay,
 }: {
   readonly days: CareDayData[];
   readonly weekMonth: string;
@@ -1019,6 +1053,7 @@ function MobileCareWeek({
   readonly onSelectDay: (day: CareDayData) => void;
   readonly onEditDay: (date: Date) => void;
   readonly onRequestDeleteStatusDay: (statusDay: StudentStatusDay) => void;
+  readonly canDeleteStatusDay?: (day: StudentStatusDay) => boolean;
 }) {
   return (
     <div className="space-y-3">
@@ -1055,6 +1090,7 @@ function MobileCareWeek({
           onEditDay={onEditDay}
           deletingStatusDayId={deletingStatusDayId}
           onRequestDeleteStatusDay={onRequestDeleteStatusDay}
+          canDeleteStatusDay={canDeleteStatusDay}
           isMobileDetail
         />
       ) : null}
@@ -1139,6 +1175,7 @@ function CareDayCard({
   onEditDay,
   deletingStatusDayId,
   onRequestDeleteStatusDay,
+  canDeleteStatusDay,
   isMobileDetail = false,
 }: {
   readonly day: CareDayData;
@@ -1146,6 +1183,7 @@ function CareDayCard({
   readonly onEditDay: (date: Date) => void;
   readonly deletingStatusDayId: string | null;
   readonly onRequestDeleteStatusDay: (statusDay: StudentStatusDay) => void;
+  readonly canDeleteStatusDay?: (day: StudentStatusDay) => boolean;
   readonly isMobileDetail?: boolean;
 }) {
   const weekdayInfo = WEEKDAYS[day.weekday - 1];
@@ -1226,7 +1264,11 @@ function CareDayCard({
           <AbsencePlaceholder
             status={day.status}
             statusDay={day.statusDay}
-            readOnly={readOnly}
+            readOnly={
+              day.statusDay
+                ? !(canDeleteStatusDay?.(day.statusDay) ?? !readOnly)
+                : true
+            }
             isDeleting={deletingStatusDayId === day.statusDay?.id}
             onRequestDeleteStatusDay={onRequestDeleteStatusDay}
           />

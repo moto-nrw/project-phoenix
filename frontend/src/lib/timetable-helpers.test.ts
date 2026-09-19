@@ -12,7 +12,6 @@ import {
   formatWeekLabel,
   formatYearLabel,
   getActivityColor,
-  getActivityLightTint,
   getActivityTypeBadge,
   getCurrentTimeOffset,
   getEventBlockPosition,
@@ -304,9 +303,6 @@ describe("activity/status helpers", () => {
     expect(getActivityColor("care")).toBe("#5080D8");
     expect(getActivityColor("activity")).toBe("#83CD2D");
     expect(getActivityColor("external")).toBe("#F78C10");
-    expect(getActivityLightTint("care")).toBe("#EBF0FB");
-    expect(getActivityLightTint("activity")).toBe("#ECF7DA");
-    expect(getActivityLightTint("external")).toBe("#FCEFD9");
     expect(getActivityTypeBadge("care")).toBeNull();
     expect(getActivityTypeBadge("activity")).toEqual({
       label: "AG",
@@ -937,6 +933,32 @@ describe("backend mappers", () => {
     });
   });
 
+  it("maps the instance calendar period for period-scoped series reads", () => {
+    const mapped = mapInstance({
+      id: 42,
+      date: "2026-05-04",
+      start_time: "12:00",
+      end_time: "13:00",
+      title: "Mensa",
+      status: "planned",
+      is_spontaneous: false,
+      is_live: false,
+      activity_type: "care",
+      room_id: 3,
+      room_name: "Mensa",
+      staff: [],
+      staff_count: 0,
+      absent_staff_count: 0,
+      expected_students_count: 0,
+      present_students_count: 0,
+      required_staff_count: 0,
+      assigned_staff_count: 0,
+      calendar_period_id: 9,
+    });
+
+    expect(mapped.calendarPeriodId).toBe("9");
+  });
+
   it("maps the Wochennotiz (series_notes) and Tagesnotiz (notes) independently (#1837)", () => {
     const base = {
       id: 42,
@@ -1197,6 +1219,36 @@ describe("backend mappers", () => {
         { weekday: 2, studentIds: [] },
       ],
     });
+  });
+
+  it("maps a source that does not fit the planning period", () => {
+    const tpl = mapTemplates({
+      templates: [
+        {
+          id: 7,
+          name: "Frühbetreuung",
+          type: "care",
+          category_id: 2,
+          category_name: "Betreuung",
+          is_open: true,
+          max_participants: 20,
+          target_group_type: "angebot",
+          enrollment_count: 0,
+          supervisor_count: 0,
+          required_staff_count: 0,
+          assigned_staff_count: 0,
+          schedules: [],
+          roster_maintenance: {
+            mode: "manual",
+            invalid_offerings: [{ id: 12, name: "Früh" }],
+            dynamic_targets: false,
+            care_offerings_disabled: false,
+          },
+        },
+      ],
+    }).templates[0];
+
+    expect(tpl?.rosterMaintenance?.invalidOfferingNames).toEqual(["Früh"]);
   });
 
   it("leaves the offering source undefined when the backend sends null (#2137)", () => {

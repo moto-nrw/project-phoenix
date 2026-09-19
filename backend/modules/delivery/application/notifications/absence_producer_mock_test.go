@@ -9,11 +9,11 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

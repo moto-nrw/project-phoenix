@@ -34,7 +34,7 @@ export interface ParentNavItem {
    * einen Aktivzustand -- die Adresse taucht in diesem Portal nicht auf.
    */
   readonly external?: boolean;
-  /** Schluessel im Katalog "parentNav", identisch in de, en, ru und sq. */
+  /** Schluessel im Katalog "parentNav", identisch in allen Sprachkatalogen. */
   readonly tKey: string;
   readonly concept: MotoConceptKey;
   readonly badge?: ParentNavBadgeSource;
