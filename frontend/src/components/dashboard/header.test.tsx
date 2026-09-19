@@ -43,6 +43,14 @@ vi.mock("~/components/ui/logout-modal", () => ({
     isOpen ? <div data-testid="logout-modal">Logout Modal</div> : null,
 }));
 
+vi.mock("~/components/help/context-help-link", () => ({
+  ContextHelpLink: ({ topic }: { topic: string }) => (
+    <a href={`/help/${topic}`} data-testid="context-help-link">
+      Hilfe
+    </a>
+  ),
+}));
+
 vi.mock("~/lib/profile-context", () => ({
   useProfile: () => mockUseProfile(),
 }));
@@ -290,6 +298,23 @@ describe("Header", () => {
 
     render(<Header />);
     expect(screen.getByTestId("page-title")).toHaveTextContent("Rooms");
+  });
+
+  it("links a known staff page to its contextual help topic", () => {
+    render(<Header />);
+
+    expect(screen.getByTestId("context-help-link")).toHaveAttribute(
+      "href",
+      "/help/kindersuche",
+    );
+  });
+
+  it("does not show a generic help link when no matching topic exists", () => {
+    mockUsePathname.mockReturnValue("/dashboard");
+
+    render(<Header />);
+
+    expect(screen.queryByTestId("context-help-link")).not.toBeInTheDocument();
   });
 
   it("normalizes tenant-prefixed paths before resolving page titles", () => {

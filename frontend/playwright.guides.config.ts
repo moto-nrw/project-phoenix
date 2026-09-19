@@ -1,8 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
-// Dedicated config for build-time guide-PDF generation (pnpm run generate:guides).
-// Kept separate from playwright.config.ts so the generator never runs as part of
-// the normal e2e suite (and vice versa).
+// Dedicated config for build-time PDF generation of the printed NFC onepager
+// (pnpm run generate:guides). Kept separate from playwright.config.ts so the
+// generator never runs as part of the normal e2e suite (and vice versa).
 //
 // Renders against a *production* server (`next build && next start`), not
 // `next dev`: the PDFs ship inside the prod image, so they must be generated
@@ -17,7 +17,8 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "./scripts",
   testMatch: "generate-guides.ts",
-  // The 91-page features guide can exceed Playwright's 30-second default on CI.
+  // A production build plus one render still needs more than Playwright's
+  // 30-second default on CI.
   timeout: 120_000,
   workers: 1,
   reporter: "list",
@@ -33,7 +34,7 @@ export default defineConfig({
   ],
   webServer: {
     command: "pnpm run build && pnpm run start",
-    url: "http://localhost:3000/help",
+    url: "http://localhost:3000/help/nfc/erste-schritte",
     // Locally reuse a server you already have running; in CI always build fresh.
     reuseExistingServer: !process.env.CI,
     // build + start is far slower to become ready than `next dev`.

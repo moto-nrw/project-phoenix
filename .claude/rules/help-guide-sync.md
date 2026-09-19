@@ -3,116 +3,138 @@ paths:
   - "frontend/**"
 ---
 
-# In-App Help Guide — Keep Docs in Sync With Features
+# In-App Help — Keep Docs in Sync With Features
 
-**RULE: When you add a user-facing feature flow, or substantially change a flow that is already documented, update the in-app help guide in the SAME PR.** The help guide is a living asset — it drifts the moment a screen, sidebar area, or step changes and nobody touches it.
+**RULE: When you add a user-facing feature flow, or substantially change a flow that is already documented, update the in-app help in the SAME PR.** The help is a living asset — it drifts the moment a screen, sidebar area, or step changes and nobody touches it.
 
-The help guide is the public, school-facing manual served under `/help`. Schools read it in the browser AND receive it as a printable PDF (generated in CI, see below). When it lies, support tickets follow.
+The help is the public, school-facing manual served under `/help`. When it lies, support tickets follow.
 
 ---
 
 ## What the Help System Is
 
-Three guides plus a landing page, all rendered from one content file:
+**One article per question, one page per article.** The reader picks a role once, then walks a sidebar of short articles; there is no long chapter to scroll. This replaced the three long guide pages (`/help/setup`, `/help/features`, `/help/nfc`) in #2229 — those URLs now redirect to `/help` (`frontend/next.config.js`).
 
-| Guide | Page | Chapter set (in `guide-data.ts`) | Purpose |
-|-------|------|----------------------------------|---------|
-| Landing | `/help` | `guideEntryPoints` | Three entry cards linking to the guides |
-| Ersteinrichtung | `/help/setup` | `setupChapters` | Empty system → first real care day |
-| Die App im Alltag | `/help/features` | `appChapters` | Every app area explained (the feature reference) |
-| NFC & Tablets | `/help/nfc` | `nfcChapters` | Tablet/NFC manual — mostly the **initial setup** of NFC kiosks, plus daily check-in/out and troubleshooting |
+| Address | What it shows |
+|---|---|
+| `/help` | Asks who is reading, then that role's article list |
+| `/help/<topic>` | One article. The slug is the topic's `HELP_TOPICS` value, so it survives re-sorting |
+| `/help/gruppe/<group>` | One category, as cards of its articles |
+| `/help/nfc/erste-schritte` | **Not an article.** The printed onepager for the tablet box, and the only PDF left |
+
+Four roles: `caregiver`, `lead`, `parent`, `teacher`. Each has its own sidebar over **one** shared content set (ADR 0025).
+
+Five optional URL parameters carry context; none of them is an access check:
+
+- `role` — which sidebar and which articles. The app sets it; a direct visit to `/help` is asked
+- `nfc_enabled`, `presence_mode`, `group_mode` — the three tenant settings that change instructions (`docs/research/help-guide-configuration-impact.md`). A missing or unknown value produces no variant
+- `return_to` — internal path for "Zurück zur App". External targets and other help pages are rejected
 
 ## File Map
 
 | File | Role |
 |------|------|
-| `frontend/src/components/help/guide-data.ts` | **The content.** All chapters, steps, callouts, screenshot captions. German text. This is what you edit. |
-| `frontend/src/components/help/guide-components.tsx` | Rendering: `GuideShell`, `HelpHeader`, `EntryPointCard` |
-| `frontend/src/components/help/guide-search.ts` + `help-search.tsx` | Guide search — the index derives from `guide-data.ts`; `help-search-sync.test.ts` guards the sync |
-| `frontend/src/components/help/guide-pdf-button.tsx` | Download button for the rendered PDF |
-| `frontend/src/components/help/help-back-button.tsx` | "Zurück" — `router.back()`, falls back to `/`. Lets kiosk/app users return after opening Hilfe. |
-| `frontend/src/app/help/{page,setup/page,features/page,nfc/page}.tsx` | The four pages; each wires one chapter set into `GuideShell` |
-| `frontend/public/help/screens/*.webp` | App screenshots, referenced by a step's `image:` field |
-| `frontend/public/help/pdfs/` | **Generated** PDFs (gitignored). Built in CI, shipped in the Docker image. |
+| `frontend/src/components/help/help-content.ts` | **The content.** Every article, in German. This is what you edit. |
+| `frontend/src/components/help/help-view.tsx` | The shell: sidebar, search, "Auf dieser Seite", article rendering, category order |
+| `frontend/src/components/help/help-entry.tsx` | The role question on a bare `/help` |
+| `frontend/src/lib/help-topics.ts` | `HELP_TOPICS` (the id registry) and the app-path → topic maps |
+| `frontend/src/components/help/context-help-link.tsx` | The `?` in the app header; builds the URL with role and settings |
+| `frontend/src/app/help/[[...topic]]/page.tsx` | The single route behind all three address shapes above |
+| `frontend/src/app/help/nfc/erste-schritte/page.tsx` | The printed onepager (+ `onepager-header.tsx`) |
+| `frontend/public/help/screens/*.webp` | App screenshots, kept from the old guide. Articles currently set no `image`; the files are also the visual reference named in `frontend-ui-kit.md` |
+| `frontend/public/help/pdfs/` | **Generated** (gitignored). Only `nfc-erste-schritte.pdf`, built in CI |
 
 ## Data Model
 
-Content is a tree: `GuideChapter` → `GuideStep`. Defined and exported from `guide-data.ts`:
+One flat list of articles. The authoritative shape is `HelpTopic` in `help-content.ts` — trust it over this copy:
 
 ```ts
-interface GuideChapter {
-  id: string;
+interface HelpTopic {
+  id: HelpTopicId;                 // from HELP_TOPICS — also the URL slug
   title: string;
-  description: string;
-  icon: LucideIcon;              // from lucide-react
-  tone: GuideTone;              // "blue" | "green" | "orange" | "red" | "purple" | "gray"
-  steps: readonly GuideStep[];
-}
-
-interface GuideStep {
-  id: string;
-  title: string;
-  summary: string;
-  steps?: readonly string[];     // ordered actions (optional — a card may be checklist-only)
-  checklist?: readonly string[]; // rendered as a checklist block
-  callout?: GuideCallout;        // { title, body, tone? } — highlighted hint
-  screenshot: string;            // caption / alt text describing the supporting image (ALWAYS set)
-  image?: string;                // path under /public, e.g. "/help/screens/kindersuche.webp"
-  gallery?: readonly { image; caption }[]; // captioned grid instead of one image (NFC tablet states)
-  icon?: LucideIcon;             // shown instead of a number badge on reference pages
-  printCompact?: boolean;        // tighter print spacing + keeps the card on one PDF page
+  question: string;                // "Wie lege ich Kinder an?" — how the sidebar lists it
+  summary: string;                 // one sentence under the title
+  group: HelpTopicGroup;           // the category it appears under
+  audience: "all" | HelpRole | readonly HelpRole[];
+  icon: LucideIcon;
+  requirements?: readonly string[];      // "Das brauchen Sie"
+  steps: readonly string[];              // "So geht es", when there is one path
+  instructionGroups?: readonly {         // several named paths instead of one list
+    title: string; description?: string; steps: readonly string[]; ordered?: boolean;
+  }[];
+  result?: string;                       // "Danach"
+  differences?: readonly string[];       // "Wenn es anders aussieht" — the screen deviates
+  notes?: readonly string[];             // "Tipp" — optional extras, nothing required
+  troubleshooting?: HelpTopicId;         // link to a whole troubleshooting article
+  troubleshootingDetails?: readonly string[]; // "Wenn es nicht klappt"
+  image?: string; imageAlt?: string;     // "So sieht es aus"
+  related: readonly HelpTopicId[];       // "Weitere Themen" (required, may be empty)
 }
 ```
 
-(The authoritative shape is the interface in `guide-data.ts` — trust it over this copy.)
+The three "something is wrong" sections are **not** interchangeable, and mixing them is the most common content mistake:
 
-Notes:
-- `screenshot` is the **caption/intent** and is always present; `image` is the actual file and is optional (a step with no `image` renders no placeholder).
-- `gallery` is used by the NFC manual to show every tablet state, not just one.
-- All visible strings are **German** — the help UI is German-only.
+- `differences` — the screen looks different than described (another setting, a phone, a permission)
+- `troubleshootingDetails` — something is missing or does not work
+- `notes` — an optional extra that changes no step
+
+Three more things that bite:
+
+- **Order inside a category is array order** in `getHelpTopics`, not alphabetical. Put a prerequisite before what needs it.
+- **`related` passes the same role filter as the sidebar.** A link to an article the reader's role cannot see disappears silently.
+- **Category order per role** lives in `GROUP_ORDER_BY_ROLE` (`help-view.tsx`), separately from the article list. A new category needs an entry there *and* in `HELP_GROUP_LABELS`.
+
+Settings-driven filtering uses three id sets in `help-content.ts`: `NFC_ONLY_TOPIC_IDS`, `DETAILED_ONLY_TOPIC_IDS`, `FIXED_GROUPS_ONLY_TOPIC_IDS`. An article listed there disappears for tenants the setting does not apply to — that is a hard filter, unlike the URL parameters above.
+
+All visible strings are **German** — the help UI is German-only.
 
 ---
 
 ## WHEN To Update
 
-Update the guide when the change is **visible to a school user**:
+Update the help when the change is **visible to a school user**:
 
-- **New user-facing feature flow** → add a `GuideStep` (or a new `GuideChapter`) to the matching chapter set: setup-related → `setupChapters`, an app area → `appChapters`, NFC/tablet → `nfcChapters`.
-- **Substantial UI change to an already-documented flow** → update the affected step(s) **and re-capture the screenshot** so the image matches what the user sees. A renamed button, a moved control, a changed step order all qualify.
-- **Renamed or moved sidebar area / page** → fix the step title and, on the landing page, the relevant `guideEntryPoint`.
-- **NFC/tablet flow change** (especially first-time setup, but also daily check-in/out or troubleshooting) → update `nfcChapters`, including any `gallery` screens.
-- **A documented setting/toggle changes meaning or default** → update the step that explains it.
+- **New user-facing feature flow** → register an id, then add an article.
+- **Substantial UI change to a documented flow** → fix the affected steps. A renamed button, a moved control, a changed order all qualify.
+- **Renamed or moved sidebar area / page** → fix every step that names it, and the path map in `help-topics.ts`.
+- **A documented setting or toggle changes meaning or default** → update the article, and check whether it belongs in one of the three id sets.
+- **A new page under `(protected)`** → map it in `help-topics.ts`, or accept that it shows no `?`. The baseline in `help-topics.test.ts` is shrink-only.
 
-**Do NOT** update the guide for:
-- Backend-only changes with no user-visible effect (repos, services, migrations, internal refactors)
-- Operator/parents-portal-only changes (the guide documents the **tenant/staff** app)
+**Do NOT** update the help for:
+- Backend-only changes with no user-visible effect
+- Operator-portal-only changes (the help covers the tenant, parents and school portals)
 - Pure styling tweaks that don't change what a step instructs
 
-When unsure: if a school admin or supervisor would *do something differently* after your change, the guide needs a line.
+When unsure: if a school admin or supervisor would *do something differently* after your change, the help needs a line.
 
 ## HOW To Update
 
-1. **Find the right chapter set** in `guide-data.ts` (`setupChapters` / `appChapters` / `nfcChapters`) and the step whose `id`/`title` matches the flow.
-2. **Edit content in German**, reusing the existing `GuideStep` shape. Keep `steps` imperative and concrete ("`Räume` öffnen, `Neuer Raum` klicken …"), mirror the tone of neighboring steps. Reuse an existing `lucide-react` icon already imported in the file before adding a new import.
-3. **Screenshots**: if the screen changed, replace the `.webp` under `frontend/public/help/screens/` (same filename to avoid touching `image:` paths) or add a new one and point `image:` at it. Always keep `screenshot:` (the caption) accurate even when there's no image.
-4. **Brand colors / reuse**: the guide is part of the frontend — follow the existing component and brand-color rules in `CLAUDE.md` and `frontend/CLAUDE.md`. Don't invent new UI; `GuideShell` already renders everything.
-5. **Don't break the PDF render.** The PDFs are produced in CI by:
+1. **Register the id** in `HELP_TOPICS` (`src/lib/help-topics.ts`): the key is the camelCase id, the value the URL slug. A typo is then a compile error, not a dead link.
+2. **Write the article** in `help-content.ts` as a `function <name>Topic(): HelpTopic`, and add the call to the right role list in `getHelpTopics`, at a position its prerequisites allow.
+3. **Write German** per `moto-einfache-sprache` (Sie-Form, short sentences, no technical vocabulary). Put every label the reader clicks in backticks, spelled exactly as the screen spells it. **Open the real screen and read the labels off it** — a remembered label is a wrong label.
+4. **Check the reverse direction:** does an existing article now contradict your change? Search `help-content.ts` for the label you renamed.
+5. **Reuse the kit.** The help is frontend, so `.claude/rules/frontend-ui-kit.md` applies. `help-view.tsx` already renders every section — do not invent a new block.
+6. **Verify:**
+   ```bash
+   cd frontend && pnpm run check    # zero warnings policy
+   ```
+   `help-topics.test.ts` guards that every registered id resolves in every settings combination, that no category is empty, that category ids never collide with article slugs, and that every `(protected)` page is mapped or on the shrink-only baseline. It also pins the per-role article counts and the first articles of each role's sidebar: a new article means updating those numbers, which is expected — not a test to weaken.
+7. **Don't break the onepager PDF.** CI renders `/help/nfc/erste-schritte` with
    ```bash
    cd frontend && pnpm run generate:guides   # Playwright, playwright.guides.config.ts
    ```
-   It renders the public `/help` pages to PDF (`public/help/pdfs/`, gitignored) and ships them in the image. Anything that breaks the `/help` build breaks the PDFs. The pages are host-agnostic, so a local render only needs placeholder hostnames.
-6. **Verify** before you call it done:
-   ```bash
-   cd frontend && pnpm run check          # zero warnings policy
-   ```
-   Optionally render the PDFs locally (`pnpm run generate:guides`) if you touched layout-affecting structure.
+   `MIN_PDF_BYTES` fails the build if the render comes out blank. Only that one page is rendered: there is no PDF per topic and no PDF of the help area.
 
 ---
 
 ## Scope Boundary
 
-This rule covers the **in-app, school-facing help guide only**. It does NOT govern: developer docs (`CLAUDE.md`, `.claude/rules/*`), cross-repo docs (PyrePortal), or generated API route docs (`./main gendoc`). Those are separate concerns; don't bundle them here unless explicitly asked.
+This rule covers the **in-app, school-facing help only**. It does NOT govern: developer docs (`CLAUDE.md`, `.claude/rules/*`), cross-repo docs (PyrePortal/balenaOS), or generated API route docs (`./main gendoc`). Those are separate concerns; don't bundle them here unless explicitly asked.
+
+## Background
+
+`docs/hilfebereich-umbau-plan.md` holds the rework plan and the decisions behind this structure; ADR 0024 (format and platform: typed TS, no docs framework) and ADR 0025 (audiences: separate entries, one content set) are the binding ones.
 
 ## Paired Skill
 
-`help-guide-sync` walks through the files above when you're doing guide work. This rule is the reference; the skill is the workflow.
+`help-guide-sync` walks through the files above when you're doing help work. This rule is the reference; the skill is the workflow.

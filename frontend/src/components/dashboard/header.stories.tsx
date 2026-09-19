@@ -36,3 +36,16 @@ type Story = StoryObj<typeof Header>;
  * route (`usePathname()` defaults to `/` under the nextjs-vite framework).
  */
 export const Default: Story = {};
+
+/** Staff header on a page with a matching contextual help article. */
+export const WithContextualHelp: Story = {
+  parameters: {
+    nextjs: {
+      appDirectory: true,
+      navigation: {
+        pathname: "/students/search",
+        query: {},
+      },
+    },
+  },
+};

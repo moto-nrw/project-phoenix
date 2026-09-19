@@ -415,7 +415,6 @@ const TINY_TEXT_BASELINE_FILES = new Set([
   "src/components/files/files-page.tsx",
   "src/components/guardians/guardian-contact-actions.tsx",
   "src/components/guardians/guardian-list.tsx",
-  "src/components/help/help-search.tsx",
   "src/components/parent/calendar/parent-calendar-page.tsx",
   "src/components/parent/parent-enroll-picker.tsx",
   "src/components/parent/parent-meal-plan-page.tsx",
@@ -462,7 +461,7 @@ const TINY_TEXT_BASELINE = parseLocationBaseline(`
 src/app/[tenant]/(protected)/day-log/page.tsx|text-[11px]@164
 src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1335 text-[11px]@1335 text-[10px]@1339 text-[10px]@1348 text-[11px]@1348
 src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
-src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@235 text-[11px]@276
+src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@231 text-[11px]@271
 src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@213
 src/components/active-supervisions/planned-now-section.tsx|text-[11px]@425
 src/components/activities/activity-management-modal.tsx|text-[10px]@330 text-[10px]@359 text-[10px]@396
@@ -476,7 +475,6 @@ src/components/enrollment/phases-editor.tsx|text-[11px]@668 text-[11px]@673
 src/components/files/files-page.tsx|text-[11px]@158 text-[11px]@275
 src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141
 src/components/guardians/guardian-list.tsx|text-[10px]@373
-src/components/help/help-search.tsx|text-[11px]@362
 src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@676 text-[11px]@741
 src/components/parent/parent-enroll-picker.tsx|text-[11px]@205 text-[11px]@209
 src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
