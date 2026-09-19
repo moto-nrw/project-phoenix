@@ -194,7 +194,10 @@ export function PhaseResponseOverview({
         exclusions === "" ? undefined : `Nicht mitgezählt: ${exclusions}.`
       }
       action={
-        announcementsAvailable && reachable.length > 0 ? (
+        // Nur bei „Fehlt noch": Neben „Abgegeben (3)" läse sich ein Knopf mit
+        // einer Zahl als Mitteilung an die Familien, die schon geantwortet
+        // haben. „erinnern" sagt, an wen es geht.
+        view === "missing" && announcementsAvailable && reachable.length > 0 ? (
           <Button
             type="button"
             variant="outline"
@@ -203,8 +206,8 @@ export function PhaseResponseOverview({
             className="inline-flex items-center gap-2"
           >
             <Send className="h-4 w-4" aria-hidden="true" />
-            Mitteilung an {reachable.length}{" "}
-            {reachable.length === 1 ? "Familie" : "Familien"}
+            {reachable.length} {reachable.length === 1 ? "Familie" : "Familien"}{" "}
+            erinnern
           </Button>
         ) : undefined
       }

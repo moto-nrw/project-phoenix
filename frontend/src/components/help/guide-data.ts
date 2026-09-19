@@ -2112,7 +2112,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Die Überschrift nennt den Stand, zum Beispiel `80 von 100 Kindern haben die Anmeldung abgegeben`. `Abgegeben` heißt: Die Eltern haben abgeschickt. Ob du die Anmeldung schon bestätigt hast, steht als eigener Status in der Zeile.",
           "Mit `Fehlt noch` und `Abgegeben` zwischen den beiden Listen wechseln. Ein Klick auf den Namen öffnet die Kinddetailseite mit den Telefonnummern. `Ansehen` öffnet die Anmeldung.",
           "Die Spalte `Eltern-App` zeigt, ob mindestens ein Elternteil die Eltern-App nutzt. Sie hat nichts mit der Anmeldung zu tun: Sie sagt nur, ob eine Mitteilung die Familie erreicht. Familien ohne Eltern-App rufst du an.",
-          "Mit `Mitteilung an … Familien` eine Elternmitteilung öffnen, die schon an alle Kinder ohne Anmeldung adressiert ist, deren Eltern die App nutzen. Du schreibst den Text selbst und sendest ihn wie jede andere Mitteilung. Den Knopf sehen nur Admins, und nur wenn Elternmitteilungen eingeschaltet sind.",
+          "In der Liste `Fehlt noch` mit `… Familien erinnern` eine Elternmitteilung öffnen, die schon an alle Kinder ohne Anmeldung adressiert ist, deren Eltern die App nutzen. Du schreibst den Text selbst und sendest ihn wie jede andere Mitteilung. Den Knopf sehen nur Admins, und nur wenn Elternmitteilungen eingeschaltet sind.",
           "Unter der Überschrift steht, welche Kinder moto nicht mitzählt: Kinder mit eingetragenem Betreuungsende, Kinder im letzten Jahrgang und Kinder aus Jahrgängen, für die die Phase nicht gilt. Hat eine dieser Familien trotzdem abgegeben, erscheint das Kind in der Liste.",
           "Wer seine Anmeldung zurückgezogen hat, steht wieder unter `Fehlt noch`.",
         ],

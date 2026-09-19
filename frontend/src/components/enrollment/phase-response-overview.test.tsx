@@ -179,7 +179,7 @@ describe("PhaseResponseOverview", () => {
     render(<PhaseResponseOverview overview={overview} search="" />);
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Mitteilung an 2 Familien" }),
+      screen.getByRole("button", { name: "2 Familien erinnern" }),
     );
 
     expect(mocks.push).toHaveBeenCalledWith("/parent-announcements?neu=kinder");
@@ -194,11 +194,30 @@ describe("PhaseResponseOverview", () => {
     ]);
   });
 
+  it("offers the reminder only next to the children still missing", () => {
+    render(<PhaseResponseOverview overview={overview} search="" />);
+    expect(
+      screen.getByRole("button", { name: "2 Familien erinnern" }),
+    ).toBeInTheDocument();
+
+    // Next to "Abgegeben (1)" a button with a number reads as a message to the
+    // families that already answered.
+    fireEvent.click(screen.getByRole("button", { name: "Abgegeben (1)" }));
+    expect(
+      screen.queryByRole("button", { name: /erinnern/ }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Fehlt noch (3)" }));
+    expect(
+      screen.getByRole("button", { name: "2 Familien erinnern" }),
+    ).toBeInTheDocument();
+  });
+
   it("offers no announcement without the permission", () => {
     mocks.hasPermission.mockReturnValue(false);
     render(<PhaseResponseOverview overview={overview} search="" />);
     expect(
-      screen.queryByRole("button", { name: /Mitteilung an/ }),
+      screen.queryByRole("button", { name: /erinnern/ }),
     ).not.toBeInTheDocument();
   });
 
@@ -206,7 +225,7 @@ describe("PhaseResponseOverview", () => {
     mocks.parentNewsEnabled = false;
     render(<PhaseResponseOverview overview={overview} search="" />);
     expect(
-      screen.queryByRole("button", { name: /Mitteilung an/ }),
+      screen.queryByRole("button", { name: /erinnern/ }),
     ).not.toBeInTheDocument();
   });
 
@@ -248,7 +267,7 @@ describe("PhaseResponseOverview", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/Nicht mitgezählt/)).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /Mitteilung an/ }),
+      screen.queryByRole("button", { name: /erinnern/ }),
     ).not.toBeInTheDocument();
   });
 });
