@@ -8,8 +8,12 @@ import { TenantSwitchError, performTenantSwitch } from "~/lib/tenant-api";
 import { performEndStaffPreview } from "~/lib/staff-preview-api";
 import { useTenant } from "~/lib/tenant-context";
 import { createLogger } from "~/lib/logger";
+import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 
 const logger = createLogger({ component: "TenantGuard" });
+
+const MAX_SWITCH_ATTEMPTS = 3;
 
 interface TenantGuardProps {
   readonly children: React.ReactNode;
@@ -34,6 +38,10 @@ function browserRedirect(url: string): void {
  * shared cookies, the guard signs out immediately and redirects to the tenant
  * login page. This prevents operator sessions from accessing tenant-scoped UI.
  *
+ * A mismatch that outlives the switch is retried a bounded number of times;
+ * after that, or after a failed request, the guard offers "Erneut versuchen"
+ * and "Neu anmelden" instead of waiting forever (#3375).
+ *
  * RLS provides defense-in-depth during any brief mismatch window.
  */
 export function TenantGuard({
@@ -42,7 +50,10 @@ export function TenantGuard({
 }: TenantGuardProps) {
   const { data: session, status, update } = useSession();
   const { tenant } = useTenant();
-  const switchAttempted = useRef(false);
+  const switchAttempts = useRef(0);
+  const switchInFlight = useRef(false);
+  const [switchFailed, setSwitchFailed] = useState(false);
+  const [recheck, setRecheck] = useState(0);
   const [signingOutOperator, setSigningOutOperator] = useState(false);
   const [signingOutExpiredSession, setSigningOutExpiredSession] =
     useState(false);
@@ -150,21 +161,34 @@ export function TenantGuard({
 
     // No mismatch — reset guard for future switches
     if (sessionTenantId === urlTenantId) {
-      switchAttempted.current = false;
+      switchAttempts.current = 0;
+      setSwitchFailed(false);
       return;
     }
 
-    // Mismatch detected — auto-switch (but only once per mismatch)
-    if (switchAttempted.current) return;
-    switchAttempted.current = true;
+    if (switchInFlight.current) return;
+
+    // A switch that went through can still leave the old school behind: every
+    // API response re-issues the session cookie it was asked with, so a
+    // request of the old session that answers after signIn() writes the old
+    // school back (#3375). Those requests settle, so a bounded number of
+    // repeats gets through; after that the person decides, not a spinner.
+    if (switchAttempts.current >= MAX_SWITCH_ATTEMPTS) {
+      setSwitchFailed(true);
+      return;
+    }
+    switchAttempts.current += 1;
+    switchInFlight.current = true;
 
     logger.info("tenant_mismatch_detected", {
       session_tenant_id: sessionTenantId,
       url_tenant_id: urlTenantId,
       url_slug: urlSlug,
+      attempt: switchAttempts.current,
     });
 
     void (async () => {
+      let signingOut = false;
       try {
         // Ein Schulwechsel beendet die Mitarbeiter-Vorschau (#2893): erst
         // die Admin-Sitzung wiederherstellen, dann mit deren Token wechseln
@@ -188,11 +212,21 @@ export function TenantGuard({
         });
 
         if (err instanceof TenantSwitchError && err.code === "access_denied") {
+          signingOut = true;
           await signOut({ callbackUrl: "/" });
+        } else {
+          // A failed request is not the cookie race; repeating it unasked
+          // would only hammer a backend that just said no.
+          switchAttempts.current = MAX_SWITCH_ATTEMPTS;
         }
+      } finally {
+        switchInFlight.current = false;
+        // The session may have changed while the switch ran; look again.
+        if (!signingOut) setRecheck((n) => n + 1);
       }
     })();
   }, [
+    recheck,
     status,
     tenant,
     session,
@@ -249,6 +283,41 @@ export function TenantGuard({
     sessionTenantId !== undefined &&
     sessionTenantId !== urlTenantId
   ) {
+    if (switchFailed) {
+      return (
+        <div className="mx-auto flex min-h-[200px] max-w-3xl items-center p-4">
+          <Alert
+            className="w-full"
+            type="error"
+            title={`Der Wechsel zu ${tenant.name} hat leider nicht geklappt.`}
+            message="Bitte versuchen Sie es noch einmal. Wenn das nicht hilft, melden Sie sich neu an."
+            action={
+              <span className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="md"
+                  onClick={() => {
+                    switchAttempts.current = 0;
+                    setSwitchFailed(false);
+                    setRecheck((n) => n + 1);
+                  }}
+                >
+                  Erneut versuchen
+                </Button>
+                <Button
+                  type="button"
+                  size="md"
+                  variant="outline"
+                  onClick={() => void signOut({ callbackUrl: "/" })}
+                >
+                  Neu anmelden
+                </Button>
+              </span>
+            }
+          />
+        </div>
+      );
+    }
     return (
       <div className="flex min-h-[200px] items-center justify-center">
         <div className="text-sm text-gray-500">Mandant wird gewechselt...</div>

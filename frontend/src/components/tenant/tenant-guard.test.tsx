@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
 // ============================================================================
@@ -587,5 +587,92 @@ describe("TenantGuard", () => {
     expect(window.location.assign).toHaveBeenCalledWith(
       "/?error=SessionExpired",
     );
+  });
+
+  // #3375: a switch that "succeeds" can still leave the old school in the
+  // session cookie. The guard used to try once and then show
+  // "Mandant wird gewechselt..." forever.
+  describe("when the mismatch survives the switch (#3375)", () => {
+    function mismatchedSession() {
+      mockUseSession.mockReturnValue({
+        data: { user: { tenantId: 1, token: "access-token" } },
+        status: "authenticated",
+        update: vi.fn().mockResolvedValue(undefined),
+      });
+      mockUseTenant.mockReturnValue({
+        tenantSlug: "school-b",
+        tenant: tenantB,
+      });
+    }
+
+    function renderGuard() {
+      return render(
+        <TenantGuard>
+          <div>Protected Content</div>
+        </TenantGuard>,
+      );
+    }
+
+    it("repeats the switch a bounded number of times, then offers a way out", async () => {
+      mismatchedSession();
+      mockPerformTenantSwitch.mockResolvedValue({
+        access_token: "new-access",
+        refresh_token: "new-refresh",
+      });
+
+      renderGuard();
+
+      expect(
+        await screen.findByText(
+          "Der Wechsel zu School B hat leider nicht geklappt.",
+        ),
+      ).toBeInTheDocument();
+      expect(mockPerformTenantSwitch).toHaveBeenCalledTimes(3);
+      expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+      expect(mockSignOut).not.toHaveBeenCalled();
+    });
+
+    it("shows the way out after a failed switch instead of an endless wait", async () => {
+      mismatchedSession();
+      mockPerformTenantSwitch.mockRejectedValue(new Error("network down"));
+
+      renderGuard();
+
+      expect(
+        await screen.findByRole("button", { name: "Erneut versuchen" }),
+      ).toBeInTheDocument();
+      expect(mockPerformTenantSwitch).toHaveBeenCalledTimes(1);
+      expect(
+        screen.queryByText("Mandant wird gewechselt..."),
+      ).not.toBeInTheDocument();
+    });
+
+    it("tries again on request", async () => {
+      mismatchedSession();
+      mockPerformTenantSwitch.mockRejectedValue(new Error("network down"));
+
+      renderGuard();
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Erneut versuchen" }),
+      );
+
+      await waitFor(() => {
+        expect(mockPerformTenantSwitch).toHaveBeenCalledTimes(2);
+      });
+    });
+
+    it("signs out on request", async () => {
+      mismatchedSession();
+      mockPerformTenantSwitch.mockRejectedValue(new Error("network down"));
+
+      renderGuard();
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Neu anmelden" }),
+      );
+
+      expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: "/" });
+    });
   });
 });
