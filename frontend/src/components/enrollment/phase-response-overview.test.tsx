@@ -282,4 +282,34 @@ describe("PhaseResponseOverview", () => {
       screen.queryByRole("button", { name: /erinnern/ }),
     ).not.toBeInTheDocument();
   });
+
+  it("explains when no child is counted for the phase", () => {
+    render(
+      <PhaseResponseOverview
+        overview={{
+          applicable: true,
+          expected: 0,
+          responded: 0,
+          children: [],
+          excluded: [{ reason: "not_in_scope", count: 2 }],
+        }}
+        search=""
+      />,
+    );
+
+    expect(table().getByText("Keine Kinder im Rücklauf")).toBeInTheDocument();
+    expect(
+      table().getByText(
+        "Alle Kinder werden nicht mitgezählt. Die Gründe stehen oben.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Nicht mitgezählt: 2 Kinder aus anderen Klassen oder Jahrgängen.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      table().queryByText("Alle Kinder sind angemeldet"),
+    ).not.toBeInTheDocument();
+  });
 });

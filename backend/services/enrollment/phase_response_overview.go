@@ -296,6 +296,7 @@ type phaseResponseScope struct {
 	nextYear bool
 	gradeMax int
 	grades   map[int]struct{}
+	classes  map[string]struct{}
 }
 
 func newPhaseResponseScope(phase *enrollmentOwner.Phase, today timezone.Date, gradeMax int) phaseResponseScope {
@@ -304,14 +305,21 @@ func newPhaseResponseScope(phase *enrollmentOwner.Phase, today timezone.Date, gr
 			string(phase.ServiceStartDate) > today.String(),
 		gradeMax: gradeMax,
 		grades:   map[int]struct{}{},
+		classes:  map[string]struct{}{},
 	}
 	for _, grade := range phase.EligibleGradeLevels {
 		scope.grades[grade] = struct{}{}
 	}
+	for _, class := range phase.EligibleSchoolClasses {
+		if class = strings.TrimSpace(class); class != "" {
+			scope.classes[class] = struct{}{}
+		}
+	}
 	if len(scope.grades) == 0 {
-		// The eligible classes are what the family declares for the phase,
-		// so only their grade can be compared with today's class.
-		for _, class := range phase.EligibleSchoolClasses {
+		// The eligible classes are what the family declares for the phase.
+		// Their concrete names stay in classes; their grades are additionally
+		// compared with today's class.
+		for class := range scope.classes {
 			if grade, ok := phaseResponseGrade(class); ok {
 				scope.grades[grade] = struct{}{}
 			}
@@ -329,9 +337,16 @@ func phaseResponseGrade(class string) (int, bool) {
 }
 
 // exclusion returns why the phase does not expect this child, or "". A class
-// without a grade number ("Bienen") cannot be judged and stays expected:
-// asking one family too many is cheaper than silently dropping one.
+// without a grade number ("Bienen") is checked against a concrete class
+// restriction; otherwise it stays expected because asking one family too many
+// is cheaper than silently dropping one.
 func (s phaseResponseScope) exclusion(class string) string {
+	class = strings.TrimSpace(class)
+	if len(s.classes) > 0 {
+		if _, eligible := s.classes[class]; !eligible {
+			return PhaseResponseExcludedNotInScope
+		}
+	}
 	grade, ok := phaseResponseGrade(class)
 	if !ok {
 		return ""

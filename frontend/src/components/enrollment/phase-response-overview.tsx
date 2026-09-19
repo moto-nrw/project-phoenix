@@ -44,7 +44,7 @@ const EXCLUSION_TEXT: Record<
   graduating: (count) =>
     `${count} ${count === 1 ? "Kind" : "Kinder"} im letzten Jahrgang`,
   not_in_scope: (count) =>
-    `${count} ${count === 1 ? "Kind" : "Kinder"} aus anderen Jahrgängen`,
+    `${count} ${count === 1 ? "Kind" : "Kinder"} aus anderen Klassen oder Jahrgängen`,
 };
 
 function isChildStatus(value: string | null): value is ChildStatus {
@@ -101,6 +101,9 @@ export function PhaseResponseOverview({
     [missing],
   );
   const unreachableCount = missing.length - reachable.length;
+  const hasNoCountedChildren =
+    overview.expected === 0 &&
+    overview.excluded.some((entry) => entry.count > 0);
 
   const rows = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -253,6 +256,7 @@ export function PhaseResponseOverview({
               view={view}
               filtered={search.trim() !== ""}
               total={view === "missing" ? missing.length : responded.length}
+              hasNoCountedChildren={hasNoCountedChildren}
             />
           }
         />
@@ -265,7 +269,13 @@ function ResponseEmptyState({
   view,
   filtered,
   total,
-}: Readonly<{ view: ResponseView; filtered: boolean; total: number }>) {
+  hasNoCountedChildren,
+}: Readonly<{
+  view: ResponseView;
+  filtered: boolean;
+  total: number;
+  hasNoCountedChildren: boolean;
+}>) {
   if (filtered && total > 0) {
     return (
       <EmptyState
@@ -275,6 +285,15 @@ function ResponseEmptyState({
     );
   }
   if (view === "missing") {
+    if (hasNoCountedChildren) {
+      return (
+        <EmptyState
+          variant="compact"
+          title="Keine Kinder im Rücklauf"
+          description="Alle Kinder werden nicht mitgezählt. Die Gründe stehen oben."
+        />
+      );
+    }
     return (
       <EmptyState
         variant="compact"

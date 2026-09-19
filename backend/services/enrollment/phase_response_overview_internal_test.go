@@ -296,6 +296,25 @@ func TestResponseOverview_HolidayPhaseKeepsTheTopGradeAndTodaysGrade(t *testing.
 	assert.Equal(t, int64(1), overview.Rows[0].StudentID)
 }
 
+func TestResponseOverview_ConcreteClassRestrictionExcludesOtherClassesOfTheSameGrade(t *testing.T) {
+	t.Parallel()
+
+	phase := nextYearPhase()
+	phase.Kind = enrollmentOwner.PhaseKindHoliday
+	phase.EligibleSchoolClasses = []string{"2a"}
+	roster := responseRoster{
+		{ID: 1, LastName: "Arslan", SchoolClass: "2a"},
+		{ID: 2, LastName: "Becker", SchoolClass: "2b"},
+	}
+	svc := newResponseService(phase, &responseChildren{}, roster, nil, nil)
+
+	overview, err := svc.ResponseOverview(context.Background(), 5)
+	require.NoError(t, err)
+	require.Len(t, overview.Rows, 1)
+	assert.Equal(t, int64(1), overview.Rows[0].StudentID)
+	assert.Equal(t, []PhaseResponseExclusion{{Reason: PhaseResponseExcludedNotInScope, Count: 1}}, overview.Excluded)
+}
+
 func TestResponseOverview_PhaseWithoutChildReferenceIsNotApplicable(t *testing.T) {
 	t.Parallel()
 
