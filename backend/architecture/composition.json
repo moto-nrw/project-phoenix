@@ -52,7 +52,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        313
+        306
       ],
       "tables": []
     },
@@ -1895,9 +1895,10 @@
       "declaration": "TestStudentRepository_CompanionNoteSchemaCompatibility",
       "target": "database/repositories.NewFactory",
       "lines": [
-        437
+        432
       ],
       "tables": [
+        "users.student_care_profiles",
         "users.students"
       ]
     },
@@ -1917,7 +1918,7 @@
       "declaration": "TestStudentRepository_StaleDeparturePlanIsRebased",
       "target": "database/repositories.NewFactory",
       "lines": [
-        517
+        511
       ],
       "tables": []
     },
@@ -2320,7 +2321,7 @@
       "declaration": "TestStudentRepository_AssignToGroup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        402
+        353
       ],
       "tables": []
     },
@@ -2330,7 +2331,7 @@
       "declaration": "TestStudentRepository_ClassRoster",
       "target": "database/repositories.NewFactory",
       "lines": [
-        506
+        457
       ],
       "tables": []
     },
@@ -2340,7 +2341,7 @@
       "declaration": "TestStudentRepository_CountEnrolledLeavesGraduatesOut",
       "target": "database/repositories.NewFactory",
       "lines": [
-        532
+        483
       ],
       "tables": [
         "users.students"
@@ -2352,7 +2353,7 @@
       "declaration": "TestStudentRepository_CountWithOptions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        584
+        535
       ],
       "tables": []
     },
@@ -2372,7 +2373,7 @@
       "declaration": "TestStudentRepository_Delete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        289
+        240
       ],
       "tables": [
         "users.persons"
@@ -2384,7 +2385,7 @@
       "declaration": "TestStudentRepository_FindByGroupID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        334
+        285
       ],
       "tables": []
     },
@@ -2394,7 +2395,7 @@
       "declaration": "TestStudentRepository_FindByGroupIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        367
+        318
       ],
       "tables": []
     },
@@ -2404,7 +2405,7 @@
       "declaration": "TestStudentRepository_FindByID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        199
+        160
       ],
       "tables": []
     },
@@ -2414,7 +2415,7 @@
       "declaration": "TestStudentRepository_FindByIDForUpdate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        891
+        842
       ],
       "tables": []
     },
@@ -2424,7 +2425,7 @@
       "declaration": "TestStudentRepository_FindByPersonID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        223
+        184
       ],
       "tables": []
     },
@@ -2434,7 +2435,7 @@
       "declaration": "TestStudentRepository_FindBySchoolClass",
       "target": "database/repositories.NewFactory",
       "lines": [
-        459
+        410
       ],
       "tables": [
         "users.students"
@@ -2446,7 +2447,7 @@
       "declaration": "TestStudentRepository_FindOverlappingWithGroups",
       "target": "database/repositories.NewFactory",
       "lines": [
-        730
+        681
       ],
       "tables": [
         "users.students"
@@ -2458,7 +2459,7 @@
       "declaration": "TestStudentRepository_FindOverlappingWithGroupsImmediateActivation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        818
+        769
       ],
       "tables": [
         "users.students"
@@ -2470,7 +2471,7 @@
       "declaration": "TestStudentRepository_ListByGroupIDsIncludingAlumni",
       "target": "database/repositories.NewFactory",
       "lines": [
-        555
+        506
       ],
       "tables": [
         "users.students"
@@ -2482,7 +2483,7 @@
       "declaration": "TestStudentRepository_RemoveFromGroup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        425
+        376
       ],
       "tables": [
         "users.students"
@@ -2494,7 +2495,7 @@
       "declaration": "TestStudentRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        246
+        207
       ],
       "tables": []
     },
@@ -2504,7 +2505,7 @@
       "declaration": "newGroupProjectionFactory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        615
+        566
       ],
       "tables": []
     },
@@ -2848,7 +2849,7 @@
       "declaration": "TestCareOfferingService_Clone_ClearsLinkedTemplateAcrossPhases",
       "target": "database/repositories.NewFactory",
       "lines": [
-        847
+        846
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -2861,7 +2862,7 @@
       "declaration": "TestCareOfferingService_Clone_RepointsToTargetPhase",
       "target": "database/repositories.NewFactory",
       "lines": [
-        793
+        792
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -2874,7 +2875,7 @@
       "declaration": "TestCareOfferingService_Create_ActiveOfferingRequiresActivePeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        610
+        609
       ],
       "tables": []
     },
@@ -2884,7 +2885,7 @@
       "declaration": "TestCareOfferingService_Create_AllowsNonOccurrencePhaseBoundaries",
       "target": "database/repositories.NewFactory",
       "lines": [
-        580
+        579
       ],
       "tables": []
     },
@@ -2894,7 +2895,7 @@
       "declaration": "TestCareOfferingService_Create_RejectsAdvertisedDayAbsentFromShortPhase",
       "target": "database/repositories.NewFactory",
       "lines": [
-        521
+        520
       ],
       "tables": []
     },
@@ -2904,7 +2905,7 @@
       "declaration": "TestCareOfferingService_Create_UsesTemplateCalendarPeriodFallback",
       "target": "database/repositories.NewFactory",
       "lines": [
-        425
+        424
       ],
       "tables": []
     },
@@ -2914,7 +2915,7 @@
       "declaration": "createCareOfferingTemplateGroup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        142
+        141
       ],
       "tables": [
         "activities.schedules"
@@ -2926,7 +2927,7 @@
       "declaration": "createCareOfferingTestPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        124
+        123
       ],
       "tables": []
     },
@@ -2936,7 +2937,7 @@
       "declaration": "setupCareTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        71
+        70
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -3129,7 +3130,7 @@
       "declaration": "TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3996
+        3995
       ],
       "tables": []
     },
@@ -20961,27 +20962,27 @@
         },
         {
           "file": "api/base.go",
-          "line": 513,
+          "line": 506,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 676,
+          "line": 669,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 914,
+          "line": 907,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1319,
+          "line": 1312,
           "declaration": "activeSchoolMemberships"
         },
         {
           "file": "api/base.go",
-          "line": 1334,
+          "line": 1327,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -20991,7 +20992,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 313,
+          "line": 306,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -21006,17 +21007,17 @@
         },
         {
           "file": "api/base.go",
-          "line": 385,
+          "line": 378,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 429,
+          "line": 422,
           "declaration": "withFileStorageWiring"
         },
         {
           "file": "api/base.go",
-          "line": 673,
+          "line": 666,
           "declaration": "type API"
         },
         {

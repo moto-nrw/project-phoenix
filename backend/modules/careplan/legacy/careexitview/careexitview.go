@@ -1,19 +1,8 @@
-// Package careexitview is the tenant-safe read projection the care-exit
-// workflow needs over the child rows People Directory owns (#3350).
-//
-// "Betreuung beenden" has to say whose care is ending: the archive lists the
-// children whose enrolment interval has run out, the binding preview freezes
-// their person rows, and the booking evaluation reads their enrolment bounds.
-// None of that is a Care Plan table, and none of it is a write — it is the one
-// place where the exit flow looks at the directory. Gathering it here keeps
-// that seam named and tenant-scoped instead of spreading `users.students`
-// joins through the flow.
-//
-// Every query takes the tenant id explicitly and filters on it. The
-// recordset arguments are owner projections the caller already loaded
-// (Enrollment application links, Care Plan offerings, Enrollment offering
-// links); they arrive as JSON so this package joins them without reaching
-// into either owner's tables.
+// Package careexitview provides tenant-scoped reads for the care-exit archive,
+// binding preview and booking evaluation. It joins directory profiles and
+// school memberships; care rows only filter existence (ADR 0025). Enrollment
+// and Care Plan recordsets come from the caller's owner queries, not extra
+// table grants. Every query requires an explicit tenant ID.
 package careexitview
 
 import (
@@ -26,6 +15,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/uptrace/bun"
 )
+
+// Keep the compatibility view's live-membership and care-row filters together.
+const studentMembershipJoins = `
+ JOIN users.student_school_memberships AS membership ON membership.student_profile_id = student.id AND membership.tenant_id = student.tenant_id AND membership.deleted_at IS NULL
+ JOIN users.student_care_profiles AS care ON care.membership_id = membership.id AND care.tenant_id = membership.tenant_id`
 
 // ErrInvalidTenantID reports a call that would otherwise read across tenants.
 var ErrInvalidTenantID = errors.New("care exit view: tenant id is required")
@@ -134,21 +128,22 @@ func ListEndedCare(
 	}
 	build := func() *bun.SelectQuery {
 		query := db.NewSelect().
-			TableExpr(`users.students AS "student"`).
+			TableExpr(`users.student_profiles AS "student"`).
+			Join(studentMembershipJoins).
 			Join(`JOIN users.persons AS "person" ON "person".id = "student".person_id`).
 			Where(`"student".tenant_id = ?`, tenantID).
-			Where(`"student".enrolled_until IS NOT NULL`).
-			Where(`"student".enrolled_until < ?`, asOf).
-			Where(`"student".status <> 'alumnus'`)
+			Where(`"membership".enrolled_until IS NOT NULL`).
+			Where(`"membership".enrolled_until < ?`, asOf).
+			Where(`"membership".status <> 'alumnus'`)
 		if search := strings.TrimSpace(filter.Search); search != "" {
 			pattern := "%" + strings.ToLower(search) + "%"
 			query = query.Where(
-				`(LOWER("person".first_name) LIKE ? OR LOWER("person".last_name) LIKE ? OR LOWER("student".school_class) LIKE ?)`,
+				`(LOWER("person".first_name) LIKE ? OR LOWER("person".last_name) LIKE ? OR LOWER("membership".school_class) LIKE ?)`,
 				pattern, pattern, pattern,
 			)
 		}
 		if len(filter.SchoolClasses) > 0 {
-			query = query.Where(`"student".school_class IN (?)`, bun.List(filter.SchoolClasses))
+			query = query.Where(`"membership".school_class IN (?)`, bun.List(filter.SchoolClasses))
 		}
 		return query
 	}
@@ -163,9 +158,9 @@ func ListEndedCare(
 		ColumnExpr(`"student".id AS student_id`).
 		ColumnExpr(`"person".first_name AS first_name`).
 		ColumnExpr(`"person".last_name AS last_name`).
-		ColumnExpr(`"student".school_class AS school_class`).
-		ColumnExpr(`"student".enrolled_until AS last_care_day`).
-		OrderExpr(`"student".enrolled_until DESC, "person".last_name ASC, "person".first_name ASC, "student".id ASC`)
+		ColumnExpr(`"membership".school_class AS school_class`).
+		ColumnExpr(`"membership".enrolled_until AS last_care_day`).
+		OrderExpr(`"membership".enrolled_until DESC, "person".last_name ASC, "person".first_name ASC, "student".id ASC`)
 	if filter.PageSize > 0 {
 		query = query.Limit(filter.PageSize)
 		if filter.Page > 1 {
@@ -190,8 +185,8 @@ func LockImpactPeople(ctx context.Context, db bun.IDB, tenantID int64, studentID
 	}
 	_, err := db.ExecContext(ctx,
 		`SELECT person.id FROM users.persons AS person
-		 JOIN users.students AS student
-		   ON student.person_id = person.id AND student.tenant_id = person.tenant_id
+		 JOIN users.student_profiles AS student
+		   ON student.person_id = person.id AND student.tenant_id = person.tenant_id`+studentMembershipJoins+`
 		 WHERE student.tenant_id = ? AND student.id IN (?) FOR UPDATE OF person`,
 		tenantID, bun.List(studentIDs))
 	if err != nil {
@@ -262,13 +257,13 @@ func ListBookingExpiries(
 	  ON rc.id = rco.request_child_id AND rc.tenant_id = rco.tenant_id
 	JOIN care_offerings AS co
 	  ON co.id = rco.care_offering_id AND co.tenant_id = rco.tenant_id
-	JOIN users.students AS student
-	  ON student.id = rc.created_student_id AND student.tenant_id = rc.tenant_id
+	JOIN users.student_profiles AS student
+	  ON student.id = rc.created_student_id AND student.tenant_id = rc.tenant_id` + studentMembershipJoins + `
 	WHERE rco.tenant_id = ? AND rco.valid_until IS NOT NULL AND co.counts_as_care
 	  AND ((co.days_of_week_mode = 'fixed' AND jsonb_array_length(co.available_days) > 0)
 	    OR (co.days_of_week_mode <> 'fixed' AND jsonb_array_length(rco.selected_days) > 0))
-	  AND student.status = 'active'
-	  AND (student.enrolled_until IS NULL OR student.enrolled_until >= rco.valid_until)
+	  AND membership.status = 'active'
+	  AND (membership.enrolled_until IS NULL OR membership.enrolled_until >= rco.valid_until)
 	  AND NOT EXISTS (
 		SELECT 1 FROM offering_links AS later
 		JOIN care_offerings AS later_offering
@@ -319,21 +314,22 @@ func ListCareStudents(
 	}
 	rows := make([]CareStudentRow, 0)
 	query := db.NewSelect().
-		TableExpr(`users.students AS "student"`).
+		TableExpr(`users.student_profiles AS "student"`).
+		Join(studentMembershipJoins).
 		ColumnExpr(`"student".id AS student_id`).
 		ColumnExpr(`"person".first_name, "person".last_name`).
-		ColumnExpr(`"student".school_class, "student".enrolled_until`).
+		ColumnExpr(`"membership".school_class, "membership".enrolled_until`).
 		Join(`JOIN users.persons AS "person" ON "person".id = "student".person_id AND "person".tenant_id = "student".tenant_id`).
 		Where(`"student".tenant_id = ?`, tenantID).
-		Where(`"student".status <> 'alumnus'`).
+		Where(`"membership".status <> 'alumnus'`).
 		OrderExpr(`"student".id`)
 	if len(studentIDs) > 0 {
 		query = query.Where(`"student".id IN (?)`, bun.List(studentIDs))
 	} else {
 		query = query.
-			Where(`NOT ("student".enrolled_from IS NULL AND "student".enrolled_until IS NULL AND "student".status = ?)`, statuses.Inactive).
-			Where(`("student".enrolled_from IS NULL OR "student".enrolled_from <= ? OR "student".status = ?)`, on, statuses.Active).
-			Where(`("student".enrolled_until IS NULL OR "student".enrolled_until >= ?)`, on)
+			Where(`NOT ("membership".enrolled_from IS NULL AND "membership".enrolled_until IS NULL AND "membership".status = ?)`, statuses.Inactive).
+			Where(`("membership".enrolled_from IS NULL OR "membership".enrolled_from <= ? OR "membership".status = ?)`, on, statuses.Active).
+			Where(`("membership".enrolled_until IS NULL OR "membership".enrolled_until >= ?)`, on)
 	}
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("care exit view: list current care students for booking evaluation: %w", err)

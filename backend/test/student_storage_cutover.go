@@ -26,7 +26,12 @@ func RestoreStudentStorageBeforeCutover(tb testing.TB, db *bun.DB) {
 	requireIsolatedStudentStorage(tb, db)
 	if _, err := db.ExecContext(context.Background(), `
 		DROP VIEW users.expired_privacy_consents;
-		DROP VIEW users.students;
+  DROP VIEW users.students;
+  -- Return to the expand schema as well as the pre-cutover table. The
+  -- absence columns were added only by the application-owner switch.
+  ALTER TABLE users.student_care_profiles
+   DROP COLUMN IF EXISTS sick, DROP COLUMN IF EXISTS sick_since,
+   DROP COLUMN IF EXISTS excused, DROP COLUMN IF EXISTS excused_since;
 		DROP FUNCTION users.route_student_compatibility();
 		DROP SEQUENCE users.student_compatibility_reads, users.student_compatibility_writes;
 		DROP TRIGGER update_student_profiles_updated_at ON users.student_profiles;

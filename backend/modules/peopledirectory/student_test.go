@@ -48,40 +48,13 @@ func TestModuleStudentCommandsValidateBeforeTheEngine(t *testing.T) {
 	ctx := context.Background()
 
 	require.ErrorIs(t, module.LockStudent(ctx, 0), peopledirectory.ErrInvalidStudent)
+	require.ErrorIs(t, module.RenewEnrollmentStudent(ctx, 9, peopledirectory.EnrollmentStudent{
+		SchoolClass: "2a", InitialProfile: &peopledirectory.EnrollmentProfilePatch{},
+	}), peopledirectory.ErrInvalidStudent)
 	assert.Zero(t, engine.calls)
 	require.NoError(t, module.LockStudent(ctx, 9))
 	assert.Equal(t, []int64{9}, engine.student.ids)
 
-	promoted, err := module.PromoteStudents(ctx, nil, "1a", "2a")
-	require.NoError(t, err)
-	assert.Zero(t, promoted)
-	_, err = module.PromoteStudents(ctx, []int64{4}, "", "2a")
-	require.ErrorIs(t, err, peopledirectory.ErrInvalidStudent)
-	promoted, err = module.PromoteStudents(ctx, []int64{4, 4, 6}, "1a", "2a")
-	require.NoError(t, err)
-	assert.EqualValues(t, 2, promoted)
-	assert.Equal(t, studentCall{ids: []int64{4, 6}, from: "1a", to: "2a"}, engine.student)
-
-	_, err = module.RevertStudentClass(ctx, 0, "1a", "2a")
-	require.ErrorIs(t, err, peopledirectory.ErrInvalidStudent)
-	_, err = module.RevertStudentClass(ctx, 4, "1a", "")
-	require.ErrorIs(t, err, peopledirectory.ErrInvalidStudent)
-
-	graduated, err := module.GraduateStudentsByClasses(ctx, []string{""})
-	require.NoError(t, err)
-	assert.Zero(t, graduated)
-	graduated, err = module.GraduateStudents(ctx, []int64{0})
-	require.NoError(t, err)
-	assert.Zero(t, graduated)
-
-	_, err = module.ReactivateStudents(ctx, []int64{4}, " ")
-	require.ErrorIs(t, err, peopledirectory.ErrInvalidStudent)
-	_, err = module.ReactivateStudents(ctx, []int64{4}, peopledirectory.StudentStatusAlumnus)
-	require.ErrorIs(t, err, peopledirectory.ErrInvalidStudent)
-	restored, err := module.ReactivateStudents(ctx, []int64{4}, " active ")
-	require.NoError(t, err)
-	assert.Equal(t, []int64{4}, restored)
-	assert.Equal(t, "active", engine.student.status)
 }
 
 func TestStudentErrorCodesAreStable(t *testing.T) {

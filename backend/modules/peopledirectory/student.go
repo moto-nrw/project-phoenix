@@ -3,7 +3,6 @@ package peopledirectory
 import (
 	"context"
 	"errors"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/enrollment"
@@ -91,12 +90,6 @@ type StudentQuery interface {
 type StudentCommand interface {
 	ReadEnrollmentStudent(context.Context, int64, string) (enrollment.Record, error)
 	LockEnrollmentClassWrites(context.Context) error
-	// LockEnrollmentClassWritesExclusive takes the same per-tenant
-	// class-writes gate exclusively. A grade transition holds it for its
-	// whole transaction so no child can be created in, or moved into, a
-	// mapped class behind the cohort it locked; every ordinary student
-	// writer takes the shared form and therefore waits for the commit.
-	LockEnrollmentClassWritesExclusive(context.Context) error
 	ApplyEnrollmentProfile(context.Context, int64, enrollment.ProfilePatch) error
 	CreateEnrollmentStudent(context.Context, EnrollmentStudent) (CreatedEnrollmentStudent, error)
 	RenewEnrollmentStudent(context.Context, int64, EnrollmentStudent) error
@@ -104,21 +97,6 @@ type StudentCommand interface {
 	// every care-day writer. ErrStudentNotFound when the tenant has no such
 	// row.
 	LockStudent(context.Context, int64) error
-	// PromoteStudents moves exactly the given non-alumni students that are
-	// still in fromClass to toClass and returns the row count.
-	PromoteStudents(ctx context.Context, ids []int64, fromClass, toClass string) (int64, error)
-	// RevertStudentClass moves one student back to fromClass while it still
-	// sits in toClass; 0 rows when the class changed since.
-	RevertStudentClass(ctx context.Context, id int64, fromClass, toClass string) (int64, error)
-	// GraduateStudentsByClasses flips every non-alumni student of the
-	// classes to alumnus.
-	GraduateStudentsByClasses(context.Context, []string) (int64, error)
-	// GraduateStudents flips exactly the given non-alumni students to
-	// alumnus.
-	GraduateStudents(context.Context, []int64) (int64, error)
-	// ReactivateStudents restores the given alumni to status and returns the
-	// ids it actually changed.
-	ReactivateStudents(ctx context.Context, ids []int64, status string) ([]int64, error)
 }
 
 // StudentStatusFlagCapability is the narrow owner capability for the legacy
@@ -126,13 +104,11 @@ type StudentCommand interface {
 // alone clears the columns on users.students.
 type StudentStatusFlagCapability interface {
 	ListStudentsWithStatusFlag(context.Context, string) ([]Student, error)
-	ClearStudentStatusFlags(context.Context, []int64, string) (int64, error)
 }
 
 type studentEngine interface {
 	ReadEnrollmentStudent(context.Context, int64, string) (enrollment.Record, error)
 	LockEnrollmentClassWrites(context.Context) error
-	LockEnrollmentClassWritesExclusive(context.Context) error
 	ApplyEnrollmentProfile(context.Context, int64, enrollment.ProfilePatch) error
 	CreateEnrollmentStudent(context.Context, EnrollmentStudent) (CreatedEnrollmentStudent, error)
 	RenewEnrollmentStudent(context.Context, int64, EnrollmentStudent) error
@@ -144,11 +120,6 @@ type studentEngine interface {
 	ListEnrolledStudents(context.Context) ([]Student, error)
 	ListSchoolClasses(context.Context) ([]string, error)
 	LockStudent(context.Context, int64) error
-	PromoteStudents(context.Context, []int64, string, string) (int64, error)
-	RevertStudentClass(context.Context, int64, string, string) (int64, error)
-	GraduateStudentsByClasses(context.Context, []string) (int64, error)
-	GraduateStudents(context.Context, []int64) (int64, error)
-	ReactivateStudents(context.Context, []int64, string) ([]int64, error)
 }
 
 func (m *Module) ListStudentsByID(ctx context.Context, ids []int64) ([]Student, error) {
@@ -206,55 +177,6 @@ func (m *Module) LockStudent(ctx context.Context, id int64) error {
 	return m.engine.LockStudent(ctx, id)
 }
 
-func (m *Module) PromoteStudents(ctx context.Context, ids []int64, fromClass, toClass string) (int64, error) {
-	ids = uniquePositive(ids)
-	if len(ids) == 0 {
-		return 0, nil
-	}
-	if fromClass == "" || toClass == "" {
-		return 0, invalidStudent("from and to class are required")
-	}
-	return m.engine.PromoteStudents(ctx, ids, fromClass, toClass)
-}
-
-func (m *Module) RevertStudentClass(ctx context.Context, id int64, fromClass, toClass string) (int64, error) {
-	if id <= 0 {
-		return 0, invalidStudent("student ID is required")
-	}
-	if fromClass == "" || toClass == "" {
-		return 0, invalidStudent("from and to class are required")
-	}
-	return m.engine.RevertStudentClass(ctx, id, fromClass, toClass)
-}
-
-func (m *Module) GraduateStudentsByClasses(ctx context.Context, classes []string) (int64, error) {
-	classes = uniqueClasses(classes)
-	if len(classes) == 0 {
-		return 0, nil
-	}
-	return m.engine.GraduateStudentsByClasses(ctx, classes)
-}
-
-func (m *Module) GraduateStudents(ctx context.Context, ids []int64) (int64, error) {
-	ids = uniquePositive(ids)
-	if len(ids) == 0 {
-		return 0, nil
-	}
-	return m.engine.GraduateStudents(ctx, ids)
-}
-
-func (m *Module) ReactivateStudents(ctx context.Context, ids []int64, status string) ([]int64, error) {
-	ids = uniquePositive(ids)
-	if len(ids) == 0 {
-		return []int64{}, nil
-	}
-	status = strings.TrimSpace(status)
-	if status == "" || status == StudentStatusAlumnus {
-		return nil, invalidStudent("target status must be a non-alumnus lifecycle status")
-	}
-	return m.engine.ReactivateStudents(ctx, ids, status)
-}
-
 func (m *Module) ListStudentsWithStatusFlag(ctx context.Context, status string) ([]Student, error) {
 	if !validStatusFlag(status) {
 		return nil, invalidStudent("student status flag is invalid")
@@ -266,23 +188,6 @@ func (m *Module) ListStudentsWithStatusFlag(ctx context.Context, status string) 
 		return nil, errors.New("student status flag capability is not configured")
 	}
 	return engine.ListStudentsWithStatusFlag(ctx, status)
-}
-
-func (m *Module) ClearStudentStatusFlags(ctx context.Context, ids []int64, status string) (int64, error) {
-	ids = uniquePositive(ids)
-	if len(ids) == 0 {
-		return 0, nil
-	}
-	if !validStatusFlag(status) {
-		return 0, invalidStudent("student status flag is invalid")
-	}
-	engine, ok := m.engine.(interface {
-		ClearStudentStatusFlags(context.Context, []int64, string) (int64, error)
-	})
-	if !ok {
-		return 0, errors.New("student status flag capability is not configured")
-	}
-	return engine.ClearStudentStatusFlags(ctx, ids, status)
 }
 
 func validStatusFlag(status string) bool {

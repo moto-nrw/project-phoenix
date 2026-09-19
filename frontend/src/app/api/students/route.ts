@@ -20,7 +20,6 @@ import {
 } from "~/lib/student-privacy-helpers";
 import {
   validateStudentFields,
-  parseGuardianContact,
   buildBackendStudentRequest,
   handlePrivacyConsentCreation,
   buildStudentResponse,
@@ -46,10 +45,6 @@ interface StudentResponseFromBackend {
   // type that powers LocationBadge.
   current_room_color?: string | null;
   bus: boolean;
-  guardian_name: string;
-  guardian_contact: string;
-  guardian_email?: string;
-  guardian_phone?: string;
   group_id?: number;
   day_planning_status?: "comes_today" | "not_coming_today";
   day_planning_reason?: string;
@@ -195,8 +190,6 @@ export const GET = createGetHandler(
 export const POST = createPostHandler<
   Student,
   Omit<Student, "id"> & {
-    guardian_email?: string;
-    guardian_phone?: string;
     privacy_consent_accepted?: boolean;
     data_retention_days?: number;
     guardians?: StudentGuardianPayload[];
@@ -207,8 +200,6 @@ export const POST = createPostHandler<
   async (
     _request: NextRequest,
     body: Omit<Student, "id"> & {
-      guardian_email?: string;
-      guardian_phone?: string;
       privacy_consent_accepted?: boolean;
       data_retention_days?: number;
       guardians?: StudentGuardianPayload[];
@@ -223,19 +214,7 @@ export const POST = createPostHandler<
     // Validate required fields
     const validated = validateStudentFields(body);
 
-    // Parse guardian contact information
-    const guardianContact = parseGuardianContact(
-      body.guardian_email,
-      body.guardian_phone,
-      body.contact_lg,
-    );
-
-    // Build backend request
-    const backendRequest = buildBackendStudentRequest(
-      validated,
-      body,
-      guardianContact,
-    );
+    const backendRequest = buildBackendStudentRequest(validated, body);
 
     try {
       // Create the student via the simplified API endpoint

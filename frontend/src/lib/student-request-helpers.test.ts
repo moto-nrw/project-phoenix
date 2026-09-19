@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   validateStudentFields,
-  parseGuardianContact,
   buildBackendStudentRequest,
   handlePrivacyConsentCreation,
   buildStudentResponse,
@@ -11,6 +10,25 @@ import type { Student } from "./student-helpers";
 import { LOCATION_STATUSES } from "./location-helper";
 
 describe("validateStudentFields", () => {
+  it.each([
+    "name_lg",
+    "contact_lg",
+    "guardian_name",
+    "guardian_contact",
+    "guardian_email",
+    "guardian_phone",
+  ])("rejects retired %s input instead of discarding it", (field) => {
+    for (const value of ["old@example.test", "", null]) {
+      expect(() =>
+        validateStudentFields({
+          first_name: "Max",
+          second_name: "Mustermann",
+          school_class: "1a",
+          [field]: value,
+        }),
+      ).toThrow();
+    }
+  });
   it("validates required fields successfully", () => {
     const body = {
       first_name: "Max",
@@ -24,8 +42,6 @@ describe("validateStudentFields", () => {
       firstName: "Max",
       lastName: "Mustermann",
       schoolClass: "1a",
-      guardianName: undefined,
-      guardianContact: undefined,
     });
   });
 
@@ -34,8 +50,6 @@ describe("validateStudentFields", () => {
       first_name: "  Max  ",
       second_name: "  Mustermann  ",
       school_class: "  1a  ",
-      name_lg: "  Jane Doe  ",
-      contact_lg: "  jane@example.com  ",
     };
 
     const result = validateStudentFields(body);
@@ -44,8 +58,6 @@ describe("validateStudentFields", () => {
       firstName: "Max",
       lastName: "Mustermann",
       schoolClass: "1a",
-      guardianName: "Jane Doe",
-      guardianContact: "jane@example.com",
     });
   });
 
@@ -109,111 +121,6 @@ describe("validateStudentFields", () => {
       "School class is required",
     );
   });
-
-  it("includes optional guardian fields", () => {
-    const body = {
-      first_name: "Max",
-      second_name: "Mustermann",
-      school_class: "1a",
-      name_lg: "Jane Doe",
-      contact_lg: "jane@example.com",
-    };
-
-    const result = validateStudentFields(body);
-
-    expect(result.guardianName).toBe("Jane Doe");
-    expect(result.guardianContact).toBe("jane@example.com");
-  });
-});
-
-describe("parseGuardianContact", () => {
-  it("prefers explicit guardian email", () => {
-    const result = parseGuardianContact(
-      "explicit@example.com",
-      undefined,
-      undefined,
-    );
-
-    expect(result).toEqual({
-      email: "explicit@example.com",
-      phone: undefined,
-    });
-  });
-
-  it("prefers explicit guardian phone", () => {
-    const result = parseGuardianContact(undefined, "123-456-7890", undefined);
-
-    expect(result).toEqual({
-      email: undefined,
-      phone: "123-456-7890",
-    });
-  });
-
-  it("uses both explicit email and phone", () => {
-    const result = parseGuardianContact(
-      "email@example.com",
-      "123-456-7890",
-      undefined,
-    );
-
-    expect(result).toEqual({
-      email: "email@example.com",
-      phone: "123-456-7890",
-    });
-  });
-
-  it("parses contactLg as email when it contains @", () => {
-    const result = parseGuardianContact(
-      undefined,
-      undefined,
-      "contact@example.com",
-    );
-
-    expect(result).toEqual({
-      email: "contact@example.com",
-      phone: undefined,
-    });
-  });
-
-  it("parses contactLg as phone when it does not contain @", () => {
-    const result = parseGuardianContact(undefined, undefined, "555-1234");
-
-    expect(result).toEqual({
-      email: undefined,
-      phone: "555-1234",
-    });
-  });
-
-  it("ignores contactLg when explicit email is provided", () => {
-    const result = parseGuardianContact(
-      "explicit@example.com",
-      undefined,
-      "contact@example.com",
-    );
-
-    expect(result).toEqual({
-      email: "explicit@example.com",
-      phone: undefined,
-    });
-  });
-
-  it("ignores contactLg when explicit phone is provided", () => {
-    const result = parseGuardianContact(undefined, "123-456-7890", "555-1234");
-
-    expect(result).toEqual({
-      email: undefined,
-      phone: "123-456-7890",
-    });
-  });
-
-  it("returns undefined for both when no contact info provided", () => {
-    const result = parseGuardianContact(undefined, undefined, undefined);
-
-    expect(result).toEqual({
-      email: undefined,
-      phone: undefined,
-    });
-  });
 });
 
 describe("buildBackendStudentRequest", () => {
@@ -228,9 +135,8 @@ describe("buildBackendStudentRequest", () => {
       second_name: "Mustermann",
       school_class: "1a",
     };
-    const guardianContact = { email: undefined, phone: undefined };
 
-    const result = buildBackendStudentRequest(validated, body, guardianContact);
+    const result = buildBackendStudentRequest(validated, body);
 
     expect(result).toMatchObject({
       first_name: "Max",
@@ -271,9 +177,8 @@ describe("buildBackendStudentRequest", () => {
       school_class: "1a",
       guardians,
     };
-    const guardianContact = { email: undefined, phone: undefined };
 
-    const result = buildBackendStudentRequest(validated, body, guardianContact);
+    const result = buildBackendStudentRequest(validated, body);
 
     expect(result.guardians).toEqual(guardians);
   });
@@ -289,9 +194,8 @@ describe("buildBackendStudentRequest", () => {
       second_name: "Mustermann",
       school_class: "1a",
     };
-    const guardianContact = { email: undefined, phone: undefined };
 
-    const result = buildBackendStudentRequest(validated, body, guardianContact);
+    const result = buildBackendStudentRequest(validated, body);
 
     expect(result.guardians).toBeUndefined();
   });
@@ -316,9 +220,8 @@ describe("buildBackendStudentRequest", () => {
       arrival_schedules,
       pickup_schedules,
     };
-    const guardianContact = { email: undefined, phone: undefined };
 
-    const result = buildBackendStudentRequest(validated, body, guardianContact);
+    const result = buildBackendStudentRequest(validated, body);
 
     expect(result.arrival_schedules).toEqual(arrival_schedules);
     expect(result.pickup_schedules).toEqual(pickup_schedules);
@@ -337,9 +240,8 @@ describe("buildBackendStudentRequest", () => {
       arrival_schedules: [],
       pickup_schedules: [],
     };
-    const guardianContact = { email: undefined, phone: undefined };
 
-    const result = buildBackendStudentRequest(validated, body, guardianContact);
+    const result = buildBackendStudentRequest(validated, body);
 
     expect(result.arrival_schedules).toBeUndefined();
     expect(result.pickup_schedules).toBeUndefined();
@@ -357,9 +259,8 @@ describe("buildBackendStudentRequest", () => {
       school_class: "1a",
       tag_id: "TAG123",
     };
-    const guardianContact = { email: undefined, phone: undefined };
 
-    const result = buildBackendStudentRequest(validated, body, guardianContact);
+    const result = buildBackendStudentRequest(validated, body);
 
     expect(result.tag_id).toBe("TAG123");
   });
@@ -376,9 +277,8 @@ describe("buildBackendStudentRequest", () => {
       school_class: "1a",
       group_id: "5",
     };
-    const guardianContact = { email: undefined, phone: undefined };
 
-    const result = buildBackendStudentRequest(validated, body, guardianContact);
+    const result = buildBackendStudentRequest(validated, body);
 
     expect(result.group_id).toBe(5);
   });
@@ -388,8 +288,6 @@ describe("buildBackendStudentRequest", () => {
       firstName: "Max",
       lastName: "Mustermann",
       schoolClass: "1a",
-      guardianName: "Jane Doe",
-      guardianContact: "jane@example.com",
     };
     const body = {
       first_name: "Max",
@@ -405,12 +303,8 @@ describe("buildBackendStudentRequest", () => {
       supervisor_notes: "Extra care",
       pickup_status: "Authorized",
     };
-    const guardianContact = {
-      email: "guardian@example.com",
-      phone: "123-456-7890",
-    };
 
-    const result = buildBackendStudentRequest(validated, body, guardianContact);
+    const result = buildBackendStudentRequest(validated, body);
 
     expect(result).toMatchObject({
       first_name: "Max",
@@ -427,10 +321,6 @@ describe("buildBackendStudentRequest", () => {
       health_info: "Allergies",
       supervisor_notes: "Extra care",
       pickup_status: "Authorized",
-      guardian_name: "Jane Doe",
-      guardian_contact: "jane@example.com",
-      guardian_email: "guardian@example.com",
-      guardian_phone: "123-456-7890",
     });
   });
 
@@ -446,9 +336,8 @@ describe("buildBackendStudentRequest", () => {
       school_class: "1a",
       departure_days: { mon: "bus", tue: "pickup", wed: "alone" },
     } satisfies Partial<Student>;
-    const guardianContact = { email: undefined, phone: undefined };
 
-    const result = buildBackendStudentRequest(validated, body, guardianContact);
+    const result = buildBackendStudentRequest(validated, body);
 
     expect(result.departure_days).toEqual({
       mon: "bus",
@@ -470,9 +359,8 @@ describe("buildBackendStudentRequest", () => {
       school_class: "1a",
       current_location: "Anwesend",
     };
-    const guardianContact = { email: undefined, phone: undefined };
 
-    const result = buildBackendStudentRequest(validated, body, guardianContact);
+    const result = buildBackendStudentRequest(validated, body);
 
     expect(result.current_location).toBe("Anwesend");
   });
@@ -488,55 +376,10 @@ describe("buildBackendStudentRequest", () => {
       second_name: "Mustermann",
       school_class: "1a",
     };
-    const guardianContact = { email: undefined, phone: undefined };
 
-    const result = buildBackendStudentRequest(validated, body, guardianContact);
+    const result = buildBackendStudentRequest(validated, body);
 
     expect(result.current_location).toBe(LOCATION_STATUSES.UNKNOWN);
-  });
-
-  it("prefers guardianContact email over body guardian_email", () => {
-    const validated = {
-      firstName: "Max",
-      lastName: "Mustermann",
-      schoolClass: "1a",
-    };
-    const body = {
-      first_name: "Max",
-      second_name: "Mustermann",
-      school_class: "1a",
-      guardian_email: "old@example.com",
-    };
-    const guardianContact = {
-      email: "new@example.com",
-      phone: undefined,
-    };
-
-    const result = buildBackendStudentRequest(validated, body, guardianContact);
-
-    expect(result.guardian_email).toBe("new@example.com");
-  });
-
-  it("uses body guardian_email when guardianContact email is undefined", () => {
-    const validated = {
-      firstName: "Max",
-      lastName: "Mustermann",
-      schoolClass: "1a",
-    };
-    const body = {
-      first_name: "Max",
-      second_name: "Mustermann",
-      school_class: "1a",
-      guardian_email: "body@example.com",
-    };
-    const guardianContact = {
-      email: undefined,
-      phone: undefined,
-    };
-
-    const result = buildBackendStudentRequest(validated, body, guardianContact);
-
-    expect(result.guardian_email).toBe("body@example.com");
   });
 });
 

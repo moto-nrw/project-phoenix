@@ -161,8 +161,12 @@ lock on one side of the owner boundary and the write on the other.
 Three existing projection grants name `users.students`:
 `parent-message-inbox`, `parent-announcement-audience` and `care-exit-view`.
 Each reads the compatibility view and needs a different table before #2760
-drops it, and by the immutability above none of the three can be amended in PR
-mode. That work is unclaimed and belongs on #2760.
+drops it. The current checker rejects their replacement even with an epoch
+bump. [ADR 0025](0025-replace-student-read-projection-grants.md) records the
+accepted, exact checker exception and three-table replacement that
+[#3432](https://github.com/moto-nrw/project-phoenix/issues/3432) must implement
+before #2760. This is a prerequisite ticket, not part of #2760's DDL, and does
+not make existing projection grants generally extensible.
 
 In this codebase "angemeldet" on a child means "kein Abgänger" and not "inside
 the Betreuungszeitraum": `ListEnrolled` filters `status <> alumnus` and reads

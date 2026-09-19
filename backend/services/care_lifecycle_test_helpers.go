@@ -35,8 +35,12 @@ func NewCareLifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork) (CareLifecyc
 		return CareLifecycleTestModule{}, err
 	}
 	audit := users.NewStudentAuditService(repositories.NewStudentAudit(db))
+	membership, err := repositories.NewSchoolMembership(db)
+	if err != nil {
+		return CareLifecycleTestModule{}, err
+	}
 	service := carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
-		StudentRepo: r.Student, PersonRepo: r.Person, CareExitRepo: r.CareExit, CleanupRepo: r.CareExitCleanup,
+		StudentRepo: repositories.NewCareStudents(r.Student, membership), PersonRepo: r.Person, CareExitRepo: r.CareExit, CleanupRepo: r.CareExitCleanup,
 		WithdrawalRepo: r.CareWithdrawal, TagReleaser: r.TagReleaser, AuditService: audit,
 		LockCareBookingWrites: func(ctx context.Context) error { return timetableplanning.LockTenantRecurrenceWrites(ctx, db) },
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {

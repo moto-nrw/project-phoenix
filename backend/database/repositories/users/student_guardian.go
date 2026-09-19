@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentdirectoryview"
+
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -226,7 +228,7 @@ func (r *StudentGuardianRepository) ListLinkedChildrenForGuardians(ctx context.C
 		       p.first_name           AS first_name,
 		       p.last_name            AS last_name
 		FROM users.students_guardians AS sg
-		JOIN users.students AS s ON s.id = sg.student_id
+		JOIN (?) AS s ON s.id = sg.student_id
 		JOIN users.persons  AS p ON p.id = s.person_id
 		WHERE sg.guardian_profile_id IN (?)
 		  AND p.deleted_at IS NULL
@@ -236,7 +238,7 @@ func (r *StudentGuardianRepository) ListLinkedChildrenForGuardians(ctx context.C
 	// surrounding parens, so it slots straight into the "IN (?)" placeholder
 	// above. (bun.Tuple would wrap in its own parens → "IN ((1, 2, 3))".)
 	var rows []*users.GuardianLinkedChild
-	if err := base.GetDB(ctx, r.db).NewRaw(query, bun.List(guardianProfileIDs)).Scan(ctx, &rows); err != nil {
+	if err := base.GetDB(ctx, r.db).NewRaw(query, studentdirectoryview.Query(base.GetDB(ctx, r.db), tenant.FromContext(ctx)), bun.List(guardianProfileIDs)).Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list linked children for guardians",
 			Err: base.TranslateNotFound(err),
@@ -626,8 +628,7 @@ func (r *StudentGuardianRepository) SetPayer(ctx context.Context, studentID int6
 // assigned looks complete while missing exactly the rows that need work.
 func (r *StudentGuardianRepository) ListPaymentAssignments(ctx context.Context) ([]users.GuardianPaymentAssignment, error) {
 	var rows []users.GuardianPaymentAssignment
-	query := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(`users.students AS "student"`).
+	query := studentdirectoryview.Query(base.GetDB(ctx, r.db), tenant.FromContext(ctx)).
 		ColumnExpr(`"student".id AS student_id`).
 		ColumnExpr(`"student_person".first_name AS student_first_name`).
 		ColumnExpr(`"student_person".last_name AS student_last_name`).

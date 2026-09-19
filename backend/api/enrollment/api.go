@@ -176,6 +176,10 @@ func (rs *Resource) Router() chi.Router {
 				// permission as the create it precedes.
 				r.With(common.RequiresPermission("config:manage")).Get("/rollover-preview", rs.previewRollover)
 				r.With(common.RequiresPermission("config:read")).Get("/review", rs.listRolloverReview)
+				// Response of the existing children to this phase (#3379):
+				// who answered, who is still missing. Same tier as the
+				// request list, which already shows these children by name.
+				r.With(common.RequiresPermission("config:read")).Get("/responses", rs.getPhaseResponseOverview)
 				r.With(common.RequiresPermission("config:manage")).Get("/manual-bootstrap", rs.getManualEnrollmentBootstrap)
 				r.With(common.RequiresPermission("config:manage")).Post("/late-invites", rs.createLateInvite)
 				r.With(common.RequiresPermission("config:manage")).Post("/manual-approved-enrollments", rs.createManualApprovedEnrollment)

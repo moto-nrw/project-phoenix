@@ -63,7 +63,7 @@ func (d *StudentDirectory) ListStudentIDs(ctx context.Context) ([]int64, error) 
 func toOwnerStudentDirectoryFilter(filter userModels.StudentDirectoryFilter) peopleModule.StudentDirectoryFilter {
 	owner := peopleModule.StudentDirectoryFilter{
 		IDs: filter.IDs, SchoolClasses: filter.SchoolClasses, GradeLevels: filter.GradeLevels,
-		GuardianNameContains: filter.GuardianNameContains, KeepAlumni: filter.KeepAlumni,
+		KeepAlumni: filter.KeepAlumni,
 		CareStatus: filter.CareStatus, Page: filter.Page, PageSize: filter.PageSize,
 	}
 	if filter.CareStatusOn != "" {
@@ -78,11 +78,7 @@ func toOwnerStudentDirectoryFilter(filter userModels.StudentDirectoryFilter) peo
 func studentRecordToModel(record peopleModule.StudentRecord) *userModels.Student {
 	student := &userModels.Student{
 		PersonID: record.PersonID, SchoolClass: record.SchoolClass, GroupID: record.GroupID,
-		Status:          userModels.StudentStatus(record.Status),
-		GuardianName:    record.GuardianName,
-		GuardianContact: record.GuardianContact,
-		GuardianEmail:   record.GuardianEmail,
-		GuardianPhone:   record.GuardianPhone,
+		Status: userModels.StudentStatus(record.Status),
 
 		AddressStreet:     record.AddressStreet,
 		AddressCity:       record.AddressCity,

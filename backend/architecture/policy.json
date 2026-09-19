@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "policy_epoch": 15,
+  "policy_epoch": 17,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -14,6 +14,10 @@
     "cgo_enabled": false
   },
   "owners": [
+    {
+      "id": "student-directory-view",
+      "kind": "projection"
+    },
     {
       "id": "appointments",
       "kind": "domain"
@@ -465,6 +469,20 @@
     "workflow-integration-test"
   ],
   "packages": [
+    {
+      "path": "database/repositories/studentintegration",
+      "owner": "legacy-composition",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/studentdirectoryview",
+      "owner": "student-directory-view",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
     {
       "path": "modules/workforce/contracttest",
       "owner": "workforce",
@@ -4288,6 +4306,17 @@
   ],
   "read_projections": [
     {
+      "id": "student-directory-view",
+      "package": "modules/studentdirectoryview",
+      "data_objects": [
+        "users.student_profiles",
+        "users.student_school_memberships",
+        "users.student_care_profiles",
+        "users.persons"
+      ],
+      "tenant_safe": true
+    },
+    {
       "id": "parent-request-feed-read-model",
       "package": "modules/parentrequestfeedprojection",
       "data_objects": [
@@ -4316,7 +4345,9 @@
         "users.parent_message_threads",
         "users.parent_messages",
         "users.persons",
-        "users.students",
+        "users.student_care_profiles",
+        "users.student_profiles",
+        "users.student_school_memberships",
         "users.students_guardians"
       ],
       "tenant_safe": true
@@ -4347,7 +4378,9 @@
         "users.parent_announcement_targets",
         "users.parent_announcements",
         "users.persons",
-        "users.students",
+        "users.student_care_profiles",
+        "users.student_profiles",
+        "users.student_school_memberships",
         "users.students_guardians"
       ],
       "tenant_safe": true
@@ -4382,7 +4415,9 @@
       "package": "modules/careplan/legacy/careexitview",
       "data_objects": [
         "users.persons",
-        "users.students"
+        "users.student_care_profiles",
+        "users.student_profiles",
+        "users.student_school_memberships"
       ],
       "tenant_safe": true
     },
@@ -4965,6 +5000,94 @@
     }
   ],
   "rules": [
+    {
+      "id": "care-plan.postgres.student-directory-view",
+      "description": "Resolve public student identities through the bounded directory projection (#2759).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "postgres",
+      "target_owner": "student-directory-view",
+      "target_role": "postgres"
+    },
+    {
+      "id": "student-owner-integration.people-directory.compose",
+      "description": "Verify the three-owner student unit of work and injected rollback at its root composition (#2759).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "compose"
+    },
+    {
+      "id": "student-owner-integration.care-plan.compose",
+      "description": "Verify the three-owner student unit of work and injected rollback at its root composition (#2759).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "workflow-integration-test",
+      "target_owner": "care-plan",
+      "target_role": "compose"
+    },
+    {
+      "id": "student-owner-integration.legacy-composition.compose",
+      "description": "Verify the three-owner student unit of work and injected rollback at its root composition (#2759).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "workflow-integration-test",
+      "target_owner": "legacy-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "people-directory.postgres.student-directory-view",
+      "description": "Student reads use the named three-owner projection (ADR 0023, #2759).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "postgres",
+      "target_owner": "student-directory-view",
+      "target_role": "postgres"
+    },
+    {
+      "id": "student-directory-view.postgres.people-public",
+      "description": "Keep the existing student result contract during the owner storage cutover (#2759).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-directory-view",
+      "source_role": "postgres",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "student-directory-view.postgres.departure-contract",
+      "description": "Read the existing weekday departure value types (#2759).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-directory-view",
+      "source_role": "postgres",
+      "target_owner": "people-directory",
+      "target_role": "contract"
+    },
+    {
+      "id": "student-directory-view.postgres.calendar-date",
+      "description": "Bind calendar days using the existing date type (#2759).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-directory-view",
+      "source_role": "postgres",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
     {
       "id": "workforce.contracttest.legacy-shared.domain",
       "description": "The new test-only Workforce contract root exercises retained adapter inputs and outputs; it grants no runtime or existing test package new imports.",

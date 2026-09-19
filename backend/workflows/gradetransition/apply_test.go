@@ -30,7 +30,9 @@ type lateArrivalDirectory struct {
 	locked   []int64
 }
 
-func (d *lateArrivalDirectory) LockEnrollmentClassWritesExclusive(context.Context) error { return nil }
+type lateArrivalMembership struct{ Membership }
+
+func (lateArrivalMembership) LockStudentClassWrites(context.Context, bool) error { return nil }
 
 func (d *lateArrivalDirectory) ListStudentsByClasses(
 	context.Context, []string,
@@ -95,6 +97,7 @@ func TestApplyRefusesChildAddedAfterCohortSnapshot(t *testing.T) {
 		Observe:              func(Observation) {},
 		LockRecurrenceWrites: func(context.Context) error { return nil },
 		Directory:            directory,
+		Membership:           lateArrivalMembership{},
 		Structure: transitionStub{transition: schoolstructure.Transition{
 			ID: transitionID, Status: schoolstructure.TransitionStatusDraft,
 			Mappings: []schoolstructure.TransitionMapping{{TransitionID: transitionID, FromClass: gradClass}},

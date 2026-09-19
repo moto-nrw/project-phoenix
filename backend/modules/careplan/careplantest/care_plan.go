@@ -28,7 +28,7 @@ func NewCarePlan(tb TB, db *bun.DB) careplan.Capability {
 	students := newStudentDirectory(tb, db)
 	capability, err := carePlanCompose.New(carePlanCompose.Dependencies{
 		DB: db, Observe: func(carePlanCompose.Observation) {}, AmbientDB: carePlanLegacy.NewAmbientDatabase(db),
-		StatusStudents: newStatusStudentDirectory(students), StatusSlots: emptyStatusSlots{},
+		StatusStudents: newStatusStudentDirectory(db, students), StatusSlots: emptyStatusSlots{},
 		People:      studentNameFinder(students),
 		StudentLock: students.LockStudent, StudentNotFound: peopledirectory.ErrStudentNotFound,
 	})
@@ -57,7 +57,7 @@ func carePlan(db *bun.DB) careplan.Capability {
 	}
 	capability, err := carePlanCompose.New(carePlanCompose.Dependencies{
 		DB: db, Observe: func(carePlanCompose.Observation) {}, AmbientDB: carePlanLegacy.NewAmbientDatabase(db),
-		StatusStudents: newStatusStudentDirectory(students), StatusSlots: emptyStatusSlots{},
+		StatusStudents: newStatusStudentDirectory(db, students), StatusSlots: emptyStatusSlots{},
 		People:      studentNameFinder(students),
 		StudentLock: students.LockStudent, StudentNotFound: peopledirectory.ErrStudentNotFound,
 	})
@@ -70,14 +70,19 @@ func carePlan(db *bun.DB) careplan.Capability {
 type statusStudentDirectory struct {
 	students peopledirectory.Capability
 	flags    peopledirectory.StudentStatusFlagCapability
+	care     careplan.StudentProfileCommands
 }
 
-func newStatusStudentDirectory(students peopledirectory.Capability) statusStudentDirectory {
+func newStatusStudentDirectory(db *bun.DB, students peopledirectory.Capability) statusStudentDirectory {
 	flags, ok := students.(peopledirectory.StudentStatusFlagCapability)
 	if !ok {
 		panic("test People Directory does not expose status flags")
 	}
-	return statusStudentDirectory{students: students, flags: flags}
+	care, err := carePlanCompose.NewStudentProfiles(db, func(carePlanCompose.Observation) {})
+	if err != nil {
+		panic(err)
+	}
+	return statusStudentDirectory{students: students, flags: flags, care: care}
 }
 
 func (d statusStudentDirectory) ListEnrolledStudents(ctx context.Context) ([]carePlanCompose.StatusStudent, error) {
@@ -91,7 +96,7 @@ func (d statusStudentDirectory) ListStudentsWithStatusFlag(ctx context.Context, 
 }
 
 func (d statusStudentDirectory) ClearStudentStatusFlags(ctx context.Context, ids []int64, status string) (int64, error) {
-	return d.flags.ClearStudentStatusFlags(ctx, ids, status)
+	return d.care.ClearStudentStatusFlags(ctx, ids, status)
 }
 
 func (d statusStudentDirectory) LockStudent(ctx context.Context, id int64) error {

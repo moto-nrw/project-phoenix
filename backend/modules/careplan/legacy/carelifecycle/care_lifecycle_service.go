@@ -194,8 +194,19 @@ type CareParticipationResolution struct {
 	ActuallyPresentIDs map[int64]bool
 }
 
+// CareStudents is the consumer-owned port for the directory reads and the
+// reversible membership commands used within the care-exit transaction.
+type CareStudents interface {
+	FindByIDs(context.Context, []int64) (map[int64]*userModels.Student, error)
+	FindByIDsForUpdate(context.Context, []int64) (map[int64]*userModels.Student, error)
+	FindActiveDueForDeactivation(context.Context, timezone.Date) ([]*userModels.Student, error)
+	ListIDs(context.Context) ([]int64, error)
+	EndCare(context.Context, []int64, string) error
+	ResumeCare(context.Context, int64, string, string, string) error
+}
+
 type careLifecycleService struct {
-	studentRepo           userModels.StudentRepository
+	studentRepo           CareStudents
 	personRepo            userModels.PersonRepository
 	careExitRepo          userModels.CareExitRepository
 	cleanupRepo           userModels.CareExitCleanupRepository
@@ -212,7 +223,7 @@ type careLifecycleService struct {
 // CareLifecycleDependencies wires the service. Every field is required except
 // the logger; a nil collaborator would silently skip a documented effect.
 type CareLifecycleDependencies struct {
-	StudentRepo    userModels.StudentRepository
+	StudentRepo    CareStudents
 	PersonRepo     userModels.PersonRepository
 	CareExitRepo   userModels.CareExitRepository
 	CleanupRepo    userModels.CareExitCleanupRepository
@@ -365,7 +376,7 @@ func (s *careLifecycleService) applyCareExitConfirmation(ctx context.Context, st
 	if _, err := s.cleanupRepo.RestoreRemovals(ctx, state.studentIDs); err != nil {
 		return err
 	}
-	if _, err := s.studentRepo.SetEnrolledUntilByIDs(ctx, state.studentIDs, &state.input.LastCareDay); err != nil {
+	if err := s.studentRepo.EndCare(ctx, state.studentIDs, state.input.LastCareDay.String()); err != nil {
 		return err
 	}
 	if err := s.upsertCareExitRecords(ctx, state); err != nil {
@@ -565,13 +576,7 @@ func (s *careLifecycleService) Cancel(ctx context.Context, studentIDs []int64, a
 		before := make(map[int64]*userModels.Student, len(ids))
 		for _, id := range ids {
 			student := locked[id]
-			if student == nil {
-				return ErrCareExitNotPlanned
-			}
-			if student.EnrolledUntil == nil {
-				return ErrCareExitNotPlanned
-			}
-			if exits[id] == nil {
+			if student == nil || student.EnrolledUntil == nil || exits[id] == nil {
 				return ErrCareExitNotPlanned
 			}
 			if student.CareEndedOn(today) {
@@ -579,15 +584,12 @@ func (s *careLifecycleService) Cancel(ctx context.Context, studentIDs []int64, a
 			}
 			before[id] = cloneCareFields(student)
 		}
-		// Cancelling gives the children their plan back. Without this the
-		// cancellation would only clear the date and leave every child active
-		// with the emptied timetable and the ended offerings of an exit that
-		// was called off (#2487).
+		// Cancellation restores the removed plan as well as the care end (#2487).
 		if _, err := s.cleanupRepo.RestoreRemovals(txCtx, ids); err != nil {
 			return err
 		}
 		for _, id := range ids {
-			if _, err := s.studentRepo.SetEnrolledUntilByIDs(txCtx, []int64{id}, exits[id].PreviousEnrolledUntil); err != nil {
+			if err := s.studentRepo.EndCare(txCtx, []int64{id}, userModels.RenderCalendarDate(exits[id].PreviousEnrolledUntil)); err != nil {
 				return err
 			}
 		}
@@ -657,22 +659,18 @@ func (s *careLifecycleService) Resume(ctx context.Context, input CareResumeInput
 		}
 		before := cloneCareFields(student)
 
-		// The lifecycle status is only today's view of the interval: a child
-		// resumed for today is active right away, one resumed for next month
-		// waits for the activate-students tick like any other future start.
+		// Future starts wait for the activation tick; today's starts are active.
 		status := userModels.StudentStatusPending
 		if !input.NewStart.After(today) {
 			status = userModels.StudentStatusActive
 		}
-		if err := s.studentRepo.SetEnrollmentWindowByID(txCtx, input.StudentID, input.NewStart, status); err != nil {
+		if err := s.studentRepo.ResumeCare(txCtx, input.StudentID, input.NewStart.String(), string(status), today.String()); err != nil {
 			return err
 		}
 		if err := s.careExitRepo.DeleteByStudentIDs(txCtx, []int64{input.StudentID}); err != nil {
 			return err
 		}
-		// Nothing is switched back on automatically: the criteria have the
-		// school check group, offerings, weekly plan and times themselves, so
-		// the ledger of the old exit is dropped unreplayed (#2487).
+		// Resume never restores planning automatically; discard the old ledger (#2487).
 		if err := s.cleanupRepo.DiscardRemovals(txCtx, []int64{input.StudentID}); err != nil {
 			return err
 		}

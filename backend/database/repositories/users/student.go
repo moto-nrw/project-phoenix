@@ -8,19 +8,15 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentdirectoryview"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
-)
-
-// Table name constants (S1192 - avoid duplicate string literals)
-const (
-	tableUsersStudents              = "users.students"
-	tableExprUsersStudentsAsStudent = "users.students AS student"
 )
 
 // StudentRepository implements users.StudentRepository interface
 type StudentRepository struct {
-	*base.Repository[*users.Student]
 	db *bun.DB
 	// teacherGroupIDs resolves education.group_teacher through composition. This
 	// Postgres adapter stays independent of the School Membership owner and can
@@ -31,12 +27,40 @@ type StudentRepository struct {
 
 // NewStudentRepository creates a new StudentRepository
 func NewStudentRepository(db *bun.DB) users.StudentRepository {
-	repo := base.NewRepository[*users.Student](db, tableUsersStudents, "Student")
-	repo.TenantScoped = true
 	return &StudentRepository{
-		Repository: repo,
-		db:         db,
+		db: db,
 	}
+}
+
+// List retains the legacy equality-filter contract without a generic
+// repository that can accidentally fall back to the rollback view.
+func (r *StudentRepository) List(ctx context.Context, filters map[string]any) ([]*users.Student, error) {
+	rows := make([]*users.Student, 0)
+	db := base.GetDB(ctx, r.db)
+	query := studentdirectoryview.ModelQuery(db, tenant.FromContext(ctx), &rows)
+	for field, value := range filters {
+		if value != nil {
+			query = query.Where("? = ?", bun.Ident(field), value)
+		}
+	}
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list", Err: err}
+	}
+	return rows, nil
+}
+
+func (r *StudentRepository) CountWithOptions(ctx context.Context, options *modelBase.QueryOptions) (int, error) {
+	db := base.GetDB(ctx, r.db)
+	query := studentdirectoryview.Query(db, tenant.FromContext(ctx)).Column("student.id")
+	if options != nil && options.Filter != nil {
+		options.Filter.WithTableAlias("student")
+		query = base.ApplyFilter(query, options.Filter)
+	}
+	count, err := query.Count(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "count with options", Err: err}
+	}
+	return count, nil
 }
 
 func (r *StudentRepository) BindTeacherGroupIDs(query func(context.Context, int64) ([]int64, error)) {
@@ -152,16 +176,6 @@ func (r *StudentRepository) TransitionStatus(
 	return false, errStudentWritesMoved
 }
 
-func (r *StudentRepository) SetEnrolledUntilByIDs(context.Context, []int64, *timezone.Date) (int64, error) {
-	return 0, errStudentWritesMoved
-}
-
-func (r *StudentRepository) SetEnrollmentWindowByID(
-	context.Context, int64, timezone.Date, users.StudentStatus,
-) error {
-	return errStudentWritesMoved
-}
-
 func (r *StudentRepository) FindCareBoundsByIDs(context.Context, []int64) (map[int64]timezone.Date, error) {
 	return nil, errStudentWritesMoved
 }
@@ -218,14 +232,6 @@ func (r *StudentRepository) ListIDs(context.Context) ([]int64, error) {
 }
 
 func (r *StudentRepository) CountByGroupIDs(context.Context, []int64) (map[int64]int, error) {
-	return nil, errStudentWritesMoved
-}
-
-func (r *StudentRepository) FindByGuardianEmail(context.Context, string) ([]*users.Student, error) {
-	return nil, errStudentWritesMoved
-}
-
-func (r *StudentRepository) FindByGuardianPhone(context.Context, string) ([]*users.Student, error) {
 	return nil, errStudentWritesMoved
 }
 

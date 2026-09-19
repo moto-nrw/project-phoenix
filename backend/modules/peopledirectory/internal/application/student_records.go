@@ -46,12 +46,6 @@ func (s *StudentService) ListRecordsByClasses(ctx context.Context, classes []str
 	})
 }
 
-func (s *StudentService) ListRecordsByGuardianContact(ctx context.Context, email, phone string) ([]domain.StudentRecord, error) {
-	return s.readRecords(ctx, "list_student_records_by_guardian_contact", func(txCtx context.Context) ([]domain.StudentRecord, domain.OperationStats, error) {
-		return s.store.ListRecordsByGuardianContact(txCtx, email, phone)
-	})
-}
-
 func (s *StudentService) ListRecordsDueForStatus(ctx context.Context, status, bound, asOf string) ([]domain.StudentRecord, error) {
 	return s.readRecords(ctx, "list_student_records_due_for_status", func(txCtx context.Context) ([]domain.StudentRecord, domain.OperationStats, error) {
 		return s.store.ListRecordsDueForStatus(txCtx, status, bound, asOf)

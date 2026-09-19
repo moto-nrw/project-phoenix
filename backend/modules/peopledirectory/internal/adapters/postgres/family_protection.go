@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"time"
@@ -94,29 +93,13 @@ func (s *StudentStore) AppendFamilyProtection(ctx context.Context, change domain
 // LockLifecycle takes the student row FOR UPDATE and reports its lifecycle
 // status, so a caller can refuse a graduate under the same lock it writes with.
 func (s *StudentStore) LockLifecycle(ctx context.Context, id int64) (string, bool, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	_, tenantID, err := s.database(ctx)
 	if err != nil {
 		return "", false, domain.OperationStats{}, err
 	}
 	if tenantID <= 0 {
-		return "", false, domain.OperationStats{}, errors.New("people directory postgres: tenant is required to lock a student")
+		return "", false, domain.OperationStats{}, errors.New("people directory: tenant is required to lock a student")
 	}
-	var status string
-	stats := domain.OperationStats{Queries: 1}
-	started := time.Now()
-	err = db.NewSelect().TableExpr(`users.students AS "student"`).
-		ColumnExpr(`"student".status`).
-		Where(`"student".id = ?`, id).
-		Where(`"student".tenant_id = ?`, tenantID).
-		For("UPDATE").
-		Scan(ctx, &status)
-	stats.StatementDuration = time.Since(started)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", false, stats, nil
-	}
-	if err != nil {
-		return "", false, stats, fmt.Errorf("people directory postgres: lock student lifecycle: %w", err)
-	}
-	stats.Rows = 1
-	return status, true, stats, nil
+	record, found, stats, err := s.FindRecord(ctx, id, "UPDATE")
+	return record.Status, found, stats, err
 }

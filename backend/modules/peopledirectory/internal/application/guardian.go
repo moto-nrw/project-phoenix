@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
@@ -50,6 +51,33 @@ func (s *GuardianService) ListByIDs(ctx context.Context, ids []int64) (result []
 		return err
 	})
 	return result, err
+}
+
+// StudentsWithPortalGuardian reports which of the children can be reached
+// through the parents portal: at least one guardian holds an account with an
+// active school membership AND that guardian's link to this child grants
+// portal access. An account alone is not enough, because a pickup-only contact
+// may have one for a sibling and still sees nothing of this child. Children
+// without such a guardian are absent from the result.
+func (s *GuardianService) StudentsWithPortalGuardian(ctx context.Context, studentIDs []int64) (map[int64]bool, error) {
+	result := map[int64]bool{}
+	err := observeRun(ctx, s.observe, "students_with_portal_guardian", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {
+		links, queryStats, err := s.store.ListAccountLinksByStudents(txCtx, studentIDs)
+		stats.Add(queryStats)
+		if err != nil {
+			return err
+		}
+		for _, link := range links {
+			if slices.Contains(link.Permissions, domain.GuardianPermissionPortalAccess) {
+				result[link.StudentID] = true
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func (s *GuardianService) CountLinks(ctx context.Context, guardianIDs []int64) (result map[int64]int, err error) {

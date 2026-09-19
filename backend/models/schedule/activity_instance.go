@@ -75,6 +75,18 @@ type ActivityInstance struct {
 	CompletionSnapshot     json.RawMessage `bun:"completion_snapshot,type:jsonb" json:"-"`
 }
 
+// MarkCompleted applies the persisted lifecycle state after the live session
+// has ended. completedAt is supplied by the persistence layer because it is
+// also the baseline for detecting later recovery conflicts.
+func (i *ActivityInstance) MarkCompleted(completedAt, reopenUntil time.Time, completedBy int64) {
+	i.Status = InstanceStatusCompleted
+	i.CompletedAt = &completedAt
+	i.ReopenUntil = &reopenUntil
+	if completedBy > 0 {
+		i.CompletedBy = &completedBy
+	}
+}
+
 type CompletionAttendanceSnapshot struct {
 	RowID              int64      `json:"row_id"`
 	Status             string     `json:"status"`
@@ -95,6 +107,10 @@ type ActivityCompletionSnapshot struct {
 }
 
 type ActivityRecoveryRepository interface {
+	// CompletionTimestamp returns PostgreSQL's stable time for the current
+	// transaction. It is the baseline for distinguishing completion writes from
+	// later attendance and supervisor edits during reopen.
+	CompletionTimestamp(ctx context.Context) (time.Time, error)
 	// LockOpenVisits takes FOR UPDATE locks on every still-open visit of the
 	// group so completion can snapshot the same rows EndActivitySession closes.
 	LockOpenVisits(ctx context.Context, activeGroupID int64) error

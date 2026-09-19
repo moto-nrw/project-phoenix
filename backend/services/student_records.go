@@ -4,6 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	careCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 )
@@ -14,27 +18,20 @@ type presenceStudentSource interface {
 	FindByID(context.Context, any) (*users.Student, error)
 	FindByIDForUpdate(context.Context, int64) (*users.Student, error)
 	FindByIDsForUpdate(context.Context, []int64) (map[int64]*users.Student, error)
-	UpdateColumns(context.Context, *users.Student, ...string) (int64, error)
 }
 
-type presenceStudents struct{ source presenceStudentSource }
+type presenceStudents struct {
+	source presenceStudentSource
+	care   careplan.StudentProfileCommands
+}
 
-// PresenceStudents serves active.PresenceStudents from the users repository.
-//
-// The live-flag write touches only the four flag columns. That is a deliberate
-// departure from the owner's full-row Update, which the presence services used
-// to call: the presence record carries no departure plan, so a full-row write
-// built from it would wipe one. Writing the named columns instead keeps the
-// plan intact without the caller having to re-read it.
-//
-// The trade is that the owner's write-path side effects do not run here: no
-// companion-edge reconciliation, no plan validation, and no
-// student_companions_changed audit entry. Those repair a plan this write never
-// touches, and every writer that does touch the plan still performs them.
-// A pre-existing edge the stored plan forbids therefore survives a sick or
-// excused auto-clear where it previously would have been trimmed.
-func PresenceStudents(source presenceStudentSource) active.PresenceStudents {
-	return presenceStudents{source: source}
+// PresenceStudents reads Directory records and writes only Care Plan's live flags.
+func PresenceStudents(db *bun.DB, source presenceStudentSource) active.PresenceStudents {
+	care, err := careCompose.NewStudentProfiles(db, func(careCompose.Observation) {})
+	if err != nil {
+		panic(err)
+	}
+	return presenceStudents{source: source, care: care}
 }
 
 func (p presenceStudents) FindByID(ctx context.Context, id int64) (*active.StudentRecord, error) {
@@ -69,10 +66,10 @@ func (p presenceStudents) UpdateLiveStatus(ctx context.Context, record *active.S
 	if record == nil {
 		return nil
 	}
-	row := &users.Student{Sick: record.Sick, SickSince: record.SickSince, Excused: record.Excused, ExcusedSince: record.ExcusedSince}
-	row.ID = record.ID
-	row.TenantID = record.TenantID
-	affected, err := p.source.UpdateColumns(ctx, row, "sick", "sick_since", "excused", "excused_since")
+	affected, err := p.care.SetStudentLiveStatus(ctx, careplan.StudentLiveStatus{
+		StudentID: record.ID, Sick: record.Sick != nil && *record.Sick, SickSince: record.SickSince,
+		Excused: record.Excused != nil && *record.Excused, ExcusedSince: record.ExcusedSince,
+	})
 	if err != nil {
 		return err
 	}

@@ -159,20 +159,21 @@ var generatedAt = time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC)
 
 // twoChildren is the fixture of the retained service tests: one child in a
 // room with three guardian rows (one duplicate name), one child without a
-// visit whose only contact is the legacy free-text guardian.
+// visit with a linked contact.
 func twoChildren() Dependencies {
 	deps := fullDeps()
 	deps.Presence = &fakePresence{present: []int64{101, 202}, rooms: map[int64]int64{101: kreativraumRoomID}}
 	deps.Rooms = &fakeRooms{names: map[int64]string{kreativraumRoomID: "Kreativraum"}}
 	deps.Students = fakeStudents{students: map[int64]Student{
 		101: {ID: 101, PersonID: 301, SchoolClass: "Klasse 3b"},
-		202: {ID: 202, PersonID: 302, SchoolClass: "Klasse 2a", GuardianName: "Familie Schmitt", GuardianPhone: "02551 444"},
+		202: {ID: 202, PersonID: 302, SchoolClass: "Klasse 2a"},
 	}}
 	deps.Persons = &fakePersons{persons: map[int64]Person{
 		301: {ID: 301, FirstName: "Mila", LastName: "Albrecht"},
 		302: {ID: 302, FirstName: "Max", LastName: "Schmitt"},
 	}}
 	deps.Contacts = fakeContacts{rows: []Contact{
+		{StudentID: 202, FirstName: "Familie", LastName: "Schmitt", Phone: "02551 444"},
 		{StudentID: 101, FirstName: "Lea", LastName: "Albrecht", Phone: "02551 111"},
 		{StudentID: 101, FirstName: "Noah", LastName: "Albrecht", Phone: "02551 222"},
 		{StudentID: 101, FirstName: "Lea", LastName: "Albrecht", Phone: "02551 333"},

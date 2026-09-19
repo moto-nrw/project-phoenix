@@ -1,4 +1,4 @@
-package compose
+package studentintegration_test
 
 import (
 	"testing"
@@ -14,13 +14,13 @@ import (
 func TestStudentDirectoryListsStudentsByPerson(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module := buildModule(t, db)
+	module := buildStudentOwnersModule(t, db)
 	ctx := testpkg.Ctx(t)
 	first := testpkg.CreateTestStudent(t, db, "Anna", "ByPerson", "1a")
 	graduate := testpkg.CreateTestStudent(t, db, "Carl", "ByPerson", "4c")
 	_, foreignTenant := otherTenantContext(t, db)
 	foreign := testpkg.CreateTestStudentForTenant(t, db, foreignTenant, "Fremd", "ByPerson", "1a")
-	_, err := module.GraduateStudents(ctx, []int64{graduate.ID})
+	_, err := buildStudentMembership(t, db).Graduate(ctx, []int64{graduate.ID})
 	require.NoError(t, err)
 
 	rows, err := module.ListStudentsByPersonID(ctx, []int64{first.PersonID, graduate.PersonID, foreign.PersonID, first.PersonID, 0, -1})

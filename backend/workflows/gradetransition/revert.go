@@ -127,7 +127,7 @@ func (w *Workflow) revertPromotedStudents(ctx context.Context, history []schools
 				missing++
 				continue
 			}
-			rows, err := w.deps.Directory.RevertStudentClass(ctx, entry.StudentID, entry.FromClass, *entry.ToClass)
+			rows, err := w.deps.Membership.ChangeClass(ctx, []int64{entry.StudentID}, *entry.ToClass, entry.FromClass)
 			if err != nil {
 				return nil, fmt.Errorf("failed to revert student %d: %w", entry.StudentID, err)
 			}
@@ -171,7 +171,7 @@ func (w *Workflow) revertGraduatedStudents(ctx context.Context, graduated []scho
 	restored := make([]int64, 0, len(graduated))
 	restoredActive := make([]int64, 0, len(graduated))
 	for _, status := range statuses {
-		reactivated, err := w.deps.Directory.ReactivateStudents(ctx, byStatus[status], status)
+		reactivated, err := w.deps.Membership.Reactivate(ctx, byStatus[status], status)
 		if err != nil {
 			return nil, fmt.Errorf("failed to reactivate graduated students: %w", err)
 		}

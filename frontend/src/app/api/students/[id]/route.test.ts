@@ -34,11 +34,13 @@ vi.mock("~/lib/api-helpers.server", () => ({
   handleApiError: vi.fn((error: unknown) => {
     const message =
       error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
+    const status = message.includes("(400)")
+      ? 400
+      : message.includes("(401)")
+        ? 401
+        : message.includes("(404)")
+          ? 404
+          : 500;
     return new Response(JSON.stringify({ error: message }), { status });
   }),
 }));
@@ -262,6 +264,21 @@ describe("PUT /api/students/[id]", () => {
   // resending it is refused as `companions_changed`. So a failing consent write
   // must happen while the student is still untouched — otherwise the client
   // reports a failure for links that are already stored and its retry conflicts.
+  it("rejects retired contact input before saving privacy consent", async () => {
+    const { updatePrivacyConsent } =
+      await import("~/lib/student-privacy-helpers");
+    const response = await PUT(
+      createMockRequest("/api/students/123", {
+        method: "PUT",
+        body: { guardian_email: "", privacy_consent_accepted: true },
+      }),
+      createMockContext({ id: "123" }),
+    );
+    expect(response.status).toBe(400);
+    expect(updatePrivacyConsent).not.toHaveBeenCalled();
+    expect(mockApiPut).not.toHaveBeenCalled();
+  });
+
   it("does not touch the student when the consent update fails", async () => {
     const { updatePrivacyConsent } =
       await import("~/lib/student-privacy-helpers");

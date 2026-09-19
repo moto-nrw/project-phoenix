@@ -71,6 +71,18 @@ func (e *GuardianStillLinkedError) Unwrap() error { return ErrGuardianStillLinke
 // with the security runtime.
 const GuardianPermissionPortalAccess = "parent_portal.access"
 
+// GuardianPortalReachQuery answers one question for other owners: which of
+// these children can the school reach through the parents portal? It is its
+// own capability so a consumer that only needs this contact hint does not
+// depend on the whole guardian directory.
+type GuardianPortalReachQuery interface {
+	// StudentsWithPortalGuardian reports the children with at least one
+	// guardian who holds a portal account with active school access and portal
+	// access on that relationship. Children without one are absent from the
+	// result.
+	StudentsWithPortalGuardian(context.Context, []int64) (map[int64]bool, error)
+}
+
 // Guardian is one contact person of the tenant. PhoneNumbers are loaded by
 // FindGuardian and the profile lists; the link projections leave them empty
 // unless stated otherwise.
@@ -422,6 +434,7 @@ type guardianEngine interface {
 	ListGuardiansByAccounts(context.Context, []int64) ([]Guardian, error)
 	ListGuardiansByIDs(context.Context, []int64) ([]Guardian, error)
 	CountGuardianLinks(context.Context, []int64) (map[int64]int, error)
+	StudentsWithPortalGuardian(context.Context, []int64) (map[int64]bool, error)
 	ObserveGuardianOperation(operation string, duration time.Duration, err error)
 }
 

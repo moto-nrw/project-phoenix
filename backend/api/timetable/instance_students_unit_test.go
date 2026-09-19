@@ -392,6 +392,8 @@ type fakeRecoveryRepo struct {
 	lockAttendance func(ctx context.Context, instanceID int64) error
 }
 
+func (*fakeRecoveryRepo) CompletionTimestamp(context.Context) (time.Time, error) { panic("unused") }
+
 func (f *fakeRecoveryRepo) LockAttendance(ctx context.Context, instanceID int64) error {
 	if f.lockAttendance != nil {
 		return f.lockAttendance(ctx, instanceID)

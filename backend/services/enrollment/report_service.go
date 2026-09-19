@@ -1369,7 +1369,7 @@ func classRosterRow(
 	companions []userModels.CompanionLink,
 	careOfferingsEnabled bool,
 ) (ClassRosterRow, error) {
-	studentContactGuardians := classRosterStudentGuardians(student, studentGuardians)
+	studentContactGuardians := normalizeClassRosterGuardians(studentGuardians)
 	row := ClassRosterRow{
 		StudentID:           student.ID,
 		SchoolClass:         student.SchoolClass,
@@ -1533,21 +1533,6 @@ func classRosterStudentGuardianContactKey(row userModels.GuardianEmergencyContac
 		return strconv.FormatInt(row.GuardianProfileID, 10)
 	}
 	return strings.ToLower(strings.TrimSpace(row.FirstName.String + " " + row.LastName.String + "|" + row.Email.String))
-}
-
-func classRosterStudentGuardians(student *userModels.Student, linkedContacts []ClassRosterGuardian) []ClassRosterGuardian {
-	contacts := normalizeClassRosterGuardians(linkedContacts)
-	if len(contacts) > 0 {
-		return contacts
-	}
-	if student != nil {
-		contacts = append(contacts, ClassRosterGuardian{
-			Name:  stringPtrValue(student.GuardianName),
-			Email: stringPtrValue(student.GuardianEmail),
-			Phone: strutil.JoinUnique(stringPtrValue(student.GuardianPhone), stringPtrValue(student.GuardianContact)),
-		})
-	}
-	return normalizeClassRosterGuardians(contacts)
 }
 
 func classRosterEnrollmentGuardians(req *enrollmentModels.Request, additional []*capability.RequestGuardian) []ClassRosterGuardian {

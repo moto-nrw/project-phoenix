@@ -273,8 +273,8 @@ func buildRows(
 			row.Location = LocationUnknown
 		}
 		linked := contacts[id]
-		row.ContactName = joinUnique(linked.name, student.GuardianName)
-		row.ContactPhone = joinUnique(linked.phone, student.GuardianPhone, student.GuardianContact)
+		row.ContactName = linked.name
+		row.ContactPhone = linked.phone
 		rows = append(rows, row)
 	}
 	return rows
