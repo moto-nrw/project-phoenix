@@ -1,10 +1,9 @@
 package repositories
 
 import (
-	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
+	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/uptrace/bun"
 )
 
@@ -19,5 +18,5 @@ func NewRFIDTestRepositories(db *bun.DB) (RFIDTestRepositories, error) {
 	if err != nil {
 		return RFIDTestRepositories{}, err
 	}
-	return RFIDTestRepositories{Membership: members, RFID: authRepo.NewRFIDCardRepository(db), Student: usersRepo.NewStudentRepository(db)}, nil
+	return RFIDTestRepositories{Membership: members, RFID: authRepo.NewRFIDCardRepository(db), Student: NewStudentRepository(db)}, nil
 }

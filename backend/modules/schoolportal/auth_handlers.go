@@ -12,8 +12,7 @@ import (
 	"github.com/go-ozzo/ozzo-validation/is"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -91,6 +90,11 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !rs.AuthService.complete() {
+		common.RenderError(w, r, common.ErrorInternalServer(ErrLoginUnavailable))
+		return
+	}
+
 	ipAddress := common.GetClientIPString(r)
 	userAgent := r.Header.Get(headerUserAgent)
 
@@ -99,14 +103,14 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 		trustedDeviceCookie = c.Value
 	}
 
-	var result *authService.LoginResult
+	var result *LoginResult
 	var err error
 	if req.TenantSlug == "" {
-		result, err = rs.AuthService.LoginSchoolWithMFAGate(
+		result, err = rs.AuthService.Login(
 			r.Context(), req.Email, req.Password, ipAddress, userAgent, trustedDeviceCookie,
 		)
 	} else {
-		result, err = rs.AuthService.LoginSchoolAtTenantWithMFAGate(
+		result, err = rs.AuthService.LoginAtSchool(
 			r.Context(), req.Email, req.Password, ipAddress, userAgent, trustedDeviceCookie, req.TenantSlug,
 		)
 	}
@@ -116,20 +120,20 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch result.Status {
-	case authService.LoginStatusMFARequired:
+	case LoginStatusMFARequired:
 		tde := result.TrustedDeviceEnabled
 		tdd := result.TrustedDeviceDays
 		render.JSON(w, r, LoginResponse{
-			Status:               string(authService.LoginStatusMFARequired),
+			Status:               string(LoginStatusMFARequired),
 			ChallengeToken:       result.ChallengeToken,
 			MaskedEmail:          result.MaskedEmail,
 			TrustedDeviceEnabled: &tde,
 			TrustedDeviceDays:    &tdd,
 		})
 		return
-	case authService.LoginStatusMFAEnrollmentRequired:
+	case LoginStatusMFAEnrollmentRequired:
 		render.JSON(w, r, LoginResponse{
-			Status:                string(authService.LoginStatusMFAEnrollmentRequired),
+			Status:                string(LoginStatusMFAEnrollmentRequired),
 			AccessToken:           result.AccessToken,
 			MaskedEmail:           result.MaskedEmail,
 			MFAEnrollmentRequired: true,
@@ -138,7 +142,7 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	render.JSON(w, r, LoginResponse{
-		Status:       string(authService.LoginStatusAuthenticated),
+		Status:       string(LoginStatusAuthenticated),
 		AccessToken:  result.AccessToken,
 		RefreshToken: result.RefreshToken,
 	})
@@ -148,41 +152,34 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 // Credential-shaped failures mirror the parent login (enumeration-safe);
 // the portal-role refusal gets a stable code the frontend switches on.
 func (rs *Resource) handleLoginError(w http.ResponseWriter, r *http.Request, err error) {
-	var authErr *authService.AuthError
-	if errors.As(err, &authErr) {
-		switch {
-		case errors.Is(authErr.Err, authService.ErrInvalidCredentials),
-			errors.Is(authErr.Err, authService.ErrAccountNotFound):
-			// Mask the specific cause to prevent account enumeration.
-			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(
-				authService.ErrInvalidCredentials, "invalid_credentials"))
-		case errors.Is(authErr.Err, authService.ErrAccountInactive):
-			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(
-				authService.ErrAccountInactive, "account_inactive"))
-		case errors.Is(authErr.Err, authService.ErrAccountNoSchoolPortalRole):
-			// 403 with a stable code — reachable only after the password
-			// was accepted, so it leaks nothing about foreign accounts.
-			common.RenderError(w, r, common.ErrorForbiddenWithCode(
-				authService.ErrAccountNoSchoolPortalRole, "no_school_portal_role"))
-		case errors.Is(authErr.Err, authService.ErrTenantNotFound):
-			// The pinned school is deactivated or deleted — same 404 the
-			// switch-school path returns for that state.
-			common.RenderError(w, r, common.ErrorNotFound(authService.ErrTenantNotFound))
-		case errors.Is(authErr.Err, authService.ErrTenantAccessDenied):
-			common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantAccessDenied))
-		case errors.Is(authErr.Err, authService.ErrMFARateLimited),
-			errors.Is(authErr.Err, authService.ErrMFALocked):
-			common.RenderError(w, r, common.ErrorTooManyRequests(authErr.Err))
-		case errors.Is(authErr.Err, authService.ErrMFAStatusUnavailable):
-			// Fail-closed MFA status lookup — 503 so the client retries
-			// instead of treating it as bad credentials.
-			common.RenderError(w, r, common.ErrorServiceUnavailable(authErr.Err))
-		default:
-			common.RenderError(w, r, common.ErrorInternalServer(err))
-		}
-		return
+	switch {
+	case rs.AuthService.InvalidCredentials(err):
+		// Mask the specific cause to prevent account enumeration.
+		common.RenderError(w, r, common.ErrorUnauthorizedWithCode(
+			ErrInvalidCredentials, "invalid_credentials"))
+	case rs.AuthService.AccountInactive(err):
+		common.RenderError(w, r, common.ErrorUnauthorizedWithCode(
+			ErrAccountInactive, "account_inactive"))
+	case rs.AuthService.NoSchoolPortalRole(err):
+		// 403 with a stable code -- reachable only after the password
+		// was accepted, so it leaks nothing about foreign accounts.
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(
+			ErrAccountNoSchoolPortalRole, "no_school_portal_role"))
+	case rs.AuthService.SchoolNotFound(err):
+		// The pinned school is deactivated or deleted -- same 404 the
+		// switch-school path returns for that state.
+		common.RenderError(w, r, common.ErrorNotFound(ErrTenantNotFound))
+	case rs.AuthService.SchoolAccessDenied(err):
+		common.RenderError(w, r, common.ErrorUnauthorized(ErrTenantAccessDenied))
+	case rs.AuthService.MFABlocked(err):
+		common.RenderError(w, r, common.ErrorTooManyRequests(rs.AuthService.Cause(err)))
+	case rs.AuthService.MFAUnavailable(err):
+		// Fail-closed MFA status lookup -- 503 so the client retries
+		// instead of treating it as bad credentials.
+		common.RenderError(w, r, common.ErrorServiceUnavailable(rs.AuthService.Cause(err)))
+	default:
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 	}
-	common.RenderError(w, r, common.ErrorInternalServer(err))
 }
 
 // mfaVerify exchanges a SCHOOL-scope challenge token + email code for a
@@ -200,16 +197,11 @@ func (rs *Resource) mfaVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	verified, err := rs.MFAService.VerifyChallengeForScope(r.Context(), req.ChallengeToken, req.Code, jwt.MFAChallengeScopeSchool)
+	verified, err := rs.MFAService.VerifyChallenge(r.Context(), req.ChallengeToken, req.Code)
 	if err != nil {
-		mapMFAError(w, r, err)
+		rs.mapMFAError(w, r, err)
 		return
 	}
-	if verified == nil {
-		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
-		return
-	}
-
 	rs.completeSchoolExchange(w, r, verified.AccountID, verified.TenantID, req.RememberDevice)
 }
 
@@ -221,36 +213,31 @@ func (rs *Resource) completeSchoolExchange(w http.ResponseWriter, r *http.Reques
 	ipAddress := common.GetClientIPString(r)
 	userAgent := r.Header.Get(headerUserAgent)
 
-	accessToken, refreshToken, err := rs.AuthService.IssueSchoolTokensForAuthenticatedAccount(
+	accessToken, refreshToken, err := rs.AuthService.IssueTokens(
 		r.Context(), accountID, tenantID, ipAddress, userAgent,
 	)
 	if err != nil {
-		var authErr *authService.AuthError
-		if errors.As(err, &authErr) {
-			switch {
-			case errors.Is(authErr.Err, authService.ErrAccountNotFound):
-				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrInvalidCredentials))
-			case errors.Is(authErr.Err, authService.ErrAccountInactive):
-				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrAccountInactive))
-			case errors.Is(authErr.Err, authService.ErrAccountNoSchoolPortalRole):
-				common.RenderError(w, r, common.ErrorForbiddenWithCode(
-					authService.ErrAccountNoSchoolPortalRole, "no_school_portal_role"))
-			case errors.Is(authErr.Err, authService.ErrTenantNotFound):
-				// School deactivated or deleted between challenge and
-				// exchange — same 404 the other school surfaces return.
-				common.RenderError(w, r, common.ErrorNotFound(authService.ErrTenantNotFound))
-			case errors.Is(authErr.Err, authService.ErrTenantAccessDenied):
-				// Membership revoked between challenge and exchange. Without
-				// this case the mint guard's refusal fell through to a 500,
-				// which reads as "our fault, retry" instead of "you are no
-				// longer at this school".
-				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantAccessDenied))
-			default:
-				common.RenderError(w, r, common.ErrorInternalServer(err))
-			}
-			return
+		switch {
+		case rs.AuthService.InvalidCredentials(err):
+			common.RenderError(w, r, common.ErrorUnauthorized(ErrInvalidCredentials))
+		case rs.AuthService.AccountInactive(err):
+			common.RenderError(w, r, common.ErrorUnauthorized(ErrAccountInactive))
+		case rs.AuthService.NoSchoolPortalRole(err):
+			common.RenderError(w, r, common.ErrorForbiddenWithCode(
+				ErrAccountNoSchoolPortalRole, "no_school_portal_role"))
+		case rs.AuthService.SchoolNotFound(err):
+			// School deactivated or deleted between challenge and
+			// exchange -- same 404 the other school surfaces return.
+			common.RenderError(w, r, common.ErrorNotFound(ErrTenantNotFound))
+		case rs.AuthService.SchoolAccessDenied(err):
+			// Membership revoked between challenge and exchange. Without
+			// this case the mint guard's refusal fell through to a 500,
+			// which reads as "our fault, retry" instead of "you are no
+			// longer at this school".
+			common.RenderError(w, r, common.ErrorUnauthorized(ErrTenantAccessDenied))
+		default:
+			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}
-		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -283,9 +270,9 @@ func (rs *Resource) mfaResend(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	renewed, err := rs.MFAService.ResendChallengeForScope(r.Context(), req.ChallengeToken, common.ParseClientIP(r), jwt.MFAChallengeScopeSchool)
+	renewed, err := rs.MFAService.ResendChallenge(r.Context(), req.ChallengeToken, common.ParseClientIP(r))
 	if err != nil {
-		mapMFAError(w, r, err)
+		rs.mapMFAError(w, r, err)
 		return
 	}
 	render.JSON(w, r, common.MFAResendResponse{ChallengeToken: renewed})
@@ -318,9 +305,9 @@ func (rs *Resource) mfaEnrollStart(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
-	challengeToken, err := rs.MFAService.StartChallenge(r.Context(), claims.AccountID, claims.TenantID, jwt.MFAChallengeScopeSchool, common.ParseClientIP(r))
+	challengeToken, err := rs.MFAService.StartChallenge(r.Context(), claims.AccountID, claims.TenantID, common.ParseClientIP(r))
 	if err != nil {
-		mapMFAError(w, r, err)
+		rs.mapMFAError(w, r, err)
 		return
 	}
 	render.JSON(w, r, EnrollStartResponse{ChallengeToken: challengeToken})
@@ -374,25 +361,25 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	ctx := tenant.WithTenantID(r.Context(), claims.TenantID)
 
 	verified, err := rs.MFAService.VerifyChallengeForOwner(
-		ctx, req.ChallengeToken, req.Code, jwt.MFAChallengeScopeSchool, claims.AccountID, claims.TenantID,
+		ctx, req.ChallengeToken, req.Code, claims.AccountID, claims.TenantID,
 	)
 	if err != nil {
-		mapMFAError(w, r, err)
+		rs.mapMFAError(w, r, err)
 		return
 	}
 	// The service already refused any challenge that is not this account's at
 	// this school; re-asserting it here costs nothing and keeps the handler
 	// honest if the binding ever moves.
-	if verified == nil || verified.AccountID != claims.AccountID || verified.TenantID != claims.TenantID {
+	if verified.AccountID != claims.AccountID || verified.TenantID != claims.TenantID {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
 
 	if err := rs.MFAService.Enroll(ctx, claims.AccountID); err != nil {
-		// Already enrolled is fine — a retried request must still produce
+		// Already enrolled is fine -- a retried request must still produce
 		// a valid session.
-		if !errors.Is(err, authService.ErrMFAAlreadyEnrolled) {
-			mapMFAError(w, r, err)
+		if !rs.MFAService.AlreadyEnrolled(err) {
+			rs.mapMFAError(w, r, err)
 			return
 		}
 	}
@@ -417,26 +404,21 @@ func (rs *Resource) switchSchool(w http.ResponseWriter, r *http.Request) {
 		common.GetClientIPString(r), r.Header.Get(headerUserAgent),
 	)
 	if err != nil {
-		var authErr *authService.AuthError
-		if errors.As(err, &authErr) {
-			switch {
-			case errors.Is(authErr.Err, authService.ErrAccountNotFound):
-				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrAccountNotFound))
-			case errors.Is(authErr.Err, authService.ErrAccountInactive):
-				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrAccountInactive))
-			case errors.Is(authErr.Err, authService.ErrTenantNotFound):
-				common.RenderError(w, r, common.ErrorNotFound(authService.ErrTenantNotFound))
-			case errors.Is(authErr.Err, authService.ErrTenantAccessDenied):
-				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantAccessDenied))
-			case errors.Is(authErr.Err, authService.ErrAccountNoSchoolPortalRole):
-				common.RenderError(w, r, common.ErrorForbiddenWithCode(
-					authService.ErrAccountNoSchoolPortalRole, "no_school_portal_role"))
-			default:
-				common.RenderError(w, r, common.ErrorInternalServer(err))
-			}
-			return
+		switch {
+		case rs.AuthService.InvalidCredentials(err):
+			common.RenderError(w, r, common.ErrorUnauthorized(ErrAccountNotFound))
+		case rs.AuthService.AccountInactive(err):
+			common.RenderError(w, r, common.ErrorUnauthorized(ErrAccountInactive))
+		case rs.AuthService.SchoolNotFound(err):
+			common.RenderError(w, r, common.ErrorNotFound(ErrTenantNotFound))
+		case rs.AuthService.SchoolAccessDenied(err):
+			common.RenderError(w, r, common.ErrorUnauthorized(ErrTenantAccessDenied))
+		case rs.AuthService.NoSchoolPortalRole(err):
+			common.RenderError(w, r, common.ErrorForbiddenWithCode(
+				ErrAccountNoSchoolPortalRole, "no_school_portal_role"))
+		default:
+			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}
-		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -449,22 +431,19 @@ func (rs *Resource) switchSchool(w http.ResponseWriter, r *http.Request) {
 // requireMFA returns true when the MFA service is wired in and writes a 503
 // response otherwise. Use as the first line of every MFA handler.
 func (rs *Resource) requireMFA(w http.ResponseWriter, r *http.Request) bool {
-	return common.RequireDependency(w, r, rs.MFAService != nil, errMFAServiceUnavailable)
+	return common.RequireDependency(w, r, rs.MFAService.complete(), errMFAServiceUnavailable)
 }
 
 // mapMFAError translates known MFA-service errors into HTTP responses —
 // same mapping as the tenant portal's MFA surface.
-func mapMFAError(w http.ResponseWriter, r *http.Request, err error) {
+func (rs *Resource) mapMFAError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, authService.ErrMFAChallengeTokenInvalid),
-		errors.Is(err, authService.ErrMFACodeInvalid),
-		errors.Is(err, authService.ErrMFAUnsupportedScope):
+	case rs.MFAService.ChallengeUnusable(err):
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
-	case errors.Is(err, authService.ErrMFALocked),
-		errors.Is(err, authService.ErrMFARateLimited):
+	case rs.MFAService.Blocked(err):
 		common.RenderError(w, r, common.ErrorTooManyRequests(err))
-	case errors.Is(err, authService.ErrMFAStatusUnavailable):
-		// Fail-closed status/rate-limit lookup — the same 503 the school
+	case rs.MFAService.Unavailable(err):
+		// Fail-closed status/rate-limit lookup -- the same 503 the school
 		// login returns for it, so resend and enroll/start don't answer a
 		// transient database problem with a 500 the client won't retry.
 		common.RenderError(w, r, common.ErrorServiceUnavailable(err))

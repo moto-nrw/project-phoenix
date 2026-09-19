@@ -2,6 +2,27 @@ package architecture
 
 import "testing"
 
+func TestMaterializedCTEsKeepTheirUnderlyingTableChecks(t *testing.T) {
+	t.Parallel()
+	analyzer := semanticAnalyzer{
+		packages:    map[string]Package{"example.com/repo": {Owner: "people-directory", Role: "postgres"}},
+		dataObjects: map[string]DataObject{"users.student_profiles": {Name: "users.student_profiles", WriteOwner: "people-directory"}},
+		dataSchemas: map[string]struct{}{"users": {}},
+	}
+	for _, modifier := range []string{"MATERIALIZED", "NOT MATERIALIZED"} {
+		query := "WITH guard AS " + modifier + " (SELECT 1), identity AS MATERIALIZED (SELECT id FROM users.student_profiles CROSS JOIN guard) SELECT id FROM identity"
+		violations := analyzer.sqlStringViolations("example.com/repo", "people-directory", "Create", "NewRaw", query, true)
+		if len(violations) != 0 {
+			t.Fatalf("CTE aliases are not tables: %+v", violations)
+		}
+		query = "WITH guard AS " + modifier + " (SELECT id FROM mystery.records) SELECT id FROM guard"
+		violations = analyzer.sqlStringViolations("example.com/repo", "people-directory", "Create", "NewRaw", query, true)
+		if len(violations) != 1 || violations[0].Rule != "tables.unresolved" {
+			t.Fatalf("CTE must not hide its source: %+v", violations)
+		}
+	}
+}
+
 func TestSQLUpdateLockClauseIsNotTreatedAsTableWrite(t *testing.T) {
 	t.Parallel()
 	query := "UPDATE platform.email_outbox SET status = 'claimed' WHERE id IN " +

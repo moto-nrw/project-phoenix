@@ -347,6 +347,7 @@ function RolesPageContent() {
                 <DatabaseCreateAction
                   label="Rolle"
                   ariaLabel="Rolle erstellen"
+                  showMobileFab={false}
                   onClick={() => setShowCreateModal(true)}
                 />
               ),

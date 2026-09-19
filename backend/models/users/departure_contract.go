@@ -9,6 +9,10 @@ type (
 	DepartureMode         = departure.DepartureMode
 	DepartureDays         = departure.DepartureDays
 	AllowedDepartureModes = departure.AllowedDepartureModes
+	// DeparturePlan is the whole plan one write carries. Which projection
+	// wins, what counts as an intentional change, and how a legacy per-day map
+	// folds into the mode set are the owner's rules; see departure.Plan.
+	DeparturePlan = departure.Plan
 )
 
 const (

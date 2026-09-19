@@ -9,12 +9,12 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/localization"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
 )
 

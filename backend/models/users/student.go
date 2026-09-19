@@ -1,13 +1,12 @@
 package users
 
 import (
+	"database/sql"
 	"errors"
 	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
-
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -50,16 +49,26 @@ const MaxDepartureCompanionNoteLen = departure.MaxDepartureCompanionNoteLen
 // violation to a 400 instead of leaking the model error as a 500 (#1694).
 var ErrDepartureCompanionNoteRequired = departure.ErrDepartureCompanionNoteRequired
 
+// ErrStudentRowMissing says a child the caller named has no row. It lives here
+// because the two sides that need it — the People Directory composition seam
+// that observes the owner's not-found, and the retained student service that
+// translates it into the error shape its handlers branch on — may not import
+// each other (#3349).
+var ErrStudentRowMissing = errors.New("student row not found")
+
+// MissingStudentError is the error a lookup returns for a child that is not
+// there: a DatabaseError wrapping both base.ErrNotFound and sql.ErrNoRows,
+// which is the shape the retained callers branch on.
+func MissingStudentError(op string) error {
+	return &base.DatabaseError{Op: op, Err: errors.Join(base.ErrNotFound, sql.ErrNoRows, ErrStudentRowMissing)}
+}
+
 // Student represents a student in the system
 type Student struct {
 	base.Model `bun:"schema:users,table:students"`
 	base.TenantModel
 	PersonID          int64   `bun:"person_id,notnull" json:"person_id"`
 	SchoolClass       string  `bun:"school_class,notnull" json:"school_class"`
-	GuardianName      *string `bun:"guardian_name" json:"guardian_name,omitempty"`       // Optional: Legacy field, use guardian_profiles instead
-	GuardianContact   *string `bun:"guardian_contact" json:"guardian_contact,omitempty"` // Optional: Legacy field, use guardian_profiles instead
-	GuardianEmail     *string `bun:"guardian_email" json:"guardian_email,omitempty"`
-	GuardianPhone     *string `bun:"guardian_phone" json:"guardian_phone,omitempty"`
 	GroupID           *int64  `bun:"group_id" json:"group_id,omitempty"`
 	AddressStreet     *string `bun:"address_street" json:"address_street,omitempty"`
 	AddressCity       *string `bun:"address_city" json:"address_city,omitempty"`
@@ -186,18 +195,6 @@ func (s *Student) Validate() error {
 
 	s.SchoolClass = strings.TrimSpace(s.SchoolClass)
 
-	// Normalize optional legacy guardian fields
-	trimPtrString(s.GuardianName)
-	trimPtrStringOrNil(&s.GuardianContact)
-
-	// Validate optional contact fields
-	if err := validatePtrEmail(s.GuardianEmail, "guardian email"); err != nil {
-		return err
-	}
-	if err := validatePtrPhone(s.GuardianPhone, "guardian phone"); err != nil {
-		return err
-	}
-
 	trimPtrStringOrNil(&s.AddressStreet)
 	trimPtrStringOrNil(&s.AddressCity)
 	trimPtrStringOrNil(&s.AddressPostalCode)
@@ -243,13 +240,6 @@ func (s *Student) MarkDepartureCompanionDays(days ...string) {
 	}
 }
 
-// trimPtrString trims whitespace from a non-nil string pointer
-func trimPtrString(s *string) {
-	if s != nil && *s != "" {
-		*s = strings.TrimSpace(*s)
-	}
-}
-
 // trimPtrStringOrNil trims whitespace and sets to nil if empty
 func trimPtrStringOrNil(sp **string) {
 	if *sp == nil || **sp == "" {
@@ -261,36 +251,6 @@ func trimPtrStringOrNil(sp **string) {
 	} else {
 		**sp = trimmed
 	}
-}
-
-// validatePtrEmail validates an optional email pointer
-func validatePtrEmail(email *string, fieldName string) error {
-	if email == nil || *email == "" {
-		return nil
-	}
-	*email = strings.TrimSpace(*email)
-	// Pinned to the shared canonical pattern (email_validation.go) so the
-	// rule enforced here at student creation matches enrollment submit-time
-	// validation exactly — a value accepted at submit can't be rejected here.
-	if !contact.IsValidEmailFormat(*email) {
-		return errors.New("invalid " + fieldName + " format")
-	}
-	return nil
-}
-
-// validatePtrPhone validates an optional phone pointer
-func validatePtrPhone(phone *string, fieldName string) error {
-	if phone == nil || *phone == "" {
-		return nil
-	}
-	*phone = strings.TrimSpace(*phone)
-	// Pinned to the canonical optionalPhonePattern (phone_validation.go)
-	// so this student-creation check never diverges from the submit/edit
-	// validation in the enrollment service.
-	if !contact.IsValidPhoneFormat(*phone) {
-		return errors.New("invalid " + fieldName + " format")
-	}
-	return nil
 }
 
 // SetPerson links this student to a person

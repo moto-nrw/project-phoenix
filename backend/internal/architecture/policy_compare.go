@@ -254,12 +254,16 @@ func ownerPackagesAreCandidateCreated(candidate *Policy, owner string, createdPa
 
 func readProjectionLoosenings(base, candidate *Policy, createdPackages map[string]struct{}) []string {
 	baseGrants := projectionGrants(base)
+	replacements := studentProjectionReplacementGrants(base, candidate)
 	baseOwners := ownersByID(base)
 	candidatePackages := candidate.packageMap()
 	candidateOwners := ownersByID(candidate)
 	var problems []string
 	for grant := range projectionGrants(candidate) {
 		if _, exists := baseGrants[grant]; !exists {
+			if _, replaced := replacements[grant]; replaced {
+				continue
+			}
 			packagePath := strings.SplitN(grant, "|", 2)[0]
 			pkg, classified := candidatePackages[packagePath]
 			_, packageCreated := createdPackages[packagePath]

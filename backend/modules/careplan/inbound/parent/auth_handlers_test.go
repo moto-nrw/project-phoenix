@@ -13,24 +13,36 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
-// stubParentAuthService embeds the AuthService interface so all methods
-// exist at compile time. Only LoginParentWithAudit is overridden — calling
-// any other method nil-derefs and fails the test loudly, which is exactly
-// what we want (the parent login handler must not touch anything else).
+// stubParentAuthService supplies the login runtime the composition root
+// binds in production. Only the login closure is stood up — a handler that
+// reached for anything else would nil-deref and fail the test loudly, which
+// is exactly what we want (the parent login handler must not touch anything
+// else).
 type stubParentAuthService struct {
-	authService.AuthService
 	loginParent func(ctx context.Context, email, password, ip, ua string) (string, string, error)
 	resetParent func(ctx context.Context, email string) error
 	confirm     func(ctx context.Context, token, newPassword string) error
 }
 
-func (s *stubParentAuthService) LoginParentWithAudit(
-	ctx context.Context, email, password, ipAddress, userAgent string,
-) (string, string, error) {
-	return s.loginParent(ctx, email, password, ipAddress, userAgent)
+// The login refusals the stub reports. They are the stub's own sentinels, so
+// a test proves the handler's mapping and not the owner's error shapes.
+var (
+	errStubInvalidCredentials = errors.New("stub: invalid credentials")
+	errStubAccountInactive    = errors.New("stub: account is inactive")
+	errStubNotAGuardian       = errors.New("stub: account is not a guardian")
+)
+
+func (s *stubParentAuthService) loginRuntime() parent.LoginRuntime {
+	return parent.LoginRuntime{
+		Login: func(ctx context.Context, email, password, ipAddress, userAgent string) (string, string, error) {
+			return s.loginParent(ctx, email, password, ipAddress, userAgent)
+		},
+		InvalidCredentials: func(err error) bool { return errors.Is(err, errStubInvalidCredentials) },
+		AccountInactive:    func(err error) bool { return errors.Is(err, errStubAccountInactive) },
+		NotAGuardian:       func(err error) bool { return errors.Is(err, errStubNotAGuardian) },
+	}
 }
 
 // The reset runtime the composition root binds (#3332), stood up here from
@@ -71,7 +83,7 @@ func (s *stubParentAuthService) resetRuntime() parent.PasswordResetRuntime {
 // change to the handler reaches into them, the nil deref will surface as a
 // test failure, which is the desired guardrail.
 func newTestResource(svc *stubParentAuthService) *parent.Resource {
-	return parent.NewResource(parent.ResourceConfig{Auth: svc, Resets: svc.resetRuntime()})
+	return parent.NewResource(parent.ResourceConfig{Auth: svc.loginRuntime(), Resets: svc.resetRuntime()})
 }
 
 // postLogin runs a single POST against the login handler via the resource's
@@ -134,7 +146,7 @@ func TestParentLogin_InvalidCredentials_Returns401WithCode(t *testing.T) {
 
 	svc := &stubParentAuthService{
 		loginParent: func(_ context.Context, _, _, _, _ string) (string, string, error) {
-			return "", "", &authService.AuthError{Op: "login", Err: authService.ErrInvalidCredentials}
+			return "", "", errStubInvalidCredentials
 		},
 	}
 	rr := postLogin(t, newTestResource(svc), map[string]string{
@@ -157,7 +169,7 @@ func TestParentLogin_AccountNotFound_MaskedAsInvalidCredentials(t *testing.T) {
 	// emails exist — that's a security regression, not a test bug.
 	svc := &stubParentAuthService{
 		loginParent: func(_ context.Context, _, _, _, _ string) (string, string, error) {
-			return "", "", &authService.AuthError{Op: "login", Err: authService.ErrAccountNotFound}
+			return "", "", errStubInvalidCredentials
 		},
 	}
 	rr := postLogin(t, newTestResource(svc), map[string]string{
@@ -180,7 +192,7 @@ func TestParentLogin_AccountInactive_Returns401WithDistinctCode(t *testing.T) {
 	// about why login fails — that was the bug this entire fix addressed.
 	svc := &stubParentAuthService{
 		loginParent: func(_ context.Context, _, _, _, _ string) (string, string, error) {
-			return "", "", &authService.AuthError{Op: "login", Err: authService.ErrAccountInactive}
+			return "", "", errStubAccountInactive
 		},
 	}
 	rr := postLogin(t, newTestResource(svc), map[string]string{
@@ -204,7 +216,7 @@ func TestParentLogin_NotAGuardian_Returns403WithCode(t *testing.T) {
 	// — that mismatch is exactly what this test exists to prevent.
 	svc := &stubParentAuthService{
 		loginParent: func(_ context.Context, _, _, _, _ string) (string, string, error) {
-			return "", "", &authService.AuthError{Op: "parent login", Err: authService.ErrAccountNoGuardianRole}
+			return "", "", errStubNotAGuardian
 		},
 	}
 	rr := postLogin(t, newTestResource(svc), map[string]string{

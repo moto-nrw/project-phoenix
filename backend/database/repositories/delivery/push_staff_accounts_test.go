@@ -7,8 +7,8 @@ import (
 	"time"
 
 	deliveryRepo "github.com/moto-nrw/project-phoenix/database/repositories/delivery"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
+	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

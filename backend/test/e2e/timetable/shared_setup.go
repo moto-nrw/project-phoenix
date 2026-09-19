@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/viper"
 
 	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
 // These aliases keep the existing production-scoped legacy imports in one

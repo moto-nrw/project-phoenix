@@ -138,7 +138,7 @@ const AUDIENCE_OPTIONS: ReadonlyArray<{
   {
     value: "existing_students",
     label: AUDIENCE_LABELS.existing_students,
-    hint: "Für Wiederanmeldungen: Nur Kinder, die an der Schule bereits angemeldet sind, können sich anmelden. Neue Kinder werden abgelehnt.",
+    hint: "Für Wiederanmeldungen: Nur Kinder, die an der Schule bereits angemeldet sind, können sich anmelden. Neue Kinder werden abgelehnt. moto zeigt dann unter „Rücklauf“, welche Kinder noch fehlen.",
   },
   {
     value: "linked_parents",

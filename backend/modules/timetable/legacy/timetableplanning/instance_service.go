@@ -992,14 +992,12 @@ func (s *instanceService) Complete(ctx context.Context, instanceID int64) (*sche
 		return nil, &ScheduleError{Op: "complete instance: end active.group", Err: err}
 	}
 
-	now := s.now()
-	instance.Status = scheduleModel.InstanceStatusCompleted
-	instance.CompletedAt = &now
-	instance.ReopenUntil = ptrTo(now.Add(5 * time.Minute))
-	completedByAccountID, _ := ctx.Value(lifecycleActorKey).(int64)
-	if completedByAccountID > 0 {
-		instance.CompletedBy = ptrTo(completedByAccountID)
+	completedAt, err := s.deps.RecoveryRepo.CompletionTimestamp(ctx)
+	if err != nil {
+		return nil, &ScheduleError{Op: "complete instance: read transaction timestamp", Err: err}
 	}
+	completedByAccountID, _ := ctx.Value(lifecycleActorKey).(int64)
+	instance.MarkCompleted(completedAt, completedAt.Add(5*time.Minute), completedByAccountID)
 	if err := s.updateLifecycleColumns(ctx, instance, "status", "completed_at", "completed_by", "reopen_until", "completion_snapshot"); err != nil {
 		return nil, &ScheduleError{Op: "complete instance: update", Err: err}
 	}

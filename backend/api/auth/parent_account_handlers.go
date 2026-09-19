@@ -8,8 +8,20 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
+
+// parentAccountResponse renders one parent account as the routes always did.
+func parentAccountResponse(account identityaccess.ParentAccount) *ParentAccountResponse {
+	return &ParentAccountResponse{
+		ID:        account.ID,
+		Email:     account.Email,
+		Username:  account.Username,
+		Active:    account.Active,
+		CreatedAt: account.CreatedAt.Format(time.RFC3339),
+		UpdatedAt: account.UpdatedAt.Format(time.RFC3339),
+	}
+}
 
 // createParentAccount handles creating a parent account
 func (rs *Resource) createParentAccount(w http.ResponseWriter, r *http.Request) {
@@ -21,13 +33,13 @@ func (rs *Resource) createParentAccount(w http.ResponseWriter, r *http.Request) 
 
 	parentAccount, err := rs.AuthService.CreateParentAccount(r.Context(), req.Email, req.Username, req.Password)
 	if err != nil {
-		var authErr *authService.AuthError
+		var authErr *identityaccess.AuthenticationError
 		if errors.As(err, &authErr) {
 			switch {
-			case errors.Is(authErr.Err, authService.ErrEmailAlreadyExists):
-				common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrEmailAlreadyExists))
-			case errors.Is(authErr.Err, authService.ErrUsernameAlreadyExists):
-				common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrUsernameAlreadyExists))
+			case errors.Is(authErr.Err, identityaccess.ErrEmailAlreadyExists):
+				common.RenderError(w, r, common.ErrorInvalidRequest(identityaccess.ErrEmailAlreadyExists))
+			case errors.Is(authErr.Err, identityaccess.ErrUsernameAlreadyExists):
+				common.RenderError(w, r, common.ErrorInvalidRequest(identityaccess.ErrUsernameAlreadyExists))
 			default:
 				common.RenderError(w, r, common.ErrorInternalServer(err))
 			}
@@ -37,19 +49,7 @@ func (rs *Resource) createParentAccount(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	resp := &ParentAccountResponse{
-		ID:        parentAccount.ID,
-		Email:     parentAccount.Email,
-		Active:    parentAccount.Active,
-		CreatedAt: parentAccount.CreatedAt.Format(time.RFC3339),
-		UpdatedAt: parentAccount.UpdatedAt.Format(time.RFC3339),
-	}
-
-	if parentAccount.Username != nil {
-		resp.Username = *parentAccount.Username
-	}
-
-	common.Respond(w, r, http.StatusCreated, resp, "Parent account created successfully")
+	common.Respond(w, r, http.StatusCreated, parentAccountResponse(parentAccount), "Parent account created successfully")
 }
 
 // getParentAccountByID handles getting a parent account by ID
@@ -59,25 +59,13 @@ func (rs *Resource) getParentAccountByID(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	parentAccount, err := rs.AuthService.GetParentAccountByID(r.Context(), id)
+	parentAccount, err := rs.AuthService.GetParentAccountByID(r.Context(), int64(id))
 	if err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("parent account not found")))
 		return
 	}
 
-	resp := &ParentAccountResponse{
-		ID:        parentAccount.ID,
-		Email:     parentAccount.Email,
-		Active:    parentAccount.Active,
-		CreatedAt: parentAccount.CreatedAt.Format(time.RFC3339),
-		UpdatedAt: parentAccount.UpdatedAt.Format(time.RFC3339),
-	}
-
-	if parentAccount.Username != nil {
-		resp.Username = *parentAccount.Username
-	}
-
-	common.Respond(w, r, http.StatusOK, resp, "Parent account retrieved successfully")
+	common.Respond(w, r, http.StatusOK, parentAccountResponse(parentAccount), "Parent account retrieved successfully")
 }
 
 // updateParentAccount handles updating a parent account
@@ -93,7 +81,7 @@ func (rs *Resource) updateParentAccount(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	parentAccount, err := rs.AuthService.GetParentAccountByID(r.Context(), id)
+	parentAccount, err := rs.AuthService.GetParentAccountByID(r.Context(), int64(id))
 	if err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("parent account not found")))
 		return
@@ -101,8 +89,7 @@ func (rs *Resource) updateParentAccount(w http.ResponseWriter, r *http.Request) 
 
 	parentAccount.Email = req.Email
 	if req.Username != "" {
-		username := req.Username
-		parentAccount.Username = &username
+		parentAccount.Username = req.Username
 	}
 
 	if err := rs.AuthService.UpdateParentAccount(r.Context(), parentAccount); err != nil {
@@ -115,23 +102,24 @@ func (rs *Resource) updateParentAccount(w http.ResponseWriter, r *http.Request) 
 
 // listParentAccounts handles listing parent accounts
 func (rs *Resource) listParentAccounts(w http.ResponseWriter, r *http.Request) {
-	// Parse query parameters for filtering
-	filters := make(map[string]interface{})
+	var filter identityaccess.ParentAccountFilter
 
 	if email := r.URL.Query().Get("email"); email != "" {
-		filters["email"] = email
+		filter.Email = email
 	}
 
 	if active := r.URL.Query().Get("active"); active != "" {
 		switch active {
 		case "true":
-			filters["active"] = true
+			value := true
+			filter.Active = &value
 		case "false":
-			filters["active"] = false
+			value := false
+			filter.Active = &value
 		}
 	}
 
-	parentAccounts, err := rs.AuthService.ListParentAccounts(r.Context(), filters)
+	parentAccounts, err := rs.AuthService.ListParentAccounts(r.Context(), filter)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -139,19 +127,7 @@ func (rs *Resource) listParentAccounts(w http.ResponseWriter, r *http.Request) {
 
 	responses := make([]*ParentAccountResponse, 0, len(parentAccounts))
 	for _, account := range parentAccounts {
-		resp := &ParentAccountResponse{
-			ID:        account.ID,
-			Email:     account.Email,
-			Active:    account.Active,
-			CreatedAt: account.CreatedAt.Format(time.RFC3339),
-			UpdatedAt: account.UpdatedAt.Format(time.RFC3339),
-		}
-
-		if account.Username != nil {
-			resp.Username = *account.Username
-		}
-
-		responses = append(responses, resp)
+		responses = append(responses, parentAccountResponse(account))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Parent accounts retrieved successfully")

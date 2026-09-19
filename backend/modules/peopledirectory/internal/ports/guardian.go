@@ -20,4 +20,7 @@ type GuardianStore interface {
 	ListByIDs(context.Context, []int64) ([]domain.Guardian, domain.OperationStats, error)
 	// CountLinks counts the links per guardian profile.
 	CountLinks(context.Context, []int64) (map[int64]int, domain.OperationStats, error)
+	// ListAccountLinksByStudents returns the links of the children whose
+	// guardian holds a portal account.
+	ListAccountLinksByStudents(context.Context, []int64) ([]domain.GuardianLink, domain.OperationStats, error)
 }

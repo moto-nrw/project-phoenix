@@ -19,6 +19,15 @@ func (m *Module) ChildrenByID(ctx context.Context, ids []int64) ([]*RequestChild
 	})
 	return result, err
 }
+func (m *Module) PhaseResponseChildren(ctx context.Context, phaseID int64, statuses []string) ([]PhaseResponseChild, error) {
+	var result []PhaseResponseChild
+	err := m.transactions.RunInTx(ctx, func(ctx context.Context) error {
+		var err error
+		result, err = m.engine.PhaseResponseChildren(ctx, phaseID, statuses)
+		return err
+	})
+	return result, err
+}
 func (m *Module) ChildrenForRequest(ctx context.Context, requestID int64, forUpdate bool) ([]*RequestChild, error) {
 	var result []*RequestChild
 	err := m.transactions.RunInTx(ctx, func(ctx context.Context) error {

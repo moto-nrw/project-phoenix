@@ -11,15 +11,15 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
+	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // SchoolAccountMFAResource serves the operator MFA admin actions for school
 // staff and the account-wide MFA override.
 type SchoolAccountMFAResource struct {
-	TenantMFAService authSvc.MFAService
+	TenantMFAService identityoperator.AccountMFA
 }
 
 // MFAAdminStateResponse mirrors the tenant-side shape so the same
@@ -56,7 +56,7 @@ type MFAAdminOverrideSetRequest struct {
 func (req *MFAAdminOverrideSetRequest) Bind(_ *http.Request) error {
 	req.Override = strings.TrimSpace(req.Override)
 	req.Reason = strings.TrimSpace(req.Reason)
-	if !authSvc.IsValidMFAAdminOverride(req.Override) {
+	if !identityoperator.IsValidMFAAdminOverride(req.Override) {
 		return errors.New("override must be one of: none, force_off, force_on")
 	}
 	return validation.ValidateStruct(req,
@@ -88,7 +88,7 @@ func (rs *SchoolAccountMFAResource) resolveOperatorMFAAdminTarget(w http.Respons
 	if !ok {
 		return 0, 0, false
 	}
-	exists, err := rs.TenantMFAService.AccountBelongsToTenant(r.Context(), accountID, schoolID)
+	exists, err := rs.TenantMFAService.AccountBelongsToSchool(r.Context(), accountID, schoolID)
 	if err != nil {
 		common.RenderError(w, r, ErrInternal("failed to verify account membership"))
 		return 0, 0, false
@@ -118,7 +118,7 @@ func (rs *SchoolAccountMFAResource) GetSchoolAccountMFAState(w http.ResponseWrit
 	if !ok {
 		return
 	}
-	enrolled, err := rs.TenantMFAService.HasEnrollment(r.Context(), accountID)
+	enrolled, err := rs.TenantMFAService.HasMFAEnrollment(r.Context(), accountID)
 	if err != nil {
 		common.RenderError(w, r, ErrInternal("failed to read MFA enrollment"))
 		return
@@ -132,7 +132,7 @@ func (rs *SchoolAccountMFAResource) GetSchoolAccountMFAState(w http.ResponseWrit
 	if err != nil {
 		// Read-side failure shouldn't block the modal from rendering —
 		// fall back to "none" and let the admin still trigger writes.
-		override = authSvc.MFAAdminOverrideNone
+		override = identityoperator.MFAAdminOverrideNone
 	}
 	common.Respond(w, r, http.StatusOK, &MFAAdminStateResponse{
 		Enrolled: enrolled,
@@ -161,8 +161,8 @@ func (rs *SchoolAccountMFAResource) ResetSchoolAccountMFA(w http.ResponseWriter,
 		return
 	}
 	ctx := withTenantContext(r, schoolID).Context()
-	if err := rs.TenantMFAService.OperatorAdminDisable(ctx, operatorID, schoolID, accountID, req.Reason); err != nil {
-		if errors.Is(err, authSvc.ErrMFAPermissionDenied) {
+	if err := rs.TenantMFAService.OperatorDisableMFA(ctx, operatorID, schoolID, accountID, req.Reason); err != nil {
+		if errors.Is(err, identityoperator.ErrMFAPermissionDenied) {
 			common.RenderError(w, r, ErrForbidden("Permission denied"))
 			return
 		}
@@ -195,11 +195,11 @@ func (rs *SchoolAccountMFAResource) SetSchoolAccountMFAOverride(w http.ResponseW
 	}
 	ctx := withTenantContext(r, schoolID).Context()
 	if err := rs.TenantMFAService.OperatorSetMFAOverride(ctx, operatorID, schoolID, accountID, req.Override, req.Reason); err != nil {
-		if errors.Is(err, authSvc.ErrMFAInvalidOverride) {
+		if errors.Is(err, identityoperator.ErrMFAInvalidOverride) {
 			common.RenderError(w, r, ErrInvalidRequest(err))
 			return
 		}
-		if errors.Is(err, authSvc.ErrMFAPermissionDenied) {
+		if errors.Is(err, identityoperator.ErrMFAPermissionDenied) {
 			common.RenderError(w, r, ErrForbidden("Permission denied"))
 			return
 		}
@@ -247,14 +247,14 @@ func (rs *SchoolAccountMFAResource) GetAccountMFAGlobalOverride(w http.ResponseW
 	if !ok {
 		return
 	}
-	enrolled, err := rs.TenantMFAService.HasEnrollment(r.Context(), accountID)
+	enrolled, err := rs.TenantMFAService.HasMFAEnrollment(r.Context(), accountID)
 	if err != nil {
 		common.RenderError(w, r, ErrInternal("failed to read MFA enrollment"))
 		return
 	}
 	override, err := rs.TenantMFAService.GetGlobalMFAOverride(r.Context(), accountID)
 	if err != nil {
-		override = authSvc.MFAAdminOverrideNone
+		override = identityoperator.MFAAdminOverrideNone
 	}
 	common.Respond(w, r, http.StatusOK, &MFAGlobalOverrideStateResponse{
 		Enrolled: enrolled,
@@ -286,11 +286,11 @@ func (rs *SchoolAccountMFAResource) SetAccountMFAGlobalOverride(w http.ResponseW
 		return
 	}
 	if err := rs.TenantMFAService.OperatorSetGlobalMFAOverride(r.Context(), operatorID, accountID, req.Override, req.Reason); err != nil {
-		if errors.Is(err, authSvc.ErrMFAInvalidOverride) {
+		if errors.Is(err, identityoperator.ErrMFAInvalidOverride) {
 			common.RenderError(w, r, ErrInvalidRequest(err))
 			return
 		}
-		if errors.Is(err, authSvc.ErrMFAPermissionDenied) {
+		if errors.Is(err, identityoperator.ErrMFAPermissionDenied) {
 			common.RenderError(w, r, ErrForbidden("Permission denied"))
 			return
 		}

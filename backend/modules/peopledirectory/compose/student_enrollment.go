@@ -16,16 +16,12 @@ func (e engine) LockEnrollmentClassWrites(ctx context.Context) error {
 	return mapError(e.students.LockEnrollmentClassWrites(ctx))
 }
 
-func (e engine) LockEnrollmentClassWritesExclusive(ctx context.Context) error {
-	return mapError(e.students.LockEnrollmentClassWritesExclusive(ctx))
-}
-
 func (e engine) ApplyEnrollmentProfile(ctx context.Context, id int64, input peopledirectory.EnrollmentProfilePatch) error {
 	return mapError(e.students.ApplyEnrollmentProfile(ctx, id, domain.EnrollmentProfilePatch(input)))
 }
 
 func (e engine) CreateEnrollmentStudent(ctx context.Context, input peopledirectory.EnrollmentStudent) (peopledirectory.CreatedEnrollmentStudent, error) {
-	value, err := e.students.CreateEnrollment(ctx, domain.EnrollmentStudent(input))
+	value, err := e.students.CreateEnrollment(ctx, enrollmentInput(input))
 	if err != nil {
 		return peopledirectory.CreatedEnrollmentStudent{}, mapError(err)
 	}
@@ -37,5 +33,14 @@ func (e engine) CreateEnrollmentStudent(ctx context.Context, input peopledirecto
 }
 
 func (e engine) RenewEnrollmentStudent(ctx context.Context, id int64, input peopledirectory.EnrollmentStudent) error {
-	return mapError(e.students.RenewEnrollment(ctx, id, domain.EnrollmentStudent(input)))
+	return mapError(e.students.RenewEnrollment(ctx, id, enrollmentInput(input)))
+}
+
+func enrollmentInput(input peopledirectory.EnrollmentStudent) domain.EnrollmentStudent {
+	result := domain.EnrollmentStudent{PersonID: input.PersonID, SchoolClass: input.SchoolClass, Status: input.Status, EnrolledFrom: input.EnrolledFrom, EnrolledUntil: input.EnrolledUntil}
+	if input.InitialProfile != nil {
+		profile := domain.EnrollmentProfilePatch(*input.InitialProfile)
+		result.InitialProfile = &profile
+	}
+	return result
 }

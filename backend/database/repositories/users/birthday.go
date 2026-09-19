@@ -5,6 +5,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentdirectoryview"
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -66,9 +69,7 @@ func (r *StudentRepository) FindBirthdaysOn(ctx context.Context, days []users.Mo
 	}
 
 	var rows []birthdayRow
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&rows).
-		ModelTableExpr(`users.students AS "student"`).
+	query := studentdirectoryview.ModelQuery(base.GetDB(ctx, r.db), tenant.FromContext(ctx), &rows).
 		ColumnExpr(`"student".id AS id`).
 		ColumnExpr(`"person".first_name AS first_name, "person".last_name AS last_name`).
 		ColumnExpr(`"person".birthday AS birthday`).

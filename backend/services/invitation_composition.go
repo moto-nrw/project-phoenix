@@ -2,17 +2,16 @@ package services
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
-	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-nrw/project-phoenix/services/auth"
+	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -93,7 +92,10 @@ func invitationDependencies(wiring *invitationWiring, invitations func() identit
 type invitationGrantPolicy struct{}
 
 func (invitationGrantPolicy) CanGrantRole(role identityaccess.RoleFacts, actorPermissions, rolePermissions []string) bool {
-	return auth.CanGrantRole(auth.RoleFacts(role), actorPermissions, rolePermissions)
+	return securityruntime.CanGrantRole(securityruntime.GrantedRole{
+		Name: role.Name, BaseRole: role.BaseRole, IsSystem: role.IsSystem,
+		TenantBound: role.TenantID != nil, Permissions: rolePermissions,
+	}, actorPermissions)
 }
 
 // invitationOwnerTokens verifies that the caller holds a live session of the
@@ -223,47 +225,6 @@ func (d invitationDelivery) recordDelivery(ctx context.Context, meta email.Deliv
 // and its commit hooks while keeping the tenant and the runtime.
 func detachedContext(ctx context.Context) context.Context {
 	return tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(context.WithoutCancel(ctx)))
-}
-
-// --- the retained envelope the operator provisioning routes read ------------
-
-// The operator provisioning handlers of Organisation & Tenancy classify a
-// refused school-admin invitation on the retained sentinels, and they may
-// not name the owner's contract. The root translates for them, so the
-// operator wire format keeps its texts and codes (#3332).
-var invitationRetainedSentinels = []retainedSentinel{
-	{identityaccess.ErrInvitationNotFound, auth.ErrInvitationNotFound},
-	{identityaccess.ErrInvitationExpired, auth.ErrInvitationExpired},
-	{identityaccess.ErrInvitationUsed, auth.ErrInvitationUsed},
-	{identityaccess.ErrInvitationTenantDeleted, auth.ErrInvitationTenantDeleted},
-	{identityaccess.ErrInvitationNameRequired, auth.ErrInvitationNameRequired},
-	{identityaccess.ErrAccountAlreadyHasTenantAccess, auth.ErrAccountAlreadyHasTenantAccess},
-	{identityaccess.ErrInvitationPasswordMismatch, auth.ErrPasswordMismatch},
-	{identityaccess.ErrRoleGrantNotPermitted, auth.ErrRoleGrantNotPermitted},
-	{identityaccess.ErrLehrkraftNoCaregiver, auth.ErrLehrkraftNoCaregiver},
-}
-
-// invitationServiceError translates the public contract into the retained
-// envelope. It runs only where a consumer that may not name the owner
-// switches on the retained sentinels.
-func invitationServiceError(err error) error {
-	if err == nil {
-		return nil
-	}
-	var operation *identityaccess.AuthenticationError
-	if errors.As(err, &operation) && operation == err {
-		return &auth.AuthError{Op: operation.Op, Err: invitationServiceError(operation.Err)}
-	}
-	for _, sentinel := range invitationRetainedSentinels {
-		if !errors.Is(err, sentinel.public) {
-			continue
-		}
-		if err == sentinel.public {
-			return sentinel.retained
-		}
-		return &retainedError{text: err.Error(), sentinel: sentinel.retained, cause: err}
-	}
-	return authServiceError(err)
 }
 
 // InvitationCapability is what the invitation routes consume: the school

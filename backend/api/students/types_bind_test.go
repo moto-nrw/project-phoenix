@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/stretchr/testify/require"
 )
 
@@ -136,15 +136,15 @@ func TestUpdateStudentRequestBind_CompanionCount(t *testing.T) {
 
 	t.Run("a list at the cap is accepted", func(t *testing.T) {
 		req := &UpdateStudentRequest{
-			Companions:            entries(usersService.MaxStudentCompanions),
+			Companions:            entries(carelifecycle.MaxStudentCompanions),
 			CompanionsFingerprint: &fingerprint,
 		}
 		require.NoError(t, req.Bind(nil))
 	})
 
 	t.Run("a list over the cap is rejected before any lock", func(t *testing.T) {
-		req := &UpdateStudentRequest{Companions: entries(usersService.MaxStudentCompanions + 1)}
-		require.ErrorIs(t, req.Bind(nil), usersService.ErrTooManyCompanions)
+		req := &UpdateStudentRequest{Companions: entries(carelifecycle.MaxStudentCompanions + 1)}
+		require.ErrorIs(t, req.Bind(nil), carelifecycle.ErrTooManyCompanions)
 	})
 
 	t.Run("no companions key is untouched", func(t *testing.T) {

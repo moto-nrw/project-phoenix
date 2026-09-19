@@ -228,6 +228,44 @@ func TestOfferingPickupProjection_StaffOverrideSurvivesOfferingEdit(t *testing.T
 	assert.Equal(t, "16:00", reset.PickupTime.Format("15:04"))
 }
 
+func TestOfferingPickupResetClearsManualWeekdayExtension(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-1))
+	ctx := testpkg.Ctx(t)
+	offering := createPickupTimeOffering(t, env, "gehzeit-reset-extension",
+		[]string{"mon"}, map[string]string{"mon": "16:00"})
+	studentID, _ := submitAndApproveOfferingChild(
+		t, env, offering.ID, "gehzeit-reset-extension@example.com", "Aufgabe", 2,
+	)
+	author := testpkg.CreateTestStaff(t, env.db, "Gehzeit", "Aufgabe")
+	testpkg.CreateTestPickupSchedule(t, env.db, studentID, scheduleModels.WeekdayMonday, author.ID, "16:00")
+	monday := nextWeekday(decisionTestToday, time.Monday)
+
+	var clearedStudentID int64
+	var clearedWeekday int
+	resetter := enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
+		PickupScheduleRepo: env.repos.StudentPickupSchedule,
+		PickupBaselines: carescheduletest.NewPickupBaselineService(
+			env.repos.StudentPickupSchedule,
+			approvedOfferingTestProjection(env.repos),
+			env.repos.CareOffering,
+		),
+		ClearPickupWeekdayExtension: func(_ context.Context, gotStudentID int64, gotWeekday int) error {
+			clearedStudentID, clearedWeekday = gotStudentID, gotWeekday
+			return nil
+		},
+	})
+
+	reset, ok := resetter.(enrollmentService.OfferingPickupTimeService)
+	require.True(t, ok)
+	require.NoError(t, reset.ResetStudentPickupDayToOffering(ctx, studentID, monday))
+	assert.Equal(t, studentID, clearedStudentID)
+	assert.Equal(t, scheduleModels.WeekdayMonday, clearedWeekday)
+}
+
 func TestOfferingPickupProjection_IgnoresInactiveOffering(t *testing.T) {
 	t.Parallel()
 

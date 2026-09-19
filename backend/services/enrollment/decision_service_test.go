@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	"log/slog"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/stretchr/testify/assert"
@@ -26,8 +28,10 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule/carescheduletest"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -134,45 +138,68 @@ func newDecisionServiceForTestWithDependencies(
 	studentConsents enrollmentService.StudentConsentAuditor,
 	outboxes ...platformModels.OutboxEnqueuer,
 ) enrollmentService.DecisionService {
+	return newDecisionServiceForTestWithPickupExtensions(nil, env, settings, lockTemplateRecurrence, careWithdrawal, studentConsents, outboxes...)
+}
+
+func newDecisionServiceForTestWithPickupExtensions(
+	t *testing.T,
+	env *rolloverTestEnv,
+	settings enrollmentService.DecisionSettingsResolver,
+	lockTemplateRecurrence func(context.Context) error,
+	careWithdrawal enrollmentService.CareWithdrawalReconciler,
+	studentConsents enrollmentService.StudentConsentAuditor,
+	outboxes ...platformModels.OutboxEnqueuer,
+) enrollmentService.DecisionService {
 	repoFactory := env.repos
 	var outbox platformModels.OutboxEnqueuer = env.outbox
 	if len(outboxes) > 0 {
 		outbox = outboxes[0]
 	}
 	if careWithdrawal == nil {
-		careWithdrawal = usersService.NewCareLifecycleService(usersService.CareLifecycleDependencies{
-			StudentRepo: repoFactory.Student, PersonRepo: repoFactory.Person,
+		careWithdrawal = carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
+			StudentRepo: repositories.NewCareStudents(repoFactory.Student, repoFactory.SchoolMembership()), PersonRepo: repoFactory.Person,
 			CareExitRepo: repoFactory.CareExit, CleanupRepo: repoFactory.CareExitCleanup,
 			WithdrawalRepo: repoFactory.CareWithdrawal, TagReleaser: repoFactory.StudentTagReleaser(),
-			AuditService:          usersService.NewStudentAuditService(repoFactory.StudentFieldEdit, slog.Default()),
+			AuditService:          usersService.NewStudentAuditService(repositories.NewStudentAudit(env.db)),
 			BookingsAuthoritative: testBookingsAuthority(settings),
 			DB:                    env.db, Logger: slog.Default(),
 		})
 	}
+	pickupBaselines := carescheduletest.NewPickupBaselineService(
+		repoFactory.StudentPickupSchedule,
+		approvedOfferingTestProjection(repoFactory),
+		repoFactory.CareOffering,
+	)
+	var pickupAutoExcusal *careschedule.PickupAutoExcusalSyncer
+	if t != nil {
+		pickupAutoExcusal = careschedule.NewPickupAutoExcusalSyncer(
+			repoFactory.StudentPickupException,
+			pickupBaselines,
+			repoFactory.InstanceStudent,
+			env.db,
+			careschedule.WithPickupExtensions(timetabletest.New(t, env.db)),
+		)
+	}
 	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
-		Bookings:               requestTestBookingCommands(),
-		Requests:               repoFactory.Enrollment(),
-		Children:               repoFactory.Enrollment(),
-		Guardians:              repoFactory.Enrollment(),
-		LateInviteRepo:         repoFactory.Enrollment(),
-		ApprovedOfferings:      enrollmentService.NewApprovedOfferingProjection(repoFactory.Enrollment(), offeringStudentTestDirectory{repoFactory.Student}),
-		CareOfferingRepo:       repoFactory.CareOffering,
-		Phases:                 repoFactory.Enrollment(),
-		Schemas:                repoFactory.Enrollment(),
-		OfferingAdjustmentRepo: repoFactory.EnrollmentOfferingAdjustment,
-		RestorationAuditRepo:   repoFactory.EnrollmentRestorationAudit,
-		PersonRepo:             repoFactory.Person,
-		StaffRepo:              repoFactory.Staff,
-		StudentRepo:            repoFactory.Student,
-		StudentGuardianRepo:    repoFactory.StudentGuardian,
-		GuardianProfileRepo:    repoFactory.GuardianProfile,
-		GuardianPhoneRepo:      repoFactory.GuardianPhoneNumber,
-		PickupScheduleRepo:     repoFactory.StudentPickupSchedule,
-		PickupBaselines: carescheduletest.NewPickupBaselineService(
-			repoFactory.StudentPickupSchedule,
-			approvedOfferingTestProjection(repoFactory),
-			repoFactory.CareOffering,
-		),
+		Bookings:                  requestTestBookingCommands(),
+		Requests:                  repoFactory.Enrollment(),
+		Children:                  repoFactory.Enrollment(),
+		Guardians:                 repoFactory.Enrollment(),
+		LateInviteRepo:            repoFactory.Enrollment(),
+		ApprovedOfferings:         enrollmentService.NewApprovedOfferingProjection(repoFactory.Enrollment(), offeringStudentTestDirectory{repoFactory.Student}),
+		CareOfferingRepo:          repoFactory.CareOffering,
+		Phases:                    repoFactory.Enrollment(),
+		Schemas:                   repoFactory.Enrollment(),
+		OfferingAdjustmentRepo:    repoFactory.EnrollmentOfferingAdjustment,
+		RestorationAuditRepo:      repoFactory.EnrollmentRestorationAudit,
+		PersonRepo:                repoFactory.Person,
+		StaffRepo:                 repoFactory.Staff,
+		StudentRepo:               repoFactory.Student,
+		StudentGuardianRepo:       repoFactory.StudentGuardian,
+		GuardianProfileRepo:       repoFactory.GuardianProfile,
+		GuardianPhoneRepo:         repoFactory.GuardianPhoneNumber,
+		PickupScheduleRepo:        repoFactory.StudentPickupSchedule,
+		PickupBaselines:           pickupBaselines,
 		ArrivalScheduleRepo:       repoFactory.StudentArrivalSchedule,
 		StudentEnrollmentRepo:     repoFactory.StudentEnrollment,
 		ActivityGroupRepo:         repoFactory.ActivityGroup,
@@ -185,7 +212,7 @@ func newDecisionServiceForTestWithDependencies(
 		DepartureCompanions:       repoFactory.StudentCompanion,
 		DeleteDepartureCompanions: repoFactory.CarePlan().DeleteCompanionEdges,
 		OutboxEnqueuer:            outbox,
-		StudentAudit:              usersService.NewStudentAuditService(repoFactory.StudentFieldEdit, slog.Default()),
+		StudentAudit:              usersService.NewStudentAuditService(repositories.NewStudentAudit(env.db)),
 		StudentConsents:           studentConsents,
 		CareWithdrawal:            careWithdrawal,
 		FrontendURL:               "http://localhost:3000",
@@ -198,9 +225,29 @@ func newDecisionServiceForTestWithDependencies(
 			repoFactory.StudentEnrollment,
 			slog.Default(),
 		),
-		Logger: slog.Default(),
-		Today:  func() timezone.Date { return decisionTestToday },
+		SnapshotPickupWeekdayChanges: snapshotPickupWeekdayChanges(pickupAutoExcusal),
+		RecordPickupWeekdayChanges:   recordPickupWeekdayChanges(pickupAutoExcusal),
+		Logger:                       slog.Default(),
+		Today:                        func() timezone.Date { return decisionTestToday },
 	})
+}
+
+func snapshotPickupWeekdayChanges(syncer *careschedule.PickupAutoExcusalSyncer) func(context.Context, int64, timezone.Date) (map[int]string, error) {
+	if syncer == nil {
+		return nil
+	}
+	return func(ctx context.Context, studentID int64, date timezone.Date) (map[int]string, error) {
+		return syncer.SnapshotWeeklyPickups(ctx, studentID, date)
+	}
+}
+
+func recordPickupWeekdayChanges(syncer *careschedule.PickupAutoExcusalSyncer) func(context.Context, int64, timezone.Date, map[int]string) error {
+	if syncer == nil {
+		return nil
+	}
+	return func(ctx context.Context, studentID int64, date timezone.Date, before map[int]string) error {
+		return syncer.RecordWeeklyPickupChanges(ctx, studentID, date, careschedule.WeeklyPickupSnapshot(before))
+	}
 }
 
 type failingStudentConsentAuditor struct {
@@ -2423,6 +2470,84 @@ func TestDecisionService_SyncApprovedChildData_ReplacesRemovedPickupSchedule(t *
 	assert.Empty(t, rows, "replacement sync must delete pickup schedules removed from the approved snapshot")
 }
 
+func TestDecisionService_SyncApprovedChildData_RecordsLaterPickupExtension(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	env.decision = newDecisionServiceForTestWithPickupExtensions(t, env.rolloverTestEnv, nil, nil, nil, nil)
+	ctx := testpkg.Ctx(t)
+	publishDecisionScheduleSchema(t, env, "pickup_times", capability.TargetSchedulePickup)
+	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "pickup-extension-approval@example.com", "Anna", "PickupExtension", map[string]any{
+		"pickup_times": map[string]any{"mon": "14:45"},
+	})
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID: reqID, ChildID: childID, Status: enrollmentService.DecisionApproved, ReviewedBy: reviewerAccountID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	child, err := enrollmentService.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	require.NoError(t, err)
+	child.CustomData = map[string]any{"pickup_times": map[string]any{"mon": "16:00"}}
+	require.NoError(t, enrollmentService.UpdateOwnerChildForTest(ctx, env.repos.Enrollment(), child))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, enrollmentService.SyncApprovedChildDataInput{
+		RequestID: reqID, ChildID: childID, ActorAccountID: reviewerAccountID, ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+
+	var task struct {
+		Weekday        int    `bun:"weekday"`
+		PreviousPickup string `bun:"previous_pickup"`
+		Pickup         string `bun:"pickup"`
+	}
+	err = env.db.NewSelect().TableExpr(`schedule.pickup_extension_tasks`).
+		ColumnExpr(`weekday, to_char(previous_pickup_time, 'HH24:MI') AS previous_pickup, to_char(pickup_time, 'HH24:MI') AS pickup`).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Where("student_id = ?", *outcome.Child.CreatedStudentID).
+		Scan(ctx, &task)
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.WeekdayMonday, task.Weekday)
+	assert.Equal(t, "14:45", task.PreviousPickup)
+	assert.Equal(t, "16:00", task.Pickup)
+}
+
+func TestDecisionService_Decide_ExistingStudentRecordsLaterPickupExtension(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	env.decision = newDecisionServiceForTestWithPickupExtensions(t, env.rolloverTestEnv, nil, nil, nil, nil)
+	ctx := testpkg.Ctx(t)
+	publishDecisionScheduleSchema(t, env, "pickup_times", capability.TargetSchedulePickup)
+	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
+	existing := testpkg.CreateTestStudent(t, env.db, "Mara", "Bestand", "2a")
+	author := testpkg.CreateTestStaff(t, env.db, "Betreuer", "Bestand")
+	testpkg.CreateTestPickupSchedule(t, env.db, existing.ID, scheduleModels.WeekdayMonday, author.ID, "14:45")
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "pickup-extension-existing@example.com", "Mara", "Bestand", map[string]any{
+		"pickup_times": map[string]any{"mon": "16:00"},
+	})
+	matchChildToExistingStudent(t, env, childID, existing.ID)
+	_, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID: reqID, ChildID: childID, Status: enrollmentService.DecisionApproved, ReviewedBy: reviewerAccountID,
+	})
+	require.NoError(t, err)
+
+	var taskCount int
+	err = env.db.NewSelect().TableExpr(`schedule.pickup_extension_tasks`).ColumnExpr("COUNT(*)").
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Where("student_id = ?", existing.ID).
+		Where("weekday = ?", scheduleModels.WeekdayMonday).
+		Scan(ctx, &taskCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, taskCount)
+}
+
 func TestDecisionService_SyncApprovedChildData_DuplicatePickupTargetDeletesOnce(t *testing.T) {
 	t.Parallel()
 
@@ -2967,55 +3092,54 @@ func TestDecisionService_Decide_ExistingStudentAppliesWithdrawnConsent(t *testin
 func TestDecisionService_Decide_ExistingStudentLinksSubmittedGuardian(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
-	ctx := testpkg.Ctx(t)
+	for _, bookingsAuthoritative := range []bool{false, true} {
+		t.Run(fmt.Sprintf("bookings_authoritative=%t", bookingsAuthoritative), func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			t.Parallel()
+			env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &bookingsAuthoritative})
+			defer cleanup()
+			ctx := testpkg.Ctx(t)
 
-	// An imported child: enrolled, but with no guardian relationship at all.
-	existing := testpkg.CreateTestStudent(t, env.db, "Milo", "Import", "3b")
+			// An imported child: enrolled, but with no guardian relationship at all.
+			existing := testpkg.CreateTestStudent(t, env.db, "Milo", "Import", "3b")
 
-	guardianEmail := "reenroll-guardian@example.com"
-	guardianPhone := "015126829060"
-	reqID, childID := submitReEnrollment(t, env, "Mara", "Import", guardianEmail, &guardianPhone,
-		"Milo", "Import", map[string]any{
-			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
+			guardianEmail := fmt.Sprintf("reenroll-guardian-%t@example.com", bookingsAuthoritative)
+			guardianPhone := "015126829060"
+			reqID, childID := submitReEnrollment(t, env, "Mara", "Import", guardianEmail, &guardianPhone,
+				"Milo", "Import", map[string]any{
+					"agb": true, "data_processing": true, "email_contact": true, "photo": true,
+				})
+			matchChildToExistingStudent(t, env, childID, existing.ID)
+
+			outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+				RequestID:  reqID,
+				ChildID:    childID,
+				Status:     enrollmentService.DecisionApproved,
+				ReviewedBy: env.creatorID,
+			})
+			require.NoError(t, err)
+
+			links, err := env.repos.StudentGuardian.FindByStudentID(ctx, existing.ID)
+			require.NoError(t, err)
+			require.Len(t, links, 1, "the submitted guardian must be linked to the matched student")
+			assert.True(t, links[0].IsPrimary, "the submitted guardian becomes the primary relationship")
+			assert.True(t, links[0].CanPickup)
+
+			profile, err := env.repos.GuardianProfile.FindByID(ctx, links[0].GuardianProfileID)
+			require.NoError(t, err)
+			require.NotNil(t, profile.Email)
+			assert.Equal(t, guardianEmail, *profile.Email)
+
+			phones, err := env.repos.GuardianPhoneNumber.FindByGuardianID(ctx, profile.ID)
+			require.NoError(t, err)
+			require.Len(t, phones, 1, "the submitted phone number must reach the guardian profile")
+			assert.Equal(t, guardianPhone, phones[0].PhoneNumber)
+
+			require.NotNil(t, outcome.PendingInvite,
+				"a guardian without a portal account must be invited, or the renewal grants no portal access")
+			assert.Equal(t, profile.ID, outcome.PendingInvite.GuardianProfileID)
 		})
-	matchChildToExistingStudent(t, env, childID, existing.ID)
-
-	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
-		RequestID:  reqID,
-		ChildID:    childID,
-		Status:     enrollmentService.DecisionApproved,
-		ReviewedBy: env.creatorID,
-	})
-	require.NoError(t, err)
-
-	links, err := env.repos.StudentGuardian.FindByStudentID(ctx, existing.ID)
-	require.NoError(t, err)
-	require.Len(t, links, 1, "the submitted guardian must be linked to the matched student")
-	assert.True(t, links[0].IsPrimary, "the submitted guardian becomes the primary relationship")
-	assert.True(t, links[0].CanPickup)
-
-	profile, err := env.repos.GuardianProfile.FindByID(ctx, links[0].GuardianProfileID)
-	require.NoError(t, err)
-	require.NotNil(t, profile.Email)
-	assert.Equal(t, guardianEmail, *profile.Email)
-
-	phones, err := env.repos.GuardianPhoneNumber.FindByGuardianID(ctx, profile.ID)
-	require.NoError(t, err)
-	require.Len(t, phones, 1, "the submitted phone number must reach the guardian profile")
-	assert.Equal(t, guardianPhone, phones[0].PhoneNumber)
-
-	require.NotNil(t, outcome.PendingInvite,
-		"a guardian without a portal account must be invited, or the renewal grants no portal access")
-	assert.Equal(t, profile.ID, outcome.PendingInvite.GuardianProfileID)
-
-	student, err := env.repos.Student.FindByID(ctx, existing.ID)
-	require.NoError(t, err)
-	require.NotNil(t, student.GuardianEmail)
-	assert.Equal(t, guardianEmail, *student.GuardianEmail, "the renewal restates the guardian contact data")
-	require.NotNil(t, student.GuardianPhone)
-	assert.Equal(t, guardianPhone, *student.GuardianPhone)
+	}
 }
 
 func TestDecisionService_Decide_LateInviteRenewalLinksInviteRecipient(t *testing.T) {
@@ -3067,11 +3191,10 @@ func TestDecisionService_Decide_LateInviteRenewalLinksInviteRecipient(t *testing
 	require.NotNil(t, profile.Email)
 	assert.Equal(t, invitedEmail, *profile.Email)
 
-	student, err := env.repos.Student.FindByID(ctx, existing.ID)
+	request, err := env.repos.Enrollment().RequestByID(ctx, reqID, false)
 	require.NoError(t, err)
-	require.NotNil(t, student.GuardianEmail)
-	assert.Equal(t, unrelatedParent.Email, *student.GuardianEmail,
-		"the corrected address must remain available as contact data")
+	assert.Equal(t, unrelatedParent.Email, request.GuardianEmail, "the submitted contact remains on the enrollment, not the student")
+
 	require.NotNil(t, outcome.PendingInvite)
 	assert.Equal(t, profile.ID, outcome.PendingInvite.GuardianProfileID)
 }

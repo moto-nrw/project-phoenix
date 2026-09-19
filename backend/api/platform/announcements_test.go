@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/platform"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	platformModel "github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
 // Test constants used in mock assertions (not DB-dependent)

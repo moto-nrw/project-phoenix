@@ -23,13 +23,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/api/timetable"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	classdayhttp "github.com/moto-nrw/project-phoenix/modules/classday/http"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/schoolportal"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
-	"github.com/moto-nrw/project-phoenix/services/auth/authtest"
+	"github.com/moto-nrw/project-phoenix/modules/schoolportal/portaltest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -60,7 +59,8 @@ func setupSchoolRoute(t *testing.T, clocks ...func() time.Time) (*bun.DB, *schoo
 		Now: firstSchoolClock(clocks), DB: db,
 	})
 	resource := schoolportal.NewResource(
-		services.Auth, services.MFA, schoolportal.PasswordResetRuntime{}, classDayResource, timetableResource,
+		portaltest.AuthRuntime(services.SchoolAuth), portaltest.MFARuntime(services.SchoolMFA),
+		schoolportal.PasswordResetRuntime{}, classDayResource, timetableResource,
 		emptySchoolMessagingRouter{},
 		nil,
 		notifications.NewResource(services.Notifications, services.PushSubscriptions, services.NotificationPreferences, db),
@@ -75,12 +75,9 @@ type emptySchoolMessagingRouter struct{}
 
 func (emptySchoolMessagingRouter) SchoolRouter() chi.Router { return chi.NewRouter() }
 
-// newSchoolRouter builds the school portal router, optionally with a stubbed
-// MFA service (pass nil for the real one from the resource).
-func newSchoolRouter(resource *schoolportal.Resource, mfa authService.MFAService) http.Handler {
-	if mfa == nil {
-		return resource.Router()
-	}
+// newSchoolRouter builds the school portal router with a stubbed second
+// factor; the composed one stays on the resource.
+func newSchoolRouter(resource *schoolportal.Resource, mfa schoolportal.MFARuntime) http.Handler {
 	return schoolportal.NewResource(resource.AuthService, mfa, resource.Resets, resource.ClassDay, resource.Timetable, resource.StaffMessaging, resource.StaffNotices, resource.Notifications).Router()
 }
 
@@ -198,7 +195,7 @@ func TestSchoolPortalTokenMatrix(t *testing.T) {
 func TestSchoolLoginHandler_PortalRoleGate(t *testing.T) {
 	t.Parallel()
 	db, resource, tenantID, _ := setupSchoolRoute(t)
-	schoolRouter := newSchoolRouter(resource, nil)
+	schoolRouter := newSchoolRouter(resource, resource.MFAService)
 
 	unique := time.Now().UnixNano()
 	email := fmt.Sprintf("school-login-%d@test.local", unique)
@@ -243,7 +240,7 @@ func TestSchoolMFAEndpoints_RejectForeignScopes(t *testing.T) {
 	// school MFA endpoint — verify, resend (its code budget must not be
 	// burnable through this surface), and both enroll steps.
 	db, resource, tenantID, _ := setupSchoolRoute(t)
-	schoolRouter := newSchoolRouter(resource, nil)
+	schoolRouter := newSchoolRouter(resource, resource.MFAService)
 
 	_, accountID := registerLehrkraft(t, db, resource, tenantID, "school-foreign-scope")
 
@@ -308,13 +305,13 @@ func TestSchoolMFAVerify_MintsSchoolSession(t *testing.T) {
 
 	_, accountID := registerLehrkraft(t, db, resource, tenantID, "school-mfa-verify")
 
-	var requestedScope string
-	mfa := &authtest.MFAServiceMock{
-		VerifyChallengeForScopeFn: func(_ context.Context, _, _, scope string) (*authService.VerifiedChallenge, error) {
-			requestedScope = scope
-			return &authService.VerifiedChallenge{AccountID: accountID, Scope: scope, TenantID: tenantID}, nil
+	var verifiedChallenge bool
+	mfa := stubSchoolMFA(schoolportal.MFARuntime{
+		VerifyChallenge: func(context.Context, string, string) (schoolportal.VerifiedChallenge, error) {
+			verifiedChallenge = true
+			return schoolportal.VerifiedChallenge{AccountID: accountID, TenantID: tenantID}, nil
 		},
-	}
+	})
 	schoolRouter := newSchoolRouter(resource, mfa)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/mfa/verify",
@@ -324,8 +321,8 @@ func TestSchoolMFAVerify_MintsSchoolSession(t *testing.T) {
 	schoolRouter.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	assert.Equal(t, jwt.MFAChallengeScopeSchool, requestedScope,
-		"the school verify endpoint must redeem the challenge for the school scope only")
+	assert.True(t, verifiedChallenge,
+		"the school verify endpoint must redeem the challenge through the school-scoped runtime")
 
 	var tokens schoolportal.TokenResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &tokens))
@@ -355,11 +352,11 @@ func TestSchoolMFAVerify_MembershipRevoked_Returns401(t *testing.T) {
 		accountID, tenantID)
 	require.NoError(t, err)
 
-	mfa := &authtest.MFAServiceMock{
-		VerifyChallengeForScopeFn: func(_ context.Context, _, _, scope string) (*authService.VerifiedChallenge, error) {
-			return &authService.VerifiedChallenge{AccountID: accountID, Scope: scope, TenantID: tenantID}, nil
+	mfa := stubSchoolMFA(schoolportal.MFARuntime{
+		VerifyChallenge: func(context.Context, string, string) (schoolportal.VerifiedChallenge, error) {
+			return schoolportal.VerifiedChallenge{AccountID: accountID, TenantID: tenantID}, nil
 		},
-	}
+	})
 	schoolRouter := newSchoolRouter(resource, mfa)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/mfa/verify",
@@ -371,20 +368,20 @@ func TestSchoolMFAVerify_MembershipRevoked_Returns401(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
 }
 
-// TestSchoolMFAResend_ForwardsSchoolScope pins that the resend endpoint
-// hands the school scope down to the service — that check is what keeps a
+// TestSchoolMFAResend_DrivesTheSchoolRuntime pins that the resend endpoint
+// goes through the school-scoped runtime — the binding is what keeps a
 // foreign-portal challenge's code budget unburnable from here.
-func TestSchoolMFAResend_ForwardsSchoolScope(t *testing.T) {
+func TestSchoolMFAResend_DrivesTheSchoolRuntime(t *testing.T) {
 	t.Parallel()
 	_, resource, _, _ := setupSchoolRoute(t)
 
-	var requestedScope string
-	mfa := &authtest.MFAServiceMock{
-		ResendChallengeForScopeFn: func(_ context.Context, _ string, _ net.IP, scope string) (string, error) {
-			requestedScope = scope
+	var resent bool
+	mfa := stubSchoolMFA(schoolportal.MFARuntime{
+		ResendChallenge: func(context.Context, string, net.IP) (string, error) {
+			resent = true
 			return "renewed-school-challenge", nil
 		},
-	}
+	})
 	schoolRouter := newSchoolRouter(resource, mfa)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/mfa/resend",
@@ -394,7 +391,7 @@ func TestSchoolMFAResend_ForwardsSchoolScope(t *testing.T) {
 	schoolRouter.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	assert.Equal(t, jwt.MFAChallengeScopeSchool, requestedScope)
+	assert.True(t, resent, "the resend endpoint must drive the school-scoped runtime")
 
 	var renewed common.MFAResendResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &renewed))
@@ -419,14 +416,14 @@ func TestSchoolMFAStatusUnavailable_Returns503(t *testing.T) {
 	}, 5*time.Minute)
 	require.NoError(t, err)
 
-	mfa := &authtest.MFAServiceMock{
-		ResendChallengeForScopeFn: func(_ context.Context, _ string, _ net.IP, _ string) (string, error) {
-			return "", authService.ErrMFAStatusUnavailable
+	mfa := stubSchoolMFA(schoolportal.MFARuntime{
+		ResendChallenge: func(context.Context, string, net.IP) (string, error) {
+			return "", errStubMFAUnavailable
 		},
-		StartChallengeFn: func(_ context.Context, _, _ int64, _ string, _ net.IP) (string, error) {
-			return "", authService.ErrMFAStatusUnavailable
+		StartChallenge: func(context.Context, int64, int64, net.IP) (string, error) {
+			return "", errStubMFAUnavailable
 		},
-	}
+	})
 	schoolRouter := newSchoolRouter(resource, mfa)
 
 	resend := httptest.NewRequest(http.MethodPost, "/auth/mfa/resend",
@@ -475,38 +472,31 @@ func TestSchoolMFAEnroll_BoundToItsOwnChallenge(t *testing.T) {
 	var (
 		verifiedAccountID  int64
 		verifiedTenantID   int64
-		requestedScope     string
 		requestedToken     string
 		pinnedAccountID    int64
 		pinnedTenantID     int64
 		ownerBoundVerify   bool
 		scopeOnlyVerify    bool
-		accountWideVerify  bool
-		startedScope       string
+		startedChallenge   bool
 		startedChallengeID = "school-enroll-challenge"
 	)
-	mfa := &authtest.MFAServiceMock{
-		StartChallengeFn: func(_ context.Context, _, _ int64, scope string, _ net.IP) (string, error) {
-			startedScope = scope
+	mfa := stubSchoolMFA(schoolportal.MFARuntime{
+		StartChallenge: func(context.Context, int64, int64, net.IP) (string, error) {
+			startedChallenge = true
 			return startedChallengeID, nil
 		},
-		VerifyChallengeForOwnerFn: func(_ context.Context, challengeToken, _, scope string, accountID, tenantID int64) (*authService.VerifiedChallenge, error) {
+		VerifyChallengeForOwner: func(_ context.Context, challengeToken, _ string, accountID, tenantID int64) (schoolportal.VerifiedChallenge, error) {
 			ownerBoundVerify = true
 			requestedToken = challengeToken
-			requestedScope = scope
 			pinnedAccountID, pinnedTenantID = accountID, tenantID
-			return &authService.VerifiedChallenge{AccountID: verifiedAccountID, Scope: scope, TenantID: verifiedTenantID}, nil
+			return schoolportal.VerifiedChallenge{AccountID: verifiedAccountID, TenantID: verifiedTenantID}, nil
 		},
-		VerifyChallengeForScopeFn: func(_ context.Context, _, _, _ string) (*authService.VerifiedChallenge, error) {
+		VerifyChallenge: func(context.Context, string, string) (schoolportal.VerifiedChallenge, error) {
 			scopeOnlyVerify = true
-			return &authService.VerifiedChallenge{AccountID: verifiedAccountID, Scope: jwt.MFAChallengeScopeSchool, TenantID: verifiedTenantID}, nil
+			return schoolportal.VerifiedChallenge{AccountID: verifiedAccountID, TenantID: verifiedTenantID}, nil
 		},
-		VerifyCodeForAccountFn: func(context.Context, int64, int64, string, string) error {
-			accountWideVerify = true
-			return nil
-		},
-		EnrollFn: func(context.Context, int64) error { return nil },
-	}
+		Enroll: func(context.Context, int64) error { return nil },
+	})
 	schoolRouter := newSchoolRouter(resource, mfa)
 
 	// enroll/start must hand the challenge token back — the confirm is bound
@@ -519,7 +509,7 @@ func TestSchoolMFAEnroll_BoundToItsOwnChallenge(t *testing.T) {
 	var started schoolportal.EnrollStartResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &started))
 	assert.Equal(t, startedChallengeID, started.ChallengeToken)
-	assert.Equal(t, jwt.MFAChallengeScopeSchool, startedScope)
+	assert.True(t, startedChallenge, "enroll/start must drive the school-scoped runtime")
 
 	confirm := func(t *testing.T) *httptest.ResponseRecorder {
 		t.Helper()
@@ -563,12 +553,8 @@ func TestSchoolMFAEnroll_BoundToItsOwnChallenge(t *testing.T) {
 		"enroll confirm must redeem the challenge through the owner-bound verifier")
 	assert.False(t, scopeOnlyVerify,
 		"enroll confirm must not redeem through the scope-only verifier: that one consumes the code before the account/school comparison")
-	assert.False(t, accountWideVerify,
-		"enroll confirm must not fall back to the account-wide newest-code lookup")
 	assert.Equal(t, startedChallengeID, requestedToken,
 		"enroll confirm must redeem the exact challenge enroll/start handed out")
-	assert.Equal(t, jwt.MFAChallengeScopeSchool, requestedScope,
-		"enroll confirm must redeem the challenge for the school scope")
 	assert.Equal(t, accountID, pinnedAccountID,
 		"the enrollment token's account must be pinned INSIDE the verify, before the code is consumed")
 	assert.Equal(t, tenantID, pinnedTenantID,

@@ -46,6 +46,11 @@ type Dependencies struct {
 	// Sessions and Lifecycle; compositions without it report
 	// ErrSchoolInvitationUnavailable.
 	Invitations *SchoolInvitationDependencies
+	// MFA composes the account and operator second factor and, with its
+	// relying-party facts, both portals' passkey ceremonies (#3331). It
+	// requires Sessions; compositions without it report
+	// ErrAccountMFAUnavailable and ErrOperatorMFAUnavailable.
+	MFA *MFADependencies
 	// OperatorProvisioning composes the operator invitation and e-mail
 	// change flows (#3332). They require Sessions and Operators;
 	// compositions without it report ErrOperatorProvisioningUnavailable.
@@ -65,6 +70,17 @@ type Dependencies struct {
 func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("identity access compose: all dependencies are required")
+	}
+	// Every flow attaches the unit of work through the same reference, so
+	// a root that only has its runtime after the module is composed binds
+	// it once and every flow composed above sees it (#3364). The caller's
+	// own attachment stays the fallback until then.
+	runtime := tenant.NewRuntimeRef(nil)
+	if dependencies.Sessions != nil {
+		sessions := *dependencies.Sessions
+		runtime = tenant.NewRuntimeRef(sessions.TenantRuntime)
+		sessions.TenantRuntime = runtime.Attach
+		dependencies.Sessions = &sessions
 	}
 	scope := func(ctx context.Context) postgres.TenantScope {
 		return postgres.TenantScope{TenantID: tenant.FromContext(ctx), AdminTransaction: tenant.IsAdminTx(ctx)}
@@ -90,7 +106,14 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		observation.Err = mapError(observation.Err)
 		dependencies.Observe(observation)
 	})
-	auth, err := newAccountAuthentication(service, store, dependencies.Sessions)
+	operatorMFARecords := application.NewOperatorMFA(service, store)
+	// The second factor is composed first: every login path consults its
+	// gate, and the passkey ceremonies below need the sessions it gates.
+	flows, err := newMFACore(service, operatorMFARecords, dependencies.Sessions, dependencies.MFA)
+	if err != nil {
+		return nil, err
+	}
+	auth, err := newAccountAuthentication(service, store, dependencies.Sessions, capabilityGate{flows.capability})
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +138,14 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		return nil, err
 	}
 	tokens := application.NewOperatorTokens(service, store)
-	operatorAuth, accountAccess, err := newOperatorFlows(service, store, tokens, auth, dependencies.Sessions, dependencies.Operators, lifecycle)
+	operatorAuth, accountAccess, err := newOperatorFlows(service, store, tokens, auth, dependencies.Sessions, dependencies.Operators, lifecycle, operatorMFAGate{flows.operator})
+	if err != nil {
+		return nil, err
+	}
+	operatorPasskeys := application.NewOperatorPasskey(service, store)
+	accountPasskeys := application.NewAccountPasskey(service, store)
+	flows, err = withPasskeyFlows(flows, service, auth, operatorAuth, accountPasskeys, operatorPasskeys,
+		dependencies.Sessions, dependencies.MFA)
 	if err != nil {
 		return nil, err
 	}
@@ -124,17 +154,15 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		return nil, err
 	}
 	e := engine{
-		service: service, mfa: application.NewOperatorMFA(service, store), tokens: tokens,
-		passkeys: application.NewOperatorPasskey(service, store), accountPasskeys: application.NewAccountPasskey(service, store),
+		service: service, mfa: operatorMFARecords, tokens: tokens,
+		passkeys: operatorPasskeys, accountPasskeys: accountPasskeys,
 		auth: auth, operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle, roles: roles,
 		resets: resets, invitations: invitations, provisioning: provisioning, administration: administration,
-		operatorProvisioning:  operatorProvisioning,
+		mfaFlows: flows, operatorProvisioning: operatorProvisioning,
 		invitationMaintenance: application.NewSchoolInvitationMaintenance(store, invitationLogger(dependencies.Invitations)),
 	}
-	if dependencies.Sessions != nil {
-		e.runtime = dependencies.Sessions.TenantRuntime
-	}
-	return identityaccess.NewModule(e), nil
+	e.runtime = runtime.Attach
+	return identityaccess.NewModule(e, runtime), nil
 }
 
 type transaction struct{}
@@ -202,6 +230,9 @@ type engine struct {
 	// invitationMaintenance is always composed: spending a deleted school's
 	// invitations and deleting expired ones need no flow dependencies.
 	invitationMaintenance *application.SchoolInvitationMaintenance
+	// mfaFlows carries the second factor and the passkey ceremonies. Its
+	// members are nil when the module was composed without them.
+	mfaFlows mfaFlows
 	// runtime attaches the composed unit of work ahead of every session flow.
 	runtime func(context.Context) context.Context
 }

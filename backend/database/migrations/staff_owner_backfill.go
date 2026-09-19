@@ -285,7 +285,7 @@ func RunStaffOwnerBackfill(ctx context.Context, db *bun.DB, opts StaffOwnerBackf
 		return nil, errors.New("staff owner backfill: database is required")
 	}
 	opts = opts.withDefaults()
-	release, err := lockStaffOwnerBackfill(ctx, db)
+	release, err := lockStorageBackfill(ctx, db, StaffOwnerBackfillName)
 	if err != nil {
 		return nil, err
 	}
@@ -825,7 +825,7 @@ func ResetStaffOwnerBackfill(ctx context.Context, db *bun.DB) error {
 	if db == nil {
 		return errors.New("staff owner backfill: database is required")
 	}
-	release, err := lockStaffOwnerBackfill(ctx, db)
+	release, err := lockStorageBackfill(ctx, db, StaffOwnerBackfillName)
 	if err != nil {
 		return err
 	}

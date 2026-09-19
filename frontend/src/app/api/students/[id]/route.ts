@@ -1,4 +1,5 @@
 // app/api/students/[id]/route.ts
+import { rejectRetiredStudentContacts } from "~/lib/student-request-helpers";
 import type { NextRequest } from "next/server";
 import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers.server";
 import {
@@ -98,10 +99,6 @@ interface StudentResponseFromBackend {
   // forwards it untouched; mapStudentResponse threads it into the Student
   // type that powers LocationBadge.
   current_room_color?: string | null;
-  guardian_name: string;
-  guardian_contact: string;
-  guardian_email?: string;
-  guardian_phone?: string;
   group_id?: number;
   created_at: string;
   updated_at: string;
@@ -250,6 +247,7 @@ export const PUT = createPutHandler<
 
     try {
       // Extract privacy consent fields
+      rejectRetiredStudentContacts(body);
       const { privacy_consent_accepted, data_retention_days, ...studentData } =
         body;
 

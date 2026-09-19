@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -12,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -23,11 +23,11 @@ type operatorProvisioningSources struct {
 	repos          *repositories.Factory
 	organizations  organizationtenancy.Capability
 	adapters       repositories.OperatorProvisioningAdapters
-	authService    *auth.Service
+	sessions       identityaccess.AccountSessionMaintenance
 	invitations    identityaccess.SchoolInvitations
 	provisioning   identityaccess.AccountProvisioning
 	administration identityaccess.AccountAdministration
-	schoolIdentity auth.SchoolIdentityProvisioning
+	schoolIdentity identityaccess.SchoolIdentityProvisioning
 	roles          identityaccess.RoleCommand
 	settings       config.SettingsService
 	logger         *slog.Logger
@@ -37,7 +37,7 @@ func newOperatorProvisioning(sources operatorProvisioningSources) (organizationt
 	return organizationCompose.NewProvisioning(organizationCompose.ProvisioningDependencies{
 		Organizations: sources.organizations,
 		Identity: provisioningIdentity{
-			repos: sources.repos, authService: sources.authService,
+			repos: sources.repos, sessions: sources.sessions,
 			invitations: sources.invitations, provisioning: sources.provisioning,
 			administration: sources.administration, schoolIdentity: sources.schoolIdentity,
 			roles: sources.roles,
@@ -58,11 +58,11 @@ func newOperatorProvisioning(sources operatorProvisioningSources) (organizationt
 // repositories.
 type provisioningIdentity struct {
 	repos          *repositories.Factory
-	authService    *auth.Service
+	sessions       identityaccess.AccountSessionMaintenance
 	invitations    identityaccess.SchoolInvitations
 	provisioning   identityaccess.AccountProvisioning
 	administration identityaccess.AccountAdministration
-	schoolIdentity auth.SchoolIdentityProvisioning
+	schoolIdentity identityaccess.SchoolIdentityProvisioning
 	roles          identityaccess.RoleCommand
 }
 
@@ -82,12 +82,19 @@ func (p provisioningIdentity) ListSystemRoles(ctx context.Context) ([]organizati
 	return result, nil
 }
 
+// FindSystemRole resolves the platform system role with that name,
+// matching case-insensitively; a school's own role never matches.
 func (p provisioningIdentity) FindSystemRole(ctx context.Context, name string) (organizationCompose.ProvisioningRole, bool, error) {
-	role, err := auth.ResolveSystemRoleByName(ctx, p.repos.Role, name)
-	if err != nil || role == nil {
+	roles, err := p.ListSystemRoles(ctx)
+	if err != nil {
 		return organizationCompose.ProvisioningRole{}, false, err
 	}
-	return p.role(role.ID, role.Name, role.IsSystem, role.TenantID, role.BaseRole), true, nil
+	for _, role := range roles {
+		if role.TenantID == nil && role.IsSystem && strings.EqualFold(role.Name, name) {
+			return role, true, nil
+		}
+	}
+	return organizationCompose.ProvisioningRole{}, false, nil
 }
 
 func (p provisioningIdentity) FindRole(ctx context.Context, id int64) (organizationCompose.ProvisioningRole, bool, error) {
@@ -99,11 +106,11 @@ func (p provisioningIdentity) FindRole(ctx context.Context, id int64) (organizat
 }
 
 func (p provisioningIdentity) role(id int64, name string, system bool, tenantID *int64, baseRole *string) organizationCompose.ProvisioningRole {
-	facts := &auth.RoleFacts{ID: id, TenantID: tenantID, Name: name, IsSystem: system, BaseRole: baseRole}
+	facts := &identityaccess.RoleFacts{ID: id, TenantID: tenantID, Name: name, IsSystem: system, BaseRole: baseRole}
 	return organizationCompose.ProvisioningRole{
 		ID: id, Name: name, IsSystem: system, TenantID: tenantID, BaseRole: baseRole,
-		Lehrkraft:            p.schoolIdentity.IsLehrkraftSystemRole(facts),
-		CaregiverPermissions: p.schoolIdentity.IsPlatformCaregiverRole(facts),
+		Lehrkraft:            identityaccess.IsLehrkraftSystemRole(facts),
+		CaregiverPermissions: identityaccess.IsPlatformCaregiverRole(facts),
 	}
 }
 
@@ -118,9 +125,9 @@ func (p provisioningIdentity) InviteSchoolAdmin(ctx context.Context, request org
 		OperatorGrant:    true,
 	})
 	if err != nil {
-		// The operator routes classify on the retained sentinels; they may
-		// not name the owner's contract (#3332).
-		return organizationCompose.SchoolAdminInvitation{}, invitationServiceError(err)
+		// The operator routes classify on the provisioning capability's own
+		// contract; they may not name the owner's (#3364).
+		return organizationCompose.SchoolAdminInvitation{}, provisioningIdentityError(err)
 	}
 	return organizationCompose.SchoolAdminInvitation{
 		ID: invitation.ID, Email: invitation.Email, RoleID: invitation.RoleID, RoleName: invitation.RoleName,
@@ -134,15 +141,15 @@ func (p provisioningIdentity) InviteSchoolAdmin(ctx context.Context, request org
 
 func (p provisioningIdentity) RegisterSchoolAccount(ctx context.Context, registration organizationCompose.SchoolAccountRegistration) (organizationCompose.CreatedAccount, error) {
 	roleID := registration.RoleID
-	// The operator routes classify on the retained envelope and may not name
-	// the owner's contract, so the root translates for them (#3332).
+	// The operator routes classify on the provisioning capability's contract
+	// and may not name the owner's, so the root translates for them (#3364).
 	provisioned, err := p.provisioning.RegisterSchoolAccount(tenant.WithTenantID(ctx, registration.TenantID),
 		identityaccess.SchoolAccountRegistration{
 			TenantID: registration.TenantID, Email: registration.Email, Username: registration.Username,
 			Password: registration.Password, RoleID: &roleID,
 		})
 	if err != nil {
-		return organizationCompose.CreatedAccount{}, authServiceError(err)
+		return organizationCompose.CreatedAccount{}, provisioningIdentityError(err)
 	}
 	account := provisioned.Account
 	username := account.Username
@@ -156,10 +163,10 @@ func (p provisioningIdentity) RegisterSchoolAccount(ctx context.Context, registr
 
 func (p provisioningIdentity) EnsureSchoolIdentity(ctx context.Context, request organizationCompose.SchoolIdentityRequest) error {
 	role := request.Role
-	_, err := p.schoolIdentity.EnsureSchoolIdentity(tenant.WithTenantID(ctx, request.TenantID), auth.SchoolIdentityInput{
+	_, err := p.schoolIdentity.EnsureSchoolIdentity(tenant.WithTenantID(ctx, request.TenantID), identityaccess.SchoolIdentityInput{
 		AccountID: request.AccountID,
 		TenantID:  request.TenantID,
-		Role: &auth.RoleFacts{
+		Role: &identityaccess.RoleFacts{
 			ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole,
 		},
 		FirstName:        request.FirstName,
@@ -168,14 +175,14 @@ func (p provisioningIdentity) EnsureSchoolIdentity(ctx context.Context, request 
 		CaregiverUpgrade: request.CaregiverUpgrade,
 		CreatePerson:     true,
 	})
-	if errors.Is(err, auth.ErrSchoolIdentityNamesRequired) || errors.Is(err, auth.ErrSchoolIdentityPersonIsStudent) {
+	if errors.Is(err, identityaccess.ErrSchoolIdentityNamesRequired) || errors.Is(err, identityaccess.ErrSchoolIdentityPersonIsStudent) {
 		return invalidSchoolIdentityError{err: err}
 	}
 	return err
 }
 
 func (p provisioningIdentity) AssignRole(ctx context.Context, tenantID, accountID, roleID int64) error {
-	return authServiceError(p.roles.AssignRoleToAccount(tenant.WithTenantID(ctx, tenantID), accountID, roleID))
+	return provisioningIdentityError(p.roles.AssignRoleToAccount(tenant.WithTenantID(ctx, tenantID), accountID, roleID))
 }
 
 func (p provisioningIdentity) ListSchoolAccounts(ctx context.Context, tenantID int64) ([]organizationCompose.SchoolAccount, error) {
@@ -221,7 +228,7 @@ func (p provisioningIdentity) ListAllAccounts(ctx context.Context) ([]organizati
 }
 
 func (p provisioningIdentity) RevokeSchoolSessions(ctx context.Context, tenantID int64) (int, error) {
-	return p.authService.RevokeTokensByTenantID(ctx, tenantID)
+	return p.sessions.RevokeTokensByTenantID(ctx, tenantID)
 }
 
 func (p provisioningIdentity) InvalidatePendingInvitations(ctx context.Context, tenantID int64) (int, error) {
@@ -229,7 +236,7 @@ func (p provisioningIdentity) InvalidatePendingInvitations(ctx context.Context, 
 }
 
 func (p provisioningIdentity) DeactivateAccount(ctx context.Context, accountID int64) error {
-	return authServiceError(p.administration.DeactivateAccount(ctx, accountID))
+	return provisioningIdentityError(p.administration.DeactivateAccount(ctx, accountID))
 }
 
 func (p provisioningIdentity) AnonymizeAccount(ctx context.Context, accountID int64, email string) error {
@@ -270,4 +277,41 @@ func (c pwaUsageCounts) PWAUsage(ctx context.Context, tenantID int64, window tim
 		}
 	}
 	return result, nil
+}
+
+// --- the provisioning capability's identity error contract ------------------
+
+// provisioningIdentityTranslation maps the identity outcomes of operator
+// provisioning onto the contract Organisation & Tenancy reports them in.
+// The operator routes classify on that contract and may not name Identity &
+// Access, so the translation lives here, once (#3364).
+var provisioningIdentityTranslation = []retainedSentinel{
+	{identityaccess.ErrEmailAlreadyExists, organizationtenancy.ErrAccountEmailExists},
+	{identityaccess.ErrUsernameAlreadyExists, organizationtenancy.ErrAccountUsernameExists},
+	{identityaccess.ErrAccountNotFound, organizationtenancy.ErrAccountNotFound},
+	{identityaccess.ErrInvitationNameRequired, organizationtenancy.ErrInvitationNameRequired},
+	{identityaccess.ErrInvitationPasswordMismatch, organizationtenancy.ErrPasswordMismatch},
+	{identityaccess.ErrPasswordTooWeak, organizationtenancy.ErrPasswordTooWeak},
+}
+
+// provisioningIdentityError puts an identity refusal into the provisioning
+// envelope, keeping the owner's operation name and its message.
+func provisioningIdentityError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var operation *identityaccess.AuthenticationError
+	if errors.As(err, &operation) && operation == err {
+		return &organizationtenancy.ProvisioningIdentityError{Op: operation.Op, Err: provisioningIdentityError(operation.Err)}
+	}
+	for _, sentinel := range provisioningIdentityTranslation {
+		if !errors.Is(err, sentinel.public) {
+			continue
+		}
+		if err == sentinel.public {
+			return sentinel.retained
+		}
+		return &retainedError{text: err.Error(), sentinel: sentinel.retained, cause: err}
+	}
+	return err
 }

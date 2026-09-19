@@ -11,17 +11,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/operator"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/platform"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
-// invitationMockService implements platformSvc.OperatorInvitationService —
+// invitationMockService implements OperatorAccess —
 // the narrow interface InvitationsResource depends on. It only stubs the
 // eight invitation-management methods the handler actually calls.
 type invitationMockService struct {
@@ -35,60 +37,131 @@ type invitationMockService struct {
 	cleanupExpiredInvitationsFn  func(ctx context.Context) (int, error)
 }
 
-func (m *invitationMockService) ListOperators(ctx context.Context) ([]*platform.Operator, error) {
+func (m *invitationMockService) ListOperators(ctx context.Context) ([]identityaccess.Operator, error) {
 	if m.listOperatorsFn != nil {
-		return m.listOperatorsFn(ctx)
+		rows, err := m.listOperatorsFn(ctx)
+		return identityOperators(rows), err
 	}
-	return []*platform.Operator{}, nil
+	return []identityaccess.Operator{}, nil
 }
 
-func (m *invitationMockService) InviteOperator(ctx context.Context, email string, displayName *string, createdByID int64, clientIP net.IP) error {
+func (m *invitationMockService) FindOperator(context.Context, int64) (identityaccess.Operator, error) {
+	return identityaccess.Operator{}, identityoperator.ErrOperatorNotFound
+}
+
+func (m *invitationMockService) FindOperatorForUpdate(context.Context, int64) (identityaccess.Operator, error) {
+	return identityaccess.Operator{}, identityoperator.ErrOperatorNotFound
+}
+
+func (m *invitationMockService) FindOperatorByEmail(context.Context, string) (identityaccess.Operator, error) {
+	return identityaccess.Operator{}, identityoperator.ErrOperatorNotFound
+}
+
+func (m *invitationMockService) IssueTokensForAuthenticatedOperator(context.Context, int64, string, string) (string, string, error) {
+	return "", "", nil
+}
+
+func (m *invitationMockService) InviteOperator(ctx context.Context, request identityaccess.OperatorInvitationRequest) error {
 	if m.inviteOperatorFn != nil {
-		return m.inviteOperatorFn(ctx, email, displayName, createdByID, clientIP)
+		return m.inviteOperatorFn(ctx, request.Email, request.DisplayName, request.CreatedBy, net.ParseIP(request.IPAddress))
 	}
 	return nil
 }
 
-func (m *invitationMockService) ValidateOperatorInvitation(ctx context.Context, token string) (*platform.OperatorInvitationToken, error) {
+func (m *invitationMockService) ValidateOperatorInvitation(ctx context.Context, token string) (identityaccess.OperatorInvitationPreview, error) {
 	if m.validateOperatorInvitationFn != nil {
-		return m.validateOperatorInvitationFn(ctx, token)
+		row, err := m.validateOperatorInvitationFn(ctx, token)
+		if row == nil {
+			return identityaccess.OperatorInvitationPreview{}, err
+		}
+		return identityaccess.OperatorInvitationPreview{
+			Email: row.Email, DisplayName: row.DisplayName, ExpiresAt: row.ExpiresAt,
+		}, err
 	}
-	return nil, nil
+	return identityaccess.OperatorInvitationPreview{}, nil
 }
 
-func (m *invitationMockService) AcceptOperatorInvitation(ctx context.Context, token, displayName, password string, clientIP net.IP) (*platform.Operator, error) {
+func (m *invitationMockService) AcceptOperatorInvitation(ctx context.Context, acceptance identityaccess.OperatorInvitationAcceptance) (identityaccess.Operator, error) {
 	if m.acceptOperatorInvitationFn != nil {
-		return m.acceptOperatorInvitationFn(ctx, token, displayName, password, clientIP)
+		row, err := m.acceptOperatorInvitationFn(ctx, acceptance.Token, acceptance.DisplayName, acceptance.Password, net.ParseIP(acceptance.IPAddress))
+		if row == nil {
+			return identityaccess.Operator{}, err
+		}
+		return identityOperator(row), err
 	}
-	return nil, nil
+	return identityaccess.Operator{}, nil
 }
 
-func (m *invitationMockService) ListPendingOperatorInvitations(ctx context.Context) ([]*platform.OperatorInvitationToken, error) {
+func (m *invitationMockService) ListPendingOperatorInvitations(ctx context.Context) ([]identityaccess.OperatorInvitation, error) {
 	if m.listPendingInvitationsFn != nil {
-		return m.listPendingInvitationsFn(ctx)
+		rows, err := m.listPendingInvitationsFn(ctx)
+		if err != nil {
+			return nil, err
+		}
+		invitations := make([]identityaccess.OperatorInvitation, 0, len(rows))
+		for _, row := range rows {
+			if row == nil {
+				continue
+			}
+			invitations = append(invitations, identityaccess.OperatorInvitation{
+				ID: row.ID, Email: row.Email, Token: row.Token, ExpiresAt: row.ExpiresAt,
+				UsedAt: row.UsedAt, CreatedBy: row.CreatedBy, DisplayName: row.DisplayName,
+				Delivery: identityaccess.TokenDelivery{
+					SentAt: row.EmailSentAt, Error: row.EmailError, RetryCount: row.EmailRetryCount,
+				},
+				CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+			})
+		}
+		return invitations, nil
 	}
 	return nil, nil
 }
 
-func (m *invitationMockService) RevokeOperatorInvitation(ctx context.Context, invitationID int64, actorID int64, clientIP net.IP) error {
+func (m *invitationMockService) RevokeOperatorInvitationByActor(ctx context.Context, invitationID, actorID int64, ipAddress string) error {
 	if m.revokeOperatorInvitationFn != nil {
-		return m.revokeOperatorInvitationFn(ctx, invitationID, actorID, clientIP)
+		return m.revokeOperatorInvitationFn(ctx, invitationID, actorID, net.ParseIP(ipAddress))
 	}
 	return nil
 }
 
-func (m *invitationMockService) ResendOperatorInvitation(ctx context.Context, invitationID int64, actorID int64, clientIP net.IP) error {
+func (m *invitationMockService) ResendOperatorInvitationByActor(ctx context.Context, invitationID, actorID int64, ipAddress string) error {
 	if m.resendOperatorInvitationFn != nil {
-		return m.resendOperatorInvitationFn(ctx, invitationID, actorID, clientIP)
+		return m.resendOperatorInvitationFn(ctx, invitationID, actorID, net.ParseIP(ipAddress))
 	}
 	return nil
 }
 
-func (m *invitationMockService) CleanupExpiredOperatorInvitations(ctx context.Context) (int, error) {
+func (m *invitationMockService) InitiateOperatorEmailChange(context.Context, identityaccess.OperatorEmailChangeRequest) error {
+	return nil
+}
+
+func (m *invitationMockService) ConfirmOperatorEmailChange(context.Context, string, string) (identityaccess.OperatorEmailChangeResult, error) {
+	return identityaccess.OperatorEmailChangeResult{}, nil
+}
+
+func (m *invitationMockService) CleanupOperatorEmailChanges(ctx context.Context) (int, error) {
 	if m.cleanupExpiredInvitationsFn != nil {
 		return m.cleanupExpiredInvitationsFn(ctx)
 	}
 	return 0, nil
+}
+
+func identityOperator(row *platform.Operator) identityaccess.Operator {
+	return identityaccess.Operator{
+		ID: row.ID, Email: row.Email, DisplayName: row.DisplayName, Active: row.Active,
+		LastLogin: row.LastLogin, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+	}
+}
+
+func identityOperators(rows []*platform.Operator) []identityaccess.Operator {
+	operators := make([]identityaccess.Operator, 0, len(rows))
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		operators = append(operators, identityOperator(row))
+	}
+	return operators
 }
 
 // --- Helper to build request with JWT claims context ---
@@ -214,7 +287,7 @@ func TestCreateInvitation_EmailAlreadyExists(t *testing.T) {
 
 	mockService := &invitationMockService{
 		inviteOperatorFn: func(_ context.Context, _ string, _ *string, _ int64, _ net.IP) error {
-			return &platformSvc.OperatorInvitationEmailExistsError{}
+			return identityoperator.ErrOperatorEmailExists
 		},
 	}
 
@@ -233,7 +306,7 @@ func TestCreateInvitation_RateLimit(t *testing.T) {
 
 	mockService := &invitationMockService{
 		inviteOperatorFn: func(_ context.Context, _ string, _ *string, _ int64, _ net.IP) error {
-			return &platformSvc.OperatorInvitationRateLimitError{}
+			return identityoperator.ErrOperatorInvitationRateLimited
 		},
 	}
 
@@ -272,7 +345,7 @@ func TestCreateInvitation_InvalidData(t *testing.T) {
 
 	mockService := &invitationMockService{
 		inviteOperatorFn: func(_ context.Context, _ string, _ *string, _ int64, _ net.IP) error {
-			return &platformSvc.InvalidDataError{Err: errors.New("invalid email format")}
+			return &identityoperator.InvalidInputError{Err: errors.New("invalid email format")}
 		},
 	}
 
@@ -447,7 +520,7 @@ func TestResendInvitation_NotFound(t *testing.T) {
 
 	mockService := &invitationMockService{
 		resendOperatorInvitationFn: func(_ context.Context, _ int64, _ int64, _ net.IP) error {
-			return &platformSvc.OperatorInvitationNotFoundError{}
+			return identityoperator.ErrOperatorInvitationNotFound
 		},
 	}
 
@@ -523,7 +596,7 @@ func TestRevokeInvitation_NotFound(t *testing.T) {
 
 	mockService := &invitationMockService{
 		revokeOperatorInvitationFn: func(_ context.Context, _ int64, _ int64, _ net.IP) error {
-			return &platformSvc.OperatorInvitationNotFoundError{}
+			return identityoperator.ErrOperatorInvitationNotFound
 		},
 	}
 
@@ -630,7 +703,7 @@ func TestValidateInvitation_TokenNotFound(t *testing.T) {
 
 	mockService := &invitationMockService{
 		validateOperatorInvitationFn: func(_ context.Context, _ string) (*platform.OperatorInvitationToken, error) {
-			return nil, &platformSvc.OperatorInvitationNotFoundError{}
+			return nil, identityoperator.ErrOperatorInvitationNotFound
 		},
 	}
 
@@ -820,7 +893,7 @@ func TestAcceptInvitation_TokenNotFound(t *testing.T) {
 
 	mockService := &invitationMockService{
 		acceptOperatorInvitationFn: func(_ context.Context, _, _, _ string, _ net.IP) (*platform.Operator, error) {
-			return nil, &platformSvc.OperatorInvitationNotFoundError{}
+			return nil, identityoperator.ErrOperatorInvitationNotFound
 		},
 	}
 
@@ -847,7 +920,7 @@ func TestAcceptInvitation_EmailAlreadyExists(t *testing.T) {
 
 	mockService := &invitationMockService{
 		acceptOperatorInvitationFn: func(_ context.Context, _, _, _ string, _ net.IP) (*platform.Operator, error) {
-			return nil, &platformSvc.OperatorInvitationEmailExistsError{}
+			return nil, identityoperator.ErrOperatorEmailExists
 		},
 	}
 
@@ -874,7 +947,7 @@ func TestAcceptInvitation_InvalidData(t *testing.T) {
 
 	mockService := &invitationMockService{
 		acceptOperatorInvitationFn: func(_ context.Context, _, _, _ string, _ net.IP) (*platform.Operator, error) {
-			return nil, &platformSvc.InvalidDataError{Err: errors.New("password too weak")}
+			return nil, &identityoperator.InvalidInputError{Err: errors.New("password too weak")}
 		},
 	}
 

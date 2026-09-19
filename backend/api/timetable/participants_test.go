@@ -14,10 +14,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -85,7 +86,7 @@ func buildParticipantsSetup(t *testing.T) *participantsSetup {
 		})
 	}
 
-	studentRepo := usersRepo.NewStudentRepository(db)
+	studentRepo := repositories.NewStudentRepository(db)
 	personRepo := usersRepo.NewPersonRepository(db)
 	setup.res = NewResource(Dependencies{
 		TimetableData: testTimetableData(db),

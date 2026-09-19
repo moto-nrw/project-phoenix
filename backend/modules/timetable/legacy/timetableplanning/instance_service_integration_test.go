@@ -687,6 +687,21 @@ func TestInstance_Complete_HappyPath(t *testing.T) {
 	require.NotNil(t, group.EndTime, "active.group should have been ended")
 }
 
+func TestInstance_Complete_BasesReopenWindowOnCompletionTimestamp(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	ai := seedInstance(t, s, true, false)
+	_, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+
+	completed, err := s.svc.Complete(s.ctx, ai.ID)
+	require.NoError(t, err)
+	require.NotNil(t, completed.CompletedAt)
+	require.NotNil(t, completed.ReopenUntil)
+	assert.Equal(t, completed.CompletedAt.Add(5*time.Minute), *completed.ReopenUntil)
+}
+
 func TestInstance_Complete_ConfirmationMustMatchOpenVisits(t *testing.T) {
 	t.Parallel()
 
@@ -933,6 +948,24 @@ func TestInstance_Reopen_HappyPath(t *testing.T) {
 	group, err := s.factory.Active.GetActiveGroup(s.ctx, started.ActiveGroupID)
 	require.NoError(t, err)
 	assert.Nil(t, group.EndTime)
+}
+
+func TestInstance_Reopen_AcceptsCompletionWritesStampedByDatabase(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	deps := lifecycleDependencies(s, nil)
+	deps.Now = func() time.Time { return time.Now().Add(-time.Minute) }
+	s.svc = timetableplanning.NewInstanceService(deps)
+	ai := seedInstance(t, s, true, true)
+	_, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+
+	_, err = s.svc.Complete(s.ctx, ai.ID)
+	require.NoError(t, err)
+
+	_, err = s.svc.Reopen(s.ctx, ai.ID, 0, true)
+	require.NoError(t, err)
 }
 
 func TestInstance_Start_LeavesIndependentRoomStays(t *testing.T) {

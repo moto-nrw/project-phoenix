@@ -898,7 +898,8 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
     // genau einmal da — vorher trug jede Sitzung ihren eigenen Reiter mit
     // demselben Namen (#3065).
     await waitFor(() => {
-      expect(screen.getByText("Schulhof · 9 Kinder")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Schulhof" })).toBeVisible();
+      expect(screen.getByText("9 Kinder", { selector: "p" })).toBeVisible();
     });
     expect(screen.queryAllByRole("tab", { name: "Schulhof" })).toHaveLength(0);
     // Der Zähler kommt aus dem Raum, nicht aus einer der Sitzungen: er zählt
@@ -981,7 +982,10 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
 
     // The caller's own session runs in the released room, so the room is the
     // entry — with the occupancy the room reports, not the one session's.
-    expect(await screen.findByText("Schulhof · 9 Kinder")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Schulhof" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("9 Kinder", { selector: "p" })).toBeVisible();
     expect(screen.getByText("Offener Raum")).toBeInTheDocument();
     expect(screen.queryByText("Eigene Aufsicht")).not.toBeInTheDocument();
   });
@@ -1671,9 +1675,9 @@ describe("ID-based selection coverage: currentRoom useMemo", () => {
     expect(screen.getByText(/· 1 Kind$/)).toBeInTheDocument();
   });
 
-  it("names the released room and its occupancy in the status line", async () => {
-    // The room carries its own name and count; the caller's supervision in
-    // it changes neither.
+  it("shows the released room and its occupancy in the page header", async () => {
+    // The room carries its own count; the caller's supervision in it changes
+    // neither. Its name is the page title, so it is not repeated below it.
     const dashboardData = {
       supervisedGroups: [],
       unclaimedGroups: [],
@@ -1738,7 +1742,8 @@ describe("ID-based selection coverage: currentRoom useMemo", () => {
 
     // The count is the room's, reported by the shared view.
     await waitFor(() => {
-      expect(screen.getByText("Schulhof · 5 Kinder")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Schulhof" })).toBeVisible();
+      expect(screen.getByText("5 Kinder", { selector: "p" })).toBeVisible();
     });
   });
 });

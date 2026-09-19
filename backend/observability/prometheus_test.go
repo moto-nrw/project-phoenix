@@ -190,11 +190,19 @@ func TestFeedbackHTTPResponseUsesActualStatusClassAndStableCode(t *testing.T) {
 func TestRecordWorkerRunEvidence(t *testing.T) {
 	t.Parallel()
 	const jobID = "test-worker-job"
-	before := testutil.CollectAndCount(workerJobDuration)
+	// Inspect this job's observations, not all series created by parallel tests.
+	histogram := workerJobDuration.WithLabelValues(jobID, "success").(prometheus.Histogram)
+	registry := prometheus.NewRegistry()
+	require.NoError(t, registry.Register(histogram))
+	before, err := registry.Gather()
+	require.NoError(t, err)
 
 	RecordWorkerRunEvent(jobID, "success", 25*time.Millisecond)
 
-	assert.Equal(t, before+1, testutil.CollectAndCount(workerJobDuration))
+	after, err := registry.Gather()
+	require.NoError(t, err)
+	assert.Equal(t, before[0].Metric[0].GetHistogram().GetSampleCount()+1, after[0].Metric[0].GetHistogram().GetSampleCount())
+	assert.InDelta(t, before[0].Metric[0].GetHistogram().GetSampleSum()+0.025, after[0].Metric[0].GetHistogram().GetSampleSum(), 0.000001)
 }
 
 func TestRecordSettingsEvidence(t *testing.T) {

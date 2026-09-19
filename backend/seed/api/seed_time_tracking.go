@@ -100,6 +100,22 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 		vacationApproverAuth:      vacationApproverAuth,
 		customAbsenceTypeID:       customAbsenceTypeID,
 		breakStaffIdx:             -1,
+		compTimeDays:              map[string]bool{},
+	}
+	// Wissingen (#3258): a colleague took Fridays off to use up
+	// Krank-Urlaubstage before that allowance existed, so the Leitung entered
+	// them as Freizeitausgleich. The second staff member carries the last
+	// three past Fridays like that.
+	// The Stundenkonto starts on 1 January, and Freizeitausgleich before it
+	// is rejected, so an early-January run keeps only this year's Fridays.
+	lastFriday := mostRecentWeekday(plan.today.AddDate(0, 0, -1), time.Friday)
+	var compTimeFridays []time.Time
+	for weeksBack := 2; weeksBack >= 0; weeksBack-- {
+		friday := lastFriday.AddDate(0, 0, -7*weeksBack)
+		if friday.Year() == plan.today.Year() {
+			compTimeFridays = append(compTimeFridays, friday)
+			plan.compTimeDays[toDateKey(friday)] = true
+		}
 	}
 	for idx, cred := range staffOrder {
 		if cred.Position != "Extern" {
@@ -167,6 +183,11 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 			return fmt.Errorf("seed direct vacation for staff %d: %w", staffID, err)
 		}
 		absenceCount += 2
+		rebooked, err := seedCompTimeFridays(rt, staffID, compTimeFridays, sickLeaveTypeID)
+		if err != nil {
+			return err
+		}
+		absenceCount += rebooked
 	}
 
 	fmt.Printf("  %d schedules, %d sessions, %d absences seeded for %d staff\n",
@@ -192,6 +213,9 @@ type timeTrackingHistoryPlan struct {
 	customAbsenceTypeID       int64
 	// breakStaffIdx is the staff member whose first session carries a break.
 	breakStaffIdx int
+	// compTimeDays are the days the second staff member stays at home on
+	// Freizeitausgleich (#3258), so no session is written for them.
+	compTimeDays map[string]bool
 }
 
 // seedStaff logs in as one staff member and writes that person's absences and
@@ -246,6 +270,9 @@ func (p timeTrackingHistoryPlan) seedStaff(client *Client, idx int, cred StaffCr
 			continue
 		}
 		if customDay != nil && day.Equal(*customDay) {
+			continue
+		}
+		if idx == 1 && p.compTimeDays[toDateKey(day)] {
 			continue
 		}
 
@@ -532,6 +559,45 @@ func postStaffAbsence(rt *Runtime, staffID int64, day time.Time, absenceType, no
 	}
 	_, err := rt.Client.Post(fmt.Sprintf("/api/staff/%d/absences", staffID), body)
 	return err
+}
+
+// seedCompTimeFridays books the Fridays as Freizeitausgleich and rebooks the
+// oldest one into the Krank-Urlaubstag allowance (#3258). The other Fridays
+// stay for the Leitung to rebook, and the audit log shows one rebooking with
+// its reason. It returns the number of absences it created.
+func seedCompTimeFridays(rt *Runtime, staffID int64, fridays []time.Time, sickLeaveTypeID int64) (int, error) {
+	currentAuth := rt.Client.auth
+	defer rt.Client.BindAuth(currentAuth)
+	rt.Client.BindAuth(rt.TenantAuth)
+	if len(fridays) == 0 {
+		return 0, nil
+	}
+	ids := make([]string, 0, len(fridays))
+	for _, friday := range fridays {
+		resp, err := rt.Client.Post(fmt.Sprintf("/api/staff/%d/absences", staffID), map[string]any{
+			"absence_type": "comp_time",
+			"date_start":   toDateKey(friday),
+			"date_end":     toDateKey(friday),
+			"note":         "Freitag frei",
+		})
+		if err != nil {
+			return 0, fmt.Errorf("seed comp_time Friday for staff %d: %w", staffID, err)
+		}
+		id, err := extractAbsenceID(resp)
+		if err != nil {
+			return 0, err
+		}
+		ids = append(ids, strconv.FormatInt(id, 10))
+	}
+	if _, err := rt.Client.Post(fmt.Sprintf("/api/staff/%d/absences/rebook", staffID), map[string]any{
+		"absence_ids":     ids[:1],
+		"absence_type":    "other",
+		"absence_type_id": strconv.FormatInt(sickLeaveTypeID, 10),
+		"reason":          "Kontingent angelegt, der Freitag war ein Krank-Urlaubstag",
+	}); err != nil {
+		return 0, fmt.Errorf("seed absence rebooking for staff %d: %w", staffID, err)
+	}
+	return len(ids), nil
 }
 
 func requestAndApproveVacation(client *Client, approverAuth AuthRef, dateStart, dateEnd time.Time, note string) error {

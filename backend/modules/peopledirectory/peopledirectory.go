@@ -93,7 +93,12 @@ type Query interface {
 	StudentDepartureQuery
 	StudentFieldReviewQuery
 	StudentQuery
+	StudentDirectoryQuery
+	StudentAuditQuery
+	StudentPhotoQuery
+	StudentConsentQuery
 	GuardianQuery
+	GuardianPortalReachQuery
 	// FindPerson returns one non-deleted person of the current tenant.
 	FindPerson(context.Context, int64) (Person, error)
 	// FindPersonForMutation locks the row for the caller's transaction.
@@ -119,8 +124,13 @@ type Query interface {
 
 type Command interface {
 	StudentCommand
+	StudentDirectoryCommand
+	StudentWriteCommand
 	StudentDeletionCommand
+	StudentAuditCommand
+	StudentPhotoCommand
 	GuardianCommand
+	FamilyProtectionCommand
 	CreatePerson(context.Context, CreatePerson) (Person, error)
 	UpdatePerson(context.Context, UpdatePerson) (Person, error)
 	// DeletePerson soft-deletes the person (deleted_at), keeping the row.
@@ -145,9 +155,18 @@ type Capability interface {
 
 type engine interface {
 	FamilyProtectionQuery
+	FamilyProtectionCommand
 	StudentDepartureQuery
 	studentEngine
+	StudentDirectoryQuery
+	StudentDirectoryCommand
+	StudentWriteCommand
 	studentDeletionEngine
+	StudentAuditQuery
+	StudentPhotoQuery
+	StudentConsentQuery
+	StudentAuditCommand
+	StudentPhotoCommand
 	guardianEngine
 	Create(context.Context, CreatePerson) (Person, error)
 	Update(context.Context, UpdatePerson) (Person, error)

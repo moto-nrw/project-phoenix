@@ -7,9 +7,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -140,3 +140,29 @@ func (rs *Resource) buildSupervisorContacts(ctx context.Context, groupID int64) 
 	}
 	return supervisors
 }
+
+// canModifyStudentPhoto and canReadStudentPhoto are the child-data gates of
+// the photo routes. They live here, not with the owner: People Directory owns
+// the photo, this adapter owns the decision about who may reach it — the same
+// split every other student route already follows (#3349).
+//
+// Both are caller-only (#2329): admin or a verified staff member of the
+// tenant, every other authenticated role out. The route's own permission
+// middleware still decides WHICH photo operation the caller may reach.
+func (rs *Resource) canModifyStudentPhoto(ctx context.Context) bool {
+	ok, _ := authorize.CanUpdateStudent(
+		ctx, jwt.PermissionsFromCtx(ctx), photoAuthorizationStudent{}, rs.UserContextService)
+	return ok
+}
+
+func (rs *Resource) canReadStudentPhoto(ctx context.Context) bool {
+	return authorize.CanReadStudent(
+		ctx, jwt.PermissionsFromCtx(ctx), photoAuthorizationStudent{}, rs.UserContextService)
+}
+
+// photoAuthorizationStudent satisfies the marker the child-data gates take.
+// Both gates decide on the caller alone, so the row carries no information the
+// decision needs.
+type photoAuthorizationStudent struct{}
+
+func (photoAuthorizationStudent) IsAuthorizationStudent() bool { return true }

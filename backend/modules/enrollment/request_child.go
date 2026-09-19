@@ -31,6 +31,14 @@ type RequestChild struct {
 	ReviewReason          *string         `json:"review_reason,omitempty"`
 }
 
+// PhaseResponseChild is a child selected for a phase response overview. A
+// rollover source carries the historical link for a submitted phase child but
+// is not itself an answer in that phase.
+type PhaseResponseChild struct {
+	Child        *RequestChild
+	IsPhaseChild bool
+}
+
 // Per-child status values matching the column CHECK constraint.
 //
 // The rollover statuses (pending_renewal, auto_renewed,

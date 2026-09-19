@@ -73,7 +73,8 @@ func TestExportRequestToListParamsFetchesAllRows(t *testing.T) {
 	assert.True(t, params.fetchAll)
 	assert.False(t, params.hasInMemoryFilters(),
 		"a month-only birthday export has no in-memory list filter, so only fetchAll keeps pagination off")
-	assert.Nil(t, params.buildQueryOptions().Pagination,
+	filter := params.buildPagedDirectoryFilter()
+	assert.Zero(t, filter.PageSize,
 		"the export query must be unpaginated so the in-memory month filter sees every child")
 }
 

@@ -281,11 +281,22 @@ type Command interface {
 }
 
 type Capability interface {
+	StudentEnrollmentCommands
 	Query
 	Command
 }
 
 type engine interface {
+	TransitionStudentStatus(context.Context, int64, string, string) (bool, error)
+	EnrollStudent(context.Context, StudentEnrollment) (int64, error)
+	RenewStudentEnrollment(context.Context, StudentEnrollment) (int64, error)
+	AssignStudentGroup(context.Context, int64, *int64) (bool, error)
+	LockStudentClassWrites(context.Context, bool) error
+	EndStudentCare(context.Context, []int64, string) (int64, error)
+	ResumeStudentCare(context.Context, int64, string, string, string) (bool, error)
+	GraduateStudents(context.Context, []int64) (int64, error)
+	ReactivateStudents(context.Context, []int64, string) ([]int64, error)
+	ChangeStudentClass(context.Context, []int64, string, string) (int64, error)
 	FindStaff(ctx context.Context, id int64, lock string) (Staff, error)
 	FindStaffByPerson(context.Context, int64) (Staff, error)
 	ListStaff(context.Context, StaffFilter) ([]Staff, error)

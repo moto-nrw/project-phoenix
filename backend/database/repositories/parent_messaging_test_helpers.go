@@ -1,11 +1,11 @@
 package repositories
 
 import (
-	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
+	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/uptrace/bun"
 )

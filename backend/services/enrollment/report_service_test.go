@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -21,7 +22,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 func TestCareUsageRowCountsEffectiveDaysAsUnion(t *testing.T) {
@@ -366,28 +366,16 @@ func TestClassRosterRowMarksMissingEnrollmentAsNoRegistration(t *testing.T) {
 	assert.Equal(t, []ClassRosterGuardian{{Name: "Eva Ohne", Email: "eva@example.test", Phone: "02551 123"}}, row.Guardians)
 }
 
-func TestClassRosterRowFallsBackToLegacyStudentGuardianFields(t *testing.T) {
+func TestClassRosterRowWithoutContactsHasNoInventedContact(t *testing.T) {
 	t.Parallel()
 
-	guardianName := "Stamm Kontakt"
-	guardianEmail := "stamm@example.test"
-	guardianPhone := "02551 456"
-	guardianContact := "0170 123456"
 	student := &userModels.Student{
-		Model:           baseModels.Model{ID: 101},
-		PersonID:        201,
-		SchoolClass:     "1a",
-		GuardianName:    &guardianName,
-		GuardianEmail:   &guardianEmail,
-		GuardianPhone:   &guardianPhone,
-		GuardianContact: &guardianContact,
+		Model:       baseModels.Model{ID: 101},
+		PersonID:    201,
+		SchoolClass: "1a",
 	}
 	person := &userModels.Person{FirstName: "Tom", LastName: "Ohne"}
-	want := []ClassRosterGuardian{{
-		Name:  "Stamm Kontakt",
-		Email: "stamm@example.test",
-		Phone: "02551 456; 0170 123456",
-	}}
+	want := []ClassRosterGuardian{}
 
 	t.Run("without enrollment", func(t *testing.T) {
 		row, err := classRosterRow(student, person, "", nil, nil, nil, nil, nil, true)
@@ -416,26 +404,16 @@ func TestClassRosterRowFallsBackToLegacyStudentGuardianFields(t *testing.T) {
 	})
 }
 
-func TestClassRosterStudentGuardiansPreferLinkedContactsOverLegacyFields(t *testing.T) {
+func TestClassRosterStudentGuardiansUseLinkedContacts(t *testing.T) {
 	t.Parallel()
 
-	guardianName := "Stamm Kontakt"
-	guardianEmail := "stamm@example.test"
-	stalePhone := "02551 456"
-	staleContact := "0170 123456"
-	student := &userModels.Student{
-		GuardianName:    &guardianName,
-		GuardianEmail:   &guardianEmail,
-		GuardianPhone:   &stalePhone,
-		GuardianContact: &staleContact,
-	}
 	linked := []ClassRosterGuardian{{
 		Name:  "Stamm Kontakt",
 		Email: "stamm@example.test",
 		Phone: "02551 333",
 	}}
 
-	got := classRosterStudentGuardians(student, linked)
+	got := normalizeClassRosterGuardians(linked)
 
 	assert.Equal(t, linked, got)
 }
@@ -528,20 +506,20 @@ type fakeClassCareParticipation map[int64]bool
 
 func (f fakeClassCareParticipation) ResolveListParticipation(
 	_ context.Context, studentIDs []int64, _, _ timezone.Date, _ bool,
-) (*userService.CareParticipationResolution, error) {
-	return &userService.CareParticipationResolution{CandidateIDs: studentIDs, ParticipatingIDs: f}, nil
+) (*carelifecycle.CareParticipationResolution, error) {
+	return &carelifecycle.CareParticipationResolution{CandidateIDs: studentIDs, ParticipatingIDs: f}, nil
 }
 
 type allClassCareParticipation struct{}
 
 func (allClassCareParticipation) ResolveListParticipation(
 	_ context.Context, studentIDs []int64, _, _ timezone.Date, _ bool,
-) (*userService.CareParticipationResolution, error) {
+) (*carelifecycle.CareParticipationResolution, error) {
 	result := make(map[int64]bool, len(studentIDs))
 	for _, studentID := range studentIDs {
 		result[studentID] = true
 	}
-	return &userService.CareParticipationResolution{CandidateIDs: studentIDs, ParticipatingIDs: result}, nil
+	return &carelifecycle.CareParticipationResolution{CandidateIDs: studentIDs, ParticipatingIDs: result}, nil
 }
 
 type recordingClassCareParticipation struct {
@@ -551,9 +529,9 @@ type recordingClassCareParticipation struct {
 
 func (f *recordingClassCareParticipation) ResolveListParticipation(
 	_ context.Context, studentIDs []int64, on, today timezone.Date, _ bool,
-) (*userService.CareParticipationResolution, error) {
+) (*carelifecycle.CareParticipationResolution, error) {
 	f.on, f.today = on, today
-	return &userService.CareParticipationResolution{
+	return &carelifecycle.CareParticipationResolution{
 		CandidateIDs: studentIDs, ParticipatingIDs: map[int64]bool{studentIDs[0]: true},
 	}, nil
 }
@@ -1204,7 +1182,7 @@ type fakeClassRosterStudentRepo struct {
 	students []*userModels.Student
 }
 
-func (r *fakeClassRosterStudentRepo) ListWithOptions(_ context.Context, _ *baseModels.QueryOptions) ([]*userModels.Student, error) {
+func (r *fakeClassRosterStudentRepo) ListClassRoster(_ context.Context, _ string) ([]*userModels.Student, error) {
 	return r.students, nil
 }
 

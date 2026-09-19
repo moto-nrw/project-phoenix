@@ -467,13 +467,12 @@ func TestStudentRepository_CompanionNoteSchemaCompatibility(t *testing.T) {
 		// never references the scanonly note column.
 		student := testpkg.CreateTestStudent(t, db, "Companion", "Absent", "1a")
 
-		// Simulate the pre-1.15.138 / post-rollback schema by dropping just the
-		// column. Restore it immediately via Cleanup so the shared DB is left
-		// intact even on failure.
-		_, err := db.NewRaw(`ALTER TABLE users.students DROP COLUMN IF EXISTS departure_companion_note`).Exec(ctx)
+		// Rename the owner column in this isolated database. PostgreSQL keeps
+		// the rollback view valid, so the guard must inspect the owner table.
+		_, err := db.NewRaw(`ALTER TABLE users.student_care_profiles RENAME COLUMN departure_companion_note TO missing_companion_note`).Exec(ctx)
 		require.NoError(t, err)
 		t.Cleanup(func() {
-			_, restoreErr := db.NewRaw(`ALTER TABLE users.students ADD COLUMN IF NOT EXISTS departure_companion_note TEXT`).Exec(context.Background())
+			_, restoreErr := db.NewRaw(`ALTER TABLE users.student_care_profiles RENAME COLUMN missing_companion_note TO departure_companion_note`).Exec(context.Background())
 			require.NoError(t, restoreErr)
 		})
 

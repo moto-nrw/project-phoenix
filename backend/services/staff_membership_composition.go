@@ -160,10 +160,10 @@ func (f *Factory) NewStaffMembershipRuntime(db *bun.DB, logger *slog.Logger, hoo
 	if logger == nil {
 		logger = slog.Default()
 	}
-	access, ok := f.Auth.(offboardingcompose.Access)
-	if !ok {
+	if f.Auth == nil {
 		panic("staff membership runtime: identity offboarding capability is required")
 	}
+	access := StaffOffboardingAccess(f.Auth)
 	roles := f.AccountAuthentication()
 	if roles == nil {
 		panic("staff membership runtime: identity role administration is required")
@@ -411,4 +411,28 @@ func staffTeacherAction(action usersSvc.TeacherAction) StaffTeacherAction {
 	default:
 		return StaffTeacherActionNone
 	}
+}
+
+// StaffOffboardingAccess binds the staff offboarding workflow to the
+// Identity & Access access step. The workflow declares the snapshot and the
+// result itself and may not name the owner, so the root maps them (#3364).
+func StaffOffboardingAccess(module identityaccess.StaffOffboardingAccess) offboardingcompose.Access {
+	if module == nil {
+		return nil
+	}
+	return staffOffboardingAccess{module: module}
+}
+
+type staffOffboardingAccess struct {
+	module identityaccess.StaffOffboardingAccess
+}
+
+func (a staffOffboardingAccess) PreviewStaffOffboarding(ctx context.Context, accountID int64) (offboardingcompose.StaffOffboardingPreview, error) {
+	preview, err := a.module.PreviewStaffOffboarding(ctx, accountID)
+	return offboardingcompose.StaffOffboardingPreview(preview), err
+}
+
+func (a staffOffboardingAccess) ExecuteStaffOffboarding(ctx context.Context, accountID int64, revision string) (offboardingcompose.StaffOffboardingResult, error) {
+	result, err := a.module.ExecuteStaffOffboarding(ctx, accountID, revision)
+	return offboardingcompose.StaffOffboardingResult(result), err
 }

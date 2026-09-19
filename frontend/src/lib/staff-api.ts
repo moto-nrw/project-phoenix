@@ -914,6 +914,50 @@ export interface CompTimeBalancePreview {
   projectedBalanceMinutes: number;
 }
 
+// Was eine Umbuchung bewirkt (#3258), vorher als Vorschau (dry run) oder
+// nachher als Ergebnis. Minuten sind vorzeichenbehaftet: plus heißt, das
+// Stundenkonto steigt.
+export interface AbsenceRebooking {
+  absences: StaffAbsenceRow[];
+  days: number;
+  balanceDeltaMinutes: number;
+  allowances: {
+    year: number;
+    remainingDays: number;
+    bookingDays: number;
+  }[];
+  allowanceExceeded: boolean;
+  vacation: { year: number; remainingBefore: number; remainingAfter: number }[];
+  vacationExceeded: boolean;
+  applied: boolean;
+}
+
+interface BackendAbsenceRebooking {
+  absences: StaffAbsenceRow[] | null;
+  days: number;
+  balance_delta_minutes: number;
+  allowances?: {
+    year: number;
+    remaining_days: number;
+    booking_days: number;
+  }[];
+  allowance_exceeded: boolean;
+  vacation?: {
+    year: number;
+    remaining_before: number;
+    remaining_after: number;
+  }[];
+  vacation_exceeded: boolean;
+  applied: boolean;
+}
+
+/**
+ * Die Umbuchung ist gesperrt, bis die Leitung etwas anderes erledigt hat
+ * (abgeschlossener Monat, Krankmeldung, Antrag). Die Meldung ist fertiger
+ * Text für die Oberfläche.
+ */
+export class AbsenceRebookingBlockedError extends Error {}
+
 interface BackendCompTimeBalancePreview {
   current_balance_minutes: number;
   deduction_minutes: number;
@@ -1205,6 +1249,65 @@ class StaffAbsenceService {
       futureCommitmentMinutes: json.data.future_commitment_minutes,
       futureAdjustmentMinutes: json.data.future_adjustment_minutes,
       projectedBalanceMinutes: json.data.projected_balance_minutes,
+    };
+  }
+
+  // Ändert die Art gespeicherter Abwesenheiten (#3258):
+  // POST /api/staff/{id}/absences/rebook. Mit dryRun schreibt der Server
+  // nichts und beschreibt nur die Folgen.
+  async rebookAbsences(
+    staffId: string,
+    args: {
+      absenceIds: readonly (number | string)[];
+      absenceType: string;
+      absenceTypeId: string | null;
+      reason: string;
+      dryRun: boolean;
+    },
+  ): Promise<AbsenceRebooking> {
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/absences/rebook`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          absence_ids: args.absenceIds.map(String),
+          absence_type: args.absenceType,
+          absence_type_id: args.absenceTypeId,
+          reason: args.reason,
+          dry_run: args.dryRun,
+        }),
+      },
+    );
+    if (!response.ok) {
+      const error = await readStaffAPIError(
+        response,
+        "Die Art konnte nicht geändert werden.",
+      );
+      if (error.code === "absence_rebooking_blocked") {
+        throw new AbsenceRebookingBlockedError(error.message);
+      }
+      throw new Error(absenceCreateErrorMessage(error));
+    }
+    const json = (await response.json()) as { data: BackendAbsenceRebooking };
+    const data = json.data;
+    return {
+      absences: data.absences ?? [],
+      days: data.days,
+      balanceDeltaMinutes: data.balance_delta_minutes,
+      allowances: (data.allowances ?? []).map((item) => ({
+        year: item.year,
+        remainingDays: item.remaining_days,
+        bookingDays: item.booking_days,
+      })),
+      allowanceExceeded: data.allowance_exceeded,
+      vacation: (data.vacation ?? []).map((item) => ({
+        year: item.year,
+        remainingBefore: item.remaining_before,
+        remainingAfter: item.remaining_after,
+      })),
+      vacationExceeded: data.vacation_exceeded,
+      applied: data.applied,
     };
   }
 

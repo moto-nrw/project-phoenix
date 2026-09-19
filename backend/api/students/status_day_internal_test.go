@@ -10,17 +10,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -699,8 +700,12 @@ func newStatusDayTestResource(db *bun.DB, clocks ...func() time.Time) *Resource 
 		clock = clocks[0]
 	}
 	return NewResource(ResourceConfig{
-		PersonService:           usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{StudentRepo: repoFactory.Student}),
-		StudentService:          usersSvc.NewStudentService(repoFactory.Student, repositories.NewStudentPrivacyConsentStore(db), repoFactory.StudentCompanion, nil),
+		PersonService: usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
+			StudentDirectory: repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)),
+			StudentRepo:      repoFactory.Student,
+		}),
+		StudentService:          usersSvc.NewStudentService(repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)), repositories.MustNewPeopleDirectory(db), repoFactory.Student),
+		CompanionService:        carelifecycle.NewStudentCompanionService(repoFactory.Student, repoFactory.StudentCompanion, nil),
 		StudentStatusDayService: activeService.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil, repoFactory.CarePlan.LockExceptionDay, clock),
 		Logger:                  slog.Default(),
 		Now:                     clock,

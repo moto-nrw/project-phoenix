@@ -79,8 +79,101 @@ repository as a compatibility permission until the table can be adopted.
 With that the baseline records no `tables.unclassified` debt.
 The same ticket moves the two foreign accesses the package kept on owned
 tables: `users.profiles` belongs to the account, not the person, so its model,
-contract and repository move to `models/auth` and
-`database/repositories/auth` under `identity-access`.
+contract and repository move to `modules/identityaccess/legacy/authmodels` and
+`modules/identityaccess/legacy/authpostgres` under `identity-access`.
+
+#3349 settles the one table two owners reached for: `users.privacy_consents`
+stays with `student-presence`. The recorded window bounds how long presence
+data is kept, and the GDPR cleanup reads it through that owner's
+`ListAcceptedRetentionSettings`; People Directory gives up the consent
+lifecycle it kept in `services/users` instead. The policy entry is unchanged —
+the decision is that the existing owner keeps the table, not that it changes
+hands. `audit.student_consent_changes` and `audit.student_field_edits` stay
+with `audit-platform` for the same reason: People Directory decides which of
+its fields are tracked and how a change reads, and appends through a
+consumer-owned port.
+
+#3349 moved the child's whole lifecycle to its owner, including the write.
+`StudentRepository.Update` looked like it crossed a boundary: between the row
+lock and the plan write it reconciles the `users.student_companions` edges a
+narrowed departure plan no longer allows, takes the far children's row locks for
+that, and refuses the write when dropping an edge would strand one of them. It
+does not cross one. `database/repositories/users` is already
+`people-directory/postgres` in `policy.json`, so that code was always on this
+owner's side of the line, reaching Care Plan through a port. Relocating it into
+`modules/peopledirectory/internal` changed no ownership; the port is now
+`ports.StudentCompanions`, bound to Care Plan's `compose.CompanionRecords` — a
+slice of that owner narrow enough to build from the database alone, which is
+what lets the directory have it without waiting for a Care Plan that needs the
+directory.
+
+Two things stayed shared rather than moving. `departure.StrandingBatch` is the
+scope a coordinated multi-child write defers its verdicts into: the owner
+decides them, but the caller opens the scope and carries it on its context, so
+the type lives in the leaf both sides already import. And
+`RecordCompanionChange` stays with the composition seam, because the
+`student_companions_changed` announcement travels on the caller's context too.
+
+`database/repositories/users/student.go` issues no SQL at all any more. What
+remains is the interface the retained `StudentRepository` still declares, each
+method reporting a configuration error when a graph reaches it without the
+owner bound — the composition root binds it for every graph, so the shell is
+reachable only by a mistake.
+
+The reads moved with the same care as the writes, because three of them are
+not what their names suggest: the class lookup matches trimmed and
+case-insensitively, the id list keeps graduates because one who is actually
+present must stay reachable, and the participation candidates and the class
+roster count graduates while every other roster read does not. That last
+distinction is now stated as `peopledirectory.StudentScope` rather than left to
+each query.
+
+#3350 moves the application the same tables' persistence already left behind.
+The care-exit lifecycle ("Betreuung beenden", #2487), the "läuft mit" graph and
+the child Dokumente tab were written in `services/users`, which is
+`people-directory/application`, although `users.student_care_exits`,
+`users.student_care_exit_removals`, `users.student_care_exit_source_removals`,
+`users.student_companions`, `users.student_documents` and
+`users.care_withdrawal_completions` are all Care Plan's. #2682 moved the
+persistence behind `CareRecordsQuery`/`CareRecordsCommand`; the services that
+drive it now live in `modules/careplan/legacy/carelifecycle`, together with the
+care-exit cleanup repository that used to be
+`database/repositories/users/care_exit*.go`.
+
+They could not land on Care Plan's `application` point. The relocated code
+still speaks the retained `models/users` rows, the retained audit contracts,
+the shared authorization helpers and the Bun database, and PR mode rejects a
+new permission on a point that exists at the base SHA — the same reason
+#3219's shift-planning services went to `inbound-staff-shifts`/`adapter`. The
+package is therefore `inbound-students`/`adapter`, the consumer-side twin of
+`modules/careplan/legacy/careschedule` (`inbound-schedules`/`adapter`, #3220),
+and every `inbound-students.adapter.*` rule and every
+`<consumer>.<role>.inbound-students-adapter` rule is a compatibility
+permission: convert them to exact debt once the package exists at a base SHA,
+and dissolve the services into the Care Plan application and domain layers
+under #2731.
+
+Two things the move settled rather than carried. The care-exit flow reads two
+People Directory tables — the archive lists the children whose enrolment
+interval has run out, the binding preview freezes their person rows, and the
+booking evaluation reads their enrolment bounds — so those queries are now the
+named tenant-safe projection `modules/careplan/legacy/careexitview`
+(`care-exit-view`, the one owner this epoch adds). It takes the tenant id
+explicitly and joins the Enrollment and Care Plan recordsets its caller
+already loaded; the adapter itself issues no SQL. And the three owner queries
+the cleanup repository used to receive through `Bind*` setters arrive at
+construction instead, as resolvers over the repository factory's own fields:
+the composition-surface guard records mutable wiring per package, so a
+relocated setter counts as growth (#3219 hit the same wall).
+`Factory.BindTimetable` went with them — it only ever forwarded the Timetable
+owner to that one repository, which now reads the capability the same graph
+hands `NewFactory`.
+
+`services/users` keeps the People Directory half of the child record.
+`StudentService` no longer carries the companion graph; `api/students` holds
+`carelifecycle.StudentCompanionService` beside it, and the group roster read
+asks Care Plan for the dated participation decision through a narrow
+`CareParticipationResolver` instead of holding the whole lifecycle service.
 
 The staff messaging writes live in the Communication Postgres adapter
 `modules/communication/internal/adapters/staffpostgres`. The inbox and unread
@@ -251,6 +344,54 @@ Once recorded, the tuple follows the ordinary shrink-only and issue-audit
 rules. Restoring its target permission is still policy loosening. Removing the
 import requires removing its debt entry in the same change. No schema change
 or second allowlist is needed for the final contract step.
+
+### Relocating a package without losing its debt
+
+A violation is identified by `scope|rule|source|target`, so moving a package
+renames every key it appears in, in both directions, although no import, owner
+or role changed. [ADR 0020](../../docs/adr/0020-a-relocated-package-keeps-its-debt.md)
+lets a reviewed epoch declare that move in the optional `relocations` array,
+sorted by `from`:
+
+```json
+{"from":"models/auth","to":"modules/identityaccess/legacy/authmodels","issue":"https://github.com/moto-nrw/project-phoenix/issues/3226"}
+```
+
+PR mode then reads the base baseline at the candidate's paths. A declaration is
+active while `from` is still classified in the base policy; afterwards it is a
+record of which path became which, and it cannot replay. An active declaration
+must prove the epoch increased, that `from` is classified in the base policy
+and gone from the candidate while `to` is classified in the candidate and
+absent from the base, that owner and all three roles are identical on both
+sides, and that `to` holds exactly the Go files `from` held at the base commit.
+The file set comes from Git, not from the declaration, so a move that adds,
+drops or renames a file is a rewrite and keeps the ordinary guards. It compares
+names, not contents, which it cannot do because a relocation rewrites import
+paths and may rename the package clause. It is a sanity gate; the safety
+property is the unchanged violation-key set below.
+
+The declaration renames keys and grants nothing else. An added import has no
+renamed twin and stays a new violation, a changed migration issue is still a
+reassignment, and a base entry whose import disappeared is still stale. Rule
+anchoring does not read the declaration: whether a package counts as
+candidate-created still comes from Git, as for any package the candidate
+writes. Prefer a relocation over compatibility permissions whenever a package
+moves unchanged — it keeps each consumer's debt under the consumer's own
+migration issue instead of dropping it and re-deriving it later.
+
+#3226 moves `auth/jwt`, `models/auth` and `database/repositories/auth` into
+`modules/identityaccess/legacy/jwt`, `.../legacy/authmodels` and
+`.../legacy/authpostgres` this way (policy epoch 13 to 15), with no rule, owner
+or role change. They stay outside the module's `internal` tree because
+`database/repositories`, `services/users`, `models/users`, `api/auth`, `cmd`
+and the retained parent-portal and delivery packages still import them; that
+debt is recorded against #2727 through #2751 and falls with those tickets, at
+which point the packages can join `internal/domain` and
+`internal/adapters/postgres`. The typed-root composition inventory only scans
+`api`, `cmd`, `services`, `database/repositories` and `test`, so the moved
+repository tests' factory calls left `composition.json` with the move, as with
+#3218 and #3219; they are not fewer callers, and the composition surface count
+is unchanged at 673.
 
 The Workforce compatibility adapter (`modules/workforce/legacy`) and the
 Workforce HTTP composition (`modules/workforce/inbound`) are classified as
@@ -435,6 +576,43 @@ all #2730 entries left `legacy.jsonl`, together with the other resolved
 imports of the two packages, and the 25 rules that only those imports used
 (for example `parent-portal.adapter.timetable-application` and
 `inbound-timetable.adapter.timetable-activities-application`) were deleted.
+
+`services/auth`, `services/auth/authtest` and `services/platform` no longer
+exist (#3364). What they held last were the retained consumer ports over
+Identity & Access: the capability interfaces, value types and error sentinels
+the HTTP surfaces consumed because the policy does not let them name the
+module. Every consumer now either calls `modules/identityaccess` directly
+(`api/auth`), reaches the owner's own seam (`api/operator` through
+`modules/identityaccess/inbound/operator`), or consumes a plain-typed runtime
+the composition root binds (the school and parents portals, the staff
+offboarding workflow), so no status code, error string or wire shape moved.
+The credential primitives the compositions hand the module — the Argon2id
+hash, the password policy and the entropy source — are Security Runtime's
+(`auth/authorize/credentials.go`, served through `modules/securityruntime`);
+the school-role lookup is `authmodels.ResolveSystemRoleByName`; the
+"no row" classification is `models/users.RowMissing`. The module binds the
+unit of work it opens its own transactions under through
+`identityaccess.Module.SetTenantRuntime`, which the legacy factory's existing
+runtime wiring calls. The facade does not name the runtime package for it:
+`identityaccess.TenantRuntimeBinding` takes the unit of work as an opaque
+value, `modules/identityaccess/compose` supplies the `tenant.RuntimeRef`
+behind it and the root supplies the runtime, each naming `tenant` where it
+already may. The type check therefore sits in the root, which owns the
+runtime, and a value it cannot bind fails the server's startup. The binding
+replaced the retained service's own runtime field and setter, so the
+composition surface shrank by two and the cutover needs no production rule.
+
+The behaviour suites of both packages moved with their subject into
+`modules/identityaccess/behavior` (`identity-access`/`test-support`,
+`e2e-test` in both test scopes), retargeted to the module's contract. The
+point is deliberately one no other Identity & Access package occupies, so the
+`identity-access.behaviour.*` rules widen nothing else; they exist only
+because the suites drive the composed service root, and they go when the
+suites drive the module without the legacy factory. The school-portal router
+suites bind their runtimes through `modules/schoolportal/portaltest`
+(`inbound-school`/`test-support`), the owner's own test support, instead of
+naming the legacy composition from the suite; its three rules are anchored to
+that new point for the same reason.
 
 The Workforce time-tracking HTTP composition
 (`modules/workforce/inbound/timetracking`) is classified `workforce`/`http`
@@ -646,7 +824,7 @@ and template routes from the public Data Import contract with unchanged paths,
 status codes, error strings, multipart handling, file-size limit and
 permission checks. The `root-composition.to.import-http` mount replaces the
 `api -> api/import` debt entry that fell with the old package; it and the
-`inbound-import.compose.*` rules that bind `api/common`, `auth/jwt`, `tenant`
+`inbound-import.compose.*` rules that bind `api/common`, `modules/identityaccess/legacy/jwt`, `tenant`
 and the ORM are compatibility permissions, not target dependencies. Convert
 them to exact debt with the rule above once the package exists at a base SHA.
 
@@ -779,8 +957,8 @@ and the e-mail outbox, and the enrollment requests a guardian acceptance
 claims arrive through their own port. Every reader of `auth.guardian_invitations` goes
 through the owner: the People Directory guardian list and the parents portal
 related-accounts view consume their own record types over the public
-capability, so the `models/auth` guardian invitation contract, its
-`database/repositories/auth` adapter, the `repositories.Factory` field and
+capability, so the `modules/identityaccess/legacy/authmodels` guardian invitation contract, its
+`modules/identityaccess/legacy/authpostgres` adapter, the `repositories.Factory` field and
 the People Directory's deprecated invitation twin are deleted with the
 retained token lookup, approval-queue and acceptance methods. The operator MFA
 records (#2723): `platform.operator_mfa_credentials`,
@@ -814,11 +992,11 @@ keeps the ceremonies, the tenant-origin check and the school-membership gate
 and reaches the rows through its own `PasskeyRecords` port. A credential
 belongs to the account and carries no school; the ceremony records the school
 whose portal started it, and login refuses a school the account has no access
-to. Their `models/auth` models and `database/repositories/auth` adapter are
+to. Their `modules/identityaccess/legacy/authmodels` models and `modules/identityaccess/legacy/authpostgres` adapter are
 deleted; the port's value types live in `services/auth`. The foreign
 `auth.accounts` reads of the People Directory, Care Plan parent and CLI
 packages use owner queries bound the same way (`identity_ports.go`): the
-account lookup and active-account subquery of `database/repositories/auth`
+account lookup and active-account subquery of `modules/identityaccess/legacy/authpostgres`
 and the public account fact. The
 same owner serves the account refresh sessions behind tenant, parent and
 school login, refresh, tenant switching, logout, session validation and
@@ -833,7 +1011,7 @@ tenant and school switch, logout, session validation, session cleanup and
 revocation orchestration lives in the module's application layer (#3251),
 with the `auth.accounts`, `auth.account_tenants`, role and permission reads
 it needs served by the module's own store; the retained
-`models/auth.TokenRepository` contract and its compatibility adapter are
+`authmodels.TokenRepository` contract and its compatibility adapter are
 deleted. The facts the flows need from other owners (schools, persons, the
 password verifier, the JWT codec, the MFA gate, the settings lock, the audit
 ledger, push subscriptions) are bound at the serving root through
@@ -857,10 +1035,11 @@ owes, direct account grants, role-permission selections and the default
 staff permission. `auth.roles`, `auth.permissions`, `auth.role_permissions`,
 `auth.account_roles`, `auth.account_permissions` and the account and
 membership locks the mutations serialize on are still read and written
-through the retained `database/repositories/auth` repositories:
+through the retained `modules/identityaccess/legacy/authpostgres` repositories:
 `database/repositories/identity_roles.go` serves the module's
 `compose.RoleDirectory` seam over them, without changing a statement or the
-lock order, until #3226 moves the stores into the module. The school-role
+lock order. #3226 moved those stores into the module; the seam still binds
+them from the legacy factory until #2743 retires it. The school-role
 assignment policy (`ValidateAssignableSchoolRole` and the Lehrkraft and
 guardian-tier classification) is a public function of the module; the
 operator school access binds it inside the module, and the retained
@@ -1061,7 +1240,7 @@ owner and no existing-owner import guard is expanded.
 
 The parent-portal workflow (`workflows/parentportal`, owner `parent-portal`,
 kind `workflow`, #3227,
-[ADR 0019](../../docs/adr/0019-parent-portal-is-an-application-workflow.md))
+[ADR 0022](../../docs/adr/0022-parent-portal-is-an-application-workflow.md))
 takes the guardian-portal flows out of `services/parent`, which coordinates
 Care Plan, Enrollment, Timetable & Activities, Communication, People
 Directory, Settings and Student Presence for one guardian and one child.
@@ -1145,7 +1324,7 @@ rule this move added, `root-composition.to.inbound-parent-http` and
 target dependencies. They cover every future `inbound-parent` package, so no
 other package may join that point before the conversion. Convert them to exact
 debt with the rule above under #2580 once the package exists at a base SHA;
-the `auth/jwt` and `services/auth` edges then wait for #2725. The move replaced
+the `modules/identityaccess/legacy/jwt` and `services/auth` edges then wait for #2725. The move replaced
 the calendar, push, notification-preference and PWA-usage setters with a
 construction-time `ResourceConfig`, and the auth rate-limiter setter with
 `RouterWithAuthRateLimiter` (the school portal shape), because the
@@ -1546,6 +1725,20 @@ logically overlapping rules. Change
 `schema_version` only when the JSON shape changes. Change `policy_epoch` only
 for a reviewed architecture decision; it does not approve or rebuild legacy
 findings.
+
+The three existing student read projections have one fixed replacement path
+([ADR 0025](../../docs/adr/0025-replace-student-read-projection-grants.md),
+[#3432](https://github.com/moto-nrw/project-phoenix/issues/3432)). In a reviewed
+epoch, `parent-message-inbox`, `parent-announcement-audience` and `care-exit-view`
+may replace their base `users.students` grant with exactly
+`users.student_profiles`, `users.student_school_memberships` and
+`users.student_care_profiles`. The last table preserves the view's care-row
+existence filter; the queries select no extra care fields. Package, projection
+ID, owner, production/test roles, tenant safety, other grants and target write
+owners must stay unchanged. The checker exempts only these exact replacement
+pairs, not other additions in the same candidate. Without the old grant in the
+immutable base, the exception cannot activate again. Epoch 16 performs this
+cutover without changing the baseline or composition surface.
 
 Reviewed data-less workflow additions may register new workflow owners when
 all their packages are candidate-created and the policy epoch increases

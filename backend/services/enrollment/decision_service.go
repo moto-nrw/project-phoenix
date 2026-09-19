@@ -459,6 +459,16 @@ type DecisionServiceConfig struct {
 	// Runs in the caller's transaction. Production wires the schedule
 	// PickupAutoExcusalSyncer; tests may leave it nil.
 	ResyncPickupAutoExcusals func(ctx context.Context, studentIDs []int64) error
+	// SnapshotPickupWeekdayChanges and RecordPickupWeekdayChanges compare a
+	// submitted weekly pickup plan with the preceding projection. Production
+	// delegates both calls to PickupAutoExcusalSyncer, which records later
+	// pickups as Timetable tasks in the same transaction.
+	SnapshotPickupWeekdayChanges func(ctx context.Context, studentID int64, date timezone.Date) (map[int]string, error)
+	RecordPickupWeekdayChanges   func(ctx context.Context, studentID int64, date timezone.Date, before map[int]string) error
+	// ClearPickupWeekdayExtension closes a task that was created for a manual
+	// weekly pickup once that override is reset to an offering projection.
+	// Tests without the timetable owner may leave it nil.
+	ClearPickupWeekdayExtension func(ctx context.Context, studentID int64, weekday int) error
 	// LockPickupStudents takes the students' care locks (users.students row
 	// FOR UPDATE, ascending order) BEFORE the reconciler writes weekly
 	// Gehzeit rows. Staff weekly editors lock the student first and schedule
@@ -1570,8 +1580,6 @@ func (s *decisionService) applyApproval(
 	schoolClass := s.resolveSchoolClass(child)
 	enrolledFrom := timezone.Date(phase.ServiceStartDate)
 	enrolledUntil := timezone.Date(phase.ServiceEndDate)
-	guardianEmail := request.GuardianEmail
-	guardianPhone := request.GuardianPhone
 	activationPlan := s.approvalActivationPlan(ctx, phase)
 
 	student := &users.Student{
@@ -1580,8 +1588,6 @@ func (s *decisionService) applyApproval(
 		Status:        activationPlan.StudentStatus,
 		EnrolledFrom:  &enrolledFrom,
 		EnrolledUntil: &enrolledUntil,
-		GuardianEmail: &guardianEmail,
-		GuardianPhone: guardianPhone,
 	}
 	if err := student.Validate(); err != nil {
 		return nil, fmt.Errorf("decision: validate student: %w: %w", ErrDecisionInvalidData, err)
@@ -1873,16 +1879,6 @@ func (s *decisionService) attachApprovalToExistingStudent(
 	existing.EnrolledUntil = &enrolledUntil
 	if existing.Status != users.StudentStatusActive {
 		existing.Status = activationPlan.StudentStatus
-	}
-	// A full re-enrollment form re-states the guardian's contact data, so the
-	// student's denormalized guardian_email / guardian_phone follow the fresh
-	// submission instead of keeping last year's address (same rule the approved
-	// child sync applies). The rollover carries no submission and keeps them.
-	if syncTargetedFields {
-		if email := strings.TrimSpace(strings.ToLower(request.GuardianEmail)); email != "" {
-			existing.GuardianEmail = &email
-		}
-		existing.GuardianPhone = request.GuardianPhone
 	}
 	if err := s.StudentEnrollment.RenewEnrollmentStudent(ctx, existing.ID, enrollmentStudentInput(existing)); err != nil {
 		return nil, fmt.Errorf("decision: update existing student: %w", err)
@@ -3680,6 +3676,9 @@ func (s *decisionService) applyTargetedFields(
 	arrivalScheduleDeleted := false
 	pickupScheduleLockTaken := false
 	pickupScheduleChanged := false
+	var pickupScheduleBefore map[int]string
+	pickupScheduleSnapshotTaken := false
+	pickupScheduleSnapshotFailed := false
 
 	for i := range schema.Fields {
 		field := schema.Fields[i]
@@ -3770,6 +3769,9 @@ func (s *decisionService) applyTargetedFields(
 				studentDirty = true
 			}
 		case capability.TargetSchedulePickup:
+			if pickupScheduleSnapshotFailed {
+				continue
+			}
 			// Student lock BEFORE the weekly rewrite — the shared first lock of
 			// every care-day writer — so the auto-excusal resync after the loop
 			// keeps the student → care-day lock order (#2360 review).
@@ -3779,6 +3781,16 @@ func (s *decisionService) applyTargetedFields(
 					continue
 				}
 				pickupScheduleLockTaken = true
+			}
+			if !pickupScheduleSnapshotTaken {
+				pickupScheduleSnapshotTaken = true
+				var snapshotErr error
+				pickupScheduleBefore, snapshotErr = s.snapshotPickupWeekdayChanges(ctx, student.ID, s.Today())
+				if snapshotErr != nil {
+					errs = append(errs, fmt.Sprintf("%s: snapshot existing: %v", field.Target, snapshotErr))
+					pickupScheduleSnapshotFailed = true
+					continue
+				}
 			}
 			if replaceSchedules && s.PickupScheduleRepo != nil && !pickupScheduleDeleted {
 				pickupScheduleDeleted = true
@@ -3844,6 +3856,9 @@ func (s *decisionService) applyTargetedFields(
 	// state after re-enrollment until someone edits it.
 	if pickupScheduleChanged {
 		if err := s.resyncPickupAutoExcusals(ctx, []int64{student.ID}); err != nil {
+			errs = append(errs, err.Error())
+		}
+		if err := s.recordPickupWeekdayChanges(ctx, student.ID, s.Today(), pickupScheduleBefore); err != nil {
 			errs = append(errs, err.Error())
 		}
 	}

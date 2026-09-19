@@ -15,14 +15,14 @@ import (
 	"testing"
 	"time"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -60,7 +60,7 @@ func buildStudentDaySetup(t *testing.T) *studentDaySetup {
 	// Wire the full resource with real repos for the B11 path.
 	res := NewResource(Dependencies{
 		TimetableData: testTimetableData(db),
-		PersonService: usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{StudentRepo: usersRepo.NewStudentRepository(db)}),
+		PersonService: usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{StudentRepo: repositories.NewStudentRepository(db)}),
 		// UserContextService + SettingsService intentionally nil:
 		// admin-perm path short-circuits CanReadStudent; the 403 test relies on
 		// the fallthrough returning false when userCtx is nil.
@@ -81,19 +81,26 @@ func buildStudentDaySetup(t *testing.T) *studentDaySetup {
 // adminRouter mounts /student/{id}/{day|week} without middleware, pre-baking
 // admin permissions into the request context so CanReadStudent short-circuits
 // to allow. A separate non-admin router is used for the forbidden-path tests.
-func adminRouter(parentCtx context.Context, res *Resource) chi.Router {
-	return studentRouter(parentCtx, res, []string{"admin:*"})
+func adminRouter(tb testing.TB, parentCtx context.Context, res *Resource) chi.Router {
+	return studentRouter(tb, parentCtx, res, []string{"admin:*"})
 }
 
-func studentRouter(parentCtx context.Context, res *Resource, perms []string) chi.Router {
+func studentRouter(tb testing.TB, parentCtx context.Context, res *Resource, perms []string) chi.Router {
 	tenantID := tenant.FromContext(parentCtx)
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(req.Context()), tenantID)
+			ctx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(tb, req.Context()), tenantID)
 			ctx = context.WithValue(ctx, jwt.CtxPermissions, perms)
-			next.ServeHTTP(w, req.WithContext(ctx))
+			// One transaction per request, as TenantTxMiddleware opens in
+			// production: the owner's reads join it instead of opening one
+			// each, which is what the query budget counts.
+			err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+				next.ServeHTTP(w, req.WithContext(txCtx))
+				return nil
+			})
+			require.NoError(tb, err)
 		})
 	})
 	r.Get("/student/{id}/day", res.getStudentDay)
@@ -141,7 +148,7 @@ func TestGetStudentDay_HappyPath_WithScheduleAndEnrolledInstance(t *testing.T) {
 	testpkg.CreateTestArrivalSchedule(t, s.db, s.studentID, schedule.WeekdayWednesday, s.staffID, "13:00")
 	testpkg.CreateTestPickupSchedule(t, s.db, s.studentID, schedule.WeekdayWednesday, s.staffID, "16:00")
 
-	router := adminRouter(s.ctx, s.res)
+	router := adminRouter(t, s.ctx, s.res)
 	w := doGet(t, router, fmt.Sprintf("/student/%d/day?date=2026-04-22", s.studentID))
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 
@@ -184,7 +191,7 @@ func TestGetStudentDay_ExceptionOverridesSchedule(t *testing.T) {
 	testpkg.CreateTestArrivalException(t, s.db, s.studentID,
 		timezone.NewDate(2026, 4, 22), s.staffID, "10:30", "Wandertag")
 
-	router := adminRouter(s.ctx, s.res)
+	router := adminRouter(t, s.ctx, s.res)
 	w := doGet(t, router, fmt.Sprintf("/student/%d/day?date=2026-04-22", s.studentID))
 	require.Equal(t, http.StatusOK, w.Code)
 
@@ -208,7 +215,7 @@ func TestGetStudentDay_PickupException_NilTimeMeansAbsence(t *testing.T) {
 	testpkg.CreateTestPickupException(t, s.db, s.studentID,
 		timezone.NewDate(2026, 4, 22), s.staffID, "", "Krank")
 
-	router := adminRouter(s.ctx, s.res)
+	router := adminRouter(t, s.ctx, s.res)
 	w := doGet(t, router, fmt.Sprintf("/student/%d/day?date=2026-04-22", s.studentID))
 	require.Equal(t, http.StatusOK, w.Code)
 
@@ -226,7 +233,7 @@ func TestGetStudentDay_NoArrivalNoPickup_SourceNone(t *testing.T) {
 
 	s := buildStudentDaySetup(t)
 
-	router := adminRouter(s.ctx, s.res)
+	router := adminRouter(t, s.ctx, s.res)
 	w := doGet(t, router, fmt.Sprintf("/student/%d/day?date=2026-04-22", s.studentID))
 	require.Equal(t, http.StatusOK, w.Code)
 
@@ -272,7 +279,7 @@ func TestGetStudentDay_EnrolledPlusVisit_NoDuplicate(t *testing.T) {
 	testpkg.CreateTestVisit(t, s.db, s.studentID, ag.ID,
 		time.Date(2026, 4, 22, 14, 5, 0, 0, time.UTC), nil)
 
-	router := adminRouter(s.ctx, s.res)
+	router := adminRouter(t, s.ctx, s.res)
 	w := doGet(t, router, fmt.Sprintf("/student/%d/day?date=2026-04-22", s.studentID))
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 
@@ -315,7 +322,7 @@ func TestGetStudentDay_UnplannedStudent(t *testing.T) {
 	testpkg.CreateTestVisit(t, s.db, s.studentID, ag.ID,
 		time.Date(2026, 4, 22, 14, 5, 0, 0, time.UTC), nil)
 
-	router := adminRouter(s.ctx, s.res)
+	router := adminRouter(t, s.ctx, s.res)
 	w := doGet(t, router, fmt.Sprintf("/student/%d/day?date=2026-04-22", s.studentID))
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 
@@ -337,7 +344,7 @@ func TestGetStudentDay_InvalidDate_Returns400(t *testing.T) {
 	t.Parallel()
 
 	s := buildStudentDaySetup(t)
-	router := adminRouter(s.ctx, s.res)
+	router := adminRouter(t, s.ctx, s.res)
 
 	w := doGet(t, router, fmt.Sprintf("/student/%d/day?date=not-a-date", s.studentID))
 	assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -348,7 +355,7 @@ func TestGetStudentDay_MissingDate_Returns400(t *testing.T) {
 	t.Parallel()
 
 	s := buildStudentDaySetup(t)
-	router := adminRouter(s.ctx, s.res)
+	router := adminRouter(t, s.ctx, s.res)
 
 	w := doGet(t, router, fmt.Sprintf("/student/%d/day", s.studentID))
 	assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -359,7 +366,7 @@ func TestGetStudentDay_InvalidStudentID_Returns400(t *testing.T) {
 	t.Parallel()
 
 	s := buildStudentDaySetup(t)
-	router := adminRouter(s.ctx, s.res)
+	router := adminRouter(t, s.ctx, s.res)
 
 	w := doGet(t, router, "/student/abc/day?date=2026-04-22")
 	assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -370,7 +377,7 @@ func TestGetStudentDay_UnknownStudent_Returns404(t *testing.T) {
 	t.Parallel()
 
 	s := buildStudentDaySetup(t)
-	router := adminRouter(s.ctx, s.res)
+	router := adminRouter(t, s.ctx, s.res)
 
 	w := doGet(t, router, "/student/999999999/day?date=2026-04-22")
 	assert.Equal(t, http.StatusNotFound, w.Code, "body=%s", w.Body.String())
@@ -386,7 +393,7 @@ func TestGetStudentDay_CrossTenant_Returns404(t *testing.T) {
 	// Pretend the caller is in tenant 2 — our fixture student lives in
 	// tenant 1 and must be invisible.
 	otherCtx := testpkg.TenantContext(2)
-	router := adminRouter(otherCtx, s.res)
+	router := adminRouter(t, otherCtx, s.res)
 
 	w := doGet(t, router, fmt.Sprintf("/student/%d/day?date=2026-04-22", s.studentID))
 	assert.Equal(t, http.StatusNotFound, w.Code, "body=%s", w.Body.String())
@@ -401,7 +408,7 @@ func TestGetStudentDay_SameTenantNoSupervisor_Returns403(t *testing.T) {
 
 	// Strip admin perms; CanReadStudent falls through to the group-
 	// supervisor branch and fails because userContextService is nil.
-	router := studentRouter(s.ctx, s.res, []string{"schedules:read"})
+	router := studentRouter(t, s.ctx, s.res, []string{"schedules:read"})
 
 	w := doGet(t, router, fmt.Sprintf("/student/%d/day?date=2026-04-22", s.studentID))
 	assert.Equal(t, http.StatusForbidden, w.Code, "body=%s", w.Body.String())
@@ -413,7 +420,7 @@ func TestGetStudentWeek_HappyPath_ReturnsEntryPerDay(t *testing.T) {
 	t.Parallel()
 
 	s := buildStudentDaySetup(t)
-	router := adminRouter(s.ctx, s.res)
+	router := adminRouter(t, s.ctx, s.res)
 
 	w := doGet(t, router, fmt.Sprintf("/student/%d/week?from=2026-04-20&to=2026-04-24", s.studentID))
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
@@ -437,7 +444,7 @@ func TestGetStudentWeek_RangeAtLimit_14Days_ReturnsOK(t *testing.T) {
 	t.Parallel()
 
 	s := buildStudentDaySetup(t)
-	router := adminRouter(s.ctx, s.res)
+	router := adminRouter(t, s.ctx, s.res)
 
 	w := doGet(t, router, fmt.Sprintf("/student/%d/week?from=2026-04-01&to=2026-04-14", s.studentID))
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
@@ -451,7 +458,7 @@ func TestGetStudentWeek_RangeExceedsLimit_Returns400(t *testing.T) {
 	t.Parallel()
 
 	s := buildStudentDaySetup(t)
-	router := adminRouter(s.ctx, s.res)
+	router := adminRouter(t, s.ctx, s.res)
 
 	w := doGet(t, router, fmt.Sprintf("/student/%d/week?from=2026-04-01&to=2026-04-15", s.studentID))
 	require.Equal(t, http.StatusBadRequest, w.Code)
@@ -468,7 +475,7 @@ func TestGetStudentWeek_SpringDST_15DayRangeStillRejected(t *testing.T) {
 	t.Parallel()
 
 	s := buildStudentDaySetup(t)
-	router := adminRouter(s.ctx, s.res)
+	router := adminRouter(t, s.ctx, s.res)
 
 	w := doGet(t, router, fmt.Sprintf("/student/%d/week?from=2026-03-22&to=2026-04-05", s.studentID))
 	require.Equal(t, http.StatusBadRequest, w.Code)
@@ -481,7 +488,7 @@ func TestGetStudentWeek_SpringDST_14DayRangeAtLimit_ReturnsOK(t *testing.T) {
 	t.Parallel()
 
 	s := buildStudentDaySetup(t)
-	router := adminRouter(s.ctx, s.res)
+	router := adminRouter(t, s.ctx, s.res)
 
 	w := doGet(t, router, fmt.Sprintf("/student/%d/week?from=2026-03-23&to=2026-04-05", s.studentID))
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
@@ -495,7 +502,7 @@ func TestGetStudentWeek_FromAfterTo_Returns400(t *testing.T) {
 	t.Parallel()
 
 	s := buildStudentDaySetup(t)
-	router := adminRouter(s.ctx, s.res)
+	router := adminRouter(t, s.ctx, s.res)
 
 	w := doGet(t, router, fmt.Sprintf("/student/%d/week?from=2026-04-22&to=2026-04-20", s.studentID))
 	require.Equal(t, http.StatusBadRequest, w.Code)
@@ -506,7 +513,7 @@ func TestGetStudentWeek_MissingParams_Returns400(t *testing.T) {
 	t.Parallel()
 
 	s := buildStudentDaySetup(t)
-	router := adminRouter(s.ctx, s.res)
+	router := adminRouter(t, s.ctx, s.res)
 
 	w := doGet(t, router, fmt.Sprintf("/student/%d/week?from=2026-04-22", s.studentID))
 	require.Equal(t, http.StatusBadRequest, w.Code)
@@ -523,7 +530,7 @@ func TestGetStudentWeek_QueryBudget_BatchedNotNPlusOne(t *testing.T) {
 
 	counter := testpkg.CaptureQueries(t, s.db)
 
-	router := adminRouter(s.ctx, s.res)
+	router := adminRouter(t, s.ctx, s.res)
 	w := doGet(t, router, fmt.Sprintf("/student/%d/week?from=2026-04-01&to=2026-04-14", s.studentID))
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 
@@ -531,6 +538,12 @@ func TestGetStudentWeek_QueryBudget_BatchedNotNPlusOne(t *testing.T) {
 	// one batched class-exception lookup of the arrival projection (#2962).
 	// The register entry leaves a little headroom for implicit bun/pg
 	// metadata queries and stays far below the pre-fix 14*7=98 regime.
-	t.Logf("14-day /week fired %d queries", counter.Total())
-	testpkg.AssertQueryBudget(t, "api.timetable.student_week.14d", counter.Queries())
+	// The endpoint's own statements. The request now runs in one transaction,
+	// as it does in production, and its BEGIN/SET/COMMIT are runtime overhead
+	// rather than work this endpoint does — counting them would move the
+	// budget without the endpoint changing.
+	statements := counter.Operation("SELECT")
+	t.Logf("14-day /week fired %d statements (%d including transaction control)",
+		len(statements), counter.Total())
+	testpkg.AssertQueryBudget(t, "api.timetable.student_week.14d", statements)
 }

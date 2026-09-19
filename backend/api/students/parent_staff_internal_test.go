@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 
@@ -44,8 +45,12 @@ func TestNormalizeSickReason(t *testing.T) {
 func newStaffNotesResource(db *bun.DB) *Resource {
 	rf := newStudentTestRepositories(db)
 	return NewResource(ResourceConfig{
-		PersonService:           usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{StudentRepo: rf.Student}),
-		StudentService:          usersSvc.NewStudentService(rf.Student, repositories.NewStudentPrivacyConsentStore(db), rf.StudentCompanion, nil),
+		PersonService: usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
+			StudentDirectory: repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)),
+			StudentRepo:      rf.Student,
+		}),
+		StudentService:          usersSvc.NewStudentService(repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)), repositories.MustNewPeopleDirectory(db), rf.Student),
+		CompanionService:        carelifecycle.NewStudentCompanionService(rf.Student, rf.StudentCompanion, nil),
 		StudentStatusDayService: activeSvc.NewStudentStatusDayServiceWithPartialAbsences(rf.StudentStatusDay, nil, nil, rf.CarePlan.LockExceptionDay),
 		Logger:                  slog.Default(),
 		DB:                      db,

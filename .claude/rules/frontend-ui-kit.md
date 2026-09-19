@@ -102,6 +102,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Text input | `Input` | `~/components/ui/input` |
 | Checkbox | `Checkbox` — brand-green (`#83CD2D`) checked state; wrap in your own `<label>` for the row | `~/components/ui/checkbox` |
 | Inline alert / banner | `Alert` (`type`, `message`) | `~/components/ui/alert` |
+| Transient feedback | `Toast` — presentational surface only; queue, lifetime, and placement stay in `ToastProvider` | `~/components/ui/toast` |
 | Modal dialog | `Modal`, `ConfirmationModal` | `~/components/ui/modal` |
 | Form inside a modal | `FormModal` | `~/components/ui/form-modal` |
 | Delete confirmation (every deletion; `bauart/one-delete-confirm` fails a `ConfirmationModal`, hand-built `Modal` or `window.confirm` for Löschen) | `ConfirmDeleteModal` — gate `twoStep`, or `textConfirm` for irreversible data loss; a series/child scope choice goes in its `scope` slot, not in a `ChoiceModal` in front | `~/components/ui/confirm-delete-modal` |

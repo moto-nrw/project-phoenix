@@ -6,7 +6,7 @@ import (
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

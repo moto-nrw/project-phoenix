@@ -50,13 +50,12 @@ type EnrollmentProfilePatch struct {
 }
 
 type EnrollmentStudent struct {
-	PersonID      int64
-	SchoolClass   string
-	Status        string
-	EnrolledFrom  string
-	EnrolledUntil string
-	GuardianEmail *string
-	GuardianPhone *string
+	InitialProfile *EnrollmentProfilePatch
+	PersonID       int64
+	SchoolClass    string
+	Status         string
+	EnrolledFrom   string
+	EnrolledUntil  string
 }
 
 // StudentStatusAlumnus is the lifecycle status of a graduated child. Rows
@@ -92,3 +91,7 @@ type StudentName struct {
 }
 
 func (s Student) IsAlumnus() bool { return s.Status == StudentStatusAlumnus }
+
+// StudentStatusActive is the lifecycle status of a currently enrolled child.
+// It is also the column's default, which is why an unset status means this.
+const StudentStatusActive = "active"

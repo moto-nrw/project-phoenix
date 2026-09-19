@@ -7,10 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
 // TestMFAVerifyRequest_BindRejectsBadInputs covers the request-binding
@@ -106,19 +106,19 @@ func TestMapMFAError_StatusCodes(t *testing.T) {
 		err    error
 		status int
 	}{
-		{authService.ErrMFAChallengeTokenInvalid, http.StatusUnauthorized},
-		{authService.ErrMFACodeInvalid, http.StatusUnauthorized},
-		{authService.ErrMFALocked, http.StatusTooManyRequests},
-		{authService.ErrMFARateLimited, http.StatusTooManyRequests},
-		{authService.ErrMFANotEnrolled, http.StatusForbidden},
-		{authService.ErrMFAAlreadyEnrolled, http.StatusConflict},
-		{authService.ErrMFAPermissionDenied, http.StatusForbidden},
-		{authService.ErrMFAInvalidOverride, http.StatusBadRequest},
-		{authService.ErrMFAUnsupportedScope, http.StatusUnauthorized},
+		{identityaccess.ErrMFAChallengeTokenInvalid, http.StatusUnauthorized},
+		{identityaccess.ErrMFACodeInvalid, http.StatusUnauthorized},
+		{identityaccess.ErrMFALocked, http.StatusTooManyRequests},
+		{identityaccess.ErrMFARateLimited, http.StatusTooManyRequests},
+		{identityaccess.ErrMFANotEnrolled, http.StatusForbidden},
+		{identityaccess.ErrMFAAlreadyEnrolled, http.StatusConflict},
+		{identityaccess.ErrMFAPermissionDenied, http.StatusForbidden},
+		{identityaccess.ErrMFAInvalidOverride, http.StatusBadRequest},
+		{identityaccess.ErrMFAUnsupportedScope, http.StatusUnauthorized},
 		// Transient: the service could not read the MFA status or the
 		// rate-limit counter and failed closed. A 500 here would tell the
 		// frontend the resend endpoint is broken instead of "retry".
-		{authService.ErrMFAStatusUnavailable, http.StatusServiceUnavailable},
+		{identityaccess.ErrMFAStatusUnavailable, http.StatusServiceUnavailable},
 	}
 	for _, tc := range cases {
 		t.Run(tc.err.Error(), func(t *testing.T) {

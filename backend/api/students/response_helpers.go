@@ -2,6 +2,7 @@ package students
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -14,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -36,9 +38,9 @@ type StudentResponseServices struct {
 	PersonService userService.PersonService
 }
 
-// populatePersonAndGuardianData fills the response with person and guardian information
+// populatePersonAndGroupData fills the response with person and group information
 // based on access level permissions
-func populatePersonAndGuardianData(response *StudentResponse, person *users.Person, student *users.Student, group *education.Group, hasFullAccess bool) {
+func populatePersonAndGroupData(response *StudentResponse, person *users.Person, student *users.Student, group *education.Group, hasFullAccess bool) {
 	if person != nil {
 		response.FirstName = person.FirstName
 		response.LastName = person.LastName
@@ -50,15 +52,6 @@ func populatePersonAndGuardianData(response *StudentResponse, person *users.Pers
 		if hasFullAccess && person.TagID != nil {
 			response.TagID = *person.TagID
 		}
-	}
-
-	// Guardian email and phone are visible to all authenticated staff
-	if student.GuardianEmail != nil {
-		response.GuardianEmail = *student.GuardianEmail
-	}
-
-	if student.GuardianPhone != nil {
-		response.GuardianPhone = *student.GuardianPhone
 	}
 
 	if student.GroupID != nil {
@@ -381,15 +374,7 @@ func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, s
 		UpdatedAt:   student.UpdatedAt,
 	}
 
-	// Include legacy guardian name if available
-	if student.GuardianName != nil {
-		response.GuardianName = *student.GuardianName
-	}
-
 	// Guardian contact info is visible to all authenticated staff
-	if student.GuardianContact != nil {
-		response.GuardianContact = *student.GuardianContact
-	}
 
 	response.HasFullAccess = hasFullAccess
 
@@ -406,7 +391,7 @@ func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, s
 		response.RoomColor = locationInfo.RoomColor
 	}
 
-	populatePersonAndGuardianData(&response, person, student, group, hasFullAccess)
+	populatePersonAndGroupData(&response, person, student, group, hasFullAccess)
 	populatePublicStudentFields(&response, student)
 
 	// Sensitive student fields (notes, sickness) are now visible to all authenticated staff
@@ -438,14 +423,7 @@ func newStudentResponseFromSnapshot(_ context.Context, student *users.Student, p
 		UpdatedAt:   student.UpdatedAt,
 	}
 
-	if student.GuardianName != nil {
-		response.GuardianName = *student.GuardianName
-	}
-
 	// Guardian contact info is visible to all authenticated staff
-	if student.GuardianContact != nil {
-		response.GuardianContact = *student.GuardianContact
-	}
 
 	response.HasFullAccess = hasFullAccess
 
@@ -454,7 +432,7 @@ func newStudentResponseFromSnapshot(_ context.Context, student *users.Student, p
 	response.LocationSince = locationInfo.Since
 	response.RoomColor = locationInfo.RoomColor
 
-	populatePersonAndGuardianData(&response, person, student, group, hasFullAccess)
+	populatePersonAndGroupData(&response, person, student, group, hasFullAccess)
 	populateSnapshotPublicFields(&response, student)
 
 	// Sensitive student fields (notes, sickness) are now visible to all authenticated staff
@@ -470,8 +448,15 @@ func newStudentResponseFromSnapshot(_ context.Context, student *users.Student, p
 	return response
 }
 
-// newPrivacyConsentResponse converts a privacy consent model to a response
-func newPrivacyConsentResponse(consent *users.PrivacyConsent) PrivacyConsentResponse {
+// newPrivacyConsentResponse converts an owner consent record to a response.
+// Details travels as the recorded JSON document and is decoded for the wire.
+func newPrivacyConsentResponse(consent studentpresence.PrivacyConsent) (PrivacyConsentResponse, error) {
+	var details map[string]interface{}
+	if len(consent.Details) > 0 {
+		if err := json.Unmarshal(consent.Details, &details); err != nil {
+			return PrivacyConsentResponse{}, err
+		}
+	}
 	return PrivacyConsentResponse{
 		ID:                consent.ID,
 		StudentID:         consent.StudentID,
@@ -482,10 +467,10 @@ func newPrivacyConsentResponse(consent *users.PrivacyConsent) PrivacyConsentResp
 		DurationDays:      consent.DurationDays,
 		RenewalRequired:   consent.RenewalRequired,
 		DataRetentionDays: consent.DataRetentionDays,
-		Details:           consent.Details,
+		Details:           details,
 		CreatedAt:         consent.CreatedAt,
 		UpdatedAt:         consent.UpdatedAt,
-	}
+	}, nil
 }
 
 // teacherToSupervisorContact converts a teacher to a supervisor contact if valid

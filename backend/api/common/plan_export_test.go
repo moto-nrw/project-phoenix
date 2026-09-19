@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
 func TestCanExportInternalPlanRequiresScheduleManagement(t *testing.T) {

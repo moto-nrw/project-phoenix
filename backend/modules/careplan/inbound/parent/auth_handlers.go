@@ -10,7 +10,6 @@ import (
 	"github.com/go-ozzo/ozzo-validation/is"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
 // LoginRequest is the body shape for POST /parent/auth/login.
@@ -81,42 +80,41 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !rs.Auth.complete() {
+		common.RenderError(w, r, common.ErrorInternalServer(ErrLoginUnavailable))
+		return
+	}
+
 	ipAddress := getClientIP(r)
 	userAgent := r.Header.Get("User-Agent")
 
-	accessToken, refreshToken, err := rs.AuthService.LoginParentWithAudit(
+	accessToken, refreshToken, err := rs.Auth.Login(
 		r.Context(), req.Email, req.Password, ipAddress, userAgent,
 	)
 	if err != nil {
-		var authErr *authService.AuthError
-		if errors.As(err, &authErr) {
-			switch {
-			case errors.Is(authErr.Err, authService.ErrInvalidCredentials),
-				errors.Is(authErr.Err, authService.ErrAccountNotFound):
-				// Mask the specific cause to prevent account
-				// enumeration. Same pattern as the tenant login.
-				common.RenderError(w, r, common.ErrorUnauthorizedWithCode(
-					authService.ErrInvalidCredentials, "invalid_credentials"))
-			case errors.Is(authErr.Err, authService.ErrAccountInactive):
-				// Distinct code so the frontend can show
-				// "your account is disabled, contact the school"
-				// instead of a generic credentials error.
-				common.RenderError(w, r, common.ErrorUnauthorizedWithCode(
-					authService.ErrAccountInactive, "account_inactive"))
-			case errors.Is(authErr.Err, authService.ErrAccountNoGuardianRole):
-				// 403 with a stable code — frontend masks this as
-				// invalid_credentials in the user-facing copy (the
-				// German copy already includes a staff-login hint
-				// for this case) to avoid leaking that the email is
-				// a known staff account.
-				common.RenderError(w, r, common.ErrorForbiddenWithCode(
-					authService.ErrAccountNoGuardianRole, "not_a_guardian"))
-			default:
-				common.RenderError(w, r, common.ErrorInternalServer(err))
-			}
-			return
+		switch {
+		case rs.Auth.InvalidCredentials(err):
+			// Mask the specific cause to prevent account
+			// enumeration. Same pattern as the tenant login.
+			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(
+				ErrInvalidCredentials, "invalid_credentials"))
+		case rs.Auth.AccountInactive(err):
+			// Distinct code so the frontend can show
+			// "your account is disabled, contact the school"
+			// instead of a generic credentials error.
+			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(
+				ErrAccountInactive, "account_inactive"))
+		case rs.Auth.NotAGuardian(err):
+			// 403 with a stable code — frontend masks this as
+			// invalid_credentials in the user-facing copy (the
+			// German copy already includes a staff-login hint
+			// for this case) to avoid leaking that the email is
+			// a known staff account.
+			common.RenderError(w, r, common.ErrorForbiddenWithCode(
+				ErrAccountNoGuardianRole, "not_a_guardian"))
+		default:
+			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}
-		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 

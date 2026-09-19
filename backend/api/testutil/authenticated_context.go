@@ -3,7 +3,7 @@ package testutil
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
 // Claims is the authenticated caller as the router sees it. Aliased here so a

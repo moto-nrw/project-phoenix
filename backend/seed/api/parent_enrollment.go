@@ -62,6 +62,9 @@ func (s parentEnrollmentSeedStep) Run(ctx context.Context, rt *Runtime) error {
 		if err := s.seedDecidedPickupChange(rt, adminAuth, parentAuths[parents[0].Email], parents[0]); err != nil {
 			return err
 		}
+		if err := s.seedPendingLaterPickupChange(rt, adminAuth, parents, parentAuths); err != nil {
+			return err
+		}
 	}
 
 	rt.Enrollment = enrollmentState
@@ -512,6 +515,9 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 		}
 	}
 	if err := s.seedEnrollmentDeletion(rt, adminAuth, phaseID, offerings, len(submissions)); err != nil {
+		return state, err
+	}
+	if err := s.seedRenewalPhase(rt, adminAuth, schemaID, parents, parentAuths); err != nil {
 		return state, err
 	}
 	return state, nil

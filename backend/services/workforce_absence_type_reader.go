@@ -68,7 +68,14 @@ func (r absenceTypeReader) LabelsByID(ctx context.Context) (map[int64]string, er
 }
 
 func (r absenceTypeReader) PreviewAllowanceBooking(ctx context.Context, staffID, typeID int64, start, end timezone.Date, halfDay bool) ([]*timetracking.AbsenceTypeAllowanceSummary, error) {
-	values, err := r.catalog.PreviewAllowanceBooking(ctx, staffID, typeID, start.String(), end.String(), halfDay)
+	return legacyAllowancePreviews(r.catalog.PreviewAllowanceBooking(ctx, staffID, typeID, start.String(), end.String(), halfDay))
+}
+
+func (r absenceTypeReader) PreviewAllowanceRebooking(ctx context.Context, staffID, typeID int64, absenceIDs []int64) ([]*timetracking.AbsenceTypeAllowanceSummary, error) {
+	return legacyAllowancePreviews(r.catalog.PreviewAllowanceRebooking(ctx, staffID, typeID, absenceIDs))
+}
+
+func legacyAllowancePreviews(values []workforce.AbsenceTypeAllowanceSummary, err error) ([]*timetracking.AbsenceTypeAllowanceSummary, error) {
 	if values == nil {
 		return nil, mapNativeAbsenceTypeError(err)
 	}
@@ -77,6 +84,7 @@ func (r absenceTypeReader) PreviewAllowanceBooking(ctx context.Context, staffID,
 		result = append(result, &timetracking.AbsenceTypeAllowanceSummary{
 			StaffID: value.StaffID, AbsenceTypeID: value.AbsenceTypeID, Year: value.Year,
 			EntitledDays: value.EntitledDays, TakenDays: value.TakenDays, ReservedDays: value.ReservedDays, RemainingDays: value.RemainingDays,
+			BookingDays: value.BookingDays,
 		})
 	}
 	return result, mapNativeAbsenceTypeError(err)

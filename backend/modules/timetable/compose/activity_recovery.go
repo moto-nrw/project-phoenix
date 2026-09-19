@@ -39,6 +39,10 @@ func NewActivityRecoveryRepository(db *bun.DB, assignments AssignmentRecovery, p
 	return &ActivityRecoveryRepository{store: postgres.New(databaseRuntime(db)), assignments: assignments, presence: presence}
 }
 
+func (r *ActivityRecoveryRepository) CompletionTimestamp(ctx context.Context) (time.Time, error) {
+	return r.store.TransactionTimestamp(ctx)
+}
+
 func (r *ActivityRecoveryRepository) LockOpenSupervisors(ctx context.Context, activeGroupID int64) error {
 	return r.presence.LockOpenSupervisors(ctx, activeGroupID)
 }

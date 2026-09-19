@@ -14,7 +14,6 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,7 +47,6 @@ func createOverviewTenantFixture(
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Overview", fmt.Sprintf("Tenant-%d", tenantID))
 	room := testpkg.CreateTestRoomForTenant(t, db, tenantID, fmt.Sprintf("Overview-%d", tenantID))
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	repos.BindTimetable(timetabletest.New(t, db))
 	ctx := testpkg.TenantContext(tenantID)
 
 	instance := &scheduleModel.ActivityInstance{
@@ -347,7 +345,6 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 	localRoom := testpkg.CreateTestRoomForTenant(t, db, testpkg.Tenant(t), "Coverage-Local")
 	foreignRoom := testpkg.CreateTestRoomForTenant(t, db, foreignTenantID, "Coverage-Foreign")
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	repos.BindTimetable(timetabletest.New(t, db))
 	localCtx := testpkg.Ctx(t)
 	foreignCtx := testpkg.TenantContext(foreignTenantID)
 
@@ -438,7 +435,6 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 
 	queryCounter := testpkg.NewQueryCounter()
 	countedRepos := repositories.NewFactory(db.WithQueryHook(queryCounter), repositories.NewUnobservedTimetableDependencies(db.WithQueryHook(queryCounter)))
-	countedRepos.BindTimetable(timetabletest.New(t, db.WithQueryHook(queryCounter)))
 	countedInstances, ok := countedRepos.ActivityInstance.(timetableplanning.ActivityGroupInstanceRangeReader)
 	require.True(t, ok)
 	countedExceptions, ok := countedRepos.ActivityException.(timetableplanning.ActivityExceptionRangeReader)

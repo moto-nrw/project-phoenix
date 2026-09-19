@@ -286,8 +286,7 @@ function StudentsPageContent() {
           lastNameFirst.includes(searchLower) ||
           (student.school_class?.toLowerCase().includes(searchLower) ??
             false) ||
-          (student.group_name?.toLowerCase().includes(searchLower) ?? false) ||
-          (student.name_lg?.toLowerCase().includes(searchLower) ?? false)
+          (student.group_name?.toLowerCase().includes(searchLower) ?? false)
         );
       });
     }
@@ -474,6 +473,7 @@ function StudentsPageContent() {
                   <DatabaseCreateAction
                     label="Kind"
                     ariaLabel="Kind anlegen"
+                    showMobileFab={false}
                     onClick={() => setShowCreateModal(true)}
                   />
                 ),

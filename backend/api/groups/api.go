@@ -14,9 +14,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
@@ -28,19 +28,15 @@ import (
 
 // GroupStudentResponse represents a student in a group response
 type GroupStudentResponse struct {
-	ID              int64  `json:"id"`
-	PersonID        int64  `json:"person_id"`
-	FirstName       string `json:"first_name"`
-	LastName        string `json:"last_name"`
-	SchoolClass     string `json:"school_class"`
-	GroupID         int64  `json:"group_id"`
-	GroupName       string `json:"group_name"`
-	GuardianName    string `json:"guardian_name,omitempty"`
-	GuardianContact string `json:"guardian_contact,omitempty"`
-	GuardianEmail   string `json:"guardian_email,omitempty"`
-	GuardianPhone   string `json:"guardian_phone,omitempty"`
-	Location        string `json:"location,omitempty"`
-	TagID           string `json:"tag_id,omitempty"`
+	ID          int64  `json:"id"`
+	PersonID    int64  `json:"person_id"`
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	SchoolClass string `json:"school_class"`
+	GroupID     int64  `json:"group_id"`
+	GroupName   string `json:"group_name"`
+	Location    string `json:"location,omitempty"`
+	TagID       string `json:"tag_id,omitempty"`
 }
 
 // Resource defines the group API resource
@@ -240,34 +236,6 @@ func (rs *Resource) userHasGroupAccess(r *http.Request, groupID int64) bool {
 	return false
 }
 
-// populateGuardianDetails fills in guardian fields based on access permissions
-func populateGuardianDetails(response *GroupStudentResponse, student *users.Student, person *users.Person, hasFullAccess bool) {
-	// Full access users get all guardian details and tag ID
-	if hasFullAccess {
-		if student.GuardianName != nil {
-			response.GuardianName = *student.GuardianName
-		}
-		if student.GuardianContact != nil {
-			response.GuardianContact = *student.GuardianContact
-		}
-		if student.GuardianEmail != nil {
-			response.GuardianEmail = *student.GuardianEmail
-		}
-		if student.GuardianPhone != nil {
-			response.GuardianPhone = *student.GuardianPhone
-		}
-		if person.TagID != nil {
-			response.TagID = *person.TagID
-		}
-		return
-	}
-
-	// Limited access: only guardian name visible
-	if student.GuardianName != nil {
-		response.GuardianName = *student.GuardianName
-	}
-}
-
 // buildStudentResponse creates a student response with all necessary data
 func (rs *Resource) buildStudentResponse(
 	ctx context.Context,
@@ -294,7 +262,9 @@ func (rs *Resource) buildStudentResponse(
 		GroupName:   group.Name,
 	}
 
-	populateGuardianDetails(response, student, person, hasFullAccess)
+	if hasFullAccess && person.TagID != nil {
+		response.TagID = *person.TagID
+	}
 	response.Location = rs.resolveLocationForStudent(ctx, student.ID, hasFullAccess, locationSnapshot)
 
 	return response

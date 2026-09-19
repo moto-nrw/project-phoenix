@@ -42,7 +42,6 @@ import (
 	substitutionsAPI "github.com/moto-nrw/project-phoenix/api/substitutions"
 	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
 	worktimemodelsAPI "github.com/moto-nrw/project-phoenix/api/work-time-models"
-	projectJWT "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
@@ -85,6 +84,7 @@ import (
 	filestoreAPI "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
 	identityOperatorAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 	usercontextAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/usercontext"
+	projectJWT "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	reviewidentity "github.com/moto-nrw/project-phoenix/modules/identityaccess/requestreview"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
@@ -191,6 +191,9 @@ type moduleServices struct {
 	// in config.work_time_models, config.work_time_model_entries and
 	// config.staff_work_schedules (#2687).
 	workforce *workforceModule.Module
+	// studentPhotoRuntime is the slot the People Directory photo lifecycle
+	// resolves from; EnableStudentPhotos fills it once the factory exists.
+	studentPhotoRuntime *peopleCompose.StudentPhotoRuntime
 }
 
 // NewCleanupTimetable composes the unobserved Timetable owner for CLI roots.
@@ -217,11 +220,12 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	if err != nil {
 		return moduleServices{}, err
 	}
-	persons, err := peopleCompose.New(peopleCompose.Dependencies{
-		DB: db,
-		Observe: func(observation peopleCompose.Observation) {
-			observability.ObservePeopleDirectoryOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, peopleModule.ErrorCode(observation.Err), observation.Err)
-		},
+	// The photo lifecycle's runtime (feature gate, caller access, file
+	// cleanup, live refresh, consent trail) only exists once the services
+	// factory and the HTTP layer are up, so the owner resolves it from a slot
+	// that EnableStudentPhotos fills.
+	persons, studentPhotoRuntime, err := repositories.NewPeopleDirectoryWithPhotosAndObserver(db, func(observation peopleCompose.Observation) {
+		observability.ObservePeopleDirectoryOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, peopleModule.ErrorCode(observation.Err), observation.Err)
 	})
 	if err != nil {
 		return moduleServices{}, err
@@ -407,7 +411,7 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 		return moduleServices{}, err
 	}
 	legacyFacilities = factory.Facilities
-	return moduleServices{repositories: repoFactory, services: factory, communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, membership: membership, workforce: workTime}, nil
+	return moduleServices{repositories: repoFactory, services: factory, communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime}, nil
 }
 
 // withFileStorageWiring resolves what the File Storage module needs from the
@@ -459,7 +463,7 @@ func composeFacilities(db *bun.DB, legacyFacilities *interface {
 }
 
 func composeCarePlan(db *bun.DB, persons *peopleModule.Module, slots carePlanCompose.StatusSlotDirectory) (*carePlanModule.Module, error) {
-	statusStudents, err := repositories.CarePlanStatusStudents(persons)
+	statusStudents, err := repositories.CarePlanStatusStudents(db, persons)
 	if err != nil {
 		return nil, err
 	}
@@ -1344,15 +1348,17 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		ListExport: api.Services.ListExport,
 	}, db, logger.With("handler", "rooms"))
 	api.Services.EnableStudentPhotos(services.StudentPhotoBootstrap{
-		Unlinker:    studentsAPI.NewPhotoUnlinker(logger.With("component", "student-photo-unlinker"), "public"),
-		StudentRepo: repoFactory.Student,
-		DB:          db,
-		Logger:      logger.With("service", "student-photo"),
+		Unlinker:     studentsAPI.NewPhotoUnlinker(logger.With("component", "student-photo-unlinker"), "public"),
+		PhotoRuntime: modules.studentPhotoRuntime,
+		Logger:       logger.With("service", "student-photo"),
 	})
 	// A direct school_class edit must resync Jahrgang-filtered offering-sourced
 	// Regeltermine like a grade transition does (#2147 review round 10). The
 	// factory already fails startup when the decision service stops
 	// implementing the resync, so the assertion cannot silently miss here.
+	// One Student Presence owner for this entry point; it also serves the
+	// students resource's privacy-consent routes (#3349).
+	presence := newStudentPresence(db, logger)
 	studentClassResyncer, _ := api.Services.EnrollmentDecision.(educationSvc.OfferingSourceResyncer)
 	reviewDependencies, err := requestReviewDependencies(api, modules, db)
 	if err != nil {
@@ -1365,7 +1371,8 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:                api.Services.Users,
 		PeopleDirectory:              api.Services.PeopleDirectory,
-		StudentService:               api.Services.Students,
+		StudentService:               api.Services.Students.Directory,
+		CompanionService:             api.Services.Students.Companions,
 		ClassListEntries:             classListEntryStudentsReader{entries: api.membership},
 		StudentDeletion:              api.Services.StudentDeletion,
 		CareLifecycleService:         api.Services.CareLifecycle,
@@ -1389,7 +1396,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		ExcusedRequestService:        api.Services.ExcusedRequests,
 		ParentRequestBulkService:     api.Services.ParentRequests,
 		ParentRequestConflictService: api.Services.ParentRequests,
-		FamilyProtectionService:      api.Services.FamilyProtection,
+		FamilyProtection:             api.Services.PeopleDirectory,
 		RequestReviewAccess:          api.Services.RequestReviewPolicy,
 		RequestReview:                requestReview,
 		StudentStatusDayService:      api.Services.StudentStatusDays,
@@ -1408,6 +1415,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		AbsenceNotifier:        api.Services.AbsenceNotifier,
 		StudentPhotos:          api.Services.StudentPhotos,
 		StudentConsents:        api.Services.StudentConsents,
+		PrivacyConsents:        presence,
 		StudentDocumentService: api.Services.StudentDocuments,
 		ListExportService:      api.Services.ListExport,
 		Logger:                 logger.With("handler", "students"),
@@ -1469,7 +1477,6 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.Schedules = timetableHTTPAdapter.NewSchedulesResource(api.Services.Schedule, db)
 	homeLayouts := requireHomeLayoutOperations(api.Services.Settings)
 	api.Settings = newSettingsResource(api.Services.TenantSettings, homeLayouts, repoFactory.Enrollment().SchemaReferencesLegalDocument, db)
-	presence := newStudentPresence(db, logger)
 	openRoomPresence, ok := api.Services.Active.(openRoomMoveCompose.RetainedPresence)
 	if !ok {
 		return errors.New("open room move: the active service does not provide the room session operations")
@@ -1569,6 +1576,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		OfferingSourceOptions:   offeringSourceOptions(api.Services.EnrollmentDecision),
 		ReportService:           api.Services.EnrollmentReport,
 		PlanExportService:       api.Services.PlanExport,
+		PickupExtensions:        modules.timetable,
 		Broadcaster:             api.Services.RealtimeHub,
 		Logger:                  logger.With("handler", "timetable"),
 		DB:                      db,
@@ -1576,7 +1584,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	// The school portal reuses the class-day and the timetable resources, so
 	// it is built after both (#2207, #2527).
 	api.Notifications = notificationsAPI.NewResource(api.Services.Notifications, api.Services.PushSubscriptions, api.Services.NotificationPreferences, db)
-	api.School = schoolPortal.NewResource(api.Services.Auth, api.Services.MFA, schoolPasswordResets(api.Services.SchoolPasswordResetRuntime()), api.ClassDay, api.Timetable, api.StaffMessaging, api.StaffNotices, api.Notifications)
+	api.School = schoolPortal.NewResource(schoolPortalAuth(api.Services.SchoolPortalAuthentication()), schoolPortalMFA(api.Services.SchoolPortalMFA()), schoolPasswordResets(api.Services.SchoolPasswordResetRuntime()), api.ClassDay, api.Timetable, api.StaffMessaging, api.StaffNotices, api.Notifications)
 	api.Emergency = emergencyAPI.NewResource(api.Services.Emergency, db)
 	api.Reminders = remindersAPI.NewResource(api.Services.Reminders, reminderCompose.HTTPRuntime(db))
 
@@ -1621,7 +1629,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		DB:               db,
 	})
 	api.Parent = parentAPI.NewResource(parentAPI.ResourceConfig{
-		Auth:                  api.Services.Auth,
+		Auth:                  parentPortalLogin(api.Services.ParentPortalLogin()),
 		Resets:                parentPasswordResets(api.Services.ParentPasswordResetRuntime()),
 		Parent:                api.Services.Parent,
 		Calendar:              api.Services.Calendar,

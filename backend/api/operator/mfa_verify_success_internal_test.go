@@ -11,20 +11,20 @@ import (
 	"testing"
 	"time"
 
+	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
-// completeOperatorMFAAuthStub satisfies platformSvc.OperatorAuthService via
+// completeOperatorMFAAuthStub satisfies OperatorAccess via
 // interface-embedding — only IssueTokensForAuthenticatedOperator is
 // implemented; any other call path panics so accidental drift in MFAResource
 // surfaces loudly. Distinct from the existing operator-auth login stubs so
 // it can be tuned independently without touching the no-test-modifications
 // boundary.
 type completeOperatorMFAAuthStub struct {
-	platformSvc.OperatorAuthService
+	OperatorAccess
 	access  string
 	refresh string
 	err     error
@@ -34,7 +34,7 @@ type completeOperatorMFAAuthStub struct {
 	gotUA         string
 }
 
-var _ platformSvc.OperatorAuthService = (*completeOperatorMFAAuthStub)(nil)
+var _ OperatorAccess = (*completeOperatorMFAAuthStub)(nil)
 
 func (s *completeOperatorMFAAuthStub) IssueTokensForAuthenticatedOperator(
 	_ context.Context,
@@ -48,11 +48,11 @@ func (s *completeOperatorMFAAuthStub) IssueTokensForAuthenticatedOperator(
 }
 
 // operatorTrustedDeviceStub extends stubOperatorMFAServiceExtra with a
-// controllable VerifyChallenge + IssueTrustedDevice so we can drive the
+// controllable VerifyOperatorMFAChallenge + IssueOperatorTrustedDevice so we can drive the
 // happy-path through completeMFAExchange + issueTrustedDeviceCookie.
 type operatorTrustedDeviceStub struct {
 	stubOperatorMFAServiceExtra
-	verifyResult   *platformSvc.OperatorVerifiedChallenge
+	verifyResult   int64
 	verifyErr      error
 	issueCookie    string
 	issueExpiresAt time.Time
@@ -63,18 +63,20 @@ type operatorTrustedDeviceStub struct {
 	gotIssueIP         net.IP
 }
 
-func (s *operatorTrustedDeviceStub) VerifyChallenge(_ context.Context, _, _ string) (*platformSvc.OperatorVerifiedChallenge, error) {
+func (s *operatorTrustedDeviceStub) VerifyOperatorMFAChallenge(_ context.Context, _, _ string) (int64, error) {
 	return s.verifyResult, s.verifyErr
 }
 
-func (s *operatorTrustedDeviceStub) IssueTrustedDevice(_ context.Context, operatorID int64, userAgent string, ip net.IP) (string, time.Time, error) {
+func (s *operatorTrustedDeviceStub) IssueOperatorTrustedDevice(_ context.Context, operatorID int64, userAgent string, ip net.IP) (string, time.Time, error) {
 	s.gotIssueOperatorID = operatorID
 	s.gotIssueUA = userAgent
 	s.gotIssueIP = ip
 	return s.issueCookie, s.issueExpiresAt, s.issueErr
 }
 
-var _ platformSvc.OperatorMFAService = (*operatorTrustedDeviceStub)(nil)
+func (s *operatorTrustedDeviceStub) OperatorTrustedDeviceDays() int { return 90 }
+
+var _ identityoperator.OperatorMFA = (*operatorTrustedDeviceStub)(nil)
 
 func opVerifyRequest(t *testing.T, body MFAVerifyRequest) *http.Request {
 	t.Helper()
@@ -93,7 +95,7 @@ func TestOperatorMFAVerify_SuccessReturnsTokenPair(t *testing.T) {
 
 	auth := &completeOperatorMFAAuthStub{access: "op-access", refresh: "op-refresh"}
 	mfa := &operatorTrustedDeviceStub{
-		verifyResult: &platformSvc.OperatorVerifiedChallenge{OperatorID: 4242},
+		verifyResult: 4242,
 	}
 	rs := &MFAResource{authService: auth, mfaService: mfa}
 
@@ -117,7 +119,7 @@ func TestOperatorMFAVerify_RememberDeviceIssuesCookie(t *testing.T) {
 
 	auth := &completeOperatorMFAAuthStub{access: "a", refresh: "r"}
 	mfa := &operatorTrustedDeviceStub{
-		verifyResult:   &platformSvc.OperatorVerifiedChallenge{OperatorID: 4242},
+		verifyResult:   4242,
 		issueCookie:    "op.td.cookie",
 		issueExpiresAt: time.Now().Add(90 * 24 * time.Hour),
 	}
@@ -152,7 +154,7 @@ func TestOperatorMFAVerify_RememberDeviceFailureDoesNotBreakLogin(t *testing.T) 
 
 	auth := &completeOperatorMFAAuthStub{access: "a", refresh: "r"}
 	mfa := &operatorTrustedDeviceStub{
-		verifyResult: &platformSvc.OperatorVerifiedChallenge{OperatorID: 1},
+		verifyResult: 1,
 		issueErr:     errors.New("cookie store down"),
 	}
 	rs := &MFAResource{authService: auth, mfaService: mfa}
@@ -173,9 +175,9 @@ func TestOperatorMFAVerify_RememberDeviceFailureDoesNotBreakLogin(t *testing.T) 
 func TestOperatorMFAVerify_InactiveOperatorReturns403(t *testing.T) {
 	t.Parallel()
 
-	auth := &completeOperatorMFAAuthStub{err: &platformSvc.OperatorInactiveError{}}
+	auth := &completeOperatorMFAAuthStub{err: identityoperator.ErrOperatorInactive}
 	mfa := &operatorTrustedDeviceStub{
-		verifyResult: &platformSvc.OperatorVerifiedChallenge{OperatorID: 1},
+		verifyResult: 1,
 	}
 	rs := &MFAResource{authService: auth, mfaService: mfa}
 
@@ -192,9 +194,9 @@ func TestOperatorMFAVerify_InactiveOperatorReturns403(t *testing.T) {
 func TestOperatorMFAVerify_NotFoundReturns401(t *testing.T) {
 	t.Parallel()
 
-	auth := &completeOperatorMFAAuthStub{err: &platformSvc.OperatorNotFoundError{}}
+	auth := &completeOperatorMFAAuthStub{err: identityoperator.ErrOperatorNotFound}
 	mfa := &operatorTrustedDeviceStub{
-		verifyResult: &platformSvc.OperatorVerifiedChallenge{OperatorID: 1},
+		verifyResult: 1,
 	}
 	rs := &MFAResource{authService: auth, mfaService: mfa}
 
@@ -212,7 +214,7 @@ func TestOperatorMFAVerify_IssueTokensUnknownErrorMapsTo500(t *testing.T) {
 
 	auth := &completeOperatorMFAAuthStub{err: errors.New("kafka is on fire")}
 	mfa := &operatorTrustedDeviceStub{
-		verifyResult: &platformSvc.OperatorVerifiedChallenge{OperatorID: 1},
+		verifyResult: 1,
 	}
 	rs := &MFAResource{authService: auth, mfaService: mfa}
 

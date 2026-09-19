@@ -26,6 +26,18 @@ func New(database Database) *Store {
 	return &Store{database: database}
 }
 
+// TransactionTimestamp returns PostgreSQL's stable timestamp for the current
+// transaction, which is also the clock used by update triggers.
+func (s *Store) TransactionTimestamp(ctx context.Context) (time.Time, error) {
+	db, _, err := s.database(ctx)
+	if err != nil {
+		return time.Time{}, err
+	}
+	var timestamp time.Time
+	err = db.NewRaw("SELECT transaction_timestamp()").Scan(ctx, &timestamp)
+	return timestamp, err
+}
+
 type categoryRow struct {
 	bun.BaseModel `bun:"table:categories,alias:category"`
 	ID            int64      `bun:"id,pk,autoincrement"`

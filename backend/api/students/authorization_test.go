@@ -150,7 +150,7 @@ func TestStudentResponse_FullAccess(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code)
 		// Admin should see sensitive fields
 		body := rr.Body.String()
-		assert.Contains(t, body, "guardian_email", "Admin should see guardian email")
+		assert.NotContains(t, body, "guardian_email", "Retired student fields are absent even for admins")
 	})
 
 	t.Run("staff_outside_the_group_sees_full_access_fields", func(t *testing.T) {

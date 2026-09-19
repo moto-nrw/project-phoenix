@@ -417,3 +417,95 @@ export async function decideRolloverReview(
     );
   }
 }
+
+// Rücklauf der bestehenden Kinder (#3379)
+
+type PhaseResponseExclusionReason =
+  "care_ending" | "graduating" | "not_in_scope";
+
+export interface PhaseResponseChild {
+  studentId: string;
+  firstName: string;
+  lastName: string;
+  schoolClass: string;
+  // Mindestens ein Elternteil nutzt die Eltern-App. Nur ein Kontakthinweis,
+  // fließt nie in die Rücklaufzahl ein.
+  hasParentApp: boolean;
+  responded: boolean;
+  // Die Anmeldung, die als Antwort zählt.
+  requestId: string | null;
+  // Übernommener Eintrag, der noch auf Eltern oder Schule wartet.
+  pendingRequestId: string | null;
+  childStatus: string | null;
+}
+
+export interface PhaseResponseExclusion {
+  reason: PhaseResponseExclusionReason;
+  count: number;
+}
+
+export interface PhaseResponseOverview {
+  // false: Die Phase ordnet Anmeldungen keinem bestehenden Kind zu.
+  applicable: boolean;
+  expected: number;
+  responded: number;
+  children: PhaseResponseChild[];
+  excluded: PhaseResponseExclusion[];
+}
+
+interface BackendPhaseResponseChild {
+  student_id: string;
+  first_name: string;
+  last_name: string;
+  school_class: string;
+  has_parent_app: boolean;
+  responded: boolean;
+  request_id?: string | null;
+  pending_request_id?: string | null;
+  child_status?: string | null;
+}
+
+interface BackendPhaseResponseOverview {
+  applicable: boolean;
+  expected: number;
+  responded: number;
+  children?: BackendPhaseResponseChild[] | null;
+  excluded?: PhaseResponseExclusion[] | null;
+}
+
+export function mapPhaseResponseOverview(
+  data: BackendPhaseResponseOverview,
+): PhaseResponseOverview {
+  return {
+    applicable: data.applicable,
+    expected: data.expected,
+    responded: data.responded,
+    children: (data.children ?? []).map((child) => ({
+      studentId: child.student_id,
+      firstName: child.first_name,
+      lastName: child.last_name,
+      schoolClass: child.school_class,
+      hasParentApp: child.has_parent_app,
+      responded: child.responded,
+      requestId: child.request_id ?? null,
+      pendingRequestId: child.pending_request_id ?? null,
+      childStatus: child.child_status ?? null,
+    })),
+    excluded: data.excluded ?? [],
+  };
+}
+
+export async function getPhaseResponseOverview(
+  phaseID: string,
+): Promise<PhaseResponseOverview> {
+  const response = await fetch(
+    `${BASE}/${encodeURIComponent(phaseID)}/responses`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    throw await readError(response, "Rücklauf konnte nicht geladen werden");
+  }
+  return mapPhaseResponseOverview(
+    await readJSON<BackendPhaseResponseOverview>(response),
+  );
+}

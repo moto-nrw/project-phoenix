@@ -24,6 +24,12 @@ func guardianRows(t *testing.T, db *bun.DB, tenantID int64, role string) (int64,
 	require.NoError(t, err)
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Felix", "Directory", "1a")
 	link := testpkg.CreateTestStudentGuardianLinkForTenant(t, db, tenantID, student.ID, guardian.ID, role)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	var guardianRoleID int64
+	err = db.NewSelect().ColumnExpr("id").TableExpr("auth.roles").Where("name = ?", "guardian").Scan(context.Background(), &guardianRoleID)
+	require.NoError(t, err)
+	_, err = db.NewRaw(`INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?) ON CONFLICT DO NOTHING`, account.ID, guardianRoleID, tenantID).Exec(context.Background())
+	require.NoError(t, err)
 	return account.ID, guardian.ID, student.ID, link.ID
 }
 

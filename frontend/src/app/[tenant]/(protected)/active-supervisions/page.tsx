@@ -277,7 +277,8 @@ function MeinRaumPageContent() {
       : [];
   const supervisionSummary = supervisionName
     ? [
-        `${supervisionName} · ${supervisionCount} ${supervisionCount === 1 ? "Kind" : "Kinder"}`,
+        ...(currentOpenRoom ? [] : [supervisionName]),
+        `${supervisionCount} ${supervisionCount === 1 ? "Kind" : "Kinder"}`,
         ...(openRoomSupervisorNames.length > 0
           ? [`Aktuelle Aufsicht: ${openRoomSupervisorNames.join(", ")}`]
           : []),
@@ -530,7 +531,10 @@ function MeinRaumPageContent() {
 
   return (
     <TenantPage
-      title="Aktuelle Aufsicht"
+      // Bei offenen Räumen ist der Raum das Objekt der Seite. Die
+      // Breadcrumb bleibt „Aktuelle Aufsicht > Raum“, der Seitentitel nennt
+      // deshalb nur noch den Raum statt die Aufsicht ein zweites Mal.
+      title={currentOpenRoom?.name ?? "Aktuelle Aufsicht"}
       stats={supervisionSummary}
       actions={
         hasHeadActions ? (

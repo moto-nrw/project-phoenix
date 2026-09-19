@@ -10,6 +10,16 @@ import (
 // Store is the persistence port over the School Membership tables. Reads
 // honour the tenant in context when one is present.
 type Store interface {
+	TransitionStudentStatus(context.Context, int64, string, string) (bool, domain.OperationStats, error)
+	EnrollStudent(context.Context, domain.StudentEnrollment) (int64, domain.OperationStats, error)
+	RenewStudentEnrollment(context.Context, domain.StudentEnrollment) (int64, domain.OperationStats, error)
+	AssignStudentGroup(context.Context, int64, *int64) (bool, domain.OperationStats, error)
+	LockStudentClassWrites(context.Context, bool) (domain.OperationStats, error)
+	EndStudentCare(context.Context, []int64, string) (int64, domain.OperationStats, error)
+	ResumeStudentCare(context.Context, int64, string, string, string) (bool, domain.OperationStats, error)
+	GraduateStudents(context.Context, []int64) (int64, domain.OperationStats, error)
+	ReactivateStudents(context.Context, []int64, string) ([]int64, domain.OperationStats, error)
+	ChangeStudentClass(context.Context, []int64, string, string) (int64, domain.OperationStats, error)
 	FindStaff(ctx context.Context, id int64, lock string, includeDeleted bool) (domain.Staff, bool, domain.OperationStats, error)
 	FindStaffByPerson(context.Context, int64) (domain.Staff, bool, domain.OperationStats, error)
 	ListStaff(context.Context, domain.StaffFilter) ([]domain.Staff, domain.OperationStats, error)

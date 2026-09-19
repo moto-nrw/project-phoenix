@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/enrollment"
 )
 
@@ -30,12 +29,6 @@ func (m *Module) LockEnrollmentClassWrites(ctx context.Context) error {
 	return m.engine.LockEnrollmentClassWrites(ctx)
 }
 
-// LockEnrollmentClassWritesExclusive takes the class-writes gate exclusively
-// for the caller's transaction; see StudentCommand.
-func (m *Module) LockEnrollmentClassWritesExclusive(ctx context.Context) error {
-	return m.engine.LockEnrollmentClassWritesExclusive(ctx)
-}
-
 func (m *Module) ApplyEnrollmentProfile(ctx context.Context, id int64, input enrollment.ProfilePatch) error {
 	if id <= 0 {
 		return &InvalidStudentError{Reason: "student ID is required"}
@@ -55,12 +48,22 @@ func (m *Module) CreateEnrollmentStudent(ctx context.Context, input EnrollmentSt
 	if err := normalizeEnrollmentStudent(&input); err != nil {
 		return CreatedEnrollmentStudent{}, err
 	}
+	if input.InitialProfile != nil {
+		profile := *input.InitialProfile
+		if err := normalizeEnrollmentDeparture(&profile); err != nil {
+			return CreatedEnrollmentStudent{}, err
+		}
+		input.InitialProfile = &profile
+	}
 	return m.engine.CreateEnrollmentStudent(ctx, input)
 }
 
 // RenewEnrollmentStudent updates only class, lifecycle dates/status and contact
 // columns. Callers retain the old contact values for rollover without a form.
 func (m *Module) RenewEnrollmentStudent(ctx context.Context, id int64, input EnrollmentStudent) error {
+	if input.InitialProfile != nil {
+		return &InvalidStudentError{Reason: "initial profile is only valid for creation"}
+	}
 	if id <= 0 {
 		return &InvalidStudentError{Reason: "student ID is required"}
 	}
@@ -81,22 +84,6 @@ func normalizeEnrollmentStudent(input *EnrollmentStudent) error {
 	if err := validateBirthday(input.EnrolledUntil); err != nil {
 		return &InvalidStudentError{Reason: "invalid enrolled_until calendar date"}
 	}
-	for _, value := range []struct {
-		ptr   **string
-		valid func(string) bool
-		label string
-	}{
-		{&input.GuardianEmail, contact.IsValidEmailFormat, "guardian email"},
-		{&input.GuardianPhone, contact.IsValidPhoneFormat, "guardian phone"},
-	} {
-		if *value.ptr == nil || **value.ptr == "" {
-			continue
-		}
-		normalized := strings.TrimSpace(**value.ptr)
-		if !value.valid(normalized) {
-			return &InvalidStudentError{Reason: "invalid " + value.label + " format"}
-		}
-		*value.ptr = &normalized
-	}
+
 	return nil
 }

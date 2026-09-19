@@ -19,14 +19,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 var (
@@ -331,7 +330,7 @@ type ClassListEntryReader interface {
 // by CareLifecycleService. Keeping the narrow interface here avoids teaching
 // enrollment reports about withdrawal states.
 type CareParticipationResolver interface {
-	ResolveListParticipation(ctx context.Context, studentIDs []int64, on, today timezone.Date, includePending bool) (*userService.CareParticipationResolution, error)
+	ResolveListParticipation(ctx context.Context, studentIDs []int64, on, today timezone.Date, includePending bool) (*carelifecycle.CareParticipationResolution, error)
 }
 
 type reportService struct {
@@ -1176,11 +1175,11 @@ func (s *reportService) classRosterGroupNames(ctx context.Context, students []*u
 // non-empty class name. The shared participation rule filters that candidate
 // set after the one bulk query.
 func (s *reportService) classRosterStudents(ctx context.Context, filters ClassRosterFilters) ([]*userModels.Student, error) {
-	options := modelBase.NewQueryOptions()
+	schoolClass := ""
 	if !filters.AllClasses {
-		options.Filter.TrimEqual("school_class", filters.SchoolClass)
+		schoolClass = filters.SchoolClass
 	}
-	students, err := s.StudentRepo.ListWithOptions(ctx, options)
+	students, err := s.StudentRepo.ListClassRoster(ctx, schoolClass)
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: list students: %w", err)
 	}
@@ -1370,7 +1369,7 @@ func classRosterRow(
 	companions []userModels.CompanionLink,
 	careOfferingsEnabled bool,
 ) (ClassRosterRow, error) {
-	studentContactGuardians := classRosterStudentGuardians(student, studentGuardians)
+	studentContactGuardians := normalizeClassRosterGuardians(studentGuardians)
 	row := ClassRosterRow{
 		StudentID:           student.ID,
 		SchoolClass:         student.SchoolClass,
@@ -1534,21 +1533,6 @@ func classRosterStudentGuardianContactKey(row userModels.GuardianEmergencyContac
 		return strconv.FormatInt(row.GuardianProfileID, 10)
 	}
 	return strings.ToLower(strings.TrimSpace(row.FirstName.String + " " + row.LastName.String + "|" + row.Email.String))
-}
-
-func classRosterStudentGuardians(student *userModels.Student, linkedContacts []ClassRosterGuardian) []ClassRosterGuardian {
-	contacts := normalizeClassRosterGuardians(linkedContacts)
-	if len(contacts) > 0 {
-		return contacts
-	}
-	if student != nil {
-		contacts = append(contacts, ClassRosterGuardian{
-			Name:  stringPtrValue(student.GuardianName),
-			Email: stringPtrValue(student.GuardianEmail),
-			Phone: strutil.JoinUnique(stringPtrValue(student.GuardianPhone), stringPtrValue(student.GuardianContact)),
-		})
-	}
-	return normalizeClassRosterGuardians(contacts)
 }
 
 func classRosterEnrollmentGuardians(req *enrollmentModels.Request, additional []*capability.RequestGuardian) []ClassRosterGuardian {

@@ -19,14 +19,40 @@ func (e *recordingEngine) LockEnrollmentClassWrites(context.Context) error {
 	return nil
 }
 
-func (e *recordingEngine) LockEnrollmentClassWritesExclusive(context.Context) error {
+func (e *recordingEngine) CurrentFamilyProtection(context.Context, []int64) (map[int64]bool, error) {
+	e.calls++
+	return map[int64]bool{}, nil
+}
+
+func (e *recordingEngine) SetFamilyProtection(context.Context, peopledirectory.SetFamilyProtection) (bool, error) {
+	e.calls++
+	return false, nil
+}
+
+func (e *recordingEngine) CurrentStudentConsents(
+	context.Context, peopledirectory.StudentConsentSnapshot, bool,
+) ([]peopledirectory.StudentConsentState, error) {
+	e.calls++
+	return nil, nil
+}
+
+func (e *recordingEngine) ListStudentChangeHistory(context.Context, int64) ([]peopledirectory.StudentFieldEdit, error) {
+	e.calls++
+	return nil, nil
+}
+
+func (e *recordingEngine) RecordStudentChanges(
+	context.Context, peopledirectory.StudentAuditSnapshot, peopledirectory.StudentAuditSnapshot, int64, string,
+) error {
 	e.calls++
 	return nil
 }
 
-func (e *recordingEngine) CurrentFamilyProtection(context.Context, []int64) (map[int64]bool, error) {
+func (e *recordingEngine) RecordStudentPickupPlan(
+	context.Context, int64, string, string, string, string, int64, string,
+) error {
 	e.calls++
-	return map[int64]bool{}, nil
+	return nil
 }
 
 func (e *recordingEngine) ListStudentDepartureModes(context.Context, []int64) (map[int64]map[string][]string, error) {
@@ -45,9 +71,6 @@ func (e *recordingEngine) ApplyEnrollmentProfile(context.Context, int64, enrollm
 type studentCall struct {
 	ids     []int64
 	classes []string
-	from    string
-	to      string
-	status  string
 }
 
 func (e *recordingEngine) CreateEnrollmentStudent(_ context.Context, input peopledirectory.EnrollmentStudent) (peopledirectory.CreatedEnrollmentStudent, error) {
@@ -107,36 +130,6 @@ func (e *recordingEngine) LockStudent(_ context.Context, id int64) error {
 	return nil
 }
 
-func (e *recordingEngine) PromoteStudents(_ context.Context, ids []int64, from, to string) (int64, error) {
-	e.calls++
-	e.student = studentCall{ids: ids, from: from, to: to}
-	return int64(len(ids)), nil
-}
-
-func (e *recordingEngine) RevertStudentClass(_ context.Context, id int64, from, to string) (int64, error) {
-	e.calls++
-	e.student = studentCall{ids: []int64{id}, from: from, to: to}
-	return 1, nil
-}
-
-func (e *recordingEngine) GraduateStudentsByClasses(_ context.Context, classes []string) (int64, error) {
-	e.calls++
-	e.student = studentCall{classes: classes}
-	return int64(len(classes)), nil
-}
-
-func (e *recordingEngine) GraduateStudents(_ context.Context, ids []int64) (int64, error) {
-	e.calls++
-	e.student = studentCall{ids: ids}
-	return int64(len(ids)), nil
-}
-
-func (e *recordingEngine) ReactivateStudents(_ context.Context, ids []int64, status string) ([]int64, error) {
-	e.calls++
-	e.student = studentCall{ids: ids, status: status}
-	return ids, nil
-}
-
 func (e *recordingEngine) CountStudentGuardianLinks(_ context.Context, studentID, _ int64) (int, error) {
 	e.calls++
 	e.student = studentCall{ids: []int64{studentID}}
@@ -157,4 +150,187 @@ func (e *recordingEngine) DeleteStudent(_ context.Context, id int64) (int64, err
 func (e *recordingEngine) AnonymizeDeletedStudentPerson(context.Context, int64, time.Time) (bool, error) {
 	e.calls++
 	return true, nil
+}
+
+func (e *recordingEngine) FindStudentPhoto(context.Context, int64, string) (string, error) {
+	e.calls++
+	return "", nil
+}
+
+func (e *recordingEngine) CommitStudentPhoto(context.Context, int64, string, bool) error {
+	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) ClearStudentPhoto(context.Context, int64) (string, error) {
+	e.calls++
+	return "", nil
+}
+
+func (e *recordingEngine) PurgeStudentPhotos(context.Context) ([]string, error) {
+	e.calls++
+	return nil, nil
+}
+
+func (e *recordingEngine) ApplyStudentPhotoConsent(
+	_ context.Context, current peopledirectory.StudentPhotoState, _ *bool,
+) peopledirectory.StudentPhotoState {
+	e.calls++
+	return current
+}
+
+func (e *recordingEngine) ScheduleStudentPhotoUnlink(context.Context, string) { e.calls++ }
+
+func (e *recordingEngine) ListStudentDirectory(
+	_ context.Context, filter peopledirectory.StudentDirectoryFilter,
+) ([]peopledirectory.StudentRecord, error) {
+	e.calls++
+	e.directory = filter
+	return nil, nil
+}
+
+func (e *recordingEngine) CountStudentDirectory(
+	_ context.Context, filter peopledirectory.StudentDirectoryFilter,
+) (int, error) {
+	e.calls++
+	e.directory = filter
+	return 0, nil
+}
+
+func (e *recordingEngine) ListStudentDirectoryIDs(context.Context) ([]int64, error) {
+	e.calls++
+	return nil, nil
+}
+
+func (e *recordingEngine) FindStudentRecordForMutation(
+	_ context.Context, id int64,
+) (peopledirectory.StudentRecord, error) {
+	e.calls++
+	e.lockedRecord = id
+	return peopledirectory.StudentRecord{ID: id}, nil
+}
+
+func (e *recordingEngine) ListStudentRecordsByID(
+	_ context.Context, ids []int64,
+) ([]peopledirectory.StudentRecord, error) {
+	e.calls++
+	e.recordIDs = ids
+	return nil, nil
+}
+
+func (e *recordingEngine) LockStudentPhotoFeature(context.Context) error {
+	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) CreateStudent(
+	_ context.Context, write peopledirectory.StudentWrite,
+) (peopledirectory.StudentRecord, error) {
+	e.calls++
+	e.written = write
+	return write.Record, nil
+}
+
+func (e *recordingEngine) UpdateStudent(
+	_ context.Context, write peopledirectory.StudentWrite,
+) (peopledirectory.StudentRecord, error) {
+	e.calls++
+	e.written = write
+	return write.Record, nil
+}
+
+func (e *recordingEngine) DeleteStudentRecord(_ context.Context, id int64) error {
+	e.calls++
+	e.lockedRecord = id
+	return nil
+}
+
+func (e *recordingEngine) VerifyStudentStrandingBatch(context.Context) error {
+	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) ListStudentCareEnds(_ context.Context, ids []int64) (map[int64]string, error) {
+	e.calls++
+	e.recordIDs = ids
+	return map[int64]string{}, nil
+}
+
+func (e *recordingEngine) FindStudentRecord(_ context.Context, id int64) (peopledirectory.StudentRecord, error) {
+	e.calls++
+	return peopledirectory.StudentRecord{ID: id}, nil
+}
+
+func (e *recordingEngine) ListStudentRecordsByPerson(_ context.Context, ids []int64) ([]peopledirectory.StudentRecord, error) {
+	e.calls++
+	e.recordIDs = ids
+	return nil, nil
+}
+
+func (e *recordingEngine) ListStudentRecordsByGroup(_ context.Context, ids []int64, _ peopledirectory.StudentScope) ([]peopledirectory.StudentRecord, error) {
+	e.calls++
+	e.recordIDs = ids
+	return nil, nil
+}
+
+func (e *recordingEngine) ListStudentRecordsByClass(_ context.Context, classes []string, _ peopledirectory.StudentScope) ([]peopledirectory.StudentRecord, error) {
+	e.calls++
+	e.student.classes = classes
+	return nil, nil
+}
+
+func (e *recordingEngine) ListStudentRecordsDueForStatus(context.Context, string, string, string) ([]peopledirectory.StudentRecord, error) {
+	e.calls++
+	return nil, nil
+}
+
+func (e *recordingEngine) LockStudentRecordsByID(_ context.Context, ids []int64) ([]peopledirectory.StudentRecord, error) {
+	e.calls++
+	e.recordIDs = ids
+	return nil, nil
+}
+
+func (e *recordingEngine) CountStudentsByGroup(_ context.Context, ids []int64) (map[int64]int, error) {
+	e.calls++
+	e.recordIDs = ids
+	return map[int64]int{}, nil
+}
+
+func (e *recordingEngine) ListEnrolledStudentIDsByNameAndBirthday(context.Context, int64, string, string, string) ([]int64, error) {
+	e.calls++
+	return nil, nil
+}
+
+func (e *recordingEngine) ListAllStudentIDs(context.Context) ([]int64, error) {
+	e.calls++
+	return nil, nil
+}
+
+func (e *recordingEngine) FindStudentRecordForMutationNoWait(
+	_ context.Context, id int64,
+) (peopledirectory.StudentRecord, error) {
+	e.calls++
+	e.lockedRecord = id
+	return peopledirectory.StudentRecord{ID: id}, nil
+}
+
+func (e *recordingEngine) ListStudentRecords(context.Context, peopledirectory.StudentScope) ([]peopledirectory.StudentRecord, error) {
+	e.calls++
+	return nil, nil
+}
+
+func (e *recordingEngine) ListStudentRoster(context.Context, string) ([]peopledirectory.StudentRosterEntry, error) {
+	e.calls++
+	return nil, nil
+}
+
+func (e *recordingEngine) ListStudentRosterByGroup(_ context.Context, ids []int64, _ string) ([]peopledirectory.StudentRosterEntry, error) {
+	e.calls++
+	e.recordIDs = ids
+	return nil, nil
+}
+
+func (e *recordingEngine) ListStudentRosterOverlapping(context.Context, string, string, string) ([]peopledirectory.StudentRosterEntry, error) {
+	e.calls++
+	return nil, nil
 }

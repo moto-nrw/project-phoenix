@@ -44,7 +44,7 @@ func TestGradeTransitionWorkflow_History_StudentStates(t *testing.T) {
 	// Put one child back the way a revert does, and remove another the way the
 	// purge route does — the two states the ledger cannot express.
 	require.NoError(t, f.deps.UnitOfWork(ctx, func(txCtx context.Context) error {
-		reactivated, err := f.deps.Directory.ReactivateStudents(txCtx,
+		reactivated, err := f.deps.Membership.Reactivate(txCtx,
 			[]int64{restored.ID}, string(users.StudentStatusActive))
 		if err != nil {
 			return err

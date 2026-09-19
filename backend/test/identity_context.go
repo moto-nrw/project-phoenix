@@ -3,7 +3,7 @@ package test
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
 // IdentityContext supplies authenticated identity facts to application tests

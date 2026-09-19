@@ -17,7 +17,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/analytics"
-	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -27,6 +26,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
@@ -50,9 +50,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	grouplivelegacy "github.com/moto-nrw/project-phoenix/modules/grouplive/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	planexportlegacy "github.com/moto-nrw/project-phoenix/modules/planexport/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
@@ -71,7 +74,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
-	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
 	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
@@ -84,7 +86,6 @@ import (
 	staffclock "github.com/moto-nrw/project-phoenix/services/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	"github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
@@ -130,12 +131,17 @@ func expectedMissingSubstitutionIdentity(err error) bool {
 
 // Factory provides access to all services
 type Factory struct {
-	settingsRuntimeDB    *bun.DB
-	Auth                 auth.AuthService
-	Audit                auditModels.Command
-	StaffPINAuth         StaffPINAuthenticator
-	MFA                  auth.MFAService
-	Passkey              auth.PasskeyService
+	settingsRuntimeDB *bun.DB
+	// Auth is the composed Identity & Access module: the sessions, the
+	// account lifecycle, the role administration, the invitations and the
+	// operator flows the surfaces consume (#3364).
+	Auth         *identityaccess.Module
+	Audit        auditModels.Command
+	StaffPINAuth StaffPINAuthenticator
+	// MFA and Passkey are the Identity & Access second factor and the
+	// school-portal WebAuthn ceremonies (#3331).
+	MFA                  identityaccess.AccountMFA
+	Passkey              identityaccess.AccountPasskeyFlows
 	Active               active.Service
 	ActiveCleanup        active.CleanupService
 	WorkSession          timetracking.WorkSessionService
@@ -189,7 +195,7 @@ type Factory struct {
 	Users                     users.PersonService
 	Birthdays                 users.BirthdayService
 	StaffDocuments            users.StaffDocumentService
-	StudentDocuments          users.StudentDocumentService
+	StudentDocuments          carelifecycle.StudentDocumentService
 	FileStore                 *filestorageModule.Module
 	CaregiverCapability       users.CaregiverCapabilityService
 	Guardian                  *users.GuardianService
@@ -221,14 +227,17 @@ type Factory struct {
 	PasswordResetTokenExpiry  time.Duration
 
 	// Platform domain (operator dashboard)
-	OperatorAuth         platform.OperatorAuthService
-	OperatorInvitation   platform.OperatorInvitationService
+	// OperatorAuth and OperatorInvitation are the Identity & Access
+	// operator directory, token mint and provisioning flows the operator
+	// dashboard consumes (#3364).
+	OperatorAuth         *identityaccess.Module
+	OperatorInvitation   *identityaccess.Module
 	OperatorProvisioning organizationtenancy.Provisioning
 	Announcement         communication.Capability
 	Schools              organizationtenancy.Capability
-	Students             users.StudentService
+	Students             StudentServices
 	StudentDeletion      *studentdeletion.Workflow
-	CareLifecycle        users.CareLifecycleService
+	CareLifecycle        carelifecycle.CareLifecycleService
 	StudentAudit         users.StudentAuditService
 	MasterDataReview     users.MasterDataReviewService
 	CareRequests         careschedule.CareScheduleRequestService
@@ -238,7 +247,6 @@ type Factory struct {
 	PickupAdjustments enrollment.PickupAdjustmentService
 	ExcusedRequests   careplan.ExcusedAbsenceRequests
 	ParentRequests    *users.ParentRequestCoordinator
-	FamilyProtection  *users.FamilyProtectionService
 	// RequestReviewPolicy is the one cross-domain decision about WHO may see
 	// and decide parent requests. The API layer reads it to explain an empty
 	// queue; the four request services enforce it per child.
@@ -252,8 +260,8 @@ type Factory struct {
 	SupervisionDashboard    supervisiondashboard.Query
 	TimetableData           *timetableplanning.TimetableDataService
 	InstanceSeriesConverter timetableplanning.InstanceSeriesConverter
-	OperatorMFA             platform.OperatorMFAService
-	OperatorPasskey         platform.OperatorPasskeyService
+	OperatorMFA             identityaccess.OperatorMFAFlows
+	OperatorPasskey         identityaccess.OperatorPasskeyFlows
 	UnregisteredTagScans    auditService.UnregisteredTagScanService
 
 	// Delivery owns the leased email and push outboxes; EmailOutboxWorker
@@ -309,7 +317,7 @@ type Factory struct {
 	// supplies a PhotoUnlinker (file IO is an api-layer concern, not a
 	// service-layer one).
 	StudentPhotos   users.StudentPhotoService
-	StudentConsents users.StudentConsentService
+	StudentConsents *repositories.StudentConsents
 }
 
 // SetSettingsObservers wires delivery-owned metrics without coupling the
@@ -540,7 +548,6 @@ func newFactory(
 	repos.BindOrganizationTenancy(organizations)
 	repos.BindSchoolStructure(groups)
 	repos.BindFacilities(rooms)
-	repos.BindTimetable(timetableCapability)
 	repos.Student = overlappingRosterGroupNames{StudentRepository: repos.Student, groups: groups}
 	settingsRuntime := newSettingsRuntime(db, nil).WithSchoolMembership(membership)
 	repos.SetConfigRuntime(settingsRuntime)
@@ -607,7 +614,7 @@ func newFactory(
 	if err := bindClassListEntryAdministration(membership, persons, auditCommand); err != nil {
 		return nil, err
 	}
-	studentConsentService := users.NewStudentConsentService(repos.StudentConsentChange)
+	studentConsentService := repositories.NewStudentConsentsFor(persons, repos.StudentConsentChange)
 
 	dispatcher := email.NewDispatcher(mailer, emailLogger, email.DeliveryObserver(observeDelivery))
 
@@ -813,6 +820,8 @@ func newFactory(
 
 	// Initialize users service first (needed for active service)
 	usersService := users.NewPersonService(users.PersonServiceDependencies{
+		PersonDirectory:      repositories.NewPersonDirectory(persons),
+		StudentDirectory:     repositories.NewStudentDirectory(persons),
 		PersonRepo:           repos.Person,
 		RFIDRepo:             repos.RFIDCard,
 		AccountRepo:          repos.Account,
@@ -965,6 +974,9 @@ func newFactory(
 			Logger:      activeLogger,
 		}),
 		timetracking.WithAbsenceShiftPlanSyncer(ShiftPlanSyncBridge(func() shiftplanning.ShiftPlanSyncer { return shiftPlanSyncer })),
+		// A rebooking inside a closed month (#3258) could not move its frozen
+		// closing balance, so the service rejects it.
+		timetracking.WithAbsenceMonthSnapshots(MonthSnapshotCapability(repos.StaffMonthSnapshot)),
 	)
 
 	// Stundenkonto lifecycle transactions (#1420): payout, comp-time grants,
@@ -1115,7 +1127,7 @@ func newFactory(
 		StudentStatusRepo:        repos.StudentStatusDay,
 		CrossTenantRepo:          repos.CrossTenant,
 		Schools:                  newActiveSchoolQuery(organizations),
-		StudentRepo:              PresenceStudents(repos.Student),
+		StudentRepo:              PresenceStudents(db, repos.Student),
 		StaffRepo:                NewAttendanceStaffDirectory(repos.Staff),
 		RoomRepo:                 NewAttendanceRooms(repos.Room),
 		YardRoomColor:            yardRoomColorQuery(rooms),
@@ -1317,11 +1329,13 @@ func newFactory(
 	// Couples pulled-forward day pickup times with the per-block partial
 	// absences (#2360). Shared by the staff pickup-exception writers and the
 	// parent care-exception writers so both derive the same state.
+	// Later pickups open a block decision for the Leitung (#3261).
 	pickupAutoExcusal := careschedule.NewPickupAutoExcusalSyncer(
 		repos.StudentPickupException,
 		pickupBaselines,
 		repos.InstanceStudent,
 		db,
+		careschedule.WithPickupExtensions(timetableCapability),
 	)
 
 	// Initialize pickup schedule service
@@ -1566,59 +1580,9 @@ func newFactory(
 		RecoveryRepo:       recoveryRepo,
 	})
 
-	// Initialize auth service with validated config
-	authConfig, err := auth.NewServiceConfig(
-		dispatcher,
-		defaultFrom,
-		frontendURL,
-		passwordResetTokenExpiry,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("invalid auth service config: %w", err)
-	}
-	authConfig.ParentsURL = parentsURL
-	authConfig.SchoolURL = schoolURL
-	authConfig.RateLimitEnabled = cfg.RateLimitEnabled
-	authConfig.Settings = settingsService
-	authConfig.TokenAuth, err = authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
-	if err != nil {
-		return nil, fmt.Errorf("invalid auth JWT configuration: %w", err)
-	}
-	authConfig.Audit = auditCommand
-
-	// Identity & Access serves tenant, parent and school login, refresh,
-	// switching, logout, session validation, cleanup and revocation (#3251).
-	// The auth service delegates its session methods to the module through
-	// its consumer-owned port; the module reads the MFA gate and the tenant
-	// runtime back from the auth service at call time, so SetMFAService and
-	// SetTenantRuntime keep their meaning.
-	var authService *auth.Service
-	// The operator flows (#3252) share the module: the operator MFA service
-	// is constructed after it and read at call time.
-	var operatorMFAService platform.OperatorMFAService
-	operatorDependencies, err := newOperatorDependencies(operatorAuthenticationWiring{
-		repos:         operatorRepositoriesOf(repos),
-		organizations: organizations,
-		persons:       persons,
-		membership:    membership,
-		mfa:           func() platform.OperatorMFAService { return operatorMFAService },
-		logger:        platformLogger,
-	})
-	if err != nil {
-		return nil, err
-	}
-	// Email change tokens deliberately reuse PASSWORD_RESET_TOKEN_EXPIRY_MINUTES
-	// because both serve the same purpose (one-time verification links with the same
-	// delivery constraints and security profile). If the two ever need to diverge,
-	// introduce EMAIL_CHANGE_TOKEN_EXPIRY_MINUTES and fall back to passwordResetTokenExpiry.
-	// The 15-minute floor accounts for email delivery latency + user interaction time.
-	emailChangeExpiry := passwordResetTokenExpiry
-	if emailChangeExpiry < 15*time.Minute {
-		logger.Warn("email change token expiry bumped to minimum 15 minutes",
-			slog.Int("configured_minutes", int(passwordResetTokenExpiry.Minutes())),
-			slog.Int("effective_minutes", 15),
-		)
-		emailChangeExpiry = 15 * time.Minute
+	tenantDomain := strings.TrimSpace(cfg.TenantDomain)
+	if tenantDomain == "" {
+		return nil, fmt.Errorf("TENANT_DOMAIN is required")
 	}
 
 	// Operator frontend URL for invitation emails. The operator subdomain is separate
@@ -1639,20 +1603,67 @@ func newFactory(
 		return nil, fmt.Errorf("NEXT_PUBLIC_OPERATOR_HOSTNAME is required")
 	}
 
+	// The MFA challenge JWTs are signed with their own token auth, as the
+	// retained service did, so the session signer's durations stay separate.
+	mfaTokenAuth, err := authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
+	if err != nil {
+		return nil, fmt.Errorf("init mfa token auth: %w", err)
+	}
+
+	sessionTokenAuth, err := authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
+	if err != nil {
+		return nil, fmt.Errorf("invalid auth JWT configuration: %w", err)
+	}
+
+	// Identity & Access serves tenant, parent and school login, refresh,
+	// switching, logout, session validation, cleanup and revocation (#3251),
+	// the account lifecycle (#3225), the second factor and both portals'
+	// passkey ceremonies (#3331) and the operator flows (#3252, #3332). The
+	// module reads the tenant runtime back at call time, so SetTenantRuntime
+	// keeps its meaning after composition.
+	operatorDependencies, err := newOperatorDependencies(operatorAuthenticationWiring{
+		repos:         operatorRepositoriesOf(repos),
+		organizations: organizations,
+		persons:       persons,
+		membership:    membership,
+		logger:        platformLogger,
+	})
+	if err != nil {
+		return nil, err
+	}
+	// Email change tokens deliberately reuse PASSWORD_RESET_TOKEN_EXPIRY_MINUTES
+	// because both serve the same purpose (one-time verification links with the same
+	// delivery constraints and security profile). If the two ever need to diverge,
+	// introduce EMAIL_CHANGE_TOKEN_EXPIRY_MINUTES and fall back to passwordResetTokenExpiry.
+	// The 15-minute floor accounts for email delivery latency + user interaction time.
+	emailChangeExpiry := passwordResetTokenExpiry
+	if emailChangeExpiry < 15*time.Minute {
+		logger.Warn("email change token expiry bumped to minimum 15 minutes",
+			slog.Int("configured_minutes", int(passwordResetTokenExpiry.Minutes())),
+			slog.Int("effective_minutes", 15),
+		)
+		emailChangeExpiry = 15 * time.Minute
+	}
+
 	// The delivery module is composed after the identity module, so the
 	// guardian mail reads its outbox at call time.
 	var emailOutboxService *emailoutbox.Service
 	identityAccess, err = newIdentityAccessWithSessions(db, accountAuthenticationWiring{
 		repos:     sessionRepositoriesOf(repos, organizations),
-		tokenAuth: authConfig.TokenAuth,
+		tokenAuth: sessionTokenAuth,
 		settings:  settingsService,
 		audit:     auditCommand,
 		logger:    authLogger,
 		observe:   observeIdentityAccess,
-		tenantRuntime: func(ctx context.Context) context.Context {
-			return authService.WithTenantRuntime(ctx)
+		mfa: &mfaWiring{
+			repos: repos, settings: settingsService, tokenAuth: mfaTokenAuth,
+			dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL,
+			jwtSecret: cfg.JWTSecret, logger: authLogger,
+			passkeys: &identityaccessCompose.PasskeyDependencies{
+				RPID: tenantDomain, RPName: "moto",
+				TenantDomain: tenantDomain, OperatorFrontendURL: operatorFrontendURL,
+			},
 		},
-		mfa:       func() auth.MFAService { return authService.CurrentMFAService() },
 		operators: operatorDependencies,
 		operatorLinks: &operatorLinkWiring{
 			dispatcher: dispatcher, defaultFrom: defaultFrom,
@@ -1667,7 +1678,7 @@ func newFactory(
 		},
 		invitations: &invitationWiring{
 			dispatcher: dispatcher, defaultFrom: defaultFrom, staffURL: frontendURL, schoolURL: schoolURL,
-			mailIdentity: tenantMailIdentity, tokenAuth: authConfig.TokenAuth, expiry: invitationTokenExpiry,
+			mailIdentity: tenantMailIdentity, tokenAuth: sessionTokenAuth, expiry: invitationTokenExpiry,
 		},
 		// The lifecycle flows (#3225) read the retained role management back
 		// at call time; it is composed below.
@@ -1687,57 +1698,6 @@ func newFactory(
 	if err != nil {
 		return nil, err
 	}
-	accountSessionsPort := newAccountSessions(identityAccess)
-	authConfig.Sessions = accountSessionsPort
-	authConfig.Lifecycle = accountSessionsPort
-	authService, err = auth.NewService(repos, authConfig, db, authLogger)
-	if err != nil {
-		return nil, err
-	}
-
-	mfaTokenAuth, err := authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
-	if err != nil {
-		return nil, fmt.Errorf("init mfa token auth: %w", err)
-	}
-	mfaService, err := auth.NewMFAService(auth.MFAServiceConfig{
-		Repos:       repos,
-		TokenAuth:   mfaTokenAuth,
-		Settings:    settingsService,
-		Dispatcher:  dispatcher,
-		DefaultFrom: defaultFrom,
-		FrontendURL: frontendURL,
-		JWTSecret:   cfg.JWTSecret,
-		DB:          db,
-		Logger:      authLogger,
-		Audit:       auditCommand,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("init mfa service: %w", err)
-	}
-	// Wire the MFA gate into the auth service so /auth/login knows to issue
-	// challenge tokens instead of token pairs when MFA is required. Done
-	// post-construction so we don't introduce a constructor cycle.
-	authService.SetMFAService(mfaService)
-
-	tenantDomain := strings.TrimSpace(cfg.TenantDomain)
-	if tenantDomain == "" {
-		return nil, fmt.Errorf("TENANT_DOMAIN is required")
-	}
-	passkeyService, err := auth.NewPasskeyService(auth.PasskeyServiceConfig{
-		Repos:        repos,
-		Records:      newAccountPasskeyRecords(identityAccess),
-		MFAService:   mfaService,
-		AuthService:  authService,
-		DB:           db,
-		Logger:       authLogger,
-		RPID:         tenantDomain,
-		RPName:       "moto",
-		TenantDomain: tenantDomain,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("init passkey service: %w", err)
-	}
-
 	invitationService := InvitationCapability(identityAccess)
 
 	// Delivery composition is declared here so legacy email producers and the
@@ -1873,8 +1833,7 @@ func newFactory(
 	// Initialize database stats service
 	databaseService := database.NewService(database.StatsDependencies{
 		Students: func(ctx context.Context) (int, error) {
-			rows, err := repos.Student.List(ctx, nil)
-			return len(rows), err
+			return repos.Student.CountEnrolled(ctx)
 		},
 		Teachers: func(ctx context.Context) (int, error) { rows, err := repos.Staff.List(ctx, nil); return len(rows), err },
 		Rooms:    func(ctx context.Context) (int, error) { rows, err := repos.Room.List(ctx, nil); return len(rows), err },
@@ -1935,70 +1894,6 @@ func newFactory(
 		},
 	})
 
-	// Initialize platform services (operator dashboard)
-	operatorDirectory := newOperatorDirectory(identityAccess)
-	// The invitation and e-mail change flows are the owner's since #3332;
-	// the retained endpoints reach them through their consumer-owned ports,
-	// and the root translates the outcomes into the envelope they render.
-	operatorProvisioningFlows := newOperatorProvisioningFlows(identityAccess)
-	operatorAuthService, err := platform.NewOperatorAuthService(platform.OperatorAuthServiceConfig{
-		OperatorRepo:        operatorDirectory,
-		Sessions:            newOperatorSessions(identityAccess),
-		Invitations:         operatorProvisioningFlows,
-		EmailChanges:        operatorProvisioningFlows,
-		AuditLogRepo:        repos.OperatorAuditLog,
-		InvitationTokenRepo: newOperatorInvitationTokens(identityAccess),
-		DB:                  db,
-		Logger:              platformLogger,
-		Dispatcher:          dispatcher,
-		DefaultFrom:         defaultFrom,
-		FrontendURL:         frontendURL,
-		OperatorFrontendURL: operatorFrontendURL,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create operator auth service: %w", err)
-	}
-
-	// Operator MFA service (issue #1308 phase 7b-2). Constructed alongside
-	// the operator auth service so the login-flow integration in 7b-3 can
-	// inject it via SetMFAService.
-	operatorMFATokenAuth, err := authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
-	if err != nil {
-		return nil, fmt.Errorf("init operator mfa token auth: %w", err)
-	}
-	operatorMFAService, err = platform.NewOperatorMFAService(platform.OperatorMFAServiceConfig{
-		Repos:       repos,
-		Operators:   operatorDirectory,
-		Records:     newOperatorMFARecords(identityAccess),
-		TokenAuth:   operatorMFATokenAuth,
-		Dispatcher:  dispatcher,
-		DefaultFrom: defaultFrom,
-		FrontendURL: frontendURL,
-		JWTSecret:   cfg.JWTSecret,
-		DB:          db,
-		Logger:      platformLogger,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("init operator mfa service: %w", err)
-	}
-	// The Identity & Access operator login reads operatorMFAService through
-	// the gate closure above, so /operator/auth/login returns challenge
-	// tokens from here on (MFA is mandatory for the platform scope).
-	operatorPasskeyService, err := platform.NewOperatorPasskeyService(platform.OperatorPasskeyServiceConfig{
-		Records:             newOperatorPasskeyRecords(identityAccess),
-		Operators:           operatorDirectory,
-		MFAService:          operatorMFAService,
-		AuthService:         operatorAuthService,
-		DB:                  db,
-		Logger:              platformLogger,
-		RPID:                tenantDomain,
-		RPName:              "moto",
-		OperatorFrontendURL: operatorFrontendURL,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("init operator passkey service: %w", err)
-	}
-
 	enrollmentFormSchemaService := enrollment.NewFormSchemaService(enrollment.FormSchemaServiceConfig{
 		Owner:    repos.Enrollment(),
 		Settings: settingsService,
@@ -2052,6 +1947,7 @@ func newFactory(
 		},
 		ValidateCareOfferingPhaseChange: careOfferingPhaseValidator.ValidatePhaseChange,
 		Settings:                        settingsService,
+		Responses:                       newPhaseResponseSources(repos.Enrollment(), persons, repos.CarePlan()),
 		DB:                              db,
 		Logger:                          logger.With("service", "enrollment-phase"),
 	})
@@ -2060,12 +1956,9 @@ func newFactory(
 		repos.Enrollment(),
 	))
 
-	studentAuditService := users.NewStudentAuditService(
-		repos.StudentFieldEdit,
-		logger.With("service", "student_audit"),
-	)
-	careLifecycleService := users.NewCareLifecycleService(users.CareLifecycleDependencies{
-		StudentRepo:    repos.Student,
+	studentAuditService := users.NewStudentAuditService(repositories.NewStudentAuditFor(persons))
+	careLifecycleService := carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
+		StudentRepo:    repositories.NewCareStudents(repos.Student, membership),
 		PersonRepo:     repos.Person,
 		CareExitRepo:   repos.CareExit,
 		CleanupRepo:    repos.CareExitCleanup,
@@ -2081,7 +1974,7 @@ func newFactory(
 		DB:     db,
 		Logger: logger.With("service", "care_lifecycle"),
 	})
-	users.WirePersonCareParticipation(usersService, careLifecycleService)
+	users.WirePersonCareParticipation(usersService, careParticipationResolver(careLifecycleService))
 	careschedule.WireCareParticipation(careDayService, careLifecycleService)
 	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
 		Bookings:                  enrollmentCareBookingCommands{owner: repos.CarePlan()},
@@ -2147,6 +2040,13 @@ func newFactory(
 				return nil
 			})
 		},
+		SnapshotPickupWeekdayChanges: func(ctx context.Context, studentID int64, date timezone.Date) (map[int]string, error) {
+			return pickupAutoExcusal.SnapshotWeeklyPickups(ctx, studentID, date)
+		},
+		RecordPickupWeekdayChanges: func(ctx context.Context, studentID int64, date timezone.Date, before map[int]string) error {
+			return pickupAutoExcusal.RecordWeeklyPickupChanges(ctx, studentID, date, careschedule.WeeklyPickupSnapshot(before))
+		},
+		ClearPickupWeekdayExtension: timetableCapability.ClearPickupWeekdayExtension,
 		// The reconciler takes these BEFORE writing weekly rows — the same
 		// student → schedule-row → care-day lock order the staff weekly
 		// editors use, so the two weekly writers cannot deadlock against
@@ -2278,11 +2178,15 @@ func newFactory(
 	})
 	enrollmentDecisionApplier, _ := enrollmentDecisionService.(enrollment.ChangeRequestDecisionApplier)
 
+	studentService := users.NewStudentService(
+		repositories.NewStudentDirectory(persons),
+		persons,
+		repos.Student,
+	)
 	// Created before the change-request service: its multi-child approval takes
 	// the companion lock order through this service.
-	studentService := users.NewStudentService(
+	companionService := carelifecycle.NewStudentCompanionService(
 		repos.Student,
-		repositories.StudentPrivacyConsentCapability(newStudentPresence(db, logger)),
 		repos.StudentCompanion,
 		studentAuditService,
 	)
@@ -2290,7 +2194,7 @@ func newFactory(
 	// Child documents (#777): metadata, per-category authority and the
 	// per-child access gate for the Dokumente tab. Needs the user context to
 	// answer "does this caller supervise this child", so it is wired after it.
-	studentDocumentService := users.NewStudentDocumentService(
+	studentDocumentService := carelifecycle.NewStudentDocumentService(
 		db,
 		repos.StudentDocument,
 		repos.Student,
@@ -2315,7 +2219,7 @@ func newFactory(
 		StudentRepo:          repos.Student,
 		GuardianAuthorizer:   repos.StudentGuardian,
 		DecisionService:      enrollmentDecisionApplier,
-		CompanionGraphLocker: studentService,
+		CompanionGraphLocker: companionService,
 		Settings:             settingsService,
 		OutboxEnqueuer:       outboxEnqueuer{outbox: emailOutboxService},
 		FrontendURL:          frontendURL,
@@ -2726,11 +2630,11 @@ func newFactory(
 		repos:          repos,
 		organizations:  organizations,
 		adapters:       provisioningAdapters,
-		authService:    authService,
+		sessions:       identityAccess,
 		invitations:    invitationService,
 		provisioning:   identityAccess,
 		administration: identityAccess,
-		schoolIdentity: accountSessionsPort,
+		schoolIdentity: identityAccess,
 		roles:          identityAccess,
 		settings:       settingsService,
 		logger:         platformLogger,
@@ -2982,15 +2886,14 @@ func newFactory(
 	// The resolver records ONLY the staff-entered result. Every verdict it
 	// takes goes through a domain Decide, which writes its own decided event.
 	parentRequestCoordinator.SetEventRecorder(parentRequestEvents)
-	familyProtectionService := users.NewFamilyProtectionService(repos.FamilyProtection, repos.Student)
 
 	factory = &Factory{
 		settingsRuntimeDB:       db,
-		Auth:                    authService,
+		Auth:                    identityAccess,
 		Audit:                   auditCommand,
 		StaffPINAuth:            NewStaffPINAuthenticator(identityAccess),
-		MFA:                     mfaService,
-		Passkey:                 passkeyService,
+		MFA:                     identityAccess,
+		Passkey:                 identityAccess,
 		Active:                  activeService,
 		ActiveCleanup:           activeCleanupService,
 		WorkSession:             workSessionService,
@@ -3078,17 +2981,16 @@ func newFactory(
 		InvitationTokenExpiry:    invitationTokenExpiry,
 		PasswordResetTokenExpiry: passwordResetTokenExpiry,
 
-		// Platform services - OperatorAuth and OperatorInvitation both point
-		// at the same concrete operatorAuthService struct, exposed through
-		// two narrower interfaces so that each handler depends only on the
-		// methods it actually calls. NewOperatorAuthService returns the
-		// combined interface, so both fields can be assigned directly.
-		OperatorAuth:         operatorAuthService,
-		OperatorInvitation:   operatorAuthService,
+		// The operator dashboard reads the directory and drives the
+		// invitation and e-mail change flows through the same composed
+		// Identity & Access module; the two fields name the two roles the
+		// operator routes depend on (#3364).
+		OperatorAuth:         identityAccess,
+		OperatorInvitation:   identityAccess,
 		OperatorProvisioning: operatorProvisioningService,
 		Announcement:         communicationCapability,
 		Schools:              organizations,
-		Students:             studentService,
+		Students:             StudentServices{Directory: studentService, Companions: companionService},
 		CareLifecycle:        careLifecycleService,
 		StudentAudit:         studentAuditService,
 		StudentConsents:      studentConsentService,
@@ -3098,7 +3000,6 @@ func newFactory(
 		PickupAdjustments:    pickupAdjustmentService,
 		ExcusedRequests:      excusedRequestService,
 		ParentRequests:       parentRequestCoordinator,
-		FamilyProtection:     familyProtectionService,
 		RequestReviewPolicy:  requestReviewPolicy,
 		StudentStatusDays:    studentStatusDayService,
 		AbsenceOverview:      studentStatusDayOverviewService,
@@ -3123,8 +3024,8 @@ func newFactory(
 		SupervisionDashboard:    supervisionDashboardService,
 		TimetableData:           timetableDataService,
 		InstanceSeriesConverter: instanceSeriesConverter,
-		OperatorMFA:             operatorMFAService,
-		OperatorPasskey:         operatorPasskeyService,
+		OperatorMFA:             identityAccess,
+		OperatorPasskey:         identityAccess,
 		UnregisteredTagScans:    unregisteredTagScanService,
 
 		EmailOutboxWorker: emailOutboxWorker,
@@ -3156,7 +3057,7 @@ func newFactory(
 
 	factory.SettingsSideEffects = sideeffects.NewRegistry()
 	facilitiesLegacy.RegisterSettingsSideEffects(factory.SettingsSideEffects, schulhofService, wcService)
-	users.RegisterCareWithdrawalSettingsSideEffects(factory.SettingsSideEffects, careLifecycleService)
+	carelifecycle.RegisterCareWithdrawalSettingsSideEffects(factory.SettingsSideEffects, careLifecycleService)
 	tenantSettings := config.NewTenantOperations(
 		settingsService,
 		payrollStatusService,
@@ -3220,31 +3121,29 @@ func optionalClock(clocks []func() time.Time) func() time.Time {
 	return clocks[0]
 }
 
-// StudentPhotoBootstrap aggregates the dependencies api/base.go must
-// provide to wire the photo lifecycle. The unlinker is api-layer (file IO
-// shared with login-image/avatar upload helpers); the StudentRepo is
-// passed in to avoid storing the repo factory on the services Factory.
+// StudentPhotoBootstrap aggregates what api/base.go must provide to wire the
+// photo lifecycle: the file IO is an api-layer concern (shared with the
+// login-image and avatar upload helpers), and the owner's runtime slot is
+// filled here because the factory holds the rest.
 type StudentPhotoBootstrap struct {
-	Unlinker    users.PhotoUnlinker
-	StudentRepo userModels.StudentRepository
-	DB          *bun.DB
-	Logger      *slog.Logger
+	Unlinker users.PhotoUnlinker
+	// PhotoRuntime is the slot the People Directory owner resolves its photo
+	// runtime from; EnableStudentPhotos fills it with the surfaces this
+	// factory holds.
+	PhotoRuntime *peopleCompose.StudentPhotoRuntime
+	Logger       *slog.Logger
 }
 
-// EnableStudentPhotos constructs the StudentPhotoService with the supplied
-// dependencies and registers its settings handler on
-// f.SettingsSideEffects. Idempotent: repeated calls overwrite the prior
-// service. Call once at API bootstrap.
+// EnableStudentPhotos stores the photo lifecycle and registers its settings
+// handler on f.SettingsSideEffects. Idempotent: repeated calls overwrite the
+// prior service. Call once at API bootstrap.
 func (f *Factory) EnableStudentPhotos(deps StudentPhotoBootstrap) {
-	f.StudentPhotos = users.NewStudentPhotoService(users.StudentPhotoServiceDependencies{
-		StudentRepo: deps.StudentRepo,
+	f.StudentPhotos = NewStudentPhotos(f.PeopleDirectory, deps.PhotoRuntime, StudentPhotoRuntimeDependencies{
 		Settings:    f.Settings,
-		UserContext: f.UserContext,
 		Broadcaster: f.RealtimeHub,
 		Unlinker:    deps.Unlinker,
-		DB:          deps.DB,
-		Logger:      deps.Logger,
 		Consents:    f.StudentConsents,
+		Logger:      deps.Logger,
 	})
 	users.RegisterStudentPhotoSettingsSideEffects(f.SettingsSideEffects, f.StudentPhotos)
 }

@@ -8,7 +8,6 @@ import (
 	workforceCapability "github.com/moto-nrw/project-phoenix/modules/workforce"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	"github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	"github.com/moto-nrw/project-phoenix/database/repositories/config"
 	"github.com/moto-nrw/project-phoenix/database/repositories/education"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
@@ -17,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
@@ -25,6 +25,7 @@ import (
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
@@ -37,7 +38,6 @@ import (
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
@@ -48,6 +48,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
@@ -515,42 +516,48 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	}
 	studentDeletionAudit := audit.NewStudentDeletionRepository(auditRepositoryRuntime)
 	enrollmentOfferingAdjustment := audit.NewEnrollmentOfferingAdjustmentRepository(auditRepositoryRuntime)
-	accountRepo := auth.NewAccountRepository(db)
-	accountTenantRepo := auth.NewAccountTenantRepository(db)
-	roleRepo := auth.NewRoleRepository(db)
-	permissionRepo := auth.NewPermissionRepository(db)
+	accountRepo := authpostgres.NewAccountRepository(db)
+	accountTenantRepo := authpostgres.NewAccountTenantRepository(db)
+	roleRepo := authpostgres.NewRoleRepository(db)
+	permissionRepo := authpostgres.NewPermissionRepository(db)
 	// The account facts other owners read belong to Identity & Access
 	// (#2720): the account lookups the People Directory and Care Plan
 	// repositories need are bound at construction.
 	identity := newIdentityAccess(db, timetableDependencies.ObserveIdentityAccess)
 	personRepo := NewPersonRepository(db)
-	studentRepo := users.NewStudentRepository(db)
+	studentRepo := NewStudentRepository(db)
 	groupRepo := education.NewGroupRepository(db)
-	factory := &Factory{
+	// The care-exit repositories read their owners through resolvers over this
+	// pointer, because Care Plan and the School Calendar are composed after
+	// the factory; its own bind methods fill the fields they read.
+	var factory *Factory
+	factory = &Factory{
 		db: db,
 		// Auth repositories
 		Account:                accountRepo,
-		AccountParent:          auth.NewAccountParentRepository(db),
+		AccountParent:          authpostgres.NewAccountParentRepository(db),
 		AccountTenant:          accountTenantRepo,
-		StaffCalendarFeedToken: auth.NewStaffCalendarFeedTokenRepository(db),
+		StaffCalendarFeedToken: authpostgres.NewStaffCalendarFeedTokenRepository(db),
 		Role:                   roleRepo,
 		Permission:             permissionRepo,
-		RolePermission:         auth.NewRolePermissionRepository(db),
-		AccountRole:            auth.NewAccountRoleRepository(db),
-		AccountPermission:      auth.NewAccountPermissionRepository(db),
-		InvitationToken:        auth.NewInvitationTokenRepository(db),
-		MFACredential:          auth.NewMFACredentialRepository(db),
-		MFAEmailChallenge:      auth.NewMFAEmailChallengeRepository(db),
-		MFATrustedDevice:       auth.NewMFATrustedDeviceRepository(db),
-		MFAOverride:            auth.NewMFAOverrideRepository(db),
+		RolePermission:         authpostgres.NewRolePermissionRepository(db),
+		AccountRole:            authpostgres.NewAccountRoleRepository(db),
+		AccountPermission:      authpostgres.NewAccountPermissionRepository(db),
+		InvitationToken:        authpostgres.NewInvitationTokenRepository(db),
+		MFACredential:          authpostgres.NewMFACredentialRepository(db),
+		MFAEmailChallenge:      authpostgres.NewMFAEmailChallengeRepository(db),
+		MFATrustedDevice:       authpostgres.NewMFATrustedDeviceRepository(db),
+		MFAOverride:            authpostgres.NewMFAOverrideRepository(db),
 
 		// Users repositories
-		Person:              personRepo,
-		RFIDCard:            auth.NewRFIDCardRepository(db),
-		Student:             studentRepo,
-		CareExit:            users.NewCareExitRepository(db),
-		CareExitCleanup:     users.NewCareExitCleanupRepository(db, NewEnrollmentBookingProjection(enrollmentModule), careExitAssignments{capability: timetableCapability}, presenceCapability),
-		Profile:             auth.NewProfileRepository(db),
+		Person:   personRepo,
+		RFIDCard: authpostgres.NewRFIDCardRepository(db),
+		Student:  studentRepo,
+		CareExit: carelifecycle.NewCareExitRepository(db, careExitReasonsOf(&factory)),
+		CareExitCleanup: carelifecycle.NewCareExitCleanupRepository(db, newCareExitCleanup(
+			db, &factory, NewEnrollmentBookingProjection(enrollmentModule), presenceCapability, timetableCapability,
+		)),
+		Profile:             authpostgres.NewProfileRepository(db),
 		StudentGuardian:     NewStudentGuardianRepository(db),
 		StudentCompanion:    nil, // bound to Care Plan below
 		GuardianProfile:     NewGuardianProfileRepository(db),
@@ -804,7 +811,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	factory.PlanningTrack, factory.RecurrenceRule = adapters.PlanningTrack, adapters.RecurrenceRule
 	factory.ActivityException, factory.ActivityInstance = adapters.ActivityException, adapters.ActivityInstance
 	factory.InstanceIdempotency, factory.InstanceStaff = adapters.InstanceIdempotency, adapters.InstanceStaff
-	factory.BindTimetable(timetableCapability)
 	return factory
 }
 

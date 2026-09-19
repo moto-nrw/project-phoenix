@@ -28,6 +28,10 @@ Until #2580's exit criteria are met, the capability-first target in
 `backend/architecture/policy.json` takes precedence over legacy examples.
 The Handler → Service → Repository layout is migration state, not the target.
 
+`backend/architecture/WORKPLAN.md` holds the open ticket set: what is assignable
+today, what each carrier still owns, and the debt no ratchet counts. Read it
+before picking up or cutting a #2580 ticket.
+
 Before backend design, implementation, or review:
 
 1. Read `backend/architecture/README.md` and inspect affected owners, packages,
@@ -164,7 +168,7 @@ s.logger.Info("visit recorded", "student_id", sid, "group_id", gid)  // snake_ca
 - Loggers flow through the factory: `services.NewFactory(repos, db, logger)`; services scope with `logger.With("service", "active")`
 - Structs that tests construct bare use the nil-safe pattern: `getLogger()` returning `slog.Default()` when nil
 - **GDPR: student names never at Info level** — IDs only; names at Debug
-- Known exceptions (intentional `log.Printf`): `auth/jwt/tokenauth.go` startup logging; `cmd/` and `simulator/` route through slog default at WARN
+- Known exceptions (intentional `log.Printf`): `modules/identityaccess/legacy/jwt/tokenauth.go` startup logging; `cmd/` and `simulator/` route through slog default at WARN
 
 ## Real-time updates
 
@@ -174,7 +178,7 @@ event types, streaming endpoints, or client refetch behavior.
 
 ## Email
 
-SMTP config via `EMAIL_SMTP_*`, `EMAIL_FROM_*`, `FRONTEND_URL`/`PARENTS_URL` (link bases). With SMTP unset, local development uses `email.NewMockMailer()` to log metadata (to/subject/template); staging and production fail startup. HTML templates live in `backend/templates/email/` (shared chrome: `styles.html`, `header.html`, `footer.html`; feature templates for invitations, password reset, MFA codes, enrollment notifications, operator flows). Most email sends use async `Dispatcher.Dispatch`; fail-closed sends such as MFA challenges use synchronous `Dispatcher.Deliver` and return success only after transport acceptance. Password hashing/strength helpers: `services/auth/password_helpers.go` — reuse, don't duplicate.
+SMTP config via `EMAIL_SMTP_*`, `EMAIL_FROM_*`, `FRONTEND_URL`/`PARENTS_URL` (link bases). With SMTP unset, local development uses `email.NewMockMailer()` to log metadata (to/subject/template); staging and production fail startup. HTML templates live in `backend/templates/email/` (shared chrome: `styles.html`, `header.html`, `footer.html`; feature templates for invitations, password reset, MFA codes, enrollment notifications, operator flows). Most email sends use async `Dispatcher.Dispatch`; fail-closed sends such as MFA challenges use synchronous `Dispatcher.Deliver` and return success only after transport acceptance. Password hashing/strength helpers: `auth/authorize/credentials.go`, served to compositions through `modules/securityruntime` — reuse, don't duplicate.
 
 **Password-reset rate limit is a cross-layer contract**: 3 requests/hour per email; the backend's `429` + `Retry-After` header drives the live countdown in the frontend's password-reset modal (localStorage-persisted). Changing the window or header silently breaks that UX.
 

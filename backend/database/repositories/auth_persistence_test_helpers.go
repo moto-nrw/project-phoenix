@@ -1,16 +1,11 @@
 package repositories
 
 import (
-	"context"
-
-	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
+	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/uptrace/bun"
 )
@@ -53,15 +48,9 @@ func NewInvitationPersistence(db *bun.DB) (*InvitationPersistence, error) {
 		MFACredential:   authRepo.NewMFACredentialRepository(db),
 		Person:          NewPersonRepository(db),
 		Staff:           staff, Teacher: teachers,
-		Student: usersRepo.NewStudentRepository(db),
+		Student: NewStudentRepository(db),
 		School:  organizations,
 	}, nil
-}
-
-// NewOperatorAuditLogPersistence composes only the retained operator audit
-// contract over the Audit owner's platform-scoped ledger.
-func NewOperatorAuditLogPersistence(db *bun.DB) platformModels.OperatorAuditLogRepository {
-	return newOperatorAuditLog(auditRepo.NewRuntime(db, func(context.Context) int64 { return 0 }))
 }
 
 // newInvitationMembershipRepositories composes only the staff and teacher adapters

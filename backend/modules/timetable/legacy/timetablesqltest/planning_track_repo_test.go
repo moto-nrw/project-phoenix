@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	model "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,7 +17,6 @@ import (
 func planningTrackRepository(t *testing.T, db *bun.DB) model.PlanningTrackRepository {
 	t.Helper()
 	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	factory.BindTimetable(timetabletest.New(t, db))
 	return factory.PlanningTrack
 }
 

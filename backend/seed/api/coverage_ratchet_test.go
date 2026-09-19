@@ -39,11 +39,13 @@ var seedCoverageExemptions = map[string]string{
 	"users.student_guardian_relationships":      "empty Expand target (#2716); users.students_guardians remains authoritative until Cutover",
 	"users.student_guardian_pickup_permissions": "empty Expand target (#2716); users.students_guardians remains authoritative until Cutover",
 	"auth.guardian_student_access":              "empty Expand target (#2716); users.students_guardians remains authoritative until Cutover",
-	// Expand #2717 explicitly requires empty targets and forbids dual writes.
-	// Remove these exemptions when the student Cutover switches the real seed/API callers.
-	"users.student_profiles":               "empty Expand target (#2717); users.students remains authoritative until Cutover",
-	"users.student_school_memberships":     "empty Expand target (#2717); users.students remains authoritative until Cutover",
-	"users.student_care_profiles":          "empty Expand target (#2717); users.students remains authoritative until Cutover",
+	// users.student_profiles, users.student_school_memberships and
+	// users.student_care_profiles held no rows while Expand #2717 kept them
+	// empty. Cutover #2759 made them the authoritative student storage, so a
+	// seeded stack finds them filled and they carry no exemption any more.
+	// Current owner commands no longer write the rollback archive. Keep it
+	// empty on fresh seeds; filling it would restore retired Guardian copies.
+	"users.students_legacy":                "rollback archive retained by Cutover #2759 (ADR 0024); populated only from pre-cutover data or previous-image compatibility writes, never current seed/API traffic",
 	"active.combined_groups":               "empty in prod too",
 	"active.group_mappings":                "empty in prod too",
 	"active.scheduled_checkouts":           "empty in prod too",

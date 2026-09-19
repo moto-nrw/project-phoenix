@@ -237,6 +237,14 @@ func (s *pickupScheduleService) BulkUpsertPickupSchedules(
 			locked = append(locked, fresh)
 		}
 		for _, student := range locked {
+			var before WeeklyPickupSnapshot
+			if s.autoExcusal != nil {
+				snapshot, snapshotErr := s.autoExcusal.SnapshotWeeklyPickups(txCtx, student.ID, timezone.TodayDate())
+				if snapshotErr != nil {
+					return snapshotErr
+				}
+				before = snapshot
+			}
 			existing, findErr := s.scheduleRepo.FindByStudentID(txCtx, student.ID)
 			if findErr != nil {
 				return findErr
@@ -276,6 +284,9 @@ func (s *pickupScheduleService) BulkUpsertPickupSchedules(
 			if s.autoExcusal != nil {
 				if syncErr := s.autoExcusal.ResyncFutureExceptions(txCtx, student.ID); syncErr != nil {
 					return syncErr
+				}
+				if recordErr := s.autoExcusal.RecordWeeklyPickupChanges(txCtx, student.ID, timezone.TodayDate(), before); recordErr != nil {
+					return recordErr
 				}
 			}
 			result.AffectedStudentIDs = append(result.AffectedStudentIDs, student.ID)
@@ -440,13 +451,20 @@ func (s *pickupScheduleService) UpsertBulkStudentPickupSchedulesForDate(
 		if err != nil {
 			return err
 		}
+		if s.autoExcusal == nil {
+			return s.core.UpsertBulkSchedules(txCtx, studentID, manualRows)
+		}
+		before, err := s.autoExcusal.SnapshotWeeklyPickups(txCtx, studentID, date)
+		if err != nil {
+			return err
+		}
 		if err := s.core.UpsertBulkSchedules(txCtx, studentID, manualRows); err != nil {
 			return err
 		}
-		if s.autoExcusal != nil {
-			return s.autoExcusal.ResyncFutureExceptions(txCtx, studentID)
+		if err := s.autoExcusal.ResyncFutureExceptions(txCtx, studentID); err != nil {
+			return err
 		}
-		return nil
+		return s.autoExcusal.RecordWeeklyPickupChanges(txCtx, studentID, date, before)
 	})
 }
 
@@ -466,10 +484,18 @@ func (s *pickupScheduleService) withWeeklyResync(
 		if err := LockCareStudent(txCtx, s.db, studentID); err != nil {
 			return err
 		}
+		today := timezone.TodayDate()
+		before, err := s.autoExcusal.SnapshotWeeklyPickups(txCtx, studentID, today)
+		if err != nil {
+			return err
+		}
 		if err := write(txCtx); err != nil {
 			return err
 		}
-		return s.autoExcusal.ResyncFutureExceptions(txCtx, studentID)
+		if err := s.autoExcusal.ResyncFutureExceptions(txCtx, studentID); err != nil {
+			return err
+		}
+		return s.autoExcusal.RecordWeeklyPickupChanges(txCtx, studentID, today, before)
 	})
 }
 

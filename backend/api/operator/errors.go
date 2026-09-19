@@ -6,8 +6,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 )
 
 // ErrResponse is the operator surface's error body. api/common owns it so the
@@ -77,27 +76,25 @@ func unregisteredTagScanResolveIsClientError(err error) bool {
 	return false
 }
 
-// AuthErrorRenderer maps auth service errors to HTTP responses
+// AuthErrorRenderer maps Identity & Access authentication outcomes to HTTP
+// responses. The bodies are fixed sentences, so the owner's sentinels decide
+// exactly the statuses and texts the retained typed errors decided (#3364).
 func AuthErrorRenderer(err error) render.Renderer {
-	var invalidCreds *platformSvc.InvalidCredentialsError
-	var operatorInactive *platformSvc.OperatorInactiveError
-	var operatorNotFound *platformSvc.OperatorNotFoundError
-
 	switch {
-	case errors.As(err, &invalidCreds):
+	case errors.Is(err, identityoperator.ErrOperatorInvalidCredentials):
 		return ErrInvalidCredentials()
-	case errors.As(err, &operatorInactive):
+	case errors.Is(err, identityoperator.ErrOperatorInactive):
 		return ErrForbidden("Operator account is inactive")
-	case errors.As(err, &operatorNotFound):
+	case errors.Is(err, identityoperator.ErrOperatorNotFound):
 		return ErrInvalidCredentials()
-	case errors.Is(err, authService.ErrMFARateLimited):
+	case errors.Is(err, identityoperator.ErrMFARateLimited):
 		return ErrTooManyRequests("Too many code requests, please wait")
-	case errors.Is(err, authService.ErrMFALocked):
+	case errors.Is(err, identityoperator.ErrMFALocked):
 		return ErrTooManyRequests("MFA account temporarily locked")
-	case errors.Is(err, authService.ErrMFAChallengeTokenInvalid),
-		errors.Is(err, authService.ErrMFACodeInvalid):
+	case errors.Is(err, identityoperator.ErrMFAChallengeTokenInvalid),
+		errors.Is(err, identityoperator.ErrMFACodeInvalid):
 		return ErrInvalidCredentials()
-	case errors.Is(err, authService.ErrMFAStatusUnavailable):
+	case errors.Is(err, identityoperator.ErrMFAStatusUnavailable):
 		return ErrServiceUnavailable("MFA status temporarily unavailable, please retry")
 	default:
 		return ErrInternal("Authentication failed")

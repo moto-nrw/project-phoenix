@@ -49,17 +49,12 @@ type Rooms interface {
 	Names(ctx context.Context, roomIDs []int64) (map[int64]string, error)
 }
 
-// Student is the projection-relevant record of one child. The legacy
-// guardian fields are the free-text contact columns of the student row;
-// they are folded into the contact columns behind the linked guardians.
+// Student is the projection-relevant record of one child.
 type Student struct {
-	ID              int64
-	PersonID        int64
-	SchoolClass     string
-	HealthInfo      string
-	GuardianName    string
-	GuardianContact string
-	GuardianPhone   string
+	ID          int64
+	PersonID    int64
+	SchoolClass string
+	HealthInfo  string
 }
 
 // Students reads student records from the People Directory owner, which

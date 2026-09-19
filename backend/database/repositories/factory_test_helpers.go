@@ -18,7 +18,6 @@ func NewFactoryWithPeopleDirectory(db *bun.DB, dependencies TimetableDependencie
 	}
 	factory := NewFactory(db, dependencies, clocks...)
 	factory.BindPeopleDirectory(persons)
-	factory.BindTimetable(dependencies.Capability)
 	return factory, nil
 }
 

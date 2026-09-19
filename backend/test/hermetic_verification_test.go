@@ -514,24 +514,25 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"setupTestDB",
 		"SetupAPITest",
 		"setupAPITest",
-		"setupTestContext",               // Indirect setup via shared helper (calls SetupAPITest)
-		"setupRolloverTest",              // services/enrollment rollover integration tests — wraps SetupTestDB
-		"setupRequestTest",               // services/enrollment request-service integration tests — wraps SetupTestDB
-		"setupDecisionTest",              // services/enrollment decision integration tests — wraps setupRolloverTest
-		"setupCareTest",                  // services/enrollment care-offering integration tests — wraps SetupTestDB
-		"setupAutoApproveIntegrationEnv", // services/enrollment auto-approve integration tests — wraps setupRolloverTest
-		"setupGuardianInvitationTest",    // services/auth guardian invitation + related-accounts tests — wraps SetupTestDB
-		"makeScenario",                   // modules/timetable/legacy/timetableplanning materialization/split integration tests — wraps SetupTestDB
-		"makeRosterChain",                // modules/timetable/legacy/timetableplanning split-series roster tests (#2187) — wraps makeSeriesChain → makeScenario
-		"makeMoveSetup",                  // modules/timetable/legacy/timetableplanning staff-pool/move tests (#1884) — wraps SetupTestDB
-		"buildDevSetup",                  // api/timetable deviations/protocol tests — wraps SetupTestDB
-		"setupAbsenceAdminTest",          // api/staff absence question tests (#1419) — wraps setupTestContext
-		"newOverviewFixture",             // modules/studentpresence/legacy/services/active overview/export integration tests (#1417) — wraps SetupTestDB
-		"setupOverviewAPI",               // api/staff overview/export tests (#1417) — wraps setupTestContext
-		"newTransitionFixture",           // services/education grade-transition workflow tests — wraps SetupTestDB
-		"buildLifecycle",                 // modules/timetable/legacy/timetableplanning instance-lifecycle tests — wraps SetupTestDB
-		"newCareFixture",                 // modules/careplan/legacy/careschedule care-request tests — wraps SetupTestDB
-		"setupDashboardContext",          // api/active supervision-dashboard tests — wraps SetupActiveModule → SetupTestDB
+		"setupTestContext",                 // Indirect setup via shared helper (calls SetupAPITest)
+		"setupRolloverTest",                // services/enrollment rollover integration tests — wraps SetupTestDB
+		"setupRequestTest",                 // services/enrollment request-service integration tests — wraps SetupTestDB
+		"setupDecisionTest",                // services/enrollment decision integration tests — wraps setupRolloverTest
+		"setupCareTest",                    // services/enrollment care-offering integration tests — wraps SetupTestDB
+		"setupAutoApproveIntegrationEnv",   // services/enrollment auto-approve integration tests — wraps setupRolloverTest
+		"setupGuardianInvitationTest",      // services/auth guardian invitation + related-accounts tests — wraps SetupTestDB
+		"makeScenario",                     // modules/timetable/legacy/timetableplanning materialization/split integration tests — wraps SetupTestDB
+		"makeRosterChain",                  // modules/timetable/legacy/timetableplanning split-series roster tests (#2187) — wraps makeSeriesChain → makeScenario
+		"makeMoveSetup",                    // modules/timetable/legacy/timetableplanning staff-pool/move tests (#1884) — wraps SetupTestDB
+		"buildDevSetup",                    // api/timetable deviations/protocol tests — wraps SetupTestDB
+		"setupAbsenceAdminTest",            // api/staff absence question tests (#1419) — wraps setupTestContext
+		"newOverviewFixture",               // modules/studentpresence/legacy/services/active overview/export integration tests (#1417) — wraps SetupTestDB
+		"setupOverviewAPI",                 // api/staff overview/export tests (#1417) — wraps setupTestContext
+		"newTransitionFixture",             // services/education grade-transition workflow tests — wraps SetupTestDB
+		"buildLifecycle",                   // modules/timetable/legacy/timetableplanning instance-lifecycle tests — wraps SetupTestDB
+		"newCareFixture",                   // modules/careplan/legacy/careschedule care-request tests — wraps SetupTestDB
+		"setupDashboardContext",            // api/active supervision-dashboard tests — wraps SetupActiveModule → SetupTestDB
+		"setupStudentStorageBeforeCutover", // database/migrations student-owner cutover + preflight tests — wraps SetupTestDB
 	}
 
 	// Patterns indicating mock-based testing (legitimate alternative)
@@ -570,6 +571,9 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 			"test/handler_layer_ratchet_test.go",                           // Source-scanning ratchet (issue #584); same as above, no DB is used
 			"api/timetable/timetable_data_test_helpers_test.go",            // Shared fixture helper; caller tests own DB setup (mirrors created_by_test.go)
 			"services/messaging/apply_export_internal_test.go",             // Test-support wrappers exposing unexported apply funcs; the *bun.DB is injected, caller (requests_test.go) owns SetupTestDB
+			"test/module_file_size_ratchet_test.go",                        // Source-scanning ratchet (#2580); allowlist keys name *_repositories.go files, no DB is used
+			"test/module_complexity_ratchet_test.go",                       // Source-scanning ratchet (#2580); same as above, no DB is used
+			"test/module_http_orm_ratchet_test.go",                         // Source-scanning ratchet (#2580); the rule text names *bun.DB, which is the thing it forbids, no DB is used
 		}
 		skip := false
 		for _, sf := range skipFiles {
@@ -1145,8 +1149,8 @@ func formatViolation(file string, line int, content string) string {
 // perTestTenantsOptOut lists packages that cannot call PerTestTenants. Only
 // structural reasons belong here, and each one names its reason.
 var perTestTenantsOptOut = map[string]string{
-	// test/ imports auth/jwt, so auth/jwt's internal tests cannot import test/.
-	"auth/jwt": "import cycle: test imports auth/jwt",
+	// test/ imports the JWT adapter, so its internal tests cannot import test/.
+	"modules/identityaccess/legacy/jwt": "import cycle: test imports modules/identityaccess/legacy/jwt",
 }
 
 // checkLeftoverGateOptIn reports test packages that open the test database but

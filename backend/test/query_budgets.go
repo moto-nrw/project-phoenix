@@ -42,6 +42,10 @@ var queryBudgets = map[string]queryBudget{
 	// modules/careplan/inbound/parent — GET /me/children/{studentId}/courses resolves the catalog,
 	// capacity and pending-request queue through this bounded service scenario.
 	"api.parent.child_courses": {max: 14},
+	// api/enrollment — GET /phases/{id}/responses: phase plus four batched
+	// response sources inside the tenant transaction. The matching test proves
+	// the total stays flat from three to eight children.
+	"api.enrollment.phase_responses.list": {max: 9},
 	// api/students — #2059: schema capabilities are fixed at startup.
 	"api.students.requests.schema_introspection": {max: 0, exact: true},
 	// api/students — #2098: each planning-time bulk load runs once per list request.
@@ -53,7 +57,10 @@ var queryBudgets = map[string]queryBudget{
 	// a constant read moved inside the loop, fails the test.
 	"api.class_list_entries.list": {max: 8},
 	// api/students — GET /students list, 10 students, page_size=50.
-	"api.students.list": {max: 31},
+	// Lowered from 31 in #3349: the owner's directory read selects the
+	// departure plans in the same statement the rows come from, where the
+	// retained repository needed a second one to reach the scan-only columns.
+	"api.students.list": {max: 30},
 	// api/students — #2056: aggregated OGS group view, 10 students.
 	"api.students.ogs_group_live": {max: 41},
 	// api/students — #2099: identity chain resolved once per request.
@@ -102,6 +109,10 @@ var queryBudgets = map[string]queryBudget{
 	// plus the setting, offering and series-root reads for roster maintenance
 	// (#3140). The test proves all 11 statements stay flat from 3 to 8 rows.
 	"api.timetable.templates.list": {max: 11},
+	// api/timetable — GET /pickup-extensions (#3261), day tasks only: tenant
+	// transaction and tenant setup, task read, one batched block read,
+	// student and person names. Flat in the number of open tasks.
+	"api.timetable.pickup_extensions.list": {max: 9},
 	// api/timetable — GET /periods (#3124): tenant transaction (BEGIN, SET
 	// LOCAL ROLE, set_config, COMMIT) + period list + one usage read per
 	// owner (Enrollment phases, Timetable planning tables). The two owner
@@ -196,12 +207,15 @@ var queryBudgets = map[string]queryBudget{
 	"services.schedule.shift_coverage.series":          {max: 8, exact: true},
 	// modules/emergencysnapshot — the Notfallliste projection (#2704) reads
 	// each owner once, flat in the number of children: open attendance,
-	// student rows (two statements in the retained repository: the row and
-	// its departure hydration), person identities, current visits, room
-	// names and guardian contacts, after the three tenant-scope statements
-	// of the transaction runtime. The presence mode is a settings read that
-	// the scenario fakes.
-	"modules.emergencysnapshot.snapshot": {max: 10, exact: true},
+	// student rows, person identities, current visits, room names and
+	// guardian contacts, after the three tenant-scope statements of the
+	// transaction runtime. The presence mode is a settings read that the
+	// scenario fakes.
+	//
+	// Lowered from 10 in #3349: the owner reads a child's departure plan in
+	// the same statement as the row, where the retained repository needed a
+	// second one to reach the scan-only columns.
+	"modules.emergencysnapshot.snapshot": {max: 9, exact: true},
 	// modules/requestreview/compose — #3179: the open review page of one
 	// child with one request in each of the four native queues (the RLS
 	// proof fixture), inside one tenant transaction: the urgent and the

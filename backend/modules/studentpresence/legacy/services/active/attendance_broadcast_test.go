@@ -121,7 +121,7 @@ func newDailyCheckoutService(t *testing.T, db *testpkg.DB) (active.Service, *tes
 		GroupRepo:          repos.ActiveGroup,
 		SupervisorRepo:     repos.GroupSupervisor,
 		SchoolPresence:     testSchoolPresence(t, db),
-		StudentRepo:        services.PresenceStudents(repos.Student),
+		StudentRepo:        services.PresenceStudents(db, repos.Student),
 		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
 		RoomRepo:           services.NewAttendanceRooms(repos.Room),
 		ActivityGroupRepo:  repositories.NewSessionActivities(repos.ActivityGroup),

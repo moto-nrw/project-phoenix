@@ -112,15 +112,17 @@ type StudentRepository interface {
 	FindBirthdaysOn(ctx context.Context, days []MonthDay) ([]BirthdayEntry, error)
 
 	// ListWithOptions retrieves students with query options
-	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*Student, error)
+	// ListByGroupIDsIncludingAlumni is the care-participation candidate set:
+	// the rule that follows decides per child whether a graduate still counts.
+	ListByGroupIDsIncludingAlumni(ctx context.Context, groupIDs []int64) ([]*Student, error)
+	// ListClassRoster is the class-roster report's candidate set — one class,
+	// or every child when the report spans all of them.
+	ListClassRoster(ctx context.Context, schoolClass string) ([]*Student, error)
+	// CountEnrolled counts the children of the school, graduates excluded.
+	CountEnrolled(ctx context.Context) (int, error)
 
 	// CountWithOptions counts students matching the query options
 	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
-
-	// UpdateColumns is the generic partial-update helper promoted from the
-	// embedded base repository: updates only the named columns by primary
-	// key and returns the number of rows affected.
-	UpdateColumns(ctx context.Context, student *Student, columns ...string) (int64, error)
 
 	// CountByGroupIDs counts students per group for multiple groups in a single query
 	CountByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error)
@@ -162,35 +164,10 @@ type StudentRepository interface {
 	// activate-students scheduler tick to flip rows to 'inactive'.
 	FindActiveDueForDeactivation(ctx context.Context, asOf timezone.Date) ([]*Student, error)
 
-	// PurgeAllPhotos clears photo_path on every student row visible in the
-	// current tenant context (RLS scopes it) and returns the list of stored
-	// URLs that were cleared. Caller is responsible for unlinking the
-	// underlying files.
-	//
-	// Used when an admin disables operations.student_photos_enabled - the
-	// reviewer flagged that without this, existing photos remain accessible
-	// after the toggle. The DB clear runs inside whatever transaction the
-	// caller provides via context, so it is atomic with the setting write;
-	// file unlinks are best-effort and happen after commit. Acquires the
-	// per-tenant photo-feature advisory lock so it serializes against
-	// concurrent upload tx's that hold the same lock.
-	PurgeAllPhotos(ctx context.Context) ([]string, error)
-
-	// LockPhotoFeature acquires the per-tenant advisory lock that
-	// serializes operations affecting the student-photo feature (uploads
-	// vs. feature disable). Must be called inside a tenant tx; lock
-	// releases on commit/rollback. See implementation for the full race
-	// rationale.
-	LockPhotoFeature(ctx context.Context) error
-
-	// LockStudentClassWritesShared acquires the SHARED form of the class-writes
-	// gate. The repository takes it implicitly in front of every student
-	// insert/update/row lock; callers only need it explicitly when they must
-	// acquire ANOTHER tenant-wide gate (e.g. the recurrence gate) before their
-	// first student row lock — the shared gate has to come first to keep the
-	// project-wide order (class-writes → recurrence → rows) acyclic against a
-	// concurrently applying grade transition (#2147 review round 12).
-	LockStudentClassWritesShared(ctx context.Context) error
+	// Both per-tenant gates this repository takes — the photo-feature lock and
+	// the shared class-writes gate — moved to People Directory in #3349. The
+	// repository still acquires them implicitly in front of its own writes;
+	// callers that need one explicitly ask the owner.
 
 	// FindByIDForUpdate retrieves a student by id with SELECT … FOR
 	// UPDATE so the caller can re-validate state under the same row
@@ -228,17 +205,6 @@ type StudentRepository interface {
 	// and must not pay for departure-plan hydration to answer one question
 	// (#2487).
 	FindCareBoundsByIDs(ctx context.Context, ids []int64) (map[int64]timezone.Date, error)
-
-	// SetEnrolledUntilByIDs writes the enrollment interval's upper bound —
-	// the LAST CARE DAY, inclusive — for a whole batch in one statement, and
-	// returns how many rows changed. A nil `until` clears the bound, which is
-	// what cancelling a planned exit and resuming care both do (#2487).
-	SetEnrolledUntilByIDs(ctx context.Context, ids []int64, until *timezone.Date) (int64, error)
-
-	// SetEnrollmentWindowByID reopens one child's care from a new start day:
-	// enrolled_from moves to `from`, enrolled_until is cleared and the
-	// lifecycle status is recomputed against `today` (#2487).
-	SetEnrollmentWindowByID(ctx context.Context, id int64, from timezone.Date, status StudentStatus) error
 }
 
 // CaregiverBindingLocker serializes the caregiver blocker re-check with all
