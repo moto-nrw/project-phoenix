@@ -997,7 +997,7 @@ func (s *instanceService) Complete(ctx context.Context, instanceID int64) (*sche
 		return nil, &ScheduleError{Op: "complete instance: read transaction timestamp", Err: err}
 	}
 	completedByAccountID, _ := ctx.Value(lifecycleActorKey).(int64)
-	instance.MarkCompleted(completedAt, s.now().Add(5*time.Minute), completedByAccountID)
+	instance.MarkCompleted(completedAt, completedAt.Add(5*time.Minute), completedByAccountID)
 	if err := s.updateLifecycleColumns(ctx, instance, "status", "completed_at", "completed_by", "reopen_until", "completion_snapshot"); err != nil {
 		return nil, &ScheduleError{Op: "complete instance: update", Err: err}
 	}

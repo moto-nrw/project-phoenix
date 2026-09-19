@@ -687,6 +687,21 @@ func TestInstance_Complete_HappyPath(t *testing.T) {
 	require.NotNil(t, group.EndTime, "active.group should have been ended")
 }
 
+func TestInstance_Complete_BasesReopenWindowOnCompletionTimestamp(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	ai := seedInstance(t, s, true, false)
+	_, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+
+	completed, err := s.svc.Complete(s.ctx, ai.ID)
+	require.NoError(t, err)
+	require.NotNil(t, completed.CompletedAt)
+	require.NotNil(t, completed.ReopenUntil)
+	assert.Equal(t, completed.CompletedAt.Add(5*time.Minute), *completed.ReopenUntil)
+}
+
 func TestInstance_Complete_ConfirmationMustMatchOpenVisits(t *testing.T) {
 	t.Parallel()
 

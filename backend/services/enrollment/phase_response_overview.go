@@ -352,7 +352,7 @@ func newPhaseResponseScope(phase *enrollmentOwner.Phase, today timezone.Date, gr
 		scope.grades[grade] = struct{}{}
 	}
 	for _, class := range phase.EligibleSchoolClasses {
-		if class = strings.TrimSpace(class); class != "" {
+		if class = schoolclass.Normalize(class); class != "" {
 			scope.classes[class] = struct{}{}
 		}
 	}
@@ -382,7 +382,7 @@ func phaseResponseGrade(class string) (int, bool) {
 // restriction without progression; otherwise it stays expected because asking
 // one family too many is cheaper than silently dropping one.
 func (s phaseResponseScope) exclusion(class string) string {
-	class = strings.TrimSpace(class)
+	class = schoolclass.Normalize(class)
 	grade, ok := phaseResponseGrade(class)
 	if s.nextYear && ok {
 		if grade >= s.gradeMax {
@@ -409,6 +409,7 @@ func (s phaseResponseScope) exclusion(class string) string {
 }
 
 func phaseResponseClassWithGrade(class string, grade int) string {
+	class = schoolclass.Normalize(class)
 	prefix := schoolclass.GradePrefix(class)
 	index := strings.Index(class, prefix)
 	if index < 0 {

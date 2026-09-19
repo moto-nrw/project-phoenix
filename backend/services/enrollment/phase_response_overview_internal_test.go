@@ -390,6 +390,47 @@ func TestResponseOverview_FutureSchoolYearAdvancesAClassWithTextBeforeItsGrade(t
 	assert.Equal(t, int64(1), overview.Rows[0].StudentID)
 }
 
+func TestResponseOverview_NormalizesConcreteClassRestrictions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		phase       *enrollmentOwner.Phase
+		schoolClass string
+	}{
+		{
+			name: "current school year",
+			phase: func() *enrollmentOwner.Phase {
+				phase := nextYearPhase()
+				phase.Kind = enrollmentOwner.PhaseKindHoliday
+				phase.EligibleSchoolClasses = []string{" 1A "}
+				return phase
+			}(),
+			schoolClass: "1a",
+		},
+		{
+			name: "future school year",
+			phase: func() *enrollmentOwner.Phase {
+				phase := nextYearPhase()
+				phase.EligibleSchoolClasses = []string{" Klasse 2A "}
+				return phase
+			}(),
+			schoolClass: " Klasse 1a ",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := newResponseService(tt.phase, &responseChildren{}, responseRoster{{ID: 1, LastName: "Arslan", SchoolClass: tt.schoolClass}}, nil, nil)
+
+			overview, err := svc.ResponseOverview(context.Background(), 5)
+			require.NoError(t, err)
+			require.Len(t, overview.Rows, 1)
+			assert.Equal(t, int64(1), overview.Rows[0].StudentID)
+		})
+	}
+}
+
 func TestResponseOverview_PhaseWithoutChildReferenceIsNotApplicable(t *testing.T) {
 	t.Parallel()
 
