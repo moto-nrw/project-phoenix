@@ -8,22 +8,22 @@ authority: no caller switches, no trigger, view, or dual write exists, and the
 old rows are never modified. The field mapping is unchanged from
 [Expand #2717](../../backend/database/migrations/001015393_student_owner_storage_expand.go).
 
-Two groups of old columns have no target, and the backfill reports rather than
-copies them:
+Two groups of old columns are not copied by this initial backfill:
 
 - `guardian_name`, `guardian_contact`, `guardian_email` and `guardian_phone`
   belong to `users.guardian_profiles` / `users.guardian_phone_numbers`. A value
   is reconciled when a guardian linked to that child carries it; the rest are
   counted in `guardian_mismatch_count`.
-- `sick`, `sick_since`, `excused` and `excused_since` are superseded by
-  `active.student_status_days`. A raised flag is equivalent when an uncleared
-  status day for today (Europe/Berlin) carries the matching status
+- `sick`, `sick_since`, `excused` and `excused_since` are retained at Cutover,
+  then copied and verified in Care Plan by migration `1.15.398`. The diagnostic
+  compares raised flags with an uncleared
+  status day for today (Europe/Berlin) carrying the matching status
   (`class_trip` counts as excused), or when the flag cannot change the child's
   state anyway because sickness already outranks it; the rest are counted in
   `care_state_mismatch_count`.
 
-Both are Cutover blockers, so a school reports `stable: true` only once every
-legacy value has an owner and every raised flag has its day.
+Only unreconciled guardian values block Cutover. The absence diagnostic does
+not affect `stable`: these fields have a lossless migration independent of dates.
 
 ## How the copy works
 
@@ -156,31 +156,18 @@ two columns already agree are the reconciled ones and need nothing.
 
 ### `care_state_mismatch_count`
 
-A raised flag without an open status day for today is an absence the split would
-drop. The flags carry no date while the status days do, so a day on an earlier
-date does not cover a flag that still marks the child absent today. Run the
-end-of-day status archiver, which writes the day and clears the flag, or clear
-the flag directly when the child is no longer absent.
+This diagnostic counts raised flags without an equivalent open status day for
+today. It can change at midnight, including over a weekend, without a data
+change. It does **not** block the backfill or Cutover: migration `1.15.397`
+retains every flag and timestamp in `users.students_legacy`, and `1.15.398`
+copies them into `users.student_care_profiles` and checks field equality before
+switching the rollback view to that owner. The new directory projection reads
+the Care Plan fields; status days are not a substitute for them.
 
-Sick outranks excused in the effective absence read, so a child who is sick
-after the split is never reported for their excused flag: that flag is inert on
-both sides and carries no state to lose. Only a flag that would actually change
-the child's state is counted, so no row here is cleared to satisfy the verifier.
-
-Non-active children (`pending`, `inactive`, `alumnus`) are counted the same way
-even though the effective absence read skips them. Their flags still surface in
-the student list projection, so whether that display changes at Cutover belongs
-to #2759's caller switch, not here.
-
-**This is the one verdict that can change without anybody touching the data.**
-It is measured against today, so a child reported sick this morning through the
-modern path — flag raised *and* an open status day for today — is reconciled
-today and unreconciled tomorrow unless the day is renewed or the flag drained.
-A school that reported `stable: true` yesterday can therefore be unstable this
-morning. That is the honest signal, not a flaw: the flag is dateless and would
-keep the child absent forever after Cutover, while the day it was paired with
-expires. Run `status` shortly before Cutover rather than relying on an older
-green run, and drain the flags last.
+Do not clear flags, run the archiver, or create status days merely to make this
+counter zero. The migration must preserve the existing absence state. The
+counter retains its historical definition, including sickness precedence over
+excused and flags on non-active students, for diagnostic continuity.
 
 ```sql
 SELECT s.id AS student_id, p.first_name, p.last_name,
@@ -272,7 +259,7 @@ The switch itself, its compatibility shape and the rollback window are in
 
 `backfill student-owner status` exits zero only when every school reports
 `stable: true`, equal counts and checksums, `mismatch_count: 0`,
-`guardian_mismatch_count: 0`, `care_state_mismatch_count: 0`, and
+`guardian_mismatch_count: 0`, and
 `rows_rejected` explained. A school whose tenant policies no longer hold never
 reaches a verdict at all: the run fails that school's pass before verification. Cutover #2759 applies the final delta under its own
 write lock using the same runner and re-verifies before switching callers.

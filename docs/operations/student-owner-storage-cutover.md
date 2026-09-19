@@ -15,9 +15,10 @@ application dual write. [Contract #2760](https://github.com/moto-nrw/project-pho
 removes it after the rollback window.
 
 Prerequisite: [the completed backfill](student-owner-storage-backfill.md).
-`backfill student-owner status` must exit zero shortly before the release —
-`care_state_mismatch_count` is measured against today, so an older green run is
-not evidence.
+`backfill student-owner status` must exit zero before the release.
+`care_state_mismatch_count` is diagnostic only: absence flags and timestamps
+are retained in the archive, then copied and verified in Care Plan by `1.15.398`.
+Do not change absence data to make this counter zero.
 
 ## What the switch does
 
@@ -28,8 +29,8 @@ not evidence.
    and locks `users.students` and the three targets `ACCESS EXCLUSIVE`.
 3. Per school: removes target profiles whose source row is gone, copies the
    remaining delta with the backfill's own statement, then re-verifies counts,
-   canonical checksums, the row-wise mismatch, the guardian reconciliation and
-   the care-state equivalence with the backfill's own projections. Any failing
+   canonical checksums, the row-wise mismatch and guardian reconciliation with
+   the backfill's own projections. Any failing
    verdict aborts the whole transaction. A school with no completed backfill
    pass and at least one student aborts it before the copy. More than 100,000
    rows still to copy under the lock aborts it as well: that is an unfinished
@@ -111,15 +112,16 @@ endpoints against the pre-release baseline while callers still go through it.
    [backfill evidence](student-owner-storage-backfill.md). Stop application
    writers before migrating, as in the normal deployment procedure.
 2. Apply migrations. A missing checkpoint, an unequal checksum, an unreconciled
-   guardian value, a stale absence flag or a lock timeout aborts the cutover
+   guardian value or a lock timeout aborts the cutover
    transaction and changes nothing. Fix the cause, resume the existing backfill
    and retry `migrate`.
 
-   The two verdicts that need a data correction rather than another backfill
-   pass no longer have to be discovered here. `scripts/deploy-remote.sh` runs
+   Guardian reconciliation failures need not be discovered mid-migration.
+   `scripts/deploy-remote.sh` runs
    `migrate preflight` against the live database before it stops the
    application, and `1.15.397` answers it by reconciling the legacy guardian
-   values and the absence flags straight off `users.students`. An environment
+   values straight off `users.students`. Absence/status-day differences do not
+   block it. An environment
    whose data would refuse therefore aborts the release with exit 1, untouched
    and still serving, instead of failing mid-migration and restoring the
    backup. The check needs no checkpoints, so it also answers on an environment

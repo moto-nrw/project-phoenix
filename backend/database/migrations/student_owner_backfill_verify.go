@@ -132,23 +132,16 @@ const studentOwnerGuardianMismatch = `
 
 // studentOwnerCareStateMismatch counts the students whose legacy sick/excused
 // flag is raised without an equivalent open day in active.student_status_days.
-// The flags are not copied: the status days are the authority for scheduled
-// absence, and after Cutover they are the only source of the effective state
-// that today reads as "flag OR open day". Equivalence therefore means the flag
-// implies an open day, and a raised flag without one is the exact case that
-// would silently lose a child's absence.
+// This is diagnostic only: Cutover retains the flags in users.students_legacy,
+// and 1.15.398 copies and verifies them in Care Plan. A date rollover can change
+// this count without changing any data; it is not evidence of storage loss.
 //
 // class_trip counts as excused, matching how the effective absence count reads
 // the two today. The day is a calendar date in the school's timezone, so it is
 // derived from Europe/Berlin rather than from the session's UTC.
 //
-// Sick outranks excused: the effective read is an if/else-if chain, so a child
-// who is sick after the split reaches the excused branch neither before nor
-// after and their excused flag is inert. Nothing about that child is lost, so
-// the excused term only applies while no open sick day covers the day — without
-// that guard a doubly flagged child would be reported although their state is
-// identical on both sides, and an operator would have to clear a flag to
-// satisfy the verifier rather than to correct the data.
+// Sick outranks excused in the effective read. Keep the diagnostic's historical
+// definition: an open sick day also covers an otherwise unmatched excused flag.
 const studentOwnerCareStateMismatch = `
 	SELECT count(*), min(s.updated_at)
 	FROM users.students AS s
@@ -171,7 +164,7 @@ const studentOwnerCareStateMismatch = `
 
 // verify compares per-tenant counts, canonical checksums and row-wise
 // mismatches between the old table and the joined targets, reconciles the
-// legacy guardian values and the effective care state, proves the row-level
+// legacy guardian values, records the absence diagnostic, proves the row-level
 // security of the three targets against the tenant role, then persists the
 // evidence. The pass is stable when it changed nothing and everything matches.
 func (r *studentOwnerTenantRun) verify(ctx context.Context, cp *StudentOwnerBackfillCheckpoint) error {
@@ -294,7 +287,7 @@ func (r *studentOwnerTenantRun) verifySnapshot(ctx context.Context, tx bun.Tx, c
 	cp.MismatchCount = mismatches
 	cp.GuardianMismatchCount = guardianMismatches
 	cp.CareStateMismatchCount = careMismatches
-	cp.OldestUnmigratedAt = oldestUnmigrated(oldest, guardianOldest, careOldest)
+	cp.OldestUnmigratedAt = oldestUnmigrated(oldest, guardianOldest)
 	cp.VerifiedAt = &now
 	cp.PassCompleted = true
 	cp.Stable = cp.PassWrites == 0 && cp.Verified()
@@ -367,11 +360,12 @@ type StudentOwnerVerification struct {
 	CareStateMismatchCount int64  `json:"care_state_mismatch_count"`
 }
 
-// Equal reports whether the targets reproduce the old table exactly and the two
-// column groups without a target are accounted for.
+// Equal reports whether the mapped targets match and legacy guardian values
+// are reconciled. Absence flags remain in the archive until 1.15.398 copies and
+// verifies them in Care Plan; their status-day diagnostic is not a cutover gate.
 func (v StudentOwnerVerification) Equal() bool {
 	return v.SourceCount == v.TargetCount && v.SourceChecksum == v.TargetChecksum &&
-		v.MismatchCount == 0 && v.GuardianMismatchCount == 0 && v.CareStateMismatchCount == 0
+		v.MismatchCount == 0 && v.GuardianMismatchCount == 0
 }
 
 // Describe names the failing verdicts so an operator sees which of them blocked
@@ -409,11 +403,9 @@ func verifyStudentOwnerTenant(ctx context.Context, tx bun.Tx, tenantID int64) (S
 	return verification, nil
 }
 
-// studentOwnerHumanVerdicts reads the two verdicts no backfill pass can close,
-// because the columns behind them have no target: a legacy guardian value that
-// no linked guardian carries, and a raised sick/excused flag with no open status
-// day for today. Both the switch and the deployment preflight ask through here,
-// so the question stays one definition rather than two that could drift.
+// studentOwnerHumanVerdicts reads guardian reconciliation and the diagnostic
+// absence/status-day difference. Only guardian reconciliation blocks cutover:
+// absence flags and their timestamps have a lossless Care Plan migration.
 func studentOwnerHumanVerdicts(ctx context.Context, db bun.IDB, tenantID int64) (int64, int64, error) {
 	var guardian, careState int64
 	var oldest sql.NullTime
@@ -427,11 +419,10 @@ func studentOwnerHumanVerdicts(ctx context.Context, db bun.IDB, tenantID int64) 
 }
 
 // studentOwnerUnreconciled is one school's verdict on everything the preflight
-// can answer: the two the data owns, and whether the backfill ever visited it.
+// can answer: guardian reconciliation and whether the backfill ever visited it.
 type studentOwnerUnreconciled struct {
 	TenantID        int64
 	Guardian        int64
-	CareState       int64
 	NeverBackfilled bool
 }
 
@@ -452,15 +443,15 @@ var studentOwnerPreflightRelations = []string{
 }
 
 // studentOwnerCutoverPrecondition answers, before the deployment stops the
-// application, whether Cutover's two data verdicts would refuse.
+// application, whether guardian reconciliation or a missing backfill would refuse.
 //
-// Of the five verdicts the switch checks, three are mechanical: counts,
+// Of the four blocking verdicts, three are mechanical: counts,
 // canonical checksums and the row-wise mismatch all describe how far the
-// resumable backfill has got, and another backfill pass closes them. The other
-// two cannot be closed by copying, because the columns they cover have no
-// target. A legacy guardian value that no linked guardian carries, and a raised
-// sick/excused flag with no open status day for today, are corrections somebody
-// has to make in the data, and the switch is right to refuse until they are.
+// resumable backfill has got, and another backfill pass closes them. The
+// guardian verdict cannot be closed by copying: a legacy guardian value that
+// no linked guardian carries needs reconciliation. Absence flags, unlike
+// guardian values, are retained and then copied by 1.15.398, so a missing
+// status day must never require changing absence data to permit deployment.
 //
 // It lives here, beside the two queries, and asks them through the same helper
 // the switch uses: one definition of reconciliation, asked early instead of
@@ -508,7 +499,7 @@ func studentOwnerCutoverPrecondition(ctx context.Context, db *bun.DB) error {
 			return fmt.Errorf("read backfill checkpoints: %w", err)
 		}
 		for _, tenantID := range tenantIDs {
-			guardian, careState, err := studentOwnerHumanVerdicts(ctx, tx, tenantID)
+			guardian, _, err := studentOwnerHumanVerdicts(ctx, tx, tenantID)
 			if err != nil {
 				return err
 			}
@@ -516,9 +507,9 @@ func studentOwnerCutoverPrecondition(ctx context.Context, db *bun.DB) error {
 			if err != nil {
 				return err
 			}
-			if guardian > 0 || careState > 0 || neverBackfilled {
+			if guardian > 0 || neverBackfilled {
 				blocked = append(blocked, studentOwnerUnreconciled{
-					TenantID: tenantID, Guardian: guardian, CareState: careState, NeverBackfilled: neverBackfilled,
+					TenantID: tenantID, Guardian: guardian, NeverBackfilled: neverBackfilled,
 				})
 			}
 		}
@@ -564,7 +555,7 @@ func studentOwnerPreflightReady(ctx context.Context, db bun.IDB) (bool, error) {
 
 // studentOwnerTenantNeverBackfilled reports the school the switch would refuse
 // for having students the resumable backfill has never completed a pass over.
-// It is the one refusal besides the two data verdicts that a release cannot
+// It is the one refusal besides guardian reconciliation that a release cannot
 // recover from on its own.
 func studentOwnerTenantNeverBackfilled(ctx context.Context, db bun.IDB, tenantID int64, backfillStarted bool) (bool, error) {
 	if !backfillStarted {
@@ -591,9 +582,6 @@ func describeStudentOwnerUnreconciled(blocked []studentOwnerUnreconciled) string
 		var reasons []string
 		if entry.Guardian > 0 {
 			reasons = append(reasons, fmt.Sprintf("%d unreconciled guardian values", entry.Guardian))
-		}
-		if entry.CareState > 0 {
-			reasons = append(reasons, fmt.Sprintf("%d absence flags without a status day", entry.CareState))
 		}
 		if entry.NeverBackfilled {
 			reasons = append(reasons, "students without a completed backfill pass")

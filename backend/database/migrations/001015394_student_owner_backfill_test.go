@@ -535,7 +535,11 @@ func TestStudentOwnerBackfillReportsStaleAbsenceFlags(t *testing.T) {
 	require.Zero(t, cp.MismatchCount, "the flags are not copied, so the mapped columns still match")
 	require.EqualValues(t, 1, cp.CareStateMismatchCount,
 		"only the flag without an equivalent open status day is reported")
-	require.NotNil(t, cp.OldestUnmigratedAt)
+	require.Nil(t, cp.OldestUnmigratedAt, "preserved flags are not unmigrated owner data")
+	report, err = RunStudentOwnerBackfill(ctx, db, StudentOwnerBackfillOptions{})
+	require.NoError(t, err)
+	require.True(t, studentOwnerCheckpoint(t, report, tenantID).Stable,
+		"the status-day diagnostic must not block a stable copy")
 
 	// A cleared status day no longer covers the flag.
 	_, err = db.ExecContext(ctx, `UPDATE active.student_status_days SET cleared_at = now() WHERE student_id = ?`, ids[0])
@@ -947,8 +951,8 @@ func TestStudentOwnerBackfillRecoversFromPersonReassignment(t *testing.T) {
 
 // The legacy flags carry no date, so an open status day on an earlier date does
 // not reproduce them: the flag makes the child absent today and tomorrow, the
-// dated row does not. Pinned because reading the flag as "covered by any open
-// day" would silently drop a child's absence at Cutover.
+// dated row does not. Keep the diagnostic, but do not block the lossless
+// migration of the flag and timestamp into Care Plan.
 func TestStudentOwnerBackfillReportsAbsenceFlagWithOnlyAnEarlierStatusDay(t *testing.T) {
 	t.Parallel()
 	db := setupStudentStorageBeforeCutover(t)
@@ -967,6 +971,11 @@ func TestStudentOwnerBackfillReportsAbsenceFlagWithOnlyAnEarlierStatusDay(t *tes
 	require.EqualValues(t, 1, cp.CareStateMismatchCount,
 		"yesterday's open day does not cover a flag that still makes the child absent today")
 	require.False(t, cp.Stable)
+	report, err = RunStudentOwnerBackfill(ctx, db, StudentOwnerBackfillOptions{})
+	require.NoError(t, err)
+	cp = studentOwnerCheckpoint(t, report, tenantID)
+	require.True(t, cp.Stable, "a date rollover does not imply storage loss")
+	require.EqualValues(t, 1, cp.CareStateMismatchCount)
 
 	// The end-of-day archiver writes the day already cleared and clears the
 	// flag; a child drained that way is not a candidate at all.
