@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
@@ -19,6 +18,11 @@ import (
 )
 
 type Observation = ports.Observation
+
+// GuardianMembershipQuery is the Identity & Access owner query for active
+// (account_id, tenant_id) mappings. The query stays a constructor argument so
+// the People Directory contract does not depend on another module's adapter.
+type GuardianMembershipQuery func(context.Context) *bun.SelectQuery
 
 type Dependencies struct {
 	DB      *bun.DB
@@ -51,7 +55,19 @@ type Dependencies struct {
 	Now func() time.Time
 }
 
+// New composes People Directory without an Identity & Access membership
+// projection. Graphs that need the parents-app reachability capability use
+// NewWithGuardianMemberships so its owner query stays at the composition seam.
 func New(dependencies Dependencies) (*peopledirectory.Module, error) {
+	return NewWithGuardianMemberships(dependencies, nil)
+}
+
+// NewWithGuardianMemberships composes People Directory with the Identity &
+// Access owner query that identifies active school memberships. It is a
+// constructor argument rather than a Dependencies field: only the guardian
+// reachability read needs it, while all other People Directory graphs stay
+// independent of Identity & Access.
+func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianMembershipQuery) (*peopledirectory.Module, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("people directory compose: all dependencies are required")
 	}
@@ -76,11 +92,7 @@ func New(dependencies Dependencies) (*peopledirectory.Module, error) {
 		companions = studentCompanions{seam: dependencies.StudentCompanions}
 	}
 	students := application.NewStudents(postgres.NewStudentStore(database), companions, transaction{}, observe)
-	accountTenants, ok := authpostgres.NewAccountTenantRepository(dependencies.DB).(*authpostgres.AccountTenantRepository)
-	if !ok {
-		return nil, errors.New("people directory compose: identity membership query is not configured")
-	}
-	guardians := application.NewGuardians(postgres.NewGuardianStore(database, accountTenants.ActiveMemberships), transaction{}, observe)
+	guardians := application.NewGuardians(postgres.NewGuardianStore(database, postgres.MembershipQuery(memberships)), transaction{}, observe)
 	var auditLog ports.StudentFieldAuditLog
 	if dependencies.StudentFieldAudit != nil {
 		auditLog = studentFieldAuditLog{log: dependencies.StudentFieldAudit}

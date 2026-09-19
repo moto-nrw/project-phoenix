@@ -19,9 +19,19 @@ func buildModule(t *testing.T, db *bun.DB, observations ...func(Observation)) *p
 	if len(observations) > 0 {
 		observe = observations[0]
 	}
-	module, err := New(Dependencies{DB: db, Observe: observe})
+	module, err := NewWithGuardianMemberships(Dependencies{DB: db, Observe: observe}, testActiveMemberships(db))
 	require.NoError(t, err)
 	return module
+}
+
+func testActiveMemberships(db *bun.DB) GuardianMembershipQuery {
+	return func(context.Context) *bun.SelectQuery {
+		return db.NewSelect().
+			TableExpr(`auth.account_tenants AS "account_tenant"`).
+			ColumnExpr(`"account_tenant".account_id`).
+			ColumnExpr(`"account_tenant".tenant_id`).
+			Where(`"account_tenant".status = 'active'`)
+	}
 }
 
 func otherTenantContext(t *testing.T, db *bun.DB) (context.Context, int64) {

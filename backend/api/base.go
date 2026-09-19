@@ -224,15 +224,8 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	// cleanup, live refresh, consent trail) only exists once the services
 	// factory and the HTTP layer are up, so the owner resolves it from a slot
 	// that EnableStudentPhotos fills.
-	studentPhotoRuntime := new(peopleCompose.StudentPhotoRuntime)
-	persons, err := peopleCompose.New(peopleCompose.Dependencies{
-		DB: db,
-		Observe: func(observation peopleCompose.Observation) {
-			observability.ObservePeopleDirectoryOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, peopleModule.ErrorCode(observation.Err), observation.Err)
-		},
-		StudentFieldAudit:     repositories.NewStudentFieldAuditLog(db),
-		StudentConsentHistory: repositories.NewStudentConsentHistory(db),
-		StudentPhotoRuntime:   func() peopleCompose.StudentPhotoRuntime { return *studentPhotoRuntime },
+	persons, studentPhotoRuntime, err := repositories.NewPeopleDirectoryWithPhotosAndObserver(db, func(observation peopleCompose.Observation) {
+		observability.ObservePeopleDirectoryOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, peopleModule.ErrorCode(observation.Err), observation.Err)
 	})
 	if err != nil {
 		return moduleServices{}, err

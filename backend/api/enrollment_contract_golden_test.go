@@ -83,6 +83,64 @@ func checkEnrollmentSubmissionGolden(t *testing.T, api *API) {
 	}
 }
 
+// checkPhaseResponseQueryBudget keeps GET /enrollment/phases/{id}/responses
+// flat as the live roster grows. The production router is the only graph that
+// proves all batched owner reads, including active parents-app memberships,
+// stay inside the request transaction.
+func checkPhaseResponseQueryBudget(t *testing.T, api *API) {
+	t.Helper()
+	testpkg.OwnTenant(t)
+	db := testpkg.SetupTestDB(t)
+	_, staff := testpkg.CreateTestTeacherWithAccount(t, db, "Response", "Budget")
+	phase := testpkg.CreateTestEnrollmentPhase(t, db)
+	_, err := db.NewRaw(
+		`UPDATE enrollment.phases SET audience = 'existing_students' WHERE id = ? AND tenant_id = ?`,
+		phase.ID, testpkg.Tenant(t),
+	).Exec(context.Background())
+	require.NoError(t, err)
+	staffToken := testutil.MintTestJWT(t, testutil.AdminTestClaimsForTenant(int(staff.ID), testpkg.Tenant(t)))
+
+	addStudents := func(start, count int) {
+		t.Helper()
+		for index := start; index < start+count; index++ {
+			testpkg.CreateTestStudent(t, db, "Rücklauf", fmt.Sprintf("Budget-%d", index), "1a")
+		}
+	}
+	addStudents(0, 3)
+
+	counter := testpkg.CaptureQueries(t, api.db)
+	type queryRun struct {
+		total    []string
+		overview []string
+		settings []string
+	}
+	run := func() queryRun {
+		counter.Reset()
+		response := checkpointRequest(api, checkpointScenario{
+			Method:        http.MethodGet,
+			Path:          fmt.Sprintf("/api/enrollment/phases/%d/responses", phase.ID),
+			Authenticated: true,
+		}, staffToken)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+		return queryRun{
+			total:    counter.Queries(),
+			overview: counter.Matching(func(query string) bool { return !strings.Contains(query, "setting_values") }),
+			settings: counter.Selects("config.setting_values"),
+		}
+	}
+
+	small := run()
+	addStudents(3, 5)
+	large := run()
+
+	t.Logf("query budget: 3 children → %d statements, 8 children → %d statements", len(small.total), len(large.total))
+	require.NotEmpty(t, small.total, "the production router query counter must observe the response endpoint")
+	require.Equal(t, len(small.total), len(large.total), "response overview queries must not grow with the roster")
+	require.Len(t, small.settings, 1, "the route must resolve its settings once")
+	require.Len(t, large.settings, 1, "the route must resolve its settings once")
+	testpkg.AssertQueryBudget(t, "api.enrollment.phase_responses.list", large.overview)
+}
+
 // checkEnrollmentAcceptanceGolden pins the acceptance decision (#2699) at the
 // production router for a child a logged-in parent submitted: the approval
 // creates the student, links it to the parent's guardian profile, and grants

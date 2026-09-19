@@ -60,8 +60,8 @@ type GuardianStore struct {
 }
 
 func NewGuardianStore(database Database, memberships MembershipQuery) *GuardianStore {
-	if database == nil || memberships == nil {
-		panic("people directory postgres: database runtime and active membership query are required")
+	if database == nil {
+		panic("people directory postgres: database runtime is required")
 	}
 	return &GuardianStore{database: database, memberships: memberships}
 }
@@ -172,6 +172,9 @@ func (s *GuardianStore) CountLinks(ctx context.Context, guardianIDs []int64) (ma
 // a link may do is decided by the caller from its permissions, exactly as for
 // ListLinksByAccount.
 func (s *GuardianStore) ListAccountLinksByStudents(ctx context.Context, studentIDs []int64) ([]domain.GuardianLink, domain.OperationStats, error) {
+	if s.memberships == nil {
+		return nil, domain.OperationStats{}, fmt.Errorf("people directory postgres: list account links by students: active membership query is required")
+	}
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err

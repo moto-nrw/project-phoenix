@@ -24,6 +24,18 @@ func NewPeopleDirectory(db *bun.DB) (peopledirectory.Capability, error) {
 // lifecycle resolves its runtime from, so a caller that has the feature gate,
 // the caller access and the file cleanup fills it after the directory exists.
 func NewPeopleDirectoryWithPhotos(db *bun.DB) (peopledirectory.Capability, *peopleCompose.StudentPhotoRuntime, error) {
+	module, photoRuntime, err := NewPeopleDirectoryWithPhotosAndObserver(db, func(peopleCompose.Observation) {})
+	return module, photoRuntime, err
+}
+
+// NewPeopleDirectoryWithPhotosAndObserver composes the owner for a graph that
+// records People Directory observations. The Identity & Access membership
+// query stays in this legacy composition seam, which already binds the owner
+// queries used by retained repositories.
+func NewPeopleDirectoryWithPhotosAndObserver(
+	db *bun.DB,
+	observe func(peopleCompose.Observation),
+) (*peopledirectory.Module, *peopleCompose.StudentPhotoRuntime, error) {
 	photoRuntime := new(peopleCompose.StudentPhotoRuntime)
 	// Care Plan's companion slice is constructible from the database alone, so
 	// the directory's write path gets it here rather than waiting for the full
@@ -32,14 +44,14 @@ func NewPeopleDirectoryWithPhotos(db *bun.DB) (peopledirectory.Capability, *peop
 	if err != nil {
 		return nil, nil, err
 	}
-	capability, err := peopleCompose.New(peopleCompose.Dependencies{
+	capability, err := peopleCompose.NewWithGuardianMemberships(peopleCompose.Dependencies{
 		DB:                    db,
-		Observe:               func(peopleCompose.Observation) {},
+		Observe:               observe,
 		StudentFieldAudit:     NewStudentFieldAuditLog(db),
 		StudentConsentHistory: NewStudentConsentHistory(db),
 		StudentPhotoRuntime:   func() peopleCompose.StudentPhotoRuntime { return *photoRuntime },
 		StudentCompanions:     NewStudentCompanionSeam(companions),
-	})
+	}, activeMembershipQuery(db))
 	if err != nil {
 		return nil, nil, err
 	}
