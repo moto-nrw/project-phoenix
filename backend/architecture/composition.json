@@ -3858,6 +3858,16 @@
     },
     {
       "scope": "test",
+      "file": "services/enrollment_phase_responses_query_budget_test.go",
+      "declaration": "TestPhaseResponseOverviewQueryBudget",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        29
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "services/factory_care_plan_audit_test.go",
       "declaration": "TestNewFactoryRetainsCarePlanForBookingConsistencyAudit",
       "target": "database/repositories.NewFactory",
