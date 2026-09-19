@@ -46,12 +46,6 @@ type StudentRecord struct {
 	EnrolledFrom  string
 	EnrolledUntil string
 
-	// The four legacy guardian columns; the guardian tables are authoritative.
-	GuardianName    *string
-	GuardianContact *string
-	GuardianEmail   *string
-	GuardianPhone   *string
-
 	AddressStreet     *string
 	AddressCity       *string
 	AddressPostalCode *string
@@ -99,9 +93,6 @@ type StudentDirectoryFilter struct {
 	// GradeLevels matches the first run of digits in the free-text class
 	// name, so "3a" and "Klasse 3a" both count as grade 3 and "13a" does not.
 	GradeLevels []string
-	// GuardianNameContains is a case-insensitive substring match on the
-	// retained guardian_name column.
-	GuardianNameContains string
 	// KeepAlumni are the graduates the page keeps anyway — a child with a
 	// still-open presence stays visible. Every other alumnus is excluded.
 	KeepAlumni []int64

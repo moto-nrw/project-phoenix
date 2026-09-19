@@ -2320,7 +2320,7 @@
       "declaration": "TestStudentRepository_AssignToGroup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        402
+        353
       ],
       "tables": []
     },
@@ -2330,7 +2330,7 @@
       "declaration": "TestStudentRepository_ClassRoster",
       "target": "database/repositories.NewFactory",
       "lines": [
-        506
+        457
       ],
       "tables": []
     },
@@ -2340,7 +2340,7 @@
       "declaration": "TestStudentRepository_CountEnrolledLeavesGraduatesOut",
       "target": "database/repositories.NewFactory",
       "lines": [
-        532
+        483
       ],
       "tables": [
         "users.students"
@@ -2352,7 +2352,7 @@
       "declaration": "TestStudentRepository_CountWithOptions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        584
+        535
       ],
       "tables": []
     },
@@ -2372,7 +2372,7 @@
       "declaration": "TestStudentRepository_Delete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        289
+        240
       ],
       "tables": [
         "users.persons"
@@ -2384,7 +2384,7 @@
       "declaration": "TestStudentRepository_FindByGroupID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        334
+        285
       ],
       "tables": []
     },
@@ -2394,7 +2394,7 @@
       "declaration": "TestStudentRepository_FindByGroupIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        367
+        318
       ],
       "tables": []
     },
@@ -2404,7 +2404,7 @@
       "declaration": "TestStudentRepository_FindByID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        199
+        160
       ],
       "tables": []
     },
@@ -2414,7 +2414,7 @@
       "declaration": "TestStudentRepository_FindByIDForUpdate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        891
+        842
       ],
       "tables": []
     },
@@ -2424,7 +2424,7 @@
       "declaration": "TestStudentRepository_FindByPersonID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        223
+        184
       ],
       "tables": []
     },
@@ -2434,7 +2434,7 @@
       "declaration": "TestStudentRepository_FindBySchoolClass",
       "target": "database/repositories.NewFactory",
       "lines": [
-        459
+        410
       ],
       "tables": [
         "users.students"
@@ -2446,7 +2446,7 @@
       "declaration": "TestStudentRepository_FindOverlappingWithGroups",
       "target": "database/repositories.NewFactory",
       "lines": [
-        730
+        681
       ],
       "tables": [
         "users.students"
@@ -2458,7 +2458,7 @@
       "declaration": "TestStudentRepository_FindOverlappingWithGroupsImmediateActivation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        818
+        769
       ],
       "tables": [
         "users.students"
@@ -2470,7 +2470,7 @@
       "declaration": "TestStudentRepository_ListByGroupIDsIncludingAlumni",
       "target": "database/repositories.NewFactory",
       "lines": [
-        555
+        506
       ],
       "tables": [
         "users.students"
@@ -2482,7 +2482,7 @@
       "declaration": "TestStudentRepository_RemoveFromGroup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        425
+        376
       ],
       "tables": [
         "users.students"
@@ -2494,7 +2494,7 @@
       "declaration": "TestStudentRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        246
+        207
       ],
       "tables": []
     },
@@ -2504,7 +2504,7 @@
       "declaration": "newGroupProjectionFactory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        615
+        566
       ],
       "tables": []
     },
@@ -3129,7 +3129,7 @@
       "declaration": "TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3996
+        3995
       ],
       "tables": []
     },

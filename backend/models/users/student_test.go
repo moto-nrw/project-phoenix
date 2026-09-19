@@ -26,13 +26,9 @@ func TestStudent_Validate(t *testing.T) {
 		{
 			name: "valid student with all optional fields",
 			student: &Student{
-				PersonID:        1,
-				SchoolClass:     "3b",
-				GuardianName:    ptrtest.Ptr("Jane Doe"),
-				GuardianContact: ptrtest.Ptr("123-456-7890"),
-				GuardianEmail:   ptrtest.Ptr("jane@example.com"),
-				GuardianPhone:   ptrtest.Ptr("+49 123 456789"),
-				GroupID:         ptrtest.Ptr(int64(5)),
+				PersonID:    1,
+				SchoolClass: "3b",
+				GroupID:     ptrtest.Ptr(int64(5)),
 			},
 			wantErr: false,
 		},
@@ -208,128 +204,6 @@ func TestStudent_Validate_TrimSchoolClass(t *testing.T) {
 
 	if student.SchoolClass != "3a" {
 		t.Errorf("Student.Validate() did not trim SchoolClass, got %q", student.SchoolClass)
-	}
-}
-
-func TestStudent_Validate_GuardianEmail(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		email   *string
-		wantErr bool
-	}{
-		{
-			name:    "valid email",
-			email:   ptrtest.Ptr("parent@example.com"),
-			wantErr: false,
-		},
-		{
-			name:    "valid email with dots",
-			email:   ptrtest.Ptr("parent.name@example.co.uk"),
-			wantErr: false,
-		},
-		{
-			name:    "nil email is valid",
-			email:   nil,
-			wantErr: false,
-		},
-		{
-			name:    "empty email is valid",
-			email:   ptrtest.Ptr(""),
-			wantErr: false,
-		},
-		{
-			name:    "invalid email - no at sign",
-			email:   ptrtest.Ptr("parentexample.com"),
-			wantErr: true,
-		},
-		{
-			name:    "invalid email - no domain",
-			email:   ptrtest.Ptr("parent@"),
-			wantErr: true,
-		},
-		{
-			name:    "invalid email - no TLD",
-			email:   ptrtest.Ptr("parent@example"),
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			student := &Student{
-				PersonID:      1,
-				SchoolClass:   "1a",
-				GuardianEmail: tt.email,
-			}
-
-			err := student.Validate()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Student.Validate() with email %v, error = %v, wantErr %v", tt.email, err, tt.wantErr)
-			}
-		})
-	}
-}
-
-func TestStudent_Validate_GuardianPhone(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		phone   *string
-		wantErr bool
-	}{
-		{
-			name:    "valid phone - international format",
-			phone:   ptrtest.Ptr("+49 123 456789"),
-			wantErr: false,
-		},
-		{
-			name:    "valid phone - with dashes",
-			phone:   ptrtest.Ptr("123-456-7890"),
-			wantErr: false,
-		},
-		{
-			name:    "valid phone - simple digits",
-			phone:   ptrtest.Ptr("1234567890"),
-			wantErr: false,
-		},
-		{
-			name:    "nil phone is valid",
-			phone:   nil,
-			wantErr: false,
-		},
-		{
-			name:    "empty phone is valid",
-			phone:   ptrtest.Ptr(""),
-			wantErr: false,
-		},
-		{
-			name:    "invalid phone - too short",
-			phone:   ptrtest.Ptr("123"),
-			wantErr: true,
-		},
-		{
-			name:    "invalid phone - contains letters",
-			phone:   ptrtest.Ptr("123-ABC-7890"),
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			student := &Student{
-				PersonID:      1,
-				SchoolClass:   "1a",
-				GuardianPhone: tt.phone,
-			}
-
-			err := student.Validate()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Student.Validate() with phone %v, error = %v, wantErr %v", tt.phone, err, tt.wantErr)
-			}
-		})
 	}
 }
 

@@ -145,7 +145,7 @@ func TestListStudents_FullViewKeepsWideProjection(t *testing.T) {
 		body := rr.Body.String()
 		for _, required := range []string{
 			"health_info", "supervisor_notes", "extra_info",
-			"guardian_email", "address_street", "pickup_days",
+			"address_street", "pickup_days",
 			"allowed_departure_modes", "created_at",
 		} {
 			assert.Contains(t, body, required,

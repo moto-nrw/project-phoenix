@@ -28,11 +28,6 @@ type studentRecordRow struct {
 	EnrolledFrom  *calendar.Date `bun:"enrolled_from"`
 	EnrolledUntil *calendar.Date `bun:"enrolled_until"`
 
-	GuardianName    *string `bun:"guardian_name"`
-	GuardianContact *string `bun:"guardian_contact"`
-	GuardianEmail   *string `bun:"guardian_email"`
-	GuardianPhone   *string `bun:"guardian_phone"`
-
 	AddressStreet     *string `bun:"address_street"`
 	AddressCity       *string `bun:"address_city"`
 	AddressPostalCode *string `bun:"address_postal_code"`
@@ -66,8 +61,7 @@ func (r studentRecordRow) toDomain() domain.StudentRecord {
 	record := domain.StudentRecord{
 		ID: r.ID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, TenantID: r.TenantID,
 		PersonID: r.PersonID, SchoolClass: r.SchoolClass, GroupID: r.GroupID, Status: r.Status,
-		GuardianName: r.GuardianName, GuardianContact: r.GuardianContact,
-		GuardianEmail: r.GuardianEmail, GuardianPhone: r.GuardianPhone,
+
 		AddressStreet: r.AddressStreet, AddressCity: r.AddressCity, AddressPostalCode: r.AddressPostalCode,
 		ExtraInfo: r.ExtraInfo, SupervisorNotes: r.SupervisorNotes,
 		HealthInfo: r.HealthInfo, PickupStatus: r.PickupStatus,
@@ -90,7 +84,6 @@ func (r studentRecordRow) toDomain() domain.StudentRecord {
 const studentRecordColumns = `"student".id, "student".created_at, "student".updated_at, "student".tenant_id,
 	"student".person_id, "student".school_class, "student".group_id, "student".status,
 	"student".enrolled_from, "student".enrolled_until,
-	"student".guardian_name, "student".guardian_contact, "student".guardian_email, "student".guardian_phone,
 	"student".address_street, "student".address_city, "student".address_postal_code,
 	"student".extra_info, "student".supervisor_notes, "student".health_info, "student".pickup_status,
 	"student".departure_days, "student".allowed_departure_modes, "student".pickup_days, "student".bus_days,
@@ -219,9 +212,6 @@ func applyStudentDirectoryFilter(query *bun.SelectQuery, filter domain.StudentDi
 	}
 	if len(filter.GradeLevels) > 0 {
 		query = query.Where(`substring("student".school_class from '[0-9]+') IN (?)`, bun.List(filter.GradeLevels))
-	}
-	if filter.GuardianNameContains != "" {
-		query = query.Where(`"student".guardian_name ILIKE ?`, "%"+filter.GuardianNameContains+"%")
 	}
 	if len(filter.IDs) > 0 {
 		query = query.Where(`"student".id IN (?)`, bun.List(filter.IDs))

@@ -553,7 +553,7 @@ describe("StudentsPage", () => {
     });
   });
 
-  it("filters students by guardian name (name_lg)", async () => {
+  it("does not search retired guardian names", async () => {
     render(<StudentsPage />);
 
     // name_lg is "Hans Mustermann" for student with id "1"
@@ -561,23 +561,23 @@ describe("StudentsPage", () => {
     fireEvent.change(searchInput, { target: { value: "Hans" } });
 
     await waitFor(() => {
-      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+      expect(screen.queryByText("Max Mustermann")).not.toBeInTheDocument();
       // Anna has null name_lg, so should be filtered out
       expect(screen.queryByText("Anna Schmidt")).not.toBeInTheDocument();
     });
   });
 
-  it("matches a student whose name and class fields are nullish", async () => {
+  it("handles nullish name and class fields without a legacy contact fallback", async () => {
     render(<StudentsPage />);
 
     // Student id "3" has first_name/second_name/school_class/group_name all null;
-    // searching by guardian name still matches and exercises every `?.` falsy
+    // searching exercises every `?.` falsy
     // branch in the search filter.
     const searchInput = screen.getByTestId("search-input");
     fireEvent.change(searchInput, { target: { value: "Erika" } });
 
     await waitFor(() => {
-      expect(screen.getByText(/Erika Beispiel/)).toBeInTheDocument();
+      expect(screen.queryByText(/Erika Beispiel/)).not.toBeInTheDocument();
       expect(screen.queryByText("Max Mustermann")).not.toBeInTheDocument();
       expect(screen.queryByText("Anna Schmidt")).not.toBeInTheDocument();
     });

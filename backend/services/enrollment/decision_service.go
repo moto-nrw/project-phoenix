@@ -1580,8 +1580,6 @@ func (s *decisionService) applyApproval(
 	schoolClass := s.resolveSchoolClass(child)
 	enrolledFrom := timezone.Date(phase.ServiceStartDate)
 	enrolledUntil := timezone.Date(phase.ServiceEndDate)
-	guardianEmail := request.GuardianEmail
-	guardianPhone := request.GuardianPhone
 	activationPlan := s.approvalActivationPlan(ctx, phase)
 
 	student := &users.Student{
@@ -1590,8 +1588,6 @@ func (s *decisionService) applyApproval(
 		Status:        activationPlan.StudentStatus,
 		EnrolledFrom:  &enrolledFrom,
 		EnrolledUntil: &enrolledUntil,
-		GuardianEmail: &guardianEmail,
-		GuardianPhone: guardianPhone,
 	}
 	if err := student.Validate(); err != nil {
 		return nil, fmt.Errorf("decision: validate student: %w: %w", ErrDecisionInvalidData, err)
@@ -1883,16 +1879,6 @@ func (s *decisionService) attachApprovalToExistingStudent(
 	existing.EnrolledUntil = &enrolledUntil
 	if existing.Status != users.StudentStatusActive {
 		existing.Status = activationPlan.StudentStatus
-	}
-	// A full re-enrollment form re-states the guardian's contact data, so the
-	// student's denormalized guardian_email / guardian_phone follow the fresh
-	// submission instead of keeping last year's address (same rule the approved
-	// child sync applies). The rollover carries no submission and keeps them.
-	if syncTargetedFields {
-		if email := strings.TrimSpace(strings.ToLower(request.GuardianEmail)); email != "" {
-			existing.GuardianEmail = &email
-		}
-		existing.GuardianPhone = request.GuardianPhone
 	}
 	if err := s.StudentEnrollment.RenewEnrollmentStudent(ctx, existing.ID, enrollmentStudentInput(existing)); err != nil {
 		return nil, fmt.Errorf("decision: update existing student: %w", err)

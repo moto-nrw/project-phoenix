@@ -23,12 +23,9 @@ func (s *decisionService) readEnrollmentStudent(ctx context.Context, id int64, l
 		return nil, err
 	}
 	student := &users.Student{
-		PersonID:                 row.PersonID,
-		SchoolClass:              row.SchoolClass,
-		GuardianName:             row.GuardianName,
-		GuardianContact:          row.GuardianContact,
-		GuardianEmail:            row.GuardianEmail,
-		GuardianPhone:            row.GuardianPhone,
+		PersonID:    row.PersonID,
+		SchoolClass: row.SchoolClass,
+
 		AddressStreet:            row.AddressStreet,
 		AddressCity:              row.AddressCity,
 		AddressPostalCode:        row.AddressPostalCode,

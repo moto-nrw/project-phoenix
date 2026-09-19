@@ -21,10 +21,6 @@ type enrollmentReadRow struct {
 	Status                   string              `bun:"status"`
 	EnrolledFrom             string              `bun:"enrolled_from"`
 	EnrolledUntil            string              `bun:"enrolled_until"`
-	GuardianName             *string             `bun:"guardian_name"`
-	GuardianContact          *string             `bun:"guardian_contact"`
-	GuardianEmail            *string             `bun:"guardian_email"`
-	GuardianPhone            *string             `bun:"guardian_phone"`
 	AddressStreet            *string             `bun:"address_street"`
 	AddressCity              *string             `bun:"address_city"`
 	AddressPostalCode        *string             `bun:"address_postal_code"`
@@ -97,10 +93,6 @@ func (s *StudentStore) ReadEnrollment(ctx context.Context, id int64, lock string
 		Column("student.status").
 		ColumnExpr("COALESCE(to_char(student.enrolled_from, 'YYYY-MM-DD'), '') AS enrolled_from").
 		ColumnExpr("COALESCE(to_char(student.enrolled_until, 'YYYY-MM-DD'), '') AS enrolled_until").
-		Column("student.guardian_name").
-		Column("student.guardian_contact").
-		Column("student.guardian_email").
-		Column("student.guardian_phone").
 		Column("student.address_street").
 		Column("student.address_city").
 		Column("student.address_postal_code").

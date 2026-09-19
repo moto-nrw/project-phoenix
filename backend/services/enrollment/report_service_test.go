@@ -366,28 +366,16 @@ func TestClassRosterRowMarksMissingEnrollmentAsNoRegistration(t *testing.T) {
 	assert.Equal(t, []ClassRosterGuardian{{Name: "Eva Ohne", Email: "eva@example.test", Phone: "02551 123"}}, row.Guardians)
 }
 
-func TestClassRosterRowFallsBackToLegacyStudentGuardianFields(t *testing.T) {
+func TestClassRosterRowWithoutContactsHasNoInventedContact(t *testing.T) {
 	t.Parallel()
 
-	guardianName := "Stamm Kontakt"
-	guardianEmail := "stamm@example.test"
-	guardianPhone := "02551 456"
-	guardianContact := "0170 123456"
 	student := &userModels.Student{
-		Model:           baseModels.Model{ID: 101},
-		PersonID:        201,
-		SchoolClass:     "1a",
-		GuardianName:    &guardianName,
-		GuardianEmail:   &guardianEmail,
-		GuardianPhone:   &guardianPhone,
-		GuardianContact: &guardianContact,
+		Model:       baseModels.Model{ID: 101},
+		PersonID:    201,
+		SchoolClass: "1a",
 	}
 	person := &userModels.Person{FirstName: "Tom", LastName: "Ohne"}
-	want := []ClassRosterGuardian{{
-		Name:  "Stamm Kontakt",
-		Email: "stamm@example.test",
-		Phone: "02551 456; 0170 123456",
-	}}
+	want := []ClassRosterGuardian{}
 
 	t.Run("without enrollment", func(t *testing.T) {
 		row, err := classRosterRow(student, person, "", nil, nil, nil, nil, nil, true)
@@ -416,26 +404,16 @@ func TestClassRosterRowFallsBackToLegacyStudentGuardianFields(t *testing.T) {
 	})
 }
 
-func TestClassRosterStudentGuardiansPreferLinkedContactsOverLegacyFields(t *testing.T) {
+func TestClassRosterStudentGuardiansUseLinkedContacts(t *testing.T) {
 	t.Parallel()
 
-	guardianName := "Stamm Kontakt"
-	guardianEmail := "stamm@example.test"
-	stalePhone := "02551 456"
-	staleContact := "0170 123456"
-	student := &userModels.Student{
-		GuardianName:    &guardianName,
-		GuardianEmail:   &guardianEmail,
-		GuardianPhone:   &stalePhone,
-		GuardianContact: &staleContact,
-	}
 	linked := []ClassRosterGuardian{{
 		Name:  "Stamm Kontakt",
 		Email: "stamm@example.test",
 		Phone: "02551 333",
 	}}
 
-	got := classRosterStudentGuardians(student, linked)
+	got := normalizeClassRosterGuardians(linked)
 
 	assert.Equal(t, linked, got)
 }

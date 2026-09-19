@@ -644,7 +644,6 @@ func (c *StudentImportConfig) updateStudentFromRow(ctx context.Context, record p
 	renewal := ports.EnrollmentStudent{
 		PersonID: record.PersonID, SchoolClass: record.SchoolClass, Status: record.Status,
 		EnrolledFrom: record.EnrolledFrom, EnrolledUntil: record.EnrolledUntil,
-		GuardianEmail: record.GuardianEmail, GuardianPhone: record.GuardianPhone,
 	}
 	if class := strings.TrimSpace(row.SchoolClass); class != "" {
 		renewal.SchoolClass = class

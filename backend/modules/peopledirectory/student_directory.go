@@ -46,13 +46,6 @@ type StudentRecord struct {
 	EnrolledFrom  string `json:"enrolled_from,omitempty"`
 	EnrolledUntil string `json:"enrolled_until,omitempty"`
 
-	// The four retained guardian columns. The guardian tables are
-	// authoritative; these survive for the legacy import and search paths.
-	GuardianName    *string `json:"guardian_name,omitempty"`
-	GuardianContact *string `json:"guardian_contact,omitempty"`
-	GuardianEmail   *string `json:"guardian_email,omitempty"`
-	GuardianPhone   *string `json:"guardian_phone,omitempty"`
-
 	AddressStreet     *string `json:"address_street,omitempty"`
 	AddressCity       *string `json:"address_city,omitempty"`
 	AddressPostalCode *string `json:"address_postal_code,omitempty"`
@@ -108,8 +101,6 @@ type StudentDirectoryFilter struct {
 	// GradeLevels matches the first run of digits in the free-text class
 	// name, so "3a" and "Klasse 3a" both count as grade 3 and "13a" does not.
 	GradeLevels []int
-	// GuardianNameContains is a case-insensitive substring match.
-	GuardianNameContains string
 	// KeepAlumni are the graduates the page keeps anyway — a child with a
 	// still-open presence stays visible. Every other alumnus is excluded.
 	KeepAlumni []int64
@@ -160,9 +151,6 @@ type StudentDirectoryQuery interface {
 	// by id. It backs the whole-school reads: the class roster over every
 	// class, and the platform statistics.
 	ListStudentRecords(context.Context, StudentScope) ([]StudentRecord, error)
-	// ListStudentRecordsByGuardianContact finds children by one of the two
-	// retained guardian columns; the guardian tables stay authoritative.
-	ListStudentRecordsByGuardianContact(context.Context, string, string) ([]StudentRecord, error)
 	// ListStudentRecordsDueForStatus returns the children a lifecycle tick is
 	// due to move, for the named bound of the enrolment interval.
 	ListStudentRecordsDueForStatus(context.Context, string, string, string) ([]StudentRecord, error)
@@ -307,14 +295,6 @@ func (m *Module) ListStudentRecordsByClass(
 		return []StudentRecord{}, nil
 	}
 	return m.engine.ListStudentRecordsByClass(ctx, classes, scope)
-}
-
-func (m *Module) ListStudentRecordsByGuardianContact(ctx context.Context, email, phone string) ([]StudentRecord, error) {
-	email, phone = strings.TrimSpace(email), strings.TrimSpace(phone)
-	if email == "" && phone == "" {
-		return []StudentRecord{}, nil
-	}
-	return m.engine.ListStudentRecordsByGuardianContact(ctx, email, phone)
 }
 
 func (m *Module) ListStudentRecordsDueForStatus(ctx context.Context, status, bound, asOf string) ([]StudentRecord, error) {

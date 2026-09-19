@@ -84,27 +84,7 @@ export const studentsConfig = defineEntityConfig<Student>({
           },
         ],
       },
-      {
-        title: "Erziehungsberechtigte",
-        concept: "parents",
-        columns: 2,
-        fields: [
-          {
-            name: "name_lg",
-            label: "Name des Erziehungsberechtigten",
-            type: "text",
-            required: true,
-          },
-          {
-            name: "contact_lg",
-            label: "Kontakt des Erziehungsberechtigten",
-            type: "text",
-            required: true,
-            placeholder: "E-Mail oder Telefonnummer",
-            helperText: "Bitte E-Mail-Adresse oder Telefonnummer eingeben",
-          },
-        ],
-      },
+
       {
         title: "Busfahrer",
         concept: "transport",
@@ -217,19 +197,7 @@ export const studentsConfig = defineEntityConfig<Student>({
           },
         ],
       },
-      {
-        title: "Erziehungsberechtigte",
-        items: [
-          {
-            label: "Name",
-            value: (student) => student.name_lg ?? "Nicht angegeben",
-          },
-          {
-            label: "Kontakt",
-            value: (student) => student.contact_lg ?? "Nicht angegeben",
-          },
-        ],
-      },
+
       {
         title: "Zusätzliche Informationen",
         items: [
@@ -364,7 +332,6 @@ export const studentsConfig = defineEntityConfig<Student>({
       "second_name",
       "school_class",
       "group_name",
-      "name_lg",
     ],
     minSearchLength: 0, // Start searching immediately
 
@@ -395,9 +362,6 @@ export const studentsConfig = defineEntityConfig<Student>({
     item: {
       title: (student: Student) =>
         `${student.first_name} ${student.second_name}`,
-      subtitle: (student: Student) =>
-        student.name_lg ?? "Kein Erziehungsberechtigter",
-      description: (student: Student) => student.contact_lg ?? "",
       avatar: {
         text: (student: Student) =>
           `${student.first_name?.[0] ?? ""}${student.second_name?.[0] ?? ""}`,

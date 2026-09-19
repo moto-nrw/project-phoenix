@@ -341,11 +341,6 @@ func (e *recordingEngine) ListStudentRecordsByClass(_ context.Context, classes [
 	return nil, nil
 }
 
-func (e *recordingEngine) ListStudentRecordsByGuardianContact(context.Context, string, string) ([]peopledirectory.StudentRecord, error) {
-	e.calls++
-	return nil, nil
-}
-
 func (e *recordingEngine) ListStudentRecordsDueForStatus(context.Context, string, string, string) ([]peopledirectory.StudentRecord, error) {
 	e.calls++
 	return nil, nil

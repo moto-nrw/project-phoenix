@@ -204,13 +204,10 @@ func (s students) ByIDs(ctx context.Context, studentIDs []int64) (map[int64]emer
 			continue
 		}
 		result[id] = emergencysnapshot.Student{
-			ID:              id,
-			PersonID:        row.PersonID,
-			SchoolClass:     row.SchoolClass,
-			HealthInfo:      deref(row.HealthInfo),
-			GuardianName:    deref(row.GuardianName),
-			GuardianContact: deref(row.GuardianContact),
-			GuardianPhone:   deref(row.GuardianPhone),
+			ID:          id,
+			PersonID:    row.PersonID,
+			SchoolClass: row.SchoolClass,
+			HealthInfo:  deref(row.HealthInfo),
 		}
 	}
 	return result, nil
