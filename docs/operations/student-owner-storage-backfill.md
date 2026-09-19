@@ -72,10 +72,11 @@ not affect `stable`: these fields have a lossless migration independent of dates
 - After each full pass the tenant's orphaned target rows (source physically
   deleted) are removed, then counts, canonical checksums (SHA-256 over ordered
   SHA-256 canonical JSON row digests on both sides), a row-wise mismatch count,
-  the guardian reconciliation and the care-state equivalence are stored. All
+  the guardian reconciliation and the diagnostic care-state difference are stored. All
   verification queries and their checkpoint update share one `REPEATABLE READ`
   transaction with local UTC; `verification_snapshot` identifies that snapshot.
-  A tenant is stable when a pass changed nothing and every verification matches.
+  A tenant is stable when a pass changed nothing and every blocking verification
+  matches. The care-state diagnostic does not affect stability.
   Unstable tenants get another pass, up to `--max-passes` (default 5) per run;
   at the limit the completed pass and its high-water mark are kept.
 - A separate transaction before that one reads the three targets as

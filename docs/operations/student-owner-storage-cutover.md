@@ -74,13 +74,13 @@ write stays inside the reader's tenant policy.
   soft deletion, so a retired enrollment has to read as a row that is gone.
 - `updated_at` is the newest of the three rows, so a write to any one owner
   still moves the single timestamp the old shape exposed.
-- The eight columns without a target — `guardian_name`, `guardian_contact`,
-  `guardian_email`, `guardian_phone`, `sick`, `sick_since`, `excused`,
-  `excused_since` — are read from `users.students_legacy`. A child enrolled
-  after the switch has no archive row, so they read NULL (`sick`/`excused`
-  read `false`). Those values are not authoritative anywhere: guardians live in
-  `users.guardian_profiles` / `users.guardian_phone_numbers` and absences in
-  `active.student_status_days`.
+- Initially the eight legacy guardian and absence columns are read from
+  `users.students_legacy`. Migration `1.15.398` copies the absence flags and
+  timestamps into Care Plan, checks equality, and changes the view and routing
+  trigger to read/write those owner fields. This includes children enrolled
+  after the switch. Only the guardian copies remain archive-backed; a new child
+  without an archive row reads NULL for those copies. Authoritative contacts
+  live in `users.guardian_profiles` / `users.guardian_phone_numbers`.
 
 Writes through the view go to the owner of each column and mirror the whole old
 row into the archive, so a previous image finds its legacy columns unchanged.
