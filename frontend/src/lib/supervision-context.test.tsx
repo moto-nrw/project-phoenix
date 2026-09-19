@@ -2077,11 +2077,16 @@ describe("SupervisionProvider school switch (#3375)", () => {
     } as unknown as ReturnType<typeof useSession>;
   }
 
-  async function mockUrlTenant(tenantId: number | null) {
+  async function mockUrlTenant(
+    tenantId: number | null,
+    tenantSlug = "school-b",
+    tenantSubdomain = tenantSlug,
+  ) {
     const tenantContext = await import("~/lib/tenant-context");
     vi.mocked(tenantContext.useTenantSafe).mockReturnValue({
-      tenantSlug: "school-b",
-      tenant: tenantId === null ? null : { tenantId },
+      tenantSlug,
+      tenant:
+        tenantId === null ? null : { tenantId, subdomain: tenantSubdomain },
     } as unknown as ReturnType<typeof tenantContext.useTenantSafe>);
   }
 
@@ -2181,6 +2186,41 @@ describe("SupervisionProvider school switch (#3375)", () => {
       expect(result.current.groups[0]?.name).toBe("Schule 2");
     });
     expect(groupsCalls()).toBe(1);
+  });
+
+  it("masks a server snapshot while URL tenant metadata is still stale", async () => {
+    await mockUrlTenant(2, "school-a");
+    setupFetchMock({ groups: { groups: [{ id: 1, name: "Schule A" }] } });
+    vi.mocked(useSession).mockReturnValue(sessionFor(2, "token-2"));
+
+    const { result, rerender } = renderHook(() => useSupervision(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <SupervisionProvider
+          initial={{
+            groups: [{ id: "1", name: "Schule A" }],
+            supervised: [],
+            openRooms: [],
+            overviewOk: false,
+          }}
+        >
+          {children}
+        </SupervisionProvider>
+      ),
+    });
+
+    expect(result.current.groups[0]?.name).toBe("Schule A");
+
+    // The URL has already changed, but TenantProvider has not resolved the
+    // new school yet and still exposes the metadata for school A.
+    await mockUrlTenant(2, "school-b", "school-a");
+    rerender();
+
+    expect(result.current.groups).toEqual([]);
+    expect(result.current.isLoadingGroups).toBe(true);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it("does not expose a server snapshot while the session catches up", async () => {

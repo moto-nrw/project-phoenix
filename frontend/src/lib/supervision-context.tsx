@@ -194,12 +194,20 @@ export function SupervisionProvider({
   // under way when the school changed.
   const tenantContext = useTenantSafe();
   const sessionTenantId = session?.user?.tenantId;
+  const urlTenantSubdomain = tenantContext?.tenantSlug;
   const urlTenantId = tenantContext?.tenant?.tenantId;
+  // TenantProvider keeps the previous metadata until the new URL has been
+  // resolved. The URL segment is the subdomain, whereas `slug` may identify
+  // the organisation and legitimately differ (#1975).
+  const tenantMetadataMismatch =
+    tenantContext?.tenant != null &&
+    tenantContext.tenant.subdomain !== urlTenantSubdomain;
   const schoolMismatch =
     sessionTenantId !== undefined &&
     urlTenantId !== undefined &&
     sessionTenantId !== urlTenantId;
-  const schoolMismatchRef = useLatest(schoolMismatch);
+  const schoolDataPending = schoolMismatch || tenantMetadataMismatch;
+  const schoolDataPendingRef = useLatest(schoolDataPending);
   const schoolGenerationRef = React.useRef(0);
 
   // Check if user has any groups (as teacher or representative)
@@ -377,9 +385,10 @@ export function SupervisionProvider({
       // Skips the supervision half (own supervised rooms + Schulhof status)
       // for triggers that provably cannot have changed it.
       const groupsOnly = options?.groupsOnly ?? false;
-      // The session belongs to another school: the loading state stays until
-      // the school effect below starts the load for the right one.
-      if (schoolMismatchRef.current) return;
+      // The session or resolved URL metadata belongs to another school: the
+      // loading state stays until the school effect below starts the load for
+      // the right one.
+      if (schoolDataPendingRef.current) return;
       // Prevent rapid successive refreshes (min 5 seconds between refreshes).
       // `force` bypasses the throttle for deliberate external triggers
       // (e.g. after saving a setting that changes supervision visibility).
@@ -422,7 +431,7 @@ export function SupervisionProvider({
         }
       });
     },
-    [checkGroups, checkSupervision, schoolMismatchRef],
+    [checkGroups, checkSupervision, schoolDataPendingRef],
   );
 
   // Store the refresh function only after its render commits.
@@ -450,22 +459,27 @@ export function SupervisionProvider({
   const previousSchoolRef = React.useRef({
     sessionTenantId,
     sessionToken,
+    urlTenantSubdomain,
     urlTenantId,
+    tenantMetadataMismatch,
     schoolMismatch,
   });
   // Effects run after paint. Do not expose a preloaded snapshot during the
   // render that starts a school transition; TenantGuard may already render
   // its children again when the session has caught up with the URL.
   const schoolTransitionPending =
-    schoolMismatch ||
+    schoolDataPending ||
     previousSchoolRef.current.sessionTenantId !== sessionTenantId ||
+    previousSchoolRef.current.urlTenantSubdomain !== urlTenantSubdomain ||
     previousSchoolRef.current.urlTenantId !== urlTenantId;
   useEffect(() => {
     const previous = previousSchoolRef.current;
     previousSchoolRef.current = {
       sessionTenantId,
       sessionToken,
+      urlTenantSubdomain,
       urlTenantId,
+      tenantMetadataMismatch,
       schoolMismatch,
     };
     const sessionChanged =
@@ -473,12 +487,17 @@ export function SupervisionProvider({
       previous.sessionToken !== sessionToken;
     const schoolIdentityChanged =
       previous.sessionTenantId !== sessionTenantId ||
+      previous.urlTenantSubdomain !== urlTenantSubdomain ||
       previous.urlTenantId !== urlTenantId ||
+      previous.tenantMetadataMismatch !== tenantMetadataMismatch ||
       previous.schoolMismatch !== schoolMismatch;
-    const urlSchoolChanged = previous.urlTenantId !== urlTenantId;
+    const urlSchoolChanged =
+      previous.urlTenantSubdomain !== urlTenantSubdomain ||
+      previous.urlTenantId !== urlTenantId;
     if (
       !sessionChanged &&
       !urlSchoolChanged &&
+      previous.tenantMetadataMismatch === tenantMetadataMismatch &&
       previous.schoolMismatch === schoolMismatch
     ) {
       return;
@@ -501,14 +520,22 @@ export function SupervisionProvider({
       ...EMPTY_SUPERVISION_STATE,
       isLoadingSupervision: true,
     }));
-    if (schoolMismatch) return;
+    if (schoolDataPending) return;
     if (isRefreshingRef.current) {
       // The running load is discarded by its generation; this one replaces it.
       pendingFullRefreshRef.current = true;
       return;
     }
     void refreshRef.current?.({ silent: true, force: true });
-  }, [sessionTenantId, sessionToken, urlTenantId, schoolMismatch]);
+  }, [
+    sessionTenantId,
+    sessionToken,
+    urlTenantSubdomain,
+    urlTenantId,
+    tenantMetadataMismatch,
+    schoolMismatch,
+    schoolDataPending,
+  ]);
 
   // Initial load and refresh on session changes only
   useEffect(() => {
