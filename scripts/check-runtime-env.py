@@ -108,10 +108,13 @@ def main():
                                             cwd=ROOT, capture_output=True, text=True, check=True)
                     path = Path(directory) / (target + ".yml")
                     path.write_text(result.stdout)
-                check(path, target, {name: keys for name, keys in expected.items() if name != "demo-runtime"})
+                # Only the demo stack carries the sidecar; revisions before #3482 lack it.
+                sidecar = target == "demo" and (not args.revision or "  demo-runtime:" in path.read_text())
+                check(path, target, {name: keys for name, keys in expected.items()
+                                     if sidecar or name != "demo-runtime"})
                 check_missing_config(path, directory)
-            if not args.revision:
-                check_demo_runtime(expected["demo-runtime"])
+                if sidecar:
+                    check_demo_runtime(path)
         print("Runtime environment boundaries: PASS")
     except (ValueError, KeyError, subprocess.CalledProcessError) as error:
         print("Runtime environment boundaries: FAIL: " + str(error), file=sys.stderr)
@@ -119,25 +122,30 @@ def main():
     return 0
 
 
-def check_demo_runtime(allowed):
-    paths = [ROOT / "docker-compose.example.yml", ROOT / "environments/demo-runtime.compose.yml"]
-    raw = compose_config(paths, False)["services"]["demo-runtime"]
-    compose_config(paths, True)
-    if set(raw.get("environment", {})) != set(allowed):
-        raise ValueError("demo-runtime: environment allowlist mismatch")
-    for key, value in raw["environment"].items():
-        if value != "${" + key + ":?" + key + " is required}":
-            raise ValueError("demo-runtime: missing fail-fast binding for " + key)
-    resolved = compose_config(paths, True)["services"]["demo-runtime"]["environment"]
-    dsn = urlsplit(resolved["DEMO_DB_DSN"])
+def check_demo_runtime(path):
+    """Sidecar rules beyond the allowlist that check() already enforced."""
+    services = compose_config(path, False)["services"]
+    raw = services["demo-runtime"]
+    key = "DEMO_DB_DSN"
+    if raw["environment"][key] != "${" + key + ":?" + key + " is required}":
+        raise ValueError("demo-runtime: missing fail-fast binding for " + key)
+    resolved = compose_config(path, True)["services"]["demo-runtime"]["environment"]
+    dsn = urlsplit(resolved[key])
     if dsn.username != "phoenix_demo" or dsn.password is not None:
         raise ValueError("demo-runtime: DEMO_DB_DSN must contain only the phoenix_demo endpoint")
     if raw.get("env_file") or raw.get("volumes") or raw.get("ports"):
         raise ValueError("demo-runtime: must not receive env files, volumes or published ports")
     if raw.get("network_mode") != "service:server" or not raw.get("read_only"):
         raise ValueError("demo-runtime: must share the server network with a read-only filesystem")
-    if raw.get("command") != ["./main", "demo", "--url", "http://server:8080"]:
+    if raw.get("command") != ["./main", "demo", "--url", "http://server:8080", "--heartbeat", "/tmp/demo-heartbeat"]:
         raise ValueError("demo-runtime: must use the guarded command and internal server host")
+    if raw["image"] != services["server"]["image"]:
+        raise ValueError("demo-runtime: must use the serving backend image")
+    # A frozen runner must surface as unhealthy, and a crashed one must come back.
+    if "/tmp/demo-heartbeat" not in " ".join(raw.get("healthcheck", {}).get("test", [])):
+        raise ValueError("demo-runtime: healthcheck must watch the tick heartbeat")
+    if raw.get("restart") != "unless-stopped":
+        raise ValueError("demo-runtime: must restart after a crash")
     print("Demo runtime environment boundary: PASS")
 
 

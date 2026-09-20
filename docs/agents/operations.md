@@ -123,7 +123,9 @@ keys through 1Password/Signal, never Slack/email.
 2. Push to `development` deploys staging; push to `main` deploys production.
    Demo deploys only through manual dispatch from `main`; see
    [demo environment](../operations/demo-environment.md) for host setup and ports.
-3. CI decrypts and copies `.env`, compose, and `deploy-remote.sh` to the server.
+3. CI decrypts and copies `.env` and compose to `~/<environment>/` and the release
+   scripts to `~/scripts/<environment>/`. Environments deploy concurrently on one
+   host, so they never share a script directory.
 4. Deployment pulls images, runs `migrate preflight`, backs up the DB, migrates,
    starts, and healthchecks; failures after the backup trigger rollback.
 

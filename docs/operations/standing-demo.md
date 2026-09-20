@@ -31,26 +31,38 @@ For a finite smoke check, append `--once`: the command provisions or reloads
 the school, executes one tick and exits. The CI seed smoke runs it twice before
 the table-coverage ratchet, exercising both creation and restart.
 
-## Demo Compose overlay
+## Deployed sidecar
 
-The environment stack and deployment workflow belong to #3458; its host setup
-belongs to #3460. Add `environments/demo-runtime.compose.yml` to that isolated
-stack's Compose invocation. Both files use the same decrypted demo environment
-for interpolation. Do not combine the overlay with production or staging data.
+`demo-runtime` is a service of `environments/demo.compose.yml`, so every demo
+deploy ships and starts it; nothing is started by hand on the host. Staging and
+production stacks do not contain the service, and the release scripts name it
+only where the current Compose file lists it.
 
-For a base file at `environments/demo.compose.yml`, the deployment invocation is:
+- **Deploy:** `scripts/deploy-remote.sh` pins `demo-runtime.image` to the same
+  immutable backend revision as `server`, stops the sidecar with server and
+  frontend before the snapshot, and recreates it after server and frontend are
+  healthy. Only server and frontend gate the release: the sidecar starts
+  without `--wait`, and a sidecar that cannot start produces a deploy-log
+  warning, never a rollback of a healthy application. It is always recreated
+  because it lives in the server container's network namespace.
+- **Rollback:** the snapshot records the sidecar's image digest and Compose
+  entry. Automatic and manual rollback stop it before the restore and start it
+  from the restored file. A snapshot older than the sidecar restores a stack
+  without it.
+- **Failure visibility:** the runner rewrites `/tmp/demo-heartbeat` (tmpfs)
+  after every successful tick. The healthcheck marks the container `unhealthy`
+  when the file is older than two minutes, so failing ticks and a hung process
+  show up in `docker compose ps` instead of a silently static demo. A crashed
+  process is restarted (`restart: unless-stopped`). Logs go to journald:
+  `journalctl CONTAINER_TAG=demo-runtime`. The first start seeds the school,
+  which the 15-minute start period covers. Every restart begins a new start
+  period, so a crash loop shows as `restarting` with a growing restart count
+  and its error in the log, not as `unhealthy`. Nothing pushes these states to
+  a person yet; check `docker compose ps` when the demo looks static.
 
-```sh
-docker compose --env-file <decrypted-demo-env> \
-  -f environments/demo.compose.yml \
-  -f environments/demo-runtime.compose.yml up -d
-```
-
-Pin `demo-runtime.image` to **the same immutable backend image as `server`**
-when deploying or rolling back. The overlay's `:demo` tag is the environment
-tag, not a separate release stream. The sidecar shares the server's network,
-uses only `http://server:8080`, and publishes no ports. Migrations must finish
-before either service starts. No additional SOPS keys are introduced.
+The `:demo` tag is the environment tag, not a separate release stream. The
+sidecar shares the server's network, uses only `http://server:8080`, and
+publishes no ports. No additional SOPS keys are introduced.
 
 The sidecar receives only its explicit environment allowlist: environment and
 timezone, maintenance DB DSN and pool settings, operator bootstrap credentials,

@@ -40,9 +40,30 @@ if ! docker compose --env-file .env.new -f docker-compose.yml.new run --rm --no-
   exit 1
 fi
 
+# server and frontend, plus demo-runtime where the current Compose file has it.
+# Reload after every configuration switch: the old and new file may differ.
+load_app_services() {
+  local listed
+  listed=$(bash "$script_dir/release-backup.sh" app-services) || return 1
+  read -r -a app_services <<< "$listed"
+  # An empty list would make `compose stop` stop every service, postgres included.
+  (( ${#app_services[@]} >= 2 ))
+}
+
+# Only server and frontend gate a release. The demo sidecar starts afterwards
+# without --wait: its first start seeds a school for minutes, and its health
+# must never roll back or stop a healthy application. Its healthcheck and
+# journald log report a failing sidecar instead.
+start_app_services() {
+  docker compose up -d --wait "$@" server frontend || return 1
+  [[ " ${app_services[*]} " != *' demo-runtime '* ]] || docker compose up -d --no-deps --force-recreate demo-runtime ||
+    echo 'WARNING: demo-runtime did not start; the application itself is healthy' >&2
+}
+
 backup_root="${deployment_directory%/*}/backups/$DEPLOY_DIR"
 mkdir -p "$backup_root"
-if ! docker compose stop server frontend; then
+load_app_services || { echo 'Compose service list failed; the running release was not touched' >&2; exit 1; }
+if ! docker compose stop "${app_services[@]}"; then
   echo 'Application stop failed; no backup or migration attempted' >&2
   exit 1
 fi
@@ -51,20 +72,22 @@ backup_id="release-$(date -u +%Y%m%dT%H%M%SZ)-${DEPLOY_SHA}"
 bundle="$backup_root/$backup_id"
 if ! bash "$script_dir/release-backup.sh" create "$bundle"; then
   echo 'Backup failed; restarting the unchanged version' >&2
-  docker compose up -d --wait server frontend || exit 11
+  start_app_services || exit 11
   exit 1
 fi
 
 rollback() {
   trap - ERR
   echo "Deployment failed; restoring complete backup $backup_id" >&2
-  docker compose stop server frontend || exit 11
+  load_app_services || exit 11
+  docker compose stop "${app_services[@]}" || exit 11
   if ! bash "$script_dir/restore-db.sh" "$bundle"; then exit 11; fi
-  if docker compose up -d --wait --remove-orphans server frontend; then
+  load_app_services || exit 11
+  if start_app_services --remove-orphans; then
     echo 'Previous release restored and healthy'
     exit 10
   fi
-  docker compose stop server frontend || true
+  docker compose stop "${app_services[@]}" || true
   echo 'Rollback healthcheck failed; application stopped' >&2
   exit 11
 }
@@ -74,7 +97,8 @@ previous_sha=$(awk -F= '$1 == "CURRENT_SHA" {print $2}' .deploy-state)
 mv .env.new .env
 mv docker-compose.yml.new docker-compose.yml
 docker compose run --rm migrate
-docker compose up -d --wait --remove-orphans server frontend
+load_app_services
+start_app_services --remove-orphans
 
 {
   printf 'CURRENT_SHA=%s\nPREVIOUS_SHA=%s\n' "$DEPLOY_SHA" "$previous_sha"

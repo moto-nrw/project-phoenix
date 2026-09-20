@@ -325,6 +325,41 @@ describe("SettingsField", () => {
     expect(input.value).toBe("18:00");
   });
 
+  // #3372: a lesson without an end time is not maintained; „Jederzeit“ would
+  // claim the lesson ends at any time.
+  it("shows an empty lesson end time as not entered", () => {
+    const { getByText, queryByText } = renderWithProviders(
+      <SettingsField
+        setting={makeSetting({
+          key: "school_periods.end_5",
+          type: "time",
+          value: "",
+          default: "",
+        })}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    expect(getByText("Nicht eingetragen")).toBeInTheDocument();
+    expect(queryByText("Jederzeit")).not.toBeInTheDocument();
+  });
+
+  it("keeps Jederzeit for other optional time settings", () => {
+    const { getByText } = renderWithProviders(
+      <SettingsField
+        setting={makeSetting({
+          key: "checkout.student_daily_checkout_time",
+          type: "time",
+          value: "",
+          default: "",
+        })}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    expect(getByText("Jederzeit")).toBeInTheDocument();
+  });
+
   it("renders password field with masked display", () => {
     const { getByText } = renderWithProviders(
       <SettingsField
