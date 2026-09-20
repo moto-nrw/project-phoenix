@@ -948,9 +948,8 @@ func CreateTestCalendarStaff(tb testing.TB, db *bun.DB, firstName, lastName stri
 		Scan(ctx, &userRoleID)
 	require.NoError(tb, err, "Failed to find seeded user role")
 
-	roleAssignment := &authmodels.AccountRole{AccountID: account.ID, RoleID: userRoleID}
-	roleAssignment.SetTenantID(fixtureTenantID(tb))
-	_, err = db.NewInsert().Model(roleAssignment).ModelTableExpr(`auth.account_roles`).Exec(ctx)
+	_, err = db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+		account.ID, userRoleID, fixtureTenantID(tb)).Exec(ctx)
 	require.NoError(tb, err, "Failed to assign user role to staff account")
 
 	return staff, account
@@ -1100,12 +1099,8 @@ func AssignLehrkraftSystemRole(tb testing.TB, db *bun.DB, accountID, tenantID in
 		Scan(ctx, &roleID)
 	require.NoError(tb, err, "seeded lehrkraft system role must exist")
 
-	roleAssignment := &authmodels.AccountRole{AccountID: accountID, RoleID: roleID}
-	roleAssignment.SetTenantID(tenantID)
-	_, err = db.NewInsert().
-		Model(roleAssignment).
-		ModelTableExpr(`auth.account_roles`).
-		Exec(ctx)
+	_, err = db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+		accountID, roleID, tenantID).Exec(ctx)
 	require.NoError(tb, err, "Failed to assign lehrkraft system role")
 }
 
@@ -2950,9 +2945,8 @@ func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 		Scan(ctx, &guardianRoleID)
 	require.NoError(tb, err, "Failed to find seeded guardian role")
 
-	roleAssignment := &authmodels.AccountRole{AccountID: account.ID, RoleID: guardianRoleID}
-	roleAssignment.SetTenantID(fixtureTenantID(tb))
-	_, err = db.NewInsert().Model(roleAssignment).ModelTableExpr(`auth.account_roles`).Exec(ctx)
+	_, err = db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+		account.ID, guardianRoleID, fixtureTenantID(tb)).Exec(ctx)
 	require.NoError(tb, err, "Failed to assign guardian role")
 
 	return ParentChain{
@@ -3117,9 +3111,8 @@ func CreateTestCoGuardianForStudent(
 	err = db.NewSelect().ColumnExpr("id").TableExpr("auth.roles").
 		Where("name = ?", authmodels.BaseRoleGuardian).Scan(ctx, &guardianRoleID)
 	require.NoError(tb, err, "Failed to find seeded guardian role")
-	roleAssignment := &authmodels.AccountRole{AccountID: account.ID, RoleID: guardianRoleID}
-	roleAssignment.SetTenantID(fixtureTenantID(tb))
-	_, err = db.NewInsert().Model(roleAssignment).ModelTableExpr(`auth.account_roles`).Exec(ctx)
+	_, err = db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+		account.ID, guardianRoleID, fixtureTenantID(tb)).Exec(ctx)
 	require.NoError(tb, err, "Failed to assign guardian role to co-guardian")
 
 	return ParentChain{

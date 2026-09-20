@@ -21,8 +21,6 @@ func TestNewFactory(t *testing.T) {
 	t.Run("auth repositories", func(t *testing.T) {
 		assert.NotNil(t, factory.Account)
 		assert.NotNil(t, factory.AccountParent)
-		assert.NotNil(t, factory.Role)
-		assert.NotNil(t, factory.AccountRole)
 		assert.NotNil(t, factory.InvitationToken)
 	})
 

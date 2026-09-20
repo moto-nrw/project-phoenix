@@ -336,16 +336,12 @@ func TestGuardianInvitationService_Accept_HappyPath(t *testing.T) {
 	assert.True(t, exists, "account_tenant mapping should be created on accept")
 
 	// Account must have the guardian role assigned.
-	roles, err := env.repos.Role.FindByAccountID(testpkg.Ctx(t), account.ID)
-	require.NoError(t, err)
-	require.NotEmpty(t, roles, "account should have at least one role")
-	hasGuardian := false
-	for _, r := range roles {
-		if r.Name == "guardian" {
-			hasGuardian = true
-		}
-	}
-	assert.True(t, hasGuardian, "guardian role should be assigned")
+	var roleNames []string
+	require.NoError(t, env.db.NewRaw(`SELECT r.name FROM auth.roles r
+		JOIN auth.account_roles ar ON ar.role_id = r.id
+		WHERE ar.account_id = ? AND ar.tenant_id = ?`, account.ID, testpkg.Tenant(t)).Scan(testpkg.Ctx(t), &roleNames))
+	require.NotEmpty(t, roleNames, "account should have at least one role")
+	assert.Contains(t, roleNames, "guardian", "guardian role should be assigned")
 }
 
 // A guardian invitation belongs to one school: another school's staff can

@@ -93,8 +93,6 @@ type Factory struct {
 	AccountParent          authModels.AccountParentRepository
 	AccountTenant          authModels.AccountTenantRepository
 	StaffCalendarFeedToken authModels.StaffCalendarFeedTokenRepository
-	Role                   authModels.RoleRepository
-	AccountRole            authModels.AccountRoleRepository
 	InvitationToken        authModels.InvitationTokenRepository
 	MFACredential          authModels.MFACredentialRepository
 	MFAEmailChallenge      authModels.MFAEmailChallengeRepository
@@ -516,7 +514,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	enrollmentOfferingAdjustment := audit.NewEnrollmentOfferingAdjustmentRepository(auditRepositoryRuntime)
 	accountRepo := authpostgres.NewAccountRepository(db)
 	accountTenantRepo := authpostgres.NewAccountTenantRepository(db)
-	roleRepo := authpostgres.NewRoleRepository(db)
 	// The account facts other owners read belong to Identity & Access
 	// (#2720): the account lookups the People Directory and Care Plan
 	// repositories need are bound at construction.
@@ -535,8 +532,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		AccountParent:          authpostgres.NewAccountParentRepository(db),
 		AccountTenant:          accountTenantRepo,
 		StaffCalendarFeedToken: authpostgres.NewStaffCalendarFeedTokenRepository(db),
-		Role:                   roleRepo,
-		AccountRole:            authpostgres.NewAccountRoleRepository(db),
 		InvitationToken:        authpostgres.NewInvitationTokenRepository(db),
 		MFACredential:          authpostgres.NewMFACredentialRepository(db),
 		MFAEmailChallenge:      authpostgres.NewMFAEmailChallengeRepository(db),

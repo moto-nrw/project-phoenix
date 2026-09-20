@@ -52,34 +52,10 @@ type MFAAttemptResult struct {
 	LockedUntil *time.Time
 }
 
-// RoleRepository defines operations for managing roles
-type RoleRepository interface {
-	base.CRUDRepository[*Role]
-	// FindByIDForUpdate finds a role and locks it for the current transaction.
-	// Complete permission replacements use the role row as their serialization
-	// point, so each replacement reads the latest committed mapping set.
-	FindByIDForUpdate(ctx context.Context, id int64) (*Role, error)
-	FindByName(ctx context.Context, name string) (*Role, error)
-	FindByAccountID(ctx context.Context, accountID int64) ([]*Role, error)
-	AssignRoleToAccount(ctx context.Context, accountID int64, roleID int64) error
-	RemoveRoleFromAccount(ctx context.Context, accountID int64, roleID int64) error
-}
-
 // AccountParentRepository defines operations for managing parent accounts
 type AccountParentRepository interface {
 	base.CRUDRepository[*AccountParent]
 	FindByEmail(ctx context.Context, email string) (*AccountParent, error)
-}
-
-// AccountRoleRepository defines operations for managing account-role mappings
-type AccountRoleRepository interface {
-	base.CRUDRepository[*AccountRole]
-	FindByAccountID(ctx context.Context, accountID int64) ([]*AccountRole, error)
-	FindByRoleID(ctx context.Context, roleID int64) ([]*AccountRole, error)
-	FindByAccountAndRole(ctx context.Context, accountID, roleID int64) (*AccountRole, error)
-	DeleteByAccountAndRole(ctx context.Context, accountID, roleID int64) error
-	DeleteByAccountID(ctx context.Context, accountID int64) error
-	DeleteByRoleID(ctx context.Context, roleID int64) error
 }
 
 // InvitationTokenRepository defines operations for managing invitation tokens.
@@ -221,8 +197,8 @@ type OrgAccountInfo struct {
 // "Schulzugänge" surface and must never be exposed to a tenant-scoped caller.
 //
 // Roles are NOT part of this row: they live in auth.account_roles and are
-// merged in by the service from AccountRoleRepository.FindByAccountID so the
-// query stays a plain per-mapping lookup.
+// resolved separately by the identity capability; this row is a plain
+// per-mapping lookup.
 type AccountTenantAccessInfo struct {
 	TenantID         int64      `bun:"tenant_id" json:"tenant_id"`
 	SchoolName       string     `bun:"school_name" json:"school_name"`

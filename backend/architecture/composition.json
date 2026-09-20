@@ -4064,7 +4064,7 @@
       "declaration": "newStammdatenStudentConfig",
       "target": "database/repositories.NewFactory",
       "lines": [
-        235
+        232
       ],
       "tables": []
     },
@@ -4585,7 +4585,7 @@
       "declaration": "newOffboardingScenario",
       "target": "database/repositories.NewFactory",
       "lines": [
-        62
+        61
       ],
       "tables": []
     },

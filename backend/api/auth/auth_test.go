@@ -218,12 +218,8 @@ func loginAsAdmin(t *testing.T, db *bun.DB, router chi.Router) (token string, va
 
 	// 2. Get or create "admin" role and assign it
 	adminRole := testpkg.GetOrCreateTestRole(t, db, "admin")
-	accountRole := &authModel.AccountRole{
-		AccountID: adminAccount.ID,
-		RoleID:    adminRole.ID,
-	}
-	accountRole.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(accountRole).ModelTableExpr("auth.account_roles").Exec(ctx)
+	_, err := db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+		adminAccount.ID, adminRole.ID, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err, "Failed to assign admin role")
 
 	// 3. Get or create a "user" role to use as valid role_id in test payloads
@@ -515,12 +511,8 @@ func TestRegisterRequiresAdminAuth(t *testing.T) {
 		userAccount := testpkg.CreateTestAccountWithPassword(t, db, userEmail, userPassword)
 		testpkg.EnsureAccountTenant(t, db, userAccount.ID, testpkg.Tenant(t))
 
-		userAccountRole := &authModel.AccountRole{
-			AccountID: userAccount.ID,
-			RoleID:    noPermsRole.ID,
-		}
-		userAccountRole.SetTenantID(testpkg.Tenant(t))
-		_, err := db.NewInsert().Model(userAccountRole).ModelTableExpr("auth.account_roles").Exec(ctx)
+		_, err := db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+			userAccount.ID, noPermsRole.ID, testpkg.Tenant(t)).Exec(ctx)
 		require.NoError(t, err)
 
 		t.Cleanup(func() {

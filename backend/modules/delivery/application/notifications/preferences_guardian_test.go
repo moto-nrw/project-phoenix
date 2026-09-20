@@ -102,9 +102,8 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 			ColumnExpr("id").
 			Where("name = ?", authModel.BaseRoleGuardian).
 			Scan(ctx, &guardianRoleID))
-		role := &authModel.AccountRole{AccountID: chain.AccountID, RoleID: guardianRoleID}
-		role.SetTenantID(secondTenantID)
-		_, err := db.NewInsert().Model(role).ModelTableExpr("auth.account_roles").Exec(ctx)
+		_, err := db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+			chain.AccountID, guardianRoleID, secondTenantID).Exec(ctx)
 		require.NoError(t, err)
 
 		overview, err := svc.GetForParent(ctx, chain.AccountID)

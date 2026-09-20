@@ -444,9 +444,8 @@ func TestIntegration_RevokeAccountTenantAccess_RejectsRolesOwnedByOtherFeatures(
 				roleID = systemRoleID(t, db, roleName)
 			}
 
-			assignment := &authModels.AccountRole{AccountID: account.ID, RoleID: roleID}
-			assignment.SetTenantID(accessTargetTenantID(t))
-			_, err = db.NewInsert().Model(assignment).ModelTableExpr(`auth.account_roles`).Exec(ctx)
+			_, err = db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+				account.ID, roleID, accessTargetTenantID(t)).Exec(ctx)
 			require.NoError(t, err)
 
 			_, err = service.RevokeAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t), operator.ID, testClientIP)

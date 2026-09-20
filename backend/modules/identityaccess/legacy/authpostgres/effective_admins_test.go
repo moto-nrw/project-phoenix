@@ -44,9 +44,8 @@ func grantTenantRole(t *testing.T, db *bun.DB, ctx context.Context, accountID, t
 		Scan(ctx, &roleID)
 	require.NoError(t, err, "seeded role %q must exist", roleName)
 
-	assignment := &authModels.AccountRole{AccountID: accountID, RoleID: roleID}
-	assignment.SetTenantID(tenantID)
-	_, err = db.NewInsert().Model(assignment).ModelTableExpr(`auth.account_roles`).Exec(ctx)
+	_, err = db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+		accountID, roleID, tenantID).Exec(ctx)
 	require.NoError(t, err)
 }
 

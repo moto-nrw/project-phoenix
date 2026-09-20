@@ -118,12 +118,8 @@ func assignSystemRole(t *testing.T, db *bun.DB, accountID, tenantID int64, roleN
 		Scan(context.Background(), &roleID)
 	require.NoError(t, err)
 
-	roleAssignment := &authModels.AccountRole{AccountID: accountID, RoleID: roleID}
-	roleAssignment.SetTenantID(tenantID)
-	_, err = db.NewInsert().
-		Model(roleAssignment).
-		ModelTableExpr("auth.account_roles").
-		Exec(context.Background())
+	_, err = db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+		accountID, roleID, tenantID).Exec(context.Background())
 	require.NoError(t, err)
 }
 
@@ -676,9 +672,8 @@ func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
 		"INSERT INTO auth.role_permissions (role_id, permission_id) VALUES (?, ?)",
 		wildcardRole.ID, fullAccessID)
 	require.NoError(t, err)
-	roleGrant := &authModels.AccountRole{AccountID: roleAdmin.ID, RoleID: wildcardRole.ID}
-	roleGrant.SetTenantID(testpkg.Tenant(t))
-	_, err = db.NewInsert().Model(roleGrant).ModelTableExpr("auth.account_roles").Exec(context.Background())
+	_, err = db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+		roleAdmin.ID, wildcardRole.ID, testpkg.Tenant(t)).Exec(context.Background())
 	require.NoError(t, err)
 
 	subs, err := repo.FindForTenantAdmins(ctx)
