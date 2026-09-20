@@ -13,6 +13,7 @@ import (
 type IssueAuditResult struct {
 	Issues  int
 	Entries int
+	Rules   int
 }
 
 type IssueRequest struct {
@@ -35,7 +36,7 @@ type issueResponse struct {
 	PullRequest json.RawMessage `json:"pull_request"`
 }
 
-func AuditLegacyIssues(ctx context.Context, client IssueClient, apiURL, token string, manifest *LegacyManifest) (IssueAuditResult, error) {
+func AuditLegacyIssues(ctx context.Context, client IssueClient, apiURL, token string, manifest *LegacyManifest, policy *Policy) (IssueAuditResult, error) {
 	if client == nil {
 		return IssueAuditResult{}, fmt.Errorf("issue audit client is required")
 	}
@@ -43,7 +44,7 @@ func AuditLegacyIssues(ctx context.Context, client IssueClient, apiURL, token st
 	if err != nil || (base.Scheme != "http" && base.Scheme != "https") || base.Host == "" || base.User != nil || base.RawQuery != "" || base.Fragment != "" {
 		return IssueAuditResult{}, fmt.Errorf("GitHub API URL %q is invalid", apiURL)
 	}
-	issues, err := uniqueManifestIssues(manifest)
+	issues, err := uniqueManifestIssues(manifest, policy)
 	if err != nil {
 		return IssueAuditResult{}, err
 	}
@@ -52,13 +53,29 @@ func AuditLegacyIssues(ctx context.Context, client IssueClient, apiURL, token st
 			return IssueAuditResult{}, err
 		}
 	}
-	return IssueAuditResult{Issues: len(issues), Entries: len(manifest.Entries)}, nil
+	rules := 0
+	for _, rule := range policy.Rules {
+		if rule.Issue != "" {
+			rules++
+		}
+	}
+	return IssueAuditResult{Issues: len(issues), Entries: len(manifest.Entries), Rules: rules}, nil
 }
 
-func uniqueManifestIssues(manifest *LegacyManifest) ([]GitHubIssue, error) {
+func uniqueManifestIssues(manifest *LegacyManifest, policy *Policy) ([]GitHubIssue, error) {
 	byURL := make(map[string]GitHubIssue)
 	for _, entry := range manifest.Entries {
 		issue, err := ParseGitHubIssue(entry.Issue)
+		if err != nil {
+			return nil, err
+		}
+		byURL[issue.URL] = issue
+	}
+	for _, rule := range policy.Rules {
+		if rule.Issue == "" {
+			continue
+		}
+		issue, err := ParseGitHubIssue(rule.Issue)
 		if err != nil {
 			return nil, err
 		}

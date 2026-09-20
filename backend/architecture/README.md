@@ -324,6 +324,29 @@ enforced by the base policy.
 
 ### Converting temporary permissions to exact debt
 
+Schema 3 gives each temporary policy rule an `issue` field containing the same
+canonical GitHub issue URL as a legacy entry. Presence of this field defines a
+temporary permission; descriptions are not parsed by the evaluator. Omit it
+for ordinary target permissions. An explicit empty, null, malformed, query,
+fragment or pull-request URL is invalid. The issue identifies the open cleanup
+ticket, not the relocation that originally introduced the permission.
+`audit-issues` checks the union of rule and legacy issues, with one request per
+distinct URL. Closed issues, pull requests and failed requests fail the audit.
+Issue metadata does not change a rule's permission or policy strictness.
+
+`rules.stale` reports a rule that allows no edge across the union of production,
+internal-test and external-test scopes in the fixed build context. A rule used
+only in one test scope is live. Each unused rule produces one finding whose
+source and target are its rule ID and whose scope is empty (policy-wide).
+Delete it in the same change: `rules.stale` can never enter `legacy.jsonl`.
+An overlapping match is not an allowed edge and cannot keep a rule alive.
+
+The reviewed [#3416 backfill](rule-backfill-3416/README.md) preserves the
+mechanical proposal separately from the human-approved cleanup assignments.
+It removed 167 stale rules from 2,040, assigned 485 live temporary permissions,
+and left all 682 legacy entries byte-identical. These are rollout measurements,
+not a replacement baseline or a permission to add debt.
+
 Temporary compatibility imports belong in `legacy.jsonl`, not target-allowed
 rules. Remove their policy permissions and record each resulting
 `imports.forbidden` tuple with its open cleanup issue. PR mode accepts a newly
@@ -1536,7 +1559,8 @@ never qualify for this exception, and historical unowned objects do not need
 rebaselining. The check uses the immutable local Git base, not GitHub.
 
 `audit-issues` performs the network-dependent GitHub liveness check separately.
-The wrapper supplies the committed baseline; callers must provide `--api-url`,
+The wrapper supplies the committed baseline; the policy defaults to
+`architecture/policy.json` and can be selected with `--policy`. Callers must provide `--api-url`,
 and `GITHUB_TOKEN` is optional for authenticated requests. A GitHub or network
 error fails this audit and cannot change the deterministic `check` result or
 appear as a green audit.
@@ -1813,6 +1837,21 @@ logically overlapping rules. Change
 `schema_version` only when the JSON shape changes. Change `policy_epoch` only
 for a reviewed architecture decision; it does not approve or rebuild legacy
 findings.
+
+Policy candidates must use `schema_version: 3` because rules now carry optional
+issue metadata. Only `LoadBasePolicyAndManifest`, reading an immutable Git base,
+accepts schema 2 during the schema-3 rollout and normalizes it to 3 before full
+validation. Candidates never use that compatibility path. Schema 1, future
+schemas, unknown fields and invalid metadata still fail. Keep this bounded
+2-to-3 allowance while supported merge bases predate the rollout; remove it
+once development and all supported comparison bases use schema 3. Existing
+projection and migration-evidence schema versions are separate contracts.
+
+#3416 leaves `policy_epoch` at the checkout's existing value, 17. Adding issue
+metadata and deleting unused permissions grants no new architectural permission
+and must not unlock the epoch-gated strictness exceptions. Add positive and
+negative fixtures when changing these contracts, and remove every `rules.stale`
+finding before committing a policy change.
 
 The three existing student read projections have one fixed replacement path
 ([ADR 0025](../../docs/adr/0025-replace-student-read-projection-grants.md),

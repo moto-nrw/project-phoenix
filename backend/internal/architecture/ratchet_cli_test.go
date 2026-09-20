@@ -13,6 +13,47 @@ import (
 
 const legacyKey = "production|imports.forbidden|example.test/architecture-fixture/source|example.test/architecture-fixture/target"
 
+func TestAuditIncludesRuleIssuesAndDeduplicatesLegacyIssues(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, response, want string
+		valid                bool
+	}{
+		{"open", `{"state":"open"}`, "2 open migration issue(s) cover 1 legacy violation(s) and 2 temporary rule(s)", true},
+		{"closed", `{"state":"closed"}`, "is closed", false},
+		{"pull request", `{"state":"open","pull_request":{}}`, "is a pull request", false},
+		{"invalid response", `{`, "decode migration issue", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			requests := make(chan string, 8)
+			server := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
+				requests <- r.URL.Path
+				if strings.HasSuffix(r.URL.Path, "/2583") {
+					_, _ = w.Write([]byte(`{"state":"open"}`))
+				} else {
+					_, _ = w.Write([]byte(tc.response))
+				}
+			})
+			defer server.Close()
+			policy := mutatePolicy(t, readFile(t, fixturePath(t, "rules-stale.json")), func(doc map[string]any) {
+				rules := doc["rules"].([]any)
+				rules[0].(map[string]any)["issue"] = "https://github.com/moto-nrw/project-phoenix/issues/2583"
+				rules[1].(map[string]any)["issue"] = "https://github.com/moto-nrw/project-phoenix/issues/2736"
+			})
+			path := filepath.Join(t.TempDir(), "policy.json")
+			writeFile(t, path, policy)
+			output, err := runArchitecture(t, "audit-issues", "--policy", path, "--baseline", writeManifest(t, legacyRecord(2583)), "--api-url", server.URL)
+			if (err == nil) != tc.valid || !strings.Contains(output, tc.want) {
+				t.Fatalf("audit result: %v\n%s; want %s", err, output, tc.want)
+			}
+			if len(requests) != 2 {
+				t.Fatalf("requests = %d, want one per distinct issue", len(requests))
+			}
+		})
+	}
+}
+
 func TestCheckRequiresExactLegacyBaseline(t *testing.T) {
 	t.Parallel()
 
@@ -294,6 +335,10 @@ func Use() string { return replacement.Value }
 
 const Value = "replacement"
 `)
+	writeFile(t, filepath.Join(repo, "source", "source_external_test.go"), `package source_test
+import "example.test/architecture-fixture/replacement"
+var _ = replacement.Value
+`)
 	runGit(t, repo, "add", ".")
 
 	output, err := runRepositoryCheck(t, repo, baseRef)
@@ -442,7 +487,7 @@ func TestCheckRejectsDormantBroadRule(t *testing.T) {
 	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policy)
 
 	output, err := runRepositoryCheck(t, repo, baseRef)
-	if err == nil || !strings.Contains(output, "rule platform-domain newly allows") || !strings.Contains(output, "remaining legacy violations: 1") {
+	if err == nil || !strings.Contains(output, "rule platform-domain newly allows") || !strings.Contains(output, "|rules.stale|platform-domain|platform-domain") || !strings.Contains(output, "remaining legacy violations: 2") {
 		t.Fatalf("dormant broad rule was accepted: %v\n%s", err, output)
 	}
 }
@@ -809,7 +854,7 @@ func TestAuditIssuesRejectsClosedDebtIssue(t *testing.T) {
 	defer server.Close()
 
 	manifest := writeManifest(t, legacyRecord(2583))
-	output, err := runArchitecture(t, "audit-issues", "--baseline", manifest, "--api-url", server.URL)
+	output, err := runArchitecture(t, "audit-issues", "--policy", fixturePath(t, "vertical-allowed.json"), "--baseline", manifest, "--api-url", server.URL)
 	if err == nil || !strings.Contains(output, "is closed") {
 		t.Fatalf("closed migration issue was accepted: %v\n%s", err, output)
 	}
@@ -818,7 +863,7 @@ func TestAuditIssuesRejectsClosedDebtIssue(t *testing.T) {
 func TestAuditIssuesRequiresAPIURL(t *testing.T) {
 	t.Parallel()
 
-	output, err := runArchitecture(t, "audit-issues", "--baseline", writeManifest(t, legacyRecord(2583)))
+	output, err := runArchitecture(t, "audit-issues", "--policy", fixturePath(t, "vertical-allowed.json"), "--baseline", writeManifest(t, legacyRecord(2583)))
 	if err == nil || !strings.Contains(output, "requires --baseline, --api-url") {
 		t.Fatalf("audit accepted an implicit API URL: %v\n%s", err, output)
 	}
@@ -844,7 +889,7 @@ func TestAuditIssuesCoversConvertedImportDebt(t *testing.T) {
 				_, _ = w.Write([]byte(`{"state":"` + state + `","html_url":"https://github.com/moto-nrw/project-phoenix/issues/2743"}`))
 			})
 			defer server.Close()
-			output, err := runArchitecture(t, "audit-issues", "--baseline", manifest, "--api-url", server.URL)
+			output, err := runArchitecture(t, "audit-issues", "--policy", fixturePath(t, "vertical-allowed.json"), "--baseline", manifest, "--api-url", server.URL)
 			if state == "open" {
 				if err != nil || !strings.Contains(output, "1 open migration issue(s) cover 1 legacy violation(s)") {
 					t.Fatalf("open debt audit failed: %v\n%s", err, output)
@@ -865,7 +910,7 @@ func TestAuditIssuesAcceptsOneOpenIssueForMultipleEntries(t *testing.T) {
 	defer server.Close()
 	manifest := legacyRecordWithTarget(2583, "example.test/architecture-fixture/another") + legacyRecord(2583)
 
-	output, err := runArchitecture(t, "audit-issues", "--baseline", writeManifest(t, manifest), "--api-url", server.URL)
+	output, err := runArchitecture(t, "audit-issues", "--policy", fixturePath(t, "vertical-allowed.json"), "--baseline", writeManifest(t, manifest), "--api-url", server.URL)
 	if err != nil || !strings.Contains(output, "1 open migration issue(s) cover 2 legacy violation(s)") {
 		t.Fatalf("open migration issue audit failed: %v\n%s", err, output)
 	}
@@ -881,7 +926,7 @@ func TestAuditIssuesDoesNotForwardGitHubTokenToCustomAPI(t *testing.T) {
 	})
 	defer server.Close()
 
-	output, err := runArchitectureWithEnv(t, map[string]string{"GITHUB_TOKEN": "top-secret"}, "audit-issues", "--baseline", writeManifest(t, legacyRecord(2583)), "--api-url", server.URL)
+	output, err := runArchitectureWithEnv(t, map[string]string{"GITHUB_TOKEN": "top-secret"}, "audit-issues", "--policy", fixturePath(t, "vertical-allowed.json"), "--baseline", writeManifest(t, legacyRecord(2583)), "--api-url", server.URL)
 	if err != nil {
 		t.Fatalf("issue audit failed: %v\n%s", err, output)
 	}
@@ -894,7 +939,7 @@ func TestIssueAuditNetworkFailureDoesNotAffectDeterministicCheck(t *testing.T) {
 	t.Parallel()
 
 	manifest := writeManifest(t, legacyRecord(2583))
-	output, err := runArchitecture(t, "audit-issues", "--baseline", manifest, "--api-url", "http://127.0.0.1:1")
+	output, err := runArchitecture(t, "audit-issues", "--policy", fixturePath(t, "vertical-allowed.json"), "--baseline", manifest, "--api-url", "http://127.0.0.1:1")
 	if err == nil || !strings.Contains(output, "audit migration issue") {
 		t.Fatalf("network failure was not isolated to issue audit: %v\n%s", err, output)
 	}
