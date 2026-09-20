@@ -65,7 +65,7 @@ func createCareBooking(
 	key string, validFrom, validUntil *timezone.Date,
 ) *enrollmentFixture.RequestChild {
 	t.Helper()
-	offering := createCareBookingOffering(t, db, scope, studentID, key)
+	offering := createCareBookingOffering(t, db, scope, studentID, key, validFrom, validUntil)
 	child := createCareBookingSource(t, db, scope, offering.PhaseID, studentID, key)
 	link := &enrollmentFixture.RequestChildOffering{
 		RequestChildID: child.ID, CareOfferingID: offering.ID,
@@ -99,12 +99,26 @@ func createCareBooking(
 
 func createCareBookingOffering(
 	t *testing.T, db *bun.DB, scope testpkg.TenantScope, studentID int64, key string,
+	validFrom, validUntil *timezone.Date,
 ) *enrollmentModels.CareOffering {
 	t.Helper()
+	today := timezone.TodayDate()
+	start, end := today.AddDays(-30), today.AddDays(300)
+	// Keep explicit historical bookings inside the phase window even as today advances.
+	for _, date := range []*timezone.Date{validFrom, validUntil} {
+		if date != nil {
+			if !date.After(start) {
+				start = date.AddDays(-30)
+			}
+			if !date.Before(end) {
+				end = date.AddDays(300)
+			}
+		}
+	}
 	phase := &enrollmentFixture.Phase{
 		Name: fmt.Sprintf("Buchungsprüfung-%d-%s", studentID, key), Kind: "school_year",
-		ServiceStartDate: enrollmentFixture.Date(timezone.TodayDate().AddDays(-30)),
-		ServiceEndDate:   enrollmentFixture.Date(timezone.TodayDate().AddDays(300)),
+		ServiceStartDate: enrollmentFixture.Date(start),
+		ServiceEndDate:   enrollmentFixture.Date(end),
 		CareOverflowMode: "waitlist", CareOfferingSelectionMode: "optional", IsActive: true,
 	}
 	phase.TenantID = scope.TenantID
