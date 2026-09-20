@@ -65,17 +65,6 @@ type RoleRepository interface {
 	RemoveRoleFromAccount(ctx context.Context, accountID int64, roleID int64) error
 }
 
-// PermissionRepository defines operations for managing permissions
-type PermissionRepository interface {
-	base.CRUDRepository[*Permission]
-	FindByName(ctx context.Context, name string) (*Permission, error)
-	FindByAccountID(ctx context.Context, accountID int64) ([]*Permission, error)
-	FindDirectByAccountID(ctx context.Context, accountID int64) ([]*Permission, error)
-	FindByRoleID(ctx context.Context, roleID int64) ([]*Permission, error)
-	AssignPermissionToRole(ctx context.Context, roleID int64, permissionID int64) error
-	RemovePermissionFromRole(ctx context.Context, roleID int64, permissionID int64) error
-}
-
 // AccountParentRepository defines operations for managing parent accounts
 type AccountParentRepository interface {
 	base.CRUDRepository[*AccountParent]

@@ -8,12 +8,13 @@ import (
 )
 
 type AccountRoleQueries struct {
+	*RoleCatalog
 	service *Service
 	store   ports.AccountRoleQueryStore
 }
 
-func NewAccountRoleQueries(service *Service, store ports.AccountRoleQueryStore) *AccountRoleQueries {
-	return &AccountRoleQueries{service: service, store: store}
+func NewAccountRoleQueries(service *Service, store ports.AccountRoleQueryStore, catalog ports.RoleCatalogStore) *AccountRoleQueries {
+	return &AccountRoleQueries{RoleCatalog: NewRoleCatalog(catalog), service: service, store: store}
 }
 
 func (q *AccountRoleQueries) ListSchoolAccountRoleNames(ctx context.Context, accountID int64) (names []string, err error) {

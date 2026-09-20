@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/database"
 	"github.com/uptrace/bun"
@@ -15,7 +16,7 @@ func NewDatabaseStatsTestReader(db *bun.DB) (DatabaseStatsReader, error) {
 	if err != nil {
 		return nil, err
 	}
-	auth, err := repositories.NewAuthTestRepositories(db, repositories.NewTestAuditStore(db))
+	auth, err := repositories.NewIdentityAccessForTests(db)
 	if err != nil {
 		return nil, err
 	}
@@ -35,13 +36,16 @@ func NewDatabaseStatsTestReader(db *bun.DB) (DatabaseStatsReader, error) {
 			return len(rows), err
 		},
 		Groups: func(ctx context.Context) (int, error) { rows, err := repos.Group.List(ctx, nil); return len(rows), err },
-		Roles:  func(ctx context.Context) (int, error) { rows, err := auth.Role.List(ctx, nil); return len(rows), err },
+		Roles: func(ctx context.Context) (int, error) {
+			rows, err := auth.ListRoles(ctx, identityaccess.RoleFilter{})
+			return len(rows), err
+		},
 		Devices: func(ctx context.Context) (int, error) {
 			rows, err := device.List(ctx, nil)
 			return len(rows), err
 		},
 		PermissionCount: func(ctx context.Context) (int, error) {
-			rows, err := auth.Permission.List(ctx, nil)
+			rows, err := auth.ListPermissions(ctx, identityaccess.PermissionFilter{})
 			return len(rows), err
 		},
 	}, slog.Default())

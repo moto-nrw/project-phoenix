@@ -115,10 +115,10 @@ func (e engine) GetRole(ctx context.Context, id int64) (identityaccess.Role, err
 }
 
 func (e engine) ListRoles(ctx context.Context, filter identityaccess.RoleFilter) ([]identityaccess.Role, error) {
-	if e.roles == nil {
+	if e.accountRoleQueries == nil {
 		return nil, errRoleAdministrationUnavailable
 	}
-	roles, err := e.roles.ListRoles(e.attach(ctx), domain.RoleFilter(filter))
+	roles, err := e.accountRoleQueries.ListRoles(e.attach(ctx), domain.RoleFilter(filter))
 	return publicRoles(roles), roleError(err)
 }
 
@@ -233,10 +233,10 @@ func (e engine) GetPermissionByName(ctx context.Context, name string) (identitya
 }
 
 func (e engine) ListPermissions(ctx context.Context, filter identityaccess.PermissionFilter) ([]identityaccess.Permission, error) {
-	if e.roles == nil {
+	if e.accountRoleQueries == nil {
 		return nil, errRoleAdministrationUnavailable
 	}
-	permissions, err := e.roles.ListPermissions(e.attach(ctx), domain.PermissionFilter(filter))
+	permissions, err := e.accountRoleQueries.ListPermissions(e.attach(ctx), domain.PermissionFilter(filter))
 	return publicPermissions(permissions), roleError(err)
 }
 

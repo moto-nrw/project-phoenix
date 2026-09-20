@@ -63,14 +63,6 @@ func (r *RoleAdministration) DeletePermission(ctx context.Context, id int64) err
 	return nil
 }
 
-func (r *RoleAdministration) ListPermissions(ctx context.Context, filter domain.PermissionFilter) ([]domain.ManagedPermission, error) {
-	permissions, err := r.store.ListPermissions(ctx, filter)
-	if err != nil {
-		return nil, failed("list permissions", err)
-	}
-	return permissions, nil
-}
-
 // GrantPermissionToAccount grants a permission directly to an account.
 func (r *RoleAdministration) GrantPermissionToAccount(ctx context.Context, accountID, permissionID int64) error {
 	return r.runtime.RunInTx(ctx, func(txCtx context.Context) error {

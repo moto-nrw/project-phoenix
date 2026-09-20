@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
@@ -136,7 +137,7 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	e := engine{
 		profiles: application.NewAccountProfiles(service, store), guardianSchools: application.NewGuardianSchools(service, store),
 		service: service, mfa: operatorMFARecords, tokens: tokens, rfidCards: application.NewRFIDCards(service, store),
-		passkeys: operatorPasskeys, accountPasskeys: accountPasskeys, accountRoleQueries: application.NewAccountRoleQueries(service, store),
+		passkeys: operatorPasskeys, accountPasskeys: accountPasskeys, accountRoleQueries: application.NewAccountRoleQueries(service, store, postgres.NewRoleStore(store)),
 		auth: auth, operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle, roles: roles,
 		resets: resets, invitations: invitations, provisioning: provisioning, administration: administration,
 		mfaFlows: flows, operatorProvisioning: operatorProvisioning,

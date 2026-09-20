@@ -17,6 +17,7 @@ import (
 // the school identity chain and the session revocation are the module's own
 // flows, reached through ports so the rules can be exercised in isolation.
 type RoleAdministration struct {
+	*RoleCatalog
 	accounts      ports.ManageableAccounts
 	store         ports.RoleStore
 	profiles      ports.CaregiverProfiles
@@ -59,7 +60,8 @@ func NewRoleAdministration(deps RoleAdministrationDependencies) (*RoleAdministra
 		logger = slog.Default()
 	}
 	return &RoleAdministration{
-		accounts: deps.Accounts, store: deps.Store, profiles: deps.Profiles, policy: deps.Policy, identityRoles: deps.IdentityRoles,
+		RoleCatalog: NewRoleCatalog(deps.Store),
+		accounts:    deps.Accounts, store: deps.Store, profiles: deps.Profiles, policy: deps.Policy, identityRoles: deps.IdentityRoles,
 		identity: deps.Identity, sessions: deps.Sessions, runtime: deps.Runtime, logger: logger,
 	}, nil
 }
@@ -165,14 +167,6 @@ func (r *RoleAdministration) DeleteRole(ctx context.Context, id int64) error {
 		}
 		return nil
 	})
-}
-
-func (r *RoleAdministration) ListRoles(ctx context.Context, filter domain.RoleFilter) ([]domain.ManagedRole, error) {
-	roles, err := r.store.ListRoles(ctx, filter)
-	if err != nil {
-		return nil, failed("list roles", err)
-	}
-	return roles, nil
 }
 
 // AssignRoleToAccount assigns a role to an account at the tenant in context

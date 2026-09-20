@@ -17,7 +17,6 @@ type InvitationPersistence struct {
 	Account         authModels.AccountRepository
 	AccountTenant   authModels.AccountTenantRepository
 	Role            authModels.RoleRepository
-	Permission      authModels.PermissionRepository
 	AccountRole     authModels.AccountRoleRepository
 	MFACredential   authModels.MFACredentialRepository
 	Person          userModels.PersonRepository
@@ -43,7 +42,6 @@ func NewInvitationPersistence(db *bun.DB) (*InvitationPersistence, error) {
 		Account:         authRepo.NewAccountRepository(db),
 		AccountTenant:   authRepo.NewAccountTenantRepository(db),
 		Role:            authRepo.NewRoleRepository(db),
-		Permission:      authRepo.NewPermissionRepository(db),
 		AccountRole:     authRepo.NewAccountRoleRepository(db),
 		MFACredential:   authRepo.NewMFACredentialRepository(db),
 		Person:          NewPersonRepository(db),

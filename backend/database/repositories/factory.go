@@ -94,7 +94,6 @@ type Factory struct {
 	AccountTenant          authModels.AccountTenantRepository
 	StaffCalendarFeedToken authModels.StaffCalendarFeedTokenRepository
 	Role                   authModels.RoleRepository
-	Permission             authModels.PermissionRepository
 	RolePermission         authModels.RolePermissionRepository
 	AccountRole            authModels.AccountRoleRepository
 	AccountPermission      authModels.AccountPermissionRepository
@@ -520,7 +519,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	accountRepo := authpostgres.NewAccountRepository(db)
 	accountTenantRepo := authpostgres.NewAccountTenantRepository(db)
 	roleRepo := authpostgres.NewRoleRepository(db)
-	permissionRepo := authpostgres.NewPermissionRepository(db)
 	// The account facts other owners read belong to Identity & Access
 	// (#2720): the account lookups the People Directory and Care Plan
 	// repositories need are bound at construction.
@@ -540,7 +538,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		AccountTenant:          accountTenantRepo,
 		StaffCalendarFeedToken: authpostgres.NewStaffCalendarFeedTokenRepository(db),
 		Role:                   roleRepo,
-		Permission:             permissionRepo,
 		RolePermission:         authpostgres.NewRolePermissionRepository(db),
 		AccountRole:            authpostgres.NewAccountRoleRepository(db),
 		AccountPermission:      authpostgres.NewAccountPermissionRepository(db),
