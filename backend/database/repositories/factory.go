@@ -776,7 +776,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		panic(fmt.Sprintf("repository factory: compose care plan: %v", err))
 	}
 	factory.bindCarePlanAdapters(carePlan)
-	factory.membershipDeps = newStaffMembershipDeps(personRepo, accountRepo, accountTenantRepo, permissionRepo, roleRepo)
+	factory.membershipDeps = newStaffMembershipDeps(personRepo, identity)
 	// Staff, teachers and guests belong to School Membership. Without an
 	// explicit binding the factory composes an unobserved module so every
 	// legacy consumer — repository tests and CLI roots included — reads the

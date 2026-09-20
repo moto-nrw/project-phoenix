@@ -60,8 +60,7 @@ func NewMembershipTestRepositories(db *bun.DB) (MembershipTestRepositories, erro
 		Person: NewPersonRepository(db), Account: authRepo.NewAccountRepository(db),
 		AccountTenant: authRepo.NewAccountTenantRepository(db),
 	}
-	repos.membershipDeps = newStaffMembershipDeps(repos.Person, repos.Account, repos.AccountTenant,
-		authRepo.NewPermissionRepository(db), authRepo.NewRoleRepository(db))
+	repos.membershipDeps = newStaffMembershipDeps(repos.Person, newIdentityAccess(db, nil))
 	repos.membershipDeps.groupTeachers = func() educationModels.GroupTeacherRepository { return repos.GroupTeacher }
 	repos.bindStaffMembershipAdapters(membership)
 	workTime, err := NewWorkforce(db, membership)

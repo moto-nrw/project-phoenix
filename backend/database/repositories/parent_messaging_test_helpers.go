@@ -5,7 +5,6 @@ import (
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/uptrace/bun"
 )
@@ -30,13 +29,7 @@ func NewParentMessagingTestRepositories(db *bun.DB) (ParentMessagingTestReposito
 	if err != nil {
 		return ParentMessagingTestRepositories{}, err
 	}
-	deps := newStaffMembershipDeps(
-		NewPersonRepository(db),
-		authRepo.NewAccountRepository(db),
-		authRepo.NewAccountTenantRepository(db),
-		authRepo.NewPermissionRepository(db),
-		authRepo.NewRoleRepository(db),
-	)
+	deps := newStaffMembershipDeps(NewPersonRepository(db), newIdentityAccess(db, nil))
 	groupTeachers := newGroupTeacherRepository(membership, educationRepo.NewGroupRepository(db))
 	deps.groupTeachers = func() educationModels.GroupTeacherRepository { return groupTeachers }
 	return ParentMessagingTestRepositories{

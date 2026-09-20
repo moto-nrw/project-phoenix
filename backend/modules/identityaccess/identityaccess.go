@@ -325,6 +325,7 @@ type AccountSessionAccess interface {
 type Engine interface {
 	RFIDCards
 	AccountRoleQueries
+	StaffAccountQueries
 	GuardianSchools
 	GuardianAccess
 	OperatorAccess
