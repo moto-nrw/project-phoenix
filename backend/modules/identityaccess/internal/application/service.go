@@ -69,6 +69,35 @@ func (s *Service) FindAccountByEmail(ctx context.Context, email string) (result 
 	return result, err
 }
 
+// FindAccountsByEmails resolves a batch of normalized e-mail addresses in
+// one read. It is used by bulk workflows that must not resolve one account
+// per contact.
+func (s *Service) FindAccountsByEmails(ctx context.Context, emails []string) (result map[string]domain.Account, err error) {
+	normalized := make([]string, 0, len(emails))
+	seen := make(map[string]bool, len(emails))
+	for _, email := range emails {
+		email = strings.TrimSpace(strings.ToLower(email))
+		if email == "" || seen[email] {
+			continue
+		}
+		seen[email] = true
+		normalized = append(normalized, email)
+	}
+	if len(normalized) == 0 {
+		return map[string]domain.Account{}, nil
+	}
+	err = s.run(ctx, s.tx.RunRead, "find_accounts_by_email", func(txCtx context.Context, stats *domain.OperationStats) error {
+		accounts, queryStats, findErr := s.store.FindAccountsByEmails(txCtx, normalized)
+		stats.Add(queryStats)
+		if findErr != nil {
+			return findErr
+		}
+		result = accounts
+		return nil
+	})
+	return result, err
+}
+
 // GrantGuardianTenantAccess reactivates or creates the tenant mapping first
 // and assigns the guardian base role once. Reactivation, not creation, is
 // the contract: a mapping left inactive by an offboarding must not survive

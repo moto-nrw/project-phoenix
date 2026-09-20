@@ -37,6 +37,8 @@ type fakeHooks struct{ fns []func() }
 type fakeRuntime struct {
 	// adminTxCount counts the administrative transactions opened.
 	adminTxCount int
+	locks        []string
+	lockHook     func(string)
 }
 
 func (r *fakeRuntime) WithAdminTx(ctx context.Context, fn func(context.Context) error) error {
@@ -132,6 +134,14 @@ func (r *fakeRuntime) Detach(ctx context.Context) context.Context {
 func (r *fakeRuntime) WithoutTransaction(ctx context.Context) context.Context {
 	ctx = context.WithValue(ctx, fakeTxKey{}, false)
 	return context.WithValue(ctx, fakeAdminKey{}, false)
+}
+
+func (r *fakeRuntime) AcquireLock(_ context.Context, key string) error {
+	r.locks = append(r.locks, key)
+	if r.lockHook != nil {
+		r.lockHook(key)
+	}
+	return nil
 }
 
 func withScope(ctx context.Context, scope string, orgID int64) context.Context {
@@ -368,6 +378,9 @@ func (s *fakeStore) FindAccount(_ context.Context, id int64) (domain.Account, bo
 	return domain.Account{ID: account.ID, Email: account.Email}, ok, stats(), nil
 }
 func (s *fakeStore) FindAccountByEmail(context.Context, string) (domain.Account, bool, domain.OperationStats, error) {
+	panic("not used")
+}
+func (s *fakeStore) FindAccountsByEmails(context.Context, []string) (map[string]domain.Account, domain.OperationStats, error) {
 	panic("not used")
 }
 func (s *fakeStore) EnsureActiveTenantMapping(context.Context, int64, int64) (domain.OperationStats, error) {

@@ -7,6 +7,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
@@ -94,6 +95,29 @@ func (s *Store) FindAccountByEmail(ctx context.Context, email string) (domain.Ac
 		return domain.Account{}, false, stats, nil
 	}
 	return domain.Account{ID: rows[0].ID, Email: rows[0].Email}, true, stats, nil
+}
+
+// FindAccountsByEmails resolves normalized e-mail addresses in one query.
+func (s *Store) FindAccountsByEmails(ctx context.Context, emails []string) (map[string]domain.Account, domain.OperationStats, error) {
+	accounts := make(map[string]domain.Account)
+	if len(emails) == 0 {
+		return accounts, domain.OperationStats{}, nil
+	}
+	db, err := s.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	var rows []accountRow
+	started := time.Now()
+	err = db.NewRaw(`SELECT id, email FROM auth.accounts WHERE LOWER(email) IN (?)`, bun.List(emails)).Scan(ctx, &rows)
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
+	if err != nil {
+		return nil, stats, fmt.Errorf("identity access postgres: find accounts by email: %w", err)
+	}
+	for _, row := range rows {
+		accounts[strings.ToLower(row.Email)] = domain.Account{ID: row.ID, Email: row.Email}
+	}
+	return accounts, stats, nil
 }
 
 // EnsureActiveTenantMapping is an upsert on the (account, tenant) key: a
