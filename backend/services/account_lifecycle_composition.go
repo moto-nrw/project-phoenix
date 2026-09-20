@@ -512,24 +512,6 @@ func (a financialAudit) RecordPayerRemoved(ctx context.Context, guardianProfileI
 	})
 }
 
-// --- access token codec seams -----------------------------------------------
-
-func (c sessionTokenCodec) IssueAccessToken(claims identityaccess.SessionClaims) (string, error) {
-	return c.tokenAuth.CreateJWT(appClaims(claims))
-}
-
-func (c sessionTokenCodec) ParseAccessTokenAllowExpired(token string) (identityaccess.SessionClaims, error) {
-	claims, err := c.tokenAuth.ParseExpiredAccessJWT(token)
-	if err != nil {
-		return identityaccess.SessionClaims{}, err
-	}
-	return sessionClaims(claims), nil
-}
-
-func (c sessionTokenCodec) AccessExpiry() time.Duration { return c.tokenAuth.JwtExpiry }
-
-var _ identityaccessCompose.TokenCodec = sessionTokenCodec{}
-
 // --- device staff PIN -------------------------------------------------------
 
 // StaffPINPrincipal is the verified staff member the device middleware binds

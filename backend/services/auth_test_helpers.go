@@ -224,7 +224,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		repos: sessionRepos, tokenAuth: tokenAuth, settings: settings.Settings, audit: command, logger: logger,
 		operators: operators,
 		mfa: &mfaWiring{
-			repos: r, settings: mfaSettingsService(settings.Settings, settingsOverrides), tokenAuth: tokenAuth,
+			repos: r, settings: mfaSettingsService(settings.Settings, settingsOverrides),
 			dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL,
 			jwtSecret: mfaTestSecret(), logger: logger, backoff: settingsOverrides.mfaBackoff,
 			decorate: settingsOverrides.mfaRecords, capability: settingsOverrides.mfaCapability,
@@ -294,7 +294,7 @@ func IdentityAccessForTests(repos *repositories.Factory, cfg IdentityAccessTestC
 		repos: sessionRepositoriesOf(repos, repos.School), tokenAuth: signer, settings: cfg.Settings,
 		audit: cfg.Audit, logger: logger,
 		mfa: &mfaWiring{
-			repos: repos, settings: cfg.Settings, tokenAuth: signer,
+			repos: repos, settings: cfg.Settings,
 			dispatcher: cfg.Dispatcher, defaultFrom: cfg.DefaultFrom, frontendURL: cfg.FrontendURL,
 			jwtSecret: mfaTestSecret(), logger: logger,
 		},

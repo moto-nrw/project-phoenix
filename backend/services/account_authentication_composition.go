@@ -95,6 +95,10 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 	if wiring.repos.schools.schools == nil || wiring.repos.persons == nil || wiring.repos.authEvents == nil || wiring.repos.pushSubscriptions == nil || wiring.tokenAuth == nil || wiring.audit == nil {
 		return nil, errors.New("identity access composition: repositories, token auth and audit command are required")
 	}
+	codec, err := identityaccessCompose.NewSessionTokenCodec(wiring.tokenAuth.JwtAuth, wiring.tokenAuth.JwtExpiry, wiring.tokenAuth.JwtRefreshExpiry)
+	if err != nil {
+		return nil, err
+	}
 	observe := func(identityaccessCompose.Observation) {}
 	if wiring.observe != nil {
 		observe = func(observation identityaccessCompose.Observation) {
@@ -121,7 +125,7 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 		Lifecycle:            lifecycle,
 		Resets:               resets,
 		Invitations:          invitations,
-		MFA:                  mfaDependencies(wiring.mfa),
+		MFA:                  mfaDependencies(wiring.mfa, codec),
 		OperatorProvisioning: operatorLinks,
 		DB:                   db,
 		Observe:              observe,
@@ -129,7 +133,7 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 			Schools:       wiring.repos.schools,
 			Persons:       personDirectory{persons: wiring.repos.persons},
 			Passwords:     passwordVerifier{},
-			Codec:         sessionTokenCodec{tokenAuth: wiring.tokenAuth},
+			Codec:         codec,
 			MFALock:       mfaPolicyLock{settings: wiring.settings},
 			Audit:         authAudit{command: wiring.audit, events: wiring.repos.authEvents},
 			Push:          pushSubscriptionCleanup{subscriptions: wiring.repos.pushSubscriptions},
@@ -267,78 +271,6 @@ type passwordVerifier struct{}
 func (passwordVerifier) VerifyPassword(password, hash string) (bool, error) {
 	return securityruntime.VerifyPassword(password, hash)
 }
-
-type sessionTokenCodec struct{ tokenAuth *authjwt.TokenAuth }
-
-func appClaims(claims identityaccess.SessionClaims) authjwt.AppClaims {
-	return authjwt.AppClaims{
-		ID: int(claims.AccountID), Sub: claims.Email, Username: claims.Username, FirstName: claims.FirstName, LastName: claims.LastName,
-		Roles: claims.Roles, Permissions: claims.Permissions, IsAdmin: claims.IsAdmin, Scope: claims.Scope,
-		TenantID: claims.TenantID, OrgID: claims.OrgID, FamilyID: claims.FamilyID,
-		ReadOnly: claims.ReadOnly, ActingAdminID: claims.ActingAdminID, PreviewID: claims.PreviewID,
-		CommonClaims: authjwt.CommonClaims{ExpiresAt: claims.ExpiresAt, IssuedAt: claims.IssuedAt},
-	}
-}
-
-func sessionClaims(claims *authjwt.AppClaims) identityaccess.SessionClaims {
-	return identityaccess.SessionClaims{
-		AccountID: int64(claims.ID), Email: claims.Sub, Username: claims.Username, FirstName: claims.FirstName, LastName: claims.LastName,
-		Roles: claims.Roles, Permissions: claims.Permissions, IsAdmin: claims.IsAdmin, Scope: claims.Scope,
-		TenantID: claims.TenantID, OrgID: claims.OrgID, FamilyID: claims.FamilyID,
-		ReadOnly: claims.ReadOnly, ActingAdminID: claims.ActingAdminID, PreviewID: claims.PreviewID,
-		ExpiresAt: claims.ExpiresAt, IssuedAt: claims.IssuedAt,
-	}
-}
-
-func (c sessionTokenCodec) IssueTokenPair(access identityaccess.SessionClaims, refresh identityaccess.RefreshClaims) (string, string, error) {
-	return c.tokenAuth.GenTokenPair(appClaims(access), authjwt.RefreshClaims{
-		ID: int(refresh.AccountID), Token: refresh.Token, TenantID: refresh.TenantID, Scope: refresh.Scope,
-		CommonClaims: authjwt.CommonClaims{ExpiresAt: refresh.ExpiresAt},
-	})
-}
-
-func (c sessionTokenCodec) IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, ttl time.Duration) (string, error) {
-	enrollmentScope := authjwt.MFAEnrollmentScopeTenant
-	switch scope {
-	case "school":
-		enrollmentScope = authjwt.MFAEnrollmentScopeSchool
-	case "platform":
-		enrollmentScope = authjwt.MFAEnrollmentScopePlatform
-	}
-	return c.tokenAuth.CreateMFAEnrollmentJWT(authjwt.MFAEnrollmentClaims{AccountID: accountID, Scope: enrollmentScope, TenantID: tenantID}, ttl)
-}
-
-func (c sessionTokenCodec) ParseAccessToken(token string) (identityaccess.SessionClaims, error) {
-	claims, err := c.tokenAuth.ParseAccessJWT(token)
-	if err != nil {
-		return identityaccess.SessionClaims{}, err
-	}
-	return sessionClaims(claims), nil
-}
-
-func (c sessionTokenCodec) ParseRefreshToken(token string) (identityaccess.RefreshClaims, error) {
-	decoded, err := c.tokenAuth.JwtAuth.Decode(token)
-	if err != nil {
-		return identityaccess.RefreshClaims{}, err
-	}
-	raw := make(map[string]any)
-	for _, key := range decoded.Keys() {
-		var value any
-		if decoded.Get(key, &value) == nil {
-			raw[key] = value
-		}
-	}
-	var claims authjwt.RefreshClaims
-	if err := claims.ParseClaims(raw); err != nil {
-		return identityaccess.RefreshClaims{}, err
-	}
-	if expiry, ok := decoded.Expiration(); ok {
-		claims.ExpiresAt = expiry.Unix()
-	}
-	return identityaccess.RefreshClaims{AccountID: int64(claims.ID), Token: claims.Token, TenantID: claims.TenantID, Scope: claims.Scope, ExpiresAt: claims.ExpiresAt}, nil
-}
-
-func (c sessionTokenCodec) RefreshExpiry() time.Duration { return c.tokenAuth.JwtRefreshExpiry }
 
 type mfaPolicyLock struct{ settings config.SettingsService }
 

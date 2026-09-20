@@ -14,7 +14,6 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/services/config"
 )
@@ -37,7 +36,6 @@ var mfaEmailBackoff = []time.Duration{
 type mfaWiring struct {
 	repos       *repositories.Factory
 	settings    config.SettingsService
-	tokenAuth   *authjwt.TokenAuth
 	dispatcher  *email.Dispatcher
 	defaultFrom email.Email
 	frontendURL string
@@ -57,8 +55,8 @@ type mfaWiring struct {
 	passkeys *identityaccessCompose.PasskeyDependencies
 }
 
-func mfaDependencies(wiring *mfaWiring) *identityaccessCompose.MFADependencies {
-	if wiring == nil || wiring.repos == nil || wiring.tokenAuth == nil {
+func mfaDependencies(wiring *mfaWiring, codec identityaccessCompose.MFAChallengeCodec) *identityaccessCompose.MFADependencies {
+	if wiring == nil || wiring.repos == nil || codec == nil {
 		return nil
 	}
 	logger := wiring.logger
@@ -72,7 +70,7 @@ func mfaDependencies(wiring *mfaWiring) *identityaccessCompose.MFADependencies {
 	return &identityaccessCompose.MFADependencies{
 		DecorateRecords: wiring.decorate,
 		Settings:        mfaSettings{settings: wiring.settings},
-		Codec:           mfaChallengeCodec{tokenAuth: wiring.tokenAuth},
+		Codec:           codec,
 		Codes:           shortCodeHasher{},
 		Mail: mfaMailer{
 			dispatcher: wiring.dispatcher, from: wiring.defaultFrom,
@@ -163,26 +161,6 @@ func (s mfaSettings) LockoutDuration(ctx context.Context, tenantID int64) (time.
 }
 
 // --- the challenge codec and the code hasher ---------------------------------
-
-type mfaChallengeCodec struct{ tokenAuth *authjwt.TokenAuth }
-
-func (c mfaChallengeCodec) IssueChallengeToken(claims identityaccess.MFAChallengeClaims, ttl time.Duration) (string, error) {
-	return c.tokenAuth.CreateMFAChallengeJWT(authjwt.MFAChallengeClaims{
-		AccountID: claims.AccountID, Scope: claims.Scope,
-		TenantID: claims.TenantID, ChallengeID: claims.ChallengeID,
-	}, ttl)
-}
-
-func (c mfaChallengeCodec) ParseChallengeToken(token string) (identityaccess.MFAChallengeClaims, error) {
-	claims, err := c.tokenAuth.ParseMFAChallengeJWT(token)
-	if err != nil {
-		return identityaccess.MFAChallengeClaims{}, err
-	}
-	return identityaccess.MFAChallengeClaims{
-		AccountID: claims.AccountID, Scope: claims.Scope,
-		TenantID: claims.TenantID, ChallengeID: claims.ChallengeID,
-	}, nil
-}
 
 // shortCodeHasher routes the e-mail codes through the project-wide Argon2id
 // helper, so tuning its parameters reaches MFA codes too.

@@ -1599,13 +1599,6 @@ func newFactory(
 		return nil, fmt.Errorf("NEXT_PUBLIC_OPERATOR_HOSTNAME is required")
 	}
 
-	// The MFA challenge JWTs are signed with their own token auth, as the
-	// retained service did, so the session signer's durations stay separate.
-	mfaTokenAuth, err := authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
-	if err != nil {
-		return nil, fmt.Errorf("init mfa token auth: %w", err)
-	}
-
 	sessionTokenAuth, err := authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
 	if err != nil {
 		return nil, fmt.Errorf("invalid auth JWT configuration: %w", err)
@@ -1652,7 +1645,7 @@ func newFactory(
 		logger:    authLogger,
 		observe:   observeIdentityAccess,
 		mfa: &mfaWiring{
-			repos: repos, settings: settingsService, tokenAuth: mfaTokenAuth,
+			repos: repos, settings: settingsService,
 			dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL,
 			jwtSecret: cfg.JWTSecret, logger: authLogger,
 			passkeys: &identityaccessCompose.PasskeyDependencies{
