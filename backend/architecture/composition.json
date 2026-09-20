@@ -103,7 +103,7 @@
       "declaration": "NewFactoryWithPeopleDirectory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        19
+        18
       ],
       "tables": []
     },
@@ -113,7 +113,7 @@
       "declaration": "NewStudentScheduleRepositories",
       "target": "database/repositories.NewFactory",
       "lines": [
-        41
+        26
       ],
       "tables": []
     },

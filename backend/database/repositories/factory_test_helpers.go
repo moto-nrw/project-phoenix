@@ -1,7 +1,6 @@
 package repositories
 
 import (
-	"context"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -19,20 +18,6 @@ func NewFactoryWithPeopleDirectory(db *bun.DB, dependencies TimetableDependencie
 	factory := NewFactory(db, dependencies, clocks...)
 	factory.BindPeopleDirectory(persons)
 	return factory, nil
-}
-
-// NewCareStudentLock composes the People Directory's student row lock for
-// test graphs that bind timetable services without services.NewFactory
-// (#2662). It returns the lock and the sentinel the lock reports for a
-// missing child; the directory reads the transaction from the context, so
-// any open pool of the test database serves as the composition anchor.
-func NewCareStudentLock(db *bun.DB) (lock func(context.Context, int64) error, notFound error, err error) {
-	persons, err := NewPeopleDirectory(db)
-	if err != nil {
-		return nil, nil, err
-	}
-	lock, notFound = CareStudentLock(persons)
-	return lock, notFound, nil
 }
 
 // NewStudentScheduleRepositories composes only the student schedule adapters
