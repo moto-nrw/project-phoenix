@@ -14,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
@@ -533,7 +533,7 @@ func (rs *Resource) enrichWithCareExitFlag(ctx context.Context, responses []Stud
 // applyPickupTimesFromMap writes already-loaded effective pickup times onto the
 // responses without touching the database, so a pipeline stage that has the
 // bulk map in hand does not re-run the three pickup SELECTs (#2098).
-func applyPickupTimesFromMap(responses []StudentResponse, pickupTimes map[int64]*careschedule.EffectivePickupTime) {
+func applyPickupTimesFromMap(responses []StudentResponse, pickupTimes map[int64]*careplan.EffectivePickupTime) {
 	for i := range responses {
 		if !responses[i].HasFullAccess {
 			continue
@@ -552,7 +552,7 @@ func applyPickupTimesFromMap(responses []StudentResponse, pickupTimes map[int64]
 // applyArrivalTimesFromMap writes already-loaded effective arrival times onto
 // the responses without touching the database, so a pipeline stage that has the
 // bulk map in hand does not re-run the three arrival SELECTs (#2098).
-func applyArrivalTimesFromMap(responses []StudentResponse, arrivalTimes map[int64]*careschedule.EffectiveArrivalTime) {
+func applyArrivalTimesFromMap(responses []StudentResponse, arrivalTimes map[int64]*careplan.EffectiveArrivalTime) {
 	for i := range responses {
 		if !responses[i].HasFullAccess {
 			continue
@@ -569,7 +569,7 @@ func applyArrivalTimesFromMap(responses []StudentResponse, arrivalTimes map[int6
 }
 
 // buildPickupNotes combines exception reason and day notes into a single string.
-func buildPickupNotes(ept *careschedule.EffectivePickupTime) string {
+func buildPickupNotes(ept *careplan.EffectivePickupTime) string {
 	var parts []string
 	if ept.Notes != "" {
 		parts = append(parts, ept.Notes)
@@ -583,7 +583,7 @@ func buildPickupNotes(ept *careschedule.EffectivePickupTime) string {
 }
 
 // buildArrivalNotes combines exception reason and day notes into a single string.
-func buildArrivalNotes(eat *careschedule.EffectiveArrivalTime) string {
+func buildArrivalNotes(eat *careplan.EffectiveArrivalTime) string {
 	var parts []string
 	if eat.Notes != "" {
 		parts = append(parts, eat.Notes)

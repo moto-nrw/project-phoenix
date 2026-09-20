@@ -310,7 +310,7 @@ func resolveArrivalSlotFromPreload(pre *timetableplanning.StudentWeekPreload, da
 	case SlotSourceException:
 		return mapArrivalExceptionSlot(exc)
 	case SlotSourceSchedule:
-		return mapArrivalScheduleSlot(sched)
+		return mapArrivalScheduleSlot(sched.ExpectedArrival)
 	default:
 		return SlotResponse{Source: SlotSourceNone}
 	}
@@ -328,7 +328,7 @@ func resolvePickupSlotFromPreload(pre *timetableplanning.StudentWeekPreload, dat
 	case SlotSourceException:
 		return mapPickupExceptionSlot(exc)
 	case SlotSourceSchedule:
-		return mapPickupScheduleSlot(sched)
+		return mapPickupScheduleSlot(sched.PickupTime)
 	default:
 		return SlotResponse{Source: SlotSourceNone}
 	}

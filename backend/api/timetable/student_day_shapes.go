@@ -129,12 +129,12 @@ func mapUnplannedInstance(inst *scheduleModel.ActivityInstance, visit studentpre
 }
 
 // mapArrivalScheduleSlot maps a recurring weekly schedule to the slot shape.
-func mapArrivalScheduleSlot(s *scheduleModel.StudentArrivalSchedule) SlotResponse {
+func mapArrivalScheduleSlot(expectedArrival time.Time) SlotResponse {
 	resp := SlotResponse{Source: SlotSourceSchedule}
 	// A care day whose class carries no time has no arrival time. Formatting
 	// the zero value would report 00:00 (#2414).
-	if !s.ExpectedArrival.IsZero() {
-		t := s.ExpectedArrival.Format("15:04")
+	if !expectedArrival.IsZero() {
+		t := expectedArrival.Format("15:04")
 		resp.ExpectedTime = &t
 	}
 	return resp
@@ -156,8 +156,8 @@ func mapArrivalExceptionSlot(e *scheduleModel.StudentArrivalException) SlotRespo
 }
 
 // mapPickupScheduleSlot mirrors mapArrivalScheduleSlot for pickup.
-func mapPickupScheduleSlot(s *scheduleModel.StudentPickupSchedule) SlotResponse {
-	t := s.PickupTime.Format("15:04")
+func mapPickupScheduleSlot(pickupTime time.Time) SlotResponse {
+	t := pickupTime.Format("15:04")
 	return SlotResponse{
 		ExpectedTime: &t,
 		Source:       SlotSourceSchedule,

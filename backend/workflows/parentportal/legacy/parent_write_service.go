@@ -11,8 +11,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -20,7 +18,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -31,6 +29,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
+	"github.com/uptrace/bun"
 )
 
 // maxParentNoteLen bounds a single note so a parent can't paste a novel
@@ -338,21 +337,19 @@ func (s *service) ensureNoPartialAbsenceForStatusWrite(
 	if s.DB == nil {
 		return errors.New("parent: database is not configured")
 	}
-	if s.PickupExceptionRepo == nil {
+	if s.CareExceptions == nil {
 		return errors.New("parent: pickup exception repository is not configured")
 	}
 
 	sortedDates := append([]timezone.Date(nil), dates...)
 	slices.SortFunc(sortedDates, timezone.Date.Compare)
 	for _, date := range sortedDates {
-		if err := careschedule.LockCareExceptionDay(ctx, s.DB, studentID, date); err != nil {
+		if err := s.CareExceptions.LockStudentAndExceptionDay(ctx, studentID, date.String()); err != nil {
 			return err
 		}
 	}
 
-	rows, err := s.PickupExceptionRepo.FindByStudentIDAndDateRange(
-		ctx, studentID, scheduleModels.Date(sortedDates[0]), scheduleModels.Date(sortedDates[len(sortedDates)-1]),
-	)
+	rows, err := s.CareExceptions.ListPickupExceptions(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{studentID}, From: careplan.Date(sortedDates[0]), To: careplan.Date(sortedDates[len(sortedDates)-1])})
 	if err != nil {
 		return err
 	}
@@ -493,12 +490,6 @@ func visibleExcusedRequests(
 	return out
 }
 
-// guardianReasonRequired answers whether the submitting family must state a
-// reason (#2267, story 28).
-func (s *service) guardianReasonRequired(ctx context.Context, tenantID int64) bool {
-	return s.care.GuardianReasonRequired(ctx, tenantID)
-}
-
 // mapExcusedRequestError translates the absence domain's sentinels into the
 // parent package's, so handlers keep switching on one set. Everything else is
 // wrapped, which keeps errors.Is working for the shared request sentinels
@@ -583,7 +574,7 @@ func (s *service) EditExcusedRequest(
 func (s *service) EditPickupChangeRequest(
 	ctx context.Context, accountID, studentID, requestID int64,
 	date timezone.Date, pickupTime time.Time, reason, expectedVersion string,
-) (*scheduleModels.CareScheduleChangeRequest, error) {
+) (*carerequests.Request, error) {
 	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPickupManage)
 	if err != nil {
 		return nil, err
@@ -594,7 +585,7 @@ func (s *service) EditPickupChangeRequest(
 	if s.CareRequests == nil {
 		return nil, errors.New("parent: pickup change request service not configured")
 	}
-	var out *scheduleModels.CareScheduleChangeRequest
+	var out *carerequests.Request
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
@@ -607,7 +598,7 @@ func (s *service) EditPickupChangeRequest(
 		if err != nil {
 			return err
 		}
-		req, editErr := s.CareRequests.EditRequest(txCtx, careschedule.CareRequestEditInput{
+		req, editErr := s.CareRequests.EditRequest(txCtx, carerequests.EditInput{
 			RequestID:         requestID,
 			StudentID:         studentID,
 			GuardianAccountID: accountID,
@@ -713,7 +704,7 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	if !pickupChange {
 		pickupCutoffClock = ""
 	}
-	pickupCutoff, err := careschedule.NewSameDayCutoff(pickupCutoffClock, s.now())
+	pickupCutoff, err := careplan.NewSameDayCutoff(pickupCutoffClock, s.now())
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: %w", err)
 	}
@@ -1111,7 +1102,7 @@ func (s *service) SubmitCareExceptionWithReason(ctx context.Context, accountID, 
 	return s.submitCareException(ctx, accountID, studentID, date, pickupTime, &trimmedReason)
 }
 
-func (s *service) SubmitPickupChangeRequest(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime time.Time, reason string, recipientGuardianProfileIDs []int64) (*scheduleModels.CareScheduleChangeRequest, error) {
+func (s *service) SubmitPickupChangeRequest(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime time.Time, reason string, recipientGuardianProfileIDs []int64) (*carerequests.Request, error) {
 	reason = strings.TrimSpace(reason)
 	if pickupTime.IsZero() {
 		return nil, ErrNoCareException
@@ -1152,7 +1143,7 @@ func (s *service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 	if s.CareRequests == nil {
 		return nil, errors.New("parent: pickup change request service not configured")
 	}
-	var result *scheduleModels.CareScheduleChangeRequest
+	var result *carerequests.Request
 	err = tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
@@ -1161,7 +1152,7 @@ func (s *service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
-		if err := careschedule.LockCareExceptionDay(txCtx, s.DB, studentID, date); err != nil {
+		if err := s.CareExceptions.LockStudentAndExceptionDay(txCtx, studentID, date.String()); err != nil {
 			return err
 		}
 		staffOwned, checkErr := s.pickupHasStaffException(txCtx, studentID, date)
@@ -1185,7 +1176,7 @@ func (s *service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 		if !policy.enabled {
 			return ErrPickupChangeDisabled
 		}
-		created, createErr := s.CareRequests.CreatePickupChange(txCtx, careschedule.PickupChangeCreateInput{
+		created, createErr := s.CareRequests.CreatePickupChange(txCtx, carerequests.PickupChangeCreateInput{
 			StudentID:         studentID,
 			GuardianAccountID: accountID,
 			Date:              date,
@@ -1213,82 +1204,6 @@ func (s *service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 		return nil, care.MapCareRequestError(err, "submit pickup change request")
 	}
 	return result, nil
-}
-
-func (s *service) ListPickupChangeRequests(ctx context.Context, accountID, studentID int64) ([]*scheduleModels.CareScheduleChangeRequest, error) {
-	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
-	if err != nil {
-		return nil, err
-	}
-	if s.CareRequests == nil {
-		return nil, errors.New("parent: pickup change request service not configured")
-	}
-	var rows []*scheduleModels.CareScheduleChangeRequest
-	err = tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		var listErr error
-		rows, listErr = s.CareRequests.ListPickupChangeRequests(txCtx, studentID, time.Now().AddDate(0, -2, 0))
-		if listErr != nil {
-			return listErr
-		}
-		visibility, visibilityErr := s.loadRequestShareVisibility(txCtx, studentID)
-		if visibilityErr != nil {
-			return visibilityErr
-		}
-		visible := rows[:0]
-		for _, row := range rows {
-			if row != nil && visibility.Allows(RequestSharePickupChange, row.ID, accountID, row.SubmittedBy) {
-				visible = append(visible, row)
-			}
-		}
-		rows = visible
-		s.enrichLegacyPickupChangeRequests(txCtx, studentID, rows)
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("parent: list pickup change requests: %w", err)
-	}
-	return rows, nil
-}
-
-func (s *service) enrichLegacyPickupChangeRequests(ctx context.Context, studentID int64, rows []*scheduleModels.CareScheduleChangeRequest) {
-	if s.PickupSchedules == nil {
-		return
-	}
-	for _, row := range rows {
-		if row == nil || row.Status != scheduleModels.CareRequestStatusPending {
-			continue
-		}
-		if previous, _ := row.Payload["previous_pickup_time"].(string); previous != "" {
-			continue
-		}
-		dateRaw, _ := row.Payload["date"].(string)
-		date, err := timezone.ParseDate(dateRaw)
-		if err != nil {
-			s.Logger.Warn("parent: legacy pickup request has invalid date",
-				"request_id", row.ID,
-				"student_id", studentID,
-			)
-			continue
-		}
-		effective, err := s.PickupSchedules.GetEffectivePickupTimeForDate(ctx, studentID, date)
-		if err != nil {
-			s.Logger.Warn("parent: resolve legacy pickup request baseline failed",
-				"request_id", row.ID,
-				"student_id", studentID,
-				"error", err,
-			)
-			continue
-		}
-		if effective == nil || effective.PickupTime == nil {
-			continue
-		}
-		payload := make(map[string]any, len(row.Payload)+1)
-		for key, value := range row.Payload {
-			payload[key] = value
-		}
-		payload["previous_pickup_time"] = effective.PickupTime.Format("15:04")
-		row.Payload = payload
-	}
 }
 
 func (s *service) submitCareException(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime *time.Time, reason *string) (*CareException, error) {
@@ -1335,7 +1250,7 @@ func (s *service) submitCareException(ctx context.Context, accountID, studentID 
 		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
-		if err := careschedule.LockCareExceptionDay(txCtx, s.DB, studentID, date); err != nil {
+		if err := s.CareExceptions.LockStudentAndExceptionDay(txCtx, studentID, date.String()); err != nil {
 			return err
 		}
 
@@ -1374,7 +1289,7 @@ func (s *service) submitCareException(ctx context.Context, accountID, studentID 
 		// weekly baseline excuses the blocks after the new time; moving it
 		// back (or clearing it) releases them again.
 		if s.PickupAutoExcusal != nil {
-			if row, findErr := s.PickupExceptionRepo.FindByStudentIDAndDate(txCtx, studentID, scheduleModels.Date(date)); findErr != nil {
+			if row, findErr := s.pickupExceptionForDate(txCtx, studentID, careplan.Date(date)); findErr != nil {
 				return findErr
 			} else if row != nil {
 				if _, err := s.PickupAutoExcusal.Sync(txCtx, row.ID); err != nil {
@@ -1442,7 +1357,7 @@ func (s *service) childAlreadyLeftToday(ctx context.Context, studentID int64, da
 // An AUTO-derived partial absence is the school's own bookkeeping, not a
 // decision, so only a manual one counts (#2360).
 func (s *service) pickupHasStaffException(ctx context.Context, studentID int64, date timezone.Date) (bool, error) {
-	pickup, err := s.PickupExceptionRepo.FindByStudentIDAndDate(ctx, studentID, scheduleModels.Date(date))
+	pickup, err := s.pickupExceptionForDate(ctx, studentID, careplan.Date(date))
 	if err != nil {
 		return false, err
 	}
@@ -1458,22 +1373,22 @@ func (s *service) pickupHasStaffException(ctx context.Context, studentID int64, 
 // touched (neither overwritten nor deleted).
 func (s *service) applyGuardianPickupException(ctx context.Context, studentID, tenantID int64, date timezone.Date, pickupTime *time.Time, reason *string, guardianID int64) error {
 	return applyGuardianTimeException(ctx, pickupTime,
-		func(ctx context.Context) (*scheduleModels.StudentPickupException, error) {
-			return s.PickupExceptionRepo.FindByStudentIDAndDate(ctx, studentID, scheduleModels.Date(date))
+		func(ctx context.Context) (*careplan.PickupException, error) {
+			return s.pickupExceptionForDate(ctx, studentID, careplan.Date(date))
 		},
-		func(e *scheduleModels.StudentPickupException) string { return e.Source },
-		func(ctx context.Context, e *scheduleModels.StudentPickupException) error {
+		func(e *careplan.PickupException) string { return e.Source },
+		func(ctx context.Context, e *careplan.PickupException) error {
 			// Release the auto excusal's block absences BEFORE the row goes
 			// away — the FK's ON DELETE SET NULL would otherwise strand them
 			// as absent with no provenance to restore from (#2360).
 			if s.PickupAutoExcusal != nil {
-				if err := s.PickupAutoExcusal.ReleaseBeforeDelete(ctx, e); err != nil {
+				if err := s.PickupAutoExcusal.ReleaseBeforeDelete(ctx, &careplan.PickupException{ID: e.ID, ExcusedAuto: e.ExcusedAuto}); err != nil {
 					return err
 				}
 			}
-			return s.PickupExceptionRepo.Delete(ctx, e.ID)
+			return s.CareExceptions.DeletePickupException(ctx, e.ID)
 		},
-		func(ctx context.Context, e *scheduleModels.StudentPickupException) error {
+		func(ctx context.Context, e *careplan.PickupException) error {
 			e.PickupTime = pickupTime
 			e.Reason = reason
 			e.Source = scheduleModels.ExceptionSourceGuardian
@@ -1482,19 +1397,20 @@ func (s *service) applyGuardianPickupException(ctx context.Context, studentID, t
 			// Re-anchor scanned TIME values (e.g. a carried-over excused_from)
 			// before the full-row update — the driver scans them onto year 0.
 			e.NormalizeWallClockTimes()
-			return s.PickupExceptionRepo.Update(ctx, e)
+			return s.CareExceptions.UpdatePickupException(ctx, *e)
 		},
 		func(ctx context.Context) error {
-			entity := &scheduleModels.StudentPickupException{
+			entity := &careplan.PickupException{
 				StudentID:         studentID,
-				ExceptionDate:     scheduleModels.Date(date),
+				ExceptionDate:     careplan.Date(date),
 				PickupTime:        pickupTime,
 				Reason:            reason,
 				Source:            scheduleModels.ExceptionSourceGuardian,
 				CreatedByGuardian: &guardianID,
 			}
-			entity.SetTenantID(tenantID)
-			return s.PickupExceptionRepo.Create(ctx, entity)
+			entity.TenantID = tenantID
+			_, err := s.CareExceptions.CreatePickupException(ctx, *entity)
+			return err
 		})
 }
 
@@ -1532,11 +1448,11 @@ func applyGuardianTimeException[P any, E *P](ctx context.Context, t *time.Time,
 // loadCareException merges the pickup and arrival exceptions for one date into
 // the parent-facing projection. Returns nil if neither leg has a row.
 func (s *service) loadCareException(ctx context.Context, studentID int64, date timezone.Date) (*CareException, error) {
-	pickup, err := s.PickupExceptionRepo.FindByStudentIDAndDate(ctx, studentID, scheduleModels.Date(date))
+	pickup, err := s.pickupExceptionForDate(ctx, studentID, careplan.Date(date))
 	if err != nil {
 		return nil, err
 	}
-	arrival, err := s.ArrivalExceptionRepo.FindByStudentIDAndDate(ctx, studentID, scheduleModels.Date(date))
+	arrival, err := s.arrivalExceptionForDate(ctx, studentID, careplan.Date(date))
 	if err != nil {
 		return nil, err
 	}
@@ -1589,11 +1505,11 @@ func (s *service) ListCareExceptions(ctx context.Context, accountID, studentID i
 
 	var out []*CareException
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		pickups, err := s.PickupExceptionRepo.FindByStudentIDAndDateRange(txCtx, studentID, scheduleModels.Date(from), scheduleModels.Date(to))
+		pickups, err := s.CareExceptions.ListPickupExceptions(txCtx, careplan.StudentScheduleFilter{StudentIDs: []int64{studentID}, From: careplan.Date(from), To: careplan.Date(to)})
 		if err != nil {
 			return err
 		}
-		arrivals, err := s.ArrivalExceptionRepo.FindByStudentIDAndDateRange(txCtx, studentID, scheduleModels.Date(from), scheduleModels.Date(to))
+		arrivals, err := s.CareExceptions.ListArrivalExceptions(txCtx, careplan.StudentScheduleFilter{StudentIDs: []int64{studentID}, From: careplan.Date(from), To: careplan.Date(to)})
 		if err != nil {
 			return err
 		}
@@ -1638,7 +1554,7 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
-		if err := careschedule.LockCareExceptionDay(txCtx, s.DB, studentID, date); err != nil {
+		if err := s.CareExceptions.LockStudentAndExceptionDay(txCtx, studentID, date.String()); err != nil {
 			return err
 		}
 		alreadyLeft, err := s.childAlreadyLeftToday(txCtx, studentID, date, today)
@@ -1648,7 +1564,7 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 		if alreadyLeft {
 			return ErrCareExceptionAlreadyLeft
 		}
-		pickup, err := s.PickupExceptionRepo.FindByStudentIDAndDate(txCtx, studentID, scheduleModels.Date(date))
+		pickup, err := s.pickupExceptionForDate(txCtx, studentID, careplan.Date(date))
 		if err != nil {
 			return err
 		}
@@ -1673,11 +1589,11 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 		// override releases the excused blocks before the row is removed
 		// (#2360).
 		if s.PickupAutoExcusal != nil {
-			if err := s.PickupAutoExcusal.ReleaseBeforeDelete(txCtx, pickup); err != nil {
+			if err := s.PickupAutoExcusal.ReleaseBeforeDelete(txCtx, &careplan.PickupException{ID: pickup.ID, ExcusedAuto: pickup.ExcusedAuto}); err != nil {
 				return err
 			}
 		}
-		if err := s.PickupExceptionRepo.Delete(txCtx, pickup.ID); err != nil {
+		if err := s.CareExceptions.DeletePickupException(txCtx, pickup.ID); err != nil {
 			return err
 		}
 		pickupDeleted = true
@@ -1702,7 +1618,7 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 
 // mergeCareExceptions joins pickup and arrival exception rows by date into the
 // parent-facing projection, sorted ascending by date.
-func mergeCareExceptions(pickups []*scheduleModels.StudentPickupException, arrivals []*scheduleModels.StudentArrivalException, accountID int64) []*CareException {
+func mergeCareExceptions(pickups []careplan.PickupException, arrivals []careplan.ArrivalException, accountID int64) []*CareException {
 	byDate := make(map[timezone.Date]*CareException)
 	order := make([]timezone.Date, 0, len(pickups)+len(arrivals))
 	get := func(date timezone.Date) *CareException {
@@ -1743,7 +1659,7 @@ func mergeCareExceptions(pickups []*scheduleModels.StudentPickupException, arriv
 		// timeless pickup row. It creates no status day either, so carry the
 		// distinction to the parent UI: an arrival-only absence must resolve to
 		// an absence, not fall through to a regular pickup time (#1725 review).
-		ce.ArrivalAbsent = a.IsAbsent()
+		ce.ArrivalAbsent = a.ExpectedArrival == nil
 		if a.UpdatedAt.After(ce.UpdatedAt) {
 			ce.UpdatedAt = a.UpdatedAt
 		}
@@ -1816,12 +1732,12 @@ func firstStatusID(rows []*activeModels.StudentStatusDay) *int64 {
 // submission wrote (pickup preferred, else arrival). Best-effort: a lookup
 // failure just leaves the pill without a ref.
 func (s *service) careExceptionRef(ctx context.Context, studentID int64, date timezone.Date) (string, *int64) {
-	pickup, err := s.PickupExceptionRepo.FindByStudentIDAndDate(ctx, studentID, scheduleModels.Date(date))
+	pickup, err := s.pickupExceptionForDate(ctx, studentID, careplan.Date(date))
 	if err == nil && pickup != nil {
 		id := pickup.ID
 		return "schedule.student_pickup_exceptions", &id
 	}
-	arrival, err := s.ArrivalExceptionRepo.FindByStudentIDAndDate(ctx, studentID, scheduleModels.Date(date))
+	arrival, err := s.arrivalExceptionForDate(ctx, studentID, careplan.Date(date))
 	if err == nil && arrival != nil {
 		id := arrival.ID
 		return "schedule.student_arrival_exceptions", &id

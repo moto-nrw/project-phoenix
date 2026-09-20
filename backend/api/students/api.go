@@ -13,9 +13,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
@@ -92,16 +93,16 @@ type ResourceConfig struct {
 	UserContextService     userContextService.UserContextService
 	ActiveService          activeService.Service
 	IoTService             iotSvc.Service
-	PickupScheduleService  careschedule.PickupScheduleService
-	PartialAbsenceService  careschedule.PartialAbsenceService
-	ArrivalScheduleService careschedule.ArrivalScheduleService
+	PickupScheduleService  careplan.PickupScheduleService
+	PartialAbsenceService  careplan.PartialAbsenceService
+	ArrivalScheduleService careplan.ArrivalScheduleService
 	InstanceService        timetableplanning.InstanceService
 	// CareDayService gates the day-planning timetable signal on the child's
 	// care plan (#1747) — without it a child assigned to a block counts as
 	// "kommt heute" on every weekday, including the ones they are not booked
 	// for. Optional: nil keeps the unfiltered pre-#1747 behaviour, which is
 	// what bare test Resources rely on.
-	CareDayService  careschedule.CareDayService
+	CareDayService  careplan.CareDayQuery
 	SchoolService   SchoolDirectory
 	SettingsService configService.SettingsService
 	StudentService  userService.StudentService
@@ -125,7 +126,8 @@ type ResourceConfig struct {
 	CareLifecycleService    carelifecycle.CareLifecycleService
 	StudentAuditService     userService.StudentAuditService
 	MasterDataReviewService userService.MasterDataReviewService
-	CareRequestService      careschedule.CareScheduleRequestService
+	CareRequestService      carerequests.Decisions
+	CareRequestReviews      careplan.CareScheduleReviewQuery
 	// OfferingChangeService backs the post-enrollment offering-change queue
 	// (#1665).
 	OfferingChangeService    enrollmentService.OfferingChangeRequestService

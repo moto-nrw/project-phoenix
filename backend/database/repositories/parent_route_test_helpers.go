@@ -5,7 +5,6 @@ import (
 
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -15,14 +14,14 @@ import (
 )
 
 type ParentRouteTestRepositories struct {
-	ParentChild            parentModels.ChildRepository
-	Student                usersModels.StudentRepository
-	Person                 usersModels.PersonRepository
-	GuardianProfile        usersModels.GuardianProfileRepository
-	StudentGuardian        usersModels.StudentGuardianRepository
-	StudentStatusDay       activeModels.StudentStatusDayOverviewRepository
-	StudentPickupException scheduleModels.StudentPickupExceptionRepository
-	ExcusedAbsenceRequest  activeModels.ExcusedAbsenceRequestRepository
+	ParentChild           parentModels.ChildRepository
+	Student               usersModels.StudentRepository
+	Person                usersModels.PersonRepository
+	GuardianProfile       usersModels.GuardianProfileRepository
+	StudentGuardian       usersModels.StudentGuardianRepository
+	StudentStatusDay      activeModels.StudentStatusDayOverviewRepository
+	CareExceptions        careplan.Capability
+	ExcusedAbsenceRequest activeModels.ExcusedAbsenceRequestRepository
 	// ExcusedRequests is the Care Plan excused-absence workflow over the same
 	// graph, scoped school-wide because parent routes never decide requests.
 	ExcusedRequests careplan.ExcusedAbsenceRequests
@@ -61,7 +60,7 @@ func NewParentRouteTestRepositories(db *bun.DB) (ParentRouteTestRepositories, er
 	return ParentRouteTestRepositories{
 		ParentChild: r.ParentChild, Student: r.Student, Person: r.Person,
 		GuardianProfile: r.GuardianProfile, StudentGuardian: r.StudentGuardian,
-		StudentStatusDay: r.StudentStatusDay, StudentPickupException: r.StudentPickupException, ExcusedAbsenceRequest: r.ExcusedAbsenceRequest,
+		StudentStatusDay: r.StudentStatusDay, CareExceptions: care, ExcusedAbsenceRequest: r.ExcusedAbsenceRequest,
 		ExcusedRequests: excusedRequests,
 	}, nil
 }

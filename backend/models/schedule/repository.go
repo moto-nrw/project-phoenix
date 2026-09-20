@@ -155,16 +155,7 @@ type RecurrenceRuleRepository interface {
 // ClassArrivalExceptionRepository is the data access boundary for class-wide
 // arrival day exceptions (#2962).
 type ClassArrivalExceptionRepository interface {
-	// FindByClassesAndDateRange returns the exceptions of the given classes
-	// with from <= date <= to, matched case-insensitively on the normalized
-	// class and ordered by date.
-	FindByClassesAndDateRange(ctx context.Context, classes []string, from, to Date) ([]*ClassArrivalException, error)
-
 	// Upsert stores the exception of one class and date, replacing what was
 	// there.
 	Upsert(ctx context.Context, row *ClassArrivalException) error
-
-	// DeleteByClassAndDate removes the exception of one class and date and
-	// reports whether a row existed.
-	DeleteByClassAndDate(ctx context.Context, schoolClass string, date Date) (bool, error)
 }

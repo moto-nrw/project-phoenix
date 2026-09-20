@@ -25,30 +25,45 @@ const (
 // FindClassArrivalExceptions loads the exceptions of the normalized classes
 // inside [from, to], ordered by date and class.
 func (s *Store) FindClassArrivalExceptions(ctx context.Context, classes []string, from, to schedule.Date) ([]*schedule.ClassArrivalException, error) {
+	rows := make([]*schedule.ClassArrivalException, 0)
+	query, err := s.classArrivalExceptionQuery(ctx, classes, from, to, &rows)
+	if err != nil {
+		return nil, err
+	}
+	err = query.Scan(ctx)
+	return rows, err
+}
+
+func (s *Store) classArrivalExceptionQuery(ctx context.Context, classes []string, from, to schedule.Date, rows *[]*schedule.ClassArrivalException) (*bun.SelectQuery, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, err
 	}
-	rows := make([]*schedule.ClassArrivalException, 0)
-	err = db.NewSelect().
-		Model(&rows).
+	return db.NewSelect().
+		Model(rows).
 		ModelTableExpr(classArrivalExceptionTable).
 		Where(`LOWER(BTRIM("class_arrival_exception".school_class)) IN (?)`, bun.List(classes)).
 		Where(`"class_arrival_exception".date >= ?`, from).
 		Where(`"class_arrival_exception".date <= ?`, to).
 		OrderExpr(`"class_arrival_exception".date ASC, LOWER(BTRIM("class_arrival_exception".school_class)) ASC`).
-		Where(`"class_arrival_exception".tenant_id = ?`, tenantID).
-		Scan(ctx)
-	return rows, err
+		Where(`"class_arrival_exception".tenant_id = ?`, tenantID), nil
 }
 
 // UpsertClassArrivalException replaces the exception of one class and date.
 // The unique index on the normalized class plus date is the race-safe
 // backstop.
 func (s *Store) UpsertClassArrivalException(ctx context.Context, row *schedule.ClassArrivalException) error {
-	db, tenantID, err := s.database(ctx)
+	query, err := s.classArrivalExceptionUpsertQuery(ctx, row)
 	if err != nil {
 		return err
+	}
+	return query.Scan(ctx)
+}
+
+func (s *Store) classArrivalExceptionUpsertQuery(ctx context.Context, row *schedule.ClassArrivalException) (*bun.InsertQuery, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return nil, err
 	}
 	if row.TenantID == 0 {
 		row.TenantID = tenantID
@@ -63,28 +78,34 @@ func (s *Store) UpsertClassArrivalException(ctx context.Context, row *schedule.C
 		Set("created_by = EXCLUDED.created_by").
 		Set("origin = EXCLUDED.origin").
 		Set("updated_at = NOW()").
-		Returning("*").
-		Scan(ctx)
+		Returning("*"), nil
 }
 
 // DeleteClassArrivalException removes the exception of one normalized class
 // and date and returns the number of deleted rows.
 func (s *Store) DeleteClassArrivalException(ctx context.Context, class string, date schedule.Date) (int64, error) {
-	db, tenantID, err := s.database(ctx)
+	query, err := s.classArrivalExceptionDeleteQuery(ctx, class, date)
 	if err != nil {
 		return 0, err
 	}
-	result, err := db.NewDelete().
-		Model((*schedule.ClassArrivalException)(nil)).
-		ModelTableExpr(classArrivalExceptionTable).
-		Where(`LOWER(BTRIM("class_arrival_exception".school_class)) = ?`, class).
-		Where(`"class_arrival_exception".date = ?`, date).
-		Where(`"class_arrival_exception".tenant_id = ?`, tenantID).
-		Exec(ctx)
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+func (s *Store) classArrivalExceptionDeleteQuery(ctx context.Context, class string, date schedule.Date) (*bun.DeleteQuery, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return db.NewDelete().
+		Model((*schedule.ClassArrivalException)(nil)).
+		ModelTableExpr(classArrivalExceptionTable).
+		Where(`LOWER(BTRIM("class_arrival_exception".school_class)) = ?`, class).
+		Where(`"class_arrival_exception".date = ?`, date).
+		Where(`"class_arrival_exception".tenant_id = ?`, tenantID), nil
 }
 
 // ReopenCompletedActivityInstance returns a completed instance to active. The

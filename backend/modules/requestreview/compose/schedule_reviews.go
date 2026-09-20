@@ -48,7 +48,7 @@ func NewScheduleReviews(db *bun.DB, deps ScheduleReviewDependencies) (careplan.C
 		People:   scheduleReviewDirectory{reviewDirectory: reviewDirectory{people: deps.People}, departures: deps.People},
 		Bookings: scheduleReviewBookings{query: enrollmentcompose.New(), bookings: carecompose.NewOfferingBookings()}, Classes: classes,
 		Scope: deps.Scope, BookingsAuthoritative: deps.BookingsAuthoritative, Today: deps.Today,
-		Blocks: scheduleReviewBlocks{query: blocks},
+		Blocks: scheduleReviewBlocks{query: blocks}, Fingerprint: pickupImpactFingerprint,
 	})
 }
 

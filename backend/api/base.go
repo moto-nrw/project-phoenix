@@ -53,7 +53,6 @@ import (
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	parentAPI "github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	requestFeedCompose "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/compose"
 	requestFeedHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/http"
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
@@ -207,7 +206,39 @@ func NewCleanupTimetable(db *bun.DB) (timetableModule.Capability, error) {
 	if err != nil {
 		return nil, err
 	}
-	return repositories.NewTimetable(db, students, rooms, careschedule.TimetableCareDayLocker(db))
+	careLocks, err := carePlanCompose.NewDayLocks(db, students.LockStudent, peopleModule.ErrStudentNotFound)
+	if err != nil {
+		return nil, err
+	}
+	return repositories.NewTimetable(db, students, rooms, careLocks)
+}
+
+func composeTimetable(db *bun.DB, persons *peopleModule.Module, rooms *facilitiesModule.Module, membership *schoolMembershipModule.Module) (*timetableModule.Module, error) {
+	careQueries, err := repositories.NewTimetableCarePlanQueries(db, func(observation carePlanCompose.Observation) {
+		observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
+	})
+	if err != nil {
+		return nil, err
+	}
+	careLocks, err := carePlanCompose.NewDayLocks(db, persons.LockStudent, peopleModule.ErrStudentNotFound)
+	if err != nil {
+		return nil, err
+	}
+	return timetableCompose.New(timetableCompose.Dependencies{
+		LockStaffAssignment: func(ctx context.Context, staffID int64) error {
+			_, err := membership.FindStaffForMutation(ctx, staffID)
+			return err
+		},
+		CarePlan: careQueries,
+		DB:       db, Students: timetableStudents(persons), Rooms: timetableRooms(rooms), CareDays: careLocks,
+		Observe: func(observation timetableCompose.Observation) {
+			observability.ObserveTimetableActivitiesOperation(
+				observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows,
+				observation.Stats.DuplicatePreventionConflicts, observation.Stats.StatementDuration,
+				timetableModule.ErrorCode(observation.Err), observation.Err,
+			)
+		},
+	})
 }
 
 func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logger, tenantRuntime apiCommon.TenantRuntime) (moduleServices, error) {
@@ -264,27 +295,7 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	if err != nil {
 		return moduleServices{}, err
 	}
-	careQueries, err := repositories.NewTimetableCarePlanQueries(db, func(observation carePlanCompose.Observation) {
-		observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
-	})
-	if err != nil {
-		return moduleServices{}, err
-	}
-	timetableCapability, err := timetableCompose.New(timetableCompose.Dependencies{
-		LockStaffAssignment: func(ctx context.Context, staffID int64) error {
-			_, err := membership.FindStaffForMutation(ctx, staffID)
-			return err
-		},
-		CarePlan: careQueries,
-		DB:       db, Students: timetableStudents(persons), Rooms: timetableRooms(rooms), CareDays: careschedule.TimetableCareDayLocker(db),
-		Observe: func(observation timetableCompose.Observation) {
-			observability.ObserveTimetableActivitiesOperation(
-				observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows,
-				observation.Stats.DuplicatePreventionConflicts, observation.Stats.StatementDuration,
-				timetableModule.ErrorCode(observation.Err), observation.Err,
-			)
-		},
-	})
+	timetableCapability, err := composeTimetable(db, persons, rooms, membership)
 	if err != nil {
 		return moduleServices{}, err
 	}
@@ -1208,12 +1219,12 @@ func (api *API) requestReviewGroupIDs(ctx context.Context) ([]int64, error) {
 }
 
 // requestReviewDependencies binds native owner capabilities for the staff projection.
-func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (requestreviewcompose.ProjectionDependencies, error) {
+func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (requestreviewcompose.ProjectionDependencies, carePlanModule.CareScheduleReviewQuery, error) {
 	reviewStudents, err := requestreviewcompose.NewStudentDirectory(db, modules.persons, func(observation requestreviewcompose.DirectoryObservation) {
 		observability.ObserveSchoolStructureOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, schoolStructureModule.ErrorCode(observation.Err), observation.Err)
 	})
 	if err != nil {
-		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("request review student directory: %w", err)
+		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review student directory: %w", err)
 	}
 	reviewPolicy, err := reviewidentity.New(reviewidentity.Dependencies{
 		Principal: studentsAPI.RequestReviewPrincipal,
@@ -1223,7 +1234,7 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 		GroupIDs: api.requestReviewGroupIDs,
 	})
 	if err != nil {
-		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("request review policy: %w", err)
+		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review policy: %w", err)
 	}
 	// Report the union of ordinary and absence-review rights, as the
 	// navigation capability does. Each native queue keeps its own scope.
@@ -1231,7 +1242,7 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 		return api.Services.RequestReviewPolicy.AccessLevel(ctx, projectJWT.PermissionsFromCtx(ctx))
 	})
 	if err != nil {
-		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("request review access: %w", err)
+		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review access: %w", err)
 	}
 	masterDataReviews, err := requestreviewcompose.NewMasterDataReviews(db, modules.persons,
 		func(ctx context.Context) (carePlanCompose.ReviewScope, error) {
@@ -1241,7 +1252,7 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
 		})
 	if err != nil {
-		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("master data review queue: %w", err)
+		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("master data review queue: %w", err)
 	}
 	careReviews, err := requestreviewcompose.NewScheduleReviews(db, requestreviewcompose.ScheduleReviewDependencies{
 		People: modules.persons,
@@ -1261,11 +1272,11 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 		},
 	})
 	if err != nil {
-		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("care schedule reviews: %w", err)
+		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("care schedule reviews: %w", err)
 	}
 	careQueue, err := requestreviewcompose.NewCareScheduleQueue(careReviews, carePlanLegacy.TodayDate)
 	if err != nil {
-		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("care schedule review queue: %w", err)
+		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("care schedule review queue: %w", err)
 	}
 	offeringReviews, err := requestreviewcompose.NewOfferingReviews(db, requestreviewcompose.OfferingReviewDependencies{
 		People: modules.persons,
@@ -1282,30 +1293,30 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 		},
 	})
 	if err != nil {
-		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("offering reviews: %w", err)
+		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("offering reviews: %w", err)
 	}
 	offeringQueue, err := requestreviewcompose.NewOfferingQueue(offeringReviews, carePlanLegacy.TodayDate)
 	if err != nil {
-		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("offering review queue: %w", err)
+		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("offering review queue: %w", err)
 	}
 	corrections, err := requestreviewcompose.NewCorrectionLog(db, modules.persons, func(ctx context.Context) bool {
 		return studentsAPI.RequestReviewCorrectionAccess(ctx, api.Services.UserContext.HasCurrentStaff)
 	}, func(requestreviewcompose.AuditObservation) {})
 	if err != nil {
-		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("direct correction history: %w", err)
+		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("direct correction history: %w", err)
 	}
 	masterQueue, err := requestreviewcompose.NewMasterDataQueue(masterDataReviews)
 	if err != nil {
-		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("master data review queue: %w", err)
+		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("master data review queue: %w", err)
 	}
 	excusedQueue, err := requestreviewcompose.NewExcusedQueue(api.Services.ExcusedRequests, carePlanLegacy.TodayDate)
 	if err != nil {
-		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("excused review queue: %w", err)
+		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("excused review queue: %w", err)
 	}
 	return requestreviewcompose.ProjectionDependencies{
 		Queues:   requestreviewcompose.Queues{DirectCorrections: corrections, MasterData: masterQueue, CareSchedule: careQueue, Offering: offeringQueue, Excused: excusedQueue},
 		Students: reviewStudents, FamilyProtection: requestreviewcompose.NewFamilyProtection(api.Services.PeopleDirectory), Access: reviewAccess,
-	}, nil
+	}, careReviews, nil
 }
 
 // activeSchoolMemberships lists the schools an account is actively mapped to.
@@ -1360,7 +1371,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	// students resource's privacy-consent routes (#3349).
 	presence := newStudentPresence(db, logger)
 	studentClassResyncer, _ := api.Services.EnrollmentDecision.(educationSvc.OfferingSourceResyncer)
-	reviewDependencies, err := requestReviewDependencies(api, modules, db)
+	reviewDependencies, careReviews, err := requestReviewDependencies(api, modules, db)
 	if err != nil {
 		return err
 	}
@@ -1391,6 +1402,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		SettingsService:              api.Services.Settings,
 		MasterDataReviewService:      api.Services.MasterDataReview,
 		CareRequestService:           api.Services.CareRequests,
+		CareRequestReviews:           careReviews,
 		OfferingChangeService:        api.Services.OfferingChanges,
 		PickupAdjustmentService:      api.Services.PickupAdjustments,
 		ExcusedRequestService:        api.Services.ExcusedRequests,

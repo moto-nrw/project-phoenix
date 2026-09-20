@@ -21,7 +21,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
 )
 
 func TestCareUsageRowCountsEffectiveDaysAsUnion(t *testing.T) {
@@ -1503,14 +1503,14 @@ func (r *fakeCareUsageRequestRepo) AdminRequests(_ context.Context, _ capability
 }
 
 type fakeCareUsagePickupScheduleSvc struct {
-	careschedule.PickupScheduleService
-	rows       []*scheduleModels.StudentPickupSchedule
+	careplan.PickupScheduleService
+	rows       []*careplan.PickupSchedule
 	err        error
 	studentIDs []int64
 	date       timezone.Date
 }
 
-func (s *fakeCareUsagePickupScheduleSvc) GetWeeklySchedulesByStudentIDsForDate(_ context.Context, studentIDs []int64, date timezone.Date) ([]*scheduleModels.StudentPickupSchedule, error) {
+func (s *fakeCareUsagePickupScheduleSvc) GetWeeklySchedulesByStudentIDsForDate(_ context.Context, studentIDs []int64, date timezone.Date) ([]*careplan.PickupSchedule, error) {
 	s.studentIDs = append([]int64(nil), studentIDs...)
 	s.date = date
 	return s.rows, s.err
@@ -1529,7 +1529,7 @@ func TestCareUsageEnrichesGuardiansAndSchedulePickup(t *testing.T) {
 		LastName:  "Muster",
 		Email:     &guardianEmail,
 	}}}
-	pickupSvc := &fakeCareUsagePickupScheduleSvc{rows: []*scheduleModels.StudentPickupSchedule{{
+	pickupSvc := &fakeCareUsagePickupScheduleSvc{rows: []*careplan.PickupSchedule{{
 		StudentID:  studentID,
 		Weekday:    scheduleModels.WeekdayMonday,
 		PickupTime: time.Date(1, 1, 1, 14, 30, 0, 0, time.UTC),
@@ -1603,7 +1603,7 @@ func TestCareUsageDoesNotEnrichSchedulePickupBeforeApproval(t *testing.T) {
 		}}},
 		CareOfferingRepo: &fakeClassRosterCareOfferingRepo{},
 		Phases:           &fakeClassRosterPhaseRepo{},
-		PickupScheduleSvc: &fakeCareUsagePickupScheduleSvc{rows: []*scheduleModels.StudentPickupSchedule{{
+		PickupScheduleSvc: &fakeCareUsagePickupScheduleSvc{rows: []*careplan.PickupSchedule{{
 			StudentID:  studentID,
 			Weekday:    scheduleModels.WeekdayMonday,
 			PickupTime: time.Date(1, 1, 1, 14, 30, 0, 0, time.UTC),

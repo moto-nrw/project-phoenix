@@ -156,7 +156,7 @@ func (f *fakeParentService) ListExcusedRequests(context.Context, int64, int64) (
 func (f *fakeParentService) EditExcusedRequest(context.Context, int64, int64, int64, []timezone.Date, string, string) (*careplan.ExcusedAbsenceRequest, error) {
 	return nil, nil
 }
-func (f *fakeParentService) EditPickupChangeRequest(context.Context, int64, int64, int64, timezone.Date, time.Time, string, string) (*scheduleModels.CareScheduleChangeRequest, error) {
+func (f *fakeParentService) EditPickupChangeRequest(context.Context, int64, int64, int64, timezone.Date, time.Time, string, string) (*careplan.CareScheduleChangeRequest, error) {
 	return nil, nil
 }
 func (f *fakeParentService) EditCareScheduleRequest(context.Context, int64, int64, int64, map[string]any, string) (*parentService.ChildCareSchedule, error) {
@@ -270,7 +270,7 @@ func (f *fakeParentService) SubmitCareExceptionWithReason(_ context.Context, acc
 	return f.careException, f.careExceptionErr
 }
 
-func (f *fakeParentService) SubmitPickupChangeRequest(_ context.Context, accountID, studentID int64, date timezone.Date, pickup time.Time, reason string, _ []int64) (*scheduleModels.CareScheduleChangeRequest, error) {
+func (f *fakeParentService) SubmitPickupChangeRequest(_ context.Context, accountID, studentID int64, date timezone.Date, pickup time.Time, reason string, _ []int64) (*careplan.CareScheduleChangeRequest, error) {
 	f.gotCareAccount = accountID
 	f.gotCareStudent = studentID
 	f.gotCareDate = date
@@ -279,13 +279,17 @@ func (f *fakeParentService) SubmitPickupChangeRequest(_ context.Context, account
 	if f.careExceptionErr != nil {
 		return nil, f.careExceptionErr
 	}
-	return &scheduleModels.CareScheduleChangeRequest{
-		Payload: map[string]any{"date": date.String(), "pickup_time": pickup.Format("15:04"), "previous_pickup_time": "15:30", "reason": reason},
+	payload, err := json.Marshal(map[string]any{"date": date.String(), "pickup_time": pickup.Format("15:04"), "previous_pickup_time": "15:30", "reason": reason})
+	if err != nil {
+		return nil, err
+	}
+	return &careplan.CareScheduleChangeRequest{
+		Payload: payload,
 		Status:  scheduleModels.CareRequestStatusPending,
 	}, nil
 }
 
-func (f *fakeParentService) ListPickupChangeRequests(context.Context, int64, int64) ([]*scheduleModels.CareScheduleChangeRequest, error) {
+func (f *fakeParentService) ListPickupChangeRequests(context.Context, int64, int64) ([]careplan.CareScheduleChangeRequest, error) {
 	return nil, nil
 }
 

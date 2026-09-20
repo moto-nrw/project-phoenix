@@ -16,8 +16,8 @@ func TestMergeCareExceptions_HidesAnotherGuardiansReason(t *testing.T) {
 
 	authorID := int64(41)
 	reason := "Vertraulicher Grund"
-	rows := []*scheduleModels.StudentPickupException{{
-		ExceptionDate:     scheduleModels.Date(timezone.TodayDate()),
+	rows := []careplan.PickupException{{
+		ExceptionDate:     careplan.Date(timezone.TodayDate()),
 		Reason:            &reason,
 		Source:            scheduleModels.ExceptionSourceGuardian,
 		CreatedByGuardian: &authorID,

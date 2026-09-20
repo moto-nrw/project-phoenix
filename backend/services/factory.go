@@ -3,7 +3,6 @@ package services
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -11,10 +10,8 @@ import (
 	"strings"
 	"time"
 
-	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
-
-	"github.com/spf13/viper"
-	"github.com/uptrace/bun"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
 	"github.com/moto-nrw/project-phoenix/analytics"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -26,8 +23,8 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
@@ -70,6 +67,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
+	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/activities"
@@ -96,6 +94,8 @@ import (
 	reminderPorts "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 	studentdeletioncompose "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/compose"
+	"github.com/spf13/viper"
+	"github.com/uptrace/bun"
 )
 
 type substitutionIdentity interface {
@@ -177,11 +177,11 @@ type Factory struct {
 	StaffScheduleOverview     shiftplanning.StaffScheduleOverviewGetter
 	ShiftTypes                shiftplanning.ShiftTypeService
 	PlanningTracks            timetableplanning.PlanningTrackService
-	PickupSchedule            careschedule.PickupScheduleService
-	PartialAbsence            careschedule.PartialAbsenceService
-	ArrivalSchedule           careschedule.ArrivalScheduleService
+	PickupSchedule            careplan.PickupScheduleService
+	PartialAbsence            careplan.PartialAbsenceService
+	ArrivalSchedule           careplan.ArrivalScheduleService
 	CalendarPeriod            timetableplanning.CalendarPeriodService
-	CareDay                   careschedule.CareDayService
+	CareDay                   careplan.CareDayQuery
 	TimetableBridge           *timetableplanning.TimetableBridgeService
 	Materialization           timetableplanning.MaterializationService
 	TemplateSplit             *timetableplanning.TemplateSplitService
@@ -240,7 +240,7 @@ type Factory struct {
 	CareLifecycle        carelifecycle.CareLifecycleService
 	StudentAudit         users.StudentAuditService
 	MasterDataReview     users.MasterDataReviewService
-	CareRequests         careschedule.CareScheduleRequestService
+	CareRequests         carerequests.Service
 	// OfferingChanges is the post-enrollment offering change-request lifecycle
 	// (#1665), shared by the parents portal and the staff review queue.
 	OfferingChanges   enrollment.OfferingChangeRequestService
@@ -1071,37 +1071,44 @@ func newFactory(
 		logger.With("service", "attendance-sync"),
 	)
 	approvedOfferingProjection := enrollment.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: persons})
-	pickupBaselines := careschedule.NewPickupBaselineServiceWithSettings(
-		repos.StudentPickupSchedule,
-		approvedOfferingProjection,
-		repos.CareOffering,
-		settingsService,
-	)
+	pickupBaselines, err := careplanCompose.NewPickupBaselines(repos.CarePlan(), approvedOfferingProjection, func(ctx context.Context) (bool, error) {
+		return settingsService.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
+	})
+	if err != nil {
+		return nil, err
+	}
 	// The arrival mirror: the class timetable supplies the regular time and,
 	// with enrollment.bookings_authoritative on, the approved bookings supply
 	// the care days (#2414, ADR 0005). The care-day resolver reads through it
 	// so a stale row on an unbooked weekday stops marking a child expected.
-	arrivalBaselines := careschedule.NewArrivalBaselineService(
-		repos.StudentArrivalSchedule,
-		repos.Student,
-		repos.ClassArrivalTime,
-		repos.ClassArrivalException,
-		approvedOfferingProjection,
-		repos.CareOffering,
-		settingsService,
-	)
+	classArrivalQueries, err := arrivalTimetable.NewClassArrivals(db, func(observation arrivalTimetable.Observation) {
+		logger.Debug("class arrival query",
+			"operation", observation.Operation,
+			"duration", observation.Duration,
+			"queries", observation.Stats.Queries,
+			"rows", observation.Stats.Rows,
+			"error", observation.Err)
+	})
+	if err != nil {
+		return nil, err
+	}
+	arrivalBaselines, err := NewArrivalBaselines(repos.CarePlan(), persons, classArrivalQueries, approvedOfferingProjection, func(ctx context.Context) (bool, error) {
+		return settingsService.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	// Care-day derivation (#1747): intersects timetable assignments with the
 	// children's care plans. Read-only, so it can be shared by every consumer
 	// (instance lifecycle, operations roster, weekly planner, scheduler).
 	// Built here, ahead of the active service, because the timetable bridge
 	// below needs it and the active service needs the bridge.
-	careDayService := careschedule.NewCareDayService(careschedule.CareDayDependencies{
-		ArrivalBaselines:  arrivalBaselines,
-		ArrivalSchedules:  repos.StudentArrivalSchedule,
-		ArrivalExceptions: repos.StudentArrivalException,
-		PickupBaselines:   pickupBaselines,
-		PickupExceptions:  repos.StudentPickupException,
+	careDayService := careplanCompose.NewCareDays(careplanCompose.CareDayDependencies{
+		ArrivalBaselines: arrivalBaselines,
+		Records:          repos.CarePlan(),
+
+		PickupBaselines: pickupBaselines,
 	})
 
 	// Single entry point for completing instances whose active.group somebody
@@ -1330,26 +1337,20 @@ func newFactory(
 	// absences (#2360). Shared by the staff pickup-exception writers and the
 	// parent care-exception writers so both derive the same state.
 	// Later pickups open a block decision for the Leitung (#3261).
-	pickupAutoExcusal := careschedule.NewPickupAutoExcusalSyncer(
-		repos.StudentPickupException,
-		pickupBaselines,
-		repos.InstanceStudent,
-		db,
-		careschedule.WithPickupExtensions(timetableCapability),
-	)
+	pickupAutoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
+		DB: db, Records: repos.CarePlan(), Baselines: pickupBaselines,
+		Blocks: timetableCapability, Preview: pickupExcusalTimetable{timetableCapability}, Extensions: pickupExcusalTimetable{timetableCapability},
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	// Initialize pickup schedule service
-	pickupScheduleService := careschedule.NewPickupScheduleServiceWithBulk(
-		repos.StudentPickupSchedule,
-		repos.StudentPickupException,
-		repos.StudentPickupNote,
-		repos.Student,
-		repos.Person,
-		pickupAutoExcusal,
-		pickupBaselines,
-		db,
-		logger.With("service", "pickup-schedule"),
-	)
+	pickupScheduleService, err := NewPickupSchedules(db, repos.CarePlan(), persons, pickupBaselines,
+		pickupAutoExcusal, logger.With("service", "pickup-schedule"))
+	if err != nil {
+		return nil, err
+	}
 	// Compose the Device Fleet owner (#2676). It owns iot.devices and
 	// display.displays; the info-point dashboard reads Facilities and Student
 	// Presence through their public capabilities and the remaining
@@ -1379,14 +1380,10 @@ func newFactory(
 	}
 	iotService := iot.NewService(deviceFleet)
 
-	partialAbsenceService := careschedule.NewPartialAbsenceService(
-		repos.StudentPickupException,
-		repos.StudentStatusDay,
-		repos.ExcusedAbsenceRequest,
-		repos.InstanceStudent,
-		pickupAutoExcusal,
-		db,
-	)
+	partialAbsenceService, err := careplanCompose.NewPartialAbsences(db, repos.CarePlan(), timetableCapability, pickupAutoExcusal)
+	if err != nil {
+		return nil, err
+	}
 
 	// Period updates/deletes use the same tenant recurrence transaction and
 	// advisory lock as template and care-offering mutations. The preflight
@@ -1434,7 +1431,7 @@ func newFactory(
 	instanceService := timetableplanning.NewInstanceService(timetableplanning.InstanceServiceDependencies{
 		Presence:           newStudentPresence(db, logger),
 		GuardianNotices:    lateCareCancellationPublisher{resolve: func() communication.CareCancellationPublisher { return guardianNoticePublisher }},
-		CareDayService:     careDayService,
+		CareDayService:     timetableplanning.NewInstanceCareDays(careDayService, repos.CarePlan()),
 		InstanceRepo:       repos.ActivityInstance,
 		IdempotencyRepo:    repos.InstanceIdempotency,
 		InstanceStaffRepo:  repos.InstanceStaff,
@@ -1541,18 +1538,15 @@ func newFactory(
 	})
 	autoEndService := timetableplanning.NewAutoEndService(repos.ActivityInstance, instanceService)
 
-	arrivalScheduleService := careschedule.NewArrivalScheduleServiceWithBaselines(
-		repos.StudentArrivalSchedule,
-		repos.StudentArrivalException,
-		repos.StudentArrivalNote,
-		repos.Student,
-		repos.Person,
-		arrivalBaselines,
-		repos.ClassArrivalTime,
-		db,
-		logger.With("service", "arrival-schedule"),
-		careschedule.WithClassArrivalExceptions(repos.ClassArrivalException),
-	)
+	classExceptions, err := NewClassArrivalExceptions(classArrivalQueries, persons)
+	if err != nil {
+		return nil, err
+	}
+	arrivalScheduleService, err := NewArrivalSchedules(db, repos.CarePlan(), persons, arrivalBaselines,
+		ClassArrivalPlans(classArrivalQueries), classExceptions, logger.With("service", "arrival-schedule"))
+	if err != nil {
+		return nil, err
+	}
 
 	timetableOperationsService := timetableplanning.NewTimetableOperationsService(timetableplanning.TimetableOperationsDependencies{
 		InstanceRepo:       repos.ActivityInstance,
@@ -1975,7 +1969,7 @@ func newFactory(
 		Logger: logger.With("service", "care_lifecycle"),
 	})
 	users.WirePersonCareParticipation(usersService, careParticipationResolver(careLifecycleService))
-	careschedule.WireCareParticipation(careDayService, careLifecycleService)
+	careplanCompose.WireCareParticipation(careDayService, careLifecycleService)
 	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
 		Bookings:                  enrollmentCareBookingCommands{owner: repos.CarePlan()},
 		Requests:                  repos.Enrollment(),
@@ -2044,7 +2038,7 @@ func newFactory(
 			return pickupAutoExcusal.SnapshotWeeklyPickups(ctx, studentID, date)
 		},
 		RecordPickupWeekdayChanges: func(ctx context.Context, studentID int64, date timezone.Date, before map[int]string) error {
-			return pickupAutoExcusal.RecordWeeklyPickupChanges(ctx, studentID, date, careschedule.WeeklyPickupSnapshot(before))
+			return pickupAutoExcusal.RecordWeeklyPickupChanges(ctx, studentID, date, careplan.WeeklyPickupSnapshot(before))
 		},
 		ClearPickupWeekdayExtension: timetableCapability.ClearPickupWeekdayExtension,
 		// The reconciler takes these BEFORE writing weekly rows — the same
@@ -2055,8 +2049,8 @@ func newFactory(
 		// the resync's tolerance.
 		LockPickupStudents: func(ctx context.Context, studentIDs []int64) error {
 			for _, studentID := range studentIDs {
-				if err := careschedule.LockCareStudent(ctx, db, studentID); err != nil {
-					if errors.Is(err, sql.ErrNoRows) {
+				if err := persons.LockStudent(ctx, studentID); err != nil {
+					if errors.Is(err, peopledirectory.ErrStudentNotFound) {
 						continue
 					}
 					return err
@@ -2274,15 +2268,14 @@ func newFactory(
 	// Care-schedule change requests (#1803): the schedule-domain request
 	// lifecycle (create / withdraw / staff decide + apply), decoupled from the
 	// chat.
-	careRequestService := careschedule.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
-		repos.CareScheduleChangeRequest,
-		repos.Student,
-		repos.Person,
+	careRequestService := NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+		repos.CarePlan(),
+		persons,
 		arrivalScheduleService,
 		pickupScheduleService,
-		repos.StudentPickupException,
 		newStudentPresence(db, logger),
 		pickupAutoExcusal,
+		repos.CarePlan(),
 		userContextService,
 		pillEmitter,
 		realtimeHub,
@@ -2290,8 +2283,8 @@ func newFactory(
 		parentRequestEvents,
 		logger.With("service", "care-requests"),
 		studentAuditService,
-		careschedule.WithRequestShareVisibility(requestShares),
-		careschedule.WithCareRequestToday(today),
+		WithRequestShareVisibility(requestShares),
+		WithCareRequestToday(today),
 	)
 
 	// Post-enrollment offering changes (#1665): the parents portal submits them,
@@ -2507,8 +2500,7 @@ func newFactory(
 		StatusDayRepo:             repos.StudentStatusDay,
 		MealPlan:                  mealPlan,
 		StudentRepo:               repos.Student,
-		PickupExceptionRepo:       repos.StudentPickupException,
-		ArrivalExceptionRepo:      repos.StudentArrivalException,
+		CareExceptions:            repos.CarePlan(),
 		PickupAutoExcusal:         pickupAutoExcusal,
 		Settings:                  settingsService,
 		Broadcaster:               realtimeHub,
@@ -2800,7 +2792,6 @@ func newFactory(
 		CalendarPeriodRepo:         repos.CalendarPeriod,
 		ActiveGroupRepo:            repos.ActiveGroup,
 		SupervisorRepo:             repos.GroupSupervisor,
-		ArrivalScheduleRepo:        repos.StudentArrivalSchedule,
 		ArrivalBaselines:           arrivalBaselines,
 		ArrivalExceptionRepo:       repos.StudentArrivalException,
 		PickupScheduleRepo:         repos.StudentPickupSchedule,

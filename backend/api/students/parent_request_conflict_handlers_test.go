@@ -9,15 +9,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type conflictServiceStub struct {
@@ -131,7 +130,7 @@ func TestResolveRequestConflictErrorCodes(t *testing.T) {
 		{name: "kind without a domain", err: userService.ErrConflictKindUnsupported, want: http.StatusBadRequest, code: codeConflictKindUnsupported},
 		{name: "domain takes no typed value", err: userService.ErrStaffValueUnsupported, want: http.StatusBadRequest, code: codeStaffValueUnsupported},
 		{name: "absence value invalid", err: excusedrequests.ErrAbsenceRequestInvalidStatus, want: http.StatusBadRequest, code: codeStaffValueInvalid},
-		{name: "care value invalid", err: careschedule.ErrInvalidCareRequestPayload, want: http.StatusBadRequest, code: codeStaffValueInvalid},
+		{name: "care value invalid", err: carerequests.ErrInvalidPayload, want: http.StatusBadRequest, code: codeStaffValueInvalid},
 		{name: "offering value invalid", err: enrollmentService.ErrOfferingChangeInvalid, want: http.StatusBadRequest, code: codeStaffValueInvalid},
 		{name: "Stammdaten value invalid", err: userService.ErrReviewInvalidValue, want: http.StatusBadRequest, code: codeStaffValueInvalid},
 		{name: "request gone", err: userService.ErrParentRequestNotFound, want: http.StatusNotFound},

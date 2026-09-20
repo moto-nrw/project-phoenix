@@ -5,9 +5,12 @@ import (
 	"log/slog"
 	"time"
 
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
@@ -42,18 +45,39 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	today := timezone.CalendarDateClock(now)
 	logger := slog.Default()
 	hub := deliveryCompose.NewRealtimeHub(logger)
-	pickup := careschedule.NewPickupBaselineServiceWithSettings(r.StudentPickupSchedule, approvedOfferings, r.CareOffering, settings.Settings)
-	arrival := careschedule.NewArrivalBaselineService(r.StudentArrivalSchedule, r.Student,
-		r.ClassArrivalTime, r.ClassArrivalException, approvedOfferings, r.CareOffering, settings.Settings)
-	careDay := careschedule.NewCareDayService(careschedule.CareDayDependencies{
-		ArrivalBaselines: arrival, ArrivalSchedules: r.StudentArrivalSchedule, ArrivalExceptions: r.StudentArrivalException,
-		PickupBaselines: pickup, PickupExceptions: r.StudentPickupException,
+	students, err := repositories.NewPeopleDirectory(db)
+	if err != nil {
+		return TimetableTestModule{}, err
+	}
+	carePlan, err := repositories.NewCarePlan(db, students, r.InstanceStudent)
+	if err != nil {
+		return TimetableTestModule{}, err
+	}
+	pickup, err := careplanCompose.NewPickupBaselines(carePlan, approvedOfferings, func(ctx context.Context) (bool, error) {
+		return settings.Settings.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
+	})
+	if err != nil {
+		return TimetableTestModule{}, err
+	}
+	classArrivalQueries, err := arrivalTimetable.NewClassArrivalQueries(db, func(arrivalTimetable.Observation) {})
+	if err != nil {
+		return TimetableTestModule{}, err
+	}
+	arrival, err := NewArrivalBaselines(carePlan, students, classArrivalQueries, approvedOfferings, func(ctx context.Context) (bool, error) {
+		return settings.Settings.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
+	})
+	if err != nil {
+		return TimetableTestModule{}, err
+	}
+	careDay := careplanCompose.NewCareDays(careplanCompose.CareDayDependencies{
+		ArrivalBaselines: arrival, Records: carePlan,
+		PickupBaselines: pickup,
 	})
 	care, err := NewCareLifecycleTestModule(db, unit)
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
-	careschedule.WireCareParticipation(careDay, care.CareLifecycle)
+	careplanCompose.WireCareParticipation(careDay, care.CareLifecycle)
 	bridge := timetableplanning.NewTimetableBridgeService(timetableplanning.TimetableBridgeDependencies{
 		Instances: r.ActivityInstance, InstanceStudents: r.InstanceStudent, CareDays: careDay,
 	})
@@ -92,14 +116,14 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		InstanceStudents: r.InstanceStudent, ExceptionRepo: r.ActivityException, ActiveGroupRepo: r.ActiveGroup,
 		SupervisorRepo: r.GroupSupervisor, RoomRepo: r.Room, ActivityGroupRepo: r.ActivityGroup,
 		StaffRepo: r.Staff, StudentRepo: r.Student, CalendarPeriodRepo: r.CalendarPeriod,
-		ActiveService: ender, Materialization: materialization, CareDayService: careDay, DeviationEventRepo: r.DeviationEvent,
+		ActiveService: ender, Materialization: materialization, CareDayService: timetableplanning.NewInstanceCareDays(careDay, carePlan), DeviationEventRepo: r.DeviationEvent,
 		Broadcaster: hub, DB: db, Logger: logger, Settings: settings.Settings, RecoveryRepo: recovery, Now: now,
 	})
 	data := timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{
 		InstanceStudentRepo: r.InstanceStudent, ActivityInstanceRepo: r.ActivityInstance, ActivityExceptionRepo: r.ActivityException,
 		ActivityScheduleRepo: r.ActivitySchedule, InstanceStaffRepo: r.InstanceStaff, StaffShiftRepo: r.StaffShift,
 		StaffRepo: r.Staff, CalendarPeriodRepo: r.CalendarPeriod, ActiveGroupRepo: r.ActiveGroup, SupervisorRepo: r.GroupSupervisor,
-		ArrivalScheduleRepo: r.StudentArrivalSchedule, ArrivalBaselines: arrival, ArrivalExceptionRepo: r.StudentArrivalException,
+		ArrivalBaselines: arrival, ArrivalExceptionRepo: r.StudentArrivalException,
 		PickupScheduleRepo: r.StudentPickupSchedule, PickupBaselines: pickup, PickupExceptionRepo: r.StudentPickupException,
 		Presence: newStudentPresence(db, logger), RoomRepo: r.Room, ActivityCategoryRepo: r.ActivityCategory, PlanningTrackRepo: r.PlanningTrack,
 		ActivityGroupRepo: r.ActivityGroup, ActivitySupervisorRepo: r.ActivitySupervisor, StudentEnrollmentRepo: r.StudentEnrollment,

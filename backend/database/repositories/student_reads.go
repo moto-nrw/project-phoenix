@@ -118,12 +118,6 @@ func (r *StudentReads) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]
 	})
 }
 
-func (r *StudentReads) FindBySchoolClass(ctx context.Context, schoolClass string) ([]*userModels.Student, error) {
-	return r.listRecords(ctx, "find by school class", func() ([]peopleModule.StudentRecord, error) {
-		return r.directory.ListStudentRecordsByClass(ctx, []string{schoolClass}, peopleModule.StudentScopeEnrolled)
-	})
-}
-
 func (r *StudentReads) FindPendingDueForActivation(
 	ctx context.Context,
 	asOf userModels.CalendarDate,

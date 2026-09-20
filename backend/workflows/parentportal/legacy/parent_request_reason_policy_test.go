@@ -35,10 +35,10 @@ func TestChildFeaturesReasonRequiredFollowsPolicy(t *testing.T) {
 		{configModels.ReasonPolicyBoth, true},
 	} {
 		svc := parentService.NewService(parentService.ServiceConfig{
-			ChildRepo:           repos.ParentChild,
-			StatusDayRepo:       repos.StudentStatusDay,
-			StudentRepo:         repos.Student,
-			PickupExceptionRepo: repos.StudentPickupException,
+			ChildRepo:      repos.ParentChild,
+			StatusDayRepo:  repos.StudentStatusDay,
+			StudentRepo:    repos.Student,
+			CareExceptions: repos.CarePlan(),
 			Settings: parentSettingsStub{
 				stringValues: map[string]string{
 					configModels.KeyGuardianParentInviteMode:  configModels.ParentInviteModeDisabled,

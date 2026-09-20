@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 )
 
@@ -95,12 +96,9 @@ func careImpactToken(item *careplan.CareScheduleReviewItem) string {
 	if !item.ImpactAvailable {
 		return ""
 	}
-	hash := sha256.New()
-	for _, block := range item.AffectedBlocks {
-		for _, value := range []string{strconv.FormatInt(block.ID, 10), block.Title, block.StartTime.Format("15:04:05"), block.EndTime.Format("15:04:05")} {
-			hash.Write([]byte(value))
-			hash.Write([]byte{0})
-		}
-	}
-	return fmt.Sprintf("%x", hash.Sum(nil))
+	return pickupImpactFingerprint(carerequests.PickupImpactContent(item.AffectedBlocks))
+}
+
+func pickupImpactFingerprint(content []byte) string {
+	return fmt.Sprintf("%x", sha256.Sum256(content))
 }

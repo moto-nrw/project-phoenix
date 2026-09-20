@@ -4,8 +4,9 @@ import (
 	"log/slog"
 	"time"
 
+	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -36,7 +37,7 @@ func NewClassDayTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() 
 	if err != nil {
 		return ClassDayTestModule{}, err
 	}
-	careschedule.WireCareParticipation(active.CareDay, care.CareLifecycle)
+	careplanCompose.WireCareParticipation(active.CareDay, care.CareLifecycle)
 	report := enrollment.NewReportService(enrollment.ReportServiceConfig{
 		Requests: r.Enrollment(), Children: r.Enrollment(), Guardians: r.Enrollment(),
 		CareOfferingRepo: r.CareOffering, Schemas: r.Enrollment(),

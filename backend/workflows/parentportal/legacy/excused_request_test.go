@@ -72,10 +72,10 @@ func buildAbsenceApprovalServices(t *testing.T, sickRequiresApproval, excusedReq
 	})
 	require.NoError(t, err)
 	svc := parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:           repos.ParentChild,
-		StatusDayRepo:       repos.StudentStatusDay,
-		StudentRepo:         repos.Student,
-		PickupExceptionRepo: repos.StudentPickupException,
+		ChildRepo:      repos.ParentChild,
+		StatusDayRepo:  repos.StudentStatusDay,
+		StudentRepo:    repos.Student,
+		CareExceptions: repos.CarePlan(),
 		Settings: excusedApprovalSettings{
 			sickRequiresApproval:    sickRequiresApproval,
 			excusedRequiresApproval: excusedRequiresApproval,

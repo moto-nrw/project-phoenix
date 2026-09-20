@@ -11,10 +11,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -101,10 +102,10 @@ const maxArrivalScheduleDateRangeDays = 7
 // BulkUpsertArrivalScheduleRequest represents a request to bulk upsert arrival
 // schedules for exactly one filtered student cohort.
 type BulkUpsertArrivalScheduleRequest struct {
-	SchoolClass string                              `json:"school_class"`
-	GroupID     int64                               `json:"group_id"`
-	StudentIDs  []int64                             `json:"student_ids"`
-	Schedules   []careschedule.ArrivalScheduleInput `json:"schedules"`
+	SchoolClass string                          `json:"school_class"`
+	GroupID     int64                           `json:"group_id"`
+	StudentIDs  []int64                         `json:"student_ids"`
+	Schedules   []careplan.ArrivalScheduleInput `json:"schedules"`
 }
 
 // Bind implements render.Binder for ArrivalNoteRequest
@@ -141,11 +142,11 @@ func validateArrivalScheduleItems(items []ArrivalScheduleRequestItem) error {
 // time format is already guaranteed valid at that point. An empty time parses
 // to the zero value on purpose — that is the care day whose time comes from the
 // class timetable (#2414).
-func toArrivalScheduleModels(items []ArrivalScheduleRequestItem, studentID, staffID int64) []*schedule.StudentArrivalSchedule {
-	schedules := make([]*schedule.StudentArrivalSchedule, 0, len(items))
+func toArrivalScheduleModels(items []ArrivalScheduleRequestItem, studentID, staffID int64) []*careplan.ArrivalSchedule {
+	schedules := make([]*careplan.ArrivalSchedule, 0, len(items))
 	for _, s := range items {
 		arrivalTime, _ := parseTimeOnly(s.ExpectedArrival)
-		schedules = append(schedules, &schedule.StudentArrivalSchedule{
+		schedules = append(schedules, &careplan.ArrivalSchedule{
 			StudentID:       studentID,
 			Weekday:         s.Weekday,
 			ExpectedArrival: arrivalTime,
@@ -235,12 +236,12 @@ func validateBulkArrivalSchedules(r *BulkUpsertArrivalScheduleRequest) error {
 }
 
 // mapArrivalScheduleToResponse converts an arrival schedule model to API response
-func mapArrivalScheduleToResponse(s *schedule.StudentArrivalSchedule) ArrivalScheduleResponse {
+func mapArrivalScheduleToResponse(s *careplan.ArrivalSchedule) ArrivalScheduleResponse {
 	resp := ArrivalScheduleResponse{
 		ID:          s.ID,
 		StudentID:   s.StudentID,
 		Weekday:     s.Weekday,
-		WeekdayName: s.GetWeekdayName(),
+		WeekdayName: schedule.WeekdayNames[s.Weekday],
 		Notes:       s.Notes,
 		Source:      s.Source,
 		SourceClass: s.SourceClass,
@@ -257,7 +258,7 @@ func mapArrivalScheduleToResponse(s *schedule.StudentArrivalSchedule) ArrivalSch
 }
 
 // mapArrivalExceptionToResponse converts an arrival exception model to API response
-func mapArrivalExceptionToResponse(e *schedule.StudentArrivalException) ArrivalExceptionResponse {
+func mapArrivalExceptionToResponse(e *careplan.ArrivalException) ArrivalExceptionResponse {
 	resp := ArrivalExceptionResponse{
 		ID:            e.ID,
 		StudentID:     e.StudentID,
@@ -276,7 +277,7 @@ func mapArrivalExceptionToResponse(e *schedule.StudentArrivalException) ArrivalE
 }
 
 // mapArrivalNoteToResponse converts an arrival note model to API response
-func mapArrivalNoteToResponse(n *schedule.StudentArrivalNote) ArrivalNoteResponse {
+func mapArrivalNoteToResponse(n *careplan.ArrivalNote) ArrivalNoteResponse {
 	return ArrivalNoteResponse{
 		ID:        n.ID,
 		StudentID: n.StudentID,
@@ -289,7 +290,7 @@ func mapArrivalNoteToResponse(n *schedule.StudentArrivalNote) ArrivalNoteRespons
 }
 
 // verifyArrivalExceptionOwnership checks that an arrival exception exists and belongs to the given student.
-func (rs *Resource) verifyArrivalExceptionOwnership(w http.ResponseWriter, r *http.Request, exceptionID, studentID int64) *schedule.StudentArrivalException {
+func (rs *Resource) verifyArrivalExceptionOwnership(w http.ResponseWriter, r *http.Request, exceptionID, studentID int64) *careplan.ArrivalException {
 	return verifyCareOwnership(
 		w,
 		r,
@@ -298,12 +299,12 @@ func (rs *Resource) verifyArrivalExceptionOwnership(w http.ResponseWriter, r *ht
 		"arrival exception not found",
 		"exception does not belong to this student",
 		rs.ArrivalScheduleService.GetStudentArrivalExceptionByID,
-		func(exception *schedule.StudentArrivalException) int64 { return exception.StudentID },
+		func(exception *careplan.ArrivalException) int64 { return exception.StudentID },
 	)
 }
 
 // verifyArrivalNoteOwnership checks that an arrival note exists and belongs to the given student.
-func (rs *Resource) verifyArrivalNoteOwnership(w http.ResponseWriter, r *http.Request, noteID, studentID int64) *schedule.StudentArrivalNote {
+func (rs *Resource) verifyArrivalNoteOwnership(w http.ResponseWriter, r *http.Request, noteID, studentID int64) *careplan.ArrivalNote {
 	return verifyCareOwnership(
 		w,
 		r,
@@ -312,7 +313,7 @@ func (rs *Resource) verifyArrivalNoteOwnership(w http.ResponseWriter, r *http.Re
 		"arrival note not found",
 		"note does not belong to this student",
 		rs.ArrivalScheduleService.GetStudentArrivalNoteByID,
-		func(note *schedule.StudentArrivalNote) int64 { return note.StudentID },
+		func(note *careplan.ArrivalNote) int64 { return note.StudentID },
 	)
 }
 
@@ -344,7 +345,7 @@ func (rs *Resource) getStudentArrivalSchedules(w http.ResponseWriter, r *http.Re
 		date = parsed
 	}
 	var (
-		data *careschedule.StudentArrivalData
+		data *careplan.StudentArrivalData
 		err  error
 	)
 	toRaw := r.URL.Query().Get("to")
@@ -378,7 +379,7 @@ func (rs *Resource) getStudentArrivalSchedules(w http.ResponseWriter, r *http.Re
 }
 
 // buildArrivalDataResponse converts service arrival data to API response
-func buildArrivalDataResponse(data *careschedule.StudentArrivalData) ArrivalDataResponse {
+func buildArrivalDataResponse(data *careplan.StudentArrivalData) ArrivalDataResponse {
 	response := ArrivalDataResponse{
 		Schedules:  make([]ArrivalScheduleResponse, 0, len(data.Schedules)),
 		Exceptions: make([]ArrivalExceptionResponse, 0, len(data.Exceptions)),
@@ -603,29 +604,15 @@ func (rs *Resource) deleteStudentArrivalException(w http.ResponseWriter, r *http
 	}
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := careschedule.LockCareExceptionDay(ctx, rs.DB, student.ID, timezone.Date(existingException.ExceptionDate)); err != nil {
-			return err
-		}
-		freshException, err := rs.ArrivalScheduleService.GetStudentArrivalExceptionByID(ctx, exceptionID)
-		if err != nil {
-			return err
-		}
-		if freshException == nil {
-			return nil
-		}
-		if freshException.StudentID != student.ID {
-			return ErrExceptionWrongStudent
-		}
-		return rs.ArrivalScheduleService.DeleteStudentArrivalException(ctx, freshException.ID)
-	}); err != nil {
+	if err := rs.ArrivalScheduleService.DeleteStudentArrivalException(r.Context(), exceptionID, student.ID); err != nil {
 		renderExceptionWriteError(w, r, err)
 		return
 	}
 
 	// Deferred to the outer request tx's commit so neither the staff broadcast
 	// nor the guardian wake can make a client refetch an override the delete has
-	// not committed yet (nested handler WithTenantTx) (#1725 review).
+	// not committed yet. The native delete joins the request transaction
+	// (#1725 review).
 	tenant.RegisterAfterCommit(r.Context(), func() {
 		rs.broadcastArrivalScheduleChanged(student.ID)
 		rs.wakeChildGuardians(tenantID, student.ID)
@@ -653,9 +640,9 @@ func (rs *Resource) createStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 	}
 
 	noteDate, _ := timezone.ParseDate(req.NoteDate)
-	note := &schedule.StudentArrivalNote{
+	note := &careplan.ArrivalNote{
 		StudentID: student.ID,
-		NoteDate:  schedule.Date(noteDate),
+		NoteDate:  careplan.Date(noteDate),
 		Content:   req.Content,
 		CreatedBy: staffID,
 	}
@@ -701,9 +688,9 @@ func (rs *Resource) updateStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 	}
 
 	noteDate, _ := timezone.ParseDate(req.NoteDate)
-	note := &schedule.StudentArrivalNote{
+	note := &careplan.ArrivalNote{
 		StudentID: student.ID,
-		NoteDate:  schedule.Date(noteDate),
+		NoteDate:  careplan.Date(noteDate),
 		Content:   req.Content,
 		CreatedBy: existingNote.CreatedBy,
 	}
@@ -775,23 +762,23 @@ func (rs *Resource) bulkUpsertArrivalSchedules(w http.ResponseWriter, r *http.Re
 	tenantID := tenant.FromContext(r.Context())
 	result, err := rs.ArrivalScheduleService.BulkUpsertArrivalSchedules(
 		r.Context(),
-		careschedule.ArrivalScheduleBulkFilter{
+		careplan.ArrivalScheduleBulkFilter{
 			SchoolClass: req.SchoolClass,
 			GroupID:     req.GroupID,
 			StudentIDs:  req.StudentIDs,
-			Authorize: func(ctx context.Context, student *users.Student) (bool, error) {
-				return canUpdateStudent(ctx, jwt.PermissionsFromCtx(r.Context()), student, rs.UserContextService)
+			Authorize: func(ctx context.Context, student careplan.ScheduleStudent) (bool, error) {
+				return authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(r.Context()), student, rs.UserContextService)
 			},
 		},
 		req.Schedules,
 		staffID,
 	)
 	if err != nil {
-		if errors.Is(err, careschedule.ErrBulkStudentUnauthorized) {
+		if errors.Is(err, careplan.ErrBulkStudentUnauthorized) {
 			renderError(w, r, common.ErrorForbidden(err))
 			return
 		}
-		if errors.Is(err, careschedule.ErrBulkStudentNotFound) {
+		if errors.Is(err, careplan.ErrBulkStudentNotFound) {
 			renderError(w, r, common.ErrorNotFound(err))
 			return
 		}
@@ -889,7 +876,7 @@ func (rs *Resource) getBulkArrivalScheduleStatus(w http.ResponseWriter, r *http.
 
 func mapBulkArrivalTimeResponse(
 	studentID int64,
-	effectiveTime *careschedule.EffectiveArrivalTime,
+	effectiveTime *careplan.EffectiveArrivalTime,
 ) BulkArrivalTimeResponse {
 	response := BulkArrivalTimeResponse{
 		StudentID:   studentID,
