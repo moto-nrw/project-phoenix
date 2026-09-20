@@ -4,7 +4,7 @@
 set -Eeuo pipefail
 umask 077
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-case "${DEPLOY_DIR:-}" in staging|production) ;; *) echo 'Invalid DEPLOY_DIR' >&2; exit 1;; esac
+case "${DEPLOY_DIR:-}" in staging|production|demo) ;; *) echo 'Invalid DEPLOY_DIR' >&2; exit 1;; esac
 deployment_directory=${1:-"$HOME/$DEPLOY_DIR"}
 [[ "$deployment_directory" = /* ]] || { echo 'Deployment directory must be absolute' >&2; exit 1; }
 cd "$deployment_directory"

@@ -7,10 +7,10 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 const scripts = dirname(fileURLToPath(import.meta.url));
-function fixture(t) {
+function fixture(t, target = 'staging') {
   const root = mkdtempSync(join(tmpdir(), 'moto-release-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const cwd = join(root, 'staging');
+  const cwd = join(root, target);
   mkdirSync(cwd); mkdirSync(join(root, 'bin'));
   writeFileSync(join(root, 'bin/docker'), `#!/bin/sh\nexec '${process.execPath}' '${join(scripts, 'test-support/release-docker.mjs')}' "$@"\n`, { mode: 0o755 });
   for (const [file, content] of Object.entries({ '.env': 'MODE=old\n', '.deploy-state': 'CURRENT_SHA=aaaaaaa\n',
@@ -18,9 +18,9 @@ function fixture(t) {
     writeFileSync(join(cwd, file), content);
   }
   const log = join(root, 'docker.log');
-  const env = { ...process.env, DEPLOY_DIR: 'staging', DEPLOY_SHA: 'bbbbbbb', BACKUP_RETENTION: '2',
+  const env = { ...process.env, DEPLOY_DIR: target, DEPLOY_SHA: 'bbbbbbb', BACKUP_RETENTION: '2',
     PATH: `${join(root, 'bin')}:${process.env.PATH}`, RELEASE_TEST_LOG: log };
-  const bundle = join(root, 'backups/staging/release-20260914T010000Z-bbbbbbb');
+  const bundle = join(root, 'backups', target, 'release-20260914T010000Z-bbbbbbb');
   const run = (file, args = [], extra = {}) => spawnSync('bash', [join(scripts, file),
     ...(['deploy-remote.sh', 'rollback-remote.sh'].includes(file) ? [cwd] : []), ...args], {
     cwd, env: { ...env, ...extra }, encoding: 'utf8', timeout: 30000,
@@ -41,6 +41,36 @@ test('complete snapshot restores all components and the saved deployment state',
   assert.match(f.calls(), /find \/volume -mindepth/);
   assert.equal(readFileSync(join(f.cwd, '.env'), 'utf8'), 'MODE=old\n');
 });
+
+test('demo deploy pins its frontend image and can restore its own snapshot', t => {
+  const f = fixture(t, 'demo');
+  writeFileSync(join(f.cwd, 'docker-compose.yml.new'),
+    'services:\n  server:\n    image: ghcr.io/moto-nrw/phoenix-server:demo\n  frontend:\n    image: ghcr.io/moto-nrw/phoenix-frontend:demo\n');
+  const result = f.run('deploy-remote.sh');
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const compose = readFileSync(join(f.cwd, 'docker-compose.yml'), 'utf8');
+  assert.match(compose, /phoenix-server:bbbbbbb/);
+  assert.match(compose, /phoenix-frontend:demo-bbbbbbb/);
+  const state = readFileSync(join(f.cwd, '.deploy-state'), 'utf8');
+  const id = state.match(/BACKUP_ID=(.+)/)[1];
+  const bundle = join(f.root, 'backups/demo', id);
+  assert.equal(readFileSync(join(bundle, 'environment'), 'utf8'), 'demo\n');
+  const rollback = f.run('rollback-remote.sh');
+  assert.equal(rollback.status, 0, rollback.stdout + rollback.stderr);
+  assert.equal(readFileSync(join(f.cwd, '.env'), 'utf8'), 'MODE=old\n');
+});
+
+for (const source of ['demo', 'staging', 'production']) {
+  for (const target of ['demo', 'staging', 'production'].filter(value => value !== source)) {
+    test(`${target} rejects a ${source} snapshot before touching services`, t => {
+      const f = fixture(t, source); f.backup();
+      const result = f.run('restore-db.sh', [f.bundle], { DEPLOY_DIR: target });
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, /Backup belongs to another environment/);
+      assert.equal(f.calls(), '');
+    });
+  }
+}
 for (const file of ['roles.sql', 'uploads.tar.gz', '.env', 'compose.yml', 'images.tsv', 'database.dump']) {
   test(`missing ${file} blocks restore before stop or deletion`, t => {
     const f = fixture(t); f.backup(); rmSync(join(f.bundle, file));
