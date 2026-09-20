@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DemoEntry } from "./demo-entry";
+import DemoEntryPage from "./page";
 
 const signIn = vi.fn();
 vi.mock("next-auth/react", () => ({
@@ -21,7 +21,7 @@ function json(status: number, body: unknown = {}) {
 
 function open(hash: string) {
   globalThis.history.replaceState(null, "", `/demo${hash}`);
-  return render(<DemoEntry />);
+  return render(<DemoEntryPage />);
 }
 
 beforeEach(() => {
@@ -40,7 +40,7 @@ beforeEach(() => {
   });
 });
 
-describe("DemoEntry", () => {
+describe("DemoEntryPage", () => {
   it("redeems the fragment token by POST, signs in and opens the start page", async () => {
     fetchMock
       .mockReturnValueOnce(json(200, { status: "ready" }))
