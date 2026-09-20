@@ -1,14 +1,12 @@
 package platform
 
-import (
-	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
-)
+import "time"
 
 // Operator represents a platform operator (moto DevOps team member)
 type Operator struct {
-	base.Model   `bun:"schema:platform,table:operators"`
+	ID           int64      `bun:"id,pk,autoincrement" json:"id"`
+	CreatedAt    time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp" json:"created_at"`
+	UpdatedAt    time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp" json:"updated_at"`
 	Email        string     `bun:"email,notnull,unique" json:"email"`
 	DisplayName  string     `bun:"display_name,notnull" json:"display_name"`
 	PasswordHash string     `bun:"password_hash,notnull" json:"-"`
