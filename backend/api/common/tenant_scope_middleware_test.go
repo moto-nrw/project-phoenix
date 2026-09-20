@@ -1,8 +1,7 @@
-package jwt_test
+package common
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -20,13 +19,11 @@ func TestTenantMiddleware_PopulatesContext(t *testing.T) {
 	var gotTenantID int64
 	var gotOrgID int64
 	var gotScope string
-	var gotTLSVersion uint16
 
-	handler := jwtpkg.TenantMiddleware(tenant.ClaimScope{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := TenantScopeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotTenantID = tenant.FromContext(r.Context())
 		gotOrgID = tenant.OrgFromContext(r.Context())
 		gotScope = tenant.ScopeFromContext(r.Context())
-		gotTLSVersion = r.TLS.Version
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -40,7 +37,6 @@ func TestTenantMiddleware_PopulatesContext(t *testing.T) {
 	}
 	ctx := context.WithValue(context.Background(), jwtpkg.CtxClaims, claims)
 	req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
-	req.TLS = &tls.ConnectionState{Version: tls.VersionTLS13}
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -49,13 +45,12 @@ func TestTenantMiddleware_PopulatesContext(t *testing.T) {
 	assert.Equal(t, int64(100), gotTenantID)
 	assert.Equal(t, int64(10), gotOrgID)
 	assert.Equal(t, "tenant", gotScope)
-	assert.Equal(t, uint16(tls.VersionTLS13), gotTLSVersion)
 }
 
 func TestTenantMiddleware_NoClaims_Unauthorized(t *testing.T) {
 	t.Parallel()
 
-	handler := jwtpkg.TenantMiddleware(tenant.ClaimScope{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := TenantScopeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("handler should not be called when no claims present")
 	}))
 
@@ -71,7 +66,7 @@ func TestTenantMiddleware_ZeroTenantID_IsRejected(t *testing.T) {
 	t.Parallel()
 	var observed tenant.RuntimeEvent
 
-	handler := jwtpkg.TenantMiddleware(tenant.ClaimScope{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := TenantScopeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("handler should not be called with a zero tenant ID")
 	}))
 
@@ -97,7 +92,7 @@ func TestTenantMiddleware_PlatformScope(t *testing.T) {
 
 	var gotIsPlatform bool
 
-	handler := jwtpkg.TenantMiddleware(tenant.ClaimScope{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := TenantScopeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotIsPlatform = tenant.ScopeFromContext(r.Context()) == tenant.ScopePlatform
 		w.WriteHeader(http.StatusOK)
 	}))

@@ -1,4 +1,4 @@
-package jwt_test
+package common
 
 import (
 	"context"
@@ -22,7 +22,7 @@ func TestParentMiddleware_AcceptsParentScope(t *testing.T) {
 	var gotScope string
 	var handlerCalled bool
 
-	handler := jwtpkg.ParentMiddleware(tenant.ClaimScope{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := ParentScopeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handlerCalled = true
 		gotTenantID = tenant.FromContext(r.Context())
 		gotScope = tenant.ScopeFromContext(r.Context())
@@ -52,7 +52,7 @@ func TestParentMiddleware_AcceptsParentScope(t *testing.T) {
 func TestParentMiddleware_NoClaims_Unauthorized(t *testing.T) {
 	t.Parallel()
 
-	handler := jwtpkg.ParentMiddleware(tenant.ClaimScope{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := ParentScopeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("handler should not be called when no claims present")
 	}))
 
@@ -72,7 +72,7 @@ func TestParentMiddleware_NoClaims_Unauthorized(t *testing.T) {
 func TestParentMiddleware_RejectsTenantScope(t *testing.T) {
 	t.Parallel()
 
-	handler := jwtpkg.ParentMiddleware(tenant.ClaimScope{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := ParentScopeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("tenant-scope token must NOT reach the wrapped handler")
 	}))
 
@@ -96,7 +96,7 @@ func TestParentMiddleware_RejectsTenantScope(t *testing.T) {
 func TestParentMiddleware_RejectsOrgScope(t *testing.T) {
 	t.Parallel()
 
-	handler := jwtpkg.ParentMiddleware(tenant.ClaimScope{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := ParentScopeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("org-scope token must NOT reach the wrapped handler")
 	}))
 
@@ -122,7 +122,7 @@ func TestParentMiddleware_RejectsOrgScope(t *testing.T) {
 func TestParentMiddleware_RejectsPlatformScope(t *testing.T) {
 	t.Parallel()
 
-	handler := jwtpkg.ParentMiddleware(tenant.ClaimScope{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := ParentScopeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("platform-scope token must NOT reach the wrapped handler")
 	}))
 
@@ -147,7 +147,7 @@ func TestParentMiddleware_RejectsPlatformScope(t *testing.T) {
 func TestParentMiddleware_RejectsUnknownScope(t *testing.T) {
 	t.Parallel()
 
-	handler := jwtpkg.ParentMiddleware(tenant.ClaimScope{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := ParentScopeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("unknown-scope token must NOT reach the wrapped handler")
 	}))
 
@@ -171,7 +171,7 @@ func TestParentMiddleware_RejectsUnknownScope(t *testing.T) {
 func TestParentMiddleware_ZeroID_Unauthorized(t *testing.T) {
 	t.Parallel()
 
-	handler := jwtpkg.ParentMiddleware(tenant.ClaimScope{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := ParentScopeMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("ID=0 claims must NOT reach the wrapped handler")
 	}))
 
