@@ -125,12 +125,12 @@ func TestInvitationRejectsInvalidOwnerProofWithoutWrites(t *testing.T) {
 			schoolA := testpkg.UniqueTestTenantID(t)
 			testpkg.EnsureTestTenant(t, db, schoolA)
 			role := testpkg.CreateTestRoleForTenant(t, db, "invited-staff", schoolA)
-			invitation := &authModels.InvitationToken{
+			invitation := &testpkg.InvitationTokenFixture{
 				Email: owner.Email, RoleID: role.ID, Token: fmt.Sprintf("owner-proof-%d", schoolA),
 				FirstName: testpkg.StrPtr("Invited"), LastName: testpkg.StrPtr("Owner"), ExpiresAt: time.Now().Add(time.Hour),
 			}
-			invitation.SetTenantID(schoolA)
-			require.NoError(t, repos.InvitationToken.Create(testpkg.TenantContext(schoolA), invitation))
+			invitation.TenantID = schoolA
+			testpkg.InsertTestInvitationToken(t, db, invitation)
 			claims := map[string]any{"id": owner.ID, "sub": owner.Email, "roles": []string{}, "tenant_id": testpkg.Tenant(t), "exp": time.Now().Add(time.Hour).Unix()}
 			wantErr := identityaccess.ErrInvitationOwnerRequired
 			signer := schoolTokenAuth(t)
@@ -210,15 +210,15 @@ func TestInvitationLifecycleAndImportedSchoolIdentity(t *testing.T) {
 			}
 			// The import creates a person before sending the invitation.
 			person := testpkg.CreateTestPerson(t, db, "Imported", "Staff")
-			invitation := &authModels.InvitationToken{
+			invitation := &testpkg.InvitationTokenFixture{
 				Email: email, RoleID: roleID, Token: fmt.Sprintf("lifecycle-%d", testpkg.Tenant(t)), PersonID: &person.ID,
 				FirstName: &person.FirstName, LastName: &person.LastName, ExpiresAt: time.Now().Add(time.Hour),
 			}
-			invitation.SetTenantID(testpkg.Tenant(t))
+			invitation.TenantID = testpkg.Tenant(t)
 			if strings.HasPrefix(name, "expired") {
 				invitation.ExpiresAt = time.Now().Add(-time.Hour)
 			}
-			require.NoError(t, repos.InvitationToken.Create(ctx, invitation))
+			testpkg.InsertTestInvitationToken(t, db, invitation)
 			if strings.HasPrefix(name, "revoked") {
 				creator := testpkg.CreateTestAccount(t, db, "revoking-creator")
 				require.NoError(t, service.RevokeSchoolInvitation(ctx, invitation.ID, creator.ID))
@@ -272,12 +272,12 @@ func TestInvitationConcurrentOwnerAcceptanceIsSingleUse(t *testing.T) {
 	schoolA := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, schoolA)
 	role := testpkg.CreateTestRoleForTenant(t, db, "concurrent-staff", schoolA)
-	invitation := &authModels.InvitationToken{
+	invitation := &testpkg.InvitationTokenFixture{
 		Email: owner.Email, RoleID: role.ID, Token: fmt.Sprintf("concurrent-%d", schoolA),
 		FirstName: testpkg.StrPtr("Invited"), LastName: testpkg.StrPtr("Owner"), ExpiresAt: time.Now().Add(time.Hour),
 	}
-	invitation.SetTenantID(schoolA)
-	require.NoError(t, repos.InvitationToken.Create(testpkg.TenantContext(schoolA), invitation))
+	invitation.TenantID = schoolA
+	testpkg.InsertTestInvitationToken(t, db, invitation)
 	proof, err := schoolTokenAuth(t).CreateJWT(authjwt.AppClaims{ID: int(owner.ID), Sub: owner.Email, Roles: []string{}, TenantID: testpkg.Tenant(t)})
 	require.NoError(t, err)
 	start := make(chan struct{})

@@ -1397,7 +1397,7 @@ type InvitationTokenOptions struct {
 
 // CreateTestInvitationToken creates an invitation token in the database.
 // Requires a role and creator account to exist.
-func CreateTestInvitationToken(tb testing.TB, db *bun.DB, email string, roleID, createdBy int64, expiresAt time.Time) *authmodels.InvitationToken {
+func CreateTestInvitationToken(tb testing.TB, db *bun.DB, email string, roleID, createdBy int64, expiresAt time.Time) *InvitationTokenFixture {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1407,7 +1407,7 @@ func CreateTestInvitationToken(tb testing.TB, db *bun.DB, email string, roleID, 
 	uniqueEmail := fmt.Sprintf(testEmailFormat, email, uniqueFixtureSuffix())
 	token := fmt.Sprintf("test-token-%d", uniqueFixtureSuffix())
 
-	invitation := &authmodels.InvitationToken{
+	invitation := &InvitationTokenFixture{
 		Email:     uniqueEmail,
 		Token:     token,
 		RoleID:    roleID,
@@ -1416,7 +1416,7 @@ func CreateTestInvitationToken(tb testing.TB, db *bun.DB, email string, roleID, 
 	if createdBy > 0 {
 		invitation.CreatedBy = Int64Ptr(createdBy)
 	}
-	invitation.SetTenantID(fixtureTenantID(tb))
+	invitation.TenantID = fixtureTenantID(tb)
 
 	err := db.NewInsert().
 		Model(invitation).
@@ -1428,7 +1428,7 @@ func CreateTestInvitationToken(tb testing.TB, db *bun.DB, email string, roleID, 
 }
 
 // CreateTestInvitationTokenWithOptions creates an invitation token with optional fields.
-func CreateTestInvitationTokenWithOptions(tb testing.TB, db *bun.DB, email string, roleID, createdBy int64, expiresAt time.Time, opts *InvitationTokenOptions) *authmodels.InvitationToken {
+func CreateTestInvitationTokenWithOptions(tb testing.TB, db *bun.DB, email string, roleID, createdBy int64, expiresAt time.Time, opts *InvitationTokenOptions) *InvitationTokenFixture {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1438,7 +1438,7 @@ func CreateTestInvitationTokenWithOptions(tb testing.TB, db *bun.DB, email strin
 	uniqueEmail := fmt.Sprintf(testEmailFormat, email, uniqueFixtureSuffix())
 	token := fmt.Sprintf("test-token-%d", uniqueFixtureSuffix())
 
-	invitation := &authmodels.InvitationToken{
+	invitation := &InvitationTokenFixture{
 		Email:     uniqueEmail,
 		Token:     token,
 		RoleID:    roleID,
@@ -1452,7 +1452,7 @@ func CreateTestInvitationTokenWithOptions(tb testing.TB, db *bun.DB, email strin
 		invitation.FirstName = opts.FirstName
 		invitation.LastName = opts.LastName
 	}
-	invitation.SetTenantID(fixtureTenantID(tb))
+	invitation.TenantID = fixtureTenantID(tb)
 
 	err := db.NewInsert().
 		Model(invitation).

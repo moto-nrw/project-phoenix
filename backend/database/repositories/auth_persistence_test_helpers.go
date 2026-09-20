@@ -13,14 +13,13 @@ import (
 // InvitationPersistence is the real persistence surface for invitation behavior
 // tests. It excludes the unrelated capabilities built by the legacy factory.
 type InvitationPersistence struct {
-	InvitationToken authModels.InvitationTokenRepository
-	Account         authModels.AccountRepository
-	AccountTenant   authModels.AccountTenantRepository
-	Person          userModels.PersonRepository
-	Staff           userModels.StaffRepository
-	Teacher         userModels.TeacherRepository
-	Student         userModels.StudentRepository
-	School          organizationtenancy.Capability
+	Account       authModels.AccountRepository
+	AccountTenant authModels.AccountTenantRepository
+	Person        userModels.PersonRepository
+	Staff         userModels.StaffRepository
+	Teacher       userModels.TeacherRepository
+	Student       userModels.StudentRepository
+	School        organizationtenancy.Capability
 }
 
 // NewInvitationPersistence constructs only invitation dependencies through the
@@ -35,11 +34,10 @@ func NewInvitationPersistence(db *bun.DB) (*InvitationPersistence, error) {
 		return nil, err
 	}
 	return &InvitationPersistence{
-		InvitationToken: authRepo.NewInvitationTokenRepository(db),
-		Account:         authRepo.NewAccountRepository(db),
-		AccountTenant:   authRepo.NewAccountTenantRepository(db),
-		Person:          NewPersonRepository(db),
-		Staff:           staff, Teacher: teachers,
+		Account:       authRepo.NewAccountRepository(db),
+		AccountTenant: authRepo.NewAccountTenantRepository(db),
+		Person:        NewPersonRepository(db),
+		Staff:         staff, Teacher: teachers,
 		Student: NewStudentRepository(db),
 		School:  organizations,
 	}, nil

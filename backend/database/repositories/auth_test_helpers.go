@@ -7,7 +7,6 @@ import (
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/uptrace/bun"
 )
 
@@ -27,7 +26,6 @@ func NewAuthTestRepositories(db *bun.DB, command auditModels.Command) (*Factory,
 		db: db, Account: members.Account, AccountTenant: members.AccountTenant, Person: members.Person,
 		Staff: members.Staff, Teacher: members.Teacher, GroupTeacher: members.GroupTeacher, ClassTeacher: members.ClassTeacher,
 		RFIDCard: newIdentityAccess(db, nil), Student: NewStudentRepository(db),
-		InvitationToken: authRepo.NewInvitationTokenRepository(db),
 		GuardianProfile: NewGuardianProfileRepository(db), StudentGuardian: NewStudentGuardianRepository(db),
 		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(carePlanLegacy.NewParentRuntime(db), enrollmentCompose.New(), identityAccountDirectory{accounts: newIdentityAccess(db, nil)}),
 		PushSubscription:        deliveryCompose.NewPushSubscriptionRepository(db),

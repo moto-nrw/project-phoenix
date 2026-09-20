@@ -9,7 +9,6 @@ import (
 
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -29,12 +28,12 @@ func TestInvitationHTTPRequiresVerifiedOwner(t *testing.T) {
 	schoolA := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, schoolA)
 	role := testpkg.CreateTestRoleForTenant(t, db, "invited-http-staff", schoolA)
-	invitation := &authModels.InvitationToken{
+	invitation := &testpkg.InvitationTokenFixture{
 		Email: owner.Email, RoleID: role.ID, Token: fmt.Sprintf("http-owner-%d", schoolA),
 		FirstName: testpkg.StrPtr("Invited"), LastName: testpkg.StrPtr("Owner"), ExpiresAt: time.Now().Add(time.Hour),
 	}
-	invitation.SetTenantID(schoolA)
-	require.NoError(t, repos.InvitationToken.Create(testpkg.TenantContext(schoolA), invitation))
+	invitation.TenantID = schoolA
+	testpkg.InsertTestInvitationToken(t, db, invitation)
 	path := "/auth/invitations/" + invitation.Token + "/accept"
 	// Neither a client account ID nor a client email is proof of ownership.
 	body := map[string]any{"account_id": owner.ID, "email": owner.Email, "owner_access_token": "unverified"}

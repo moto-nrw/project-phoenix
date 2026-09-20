@@ -2,7 +2,6 @@ package authmodels
 
 import (
 	"context"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -30,16 +29,6 @@ type AccountRepository interface {
 	// AnonymizeForDeletion overwrites the email with an anonymized
 	// placeholder and clears the username (GDPR person deletion).
 	AnonymizeForDeletion(ctx context.Context, accountID int64, anonymizedEmail string) error
-}
-
-// InvitationTokenRepository defines operations for managing invitation tokens.
-type InvitationTokenRepository interface {
-	Create(ctx context.Context, token *InvitationToken) error
-	Update(ctx context.Context, token *InvitationToken) error
-	FindByID(ctx context.Context, id interface{}) (*InvitationToken, error)
-	FindByEmail(ctx context.Context, email string) ([]*InvitationToken, error)
-	DeleteExpired(ctx context.Context, now time.Time) (int, error)
-	List(ctx context.Context, filters map[string]interface{}) ([]*InvitationToken, error)
 }
 
 // AccountTenantRepository defines operations for querying account-tenant mappings.

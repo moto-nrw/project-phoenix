@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -138,8 +139,10 @@ func TestCreateInvitationInvalidatesThePreviousInvitationOfTheSchool(t *testing.
 
 	first, err := env.service.CreateSchoolInvitation(ctx, request)
 	require.NoError(t, err)
+	request.Email = " " + strings.ToUpper(address) + " "
 	second, err := env.service.CreateSchoolInvitation(ctx, request)
 	require.NoError(t, err)
+	assert.Equal(t, address, second.Email)
 
 	assert.True(t, env.storedInvitation(t, first.ID).IsUsed(), "the previous invitation is spent")
 	_, err = env.service.ValidateSchoolInvitation(context.Background(), first.Token)

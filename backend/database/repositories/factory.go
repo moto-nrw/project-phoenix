@@ -89,9 +89,8 @@ type Factory struct {
 	students         peopledirectory.Capability
 
 	// Auth domain
-	Account         authModels.AccountRepository
-	AccountTenant   authModels.AccountTenantRepository
-	InvitationToken authModels.InvitationTokenRepository
+	Account       authModels.AccountRepository
+	AccountTenant authModels.AccountTenantRepository
 
 	// Users domain
 	Person              userModels.PersonRepository
@@ -516,9 +515,8 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	factory = &Factory{
 		db: db,
 		// Auth repositories
-		Account:         accountRepo,
-		AccountTenant:   accountTenantRepo,
-		InvitationToken: authpostgres.NewInvitationTokenRepository(db),
+		Account:       accountRepo,
+		AccountTenant: accountTenantRepo,
 
 		// Users repositories
 		Person:   personRepo,
