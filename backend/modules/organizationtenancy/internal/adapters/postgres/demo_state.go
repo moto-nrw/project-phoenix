@@ -44,7 +44,10 @@ func (s *DemoStateStore) Remember(ctx context.Context, name string, state DemoSt
 }
 
 func (s *DemoStateStore) WithLease(ctx context.Context, name string, run func(context.Context) error) (bool, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
+	// The caller's cancellation stops the demo callback, but must not make
+	// database/sql roll back the lease transaction asynchronously. This method
+	// releases the advisory lock synchronously before it returns.
+	tx, err := s.db.BeginTx(context.WithoutCancel(ctx), nil)
 	if err != nil {
 		return false, fmt.Errorf("open demo lease connection: %w", err)
 	}
