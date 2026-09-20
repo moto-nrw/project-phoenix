@@ -14,13 +14,6 @@ func studentOwnerContractDown(context.Context, *bun.DB) error {
 	return errors.New("student owner Contract is irreversible: restore the verified pre-Contract backup and its prior application image together; automatic Down cannot recreate removed rollback storage")
 }
 
-// contractStudentOwnerStorage is the ungated core used by isolated DDL tests.
-// Registered execution uses studentOwnerContractUp and its evidence gate.
-// The old archive is never copied back into current owner storage.
-func contractStudentOwnerStorage(ctx context.Context, db *bun.DB) error {
-	return contractStudentOwnerStorageChecked(ctx, db, nil)
-}
-
 // contractStudentOwnerStorageWithEvidence checks operational evidence before
 // acquiring locks, then checks it again inside the destructive transaction.
 func contractStudentOwnerStorageWithEvidence(ctx context.Context, db *bun.DB, evidence StudentContractEvidence, policy StudentContractPolicy, release string) error {

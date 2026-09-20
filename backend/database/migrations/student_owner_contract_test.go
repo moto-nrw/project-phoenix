@@ -11,6 +11,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Only isolated DDL tests may call the core without operational evidence.
+// Registered production execution always uses studentOwnerContractUp.
+func contractStudentOwnerStorage(ctx context.Context, db *bun.DB) error {
+	return contractStudentOwnerStorageChecked(ctx, db, nil)
+}
+
 func TestStudentOwnerContractRechecksEvidenceBeforeDestructiveDDL(t *testing.T) {
 	t.Parallel()
 	db := setupStudentStorageBeforeContract(t)
