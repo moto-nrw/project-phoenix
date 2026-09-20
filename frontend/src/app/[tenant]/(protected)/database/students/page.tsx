@@ -636,6 +636,7 @@ function StudentsPageContent() {
             onClearSelection={() => setSelectedStudentIds(new Set())}
             onFinishSelection={finishSelection}
             onSelectAllVisible={selectAllVisible}
+            canInviteGuardians={canCreateStudents}
             onEndCare={
               canDeleteStudents
                 ? () => setCareExitIds([...selectedStudentIds])

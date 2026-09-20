@@ -119,6 +119,9 @@ func (e LegacyEntry) Validate() error {
 }
 
 func validateLegacyViolationFields(violation Violation) error {
+	if violation.Rule == "rules.stale" {
+		return fmt.Errorf("rules.stale is a policy defect and cannot be legacy debt")
+	}
 	if !allowedScopes[string(violation.Scope)] {
 		return fmt.Errorf("scope %q is invalid", violation.Scope)
 	}

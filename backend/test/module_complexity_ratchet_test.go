@@ -202,7 +202,7 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/identityaccess/internal/application/guardian_invitation.go:(*AccountLifecycle).AcceptGuardianInvitation":           26,
 	"modules/identityaccess/internal/application/guardian_relative_access.go:(*AccountLifecycle).ApproveInvitation":             21,
 	"modules/identityaccess/internal/application/guardian_relative_access.go:(*AccountLifecycle).ListPendingApprovalsDetailed":  35,
-	"modules/identityaccess/internal/application/guardian_relative_access.go:(*AccountLifecycle).createStudentInvitation":       24,
+	"modules/identityaccess/internal/application/guardian_relative_access.go:(*AccountLifecycle).createStudentInvitation":       23,
 	"modules/identityaccess/internal/application/guardian_relative_access.go:(*AccountLifecycle).revokeAccess":                  44,
 	"modules/identityaccess/internal/application/operator_account_access.go:(*OperatorAccountAccess).GrantAccountTenantAccess":  37,
 	"modules/identityaccess/internal/application/operator_account_access.go:(*OperatorAccountAccess).RevokeAccountTenantAccess": 38,

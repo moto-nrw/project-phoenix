@@ -39,13 +39,15 @@ func Check(policy *Policy, graph *Graph) []Violation {
 	violations := packageClassificationViolations(packages, graph.Packages, graph.PackageLocations)
 	violations = append(violations, graph.SemanticViolations...)
 	usedExternalPackages := make(map[string]struct{}, len(externalPackages))
+	usedRules := make(map[string]struct{}, len(policy.Rules))
 	for _, edge := range graph.Edges {
-		if violation := checkEdge(policy, packages, externalPackages, usedExternalPackages, edge); violation != nil {
+		if violation := checkEdge(policy, packages, externalPackages, usedExternalPackages, usedRules, edge); violation != nil {
 			violation.Locations = append(violation.Locations, graph.ImportLocations[edge]...)
 			violations = append(violations, *violation)
 		}
 	}
 	violations = append(violations, staleExternalViolations(externalPackages, usedExternalPackages)...)
+	violations = append(violations, staleRuleViolations(policy.Rules, usedRules)...)
 	return uniqueSortedViolations(violations)
 }
 
@@ -131,7 +133,7 @@ func packageClassificationViolations(policyPackages map[string]Package, graphPac
 	return violations
 }
 
-func checkEdge(policy *Policy, packages map[string]Package, external map[string]ExternalPackage, used map[string]struct{}, edge Edge) *Violation {
+func checkEdge(policy *Policy, packages map[string]Package, external map[string]ExternalPackage, used, usedRules map[string]struct{}, edge Edge) *Violation {
 	source, sourceOK := packages[edge.Source]
 	if !sourceOK {
 		return nil
@@ -139,7 +141,7 @@ func checkEdge(policy *Policy, packages map[string]Package, external map[string]
 	source = source.inScope(edge.Scope)
 	if !isOwnPackage(policy.ModulePath, edge.Target) {
 		used[edge.Target] = struct{}{}
-		return checkExternalEdge(policy, source, external, edge)
+		return checkExternalEdge(policy, source, external, usedRules, edge)
 	}
 	target, targetOK := packages[edge.Target]
 	if !targetOK {
@@ -153,10 +155,11 @@ func checkEdge(policy *Policy, packages map[string]Package, external map[string]
 	if decision.Allowed == nil {
 		return &Violation{Scope: edge.Scope, Rule: "imports.forbidden", Source: edge.Source, Target: edge.Target, Detail: fmt.Sprintf("%s/%s may not import %s/%s", source.Owner, source.Role, target.Owner, target.Role)}
 	}
+	usedRules[decision.Allowed.ID] = struct{}{}
 	return nil
 }
 
-func checkExternalEdge(policy *Policy, source Package, packages map[string]ExternalPackage, edge Edge) *Violation {
+func checkExternalEdge(policy *Policy, source Package, packages map[string]ExternalPackage, usedRules map[string]struct{}, edge Edge) *Violation {
 	target, ok := packages[edge.Target]
 	if !ok {
 		return &Violation{Scope: edge.Scope, Rule: "external.unclassified", Source: edge.Source, Target: edge.Target, Detail: "external import has no dependency class"}
@@ -169,6 +172,7 @@ func checkExternalEdge(policy *Policy, source Package, packages map[string]Exter
 	if decision.Allowed == nil {
 		return &Violation{Scope: edge.Scope, Rule: "imports.forbidden", Source: edge.Source, Target: edge.Target, Detail: fmt.Sprintf("%s/%s may not import external class %s", source.Owner, source.Role, target.Class)}
 	}
+	usedRules[decision.Allowed.ID] = struct{}{}
 	return nil
 }
 
@@ -374,4 +378,15 @@ func (p *Policy) firstPartyPackage(path string) (Package, error) {
 		}
 	}
 	return Package{}, fmt.Errorf("first-party package %q has no owner or role", path)
+}
+
+// A rule is live if it allows at least one edge in any of its scopes.
+func staleRuleViolations(rules []Rule, used map[string]struct{}) []Violation {
+	var violations []Violation
+	for _, rule := range rules {
+		if _, ok := used[rule.ID]; !ok {
+			violations = append(violations, Violation{Rule: "rules.stale", Source: rule.ID, Target: rule.ID, Detail: "policy rule allows no import in the fixed build context; remove it"})
+		}
+	}
+	return violations
 }

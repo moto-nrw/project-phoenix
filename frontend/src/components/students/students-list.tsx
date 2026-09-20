@@ -20,6 +20,7 @@ import type { Student } from "~/lib/api";
 import type { BulkArrivalFilter } from "~/lib/student-arrival-api";
 import { FilteredBulkArrivalModal } from "./class-bulk-arrival-modal";
 import { ClassTripBulkStatusModal } from "./class-trip-bulk-status-modal";
+import { SelectionBulkInviteModal } from "./selection-bulk-invite-modal";
 import { SelectionBulkPickupModal } from "./selection-bulk-pickup-modal";
 
 export type GroupingMode = "class" | "group" | "none";
@@ -51,6 +52,9 @@ interface StudentsListProps {
   /** Öffnet "Betreuung beenden" für die Auswahl. Ohne die Berechtigung
    *  "Benutzer löschen" nicht gesetzt — dann fehlt der Knopf. */
   onEndCare?: () => void;
+  /** Zeigt "Eltern einladen" für die Auswahl (#3378); braucht die
+   *  Berechtigung "Benutzer anlegen" wie die Einladung am einzelnen Kind. */
+  canInviteGuardians?: boolean;
 }
 
 const UNKNOWN_CLASS_LABEL = "Ohne Klasse";
@@ -89,7 +93,9 @@ export function StudentsList({
   onFinishSelection,
   onSelectAllVisible,
   onEndCare,
+  canInviteGuardians = false,
 }: StudentsListProps) {
+  const [inviteSelectionOpen, setInviteSelectionOpen] = useState(false);
   const [bulkTarget, setBulkTarget] = useState<BulkArrivalTarget | null>(null);
   const [classTripTarget, setClassTripTarget] = useState<{
     label: string;
@@ -341,6 +347,11 @@ export function StudentsList({
             }
             visibleCount={students.length}
             onEndCare={onEndCare}
+            onInviteGuardians={
+              canInviteGuardians
+                ? () => setInviteSelectionOpen(true)
+                : undefined
+            }
           />
         ) : null}
         <GroupedList
@@ -381,6 +392,13 @@ export function StudentsList({
           onSuccess={handleBulkSuccess}
         />
       ) : null}
+      {inviteSelectionOpen ? (
+        <SelectionBulkInviteModal
+          isOpen
+          onClose={() => setInviteSelectionOpen(false)}
+          studentIds={selectedStudents.map((student) => String(student.id))}
+        />
+      ) : null}
     </>
   );
 }
@@ -396,6 +414,7 @@ interface SelectionBarProps {
   visibleCount?: number;
   onSelectAllVisible?: () => void;
   onEndCare?: () => void;
+  onInviteGuardians?: () => void;
 }
 
 function SelectionBar({
@@ -408,6 +427,7 @@ function SelectionBar({
   visibleCount = 0,
   onSelectAllVisible,
   onEndCare,
+  onInviteGuardians,
 }: SelectionBarProps) {
   const disabled = count === 0;
   return (
@@ -479,6 +499,17 @@ function SelectionBar({
         >
           Klassenfahrt
         </Button>
+        {onInviteGuardians ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="compact"
+            onClick={onInviteGuardians}
+            disabled={disabled}
+          >
+            Eltern einladen
+          </Button>
+        ) : null}
         {onEndCare ? (
           <Button
             type="button"

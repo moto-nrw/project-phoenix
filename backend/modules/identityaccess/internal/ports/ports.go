@@ -26,6 +26,8 @@ type Store interface {
 	FindRFIDCard(ctx context.Context, tag string, tenantID int64) (string, bool, domain.OperationStats, error)
 	FindAccount(ctx context.Context, id int64) (domain.Account, bool, domain.OperationStats, error)
 	FindAccountByEmail(ctx context.Context, email string) (domain.Account, bool, domain.OperationStats, error)
+	// FindAccountsByEmails resolves the normalized addresses in one query.
+	FindAccountsByEmails(ctx context.Context, emails []string) (map[string]domain.Account, domain.OperationStats, error)
 	// EnsureActiveTenantMapping inserts the account's mapping for the tenant or
 	// reactivates an existing one, clearing its deactivation.
 	EnsureActiveTenantMapping(ctx context.Context, accountID, tenantID int64) (domain.OperationStats, error)
@@ -389,6 +391,8 @@ type Runtime interface {
 	// so independent cleanup cannot join the caller's outcome.
 	Detach(ctx context.Context) context.Context
 	WithoutTransaction(ctx context.Context) context.Context
+	// AcquireLock takes a transaction-scoped advisory lock.
+	AcquireLock(ctx context.Context, key string) error
 }
 
 // AccountAccessStore is the persistence port over the identity-owned rows
