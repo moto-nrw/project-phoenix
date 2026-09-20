@@ -22,7 +22,6 @@ func TestNewFactory(t *testing.T) {
 		assert.NotNil(t, factory.Account)
 		assert.NotNil(t, factory.AccountParent)
 		assert.NotNil(t, factory.Role)
-		assert.NotNil(t, factory.RolePermission)
 		assert.NotNil(t, factory.AccountRole)
 		assert.NotNil(t, factory.AccountPermission)
 		assert.NotNil(t, factory.InvitationToken)

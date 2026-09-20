@@ -71,14 +71,6 @@ type AccountParentRepository interface {
 	FindByEmail(ctx context.Context, email string) (*AccountParent, error)
 }
 
-// RolePermissionRepository defines operations for managing role-permission mappings
-type RolePermissionRepository interface {
-	base.CRUDRepository[*RolePermission]
-	FindByRoleID(ctx context.Context, roleID int64) ([]*RolePermission, error)
-	DeleteByRoleID(ctx context.Context, roleID int64) error
-	DeleteByPermissionID(ctx context.Context, permissionID int64) error
-}
-
 // AccountRoleRepository defines operations for managing account-role mappings
 type AccountRoleRepository interface {
 	base.CRUDRepository[*AccountRole]

@@ -94,7 +94,6 @@ type Factory struct {
 	AccountTenant          authModels.AccountTenantRepository
 	StaffCalendarFeedToken authModels.StaffCalendarFeedTokenRepository
 	Role                   authModels.RoleRepository
-	RolePermission         authModels.RolePermissionRepository
 	AccountRole            authModels.AccountRoleRepository
 	AccountPermission      authModels.AccountPermissionRepository
 	InvitationToken        authModels.InvitationTokenRepository
@@ -538,7 +537,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		AccountTenant:          accountTenantRepo,
 		StaffCalendarFeedToken: authpostgres.NewStaffCalendarFeedTokenRepository(db),
 		Role:                   roleRepo,
-		RolePermission:         authpostgres.NewRolePermissionRepository(db),
 		AccountRole:            authpostgres.NewAccountRoleRepository(db),
 		AccountPermission:      authpostgres.NewAccountPermissionRepository(db),
 		InvitationToken:        authpostgres.NewInvitationTokenRepository(db),

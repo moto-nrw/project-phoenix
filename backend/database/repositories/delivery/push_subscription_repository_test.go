@@ -676,10 +676,9 @@ func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
 	require.NoError(t, err)
 
 	wildcardRole := testpkg.CreateTestRole(t, db, "Push Full Access")
-	_, err = db.NewInsert().
-		Model(&authModels.RolePermission{RoleID: wildcardRole.ID, PermissionID: fullAccessID}).
-		ModelTableExpr("auth.role_permissions").
-		Exec(context.Background())
+	_, err = db.ExecContext(context.Background(),
+		"INSERT INTO auth.role_permissions (role_id, permission_id) VALUES (?, ?)",
+		wildcardRole.ID, fullAccessID)
 	require.NoError(t, err)
 	roleGrant := &authModels.AccountRole{AccountID: roleAdmin.ID, RoleID: wildcardRole.ID}
 	roleGrant.SetTenantID(testpkg.Tenant(t))

@@ -35,7 +35,6 @@ var (
 	_ base.Entity = (*authmodels.PasswordResetToken)(nil)
 	_ base.Entity = (*authmodels.Permission)(nil)
 	_ base.Entity = (*authmodels.Role)(nil)
-	_ base.Entity = (*authmodels.RolePermission)(nil)
 	_ base.Entity = (*authmodels.Token)(nil)
 
 	// education package
