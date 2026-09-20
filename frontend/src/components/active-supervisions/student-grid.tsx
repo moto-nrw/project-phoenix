@@ -151,7 +151,13 @@ export function SupervisionStudentGrid({
                       !presentStudent.actual_pickup_time
                     ) {
                       return (
-                        <StudentAbsenceRow label={dayPlanningNotComingLabel} />
+                        <StudentAbsenceRow
+                          label={dayPlanningNotComingLabel}
+                          note={combineTimeNotes(
+                            studentPickup?.notes,
+                            studentPickup?.dayNotes,
+                          )}
+                        />
                       );
                     }
                     return (

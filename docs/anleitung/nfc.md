@@ -1,5 +1,12 @@
 # moto NFC Ergänzung
 
+> **Überholt.** Dieses Dokument beschreibt das Guide-System mit den drei
+> langen Anleitungsseiten (`/help/setup`, `/help/features`, `/help/nfc`) und
+> `guide-data.ts`. Beides ist mit dem Umbau aus #2229 entfernt worden: die
+> Hilfe liegt jetzt als ein Artikel je Frage unter `/help`. Verbindlich sind
+> `.claude/rules/help-guide-sync.md` und `docs/hilfebereich-umbau-plan.md`.
+> Aufbewahrt für die Begründungen, nicht als Anleitung.
+
 Diese Ergänzung beschreibt nur die Vorbereitung in moto für Einrichtungen, die zusätzlich NFC-Tablets nutzen.
 
 ## 1. Kinder zuerst in moto anlegen

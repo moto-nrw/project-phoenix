@@ -11,6 +11,7 @@ on:
         options:
           - staging
           - production
+          - demo
       backup_id:
         description: "Complete backup ID. Empty restores the current deployment's pre-deployment snapshot."
         required: false
@@ -38,21 +39,23 @@ jobs:
           ENVIRONMENT: ${{ inputs.environment }}
           REF_NAME: ${{ github.ref }}
         run: |
-          if [ "$ENVIRONMENT" = "production" ] && [ "$REF_NAME" != "refs/heads/main" ]; then
-            echo "Production rollbacks must run from refs/heads/main, got $REF_NAME"
+          if [[ "$ENVIRONMENT" = "production" || "$ENVIRONMENT" = "demo" ]] && [ "$REF_NAME" != "refs/heads/main" ]; then
+            echo "Production and demo rollbacks must run from refs/heads/main, got $REF_NAME"
             exit 1
           fi
           case "$ENVIRONMENT" in
             staging) echo "dir=staging" >> "$GITHUB_OUTPUT" ;;
             production) echo "dir=production" >> "$GITHUB_OUTPUT" ;;
+            demo) echo "dir=demo" >> "$GITHUB_OUTPUT" ;;
+            *) echo "Unknown environment"; exit 1 ;;
           esac
 
       - name: Setup SSH
         id: ssh
         env:
-          SSH_KEY: ${{ inputs.environment == 'staging' && secrets.STAGING_SSH_KEY || secrets.PRODUCTION_SSH_KEY }}
-          SSH_HOST: ${{ inputs.environment == 'staging' && secrets.STAGING_HOST || secrets.PRODUCTION_HOST }}
-          SSH_KNOWN_HOSTS: ${{ inputs.environment == 'staging' && secrets.STAGING_SSH_KNOWN_HOSTS || secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
+          SSH_KEY: ${{ secrets[format('{0}_SSH_KEY', inputs.environment)] }}
+          SSH_HOST: ${{ secrets[format('{0}_HOST', inputs.environment)] }}
+          SSH_KNOWN_HOSTS: ${{ secrets[format('{0}_SSH_KNOWN_HOSTS', inputs.environment)] }}
         run: |
           mkdir -p ~/.ssh
           echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
@@ -93,3 +96,7 @@ jobs:
           exit_code: ${{ steps.rollback.outputs.rollback_exit }}
           environment: ${{ inputs.environment }}
           resend_api_key: ${{ secrets.RESEND_API_KEY }}
+          notify_emails: ${{ vars.DEPLOY_NOTIFY_EMAILS }}
+          run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          sha: ${{ github.sha }}
+          actor: ${{ github.actor }}

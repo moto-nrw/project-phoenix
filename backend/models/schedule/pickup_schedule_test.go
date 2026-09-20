@@ -597,6 +597,30 @@ func TestStudentPickupNote_Validate(t *testing.T) {
 			wantErr: true,
 			errMsg:  "created_by is required",
 		},
+		{
+			// #3369: a recurring weekday note needs no date.
+			name: "recurring weekday note without date",
+			setup: func() *StudentPickupNote {
+				return &StudentPickupNote{StudentID: 1, Weekday: 3, Content: "Test note", CreatedBy: 1}
+			},
+			wantErr: false,
+		},
+		{
+			name: "dated and recurring at once",
+			setup: func() *StudentPickupNote {
+				return &StudentPickupNote{StudentID: 1, NoteDate: validDate, Weekday: 3, Content: "Test note", CreatedBy: 1}
+			},
+			wantErr: true,
+			errMsg:  "either dated or recurring",
+		},
+		{
+			name: "recurring note on a weekend",
+			setup: func() *StudentPickupNote {
+				return &StudentPickupNote{StudentID: 1, Weekday: 6, Content: "Test note", CreatedBy: 1}
+			},
+			wantErr: true,
+			errMsg:  "weekday must be between",
+		},
 	}
 
 	for _, tt := range tests {

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { validateServerRuntimeEnv } from "./server-runtime-env";
 
 function stubValidRuntimeEnv() {
+  vi.stubEnv("NEXT_PUBLIC_APP_ENV", "production");
   vi.stubEnv("API_URL", "http://server:8080");
   vi.stubEnv("AUTH_JWT_EXPIRY", "15m");
   vi.stubEnv("AUTH_JWT_REFRESH_EXPIRY", "168h");

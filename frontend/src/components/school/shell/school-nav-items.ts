@@ -93,7 +93,10 @@ export const SCHOOL_PRIMARY_NAV: readonly SchoolNavItem[] = [
 export const SCHOOL_SECONDARY_NAV: readonly SchoolNavItem[] = [
   {
     key: "help",
-    href: "/help",
+    // Mit `role` ueberspringt die Hilfe ihre Eingangsfrage: wer hier klickt,
+    // ist eine Lehrkraft. Die drei OGS-Einstellungen aendern in der
+    // Lehrkraft-Anleitung keinen Ablauf und bleiben deshalb weg.
+    href: "/help?role=teacher",
     label: "Hilfe",
     concept: "help",
     newTab: true,

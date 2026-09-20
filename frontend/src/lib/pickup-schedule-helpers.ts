@@ -67,11 +67,14 @@ export interface BackendPickupException {
   updated_at: string;
 }
 
-// Frontend Pickup Note Type
+// Frontend Pickup Note Type. A note is either dated (noteDate) or recurs on a
+// weekday (weekday 1-5, #3369). The recurring shape needs no pickup time, so a
+// day the child is not expected can still carry a note.
 export interface PickupNote {
   id: string;
   studentId: string;
-  noteDate: string; // YYYY-MM-DD format
+  noteDate: string; // YYYY-MM-DD format; "" for a recurring note
+  weekday?: number;
   content: string;
   createdBy: string;
   createdAt: string;
@@ -82,7 +85,8 @@ export interface PickupNote {
 export interface BackendPickupNote {
   id: number;
   student_id: number;
-  note_date: string; // YYYY-MM-DD format
+  note_date?: string; // YYYY-MM-DD format; absent for a recurring note
+  weekday?: number;
   content: string;
   created_by: number;
   created_at: string;
@@ -158,15 +162,18 @@ export interface BackendPickupExceptionRequest {
 }
 
 // Request types for creating/updating notes
-export interface PickupNoteFormData {
-  noteDate: string; // YYYY-MM-DD format
-  content: string; // max 500 chars
-}
+export type PickupNoteFormData =
+  | { noteDate: string; content: string } // dated, YYYY-MM-DD
+  | { weekday: number; content: string }; // recurring, 1-5 (#3369)
 
 // Backend note request
-export interface BackendPickupNoteRequest {
-  note_date: string;
-  content: string;
+export type BackendPickupNoteRequest =
+  { note_date: string; content: string } | { weekday: number; content: string };
+
+/** The note of one weekday without a pickup time (#3369). */
+export interface WeekdayNoteEntry {
+  readonly weekday: number;
+  readonly content: string;
 }
 
 // Mapping Functions
@@ -236,7 +243,8 @@ export function mapPickupNoteResponse(data: BackendPickupNote): PickupNote {
   return {
     id: data.id.toString(),
     studentId: data.student_id.toString(),
-    noteDate: data.note_date,
+    noteDate: data.note_date ?? "",
+    ...(data.weekday ? { weekday: data.weekday } : {}),
     content: data.content,
     createdBy: data.created_by.toString(),
     createdAt: data.created_at,
@@ -294,10 +302,9 @@ export function mapPickupExceptionFormToBackend(
 export function mapPickupNoteFormToBackend(
   data: PickupNoteFormData,
 ): BackendPickupNoteRequest {
-  return {
-    note_date: data.noteDate,
-    content: data.content,
-  };
+  return "weekday" in data
+    ? { weekday: data.weekday, content: data.content }
+    : { note_date: data.noteDate, content: data.content };
 }
 
 // Weekday constants matching backend (Monday=1 to Friday=5)
@@ -521,6 +528,8 @@ export interface DayData {
   effectiveNotes: string | undefined;
   isException: boolean;
   notes: PickupNote[]; // Day-specific notes
+  /** The recurring note of this weekday, if any (#3369). */
+  weekdayNote?: PickupNote;
 }
 
 /**
@@ -596,8 +605,10 @@ export function getDayData(
     effectiveTime = baseSchedule?.pickupTime;
   }
 
-  // Filter notes for this specific date
+  // Filter notes for this specific date. The recurring weekday note (#3369)
+  // stays separate: the day editor lists and edits dated notes only.
   const dayNotes = notes.filter((n) => n.noteDate === dateStr);
+  const weekdayNote = notes.find((n) => n.weekday === weekday);
 
   return {
     date,
@@ -615,5 +626,6 @@ export function getDayData(
       : (exception?.reason ?? baseSchedule?.notes),
     isException: !!exception,
     notes: dayNotes,
+    weekdayNote,
   };
 }

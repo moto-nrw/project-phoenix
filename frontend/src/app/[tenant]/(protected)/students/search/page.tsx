@@ -6,6 +6,8 @@ import { CalendarRange, Download, Search } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
+import { HELP_TOPICS } from "~/lib/help-topics";
 import { CollectionGrid } from "~/components/ui/collection-grid";
 import { Alert } from "~/components/ui/alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -938,6 +940,7 @@ function SearchPageContent() {
     },
   });
   const searchParams = useSearchParams();
+  useSetBreadcrumb({ helpTopic: HELP_TOPICS.studentSearch });
   const storageKey = useMemo(
     () => buildSearchFilterStorageKey(session?.user),
     [session?.user],
@@ -3421,6 +3424,7 @@ function SearchPageContent() {
                                     <StudentAbsenceRow
                                       label={absence.label}
                                       wording={absenceWording}
+                                      note={student.pickup_notes}
                                     />
                                     {absencePickupRow}
                                   </>

@@ -85,18 +85,6 @@ type pickupExceptionRow struct {
 	CreatedByGuardian     *int64       `bun:"created_by_guardian,nullzero"`
 }
 
-type pickupNoteRow struct {
-	bun.BaseModel `bun:"table:student_pickup_notes,alias:student_pickup_note"`
-	ID            int64        `bun:"id,pk,autoincrement"`
-	TenantID      int64        `bun:"tenant_id,notnull"`
-	CreatedAt     time.Time    `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt     time.Time    `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
-	StudentID     int64        `bun:"student_id,notnull"`
-	NoteDate      calendarDate `bun:"note_date,notnull,type:date"`
-	Content       string       `bun:"content,notnull"`
-	CreatedBy     int64        `bun:"created_by,notnull"`
-}
-
 func applyStudentScheduleOptions(query *bun.SelectQuery, options *careplan.StudentScheduleQueryOptions, alias string) *bun.SelectQuery {
 	if options == nil {
 		return query
@@ -641,95 +629,6 @@ func (s *Store) ListPickupExceptions(ctx context.Context, f careplan.StudentSche
 	return mapRows(rows, pickupExceptionToPublic), stats, err
 }
 
-func (s *Store) FindPickupNote(ctx context.Context, id int64) (careplan.PickupNote, bool, domain.OperationStats, error) {
-	db, tid, err := s.database(ctx)
-	if err != nil {
-		return careplan.PickupNote{}, false, domain.OperationStats{}, err
-	}
-	row := new(pickupNoteRow)
-	query := db.NewSelect().Model(row).ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`).Where(`"student_pickup_note".tenant_id = ?`, tid).Where(`"student_pickup_note".id = ?`, id)
-	found, stats, err := findStudentScheduleRow(ctx, query, false, "find pickup note")
-	return pickupNoteToPublic(*row), found, stats, err
-}
-func (s *Store) ListPickupNotes(ctx context.Context, f careplan.StudentScheduleFilter) ([]careplan.PickupNote, domain.OperationStats, error) {
-	db, tid, err := s.database(ctx)
-	if err != nil {
-		return nil, domain.OperationStats{}, err
-	}
-	rows := []pickupNoteRow{}
-	if f.IDs != nil && len(f.IDs) == 0 || f.StudentIDs != nil && len(f.StudentIDs) == 0 {
-		return []careplan.PickupNote{}, domain.OperationStats{}, nil
-	}
-	query := db.NewSelect().Model(&rows).ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`).Where(`"student_pickup_note".tenant_id = ?`, tid)
-	if f.IDs != nil {
-		query = query.Where(`"student_pickup_note".id IN (?)`, bun.List(f.IDs))
-	}
-	if f.StudentIDs != nil {
-		query = query.Where(`"student_pickup_note".student_id IN (?)`, bun.List(f.StudentIDs))
-	}
-	if !f.Date.IsZero() {
-		query = query.Where(`"student_pickup_note".note_date = ?`, calendarDate(f.Date))
-	}
-	if !f.From.IsZero() {
-		query = query.Where(`"student_pickup_note".note_date >= ?`, calendarDate(f.From))
-	}
-	if !f.To.IsZero() {
-		query = query.Where(`"student_pickup_note".note_date <= ?`, calendarDate(f.To))
-	}
-	if !f.UpcomingFrom.IsZero() {
-		query = query.Where(`"student_pickup_note".note_date >= ?`, calendarDate(f.UpcomingFrom))
-	}
-	query = applyStudentScheduleOptions(query, f.Options, "student_pickup_note")
-	if f.Options == nil || len(f.Options.Sorting) == 0 {
-		query = query.OrderExpr(`"student_pickup_note".note_date ASC, "student_pickup_note".created_at ASC`)
-	}
-	if f.LockForUpdate {
-		query = query.For("UPDATE")
-	}
-	stats, err := finishStudentScheduleList(ctx, query, &rows, "list pickup notes")
-	return mapRows(rows, pickupNoteToPublic), stats, err
-}
-func (s *Store) CreatePickupNote(ctx context.Context, v careplan.PickupNote) (careplan.PickupNote, domain.OperationStats, error) {
-	db, tid, err := s.databaseForWrite(ctx, "create pickup note")
-	if err != nil {
-		return careplan.PickupNote{}, domain.OperationStats{}, err
-	}
-	row := pickupNoteFromPublic(v)
-	row.TenantID = tid
-	stats, err := createStudentScheduleRow(ctx, db.NewInsert().Model(&row).ModelTableExpr(`schedule.student_pickup_notes`), "create pickup note")
-	return pickupNoteToPublic(row), stats, err
-}
-func (s *Store) UpdatePickupNote(ctx context.Context, v careplan.PickupNote) (domain.OperationStats, error) {
-	db, tid, err := s.databaseForWrite(ctx, "update pickup note")
-	if err != nil {
-		return domain.OperationStats{}, err
-	}
-	row := pickupNoteFromPublic(v)
-	row.TenantID = tid
-	return execGuarded(ctx, db.NewUpdate().Model(&row).ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`).Where(`"student_pickup_note".id = ?`, row.ID).Where(`"student_pickup_note".tenant_id = ?`, tid), "update pickup note", careplan.ErrStudentScheduleNotFound)
-}
-func (s *Store) DeletePickupNote(ctx context.Context, id int64) (domain.OperationStats, error) {
-	db, tid, err := s.databaseForWrite(ctx, "delete pickup note")
-	if err != nil {
-		return domain.OperationStats{}, err
-	}
-	return execAny(ctx, db.NewDelete().TableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`).Where(`"student_pickup_note".id = ?`, id).Where(`"student_pickup_note".tenant_id = ?`, tid), "delete pickup note")
-}
-func (s *Store) DeletePickupNotesByStudent(ctx context.Context, id int64) (domain.OperationStats, error) {
-	db, tid, err := s.databaseForWrite(ctx, "delete pickup notes by student")
-	if err != nil {
-		return domain.OperationStats{}, err
-	}
-	return execAny(ctx, db.NewDelete().TableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`).Where(`"student_pickup_note".tenant_id = ?`, tid).Where(`"student_pickup_note".student_id = ?`, id), "delete pickup notes by student")
-}
-func (s *Store) DeletePickupNotesBefore(ctx context.Context, d careplan.Date) (domain.OperationStats, error) {
-	db, tid, err := s.databaseForWrite(ctx, "delete old pickup notes")
-	if err != nil {
-		return domain.OperationStats{}, err
-	}
-	return execAny(ctx, db.NewDelete().TableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`).Where(`"student_pickup_note".tenant_id = ?`, tid).Where(`"student_pickup_note".note_date < ?`, calendarDate(d)), "delete past pickup notes")
-}
-
 func (s *Store) CountStudentScheduleRows(ctx context.Context, studentID int64) (int, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
@@ -866,10 +765,4 @@ func pickupScheduleFromPublic(v careplan.PickupSchedule) pickupScheduleRow {
 }
 func pickupScheduleToPublic(v pickupScheduleRow) careplan.PickupSchedule {
 	return careplan.PickupSchedule{ID: v.ID, TenantID: v.TenantID, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt, StudentID: v.StudentID, Weekday: v.Weekday, PickupTime: v.PickupTime, Notes: v.Notes, CreatedBy: v.CreatedBy, Source: v.Source, CareOfferingID: v.CareOfferingID}
-}
-func pickupNoteFromPublic(v careplan.PickupNote) pickupNoteRow {
-	return pickupNoteRow{ID: v.ID, TenantID: v.TenantID, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt, StudentID: v.StudentID, NoteDate: calendarDate(v.NoteDate), Content: v.Content, CreatedBy: v.CreatedBy}
-}
-func pickupNoteToPublic(v pickupNoteRow) careplan.PickupNote {
-	return careplan.PickupNote{ID: v.ID, TenantID: v.TenantID, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt, StudentID: v.StudentID, NoteDate: careplan.Date(v.NoteDate), Content: v.Content, CreatedBy: v.CreatedBy}
 }

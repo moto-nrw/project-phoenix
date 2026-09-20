@@ -10,8 +10,7 @@ import {
   ShieldCheck,
   Wrench,
 } from "lucide-react";
-import { HelpHeader } from "~/components/help/guide-components";
-import { HelpSearchInline } from "~/components/help/help-search";
+import { OnepagerHeader } from "~/components/help/onepager-header";
 
 const quickstartPdf = {
   href: "/help/pdfs/nfc-erste-schritte.pdf",
@@ -64,10 +63,7 @@ export default function NfcQuickstartPage() {
   return (
     <main className="moto-dotted-background moto-dotted-background--guide min-h-screen overflow-x-hidden px-4 py-8 text-gray-950 print:min-h-0 print:w-[210mm] print:p-0">
       <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-8 print:block print:w-[210mm]">
-        <HelpHeader pdf={quickstartPdf} />
-        <div className="print:hidden">
-          <HelpSearchInline />
-        </div>
+        <OnepagerHeader pdf={quickstartPdf} />
         <section className="relative mx-auto flex min-h-[297mm] w-full max-w-[210mm] flex-col overflow-hidden rounded-[28px] print:h-[296mm] print:min-h-0 print:w-[210mm]">
           <header className="relative overflow-hidden rounded-[28px] bg-gray-900 text-white">
             <div
@@ -250,24 +246,23 @@ export default function NfcQuickstartPage() {
                 </span>
                 <div className="min-w-0 flex-1">
                   <h2 className="text-[19px] leading-tight font-semibold tracking-normal print:text-[17px]">
-                    Weiter zum NFC-Betriebsbuch
+                    Weiter zu den NFC-Anleitungen
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-gray-700 print:mt-1.5 print:text-[13px] print:leading-5">
-                    Alles Weitere steht im ausführlichen Handbuch: Aufsicht
-                    starten und beenden, Kinder ein- und auschecken,
-                    Arbeitszeiten stempeln, Geräteeinstellungen und
-                    Fehlerbehebung.
+                    Alles Weitere steht in der moto Hilfe: Aufsicht starten und
+                    beenden, Kinder ein- und auschecken, Arbeitszeiten stempeln,
+                    Geräte einstellen und Fehler beheben.
                   </p>
                   <Link
-                    href="/help/nfc"
+                    href="/help/gruppe/nfc?role=caregiver&nfc_enabled=true"
                     className="bg-moto-green hover:bg-moto-green-hover active:bg-moto-green-active mt-3 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-gray-950 transition-colors print:hidden"
                   >
-                    NFC-Betriebsbuch öffnen
+                    NFC-Anleitungen öffnen
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </Link>
                   <p className="mt-2 hidden text-[12px] leading-5 font-medium text-gray-700 print:mt-2 print:block">
                     So finden Sie es: moto im Browser öffnen, unten links auf
-                    Hilfe klicken und NFC &amp; Tablets wählen.
+                    Hilfe klicken und die Anleitungen zum NFC-Tablet wählen.
                   </p>
                 </div>
               </div>

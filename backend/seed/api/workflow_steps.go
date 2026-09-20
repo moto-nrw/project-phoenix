@@ -64,6 +64,7 @@ func (seedMasterDataStep) Name() string { return "Stammdaten seeding" }
 
 func (s seedMasterDataStep) Run(ctx context.Context, rt *Runtime) error {
 	fixedSeeder := NewFixedSeeder(rt.Client, rt.Verbose, s.seeder.options.StaffPassword)
+	fixedSeeder.accountScope = s.seeder.accountScope()
 	fixedResult, err := fixedSeeder.Seed(ctx)
 	if err != nil {
 		return err
@@ -115,7 +116,7 @@ type buildStateStep struct {
 
 func (buildStateStep) Name() string { return "Writing seed state" }
 
-func (s buildStateStep) Run(_ context.Context, rt *Runtime) error {
+func (s buildStateStep) Run(ctx context.Context, rt *Runtime) error {
 	if rt.FixedSeeder == nil {
 		return fmt.Errorf("fixed seeder not available")
 	}
@@ -150,6 +151,9 @@ func (s buildStateStep) Run(_ context.Context, rt *Runtime) error {
 	state.Topology.Schools = len(state.Profiles)
 
 	rt.State = state
+	if s.seeder.options.SaveState != nil {
+		return s.seeder.options.SaveState(ctx, state)
+	}
 	if err := WriteSeedState(state, s.seeder.statePath); err != nil {
 		return err
 	}
@@ -187,54 +191,58 @@ func (s printSummaryStep) Run(_ context.Context, rt *Runtime) error {
 	if rt.Result == nil {
 		return fmt.Errorf("seed result not available")
 	}
+	if s.seeder.options.StandingDemo {
+		return nil // Sidecar logs must not contain the credential summary.
+	}
 	s.seeder.printSuccessSummary(rt.Bootstrap.AdminEmail, rt.Bootstrap.AdminPassword, rt.Result, rt.State)
 	return nil
 }
 
 func fullDemoWorkflow(seeder *Seeder) Workflow {
-	return Workflow{
-		Name: "full-demo",
-		Steps: []Step{
-			healthCheckStep{},
-			operatorLoginStep{},
-			bootstrapTenantStep{seeder: seeder},
-			configureProfileStep{definition: seeder.definition},
-			seedMasterDataStep{seeder: seeder},
-			seedPlanningDemoStep{},
-			seedStudentStatusVariantsStep{},
-			seedOperationsDemoStep{},
-			seedHomeLayoutStep{},
-			seedStaffMasterDataStep{},
-			seedImportAuditStep{},
-			seedAuditLifecycleStep{},
-			seedPrivacyConsentsStep{},
-			seedFamilyProtectionStep{},
-			markStudentsSickStep{},
-			seedCareExitsStep{},
-			seedAnnouncementsStep{},
-			seedStaffMessagingStep{},
-			seedStaffNoticesStep{},
-			seedFileStorageStep{},
-			// Vor der App-Historie: der IoT-Sitzungsstart erzeugt den echten
-			// NFC-Arbeitsblock. Nach einem App-Checkout am selben Tag verhindert
-			// die Zeiterfassung bewusst einen erneuten Auto-Check-in.
-			seedStatisticsDemoStep{},
-			seedTimeTrackingHistoryStep{},
-			seedDataAccessAuditStep{},
-			// Rührt weder an der Zeiterfassung noch am NFC-Block: legt nur
-			// vergangene Kurstermine samt Anwesenheit an (#2891).
-			seedCourseParticipationStep{},
-			parentEnrollmentSeedStep{seeder: seeder},
-			seedParentEngagementStep{},
-			seedGradeTransitionStep{},
-			seedParentLetterStep{},
-			seedInactiveAccountStep{},
-			verifyProfileStep{definition: seeder.definition},
+	steps := []Step{
+		healthCheckStep{},
+		operatorLoginStep{},
+		bootstrapTenantStep{seeder: seeder},
+		configureProfileStep{definition: seeder.definition},
+		seedMasterDataStep{seeder: seeder},
+		seedPlanningDemoStep{},
+		seedStudentStatusVariantsStep{},
+		seedOperationsDemoStep{},
+		seedHomeLayoutStep{},
+		seedStaffMasterDataStep{},
+		seedImportAuditStep{},
+		seedAuditLifecycleStep{},
+		seedPrivacyConsentsStep{},
+		seedFamilyProtectionStep{},
+		markStudentsSickStep{},
+		seedCareExitsStep{},
+		seedAnnouncementsStep{},
+		seedStaffMessagingStep{},
+		seedStaffNoticesStep{},
+		seedFileStorageStep{},
+		// Vor der App-Historie: der IoT-Sitzungsstart erzeugt den echten
+		// NFC-Arbeitsblock. Nach einem App-Checkout am selben Tag verhindert
+		// die Zeiterfassung bewusst einen erneuten Auto-Check-in.
+		seedStatisticsDemoStep{},
+		seedTimeTrackingHistoryStep{},
+		seedDataAccessAuditStep{},
+		// Rührt weder an der Zeiterfassung noch am NFC-Block: legt nur
+		// vergangene Kurstermine samt Anwesenheit an (#2891).
+		seedCourseParticipationStep{},
+		parentEnrollmentSeedStep{seeder: seeder},
+		seedParentEngagementStep{},
+		seedGradeTransitionStep{},
+		seedParentLetterStep{},
+		seedInactiveAccountStep{},
+		verifyProfileStep{definition: seeder.definition},
+	}
+	if seeder.options.OnlyProfile == "" {
+		steps = append(steps,
 			manualProfileStep{seeder: seeder},
 			seedEnrollmentWeeklyProfileStep{seeder: seeder},
 			seedEnrollmentBookingsProfileStep{seeder: seeder},
-			buildStateStep{seeder: seeder},
-			printSummaryStep{seeder: seeder},
-		},
+		)
 	}
+	steps = append(steps, buildStateStep{seeder: seeder}, printSummaryStep{seeder: seeder})
+	return Workflow{Name: "full-demo", Steps: steps}
 }

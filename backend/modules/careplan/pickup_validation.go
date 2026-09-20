@@ -78,8 +78,15 @@ func (n *PickupNote) Validate() error {
 	if n.StudentID <= 0 {
 		return errors.New("student_id is required")
 	}
-	if n.NoteDate.IsZero() {
+	// A recurring weekday note (#3369) carries Weekday (1-5) instead of a date.
+	if n.Weekday == 0 && n.NoteDate.IsZero() {
 		return errors.New("note_date is required")
+	}
+	if n.Weekday != 0 && !n.NoteDate.IsZero() {
+		return errors.New("a note is either dated or recurring, not both")
+	}
+	if n.Weekday != 0 && (n.Weekday < 1 || n.Weekday > 5) {
+		return errors.New("weekday must be between 1 (Monday) and 5 (Friday)")
 	}
 	if n.Content == "" {
 		return errors.New("content is required")

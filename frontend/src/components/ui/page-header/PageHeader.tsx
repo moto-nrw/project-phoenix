@@ -1,6 +1,7 @@
 "use client";
 
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { ContextHelpLink } from "~/components/help/context-help-link";
 import { OverflowMenu } from "./OverflowMenu";
 import { StatusIndicator } from "./StatusIndicator";
 import type { PageHeaderProps } from "./types";
@@ -11,6 +12,7 @@ export function PageHeader({
   badge,
   statusIndicator,
   actionButton,
+  helpTopic,
   overflowMenu,
   className = "",
 }: Readonly<PageHeaderProps>) {
@@ -29,7 +31,14 @@ export function PageHeader({
           {concept ? (
             <ConceptIconTile concept={concept} variant="page" />
           ) : null}
-          <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+          <div className="flex min-w-0 items-center gap-1">
+            <h1 className="truncate text-2xl font-bold text-gray-900">
+              {title}
+            </h1>
+            {helpTopic ? (
+              <ContextHelpLink topic={helpTopic} className="size-11" />
+            ) : null}
+          </div>
         </div>
 
         {/* Action Button OR Badge and Status */}

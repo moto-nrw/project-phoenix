@@ -1,6 +1,7 @@
 package simulate
 
 import (
+	"fmt"
 	"sort"
 	"time"
 
@@ -74,6 +75,14 @@ func LoadSeedStateProfile(path, profileKey string) (*SeedState, error) {
 	contract, err := demoprofile.LoadSeedState(path)
 	if err != nil {
 		return nil, err
+	}
+	return SeedStateFromContract(contract, profileKey)
+}
+
+// SeedStateFromContract accepts a database-backed seed without a state file.
+func SeedStateFromContract(contract *demoprofile.SeedState, profileKey string) (*SeedState, error) {
+	if contract == nil {
+		return nil, fmt.Errorf("seed contract is required")
 	}
 	profile, err := contract.SelectProfile(profileKey)
 	if err != nil {

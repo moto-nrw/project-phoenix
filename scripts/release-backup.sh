@@ -13,7 +13,7 @@ digest() {
 }
 
 environment() {
-  case "${DEPLOY_DIR:-}" in staging|production) ;; *) fail 'DEPLOY_DIR must be staging or production';; esac
+  case "${DEPLOY_DIR:-}" in staging|production|demo) ;; *) fail 'DEPLOY_DIR must be staging, production or demo';; esac
 }
 
 volume() {

@@ -83,3 +83,32 @@ func resolveServeDSNFrom(getenv func(string) string) (string, error) {
 	parsed.User = url.UserPassword("phoenix_auth", password)
 	return parsed.String(), nil
 }
+
+// GetDemoDSN returns the least-privilege connection string for the standing
+// demo sidecar. It deliberately uses a separate endpoint and credential from
+// maintenance commands, which alone receive DB_DSN.
+func GetDemoDSN() string {
+	dsn, err := resolveDemoDSNFrom(os.Getenv)
+	if err != nil {
+		slog.Error(err.Error())
+		os.Exit(1)
+	}
+	return dsn
+}
+
+func resolveDemoDSNFrom(getenv func(string) string) (string, error) {
+	baseDSN := getenv("DEMO_DB_DSN")
+	if baseDSN == "" {
+		return "", fmt.Errorf("DEMO_DB_DSN is required for demo")
+	}
+	password := getenv("PHOENIX_DEMO_PASSWORD")
+	if password == "" {
+		return "", fmt.Errorf("PHOENIX_DEMO_PASSWORD is required for demo")
+	}
+	parsed, err := url.Parse(baseDSN)
+	if err != nil {
+		return "", fmt.Errorf("invalid database DSN for demo")
+	}
+	parsed.User = url.UserPassword("phoenix_demo", password)
+	return parsed.String(), nil
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/careplanning"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
 
@@ -220,6 +221,17 @@ func (e engine) UpdatePickupNote(ctx context.Context, v careplan.PickupNote) err
 }
 func (e engine) DeletePickupNote(ctx context.Context, id int64) error {
 	return mapError(e.withinTenant(ctx, func(tx context.Context) error { return e.service.DeletePickupNote(tx, id) }))
+}
+func (e engine) ReplaceWeekdayPickupNotes(ctx context.Context, studentID, createdBy int64, notes map[int]string) error {
+	return mapError(e.withinTenant(ctx, func(tx context.Context) error {
+		// Existing note rows do not provide a lock on a child's first note.
+		// Lock the stable owner first so concurrent replacements cannot both
+		// attempt the same weekday insert.
+		if err := careplanning.LockStudent(tx, e.database, studentID); err != nil {
+			return err
+		}
+		return e.service.ReplaceWeekdayPickupNotes(tx, studentID, createdBy, notes)
+	}))
 }
 func (e engine) DeletePickupNotesByStudent(ctx context.Context, id int64) error {
 	return mapError(e.withinTenant(ctx, func(tx context.Context) error { return e.service.DeletePickupNotesByStudent(tx, id) }))

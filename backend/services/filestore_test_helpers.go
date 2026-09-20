@@ -5,10 +5,12 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
+	documentCompose "github.com/moto-nrw/project-phoenix/modules/documentrendering/compose"
 	enrollmentAudience "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -62,8 +64,10 @@ func NewFileStoreTestModule(db *bun.DB, unit tenant.UnitOfWork, objects UploadsB
 		Objects:       objects,
 		Identity:      identity,
 		People:        persons,
-		Settings:      settings.Settings,
-		Events:        repositories.NewFileEventTestRepository(db, command),
+		Settings:      fileStorageSettings{service: settings.Settings},
+		Events:        fileStorageEvents{repo: repositories.NewFileEventTestRepository(db, command)},
+		FileCleanups:  documentCompose.NewFileCleanupStore(db),
+		HasPermission: securityruntime.HasPermission,
 		Announcements: announcements,
 		Observe:       func(filestorageCompose.Observation) {},
 		Logger:        slog.Default(),

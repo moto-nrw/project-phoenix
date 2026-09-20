@@ -41,6 +41,8 @@ func renderPeopleDirectoryFailure(w http.ResponseWriter, r *http.Request, kind u
 
 func guardianFailureKind(kind services.GuardianFailureKind) usersAPI.FailureKind {
 	switch kind {
+	case services.GuardianFailureConflict:
+		return usersAPI.FailureConflict
 	case services.GuardianFailureForbidden:
 		return usersAPI.FailureForbidden
 	case services.GuardianFailureInvalidRequest:

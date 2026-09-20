@@ -75,7 +75,7 @@ Keep this list current: if a reference is deleted or substantially rewritten, re
 
 Don't design from imagination. The app's real screens are captured as images you can open directly with the Read tool:
 
-- **App screenshots** → `frontend/public/help/screens/*.webp` (~50 screens, maintained for the in-app help guide; treat as approximate-current). Open the relevant one before building or changing that screen. Anchors:
+- **App screenshots** → `frontend/public/help/screens/*.webp` (~85 screens, captured for the old help guide; nothing maintains them since the help became text-only, so treat them as dated but indicative). Open the relevant one before building or changing that screen. Anchors:
   - `mitarbeiter.webp` = staff list · `mitarbeitende-anlegen.webp` = staff create
   - `kinderdetailansicht.webp` = child detail · `kindersuche.webp` = student search/list
   - `meine-gruppen.webp` = groups · `aktivitaeten.webp` = activities

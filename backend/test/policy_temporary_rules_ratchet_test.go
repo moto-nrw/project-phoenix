@@ -43,8 +43,9 @@ import (
 // #3416 adds per-rule cleanup issues and stale-rule detection. The account
 // above records the original seed, not the current evaluator. Its 167 stale
 // rule deletions lower these seeds to 483 conversion promises and 581 wider
-// compatibility markers. The #3351 care-schedule cutover lowers them to 402
-// and 499; this prose counter remains as an independent guard.
+// compatibility markers. The #3351 care-schedule cutover and the seven
+// file-storage rules #3461 removed lower them to 395 and 492; this prose
+// counter remains as an independent guard.
 //
 // Three shrink-only measurements, all read-only on policy.json:
 //
@@ -94,12 +95,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 402
+	policyTempRulesTotal = 395
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 499
+	policyTempRulesCompatTotal = 492
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -147,9 +148,6 @@ var policyTempRulesFamilies = map[string]int{
 
 	// #3214, #3224 — closed.
 	"facilities": 2,
-
-	// #2707 — closed.
-	"file-storage": 7,
 
 	// #3214, #3218, #3220, #3224 — closed; #3350 (PR #3408) added one.
 	"group-live-view": 4,

@@ -62,6 +62,14 @@ type liveState struct {
 	sessionID      int64                    // active session for supervisor swaps (0 = unknown)
 	staffIDs       []int64                  // supervisor pool from seed-state accounts
 	interval       time.Duration
+	clock          func() time.Time
+}
+
+func (ls *liveState) now() time.Time {
+	if ls.clock != nil {
+		return ls.clock()
+	}
+	return time.Now()
 }
 
 // RunLive runs the continuous live simulation loop.
@@ -162,13 +170,13 @@ func RunLive(ctx context.Context, opts LiveOptions) error {
 				fmt.Printf("[%s] WARNING: JWT refresh login failed: %v\n", time.Now().Format("15:04:05"), err)
 			}
 		case <-ticker.C:
-			runLiveTick(client, ls, state, primaryDevice, counts)
+			_ = runLiveTick(client, ls, state, primaryDevice, counts) // Live mode reports failures through counts and keeps running.
 		}
 	}
 }
 
-func runLiveTick(client Client, ls *liveState, state *SeedState, device SeedDevice, counts *liveCounts) {
-	now := time.Now().Format("15:04:05")
+func runLiveTick(client Client, ls *liveState, state *SeedState, device SeedDevice, counts *liveCounts) error {
+	now := ls.now().Format("15:04:05")
 
 	// Keep session alive (mirrors PyrePortal's periodic ping)
 	_, _ = client.DevicePost("/api/iot/ping", nil, device.APIKey, state.DevicePIN)
@@ -180,7 +188,7 @@ func runLiveTick(client Client, ls *liveState, state *SeedState, device SeedDevi
 		// Room move (35%)
 		if err := liveRoomMove(client, ls, state, device, now); err != nil {
 			counts.errors++
-			return
+			return err
 		}
 		counts.roomMoves++
 
@@ -188,7 +196,7 @@ func runLiveTick(client Client, ls *liveState, state *SeedState, device SeedDevi
 		// Go unterwegs (10%)
 		if err := liveGoUnterwegs(client, ls, state, device, now); err != nil {
 			counts.errors++
-			return
+			return err
 		}
 		counts.unterwegs++
 
@@ -196,7 +204,7 @@ func runLiveTick(client Client, ls *liveState, state *SeedState, device SeedDevi
 		// Return from unterwegs (20%)
 		if err := liveReturnFromUnterwegs(client, ls, state, device, now); err != nil {
 			counts.errors++
-			return
+			return err
 		}
 		counts.returns++
 
@@ -204,7 +212,7 @@ func runLiveTick(client Client, ls *liveState, state *SeedState, device SeedDevi
 		// Toggle sick (5%)
 		if err := liveToggleSick(client, ls, state, now); err != nil {
 			counts.errors++
-			return
+			return err
 		}
 		counts.sickToggle++
 
@@ -212,7 +220,7 @@ func runLiveTick(client Client, ls *liveState, state *SeedState, device SeedDevi
 		// Schulhof rotation (15%)
 		if err := liveSchulhofRotate(client, ls, state, device, now); err != nil {
 			counts.errors++
-			return
+			return err
 		}
 		counts.schulhofRotates++
 
@@ -220,7 +228,7 @@ func runLiveTick(client Client, ls *liveState, state *SeedState, device SeedDevi
 		// Attendance toggle (10%)
 		if err := liveAttendanceToggle(client, ls, state, device, now); err != nil {
 			counts.errors++
-			return
+			return err
 		}
 		counts.attendance++
 
@@ -228,10 +236,11 @@ func runLiveTick(client Client, ls *liveState, state *SeedState, device SeedDevi
 		// Supervisor swap (5%)
 		if err := liveSupervisorSwap(client, ls, state, device, now); err != nil {
 			counts.errors++
-			return
+			return err
 		}
 		counts.supervisorSwaps++
 	}
+	return nil
 }
 
 func liveRoomMove(client Client, ls *liveState, state *SeedState, device SeedDevice, now string) error {
@@ -366,7 +375,7 @@ func liveSchulhofRotate(client Client, ls *liveState, state *SeedState, device S
 	}, device.APIKey, state.DevicePIN)
 	if err != nil {
 		fmt.Printf("[%s] ERROR rotation checkout %s %s: %v\n", now, student.FirstName, student.LastName, err)
-		rot.cooldownUntil = time.Now().Add(visitCooldown)
+		rot.cooldownUntil = ls.now().Add(visitCooldown)
 		return err
 	}
 
@@ -380,7 +389,7 @@ func liveSchulhofRotate(client Client, ls *liveState, state *SeedState, device S
 		// Checkout succeeded, so the student is now unterwegs
 		delete(ls.checkedIn, studentID)
 		ls.unterwegs[studentID] = true
-		rot.cooldownUntil = time.Now().Add(visitCooldown)
+		rot.cooldownUntil = ls.now().Add(visitCooldown)
 		return err
 	}
 
@@ -392,7 +401,7 @@ func liveSchulhofRotate(client Client, ls *liveState, state *SeedState, device S
 // pickRotationCandidate returns a random checked-in student whose rotation
 // cooldown has elapsed (0 = none available).
 func (ls *liveState) pickRotationCandidate() int64 {
-	nowTime := time.Now()
+	nowTime := ls.now()
 	eligible := make(map[int64]bool, len(ls.checkedIn))
 	for id := range ls.checkedIn {
 		if rot, ok := ls.rotation[id]; ok && rot.cooldownUntil.After(nowTime) {
@@ -442,7 +451,7 @@ func (ls *liveState) applyRotationStep(rot *rotationState, nextPhase string) {
 		rot.agHopTarget = randAGHopTarget()
 	}
 	rot.phase = nextPhase
-	rot.cooldownUntil = time.Now().Add(visitCooldown)
+	rot.cooldownUntil = ls.now().Add(visitCooldown)
 }
 
 // randAGHopTarget mirrors the seed-generated engine config (min 1, max 2 AG hops).
@@ -453,7 +462,7 @@ func randAGHopTarget() int {
 // liveAttendanceToggle confirms attendance for a random student, rate-limited
 // per student to one toggle per tick interval.
 func liveAttendanceToggle(client Client, ls *liveState, state *SeedState, device SeedDevice, now string) error {
-	cutoff := time.Now().Add(-ls.interval)
+	cutoff := ls.now().Add(-ls.interval)
 	eligible := make(map[int64]bool, len(ls.rfidTags))
 	for id := range ls.rfidTags {
 		if last, ok := ls.lastAttendance[id]; ok && last.After(cutoff) {
@@ -474,7 +483,7 @@ func liveAttendanceToggle(client Client, ls *liveState, state *SeedState, device
 		"rfid":   ls.rfidTags[studentID],
 		"action": "confirm",
 	}, device.APIKey, state.DevicePIN)
-	ls.lastAttendance[studentID] = time.Now()
+	ls.lastAttendance[studentID] = ls.now()
 	if err != nil {
 		fmt.Printf("[%s] ERROR attendance toggle %s %s: %v\n", now, student.FirstName, student.LastName, err)
 		return err

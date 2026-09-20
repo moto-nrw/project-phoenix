@@ -68,8 +68,12 @@ through the ADR 0015 adoption path (policy epoch 6 to 7); the announcement
 attachment and cleanup tables were owned before. `documents.file_cleanup`
 still has no owner: the retained generic document repository reaches it only
 dynamically, so the baseline records no `tables.unclassified` finding to adopt
-it from, and the File Storage composition binds its intent operations to that
-repository as a compatibility permission until the table can be adopted.
+it from. The root now binds its intent operations through File Storage's
+consumer-owned `CleanupStore` port and `modules/documentrendering/compose`
+(#3445), without changing table ownership. File Storage imports neither the
+generic repository nor its persistence models. Its settings, audit, permission
+matching and private object storage are also supplied through consumer ports;
+the seven temporary File Storage composition permissions are removed.
 #2710 adopts `users.persons_guardians` under `people-directory` the same way
 (policy epoch 7 to 8). #3221 adopts `users.guardian_financial_data` under
 `people-directory` and moves the staff messaging persistence out of
@@ -1883,7 +1887,7 @@ negative fixtures when changing these contracts, and remove every `rules.stale`
 finding before committing a policy change.
 
 The Care Schedule retirement has one scoped permission-replacement path
-([ADR 0028](../../docs/adr/0028-care-schedule-cutover-replaces-legacy-permissions.md),
+([ADR 0030](../../docs/adr/0030-care-schedule-cutover-replaces-legacy-permissions.md),
 #3351). In a reviewed epoch, consumers may replace their existing, same-scope
 access to `inbound-schedules/adapter` with Care Plan's public or contract role.
 Tests with that same prior permission may instead construct the replacement

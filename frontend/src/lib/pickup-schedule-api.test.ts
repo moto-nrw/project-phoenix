@@ -8,6 +8,7 @@ import {
   createStudentPickupNote,
   updateStudentPickupNote,
   deleteStudentPickupNote,
+  replaceStudentWeekdayPickupNotes,
   fetchBulkPickupTimes,
   bulkUpsertPickupSchedules,
   resetStudentPickupToOffering,
@@ -1211,6 +1212,38 @@ describe("pickup-schedule-api", () => {
 
       await expect(deleteStudentPickupNote("123", "10")).rejects.toThrow(
         "Zugriff verweigert",
+      );
+    });
+  });
+
+  describe("replaceStudentWeekdayPickupNotes", () => {
+    it("replaces all recurring notes in one request", async () => {
+      global.fetch = vi
+        .fn()
+        .mockResolvedValue(
+          createMockResponse(true, 200, { status: "success" }),
+        );
+
+      await expect(
+        replaceStudentWeekdayPickupNotes("123", [
+          { weekday: 2, content: "Dienstags zu Hause" },
+          { weekday: 5, content: "Freitags bei Oma" },
+        ]),
+      ).resolves.toBeUndefined();
+
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/students/123/pickup-notes",
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            notes: [
+              { weekday: 2, content: "Dienstags zu Hause" },
+              { weekday: 5, content: "Freitags bei Oma" },
+            ],
+          }),
+        },
       );
     });
   });

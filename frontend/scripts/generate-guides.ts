@@ -3,18 +3,20 @@ import { mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { PDFDocument, rgb } from "pdf-lib";
 
-// Build-time PDF generation for the public /help guide pages.
+// Build-time PDF generation for the printed NFC onepager.
 //
-// The HTML guide pages are the single source of truth. This script renders
-// them with headless Chromium and exports clean A4 PDFs. Output lands in
+// The HTML page is the single source of truth. This script renders it with
+// headless Chromium and exports a clean A4 PDF. Output lands in
 // public/help/pdfs/ and is served as a static download.
+//
+// Until the help area became one page per topic, this also produced three
+// guide PDFs (setup, features, nfc) from pages that no longer exist. A topic
+// page is not a printable manual, and nobody asked for a PDF per topic, so
+// the only remaining artifact is the sheet that ships in the tablet box.
 //
 // Run via: pnpm run generate:guides
 
 const GUIDES = [
-  { route: "/help/setup", file: "setup.pdf" },
-  { route: "/help/features", file: "features.pdf" },
-  { route: "/help/nfc", file: "nfc.pdf" },
   {
     route: "/help/nfc/erste-schritte",
     file: "nfc-erste-schritte.pdf",
@@ -24,7 +26,7 @@ const GUIDES = [
 
 const OUT_DIR = path.join(process.cwd(), "public", "help", "pdfs");
 
-// A correctly rendered guide PDF is always well above this; anything smaller
+// A correctly rendered onepager is always well above this; anything smaller
 // means the page rendered blank or the images never loaded. Failing here is
 // preferable to silently shipping a broken download into the production image.
 const MIN_PDF_BYTES = 20_000;

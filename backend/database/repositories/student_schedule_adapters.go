@@ -646,7 +646,7 @@ func applyPickupException(r *scheduleModels.StudentPickupException, v careplan.P
 	r.Source, r.CreatedBy, r.CreatedByGuardian = v.Source, v.CreatedBy, v.CreatedByGuardian
 }
 func pickupNoteToPublic(v *scheduleModels.StudentPickupNote) careplan.PickupNote {
-	return careplan.PickupNote{ID: v.ID, TenantID: v.TenantID, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt, StudentID: v.StudentID, NoteDate: date(v.NoteDate), Content: v.Content, CreatedBy: v.CreatedBy}
+	return careplan.PickupNote{ID: v.ID, TenantID: v.TenantID, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt, StudentID: v.StudentID, NoteDate: date(v.NoteDate), Weekday: v.Weekday, Content: v.Content, CreatedBy: v.CreatedBy}
 }
 func pickupNoteToLegacy(v careplan.PickupNote) *scheduleModels.StudentPickupNote {
 	row := new(scheduleModels.StudentPickupNote)
@@ -655,7 +655,7 @@ func pickupNoteToLegacy(v careplan.PickupNote) *scheduleModels.StudentPickupNote
 }
 func applyPickupNote(r *scheduleModels.StudentPickupNote, v careplan.PickupNote) {
 	r.ID, r.TenantID, r.CreatedAt, r.UpdatedAt = v.ID, v.TenantID, v.CreatedAt, v.UpdatedAt
-	r.StudentID, r.NoteDate, r.Content, r.CreatedBy = v.StudentID, scheduleModels.Date(v.NoteDate), v.Content, v.CreatedBy
+	r.StudentID, r.NoteDate, r.Weekday, r.Content, r.CreatedBy = v.StudentID, scheduleModels.Date(v.NoteDate), v.Weekday, v.Content, v.CreatedBy
 }
 
 var (
