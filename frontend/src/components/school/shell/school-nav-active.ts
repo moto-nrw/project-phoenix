@@ -8,7 +8,10 @@
  * Lösung wie `parent-nav-active.ts`.
  */
 export function isSchoolNavActive(href: string, pathname: string): boolean {
-  if (href === "/school") {
+  const queryStart = href.indexOf("?");
+  const hrefPathname = queryStart === -1 ? href : href.slice(0, queryStart);
+
+  if (hrefPathname === "/school") {
     // Die Klassenseite (#2294) liegt unter der Klassenansicht: ohne sie hier
     // stünde man auf einer Unterseite und die Navigation zeigte nirgends hin.
     return (
@@ -19,11 +22,11 @@ export function isSchoolNavActive(href: string, pathname: string): boolean {
     );
   }
 
-  if (matchesPath(href, pathname)) return true;
+  if (matchesPath(hrefPathname, pathname)) return true;
 
   // Portal-Unterseiten ohne /school-Präfix, wie der Schul-Host sie zeigt.
-  if (href.startsWith("/school/")) {
-    return matchesPath(href.slice("/school".length), pathname);
+  if (hrefPathname.startsWith("/school/")) {
+    return matchesPath(hrefPathname.slice("/school".length), pathname);
   }
 
   return false;

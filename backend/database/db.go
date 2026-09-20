@@ -116,6 +116,11 @@ func DBConnForServe() (*bun.DB, error) {
 	return openPool(GetServeDSN(), "database pool configured (phoenix_auth)")
 }
 
+// DBConnForDemo returns a pool for the standing demo's restricted database role.
+func DBConnForDemo() (*bun.DB, error) {
+	return openPool(GetDemoDSN(), "database pool configured (phoenix_demo)")
+}
+
 // ClosePool releases a pool owned by a process composition root.
 func ClosePool(db *bun.DB) error {
 	return db.Close()

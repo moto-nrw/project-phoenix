@@ -3363,6 +3363,10 @@
   ],
   "data_objects": [
     {
+      "name": "platform.demo_school_states",
+      "write_owner": "organization-tenancy"
+    },
+    {
       "name": "active.presence_backfill_batches",
       "write_owner": "student-presence"
     },

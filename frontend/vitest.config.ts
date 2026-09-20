@@ -23,13 +23,15 @@ export default defineConfig({
     // (1027 Dateien / 14160 Tests, 16-Core-MacBook) 124s → 76s Wandzeit und
     // -24% CPU — der Unterschied ist reiner Prozess-Spawn-/IPC-Overhead.
     pool: "threads",
-    // Lokal höchstens die Hälfte der CPUs und nie mehr als vier Worker.
+    // Höchstens die Hälfte der CPUs und nie mehr als vier Worker.
     // Gemessen auf 231 Dateien: 8 → 4 Worker senkt CPU um 19% und Peak-RSS
-    // von 3,8 auf 2,7 GB; die Wandzeit steigt von 53 auf 67 Sekunden. CI hat
-    // einen isolierten Runner und nutzt deshalb alle bezahlten CPUs.
-    maxWorkers: process.env.CI
-      ? availableParallelism()
-      : Math.max(1, Math.min(4, Math.floor(availableParallelism() / 2))),
+    // von 3,8 auf 2,7 GB; die Wandzeit steigt von 53 auf 67 Sekunden. Das
+    // gilt auch mit CI=true: Subprozess-Tests brauchen CPU-Spielraum, damit
+    // weder einzelne Tests noch neu gestartete Worker verhungern.
+    maxWorkers: Math.max(
+      1,
+      Math.min(4, Math.floor(availableParallelism() / 2)),
+    ),
     projects: [
       {
         extends: true,

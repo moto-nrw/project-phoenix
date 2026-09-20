@@ -29,6 +29,11 @@ export interface ParentNavItem {
   /** Stabiler Schluessel fuer Listen und Tests. */
   readonly key: string;
   readonly href: string;
+  /**
+   * Ziel ausserhalb des Portals. Oeffnet in einem neuen Tab und bekommt nie
+   * einen Aktivzustand -- die Adresse taucht in diesem Portal nicht auf.
+   */
+  readonly external?: boolean;
   /** Schluessel im Katalog "parentNav", identisch in allen Sprachkatalogen. */
   readonly tKey: string;
   readonly concept: MotoConceptKey;
@@ -100,6 +105,18 @@ export const PARENT_MORE_NAV: readonly ParentMoreItem[] = [
     tKey: "mealPlan",
     concept: "mealPlan",
     gate: "mealPlan",
+  },
+  {
+    // Die Anleitung liegt ausserhalb des Portals, auf der oeffentlichen
+    // /help-Strecke. `role=parent` ueberspringt ihre Eingangsfrage: wer
+    // hier klickt, ist ein Elternteil. Die drei OGS-Einstellungen aendern in
+    // der Eltern-Anleitung keinen Ablauf und bleiben deshalb weg.
+    kind: "link",
+    key: "help",
+    href: "/help?role=parent",
+    tKey: "help",
+    concept: "help",
+    external: true,
   },
   {
     kind: "link",

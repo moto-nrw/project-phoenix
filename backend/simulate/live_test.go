@@ -719,7 +719,7 @@ func TestRunLiveTick_IncrementsCounts(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		// Reset state to ensure there's always a checked-in student
 		ls.checkedIn[1] = true
-		runLiveTick(client, ls, state, state.Devices["d1"], counts)
+		_ = runLiveTick(client, ls, state, state.Devices["d1"], counts)
 	}
 
 	total := counts.roomMoves + counts.unterwegs + counts.returns + counts.sickToggle + counts.errors

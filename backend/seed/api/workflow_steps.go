@@ -116,7 +116,7 @@ type buildStateStep struct {
 
 func (buildStateStep) Name() string { return "Writing seed state" }
 
-func (s buildStateStep) Run(_ context.Context, rt *Runtime) error {
+func (s buildStateStep) Run(ctx context.Context, rt *Runtime) error {
 	if rt.FixedSeeder == nil {
 		return fmt.Errorf("fixed seeder not available")
 	}
@@ -151,6 +151,9 @@ func (s buildStateStep) Run(_ context.Context, rt *Runtime) error {
 	state.Topology.Schools = len(state.Profiles)
 
 	rt.State = state
+	if s.seeder.options.SaveState != nil {
+		return s.seeder.options.SaveState(ctx, state)
+	}
 	if err := WriteSeedState(state, s.seeder.statePath); err != nil {
 		return err
 	}
@@ -187,6 +190,9 @@ func (s printSummaryStep) Run(_ context.Context, rt *Runtime) error {
 	}
 	if rt.Result == nil {
 		return fmt.Errorf("seed result not available")
+	}
+	if s.seeder.options.StandingDemo {
+		return nil // Sidecar logs must not contain the credential summary.
 	}
 	s.seeder.printSuccessSummary(rt.Bootstrap.AdminEmail, rt.Bootstrap.AdminPassword, rt.Result, rt.State)
 	return nil

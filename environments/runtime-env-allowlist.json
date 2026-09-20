@@ -1,4 +1,17 @@
 {
+  "demo-runtime": [
+    "APP_ENV",
+    "DB_CONN_MAX_IDLE_TIME",
+    "DB_CONN_MAX_LIFETIME",
+    "DEMO_DB_DSN",
+    "DB_MAX_IDLE_CONNS",
+    "DB_MAX_OPEN_CONNS",
+    "OGS_DEVICE_PIN",
+    "OPERATOR_EMAIL",
+    "OPERATOR_PASSWORD",
+    "PHOENIX_DEMO_PASSWORD",
+    "TZ"
+  ],
   "frontend": [
     "API_URL",
     "AUTH_JWT_EXPIRY",
@@ -96,6 +109,7 @@
     "OPERATOR_EMAIL",
     "OPERATOR_PASSWORD",
     "PHOENIX_AUTH_PASSWORD",
+    "PHOENIX_DEMO_PASSWORD",
     "TZ"
   ]
 }

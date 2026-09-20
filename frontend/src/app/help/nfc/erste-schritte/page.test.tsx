@@ -27,19 +27,21 @@ vi.mock("next/image", () => ({
   ),
 }));
 
-vi.mock("~/components/help/help-search", () => ({
-  HelpSearchInline: () => <div data-testid="help-search-inline" />,
-}));
-
 describe("NfcQuickstartPage", () => {
-  it("verweist auf das ausführliche NFC-Betriebsbuch", () => {
+  it("verweist auf die NFC-Anleitungen der Hilfe", () => {
     render(<NfcQuickstartPage />);
 
-    const link = screen.getByRole("link", { name: /NFC-Betriebsbuch öffnen/i });
-    expect(link).toHaveAttribute("href", "/help/nfc");
+    const link = screen.getByRole("link", { name: /NFC-Anleitungen öffnen/i });
+    // `nfc_enabled` muss mit: ohne den Schalter tragen die Karten der
+    // Kategorie nur den Platzhalter statt ihres Kurztexts. Dass die Schule
+    // NFC nutzt, ist beim Blatt aus dem Versandkarton bekannt.
+    expect(link).toHaveAttribute(
+      "href",
+      "/help/gruppe/nfc?role=caregiver&nfc_enabled=true",
+    );
   });
 
-  it("nennt den Weg zum Betriebsbuch auch für den Ausdruck", () => {
+  it("nennt den Weg zur Hilfe auch für den Ausdruck", () => {
     render(<NfcQuickstartPage />);
 
     expect(
