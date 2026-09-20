@@ -82,17 +82,6 @@ type AccountRoleRepository interface {
 	DeleteByRoleID(ctx context.Context, roleID int64) error
 }
 
-// AccountPermissionRepository defines operations for managing account-permission mappings
-type AccountPermissionRepository interface {
-	base.CRUDRepository[*AccountPermission]
-	FindByAccountID(ctx context.Context, accountID int64) ([]*AccountPermission, error)
-	GrantPermission(ctx context.Context, accountID, permissionID int64) error
-	DenyPermission(ctx context.Context, accountID, permissionID int64) error
-	RemovePermission(ctx context.Context, accountID, permissionID int64) error
-	DeleteByPermissionID(ctx context.Context, permissionID int64) error
-	DeleteByAccountID(ctx context.Context, accountID int64) (int64, error)
-}
-
 // InvitationTokenRepository defines operations for managing invitation tokens.
 type InvitationTokenRepository interface {
 	Create(ctx context.Context, token *InvitationToken) error

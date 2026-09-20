@@ -28,7 +28,7 @@ type operatorProvisioningSources struct {
 	provisioning   identityaccess.AccountProvisioning
 	administration identityaccess.AccountAdministration
 	schoolIdentity identityaccess.SchoolIdentityProvisioning
-	roles          identityaccess.RoleCommand
+	roles          provisioningRoles
 	settings       config.SettingsService
 	logger         *slog.Logger
 }
@@ -53,9 +53,14 @@ func newOperatorProvisioning(sources operatorProvisioningSources) (organizationt
 	})
 }
 
-// provisioningIdentity binds the Identity & Access part of provisioning to
-// the public role administration and the retained auth services and
-// repositories.
+type provisioningRoles interface {
+	identityaccess.RoleCommand
+	ListRoles(context.Context, identityaccess.RoleFilter) ([]identityaccess.Role, error)
+	GetRole(context.Context, int64) (identityaccess.Role, error)
+}
+
+// provisioningIdentity binds provisioning to public identity capabilities
+// and the remaining account and membership repositories.
 type provisioningIdentity struct {
 	repos          *repositories.Factory
 	sessions       identityaccess.AccountSessionMaintenance
@@ -63,19 +68,19 @@ type provisioningIdentity struct {
 	provisioning   identityaccess.AccountProvisioning
 	administration identityaccess.AccountAdministration
 	schoolIdentity identityaccess.SchoolIdentityProvisioning
-	roles          identityaccess.RoleCommand
+	roles          provisioningRoles
 }
 
 var _ organizationCompose.ProvisioningIdentity = provisioningIdentity{}
 
 func (p provisioningIdentity) ListSystemRoles(ctx context.Context) ([]organizationCompose.ProvisioningRole, error) {
-	roles, err := p.repos.Role.List(ctx, map[string]any{"is_system": true})
+	roles, err := p.roles.ListRoles(ctx, identityaccess.RoleFilter{})
 	if err != nil {
 		return nil, err
 	}
 	result := make([]organizationCompose.ProvisioningRole, 0, len(roles))
 	for _, role := range roles {
-		if role != nil {
+		if role.IsSystem {
 			result = append(result, p.role(role.ID, role.Name, role.IsSystem, role.TenantID, role.BaseRole))
 		}
 	}
@@ -98,8 +103,8 @@ func (p provisioningIdentity) FindSystemRole(ctx context.Context, name string) (
 }
 
 func (p provisioningIdentity) FindRole(ctx context.Context, id int64) (organizationCompose.ProvisioningRole, bool, error) {
-	role, err := p.repos.Role.FindByID(ctx, id)
-	if err != nil || role == nil {
+	role, err := p.roles.GetRole(ctx, id)
+	if err != nil {
 		return organizationCompose.ProvisioningRole{}, false, err
 	}
 	return p.role(role.ID, role.Name, role.IsSystem, role.TenantID, role.BaseRole), true, nil

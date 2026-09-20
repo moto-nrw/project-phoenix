@@ -666,13 +666,9 @@ func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
 		Where("resource = '*' AND action = '*'").
 		Scan(context.Background(), &fullAccessID))
 
-	directGrant := &authModels.AccountPermission{
-		AccountID:    directAdmin.ID,
-		PermissionID: adminWildcardID,
-		Granted:      true,
-	}
-	directGrant.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(directGrant).ModelTableExpr("auth.account_permissions").Exec(context.Background())
+	_, err := db.ExecContext(context.Background(),
+		"INSERT INTO auth.account_permissions (account_id, permission_id, granted, tenant_id) VALUES (?, ?, TRUE, ?)",
+		directAdmin.ID, adminWildcardID, testpkg.Tenant(t))
 	require.NoError(t, err)
 
 	wildcardRole := testpkg.CreateTestRole(t, db, "Push Full Access")

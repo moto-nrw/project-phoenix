@@ -29,7 +29,6 @@ var (
 	// auth package
 	_ base.Entity = (*authmodels.Account)(nil)
 	_ base.Entity = (*authmodels.AccountParent)(nil)
-	_ base.Entity = (*authmodels.AccountPermission)(nil)
 	_ base.Entity = (*authmodels.AccountRole)(nil)
 	_ base.Entity = (*authmodels.InvitationToken)(nil)
 	_ base.Entity = (*authmodels.PasswordResetToken)(nil)

@@ -867,7 +867,10 @@ func TestOffboardStaff_ClearsDirectPermissions(t *testing.T) {
 	testpkg.MapAccountToTenant(t, sc.db, account.ID, testpkg.Tenant(t))
 	perm := testpkg.CreateTestPermission(t, sc.db,
 		fmt.Sprintf("offb-perm-%d", time.Now().UnixNano()), "students", "read")
-	require.NoError(t, sc.repos.AccountPermission.GrantPermission(sc.ctx, account.ID, perm.ID))
+	_, grantErr := sc.db.ExecContext(sc.ctx,
+		"INSERT INTO auth.account_permissions (account_id, permission_id, granted, tenant_id) VALUES (?, ?, TRUE, ?)",
+		account.ID, perm.ID, testpkg.Tenant(t))
+	require.NoError(t, grantErr)
 
 	t.Cleanup(func() {
 		ctx := context.Background()

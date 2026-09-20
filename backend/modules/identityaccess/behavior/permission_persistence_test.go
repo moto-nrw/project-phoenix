@@ -84,6 +84,57 @@ func permissionIDs(permissions []identityaccess.Permission) []int64 {
 	return ids
 }
 
+func TestDirectPermissionLifecycle(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	identity := roleAdministrationOf(t, setupAuthService(t, db))
+	first := testpkg.CreateTestAccount(t, db, "direct-first")
+	second := testpkg.CreateTestAccount(t, db, "direct-second")
+	shared := testpkg.CreateTestPermission(t, db, "direct-shared", "direct-shared", "read")
+	kept := testpkg.CreateTestPermission(t, db, "direct-kept", "direct-kept", "read")
+	assertGrants := func(accountID int64, ids ...int64) {
+		t.Helper()
+		permissions, err := identity.GetAccountDirectPermissions(ctx, accountID)
+		require.NoError(t, err)
+		require.ElementsMatch(t, ids, permissionIDs(permissions))
+	}
+	assertStored := func(accountID, permissionID int64, expected []bool) {
+		t.Helper()
+		var grants []bool
+		err := db.NewRaw("SELECT granted FROM auth.account_permissions WHERE account_id = ? AND permission_id = ? AND tenant_id = ?",
+			accountID, permissionID, testpkg.Tenant(t)).Scan(ctx, &grants)
+		require.NoError(t, err)
+		require.Equal(t, expected, grants)
+	}
+
+	assertGrants(first.ID)
+	require.NoError(t, identity.DenyPermissionToAccount(ctx, first.ID, shared.ID))
+	assertStored(first.ID, shared.ID, []bool{false})
+	assertGrants(first.ID)
+	require.NoError(t, identity.GrantPermissionToAccount(ctx, first.ID, shared.ID))
+	require.NoError(t, identity.GrantPermissionToAccount(ctx, first.ID, shared.ID))
+	assertStored(first.ID, shared.ID, []bool{true})
+	require.NoError(t, identity.GrantPermissionToAccount(ctx, first.ID, kept.ID))
+	require.NoError(t, identity.GrantPermissionToAccount(ctx, second.ID, shared.ID))
+	assertGrants(first.ID, shared.ID, kept.ID)
+	assertGrants(second.ID, shared.ID)
+	require.NoError(t, identity.DenyPermissionToAccount(ctx, first.ID, shared.ID))
+	assertStored(first.ID, shared.ID, []bool{false})
+	assertGrants(first.ID, kept.ID)
+	assertGrants(second.ID, shared.ID)
+
+	require.NoError(t, identity.DeletePermission(ctx, shared.ID))
+	assertStored(first.ID, shared.ID, nil)
+	assertStored(second.ID, shared.ID, nil)
+	assertGrants(first.ID, kept.ID)
+	assertGrants(second.ID)
+	require.NoError(t, identity.RemovePermissionFromAccount(ctx, first.ID, kept.ID))
+	require.NoError(t, identity.RemovePermissionFromAccount(ctx, first.ID, kept.ID))
+	assertStored(first.ID, kept.ID, nil)
+	assertGrants(first.ID)
+}
+
 func TestPermissionAdministrationDatabaseFailure(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupClosableTestDB(t)

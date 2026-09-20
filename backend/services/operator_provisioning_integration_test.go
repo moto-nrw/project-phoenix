@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -693,6 +694,36 @@ func TestOperatorProvisioningIntegration_CreateSchoolAccount_BuildsIdentityChain
 	operatorID := testpkg.CreateTestOperator(t, db).ID
 	ctx := provisioningContext(t, db)
 	dbCtx := testpkg.Ctx(t)
+
+	t.Run("role projection uses public identity capability", func(t *testing.T) {
+		identity := provisioningIdentity{roles: factory.Auth}
+		custom := testpkg.CreateTestRole(t, db, "operator-custom")
+		system := testpkg.CreateTestSystemRole(t, db, "operator-system")
+		roles, err := identity.ListSystemRoles(ctx)
+		require.NoError(t, err)
+		var foundSystem bool
+		for _, role := range roles {
+			require.True(t, role.IsSystem)
+			require.NotEqual(t, custom.ID, role.ID)
+			foundSystem = foundSystem || role.ID == system.ID
+		}
+		require.True(t, foundSystem)
+		role, found, err := identity.FindSystemRole(ctx, strings.ToUpper(system.Name))
+		require.NoError(t, err)
+		require.True(t, found)
+		require.Equal(t, system.ID, role.ID)
+		_, found, err = identity.FindSystemRole(ctx, custom.Name)
+		require.NoError(t, err)
+		require.False(t, found)
+		role, found, err = identity.FindRole(ctx, custom.ID)
+		require.NoError(t, err)
+		require.True(t, found)
+		require.Equal(t, custom.ID, role.ID)
+		require.False(t, role.IsSystem)
+		_, found, err = identity.FindRole(ctx, 0)
+		require.Error(t, err)
+		require.False(t, found)
+	})
 
 	_, schoolID := provisionTestSchool(t, db, factory, operatorID, "account")
 
