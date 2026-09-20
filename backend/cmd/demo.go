@@ -33,6 +33,7 @@ var demoCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		baseURL, _ := cmd.Flags().GetString("url")
 		once, _ := cmd.Flags().GetBool("once")
+		heartbeat, _ := cmd.Flags().GetString("heartbeat")
 		if err := validateDemoTarget(baseURL, os.Getenv("APP_ENV")); err != nil {
 			return err
 		}
@@ -48,7 +49,7 @@ var demoCmd = &cobra.Command{
 			return err
 		}
 		err = schools.WithDemoLease(ctx, standingDemoSlug, func(ctx context.Context) error {
-			return runStandingDemo(ctx, schools, baseURL, once)
+			return runStandingDemo(ctx, schools, baseURL, heartbeat, once)
 		})
 		if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
 			return nil
@@ -61,6 +62,7 @@ func init() {
 	RootCmd.AddCommand(demoCmd)
 	demoCmd.Flags().String("url", "http://localhost:8080", "Internal backend URL (demo: http://server:8080)")
 	demoCmd.Flags().Bool("once", false, "Provision or reload the school, execute one tick and exit (smoke verification)")
+	demoCmd.Flags().String("heartbeat", "", "File rewritten after every successful tick; the container healthcheck reads its age")
 }
 
 func validateDemoTarget(baseURL, environment string) error {
@@ -80,7 +82,16 @@ func validateDemoTarget(baseURL, environment string) error {
 	return nil
 }
 
-func runStandingDemo(ctx context.Context, schools *backendapi.DemoRuntime, baseURL string, once bool) error {
+// writeDemoHeartbeat records a successful tick for the container healthcheck. Only
+// the file's modification time matters; an empty path disables the heartbeat.
+func writeDemoHeartbeat(path string) error {
+	if path == "" {
+		return nil
+	}
+	return os.WriteFile(path, []byte(time.Now().UTC().Format(time.RFC3339)+"\n"), 0o600)
+}
+
+func runStandingDemo(ctx context.Context, schools *backendapi.DemoRuntime, baseURL, heartbeat string, once bool) error {
 	saved, err := schools.LoadDemoSchool(ctx, standingDemoSlug)
 	if err != nil {
 		return err
@@ -148,6 +159,11 @@ func runStandingDemo(ctx context.Context, schools *backendapi.DemoRuntime, baseU
 		if err := tickErr; err != nil && ctx.Err() == nil {
 			slog.Warn("demo tick failed; retrying", "error", err)
 			nextLogin = time.Time{}
+		}
+		if tickErr == nil {
+			if err := writeDemoHeartbeat(heartbeat); err != nil {
+				slog.Warn("demo heartbeat not written; the healthcheck will report unhealthy", "error", err)
+			}
 		}
 		if err := waitDemoInterval(ctx, 5*time.Second+time.Duration(mathrand.Intn(3001))*time.Millisecond); err != nil {
 			return nil

@@ -8,7 +8,8 @@ recall sent emails, push messages, or other external effects.
 
 ## Deployment
 
-The deployment pulls candidate images, stops the server and frontend, then
+The deployment pulls candidate images, stops the server and frontend (in the
+demo stack also its `demo-runtime` sidecar, which writes to the database), then
 captures the previous state under `~/backups/<environment>/release-<timestamp>-<sha>/`:
 
 - `database.dump`: PostgreSQL schema, data, sequences and ACLs.

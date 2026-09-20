@@ -430,16 +430,16 @@ jobs:
 
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
 
-          ssh -i ~/.ssh/deploy_key root@$SSH_HOST "mkdir -p ~/scripts"
+          ssh -i ~/.ssh/deploy_key root@$SSH_HOST "mkdir -p ~/scripts/staging"
           scp -i ~/.ssh/deploy_key /tmp/staging.env root@$SSH_HOST:~/staging/.env.new
           scp -i ~/.ssh/deploy_key environments/staging.compose.yml root@$SSH_HOST:~/staging/docker-compose.yml.new
-          scp -i ~/.ssh/deploy_key scripts/deploy-remote.sh root@$SSH_HOST:~/scripts/deploy-remote.sh
-          scp -i ~/.ssh/deploy_key scripts/restore-db.sh root@$SSH_HOST:~/scripts/restore-db.sh
-          scp -i ~/.ssh/deploy_key scripts/release-backup.sh root@$SSH_HOST:~/scripts/release-backup.sh
+          scp -i ~/.ssh/deploy_key scripts/deploy-remote.sh root@$SSH_HOST:~/scripts/staging/deploy-remote.sh
+          scp -i ~/.ssh/deploy_key scripts/restore-db.sh root@$SSH_HOST:~/scripts/staging/restore-db.sh
+          scp -i ~/.ssh/deploy_key scripts/release-backup.sh root@$SSH_HOST:~/scripts/staging/release-backup.sh
 
           set +e
           ssh -i ~/.ssh/deploy_key root@$SSH_HOST \
-            "DEPLOY_DIR=staging DEPLOY_SHA=$SHORT_SHA BACKUP_RETENTION=3 bash ~/scripts/deploy-remote.sh"
+            "DEPLOY_DIR=staging DEPLOY_SHA=$SHORT_SHA BACKUP_RETENTION=3 bash ~/scripts/staging/deploy-remote.sh"
           DEPLOY_EXIT=$?
           set -e
 
@@ -539,16 +539,16 @@ jobs:
 
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
 
-          ssh -i ~/.ssh/deploy_key root@$SSH_HOST "mkdir -p ~/scripts"
+          ssh -i ~/.ssh/deploy_key root@$SSH_HOST "mkdir -p ~/scripts/production"
           scp -i ~/.ssh/deploy_key /tmp/production.env root@$SSH_HOST:~/production/.env.new
           scp -i ~/.ssh/deploy_key environments/production.compose.yml root@$SSH_HOST:~/production/docker-compose.yml.new
-          scp -i ~/.ssh/deploy_key scripts/deploy-remote.sh root@$SSH_HOST:~/scripts/deploy-remote.sh
-          scp -i ~/.ssh/deploy_key scripts/restore-db.sh root@$SSH_HOST:~/scripts/restore-db.sh
-          scp -i ~/.ssh/deploy_key scripts/release-backup.sh root@$SSH_HOST:~/scripts/release-backup.sh
+          scp -i ~/.ssh/deploy_key scripts/deploy-remote.sh root@$SSH_HOST:~/scripts/production/deploy-remote.sh
+          scp -i ~/.ssh/deploy_key scripts/restore-db.sh root@$SSH_HOST:~/scripts/production/restore-db.sh
+          scp -i ~/.ssh/deploy_key scripts/release-backup.sh root@$SSH_HOST:~/scripts/production/release-backup.sh
 
           set +e
           ssh -i ~/.ssh/deploy_key root@$SSH_HOST \
-            "DEPLOY_DIR=production DEPLOY_SHA=$SHORT_SHA BACKUP_RETENTION=7 bash ~/scripts/deploy-remote.sh"
+            "DEPLOY_DIR=production DEPLOY_SHA=$SHORT_SHA BACKUP_RETENTION=7 bash ~/scripts/production/deploy-remote.sh"
           DEPLOY_EXIT=$?
           set -e
 
@@ -648,16 +648,16 @@ jobs:
 
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
 
-          ssh -i ~/.ssh/deploy_key root@$SSH_HOST "mkdir -p ~/scripts"
+          ssh -i ~/.ssh/deploy_key root@$SSH_HOST "mkdir -p ~/scripts/demo"
           scp -i ~/.ssh/deploy_key /tmp/demo.env root@$SSH_HOST:~/demo/.env.new
           scp -i ~/.ssh/deploy_key environments/demo.compose.yml root@$SSH_HOST:~/demo/docker-compose.yml.new
-          scp -i ~/.ssh/deploy_key scripts/deploy-remote.sh root@$SSH_HOST:~/scripts/deploy-remote.sh
-          scp -i ~/.ssh/deploy_key scripts/restore-db.sh root@$SSH_HOST:~/scripts/restore-db.sh
-          scp -i ~/.ssh/deploy_key scripts/release-backup.sh root@$SSH_HOST:~/scripts/release-backup.sh
+          scp -i ~/.ssh/deploy_key scripts/deploy-remote.sh root@$SSH_HOST:~/scripts/demo/deploy-remote.sh
+          scp -i ~/.ssh/deploy_key scripts/restore-db.sh root@$SSH_HOST:~/scripts/demo/restore-db.sh
+          scp -i ~/.ssh/deploy_key scripts/release-backup.sh root@$SSH_HOST:~/scripts/demo/release-backup.sh
 
           set +e
           ssh -i ~/.ssh/deploy_key root@$SSH_HOST \
-            "DEPLOY_DIR=demo DEPLOY_SHA=$SHORT_SHA BACKUP_RETENTION=3 bash ~/scripts/deploy-remote.sh"
+            "DEPLOY_DIR=demo DEPLOY_SHA=$SHORT_SHA BACKUP_RETENTION=3 bash ~/scripts/demo/deploy-remote.sh"
           DEPLOY_EXIT=$?
           set -e
 
