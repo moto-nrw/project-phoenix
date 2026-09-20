@@ -39,12 +39,13 @@ type lifecycleStore struct {
 		threshold   int
 		lockedUntil time.Time
 	}
-	cards    map[string]bool
-	grants   map[mappingKey][]domain.PermissionGrant
-	parents  map[int64]domain.ParentAccount
-	nextID   int64
-	granted  []int64
-	pinError error
+	cards                     map[string]bool
+	grants                    map[mappingKey][]domain.PermissionGrant
+	parents                   map[int64]domain.ParentAccount
+	nextID                    int64
+	granted                   []int64
+	pinError                  error
+	findAccountsByEmailsCalls int
 }
 
 func newLifecycleStore() *lifecycleStore {
@@ -197,6 +198,19 @@ func (s *lifecycleStore) FindAccountByEmail(_ context.Context, email string) (do
 		}
 	}
 	return domain.Account{}, false, stats(), nil
+}
+
+func (s *lifecycleStore) FindAccountsByEmails(_ context.Context, emails []string) (map[string]domain.Account, domain.OperationStats, error) {
+	s.findAccountsByEmailsCalls++
+	accounts := make(map[string]domain.Account)
+	for _, email := range emails {
+		for _, account := range s.accounts {
+			if strings.EqualFold(account.Email, email) {
+				accounts[strings.ToLower(email)] = domain.Account{ID: account.ID, Email: account.Email}
+			}
+		}
+	}
+	return accounts, stats(), nil
 }
 
 func (s *lifecycleStore) EnsureActiveTenantMapping(_ context.Context, accountID, tenantID int64) (domain.OperationStats, error) {

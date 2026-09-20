@@ -68,6 +68,18 @@ func TestBulkInviteRejectsSelectionsWithoutAnActiveChild(t *testing.T) {
 	assert.Empty(t, h.bulkInvites)
 }
 
+func TestBulkInviteRejectsOversizedSelectionsBeforeReadingStudents(t *testing.T) {
+	t.Parallel()
+	directory := bulkInviteDirectory()
+	h := newGuardianHarness(t, directory)
+	h.permitted["users:create"] = true
+
+	studentIDs := make([]int64, 2001)
+	assert.Equal(t, http.StatusBadRequest, h.do(t, http.MethodPost, "/guardians/bulk-invite", map[string]any{"student_ids": studentIDs}).Code)
+	assert.Zero(t, directory.studentLookups)
+	assert.Empty(t, h.bulkInvites)
+}
+
 func TestBulkInviteFailureUsesTheInviteClassification(t *testing.T) {
 	t.Parallel()
 	h := newGuardianHarness(t, bulkInviteDirectory())

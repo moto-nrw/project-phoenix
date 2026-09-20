@@ -31,8 +31,17 @@ type bulkInviteCandidate struct {
 
 // BulkInviteToStudents classifies the guardians of the given children and,
 // unless DryRun is set, invites the ones that can be invited. It runs on the
-// caller's tenant transaction; any error leaves nothing behind.
-func (l *AccountLifecycle) BulkInviteToStudents(ctx context.Context, req domain.BulkInviteRequest) (*domain.BulkInviteResult, error) {
+// caller's tenant transaction, or opens one when called directly; any error
+// leaves nothing behind.
+func (l *AccountLifecycle) BulkInviteToStudents(ctx context.Context, req domain.BulkInviteRequest) (result *domain.BulkInviteResult, err error) {
+	err = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		result, err = l.bulkInviteToStudents(txCtx, req)
+		return err
+	})
+	return result, err
+}
+
+func (l *AccountLifecycle) bulkInviteToStudents(ctx context.Context, req domain.BulkInviteRequest) (*domain.BulkInviteResult, error) {
 	if err := validateBulkInvite(req); err != nil {
 		return nil, failed(opGuardianBulkInvite, err)
 	}
@@ -50,6 +59,11 @@ func (l *AccountLifecycle) BulkInviteToStudents(ctx context.Context, req domain.
 	for _, candidate := range candidates {
 		profileIDs = append(profileIDs, candidate.profileID)
 	}
+	if !req.DryRun {
+		if err := l.lockBulkInviteProfiles(ctx, l.runtime.TenantID(ctx), profileIDs); err != nil {
+			return nil, err
+		}
+	}
 	profiles, err := l.guardians.FindGuardianProfiles(ctx, profileIDs)
 	if err != nil {
 		return nil, failed(opGuardianBulkInvite, err)
@@ -59,7 +73,13 @@ func (l *AccountLifecycle) BulkInviteToStudents(ctx context.Context, req domain.
 		return nil, err
 	}
 
-	run := bulkInviteRun{req: req, tenantID: l.runtime.TenantID(ctx), result: result, seenEmails: map[string]bool{}}
+	run := bulkInviteRun{req: req, tenantID: l.runtime.TenantID(ctx), result: result, seenEmails: map[string]bool{}, existingAccounts: map[string]domain.Account{}}
+	if !req.DryRun {
+		run.existingAccounts, err = l.bulkInviteExistingAccounts(ctx, profiles)
+		if err != nil {
+			return nil, err
+		}
+	}
 	for _, candidate := range candidates {
 		profile, ok := profiles[candidate.profileID]
 		if !ok {
@@ -82,6 +102,30 @@ func (l *AccountLifecycle) BulkInviteToStudents(ctx context.Context, req domain.
 		slog.Int("problems", len(result.Problems)),
 	)
 	return result, nil
+}
+
+func (l *AccountLifecycle) lockBulkInviteProfiles(ctx context.Context, tenantID int64, profileIDs []int64) error {
+	for _, profileID := range profileIDs {
+		key := fmt.Sprintf("guardian-bulk-invite:%d:%d", tenantID, profileID)
+		if err := l.runtime.AcquireLock(ctx, key); err != nil {
+			return failed(opGuardianBulkInvite, fmt.Errorf("lock guardian profile %d: %w", profileID, err))
+		}
+	}
+	return nil
+}
+
+func (l *AccountLifecycle) bulkInviteExistingAccounts(ctx context.Context, profiles map[int64]domain.GuardianProfile) (map[string]domain.Account, error) {
+	emails := make([]string, 0, len(profiles))
+	for _, profile := range profiles {
+		if !profile.HasAccount {
+			emails = append(emails, profile.Email)
+		}
+	}
+	accounts, err := l.sessions.FindAccountsByEmails(ctx, emails)
+	if err != nil {
+		return nil, failed(opGuardianBulkInvite, err)
+	}
+	return accounts, nil
 }
 
 func validateBulkInvite(req domain.BulkInviteRequest) error {
@@ -145,6 +189,9 @@ type bulkInviteRun struct {
 	tenantID   int64
 	result     *domain.BulkInviteResult
 	seenEmails map[string]bool
+	// existingAccounts was read in one statement before the loop. It is only
+	// needed on the write path; previews deliberately remain side-effect free.
+	existingAccounts map[string]domain.Account
 	// problemStudents keeps the children per problem, in result order, until
 	// the names are resolved in one read.
 	problemStudents [][]int64
@@ -161,11 +208,18 @@ func (r *bulkInviteRun) problem(candidate bulkInviteCandidate, profile domain.Gu
 // needs nothing, an address problem blocks everything else, and an open
 // invitation is only touched when the school asked for it.
 func (l *AccountLifecycle) bulkInviteOne(ctx context.Context, run *bulkInviteRun, candidate bulkInviteCandidate, profile domain.GuardianProfile, open []domain.GuardianInvitation) error {
+	email := strings.ToLower(strings.TrimSpace(profile.Email))
 	if profile.HasAccount {
+		if email != "" {
+			if run.seenEmails[email] {
+				run.problem(candidate, profile, domain.BulkInviteProblemDuplicateEmail)
+				return nil
+			}
+			run.seenEmails[email] = true
+		}
 		run.result.SkippedActive++
 		return nil
 	}
-	email := strings.ToLower(strings.TrimSpace(profile.Email))
 	if reason := bulkInviteEmailProblem(email, run.seenEmails); reason != "" {
 		run.problem(candidate, profile, reason)
 		return nil
@@ -189,7 +243,7 @@ func (l *AccountLifecycle) bulkInviteOne(ctx context.Context, run *bulkInviteRun
 		run.result.Invited++
 		return nil
 	}
-	return l.bulkInviteFresh(ctx, run, candidate, profile, email)
+	return l.bulkInviteFresh(ctx, run, candidate, profile, email, open)
 }
 
 func bulkInviteEmailProblem(email string, seen map[string]bool) string {
@@ -233,11 +287,22 @@ func (l *AccountLifecycle) resendOpenInvitation(ctx context.Context, dryRun bool
 // bulkInviteFresh runs the single-invite resolve for the profile itself: an
 // account that already owns the address is attached and told where to log
 // in, everyone else gets a token invitation anchored to the first child.
-func (l *AccountLifecycle) bulkInviteFresh(ctx context.Context, run *bulkInviteRun, candidate bulkInviteCandidate, profile domain.GuardianProfile, email string) error {
-	if err := l.attachExistingAccountByEmail(ctx, &profile, email); err != nil {
-		return err
+func (l *AccountLifecycle) bulkInviteFresh(ctx context.Context, run *bulkInviteRun, candidate bulkInviteCandidate, profile domain.GuardianProfile, email string, open []domain.GuardianInvitation) error {
+	if account, found := run.existingAccounts[email]; found {
+		if err := l.attachExistingAccount(ctx, &profile, account); err != nil {
+			return err
+		}
 	}
 	req := domain.InviteToStudentRequest{StudentID: candidate.studentIDs[0], Email: email, CreatedBy: run.req.CreatedBy}
+	if !profile.HasAccount && len(open) == 0 {
+		invitation, err := l.insertStudentInvitation(ctx, req, profile, run.tenantID, domain.GuardianInvitationApprovalNotRequired, false, false)
+		if err != nil {
+			return err
+		}
+		l.delivery.EnqueueInvitationEmail(ctx, invitation, profile, l.delivery.SchoolName(ctx, invitation.TenantID))
+		run.result.Invited++
+		return nil
+	}
 	invited, err := l.resolveInviteNow(ctx, req, profile, run.tenantID, false, false)
 	if err != nil {
 		return err

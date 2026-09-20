@@ -76,6 +76,12 @@ export function SelectionBulkInviteModal({
 
   const toMail = preview ? preview.invited + preview.resent : 0;
 
+  const handleResendOpenChange = (value: boolean) => {
+    setPreview(null);
+    setError(null);
+    setResendOpen(value);
+  };
+
   const handleSend = async () => {
     setSending(true);
     setError(null);
@@ -150,7 +156,7 @@ export function SelectionBulkInviteModal({
             preview={preview}
             childCount={studentIds.length}
             resendOpen={resendOpen}
-            onResendOpenChange={setResendOpen}
+            onResendOpenChange={handleResendOpenChange}
             disabled={sending}
           />
         ) : error ? null : (
@@ -241,17 +247,28 @@ function CountRow({ label, count }: { label: string; count: number }) {
 }
 
 function SentSummary({ result }: { result: BulkInviteResult }) {
-  const mailed = result.invited + result.resent;
+  const messages = [
+    result.invited > 0
+      ? `Die Einladung an ${parents(result.invited)} wird jetzt verschickt.`
+      : null,
+    result.resent > 0
+      ? `Die Einladung an ${parents(result.resent)} wird noch einmal verschickt.`
+      : null,
+    result.linkedExistingAccount > 0
+      ? `Der Hinweis an ${parents(result.linkedExistingAccount)} mit moto-Konto wird jetzt verschickt.`
+      : null,
+  ].filter((message): message is string => message !== null);
+  const summary =
+    messages.length > 0
+      ? `${messages.join(" ")} Das dauert ein paar Minuten.`
+      : "Es wurde keine E-Mail eingeplant.";
   return (
     <div className="space-y-2">
-      <Alert
-        type="success"
-        message={`Die Einladung an ${parents(mailed)} wird jetzt verschickt. Das dauert ein paar Minuten.`}
-      />
+      <Alert type="success" message={summary} />
       {result.linkedExistingAccount > 0 ? (
         <p className="text-sm text-gray-700">
           {parents(result.linkedExistingAccount)} mit vorhandenem moto-Konto:
-          Zugang ist freigeschaltet, Hinweis per E-Mail gesendet.
+          Zugang ist freigeschaltet.
         </p>
       ) : null}
     </div>

@@ -183,6 +183,10 @@ func (l *AccountLifecycle) attachExistingAccountByEmail(ctx context.Context, pro
 		}
 		return failed(opGuardianInviteToStudent, err)
 	}
+	return l.attachExistingAccount(ctx, profile, account)
+}
+
+func (l *AccountLifecycle) attachExistingAccount(ctx context.Context, profile *domain.GuardianProfile, account domain.Account) error {
 	if _, err := l.sessions.GrantGuardianTenantAccess(ctx, account.ID); err != nil {
 		return failed(opGuardianInviteToStudent, fmt.Errorf("link account to tenant: %w", err))
 	}
@@ -338,6 +342,11 @@ func (l *AccountLifecycle) createStudentInvitation(ctx context.Context, req doma
 		}
 		return openInvitation, nil
 	}
+	return l.insertStudentInvitation(ctx, req, profile, tenantID, approvalStatus, profileCreated, roleUpgrade)
+}
+
+func (l *AccountLifecycle) insertStudentInvitation(ctx context.Context, req domain.InviteToStudentRequest, profile domain.GuardianProfile, tenantID int64, approvalStatus string, profileCreated, roleUpgrade bool) (domain.GuardianInvitation, error) {
+	studentID := req.StudentID
 	invitation, err := l.invitations.InsertGuardianInvitation(ctx, domain.GuardianInvitation{
 		TenantID:                    tenantID,
 		Token:                       uuid.Must(uuid.NewV4()).String(),

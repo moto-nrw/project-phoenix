@@ -23,17 +23,18 @@ import (
 // fake.
 type fakeGuardianDirectory struct {
 	peopledirectory.Capability
-	guardians    map[int64]peopledirectory.Guardian
-	students     map[int64]peopledirectory.Student
-	studentLinks map[int64][]peopledirectory.GuardianWithLink
-	guardianKids map[int64][]peopledirectory.StudentWithLink
-	impact       peopledirectory.GuardianDeleteImpact
-	evaluate     error
-	deleteErr    error
-	deleted      []peopledirectory.GuardianDelete
-	added        []peopledirectory.NewStudentGuardian
-	exportRows   []peopledirectory.GuardianPaymentRow
-	exportCalls  int
+	guardians      map[int64]peopledirectory.Guardian
+	students       map[int64]peopledirectory.Student
+	studentLinks   map[int64][]peopledirectory.GuardianWithLink
+	guardianKids   map[int64][]peopledirectory.StudentWithLink
+	impact         peopledirectory.GuardianDeleteImpact
+	evaluate       error
+	deleteErr      error
+	deleted        []peopledirectory.GuardianDelete
+	added          []peopledirectory.NewStudentGuardian
+	exportRows     []peopledirectory.GuardianPaymentRow
+	exportCalls    int
+	studentLookups int
 }
 
 func (f *fakeGuardianDirectory) FindGuardian(_ context.Context, id int64) (peopledirectory.Guardian, error) {
@@ -45,6 +46,7 @@ func (f *fakeGuardianDirectory) FindGuardian(_ context.Context, id int64) (peopl
 }
 
 func (f *fakeGuardianDirectory) ListStudentsByID(_ context.Context, ids []int64) ([]peopledirectory.Student, error) {
+	f.studentLookups++
 	result := []peopledirectory.Student{}
 	for _, id := range ids {
 		if student, ok := f.students[id]; ok {

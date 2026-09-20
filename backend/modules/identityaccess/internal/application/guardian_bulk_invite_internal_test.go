@@ -1,6 +1,7 @@
 package application
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -84,6 +85,54 @@ func TestBulkInvite_SkipsActiveRestrictedAndOpen(t *testing.T) {
 	assert.Equal(t, domain.BulkInviteResult{SkippedActive: 1, SkippedRestricted: 2, SkippedOpen: 1, Problems: []domain.BulkInviteProblem{}}, *result)
 	assert.Empty(t, f.delivery.emails)
 	assert.Empty(t, f.guardians.promoted, "a bulk run never upgrades a restrictive contact")
+}
+
+func TestBulkInvite_RecordsAnActiveProfileEmailBeforeSkippingIt(t *testing.T) {
+	t.Parallel()
+	f := newLifecycleFixture(t)
+	active := f.bulkGuardian("geteilt@example.test", roleLegal, 11)
+	active.HasAccount = true
+	f.guardians.profiles[active.ID] = active
+	f.bulkGuardian("geteilt@example.test", roleLegal, 12)
+
+	result, err := f.lifecycle.BulkInviteToStudents(tenantContext(), bulkRequest(11, 12))
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.SkippedActive)
+	require.Len(t, result.Problems, 1)
+	assert.Equal(t, domain.BulkInviteProblemDuplicateEmail, result.Problems[0].Reason)
+	assert.Zero(t, result.Invited)
+	assert.Empty(t, f.delivery.emails)
+}
+
+func TestBulkInvite_LocksProfilesBeforeReadingOpenInvitations(t *testing.T) {
+	t.Parallel()
+	f := newLifecycleFixture(t)
+	parent := f.bulkGuardian("mutter@example.test", roleLegal, 11)
+	f.runtime.lockHook = func(string) {
+		f.openInvitation(parent.ID, 11, domain.GuardianInvitationApprovalNotRequired, time.Now().Add(time.Hour))
+	}
+
+	result, err := f.lifecycle.BulkInviteToStudents(tenantContext(), bulkRequest(11))
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.SkippedOpen)
+	assert.Empty(t, f.delivery.emails)
+	assert.Equal(t, []string{fmt.Sprintf("guardian-bulk-invite:77:%d", parent.ID)}, f.runtime.locks)
+}
+
+func TestBulkInvite_BatchesExistingAccountLookups(t *testing.T) {
+	t.Parallel()
+	f := newLifecycleFixture(t)
+	f.bulkGuardian("eins@example.test", roleLegal, 11)
+	f.bulkGuardian("zwei@example.test", roleLegal, 12)
+	f.bulkGuardian("drei@example.test", roleLegal, 13)
+
+	result, err := f.lifecycle.BulkInviteToStudents(tenantContext(), bulkRequest(11, 12, 13))
+
+	require.NoError(t, err)
+	assert.Equal(t, 3, result.Invited)
+	assert.Equal(t, 1, f.store.findAccountsByEmailsCalls)
 }
 
 func TestBulkInvite_ResendRestartsTheWindow(t *testing.T) {

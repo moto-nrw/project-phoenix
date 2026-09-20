@@ -14,6 +14,10 @@ import (
 // run. The same route serves the preview (dry_run) the confirmation dialog
 // shows before anything is mailed.
 
+// bulkInviteMaxStudents mirrors the application cap. It protects the
+// tenant-wide student read before the request reaches the application layer.
+const bulkInviteMaxStudents = 2000
+
 type bulkInviteRequest struct {
 	StudentIDs []int64 `json:"student_ids"`
 	ResendOpen bool    `json:"resend_open"`
@@ -57,6 +61,10 @@ func (rs *GuardianResource) bulkInviteGuardians(w http.ResponseWriter, r *http.R
 	}
 	if len(body.StudentIDs) == 0 {
 		rs.failMessage(w, r, FailureInvalidRequest, "student_ids is required")
+		return
+	}
+	if len(body.StudentIDs) > bulkInviteMaxStudents {
+		rs.failMessage(w, r, FailureInvalidRequest, "too many student_ids")
 		return
 	}
 	students, err := rs.directory.ListStudentsByID(r.Context(), body.StudentIDs)

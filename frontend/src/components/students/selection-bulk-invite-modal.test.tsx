@@ -71,7 +71,7 @@ describe("SelectionBulkInviteModal", () => {
     );
     expect(
       await screen.findByText(
-        "Die Einladung an 2 Eltern wird jetzt verschickt. Das dauert ein paar Minuten.",
+        "Die Einladung an 2 Eltern wird jetzt verschickt. Der Hinweis an 1 Elternteil mit moto-Konto wird jetzt verschickt. Das dauert ein paar Minuten.",
       ),
     ).toBeVisible();
     expect(toastSuccess).toHaveBeenCalledWith("3 Eltern eingeladen");
@@ -79,9 +79,13 @@ describe("SelectionBulkInviteModal", () => {
   });
 
   it("offers to resend open invitations and recounts", async () => {
+    let resolvePreview: (value: BulkInviteResult) => void;
+    const reloadingPreview = new Promise<BulkInviteResult>((resolve) => {
+      resolvePreview = resolve;
+    });
     bulkInvite
       .mockResolvedValueOnce(result({ skippedOpen: 1 }))
-      .mockResolvedValueOnce(result({ resent: 1 }));
+      .mockReturnValueOnce(reloadingPreview);
     renderModal();
 
     const checkbox = await screen.findByLabelText(
@@ -91,6 +95,10 @@ describe("SelectionBulkInviteModal", () => {
 
     fireEvent.click(checkbox);
 
+    expect(screen.getByRole("button", { name: "Einladen" })).toBeDisabled();
+
+    resolvePreview!(result({ resent: 1 }));
+
     expect(
       await screen.findByRole("button", { name: "1 Elternteil einladen" }),
     ).toBeEnabled();
@@ -98,6 +106,28 @@ describe("SelectionBulkInviteModal", () => {
       dryRun: true,
       resendOpen: true,
     });
+  });
+
+  it("describes existing-account notices without claiming a token invitation", async () => {
+    bulkInvite
+      .mockResolvedValueOnce(result({ invited: 1 }))
+      .mockResolvedValueOnce(
+        result({ dryRun: false, linkedExistingAccount: 1 }),
+      );
+    renderModal();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "1 Elternteil einladen" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Der Hinweis an 1 Elternteil mit moto-Konto wird jetzt verschickt. Das dauert ein paar Minuten.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByText(/Die Einladung an 0 Eltern/),
+    ).not.toBeInTheDocument();
   });
 
   it("names the parents that cannot be invited and the child to fix", async () => {
