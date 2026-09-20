@@ -884,10 +884,10 @@ func TestRegisterRoutes_UsersRoutesRunThroughProtectedGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	people, err := repositories.NewPeopleDirectory(db)
 	require.NoError(t, err)
-	identity, err := repositories.NewRFIDTestRepositories(db)
+	identity, err := repositories.NewIdentityAccessForTests(db)
 	require.NoError(t, err)
-	resource := newUsersResource(people, identity.Membership.Account.FindEmailsByAccountIDs, func(ctx context.Context, tagID string) (bool, error) {
-		_, _, found, err := identity.RFID.LookupRFIDCard(ctx, tagID)
+	resource := newUsersResource(people, identity.ListAccountEmails, func(ctx context.Context, tagID string) (bool, error) {
+		_, _, found, err := identity.LookupRFIDCard(ctx, tagID)
 		return found, err
 	}, db)
 	router := chi.NewRouter()

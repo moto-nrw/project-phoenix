@@ -474,40 +474,6 @@ func (r *AccountRepository) applyStringLikeFilter(query *bun.SelectQuery, field 
 	return query
 }
 
-// FindEmailsByAccountIDs batch-loads email addresses for the given account IDs.
-// Returns a map of accountID → email.
-func (r *AccountRepository) FindEmailsByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
-	if len(accountIDs) == 0 {
-		return make(map[int64]string), nil
-	}
-
-	type accountEmailRow struct {
-		ID    int64  `bun:"id"`
-		Email string `bun:"email"`
-	}
-
-	var rows []accountEmailRow
-	err := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(accountTable).
-		Column("id", "email").
-		Where("id IN (?)", bun.List(accountIDs)).
-		Scan(ctx, &rows)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find emails by account IDs",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	result := make(map[int64]string, len(rows))
-	for _, row := range rows {
-		result[row.ID] = row.Email
-	}
-
-	return result, nil
-}
-
 // Update overrides the base Update method to handle email normalization.
 func (r *AccountRepository) Update(ctx context.Context, account *authmodels.Account) error {
 	return r.update(ctx, account)

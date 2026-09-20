@@ -160,3 +160,40 @@ func TestStaffAccountQueriesDatabaseFailuresAndEmptyInputs(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, emails)
 }
+
+func TestStaffAccountQueriesBatchEmails(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	repo, err := repositories.NewIdentityAccessForTests(db)
+	require.NoError(t, err)
+	ctx := testpkg.Ctx(t)
+
+	t.Run("returns emails for valid IDs", func(t *testing.T) {
+		account1 := testpkg.CreateTestAccount(t, db, "emails1")
+		account2 := testpkg.CreateTestAccount(t, db, "emails2")
+
+		result, err := repo.ListAccountEmails(ctx, []int64{account1.ID, account2.ID})
+		require.NoError(t, err)
+		require.Len(t, result, 2)
+		require.Equal(t, account1.Email, result[account1.ID])
+		require.Equal(t, account2.Email, result[account2.ID])
+	})
+
+	t.Run("returns partial results for mixed valid and invalid IDs", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "emailspartial")
+
+		result, err := repo.ListAccountEmails(ctx, []int64{account.ID, 0})
+		require.NoError(t, err)
+		require.Len(t, result, 1)
+		require.Equal(t, account.Email, result[account.ID])
+	})
+
+	t.Run("returns empty map for empty slice", func(t *testing.T) {
+		result, err := repo.ListAccountEmails(ctx, []int64{})
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.Empty(t, result)
+	})
+}

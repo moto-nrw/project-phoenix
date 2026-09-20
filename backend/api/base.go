@@ -886,7 +886,7 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL 
 	api.WorkTimeModels = worktimemodelsHTTPAdapter.NewResource(modules.workforce, db, services.StaffTimeTrackingNotifier(api.Services.RealtimeHub))
 	api.MealPlan = newMealPlanResource(modules.mealPlan, db, newMealPlanExportRenderer())
 	api.Feedback = newFeedbackResource(modules.feedback, db)
-	api.Users = newUsersResource(modules.persons, repoFactory.Account.FindEmailsByAccountIDs, func(ctx context.Context, tagID string) (bool, error) {
+	api.Users = newUsersResource(modules.persons, api.Services.Auth.ListAccountEmails, func(ctx context.Context, tagID string) (bool, error) {
 		_, _, found, err := repoFactory.RFIDCard.LookupRFIDCard(ctx, tagID)
 		return found, err
 	}, db)

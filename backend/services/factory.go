@@ -2614,7 +2614,7 @@ func newFactory(
 		Membership:   membership,
 		PersonRepo:   repos.Person,
 		StaffRepo:    repos.Staff,
-		Accounts:     repos.Account,
+		Accounts:     identityAccess,
 		ActiveGroups: repos.ActiveGroup,
 		Supervisors:  repos.GroupSupervisor,
 		Categories:   repos.ActivityCategory,

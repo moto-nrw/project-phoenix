@@ -11,7 +11,6 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -23,6 +22,11 @@ import (
 // iot.devices.api_key (migration 001003009).
 const deviceAPIKeyConstraint = "devices_api_key_key"
 
+// accountEmailQuery is the operator person listing's account-facts port.
+type accountEmailQuery interface {
+	ListAccountEmails(context.Context, []int64) (map[int64]string, error)
+}
+
 // OperatorProvisioningDependencies are the owner capabilities and retained
 // repositories the Organisation & Tenancy provisioning seams (#3253) bind to.
 type OperatorProvisioningDependencies struct {
@@ -32,7 +36,7 @@ type OperatorProvisioningDependencies struct {
 	Membership   schoolmembership.Query
 	PersonRepo   userModels.PersonRepository
 	StaffRepo    userModels.StaffRepository
-	Accounts     authModels.AccountRepository
+	Accounts     accountEmailQuery
 	ActiveGroups interface {
 		FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*activeModels.Group, error)
 	}
@@ -176,7 +180,7 @@ type provisioningPeople struct {
 	membership schoolmembership.Query
 	personRepo userModels.PersonRepository
 	staffRepo  userModels.StaffRepository
-	accounts   authModels.AccountRepository
+	accounts   accountEmailQuery
 	db         *bun.DB
 }
 
@@ -205,7 +209,7 @@ func (p provisioningPeople) ListPersons(ctx context.Context, tenantIDs []int64) 
 	for _, member := range members {
 		staff[member.PersonID] = true
 	}
-	emails, err := p.accounts.FindEmailsByAccountIDs(ctx, accountIDs)
+	emails, err := p.accounts.ListAccountEmails(ctx, accountIDs)
 	if err != nil {
 		return nil, fmt.Errorf("load operator account emails: %w", err)
 	}
