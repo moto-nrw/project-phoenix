@@ -2625,7 +2625,6 @@ func newFactory(
 	}
 	operatorProvisioningService, err := newOperatorProvisioning(operatorProvisioningSources{
 		accounts:       repositories.NewOperatorAccountDirectory(identityAccess, persons, membership, organizations),
-		repos:          repos,
 		organizations:  organizations,
 		adapters:       provisioningAdapters,
 		sessions:       identityAccess,

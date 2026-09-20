@@ -20,7 +20,6 @@ import (
 // operatorProvisioningSources are the retained services and repositories the
 // Organisation & Tenancy provisioning seams are bound to (#3253).
 type operatorProvisioningSources struct {
-	repos          *repositories.Factory
 	accounts       repositories.OperatorAccountDirectory
 	organizations  organizationtenancy.Capability
 	adapters       repositories.OperatorProvisioningAdapters
@@ -38,7 +37,7 @@ func newOperatorProvisioning(sources operatorProvisioningSources) (organizationt
 	return organizationCompose.NewProvisioning(organizationCompose.ProvisioningDependencies{
 		Organizations: sources.organizations,
 		Identity: provisioningIdentity{
-			repos: sources.repos, sessions: sources.sessions,
+			sessions:    sources.sessions,
 			invitations: sources.invitations, provisioning: sources.provisioning,
 			administration: sources.administration, schoolIdentity: sources.schoolIdentity,
 			roles: sources.roles, accounts: sources.accounts,
@@ -60,10 +59,8 @@ type provisioningRoles interface {
 	GetRole(context.Context, int64) (identityaccess.Role, error)
 }
 
-// provisioningIdentity binds provisioning to public identity capabilities
-// and the remaining account repository.
+// provisioningIdentity binds provisioning to public identity capabilities.
 type provisioningIdentity struct {
-	repos          *repositories.Factory
 	accounts       repositories.OperatorAccountDirectory
 	sessions       identityaccess.AccountSessionMaintenance
 	invitations    identityaccess.SchoolInvitations
@@ -247,7 +244,7 @@ func (p provisioningIdentity) DeactivateAccount(ctx context.Context, accountID i
 }
 
 func (p provisioningIdentity) AnonymizeAccount(ctx context.Context, accountID int64, email string) error {
-	return p.repos.Account.AnonymizeForDeletion(ctx, accountID, email)
+	return p.administration.AnonymizeAccountForDeletion(ctx, accountID, email)
 }
 
 // invalidSchoolIdentityError marks an identity chain input error for the

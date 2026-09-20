@@ -12,9 +12,6 @@ type AccountRepository interface {
 	FindManageableByID(ctx context.Context, id int64) (*Account, error)
 	FindByIDForUpdate(ctx context.Context, id int64) (*Account, error)
 	FindByEmail(ctx context.Context, email string) (*Account, error)
-	// AnonymizeForDeletion overwrites the email with an anonymized
-	// placeholder and clears the username (GDPR person deletion).
-	AnonymizeForDeletion(ctx context.Context, accountID int64, anonymizedEmail string) error
 }
 
 // AccountTenantRepository defines operations for querying account-tenant mappings.

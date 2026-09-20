@@ -21111,16 +21111,6 @@
           "file": "services/operator_authentication_composition.go",
           "line": 51,
           "declaration": "operatorRepositoriesOf"
-        },
-        {
-          "file": "services/operator_provisioning_composition.go",
-          "line": 23,
-          "declaration": "type operatorProvisioningSources"
-        },
-        {
-          "file": "services/operator_provisioning_composition.go",
-          "line": 66,
-          "declaration": "type provisioningIdentity"
         }
       ]
     }
