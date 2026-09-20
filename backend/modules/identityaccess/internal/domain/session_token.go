@@ -6,6 +6,22 @@ import (
 	"time"
 )
 
+// SessionProvesInvitationOwnership excludes delegated and unfinished sessions.
+// Parent sessions are global; staff and school sessions must name their school.
+func SessionProvesInvitationOwnership(claims SessionClaims, now time.Time) bool {
+	if claims.AccountID <= 0 || claims.ExpiresAt <= now.Unix() || claims.ReadOnly || claims.ActingAdminID != 0 || claims.PreviewID != "" {
+		return false
+	}
+	switch claims.Scope {
+	case "", "tenant", "org", "school":
+		return claims.TenantID > 0
+	case "parent":
+		return true
+	default:
+		return false
+	}
+}
+
 // DecodeMFAChallengeToken enforces the challenge/enrollment separation and scope.
 func DecodeMFAChallengeToken(wire map[string]any, now time.Time) (MFAChallengeClaims, error) {
 	if flag(wire, "mfa_enrollment_pending") {

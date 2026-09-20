@@ -119,7 +119,7 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 	// composed into, so it reads the module back at call time.
 	var module *identityaccess.Module
 	resets := passwordResetDependencies(wiring.resets, func() identityaccess.PasswordResets { return module }, wiring.logger)
-	invitations := invitationDependencies(wiring.invitations, func() identityaccess.SchoolInvitations { return module }, wiring.logger)
+	invitations := invitationDependencies(wiring.invitations, codec, func() identityaccess.SchoolInvitations { return module }, wiring.logger)
 	operatorLinks := operatorProvisioningDependencies(wiring.operatorLinks, func() identityaccess.OperatorTokens { return module }, wiring.logger)
 	module, err = identityaccessCompose.New(identityaccessCompose.Dependencies{
 		Lifecycle:            lifecycle,

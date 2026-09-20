@@ -9,6 +9,54 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestNativeInvitationOwnershipProof(t *testing.T) {
+	t.Parallel()
+	legacy, err := NewTokenAuthWithDurations("invitation-codec-test-key-not-for-deployment", time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+	native, err := identityCompose.NewSessionTokenCodec(legacy.JwtAuth, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+	for _, tc := range []struct {
+		name     string
+		change   func(map[string]any)
+		accepted bool
+	}{
+		{"staff", func(map[string]any) {}, true},
+		{"tenant", func(w map[string]any) { w["scope"] = "tenant" }, true},
+		{"organization", func(w map[string]any) { w["scope"] = "org" }, true},
+		{"school", func(w map[string]any) { w["scope"] = "school" }, true},
+		{"parent without school", func(w map[string]any) { w["scope"] = "parent"; delete(w, "tenant_id") }, true},
+		{"operator", func(w map[string]any) { w["scope"] = "platform" }, false},
+		{"unknown scope", func(w map[string]any) { w["scope"] = "unknown" }, false},
+		{"missing school", func(w map[string]any) { delete(w, "tenant_id") }, false},
+		{"expired", func(w map[string]any) { w["exp"] = time.Now().Add(-time.Hour).Unix() }, false},
+		{"no expiry", func(w map[string]any) { delete(w, "exp") }, false},
+		{"read only", func(w map[string]any) { w["read_only"] = true }, false},
+		{"acting admin", func(w map[string]any) { w["acting_admin_id"] = 99 }, false},
+		{"preview", func(w map[string]any) { w["preview_id"] = "preview" }, false},
+		{"MFA challenge", func(w map[string]any) { w["mfa_pending"] = true }, false},
+		{"MFA enrollment", func(w map[string]any) { w["mfa_enrollment_pending"] = true }, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			wire := map[string]any{"id": 42, "sub": "invited@test.local", "roles": []string{"user"}, "tenant_id": 73, "exp": time.Now().Add(time.Hour).Unix()}
+			tc.change(wire)
+			_, token, err := legacy.JwtAuth.Encode(wire)
+			require.NoError(t, err)
+			id, err := native.AccountOfAccessToken(token)
+			require.NoError(t, err)
+			if tc.accepted {
+				require.Equal(t, int64(42), id)
+			} else {
+				require.Zero(t, id)
+			}
+		})
+	}
+	for _, token := range []string{"", "invalid.signature.token"} {
+		id, err := native.AccountOfAccessToken(token)
+		require.NoError(t, err)
+		require.Zero(t, id)
+	}
+}
+
 func TestNativeSessionCodecPreservesTokenWire(t *testing.T) {
 	t.Parallel()
 	legacy, err := NewTokenAuthWithDurations("session-codec-test-key-not-for-deployment", time.Hour, 24*time.Hour)

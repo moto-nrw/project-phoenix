@@ -21,6 +21,7 @@ type JWTSigner interface {
 type SignedIdentityTokens interface {
 	TokenCodec
 	MFAChallengeCodec
+	InvitationOwnerTokens
 }
 
 type nativeSessionCodec struct {
@@ -38,6 +39,18 @@ func NewSessionTokenCodec(signer JWTSigner, accessExpiry, refreshExpiry time.Dur
 
 func (c *nativeSessionCodec) AccessExpiry() time.Duration  { return c.accessExpiry }
 func (c *nativeSessionCodec) RefreshExpiry() time.Duration { return c.refreshExpiry }
+
+// AccountOfAccessToken accepts only a live, completed session as ownership proof.
+func (c *nativeSessionCodec) AccountOfAccessToken(token string) (int64, error) {
+	if token == "" {
+		return 0, nil
+	}
+	claims, err := c.ParseAccessToken(token)
+	if err != nil || !domain.SessionProvesInvitationOwnership(domain.SessionClaims(claims), time.Now()) {
+		return 0, nil
+	}
+	return claims.AccountID, nil
+}
 
 func (c *nativeSessionCodec) IssueTokenPair(access identityaccess.SessionClaims, refresh identityaccess.RefreshClaims) (string, string, error) {
 	accessToken, err := c.IssueAccessToken(access)
