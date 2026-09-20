@@ -102,17 +102,17 @@ func createCareBookingOffering(
 	validFrom, validUntil *timezone.Date,
 ) *enrollmentModels.CareOffering {
 	t.Helper()
-	today := timezone.TodayDate()
-	start, end := today.AddDays(-30), today.AddDays(300)
-	// Keep explicit historical bookings inside the phase window even as today advances.
-	for _, date := range []*timezone.Date{validFrom, validUntil} {
-		if date != nil {
-			if !date.After(start) {
-				start = date.AddDays(-30)
-			}
-			if !date.Before(end) {
-				end = date.AddDays(300)
-			}
+	// Keep the phase around the scenario's booking, not the day CI runs.
+	start := timezone.NewDate(2026, 8, 1)
+	end := start.AddDays(365)
+	if validFrom != nil {
+		start = validFrom.AddDays(-30)
+		end = validFrom.AddDays(300)
+	}
+	if validUntil != nil {
+		end = validUntil.AddDays(30)
+		if validFrom == nil {
+			start = validUntil.AddDays(-300)
 		}
 	}
 	phase := &enrollmentFixture.Phase{

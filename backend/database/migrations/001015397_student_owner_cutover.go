@@ -17,8 +17,8 @@ func init() {
 			studentOwnerBackfillVersion,
 			absenceRebookingAuditVersion, // 1.15.396 — preserves ladder order
 		},
-		// The two verdicts a backfill pass cannot close are asked before the
-		// deployment stops the application, so unreconciled data aborts the
+		// Guardian reconciliation is checked before the deployment stops the
+		// application, so unreconciled data aborts the
 		// release instead of rolling it back mid-migration.
 		Precondition: studentOwnerCutoverPrecondition,
 	})

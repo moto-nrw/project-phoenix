@@ -1594,6 +1594,16 @@ a complete follow-up record for the same issue and scoped keys. Updating only
 the current checkpoint reference does not imply that old measurements were
 rerun. No exemption exists for newly written evidence.
 
+`student-owner-backfill-2758.json` and `student-owner-cutover-2759.json`
+retain the pre-gate observations and acceptance criteria, not current rollout
+approval. The subsequent absence-state fix (#3442) makes care-state mismatches
+diagnostic and preserves absence fields through migration 1.15.398. Current
+behavior and rollout checks are documented in the
+[backfill guide](../../docs/operations/student-owner-storage-backfill.md) and
+[cutover guide](../../docs/operations/student-owner-storage-cutover.md).
+Do not rewrite the frozen records to imply that their old measurements tested
+the later fix.
+
 ### Inventory and removal coverage
 
 ```bash
