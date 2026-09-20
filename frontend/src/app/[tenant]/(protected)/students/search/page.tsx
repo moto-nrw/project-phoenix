@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useEffect, Suspense, useMemo, useCallback } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  Suspense,
+  useMemo,
+  useCallback,
+} from "react";
 import { CalendarRange, Download, Search } from "lucide-react";
 // SSE is handled globally by TenantAuthWrapper - real-time updates work automatically
 import { useSession } from "next-auth/react";
@@ -111,6 +118,7 @@ import {
   type TrackingFilter,
 } from "./tracking-filter";
 import { StudentSearchPageSkeleton } from "./page-skeleton";
+import { useSamePageLinkClick } from "./use-same-page-link-click";
 
 const logger = createLogger({ component: "StudentSearchPage" });
 const EMPTY_STRING_ARRAY: string[] = [];
@@ -267,6 +275,12 @@ const FULL_STUDENT_SEARCH_PAGE_SIZE = 1000;
 // are 20.000 Kinder, far beyond any OGS, and hitting it is logged rather than
 // silently truncating.
 const MAX_STUDENT_SEARCH_PAGES = 20;
+
+// The card skeleton has no end of its own: a request that never answers (weak
+// school Wi-Fi) or a session without a token keeps it up for good, with nothing
+// on screen saying why or what to do. After this long the page says so and
+// offers a reload instead (#3374).
+const LOADING_STALL_MS = 10_000;
 
 // The "Stufe" filter is a multi-select (#2218): an empty selection already
 // means "alle Stufen", so the neutral pseudo-option would be a second way to
@@ -933,7 +947,11 @@ function orderedRooms(
 function SearchPageContent() {
   const router = useTenantRouter();
   // Use required: true to auto-redirect unauthenticated users (same pattern as /active-supervisions)
-  const { data: session, status } = useSession({
+  const {
+    data: session,
+    status,
+    update: updateSession,
+  } = useSession({
     required: true,
     onUnauthenticated() {
       router.push("/");
@@ -1476,6 +1494,7 @@ function SearchPageContent() {
     data: studentsData,
     isLoading: isSearching,
     error: studentsError,
+    mutate: mutateStudents,
   } = useSWRAuth<{
     students: Student[];
     requestDate: string;
@@ -1753,6 +1772,36 @@ function SearchPageContent() {
     removeStoredFilters(storageKey);
   }, [storageKey, updateUrlParams]);
 
+  // A reload the person asked for. The counter also restarts the stall timer
+  // below, so a retry gets the full waiting time again.
+  const [reloadCount, setReloadCount] = useState(0);
+  const reloadRequestKeyRef = useRef<string | null>(null);
+  const requestReload = useCallback(() => {
+    reloadRequestKeyRef.current = studentsCacheKey;
+    setReloadCount((count) => count + 1);
+  }, [studentsCacheKey]);
+  useEffect(() => {
+    if (reloadCount === 0) return;
+    // A reset that changed the request key is already being fetched by SWR;
+    // only the unchanged key needs a forced revalidation. mutate() bypasses
+    // deduplication, so it also replaces a request that never answered.
+    if (reloadRequestKeyRef.current === studentsCacheKey) {
+      void mutateStudents();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per requested reload; the key is read at that moment
+  }, [reloadCount]);
+
+  // Clicking "Alle Kinder" in the navigation while already here means "start
+  // over": drop search, filters and date and load the list fresh (#3374). The
+  // page is not remounted for that click, so without this nothing happens and
+  // the stored filters are even written back into the URL.
+  useSamePageLinkClick(
+    useCallback(() => {
+      clearAllFilters();
+      requestReload();
+    }, [clearAllFilters, requestReload]),
+  );
+
   // keepPreviousData holds the previous request's rows until the new request
   // resolves. Gate every date-sensitive derivation on the response's own
   // requestDate AND today/planning mode so prior statuses, counts, and filter
@@ -1871,6 +1920,46 @@ function SearchPageContent() {
   const isInitializing = status === "loading";
   const hasFetchedOnce =
     studentsData !== undefined || studentsError !== undefined;
+
+  // Show the skeleton while the session is still resolving, while the first
+  // fetch is in progress (not yet hasFetchedOnce), or while a date switch is in
+  // flight: keepPreviousData still holds the previous day's rows, so show the
+  // skeleton instead of presenting them under the newly selected date (#1939).
+  // A fetch error wins, though: when the new date's request fails,
+  // keepPreviousData keeps the stale response so isDateTransition stays true.
+  // Without this guard the page would show the skeleton indefinitely instead
+  // of the error and its recovery guidance (#1939).
+  const showGridSkeleton =
+    isInitializing ||
+    isAuthError ||
+    (!errorMessage && ((isSearching && !hasFetchedOnce) || isDateTransition));
+
+  // The stall is tied to the request it was measured for, so a new key or a
+  // requested reload starts over without resetting state from an effect.
+  const loadAttemptSignature = `${studentsCacheKey}|${reloadCount}`;
+  const [stalledAttempt, setStalledAttempt] = useState<string | null>(null);
+  useEffect(() => {
+    if (!showGridSkeleton) return;
+    const timeout = setTimeout(
+      () => setStalledAttempt(loadAttemptSignature),
+      LOADING_STALL_MS,
+    );
+    return () => clearTimeout(timeout);
+  }, [showGridSkeleton, loadAttemptSignature]);
+  const loadingStalled =
+    showGridSkeleton && stalledAttempt === loadAttemptSignature;
+
+  const reloadStudents = useCallback(() => {
+    // Without a token no student request can start; ask for the session again
+    // so the list can load once it is back.
+    if (isAuthError) void updateSession();
+    requestReload();
+  }, [isAuthError, requestReload, updateSession]);
+  const reloadAction = (
+    <Button type="button" variant="outline" size="md" onClick={reloadStudents}>
+      Erneut laden
+    </Button>
+  );
 
   // SSE is handled globally by TenantAuthWrapper - no page-level setup needed.
   // When student_checkin/checkout events occur, global SSE invalidates "student*" caches,
@@ -2956,7 +3045,23 @@ function SearchPageContent() {
         onClearAllFilters={clearAllFilters}
         // Ein Ladefehler ist der Fehlerzustand des Gerüsts. Fehlende Rechte
         // stehen als eingebetteter Standardzustand im Inhalt.
-        error={errorMessage && errorType !== "permission" ? errorMessage : null}
+        error={(() => {
+          if (errorMessage && errorType !== "permission") {
+            // A reload cannot fix an expired session; every other load error
+            // may be a dropped connection, so offer the retry next to it.
+            return errorType === "generic"
+              ? { message: errorMessage, action: reloadAction }
+              : errorMessage;
+          }
+          if (loadingStalled) {
+            return {
+              message:
+                "Die Kinder laden gerade sehr lange. Bitte laden Sie die Liste noch einmal.",
+              action: reloadAction,
+            };
+          }
+          return null;
+        })()}
         empty={
           !errorMessage &&
           hasFetchedOnce &&
@@ -3224,21 +3329,7 @@ function SearchPageContent() {
           >
             <StudentCardClockProvider now={planningNow}>
               {(() => {
-                // Fix P2: Show loading while the session is still resolving, while
-                // the first fetch is in progress (not yet hasFetchedOnce), or while
-                // a date switch is in flight — keepPreviousData still holds the
-                // previous day's rows, so show the skeleton instead of presenting
-                // them under the newly selected date (#1939). Handle a fetch error
-                // FIRST, though: when the new date's request fails, keepPreviousData
-                // keeps the stale response so isDateTransition stays true — without
-                // this guard the page would show the skeleton indefinitely instead of
-                // the error and its recovery guidance (#1939).
-                if (
-                  isInitializing ||
-                  isAuthError ||
-                  (!errorMessage &&
-                    ((isSearching && !hasFetchedOnce) || isDateTransition))
-                ) {
+                if (showGridSkeleton) {
                   return <StudentCardGridSkeleton />;
                 }
                 // Fehler und Leerzustand liegen im Gerüst (`error`/`empty`)

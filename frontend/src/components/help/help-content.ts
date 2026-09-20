@@ -394,6 +394,9 @@ function studentSearchTopic(
           groupMode === "open_care"
             ? "Wählen Sie zum Beispiel eine Klasse."
             : "Wählen Sie zum Beispiel eine Klasse oder Gruppe.",
+          // Der Klick auf den eigenen Menüeintrag leert Suche und Filter
+          // (#3374). "Im Menü" statt "links": am Handy liegt es unten.
+          "Neue Suche? Wählen Sie im Menü noch einmal `Alle Kinder`. Suche und Filter sind dann leer.",
         ],
       },
       {
