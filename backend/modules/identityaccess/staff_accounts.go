@@ -11,11 +11,25 @@ import "context"
 // decision; direct denials do not override role grants in this staff projection.
 // Email lookup is global and restricted to the supplied account IDs.
 type StaffAccountQueries interface {
+	ClassifySchoolRoles(ctx context.Context, tenantID int64, accountIDs []int64) ([]SchoolRoleClass, error)
 	ListActiveAccountIDsForTenant(ctx context.Context, tenantID int64, accountIDs []int64) ([]int64, error)
 	FindEffectivePermissionNamesByAccountIDsForTenant(ctx context.Context, accountIDs []int64, tenantID int64) (map[int64][]string, error)
 	CountRoleNameMatchesByAccountIDs(ctx context.Context, accountIDs []int64, roleNames []string) (map[int64]int, error)
 	ListAccountIDsWithSystemRoleNames(ctx context.Context, accountIDs []int64, roleNames []string, tenantID int64) ([]int64, error)
 	ListAccountEmails(ctx context.Context, accountIDs []int64) (map[int64]string, error)
+}
+
+// SchoolRoleClass reports role categories at one school. Accounts with no
+// assignment there are absent. Admin includes custom admin-tier roles;
+// Lehrkraft requires the system role, not merely a matching custom name.
+type SchoolRoleClass struct {
+	AccountID   int64
+	IsAdmin     bool
+	IsLehrkraft bool
+}
+
+func (m *Module) ClassifySchoolRoles(ctx context.Context, tenantID int64, accountIDs []int64) ([]SchoolRoleClass, error) {
+	return m.engine.ClassifySchoolRoles(ctx, tenantID, accountIDs)
 }
 
 func (m *Module) ListActiveAccountIDsForTenant(ctx context.Context, tenantID int64, accountIDs []int64) ([]int64, error) {

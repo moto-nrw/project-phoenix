@@ -1,6 +1,22 @@
 package compose
 
-import "context"
+import (
+	"context"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+)
+
+func (e engine) ClassifySchoolRoles(ctx context.Context, tenantID int64, accountIDs []int64) ([]identityaccess.SchoolRoleClass, error) {
+	rows, err := e.accountRoleQueries.ClassifySchoolRoles(ctx, tenantID, accountIDs)
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make([]identityaccess.SchoolRoleClass, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, identityaccess.SchoolRoleClass(row))
+	}
+	return result, nil
+}
 
 func (e engine) ListActiveAccountIDsForTenant(ctx context.Context, tenantID int64, accountIDs []int64) ([]int64, error) {
 	value, err := e.accountRoleQueries.ListActiveAccountIDsForTenant(ctx, tenantID, accountIDs)

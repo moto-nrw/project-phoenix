@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/uptrace/bun"
 )
@@ -42,38 +41,4 @@ func (r *AccountRoleRepository) GuardianRoleHolders(ctx context.Context) *bun.Se
 		ColumnExpr(`"account_role".tenant_id`).
 		Join(`INNER JOIN auth.roles AS "role" ON "role".id = "account_role".role_id`).
 		Where(`LOWER("role".name) = ?`, strings.ToLower(authmodels.BaseRoleGuardian))
-}
-
-// SchoolRoleClass classifies the roles one account holds at one school.
-// IsAdmin is the system admin role itself (seeded without a base_role) or a
-// custom role whose base_role is admin; IsLehrkraft is the platform system
-// role of that name, so a school's own custom role sharing the label does not
-// count.
-type SchoolRoleClass struct {
-	AccountID   int64 `bun:"account_id"`
-	IsAdmin     bool  `bun:"is_admin"`
-	IsLehrkraft bool  `bun:"is_lehrkraft"`
-}
-
-// ClassifySchoolRoles returns one class per account that holds at least one
-// role at the tenant. Accounts without a role there are absent.
-func (r *AccountRoleRepository) ClassifySchoolRoles(ctx context.Context, tenantID int64, accountIDs []int64) ([]SchoolRoleClass, error) {
-	if len(accountIDs) == 0 {
-		return nil, nil
-	}
-	var rows []SchoolRoleClass
-	err := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(accountRoleTableAlias).
-		ColumnExpr(`"account_role".account_id AS account_id`).
-		ColumnExpr(`COALESCE(bool_or("role".base_role = ? OR ("role".is_system AND lower(btrim("role".name)) = ?)), false) AS is_admin`, authmodels.BaseRoleAdmin, authmodels.BaseRoleAdmin).
-		ColumnExpr(`COALESCE(bool_or("role".is_system AND lower(btrim("role".name)) = 'lehrkraft'), false) AS is_lehrkraft`).
-		Join(`JOIN auth.roles AS "role" ON "role".id = "account_role".role_id`).
-		Where(`"account_role".tenant_id = ?`, tenantID).
-		Where(`"account_role".account_id IN (?)`, bun.List(accountIDs)).
-		GroupExpr(`"account_role".account_id`).
-		Scan(ctx, &rows)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "classify school roles", Err: base.TranslateNotFound(err)}
-	}
-	return rows, nil
 }

@@ -10,6 +10,17 @@ import (
 // elevate or replace an ambient transaction; school-specific reads also carry
 // an explicit tenant predicate in persistence.
 
+func (q *AccountRoleQueries) ClassifySchoolRoles(ctx context.Context, tenantID int64, accountIDs []int64) (result []domain.SchoolRoleClass, err error) {
+	err = q.service.run(ctx, q.service.tx.RunPlatform, "classify_school_roles", func(txCtx context.Context, stats *domain.OperationStats) error {
+		var queryStats domain.OperationStats
+		var queryErr error
+		result, queryStats, queryErr = q.store.ClassifySchoolRoles(txCtx, tenantID, accountIDs)
+		stats.Add(queryStats)
+		return queryErr
+	})
+	return result, err
+}
+
 func (q *AccountRoleQueries) ListActiveAccountIDsForTenant(ctx context.Context, tenantID int64, accountIDs []int64) (result []int64, err error) {
 	err = q.service.run(ctx, q.service.tx.RunPlatform, "list_active_account_i_ds_for_tenant", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats

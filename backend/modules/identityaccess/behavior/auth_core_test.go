@@ -2283,7 +2283,9 @@ func TestInvitationService_ListPendingInvitations(t *testing.T) {
 func TestInvitationService_CleanupExpiredInvitations(t *testing.T) {
 	t.Parallel()
 
-	db := testpkg.SetupTestDB(t)
+	// Cleanup sweeps every tenant; a shared clone would delete the expired
+	// invitation fixtures concurrently being validated by other tests.
+	db := testpkg.SetupIsolatedTestDB(t)
 
 	invitationService := setupInvitationService(t, db)
 	ctx := testpkg.Ctx(t)
@@ -2413,7 +2415,7 @@ func TestInvitationService_ValidateInvitation(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, identityaccess.ErrInvitationExpired))
+		assert.ErrorIs(t, err, identityaccess.ErrInvitationExpired)
 	})
 
 	t.Run("returns error for non-existent token", func(t *testing.T) {

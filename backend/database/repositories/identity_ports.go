@@ -119,7 +119,7 @@ func guardianRoleQuery(db *bun.DB) usersRepo.GuardianRoleQuery {
 // schoolRoleClassQuery adapts the owner's role classification to the staff
 // messaging projection (#2721).
 func schoolRoleClassQuery(db *bun.DB) usersRepo.SchoolRoleClassQuery {
-	roles := mustAccountRoleRepository(db)
+	roles := newIdentityAccess(db, nil)
 	return func(ctx context.Context, tenantID int64, accountIDs []int64) ([]usersRepo.SchoolRoleClass, error) {
 		rows, err := roles.ClassifySchoolRoles(ctx, tenantID, accountIDs)
 		if err != nil {

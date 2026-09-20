@@ -114,29 +114,4 @@ func TestMembershipQueries_TwoTenantIsolation(t *testing.T) {
 		})
 	})
 
-	t.Run("role classes follow the school's own assignments", func(t *testing.T) {
-		withinSchool(t, home, func(txCtx context.Context) {
-			classes, err := roles.ClassifySchoolRoles(txCtx, home, []int64{member.ID, departed.ID})
-			require.NoError(t, err)
-			assert.ElementsMatch(t, []authRepo.SchoolRoleClass{
-				{AccountID: member.ID, IsLehrkraft: true},
-				{AccountID: departed.ID},
-			}, classes)
-
-			foreign, err := roles.ClassifySchoolRoles(txCtx, other, []int64{member.ID})
-			require.NoError(t, err)
-			assert.Empty(t, foreign, "a school transaction must not classify another school's admin role")
-		})
-		withinSchool(t, other, func(txCtx context.Context) {
-			classes, err := roles.ClassifySchoolRoles(txCtx, other, []int64{member.ID})
-			require.NoError(t, err)
-			assert.Equal(t, []authRepo.SchoolRoleClass{{AccountID: member.ID, IsAdmin: true}}, classes)
-		})
-	})
-
-	t.Run("an empty account list classifies nothing", func(t *testing.T) {
-		classes, err := roles.ClassifySchoolRoles(ctx, home, nil)
-		require.NoError(t, err)
-		assert.Empty(t, classes)
-	})
 }
