@@ -196,6 +196,12 @@ type StudentSchedulesCommand interface {
 	RestoreStudentSchedulesForCareExit(context.Context, []int64) (int64, error)
 }
 
+// WeekdayPickupNotesCommand replaces recurring notes without enlarging the
+// retained StudentSchedulesCommand compatibility facade.
+type WeekdayPickupNotesCommand interface {
+	ReplaceWeekdayPickupNotes(context.Context, int64, int64, map[int]string) error
+}
+
 func normalizeStudentScheduleFilter(filter StudentScheduleFilter) StudentScheduleFilter {
 	filter.IDs = uniquePositive(filter.IDs)
 	filter.StudentIDs = uniquePositive(filter.StudentIDs)
@@ -502,11 +508,26 @@ func (m *Module) DeletePickupNote(ctx context.Context, id int64) error {
 	}
 	return m.engine.DeletePickupNote(ctx, id)
 }
+func (m *Module) ReplaceWeekdayPickupNotes(ctx context.Context, studentID, createdBy int64, notes map[int]string) error {
+	if studentID <= 0 || createdBy <= 0 || !validWeekdayPickupNotes(notes) {
+		return scheduleInvalid()
+	}
+	return m.engine.ReplaceWeekdayPickupNotes(ctx, studentID, createdBy, notes)
+}
 func (m *Module) DeletePickupNotesByStudent(ctx context.Context, id int64) error {
 	if id <= 0 {
 		return scheduleInvalid()
 	}
 	return m.engine.DeletePickupNotesByStudent(ctx, id)
+}
+
+func validWeekdayPickupNotes(notes map[int]string) bool {
+	for weekday, content := range notes {
+		if !validWeekday(weekday) || strings.TrimSpace(content) == "" || len(content) > 500 {
+			return false
+		}
+	}
+	return true
 }
 func (m *Module) DeletePickupNotesBefore(ctx context.Context, d Date) (int64, error) {
 	if d.IsZero() {

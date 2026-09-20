@@ -154,6 +154,11 @@ func (e engine) UpdatePickupNote(ctx context.Context, v careplan.PickupNote) err
 func (e engine) DeletePickupNote(ctx context.Context, id int64) error {
 	return mapError(e.withinTenant(ctx, func(tx context.Context) error { return e.service.DeletePickupNote(tx, id) }))
 }
+func (e engine) ReplaceWeekdayPickupNotes(ctx context.Context, studentID, createdBy int64, notes map[int]string) error {
+	return mapError(e.withinTenant(ctx, func(tx context.Context) error {
+		return e.service.ReplaceWeekdayPickupNotes(tx, studentID, createdBy, notes)
+	}))
+}
 func (e engine) DeletePickupNotesByStudent(ctx context.Context, id int64) error {
 	return mapError(e.withinTenant(ctx, func(tx context.Context) error { return e.service.DeletePickupNotesByStudent(tx, id) }))
 }

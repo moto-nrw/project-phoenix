@@ -903,65 +903,24 @@ func (rs *Resource) replaceStudentWeekdayPickupNotes(w http.ResponseWriter, r *h
 		return
 	}
 
-	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.replaceWeekdayPickupNotes(ctx, student.ID, staffID, req.Notes)
-	}); err != nil {
+	if rs.WeekdayPickupNotes == nil {
+		renderError(w, r, common.ErrorInternalServer(errors.New("weekday pickup notes are not configured")))
+		return
+	}
+	notes := make(map[int]string, len(req.Notes))
+	for _, note := range req.Notes {
+		notes[note.Weekday] = note.Content
+	}
+	if err := rs.WeekdayPickupNotes.ReplaceWeekdayPickupNotes(r.Context(), student.ID, staffID, notes); err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
+	tenantID := tenant.FromContext(r.Context())
 	tenant.RegisterAfterCommit(r.Context(), func() {
 		rs.broadcastPickupScheduleChanged(tenantID, student.ID)
 	})
 	common.Respond(w, r, http.StatusOK, nil, "Pickup notes updated successfully")
-}
-
-func (rs *Resource) replaceWeekdayPickupNotes(
-	ctx context.Context,
-	studentID, staffID int64,
-	wanted []PickupNoteRequest,
-) error {
-	stored, err := rs.PickupScheduleService.GetStudentPickupNotes(ctx, studentID)
-	if err != nil {
-		return err
-	}
-
-	byWeekday := make(map[int]*schedule.StudentPickupNote, len(stored))
-	for _, note := range stored {
-		if note.Weekday != 0 {
-			byWeekday[note.Weekday] = note
-		}
-	}
-	wantedByWeekday := make(map[int]PickupNoteRequest, len(wanted))
-	for _, note := range wanted {
-		wantedByWeekday[note.Weekday] = note
-	}
-
-	for weekday, note := range byWeekday {
-		if _, keep := wantedByWeekday[weekday]; !keep {
-			if err := rs.PickupScheduleService.DeleteStudentPickupNote(ctx, note.ID); err != nil {
-				return err
-			}
-		}
-	}
-	for _, wantedNote := range wanted {
-		storedNote := byWeekday[wantedNote.Weekday]
-		if storedNote == nil {
-			if err := rs.PickupScheduleService.CreateStudentPickupNote(ctx, wantedNote.toModel(studentID, staffID)); err != nil {
-				return err
-			}
-			continue
-		}
-		if storedNote.Content == wantedNote.Content {
-			continue
-		}
-		storedNote.Content = wantedNote.Content
-		if err := rs.PickupScheduleService.UpdateStudentPickupNote(ctx, storedNote); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // updateStudentPickupNote handles PUT /students/{id}/pickup-notes/{noteId}
