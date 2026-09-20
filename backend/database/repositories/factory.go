@@ -94,10 +94,6 @@ type Factory struct {
 	AccountTenant          authModels.AccountTenantRepository
 	StaffCalendarFeedToken authModels.StaffCalendarFeedTokenRepository
 	InvitationToken        authModels.InvitationTokenRepository
-	MFACredential          authModels.MFACredentialRepository
-	MFAEmailChallenge      authModels.MFAEmailChallengeRepository
-	MFATrustedDevice       authModels.MFATrustedDeviceRepository
-	MFAOverride            authModels.MFAOverrideRepository
 
 	// Users domain
 	Person              userModels.PersonRepository
@@ -533,10 +529,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		AccountTenant:          accountTenantRepo,
 		StaffCalendarFeedToken: authpostgres.NewStaffCalendarFeedTokenRepository(db),
 		InvitationToken:        authpostgres.NewInvitationTokenRepository(db),
-		MFACredential:          authpostgres.NewMFACredentialRepository(db),
-		MFAEmailChallenge:      authpostgres.NewMFAEmailChallengeRepository(db),
-		MFATrustedDevice:       authpostgres.NewMFATrustedDeviceRepository(db),
-		MFAOverride:            authpostgres.NewMFAOverrideRepository(db),
 
 		// Users repositories
 		Person:   personRepo,

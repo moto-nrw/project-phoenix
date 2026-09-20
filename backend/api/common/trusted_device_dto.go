@@ -23,11 +23,8 @@ type TrustedDeviceDTO struct {
 	LastUsedAt *string `json:"last_used_at,omitempty"`
 }
 
-// TrustedDeviceRow is the minimal projection of a trusted-device model
-// row needed to build a TrustedDeviceDTO. Both the tenant-scoped
-// auth.MFATrustedDevice and the operator-scoped
-// platform.OperatorMFATrustedDevice expose these fields, so the same
-// mapping helper can serve both endpoints without duplicating the loop.
+// TrustedDeviceRow is the projection needed to build a TrustedDeviceDTO
+// from either the account or operator trusted-device capability.
 type TrustedDeviceRow struct {
 	ID         int64
 	UserAgent  *string
@@ -57,13 +54,8 @@ func NewTrustedDeviceDTO(row TrustedDeviceRow) TrustedDeviceDTO {
 	return dto
 }
 
-// MapTrustedDevices projects a slice of concrete model rows into DTOs
-// in declaration order. The projection function turns one model row
-// into a TrustedDeviceRow — typically a one-liner that copies fields
-// of the same name. This generic shape lets the tenant-side
-// auth.MFATrustedDevice and the operator-side
-// platform.OperatorMFATrustedDevice share the formatting loop without
-// either model having to satisfy a common interface.
+// MapTrustedDevices projects account or operator records into DTOs in
+// declaration order without requiring a shared record interface.
 func MapTrustedDevices[T any](rows []T, project func(T) TrustedDeviceRow) []TrustedDeviceDTO {
 	out := make([]TrustedDeviceDTO, 0, len(rows))
 	for _, r := range rows {

@@ -31,8 +31,8 @@ type Account struct {
 	CalendarFeedToken *string `bun:"calendar_feed_token" json:"-"`
 	// The per-account MFA admin override no longer lives on this row.
 	// Tenant-scoped overrides + the operator's account-wide emergency
-	// override are stored in auth.mfa_overrides — see
-	// models.auth.MFAOverride. Callers go through MFAService for both
+	// override are stored in auth.mfa_overrides. Callers go through
+	// the Identity & Access MFA capability for both
 	// reads and writes; the resolver consults the override table on
 	// every IsRequired call.
 
@@ -103,7 +103,6 @@ func (a *Account) HasPIN() bool {
 // methods so concurrent failures can't share an attempt budget:
 //   - PIN:  the Identity & Access staff PIN flows (modules/identityaccess,
 //           #3225) with their own atomic PIN-attempt statements
-//   - MFA:  services/auth mfaService.isMFALocked / handleFailedAttempt
-//           (AccountRepository.IncrementMFAAttempts, ResetMFAAttempts)
+//   - MFA:  the Identity & Access MFA flows and native atomic statements
 // The account row holds only the pin_attempts / pin_locked_until /
 // mfa_attempts / mfa_locked_until facts.

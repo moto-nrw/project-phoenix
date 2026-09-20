@@ -1,4 +1,4 @@
-package authpostgres_test
+package behavior_test
 
 import (
 	"context"
@@ -9,11 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// TestAccountRepository_IncrementMFAAttempts_AtomicUnderRace proves the
+// TestNativeAccount_IncrementMFAAttempts_AtomicUnderRace proves the
 // fix for #1430 review item #6. Pre-fix the service did:
 //
 //	account := repo.FindByID(ctx, id)
@@ -30,14 +29,14 @@ import (
 // IncrementMFAAttempts. Post-fix the database row must show exactly N
 // attempts, and the N return values from the racers must be the unique
 // set {1..N}.
-func TestAccountRepository_IncrementMFAAttempts_AtomicUnderRace(t *testing.T) {
+func TestNativeAccount_IncrementMFAAttempts_AtomicUnderRace(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-atomic-counter")
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
+	repo := nativeMFARecords(t, db)
 
 	const (
 		concurrency = 12
@@ -77,8 +76,9 @@ func TestAccountRepository_IncrementMFAAttempts_AtomicUnderRace(t *testing.T) {
 
 	// Sanity-check the persisted row matches the highest count any
 	// goroutine saw. The lockout window must be set (count > threshold).
-	persisted, err := repo.FindByID(context.Background(), acc.ID)
+	persisted, found, err := repo.FindAccountIdentity(context.Background(), acc.ID)
 	require.NoError(t, err)
+	require.True(t, found)
 	assert.Equal(t, concurrency, persisted.MFAAttempts,
 		"persisted mfa_attempts must equal goroutine count — anything less means a race-loser was silently dropped")
 	require.NotNil(t, persisted.MFALockedUntil, "lockout must be set after exceeding threshold")
@@ -86,17 +86,17 @@ func TestAccountRepository_IncrementMFAAttempts_AtomicUnderRace(t *testing.T) {
 		"lockout window must be in the future")
 }
 
-// TestAccountRepository_ResetMFAAttempts_ClearsCounterAndLock proves the
+// TestNativeAccount_ResetMFAAttempts_ClearsCounterAndLock proves the
 // successful-verify path. After ResetMFAAttempts the row's counter is 0
 // and the lock cleared.
-func TestAccountRepository_ResetMFAAttempts_ClearsCounterAndLock(t *testing.T) {
+func TestNativeAccount_ResetMFAAttempts_ClearsCounterAndLock(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-atomic-reset")
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
+	repo := nativeMFARecords(t, db)
 
 	// Drive the counter past the threshold so a lock is in place.
 	for i := 0; i < 6; i++ {
@@ -106,8 +106,9 @@ func TestAccountRepository_ResetMFAAttempts_ClearsCounterAndLock(t *testing.T) {
 
 	require.NoError(t, repo.ResetMFAAttempts(context.Background(), acc.ID))
 
-	persisted, err := repo.FindByID(context.Background(), acc.ID)
+	persisted, found, err := repo.FindAccountIdentity(context.Background(), acc.ID)
 	require.NoError(t, err)
+	require.True(t, found)
 	assert.Equal(t, 0, persisted.MFAAttempts, "reset must zero the counter")
 	assert.Nil(t, persisted.MFALockedUntil, "reset must clear the lock timestamp")
 }
