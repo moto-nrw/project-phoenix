@@ -83,8 +83,7 @@ func sessionRepositoriesOf(repos *repositories.Factory, organizations organizati
 		guardianProfiles: repos.GuardianProfile, studentGuardians: repos.StudentGuardian, authEvents: repos.AuthEvent,
 	}
 	lifecycle.roles, lifecycle.rolesErr = repositories.NewIdentityRoleDirectory(repositories.IdentityRoleRepositories{
-		Roles: repos.Role, Permissions: repos.Permission, RolePermissions: repos.RolePermission,
-		AccountRoles: repos.AccountRole, AccountPermissions: repos.AccountPermission,
+		Roles: repos.Role, AccountRoles: repos.AccountRole,
 		Accounts: repos.Account, AccountTenants: repos.AccountTenant,
 	})
 	return sessionRepositories{

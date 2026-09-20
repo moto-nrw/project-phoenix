@@ -34,7 +34,7 @@ func newAccountProvisioning(
 		Accounts:  store,
 		Logins:    store,
 		RoleStore: store,
-		Roles:     roleStore{deps.Roles},
+		Roles:     roleStore{source: deps.Roles, PermissionStore: store},
 		Policy:    roleAssignmentPolicy{},
 		Identity:  lifecycle,
 		Profiles:  staffDirectory{deps.Staff},
@@ -46,6 +46,7 @@ func newAccountProvisioning(
 
 // provisioningStore is the module store as the provisioning flows read it.
 type provisioningStore interface {
+	ports.PermissionStore
 	ports.SchoolAccountStore
 	ports.AccountLoginStore
 	ports.Store

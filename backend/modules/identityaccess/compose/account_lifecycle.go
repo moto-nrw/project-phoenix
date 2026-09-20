@@ -237,7 +237,7 @@ func newAccountLifecycle(service *application.Service, auth *application.Account
 	}
 	runtime := tenantRuntime{attach: attach, runner: newTransactionRunner()}
 	var lifecycle *application.AccountLifecycle
-	roles, err := newRoleAdministration(auth, runtime, deps, func() *application.AccountLifecycle { return lifecycle })
+	roles, err := newRoleAdministration(auth, runtime, store, deps, func() *application.AccountLifecycle { return lifecycle })
 	if err != nil {
 		return nil, nil, err
 	}
@@ -265,14 +265,6 @@ func newAccountLifecycle(service *application.Service, auth *application.Account
 		return nil, nil, err
 	}
 	return lifecycle, roles, nil
-}
-
-// lifecycleStore is the module store as the lifecycle flows read it.
-type lifecycleStore interface {
-	ports.AccountLifecycleStore
-	ports.AccountLoginStore
-	ports.GuardianInvitationStore
-	ports.Store
 }
 
 // --- port adapters ---------------------------------------------------------

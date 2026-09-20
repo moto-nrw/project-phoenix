@@ -11,30 +11,24 @@ import (
 	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 )
 
-// Identity & Access owns role and permission management (#3314). Its role
-// administration reads and writes the role, permission, assignment and
-// grant rows through the retained repositories below until #3226 moves them
-// into the module; this adapter serves the module's role storage seam over
-// them without changing a statement.
+// Identity & Access owns role and permission management (#3314). Permission
+// persistence is module-owned. This adapter still binds role rows, account
+// assignments and account visibility until the remainder of #3226 cuts over.
 
 // IdentityRoleRepositories are the retained repositories the role storage
 // seam binds.
 type IdentityRoleRepositories struct {
-	Roles              authModels.RoleRepository
-	Permissions        authModels.PermissionRepository
-	RolePermissions    authModels.RolePermissionRepository
-	AccountRoles       authModels.AccountRoleRepository
-	AccountPermissions authModels.AccountPermissionRepository
-	Accounts           authModels.AccountRepository
-	AccountTenants     authModels.AccountTenantRepository
+	Roles          authModels.RoleRepository
+	AccountRoles   authModels.AccountRoleRepository
+	Accounts       authModels.AccountRepository
+	AccountTenants authModels.AccountTenantRepository
 }
 
 // NewIdentityRoleDirectory binds the Identity & Access role storage seam to
 // the retained repositories.
 func NewIdentityRoleDirectory(repos IdentityRoleRepositories) (identityCompose.RoleDirectory, error) {
-	if repos.Roles == nil || repos.Permissions == nil || repos.RolePermissions == nil || repos.AccountRoles == nil ||
-		repos.AccountPermissions == nil || repos.Accounts == nil || repos.AccountTenants == nil {
-		return nil, errors.New("identity role directory: every role, permission, assignment, account and membership repository is required")
+	if repos.Roles == nil || repos.AccountRoles == nil || repos.Accounts == nil || repos.AccountTenants == nil {
+		return nil, errors.New("identity role directory: every role, assignment, account and membership repository is required")
 	}
 	return identityRoleDirectory{repos: repos}, nil
 }
@@ -65,34 +59,6 @@ func retainedRole(role identityaccess.Role) *authModels.Role {
 		IsSystem: role.IsSystem, BaseRole: role.BaseRole,
 	}
 	row.ID, row.CreatedAt, row.UpdatedAt = role.ID, role.CreatedAt, role.UpdatedAt
-	return row
-}
-
-func publicPermission(permission *authModels.Permission) identityaccess.Permission {
-	return identityaccess.Permission{
-		ID: permission.ID, Name: permission.Name, Description: permission.Description,
-		Resource: permission.Resource, Action: permission.Action,
-		CreatedAt: permission.CreatedAt, UpdatedAt: permission.UpdatedAt,
-	}
-}
-
-func publicPermissions(permissions []*authModels.Permission) []identityaccess.Permission {
-	if permissions == nil {
-		return nil
-	}
-	result := make([]identityaccess.Permission, 0, len(permissions))
-	for _, permission := range permissions {
-		result = append(result, publicPermission(permission))
-	}
-	return result
-}
-
-func retainedPermission(permission identityaccess.Permission) *authModels.Permission {
-	row := &authModels.Permission{
-		Name: permission.Name, Description: permission.Description,
-		Resource: permission.Resource, Action: permission.Action,
-	}
-	row.ID, row.CreatedAt, row.UpdatedAt = permission.ID, permission.CreatedAt, permission.UpdatedAt
 	return row
 }
 
@@ -202,120 +168,6 @@ func (d identityRoleDirectory) DeleteAccountRole(ctx context.Context, accountID,
 
 func (d identityRoleDirectory) DeleteRoleAssignments(ctx context.Context, roleID int64) error {
 	return d.repos.AccountRoles.DeleteByRoleID(ctx, roleID)
-}
-
-func (d identityRoleDirectory) DeleteRolePermissions(ctx context.Context, roleID int64) error {
-	return d.repos.RolePermissions.DeleteByRoleID(ctx, roleID)
-}
-
-func (d identityRoleDirectory) CreatePermission(ctx context.Context, permission identityaccess.Permission) (identityaccess.Permission, error) {
-	row := retainedPermission(permission)
-	if err := d.repos.Permissions.Create(ctx, row); err != nil {
-		return identityaccess.Permission{}, err
-	}
-	return publicPermission(row), nil
-}
-
-func (d identityRoleDirectory) FindPermission(ctx context.Context, id int64) (identityaccess.Permission, bool, error) {
-	permission, err := d.repos.Permissions.FindByID(ctx, id)
-	if err != nil {
-		if authRepo.IsNotFound(err) {
-			return identityaccess.Permission{}, false, nil
-		}
-		return identityaccess.Permission{}, false, err
-	}
-	if permission == nil {
-		return identityaccess.Permission{}, false, nil
-	}
-	return publicPermission(permission), true, nil
-}
-
-func (d identityRoleDirectory) FindPermissionByName(ctx context.Context, name string) (identityaccess.Permission, error) {
-	permission, err := d.repos.Permissions.FindByName(ctx, name)
-	if err != nil {
-		return identityaccess.Permission{}, err
-	}
-	if permission == nil {
-		return identityaccess.Permission{}, errors.New("permission not found")
-	}
-	return publicPermission(permission), nil
-}
-
-func (d identityRoleDirectory) UpdatePermission(ctx context.Context, permission identityaccess.Permission) error {
-	return d.repos.Permissions.Update(ctx, retainedPermission(permission))
-}
-
-func (d identityRoleDirectory) DeletePermission(ctx context.Context, id int64) error {
-	return d.repos.Permissions.Delete(ctx, id)
-}
-
-func (d identityRoleDirectory) ListPermissions(ctx context.Context, filter identityaccess.PermissionFilter) ([]identityaccess.Permission, error) {
-	filters := make(map[string]interface{})
-	if filter.Resource != "" {
-		filters["resource"] = filter.Resource
-	}
-	if filter.Action != "" {
-		filters["action"] = filter.Action
-	}
-	permissions, err := d.repos.Permissions.List(ctx, filters)
-	if err != nil {
-		return nil, err
-	}
-	return publicPermissions(permissions), nil
-}
-
-func (d identityRoleDirectory) ListRolePermissions(ctx context.Context, roleID int64) ([]identityaccess.Permission, error) {
-	permissions, err := d.repos.Permissions.FindByRoleID(ctx, roleID)
-	if err != nil {
-		return nil, err
-	}
-	return publicPermissions(permissions), nil
-}
-
-// ListAccountPermissions combines direct and role-based permissions in one
-// query.
-func (d identityRoleDirectory) ListAccountPermissions(ctx context.Context, accountID int64) ([]identityaccess.Permission, error) {
-	permissions, err := d.repos.Permissions.FindByAccountID(ctx, accountID)
-	if err != nil {
-		return nil, err
-	}
-	return publicPermissions(permissions), nil
-}
-
-func (d identityRoleDirectory) ListAccountDirectPermissions(ctx context.Context, accountID int64) ([]identityaccess.Permission, error) {
-	permissions, err := d.repos.Permissions.FindDirectByAccountID(ctx, accountID)
-	if err != nil {
-		return nil, err
-	}
-	return publicPermissions(permissions), nil
-}
-
-func (d identityRoleDirectory) AssignRolePermission(ctx context.Context, roleID, permissionID int64) error {
-	return d.repos.Permissions.AssignPermissionToRole(ctx, roleID, permissionID)
-}
-
-func (d identityRoleDirectory) RemoveRolePermission(ctx context.Context, roleID, permissionID int64) error {
-	return d.repos.Permissions.RemovePermissionFromRole(ctx, roleID, permissionID)
-}
-
-func (d identityRoleDirectory) DeletePermissionAssignments(ctx context.Context, permissionID int64) error {
-	return d.repos.RolePermissions.DeleteByPermissionID(ctx, permissionID)
-}
-
-func (d identityRoleDirectory) DeletePermissionGrants(ctx context.Context, permissionID int64) error {
-	return d.repos.AccountPermissions.DeleteByPermissionID(ctx, permissionID)
-}
-
-func (d identityRoleDirectory) GrantAccountPermission(ctx context.Context, accountID, permissionID int64) error {
-	return d.repos.AccountPermissions.GrantPermission(ctx, accountID, permissionID)
-}
-
-func (d identityRoleDirectory) DenyAccountPermission(ctx context.Context, accountID, permissionID int64) error {
-	return d.repos.AccountPermissions.DenyPermission(ctx, accountID, permissionID)
-}
-
-func (d identityRoleDirectory) RemoveAccountPermission(ctx context.Context, accountID, permissionID int64) error {
-	return d.repos.AccountPermissions.RemovePermission(ctx, accountID, permissionID)
 }
 
 func foundAccount(_ *authModels.Account, err error) (bool, error) {

@@ -11,12 +11,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// The role administration (#3314) reads and writes the identity-owned role
-// and permission rows through the retained repositories until #3226 moves
-// them into this module. The seam below is expressed in public values; this
-// package adapts it to the consumer-owned port.
+// Role administration persists permissions inside this module. The remaining
+// role and account seam below uses public values until its #3226 cutover.
 
-// RoleDirectory is the retained role and permission storage. Lookups report
+// RoleDirectory is the retained role and account storage. Lookups report
 // found=false only for a missing row; every other failure is an error.
 // Account reads apply the tenant filter of the context.
 type RoleDirectory interface {
@@ -35,24 +33,6 @@ type RoleDirectory interface {
 	CreateAccountRole(ctx context.Context, accountID, roleID, tenantID int64) error
 	DeleteAccountRole(ctx context.Context, accountID, roleID int64) error
 	DeleteRoleAssignments(ctx context.Context, roleID int64) error
-	DeleteRolePermissions(ctx context.Context, roleID int64) error
-
-	CreatePermission(ctx context.Context, permission identityaccess.Permission) (identityaccess.Permission, error)
-	FindPermission(ctx context.Context, id int64) (identityaccess.Permission, bool, error)
-	FindPermissionByName(ctx context.Context, name string) (identityaccess.Permission, error)
-	UpdatePermission(ctx context.Context, permission identityaccess.Permission) error
-	DeletePermission(ctx context.Context, id int64) error
-	ListPermissions(ctx context.Context, filter identityaccess.PermissionFilter) ([]identityaccess.Permission, error)
-	ListRolePermissions(ctx context.Context, roleID int64) ([]identityaccess.Permission, error)
-	ListAccountPermissions(ctx context.Context, accountID int64) ([]identityaccess.Permission, error)
-	ListAccountDirectPermissions(ctx context.Context, accountID int64) ([]identityaccess.Permission, error)
-	AssignRolePermission(ctx context.Context, roleID, permissionID int64) error
-	RemoveRolePermission(ctx context.Context, roleID, permissionID int64) error
-	DeletePermissionAssignments(ctx context.Context, permissionID int64) error
-	DeletePermissionGrants(ctx context.Context, permissionID int64) error
-	GrantAccountPermission(ctx context.Context, accountID, permissionID int64) error
-	DenyAccountPermission(ctx context.Context, accountID, permissionID int64) error
-	RemoveAccountPermission(ctx context.Context, accountID, permissionID int64) error
 
 	FindManageableAccount(ctx context.Context, accountID int64) (bool, error)
 	LockAccount(ctx context.Context, accountID int64) (bool, error)
@@ -64,12 +44,12 @@ type RoleDirectory interface {
 // newRoleAdministration composes the role administration. The school identity
 // is read at call time because the lifecycle flows it belongs to are composed
 // after the administration they remove roles through.
-func newRoleAdministration(auth *application.AccountAuthentication, runtime ports.Runtime, deps *LifecycleDependencies, identity func() *application.AccountLifecycle) (*application.RoleAdministration, error) {
+func newRoleAdministration(auth *application.AccountAuthentication, runtime ports.Runtime, permissions ports.PermissionStore, deps *LifecycleDependencies, identity func() *application.AccountLifecycle) (*application.RoleAdministration, error) {
 	if deps.Roles == nil {
 		return nil, errors.New("identity access compose: the role directory is required")
 	}
 	return application.NewRoleAdministration(application.RoleAdministrationDependencies{
-		Store:         roleStore{deps.Roles},
+		Store:         roleStore{source: deps.Roles, PermissionStore: permissions},
 		Profiles:      staffDirectory{deps.Staff},
 		Policy:        roleAssignmentPolicy{},
 		IdentityRoles: rolePolicy{},
@@ -135,7 +115,10 @@ func (roleAssignmentPolicy) ValidateAssignableSchoolRole(role *domain.RoleFacts,
 
 // --- role store adapter ----------------------------------------------------
 
-type roleStore struct{ source RoleDirectory }
+type roleStore struct {
+	source RoleDirectory
+	ports.PermissionStore
+}
 
 func managedRole(role identityaccess.Role) domain.ManagedRole { return domain.ManagedRole(role) }
 
@@ -146,17 +129,6 @@ func managedRoles(roles []identityaccess.Role) []domain.ManagedRole {
 	result := make([]domain.ManagedRole, 0, len(roles))
 	for _, role := range roles {
 		result = append(result, managedRole(role))
-	}
-	return result
-}
-
-func managedPermissions(permissions []identityaccess.Permission) []domain.ManagedPermission {
-	if permissions == nil {
-		return nil
-	}
-	result := make([]domain.ManagedPermission, 0, len(permissions))
-	for _, permission := range permissions {
-		result = append(result, domain.ManagedPermission(permission))
 	}
 	return result
 }
@@ -226,81 +198,6 @@ func (s roleStore) DeleteAccountRole(ctx context.Context, accountID, roleID int6
 
 func (s roleStore) DeleteRoleAssignments(ctx context.Context, roleID int64) error {
 	return s.source.DeleteRoleAssignments(ctx, roleID)
-}
-
-func (s roleStore) DeleteRolePermissions(ctx context.Context, roleID int64) error {
-	return s.source.DeleteRolePermissions(ctx, roleID)
-}
-
-func (s roleStore) CreatePermission(ctx context.Context, permission domain.ManagedPermission) (domain.ManagedPermission, error) {
-	created, err := s.source.CreatePermission(ctx, identityaccess.Permission(permission))
-	return domain.ManagedPermission(created), err
-}
-
-func (s roleStore) FindPermission(ctx context.Context, id int64) (domain.ManagedPermission, bool, error) {
-	permission, found, err := s.source.FindPermission(ctx, id)
-	return domain.ManagedPermission(permission), found, err
-}
-
-func (s roleStore) FindPermissionByName(ctx context.Context, name string) (domain.ManagedPermission, error) {
-	permission, err := s.source.FindPermissionByName(ctx, name)
-	return domain.ManagedPermission(permission), err
-}
-
-func (s roleStore) UpdatePermission(ctx context.Context, permission domain.ManagedPermission) error {
-	return s.source.UpdatePermission(ctx, identityaccess.Permission(permission))
-}
-
-func (s roleStore) DeletePermission(ctx context.Context, id int64) error {
-	return s.source.DeletePermission(ctx, id)
-}
-
-func (s roleStore) ListPermissions(ctx context.Context, filter domain.PermissionFilter) ([]domain.ManagedPermission, error) {
-	permissions, err := s.source.ListPermissions(ctx, identityaccess.PermissionFilter(filter))
-	return managedPermissions(permissions), err
-}
-
-func (s roleStore) ListRolePermissions(ctx context.Context, roleID int64) ([]domain.ManagedPermission, error) {
-	permissions, err := s.source.ListRolePermissions(ctx, roleID)
-	return managedPermissions(permissions), err
-}
-
-func (s roleStore) ListAccountPermissions(ctx context.Context, accountID int64) ([]domain.ManagedPermission, error) {
-	permissions, err := s.source.ListAccountPermissions(ctx, accountID)
-	return managedPermissions(permissions), err
-}
-
-func (s roleStore) ListAccountDirectPermissions(ctx context.Context, accountID int64) ([]domain.ManagedPermission, error) {
-	permissions, err := s.source.ListAccountDirectPermissions(ctx, accountID)
-	return managedPermissions(permissions), err
-}
-
-func (s roleStore) AssignRolePermission(ctx context.Context, roleID, permissionID int64) error {
-	return s.source.AssignRolePermission(ctx, roleID, permissionID)
-}
-
-func (s roleStore) RemoveRolePermission(ctx context.Context, roleID, permissionID int64) error {
-	return s.source.RemoveRolePermission(ctx, roleID, permissionID)
-}
-
-func (s roleStore) DeletePermissionAssignments(ctx context.Context, permissionID int64) error {
-	return s.source.DeletePermissionAssignments(ctx, permissionID)
-}
-
-func (s roleStore) DeletePermissionGrants(ctx context.Context, permissionID int64) error {
-	return s.source.DeletePermissionGrants(ctx, permissionID)
-}
-
-func (s roleStore) GrantAccountPermission(ctx context.Context, accountID, permissionID int64) error {
-	return s.source.GrantAccountPermission(ctx, accountID, permissionID)
-}
-
-func (s roleStore) DenyAccountPermission(ctx context.Context, accountID, permissionID int64) error {
-	return s.source.DenyAccountPermission(ctx, accountID, permissionID)
-}
-
-func (s roleStore) RemoveAccountPermission(ctx context.Context, accountID, permissionID int64) error {
-	return s.source.RemoveAccountPermission(ctx, accountID, permissionID)
 }
 
 func (s roleStore) FindManageableAccount(ctx context.Context, accountID int64) (bool, error) {
