@@ -478,6 +478,8 @@ export const setupChapters: readonly GuideChapter[] = [
           "Gehzeiten",
           "Wochenplan",
           "Abholnotiz",
+          "Notiz zum Tag",
+          "Notiz ohne Abholzeit",
         ],
         steps: [
           "`Alle Kinder` öffnen und auf die Karte des Kindes klicken.",
@@ -490,6 +492,9 @@ export const setupChapters: readonly GuideChapter[] = [
           "Nur bei einer Abweichung eine eigene Ankunftszeit eintragen.",
           "Für die Abholung an jedem Betreuungstag eine Uhrzeit eintragen.",
           "Optional eine Ankunfts- oder Abholnotiz ergänzen.",
+          "Kommt das Kind an einem Tag nicht? Dann bleibt die Abholzeit leer.",
+          "Unter `Notizen` können Sie für diesen Tag trotzdem eine `Notiz zum Tag` eintragen.",
+          "Die Notiz steht an diesem Wochentag auf der Karte des Kindes unter `Kommt heute nicht`.",
           "Unten auf `Speichern` klicken. Vor dem Entfernen fragt die App nach. `Abbrechen` verwirft die Änderungen.",
           "Ist der Angebotsabgleich in den Einstellungen eingeschaltet und weicht der Wochenplan ab? Dann zeigt moto alle passenden Angebote.",
           "Wählen Sie `Auf … umbuchen` oder `Als dauerhafte Ausnahme speichern`.",
@@ -508,7 +513,7 @@ export const setupChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Abholzeiten sind auf den NFC-Tablets sichtbar",
-          body: "Wenn Ihre Einrichtung NFC-Tablets nutzt, werden Abholzeiten und Abholnotizen dort angezeigt und sind für Kinder einsehbar. Schreiben Sie deshalb keine sensiblen Angaben in die Abholnotiz, zum Beispiel Gesundheits- oder Therapiegründe.",
+          body: "Wenn Ihre Einrichtung NFC-Tablets nutzt, werden Abholzeiten und Notizen dort angezeigt und sind für Kinder einsehbar. Schreiben Sie deshalb keine sensiblen Angaben in eine Notiz, zum Beispiel Gesundheits- oder Therapiegründe.",
           tone: "orange",
         },
         screenshot:

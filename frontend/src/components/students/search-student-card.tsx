@@ -191,6 +191,7 @@ function SearchStudentCardImpl({
                     <StudentAbsenceRow
                       label={dayPlanningNotComingLabel}
                       wording={absenceWording}
+                      note={student.pickup_notes}
                     />
                     {absencePickupRow}
                   </>

@@ -951,6 +951,10 @@ function OGSGroupPageContent() {
                             return (
                               <StudentAbsenceRow
                                 label={dayPlanningNotComingLabel}
+                                note={combineTimeNotes(
+                                  studentPickup?.notes,
+                                  studentPickup?.dayNotes,
+                                )}
                               />
                             );
                           }
