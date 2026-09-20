@@ -10,7 +10,6 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/uptrace/bun"
 )
 
@@ -81,17 +80,6 @@ func staffMessageIdentity(accounts identityaccess.StaffAccountQueries) usersRepo
 		ActiveSchoolAccounts: accounts.ListActiveAccountIDsForTenant,
 		RoleClasses:          schoolRoleClassQuery(accounts),
 	}
-}
-
-// activeMembershipQuery returns the owner query "every ACTIVE school
-// mapping" the People Directory, Organisation & Tenancy and parent portal
-// repositories join (#2721).
-func activeMembershipQuery(db *bun.DB) func(context.Context) *bun.SelectQuery {
-	tenants, ok := authRepo.NewAccountTenantRepository(db).(*authRepo.AccountTenantRepository)
-	if !ok {
-		panic("repository factory: account tenant repository must be the Identity & Access Postgres adapter")
-	}
-	return tenants.ActiveMemberships
 }
 
 // schoolRoleClassQuery adapts the owner's role classification to the staff

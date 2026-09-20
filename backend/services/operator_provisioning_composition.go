@@ -42,14 +42,14 @@ func newOperatorProvisioning(sources operatorProvisioningSources) (organizationt
 			administration: sources.administration, schoolIdentity: sources.schoolIdentity,
 			roles: sources.roles, accounts: sources.accounts,
 		},
-		Devices:           sources.adapters.Devices,
-		People:            sources.adapters.People,
-		Presence:          sources.adapters.Presence,
-		Categories:        sources.adapters.Categories,
-		Settings:          provisioningSettings{settings: sources.settings},
-		Audit:             sources.adapters.Audit,
-		Logger:            sources.logger,
-		ActiveMemberships: sources.adapters.ActiveMemberships,
+		Devices:             sources.adapters.Devices,
+		People:              sources.adapters.People,
+		Presence:            sources.adapters.Presence,
+		Categories:          sources.adapters.Categories,
+		Settings:            provisioningSettings{settings: sources.settings},
+		Audit:               sources.adapters.Audit,
+		Logger:              sources.logger,
+		ActiveAccountCounts: sources.adapters.ActiveAccountCounts,
 	})
 }
 

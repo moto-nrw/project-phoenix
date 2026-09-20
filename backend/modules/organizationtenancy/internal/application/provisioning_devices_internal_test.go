@@ -201,14 +201,14 @@ func TestProvisioningListDevices(t *testing.T) {
 		},
 		"school rows failure": {
 			list: func(h *provisioningHarness) ([]organizationtenancy.OperatorDevice, error) {
-				h.dashboard.fail["SchoolSummaries"] = errBoom
+				h.engine.fail["ListSchools"] = errBoom
 				return h.svc.ListAllDevices(context.Background())
 			},
 			check: func(t *testing.T, err error) { require.ErrorIs(t, err, errBoom) },
 		},
 		"organisation rows failure": {
 			list: func(h *provisioningHarness) ([]organizationtenancy.OperatorDevice, error) {
-				h.dashboard.fail["OrganizationSummaries"] = errBoom
+				h.engine.fail["List"] = errBoom
 				return h.svc.ListAllDevices(context.Background())
 			},
 			check: func(t *testing.T, err error) { require.ErrorIs(t, err, errBoom) },
@@ -388,7 +388,7 @@ func TestProvisioningCreateDevice(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		seedDeviceSchools(h)
-		h.dashboard.fail["OrganizationSummaries"] = errBoom
+		h.engine.fail["List"] = errBoom
 
 		device, err := h.svc.CreateDevice(context.Background(), 10, "BURBACH-1", "terminal", nil, nil, testOperatorID, operatorIP)
 

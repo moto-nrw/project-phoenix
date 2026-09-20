@@ -25,6 +25,7 @@ const deviceAPIKeyConstraint = "devices_api_key_key"
 // accountEmailQuery is the operator person listing's account-facts port.
 type accountEmailQuery interface {
 	ListAccountEmails(context.Context, []int64) (map[int64]string, error)
+	CountActiveAccountsBySchoolGroups(context.Context, map[int64][]int64) (map[int64]int, error)
 }
 
 // OperatorProvisioningDependencies are the owner capabilities and retained
@@ -53,9 +54,8 @@ type OperatorProvisioningAdapters struct {
 	Presence   organizationCompose.ProvisioningPresence
 	Categories organizationCompose.ProvisioningCategories
 	Audit      organizationCompose.OperatorAudit
-	// ActiveMemberships is the Identity & Access active-membership statement
-	// the dashboard account counts aggregate over (#2721).
-	ActiveMemberships func(context.Context) *bun.SelectQuery
+	// ActiveAccountCounts supplies bounded dashboard account aggregates.
+	ActiveAccountCounts func(context.Context, map[int64][]int64) (map[int64]int, error)
 }
 
 // NewOperatorProvisioningAdapters binds the provisioning seams.
@@ -71,10 +71,10 @@ func NewOperatorProvisioningAdapters(deps OperatorProvisioningDependencies) (Ope
 			persons: deps.Persons, membership: deps.Membership, personRepo: deps.PersonRepo,
 			staffRepo: deps.StaffRepo, accounts: deps.Accounts, db: deps.DB,
 		},
-		Presence:          provisioningPresence{groups: deps.ActiveGroups, supervisors: deps.Supervisors},
-		Categories:        provisioningCategories{categories: deps.Categories},
-		Audit:             provisioningAudit{log: deps.AuditLog},
-		ActiveMemberships: activeMembershipQuery(deps.DB),
+		Presence:            provisioningPresence{groups: deps.ActiveGroups, supervisors: deps.Supervisors},
+		Categories:          provisioningCategories{categories: deps.Categories},
+		Audit:               provisioningAudit{log: deps.AuditLog},
+		ActiveAccountCounts: deps.Accounts.CountActiveAccountsBySchoolGroups,
 	}, nil
 }
 
