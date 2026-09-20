@@ -30,7 +30,7 @@ func TestSessionStartMirrorsTenantAndWallClock(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, db, "Mirror Room")
 	staff := testpkg.CreateTestStaff(t, db, "Mirror", "Supervisor")
 	device := testpkg.CreateTestDevice(t, db, "mirror-device")
-	deviceAuth := testutil.NewDeviceAuthenticators(active.IoT.Fleet(), testutil.DeviceSchools(t, db), auth.StaffPINAuth.AuthenticateStaffPIN, auth.Settings, "1234")
+	deviceAuth := testutil.NewDeviceAuthenticators(active.IoT.Fleet(), testutil.DeviceSchools(t, db), auth.Settings, "1234")
 	mirror := devicescanCompose.NewSessionMirror(timetable.TimetableData, active.Activities, nil, nil)
 	resource := newRouterTestResource()
 	resource.DB = db

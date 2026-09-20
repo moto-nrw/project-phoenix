@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
@@ -64,10 +63,10 @@ func TestAccount_Validate(t *testing.T) {
 }
 
 // Note: the role/permission membership checks (formerly Account.HasRole /
-// Account.HasPermission) and the PIN/MFA lockout helpers moved out of the
+// Account.HasPermission) and the MFA lockout helpers moved out of the
 // model in issue #586 (Rule 12). Their tests moved with them:
 //   - auth/authorize/account_roles_test.go (HasRole/HasPermission)
-//   - services/auth (PIN/MFA lockout decisions)
+//   - services/auth (MFA lockout decisions)
 //   - database/repositories/auth (atomic counter mutations)
 
 func TestAccount_SetLastLogin(t *testing.T) {
@@ -118,104 +117,6 @@ func TestAccount_IsActive(t *testing.T) {
 
 			if got := account.IsActive(); got != tt.expected {
 				t.Errorf("IsActive() = %v, expected %v", got, tt.expected)
-			}
-		})
-	}
-}
-
-func TestAccount_HashPIN(t *testing.T) {
-	t.Parallel()
-
-	account := &Account{
-		Email: "test@example.com",
-	}
-
-	// Initially no PIN
-	if account.PINHash != nil {
-		t.Error("Account should have no PIN initially")
-	}
-
-	// Hash a PIN
-	err := account.HashPIN("1234")
-	if err != nil {
-		t.Errorf("HashPIN() error = %v", err)
-	}
-
-	if account.PINHash == nil {
-		t.Error("HashPIN() should set PINHash")
-	}
-
-	// PIN hash should not be the plain PIN
-	if *account.PINHash == "1234" {
-		t.Error("HashPIN() should hash the PIN, not store plain text")
-	}
-}
-
-func TestAccount_VerifyPIN(t *testing.T) {
-	t.Parallel()
-
-	account := &Account{
-		Email: "test@example.com",
-	}
-
-	t.Run("no PIN set", func(t *testing.T) {
-		if account.VerifyPIN("1234") {
-			t.Error("VerifyPIN() should return false when no PIN is set")
-		}
-	})
-
-	t.Run("correct PIN", func(t *testing.T) {
-		err := account.HashPIN("1234")
-		if err != nil {
-			t.Fatalf("HashPIN() error = %v", err)
-		}
-
-		if !account.VerifyPIN("1234") {
-			t.Error("VerifyPIN() should return true for correct PIN")
-		}
-	})
-
-	t.Run("incorrect PIN", func(t *testing.T) {
-		if account.VerifyPIN("9999") {
-			t.Error("VerifyPIN() should return false for incorrect PIN")
-		}
-	})
-}
-
-func TestAccount_HasPIN(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		pinHash  *string
-		expected bool
-	}{
-		{
-			name:     "nil PIN hash",
-			pinHash:  nil,
-			expected: false,
-		},
-		{
-			name:     "empty PIN hash",
-			pinHash:  ptrtest.Ptr(""),
-			expected: false,
-		},
-		{
-			name:     "valid PIN hash",
-			pinHash:  ptrtest.Ptr("$argon2id$v=19$somehash"),
-			expected: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			account := &Account{
-				Email:   "test@example.com",
-				PINHash: tt.pinHash,
-			}
-
-			if got := account.HasPIN(); got != tt.expected {
-				t.Errorf("HasPIN() = %v, want %v", got, tt.expected)
 			}
 		})
 	}

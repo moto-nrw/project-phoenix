@@ -109,7 +109,7 @@ repoint both to the successor. Materialization/replans never touch dates
 
 ### RFID/IoT Integration
 - Two-layer auth: Device API key (`Authorization: Bearer`) + Staff PIN (`X-Staff-PIN`); devices authenticate without tenant JWTs but are scoped to one school (hence `Resolve*ForTenant` in device auth)
-- The `X-Staff-PIN` header is checked against the per-tenant `security.ogs_device_pin` setting via constant-time compare; optional kiosk attribution requires `X-Staff-ID` plus an `X-Staff-Auth-PIN` verified against that account's Argon2id-hashed PIN (`X-Staff-ID` alone is ignored, and binary attendance remains attributed to the authenticated device)
+- The `X-Staff-PIN` header is checked against the per-tenant `security.ogs_device_pin` setting via constant-time compare. It is the shared device PIN of the school; there is no personal staff PIN (#3310). The `X-Staff-ID` header PyrePortal sends is caller-controlled and ignored, so kiosk writes stay attributed to the authenticated device
 - Real-time location comes from `active.visits` + `active.attendance`; scheduled statuses (sick/excused/class trip) in `active.student_status_days`
 - **Error strings returned by `/api/iot/*` are a cross-repo contract** — PyrePortal maps them to German UI text (see `docs/agents/contracts.md` Ecosystem and IoT)
 

@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
@@ -91,42 +90,13 @@ func (a *Account) SetLastLogin(time time.Time) {
 	a.LastLogin = &time
 }
 
-// PIN-related methods
-
-// HashPIN hashes a PIN using Argon2id
-func (a *Account) HashPIN(pin string) error {
-	hashedPIN, err := userpass.HashPassword(pin, nil)
-	if err != nil {
-		return err
-	}
-	a.PINHash = &hashedPIN
-	return nil
-}
-
-// VerifyPIN verifies a PIN against the stored hash
-func (a *Account) VerifyPIN(pin string) bool {
-	if a.PINHash == nil {
-		return false
-	}
-	isValid, err := userpass.VerifyPassword(pin, *a.PINHash)
-	if err != nil {
-		return false
-	}
-	return isValid
-}
-
-// HasPIN checks if the account has a PIN set
-func (a *Account) HasPIN() bool {
-	return a.PINHash != nil && *a.PINHash != ""
-}
-
-// PIN- and MFA-failure lockout policy no longer lives on the model
-// (issue #586, Rule 12). The decision (is the account locked?) and the
-// counter mutations are owned by the service layer with atomic repository
-// methods so concurrent failures can't share an attempt budget:
-//   - PIN:  the Identity & Access staff PIN flows (modules/identityaccess,
-//           #3225) with their own atomic PIN-attempt statements
-//   - MFA:  services/auth mfaService.isMFALocked / handleFailedAttempt
-//           (AccountRepository.IncrementMFAAttempts, ResetMFAAttempts)
-// The account row holds only the pin_attempts / pin_locked_until /
-// mfa_attempts / mfa_locked_until facts.
+// MFA-failure lockout policy no longer lives on the model (issue #586,
+// Rule 12). The decision (is the account locked?) and the counter mutations
+// are owned by the service layer with atomic repository methods so concurrent
+// failures can't share an attempt budget: services/auth
+// mfaService.isMFALocked / handleFailedAttempt
+// (AccountRepository.IncrementMFAAttempts, ResetMFAAttempts). The account row
+// holds only the mfa_attempts / mfa_locked_until facts.
+//
+// The personal staff PIN is gone (#3310). PINHash, PINAttempts and
+// PINLockedUntil only mirror columns that #3311 drops by migration.

@@ -122,9 +122,8 @@ type staffOffboardingActorNameKey struct{}
 // HTTP adapter. Every closure keeps the exact semantics of the handler code
 // it replaced in api/staff.
 type StaffMembershipRuntime struct {
-	Person            func(context.Context, int64) (StaffDirectoryPerson, error)
-	Persons           func(context.Context, []int64) ([]StaffDirectoryPerson, error)
-	PersonIDByAccount func(context.Context, int64) (int64, bool, error)
+	Person  func(context.Context, int64) (StaffDirectoryPerson, error)
+	Persons func(context.Context, []int64) ([]StaffDirectoryPerson, error)
 
 	PresentStaffIDs func(context.Context) ([]int64, error)
 	WorkStatusMap   func(context.Context) (map[int64]string, error)
@@ -146,10 +145,6 @@ type StaffMembershipRuntime struct {
 	CreateStaff func(context.Context, StaffCreateInput) (StaffCreateResult, error)
 	UpdateStaff func(context.Context, StaffUpdateInput) (StaffUpdateResult, error)
 	Offboard    func(context.Context, int64, string) error
-
-	PINStatus    func(context.Context, int64) (bool, *time.Time, error)
-	PINPreflight func(context.Context, int64) error
-	UpdatePIN    func(context.Context, int64, *string, string) error
 }
 
 // NewStaffMembershipRuntime composes the closures over the service factory.
@@ -197,15 +192,6 @@ func (f *Factory) NewStaffMembershipRuntime(db *bun.DB, logger *slog.Logger, hoo
 				result = append(result, toStaffDirectoryPerson(person.ID, person.FirstName, person.LastName, person.TagID, person.AccountID, person.CreatedAt, person.UpdatedAt))
 			}
 			return result, nil
-		},
-		PersonIDByAccount: func(ctx context.Context, accountID int64) (int64, bool, error) {
-			// The legacy PIN handlers treated any lookup failure as "no person
-			// linked" (an administrator without a staff record).
-			person, err := f.Users.FindByAccountID(ctx, accountID)
-			if err != nil || person == nil {
-				return 0, false, nil
-			}
-			return person.ID, true, nil
 		},
 
 		PresentStaffIDs: f.WorkSession.GetStaffIDsWithSupervisionToday,
@@ -313,16 +299,6 @@ func (f *Factory) NewStaffMembershipRuntime(db *bun.DB, logger *slog.Logger, hoo
 			}
 			return err
 		},
-
-		PINStatus: func(ctx context.Context, accountID int64) (bool, *time.Time, error) {
-			return f.AccountAuthentication().StaffPINStatus(ctx, accountID)
-		},
-		PINPreflight: func(ctx context.Context, accountID int64) error {
-			return f.AccountAuthentication().StaffPINPreflight(ctx, accountID)
-		},
-		UpdatePIN: func(ctx context.Context, accountID int64, currentPIN *string, newPIN string) error {
-			return f.AccountAuthentication().ChangeStaffPIN(ctx, accountID, currentPIN, newPIN)
-		},
 	}
 }
 
@@ -365,24 +341,6 @@ func ClassifyStaffSchoolClassFailure(err error) (StaffFailureKind, error) {
 		return StaffFailureNotFound, educationSvc.ErrStaffNotFound
 	case errors.Is(inner, educationSvc.ErrEmptySchoolClass):
 		return StaffFailureInvalidRequest, educationSvc.ErrEmptySchoolClass
-	default:
-		return StaffFailureInternal, err
-	}
-}
-
-// ClassifyStaffPINFailure maps the PIN self-service sentinels: account not
-// found -> not found, locked -> forbidden, missing current PIN -> invalid
-// request, wrong current PIN -> unauthorized, else internal.
-func ClassifyStaffPINFailure(err error) (StaffFailureKind, error) {
-	switch {
-	case errors.Is(err, identityaccess.ErrStaffPINAccountNotFound):
-		return StaffFailureNotFound, err
-	case errors.Is(err, identityaccess.ErrStaffPINSelfServiceLocked):
-		return StaffFailureForbidden, err
-	case errors.Is(err, identityaccess.ErrStaffPINCurrentRequired):
-		return StaffFailureInvalidRequest, err
-	case errors.Is(err, identityaccess.ErrStaffPINCurrentWrong):
-		return StaffFailureUnauthorized, err
 	default:
 		return StaffFailureInternal, err
 	}

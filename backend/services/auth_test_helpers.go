@@ -29,7 +29,6 @@ type AuthTestModule struct {
 	// through the capabilities they were bound to (#3364).
 	Auth                  *identityaccess.Module
 	AccountAuthentication *identityaccess.Module
-	StaffPINAuth          StaffPINAuthenticator
 	Invitation            InvitationCapability
 	GuardianInvitation    GuardianInvitationCapability
 	Schools               organizationtenancy.Capability
@@ -265,8 +264,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 	guardian := GuardianInvitationCapability(identityAccess)
 	return AuthTestModule{
 		Auth: identityAccess, AccountAuthentication: identityAccess,
-		StaffPINAuth: NewStaffPINAuthenticator(identityAccess),
-		MFA:          identityAccess, Passkeys: identityAccess,
+		MFA: identityAccess, Passkeys: identityAccess,
 		OperatorMFA: identityAccess, OperatorPasskeys: identityAccess,
 		Repos: r, TokenAuth: tokenAuth,
 		Invitation: invitation, GuardianInvitation: guardian,

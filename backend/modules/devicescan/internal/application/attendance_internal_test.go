@@ -142,7 +142,6 @@ func TestToggleAttendance(t *testing.T) {
 	t.Run("confirm toggles and answers the new state", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
-		h.principals.staff = &ports.Staff{ID: testStaffID}
 		h.attendance.toggleAction = devicescan.ScanActionCheckedIn
 		h.attendance.state = attendanceState()
 
@@ -154,7 +153,7 @@ func TestToggleAttendance(t *testing.T) {
 		require.NotNil(t, result.Attendance)
 		assert.Equal(t, "checked_in", result.Attendance.Status)
 		assert.Nil(t, result.FeedbackEnabled)
-		assert.Equal(t, []toggleCall{{StudentID: testStudentID, StaffID: testStaffID, DeviceID: testDeviceID, SkipAuthCheck: false}}, h.attendance.toggles)
+		assert.Equal(t, []toggleCall{{StudentID: testStudentID, StaffID: 0, DeviceID: testDeviceID, SkipAuthCheck: false}}, h.attendance.toggles, "kiosk scans stay device-attributed")
 	})
 	t.Run("checkout farewell", func(t *testing.T) {
 		t.Parallel()

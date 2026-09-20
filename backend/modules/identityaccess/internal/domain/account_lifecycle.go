@@ -6,47 +6,10 @@ import (
 	"time"
 )
 
-// Account lifecycle facts and decisions (#3225): staff PIN verification and
-// lockout, the admin staff-view preview, staff offboarding, the school
-// identity chain a personnel role requires, parent accounts and guardian
-// relative access. The error texts are the wire contract the retained auth
-// service established; the kiosk (PyrePortal) maps the staff PIN texts.
-
-// --- staff PIN -------------------------------------------------------------
-
-var (
-	ErrInvalidStaffPINCredentials = errors.New("invalid staff PIN credentials")
-	ErrStaffPINLocked             = errors.New("staff PIN is temporarily locked")
-	ErrStaffPINAccountNotFound    = errors.New("account not found")
-	ErrStaffPINSelfServiceLocked  = errors.New("account is temporarily locked due to failed PIN attempts")
-	ErrStaffPINCurrentRequired    = errors.New("current PIN is required when updating existing PIN")
-	ErrStaffPINCurrentWrong       = errors.New("current PIN is incorrect")
-	ErrStaffPINHash               = errors.New("failed to hash PIN")
-)
-
-// PIN brute-force lockout policy (issue #586). Per-tenant overrides live
-// behind the security.account_lockout_* settings the lockout port resolves.
-const (
-	PINLockoutThreshold = 5
-	PINLockoutDuration  = 15 * time.Minute
-)
-
-// PINAccount is the account row as PIN verification reads it.
-type PINAccount struct {
-	ID             int64
-	Active         bool
-	PINHash        string
-	PINLockedUntil *time.Time
-	UpdatedAt      time.Time
-}
-
-func (a PINAccount) HasPIN() bool { return a.PINHash != "" }
-
-// PINLocked reports whether the account is inside its PIN-failure lockout
-// window relative to now.
-func PINLocked(lockedUntil *time.Time, now time.Time) bool {
-	return lockedUntil != nil && now.Before(*lockedUntil)
-}
+// Account lifecycle facts and decisions (#3225): the admin staff-view preview,
+// staff offboarding, the school identity chain a personnel role requires,
+// parent accounts and guardian relative access. The error texts are the wire
+// contract the retained auth service established.
 
 // StaffMember is the users.staff fact the module reads through the staff
 // directory port.
@@ -55,14 +18,6 @@ type StaffMember struct {
 	TenantID int64
 	PersonID int64
 	Deleted  bool
-}
-
-// AuthenticatedStaff is the staff member a verified PIN binds a kiosk
-// action to.
-type AuthenticatedStaff struct {
-	ID       int64
-	PersonID int64
-	TenantID int64
 }
 
 // PersonRecord is the users.persons fact the module reads and, for the school

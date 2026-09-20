@@ -19,9 +19,9 @@ import (
 )
 
 // In-memory doubles of the ports the account lifecycle flows (#3225)
-// consume. They extend the account-authentication doubles with the PIN
-// columns, the parent accounts, the staff and guardian directories, the
-// preview audit and the retained invitation storage and delivery.
+// consume. They extend the account-authentication doubles with the parent
+// accounts, the staff and guardian directories, the preview audit and the
+// retained invitation storage and delivery.
 
 var errLifecycleBoom = errors.New("boom")
 
@@ -32,64 +32,19 @@ const lifecycleTenant int64 = 77
 type lifecycleStore struct {
 	*fakeStore
 
-	pins        map[int64]domain.PINAccount
-	pinAttempts map[int64]int
-	pinResets   map[int64]int
-	lastLockout struct {
-		threshold   int
-		lockedUntil time.Time
-	}
 	cards                     map[string]bool
 	grants                    map[mappingKey][]domain.PermissionGrant
 	parents                   map[int64]domain.ParentAccount
 	nextID                    int64
 	granted                   []int64
-	pinError                  error
 	findAccountsByEmailsCalls int
 }
 
 func newLifecycleStore() *lifecycleStore {
 	return &lifecycleStore{
 		fakeStore: newFakeStore(),
-		pins:      map[int64]domain.PINAccount{}, pinAttempts: map[int64]int{}, pinResets: map[int64]int{},
-		cards: map[string]bool{}, grants: map[mappingKey][]domain.PermissionGrant{}, parents: map[int64]domain.ParentAccount{},
+		cards:     map[string]bool{}, grants: map[mappingKey][]domain.PermissionGrant{}, parents: map[int64]domain.ParentAccount{},
 	}
-}
-
-func (s *lifecycleStore) FindPINAccount(_ context.Context, id int64, _ bool) (domain.PINAccount, bool, domain.OperationStats, error) {
-	if s.pinError != nil {
-		return domain.PINAccount{}, false, stats(), s.pinError
-	}
-	account, ok := s.pins[id]
-	return account, ok, stats(), nil
-}
-
-func (s *lifecycleStore) IncrementPINAttempts(_ context.Context, id int64, threshold int, lockedUntil time.Time) (domain.OperationStats, error) {
-	s.pinAttempts[id]++
-	s.lastLockout.threshold = threshold
-	s.lastLockout.lockedUntil = lockedUntil
-	if s.pinAttempts[id] >= threshold {
-		account := s.pins[id]
-		account.PINLockedUntil = &lockedUntil
-		s.pins[id] = account
-	}
-	return stats(), nil
-}
-
-func (s *lifecycleStore) ResetPINAttempts(_ context.Context, id int64) (domain.OperationStats, error) {
-	s.pinResets[id]++
-	s.pinAttempts[id] = 0
-	account := s.pins[id]
-	account.PINLockedUntil = nil
-	s.pins[id] = account
-	return stats(), nil
-}
-
-func (s *lifecycleStore) UpdatePINHash(_ context.Context, id int64, hash string) (domain.OperationStats, error) {
-	account := s.pins[id]
-	account.PINHash = hash
-	s.pins[id] = account
-	return stats(), nil
 }
 
 func (s *lifecycleStore) ListTenantAccounts(_ context.Context, tenantID int64) ([]domain.TenantAccount, domain.OperationStats, error) {
@@ -414,21 +369,7 @@ func (d *lifecycleStaff) CreateCaregiverProfile(_ context.Context, _, staffID in
 	return profile.ID, nil
 }
 
-// --- credentials, lockout, roles -----------------------------------------------
-
-type lifecyclePINs struct{}
-
-func (lifecyclePINs) HashPIN(pin string) (string, error) { return "pin:" + pin, nil }
-func (lifecyclePINs) VerifyPIN(pin, hash string) bool    { return hash == "pin:"+pin }
-
-type lifecycleLockout struct {
-	threshold int
-	duration  time.Duration
-}
-
-func (l lifecycleLockout) PINLockout(context.Context) (int, time.Duration) {
-	return l.threshold, l.duration
-}
+// --- roles -----------------------------------------------------------------
 
 // lifecycleRoles applies the classification the public package owns, over
 // the domain facts: tier by base_role, system roles by name, Lehrkraft never
@@ -961,7 +902,6 @@ type lifecycleFixture struct {
 	lifecycle   *AccountLifecycle
 	store       *lifecycleStore
 	staff       *lifecycleStaff
-	lockout     *lifecycleLockout
 	audit       *lifecyclePreviewAudit
 	admin       *lifecycleAdmin
 	guardians   *lifecycleGuardians
@@ -991,15 +931,15 @@ func newLifecycleFixture(t *testing.T) *lifecycleFixture {
 	})
 	require.NoError(t, err)
 	f := &lifecycleFixture{
-		store: store, staff: newLifecycleStaff(), lockout: &lifecycleLockout{}, audit: &lifecyclePreviewAudit{},
+		store: store, staff: newLifecycleStaff(), audit: &lifecyclePreviewAudit{},
 		guardians: newLifecycleGuardians(), invitations: newLifecycleInvitations(), delivery: &lifecycleDelivery{},
 		enrollments: newLifecycleEnrollments(), schools: schools,
 		financial: &lifecycleFinancial{}, runtime: runtime, sessions: store.fakeStore, persons: persons,
 	}
 	f.admin = &lifecycleAdmin{store: store}
 	f.lifecycle, err = NewAccountLifecycle(sessions, auth, AccountLifecycleDependencies{
-		Store: store, Logins: store, RFID: store, Staff: f.staff, Profiles: f.staff, Roles: lifecycleRoles{}, PINs: lifecyclePINs{},
-		Lockout: f.lockout, Audit: f.audit, Codec: lifecycleCodec{}, Admin: f.admin, Passwords: lifecyclePasswords{},
+		Store: store, Logins: store, RFID: store, Staff: f.staff, Profiles: f.staff, Roles: lifecycleRoles{},
+		Audit: f.audit, Codec: lifecycleCodec{}, Admin: f.admin, Passwords: lifecyclePasswords{},
 		Guardians: f.guardians, Invitations: f.invitations, Delivery: f.delivery, Enrollments: f.enrollments,
 		Schools: f.schools, Financial: f.financial,
 		Runtime: runtime, Logger: logger,
@@ -1010,14 +950,4 @@ func newLifecycleFixture(t *testing.T) *lifecycleFixture {
 
 func tenantContext() context.Context {
 	return (&fakeRuntime{}).WithTenantID(context.Background(), lifecycleTenant)
-}
-
-// seedPINStaff seeds an active account with a PIN, its person and staff row
-// at the lifecycle tenant, and returns the staff id.
-func (f *lifecycleFixture) seedPINStaff(accountID int64, pin string) int64 {
-	f.store.addAccount(accountID, fmt.Sprintf("staff%d@example.com", accountID), "hash:secret", true)
-	f.store.addMapping(accountID, lifecycleTenant)
-	f.store.pins[accountID] = domain.PINAccount{ID: accountID, Active: true, PINHash: "pin:" + pin, UpdatedAt: time.Now()}
-	person := f.staff.addPerson(domain.PersonRecord{FirstName: "Kiosk", LastName: "Kraft", AccountID: &accountID})
-	return f.staff.addStaff(person.ID).ID
 }
