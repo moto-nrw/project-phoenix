@@ -1538,7 +1538,7 @@ const TestJWTSecret = "test-jwt-secret-32-chars-minimum"
 func GetTestTokenAuth(tb testing.TB) *jwt.TokenAuth {
 	tb.Helper()
 
-	tokenAuth, err := jwt.NewTokenAuthWithSecret(TestJWTSecret)
+	tokenAuth, err := jwt.NewTokenAuthWithDurations(TestJWTSecret, 15*time.Minute, time.Hour)
 	require.NoError(tb, err, "Failed to create test TokenAuth")
 	return tokenAuth
 }

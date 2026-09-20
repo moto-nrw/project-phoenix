@@ -22,7 +22,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -99,8 +98,6 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	tokenAuth := jwt.MustNewTokenAuth()
-
 	r.Route("/auth", func(r chi.Router) {
 		// Public auth routes. The school login issues a school-scope JWT
 		// pinned to the first school where the account holds a
@@ -126,7 +123,6 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 		// never reaches a fully authenticated handler; the handlers pin
 		// the school enrollment scope on top.
 		r.Group(func(r chi.Router) {
-			r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 			r.Use(jwt.MFAEnrollmentAuthenticator)
 			r.Route("/mfa/enroll", func(r chi.Router) {
 				r.Post("/start", rs.mfaEnrollStart)
@@ -136,7 +132,6 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 
 		// Protected school-scope routes.
 		r.Group(func(r chi.Router) {
-			r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 			r.Use(jwt.Authenticator)
 			r.Use(common.ReadOnlyPreviewMiddleware)
 			r.Use(common.SchoolScopeMiddleware)

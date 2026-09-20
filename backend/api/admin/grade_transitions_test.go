@@ -26,7 +26,7 @@ import (
 )
 
 func init() {
-	// Router() calls jwt.MustNewTokenAuth(); MintTestJWT signs with the same
+	// The executors mount the session verifier; MintTestJWT signs with the same
 	// secret. Seed the deterministic JWT config before any Router construction.
 	testutil.SeedTestJWTConfig()
 }

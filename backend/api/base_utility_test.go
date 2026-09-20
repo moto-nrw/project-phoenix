@@ -509,7 +509,7 @@ func TestIdentityRateLimitKey_ExpiredTokenFallsBack(t *testing.T) {
 func TestIdentityRateLimitKey_TamperedTokenFallsBack(t *testing.T) {
 	t.Parallel()
 	tokenAuth := rateLimitTestAuth(t)
-	otherAuth, err := jwt.NewTokenAuthWithSecret("a-completely-different-32char-key!!")
+	otherAuth, err := jwt.NewTokenAuthWithDurations("a-completely-different-32char-key!!", 15*time.Minute, time.Hour)
 	require.NoError(t, err)
 
 	forged := mintRateLimitJWT(t, otherAuth, jwt.AppClaims{ID: 42, Sub: "user@example.com", TenantID: 7})

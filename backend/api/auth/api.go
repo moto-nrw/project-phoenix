@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
 	"github.com/uptrace/bun"
 
@@ -132,7 +131,6 @@ func (rs *Resource) Router() chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	// Create JWT auth instance for middleware
-	tokenAuth := jwt.MustNewTokenAuth()
 
 	// Token validation uses the general identity quota, not the password-login quota.
 	r.Post("/session/validate", rs.validateSession)
@@ -175,7 +173,6 @@ func (rs *Resource) Router() chi.Router {
 
 	// Protected routes that require refresh token
 	r.Group(func(r chi.Router) {
-		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.AuthenticateRefreshJWT)
 		r.Post("/refresh", rs.refreshToken)
 		r.Post("/logout", rs.logout)
@@ -188,7 +185,6 @@ func (rs *Resource) Router() chi.Router {
 	// authenticated handler. The full session is minted by
 	// mfaEnrollConfirm after successful enrollment.
 	r.Group(func(r chi.Router) {
-		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.MFAEnrollmentAuthenticator)
 		r.Route("/mfa/enroll", func(r chi.Router) {
 			r.Post("/start", rs.mfaEnrollStart)
@@ -198,7 +194,6 @@ func (rs *Resource) Router() chi.Router {
 
 	// Protected routes that require access token
 	r.Group(func(r chi.Router) {
-		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
 		// Write block for admin staff-view preview tokens (#2893): a preview
 		// token must not switch tenants, change passwords, manage roles, or

@@ -106,10 +106,6 @@ func (rs *Resource) SetInvitationRateLimiter(mw func(http.Handler) http.Handler)
 // NewResource creates a new operator resource
 func NewResource(cfg ResourceConfig) *Resource {
 	tokenAuth := cfg.TokenAuth
-	if tokenAuth == nil {
-		// Create internal token auth for JWT verification
-		tokenAuth = jwt.MustNewTokenAuth()
-	}
 
 	resource := &Resource{
 		identity:       cfg.Identity,

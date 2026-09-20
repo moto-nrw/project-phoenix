@@ -121,7 +121,7 @@ func TestOperatorPasskeyLoginHandlers(t *testing.T) {
 func TestOperatorPasskeyLoginRoutesArePublic(t *testing.T) {
 	t.Parallel()
 
-	tokenAuth, err := jwt.NewTokenAuth()
+	tokenAuth, err := jwt.NewTokenAuthWithDurations("operator-passkey-test-secret-32-chars", 15*time.Minute, time.Hour)
 	require.NoError(t, err)
 
 	svc := &operatorPasskeyServiceStub{}
@@ -150,7 +150,7 @@ func TestOperatorPasskeyLoginRoutesArePublic(t *testing.T) {
 func TestOperatorPasskeyListRouteAcceptsBothSlashForms(t *testing.T) {
 	t.Parallel()
 
-	tokenAuth, err := jwt.NewTokenAuth()
+	tokenAuth, err := jwt.NewTokenAuthWithDurations("operator-passkey-test-secret-32-chars", 15*time.Minute, time.Hour)
 	require.NoError(t, err)
 
 	router := NewResource(ResourceConfig{

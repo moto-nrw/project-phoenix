@@ -75,7 +75,7 @@ func TestLogoutRevokesTokensWhenAuditFails(t *testing.T) {
 	require.NoError(t, err)
 
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	signer, err := authjwt.NewTokenAuthWithSecret(authTestFactoryConfig(false).JWTSecret)
+	signer, err := authjwt.NewTokenAuthWithDurations(authTestFactoryConfig(false).JWTSecret, 15*time.Minute, time.Hour)
 	require.NoError(t, err)
 	service, err := services.IdentityAccessForTests(repoFactory, services.IdentityAccessTestConfig{
 		TokenAuth: signer, TenantRuntime: testpkg.TenantRuntime(t, db),

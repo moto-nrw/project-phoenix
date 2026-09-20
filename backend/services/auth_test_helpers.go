@@ -288,7 +288,7 @@ func IdentityAccessForTests(repos *repositories.Factory, cfg IdentityAccessTestC
 	}
 	signer := cfg.TokenAuth
 	if signer == nil {
-		created, err := authjwt.NewTokenAuth()
+		created, err := configuredTokenAuth()
 		if err != nil {
 			return nil, err
 		}

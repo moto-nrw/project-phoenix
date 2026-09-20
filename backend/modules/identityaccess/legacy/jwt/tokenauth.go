@@ -4,13 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
-	"log/slog"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/go-chi/jwtauth/v5"
-	"github.com/spf13/viper"
 )
 
 // TokenAuth implements JWT authentication flow.
@@ -20,53 +17,15 @@ type TokenAuth struct {
 	JwtRefreshExpiry time.Duration
 }
 
-// NewTokenAuth configures and returns a JWT authentication instance.
-func NewTokenAuth() (*TokenAuth, error) {
-	secret := viper.GetString("auth_jwt_secret")
-
+// NewTokenAuthWithDurations creates an instance from explicit configuration.
+// The signing key is required configuration: no root generates or persists one.
+func NewTokenAuthWithDurations(secret string, expiry, refreshExpiry time.Duration) (*TokenAuth, error) {
 	if err := rejectGeneratedSecret(secret); err != nil {
 		return nil, err
 	}
-
-	// Validate secret length/strength
 	if len(secret) < 32 {
 		log.Printf("Warning: JWT secret is too short (%d chars). Recommend at least 32 chars.", len(secret))
 	}
-
-	return NewTokenAuthWithSecret(secret)
-}
-
-// rejectGeneratedSecret refuses the retired "random" mode: the signing key is
-// required configuration and no root generates or persists one.
-func rejectGeneratedSecret(secret string) error {
-	if secret == "random" {
-		return errors.New("AUTH_JWT_SECRET=random is not allowed; set an explicit secret")
-	}
-	return nil
-}
-
-// MustNewTokenAuth is like NewTokenAuth but fatals on error.
-// Use this in Router() functions where JWT auth is required at startup.
-func MustNewTokenAuth() *TokenAuth {
-	ta, err := NewTokenAuth()
-	if err != nil {
-		slog.Error("failed to initialize JWT auth", slog.String("error", err.Error()))
-		os.Exit(1)
-	}
-	return ta
-}
-
-// NewTokenAuthWithSecret creates a TokenAuth with a specific secret
-func NewTokenAuthWithSecret(secret string) (*TokenAuth, error) {
-	return NewTokenAuthWithDurations(
-		secret,
-		viper.GetDuration("auth_jwt_expiry"),
-		viper.GetDuration("auth_jwt_refresh_expiry"),
-	)
-}
-
-// NewTokenAuthWithDurations creates an instance from explicit configuration.
-func NewTokenAuthWithDurations(secret string, expiry, refreshExpiry time.Duration) (*TokenAuth, error) {
 	a := &TokenAuth{
 		JwtAuth:          jwtauth.New("HS256", []byte(secret), nil),
 		JwtExpiry:        expiry,
@@ -74,6 +33,14 @@ func NewTokenAuthWithDurations(secret string, expiry, refreshExpiry time.Duratio
 	}
 
 	return a, nil
+}
+
+// rejectGeneratedSecret refuses the retired "random" mode.
+func rejectGeneratedSecret(secret string) error {
+	if secret == "random" {
+		return errors.New("AUTH_JWT_SECRET=random is not allowed; set an explicit secret")
+	}
+	return nil
 }
 
 // Verifier http middleware will verify a jwt string from a http request.

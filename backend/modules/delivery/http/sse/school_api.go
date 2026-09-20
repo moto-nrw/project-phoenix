@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/jwtauth/v5"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -49,9 +48,7 @@ func (rs *Resource) SetSchoolAccess(checker SchoolAccessChecker) {
 func (rs *Resource) SchoolRouter() chi.Router {
 	r := chi.NewRouter()
 
-	tokenAuth := jwt.MustNewTokenAuth()
 	r.Group(func(r chi.Router) {
-		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.SchoolMiddleware(tenant.ClaimScope{}))
 		r.Get("/events", rs.schoolEventsHandler)

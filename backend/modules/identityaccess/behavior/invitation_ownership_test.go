@@ -149,7 +149,7 @@ func TestInvitationRejectsInvalidOwnerProofWithoutWrites(t *testing.T) {
 				wantErr = identityaccess.ErrAccountInactive
 			case "forged":
 				var err error
-				signer, err = authjwt.NewTokenAuthWithSecret("different-test-signing-secret-not-authorized")
+				signer, err = authjwt.NewTokenAuthWithDurations("different-test-signing-secret-not-authorized", 15*time.Minute, time.Hour)
 				require.NoError(t, err)
 			}
 			if strings.HasPrefix(name, "wrong-owner:") {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/dataimport"
@@ -34,7 +33,7 @@ func HTTPRuntime(db *bun.DB, people peopledirectory.Capability, membership schoo
 	}
 	runtime := importapi.Runtime{
 		Middleware: []importapi.Middleware{
-			jwtauth.Verifier(jwt.MustNewTokenAuth().JwtAuth), jwt.Authenticator,
+			jwt.Authenticator,
 			common.ReadOnlyPreviewMiddleware, common.TenantScopeMiddleware,
 			common.SecurityPrincipalMiddleware, common.TenantOperationMiddleware,
 		},

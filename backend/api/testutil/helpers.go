@@ -42,6 +42,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
@@ -535,7 +536,7 @@ func WithJWTBearer(token string) RequestOption {
 func MintTestJWT(t testing.TB, claims jwt.AppClaims) string {
 	t.Helper()
 	claims.TenantID = testpkg.RebaseTenantID(t, claims.TenantID)
-	tokenAuth, err := jwt.NewTokenAuth()
+	tokenAuth, err := testpkg.ConfiguredTokenAuth()
 	require.NoError(t, err, "MintTestJWT: NewTokenAuth")
 	token, err := tokenAuth.CreateJWT(claims)
 	require.NoError(t, err, "MintTestJWT: CreateJWT")
@@ -774,7 +775,7 @@ func ExecuteRequest(router chi.Router, req *http.Request) *httptest.ResponseReco
 		// production middleware order (runtime first, authentication second).
 		ctx = tenant.WithTenantID(ctx, tenantID)
 	}
-	router.ServeHTTP(rr, req.WithContext(ctx))
+	servedBy(ctx, router).ServeHTTP(rr, req.WithContext(ctx))
 	return rr
 }
 
@@ -805,7 +806,7 @@ func ExecuteRequestForTest(t *testing.T, router chi.Router, req *http.Request) *
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 		ctx = tenant.WithTenantID(ctx, tenantID)
 	}
-	router.ServeHTTP(rr, req.WithContext(ctx))
+	servedBy(ctx, router).ServeHTTP(rr, req.WithContext(ctx))
 	return rr
 }
 
@@ -935,4 +936,25 @@ func AdminTestClaimsForTenant(accountID int, tenantID int64) jwt.AppClaims {
 		IsAdmin:     true,
 		TenantID:    tenantID,
 	}
+}
+
+// WithSessionVerifier mounts the verifier the API root mounts once for every
+// route. A resource router served on its own has none and rejects each token.
+func WithSessionVerifier(next http.Handler) http.Handler { return testpkg.SessionVerifier(next) }
+
+// TestTokenAuth returns the signer of the seeded test configuration.
+func TestTokenAuth(tb testing.TB) *jwt.TokenAuth {
+	tb.Helper()
+	tokenAuth, err := testpkg.ConfiguredTokenAuth()
+	require.NoError(tb, err)
+	return tokenAuth
+}
+
+// servedBy mounts the session verifier unless the test already placed a
+// verified token on the context, which the verifier would overwrite.
+func servedBy(ctx context.Context, router http.Handler) http.Handler {
+	if token, _, _ := jwtauth.FromContext(ctx); token != nil {
+		return router
+	}
+	return WithSessionVerifier(router)
 }

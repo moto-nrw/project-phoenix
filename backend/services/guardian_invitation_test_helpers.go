@@ -9,7 +9,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -52,7 +51,7 @@ func lifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitat
 	if err != nil {
 		return nil, err
 	}
-	signer, err := authjwt.NewTokenAuth()
+	signer, err := configuredTokenAuth()
 	if err != nil {
 		return nil, err
 	}

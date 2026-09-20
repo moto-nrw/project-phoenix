@@ -47,10 +47,8 @@ func NewResource(service usercontext.UserContextService, db *bun.DB) *Resource {
 	}
 
 	// Create JWT auth instance for middleware
-	tokenAuth := jwt.MustNewTokenAuth()
 
 	// Setup routes with proper authentication chain
-	r.router.Use(tokenAuth.Verifier())
 	r.router.Use(jwt.Authenticator)
 	r.router.Use(common.ReadOnlyPreviewMiddleware)
 	r.router.Use(common.TenantScopeMiddleware)
