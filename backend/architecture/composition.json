@@ -1411,7 +1411,7 @@
       "declaration": "TestPersonRepository_Create",
       "target": "database/repositories.NewFactory",
       "lines": [
-        42
+        43
       ],
       "tables": []
     },
@@ -1421,7 +1421,7 @@
       "declaration": "TestPersonRepository_Delete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        176
+        177
       ],
       "tables": []
     },
@@ -1431,7 +1431,7 @@
       "declaration": "TestPersonRepository_EdgeCases",
       "target": "database/repositories.NewFactory",
       "lines": [
-        594
+        627
       ],
       "tables": []
     },
@@ -1441,7 +1441,7 @@
       "declaration": "TestPersonRepository_FindByAccountID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        345
+        346
       ],
       "tables": []
     },
@@ -1451,7 +1451,7 @@
       "declaration": "TestPersonRepository_FindByID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        112
+        113
       ],
       "tables": []
     },
@@ -1461,7 +1461,7 @@
       "declaration": "TestPersonRepository_FindByIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        245
+        246
       ],
       "tables": []
     },
@@ -1471,7 +1471,7 @@
       "declaration": "TestPersonRepository_FindByTagID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        435
+        436
       ],
       "tables": []
     },
@@ -1481,9 +1481,11 @@
       "declaration": "TestPersonRepository_FindWithAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        477
+        478
       ],
-      "tables": []
+      "tables": [
+        "auth.accounts"
+      ]
     },
     {
       "scope": "test",
@@ -1491,7 +1493,7 @@
       "declaration": "TestPersonRepository_LinkToAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        289
+        290
       ],
       "tables": []
     },
@@ -1501,7 +1503,7 @@
       "declaration": "TestPersonRepository_LinkToRFIDCard",
       "target": "database/repositories.NewFactory",
       "lines": [
-        374
+        375
       ],
       "tables": []
     },
@@ -1511,7 +1513,7 @@
       "declaration": "TestPersonRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        204
+        205
       ],
       "tables": []
     },
@@ -1521,7 +1523,7 @@
       "declaration": "TestPersonRepository_ListWithNullableFilters",
       "target": "database/repositories.NewFactory",
       "lines": [
-        516
+        549
       ],
       "tables": []
     },
@@ -1531,7 +1533,7 @@
       "declaration": "TestPersonRepository_UnlinkFromAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        318
+        319
       ],
       "tables": []
     },
@@ -1541,7 +1543,7 @@
       "declaration": "TestPersonRepository_UnlinkFromRFIDCard",
       "target": "database/repositories.NewFactory",
       "lines": [
-        403
+        404
       ],
       "tables": []
     },
@@ -1551,7 +1553,7 @@
       "declaration": "TestPersonRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        144
+        145
       ],
       "tables": []
     },

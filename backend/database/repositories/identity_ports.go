@@ -156,7 +156,7 @@ func activeAccountQuery(accounts *authRepo.AccountRepository) usersRepo.ActiveAc
 // accountLookup adapts the owner's by-id read to the People Directory
 // lookup: a missing account resolves to nil, as the former LEFT JOIN did.
 func accountLookup(accounts authModels.AccountRepository) usersRepo.AccountLookup {
-	return func(ctx context.Context, accountID int64) (*authModels.Account, error) {
+	return func(ctx context.Context, accountID int64) (*userModels.PersonAccount, error) {
 		account, err := accounts.FindByID(ctx, accountID)
 		if authRepo.IsNotFound(err) {
 			return nil, nil
@@ -164,7 +164,14 @@ func accountLookup(accounts authModels.AccountRepository) usersRepo.AccountLooku
 		if err != nil {
 			return nil, err
 		}
-		return account, nil
+		if account == nil {
+			return nil, nil
+		}
+		return &userModels.PersonAccount{
+			ID: account.ID, CreatedAt: account.CreatedAt, UpdatedAt: account.UpdatedAt,
+			Email: account.Email, Username: account.Username, Avatar: account.Avatar,
+			Active: account.Active, IsPasswordOTP: account.IsPasswordOTP, LastLogin: account.LastLogin,
+		}, nil
 	}
 }
 

@@ -170,8 +170,8 @@ func TestPerson_SetAccount(t *testing.T) {
 			LastName:  "Doe",
 		}
 
-		account := &authmodels.Account{
-			Model: base.Model{ID: 42},
+		account := &PersonAccount{
+			ID:    42,
 			Email: "john@example.com",
 		}
 

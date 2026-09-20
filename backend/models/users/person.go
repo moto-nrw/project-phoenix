@@ -22,7 +22,7 @@ type Person struct {
 	DeletedAt *time.Time     `bun:"deleted_at,soft_delete,nullzero" json:"-"`
 
 	// Relations not stored in the database
-	Account  *authmodels.Account  `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
+	Account  *PersonAccount       `bun:"-" json:"account,omitempty"`
 	RFIDCard *authmodels.RFIDCard `bun:"rel:belongs-to,join:tag_id=id" json:"rfid_card,omitempty"`
 }
 
@@ -59,7 +59,7 @@ func (p *Person) GetFullName() string {
 }
 
 // SetAccount links this person to an account
-func (p *Person) SetAccount(account *authmodels.Account) {
+func (p *Person) SetAccount(account *PersonAccount) {
 	p.Account = account
 	if account != nil {
 		p.AccountID = &account.ID
