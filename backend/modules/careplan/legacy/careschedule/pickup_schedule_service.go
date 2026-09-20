@@ -1003,12 +1003,22 @@ func (s *pickupScheduleService) GetEffectivePickupTimeForDate(
 	if err != nil {
 		return nil, &ScheduleError{Op: "get effective pickup time", Err: err}
 	}
-	if !projection.AllowsPickupForDate(studentID, date) {
-		return nil, nil
-	}
 	result, err := s.core.EffectiveTimeForDateWithSchedule(ctx, studentID, date, projection.ForDate(studentID, date))
 	if err != nil {
 		return nil, err
+	}
+	if !projection.AllowsPickupForDate(studentID, date) {
+		// Outside a booked care day only the day's notes survive (#3369). The
+		// single-reader path also serves device scans, so it must agree with
+		// the bulk tile lookup without turning the child into an expected one.
+		if len(result.DayNotes) == 0 {
+			return nil, nil
+		}
+		return pickupEffectiveTime(&effectiveTimeResult{
+			Date:        result.Date,
+			WeekdayName: result.WeekdayName,
+			DayNotes:    result.DayNotes,
+		}), nil
 	}
 	return pickupEffectiveTime(result), nil
 }

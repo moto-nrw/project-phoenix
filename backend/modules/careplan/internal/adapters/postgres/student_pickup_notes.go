@@ -50,21 +50,7 @@ func (s *Store) ListPickupNotes(ctx context.Context, f careplan.StudentScheduleF
 	if f.StudentIDs != nil {
 		query = query.Where(`"student_pickup_note".student_id IN (?)`, bun.List(f.StudentIDs))
 	}
-	if !f.Date.IsZero() {
-		// A recurring weekday note (#3369) belongs to every date of that
-		// weekday, so the day's notes stay one statement.
-		isoWeekday := (int(f.Date.Weekday())+6)%7 + 1 // Monday = 1
-		query = query.Where(`("student_pickup_note".note_date = ? OR "student_pickup_note".weekday = ?)`, calendarDate(f.Date), isoWeekday)
-	}
-	if !f.From.IsZero() {
-		query = query.Where(`"student_pickup_note".note_date >= ?`, calendarDate(f.From))
-	}
-	if !f.To.IsZero() {
-		query = query.Where(`"student_pickup_note".note_date <= ?`, calendarDate(f.To))
-	}
-	if !f.UpcomingFrom.IsZero() {
-		query = query.Where(`"student_pickup_note".note_date >= ?`, calendarDate(f.UpcomingFrom))
-	}
+	query = applyPickupNoteDateFilter(query, f)
 	query = applyStudentScheduleOptions(query, f.Options, "student_pickup_note")
 	if f.Options == nil || len(f.Options.Sorting) == 0 {
 		query = query.OrderExpr(`"student_pickup_note".note_date ASC NULLS FIRST, "student_pickup_note".weekday ASC, "student_pickup_note".created_at ASC`)
@@ -74,6 +60,96 @@ func (s *Store) ListPickupNotes(ctx context.Context, f careplan.StudentScheduleF
 	}
 	stats, err := finishStudentScheduleList(ctx, query, &rows, "list pickup notes")
 	return mapRows(rows, pickupNoteToPublic), stats, err
+}
+
+// applyPickupNoteDateFilter selects dated notes by their stored date and
+// recurring notes by every weekday they occur within the requested range.
+// Keeping the weekday calculation in Go makes the query portable and avoids
+// the static architecture check's opaque EXTRACT(... FROM ...) expression.
+func applyPickupNoteDateFilter(query *bun.SelectQuery, f careplan.StudentScheduleFilter) *bun.SelectQuery {
+	if !f.Date.IsZero() {
+		if pickupNoteDateOutsideBounds(f.Date, f) {
+			return query.Where(`FALSE`)
+		}
+		return query.Where(
+			`("student_pickup_note".note_date = ? OR "student_pickup_note".weekday = ?)`,
+			calendarDate(f.Date),
+			isoWeekday(f.Date),
+		)
+	}
+
+	from := latestPickupNoteStart(f.From, f.UpcomingFrom)
+	if !from.IsZero() && !f.To.IsZero() && f.To.Before(from) {
+		return query.Where(`FALSE`)
+	}
+	if from.IsZero() && f.To.IsZero() {
+		return query
+	}
+
+	if from.IsZero() {
+		return query.Where(
+			`("student_pickup_note".note_date <= ? OR "student_pickup_note".weekday IS NOT NULL)`,
+			calendarDate(f.To),
+		)
+	}
+	if f.To.IsZero() {
+		return query.Where(
+			`("student_pickup_note".note_date >= ? OR "student_pickup_note".weekday IS NOT NULL)`,
+			calendarDate(from),
+		)
+	}
+	weekdays := pickupNoteWeekdaysInRange(from, f.To)
+	if len(weekdays) == 0 {
+		return query.Where(
+			`"student_pickup_note".note_date >= ? AND "student_pickup_note".note_date <= ?`,
+			calendarDate(from),
+			calendarDate(f.To),
+		)
+	}
+	return query.Where(
+		`(("student_pickup_note".note_date >= ? AND "student_pickup_note".note_date <= ?) OR "student_pickup_note".weekday IN (?))`,
+		calendarDate(from),
+		calendarDate(f.To),
+		bun.List(weekdays),
+	)
+}
+
+func pickupNoteDateOutsideBounds(date careplan.Date, f careplan.StudentScheduleFilter) bool {
+	return !f.From.IsZero() && date.Before(f.From) ||
+		!f.To.IsZero() && date.After(f.To) ||
+		!f.UpcomingFrom.IsZero() && date.Before(f.UpcomingFrom)
+}
+
+func latestPickupNoteStart(a, b careplan.Date) careplan.Date {
+	if a.IsZero() || !b.IsZero() && b.After(a) {
+		return b
+	}
+	return a
+}
+
+func pickupNoteWeekdaysInRange(from, to careplan.Date) []int {
+	if from.IsZero() || to.IsZero() {
+		return []int{1, 2, 3, 4, 5}
+	}
+	if to.Before(from) {
+		return nil
+	}
+	if !to.Before(from.AddDays(6)) {
+		return []int{1, 2, 3, 4, 5}
+	}
+
+	weekdays := make([]int, 0, 5)
+	for date := from; !date.After(to); date = date.AddDays(1) {
+		weekday := isoWeekday(date)
+		if weekday <= 5 {
+			weekdays = append(weekdays, weekday)
+		}
+	}
+	return weekdays
+}
+
+func isoWeekday(date careplan.Date) int {
+	return (int(date.Weekday())+6)%7 + 1 // Monday = 1
 }
 func (s *Store) CreatePickupNote(ctx context.Context, v careplan.PickupNote) (careplan.PickupNote, domain.OperationStats, error) {
 	db, tid, err := s.databaseForWrite(ctx, "create pickup note")

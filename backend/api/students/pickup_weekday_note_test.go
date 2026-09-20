@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -123,6 +125,17 @@ func TestWeekdayPickupNoteSurvivesBookingBoundary(t *testing.T) {
 		map[string]any{"weekday": 1, "content": "Montags beim Vater"})
 	rr := authExec(t, tc, req, claims, []string{"admin:*"})
 	require.Equal(t, http.StatusCreated, rr.Code, "Body: %s", rr.Body.String())
+
+	// The device-scan path resolves one child at a time rather than through
+	// the tile's bulk endpoint. A note-only day must survive that path too.
+	single, err := tc.resource.PickupScheduleService.GetEffectivePickupTimeForDate(
+		testpkg.Ctx(t), noted.ID, timezone.NewDate(2026, time.January, 26),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, single)
+	assert.Nil(t, single.PickupTime)
+	require.Len(t, single.DayNotes, 1)
+	assert.Equal(t, "Montags beim Vater", single.DayNotes[0].Content)
 
 	req = testutil.NewAuthenticatedRequest(t, "POST", "/pickup-times/bulk", map[string]any{
 		"student_ids": []int64{noted.ID, silent.ID}, "date": "2026-01-26", // Monday
