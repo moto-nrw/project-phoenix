@@ -1362,8 +1362,8 @@ func CreateTestPrivacyConsent(tb testing.TB, db *bun.DB, prefix string) *users.P
 	return consent
 }
 
-// CreateTestParentAccount creates a parent account in the database.
-func CreateTestParentAccount(tb testing.TB, db *bun.DB, email string) *authmodels.AccountParent {
+// CreateTestParentAccount creates a legacy guardian-link account and returns its ID.
+func CreateTestParentAccount(tb testing.TB, db *bun.DB, email string) int64 {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1373,20 +1373,12 @@ func CreateTestParentAccount(tb testing.TB, db *bun.DB, email string) *authmodel
 	uniqueEmail := fmt.Sprintf(testEmailFormat, email, uniqueFixtureSuffix())
 	username := fmt.Sprintf("parent-%d", uniqueFixtureSuffix())
 
-	account := &authmodels.AccountParent{
-		Email:    uniqueEmail,
-		Username: &username,
-		Active:   true,
-	}
-	account.SetTenantID(fixtureTenantID(tb))
-
-	err := db.NewInsert().
-		Model(account).
-		ModelTableExpr(`auth.accounts_parents`).
-		Scan(ctx)
+	var accountID int64
+	err := db.NewRaw(`INSERT INTO auth.accounts_parents (tenant_id, email, username, active)
+		VALUES (?, ?, ?, TRUE) RETURNING id`, fixtureTenantID(tb), uniqueEmail, username).Scan(ctx, &accountID)
 	require.NoError(tb, err, "Failed to create test parent account")
 
-	return account
+	return accountID
 }
 
 // ============================================================================

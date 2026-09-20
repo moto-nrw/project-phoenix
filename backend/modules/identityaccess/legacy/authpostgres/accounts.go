@@ -16,6 +16,7 @@ import (
 const (
 	accountTable      = "auth.accounts"
 	accountTableAlias = `auth.accounts AS "account"`
+	whereID           = "id = ?"
 )
 
 type manageableSchoolIDsKey struct{}

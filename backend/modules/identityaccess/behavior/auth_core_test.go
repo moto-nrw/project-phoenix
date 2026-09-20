@@ -54,6 +54,7 @@ func authTestFactoryConfig(rateLimitEnabled bool) services.FactoryConfig {
 // the call shape the tests were written against and drives the owner's
 // capability underneath, so every assertion still describes real behavior.
 type testAuthService interface {
+	identityaccess.ParentAccountAccess
 	identityaccess.AccountAuthentication
 	identityaccess.AccountSessionMaintenance
 	identityaccess.StaffPreview
@@ -99,6 +100,7 @@ func setupInvitationService(t *testing.T, db *bun.DB) services.InvitationCapabil
 // composed Identity & Access module.
 func newFixtureAuthService(t *testing.T, db *bun.DB, module *identityaccess.Module) *fixtureOwnedAuthService {
 	return &fixtureOwnedAuthService{
+		ParentAccountAccess:       module,
 		AccountAuthentication:     module,
 		AccountSessionMaintenance: module,
 		StaffPreview:              module,
@@ -112,6 +114,7 @@ func newFixtureAuthService(t *testing.T, db *bun.DB, module *identityaccess.Modu
 }
 
 type fixtureOwnedAuthService struct {
+	identityaccess.ParentAccountAccess
 	identityaccess.AccountAuthentication
 	identityaccess.AccountSessionMaintenance
 	identityaccess.StaffPreview
@@ -1725,7 +1728,7 @@ func TestAuthService_CreateParentAccount(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-		assert.Nil(t, account)
+		assert.Zero(t, account)
 	})
 }
 
@@ -1746,7 +1749,7 @@ func TestAuthService_GetParentAccountByID(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		result, err := service.GetParentAccountByID(ctx, int(account.ID))
+		result, err := service.GetParentAccountByID(ctx, account.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1760,7 +1763,7 @@ func TestAuthService_GetParentAccountByID(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-		assert.Nil(t, result)
+		assert.Zero(t, result)
 	})
 }
 
@@ -1781,7 +1784,7 @@ func TestAuthService_ListParentAccounts(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		result, err := service.ListParentAccounts(ctx, nil)
+		result, err := service.ListParentAccounts(ctx, identityaccess.ParentAccountFilter{})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -2587,7 +2590,7 @@ func TestAuthService_GetParentAccountByEmail(t *testing.T) {
 
 		// ASSERT - Expect error (either not found or repository error)
 		require.Error(t, err)
-		assert.Nil(t, result)
+		assert.Zero(t, result)
 	})
 }
 
@@ -2601,27 +2604,28 @@ func TestAuthService_UpdateParentAccount(t *testing.T) {
 
 	t.Run("updates parent account successfully", func(t *testing.T) {
 		// ARRANGE
-		parentAccount := testpkg.CreateTestParentAccount(t, db, "update-test")
+		parentAccount, err := service.CreateParentAccount(ctx, fmt.Sprintf("update-test-%d@example.com", testpkg.Tenant(t)), "", testPassword)
+		require.NoError(t, err)
 
 		// Modify the account
 		newUsername := fmt.Sprintf("updated-username-%d", time.Now().UnixNano())
-		parentAccount.Username = &newUsername
+		parentAccount.Username = newUsername
 
 		// ACT
-		err := service.UpdateParentAccount(ctx, parentAccount)
+		err = service.UpdateParentAccount(ctx, parentAccount)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify the update
-		updated, err := service.GetParentAccountByID(ctx, int(parentAccount.ID))
+		updated, err := service.GetParentAccountByID(ctx, parentAccount.ID)
 		require.NoError(t, err)
-		assert.Equal(t, newUsername, *updated.Username)
+		assert.Equal(t, newUsername, updated.Username)
 	})
 
 	t.Run("returns error for non-existent account", func(t *testing.T) {
 		// ARRANGE
-		fakeAccount := &authModels.AccountParent{}
+		fakeAccount := identityaccess.ParentAccount{}
 		fakeAccount.ID = 99999999
 
 		// ACT
@@ -2642,21 +2646,22 @@ func TestAuthService_ActivateParentAccount(t *testing.T) {
 
 	t.Run("activates parent account successfully", func(t *testing.T) {
 		// ARRANGE
-		parentAccount := testpkg.CreateTestParentAccount(t, db, "activate-test")
+		parentAccount, err := service.CreateParentAccount(ctx, fmt.Sprintf("activate-test-%d@example.com", testpkg.Tenant(t)), "", testPassword)
+		require.NoError(t, err)
 
 		// First deactivate
 		parentAccount.Active = false
-		err := service.UpdateParentAccount(ctx, parentAccount)
+		err = service.UpdateParentAccount(ctx, parentAccount)
 		require.NoError(t, err)
 
 		// ACT
-		err = service.ActivateParentAccount(ctx, int(parentAccount.ID))
+		err = service.ActivateParentAccount(ctx, parentAccount.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify activation
-		updated, err := service.GetParentAccountByID(ctx, int(parentAccount.ID))
+		updated, err := service.GetParentAccountByID(ctx, parentAccount.ID)
 		require.NoError(t, err)
 		assert.True(t, updated.Active)
 	})
@@ -2680,16 +2685,17 @@ func TestAuthService_DeactivateParentAccount(t *testing.T) {
 
 	t.Run("deactivates parent account successfully", func(t *testing.T) {
 		// ARRANGE
-		parentAccount := testpkg.CreateTestParentAccount(t, db, "deactivate-test")
+		parentAccount, err := service.CreateParentAccount(ctx, fmt.Sprintf("deactivate-test-%d@example.com", testpkg.Tenant(t)), "", testPassword)
+		require.NoError(t, err)
 
 		// ACT
-		err := service.DeactivateParentAccount(ctx, int(parentAccount.ID))
+		err = service.DeactivateParentAccount(ctx, parentAccount.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify deactivation
-		updated, err := service.GetParentAccountByID(ctx, int(parentAccount.ID))
+		updated, err := service.GetParentAccountByID(ctx, parentAccount.ID)
 		require.NoError(t, err)
 		assert.False(t, updated.Active)
 	})

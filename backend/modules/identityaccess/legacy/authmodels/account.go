@@ -63,7 +63,7 @@ func (a *Account) Validate() error {
 }
 
 // validateAccountEmail is the shared required/format/lowercase email rule
-// of Account and AccountParent. It normalizes the address in place.
+// of the retained Account model. It normalizes the address in place.
 func validateAccountEmail(email *string) error {
 	if *email == "" {
 		return errors.New("email is required")

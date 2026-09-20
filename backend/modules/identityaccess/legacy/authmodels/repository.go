@@ -32,12 +32,6 @@ type AccountRepository interface {
 	AnonymizeForDeletion(ctx context.Context, accountID int64, anonymizedEmail string) error
 }
 
-// AccountParentRepository defines operations for managing parent accounts
-type AccountParentRepository interface {
-	base.CRUDRepository[*AccountParent]
-	FindByEmail(ctx context.Context, email string) (*AccountParent, error)
-}
-
 // InvitationTokenRepository defines operations for managing invitation tokens.
 type InvitationTokenRepository interface {
 	Create(ctx context.Context, token *InvitationToken) error
