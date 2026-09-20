@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -614,7 +615,7 @@ func TestGuardianProfileRepository_FindByAccountID_PrefersExplicitPortalLocale(t
 		ModelTableExpr(`users.guardian_profiles`).
 		Scan(context.Background())
 	require.NoError(t, err, "failed to insert second-tenant guardian profile")
-	require.NoError(t, repo.LinkAccount(ctx, newer.ID, account.ID))
+	require.NoError(t, repo.LinkAccount(tenant.WithTenantID(ctx, tenantB), newer.ID, account.ID))
 	require.Greater(t, newer.ID, older.ID, "explicit row must have the higher id for the test to be meaningful")
 
 	found, err := repo.FindByAccountID(ctx, account.ID)
