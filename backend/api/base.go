@@ -1383,6 +1383,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		IoTService:                   api.Services.IoT,
 		DeviceAuthenticator:          deviceAuth.Device(),
 		PickupScheduleService:        api.Services.PickupSchedule,
+		WeekdayPickupNotes:           modules.repositories.CarePlan(),
 		PartialAbsenceService:        api.Services.PartialAbsence,
 		ArrivalScheduleService:       api.Services.ArrivalSchedule,
 		InstanceService:              api.Services.Instance,
