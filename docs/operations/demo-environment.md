@@ -1,6 +1,6 @@
 # Public demo environment
 
-The public demo is a separate deployment on the existing host (ADR 0027).
+The public demo is a separate deployment on the existing host (ADR 0029).
 Its Compose project is `demo`, its directory is `~/demo`, and its data is
 synthetic. Never restore staging or production data into this environment.
 The provisioning API, simulator and demo banner are separate work in #3456.

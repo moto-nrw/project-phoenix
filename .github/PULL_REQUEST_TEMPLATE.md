@@ -50,7 +50,7 @@
 - [ ] I have performed a self-review of my code
 - [ ] I have commented my code, especially in hard-to-understand areas
 - [ ] I have updated the documentation as needed
-- [ ] If this PR changes a user-facing flow, I updated the in-app help guide (`guide-data.ts`) and any changed screenshot — or it doesn't apply (backend-only, operator/parents-portal-only, or pure-styling change)
+- [ ] If this PR changes a user-facing flow, I updated the affected in-app help articles (`frontend/src/components/help/help-content.ts`) — or it doesn't apply (backend-only, operator-portal-only, or pure-styling change)
 - [ ] User-visible change: I ran the Verständlichkeit checklist (`.claude/rules/verstaendlichkeit.md`) against the running app and recorded the result above — or it doesn't apply
 - [ ] All tests are passing
 - [ ] My changes generate no new warnings or errors

@@ -27,6 +27,7 @@ import {
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { useOptionalSupervision } from "~/lib/supervision-context";
+import { buildHelpHref, type HelpRole } from "~/lib/help-topics";
 import type { SupervisedRoom } from "~/lib/supervision-derive";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import {
@@ -706,6 +707,37 @@ function SidebarContent({
   // Berechtigten mit allen Kindern.
   const openCareGroupMode = useOpenCareGroupMode();
 
+  /**
+   * Die Adresse hinter dem Eintrag `Hilfe` ganz unten.
+   *
+   * Nackt auf `/help` fragte die Hilfe zuerst, fuer wen die Anleitung ist
+   * und wie die OGS arbeitet -- vier Fragen, deren Antworten die angemeldete
+   * Sitzung bereits kennt. Wer aus der App kommt, soll direkt bei seinen
+   * Themen landen. Dieselben Werte gibt schon das Fragezeichen im Seitenkopf
+   * mit (`ContextHelpLink`); beide bauen die Adresse jetzt mit demselben
+   * `buildHelpHref`.
+   */
+  const helpHref = useMemo(() => {
+    const role: HelpRole =
+      mode === "parent" ? "parent" : userIsAdmin ? "lead" : "caregiver";
+    const currentQuery = searchParams.toString();
+    return buildHelpHref({
+      role,
+      nfcEnabled,
+      presenceMode: presenceMode === "binary" ? "binary" : "detailed",
+      groupMode: openCareGroupMode ? "open_care" : "fixed_groups",
+      returnTo: currentQuery ? `${rawPathname}?${currentQuery}` : rawPathname,
+    });
+  }, [
+    mode,
+    nfcEnabled,
+    openCareGroupMode,
+    presenceMode,
+    rawPathname,
+    searchParams,
+    userIsAdmin,
+  ]);
+
   const formatGroupAttendanceCount = (groupId: string) => {
     if (!canShowGroupAttendanceCounts) return undefined;
     const count = groupAttendanceCounts[groupId.toString()];
@@ -1125,9 +1157,11 @@ function SidebarContent({
         ) : (
           <NavLink
             href={
-              TENANT_SCOPED_HREFS.has(item.href)
-                ? tenantPath(item.href)
-                : item.href
+              item.href === "/help"
+                ? helpHref
+                : TENANT_SCOPED_HREFS.has(item.href)
+                  ? tenantPath(item.href)
+                  : item.href
             }
             className={getLinkClasses(item.href)}
             {...(collapsed
