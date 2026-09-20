@@ -17,11 +17,6 @@ func TestNewFactory(t *testing.T) {
 	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NotNil(t, factory)
 
-	// Verify auth repositories are initialized
-	t.Run("auth repositories", func(t *testing.T) {
-		assert.NotNil(t, factory.Account)
-	})
-
 	// Verify users repositories are initialized
 	t.Run("users repositories", func(t *testing.T) {
 		assert.NotNil(t, factory.Person)

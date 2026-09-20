@@ -23,7 +23,7 @@ func NewAuthTestRepositories(db *bun.DB, command auditModels.Command) (*Factory,
 		return nil, err
 	}
 	r := &Factory{
-		db: db, Account: members.Account, Person: members.Person,
+		db: db, Person: members.Person,
 		Staff: members.Staff, Teacher: members.Teacher, GroupTeacher: members.GroupTeacher, ClassTeacher: members.ClassTeacher,
 		RFIDCard: newIdentityAccess(db, nil), Student: NewStudentRepository(db),
 		GuardianProfile: NewGuardianProfileRepository(db), StudentGuardian: NewStudentGuardianRepository(db),

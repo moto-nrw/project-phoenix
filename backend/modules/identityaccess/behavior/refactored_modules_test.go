@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -724,7 +723,7 @@ func TestAuthService_UpdateAccount_Extended(t *testing.T) {
 
 	t.Run("returns error for non-existent account", func(t *testing.T) {
 		// ARRANGE
-		fakeAccount := &authModels.Account{}
+		fakeAccount := &testpkg.AccountFixture{}
 		fakeAccount.ID = 99999999
 
 		// ACT

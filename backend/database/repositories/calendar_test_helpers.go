@@ -6,7 +6,6 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/uptrace/bun"
@@ -14,7 +13,6 @@ import (
 
 type CalendarTestRepositories struct {
 	TimetableTestRepositories
-	Account                    authModels.AccountRepository
 	Profile                    identityaccess.AccountProfiles
 	GroupSubstitution          educationModels.GroupSubstitutionRepository
 	GuardianProfile            userModels.GuardianProfileRepository
@@ -47,7 +45,6 @@ func NewCalendarTestRepositories(db *bun.DB) (CalendarTestRepositories, error) {
 	feeds := NewCalendarFeedTestRepositories(db)
 	return CalendarTestRepositories{
 		TimetableTestRepositories: identity.Timetable,
-		Account:                   identity.Account,
 		Profile:                   identity.Profile, GroupSubstitution: identity.Substitutions,
 		GuardianProfile: parents.GuardianProfile, StudentGuardian: parents.StudentGuardian,
 		ParentChild: parents.ParentChild, StaffCalendarFeedToken: feeds.StaffFeed, ParentCalendarFeed: feeds.ParentFeed,

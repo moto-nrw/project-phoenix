@@ -4,8 +4,6 @@ import (
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
-	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/uptrace/bun"
 )
@@ -13,7 +11,6 @@ import (
 // InvitationPersistence is the real persistence surface for invitation behavior
 // tests. It excludes the unrelated capabilities built by the legacy factory.
 type InvitationPersistence struct {
-	Account authModels.AccountRepository
 	Person  userModels.PersonRepository
 	Staff   userModels.StaffRepository
 	Teacher userModels.TeacherRepository
@@ -33,8 +30,6 @@ func NewInvitationPersistence(db *bun.DB) (*InvitationPersistence, error) {
 		return nil, err
 	}
 	return &InvitationPersistence{
-		Account: authRepo.NewAccountRepository(db),
-
 		Person: NewPersonRepository(db),
 		Staff:  staff, Teacher: teachers,
 		Student: NewStudentRepository(db),

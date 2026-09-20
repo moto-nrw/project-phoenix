@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
@@ -25,11 +24,6 @@ var (
 	_ base.Entity = (*active.GroupSupervisor)(nil)
 
 	// activities package
-
-	// auth package
-	_ base.Entity = (*authmodels.Account)(nil)
-	_ base.Entity = (*authmodels.Permission)(nil)
-	_ base.Entity = (*authmodels.Role)(nil)
 
 	// education package
 	_ base.Entity = (*education.Group)(nil)

@@ -11,12 +11,11 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-func activityStaffClaims(account *authmodels.Account, accountPermissions ...string) jwt.AppClaims {
+func activityStaffClaims(account *testpkg.AccountFixture, accountPermissions ...string) jwt.AppClaims {
 	claims := testutil.DefaultTestClaims()
 	claims.ID = int(account.ID)
 	claims.Sub = account.Email

@@ -26,7 +26,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -674,7 +673,7 @@ func CreateTestPersonWithAccountID(tb testing.TB, db *bun.DB, firstName, lastNam
 
 // CreateTestAccount creates a real account in the database for authentication testing.
 // The email is made unique by appending a timestamp.
-func CreateTestAccount(tb testing.TB, db *bun.DB, email string) *authmodels.Account {
+func CreateTestAccount(tb testing.TB, db *bun.DB, email string) *AccountFixture {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -683,7 +682,7 @@ func CreateTestAccount(tb testing.TB, db *bun.DB, email string) *authmodels.Acco
 	// Make email unique
 	uniqueEmail := fmt.Sprintf(testEmailFormat, email, uniqueFixtureSuffix())
 
-	account := &authmodels.Account{
+	account := &AccountFixture{
 		Email:  uniqueEmail,
 		Active: true,
 	}
@@ -770,7 +769,7 @@ func UnclaimTestAccount(tb testing.TB, db *bun.DB, accountID int64) {
 
 // CreateTestAccountWithPassword creates an account with a hashed password.
 // This is needed for login tests where the password needs to be verified.
-func CreateTestAccountWithPassword(tb testing.TB, db *bun.DB, email, password string) *authmodels.Account {
+func CreateTestAccountWithPassword(tb testing.TB, db *bun.DB, email, password string) *AccountFixture {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -780,7 +779,7 @@ func CreateTestAccountWithPassword(tb testing.TB, db *bun.DB, email, password st
 	hashedPassword, err := hashPassword(password)
 	require.NoError(tb, err, "Failed to hash password")
 
-	account := &authmodels.Account{
+	account := &AccountFixture{
 		Email:        email,
 		Active:       true,
 		PasswordHash: &hashedPassword,
@@ -831,7 +830,7 @@ func hashPasswordUncached(password string) (string, error) {
 
 // CreateTestPersonWithAccount creates a person linked to an account.
 // This is needed for policy tests that look up users by account ID.
-func CreateTestPersonWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Person, *authmodels.Account) {
+func CreateTestPersonWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Person, *AccountFixture) {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -859,7 +858,7 @@ func CreateTestPersonWithAccount(tb testing.TB, db *bun.DB, firstName, lastName 
 
 // CreateTestStudentWithAccount creates a student with linked person and account.
 // Returns the student with PersonID set, and the associated account for auth context.
-func CreateTestStudentWithAccount(tb testing.TB, db *bun.DB, firstName, lastName, schoolClass string) (*users.Student, *authmodels.Account) {
+func CreateTestStudentWithAccount(tb testing.TB, db *bun.DB, firstName, lastName, schoolClass string) (*users.Student, *AccountFixture) {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -882,7 +881,7 @@ func CreateTestStudentWithAccount(tb testing.TB, db *bun.DB, firstName, lastName
 }
 
 // CreateTestStaffWithAccount creates a staff member with linked person and account.
-func CreateTestStaffWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Staff, *authmodels.Account) {
+func CreateTestStaffWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Staff, *AccountFixture) {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -916,7 +915,7 @@ func CreateTestStaffWithAccount(tb testing.TB, db *bun.DB, firstName, lastName s
 // account so FindReachableCalendarStaffIDs treats them as invitable. Use this in
 // calendar tests wherever staff must be selectable recipients. The added rows
 // inherit ownership from the account's test-tenant mapping.
-func CreateTestCalendarStaff(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Staff, *authmodels.Account) {
+func CreateTestCalendarStaff(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Staff, *AccountFixture) {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -944,7 +943,7 @@ func CreateTestCalendarStaff(tb testing.TB, db *bun.DB, firstName, lastName stri
 	err = db.NewSelect().
 		ColumnExpr("id").
 		TableExpr("auth.roles").
-		Where("name = ?", authmodels.BaseRoleUser).
+		Where("name = ?", "user").
 		Scan(ctx, &userRoleID)
 	require.NoError(tb, err, "Failed to find seeded user role")
 
@@ -957,7 +956,7 @@ func CreateTestCalendarStaff(tb testing.TB, db *bun.DB, firstName, lastName stri
 
 // CreateTestTeacherWithAccount creates a teacher with full chain: Account → Person → Staff → Teacher.
 // Returns the teacher and account for auth context testing.
-func CreateTestTeacherWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Teacher, *authmodels.Account) {
+func CreateTestTeacherWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Teacher, *AccountFixture) {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1003,7 +1002,7 @@ func AssignStudentToGroup(tb testing.TB, db *bun.DB, studentID, groupID int64) {
 // ============================================================================
 
 // CreateTestRole creates a role in the database for permission testing.
-func CreateTestRole(tb testing.TB, db *bun.DB, name string) *authmodels.Role {
+func CreateTestRole(tb testing.TB, db *bun.DB, name string) *RoleFixture {
 	tb.Helper()
 	return CreateTestRoleForTenant(tb, db, name, fixtureTenantID(tb))
 }
@@ -1011,7 +1010,7 @@ func CreateTestRole(tb testing.TB, db *bun.DB, name string) *authmodels.Role {
 // CreateTestRoleForTenant creates a role scoped to the given tenant.
 // Use this when the test operates under a specific tenant context so that
 // FindByID's tenant filter (tenant_id = ? OR tenant_id IS NULL) can find it.
-func CreateTestRoleForTenant(tb testing.TB, db *bun.DB, name string, tenantID int64) *authmodels.Role {
+func CreateTestRoleForTenant(tb testing.TB, db *bun.DB, name string, tenantID int64) *RoleFixture {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1023,8 +1022,8 @@ func CreateTestRoleForTenant(tb testing.TB, db *bun.DB, name string, tenantID in
 	// base_role is required by the role-create API, so every real custom role
 	// carries one; without it the role has no privilege tier and role-grant
 	// checks fail it closed.
-	baseRole := authmodels.BaseRoleUser
-	role := &authmodels.Role{
+	baseRole := "user"
+	role := &RoleFixture{
 		Name:        uniqueName,
 		Description: "Test role: " + name,
 		IsSystem:    false,
@@ -1043,7 +1042,7 @@ func CreateTestRoleForTenant(tb testing.TB, db *bun.DB, name string, tenantID in
 
 // CreateTestSystemRole creates a system role (tenant_id IS NULL, is_system = true).
 // System roles are immutable and visible to all tenants.
-func CreateTestSystemRole(tb testing.TB, db *bun.DB, name string) *authmodels.Role {
+func CreateTestSystemRole(tb testing.TB, db *bun.DB, name string) *RoleFixture {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1051,7 +1050,7 @@ func CreateTestSystemRole(tb testing.TB, db *bun.DB, name string) *authmodels.Ro
 
 	uniqueName := fmt.Sprintf("%s-%d", name, uniqueFixtureSuffix())
 
-	role := &authmodels.Role{
+	role := &RoleFixture{
 		Name:        uniqueName,
 		Description: "System role: " + name,
 		IsSystem:    true,
@@ -1062,7 +1061,7 @@ func CreateTestSystemRole(tb testing.TB, db *bun.DB, name string) *authmodels.Ro
 	// "user"), which this fixture has to uniquify. Carry the tier in base_role
 	// instead so role-grant checks see the same privilege level the caller asked
 	// for rather than an unrecognizable name.
-	if slices.Contains(authmodels.ValidBaseRoles(), strings.ToLower(strings.TrimSpace(name))) {
+	if slices.Contains([]string{"admin", "user", "guardian"}, strings.ToLower(strings.TrimSpace(name))) {
 		baseRole := strings.ToLower(strings.TrimSpace(name))
 		role.BaseRole = &baseRole
 	}
@@ -1107,7 +1106,7 @@ func AssignLehrkraftSystemRole(tb testing.TB, db *bun.DB, accountID, tenantID in
 // CreateTestPermission creates a permission in the database.
 // Note: The database has a unique constraint on (resource, action), so each call
 // creates a unique resource to avoid constraint violations.
-func CreateTestPermission(tb testing.TB, db *bun.DB, name, resource, action string) *authmodels.Permission {
+func CreateTestPermission(tb testing.TB, db *bun.DB, name, resource, action string) *PermissionFixture {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1119,7 +1118,7 @@ func CreateTestPermission(tb testing.TB, db *bun.DB, name, resource, action stri
 	uniqueName := fmt.Sprintf("%s-%s", name, uniqueSuffix)
 	uniqueResource := fmt.Sprintf("%s-%s", resource, uniqueSuffix)
 
-	permission := &authmodels.Permission{
+	permission := &PermissionFixture{
 		Name:        uniqueName,
 		Description: "Test permission: " + name,
 		Resource:    uniqueResource,
@@ -1481,7 +1480,7 @@ func CreateTestInvitationTokenWithOptions(tb testing.TB, db *bun.DB, email strin
 // callers ask for "admin"/"user"/"teacher" and mean the privilege tier those
 // carry. A freshly created stand-in has base_role "user" and fails every
 // role-grant check the tests are actually about.
-func GetOrCreateTestRole(tb testing.TB, db *bun.DB, name string) *authmodels.Role {
+func GetOrCreateTestRole(tb testing.TB, db *bun.DB, name string) *RoleFixture {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1490,7 +1489,7 @@ func GetOrCreateTestRole(tb testing.TB, db *bun.DB, name string) *authmodels.Rol
 	tenantID := fixtureTenantID(tb)
 
 	// This tenant's own role first, the shared system role second.
-	var role authmodels.Role
+	var role RoleFixture
 	err := db.NewSelect().
 		Model(&role).
 		ModelTableExpr(`auth.roles AS "role"`).
@@ -1508,8 +1507,8 @@ func GetOrCreateTestRole(tb testing.TB, db *bun.DB, name string) *authmodels.Rol
 	// base_role is required by the role-create API, so every real custom role
 	// carries one; without it the role has no privilege tier and role-grant
 	// checks fail it closed.
-	baseRole := authmodels.BaseRoleUser
-	role = authmodels.Role{
+	baseRole := "user"
+	role = RoleFixture{
 		Name:        name,
 		Description: "Test role for " + name,
 		IsSystem:    false,
@@ -1959,7 +1958,7 @@ func CreateTestStaffForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstNa
 // also needs the account's tenant mapping, roles, or the school row itself —
 // those all hang off the tenant id, and tenant 1 is shared with every other
 // package running in parallel.
-func CreateTestStaffWithAccountForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName string) (*users.Staff, *authmodels.Account) {
+func CreateTestStaffWithAccountForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName string) (*users.Staff, *AccountFixture) {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -2933,7 +2932,7 @@ func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 	err = db.NewSelect().
 		ColumnExpr("id").
 		TableExpr("auth.roles").
-		Where("name = ?", authmodels.BaseRoleGuardian).
+		Where("name = ?", "guardian").
 		Scan(ctx, &guardianRoleID)
 	require.NoError(tb, err, "Failed to find seeded guardian role")
 
@@ -3101,7 +3100,7 @@ func CreateTestCoGuardianForStudent(
 
 	var guardianRoleID int64
 	err = db.NewSelect().ColumnExpr("id").TableExpr("auth.roles").
-		Where("name = ?", authmodels.BaseRoleGuardian).Scan(ctx, &guardianRoleID)
+		Where("name = ?", "guardian").Scan(ctx, &guardianRoleID)
 	require.NoError(tb, err, "Failed to find seeded guardian role")
 	_, err = db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
 		account.ID, guardianRoleID, fixtureTenantID(tb)).Exec(ctx)

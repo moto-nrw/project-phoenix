@@ -8,7 +8,6 @@ import (
 
 	deliveryRepo "github.com/moto-nrw/project-phoenix/database/repositories/delivery"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -168,8 +167,8 @@ func TestPushSubscriptionRepository(t *testing.T) {
 	guardian := testpkg.CreateTestAccount(t, db, fmt.Sprintf("push-parent-%d@example.com", time.Now().UnixNano()))
 	createAccountTenantMapping(t, db, account.ID, testpkg.Tenant(t))
 	createAccountTenantMapping(t, db, guardian.ID, testpkg.Tenant(t))
-	assignSystemRole(t, db, account.ID, testpkg.Tenant(t), authModels.BaseRoleUser)
-	assignSystemRole(t, db, guardian.ID, testpkg.Tenant(t), authModels.BaseRoleGuardian)
+	assignSystemRole(t, db, account.ID, testpkg.Tenant(t), "user")
+	assignSystemRole(t, db, guardian.ID, testpkg.Tenant(t), "guardian")
 	// School-portal delivery additionally requires the lehrkraft system role.
 	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, testpkg.Tenant(t))
 
@@ -331,7 +330,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		assert.Empty(t, subscriptionsForAccount(subs, account.ID), "account without admin role must not appear")
 
 		// Grant the seeded admin role and expect the subscription to appear.
-		assignSystemRole(t, db, account.ID, testpkg.Tenant(t), authModels.BaseRoleAdmin)
+		assignSystemRole(t, db, account.ID, testpkg.Tenant(t), "admin")
 
 		subs, err = repo.FindForTenantAdmins(ctx)
 		require.NoError(t, err)
@@ -642,7 +641,7 @@ func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
 		ordinary.ID:    "ordinary",
 	} {
 		createAccountTenantMapping(t, db, accountID, testpkg.Tenant(t))
-		assignSystemRole(t, db, accountID, testpkg.Tenant(t), authModels.BaseRoleUser)
+		assignSystemRole(t, db, accountID, testpkg.Tenant(t), "user")
 		require.NoError(t, repo.Upsert(ctx, newSubscription(t,
 			accountID,
 			deliveryModels.PushPortalStaff,

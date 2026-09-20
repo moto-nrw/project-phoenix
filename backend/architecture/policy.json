@@ -1135,13 +1135,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/identityaccess/legacy/authpostgres",
-      "owner": "identity-access",
-      "role": "postgres",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "database/repositories/base",
       "owner": "transaction-runtime",
       "role": "postgres",
@@ -1473,13 +1466,6 @@
     {
       "path": "models/audit",
       "owner": "audit-platform",
-      "role": "domain",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "modules/identityaccess/legacy/authmodels",
-      "owner": "identity-access",
       "role": "domain",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
@@ -10281,17 +10267,6 @@
       "target_role": "domain"
     },
     {
-      "id": "timetable-activities.http-integration-test.identity-domain",
-      "description": "Timetable HTTP integration tests build retained account rows.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "workflow-integration-test",
-      "target_owner": "identity-access",
-      "target_role": "domain"
-    },
-    {
       "id": "timetable-activities.http-integration-test.people-domain",
       "description": "Timetable HTTP integration tests build retained people rows.",
       "scopes": [
@@ -11615,17 +11590,6 @@
       "target_role": "public"
     },
     {
-      "id": "delivery.adapter-test.identity-domain",
-      "description": "Delivery persistence tests create account and role fixtures for eligibility checks.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "domain"
-    },
-    {
       "id": "delivery.application.same-owner-adapter",
       "description": "Delivery applications delegate localization and provider details to owned adapters.",
       "scopes": [
@@ -12109,18 +12073,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "delivery-platform",
       "target_role": "public"
-    },
-    {
-      "id": "delivery-cutover.016",
-      "description": "Allows one dependency introduced by the Delivery package cutover.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "workflow-integration-test",
-      "target_owner": "identity-access",
-      "target_role": "domain"
     },
     {
       "id": "delivery-cutover.018",
@@ -25143,18 +25095,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3446"
     },
     {
-      "id": "identity-access.behaviour.identity-domain",
-      "description": "The Identity & Access behaviour suites in modules/identityaccess/behavior drive the composed module over the retained rows and the service root. Compatibility permission of #3364: the suites moved with the retained ports they used to drive; convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "identity-access",
-      "source_role": "e2e-test",
-      "target_owner": "identity-access",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3446"
-    },
-    {
       "id": "identity-access.behaviour.security-application",
       "description": "The Identity & Access behaviour suites in modules/identityaccess/behavior drive the composed module over the retained rows and the service root. Compatibility permission of #3364: the suites moved with the retained ports they used to drive; convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -25922,16 +25862,6 @@
     {
       "from": "auth/jwt",
       "to": "modules/identityaccess/legacy/jwt",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3226"
-    },
-    {
-      "from": "database/repositories/auth",
-      "to": "modules/identityaccess/legacy/authpostgres",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3226"
-    },
-    {
-      "from": "models/auth",
-      "to": "modules/identityaccess/legacy/authmodels",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3226"
     }
   ]

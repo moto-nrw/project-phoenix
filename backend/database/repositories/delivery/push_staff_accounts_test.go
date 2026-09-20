@@ -8,7 +8,6 @@ import (
 
 	deliveryRepo "github.com/moto-nrw/project-phoenix/database/repositories/delivery"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,8 +31,8 @@ func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
 
 	createAccountTenantMapping(t, db, addressed.ID, testpkg.Tenant(t))
 	createAccountTenantMapping(t, db, bystander.ID, testpkg.Tenant(t))
-	assignSystemRole(t, db, addressed.ID, testpkg.Tenant(t), authModels.BaseRoleUser)
-	assignSystemRole(t, db, bystander.ID, testpkg.Tenant(t), authModels.BaseRoleUser)
+	assignSystemRole(t, db, addressed.ID, testpkg.Tenant(t), "user")
+	assignSystemRole(t, db, bystander.ID, testpkg.Tenant(t), "user")
 	// The school portal is the lehrkraft surface: its pushes require that role.
 	testpkg.AssignLehrkraftSystemRole(t, db, addressed.ID, testpkg.Tenant(t))
 

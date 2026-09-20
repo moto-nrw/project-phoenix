@@ -8,7 +8,6 @@ import (
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -314,8 +313,8 @@ func TestLogoutLeavesOtherPortalSessionsIntact(t *testing.T) {
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	assignSeededRole(t, db, account.ID, tenantID, authModels.BaseRoleUser)
-	assignSeededRole(t, db, account.ID, tenantID, authModels.BaseRoleGuardian)
+	assignSeededRole(t, db, account.ID, tenantID, "user")
+	assignSeededRole(t, db, account.ID, tenantID, "guardian")
 
 	_, tenantRefresh, err := service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
@@ -342,8 +341,8 @@ func TestSessionCapDoesNotEvictOtherPortalSessions(t *testing.T) {
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	assignSeededRole(t, db, account.ID, tenantID, authModels.BaseRoleUser)
-	assignSeededRole(t, db, account.ID, tenantID, authModels.BaseRoleGuardian)
+	assignSeededRole(t, db, account.ID, tenantID, "user")
+	assignSeededRole(t, db, account.ID, tenantID, "guardian")
 
 	_, parentRefresh, err := service.LoginParent(ctx, email, testPassword)
 	require.NoError(t, err)
@@ -437,7 +436,7 @@ func TestRoleChangeKeepsStaffPushAtOtherSchools(t *testing.T) {
 	insertStaffPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/this-school", localFamily)
 	insertStaffPush(t, db, account.ID, secondaryTenantID, "https://fcm.googleapis.com/other-school", "other-family")
 
-	role, err := rbac.CreateRole(ctx, uniqueTestName("role-change-push"), "limit push wipe", testpkg.StrPtr(authModels.BaseRoleUser))
+	role, err := rbac.CreateRole(ctx, uniqueTestName("role-change-push"), "limit push wipe", testpkg.StrPtr("user"))
 	require.NoError(t, err)
 	require.NoError(t, rbac.AssignRoleToAccount(ctx, account.ID, role.ID))
 
@@ -472,7 +471,7 @@ func TestAssignRoleFromAdminTxKeepsOtherSchoolSessions(t *testing.T) {
 	_, err = db.NewInsert().Model(other).ModelTableExpr("auth.tokens").Exec(context.Background())
 	require.NoError(t, err)
 
-	role, err := rbac.CreateRole(ctx, uniqueTestName("admin-role-other"), "keep other school", testpkg.StrPtr(authModels.BaseRoleUser))
+	role, err := rbac.CreateRole(ctx, uniqueTestName("admin-role-other"), "keep other school", testpkg.StrPtr("user"))
 	require.NoError(t, err)
 	require.NoError(t, testpkg.WithAdminTx(t, ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
 		return rbac.AssignRoleToAccount(tenant.WithTenantID(adminCtx, tenantID), account.ID, role.ID)
@@ -505,7 +504,7 @@ func TestLogoutRemovesParentPushForFamily(t *testing.T) {
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	assignSeededRole(t, db, account.ID, tenantID, authModels.BaseRoleGuardian)
+	assignSeededRole(t, db, account.ID, tenantID, "guardian")
 
 	_, firstRefresh, err := service.LoginParent(ctx, email, testPassword)
 	require.NoError(t, err)
@@ -541,7 +540,7 @@ func TestLogoutRemovesUnboundParentPushAtSessionTenant(t *testing.T) {
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	assignSeededRole(t, db, account.ID, tenantID, authModels.BaseRoleGuardian)
+	assignSeededRole(t, db, account.ID, tenantID, "guardian")
 	secondaryTenantID, _ := testpkg.CreateTestTenant(t, db)
 	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
 
@@ -593,7 +592,7 @@ func TestSessionCapRemovesParentPushForEvictedFamily(t *testing.T) {
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	assignSeededRole(t, db, account.ID, tenantID, authModels.BaseRoleGuardian)
+	assignSeededRole(t, db, account.ID, tenantID, "guardian")
 
 	_, _, err = service.LoginParent(ctx, email, testPassword)
 	require.NoError(t, err)
@@ -743,7 +742,7 @@ func TestOrphanCleanupKeepsUnboundParentPushAtOtherSchool(t *testing.T) {
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	assignSeededRole(t, db, account.ID, tenantID, authModels.BaseRoleGuardian)
+	assignSeededRole(t, db, account.ID, tenantID, "guardian")
 	secondaryTenantID, _ := testpkg.CreateTestTenant(t, db)
 	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
 

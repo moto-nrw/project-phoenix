@@ -459,7 +459,7 @@ func TestGuardianInvitationService_Accept_ReusesExistingAccountWithoutPasswordCh
 	require.NotNil(t, acceptedAccount)
 	assert.Equal(t, account.ID, acceptedAccount.ID)
 
-	stored, err := env.repos.Account.FindByEmail(context.Background(), *profile.Email)
+	stored, err := testpkg.ReadAccountState(context.Background(), env.db, account.ID)
 	require.NoError(t, err)
 	require.NotNil(t, stored.PasswordHash)
 	assert.Equal(t, existingHash, *stored.PasswordHash)

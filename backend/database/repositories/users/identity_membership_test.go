@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +27,7 @@ func moveGuardianAccessToOtherSchool(t *testing.T, db *bun.DB, chain testpkg.Par
 	_, err := db.ExecContext(ctx, `
 		INSERT INTO auth.account_roles (account_id, role_id, tenant_id)
 		SELECT ?, id, ? FROM auth.roles WHERE name = ? AND tenant_id IS NULL`,
-		chain.AccountID, other, authModels.BaseRoleGuardian)
+		chain.AccountID, other, "guardian")
 	require.NoError(t, err)
 	_, err = db.ExecContext(ctx, change, chain.AccountID, chain.TenantID)
 	require.NoError(t, err)

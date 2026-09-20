@@ -17,7 +17,7 @@ import (
 func TestInvitationHTTPRequiresVerifiedOwner(t *testing.T) {
 	t.Parallel()
 	db, module := testutil.SetupInvitationModule(t)
-	repos, service := module.Persistence, module.Invitation
+	service := module.Invitation
 	// Unrelated route registrations capture method values but never call this
 	// account-lifecycle capability.
 	resource := authAPI.NewResource(module.Auth, service, nil, nil, db)
@@ -53,7 +53,7 @@ func TestInvitationHTTPRequiresVerifiedOwner(t *testing.T) {
 			require.Contains(t, rr.Body.String(), "INVITATION_ACCOUNT_MISMATCH")
 		}
 	}
-	stored, err := repos.Account.FindByID(context.Background(), owner.ID)
+	stored, err := testpkg.ReadAccountState(context.Background(), db, owner.ID)
 	require.NoError(t, err)
 	require.Equal(t, owner.PasswordHash, stored.PasswordHash)
 	joined, err := testpkg.ActiveAccountTenantExists(context.Background(), db, owner.ID, schoolA)

@@ -2,13 +2,12 @@ package repositories
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"time"
 
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/platform"
-	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 )
 
 // NewOperatorAuditLogRepository serves the retained operator audit-log
@@ -28,11 +27,11 @@ type operatorAuditLogRepository struct {
 
 func (r operatorAuditLogRepository) Create(ctx context.Context, entry *platform.OperatorAuditLog) error {
 	if entry == nil {
-		return authRepo.DatabaseError("create audit log entry", errors.New("audit log entry is required"))
+		return fmt.Errorf("database error during create audit log entry: audit log entry is required")
 	}
 	stored := auditEntry(entry)
 	if err := r.entries.Create(ctx, stored); err != nil {
-		return authRepo.DatabaseError("create audit log entry", err)
+		return fmt.Errorf("database error during create audit log entry: %w", err)
 	}
 	entry.ID = stored.ID
 	entry.CreatedAt = stored.CreatedAt
@@ -42,7 +41,7 @@ func (r operatorAuditLogRepository) Create(ctx context.Context, entry *platform.
 func (r operatorAuditLogRepository) FindByDateRange(ctx context.Context, start, end time.Time, limit int) ([]*platform.OperatorAuditLog, error) {
 	entries, err := r.entries.FindByDateRange(ctx, start, end, limit)
 	if err != nil {
-		return nil, authRepo.DatabaseError("find audit logs by date range", err)
+		return nil, fmt.Errorf("database error during find audit logs by date range: %w", err)
 	}
 	return auditLogModels(entries), nil
 }

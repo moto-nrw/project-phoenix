@@ -26,7 +26,6 @@ import (
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
@@ -49,7 +48,6 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
@@ -87,9 +85,6 @@ type Factory struct {
 	// through SchoolMembership().
 	schoolMembership schoolmembership.Capability
 	students         peopledirectory.Capability
-
-	// Auth domain
-	Account authModels.AccountRepository
 
 	// Users domain
 	Person              userModels.PersonRepository
@@ -495,7 +490,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	}
 	studentDeletionAudit := audit.NewStudentDeletionRepository(auditRepositoryRuntime)
 	enrollmentOfferingAdjustment := audit.NewEnrollmentOfferingAdjustmentRepository(auditRepositoryRuntime)
-	accountRepo := authpostgres.NewAccountRepository(db)
 	// The account facts other owners read belong to Identity & Access
 	// (#2720): the account lookups the People Directory and Care Plan
 	// repositories need are bound at construction.
@@ -509,9 +503,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	var factory *Factory
 	factory = &Factory{
 		db: db,
-		// Auth repositories
-		Account: accountRepo,
-
 		// Users repositories
 		Person:   personRepo,
 		RFIDCard: identity,

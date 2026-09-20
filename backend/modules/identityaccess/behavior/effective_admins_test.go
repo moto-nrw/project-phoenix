@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -126,8 +125,8 @@ func TestNativeEffectiveAdminAccountIDs(t *testing.T) {
 		admin := testpkg.CreateTestAccount(t, db, "effective-admin@example.test")
 		plain := testpkg.CreateTestAccount(t, db, "effective-plain@example.test")
 
-		grantTenantRole(t, db, ctx, admin.ID, testpkg.Tenant(t), authModels.BaseRoleAdmin)
-		grantTenantRole(t, db, ctx, plain.ID, testpkg.Tenant(t), authModels.BaseRoleUser)
+		grantTenantRole(t, db, ctx, admin.ID, testpkg.Tenant(t), "admin")
+		grantTenantRole(t, db, ctx, plain.ID, testpkg.Tenant(t), "user")
 
 		ids, err := repo.ListEffectiveAdminAccountIDs(ctx)
 		require.NoError(t, err)
@@ -138,7 +137,7 @@ func TestNativeEffectiveAdminAccountIDs(t *testing.T) {
 
 	t.Run("excludes a deactivated admin account", func(t *testing.T) {
 		admin := testpkg.CreateTestAccount(t, db, "effective-inactive@example.test")
-		grantTenantRole(t, db, ctx, admin.ID, testpkg.Tenant(t), authModels.BaseRoleAdmin)
+		grantTenantRole(t, db, ctx, admin.ID, testpkg.Tenant(t), "admin")
 
 		_, err := db.NewUpdate().
 			TableExpr("auth.accounts").
@@ -155,7 +154,7 @@ func TestNativeEffectiveAdminAccountIDs(t *testing.T) {
 
 	t.Run("excludes an admin whose tenant mapping is not active", func(t *testing.T) {
 		admin := testpkg.CreateTestAccount(t, db, "effective-pending@example.test")
-		grantTenantRole(t, db, ctx, admin.ID, testpkg.Tenant(t), authModels.BaseRoleAdmin)
+		grantTenantRole(t, db, ctx, admin.ID, testpkg.Tenant(t), "admin")
 
 		_, err := db.NewUpdate().
 			TableExpr("auth.account_tenants").
@@ -175,7 +174,7 @@ func TestNativeEffectiveAdminAccountIDs(t *testing.T) {
 		testpkg.EnsureTestTenant(t, db, otherTenant)
 
 		foreignAdmin := testpkg.CreateTestAccount(t, db, "effective-foreign@example.test")
-		grantTenantRole(t, db, ctx, foreignAdmin.ID, otherTenant, authModels.BaseRoleAdmin)
+		grantTenantRole(t, db, ctx, foreignAdmin.ID, otherTenant, "admin")
 
 		ids, err := repo.ListEffectiveAdminAccountIDs(ctx)
 		require.NoError(t, err)

@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	authModel "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -100,7 +99,7 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 		require.NoError(t, db.NewSelect().
 			TableExpr("auth.roles").
 			ColumnExpr("id").
-			Where("name = ?", authModel.BaseRoleGuardian).
+			Where("name = ?", "guardian").
 			Scan(ctx, &guardianRoleID))
 		_, err := db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
 			chain.AccountID, guardianRoleID, secondTenantID).Exec(ctx)

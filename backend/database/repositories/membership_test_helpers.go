@@ -6,15 +6,12 @@ import (
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
-	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/uptrace/bun"
 )
 
 type MembershipTestRepositories struct {
 	Person       usersModels.PersonRepository
-	Account      authModels.AccountRepository
 	Staff        usersModels.StaffRepository
 	Teacher      usersModels.TeacherRepository
 	Guest        usersModels.GuestRepository
@@ -56,7 +53,7 @@ func NewMembershipTestRepositories(db *bun.DB) (MembershipTestRepositories, erro
 	})
 	repos := &Factory{
 		db: db, Group: group,
-		Person: NewPersonRepository(db), Account: authRepo.NewAccountRepository(db),
+		Person: NewPersonRepository(db),
 	}
 	repos.membershipDeps = newStaffMembershipDeps(repos.Person, newIdentityAccess(db, nil))
 	repos.membershipDeps.groupTeachers = func() educationModels.GroupTeacherRepository { return repos.GroupTeacher }
@@ -68,8 +65,8 @@ func NewMembershipTestRepositories(db *bun.DB) (MembershipTestRepositories, erro
 	repos.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }}, workTime)
 	repos.BindPeopleDirectory(persons)
 	return MembershipTestRepositories{
-		Person: repos.Person, Account: repos.Account,
-		Staff: repos.Staff, Teacher: repos.Teacher, Guest: repos.Guest,
+		Person: repos.Person,
+		Staff:  repos.Staff, Teacher: repos.Teacher, Guest: repos.Guest,
 		Group: repos.Group, GroupTeacher: repos.GroupTeacher, ClassTeacher: repos.ClassTeacher,
 		Membership: membership,
 	}, nil

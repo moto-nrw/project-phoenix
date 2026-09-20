@@ -19,7 +19,6 @@ import (
 	"github.com/uptrace/bun"
 
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	authModel "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -126,7 +125,7 @@ func TestMFAService_GetTenantMFAOverride_DefaultNone(t *testing.T) {
 // The *bun.DB it accepts comes from newTestMFAService, which calls
 // testpkg.SetupTestDB internally — keeping the helper signature explicit
 // keeps callers honest about the fact that they're hitting a real DB.
-func tenantMappedAccount(t *testing.T, db *bun.DB, slug string) (*authModel.Account, int64) {
+func tenantMappedAccount(t *testing.T, db *bun.DB, slug string) (*testpkg.AccountFixture, int64) {
 	t.Helper()
 	acc := testpkg.CreateTestAccount(t, db, slug)
 	tenantID := testpkg.UniqueTestTenantID(t)

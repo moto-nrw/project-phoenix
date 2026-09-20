@@ -25,7 +25,6 @@ import (
 
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	authModel "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -446,7 +445,7 @@ func TestRegisterRejectsGuardianRole(t *testing.T) {
 	t.Parallel()
 	db, router := setupPublicRouterWithDB(t)
 
-	guardianRole := testpkg.CreateTestSystemRole(t, db, authModel.BaseRoleGuardian)
+	guardianRole := testpkg.CreateTestSystemRole(t, db, "guardian")
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().TableExpr("auth.roles").Where("id = ?", guardianRole.ID).Exec(context.Background())
 	})
@@ -1049,7 +1048,7 @@ func TestRoleManagement_BaseRole(t *testing.T) {
 
 	t.Run("update system role is rejected", func(t *testing.T) {
 		// System roles cannot be updated at all — the service returns 403
-		var systemRole authModel.Role
+		var systemRole testpkg.RoleFixture
 		err := tc.db.NewSelect().
 			Model(&systemRole).
 			ModelTableExpr(`auth.roles AS "role"`).
@@ -1477,7 +1476,7 @@ func TestAccountRoleAssignment(t *testing.T) {
 	t.Run("rejects direct assignment of guardian roles", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("guardian-assignment%d", time.Now().UnixNano()))
 		guardianRole := testpkg.CreateTestRole(t, tc.db, "guardian-assignment")
-		guardianBaseRole := authModel.BaseRoleGuardian
+		guardianBaseRole := "guardian"
 		guardianRole.BaseRole = &guardianBaseRole
 		_, err := tc.db.NewUpdate().
 			Model(guardianRole).

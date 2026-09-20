@@ -474,8 +474,9 @@ func TestAcceptInvitationRollsBackEveryWriteOfTheFailedChain(t *testing.T) {
 	})
 	require.ErrorIs(t, err, provisioningErr)
 
-	_, err = env.repos.Account.FindByEmail(context.Background(), address)
-	require.Error(t, err, "the account must be rolled back")
+	exists, err := testpkg.AccountEmailExists(context.Background(), env.db, address)
+	require.NoError(t, err)
+	require.False(t, exists, "the account must be rolled back")
 	assert.False(t, env.storedInvitation(t, invitation.ID).IsUsed(), "the invitation stays redeemable for the retry")
 
 	account, err := working.Invitation.AcceptSchoolInvitation(context.Background(), invitation.Token, identityaccess.InvitationRegistration{

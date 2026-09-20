@@ -608,7 +608,7 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 		Scan(context.Background(), &staffCount)
 	require.NoError(t, err)
 	assert.Equal(t, 1, staffCount, "the restored Betreuer has a live staff record again")
-	stored, err := sc.repos.Account.FindByID(context.Background(), account.ID)
+	stored, err := testpkg.ReadAccountState(context.Background(), sc.db, account.ID)
 	require.NoError(t, err)
 	assert.True(t, stored.Active)
 	assert.NotEqual(t, account.PasswordHash, stored.PasswordHash, "the invitee's new credential replaced the old one")

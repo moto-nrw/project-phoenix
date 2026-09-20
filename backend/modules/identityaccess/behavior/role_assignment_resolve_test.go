@@ -11,7 +11,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -59,7 +58,7 @@ func TestResolveAssignableSchoolRole(t *testing.T) {
 	})
 
 	t.Run("rejects a custom role derived from guardian", func(t *testing.T) {
-		guardianBase := authModels.BaseRoleGuardian
+		guardianBase := "guardian"
 		derivedRole := testpkg.CreateTestRoleForTenant(t, db, "zugriff-policy-guardian-base", homeTenantID)
 		derivedRole.BaseRole = &guardianBase
 		_, updateErr := db.NewRaw(`UPDATE auth.roles SET base_role = ? WHERE id = ?`, guardianBase, derivedRole.ID).Exec(ctx)
