@@ -1,14 +1,12 @@
 package platform
 
-import (
-	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
-)
+import "time"
 
 // OperatorEmailChangeToken represents a pending email change verification token
 type OperatorEmailChangeToken struct {
-	base.Model      `bun:"schema:platform,table:operator_email_change_tokens"`
+	ID              int64      `bun:"id,pk,autoincrement" json:"id"`
+	CreatedAt       time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp" json:"created_at"`
+	UpdatedAt       time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp" json:"updated_at"`
 	OperatorID      int64      `bun:"operator_id,notnull" json:"operator_id"`
 	NewEmail        string     `bun:"new_email,notnull" json:"new_email"`
 	Token           string     `bun:"token,notnull" json:"token"`

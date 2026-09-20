@@ -24,15 +24,15 @@
     "active.student_status_days"
   ],
   "exact_ratchet_keys": [],
-  "atomic_cutover": "Migration 1.15.399 replaces the stored visit-count function and drops compatibility objects in one transaction, with integrity checks and evidence revalidation under locks. Current callers and fixtures use owner storage. Existing installations fail closed because the required operating-duration decision remains unresolved; this is not a deployment approval.",
+  "atomic_cutover": "Migration 1.15.399 replaces the stored visit-count function and drops compatibility objects atomically on ordinary upgrades and fresh replays. Deployment stops both application services and verifies the complete release backup first. Live integrity and dependency checks run before deployment and under DDL locks. Historical compatibility counters, observation windows and operator evidence documents are not deployment gates.",
   "tests": [
     "Entire backend suite passed after Contract registration and stored-function correction; affected packages also passed with -count=1. See docs/operations/student-owner-storage-contract.md.",
-    "Contract tests cover preservation of current absence flags/timestamps and all owner/history snapshots, unknown function/view dependencies, integrity failures, lock timeout, transactional rollback, irreversible Down refusal, evidence/database/release binding and empty initial replay.",
+    "Contract tests cover a populated ordinary upgrade with 566 historical reads and 12 writes, unchanged owner and history snapshots, object removal and function replacement, unknown dependencies, integrity failures, lock timeout, transactional rollback, irreversible Down refusal and empty initial replay.",
     "Real pg_dump/pg_restore of a synthetic pre-Contract database preserved all measured row hashes, enabled/forced RLS and validated owner FKs. The actual prior server image ed76e883668985014427f8cd860e1fe7efb24ed0 then started against it and returned HTTP 200 on localhost health; post-start fingerprints remained identical.",
-    "All 23 release backup/deployment boundary tests passed, including the same read-only evidence snapshot in preflight and migration despite mutation of its original input."
+    "Release backup and deployment boundary tests cover preflight, application stop, backup-before-migration ordering and full rollback without operator evidence files."
   ],
   "runtime_evidence": {
-    "source": "Local observations on 2026-09-20, PostgreSQL 17.11 aarch64. No production writes. Sources distinguish durable synthetic measurements from the earlier shared-test-server lock observation.",
+    "source": "Local observations on 2026-09-20, PostgreSQL 17.11 aarch64. No production writes. Sources distinguish durable synthetic measurements from the earlier shared-test-server lock observation. These are historical core and recovery observations, not new measurements of the revised deployment policy.",
     "sources": [
       "docs/operations/student-owner-storage-contract.md",
       "docs/operations/evidence/student-owner-contract-2760/durable-cardinalities.txt",
@@ -51,7 +51,7 @@
       "docs/operations/evidence/student-owner-contract-2760/deployment-tests.txt"
     ],
     "workload": "One ungated Contract core execution on 1448 synthetic profiles across 12 populated schools, 2830 status days and 16 current sick flags, with fsync/synchronous_commit/full_page_writes on. Separately, deletion preview and execute each have 30 sequential samples after five warmups against the contracted schema on that durable local server. Lock-blocking observations use the shared local test server as documented. These are not a production-data clone or evidence of an observed school day.",
-    "thresholds": "Require unchanged owner/history snapshots, no unexpected errors, and no retirement when operational/integrity gates fail. Contract has a 60-second context deadline and 5-second lock timeout. User-approved rollback window: at least 24 hours without old access, including one complete regular school day and relevant jobs, supported by reviewed evidence. Evidence/backup freshness caps are 24 hours, not additional waiting periods. API latency is descriptive; no production latency ceiling is claimed.",
+    "thresholds": "Require unchanged owner/history snapshots, no unexpected errors, and no retirement when live integrity or compatibility-hit checks fail. Contract has a 60-second context deadline and 5-second lock timeout. The user revised the mandatory observation-window policy on 2026-09-20: ordinary deployments need no evidence file or waiting period. Explicitly supplied historical evidence retains its strict window and freshness validation. API latency is descriptive; no production latency ceiling is claimed.",
     "affected_rows": {
       "state": "measured",
       "result": "Contract preserved 1448 profiles, memberships and Care Plan rows, 2830 status-day rows, and 16 sick flags with timestamps; complete before/after owner/history JSON snapshots matched. The three retired relations were absent."
@@ -94,7 +94,7 @@
     },
     "job_backlog": {
       "state": "not_applicable",
-      "reason": "This removal has no background migration queue or remaining row-copy backlog; the backfill was completed by prerequisite migrations. Operational compatibility usage remains a separate release gate."
+      "reason": "Contract is a synchronous migration with no background copy backlog. Historical compatibility usage is diagnostic, not a release gate."
     },
     "failure": {
       "state": "measured",
@@ -109,7 +109,7 @@
       "result": "Full backend suite passed on the contracted default template after fixing the SQL-function dependency. The affected api/students, services/users, presence service and studentintegration packages passed uncached; raw repeated deletion workflow evidence also passed on durable PostgreSQL."
     }
   },
-  "rollback_and_cleanup": "No automatic Down reconstructs removed archive data. Restore a verified fresh pre-Contract backup together with its exact prior immutable application image. Local database restore and actual prior-backend-image startup were observed; production backup freshness must still be proved for each execution. The agreed 24-hour/school-day/jobs evidence is mandatory for existing installations.",
-  "exit_criterion": "Complete only after the rollback-window operating decision is explicit, required checks/review pass, and production execution remains outside this implementation request. The deployment script carries an immutable evidence snapshot into both phases; local database/prior-server-image recovery is measured. This record is not production execution approval.",
+  "rollback_and_cleanup": "No automatic Down reconstructs removed archive data. Normal deployment stops application writers, creates and verifies a complete pre-migration release-backup bundle, and restores it with the matching prior images on failure. Direct migration commands do not stop services or create backups. The observation-window evidence subsystem and absolute-zero-counter gate are removed.",
+  "exit_criterion": "Old storage and compatibility objects are removed, owner rows remain unchanged, and the stored deletion-count function uses owner tables. Relevant tests and architecture checks pass. Deploy staging before promoting the tested release to production through the normal backup/rollback pipeline; this code change is not a deployment execution.",
   "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020"
 }

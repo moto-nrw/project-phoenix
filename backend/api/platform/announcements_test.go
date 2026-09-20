@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -16,8 +17,47 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/platform"
 	platformModel "github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
+
+type viewerKey struct{}
+
+type testEnvelope struct {
+	Status  string `json:"status"`
+	Data    any    `json:"data,omitempty"`
+	Message string `json:"message,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
+
+// testRuntime stands in for the composition root: the viewer comes from the
+// request context and the bodies use the shared response envelope.
+func testRuntime() platform.Runtime {
+	write := func(w http.ResponseWriter, status int, body testEnvelope) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_ = json.NewEncoder(w).Encode(body)
+	}
+	return platform.Runtime{
+		Protected: func(router chi.Router, register func(chi.Router)) { register(router) },
+		Viewer: func(r *http.Request) platform.Viewer {
+			viewer, _ := r.Context().Value(viewerKey{}).(platform.Viewer)
+			return viewer
+		},
+		Success: func(w http.ResponseWriter, _ *http.Request, status int, data any, message string) {
+			write(w, status, testEnvelope{Status: "success", Data: data, Message: message})
+		},
+		IDParam: func(w http.ResponseWriter, r *http.Request, param, errMsg string) (int64, bool) {
+			id, err := strconv.ParseInt(chi.URLParam(r, param), 10, 64)
+			if err != nil {
+				write(w, http.StatusBadRequest, testEnvelope{Status: "error", Error: errMsg})
+				return 0, false
+			}
+			return id, true
+		},
+		Failure: func(w http.ResponseWriter, _ *http.Request, failure platform.Failure) {
+			write(w, http.StatusInternalServerError, testEnvelope{Status: "error", Error: failure.Message})
+		},
+	}
+}
 
 // Test constants used in mock assertions (not DB-dependent)
 const (
@@ -120,14 +160,14 @@ func TestGetUnread_Success(t *testing.T) {
 		},
 	}
 
-	resource := platform.NewAnnouncementsResource(mockService)
+	resource := platform.NewAnnouncementsResource(mockService, testRuntime())
 
 	req := httptest.NewRequest(http.MethodGet, "/announcements/unread", nil)
-	claims := jwt.AppClaims{
-		ID:    123,
-		Roles: []string{"teacher"},
+	claims := platform.Viewer{
+		AccountID: 123,
+		Roles:     []string{"teacher"},
 	}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	ctx := context.WithValue(req.Context(), viewerKey{}, claims)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -156,14 +196,14 @@ func TestGetUnread_NoRoles(t *testing.T) {
 		},
 	}
 
-	resource := platform.NewAnnouncementsResource(mockService)
+	resource := platform.NewAnnouncementsResource(mockService, testRuntime())
 
 	req := httptest.NewRequest(http.MethodGet, "/announcements/unread", nil)
-	claims := jwt.AppClaims{
-		ID:    123,
-		Roles: []string{},
+	claims := platform.Viewer{
+		AccountID: 123,
+		Roles:     []string{},
 	}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	ctx := context.WithValue(req.Context(), viewerKey{}, claims)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -181,14 +221,14 @@ func TestMarkDismissed_ServiceError(t *testing.T) {
 		},
 	}
 
-	resource := platform.NewAnnouncementsResource(mockService)
+	resource := platform.NewAnnouncementsResource(mockService, testRuntime())
 
 	req := httptest.NewRequest(http.MethodPost, "/announcements/1/dismiss", nil)
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "1")
-	claims := jwt.AppClaims{ID: 123}
+	claims := platform.Viewer{AccountID: 123}
 	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
+	ctx = context.WithValue(ctx, viewerKey{}, claims)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -217,16 +257,16 @@ func TestGetUnread_ResponseIncludesPublishedAt(t *testing.T) {
 		},
 	}
 
-	resource := platform.NewAnnouncementsResource(mockService)
+	resource := platform.NewAnnouncementsResource(mockService, testRuntime())
 
 	req := httptest.NewRequest(http.MethodGet, "/announcements/unread", nil)
-	claims := jwt.AppClaims{
-		ID:       123,
-		Roles:    []string{"teacher"},
-		OrgID:    5,
-		TenantID: 10,
+	claims := platform.Viewer{
+		AccountID: 123,
+		Roles:     []string{"teacher"},
+		OrgID:     5,
+		TenantID:  10,
 	}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	ctx := context.WithValue(req.Context(), viewerKey{}, claims)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -264,11 +304,11 @@ func TestGetUnread_NilPublishedAtRendersEmpty(t *testing.T) {
 		},
 	}
 
-	resource := platform.NewAnnouncementsResource(mockService)
+	resource := platform.NewAnnouncementsResource(mockService, testRuntime())
 
 	req := httptest.NewRequest(http.MethodGet, "/announcements/unread", nil)
-	claims := jwt.AppClaims{ID: 123, Roles: []string{"teacher"}}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := platform.Viewer{AccountID: 123, Roles: []string{"teacher"}}
+	ctx := context.WithValue(req.Context(), viewerKey{}, claims)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -298,11 +338,11 @@ func TestGetUnreadCount_Success(t *testing.T) {
 		},
 	}
 
-	resource := platform.NewAnnouncementsResource(mockService)
+	resource := platform.NewAnnouncementsResource(mockService, testRuntime())
 
 	req := httptest.NewRequest(http.MethodGet, "/announcements/unread/count", nil)
-	claims := jwt.AppClaims{ID: 123, Roles: []string{"teacher"}, TenantID: 10, OrgID: 5}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := platform.Viewer{AccountID: 123, Roles: []string{"teacher"}, TenantID: 10, OrgID: 5}
+	ctx := context.WithValue(req.Context(), viewerKey{}, claims)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -351,14 +391,14 @@ func TestMarkSeen_SuccessAndErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockService := &mockPlatformAnnouncementService{markSeenFn: tt.markSeenFn}
-			resource := platform.NewAnnouncementsResource(mockService)
+			resource := platform.NewAnnouncementsResource(mockService, testRuntime())
 
 			req := httptest.NewRequest(http.MethodPost, "/announcements/"+tt.id+"/seen", nil)
 			rctx := chi.NewRouteContext()
 			rctx.URLParams.Add("id", tt.id)
-			claims := jwt.AppClaims{ID: 123}
+			claims := platform.Viewer{AccountID: 123}
 			ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-			ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
+			ctx = context.WithValue(ctx, viewerKey{}, claims)
 			req = req.WithContext(ctx)
 			rr := httptest.NewRecorder()
 
@@ -376,14 +416,14 @@ func TestMarkDismissed_Success(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockPlatformAnnouncementService{}
-	resource := platform.NewAnnouncementsResource(mockService)
+	resource := platform.NewAnnouncementsResource(mockService, testRuntime())
 
 	req := httptest.NewRequest(http.MethodPost, "/announcements/1/dismiss", nil)
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "1")
-	claims := jwt.AppClaims{ID: 123}
+	claims := platform.Viewer{AccountID: 123}
 	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
+	ctx = context.WithValue(ctx, viewerKey{}, claims)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -396,14 +436,14 @@ func TestMarkDismissed_Success(t *testing.T) {
 func TestMarkDismissed_InvalidID(t *testing.T) {
 	t.Parallel()
 
-	resource := platform.NewAnnouncementsResource(&mockPlatformAnnouncementService{})
+	resource := platform.NewAnnouncementsResource(&mockPlatformAnnouncementService{}, testRuntime())
 
 	req := httptest.NewRequest(http.MethodPost, "/announcements/abc/dismiss", nil)
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "abc")
-	claims := jwt.AppClaims{ID: 123}
+	claims := platform.Viewer{AccountID: 123}
 	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
+	ctx = context.WithValue(ctx, viewerKey{}, claims)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -422,10 +462,10 @@ func TestGetUnread_ServiceError(t *testing.T) {
 			return nil, errors.New("database error")
 		},
 	}
-	resource := platform.NewAnnouncementsResource(mockService)
+	resource := platform.NewAnnouncementsResource(mockService, testRuntime())
 	req := httptest.NewRequest(http.MethodGet, "/announcements/unread", nil)
-	claims := jwt.AppClaims{ID: 123, Roles: []string{"teacher"}}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := platform.Viewer{AccountID: 123, Roles: []string{"teacher"}}
+	ctx := context.WithValue(req.Context(), viewerKey{}, claims)
 	rr := httptest.NewRecorder()
 	resource.GetUnread(rr, req.WithContext(ctx))
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
@@ -439,10 +479,10 @@ func TestGetUnreadCount_ServiceError(t *testing.T) {
 			return 0, errors.New("database error")
 		},
 	}
-	resource := platform.NewAnnouncementsResource(mockService)
+	resource := platform.NewAnnouncementsResource(mockService, testRuntime())
 	req := httptest.NewRequest(http.MethodGet, "/announcements/unread/count", nil)
-	claims := jwt.AppClaims{ID: 123, Roles: []string{"teacher"}}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := platform.Viewer{AccountID: 123, Roles: []string{"teacher"}}
+	ctx := context.WithValue(req.Context(), viewerKey{}, claims)
 	rr := httptest.NewRecorder()
 	resource.GetUnreadCount(rr, req.WithContext(ctx))
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
