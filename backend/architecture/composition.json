@@ -82,7 +82,7 @@
       "declaration": "seedParentAccounts",
       "target": "database/repositories.NewFactory",
       "lines": [
-        117
+        114
       ],
       "tables": []
     },

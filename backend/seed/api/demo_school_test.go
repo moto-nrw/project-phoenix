@@ -88,7 +88,7 @@ func TestBootstrapTenant_DemoSchoolJoinsExistingOrganization(t *testing.T) {
 			w.WriteHeader(seedHTTPStatusConflict)
 			_, _ = fmt.Fprint(w, `{"error":"slug already exists"}`)
 		case r.URL.Path == "/operator/organizations":
-			_, _ = fmt.Fprint(w, `{"data":[{"id":4,"slug":"other"},{"id":7,"slug":"demo-traeger-nord"}]}`)
+			_, _ = fmt.Fprint(w, `{"data":[{"id":4,"slug":"other"},{"id":4207,"slug":"demo-traeger-nord"}]}`)
 		case r.URL.Path == "/operator/schools":
 			_, _ = fmt.Fprint(w, `{"data":{"id":2,"subdomain":"ogs-nord"}}`)
 		case r.URL.Path == "/operator/schools/2/invite-admin":
@@ -108,8 +108,8 @@ func TestBootstrapTenant_DemoSchoolJoinsExistingOrganization(t *testing.T) {
 	bootstrap, err := seeder.bootstrapTenant(context.Background())
 	require.NoError(t, err)
 
-	assert.Equal(t, int64(7), bootstrap.OrganizationID)
-	assert.InDelta(t, 7, requests["/operator/schools"]["organization_id"], 0)
+	assert.Equal(t, int64(4207), bootstrap.OrganizationID)
+	assert.InDelta(t, 4207, requests["/operator/schools"]["organization_id"], 0)
 	assert.Equal(t, "OGS Nord", requests["/operator/schools"]["name"])
 	assert.Equal(t, "ogs-nord", requests["/operator/schools"]["slug"])
 	assert.Equal(t, "vollbetrieb-admin.ogs-nord@example.test", requests["/operator/schools/2/invite-admin"]["email"])
