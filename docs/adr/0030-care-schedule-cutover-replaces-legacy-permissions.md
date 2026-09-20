@@ -1,6 +1,10 @@
+---
+status: accepted
+---
+
 # Care Schedule retirement may replace its legacy permissions
 
-Status: accepted for #3351. The task owner approved the scoped ratchet
+Accepted for #3351. The task owner approved the scoped ratchet
 amendment during implementation on 2026-09-20.
 
 ## Context
