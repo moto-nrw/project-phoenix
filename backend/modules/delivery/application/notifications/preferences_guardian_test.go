@@ -29,7 +29,8 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	identity, err := repositories.NewIdentityAccessForTests(db)
+	require.NoError(t, err)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	t.Cleanup(func() {
 		_, err := db.NewDelete().
@@ -48,7 +49,7 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 			return reminderEnabled[tenant.FromContext(settingsCtx)], nil
 		},
 	}
-	svc := notifications.NewPreferenceService(services.NewNotificationConsentTestStore(db), settings, db, repos.AccountTenant)
+	svc := notifications.NewPreferenceService(services.NewNotificationConsentTestStore(db), settings, db, identity)
 	testpkg.SetTenantRuntime(t, svc, db)
 
 	t.Run("starts empty", func(t *testing.T) {

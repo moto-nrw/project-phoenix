@@ -12056,17 +12056,6 @@
       "target_role": "application"
     },
     {
-      "id": "delivery-cutover.006",
-      "description": "Allows one dependency introduced by the Delivery package cutover.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "application",
-      "target_owner": "identity-access",
-      "target_role": "domain"
-    },
-    {
       "id": "delivery-cutover.008",
       "description": "Allows one dependency introduced by the Delivery package cutover.",
       "scopes": [
@@ -12143,17 +12132,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "identity-access",
       "target_role": "domain"
-    },
-    {
-      "id": "delivery-cutover.017",
-      "description": "Allows one dependency introduced by the Delivery package cutover.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "workflow-integration-test",
-      "target_owner": "identity-access",
-      "target_role": "postgres"
     },
     {
       "id": "delivery-cutover.018",

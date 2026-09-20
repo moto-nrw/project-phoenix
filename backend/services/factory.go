@@ -2367,7 +2367,7 @@ func newFactory(
 		notificationConsent,
 		settingsService,
 		db,
-		repos.AccountTenant,
+		identityAccess,
 	)
 	staffNotificationRecipients := notifications.NewStaffRecipientResolver(
 		notificationPreferencesService,
@@ -2702,7 +2702,7 @@ func newFactory(
 	pushSubscriptionsService := notifications.NewPushSubscriptionService(
 		db,
 		repos.PushSubscription,
-		repos.AccountTenant,
+		identityAccess,
 		vapidConfig,
 		logger.With("service", "push_subscriptions"),
 	)
@@ -2711,7 +2711,7 @@ func newFactory(
 		db,
 		repos.PWAStandaloneUsage,
 		pwaUsageCounts{provisioning: operatorProvisioningService},
-		repos.AccountTenant,
+		identityAccess,
 		settingsService,
 		logger.With("service", "pwa_usage"),
 	)

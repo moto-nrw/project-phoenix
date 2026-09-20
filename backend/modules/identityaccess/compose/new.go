@@ -134,8 +134,8 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		return nil, err
 	}
 	e := engine{
-		profiles: application.NewAccountProfiles(service, store),
-		service:  service, mfa: operatorMFARecords, tokens: tokens,
+		profiles: application.NewAccountProfiles(service, store), guardianSchools: application.NewGuardianSchools(service, store),
+		service: service, mfa: operatorMFARecords, tokens: tokens,
 		passkeys: operatorPasskeys, accountPasskeys: accountPasskeys,
 		auth: auth, operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle, roles: roles,
 		resets: resets, invitations: invitations, provisioning: provisioning, administration: administration,
@@ -176,6 +176,7 @@ func (transaction) RunPlatform(ctx context.Context, callback func(context.Contex
 }
 
 type engine struct {
+	guardianSchools *application.GuardianSchools
 	profiles        *application.AccountProfiles
 	service         *application.Service
 	mfa             *application.OperatorMFA
