@@ -128,6 +128,15 @@ func TestWeekdayPickupNoteWithoutPickupTime(t *testing.T) {
 		testutil.AssertBadRequest(t, rr)
 		assert.Contains(t, rr.Body.String(), "weekday must be between")
 	})
+
+	t.Run("rejects_whitespace_only_weekday_note", func(t *testing.T) {
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/pickup-notes", student.ID), map[string]any{
+			"notes": []map[string]any{{"weekday": 2, "content": " \t "}},
+		})
+		rr := authExec(t, tc, req, claims, []string{"admin:*"})
+		testutil.AssertBadRequest(t, rr)
+		assert.Contains(t, rr.Body.String(), "content is required")
+	})
 }
 
 func TestReplaceWeekdayPickupNotesWaitsForStudentLock(t *testing.T) {

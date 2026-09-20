@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/go-chi/render"
@@ -114,7 +115,7 @@ func validateCareNoteRequest(noteDate string, content string) error {
 }
 
 func validateCareNoteContent(content string) error {
-	if content == "" {
+	if strings.TrimSpace(content) == "" {
 		return errors.New("content is required")
 	}
 	if len(content) > 500 {
