@@ -1,12 +1,14 @@
-package authpostgres_test
+package behavior_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,16 +51,75 @@ func grantTenantRole(t *testing.T, db *bun.DB, ctx context.Context, accountID, t
 	require.NoError(t, err)
 }
 
-// TestAccountRepository_ListEffectiveAdminAccountIDs pins who counts as an
+func TestNativeEffectiveAdminsIncludeGrantedWildcardsWithoutSchoolLeakage(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	query, err := repositories.NewIdentityAccessForTests(db)
+	require.NoError(t, err)
+	ctx := testpkg.Ctx(t)
+	home := testpkg.Tenant(t)
+	other, _ := testpkg.CreateTestTenant(t, db)
+	for _, resource := range []string{"admin", "*"} {
+		t.Run(resource, func(t *testing.T) {
+			var permissionID int64
+			require.NoError(t, db.NewRaw(`INSERT INTO auth.permissions (name, resource, action)
+				VALUES (?, ?, '*') ON CONFLICT (resource, action) DO UPDATE SET resource = EXCLUDED.resource RETURNING id`,
+				uniqueTestName("effective-admin-grant"), resource).Scan(ctx, &permissionID))
+			role := testpkg.CreateTestRole(t, db, "custom-admin-scope")
+			roleAdmin := testpkg.CreateTestAccount(t, db, "role-admin-scope")
+			directAdmin := testpkg.CreateTestAccount(t, db, "direct-admin-scope")
+			denied := testpkg.CreateTestAccount(t, db, "denied-admin-scope")
+			foreign := testpkg.CreateTestAccount(t, db, "foreign-admin-scope")
+			testpkg.EnsureAccountTenant(t, db, foreign.ID, other)
+			_, err := db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)", roleAdmin.ID, role.ID, home).Exec(ctx)
+			require.NoError(t, err)
+			_, err = db.NewRaw("INSERT INTO auth.role_permissions (role_id, permission_id) VALUES (?, ?)", role.ID, permissionID).Exec(ctx)
+			require.NoError(t, err)
+			_, err = db.NewRaw(`INSERT INTO auth.account_permissions (account_id, permission_id, tenant_id, granted)
+				VALUES (?, ?, ?, TRUE), (?, ?, ?, FALSE), (?, ?, ?, TRUE)`,
+				directAdmin.ID, permissionID, home, denied.ID, permissionID, home, foreign.ID, permissionID, other).Exec(ctx)
+			require.NoError(t, err)
+			ids, err := query.ListEffectiveAdminAccountIDs(ctx)
+			require.NoError(t, err)
+			require.Contains(t, ids, roleAdmin.ID)
+			require.Contains(t, ids, directAdmin.ID)
+			require.NotContains(t, ids, denied.ID)
+			require.NotContains(t, ids, foreign.ID)
+			rollback := errors.New("rollback admin grant revocation")
+			err = tenant.WithAdminTx(ctx, db, func(txCtx context.Context, tx bun.Tx) error {
+				txCtx = tenant.WithTenantID(txCtx, home)
+				_, writeErr := tx.NewRaw("DELETE FROM auth.role_permissions WHERE role_id = ?", role.ID).Exec(txCtx)
+				require.NoError(t, writeErr)
+				_, writeErr = tx.NewRaw("UPDATE auth.account_permissions SET granted = FALSE WHERE account_id = ? AND tenant_id = ?", directAdmin.ID, home).Exec(txCtx)
+				require.NoError(t, writeErr)
+				inside, readErr := query.ListEffectiveAdminAccountIDs(txCtx)
+				require.NoError(t, readErr)
+				require.NotContains(t, inside, roleAdmin.ID)
+				require.NotContains(t, inside, directAdmin.ID)
+				return rollback
+			})
+			require.ErrorIs(t, err, rollback)
+			after, err := query.ListEffectiveAdminAccountIDs(ctx)
+			require.NoError(t, err)
+			require.ElementsMatch(t, ids, after)
+			global, err := query.ListEffectiveAdminAccountIDs(context.Background())
+			require.NoError(t, err)
+			require.Contains(t, global, foreign.ID, "an unscoped administrative caller retains platform reads")
+		})
+	}
+}
+
+// TestNativeEffectiveAdminAccountIDs pins who counts as an
 // effective admin. The result decides who receives tenant-wide data, so both
 // directions matter: missing an admin is an annoyance, including a non-admin is
 // a disclosure.
-func TestAccountRepository_ListEffectiveAdminAccountIDs(t *testing.T) {
+func TestNativeEffectiveAdminAccountIDs(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
+	repo, err := repositories.NewIdentityAccessForTests(db)
+	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("includes the admin role and excludes a plain user", func(t *testing.T) {

@@ -263,7 +263,7 @@ func addWorkerRepositoryDependencies(deps *scheduler.WorkerDependencies, api *AP
 		Notifier:     api.Services.Notifications,
 		Preferences:  api.Services.NotificationPreferences,
 		Staff:        api.repos.Staff,
-		Accounts:     api.repos.Account,
+		Accounts:     api.Services.Auth,
 		WorkSessions: api.repos.WorkSession,
 	}
 }

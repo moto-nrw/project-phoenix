@@ -2375,7 +2375,7 @@ func newFactory(
 		repos.Student,
 		repos.Group,
 		repos.Staff,
-		repos.Account,
+		identityAccess,
 		settingsService,
 		repos.WorkSession,
 	)

@@ -12,10 +12,6 @@ type AccountRepository interface {
 	FindManageableByID(ctx context.Context, id int64) (*Account, error)
 	FindByIDForUpdate(ctx context.Context, id int64) (*Account, error)
 	FindByEmail(ctx context.Context, email string) (*Account, error)
-	// ListEffectiveAdminAccountIDs returns the IDs of active accounts with
-	// effective admin scope in the current tenant: the literal admin role, or
-	// an admin:* / *:* permission from a role or granted directly.
-	ListEffectiveAdminAccountIDs(ctx context.Context) ([]int64, error)
 	// AnonymizeForDeletion overwrites the email with an anonymized
 	// placeholder and clears the username (GDPR person deletion).
 	AnonymizeForDeletion(ctx context.Context, accountID int64, anonymizedEmail string) error

@@ -2,6 +2,11 @@ package compose
 
 import "context"
 
+func (e engine) ListEffectiveAdminAccountIDs(ctx context.Context) ([]int64, error) {
+	ids, err := e.accountRoleQueries.ListEffectiveAdminAccountIDs(ctx)
+	return ids, mapError(err)
+}
+
 func (e engine) FindActiveSchoolMemberships(ctx context.Context, accountIDs, schoolIDs []int64) (map[int64][]int64, error) {
 	result, err := e.accountRoleQueries.FindActiveSchoolMemberships(ctx, accountIDs, schoolIDs)
 	return result, mapError(err)
