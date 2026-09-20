@@ -66,7 +66,7 @@ var moduleFileSizeAllowlist = map[string]int{
 	"modules/careplan/legacy/careschedule/arrival_service.go":                        1346,
 	"modules/careplan/legacy/careschedule/care_request_service.go":                   2801,
 	"modules/careplan/legacy/careschedule/effective_time_service.go":                 1048,
-	"modules/careplan/legacy/careschedule/pickup_schedule_service.go":                1067,
+	"modules/careplan/legacy/careschedule/pickup_schedule_service.go":                1060,
 	"modules/classday/internal/application/slotlists.go":                             2642,
 	"modules/communication/internal/adapters/parentaudience/projection.go":           950,
 	"modules/communication/internal/adapters/parentpostgres/parent_announcements.go": 950,
