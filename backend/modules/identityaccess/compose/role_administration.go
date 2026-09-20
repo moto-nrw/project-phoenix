@@ -8,48 +8,15 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
-
-// Role administration persists permissions inside this module. The remaining
-// role and account seam below uses public values until its #3226 cutover.
-
-// RoleDirectory is the retained role and account storage. Lookups report
-// found=false only for a missing row; every other failure is an error.
-// Account reads apply the tenant filter of the context.
-type RoleDirectory interface {
-	CreateRole(ctx context.Context, role identityaccess.Role) (identityaccess.Role, error)
-	FindRole(ctx context.Context, id int64) (identityaccess.Role, bool, error)
-	// FindSystemRoleByName resolves a platform system role by name.
-	FindSystemRoleByName(ctx context.Context, name string) (identityaccess.Role, bool, error)
-	FindRoleForUpdate(ctx context.Context, id int64) (identityaccess.Role, bool, error)
-	UpdateRole(ctx context.Context, role identityaccess.Role) error
-	DeleteRole(ctx context.Context, id int64) error
-	ListRoles(ctx context.Context, filter identityaccess.RoleFilter) ([]identityaccess.Role, error)
-	ListAccountRoles(ctx context.Context, accountID int64) ([]identityaccess.Role, error)
-	ListAccountRoleNames(ctx context.Context, accountIDs []int64) (map[int64]string, error)
-
-	AccountHoldsRole(ctx context.Context, accountID, roleID int64) (bool, error)
-	CreateAccountRole(ctx context.Context, accountID, roleID, tenantID int64) error
-	DeleteAccountRole(ctx context.Context, accountID, roleID int64) error
-	DeleteRoleAssignments(ctx context.Context, roleID int64) error
-
-	FindManageableAccount(ctx context.Context, accountID int64) (bool, error)
-	LockAccount(ctx context.Context, accountID int64) (bool, error)
-	HasTenantMembership(ctx context.Context, accountID, tenantID int64, share bool) (bool, error)
-	ListAccountEmails(ctx context.Context, accountIDs []int64) (map[int64]string, error)
-	ListAccountAvatars(ctx context.Context, accountIDs []int64) (map[int64]string, error)
-}
 
 // newRoleAdministration composes the role administration. The school identity
 // is read at call time because the lifecycle flows it belongs to are composed
 // after the administration they remove roles through.
-func newRoleAdministration(auth *application.AccountAuthentication, runtime ports.Runtime, permissions ports.PermissionStore, deps *LifecycleDependencies, identity func() *application.AccountLifecycle) (*application.RoleAdministration, error) {
-	if deps.Roles == nil {
-		return nil, errors.New("identity access compose: the role directory is required")
-	}
+func newRoleAdministration(auth *application.AccountAuthentication, runtime ports.Runtime, store ports.RoleStore, accounts ports.ManageableAccounts, deps *LifecycleDependencies, identity func() *application.AccountLifecycle) (*application.RoleAdministration, error) {
 	return application.NewRoleAdministration(application.RoleAdministrationDependencies{
-		Store:         roleStore{source: deps.Roles, PermissionStore: permissions},
+		Store:         store,
+		Accounts:      accounts,
 		Profiles:      staffDirectory{deps.Staff},
 		Policy:        roleAssignmentPolicy{},
 		IdentityRoles: rolePolicy{},
@@ -111,113 +78,6 @@ func (roleAssignmentPolicy) IsPlatformCaregiverRole(role *domain.RoleFacts) bool
 
 func (roleAssignmentPolicy) ValidateAssignableSchoolRole(role *domain.RoleFacts, tenantID int64) error {
 	return identityaccess.ValidateAssignableSchoolRole(publicRoleFacts(role), tenantID)
-}
-
-// --- role store adapter ----------------------------------------------------
-
-type roleStore struct {
-	source RoleDirectory
-	ports.PermissionStore
-}
-
-func managedRole(role identityaccess.Role) domain.ManagedRole { return domain.ManagedRole(role) }
-
-func managedRoles(roles []identityaccess.Role) []domain.ManagedRole {
-	if roles == nil {
-		return nil
-	}
-	result := make([]domain.ManagedRole, 0, len(roles))
-	for _, role := range roles {
-		result = append(result, managedRole(role))
-	}
-	return result
-}
-
-func (s roleStore) CreateRole(ctx context.Context, role domain.ManagedRole) (domain.ManagedRole, error) {
-	created, err := s.source.CreateRole(ctx, identityaccess.Role(role))
-	return managedRole(created), err
-}
-
-func (s roleStore) FindRole(ctx context.Context, id int64) (domain.ManagedRole, bool, error) {
-	role, found, err := s.source.FindRole(ctx, id)
-	return managedRole(role), found, err
-}
-
-// FindRoleIgnoringTenant drops the tenant from the context, so the store's
-// lookup applies no tenant filter and a system role stays resolvable.
-func (s roleStore) FindRoleIgnoringTenant(ctx context.Context, id int64) (domain.ManagedRole, bool, error) {
-	role, found, err := s.source.FindRole(tenant.ContextWithoutTenant(ctx), id)
-	return managedRole(role), found, err
-}
-
-// FindSystemRoleByName resolves the platform system role without a tenant,
-// so it stays visible inside a tenant transaction.
-func (s roleStore) FindSystemRoleByName(ctx context.Context, name string) (domain.ManagedRole, bool, error) {
-	role, found, err := s.source.FindSystemRoleByName(tenant.ContextWithoutTenant(ctx), name)
-	return managedRole(role), found, err
-}
-
-func (s roleStore) FindRoleForUpdate(ctx context.Context, id int64) (domain.ManagedRole, bool, error) {
-	role, found, err := s.source.FindRoleForUpdate(ctx, id)
-	return managedRole(role), found, err
-}
-
-func (s roleStore) UpdateRole(ctx context.Context, role domain.ManagedRole) error {
-	return s.source.UpdateRole(ctx, identityaccess.Role(role))
-}
-
-func (s roleStore) DeleteRole(ctx context.Context, id int64) error {
-	return s.source.DeleteRole(ctx, id)
-}
-
-func (s roleStore) ListRoles(ctx context.Context, filter domain.RoleFilter) ([]domain.ManagedRole, error) {
-	roles, err := s.source.ListRoles(ctx, identityaccess.RoleFilter(filter))
-	return managedRoles(roles), err
-}
-
-func (s roleStore) ListAccountRoles(ctx context.Context, accountID int64) ([]domain.ManagedRole, error) {
-	roles, err := s.source.ListAccountRoles(ctx, accountID)
-	return managedRoles(roles), err
-}
-
-func (s roleStore) ListAccountRoleNames(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
-	return s.source.ListAccountRoleNames(ctx, accountIDs)
-}
-
-func (s roleStore) AccountHoldsRole(ctx context.Context, accountID, roleID int64) (bool, error) {
-	return s.source.AccountHoldsRole(ctx, accountID, roleID)
-}
-
-func (s roleStore) CreateAccountRole(ctx context.Context, accountID, roleID, tenantID int64) error {
-	return s.source.CreateAccountRole(ctx, accountID, roleID, tenantID)
-}
-
-func (s roleStore) DeleteAccountRole(ctx context.Context, accountID, roleID int64) error {
-	return s.source.DeleteAccountRole(ctx, accountID, roleID)
-}
-
-func (s roleStore) DeleteRoleAssignments(ctx context.Context, roleID int64) error {
-	return s.source.DeleteRoleAssignments(ctx, roleID)
-}
-
-func (s roleStore) FindManageableAccount(ctx context.Context, accountID int64) (bool, error) {
-	return s.source.FindManageableAccount(ctx, accountID)
-}
-
-func (s roleStore) LockAccount(ctx context.Context, accountID int64) (bool, error) {
-	return s.source.LockAccount(ctx, accountID)
-}
-
-func (s roleStore) HasTenantMembership(ctx context.Context, accountID, tenantID int64, share bool) (bool, error) {
-	return s.source.HasTenantMembership(ctx, accountID, tenantID, share)
-}
-
-func (s roleStore) ListAccountEmails(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
-	return s.source.ListAccountEmails(ctx, accountIDs)
-}
-
-func (s roleStore) ListAccountAvatars(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
-	return s.source.ListAccountAvatars(ctx, accountIDs)
 }
 
 // --- engine methods -------------------------------------------------------

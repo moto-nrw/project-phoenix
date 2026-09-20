@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"time"
 
@@ -22,7 +21,7 @@ import (
 // parent accounts and guardian relative access (#3225). This file binds the
 // seams those flows need to the retained owners the root still composes
 // (persons, staff, teachers, students, guardian profiles and relationships,
-// the audit ledger, the retained account management and role storage, the
+// the audit ledger, the
 // guardian invitation storage and delivery) and serves the retained auth
 // service's consumer-owned port over the public module.
 
@@ -47,28 +46,20 @@ type lifecycleRepositories struct {
 	guardianProfiles userModels.GuardianProfileRepository
 	studentGuardians userModels.StudentGuardianRepository
 	authEvents       auditModels.AuthEventRepository
-	roles            identityaccessCompose.RoleDirectory
-	// rolesErr is why the role directory could not be bound; the lifecycle
-	// composition reports it instead of the generic incompleteness.
-	rolesErr error
 }
 
 func (w lifecycleWiring) complete() bool {
 	r := w.repos
 	return r.persons != nil && r.staff != nil && r.teachers != nil && r.students != nil &&
-		r.guardianProfiles != nil && r.studentGuardians != nil && r.authEvents != nil &&
-		r.roles != nil && w.audit != nil
+		r.guardianProfiles != nil && r.studentGuardians != nil && r.authEvents != nil && w.audit != nil
 }
 
 func lifecycleDependencies(wiring *lifecycleWiring, logger *slog.Logger) (*identityaccessCompose.LifecycleDependencies, error) {
 	if wiring == nil {
 		return nil, nil
 	}
-	if wiring.repos.rolesErr != nil {
-		return nil, fmt.Errorf("identity access composition: %w", wiring.repos.rolesErr)
-	}
 	if !wiring.complete() {
-		return nil, errors.New("identity access composition: every lifecycle and role repository and the audit command are required")
+		return nil, errors.New("identity access composition: every lifecycle repository and the audit command are required")
 	}
 	delivery, enrollments, err := guardianInvitationDependencies(wiring.guardianMail)
 	if err != nil {
@@ -84,7 +75,6 @@ func lifecycleDependencies(wiring *lifecycleWiring, logger *slog.Logger) (*ident
 		Delivery:    delivery,
 		Enrollments: enrollments,
 		Financial:   financialAudit{command: wiring.audit},
-		Roles:       wiring.repos.roles,
 		Logger:      logger,
 	}, nil
 }

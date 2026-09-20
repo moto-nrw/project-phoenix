@@ -129,13 +129,10 @@ func collectRepoInterfaceMethods(t *testing.T, backendRoot string) []string {
 }
 
 // retainedCallerFiles are production call sites under database/ that serve an
-// owner module over the retained repositories; the Identity & Access role
-// administration (#3314) calls the role, permission, assignment and grant
-// repositories only through this adapter, and the second factor (#3331) the
+// owner module over the retained repositories; the second factor (#3331) calls the
 // MFA credential, challenge, trusted-device and override repositories, until
 // #3226 moves the stores into the module; delete the entry with the file.
 var retainedCallerFiles = []string{
-	"database/repositories/identity_roles.go",
 	"database/repositories/identity_mfa.go",
 }
 

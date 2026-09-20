@@ -17,6 +17,7 @@ import (
 // the school identity chain and the session revocation are the module's own
 // flows, reached through ports so the rules can be exercised in isolation.
 type RoleAdministration struct {
+	accounts      ports.ManageableAccounts
 	store         ports.RoleStore
 	profiles      ports.CaregiverProfiles
 	policy        ports.RoleAssignmentPolicy
@@ -29,6 +30,7 @@ type RoleAdministration struct {
 
 // RoleAdministrationDependencies are the ports the administration consumes.
 type RoleAdministrationDependencies struct {
+	Accounts ports.ManageableAccounts
 	Store    ports.RoleStore
 	Profiles ports.CaregiverProfiles
 	Policy   ports.RoleAssignmentPolicy
@@ -43,8 +45,8 @@ type RoleAdministrationDependencies struct {
 // NewRoleAdministration composes the administration over its ports.
 func NewRoleAdministration(deps RoleAdministrationDependencies) (*RoleAdministration, error) {
 	switch {
-	case deps.Store == nil, deps.Profiles == nil:
-		return nil, fmt.Errorf("identity access role administration: role store and caregiver profiles are required")
+	case deps.Store == nil, deps.Profiles == nil, deps.Accounts == nil:
+		return nil, fmt.Errorf("identity access role administration: role store, manageable accounts and caregiver profiles are required")
 	case deps.Policy == nil, deps.IdentityRoles == nil:
 		return nil, fmt.Errorf("identity access role administration: role policies are required")
 	case deps.Identity == nil, deps.Sessions == nil:
@@ -57,7 +59,7 @@ func NewRoleAdministration(deps RoleAdministrationDependencies) (*RoleAdministra
 		logger = slog.Default()
 	}
 	return &RoleAdministration{
-		store: deps.Store, profiles: deps.Profiles, policy: deps.Policy, identityRoles: deps.IdentityRoles,
+		accounts: deps.Accounts, store: deps.Store, profiles: deps.Profiles, policy: deps.Policy, identityRoles: deps.IdentityRoles,
 		identity: deps.Identity, sessions: deps.Sessions, runtime: deps.Runtime, logger: logger,
 	}, nil
 }
@@ -400,7 +402,7 @@ func (r *RoleAdministration) RemoveRoleFromAccount(ctx context.Context, accountI
 // GetAccountRoles returns the roles the account holds at the tenant in
 // context.
 func (r *RoleAdministration) GetAccountRoles(ctx context.Context, accountID int64) ([]domain.ManagedRole, error) {
-	if found, err := r.store.FindManageableAccount(ctx, accountID); err != nil || !found {
+	if _, err := r.accounts.FindManageableAccount(ctx, accountID); err != nil {
 		return nil, failed("get account roles", domain.ErrAccountNotFound)
 	}
 	if err := r.ensureOrganizationRBACMembership(ctx, accountID, "get account roles", false); err != nil {
@@ -447,7 +449,7 @@ func (r *RoleAdministration) GetAccountAvatars(ctx context.Context, accountIDs [
 // the account's active school membership is taken FOR SHARE, so a concurrent
 // tenant-access revocation waits for the mutation.
 func (r *RoleAdministration) lockManageableAccount(ctx context.Context, accountID int64, op string) error {
-	if found, err := r.store.FindManageableAccount(ctx, accountID); err != nil || !found {
+	if _, err := r.accounts.FindManageableAccount(ctx, accountID); err != nil {
 		return failed(op, domain.ErrAccountNotFound)
 	}
 	if err := r.ensureOrganizationRBACMembership(ctx, accountID, op, false); err != nil {
@@ -456,7 +458,7 @@ func (r *RoleAdministration) lockManageableAccount(ctx context.Context, accountI
 	if found, err := r.store.LockAccount(ctx, accountID); err != nil || !found {
 		return failed(op, domain.ErrAccountNotFound)
 	}
-	if found, err := r.store.FindManageableAccount(ctx, accountID); err != nil || !found {
+	if _, err := r.accounts.FindManageableAccount(ctx, accountID); err != nil {
 		return failed(op, domain.ErrAccountNotFound)
 	}
 	if err := r.ensureOrganizationRBACMembership(ctx, accountID, op, true); err != nil {

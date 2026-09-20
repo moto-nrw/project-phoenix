@@ -5,9 +5,9 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // newAccountProvisioning composes the registration and link flows (#3332).
@@ -15,7 +15,7 @@ import (
 // policy, the caregiver-profile fact and the identity chain are the ones the
 // lifecycle flows already bind.
 func newAccountProvisioning(
-	store provisioningStore,
+	store *postgres.Store,
 	lifecycle *application.AccountLifecycle,
 	sessions *SessionDependencies,
 	deps *LifecycleDependencies,
@@ -34,7 +34,7 @@ func newAccountProvisioning(
 		Accounts:  store,
 		Logins:    store,
 		RoleStore: store,
-		Roles:     roleStore{source: deps.Roles, PermissionStore: store},
+		Roles:     postgres.NewRoleStore(store),
 		Policy:    roleAssignmentPolicy{},
 		Identity:  lifecycle,
 		Profiles:  staffDirectory{deps.Staff},
@@ -42,14 +42,6 @@ func newAccountProvisioning(
 		Runtime:   tenantRuntime{attach: attach, runner: newTransactionRunner()},
 		Logger:    deps.Logger,
 	})
-}
-
-// provisioningStore is the module store as the provisioning flows read it.
-type provisioningStore interface {
-	ports.PermissionStore
-	ports.SchoolAccountStore
-	ports.AccountLoginStore
-	ports.Store
 }
 
 // --- engine methods --------------------------------------------------------

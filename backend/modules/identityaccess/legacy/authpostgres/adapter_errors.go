@@ -15,12 +15,6 @@ func DatabaseError(op string, err error) error {
 	return &modelBase.DatabaseError{Op: op, Err: err}
 }
 
-// IsNotFound reports whether err is the retained repositories' missing-row
-// outcome, as TranslateNotFound records it.
-func IsNotFound(err error) bool {
-	return errors.Is(err, modelBase.ErrNotFound)
-}
-
 // IsMissingRow reports whether err is a missing row in either spelling the
 // retained repositories produce: the base not-found sentinel that
 // TranslateNotFound records, and the driver's own sql.ErrNoRows, which the

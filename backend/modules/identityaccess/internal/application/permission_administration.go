@@ -119,7 +119,7 @@ func (r *RoleAdministration) RemovePermissionFromAccount(ctx context.Context, ac
 // GetAccountPermissions returns the direct and the role-based permissions of
 // an account in one query.
 func (r *RoleAdministration) GetAccountPermissions(ctx context.Context, accountID int64) ([]domain.ManagedPermission, error) {
-	if found, err := r.store.FindManageableAccount(ctx, accountID); err != nil || !found {
+	if _, err := r.accounts.FindManageableAccount(ctx, accountID); err != nil {
 		return nil, failed("get account permissions", domain.ErrAccountNotFound)
 	}
 	if err := r.ensureOrganizationRBACMembership(ctx, accountID, "get account permissions", false); err != nil {
@@ -135,7 +135,7 @@ func (r *RoleAdministration) GetAccountPermissions(ctx context.Context, accountI
 // GetAccountDirectPermissions returns only the direct permissions of an
 // account, not the role-based ones.
 func (r *RoleAdministration) GetAccountDirectPermissions(ctx context.Context, accountID int64) ([]domain.ManagedPermission, error) {
-	if found, err := r.store.FindManageableAccount(ctx, accountID); err != nil || !found {
+	if _, err := r.accounts.FindManageableAccount(ctx, accountID); err != nil {
 		return nil, failed("get account direct permissions", domain.ErrAccountNotFound)
 	}
 	if err := r.ensureOrganizationRBACMembership(ctx, accountID, "get account direct permissions", false); err != nil {
