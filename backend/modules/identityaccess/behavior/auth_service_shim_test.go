@@ -3,9 +3,7 @@ package behavior_test
 import (
 	"context"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 )
 
 // The behaviour suites in this directory were written against the retained
@@ -21,7 +19,7 @@ type retainedSessionCalls interface {
 	LoginParent(ctx context.Context, email, password string) (string, string, error)
 	RefreshToken(ctx context.Context, refreshToken string) (string, string, error)
 	RevokeAllTokens(ctx context.Context, accountID int) error
-	GetActiveTokens(ctx context.Context, accountID int) ([]*authModels.Token, error)
+	GetActiveTokens(ctx context.Context, accountID int) ([]identityaccess.AccountSession, error)
 }
 
 // sessions is the module the shims delegate to.
@@ -43,22 +41,6 @@ func (s *fixtureOwnedAuthService) RevokeAllTokens(ctx context.Context, accountID
 	return s.sessions().RevokeAllTokensWithReason(ctx, int64(accountID), "administrative_revoke")
 }
 
-func (s *fixtureOwnedAuthService) GetActiveTokens(ctx context.Context, accountID int) ([]*authModels.Token, error) {
-	active, err := s.sessions().ListActiveSessions(ctx, int64(accountID))
-	if err != nil {
-		return nil, err
-	}
-	tokens := make([]*authModels.Token, 0, len(active))
-	for _, session := range active {
-		token := &authModels.Token{
-			Model:     modelBase.Model{ID: session.ID, CreatedAt: session.CreatedAt},
-			AccountID: int64(accountID),
-			Token:     session.Token,
-			Expiry:    session.Expiry,
-			Mobile:    session.Mobile,
-		}
-		token.Identifier = session.Identifier
-		tokens = append(tokens, token)
-	}
-	return tokens, nil
+func (s *fixtureOwnedAuthService) GetActiveTokens(ctx context.Context, accountID int) ([]identityaccess.AccountSession, error) {
+	return s.sessions().ListActiveSessions(ctx, int64(accountID))
 }

@@ -1149,7 +1149,7 @@ func OwnTestPermission(tb testing.TB, db *bun.DB, permissionID int64) {
 
 // CreateTestToken creates an auth token for testing.
 // tokenType can be "access" or "refresh" to set appropriate expiry.
-func CreateTestToken(tb testing.TB, db *bun.DB, accountID int64, tokenType string) *authmodels.Token {
+func CreateTestToken(tb testing.TB, db *bun.DB, accountID int64, tokenType string) *TokenFixture {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1166,7 +1166,7 @@ func CreateTestToken(tb testing.TB, db *bun.DB, accountID int64, tokenType strin
 		expiry = time.Now().Add(15 * time.Minute)
 	}
 
-	token := &authmodels.Token{
+	token := &TokenFixture{
 		AccountID:  accountID,
 		Token:      tokenValue,
 		Expiry:     expiry,
@@ -1174,7 +1174,7 @@ func CreateTestToken(tb testing.TB, db *bun.DB, accountID int64, tokenType strin
 		FamilyID:   fmt.Sprintf("family-%d", uniqueFixtureSuffix()),
 		Generation: 0,
 	}
-	token.SetTenantID(fixtureTenantID(tb))
+	token.TenantID = fixtureTenantID(tb)
 
 	err := db.NewInsert().
 		Model(token).
@@ -1903,7 +1903,7 @@ func CreateTestDeviceForTenant(tb testing.TB, db *bun.DB, tenantID int64, device
 
 // CreateTestTokenForTenant creates an auth token belonging to a specific tenant.
 // Requires an existing account ID (accounts are not tenant-scoped).
-func CreateTestTokenForTenant(tb testing.TB, db *bun.DB, tenantID int64, accountID int64) *authmodels.Token {
+func CreateTestTokenForTenant(tb testing.TB, db *bun.DB, tenantID int64, accountID int64) *TokenFixture {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1911,7 +1911,7 @@ func CreateTestTokenForTenant(tb testing.TB, db *bun.DB, tenantID int64, account
 
 	tokenValue := fmt.Sprintf("test-token-t%d-%d", tenantID, uniqueFixtureSuffix())
 
-	token := &authmodels.Token{
+	token := &TokenFixture{
 		AccountID:  accountID,
 		Token:      tokenValue,
 		Expiry:     time.Now().Add(24 * time.Hour),
@@ -1919,7 +1919,7 @@ func CreateTestTokenForTenant(tb testing.TB, db *bun.DB, tenantID int64, account
 		FamilyID:   fmt.Sprintf("family-t%d-%d", tenantID, uniqueFixtureSuffix()),
 		Generation: 0,
 	}
-	token.SetTenantID(tenantID)
+	token.TenantID = tenantID
 
 	err := db.NewInsert().
 		Model(token).

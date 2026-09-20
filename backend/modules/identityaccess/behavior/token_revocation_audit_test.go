@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -37,10 +36,12 @@ func TestLogoutPersistsRevocationAuditWithoutRawFamilyID(t *testing.T) {
 
 	_, refreshToken, err := service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
-	var persisted authModels.Token
-	require.NoError(t, db.NewSelect().Model(&persisted).ModelTableExpr(`auth.tokens AS "token"`).
-		Where(`"token".account_id = ?`, account.ID).Scan(ctx))
-	require.Equal(t, authModels.PortalScopeTenant, persisted.PortalScope)
+	var persisted struct {
+		PortalScope string `bun:"portal_scope"`
+		FamilyID    string `bun:"family_id"`
+	}
+	require.NoError(t, db.NewRaw("SELECT portal_scope, family_id FROM auth.tokens WHERE account_id = ?", account.ID).Scan(ctx, &persisted))
+	require.Equal(t, "tenant", persisted.PortalScope)
 
 	require.NoError(t, service.LogoutWithAudit(ctx, refreshToken, "192.0.2.10", "revocation-test"))
 
@@ -52,7 +53,7 @@ func TestLogoutPersistsRevocationAuditWithoutRawFamilyID(t *testing.T) {
 	assert.Equal(t, tenantID, event.TenantID)
 	assert.Equal(t, "192.0.2.10", event.IPAddress)
 	assert.Equal(t, "revocation-test", event.UserAgent)
-	assert.Equal(t, authModels.PortalScopeTenant, event.Metadata["portal_scope"])
+	assert.Equal(t, "tenant", event.Metadata["portal_scope"])
 	assert.Equal(t, "logout", event.Metadata["reason"])
 	assert.Equal(t, float64(1), event.Metadata["revoked_token_count"])
 	assert.Equal(t, rotation.FamilyFingerprint(persisted.FamilyID), event.Metadata["family_fingerprint"])
@@ -162,7 +163,7 @@ func TestSessionCapAuditsEvictedTokenFamily(t *testing.T) {
 		Where(`"auth_event".event_type = ?`, auditModels.EventTypeTokenRevoked).
 		Where(`"auth_event".metadata->>'reason' = 'session_cap'`).
 		OrderExpr(`"auth_event".id DESC`).Limit(1).Scan(ctx))
-	assert.Equal(t, authModels.PortalScopeTenant, event.Metadata["portal_scope"])
+	assert.Equal(t, "tenant", event.Metadata["portal_scope"])
 	assert.Equal(t, float64(1), event.Metadata["revoked_token_count"])
 }
 

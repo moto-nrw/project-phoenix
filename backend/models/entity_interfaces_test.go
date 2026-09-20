@@ -28,10 +28,8 @@ var (
 
 	// auth package
 	_ base.Entity = (*authmodels.Account)(nil)
-	_ base.Entity = (*authmodels.PasswordResetToken)(nil)
 	_ base.Entity = (*authmodels.Permission)(nil)
 	_ base.Entity = (*authmodels.Role)(nil)
-	_ base.Entity = (*authmodels.Token)(nil)
 
 	// education package
 	_ base.Entity = (*education.Group)(nil)
