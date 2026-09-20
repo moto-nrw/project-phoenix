@@ -2,6 +2,8 @@ package repositories
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
@@ -12,13 +14,14 @@ import (
 	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
 	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 )
 
 type CalendarFacts struct {
 	StaffRepo            userModels.StaffRepository
 	StudentRepo          userModels.StudentRepository
-	GuardianProfileRepo  userModels.GuardianProfileRepository
+	GuardianProfileRepo  calendarCompose.GuardianDirectory
 	StudentGuardianRepo  userModels.StudentGuardianRepository
 	ChildRepo            parentModels.ChildRepository
 	GroupRepo            educationModels.GroupRepository
@@ -48,7 +51,7 @@ func NewCalendarFacts(d CalendarFacts) calendarCompose.Config {
 		cfg.StudentRepo = calendarStudentPort{d.StudentRepo}
 	}
 	if d.GuardianProfileRepo != nil {
-		cfg.GuardianProfileRepo = calendarGuardianPort{d.GuardianProfileRepo}
+		cfg.GuardianProfileRepo = d.GuardianProfileRepo
 	}
 	if d.StudentGuardianRepo != nil {
 		cfg.StudentGuardianRepo = calendarRelationshipPort{d.StudentGuardianRepo}
@@ -130,7 +133,53 @@ func (p calendarStudentPort) FindAllWithGroups(ctx context.Context) ([]*calendar
 }
 
 type calendarGuardianPort struct {
-	source userModels.GuardianProfileRepository
+	source   userModels.GuardianProfileRepository
+	contacts peopledirectory.GuardianPortalContacts
+}
+
+// NewCalendarGuardianDirectory binds the existing profile reads and the native
+// batched portal projection without constructing a second directory module.
+func NewCalendarGuardianDirectory(source userModels.GuardianProfileRepository, contacts peopledirectory.GuardianPortalContacts) calendarCompose.GuardianDirectory {
+	return calendarGuardianPort{source: source, contacts: contacts}
+}
+
+func (p calendarGuardianPort) ListPortalContacts(ctx context.Context, guardianIDs, studentIDs []int64) ([]calendarCompose.GuardianContact, error) {
+	values, err := p.contacts.ListGuardianPortalContacts(ctx, guardianIDs, studentIDs)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]calendarCompose.GuardianContact, 0, len(values))
+	for _, value := range values {
+		contact := calendarCompose.GuardianContact{Profile: calendarCompose.GuardianProfile{
+			ID: value.GuardianProfileID, AccountID: &value.AccountID, Email: value.Email,
+			FirstName: value.FirstName, LastName: value.LastName, PortalLocale: value.PortalLocale,
+		}}
+		if value.StudentID != nil {
+			portalAccess, permissionErr := calendarPortalPermission(value.PortalPermission)
+			if permissionErr != nil {
+				return nil, permissionErr
+			}
+			contact.Relationship = &calendarCompose.StudentGuardian{
+				GuardianProfileID: value.GuardianProfileID, StudentID: *value.StudentID,
+				PortalAccess: portalAccess,
+			}
+		}
+		result = append(result, contact)
+	}
+	return result, nil
+}
+
+// Preserve the shared helper's interpretation of historical JSON values.
+func calendarPortalPermission(raw json.RawMessage) (bool, error) {
+	var value any
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &value); err != nil {
+			return false, fmt.Errorf("calendar guardian portal permission: %w", err)
+		}
+	}
+	return usersRepo.GuardianPortalAccess(&userModels.StudentGuardian{
+		Permissions: map[string]any{peopledirectory.GuardianPermissionPortalAccess: value},
+	}), nil
 }
 
 func (p calendarGuardianPort) SearchByText(ctx context.Context, query string, limit int) ([]*calendarCompose.GuardianProfile, error) {
@@ -150,14 +199,6 @@ type calendarRelationshipPort struct {
 	source userModels.StudentGuardianRepository
 }
 
-func (p calendarRelationshipPort) FindByGuardianProfileIDs(ctx context.Context, ids []int64) ([]*calendarCompose.StudentGuardian, error) {
-	value, err := p.source.FindByGuardianProfileIDs(ctx, ids)
-	return calendarMapSlice(value, calendarRelationship), err
-}
-func (p calendarRelationshipPort) FindByStudentIDs(ctx context.Context, ids []int64) ([]*calendarCompose.StudentGuardian, error) {
-	value, err := p.source.FindByStudentIDs(ctx, ids)
-	return calendarMapSlice(value, calendarRelationship), err
-}
 func (p calendarRelationshipPort) FindByGuardianProfileID(ctx context.Context, id int64) ([]*calendarCompose.StudentGuardian, error) {
 	value, err := p.source.FindByGuardianProfileID(ctx, id)
 	return calendarMapSlice(value, calendarRelationship), err

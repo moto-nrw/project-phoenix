@@ -71,8 +71,7 @@ func (d identityAccountDirectory) AccountEmail(ctx context.Context, accountID in
 // use it so no call site can forget the owner queries.
 func NewGuardianProfileRepository(db *bun.DB) userModels.GuardianProfileRepository {
 	return usersRepo.NewGuardianProfileRepository(db,
-		usersRepo.WithActiveAccounts(activeAccountQuery(mustAccountRepository(authRepo.NewAccountRepository(db)))),
-		usersRepo.WithSchoolAccess(activeMembershipQuery(db), guardianRoleQuery(db)),
+		usersRepo.WithPortalMemberships(newIdentityAccess(db, nil).FindActiveGuardianMemberships),
 	)
 }
 
@@ -110,12 +109,6 @@ func activeMembershipQuery(db *bun.DB) func(context.Context) *bun.SelectQuery {
 	return tenants.ActiveMemberships
 }
 
-// guardianRoleQuery returns the owner query "every guardian base role
-// assignment" the portal reachability check joins (#2721).
-func guardianRoleQuery(db *bun.DB) usersRepo.GuardianRoleQuery {
-	return mustAccountRoleRepository(db).GuardianRoleHolders
-}
-
 // schoolRoleClassQuery adapts the owner's role classification to the staff
 // messaging projection (#2721).
 func schoolRoleClassQuery(db *bun.DB) usersRepo.SchoolRoleClassQuery {
@@ -131,14 +124,6 @@ func schoolRoleClassQuery(db *bun.DB) usersRepo.SchoolRoleClassQuery {
 		}
 		return result, nil
 	}
-}
-
-func mustAccountRoleRepository(db *bun.DB) *authRepo.AccountRoleRepository {
-	roles, ok := authRepo.NewAccountRoleRepository(db).(*authRepo.AccountRoleRepository)
-	if !ok {
-		panic("repository factory: account role repository must be the Identity & Access Postgres adapter")
-	}
-	return roles
 }
 
 // NewPersonRepository composes the People Directory person repository with

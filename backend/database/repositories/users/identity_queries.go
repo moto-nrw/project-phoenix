@@ -15,9 +15,10 @@ import (
 // (account_id, tenant_id) of every ACTIVE school mapping.
 type ActiveMembershipQuery func(ctx context.Context) *bun.SelectQuery
 
-// GuardianRoleQuery returns the owner-built statement selecting
-// (account_id, tenant_id) of every guardian base role assignment.
-type GuardianRoleQuery func(ctx context.Context) *bun.SelectQuery
+// PortalMembershipQuery maps the requested accounts to schools where their
+// account, school membership, and guardian role make the portal reachable.
+// It does not authorize access to any child.
+type PortalMembershipQuery func(context.Context, []int64) (map[int64][]int64, error)
 
 // SchoolRoleClass is the owner's classification of the roles one account
 // holds at one school.

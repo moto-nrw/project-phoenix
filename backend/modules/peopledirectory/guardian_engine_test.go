@@ -15,6 +15,11 @@ type guardianCall struct {
 	ids        []int64
 }
 
+func (e *recordingEngine) ListGuardianPortalContacts(_ context.Context, _, _ []int64) ([]peopledirectory.GuardianPortalContact, error) {
+	e.calls++
+	return nil, nil
+}
+
 func (e *recordingEngine) ListGuardianLinksByAccount(_ context.Context, accountID int64) ([]peopledirectory.GuardianLink, error) {
 	e.calls++
 	e.guardian = guardianCall{accountID: accountID}

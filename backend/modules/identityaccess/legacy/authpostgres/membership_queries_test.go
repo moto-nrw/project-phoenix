@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -30,15 +29,6 @@ func scanPairs(ctx context.Context, query *bun.SelectQuery, accountIDs ...int64)
 	return rows, err
 }
 
-func assignSystemRole(t *testing.T, db *bun.DB, accountID, tenantID int64, roleName string) {
-	t.Helper()
-	_, err := db.ExecContext(testpkg.Ctx(t), `
-		INSERT INTO auth.account_roles (account_id, role_id, tenant_id)
-		SELECT ?, id, ? FROM auth.roles WHERE name = ? AND tenant_id IS NULL`,
-		accountID, tenantID, roleName)
-	require.NoError(t, err)
-}
-
 // TestMembershipQueries_TwoTenantIsolation pins the Identity & Access owner
 // queries other owners join instead of reading auth.account_tenants,
 // auth.account_roles and auth.roles (#2721). Role assignments are protected
@@ -61,15 +51,7 @@ func TestMembershipQueries_TwoTenantIsolation(t *testing.T) {
 		departed.ID, home)
 	require.NoError(t, err)
 
-	assignSystemRole(t, db, member.ID, home, authModels.BaseRoleGuardian)
-	assignSystemRole(t, db, member.ID, other, authModels.BaseRoleGuardian)
-	assignSystemRole(t, db, departed.ID, home, authModels.BaseRoleGuardian)
-	testpkg.AssignLehrkraftSystemRole(t, db, member.ID, home)
-	assignSystemRole(t, db, member.ID, other, authModels.BaseRoleAdmin)
-
 	tenants, ok := authRepo.NewAccountTenantRepository(db).(*authRepo.AccountTenantRepository)
-	require.True(t, ok)
-	roles, ok := authRepo.NewAccountRoleRepository(db).(*authRepo.AccountRoleRepository)
 	require.True(t, ok)
 
 	withinSchool := func(t *testing.T, tenantID int64, fn func(context.Context)) {
@@ -96,22 +78,6 @@ func TestMembershipQueries_TwoTenantIsolation(t *testing.T) {
 			assert.ElementsMatch(t, want, rows)
 			return nil
 		}))
-	})
-
-	t.Run("guardian role holders are scoped to the school in context", func(t *testing.T) {
-		withinSchool(t, home, func(txCtx context.Context) {
-			rows, err := scanPairs(txCtx, roles.GuardianRoleHolders(txCtx), member.ID, departed.ID)
-			require.NoError(t, err)
-			assert.ElementsMatch(t, []membershipPair{
-				{AccountID: member.ID, TenantID: home},
-				{AccountID: departed.ID, TenantID: home},
-			}, rows, "the role assignment is its own fact; the mapping status is filtered by the consumer")
-		})
-		withinSchool(t, other, func(txCtx context.Context) {
-			rows, err := scanPairs(txCtx, roles.GuardianRoleHolders(txCtx), member.ID, departed.ID)
-			require.NoError(t, err)
-			assert.Equal(t, []membershipPair{{AccountID: member.ID, TenantID: other}}, rows)
-		})
 	})
 
 }

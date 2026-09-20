@@ -135,14 +135,22 @@ func TestIdentityMembership_UnboundQueriesFailClosed(t *testing.T) {
 	_, err = usersRepo.NewMessageableGuardianRepository(db, nil).ListGuardiansForStudent(ctx, chain.StudentID)
 	require.Error(t, err)
 
-	// Only the #2720 account switch is bound, so the #2721 school access
-	// queries are what is missing.
+	_, err = usersRepo.NewGuardianProfileRepository(db).
+		FindActivePortalProfilesByIDs(ctx, []int64{chain.GuardianProfileID})
+	require.ErrorContains(t, err, "portal membership query is required")
+	projectionFailure := errors.New("portal membership lookup failed")
+	failingProfiles := usersRepo.NewGuardianProfileRepository(db, usersRepo.WithPortalMemberships(
+		func(_ context.Context, accountIDs []int64) (map[int64][]int64, error) {
+			require.Equal(t, []int64{chain.AccountID}, accountIDs)
+			return nil, projectionFailure
+		}))
+	profiles, err := failingProfiles.FindActivePortalProfilesByIDs(ctx, []int64{chain.GuardianProfileID})
+	require.ErrorIs(t, err, projectionFailure)
+	require.Nil(t, profiles, "failed account reachability must not return candidates")
+
 	activeAccounts := func(context.Context) *bun.SelectQuery {
 		return db.NewSelect().TableExpr(`auth.accounts AS "account"`).ColumnExpr(`"account".id`).Where(`"account".active = TRUE`)
 	}
-	_, err = usersRepo.NewGuardianProfileRepository(db, usersRepo.WithActiveAccounts(activeAccounts)).
-		FindActivePortalProfilesByIDs(ctx, []int64{chain.GuardianProfileID})
-	require.ErrorContains(t, err, "school access queries are required")
 
 	staffAccounts := func(context.Context) ([]int64, error) { return []int64{chain.AccountID}, nil }
 	reads := usersRepo.NewMessageableStaffRepository(db, staffAccounts, usersRepo.StaffMessageIdentity{ActiveAccounts: activeAccounts})

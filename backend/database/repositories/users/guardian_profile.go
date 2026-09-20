@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentdirectoryview"
@@ -25,16 +26,8 @@ const (
 // GuardianProfileRepository implements the users.GuardianProfileRepository interface
 type GuardianProfileRepository struct {
 	*repoBase.Repository[*users.GuardianProfile]
-	db *bun.DB
-	// activeAccounts is the Identity & Access owner query "every active
-	// platform account". auth.accounts is not read by this repository; the
-	// portal reachability check joins the owner's query instead (#2720).
-	activeAccounts ActiveAccountQuery
-	// activeMemberships and guardianRoles are the Identity & Access owner
-	// queries for the school mapping and the guardian role assignment the
-	// portal reachability check filters through (#2721).
-	activeMemberships ActiveMembershipQuery
-	guardianRoles     GuardianRoleQuery
+	db                *bun.DB
+	portalMemberships PortalMembershipQuery
 }
 
 // ActiveAccountQuery returns the owner-built statement selecting the ids of
@@ -45,19 +38,9 @@ type ActiveAccountQuery func(ctx context.Context) *bun.SelectQuery
 // GuardianProfileOption configures a GuardianProfileRepository at construction.
 type GuardianProfileOption func(*GuardianProfileRepository)
 
-// WithActiveAccounts installs the Identity & Access active-account query
-// FindActivePortalProfilesByIDs filters through (#2720).
-func WithActiveAccounts(query ActiveAccountQuery) GuardianProfileOption {
-	return func(r *GuardianProfileRepository) { r.activeAccounts = query }
-}
-
-// WithSchoolAccess installs the Identity & Access active-membership and
-// guardian-role queries FindActivePortalProfilesByIDs filters through (#2721).
-func WithSchoolAccess(memberships ActiveMembershipQuery, guardianRoles GuardianRoleQuery) GuardianProfileOption {
-	return func(r *GuardianProfileRepository) {
-		r.activeMemberships = memberships
-		r.guardianRoles = guardianRoles
-	}
+// WithPortalMemberships binds account reachability without exposing owner SQL.
+func WithPortalMemberships(query PortalMembershipQuery) GuardianProfileOption {
+	return func(r *GuardianProfileRepository) { r.portalMemberships = query }
 }
 
 // NewGuardianProfileRepository creates a new GuardianProfileRepository instance
@@ -152,23 +135,15 @@ func (r *GuardianProfileRepository) FindByIDs(ctx context.Context, ids []int64) 
 // treated as reachable — otherwise staff could target a parent who can never
 // see or answer the invitation.
 //
-// Runtime-role note: this runs under phoenix_tenant (the staff calendar routes
-// use TenantTxMiddleware). That role has SELECT on every auth table via the
-// "GRANT SELECT ON ALL TABLES IN SCHEMA auth TO phoenix_tenant" in migration
-// 1.14.1 (no later revoke). RLS scopes auth.account_roles to the current
-// tenant and lets auth.roles show tenant_id IS NULL (the guardian base role).
-// auth.account_tenants has NO RLS: the membership subquery lists every
-// school, so the row-value predicates below MUST keep pairing it with
-// "guardian_profile".tenant_id. No admin tx is needed.
+// The owner projection retains the caller's transaction/RLS. Its result may
+// include several schools for one account, so each profile is matched against
+// its own school, never against membership in any school.
 func (r *GuardianProfileRepository) FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*users.GuardianProfile, error) {
 	if len(ids) == 0 {
 		return make(map[int64]*users.GuardianProfile), nil
 	}
-	if r.activeAccounts == nil {
-		return nil, errors.New("find active portal guardian profiles: active account query is required")
-	}
-	if r.activeMemberships == nil || r.guardianRoles == nil {
-		return nil, errors.New("find active portal guardian profiles: school access queries are required")
+	if r.portalMemberships == nil {
+		return nil, errors.New("find active portal guardian profiles: portal membership query is required")
 	}
 
 	var profiles []*users.GuardianProfile
@@ -176,15 +151,7 @@ func (r *GuardianProfileRepository) FindActivePortalProfilesByIDs(ctx context.Co
 		Model(&profiles).
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Where(`"guardian_profile".id IN (?)`, bun.List(ids)).
-		Where(`"guardian_profile".account_id IS NOT NULL`).
-		// The school mapping, the guardian role assignment and the global
-		// account switch belong to Identity & Access; the owner's queries keep
-		// this a single statement.
-		Where(`("guardian_profile".account_id, "guardian_profile".tenant_id) IN (?)`, r.activeMemberships(ctx)).
-		// The owner matches the role like the parent login guardian-role check
-		// (case-insensitive, mirrors strings.EqualFold in services/auth).
-		Where(`("guardian_profile".account_id, "guardian_profile".tenant_id) IN (?)`, r.guardianRoles(ctx)).
-		Where(`"guardian_profile".account_id IN (?)`, r.activeAccounts(ctx))
+		Where(`"guardian_profile".account_id IS NOT NULL`)
 
 	query = repoBase.WithTenantFilter(ctx, query, "guardian_profile")
 
@@ -193,8 +160,21 @@ func (r *GuardianProfileRepository) FindActivePortalProfilesByIDs(ctx context.Co
 	}
 
 	result := make(map[int64]*users.GuardianProfile, len(profiles))
+	if len(profiles) == 0 {
+		return result, nil
+	}
+	accountIDs := make([]int64, 0, len(profiles))
 	for _, profile := range profiles {
-		result[profile.ID] = profile
+		accountIDs = append(accountIDs, *profile.AccountID)
+	}
+	memberships, err := r.portalMemberships(ctx, accountIDs)
+	if err != nil {
+		return nil, fmt.Errorf("find active portal guardian memberships: %w", err)
+	}
+	for _, profile := range profiles {
+		if slices.Contains(memberships[*profile.AccountID], profile.GetTenantID()) {
+			result[profile.ID] = profile
+		}
 	}
 	return result, nil
 }

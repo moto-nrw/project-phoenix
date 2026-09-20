@@ -2,7 +2,6 @@ package authpostgres
 
 import (
 	"context"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
@@ -29,16 +28,4 @@ func (r *AccountTenantRepository) ActiveMemberships(ctx context.Context) *bun.Se
 		ColumnExpr(`"account_tenant".account_id`).
 		ColumnExpr(`"account_tenant".tenant_id`).
 		Where(`"account_tenant".status = ?`, authmodels.AccountTenantStatusActive)
-}
-
-// GuardianRoleHolders is the owner query "every account holding the guardian
-// base role at a school". It selects (account_id, tenant_id); the role name
-// matches case-insensitively like the parent login guardian-role check.
-func (r *AccountRoleRepository) GuardianRoleHolders(ctx context.Context) *bun.SelectQuery {
-	return base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(accountRoleTableAlias).
-		ColumnExpr(`"account_role".account_id`).
-		ColumnExpr(`"account_role".tenant_id`).
-		Join(`INNER JOIN auth.roles AS "role" ON "role".id = "account_role".role_id`).
-		Where(`LOWER("role".name) = ?`, strings.ToLower(authmodels.BaseRoleGuardian))
 }
