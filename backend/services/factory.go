@@ -2824,7 +2824,7 @@ func newFactory(
 		InstanceService: instanceService,
 		TimetableData:   timetableDataService,
 	})
-	masterDataReviewService := users.NewMasterDataReviewServiceWithAuditAndPolicy(
+	masterDataReviewService := users.NewMasterDataReviewServiceWithAuditAndPolicy(authjwt.PermissionsFromCtx,
 		repos.StudentDataChangeRequest,
 		repos.Student,
 		repos.Person,
@@ -2861,7 +2861,7 @@ func newFactory(
 	}
 
 	excusedCoordinatorPort := excusedRequestCoordinatorPort{requests: excusedRequestService}
-	parentRequestCoordinator := users.NewParentRequestCoordinator(
+	parentRequestCoordinator := users.NewParentRequestCoordinator(authjwt.PermissionsFromCtx,
 		masterDataReviewService.(users.MasterDataBulkReviewPort),
 		excusedCoordinatorPort,
 	)

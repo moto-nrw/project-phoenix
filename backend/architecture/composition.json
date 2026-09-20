@@ -4318,7 +4318,7 @@
       "declaration": "TestMasterDataCorrect_ApprovedToRejectedRestoresTheOldValue",
       "target": "database/repositories.NewFactory",
       "lines": [
-        847
+        849
       ],
       "tables": [
         "users.student_data_change_requests"
@@ -4330,7 +4330,7 @@
       "declaration": "TestMasterDataCorrect_RefusesAnUndecidedRequest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        906
+        908
       ],
       "tables": []
     },
@@ -4340,7 +4340,7 @@
       "declaration": "TestMasterDataCorrect_RefusesWhenTheValueMovedOnAfterTheDecision",
       "target": "database/repositories.NewFactory",
       "lines": [
-        878
+        880
       ],
       "tables": [
         "users.persons"
@@ -4352,7 +4352,7 @@
       "declaration": "TestMasterDataReview_ApprovalBroadcastsStudentUpdatedAfterCommit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        527
+        529
       ],
       "tables": []
     },
@@ -4362,7 +4362,7 @@
       "declaration": "TestMasterDataReview_ApproveAppliesDepartureModes",
       "target": "database/repositories.NewFactory",
       "lines": [
-        436
+        438
       ],
       "tables": []
     },
@@ -4372,7 +4372,7 @@
       "declaration": "TestMasterDataReview_ApproveAppliesNameChange",
       "target": "database/repositories.NewFactory",
       "lines": [
-        148
+        150
       ],
       "tables": []
     },
@@ -4382,7 +4382,7 @@
       "declaration": "TestMasterDataReview_ApproveAppliesOtherPersonFields",
       "target": "database/repositories.NewFactory",
       "lines": [
-        240
+        242
       ],
       "tables": []
     },
@@ -4392,7 +4392,7 @@
       "declaration": "TestMasterDataReview_ApproveAppliesSchoolClass",
       "target": "database/repositories.NewFactory",
       "lines": [
-        268
+        270
       ],
       "tables": []
     },
@@ -4402,7 +4402,7 @@
       "declaration": "TestMasterDataReview_ApproveEmitsDecisionPill",
       "target": "database/repositories.NewFactory",
       "lines": [
-        663
+        665
       ],
       "tables": []
     },
@@ -4412,7 +4412,7 @@
       "declaration": "TestMasterDataReview_ApproveInvalidRowsRejected",
       "target": "database/repositories.NewFactory",
       "lines": [
-        596
+        598
       ],
       "tables": []
     },
@@ -4422,7 +4422,7 @@
       "declaration": "TestMasterDataReview_CompanionEventOnlyOnEffectiveChange",
       "target": "database/repositories.NewFactory",
       "lines": [
-        733
+        735
       ],
       "tables": []
     },
@@ -4432,7 +4432,7 @@
       "declaration": "TestMasterDataReview_ConcurrentDecisionsKeepStatusAndRecordConsistent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        328
+        330
       ],
       "tables": []
     },
@@ -4442,7 +4442,7 @@
       "declaration": "TestMasterDataReview_ConcurrentPersonFieldApprovalsDoNotOverwrite",
       "target": "database/repositories.NewFactory",
       "lines": [
-        294
+        296
       ],
       "tables": []
     },
@@ -4452,7 +4452,7 @@
       "declaration": "TestMasterDataReview_DecideNonPendingRejected",
       "target": "database/repositories.NewFactory",
       "lines": [
-        571
+        573
       ],
       "tables": []
     },
@@ -4462,7 +4462,7 @@
       "declaration": "TestMasterDataReview_DecideRejectsStaleExpectedVersionAfterLock",
       "target": "database/repositories.NewFactory",
       "lines": [
-        176
+        178
       ],
       "tables": []
     },
@@ -4472,7 +4472,7 @@
       "declaration": "TestMasterDataReview_ListPendingEmptyAndInvalidRequestID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        410
+        412
       ],
       "tables": []
     },
@@ -4482,7 +4482,7 @@
       "declaration": "TestMasterDataReview_ListPendingEnrichesStudentNames",
       "target": "database/repositories.NewFactory",
       "lines": [
-        384
+        386
       ],
       "tables": []
     },
@@ -4492,7 +4492,7 @@
       "declaration": "TestMasterDataReview_RejectEmitsPillWithReason",
       "target": "database/repositories.NewFactory",
       "lines": [
-        694
+        696
       ],
       "tables": []
     },
@@ -4502,7 +4502,7 @@
       "declaration": "TestMasterDataReview_RejectLeavesRecordUnchanged",
       "target": "database/repositories.NewFactory",
       "lines": [
-        549
+        551
       ],
       "tables": []
     },
@@ -4512,7 +4512,7 @@
       "declaration": "TestMasterDataReview_ScopedToWritableChildren",
       "target": "database/repositories.NewFactory",
       "lines": [
-        118
+        120
       ],
       "tables": []
     },
@@ -4522,7 +4522,7 @@
       "declaration": "TestMasterDataReview_StaleDepartureApprovalConflicts",
       "target": "database/repositories.NewFactory",
       "lines": [
-        497
+        499
       ],
       "tables": []
     },
@@ -4532,7 +4532,7 @@
       "declaration": "TestMasterDataReview_StalePersonApprovalConflicts",
       "target": "database/repositories.NewFactory",
       "lines": [
-        471
+        473
       ],
       "tables": []
     },
@@ -4542,7 +4542,7 @@
       "declaration": "TestParentRequestCoordinator_RollsBackEarlierDatabaseWrite",
       "target": "database/repositories.NewFactory",
       "lines": [
-        203
+        205
       ],
       "tables": []
     },

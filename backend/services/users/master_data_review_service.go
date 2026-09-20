@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -124,15 +123,16 @@ type MasterDataReviewService interface {
 }
 
 type masterDataReviewService struct {
-	changeRequestRepo userModels.StudentDataChangeRequestRepository
-	studentRepo       userModels.StudentRepository
-	personRepo        userModels.PersonRepository
-	userCtx           authorize.StudentAccessUserContext
-	broadcaster       realtime.Broadcaster
-	emitter           *parentmessaging.Emitter
-	studentAudit      StudentChangeRecorder
-	logger            *slog.Logger
-	reviewPolicy      RequestReviewPolicy
+	requestPermissions RequestPermissions
+	changeRequestRepo  userModels.StudentDataChangeRequestRepository
+	studentRepo        userModels.StudentRepository
+	personRepo         userModels.PersonRepository
+	userCtx            authorize.StudentAccessUserContext
+	broadcaster        realtime.Broadcaster
+	emitter            *parentmessaging.Emitter
+	studentAudit       StudentChangeRecorder
+	logger             *slog.Logger
+	reviewPolicy       RequestReviewPolicy
 	// shareVisibility answers who the parent explicitly shared a request
 	// with; nil means nobody was, so every co-guardian gets the neutral line.
 	shareVisibility parentmessaging.ShareVisibilityResolver
@@ -147,6 +147,7 @@ type RequestReviewPolicy interface {
 // NewMasterDataReviewServiceWithAuditAndPolicy requires the production review
 // policy at construction, so missing wiring cannot widen reviewer access.
 func NewMasterDataReviewServiceWithAuditAndPolicy(
+	requestPermissions RequestPermissions,
 	changeRequestRepo userModels.StudentDataChangeRequestRepository,
 	studentRepo userModels.StudentRepository,
 	personRepo userModels.PersonRepository,
@@ -161,10 +162,14 @@ func NewMasterDataReviewServiceWithAuditAndPolicy(
 	if reviewPolicy == nil {
 		panic("master data review policy is required")
 	}
-	return newMasterDataReviewService(changeRequestRepo, studentRepo, personRepo, userCtx, emitter, studentAudit, reviewPolicy, events, logger, broadcasters...)
+	if requestPermissions == nil {
+		panic("request permissions are required")
+	}
+	return newMasterDataReviewService(requestPermissions, changeRequestRepo, studentRepo, personRepo, userCtx, emitter, studentAudit, reviewPolicy, events, logger, broadcasters...)
 }
 
 func newMasterDataReviewService(
+	requestPermissions RequestPermissions,
 	changeRequestRepo userModels.StudentDataChangeRequestRepository,
 	studentRepo userModels.StudentRepository,
 	personRepo userModels.PersonRepository,
@@ -184,16 +189,17 @@ func newMasterDataReviewService(
 		broadcaster = broadcasters[0]
 	}
 	return &masterDataReviewService{
-		changeRequestRepo: changeRequestRepo,
-		studentRepo:       studentRepo,
-		personRepo:        personRepo,
-		userCtx:           userCtx,
-		broadcaster:       broadcaster,
-		emitter:           emitter,
-		studentAudit:      studentAudit,
-		reviewPolicy:      reviewPolicy,
-		events:            events,
-		logger:            logger,
+		requestPermissions: requestPermissions,
+		changeRequestRepo:  changeRequestRepo,
+		studentRepo:        studentRepo,
+		personRepo:         personRepo,
+		userCtx:            userCtx,
+		broadcaster:        broadcaster,
+		emitter:            emitter,
+		studentAudit:       studentAudit,
+		reviewPolicy:       reviewPolicy,
+		events:             events,
+		logger:             logger,
 	}
 }
 
@@ -266,10 +272,10 @@ func (s *masterDataReviewService) loadStudentScope(ctx context.Context, studentI
 
 func (s *masterDataReviewService) reviewableFilter(ctx context.Context) (func(*userModels.Student) bool, error) {
 	if s.reviewPolicy == nil {
-		writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userCtx)
+		writable := authorize.WritableStudentFilter(ctx, s.requestPermissions(ctx), s.userCtx)
 		return func(student *userModels.Student) bool { return writable(student) }, nil
 	}
-	filter, err := s.reviewPolicy.StudentFilter(ctx, jwt.PermissionsFromCtx(ctx))
+	filter, err := s.reviewPolicy.StudentFilter(ctx, s.requestPermissions(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("review: resolve reviewer scope: %w", err)
 	}
@@ -681,10 +687,10 @@ func (s *masterDataReviewService) reloadMasterDataReviewItem(ctx context.Context
 
 func (s *masterDataReviewService) canReviewStudent(ctx context.Context, student *userModels.Student) (bool, error) {
 	if s.reviewPolicy == nil {
-		ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.userCtx)
+		ok, _ := authorize.CanUpdateStudent(ctx, s.requestPermissions(ctx), student, s.userCtx)
 		return ok, nil
 	}
-	ok, err := s.reviewPolicy.Allows(ctx, jwt.PermissionsFromCtx(ctx), student)
+	ok, err := s.reviewPolicy.Allows(ctx, s.requestPermissions(ctx), student)
 	if err != nil {
 		return false, fmt.Errorf("review: resolve reviewer scope: %w", err)
 	}
