@@ -26,6 +26,7 @@ type Store interface {
 	FindRFIDCard(ctx context.Context, tag string, tenantID int64) (string, bool, domain.OperationStats, error)
 	FindAccount(ctx context.Context, id int64) (domain.Account, bool, domain.OperationStats, error)
 	FindAccountByEmail(ctx context.Context, email string) (domain.Account, bool, domain.OperationStats, error)
+	InsertAccount(ctx context.Context, email, passwordHash string) (domain.LoginAccount, domain.OperationStats, error)
 	// FindAccountsByEmails resolves the normalized addresses in one query.
 	FindAccountsByEmails(ctx context.Context, emails []string) (map[string]domain.Account, domain.OperationStats, error)
 	// EnsureActiveTenantMapping inserts the account's mapping for the tenant or

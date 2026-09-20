@@ -13,14 +13,13 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // seedParentsCmd promotes demo guardians (created by `seed`) into loginable
-// parent-portal accounts. DEV ONLY — it writes auth rows directly via the
-// repositories, the same records the guardian-invitation accept flow creates,
+// parent-portal accounts. DEV ONLY — Identity provisions the same account and
+// access records the guardian-invitation accept flow creates,
 // so the parents portal can be exercised without the email/token dance.
 var seedParentsCmd = &cobra.Command{
 	Use:   "seed-parents",
@@ -116,7 +115,7 @@ func seedParentAccounts(ctx context.Context, db *bun.DB, count int, password str
 
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
-	grantAccess, err := services.NewGuardianSeedAccess(db)
+	seedAccount, err := services.NewGuardianSeedAccess(db)
 	if err != nil {
 		return fmt.Errorf("compose guardian access: %w", err)
 	}
@@ -147,7 +146,7 @@ func seedParentAccounts(ctx context.Context, db *bun.DB, count int, password str
 		var reused bool
 		err := tenant.WithinAdmin(ctx, func(txCtx context.Context) error {
 			var promoteErr error
-			reused, promoteErr = promoteGuardian(tenant.WithTenantID(txCtx, c.TenantID), repos, grantAccess, c, passwordHash)
+			reused, promoteErr = promoteGuardian(tenant.WithTenantID(txCtx, c.TenantID), repos, seedAccount, c, passwordHash)
 			return promoteErr
 		})
 		if err != nil {
@@ -215,32 +214,17 @@ func promotableGuardians(ctx context.Context, repos *repositories.Factory, count
 func promoteGuardian(
 	ctx context.Context,
 	repos *repositories.Factory,
-	grantAccess func(context.Context, int64) error,
+	seedAccount func(context.Context, string, string) (int64, bool, error),
 	c parentCandidate,
 	passwordHash string,
 ) (bool, error) {
-	reused := false
-	account, err := repos.Account.FindByEmail(ctx, c.Email)
-	if err == nil && account != nil {
-		reused = true
-	} else {
-		account = &authModels.Account{
-			Email:        c.Email,
-			Active:       true,
-			PasswordHash: &passwordHash,
-		}
-		if err := repos.Account.Create(ctx, account); err != nil {
-			return false, fmt.Errorf("create account: %w", err)
-		}
-	}
-
-	// The owner reactivates membership and assigns the guardian role together.
-	if err := grantAccess(ctx, account.ID); err != nil {
-		return false, fmt.Errorf("grant guardian access: %w", err)
+	accountID, reused, err := seedAccount(ctx, c.Email, passwordHash)
+	if err != nil {
+		return false, err
 	}
 
 	// Stamp the profile so the cross-tenant child query resolves.
-	if err := repos.GuardianProfile.LinkAccount(ctx, c.ProfileID, account.ID); err != nil {
+	if err := repos.GuardianProfile.LinkAccount(ctx, c.ProfileID, accountID); err != nil {
 		return false, fmt.Errorf("link guardian profile: %w", err)
 	}
 

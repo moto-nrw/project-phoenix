@@ -82,7 +82,7 @@
       "declaration": "seedParentAccounts",
       "target": "database/repositories.NewFactory",
       "lines": [
-        117
+        116
       ],
       "tables": []
     },
@@ -21044,12 +21044,12 @@
       "locations": [
         {
           "file": "cmd/seed_parents.go",
-          "line": 174,
+          "line": 173,
           "declaration": "promotableGuardians"
         },
         {
           "file": "cmd/seed_parents.go",
-          "line": 217,
+          "line": 216,
           "declaration": "promoteGuardian"
         }
       ]
@@ -21059,7 +21059,7 @@
       "locations": [
         {
           "file": "cmd/seed_parents.go",
-          "line": 117,
+          "line": 116,
           "declaration": "seedParentAccounts"
         }
       ]

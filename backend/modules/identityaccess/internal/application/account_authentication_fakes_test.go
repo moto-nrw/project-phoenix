@@ -380,6 +380,10 @@ func (s *fakeStore) FindAccount(_ context.Context, id int64) (domain.Account, bo
 func (s *fakeStore) FindAccountByEmail(context.Context, string) (domain.Account, bool, domain.OperationStats, error) {
 	panic("not used")
 }
+
+func (s *fakeStore) InsertAccount(context.Context, string, string) (domain.LoginAccount, domain.OperationStats, error) {
+	panic("unexpected account insertion in authentication test")
+}
 func (s *fakeStore) FindAccountsByEmails(context.Context, []string) (map[string]domain.Account, domain.OperationStats, error) {
 	panic("not used")
 }
