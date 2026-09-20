@@ -568,6 +568,7 @@ type GuardianFailureKind string
 
 const (
 	GuardianFailureInvalidRequest GuardianFailureKind = "invalid_request"
+	GuardianFailureConflict       GuardianFailureKind = "conflict"
 	GuardianFailureForbidden      GuardianFailureKind = "forbidden"
 	GuardianFailureInternal       GuardianFailureKind = "internal"
 )
@@ -794,6 +795,8 @@ func (f *Factory) NewGuardianDirectoryRuntime(db *bun.DB) GuardianDirectoryRunti
 func ClassifyGuardianInvitationFailure(err error) GuardianFailureKind {
 	var validation *identityaccess.GuardianInvitationValidationError
 	switch {
+	case errors.Is(err, userModels.ErrGuardianAccountConflict):
+		return GuardianFailureConflict
 	case errors.As(err, &validation),
 		errors.Is(err, identityaccess.ErrGuardianInvitationNotFound),
 		errors.Is(err, identityaccess.ErrGuardianInvitationExpired):

@@ -492,13 +492,78 @@ func (r *GuardianProfileRepository) Delete(ctx context.Context, id int64) error 
 	return nil
 }
 
-// LinkAccount links a guardian profile to a parent account
+// LinkAccount links a guardian profile to a parent account. A removed contact
+// may leave that account attached to a childless profile (#3477). Move only
+// that orphaned association; retain both contacts and all relationship data.
 func (r *GuardianProfileRepository) LinkAccount(ctx context.Context, profileID int64, accountID int64) error {
-	result, err := repoBase.GetDB(ctx, r.db).NewUpdate().
+	if profileID <= 0 || accountID <= 0 {
+		return users.ErrGuardianAccountConflict
+	}
+	return tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+		return tenant.WithSavepoint(txCtx, func(linkCtx context.Context) error {
+			return r.linkAccount(linkCtx, profileID, accountID)
+		})
+	})
+}
+
+func (r *GuardianProfileRepository) linkAccount(ctx context.Context, profileID, accountID int64) error {
+	tenantID, err := tenant.TenantFromContext(ctx)
+	if err != nil {
+		return err
+	}
+	db := repoBase.GetDB(ctx, r.db)
+	// Serialize invitations for the same account, including when it has no
+	// profile yet. Row locks also stop concurrent child FK inserts until commit.
+	lockKey := fmt.Sprintf("guardian-account:%d:%d", tenantID.Int64(), accountID)
+	if _, err := db.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", lockKey); err != nil {
+		return fmt.Errorf("lock guardian account link: %w", err)
+	}
+	var profiles []*users.GuardianProfile
+	if err := db.NewSelect().Model(&profiles).
+		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
+		Where(`"guardian_profile".tenant_id = ?`, tenantID.Int64()).
+		Where(`("guardian_profile".id = ? OR "guardian_profile".account_id = ?)`, profileID, accountID).
+		OrderExpr(`"guardian_profile".id`).For("UPDATE").Scan(ctx); err != nil {
+		return fmt.Errorf("lock guardian profiles: %w", err)
+	}
+	var target, previous *users.GuardianProfile
+	for _, profile := range profiles {
+		if profile.ID == profileID {
+			target = profile
+		} else {
+			previous = profile
+		}
+	}
+	if target == nil {
+		return users.ErrGuardianProfileNotFound
+	}
+	if target.AccountID != nil && *target.AccountID != accountID {
+		return users.ErrGuardianAccountConflict
+	}
+	if previous != nil {
+		linked, err := db.NewSelect().TableExpr("users.students_guardians").
+			Where("tenant_id = ?", tenantID.Int64()).
+			Where("guardian_profile_id = ?", previous.ID).Exists(ctx)
+		if err != nil {
+			return fmt.Errorf("check previous guardian children: %w", err)
+		}
+		if linked {
+			return users.ErrGuardianAccountConflict
+		}
+		if _, err := db.NewUpdate().Model((*users.GuardianProfile)(nil)).
+			ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
+			Set("account_id = NULL").Set("has_account = ?", false).
+			Where(`"guardian_profile".tenant_id = ?`, tenantID.Int64()).
+			Where(`"guardian_profile".id = ?`, previous.ID).Exec(ctx); err != nil {
+			return fmt.Errorf("unlink childless guardian profile: %w", err)
+		}
+	}
+	result, err := db.NewUpdate().
 		Model((*users.GuardianProfile)(nil)).
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Set("account_id = ?", accountID).
 		Set("has_account = ?", true).
+		Where(`"guardian_profile".tenant_id = ?`, tenantID.Int64()).
 		Where(`"guardian_profile".id = ?`, profileID).
 		Exec(ctx)
 
