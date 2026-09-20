@@ -21,6 +21,35 @@ func TestValidateMigrationTicketAcceptsExecutableTemplate(t *testing.T) {
 	}
 }
 
+func TestValidateShippedMigrationTemplate(t *testing.T) {
+	t.Parallel()
+	output, err := runArchitecture(t, "validate-ticket", "--ticket", "backend/architecture/migration-ticket-template.json")
+	if err != nil {
+		t.Fatalf("shipped migration template failed: %v\n%s", err, output)
+	}
+}
+
+func TestMigrationCannotSilentlyOmitLatency(t *testing.T) {
+	t.Parallel()
+	var document map[string]any
+	if err := json.Unmarshal([]byte(readFile(t, filepath.Join(architectureBackendRoot(t), "architecture/account-sessions-2720.json"))), &document); err != nil {
+		t.Fatal(err)
+	}
+	delete(document["runtime_evidence"].(map[string]any), "latency_p95")
+	output, err := runArchitecture(t, "validate-ticket", "--ticket", writeTicketFixture(t, document))
+	if err == nil || !strings.Contains(output, "runtime_evidence.latency_p95 is required") {
+		t.Fatalf("silent latency omission accepted: %v\n%s", err, output)
+	}
+}
+
+func TestValidateEntireShippedTicketInventory(t *testing.T) {
+	t.Parallel()
+	output, err := runArchitecture(t, "validate-ticket", "--all")
+	if err != nil {
+		t.Fatalf("shipped evidence inventory failed: %v\n%s", err, output)
+	}
+}
+
 func TestValidateMigrationTicketRejectsMissingEvidenceAndExitFields(t *testing.T) {
 	t.Parallel()
 
@@ -149,6 +178,33 @@ func decodeTicketFixture(t *testing.T) map[string]any {
 	if err := json.Unmarshal([]byte(readFile(t, fixturePath(t, "migration-ticket.json"))), &document); err != nil {
 		t.Fatalf("decode ticket fixture: %v", err)
 	}
+	// Test evidence is distinct from shipped synthetic examples; copied example
+	// values are deliberately rejected by the production evidence contract.
+	for field, value := range document["runtime_evidence"].(map[string]any) {
+		if text, ok := value.(string); ok {
+			document["runtime_evidence"].(map[string]any)[field] = "Fixture observation: " + text
+		}
+	}
+	return document
+}
+
+func migrationFixture(t *testing.T) map[string]any {
+	t.Helper()
+	document := decodeTicketFixture(t)
+	document["schema_version"] = 3
+	document["ticket_kind"] = "migration"
+	delete(document, "checkpoint")
+	document["checkpoint_reference"] = "https://github.com/moto-nrw/project-phoenix/issues/3020"
+	evidence := document["runtime_evidence"].(map[string]any)
+	evidence["failure"] = "Injected owner failure returned the expected error."
+	evidence["rollback"] = "Transaction rollback preserved all before snapshots."
+	evidence["smoke"] = "Production router test passed."
+	for field, value := range evidence {
+		if field != "source" && field != "workload" && field != "thresholds" {
+			evidence[field] = map[string]any{"state": "measured", "result": value}
+		}
+	}
+	evidence["sources"] = []any{"https://github.com/moto-nrw/project-phoenix/issues/3415"}
 	return document
 }
 
@@ -180,12 +236,7 @@ func writeTicketFixture(t *testing.T, document map[string]any) string {
 
 func TestValidateMigrationWaveRequiresAcceptedCheckpoint(t *testing.T) {
 	t.Parallel()
-	document := decodeTicketFixture(t)
-	document["ticket_kind"] = "migration"
-	delete(document, "checkpoint")
-	document["runtime_evidence"].(map[string]any)["failure"] = "Rollback verified."
-	document["runtime_evidence"].(map[string]any)["rollback"] = "Transaction rollback verified."
-	document["runtime_evidence"].(map[string]any)["smoke"] = "Smoke passed."
+	document := migrationFixture(t)
 	document["checkpoint_reference"] = "https://github.com/moto-nrw/project-phoenix/issues/3019"
 	registry := writeTicketFixture(t, map[string]any{"schema_version": 1, "accepted": []any{}})
 	output, err := runArchitecture(t, "validate-ticket", "--ticket", writeTicketFixture(t, document), "--checkpoints", registry)
@@ -215,10 +266,7 @@ func TestValidateMigrationWaveCheckpointReferences(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			var document map[string]any
-			if err := json.Unmarshal([]byte(readFile(t, filepath.Join(architectureBackendRoot(t), "architecture/migration-ticket-template.json"))), &document); err != nil {
-				t.Fatal(err)
-			}
+			document := migrationFixture(t)
 			document["checkpoint_reference"] = tt.reference
 			registry := writeTicketFixture(t, map[string]any{"schema_version": 1, "accepted": tt.accepted})
 			output, err := runArchitecture(t, "validate-ticket", "--ticket", writeTicketFixture(t, document), "--checkpoints", registry)
@@ -237,16 +285,11 @@ func TestValidateMigrationWaveCheckpointReferences(t *testing.T) {
 
 func TestValidateMigrationWaveRejectsEmptyFlowEvidence(t *testing.T) {
 	t.Parallel()
-	for _, field := range []string{"source", "workload", "thresholds", "query_count", "errors", "failure", "rollback", "smoke"} {
+	for _, field := range []string{"source", "workload", "thresholds", "query_count", "errors", "failure", "rollback", "smoke", "latency_p50", "latency_p95", "lock_wait", "pool_wait", "deadlocks", "affected_rows", "job_duration", "job_retries", "job_backlog"} {
 		t.Run(field, func(t *testing.T) {
 			t.Parallel()
-			document := decodeTicketFixture(t)
-			document["ticket_kind"] = "migration"
-			delete(document, "checkpoint")
-			document["checkpoint_reference"] = "https://github.com/moto-nrw/project-phoenix/issues/3019"
+			document := migrationFixture(t)
 			evidence := document["runtime_evidence"].(map[string]any)
-			evidence["failure"], evidence["smoke"] = "Rollback verified.", "Smoke passed."
-			evidence["rollback"] = "Transaction rollback verified."
 			delete(evidence, field)
 			output, err := runArchitecture(t, "validate-ticket", "--ticket", writeTicketFixture(t, document))
 			if err == nil || !strings.Contains(output, "runtime_evidence."+field+" is required") {

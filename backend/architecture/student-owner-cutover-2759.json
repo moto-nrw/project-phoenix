@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "ticket_kind": "migration",
   "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
   "prerequisites": [
@@ -33,18 +33,70 @@
     "source": "docs/operations/student-owner-storage-cutover.md and docs/operations/student-owner-storage-cutover.sql (local 2026-09-18 migration and full-suite runs; staging record pending)",
     "workload": "Local disposable PostgreSQL clones per test with one to six students per school covering every copied column, a second school for the isolation checks, and the complete backend test suite exercising every current student read and write through the compatibility view. The staging run with the previous image served against the switched schema is pending.",
     "thresholds": "No latency SLO. Acceptance per school is source_count = target_count, equal canonical checksums, mismatch_count 0, guardian_mismatch_count 0 and care_state_mismatch_count 0 inside the switch transaction; afterwards zero live enrollments without a care profile, zero unvalidated repointed constraints, and compatibility read and write counters that trend to zero on the new image.",
-    "query_count": "Per school inside the write lock: one orphan delete, one combined copy CTE, two checksum queries, the row mismatch query, the guardian reconciliation query, the care-state query and one checkpoint update. Per run: the advisory acquire and release, the school listing, one two-sequence alignment statement, one foreign-key repoint statement and one schema-switch statement. After the commit: one statement validating all 48 repointed constraints.",
-    "errors": "Zero errors in the local suites. A missing checkpoint, an unequal checksum, an unreconciled legacy guardian value, a stale absence flag, a cross-tenant person, an oversized delta and a lock timeout each abort the transaction and change nothing; running the migration twice fails on the base-table guard.",
-    "failure": "An error injected after the final delta and before the schema switch rolls back the copied rows and the checkpoint evidence together, and the retry reconciles the same delta again and switches. A target-only edit of a row the source still holds is reconciled by the final delta rather than blocking. A legacy guardian value without a counterpart blocks the switch instead of being dropped.",
-    "rollback": "The down step is an error on purpose: rollback deploys the previous image against the retained compatibility shape. The previous-image contract is proven by the golden read comparison and the routed write tests; `backfill student-owner compatibility` restores the view, its routing and the redefined dependent view from the authoritative storage, resumes the constraint validation and removes archive rows whose child the owner storage no longer holds, without writing the three owner tables and without resetting the hit counters. The pre-cutover backfill and its reset still refuse to run against a view.",
-    "smoke": "The complete backend test suite passes against the switched schema; scripts/backend-architecture.sh check introduces no key and leaves policy ownership unchanged; golangci-lint reports zero issues for the changed packages. Recorded in docs/operations/student-owner-storage-cutover.md.",
-    "affected_rows": "Local: the final delta copies only rows changed since the last backfill pass and removes only profiles whose source row is gone; the per-school checkpoint records both. Staging per-school totals pending.",
-    "lock_wait": "The switch holds ACCESS EXCLUSIVE on users.students, the three targets and the 48 dependent tables for the duration of one transaction bounded by a 5s lock timeout and a 60s statement timeout; the deployment procedure stops application writers first. The constraint validation after the commit takes only share-update-exclusive locks, so reads and writes continue. Staging wall-clock measurement pending.",
-    "deadlocks": "No retry loop: the switch is a single transaction that fails closed and is retried by rerunning the migration. Deadlock and serialization counters stay with the resumable backfill.",
-    "pool_wait": "Not applicable: the switch runs on one connection inside one transaction, plus the advisory-lock connection the backfill runner already owns.",
-    "job_duration": "Staging migration wall time and held-lock duration pending; local switches complete in single-digit milliseconds per school.",
-    "job_retries": "Not applicable: the switch does not retry. A failed switch leaves the pre-cutover schema and its backfill checkpoints untouched.",
-    "job_backlog": "Compatibility reads and writes are the backlog to watch during the rollback window; both are durable sequence counters and must trend to zero before #2760."
+    "query_count": {
+      "state": "historical_gap",
+      "reason": "The pre-gate query_count text describes instrumentation or expected behavior, not a measurement of this metric. Preserve that text without claiming a new observation.",
+      "original": "Per school inside the write lock: one orphan delete, one combined copy CTE, two checksum queries, the row mismatch query, the guardian reconciliation query, the care-state query and one checkpoint update. Per run: the advisory acquire and release, the school listing, one two-sequence alignment statement, one foreign-key repoint statement and one schema-switch statement. After the commit: one statement validating all 48 repointed constraints."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "Zero errors in the local suites. A missing checkpoint, an unequal checksum, an unreconciled legacy guardian value, a stale absence flag, a cross-tenant person, an oversized delta and a lock timeout each abort the transaction and change nothing; running the migration twice fails on the base-table guard."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "An error injected after the final delta and before the schema switch rolls back the copied rows and the checkpoint evidence together, and the retry reconciles the same delta again and switches. A target-only edit of a row the source still holds is reconciled by the final delta rather than blocking. A legacy guardian value without a counterpart blocks the switch instead of being dropped."
+    },
+    "rollback": {
+      "state": "measured",
+      "result": "The down step is an error on purpose: rollback deploys the previous image against the retained compatibility shape. The previous-image contract is proven by the golden read comparison and the routed write tests; `backfill student-owner compatibility` restores the view, its routing and the redefined dependent view from the authoritative storage, resumes the constraint validation and removes archive rows whose child the owner storage no longer holds, without writing the three owner tables and without resetting the hit counters. The pre-cutover backfill and its reset still refuse to run against a view."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "The complete backend test suite passes against the switched schema; scripts/backend-architecture.sh check introduces no key and leaves policy ownership unchanged; golangci-lint reports zero issues for the changed packages. Recorded in docs/operations/student-owner-storage-cutover.md."
+    },
+    "affected_rows": {
+      "state": "measured",
+      "result": "Local: the final delta copies only rows changed since the last backfill pass and removes only profiles whose source row is gone; the per-school checkpoint records both. Staging per-school totals pending."
+    },
+    "lock_wait": {
+      "state": "historical_gap",
+      "reason": "The pre-gate lock_wait text describes instrumentation or expected behavior, not a measurement of this metric. Preserve that text without claiming a new observation.",
+      "original": "The switch holds ACCESS EXCLUSIVE on users.students, the three targets and the 48 dependent tables for the duration of one transaction bounded by a 5s lock timeout and a 60s statement timeout; the deployment procedure stops application writers first. The constraint validation after the commit takes only share-update-exclusive locks, so reads and writes continue. Staging wall-clock measurement pending."
+    },
+    "deadlocks": {
+      "state": "historical_gap",
+      "reason": "The pre-gate deadlocks text describes instrumentation or expected behavior, not a measurement of this metric. Preserve that text without claiming a new observation.",
+      "original": "No retry loop: the switch is a single transaction that fails closed and is retried by rerunning the migration. Deadlock and serialization counters stay with the resumable backfill."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "Not applicable: the switch runs on one connection inside one transaction, plus the advisory-lock connection the backfill runner already owns."
+    },
+    "job_duration": {
+      "state": "measured",
+      "result": "Staging migration wall time and held-lock duration pending; local switches complete in single-digit milliseconds per school."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "Not applicable: the switch does not retry. A failed switch leaves the pre-cutover schema and its backfill checkpoints untouched."
+    },
+    "job_backlog": {
+      "state": "historical_gap",
+      "reason": "The pre-gate job_backlog text describes instrumentation or expected behavior, not a measurement of this metric. Preserve that text without claiming a new observation.",
+      "original": "Compatibility reads and writes are the backlog to watch during the rollback window; both are durable sequence counters and must trend to zero before #2760."
+    },
+    "sources": [
+      "docs/operations/student-owner-storage-cutover.md",
+      "docs/operations/student-owner-storage-cutover.sql"
+    ],
+    "latency_p50": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record latency_p50 evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "latency_p95": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record latency_p95 evidence. This is a historical reporting gap, not a claim of non-applicability."
+    }
   },
   "rollback_and_cleanup": "Rollback deploys the previous image against the retained compatibility view; no down migration runs and the archive is never renamed back over live owner rows. Old columns, the archive, the view, its routing and the counters stay for #2760. The application caller switch that the ticket's exit criterion also requires is not included here: the People Directory student store currently serves class, group and lifecycle fields that School Membership owns after the split, and the architecture policy admits no read projection for a domain-owned adapter, so those queries and commands have to move into School Membership and Care Plan owner capabilities with their callers. That redesign is tracked as remaining work on #2759 and is listed in docs/operations/student-owner-storage-cutover.md.",
   "exit_criterion": "Checksums are equal per school inside the switch, the three owner tables are authoritative, every foreign key that names a student references users.student_profiles and is validated, the previous image still reads and writes the old shape through the view, and both compatibility counters are observable. scripts/backend-architecture.sh check removes every listed key, introduces no key, and leaves policy ownership unchanged. Still open on this ticket: every current application caller reads and writes the owner interfaces instead of users.students, exactly one provider writes each field, and a caller-inventory test proves zero old application reads and writes."

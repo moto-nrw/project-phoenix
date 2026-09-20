@@ -615,6 +615,31 @@ export const appChapters: readonly GuideChapter[] = [
         searchTerms: ["Navigation", "Menü", "Gruppen", "Mehr-Menü"],
       },
       {
+        id: "einrichtung-wechseln",
+        title: "Einrichtung wechseln",
+        icon: Building2,
+        summary:
+          "Wenn Sie für mehrere Einrichtungen arbeiten, wechseln Sie oben in der Seitenleiste.",
+        steps: [
+          "Oben auf den Namen der Einrichtung klicken.",
+          "Die gewünschte Einrichtung wählen.",
+          "Erscheint eine Meldung zum Wechsel, `Erneut versuchen` wählen.",
+          "Bleibt die Meldung, `Neu anmelden` wählen und sich danach wieder anmelden.",
+        ],
+        callout: {
+          title: "Die Einrichtung hat nicht gewechselt",
+          body: "Mit `Neu anmelden` werden Sie abgemeldet. Danach melden Sie sich wieder an und wählen die Einrichtung erneut.",
+          tone: "orange",
+        },
+        screenshot:
+          "Oben in der Seitenleiste steht der Name der ausgewählten Einrichtung.",
+        searchTerms: [
+          "Schule wechseln",
+          "Standort wechseln",
+          "Erneut versuchen",
+        ],
+      },
+      {
         id: "home",
         title: "Startseite",
         icon: LayoutDashboard,

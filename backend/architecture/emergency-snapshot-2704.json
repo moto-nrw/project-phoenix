@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "ticket_kind": "migration",
   "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
   "prerequisites": [
@@ -58,11 +58,69 @@
     "source": "docs/runtime-checkpoints/emergency-snapshot-2704.md and accompanying raw JSON, baseline harness, and EXPLAIN plans",
     "workload": "Local isolated PostgreSQL17.11; baseline fixed at0d93d9163a; empty,32-child document,128-child document,and128-child PDF; five warmups and30samples each,concurrency1,real owner reads with fixed mode/health setting ports.",
     "thresholds": "No new SLO. Compare local same-workload baseline, not staging/production parity. Real settings resolution and HTTP latency excluded.",
-    "query_count": "Both readers:5queries empty,11nonempty including commit (10inside transaction);32/128children return194/770driver-reported rows;0DML.",
-    "errors": "Zero unexpected errors, pool waits, deadlocks,or observed lock waiters in both readers. No projection cache. Full plans retain actual scan row counts/loops.",
-    "failure": "Binary owner failure was reproduced and repaired to retain the stable HTTP500 text; permission/portal failures reject before projection.",
-    "rollback": "Projection persists nothing; measured DML rows zero. Revert complete wiring to restore retained reader, without data migration.",
-    "smoke": "Real renderer emits PDF; production resource router verifies permission and JWT/tenant middleware; RLS test uses real owner adapters."
+    "query_count": {
+      "state": "measured",
+      "result": "Both readers:5queries empty,11nonempty including commit (10inside transaction);32/128children return194/770driver-reported rows;0DML."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "Zero unexpected errors, pool waits, deadlocks,or observed lock waiters in both readers. No projection cache. Full plans retain actual scan row counts/loops."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "Binary owner failure was reproduced and repaired to retain the stable HTTP500 text; permission/portal failures reject before projection."
+    },
+    "rollback": {
+      "state": "measured",
+      "result": "Projection persists nothing; measured DML rows zero. Revert complete wiring to restore retained reader, without data migration."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "Real renderer emits PDF; production resource router verifies permission and JWT/tenant middleware; RLS test uses real owner adapters."
+    },
+    "sources": [
+      "docs/runtime-checkpoints/emergency-snapshot-2704.baseline-plans.json",
+      "docs/runtime-checkpoints/emergency-snapshot-2704.baseline_test.go.txt",
+      "docs/runtime-checkpoints/emergency-snapshot-2704.md",
+      "docs/runtime-checkpoints/emergency-snapshot-2704.plans.json",
+      "docs/runtime-checkpoints/emergency-snapshot-2704.raw.json"
+    ],
+    "affected_rows": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record affected_rows evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "latency_p50": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record latency_p50 evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "latency_p95": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record latency_p95 evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "pool_wait": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record pool_wait evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "lock_wait": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record lock_wait evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "deadlocks": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record deadlocks evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "job_duration": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record job_duration evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "job_retries": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record job_retries evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "job_backlog": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record job_backlog evidence. This is a historical reporting gap, not a claim of non-applicability."
+    }
   },
   "rollback_and_cleanup": "Revert consumer wiring as a whole. Read-only projection owns no authoritative state and no document metadata is persisted by this direct-download path. No deployment or staging/production requests.",
   "exit_criterion": "One projection serves all named emergency consumers with unchanged filtering/order/document/authorization contracts; listed keys absent,legacy1733 from1754,composition798unchanged,ownership and policy epoch5 preserved."

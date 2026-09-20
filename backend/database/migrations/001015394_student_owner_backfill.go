@@ -68,13 +68,9 @@ func studentOwnerBackfillUp(ctx context.Context, db *bun.DB) error {
 			COMMENT ON TABLE platform.storage_backfill_checkpoints IS
 				'Resumable per-tenant progress and verification evidence of storage backfills (#2580). Superuser CLI and migrations only.';
 
-			-- The student split leaves two groups of old columns without a
-			-- target, so "equal counts and checksums" is not the whole verdict:
-			-- the legacy guardian values must be reconciled against the guardian
-			-- tables, and the legacy sick/excused flags against
-			-- active.student_status_days. Both get their own counter so an
-			-- operator can tell a column-mapping defect from an unreconciled
-			-- contact or a stale absence flag.
+			-- Guardian values need reconciliation against their owners.
+			-- Absence/status-day differences remain diagnostic: 1.15.398 copies
+			-- and verifies the preserved flags and timestamps into Care Plan.
 			ALTER TABLE platform.storage_backfill_checkpoints
 				ADD COLUMN IF NOT EXISTS guardian_mismatch_count BIGINT NOT NULL DEFAULT 0,
 				ADD COLUMN IF NOT EXISTS care_state_mismatch_count BIGINT NOT NULL DEFAULT 0,
@@ -99,8 +95,8 @@ func studentOwnerBackfillUp(ctx context.Context, db *bun.DB) error {
 		return err
 	}
 	if !report.Stable() {
-		// Concurrent old-table writes, unreconciled guardian values and stale
-		// absence flags all keep a tenant unstable; the migration leaves its
+		// Concurrent old-table writes and unreconciled guardian values
+		// keep a tenant unstable; the migration leaves its
 		// checkpoint for the CLI instead of blocking deployment.
 		migrationLog().WarnContext(ctx, "student owner backfill left unstable tenants; rerun `phoenix backfill student-owner` before Cutover",
 			"unstable_tenants", report.Unstable(),

@@ -64,7 +64,7 @@ case "${1:-}" in
     exec go run . validate-ticket "$@"
     ;;
   *)
-    echo "Usage: $0 {check [--project path] [--policy path] [--baseline path] [--base-ref sha]|explain|audit-issues --api-url url|diagram [--output dir]|dependencies --focus module-or-package [--output dir]|validate-ticket --ticket path}" >&2
+    echo "Usage: $0 {check [--project path] [--policy path] [--baseline path] [--base-ref sha]|explain|audit-issues --api-url url|diagram [--output dir]|dependencies --focus module-or-package [--output dir]|validate-ticket [--ticket path|--all] [--base-ref sha]}" >&2
     exit 2
     ;;
 esac

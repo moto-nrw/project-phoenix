@@ -118,8 +118,8 @@ type StudentOwnerBackfillCheckpoint struct {
 	// target column; reporting them is what keeps them from being dropped.
 	GuardianMismatchCount int64 `bun:"guardian_mismatch_count" json:"guardian_mismatch_count"`
 	// CareStateMismatchCount counts students whose legacy sick/excused flag is
-	// raised without an equivalent open day in active.student_status_days, the
-	// authority the targets rely on. Those flags have no target column either.
+	// raised without an equivalent open day in active.student_status_days.
+	// Diagnostic only: 1.15.398 copies the flags and timestamps into Care Plan.
 	CareStateMismatchCount int64 `bun:"care_state_mismatch_count" json:"care_state_mismatch_count"`
 	// RowsVisibleToTenant is how many of the three targets' rows the
 	// phoenix_tenant role saw for this school at the last verification. The
@@ -141,10 +141,10 @@ type StudentOwnerBackfillCheckpoint struct {
 
 // Verified reports whether the last verification found equal counts and
 // checksums, no mismatched or orphaned rows, every legacy guardian value
-// reconciled and the effective care state equivalent.
+// reconciled. Absence/status-day differences do not prevent a lossless copy.
 func (c StudentOwnerBackfillCheckpoint) Verified() bool {
 	return c.VerifiedAt != nil && c.MismatchCount == 0 &&
-		c.GuardianMismatchCount == 0 && c.CareStateMismatchCount == 0 &&
+		c.GuardianMismatchCount == 0 &&
 		c.SourceCount == c.TargetCount && c.SourceChecksum == c.TargetChecksum
 }
 

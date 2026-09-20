@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "ticket_kind": "migration",
   "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
   "prerequisites": [
@@ -139,11 +139,66 @@
     "source": "docs/runtime-checkpoints/device-scan-2698.md and device-scan-2698.raw.json",
     "workload": "Local PostgreSQL17.11, Go1.27.0, disposable database, concurrency1; five warmups plus30samples for check-in, transfer, checkout, duplicate supervisor and injected rollback.",
     "thresholds": "No new SLO is specified. Existing architecture and composition gates apply. Local evidence is not staging, production, historical parity or concurrent load.",
-    "query_count": "40/47/22/14/40 queries; 3/4/1/0/3 DML rows respectively; rollback commits no rows.",
-    "errors": "Zero unexpected errors, conflicts, warning logs, pool waits or deadlocks.30expected idempotent supervisor results and30injected rollbacks. Sampled lock waits zero, finite polling gaps documented.",
-    "failure": "Ping wire regression reproduced and fixed; no-transaction public calls rejected; settings errors preserved and checkout gate fails closed.",
-    "rollback": "Late failure after actual transfer owner writes restores every named-table snapshot; successful retry preserves all foreign rows and unaffected own tables.",
-    "smoke": "Actual scan route tests and separate real authenticator middleware tests. Header-to-scan behavior is supported by layered tests and unchanged router wiring, not a claimed single full-stack authentication golden."
+    "query_count": {
+      "state": "measured",
+      "result": "40/47/22/14/40 queries; 3/4/1/0/3 DML rows respectively; rollback commits no rows."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "Zero unexpected errors, conflicts, warning logs, pool waits or deadlocks.30expected idempotent supervisor results and30injected rollbacks. Sampled lock waits zero, finite polling gaps documented."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "Ping wire regression reproduced and fixed; no-transaction public calls rejected; settings errors preserved and checkout gate fails closed."
+    },
+    "rollback": {
+      "state": "measured",
+      "result": "Late failure after actual transfer owner writes restores every named-table snapshot; successful retry preserves all foreign rows and unaffected own tables."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "Actual scan route tests and separate real authenticator middleware tests. Header-to-scan behavior is supported by layered tests and unchanged router wiring, not a claimed single full-stack authentication golden."
+    },
+    "sources": [
+      "docs/runtime-checkpoints/device-scan-2698.md",
+      "docs/runtime-checkpoints/device-scan-2698.raw.json"
+    ],
+    "affected_rows": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record affected_rows evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "latency_p50": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record latency_p50 evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "latency_p95": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record latency_p95 evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "pool_wait": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record pool_wait evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "lock_wait": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record lock_wait evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "deadlocks": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record deadlocks evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "job_duration": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record job_duration evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "job_retries": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record job_retries evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "job_backlog": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record job_backlog evidence. This is a historical reporting gap, not a claim of non-applicability."
+    }
   },
   "rollback_and_cleanup": "Revert the whole workflow wiring against unchanged table shapes. Deleted legacy scan package cannot run beside the new provider. Before deployment preserve intended prior environment checkout time as explicit per-school settings; deployment and production configuration inspection are outside this task.",
   "exit_criterion": "One workflow for kiosk scans, unchanged header/error/wire contracts, all listed keys absent, no ownership changes and epoch4->5 data-less workflow registration under ADR0013."

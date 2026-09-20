@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "ticket_kind": "migration",
   "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
   "prerequisites": [
@@ -37,11 +37,66 @@
     "source": "docs/runtime-checkpoints/session-end-2697.md and session-end-2697.raw.json",
     "workload": "Local isolated PostgreSQL 17.11, Go 1.27.0, concurrency 1; 5 warmups and 30 calls per operation. Real composed workflow including Timetable completion, one supervisor and two student assignments. Fixture creation excluded.",
     "thresholds": "No task-specific SLO or query budget is defined. Existing behavior, architecture and composition gates apply. Measurements are not production thresholds or a before/after benchmark.",
-    "query_count": "Mirrored end 34 statements and 5 DML rows; already-ended rejection 5 statements and zero DML rows.",
-    "errors": "No unexpected errors; repeated calls consistently return ErrSessionAlreadyEnded. No pool waits or database deadlock counter increments. Lock sampling observed zero waiters, subject to sampling gaps.",
-    "failure": "Cancel/session-end lock inversion reproduced with SQLSTATE 55P03, then fixed and verified using both real operations. Owner completion failure and caller abort preserve all Presence writes and suppress notifications.",
-    "rollback": "One tenant UnitOfWork rolls back Presence and Timetable operations; notifications execute only after commit. Existing integration tests inject completion and outer-caller failures.",
-    "smoke": "Real kiosk route test verifies visit checkout, mirrored completion, expected-student finalization, repeated-close response and foreign-tenant preservation. Repository-wide affected checks and CI are required before merge."
+    "query_count": {
+      "state": "measured",
+      "result": "Mirrored end 34 statements and 5 DML rows; already-ended rejection 5 statements and zero DML rows."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "No unexpected errors; repeated calls consistently return ErrSessionAlreadyEnded. No pool waits or database deadlock counter increments. Lock sampling observed zero waiters, subject to sampling gaps."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "Cancel/session-end lock inversion reproduced with SQLSTATE 55P03, then fixed and verified using both real operations. Owner completion failure and caller abort preserve all Presence writes and suppress notifications."
+    },
+    "rollback": {
+      "state": "measured",
+      "result": "One tenant UnitOfWork rolls back Presence and Timetable operations; notifications execute only after commit. Existing integration tests inject completion and outer-caller failures."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "Real kiosk route test verifies visit checkout, mirrored completion, expected-student finalization, repeated-close response and foreign-tenant preservation. Repository-wide affected checks and CI are required before merge."
+    },
+    "sources": [
+      "docs/runtime-checkpoints/session-end-2697.md",
+      "docs/runtime-checkpoints/session-end-2697.raw.json"
+    ],
+    "affected_rows": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record affected_rows evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "latency_p50": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record latency_p50 evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "latency_p95": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record latency_p95 evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "pool_wait": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record pool_wait evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "lock_wait": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record lock_wait evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "deadlocks": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record deadlocks evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "job_duration": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record job_duration evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "job_retries": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record job_retries evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "job_backlog": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record job_backlog evidence. This is a historical reporting gap, not a claim of non-applicability."
+    }
   },
   "rollback_and_cleanup": "Revert workflow wiring against unchanged table shapes if needed; transactional failures roll back before after-commit notifications. No irreversible cleanup or schema change. Later Timetable/Presence schema split stays #2762.",
   "exit_criterion": "Listed session-end entrypoints use single owner providers and retain tenant contracts. Architecture ownership and shrink-only baselines remain unchanged except reviewed epoch-4 data-less workflow registration under ADR 0013."

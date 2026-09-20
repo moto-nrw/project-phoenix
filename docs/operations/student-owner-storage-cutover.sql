@@ -18,8 +18,7 @@ SELECT tenant_id, verified_at, stable,
        source_count = target_count
        AND source_checksum = target_checksum
        AND mismatch_count = 0
-       AND guardian_mismatch_count = 0
-       AND care_state_mismatch_count = 0 AS cutover_checksums_equal,
+       AND guardian_mismatch_count = 0 AS cutover_checksums_equal,
        source_count, target_count, mismatch_count,
        guardian_mismatch_count, care_state_mismatch_count
 FROM platform.storage_backfill_checkpoints
