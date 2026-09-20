@@ -1,20 +1,36 @@
 # Student owner storage Contract (#2760)
 
-## Implementation status
+## Current deployment policy (revised 2026-09-20)
 
-Migration **1.15.399** is registered with a precondition and an execution-time
-evidence gate. Fresh empty installations reach the contracted schema. Existing
-installations require reviewed operational evidence. The agreed policy is
-**at least 24 hours without old access, including one complete regular school
-day and the relevant background jobs**. The contracted-schema
-backend suite, local database/prior-image restore smoke and schema-3 evidence
-validation have passed as recorded below.
+Migration **1.15.399** runs during ordinary deployments, including upgrades of
+existing databases. The user replaced the mandatory 24-hour/school-day waiting
+policy with the normal staging-first release flow. No evidence JSON is required.
+This is actual cleanup, not a skipped migration: the stored visit-count function
+is rebound to owner storage and the old compatibility objects are removed.
 
-The [production observation](student-owner-contract-2760-observation.md)
-records the read-only inspection. It does not authorize destructive execution.
-The user explicitly confirmed this policy on 2026-09-20 and intends a later
-production deployment. Waiting until Tuesday/Wednesday is not itself evidence;
-the school day, job runs and continued zero access must be observed.
+The technical gates remain mandatory: zero compatibility counters, valid owner
+links and RLS, reconciled guardian data, no unsupported function/dependency
+references, bounded locks, and unchanged owner fingerprints across the atomic
+transaction. Preflight checks the live database before stopping the old release;
+execution repeats the checks under the DDL locks. New empty installations retain
+their separate empty-replay verification.
+
+Use the normal deployment pipeline: it stops the app, creates and verifies the
+complete release-backup bundle, and only then migrates. Failures restore that
+bundle and its matching previous image. A direct `migrate` invocation does not
+create a backup; do not use it to bypass this deployment sequence. After a
+successful destructive cleanup, an old image alone is not a rollback.
+
+An explicitly supplied `--student-contract-evidence` file remains optional and
+is still strictly validated, including its original observation-window policy.
+Malformed or stale supplied evidence is not silently ignored. Without that flag,
+there is no observation-window or school-day gate. Source review and the caller
+inventory cover repository application code, not unknown external consumers.
+
+The following evidence descriptions and historical verification results document
+how the optional evidence path and the cleanup were tested. They do not restore
+the superseded mandatory waiting policy. This change prepares a release; it does
+not itself execute a staging or production deployment.
 
 ### Operating evidence
 
@@ -74,11 +90,11 @@ nonzero old callers/access counts, short or stale observations, statistics
 resets/evictions, and missing or inconsistent backup/restore evidence. The
 evidence-bearing transaction entry point checks the database name, database
 OID, PostgreSQL system identifier, compatibility counters and query-statistics
-epoch/evictions before locking and again inside the DDL transaction. The caller
-must supply trusted executing-release metadata; it must match the inventory's
-full commit. Operator assertions still need raw-artifact review and deployment
-script wiring. The ungated internal core remains for isolated DDL tests;
-registered migration execution does not call it.
+epoch/evictions before locking and again inside the DDL transaction. When
+supplying evidence, the caller must supply trusted executing-release metadata;
+it must match the inventory's full commit. Operator assertions still need
+raw-artifact review and deployment script wiring. Ordinary migration execution
+uses the same transactional data checks without the optional evidence validator.
 
 `scripts/deploy-remote.sh` accepts an optional second positional argument, an
 absolute path to the reviewed evidence file (the first is the deployment
@@ -87,9 +103,9 @@ the same container-readable, read-only copy into both `migrate preflight` and
 `migrate`. Missing/unreadable/empty input aborts before pulling or stopping.
 Cleanup removes the temporary copy on success or failure. The operator must
 retain the reviewed original with its raw source artifacts. The normal CI
-invocation supplies no evidence and therefore cannot authorize Contract on
-an existing installation. The later Contract deployment must explicitly supply
-the reviewed file; there is no implicit file discovery or policy override.
+invocation supplies no evidence and performs Contract using the mandatory live
+data checks and normal release-backup sequence. Explicit evidence is optional;
+there is no implicit file discovery.
 
 All 23 release backup/deployment shell tests passed after this wiring,
 including mutation of the original file after preflight: both phases still
@@ -120,8 +136,9 @@ parsing alone does not authorize execution or choose the agreed rollback
 duration. Both `migrate` and `migrate preflight` now accept
 `--student-contract-evidence /path/to/evidence.json` and carry the parsed
 document into the migration context. They reject an evidence/build commit
-mismatch before opening a database. The registered precondition and Up consume
-that context and apply the same 24-hour/school-day/jobs operating policy.
+mismatch before opening a database. When supplied, the registered precondition
+and Up consume that context and apply the same optional
+24-hour/school-day/jobs policy.
 
 The first full backend run on the contracted schema found one real runtime
 dependency that the Go caller inventory could not see:
@@ -431,12 +448,12 @@ a timestamp-collision fixture repair. Both review findings and the subsequent
 tracking-configuration finding are addressed; local Loki/Grafana notification
 delivery also passed. See [monitoring evidence](evidence/student-owner-contract-2760/monitoring.md).
 
-1. The operating policy is agreed and implemented: at least 24 hours, including
-   a complete regular school day and relevant jobs, with zero old access.
+1. The current deployment policy above supersedes the original mandatory
+   waiting period. Live integrity and zero-compatibility-hit checks remain.
 2. Review corrections, current broad tests, release-build
    verification and monitoring evidence are recorded in the
    [verification summary](evidence/student-owner-contract-2760/final-verification.md).
-3. Before any later production execution, operators must supply fresh
-   runtime/job/external-caller observations and a restorable backup bound to
-   that database and release. This implementation does not authorize that
-   execution or substitute local synthetic evidence for those observations.
+3. Deploy staging first and verify the application before promotion. Use the
+   complete release-backup/rollback pipeline for both environments. Optional
+   evidence documents do not replace that backup. These historical local
+   results are not proof of a completed deployment or unknown external callers.
