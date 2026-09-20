@@ -97,7 +97,7 @@ func NewAuthCleanupService(db *bun.DB, runtime tenant.UnitOfWork, logger *slog.L
 	if err != nil {
 		return nil, fmt.Errorf("auth cleanup service: token auth: %w", err)
 	}
-	codec, err := identityaccessCompose.NewSessionTokenCodec(tokenAuth.JwtAuth, tokenAuth.JwtExpiry, tokenAuth.JwtRefreshExpiry)
+	codec, err := signedIdentityTokensOf(tokenAuth)
 	if err != nil {
 		return nil, err
 	}

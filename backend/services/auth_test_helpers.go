@@ -192,7 +192,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	codec, err := identityaccessCompose.NewSessionTokenCodec(tokenAuth.JwtAuth, tokenAuth.JwtExpiry, tokenAuth.JwtRefreshExpiry)
+	codec, err := signedIdentityTokensOf(tokenAuth)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
@@ -294,7 +294,7 @@ func IdentityAccessForTests(repos *repositories.Factory, cfg IdentityAccessTestC
 		}
 		signer = created
 	}
-	codec, err := identityaccessCompose.NewSessionTokenCodec(signer.JwtAuth, signer.JwtExpiry, signer.JwtRefreshExpiry)
+	codec, err := signedIdentityTokensOf(signer)
 	if err != nil {
 		return nil, err
 	}

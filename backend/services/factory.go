@@ -1603,9 +1603,9 @@ func newFactory(
 	if err != nil {
 		return nil, fmt.Errorf("invalid auth JWT configuration: %w", err)
 	}
-	sessionCodec, err := identityaccessCompose.NewSessionTokenCodec(sessionTokenAuth.JwtAuth, sessionTokenAuth.JwtExpiry, sessionTokenAuth.JwtRefreshExpiry)
+	sessionCodec, err := signedIdentityTokensOf(sessionTokenAuth)
 	if err != nil {
-		return nil, fmt.Errorf("invalid auth JWT configuration: %w", err)
+		return nil, err
 	}
 
 	// Identity & Access serves tenant, parent and school login, refresh,

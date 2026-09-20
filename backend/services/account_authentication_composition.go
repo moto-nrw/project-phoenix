@@ -13,6 +13,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/services/config"
@@ -88,13 +89,23 @@ func sessionRepositoriesOf(repos *repositories.Factory, organizations organizati
 	}
 }
 
+// signedIdentityTokensOf adapts a root's resolved signer to the native claim
+// codec. The signing primitive stays in the token adapter; Identity owns the
+// claim schema and validation.
+func signedIdentityTokensOf(signer *authjwt.TokenAuth) (identityaccessCompose.SignedIdentityTokens, error) {
+	codec, err := identityaccessCompose.NewSessionTokenCodec(signer.JwtAuth, signer.JwtExpiry, signer.JwtRefreshExpiry)
+	if err != nil {
+		return nil, fmt.Errorf("identity token codec: %w", err)
+	}
+	return codec, nil
+}
+
 // newIdentityAccessWithSessions composes the Identity & Access module with
 // the account-authentication flows bound.
 func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWiring) (*identityaccess.Module, error) {
 	if wiring.repos.schools.schools == nil || wiring.repos.persons == nil || wiring.repos.authEvents == nil || wiring.repos.pushSubscriptions == nil || wiring.codec == nil || wiring.audit == nil {
-		return nil, errors.New("identity access composition: repositories, token auth and audit command are required")
+		return nil, errors.New("identity access composition: repositories, token codec and audit command are required")
 	}
-	codec := wiring.codec
 	observe := func(identityaccessCompose.Observation) {}
 	if wiring.observe != nil {
 		observe = func(observation identityaccessCompose.Observation) {
@@ -115,13 +126,13 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 	// composed into, so it reads the module back at call time.
 	var module *identityaccess.Module
 	resets := passwordResetDependencies(wiring.resets, func() identityaccess.PasswordResets { return module }, wiring.logger)
-	invitations := invitationDependencies(wiring.invitations, codec, func() identityaccess.SchoolInvitations { return module }, wiring.logger)
+	invitations := invitationDependencies(wiring.invitations, wiring.codec, func() identityaccess.SchoolInvitations { return module }, wiring.logger)
 	operatorLinks := operatorProvisioningDependencies(wiring.operatorLinks, func() identityaccess.OperatorTokens { return module }, wiring.logger)
 	module, err = identityaccessCompose.New(identityaccessCompose.Dependencies{
 		Lifecycle:            lifecycle,
 		Resets:               resets,
 		Invitations:          invitations,
-		MFA:                  mfaDependencies(wiring.mfa, codec),
+		MFA:                  mfaDependencies(wiring.mfa, wiring.codec),
 		OperatorProvisioning: operatorLinks,
 		DB:                   db,
 		Observe:              observe,
@@ -129,7 +140,7 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 			Schools:       wiring.repos.schools,
 			Persons:       personDirectory{persons: wiring.repos.persons},
 			Passwords:     passwordVerifier{},
-			Codec:         codec,
+			Codec:         wiring.codec,
 			MFALock:       mfaPolicyLock{settings: wiring.settings},
 			Audit:         authAudit{command: wiring.audit, events: wiring.repos.authEvents},
 			Push:          pushSubscriptionCleanup{subscriptions: wiring.repos.pushSubscriptions},
