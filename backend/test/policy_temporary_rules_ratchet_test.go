@@ -138,8 +138,6 @@ var policyTempRulesFamilies = map[string]int{
 	// #2736 (OPEN), #3232, #3224.
 	"communication": 6,
 
-	// #3220 — closed.
-
 	// #3218, #3219, #3220 — closed.
 	"document-rendering": 5,
 
@@ -170,9 +168,6 @@ var policyTempRulesFamilies = map[string]int{
 	// #3229, #3214, #3220 — closed; #2725 (OPEN) for one rule.
 	"inbound-parent": 29,
 
-	// #3220 — closed. The single largest closed-issue family after
-	// inbound-timetable.
-
 	// #3224 — closed.
 	"inbound-sse": 1,
 
@@ -202,8 +197,6 @@ var policyTempRulesFamilies = map[string]int{
 
 	// #2736 (OPEN) and #3232 (closed) name most rules jointly; #3214 the rest.
 	"organization-tenancy": 14,
-
-	// #3220 — closed.
 
 	// #3214, #3218 — closed; #3350 (PR #3408) added one.
 	"people-directory": 4,
