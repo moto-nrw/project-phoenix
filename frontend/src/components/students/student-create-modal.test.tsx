@@ -195,10 +195,12 @@ vi.mock("./care-weekly-plan-modal", () => ({
     onClose,
     onSubmit,
     careDaysSource,
+    schoolPeriods,
   }: {
     isOpen: boolean;
     onClose: () => void;
     careDaysSource: "weekly_plan" | "bookings";
+    schoolPeriods?: Array<{ period: number; end_time: string }>;
     onSubmit: (data: {
       arrivalSchedules: Array<{
         weekday: number;
@@ -218,6 +220,14 @@ vi.mock("./care-weekly-plan-modal", () => ({
     isOpen ? (
       <div data-testid="care-weekly-plan-modal">
         <span data-testid="care-days-source">{careDaysSource}</span>
+        <span data-testid="care-school-periods">
+          {schoolPeriods
+            ?.map(
+              (schoolPeriod) =>
+                `${schoolPeriod.period}: ${schoolPeriod.end_time}`,
+            )
+            .join(", ")}
+        </span>
         <button
           type="button"
           onClick={() =>
@@ -323,6 +333,10 @@ describe("StudentCreateModal", () => {
     vi.clearAllMocks();
     mockFetchArrivalSettings.mockResolvedValue({
       care_days_source: "weekly_plan",
+      school_periods: [
+        { period: 1, end_time: "08:45" },
+        { period: 2, end_time: "09:35" },
+      ],
     });
   });
 
@@ -808,6 +822,9 @@ describe("StudentCreateModal", () => {
     expect(screen.getByTestId("care-weekly-plan-modal")).toBeInTheDocument();
     expect(screen.getByTestId("care-days-source")).toHaveTextContent(
       "weekly_plan",
+    );
+    expect(screen.getByTestId("care-school-periods")).toHaveTextContent(
+      "1: 08:45, 2: 09:35",
     );
   });
 

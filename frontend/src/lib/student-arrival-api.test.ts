@@ -191,9 +191,17 @@ describe("student-arrival-api", () => {
   });
 
   describe("fetchArrivalSettings", () => {
-    it("returns the source of the tenant's care days", async () => {
+    it("returns the source of the tenant's care days and school periods", async () => {
       fetchSpy.mockResolvedValueOnce(
-        mockFetchResponse({ data: { care_days_source: "bookings" } }),
+        mockFetchResponse({
+          data: {
+            care_days_source: "bookings",
+            school_periods: [
+              { period: 1, end_time: "08:45" },
+              { period: 2, end_time: "09:35" },
+            ],
+          },
+        }),
       );
 
       const result = await fetchArrivalSettings();
@@ -205,7 +213,13 @@ describe("student-arrival-api", () => {
           credentials: "include",
         }),
       );
-      expect(result).toEqual({ care_days_source: "bookings" });
+      expect(result).toEqual({
+        care_days_source: "bookings",
+        school_periods: [
+          { period: 1, end_time: "08:45" },
+          { period: 2, end_time: "09:35" },
+        ],
+      });
     });
   });
 
