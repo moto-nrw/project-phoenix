@@ -939,7 +939,13 @@ function OGSGroupPageContent() {
                         />
                       )}
                       {studentAbsence && !student.actual_pickup_time ? (
-                        <StudentAbsenceRow label={studentAbsence.label} />
+                        <StudentAbsenceRow
+                          label={studentAbsence.label}
+                          note={combineTimeNotes(
+                            studentPickup?.notes,
+                            studentPickup?.dayNotes,
+                          )}
+                        />
                       ) : (
                         (() => {
                           const dayPlanningNotComingLabel =
