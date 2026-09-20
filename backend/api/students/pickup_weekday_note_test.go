@@ -15,6 +15,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // A recurring weekday note must not need a pickup time (#3369): the child has
@@ -127,6 +128,66 @@ func TestWeekdayPickupNoteWithoutPickupTime(t *testing.T) {
 		testutil.AssertBadRequest(t, rr)
 		assert.Contains(t, rr.Body.String(), "weekday must be between")
 	})
+}
+
+func TestReplaceWeekdayPickupNotesWaitsForStudentLock(t *testing.T) {
+	t.Parallel()
+
+	tc := setupStudentsRoute(t)
+	student := testpkg.CreateTestStudent(t, tc.db, "WeekdayLock", "Test", "WDN3")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Weekday", "LockTeacher")
+	claims := testutil.AdminTestClaims(int(account.ID))
+
+	locked := make(chan struct{})
+	release := make(chan struct{})
+	lockDone := make(chan error, 1)
+	go func() {
+		lockDone <- testpkg.WithTenantTx(t, context.Background(), tc.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+			if _, err := newStudentTestRepositories(tc.db).Student.FindByIDForUpdate(txCtx, student.ID); err != nil {
+				return err
+			}
+			close(locked)
+			<-release
+			return nil
+		})
+	}()
+
+	select {
+	case <-locked:
+	case err := <-lockDone:
+		require.NoError(t, err)
+		t.Fatal("student transaction ended before holding the lock")
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out while acquiring the student lock")
+	}
+
+	released := false
+	releaseLock := func() {
+		if !released {
+			close(release)
+			released = true
+		}
+	}
+	defer releaseLock()
+
+	writeDone := make(chan int, 1)
+	go func() {
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/pickup-notes", student.ID), map[string]any{
+			"notes": []map[string]any{{"weekday": 1, "content": "Montags zu Hause"}},
+		})
+		writeDone <- authExec(t, tc, req, claims, []string{"admin:*"}).Code
+	}()
+
+	select {
+	case code := <-writeDone:
+		require.Equal(t, http.StatusOK, code, "weekday note replacement bypassed the held student lock")
+		t.Fatal("weekday note replacement bypassed the held student lock")
+	case <-time.After(150 * time.Millisecond):
+	}
+
+	releaseLock()
+	require.NoError(t, <-lockDone)
+	assert.Equal(t, http.StatusOK, <-writeDone)
 }
 
 // Where bookings decide the care days, a child without a booking that day gets
