@@ -1,0 +1,1 @@
+{"scope":"production","rule":"imports.forbidden","source":"example.test/architecture-cycles-baseline/beta","target":"example.test/architecture-cycles-baseline/alpha/two","issue":"https://github.com/moto-nrw/project-phoenix/issues/3417"}

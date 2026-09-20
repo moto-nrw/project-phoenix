@@ -204,6 +204,7 @@ scripts/backend-architecture.sh dependencies \
   --focus module:meal-plan
 scripts/backend-architecture.sh dependencies \
   --focus package:services/mealplan
+scripts/backend-architecture.sh cycles
 scripts/backend-architecture.sh validate-ticket \
   --ticket backend/architecture/checkpoint-ticket-template.json
 ```
@@ -298,6 +299,34 @@ fail with a concrete error.
 
 All files are generated artifacts. The default location and every accepted
 `--output` location are inside the system temp tree; do not commit them.
+
+## Cyclic components
+
+A **cyclic component** is a strongly connected component of an owner graph
+with at least two owners: every member reaches every other member. It is the
+unit this policy measures cycles in. The number of individual cycles inside a
+component is not reported, because it grows combinatorially and names nothing
+a ticket can remove.
+
+`cycles` reports the cyclic components of the same two owner graphs `diagram`
+draws, the target projection and the migration projection. Go forbids package
+import cycles, so a cyclic component only appears once packages are collapsed
+to their owners. Self-edges and `external:`/`unclassified:` nodes never take
+part. `--graph target|migration|both` selects the graph (`both` is the
+default; `target` needs no package load), and `--json` prints report schema
+version 1 instead of text.
+
+Each component lists its members and every owner edge inside it with the kinds
+of both owners. An edge is `target` when at least one target rule permits it,
+`baseline` when it exists only through entries of the exact legacy baseline,
+and `new` when it exists only through violations the baseline does not hold.
+`target` edges name their rule IDs, the others their violation keys. For the
+migration graph, `after ratchet` lists what remains of a component once only
+`target` edges are kept: those cycles are in the target policy and do not go
+away when the baseline reaches zero.
+
+The command only reports. It exits non-zero when the policy, packages, or
+baseline fail to load, never because a component exists (#3417).
 
 ## Exact legacy ratchet
 
