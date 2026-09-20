@@ -9,7 +9,7 @@ import (
 
 func TestAssertLocalDevEnv(t *testing.T) {
 	t.Parallel()
-	allowed := []string{"", "local", "development", "dev", "test", "DEV", "Test", "  development  "}
+	allowed := []string{"", "local", "development", "dev", "test", "demo", "DEV", "Test", "Demo", "  development  "}
 	for _, env := range allowed {
 		require.NoErrorf(t, assertLocalDevEnv(env), "APP_ENV=%q must be allowed", env)
 	}
