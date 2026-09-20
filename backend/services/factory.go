@@ -1603,6 +1603,10 @@ func newFactory(
 	if err != nil {
 		return nil, fmt.Errorf("invalid auth JWT configuration: %w", err)
 	}
+	sessionCodec, err := identityaccessCompose.NewSessionTokenCodec(sessionTokenAuth.JwtAuth, sessionTokenAuth.JwtExpiry, sessionTokenAuth.JwtRefreshExpiry)
+	if err != nil {
+		return nil, fmt.Errorf("invalid auth JWT configuration: %w", err)
+	}
 
 	// Identity & Access serves tenant, parent and school login, refresh,
 	// switching, logout, session validation, cleanup and revocation (#3251),
@@ -1638,12 +1642,12 @@ func newFactory(
 	// guardian mail reads its outbox at call time.
 	var emailOutboxService *emailoutbox.Service
 	identityAccess, err = newIdentityAccessWithSessions(db, accountAuthenticationWiring{
-		repos:     sessionRepositoriesOf(repos, organizations),
-		tokenAuth: sessionTokenAuth,
-		settings:  settingsService,
-		audit:     auditCommand,
-		logger:    authLogger,
-		observe:   observeIdentityAccess,
+		repos:    sessionRepositoriesOf(repos, organizations),
+		codec:    sessionCodec,
+		settings: settingsService,
+		audit:    auditCommand,
+		logger:   authLogger,
+		observe:  observeIdentityAccess,
 		mfa: &mfaWiring{
 			repos: repos, settings: settingsService,
 			dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL,

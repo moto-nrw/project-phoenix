@@ -13,7 +13,6 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/services/config"
@@ -34,7 +33,7 @@ import (
 // the auth service was composed with.
 type accountAuthenticationWiring struct {
 	repos         sessionRepositories
-	tokenAuth     *authjwt.TokenAuth
+	codec         identityaccessCompose.SignedIdentityTokens
 	settings      config.SettingsService
 	audit         auditModels.Command
 	logger        *slog.Logger
@@ -92,13 +91,10 @@ func sessionRepositoriesOf(repos *repositories.Factory, organizations organizati
 // newIdentityAccessWithSessions composes the Identity & Access module with
 // the account-authentication flows bound.
 func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWiring) (*identityaccess.Module, error) {
-	if wiring.repos.schools.schools == nil || wiring.repos.persons == nil || wiring.repos.authEvents == nil || wiring.repos.pushSubscriptions == nil || wiring.tokenAuth == nil || wiring.audit == nil {
+	if wiring.repos.schools.schools == nil || wiring.repos.persons == nil || wiring.repos.authEvents == nil || wiring.repos.pushSubscriptions == nil || wiring.codec == nil || wiring.audit == nil {
 		return nil, errors.New("identity access composition: repositories, token auth and audit command are required")
 	}
-	codec, err := identityaccessCompose.NewSessionTokenCodec(wiring.tokenAuth.JwtAuth, wiring.tokenAuth.JwtExpiry, wiring.tokenAuth.JwtRefreshExpiry)
-	if err != nil {
-		return nil, err
-	}
+	codec := wiring.codec
 	observe := func(identityaccessCompose.Observation) {}
 	if wiring.observe != nil {
 		observe = func(observation identityaccessCompose.Observation) {

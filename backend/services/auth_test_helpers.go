@@ -192,6 +192,10 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 	if err != nil {
 		return AuthTestModule{}, err
 	}
+	codec, err := identityaccessCompose.NewSessionTokenCodec(tokenAuth.JwtAuth, tokenAuth.JwtExpiry, tokenAuth.JwtRefreshExpiry)
+	if err != nil {
+		return AuthTestModule{}, err
+	}
 	// The delivery module is composed after the identity module, so the
 	// guardian mail reads its outbox at call time, as the factory does.
 	var deliveryModule DeliveryTestModule
@@ -221,7 +225,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		return AuthTestModule{}, err
 	}
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
-		repos: sessionRepos, tokenAuth: tokenAuth, settings: settings.Settings, audit: command, logger: logger,
+		repos: sessionRepos, codec: codec, settings: settings.Settings, audit: command, logger: logger,
 		operators: operators,
 		mfa: &mfaWiring{
 			repos: r, settings: mfaSettingsService(settings.Settings, settingsOverrides),
@@ -290,8 +294,12 @@ func IdentityAccessForTests(repos *repositories.Factory, cfg IdentityAccessTestC
 		}
 		signer = created
 	}
+	codec, err := identityaccessCompose.NewSessionTokenCodec(signer.JwtAuth, signer.JwtExpiry, signer.JwtRefreshExpiry)
+	if err != nil {
+		return nil, err
+	}
 	module, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
-		repos: sessionRepositoriesOf(repos, repos.School), tokenAuth: signer, settings: cfg.Settings,
+		repos: sessionRepositoriesOf(repos, repos.School), codec: codec, settings: cfg.Settings,
 		audit: cfg.Audit, logger: logger,
 		mfa: &mfaWiring{
 			repos: repos, settings: cfg.Settings,

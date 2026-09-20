@@ -97,11 +97,15 @@ func NewAuthCleanupService(db *bun.DB, runtime tenant.UnitOfWork, logger *slog.L
 	if err != nil {
 		return nil, fmt.Errorf("auth cleanup service: token auth: %w", err)
 	}
+	codec, err := identityaccessCompose.NewSessionTokenCodec(tokenAuth.JwtAuth, tokenAuth.JwtExpiry, tokenAuth.JwtRefreshExpiry)
+	if err != nil {
+		return nil, err
+	}
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
 		repos: sessionRepositories{
 			schools: schoolDirectory{schools: repos.School}, persons: repos.Person, authEvents: repos.AuthEvent, pushSubscriptions: repos.PushSubscription,
 		},
-		tokenAuth: tokenAuth, audit: command, logger: logger,
+		codec: codec, audit: command, logger: logger,
 		// The cleanup root only removes spent links and stale windows; it
 		// never issues a link, so it composes the flows without a mailer.
 		resets: &passwordResetWiring{expiry: cleanupResetExpiry},
