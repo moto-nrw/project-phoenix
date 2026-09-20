@@ -165,7 +165,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/identityaccess/internal/application/account_provisioning.go:(*AccountProvisioning).RegisterSchoolAccount":                    73,
 	"modules/identityaccess/internal/application/guardian_relative_access.go:(*AccountLifecycle).ApproveInvitation":                       65,
 	"modules/identityaccess/internal/application/guardian_relative_access.go:(*AccountLifecycle).ListPendingApprovalsDetailed":            96,
-	"modules/identityaccess/internal/application/guardian_relative_access.go:(*AccountLifecycle).createStudentInvitation":                 72,
 	"modules/identityaccess/internal/application/guardian_relative_access.go:(*AccountLifecycle).revokeAccess":                            92,
 	"modules/identityaccess/internal/application/operator_account_access.go:(*OperatorAccountAccess).GrantAccountTenantAccess":            95,
 	"modules/identityaccess/internal/application/operator_account_access.go:(*OperatorAccountAccess).RevokeAccountTenantAccess":           72,

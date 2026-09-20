@@ -34,17 +34,18 @@ type bulkInviteCandidate struct {
 // caller's tenant transaction, or opens one when called directly; any error
 // leaves nothing behind.
 func (l *AccountLifecycle) BulkInviteToStudents(ctx context.Context, req domain.BulkInviteRequest) (result *domain.BulkInviteResult, err error) {
+	if err := validateBulkInvite(req); err != nil {
+		return nil, failed(opGuardianBulkInvite, err)
+	}
+	tenantID := l.runtime.TenantID(ctx)
 	err = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		result, err = l.bulkInviteToStudents(txCtx, req)
+		result, err = l.bulkInviteToStudents(txCtx, req, tenantID)
 		return err
 	})
 	return result, err
 }
 
-func (l *AccountLifecycle) bulkInviteToStudents(ctx context.Context, req domain.BulkInviteRequest) (*domain.BulkInviteResult, error) {
-	if err := validateBulkInvite(req); err != nil {
-		return nil, failed(opGuardianBulkInvite, err)
-	}
+func (l *AccountLifecycle) bulkInviteToStudents(ctx context.Context, req domain.BulkInviteRequest, tenantID int64) (*domain.BulkInviteResult, error) {
 	links, err := l.guardians.ListStudentGuardianLinksByStudents(ctx, req.StudentIDs)
 	if err != nil {
 		return nil, failed(opGuardianBulkInvite, err)
@@ -55,43 +56,71 @@ func (l *AccountLifecycle) bulkInviteToStudents(ctx context.Context, req domain.
 		return result, nil
 	}
 
+	profiles, open, err := l.loadBulkInviteProfiles(ctx, req, tenantID, candidates)
+	if err != nil {
+		return nil, err
+	}
+	run, err := l.newBulkInviteRun(ctx, req, tenantID, result, profiles)
+	if err != nil {
+		return nil, err
+	}
+	if err := l.processBulkInviteCandidates(ctx, run, candidates, profiles, open); err != nil {
+		return nil, err
+	}
+	if err := l.nameBulkInviteProblems(ctx, run.problemStudents, result); err != nil {
+		return nil, err
+	}
+	l.logBulkInvite(req, result)
+	return result, nil
+}
+
+func (l *AccountLifecycle) loadBulkInviteProfiles(ctx context.Context, req domain.BulkInviteRequest, tenantID int64, candidates []bulkInviteCandidate) (map[int64]domain.GuardianProfile, map[int64][]domain.GuardianInvitation, error) {
 	profileIDs := make([]int64, 0, len(candidates))
 	for _, candidate := range candidates {
 		profileIDs = append(profileIDs, candidate.profileID)
 	}
 	if !req.DryRun {
-		if err := l.lockBulkInviteProfiles(ctx, l.runtime.TenantID(ctx), profileIDs); err != nil {
-			return nil, err
+		if err := l.lockBulkInviteProfiles(ctx, tenantID, profileIDs); err != nil {
+			return nil, nil, err
 		}
 	}
 	profiles, err := l.guardians.FindGuardianProfiles(ctx, profileIDs)
 	if err != nil {
-		return nil, failed(opGuardianBulkInvite, err)
+		return nil, nil, failed(opGuardianBulkInvite, err)
 	}
 	open, err := l.openInvitationsByProfile(ctx, profileIDs)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	return profiles, open, nil
+}
 
-	run := bulkInviteRun{req: req, tenantID: l.runtime.TenantID(ctx), result: result, seenEmails: map[string]bool{}, existingAccounts: map[string]domain.Account{}}
+func (l *AccountLifecycle) newBulkInviteRun(ctx context.Context, req domain.BulkInviteRequest, tenantID int64, result *domain.BulkInviteResult, profiles map[int64]domain.GuardianProfile) (*bulkInviteRun, error) {
+	run := &bulkInviteRun{req: req, tenantID: tenantID, result: result, seenEmails: map[string]bool{}, existingAccounts: map[string]domain.Account{}}
 	if !req.DryRun {
-		run.existingAccounts, err = l.bulkInviteExistingAccounts(ctx, profiles)
+		existingAccounts, err := l.bulkInviteExistingAccounts(ctx, profiles)
 		if err != nil {
 			return nil, err
 		}
+		run.existingAccounts = existingAccounts
 	}
+	return run, nil
+}
+
+func (l *AccountLifecycle) processBulkInviteCandidates(ctx context.Context, run *bulkInviteRun, candidates []bulkInviteCandidate, profiles map[int64]domain.GuardianProfile, open map[int64][]domain.GuardianInvitation) error {
 	for _, candidate := range candidates {
 		profile, ok := profiles[candidate.profileID]
 		if !ok {
 			continue
 		}
-		if err := l.bulkInviteOne(ctx, &run, candidate, profile, open[profile.ID]); err != nil {
-			return nil, err
+		if err := l.bulkInviteOne(ctx, run, candidate, profile, open[profile.ID]); err != nil {
+			return err
 		}
 	}
-	if err := l.nameBulkInviteProblems(ctx, run.problemStudents, result); err != nil {
-		return nil, err
-	}
+	return nil
+}
+
+func (l *AccountLifecycle) logBulkInvite(req domain.BulkInviteRequest, result *domain.BulkInviteResult) {
 	l.logger.Info("guardian bulk invitation",
 		slog.Int64("created_by", req.CreatedBy),
 		slog.Bool("dry_run", req.DryRun),
@@ -101,7 +130,6 @@ func (l *AccountLifecycle) bulkInviteToStudents(ctx context.Context, req domain.
 		slog.Int("resent", result.Resent),
 		slog.Int("problems", len(result.Problems)),
 	)
-	return result, nil
 }
 
 func (l *AccountLifecycle) lockBulkInviteProfiles(ctx context.Context, tenantID int64, profileIDs []int64) error {
@@ -209,23 +237,40 @@ func (r *bulkInviteRun) problem(candidate bulkInviteCandidate, profile domain.Gu
 // invitation is only touched when the school asked for it.
 func (l *AccountLifecycle) bulkInviteOne(ctx context.Context, run *bulkInviteRun, candidate bulkInviteCandidate, profile domain.GuardianProfile, open []domain.GuardianInvitation) error {
 	email := strings.ToLower(strings.TrimSpace(profile.Email))
-	if profile.HasAccount {
-		if email != "" {
-			if run.seenEmails[email] {
-				run.problem(candidate, profile, domain.BulkInviteProblemDuplicateEmail)
-				return nil
-			}
-			run.seenEmails[email] = true
-		}
-		run.result.SkippedActive++
+	if l.skipActiveBulkInvite(run, candidate, profile, email) {
 		return nil
 	}
+	if l.skipBulkInviteEmailProblem(run, candidate, profile, email) {
+		return nil
+	}
+	return l.inviteEligibleBulkGuardian(ctx, run, candidate, profile, email, open)
+}
+
+func (l *AccountLifecycle) skipActiveBulkInvite(run *bulkInviteRun, candidate bulkInviteCandidate, profile domain.GuardianProfile, email string) bool {
+	if !profile.HasAccount {
+		return false
+	}
+	if email != "" && run.seenEmails[email] {
+		run.problem(candidate, profile, domain.BulkInviteProblemDuplicateEmail)
+		return true
+	}
+	if email != "" {
+		run.seenEmails[email] = true
+	}
+	run.result.SkippedActive++
+	return true
+}
+
+func (l *AccountLifecycle) skipBulkInviteEmailProblem(run *bulkInviteRun, candidate bulkInviteCandidate, profile domain.GuardianProfile, email string) bool {
 	if reason := bulkInviteEmailProblem(email, run.seenEmails); reason != "" {
 		run.problem(candidate, profile, reason)
-		return nil
+		return true
 	}
 	run.seenEmails[email] = true
+	return false
+}
 
+func (l *AccountLifecycle) inviteEligibleBulkGuardian(ctx context.Context, run *bulkInviteRun, candidate bulkInviteCandidate, profile domain.GuardianProfile, email string, open []domain.GuardianInvitation) error {
 	if len(open) > 0 && !run.req.ResendOpen {
 		run.result.SkippedOpen++
 		return nil
