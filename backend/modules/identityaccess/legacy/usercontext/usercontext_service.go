@@ -45,7 +45,7 @@ type UserContextRepositories struct {
 	ActiveGroupRepo    active.GroupRepository
 	Presence           VisitReader
 	SupervisorRepo     active.GroupSupervisorRepository
-	ProfileRepo        authmodels.ProfileRepository
+	ProfileRepo        AccountProfiles
 	SubstitutionRepo   education.GroupSubstitutionRepository
 	ClassTeacherRepo   education.ClassTeacherRepository
 
@@ -68,7 +68,7 @@ type userContextService struct {
 	activeGroupRepo    active.GroupRepository
 	presence           VisitReader
 	supervisorRepo     active.GroupSupervisorRepository
-	profileRepo        authmodels.ProfileRepository
+	profileRepo        AccountProfiles
 	substitutionRepo   education.GroupSubstitutionRepository
 	classTeacherRepo   education.ClassTeacherRepository
 	sseActiveSvc       SSEPresence
@@ -832,13 +832,13 @@ func addProfileDataToResponse(ctx context.Context, s *userContextService, respon
 		return
 	}
 
-	profile, err := s.profileRepo.FindByAccountID(ctx, accountID)
-	if err != nil || profile == nil {
+	bio, settings, found, err := s.profileRepo.FindAccountProfile(ctx, accountID)
+	if err != nil || !found {
 		return
 	}
 
-	addProfileFieldIfNotEmpty(response, "bio", profile.Bio)
-	addProfileFieldIfNotEmpty(response, "settings", profile.Settings)
+	addProfileFieldIfNotEmpty(response, "bio", bio)
+	addProfileFieldIfNotEmpty(response, "settings", settings)
 }
 
 // addProfileFieldIfNotEmpty adds a profile field to response if not empty
@@ -953,28 +953,7 @@ func (s *userContextService) updateProfileBioInTx(ctx context.Context, accountID
 		return nil
 	}
 
-	profile, _ := s.profileRepo.FindByAccountID(ctx, accountID)
-	if profile == nil {
-		return s.createProfileWithBio(ctx, accountID, bio)
-	}
-
-	return s.updateExistingProfileBio(ctx, profile, bio)
-}
-
-// createProfileWithBio creates a new profile with bio
-func (s *userContextService) createProfileWithBio(ctx context.Context, accountID int64, bio string) error {
-	profile := &authmodels.Profile{
-		AccountID: accountID,
-		Bio:       bio,
-		Settings:  "{}",
-	}
-	return s.profileRepo.Create(ctx, profile)
-}
-
-// updateExistingProfileBio updates existing profile's bio
-func (s *userContextService) updateExistingProfileBio(ctx context.Context, profile *authmodels.Profile, bio string) error {
-	profile.Bio = bio
-	return s.profileRepo.Update(ctx, profile)
+	return s.profileRepo.SetAccountBio(ctx, accountID, bio)
 }
 
 // UpdateAvatar updates the current user's avatar

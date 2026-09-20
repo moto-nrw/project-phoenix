@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
@@ -82,26 +81,7 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		sessions.TenantRuntime = runtime.Attach
 		dependencies.Sessions = &sessions
 	}
-	scope := func(ctx context.Context) postgres.TenantScope {
-		return postgres.TenantScope{TenantID: tenant.FromContext(ctx), AdminTransaction: tenant.IsAdminTx(ctx)}
-	}
-	store := postgres.New(func(ctx context.Context) (bun.IDB, error) {
-		transaction, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return dependencies.DB, nil
-		}
-		switch tx := transaction.(type) {
-		case bun.Tx:
-			return tx, nil
-		case *bun.Tx:
-			if tx != nil {
-				return *tx, nil
-			}
-			return dependencies.DB, nil
-		default:
-			return nil, fmt.Errorf("identity access postgres: unsupported transaction %T", transaction)
-		}
-	}, scope)
+	store := newStore(dependencies.DB)
 	service := application.New(store, store, store, transaction{}, tenant.FromContext, func(observation Observation) {
 		observation.Err = mapError(observation.Err)
 		dependencies.Observe(observation)
@@ -154,7 +134,8 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		return nil, err
 	}
 	e := engine{
-		service: service, mfa: operatorMFARecords, tokens: tokens,
+		profiles: application.NewAccountProfiles(service, store),
+		service:  service, mfa: operatorMFARecords, tokens: tokens,
 		passkeys: operatorPasskeys, accountPasskeys: accountPasskeys,
 		auth: auth, operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle, roles: roles,
 		resets: resets, invitations: invitations, provisioning: provisioning, administration: administration,
@@ -195,6 +176,7 @@ func (transaction) RunPlatform(ctx context.Context, callback func(context.Contex
 }
 
 type engine struct {
+	profiles        *application.AccountProfiles
 	service         *application.Service
 	mfa             *application.OperatorMFA
 	tokens          *application.OperatorTokens

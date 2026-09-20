@@ -337,6 +337,7 @@ type Engine interface {
 	SchoolInvitations
 	AccountSessionAccess
 	RFIDQuery
+	AccountProfiles
 	SchoolAccountQuery
 	InvitedPersonQuery
 	StudentGuardianInvitationQuery

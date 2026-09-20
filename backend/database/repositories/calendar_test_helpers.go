@@ -5,6 +5,7 @@ import (
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
@@ -16,7 +17,7 @@ type CalendarTestRepositories struct {
 	TimetableTestRepositories
 	Account                    authModels.AccountRepository
 	AccountTenant              authModels.AccountTenantRepository
-	Profile                    authModels.ProfileRepository
+	Profile                    identityaccess.AccountProfiles
 	GroupSubstitution          educationModels.GroupSubstitutionRepository
 	GuardianProfile            userModels.GuardianProfileRepository
 	StudentGuardian            userModels.StudentGuardianRepository

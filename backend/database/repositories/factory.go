@@ -25,6 +25,7 @@ import (
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
@@ -113,7 +114,7 @@ type Factory struct {
 	CareWithdrawal      userModels.CareWithdrawalCompletionRepository
 	Teacher             userModels.TeacherRepository
 	Guest               userModels.GuestRepository
-	Profile             authModels.ProfileRepository
+	Profile             identityaccess.AccountProfiles
 	StudentGuardian     userModels.StudentGuardianRepository
 	StudentCompanion    userModels.StudentCompanionRepository
 	GuardianProfile     userModels.GuardianProfileRepository
@@ -557,7 +558,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		CareExitCleanup: carelifecycle.NewCareExitCleanupRepository(db, newCareExitCleanup(
 			db, &factory, NewEnrollmentBookingProjection(enrollmentModule), presenceCapability, timetableCapability,
 		)),
-		Profile:             authpostgres.NewProfileRepository(db),
+		Profile:             identity,
 		StudentGuardian:     NewStudentGuardianRepository(db),
 		StudentCompanion:    nil, // bound to Care Plan below
 		GuardianProfile:     NewGuardianProfileRepository(db),

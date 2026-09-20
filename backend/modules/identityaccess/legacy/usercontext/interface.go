@@ -11,6 +11,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
+// AccountProfiles supplies the school-scoped fields shown in the current
+// user's profile. The owner changes the bio without exposing its stored row.
+type AccountProfiles interface {
+	FindAccountProfile(context.Context, int64) (bio, settings string, found bool, err error)
+	SetAccountBio(context.Context, int64, string) error
+}
+
 // UserContextService defines operations available in the user context service layer.
 //
 // Identity reads (account/person/staff/teacher/groups/substitutions) are
