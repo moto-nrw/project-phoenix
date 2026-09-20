@@ -31,6 +31,12 @@ vi.mock("~/components/dashboard/app-shell", () => ({
   ),
 }));
 
+vi.mock("~/components/tenant/tenant-guard", () => ({
+  TenantGuard: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="tenant-guard">{children}</div>
+  ),
+}));
+
 vi.mock("~/components/platform/announcement-modal", () => ({
   AnnouncementModal: () => <div data-testid="announcement-modal" />,
 }));
@@ -54,6 +60,7 @@ describe("ProtectedLayout", () => {
     );
 
     expect(screen.getByTestId("teacher-shell-provider")).toBeInTheDocument();
+    expect(screen.getByTestId("tenant-guard")).toBeInTheDocument();
     expect(screen.getByTestId("breadcrumb-provider")).toBeInTheDocument();
     expect(screen.getByTestId("app-shell")).toBeInTheDocument();
     expect(screen.getByTestId("child")).toBeInTheDocument();
