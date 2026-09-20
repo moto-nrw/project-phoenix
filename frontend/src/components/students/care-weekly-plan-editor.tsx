@@ -24,8 +24,9 @@ import type {
   PickupAdjustmentResolution,
   PickupAdjustmentSelection,
 } from "~/lib/pickup-schedule-api";
-import type { CareDaysSource } from "~/lib/student-arrival-api";
+import type { CareDaysSource, SchoolPeriod } from "~/lib/student-arrival-api";
 import { PickupAdjustmentDecision } from "./pickup-adjustment-decision";
+import { SchoolPeriodSelect } from "./school-period-select";
 
 /**
  * Der Wochenplan eines Kindes: die festen Ankunfts- und Abholzeiten je
@@ -270,6 +271,8 @@ export function useWeeklyPlanDraft(
 
 // --- the grid ---------------------------------------------------------------
 
+const NO_SCHOOL_PERIODS: readonly SchoolPeriod[] = [];
+
 const GRID_COLUMNS =
   "sm:grid-cols-[minmax(100px,0.7fr)_minmax(140px,1fr)_minmax(140px,1fr)]";
 
@@ -279,9 +282,12 @@ export function CareWeeklyPlanGrid({
   removals,
   disabled = false,
   pickupNeedsCareDay = false,
+  schoolPeriods = NO_SCHOOL_PERIODS,
 }: {
   readonly draft: WeeklyPlanDraft;
   readonly careDaysSource: CareDaysSource;
+  /** Lessons the arrival can be picked by (#3372); none hides the choice. */
+  readonly schoolPeriods?: readonly SchoolPeriod[];
   /** Times the save would delete; shown as a warning under the grid. */
   readonly removals: readonly string[];
   /** Every field is locked while a save is running. */
@@ -355,6 +361,18 @@ export function CareWeeklyPlanGrid({
                       setField(day.value, "arrivalTime", value)
                     }
                   />
+                  <div className="mt-1 empty:hidden">
+                    <SchoolPeriodSelect
+                      id={`weekly-arrival-period-${day.value}`}
+                      periods={schoolPeriods}
+                      time={row?.arrivalTime ?? ""}
+                      ariaLabel={`${day.label}: Ankunft nach Schulstunde`}
+                      disabled={disabled || !inCare}
+                      onSelect={(endTime) =>
+                        setField(day.value, "arrivalTime", endTime)
+                      }
+                    />
+                  </div>
                   {inCare && row?.arrivalClassTime ? (
                     <div className="mt-1 flex flex-wrap items-center justify-between gap-1">
                       <p className="text-xs text-gray-500">
@@ -494,6 +512,7 @@ function WeeklyNoteField({
 
 interface CareWeeklyPlanEditFormProps {
   readonly careDaysSource: CareDaysSource;
+  readonly schoolPeriods?: readonly SchoolPeriod[];
   readonly weeklyArrival: ArrivalScheduleFormEntry[];
   readonly weeklyPickup: PickupScheduleFormData[];
   readonly onSubmitWeekly: (
@@ -516,6 +535,7 @@ interface CareWeeklyPlanEditFormProps {
  */
 export function CareWeeklyPlanEditForm({
   careDaysSource,
+  schoolPeriods,
   weeklyArrival,
   weeklyPickup,
   onSubmitWeekly,
@@ -781,6 +801,7 @@ export function CareWeeklyPlanEditForm({
           removals={weeklyRemovals}
           disabled={isSubmitting}
           pickupNeedsCareDay
+          schoolPeriods={schoolPeriods}
         />
         <EditActions onCancel={onCancel} saving={isSubmitting} />
       </form>
