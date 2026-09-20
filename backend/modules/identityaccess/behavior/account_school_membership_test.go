@@ -51,3 +51,43 @@ func TestActiveAccountSchoolIDsPreservesMembershipSemantics(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, ids, after)
 }
+
+func TestActiveSchoolMembershipsAreBoundedAndUseAmbientTransaction(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	query, err := repositories.NewIdentityAccessForTests(db)
+	require.NoError(t, err)
+	ctx := testpkg.Ctx(t)
+	home := testpkg.Tenant(t)
+	other, _ := testpkg.CreateTestTenant(t, db)
+	account := testpkg.CreateTestAccount(t, db, "bounded-memberships")
+	unselected := testpkg.CreateTestAccount(t, db, "unselected-memberships")
+	testpkg.MapAccountToTenant(t, db, account.ID, other)
+	_, err = db.NewRaw("UPDATE auth.accounts SET active = FALSE WHERE id = ?", account.ID).Exec(ctx)
+	require.NoError(t, err)
+	read := func(ctx context.Context) map[int64][]int64 {
+		t.Helper()
+		found, readErr := query.FindActiveSchoolMemberships(ctx, []int64{account.ID}, []int64{home})
+		require.NoError(t, readErr)
+		return found
+	}
+	require.Equal(t, map[int64][]int64{account.ID: {home}}, read(ctx), "exclude unselected accounts and schools, without inferring account activation")
+	for _, status := range []string{"pending", "inactive"} {
+		rollback := errors.New("rollback membership status")
+		err = tenant.WithAdminTx(ctx, db, func(txCtx context.Context, tx bun.Tx) error {
+			_, updateErr := tx.NewRaw("UPDATE auth.account_tenants SET status = ? WHERE account_id = ? AND tenant_id = ?", status, account.ID, home).Exec(txCtx)
+			require.NoError(t, updateErr)
+			require.Empty(t, read(txCtx), "another school's active membership must not authorize this school")
+			return rollback
+		})
+		require.ErrorIs(t, err, rollback)
+		require.Equal(t, map[int64][]int64{account.ID: {home}}, read(ctx))
+	}
+	for _, selection := range []struct{ accounts, schools []int64 }{
+		{nil, []int64{home}}, {[]int64{unselected.ID}, nil},
+	} {
+		found, readErr := query.FindActiveSchoolMemberships(ctx, selection.accounts, selection.schools)
+		require.NoError(t, readErr)
+		require.Empty(t, found, "empty bounds must not enumerate memberships")
+	}
+}

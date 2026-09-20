@@ -82,12 +82,6 @@ func NewStudentGuardianRepository(db *bun.DB) userModels.StudentGuardianReposito
 	return usersRepo.NewStudentGuardianRepository(db, usersRepo.WithStudentGuardianMemberships(activeMembershipQuery(db)))
 }
 
-// NewMessageableGuardianRepository composes the parent-message recipient
-// lookup with the Identity & Access active-membership query (#2721).
-func NewMessageableGuardianRepository(db *bun.DB) *usersRepo.MessageableGuardianRepository {
-	return usersRepo.NewMessageableGuardianRepository(db, activeMembershipQuery(db))
-}
-
 // staffMessageIdentity returns the Identity & Access owner queries the staff
 // messaging reads filter through.
 func staffMessageIdentity(db *bun.DB, accounts authModels.AccountRepository) usersRepo.StaffMessageIdentity {

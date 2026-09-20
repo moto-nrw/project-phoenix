@@ -134,6 +134,16 @@ func TestIdentityMembership_UnboundQueriesFailClosed(t *testing.T) {
 
 	_, err = usersRepo.NewMessageableGuardianRepository(db, nil).ListGuardiansForStudent(ctx, chain.StudentID)
 	require.Error(t, err)
+	lookupFailure := errors.New("school membership lookup failed")
+	failingRecipients := usersRepo.NewMessageableGuardianRepository(db,
+		func(_ context.Context, accountIDs, schoolIDs []int64) (map[int64][]int64, error) {
+			require.Equal(t, []int64{chain.AccountID}, accountIDs)
+			require.Equal(t, []int64{chain.TenantID}, schoolIDs)
+			return nil, lookupFailure
+		})
+	listed, err := failingRecipients.ListGuardiansForStudent(ctx, chain.StudentID)
+	require.ErrorIs(t, err, lookupFailure)
+	require.Nil(t, listed, "failed membership reads must not return relationship candidates")
 
 	_, err = usersRepo.NewGuardianProfileRepository(db).
 		FindActivePortalProfilesByIDs(ctx, []int64{chain.GuardianProfileID})
