@@ -39,7 +39,6 @@ func enrollmentValueChanged[T comparable](before, after *T) bool {
 func enrollmentStudentInput(student *users.Student) peopleEnrollment.Input {
 	input := peopleEnrollment.Input{
 		PersonID: student.PersonID, SchoolClass: student.SchoolClass, Status: string(student.Status),
-		GuardianEmail: student.GuardianEmail, GuardianPhone: student.GuardianPhone,
 	}
 	if student.EnrolledFrom != nil {
 		input.EnrolledFrom = student.EnrolledFrom.String()

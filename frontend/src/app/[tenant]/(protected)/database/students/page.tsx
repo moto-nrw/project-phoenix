@@ -286,8 +286,7 @@ function StudentsPageContent() {
           lastNameFirst.includes(searchLower) ||
           (student.school_class?.toLowerCase().includes(searchLower) ??
             false) ||
-          (student.group_name?.toLowerCase().includes(searchLower) ?? false) ||
-          (student.name_lg?.toLowerCase().includes(searchLower) ?? false)
+          (student.group_name?.toLowerCase().includes(searchLower) ?? false)
         );
       });
     }
@@ -637,6 +636,7 @@ function StudentsPageContent() {
             onClearSelection={() => setSelectedStudentIds(new Set())}
             onFinishSelection={finishSelection}
             onSelectAllVisible={selectAllVisible}
+            canInviteGuardians={canCreateStudents}
             onEndCare={
               canDeleteStudents
                 ? () => setCareExitIds([...selectedStudentIds])

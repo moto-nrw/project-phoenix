@@ -189,11 +189,11 @@ func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsVisibleWithSub
 		"a guardian holding enrollment.submit must see the re-enrollment phase")
 }
 
-// setStudentStatus flips users.students.status, simulating a child who left
+// setStudentStatus flips the live membership status, simulating a child who left
 // the OGS (or was never activated) while the guardian link survives.
 func setStudentStatus(t *testing.T, db *bun.DB, studentID int64, status string) {
 	t.Helper()
-	_, err := db.NewRaw(`UPDATE users.students SET status = ? WHERE id = ?`, status, studentID).
+	_, err := db.NewRaw(`UPDATE users.student_school_memberships SET status = ? WHERE student_profile_id = ? AND deleted_at IS NULL`, status, studentID).
 		Exec(context.Background())
 	require.NoError(t, err)
 }

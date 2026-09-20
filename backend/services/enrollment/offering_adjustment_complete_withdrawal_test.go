@@ -183,7 +183,7 @@ func (f *completeWithdrawalFixture) assertCareExitCompletesSource(pending *userM
 
 func newWithdrawalLifecycle(env *decisionTestEnv) carelifecycle.CareLifecycleService {
 	return carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
-		StudentRepo: env.repos.Student, PersonRepo: env.repos.Person,
+		StudentRepo: repositories.NewCareStudents(env.repos.Student, env.repos.SchoolMembership()), PersonRepo: env.repos.Person,
 		CareExitRepo: env.repos.CareExit, CleanupRepo: env.repos.CareExitCleanup,
 		WithdrawalRepo: env.repos.CareWithdrawal, TagReleaser: env.repos.StudentTagReleaser(),
 		AuditService: usersService.NewStudentAuditService(repositories.NewStudentAudit(env.db)),
@@ -298,7 +298,7 @@ func (f *withdrawalRaceFixture) wireRaceServices(authoritative *bool) {
 	}
 	repos := f.env.repos
 	f.lifecycle = carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
-		StudentRepo: repos.Student, PersonRepo: repos.Person,
+		StudentRepo: repositories.NewCareStudents(repos.Student, repos.SchoolMembership()), PersonRepo: repos.Person,
 		CareExitRepo: repos.CareExit, CleanupRepo: repos.CareExitCleanup,
 		WithdrawalRepo: repos.CareWithdrawal, TagReleaser: repos.StudentTagReleaser(),
 		AuditService: usersService.NewStudentAuditService(repositories.NewStudentAudit(f.env.db)),

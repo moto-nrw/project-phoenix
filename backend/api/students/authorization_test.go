@@ -139,9 +139,11 @@ func TestStudentResponse_FullAccess(t *testing.T) {
 		// Update student with additional fields using raw SQL - use ? placeholders
 		ctx := testpkg.Ctx(t)
 		_, err := tc.db.ExecContext(ctx,
-			"UPDATE users.students SET guardian_email = ?, guardian_phone = ?, extra_info = ? WHERE id = ?",
-			"guardian@example.com", "+49123456789", "Important notes", student.ID)
+			"UPDATE users.student_profiles SET extra_info = ? WHERE id = ?",
+			"Important notes", student.ID)
 		require.NoError(t, err)
+		guardian := testpkg.CreateTestGuardianProfile(t, tc.db, "guardian@example.com")
+		testpkg.CreateTestStudentGuardianLink(t, tc.db, student.ID, guardian.ID, "parent")
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
 
@@ -150,7 +152,7 @@ func TestStudentResponse_FullAccess(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code)
 		// Admin should see sensitive fields
 		body := rr.Body.String()
-		assert.Contains(t, body, "guardian_email", "Admin should see guardian email")
+		assert.NotContains(t, body, "guardian_email", "Retired student fields are absent even for admins")
 	})
 
 	t.Run("staff_outside_the_group_sees_full_access_fields", func(t *testing.T) {
@@ -161,7 +163,7 @@ func TestStudentResponse_FullAccess(t *testing.T) {
 
 		ctx := testpkg.Ctx(t)
 		_, err := tc.db.ExecContext(ctx,
-			"UPDATE users.students SET address_street = ? WHERE id = ?",
+			"UPDATE users.student_profiles SET address_street = ? WHERE id = ?",
 			"Vollzugriffweg 1", student.ID)
 		require.NoError(t, err)
 
@@ -190,7 +192,7 @@ func TestStudentResponse_FullAccess(t *testing.T) {
 
 		ctx := testpkg.Ctx(t)
 		_, err := tc.db.ExecContext(ctx,
-			"UPDATE users.students SET address_street = ? WHERE id = ?",
+			"UPDATE users.student_profiles SET address_street = ? WHERE id = ?",
 			"Geheimstrasse 9", student.ID)
 		require.NoError(t, err)
 

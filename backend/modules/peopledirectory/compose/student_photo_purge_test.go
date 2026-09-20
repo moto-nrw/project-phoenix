@@ -44,7 +44,7 @@ func buildPhotoModule(t *testing.T, db *bun.DB) (*peopledirectory.Module, *enabl
 func setStudentPhotoPath(t *testing.T, db *bun.DB, studentID int64, path *string) {
 	t.Helper()
 	_, err := db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_profiles").
 		Set("photo_path = ?", path).
 		Where("id = ?", studentID).
 		Exec(testpkg.Ctx(t))
@@ -57,7 +57,7 @@ func studentPhotoPath(t *testing.T, db *bun.DB, studentID int64) *string {
 		PhotoPath *string `bun:"photo_path"`
 	}
 	require.NoError(t, db.NewSelect().
-		TableExpr("users.students").
+		TableExpr("users.student_profiles").
 		Column("photo_path").
 		Where("id = ?", studentID).
 		Scan(testpkg.Ctx(t), &row))

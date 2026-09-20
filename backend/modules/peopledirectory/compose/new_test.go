@@ -19,9 +19,34 @@ func buildModule(t *testing.T, db *bun.DB, observations ...func(Observation)) *p
 	if len(observations) > 0 {
 		observe = observations[0]
 	}
-	module, err := New(Dependencies{DB: db, Observe: observe})
+	module, err := NewWithGuardianMemberships(Dependencies{DB: db, Observe: observe}, testActiveMemberships(db), testActiveAccounts(db), testGuardianRoles(db))
 	require.NoError(t, err)
 	return module
+}
+
+func testActiveMemberships(db *bun.DB) GuardianMembershipQuery {
+	return func(context.Context) *bun.SelectQuery {
+		return db.NewSelect().
+			TableExpr(`auth.account_tenants AS "account_tenant"`).
+			ColumnExpr(`"account_tenant".account_id`).
+			ColumnExpr(`"account_tenant".tenant_id`).
+			Where(`"account_tenant".status = 'active'`)
+	}
+}
+
+func testActiveAccounts(db *bun.DB) GuardianMembershipQuery {
+	return func(context.Context) *bun.SelectQuery {
+		return db.NewSelect().TableExpr(`auth.accounts AS "account"`).ColumnExpr(`"account".id`).Where(`"account".active = true`)
+	}
+}
+
+func testGuardianRoles(db *bun.DB) GuardianMembershipQuery {
+	return func(context.Context) *bun.SelectQuery {
+		return db.NewSelect().TableExpr(`auth.account_roles AS "account_role"`).
+			ColumnExpr(`"account_role".account_id`).ColumnExpr(`"account_role".tenant_id`).
+			Join(`JOIN auth.roles AS "role" ON "role".id = "account_role".role_id`).
+			Where(`LOWER("role".name) = 'guardian'`)
+	}
 }
 
 func otherTenantContext(t *testing.T, db *bun.DB) (context.Context, int64) {

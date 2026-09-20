@@ -74,7 +74,7 @@ func (s *StudentStore) Delete(ctx context.Context, id int64) (int64, domain.Oper
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	result, err := db.NewDelete().TableExpr(`users.students AS "student"`).
+	result, err := db.NewDelete().TableExpr(`users.student_profiles AS "student"`).
 		Where(`"student".tenant_id = ?`, tenantID).
 		Where(`"student".id = ?`, id).
 		Exec(ctx)

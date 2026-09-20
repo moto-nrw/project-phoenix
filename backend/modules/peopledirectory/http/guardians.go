@@ -76,6 +76,34 @@ type GuardianInviteResult struct {
 	ExistingRole      string
 }
 
+// GuardianBulkInvite invites the guardians of many children in one run
+// (#3378). DryRun only counts; ResendOpen mails open invitations again.
+type GuardianBulkInvite struct {
+	StudentIDs     []int64
+	ActorAccountID int64
+	ResendOpen     bool
+	DryRun         bool
+}
+
+// GuardianBulkInviteProblem is one guardian the run could not reach.
+type GuardianBulkInviteProblem struct {
+	GuardianProfileID int64
+	GuardianName      string
+	StudentNames      []string
+	Reason            string
+}
+
+// GuardianBulkInviteResult counts guardians, never children.
+type GuardianBulkInviteResult struct {
+	Invited               int
+	LinkedExistingAccount int
+	Resent                int
+	SkippedActive         int
+	SkippedOpen           int
+	SkippedRestricted     int
+	Problems              []GuardianBulkInviteProblem
+}
+
 // GuardianPendingApproval is one parent-initiated request awaiting staff.
 type GuardianPendingApproval struct {
 	InvitationID      int64
@@ -126,8 +154,9 @@ type GuardianRuntime struct {
 	ListPendingInvitations func(context.Context) ([]PendingGuardianInvitation, error)
 
 	InviteGuardianToStudent func(context.Context, GuardianInvite) (GuardianInviteResult, error)
-	// InviteFailureKind classifies an invitation failure: forbidden for a
-	// school-managed contact, invalid request otherwise.
+	BulkInviteGuardians     func(context.Context, GuardianBulkInvite) (GuardianBulkInviteResult, error)
+	// InviteFailureKind classifies invitation failures as forbidden, invalid
+	// request, or internal errors.
 	InviteFailureKind          func(error) FailureKind
 	ListPendingApprovals       func(context.Context) ([]GuardianPendingApproval, error)
 	PendingInvitationStudentID func(context.Context, int64) (int64, error)
@@ -154,7 +183,7 @@ func NewGuardianResource(directory peopledirectory.Capability, runtime GuardianR
 		runtime.ActorID == nil || runtime.ActorRole == nil || runtime.HasPermission == nil || runtime.IsAdmin == nil ||
 		runtime.IsVerifiedStaff == nil || runtime.ExposeInvitationToken == nil || runtime.MarkRollback == nil ||
 		runtime.SendInvitation == nil || runtime.ListPendingInvitations == nil ||
-		runtime.InviteGuardianToStudent == nil || runtime.InviteFailureKind == nil || runtime.ListPendingApprovals == nil ||
+		runtime.InviteGuardianToStudent == nil || runtime.BulkInviteGuardians == nil || runtime.InviteFailureKind == nil || runtime.ListPendingApprovals == nil ||
 		runtime.PendingInvitationStudentID == nil || runtime.ApproveInvitation == nil || runtime.RejectInvitation == nil ||
 		runtime.RenderPaymentExport == nil || runtime.Log == nil {
 		panic("guardians HTTP: all dependencies are required")
@@ -171,7 +200,6 @@ func (rs *GuardianResource) Router() chi.Router {
 		usersCreate := rs.runtime.Permission(permissions.UsersCreate)
 		usersUpdate := rs.runtime.Permission(permissions.UsersUpdate)
 		usersDelete := rs.runtime.Permission(permissions.UsersDelete)
-		usersManage := rs.runtime.Permission(permissions.UsersManage)
 		financial := rs.runtime.Permission(permissions.GuardiansFinancial)
 
 		// Guardian profile reads share the users:read gate; the picker search
@@ -202,13 +230,7 @@ func (rs *GuardianResource) Router() chi.Router {
 		r.With(usersUpdate, withTx).Put("/relationships/{relationshipId}", rs.updateStudentGuardianRelationship)
 		r.With(usersUpdate, withTx).Delete("/students/{studentId}/guardians/{guardianId}", rs.removeGuardianFromStudent)
 
-		// Related accounts: invite a further guardian by e-mail plus the
-		// parent-initiated approval queue. The queue exposes tenant-wide
-		// e-mails and student names, so it sits behind users:manage.
-		r.With(usersCreate, withTx).Post("/students/{studentId}/invite", rs.inviteGuardianToStudent)
-		r.With(usersManage, withTx).Get("/invitations/pending-approval", rs.listPendingApprovals)
-		r.With(usersUpdate, withTx).Post("/invitations/{invitationId}/approve", rs.approveInvitation)
-		r.With(usersUpdate, withTx).Post("/invitations/{invitationId}/reject", rs.rejectInvitation)
+		rs.mountRelatedAccounts(r, withTx)
 
 		// Guardian payment data (#2608) sits behind guardians:financial. Reveal
 		// and export are POSTs because both are audited actions.
@@ -228,6 +250,22 @@ func (rs *GuardianResource) Router() chi.Router {
 		})
 	})
 	return router
+}
+
+// mountRelatedAccounts registers the related-account routes: invite a further
+// guardian by e-mail, invite the guardians of many children at once (#3378),
+// and the parent-initiated approval queue. The queue exposes tenant-wide
+// e-mails and student names, so it sits behind users:manage.
+func (rs *GuardianResource) mountRelatedAccounts(r chi.Router, withTx Middleware) {
+	usersCreate := rs.runtime.Permission(permissions.UsersCreate)
+	usersUpdate := rs.runtime.Permission(permissions.UsersUpdate)
+	usersManage := rs.runtime.Permission(permissions.UsersManage)
+
+	r.With(usersCreate, withTx).Post("/students/{studentId}/invite", rs.inviteGuardianToStudent)
+	r.With(usersCreate, withTx).Post("/bulk-invite", rs.bulkInviteGuardians)
+	r.With(usersManage, withTx).Get("/invitations/pending-approval", rs.listPendingApprovals)
+	r.With(usersUpdate, withTx).Post("/invitations/{invitationId}/approve", rs.approveInvitation)
+	r.With(usersUpdate, withTx).Post("/invitations/{invitationId}/reject", rs.rejectInvitation)
 }
 
 // --- shared helpers ---

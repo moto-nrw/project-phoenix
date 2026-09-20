@@ -38,9 +38,9 @@ type StudentResponseServices struct {
 	PersonService userService.PersonService
 }
 
-// populatePersonAndGuardianData fills the response with person and guardian information
+// populatePersonAndGroupData fills the response with person and group information
 // based on access level permissions
-func populatePersonAndGuardianData(response *StudentResponse, person *users.Person, student *users.Student, group *education.Group, hasFullAccess bool) {
+func populatePersonAndGroupData(response *StudentResponse, person *users.Person, student *users.Student, group *education.Group, hasFullAccess bool) {
 	if person != nil {
 		response.FirstName = person.FirstName
 		response.LastName = person.LastName
@@ -52,15 +52,6 @@ func populatePersonAndGuardianData(response *StudentResponse, person *users.Pers
 		if hasFullAccess && person.TagID != nil {
 			response.TagID = *person.TagID
 		}
-	}
-
-	// Guardian email and phone are visible to all authenticated staff
-	if student.GuardianEmail != nil {
-		response.GuardianEmail = *student.GuardianEmail
-	}
-
-	if student.GuardianPhone != nil {
-		response.GuardianPhone = *student.GuardianPhone
 	}
 
 	if student.GroupID != nil {
@@ -383,15 +374,7 @@ func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, s
 		UpdatedAt:   student.UpdatedAt,
 	}
 
-	// Include legacy guardian name if available
-	if student.GuardianName != nil {
-		response.GuardianName = *student.GuardianName
-	}
-
 	// Guardian contact info is visible to all authenticated staff
-	if student.GuardianContact != nil {
-		response.GuardianContact = *student.GuardianContact
-	}
 
 	response.HasFullAccess = hasFullAccess
 
@@ -408,7 +391,7 @@ func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, s
 		response.RoomColor = locationInfo.RoomColor
 	}
 
-	populatePersonAndGuardianData(&response, person, student, group, hasFullAccess)
+	populatePersonAndGroupData(&response, person, student, group, hasFullAccess)
 	populatePublicStudentFields(&response, student)
 
 	// Sensitive student fields (notes, sickness) are now visible to all authenticated staff
@@ -440,14 +423,7 @@ func newStudentResponseFromSnapshot(_ context.Context, student *users.Student, p
 		UpdatedAt:   student.UpdatedAt,
 	}
 
-	if student.GuardianName != nil {
-		response.GuardianName = *student.GuardianName
-	}
-
 	// Guardian contact info is visible to all authenticated staff
-	if student.GuardianContact != nil {
-		response.GuardianContact = *student.GuardianContact
-	}
 
 	response.HasFullAccess = hasFullAccess
 
@@ -456,7 +432,7 @@ func newStudentResponseFromSnapshot(_ context.Context, student *users.Student, p
 	response.LocationSince = locationInfo.Since
 	response.RoomColor = locationInfo.RoomColor
 
-	populatePersonAndGuardianData(&response, person, student, group, hasFullAccess)
+	populatePersonAndGroupData(&response, person, student, group, hasFullAccess)
 	populateSnapshotPublicFields(&response, student)
 
 	// Sensitive student fields (notes, sickness) are now visible to all authenticated staff

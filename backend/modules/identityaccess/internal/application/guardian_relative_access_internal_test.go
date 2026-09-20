@@ -45,6 +45,8 @@ func TestInviteToStudent_ValidatesTheRequest(t *testing.T) {
 	} {
 		_, err := f.lifecycle.InviteToStudent(tenantContext(), req)
 		require.Error(t, err, name)
+		var validation *domain.GuardianInvitationValidationError
+		require.ErrorAs(t, err, &validation, name)
 	}
 	assert.Empty(t, f.guardians.profiles)
 }

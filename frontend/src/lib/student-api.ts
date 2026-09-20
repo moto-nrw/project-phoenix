@@ -36,7 +36,6 @@ export interface StudentFilters {
   group_id?: string;
   location?: string;
   location_state?: "present" | "transit";
-  guardian_name?: string;
   first_name?: string;
   last_name?: string;
   page?: number;
@@ -119,8 +118,6 @@ async function buildStudentUrl(
   if (filters.location) params.append("location", filters.location);
   if (filters.location_state)
     params.append("location_state", filters.location_state);
-  if (filters.guardian_name)
-    params.append("guardian_name", filters.guardian_name);
   if (filters.first_name) params.append("first_name", filters.first_name);
   if (filters.last_name) params.append("last_name", filters.last_name);
   if (filters.page) params.append("page", filters.page.toString());
@@ -284,12 +281,8 @@ export async function createStudent(studentData: {
   first_name: string;
   last_name: string;
   school_class: string;
-  guardian_name: string;
-  guardian_contact: string;
   group_id?: number;
   tag_id?: string;
-  guardian_email?: string;
-  guardian_phone?: string;
 }): Promise<Student> {
   const useProxy = isBrowserContext();
   const url = useProxy

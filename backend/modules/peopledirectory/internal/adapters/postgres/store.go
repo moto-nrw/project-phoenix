@@ -493,12 +493,6 @@ func wrapWriteError(operation string, err error) error {
 	return fmt.Errorf("people directory postgres: %s person: %w", operation, err)
 }
 
-// isLockNotAvailable reports PostgreSQL 55P03, the NOWAIT refusal.
-func isLockNotAvailable(err error) bool {
-	var postgresError pgdriver.Error
-	return errors.As(err, &postgresError) && postgresError.Field('C') == "55P03"
-}
-
 func isUniqueViolationOn(err error, index string) bool {
 	var postgresError pgdriver.Error
 	return errors.As(err, &postgresError) && postgresError.IntegrityViolation() && postgresError.Field('n') == index

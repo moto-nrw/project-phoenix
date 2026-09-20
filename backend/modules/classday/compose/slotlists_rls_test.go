@@ -29,7 +29,9 @@ func TestClassDayInputsEnforceRLS(t *testing.T) {
 			entry := testpkg.CreateTestClassListEntryForTenant(parent, db, testpkg.Tenant(t), "RLS", side, "3a")
 			var rosterID int64
 			require.NoError(t, db.NewSelect().Table("schedule.instance_students").Column("id").Where("instance_id = ? AND student_id = ?", fixture.instanceID, fixture.plannedID).Scan(ctx, &rosterID))
-			rows = append(rows, map[string]int64{"users.students": fixture.plannedID, "users.class_list_entries": entry.ID, "education.groups": group.ID, "schedule.activity_instances": fixture.instanceID, "schedule.instance_students": rosterID})
+			var membershipID int64
+			require.NoError(t, db.NewSelect().Table("users.student_school_memberships").Column("id").Where("student_profile_id = ? AND deleted_at IS NULL", fixture.plannedID).Scan(ctx, &membershipID))
+			rows = append(rows, map[string]int64{"users.student_profiles": fixture.plannedID, "users.student_school_memberships": membershipID, "users.student_care_profiles": membershipID, "users.class_list_entries": entry.ID, "education.groups": group.ID, "schedule.activity_instances": fixture.instanceID, "schedule.instance_students": rosterID})
 			contexts = append(contexts, ctx)
 			tenants = append(tenants, testpkg.Tenant(t))
 			fixtures = append(fixtures, fixture)
@@ -37,13 +39,17 @@ func TestClassDayInputsEnforceRLS(t *testing.T) {
 	}
 	for table, ownID := range rows[0] {
 		t.Run(table, func(t *testing.T) {
+			key := "id"
+			if table == "users.student_care_profiles" {
+				key = "membership_id"
+			}
 			for side, ctx := range contexts {
 				require.NoError(t, testpkg.WithTenantTx(t, ctx, db, tenants[side], func(txCtx context.Context, tx bun.Tx) error {
 					var bypass bool
 					require.NoError(t, tx.NewRaw("SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user").Scan(txCtx, &bypass))
 					require.False(t, bypass)
 					var visible []int64
-					require.NoError(t, tx.NewSelect().Table(table).Column("id").Where("id IN (?, ?)", ownID, rows[1][table]).Scan(txCtx, &visible))
+					require.NoError(t, tx.NewSelect().Table(table).Column(key).Where("? IN (?, ?)", bun.Ident(key), ownID, rows[1][table]).Scan(txCtx, &visible))
 					require.Equal(t, []int64{rows[side][table]}, visible)
 					return nil
 				}))

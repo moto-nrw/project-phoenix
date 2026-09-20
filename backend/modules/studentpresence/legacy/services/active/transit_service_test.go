@@ -339,11 +339,11 @@ func TestActiveService_MoveStudentsToActiveGroup_RejectsGraduatedStudent(t *test
 	visit := testpkg.CreateTestVisit(t, db, student.ID, sourceGroup.ID, now.Add(-20*time.Minute), nil)
 
 	_, err := db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_school_memberships").
 		// "alumnus" is the stored lifecycle value; the presence services
 		// see it as StudentLifecycleAlumnus through their adapter.
 		Set("status = ?", "alumnus").
-		Where("id = ?", student.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 

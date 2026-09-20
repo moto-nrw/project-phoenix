@@ -76,13 +76,23 @@ func LinkDeviceToActiveGroup(tb testing.TB, db *bun.DB, activeGroupID, deviceID 
 // SetStudentGroup assigns (or clears, with nil) the education group of a student.
 func SetStudentGroup(tb testing.TB, db *bun.DB, studentID int64, groupID *int64) {
 	tb.Helper()
-	setColumn(tb, db, "users.students", "group_id", groupID, studentID)
+	ctx, cancel := fixtureCtx()
+	defer cancel()
+	query, err := updateStudentMembershipFixture(ctx, db, studentID)
+	require.NoError(tb, err)
+	_, err = query.Set("group_id = ?", groupID).Exec(ctx)
+	require.NoError(tb, err)
 }
 
 // SetStudentStatus updates the lifecycle status of a student.
 func SetStudentStatus(tb testing.TB, db *bun.DB, studentID int64, status string) {
 	tb.Helper()
-	setColumn(tb, db, "users.students", "status", status, studentID)
+	ctx, cancel := fixtureCtx()
+	defer cancel()
+	query, err := updateStudentMembershipFixture(ctx, db, studentID)
+	require.NoError(tb, err)
+	_, err = query.Set("status = ?", status).Exec(ctx)
+	require.NoError(tb, err)
 }
 
 // SetEducationGroupRoom assigns (or clears, with nil) the room of an education group.

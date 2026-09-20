@@ -54,10 +54,10 @@ func TestClearStatusFlag_ClearsSickFlag(t *testing.T) {
 	now := time.Now()
 	sickTrue := true
 	_, err := db.NewUpdate().
-		Table("users.students").
+		Table("users.student_care_profiles").
 		Set("sick = ?", sickTrue).
 		Set("sick_since = ?", now).
-		Where("id = ?", sickStudent.ID).
+		Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", sickStudent.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
 
@@ -78,8 +78,9 @@ func TestClearStatusFlag_ClearsSickFlag(t *testing.T) {
 	reloaded := &userModels.Student{Model: base.Model{ID: sickStudent.ID}}
 	err = db.NewSelect().
 		Model(reloaded).
+		ModelTableExpr("users.student_care_profiles AS student").
 		Column("sick", "sick_since").
-		Where("id = ?", sickStudent.ID).
+		Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", sickStudent.ID).
 		Scan(context.Background())
 	require.NoError(t, err)
 	if reloaded.Sick != nil {
@@ -237,10 +238,10 @@ func TestClearStatusFlag_ClearsExcusedFlag(t *testing.T) {
 	now := time.Now()
 	excTrue := true
 	_, err := db.NewUpdate().
-		Table("users.students").
+		Table("users.student_care_profiles").
 		Set("excused = ?", excTrue).
 		Set("excused_since = ?", now).
-		Where("id = ?", excStudent.ID).
+		Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", excStudent.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
 
@@ -256,8 +257,9 @@ func TestClearStatusFlag_ClearsExcusedFlag(t *testing.T) {
 	reloaded := &userModels.Student{Model: base.Model{ID: excStudent.ID}}
 	err = db.NewSelect().
 		Model(reloaded).
+		ModelTableExpr("users.student_care_profiles AS student").
 		Column("excused", "excused_since").
-		Where("id = ?", excStudent.ID).
+		Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", excStudent.ID).
 		Scan(context.Background())
 	require.NoError(t, err)
 	if reloaded.Excused != nil {
@@ -275,9 +277,9 @@ func reloadStudentFlags(t *testing.T, db *bun.DB, studentID int64) (sick, excuse
 		Excused *bool `bun:"excused"`
 	}
 	err := db.NewSelect().
-		Table("users.students").
+		Table("users.student_care_profiles").
 		Column("sick", "excused").
-		Where("id = ?", studentID).
+		Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", studentID).
 		Scan(context.Background(), &row)
 	require.NoError(t, err)
 	if row.Sick != nil {
@@ -318,17 +320,17 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_ClearsBothFlags(t *testing.T) {
 	flagTrue := true
 	ts := now
 	_, err := db.NewUpdate().
-		Table("users.students").
+		Table("users.student_care_profiles").
 		Set("sick = ?", flagTrue).
 		Set("sick_since = ?", ts).
-		Where("id = ?", sickStudent.ID).
+		Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", sickStudent.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
 	_, err = db.NewUpdate().
-		Table("users.students").
+		Table("users.student_care_profiles").
 		Set("excused = ?", flagTrue).
 		Set("excused_since = ?", ts).
-		Where("id = ?", excusedStudent.ID).
+		Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", excusedStudent.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
 
@@ -380,17 +382,17 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_RespectsModeSetting(t *testing.T) {
 	flagTrue := true
 	ts := now
 	_, err := db.NewUpdate().
-		Table("users.students").
+		Table("users.student_care_profiles").
 		Set("sick = ?", flagTrue).
 		Set("sick_since = ?", ts).
-		Where("id = ?", sickStudent.ID).
+		Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", sickStudent.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
 	_, err = db.NewUpdate().
-		Table("users.students").
+		Table("users.student_care_profiles").
 		Set("excused = ?", flagTrue).
 		Set("excused_since = ?", ts).
-		Where("id = ?", excusedStudent.ID).
+		Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", excusedStudent.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
 
@@ -433,10 +435,10 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_DoesNothingWhenTimeDoesNotMatch(t *
 	flagTrue := true
 	now := time.Now()
 	_, err := db.NewUpdate().
-		Table("users.students").
+		Table("users.student_care_profiles").
 		Set("sick = ?", flagTrue).
 		Set("sick_since = ?", now).
-		Where("id = ?", sickStudent.ID).
+		Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", sickStudent.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
 

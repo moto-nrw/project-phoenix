@@ -32,7 +32,7 @@ func bookingAuthorityService(t *testing.T, db *bun.DB, authoritative bool) carel
 	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	return carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
-		StudentRepo: repos.Student, PersonRepo: repos.Person, CareExitRepo: repos.CareExit,
+		StudentRepo: repositories.NewCareStudents(repos.Student, repos.SchoolMembership()), PersonRepo: repos.Person, CareExitRepo: repos.CareExit,
 		CleanupRepo: repos.CareExitCleanup, WithdrawalRepo: repos.CareWithdrawal,
 		TagReleaser:           repos.StudentTagReleaser(),
 		AuditService:          userService.NewStudentAuditService(repositories.NewStudentAudit(db)),
@@ -48,7 +48,7 @@ func lockedBookingAuthorityService(t *testing.T, db *bun.DB) carelifecycle.CareL
 	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	return carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
-		StudentRepo: repos.Student, PersonRepo: repos.Person, CareExitRepo: repos.CareExit,
+		StudentRepo: repositories.NewCareStudents(repos.Student, repos.SchoolMembership()), PersonRepo: repos.Person, CareExitRepo: repos.CareExit,
 		CleanupRepo: repos.CareExitCleanup, WithdrawalRepo: repos.CareWithdrawal,
 		TagReleaser:  repos.StudentTagReleaser(),
 		AuditService: userService.NewStudentAuditService(repositories.NewStudentAudit(db)),
@@ -65,7 +65,7 @@ func createCareBooking(
 	key string, validFrom, validUntil *timezone.Date,
 ) *enrollmentFixture.RequestChild {
 	t.Helper()
-	offering := createCareBookingOffering(t, db, scope, studentID, key)
+	offering := createCareBookingOffering(t, db, scope, studentID, key, validFrom, validUntil)
 	child := createCareBookingSource(t, db, scope, offering.PhaseID, studentID, key)
 	link := &enrollmentFixture.RequestChildOffering{
 		RequestChildID: child.ID, CareOfferingID: offering.ID,
@@ -99,12 +99,26 @@ func createCareBooking(
 
 func createCareBookingOffering(
 	t *testing.T, db *bun.DB, scope testpkg.TenantScope, studentID int64, key string,
+	validFrom, validUntil *timezone.Date,
 ) *enrollmentModels.CareOffering {
 	t.Helper()
+	// Keep the phase around the scenario's booking, not the day CI runs.
+	start := timezone.NewDate(2026, 8, 1)
+	end := start.AddDays(365)
+	if validFrom != nil {
+		start = validFrom.AddDays(-30)
+		end = validFrom.AddDays(300)
+	}
+	if validUntil != nil {
+		end = validUntil.AddDays(30)
+		if validFrom == nil {
+			start = validUntil.AddDays(-300)
+		}
+	}
 	phase := &enrollmentFixture.Phase{
 		Name: fmt.Sprintf("Buchungsprüfung-%d-%s", studentID, key), Kind: "school_year",
-		ServiceStartDate: enrollmentFixture.Date(timezone.TodayDate().AddDays(-30)),
-		ServiceEndDate:   enrollmentFixture.Date(timezone.TodayDate().AddDays(300)),
+		ServiceStartDate: enrollmentFixture.Date(start),
+		ServiceEndDate:   enrollmentFixture.Date(end),
 		CareOverflowMode: "waitlist", CareOfferingSelectionMode: "optional", IsActive: true,
 	}
 	phase.TenantID = scope.TenantID
@@ -154,8 +168,8 @@ func createImpactStudents(
 	ordinary := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Reguläres", "Ende", "1c")
 	createCareBooking(t, db, scope, planned.ID, "planned", nil, &gap)
 	createCareBooking(t, db, scope, ordinary.ID, "ordinary", nil, &gap)
-	_, err := db.NewUpdate().TableExpr("users.students").Set("enrolled_until = ?", gap.AddDays(-1)).
-		Where("tenant_id = ? AND id = ?", scope.TenantID, ordinary.ID).Exec(scope.Context())
+	_, err := db.NewUpdate().TableExpr("users.student_school_memberships").Set("enrolled_until = ?", gap.AddDays(-1)).
+		Where("tenant_id = ? AND student_profile_id = ? AND deleted_at IS NULL", scope.TenantID, ordinary.ID).Exec(scope.Context())
 	require.NoError(t, err)
 	return blocker, planned
 }
@@ -202,9 +216,9 @@ func TestBookingAuthorityIncludesImmediatelyActivatedStudents(t *testing.T) {
 	scope := testpkg.NewTenantScope(t, db)
 	student := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Sofort", "Aktiv", "1a")
 	futureStart := timezone.TodayDate().AddDays(14)
-	_, err := db.NewUpdate().TableExpr("users.students").
+	_, err := db.NewUpdate().TableExpr("users.student_school_memberships").
 		Set("enrolled_from = ?", futureStart).
-		Where("tenant_id = ? AND id = ?", scope.TenantID, student.ID).
+		Where("tenant_id = ? AND student_profile_id = ? AND deleted_at IS NULL", scope.TenantID, student.ID).
 		Exec(scope.Context())
 	require.NoError(t, err)
 
@@ -220,10 +234,10 @@ func TestBookingAuthorityExcludesLegacyInactiveStudentWithoutEnrollmentBounds(t 
 	scope := testpkg.NewTenantScope(t, db)
 	student := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Alt", "Inaktiv", "1a")
 
-	_, err := db.NewUpdate().TableExpr("users.students").
+	_, err := db.NewUpdate().TableExpr("users.student_school_memberships").
 		Set("status = ?", userModels.StudentStatusInactive).
 		Set("enrolled_from = NULL, enrolled_until = NULL").
-		Where("tenant_id = ? AND id = ?", scope.TenantID, student.ID).
+		Where("tenant_id = ? AND student_profile_id = ? AND deleted_at IS NULL", scope.TenantID, student.ID).
 		Exec(scope.Context())
 	require.NoError(t, err)
 
@@ -327,10 +341,10 @@ func TestBookingParticipationRangeExcludesAlumniWithoutDateBoundary(t *testing.T
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 	student := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Bereits", "Ausgetreten", "2c")
-	_, err := db.NewUpdate().TableExpr("users.students").
+	_, err := db.NewUpdate().TableExpr("users.student_school_memberships").
 		Set("status = ?", userModels.StudentStatusAlumnus).
 		Set("enrolled_from = NULL, enrolled_until = NULL").
-		Where("tenant_id = ? AND id = ?", scope.TenantID, student.ID).
+		Where("tenant_id = ? AND student_profile_id = ? AND deleted_at IS NULL", scope.TenantID, student.ID).
 		Exec(scope.Context())
 	require.NoError(t, err)
 

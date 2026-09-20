@@ -19,9 +19,16 @@ import (
 
 type Observation = ports.Observation
 
+// GuardianMembershipQuery is an Identity & Access owner query for an account
+// or (account_id, tenant_id) projection. It stays a constructor argument so
+// the People Directory contract does not depend on another module's adapter.
+type GuardianMembershipQuery func(context.Context) *bun.SelectQuery
+
 type Dependencies struct {
-	DB      *bun.DB
-	Observe func(Observation)
+	StudentOwners              StudentOwners
+	StudentClassWriteGateQuery func(context.Context) (*bun.SelectQuery, error)
+	DB                         *bun.DB
+	Observe                    func(Observation)
 	// StudentFieldAudit is the Audit Platform seam behind the per-child
 	// change history. Optional: without it the change-history capability
 	// reports that it is not configured, which is what graphs that never
@@ -50,7 +57,19 @@ type Dependencies struct {
 	Now func() time.Time
 }
 
+// New composes People Directory without Identity & Access account projections.
+// Graphs that need the parents-app reachability capability use
+// NewWithGuardianMemberships so those owner queries stay at the composition seam.
 func New(dependencies Dependencies) (*peopledirectory.Module, error) {
+	return NewWithGuardianMemberships(dependencies, nil, nil, nil)
+}
+
+// NewWithGuardianMemberships composes People Directory with the Identity &
+// Access owner queries that identify active accounts, guardian roles, and
+// active school memberships. They are constructor arguments rather than
+// Dependencies fields: only the guardian reachability read needs them, while
+// all other People Directory graphs stay independent of Identity & Access.
+func NewWithGuardianMemberships(dependencies Dependencies, memberships, activeAccounts, guardianRoles GuardianMembershipQuery) (*peopledirectory.Module, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("people directory compose: all dependencies are required")
 	}
@@ -74,8 +93,9 @@ func New(dependencies Dependencies) (*peopledirectory.Module, error) {
 	if dependencies.StudentCompanions != nil {
 		companions = studentCompanions{seam: dependencies.StudentCompanions}
 	}
-	students := application.NewStudents(postgres.NewStudentStore(database), companions, transaction{}, observe)
-	guardians := application.NewGuardians(postgres.NewGuardianStore(database), transaction{}, observe)
+	owners := studentOwners{owners: dependencies.StudentOwners}
+	students := application.NewStudents(postgres.NewStudentStore(database, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery), companions, owners, transaction{}, observe)
+	guardians := application.NewGuardians(postgres.NewGuardianStore(database, postgres.MembershipQuery(memberships), postgres.MembershipQuery(activeAccounts), postgres.MembershipQuery(guardianRoles)), transaction{}, observe)
 	var auditLog ports.StudentFieldAuditLog
 	if dependencies.StudentFieldAudit != nil {
 		auditLog = studentFieldAuditLog{log: dependencies.StudentFieldAudit}
@@ -92,7 +112,7 @@ func New(dependencies Dependencies) (*peopledirectory.Module, error) {
 		now = time.Now
 	}
 	studentPhotos := application.NewStudentPhotos(
-		postgres.NewStudentStore(database), photoRuntime, transaction{}, observe, now)
+		postgres.NewStudentStore(database, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery), photoRuntime, transaction{}, observe, now)
 	return peopledirectory.NewModule(engine{
 		service: service, students: students, guardians: guardians,
 		studentAudit: studentAudit, studentConsents: studentConsents,

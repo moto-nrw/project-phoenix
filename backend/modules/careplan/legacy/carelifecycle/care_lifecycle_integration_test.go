@@ -51,7 +51,7 @@ func newActiveService(t *testing.T, db *bun.DB) activeService.Service {
 		GroupRepo:          repos.ActiveGroup,
 		SupervisorRepo:     repos.GroupSupervisor,
 		SchoolPresence:     presence,
-		StudentRepo:        services.PresenceStudents(repos.Student),
+		StudentRepo:        services.PresenceStudents(db, repos.Student),
 		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
 		RoomRepo:           services.NewAttendanceRooms(repos.Room),
 		ActivityGroupRepo:  repositories.NewSessionActivities(repos.ActivityGroup),
@@ -81,9 +81,9 @@ func newActiveService(t *testing.T, db *bun.DB) activeService.Service {
 func makeExitEffective(t *testing.T, db *bun.DB, studentID int64, lastCareDay timezone.Date) {
 	t.Helper()
 	_, err := db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_school_memberships").
 		Set("enrolled_until = ?", lastCareDay).
-		Where("id = ?", studentID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", studentID).
 		Exec(context.Background())
 	require.NoError(t, err)
 }
@@ -105,9 +105,9 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 	group := testpkg.CreateTestEducationGroup(t, db, "Bienen")
 	student := testpkg.CreateTestStudent(t, db, "Leon", "Altmann", "2a")
 	_, err = db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_school_memberships").
 		Set("group_id = ?", group.ID).
-		Where("id = ?", student.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
 

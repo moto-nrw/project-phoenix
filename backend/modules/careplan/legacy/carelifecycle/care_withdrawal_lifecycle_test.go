@@ -27,10 +27,10 @@ func TestCareWithdrawalLifecycle_AllowsRetroactiveExitButNotBeforeAttendance(t *
 	actorID := careActor(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Lina", "Rueckwirkend", "2a")
 	today := timezone.NewDate(2026, 8, 24)
-	_, err := db.NewUpdate().TableExpr("users.students").
+	_, err := db.NewUpdate().TableExpr("users.student_school_memberships").
 		Set("enrolled_from = ?", today.AddDays(-10)).
 		Set("status = ?", userModels.StudentStatusActive).
-		Where("id = ?", student.ID).Exec(ctx)
+		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).Exec(ctx)
 	require.NoError(t, err)
 	staff := testpkg.CreateTestStaff(t, db, "Erika", "Betreuung")
 	device := testpkg.CreateTestDevice(t, db, "retro-withdrawal-device")

@@ -11,13 +11,14 @@ import (
 var ErrStudentNotFound = errors.New("student not found")
 
 type Input struct {
-	PersonID      int64
-	SchoolClass   string
-	Status        string
-	EnrolledFrom  string
-	EnrolledUntil string
-	GuardianEmail *string
-	GuardianPhone *string
+	// InitialProfile is applied atomically on creation. Renewal must use
+	// ApplyEnrollmentProfile for explicit profile changes.
+	InitialProfile *ProfilePatch
+	PersonID       int64
+	SchoolClass    string
+	Status         string
+	EnrolledFrom   string
+	EnrolledUntil  string
 }
 
 type CreatedStudent struct {

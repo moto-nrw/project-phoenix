@@ -140,7 +140,9 @@ type GuardianDirectory interface {
 	// PromoteStudentGuardianLink upgrades the relationship to legal guardian
 	// with the server-derived parent-portal permission set (#2172).
 	PromoteStudentGuardianLink(ctx context.Context, linkID int64) error
-	ListStudentGuardianLinksByStudent(ctx context.Context, studentID int64) ([]domain.StudentGuardianLink, error)
+	// ListStudentGuardianLinksByStudents reads the relationships of the given
+	// children in one statement.
+	ListStudentGuardianLinksByStudents(ctx context.Context, studentIDs []int64) ([]domain.StudentGuardianLink, error)
 	ListStudentGuardianLinksByProfile(ctx context.Context, guardianProfileID int64) ([]domain.StudentGuardianLink, error)
 	DeleteStudentGuardianLink(ctx context.Context, linkID int64) error
 	// GuardianRoleClass classifies a stored guardian role for the invite flow.

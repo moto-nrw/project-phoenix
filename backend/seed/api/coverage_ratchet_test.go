@@ -43,9 +43,8 @@ var seedCoverageExemptions = map[string]string{
 	// users.student_care_profiles held no rows while Expand #2717 kept them
 	// empty. Cutover #2759 made them the authoritative student storage, so a
 	// seeded stack finds them filled and they carry no exemption any more.
-	// users.students_legacy is not exempt either: it is the rollback archive
-	// the compatibility view still mirrors every seeded student into, and
-	// #2760 removes it rather than leaving it empty.
+	// Current owner commands no longer write the rollback archive. Keep it
+	// empty on fresh seeds; filling it would restore retired Guardian copies.
 	"active.combined_groups":               "empty in prod too",
 	"active.group_mappings":                "empty in prod too",
 	"active.scheduled_checkouts":           "empty in prod too",

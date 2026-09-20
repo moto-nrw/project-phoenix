@@ -215,13 +215,7 @@ func applyRequestQueueFilters(query *bun.SelectQuery, alias, keysetColumn string
 		query = query.Where("? IN (?)", studentColumn, bun.List(filter.StudentIDs))
 	}
 	if search := strings.TrimSpace(filter.Search); search != "" {
-		query = query.Where("?", bun.SafeQuery(`? IN (
-			SELECT student.id
-			FROM users.students AS student
-			JOIN users.persons AS person ON person.id = student.person_id AND person.tenant_id = student.tenant_id
-			WHERE student.tenant_id = ?
-			AND (person.first_name || ' ' || person.last_name) ILIKE ? ESCAPE '\'
-		)`, studentColumn, bun.Ident(alias+".tenant_id"), "%"+escapeILike(search)+"%"))
+		query = filterRequestQueueStudentName(query, alias, search)
 	}
 	if !filter.BeforeInstant.IsZero() {
 		query = query.Where("(?, ?) < (?, ?)", instantColumn, idColumn, filter.BeforeInstant, filter.BeforeID)

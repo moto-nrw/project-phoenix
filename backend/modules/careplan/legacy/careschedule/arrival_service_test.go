@@ -1578,9 +1578,9 @@ func TestArrivalScheduleService_BulkUpsertArrivalSchedules(t *testing.T) {
 		departed := testpkg.CreateTestStudent(t, db, "BulkCare", "Weg", className)
 		testpkg.CreateTestArrivalSchedule(t, db, staying.ID, scheduleModels.WeekdayMonday, staffID, "")
 		_, err := db.NewUpdate().
-			Table("users.students").
+			Table("users.student_school_memberships").
 			Set("enrolled_until = ?", timezone.TodayDate().AddDays(-1)).
-			Where("id = ?", departed.ID).
+			Where("student_profile_id = ? AND deleted_at IS NULL", departed.ID).
 			Exec(ctx)
 		require.NoError(t, err)
 

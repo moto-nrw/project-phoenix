@@ -21,14 +21,12 @@ func requireStudentsDepartureDaysColumn(t *testing.T, db *bun.DB) {
 			SELECT 1
 			FROM information_schema.columns
 			WHERE table_schema = 'users'
-			  AND table_name = 'students'
+			  AND table_name = 'student_care_profiles'
 			  AND column_name = 'departure_days'
 		)
 	`).Scan(testpkg.Ctx(t), &exists)
 	require.NoError(t, err)
-	if !exists {
-		t.Skip("users.students.departure_days column is not present in this test database")
-	}
+	require.True(t, exists, "users.student_care_profiles.departure_days column is not present in this test database")
 }
 
 func requireStudentsAllowedDepartureModesColumn(t *testing.T, db *bun.DB) {
@@ -39,14 +37,12 @@ func requireStudentsAllowedDepartureModesColumn(t *testing.T, db *bun.DB) {
 			SELECT 1
 			FROM information_schema.columns
 			WHERE table_schema = 'users'
-			  AND table_name = 'students'
+			  AND table_name = 'student_care_profiles'
 			  AND column_name = 'allowed_departure_modes'
 		)
 	`).Scan(testpkg.Ctx(t), &exists)
 	require.NoError(t, err)
-	if !exists {
-		t.Skip("users.students.allowed_departure_modes column is not present in this test database")
-	}
+	require.True(t, exists, "users.student_care_profiles.allowed_departure_modes column is not present in this test database")
 }
 
 // TestStudentRepository_DepartureDaysRoundtrip exercises the unified
@@ -409,7 +405,7 @@ func companionNoteColumnExists(t *testing.T, db *bun.DB) bool {
 			SELECT 1
 			FROM information_schema.columns
 			WHERE table_schema = 'users'
-			  AND table_name = 'students'
+			  AND table_name = 'student_care_profiles'
 			  AND column_name = 'departure_companion_note'
 		)
 	`).Scan(testpkg.Ctx(t), &exists))
@@ -428,18 +424,11 @@ func TestStudentRepository_CompanionNoteSchemaCompatibility(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
-	// The guard under test exists for schemas in which users.students is still
-	// the authoritative base table and may be missing the column (pre-1.15.138,
-	// and the rollback that drops it). Cutover #2759 replaced that name with a
-	// view whose column cannot be dropped, so this clone gets its world back.
-	testpkg.RestoreStudentStorageBeforeCutover(t, db)
 
 	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
-	if !companionNoteColumnExists(t, db) {
-		t.Skip("users.students.departure_companion_note column is not present in this test database")
-	}
+	require.True(t, companionNoteColumnExists(t, db), "Care Plan companion note column must exist")
 
 	t.Run("note round-trips through the explicit guarded write and hydration", func(t *testing.T) {
 		requireStudentsAllowedDepartureModesColumn(t, db)
@@ -472,13 +461,12 @@ func TestStudentRepository_CompanionNoteSchemaCompatibility(t *testing.T) {
 		// never references the scanonly note column.
 		student := testpkg.CreateTestStudent(t, db, "Companion", "Absent", "1a")
 
-		// Simulate the pre-1.15.138 / post-rollback schema by dropping just the
-		// column. Restore it immediately via Cleanup so the shared DB is left
-		// intact even on failure.
-		_, err := db.NewRaw(`ALTER TABLE users.students DROP COLUMN IF EXISTS departure_companion_note`).Exec(ctx)
+		// Rename the owner column in this isolated database. PostgreSQL keeps
+		// the rollback view valid, so the guard must inspect the owner table.
+		_, err := db.NewRaw(`ALTER TABLE users.student_care_profiles RENAME COLUMN departure_companion_note TO missing_companion_note`).Exec(ctx)
 		require.NoError(t, err)
 		t.Cleanup(func() {
-			_, restoreErr := db.NewRaw(`ALTER TABLE users.students ADD COLUMN IF NOT EXISTS departure_companion_note TEXT`).Exec(context.Background())
+			_, restoreErr := db.NewRaw(`ALTER TABLE users.student_care_profiles RENAME COLUMN missing_companion_note TO departure_companion_note`).Exec(context.Background())
 			require.NoError(t, restoreErr)
 		})
 

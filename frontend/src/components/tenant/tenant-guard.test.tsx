@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
 // ============================================================================
@@ -88,6 +88,16 @@ const tenantB = {
   slug: "school-b",
   name: "School B",
   subdomain: "school-b",
+  organizationId: 10,
+  organizationName: "Org Alpha",
+  settings: {},
+};
+
+const tenantC = {
+  tenantId: 3,
+  slug: "school-c",
+  name: "School C",
+  subdomain: "school-c",
   organizationId: 10,
   organizationName: "Org Alpha",
   settings: {},
@@ -283,6 +293,37 @@ describe("TenantGuard", () => {
     await waitFor(() => {
       expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: "/" });
     });
+  });
+
+  it("offers recovery when automatic sign-out after access denial fails", async () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { tenantId: 1, token: "access-token" } },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+    mockUseTenant.mockReturnValue({
+      tenantSlug: "school-b",
+      tenant: tenantB,
+    });
+    mockPerformTenantSwitch.mockRejectedValue(
+      new TenantSwitchError(
+        "account does not have access to this tenant",
+        401,
+        "access_denied",
+      ),
+    );
+    mockSignOut.mockRejectedValue(new Error("sign-out failed"));
+
+    render(
+      <TenantGuard>
+        <div>Protected Content</div>
+      </TenantGuard>,
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "Erneut versuchen" }),
+    ).toBeInTheDocument();
+    expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: "/" });
   });
 
   it("signs out operator session on tenant subdomain and blocks render", async () => {
@@ -587,5 +628,150 @@ describe("TenantGuard", () => {
     expect(window.location.assign).toHaveBeenCalledWith(
       "/?error=SessionExpired",
     );
+  });
+
+  // #3375: a switch that "succeeds" can still leave the old school in the
+  // session cookie. The guard used to try once and then show
+  // "Mandant wird gewechselt..." forever.
+  describe("when the mismatch survives the switch (#3375)", () => {
+    function mismatchedSession() {
+      mockUseSession.mockReturnValue({
+        data: { user: { tenantId: 1, token: "access-token" } },
+        status: "authenticated",
+        update: vi.fn().mockResolvedValue(undefined),
+      });
+      mockUseTenant.mockReturnValue({
+        tenantSlug: "school-b",
+        tenant: tenantB,
+      });
+    }
+
+    function renderGuard() {
+      return render(
+        <TenantGuard>
+          <div>Protected Content</div>
+        </TenantGuard>,
+      );
+    }
+
+    it("repeats the switch a bounded number of times, then offers a way out", async () => {
+      mismatchedSession();
+      mockPerformTenantSwitch.mockResolvedValue({
+        access_token: "new-access",
+        refresh_token: "new-refresh",
+      });
+
+      renderGuard();
+
+      expect(
+        await screen.findByText(
+          "Der Wechsel zu School B hat leider nicht geklappt.",
+        ),
+      ).toBeInTheDocument();
+      expect(mockPerformTenantSwitch).toHaveBeenCalledTimes(3);
+      expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+      expect(mockSignOut).not.toHaveBeenCalled();
+    });
+
+    it("starts a new retry budget when the URL target changes", async () => {
+      mismatchedSession();
+      mockPerformTenantSwitch.mockImplementation((subdomain: string) => {
+        if (subdomain === "school-c") return new Promise(vi.fn());
+        return Promise.resolve({
+          access_token: "new-access",
+          refresh_token: "new-refresh",
+        });
+      });
+
+      const { rerender } = renderGuard();
+
+      await screen.findByText(
+        "Der Wechsel zu School B hat leider nicht geklappt.",
+      );
+      expect(mockPerformTenantSwitch).toHaveBeenCalledTimes(3);
+
+      mockUseTenant.mockReturnValue({
+        tenantSlug: "school-c",
+        tenant: tenantC,
+      });
+      rerender(
+        <TenantGuard>
+          <div>Protected Content</div>
+        </TenantGuard>,
+      );
+
+      await waitFor(() => {
+        expect(mockPerformTenantSwitch).toHaveBeenLastCalledWith(
+          "school-c",
+          mockSignIn,
+          mockMutate,
+        );
+      });
+      expect(
+        screen.getByText("Mandant wird gewechselt..."),
+      ).toBeInTheDocument();
+    });
+
+    it("shows the way out after a failed switch instead of an endless wait", async () => {
+      mismatchedSession();
+      mockPerformTenantSwitch.mockRejectedValue(new Error("network down"));
+
+      renderGuard();
+
+      expect(
+        await screen.findByRole("button", { name: "Erneut versuchen" }),
+      ).toBeInTheDocument();
+      expect(mockPerformTenantSwitch).toHaveBeenCalledTimes(1);
+      expect(
+        screen.queryByText("Mandant wird gewechselt..."),
+      ).not.toBeInTheDocument();
+    });
+
+    it("tries again on request", async () => {
+      mismatchedSession();
+      mockPerformTenantSwitch.mockRejectedValue(new Error("network down"));
+
+      renderGuard();
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Erneut versuchen" }),
+      );
+
+      await waitFor(() => {
+        expect(mockPerformTenantSwitch).toHaveBeenCalledTimes(2);
+      });
+    });
+
+    it("signs out on request", async () => {
+      mismatchedSession();
+      mockPerformTenantSwitch.mockRejectedValue(new Error("network down"));
+
+      renderGuard();
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Neu anmelden" }),
+      );
+
+      expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: "/" });
+    });
+
+    it("keeps the recovery actions when sign-out fails", async () => {
+      mismatchedSession();
+      mockPerformTenantSwitch.mockRejectedValue(new Error("network down"));
+      mockSignOut.mockRejectedValue(new Error("sign-out failed"));
+
+      renderGuard();
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Neu anmelden" }),
+      );
+
+      await waitFor(() => {
+        expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: "/" });
+      });
+      expect(
+        screen.getByRole("button", { name: "Neu anmelden" }),
+      ).toBeInTheDocument();
+    });
   });
 });

@@ -252,9 +252,9 @@ func TestRFIDTagRoutes_GraduatedStudent(t *testing.T) {
 	require.Equal(t, http.StatusOK, deviceExec(t, tc, assignReq, device).Code)
 
 	_, err := tc.db.NewUpdate().
-		TableExpr(`users.students`).
+		TableExpr(`users.student_school_memberships`).
 		Set("status = ?", string(usersModel.StudentStatusAlumnus)).
-		Where("id = ?", student.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(t.Context())
 	require.NoError(t, err)
 

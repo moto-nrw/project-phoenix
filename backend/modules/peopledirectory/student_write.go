@@ -64,18 +64,6 @@ type StudentWriteCommand interface {
 	// multi-child write deferred, against the state the whole batch leaves
 	// behind. A no-op without an open batch.
 	VerifyStudentStrandingBatch(context.Context) error
-	// SetStudentStatus changes one child's lifecycle status.
-	SetStudentStatus(context.Context, int64, string) error
-	// TransitionStudentStatus moves the status only while the stored one still
-	// matches expected, so a background tick cannot resurrect a child a grade
-	// transition graduated in the meantime. False means it did not move.
-	TransitionStudentStatus(context.Context, int64, string, string) (bool, error)
-	// SetStudentCareEnd writes the enrolment interval's inclusive upper bound
-	// for a batch of children and reports how many rows moved.
-	SetStudentCareEnd(context.Context, []int64, string) (int64, error)
-	// ReopenStudentCare gives one child a new start day, clears the end day and
-	// writes the status the caller derived for today.
-	ReopenStudentCare(context.Context, int64, string, string) error
 	// ListStudentCareEnds projects the enrolment upper bound of the given
 	// children; a child without one is absent from the result.
 	ListStudentCareEnds(context.Context, []int64) (map[int64]string, error)
@@ -104,44 +92,6 @@ func (m *Module) DeleteStudentRecord(ctx context.Context, studentID int64) error
 
 func (m *Module) VerifyStudentStrandingBatch(ctx context.Context) error {
 	return m.engine.VerifyStudentStrandingBatch(ctx)
-}
-
-func (m *Module) SetStudentStatus(ctx context.Context, studentID int64, status string) error {
-	if studentID <= 0 {
-		return invalidStudent("student ID is required")
-	}
-	if status == "" {
-		return invalidStudent("status is required")
-	}
-	return m.engine.SetStudentStatus(ctx, studentID, status)
-}
-
-func (m *Module) TransitionStudentStatus(ctx context.Context, studentID int64, expected, next string) (bool, error) {
-	if studentID <= 0 {
-		return false, invalidStudent("student ID is required")
-	}
-	if expected == "" || next == "" {
-		return false, invalidStudent("both the expected and the next status are required")
-	}
-	return m.engine.TransitionStudentStatus(ctx, studentID, expected, next)
-}
-
-func (m *Module) SetStudentCareEnd(ctx context.Context, ids []int64, until string) (int64, error) {
-	ids = uniquePositive(ids)
-	if len(ids) == 0 {
-		return 0, nil
-	}
-	return m.engine.SetStudentCareEnd(ctx, ids, until)
-}
-
-func (m *Module) ReopenStudentCare(ctx context.Context, studentID int64, from, status string) error {
-	if studentID <= 0 {
-		return invalidStudent("student ID is required")
-	}
-	if from == "" {
-		return invalidStudent("a start day is required to reopen care")
-	}
-	return m.engine.ReopenStudentCare(ctx, studentID, from, status)
 }
 
 func (m *Module) ListStudentCareEnds(ctx context.Context, ids []int64) (map[int64]string, error) {

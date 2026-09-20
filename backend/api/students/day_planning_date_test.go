@@ -54,9 +54,9 @@ func TestListStudents_DayPlanningForDate(t *testing.T) {
 	// Sick TODAY (legacy student-row flag) — must not leak into tomorrow.
 	_, err := tc.db.NewUpdate().
 		Model((*usersModel.Student)(nil)).
-		ModelTableExpr("users.students").
+		ModelTableExpr("users.student_care_profiles").
 		Set("sick = ?", true).
-		Where("id = ?", sickTodayPlannedTomorrow.ID).
+		Where("membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", sickTodayPlannedTomorrow.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
 

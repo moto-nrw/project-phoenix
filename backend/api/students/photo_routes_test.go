@@ -152,7 +152,7 @@ func stampPhotoConsentRow(t *testing.T, tc *testContext, studentID int64) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
 	_, err := tc.db.ExecContext(ctx,
-		`UPDATE users.students
+		`UPDATE users.student_profiles
 		    SET photo_consent_given_at = now(),
 		        photo_consent_given_by = 1
 		  WHERE id = ?`,
@@ -164,7 +164,7 @@ func stampPhotoConsentRow(t *testing.T, tc *testContext, studentID int64) {
 func graduateStudent(t *testing.T, tc *testContext, studentID int64) {
 	t.Helper()
 	_, err := tc.db.ExecContext(testpkg.Ctx(t), `
-		UPDATE users.students SET status = ? WHERE id = ?
+		UPDATE users.student_school_memberships SET status = ? WHERE student_profile_id = ? AND deleted_at IS NULL
 	`, users.StudentStatusAlumnus, studentID)
 	require.NoError(t, err)
 }
@@ -178,7 +178,7 @@ func readStudentPhotoPath(t *testing.T, tc *testContext, studentID int64) string
 	var path *string
 	err := tc.db.NewSelect().
 		ColumnExpr("photo_path").
-		Table("users.students").
+		Table("users.student_profiles").
 		Where("id = ?", studentID).
 		Scan(ctx, &path)
 	require.NoError(t, err, "read student photo_path")
@@ -209,7 +209,7 @@ func seedStudentWithPhoto(t *testing.T, tc *testContext, studentID int64) (store
 
 	ctx := testpkg.Ctx(t)
 	_, err = tc.db.ExecContext(ctx,
-		`UPDATE users.students
+		`UPDATE users.student_profiles
 		    SET photo_path = ?,
 		        photo_consent_given_at = now(),
 		        photo_consent_given_by = 1
@@ -328,7 +328,8 @@ func TestUploadStudentPhoto_HappyPath_ConsentAcknowledged(t *testing.T) {
 	// Assert the consent audit columns got stamped in the same tx.
 	ctx := testpkg.Ctx(t)
 	var s users.Student
-	err := tc.db.NewSelect().Model(&s).Where("id = ?", student.ID).Scan(ctx)
+	err := tc.db.NewRaw(`SELECT photo_consent_given_at, photo_consent_given_by
+		FROM users.student_profiles WHERE id = ?`, student.ID).Scan(ctx, &s.PhotoConsentGivenAt, &s.PhotoConsentGivenBy)
 	require.NoError(t, err)
 	require.NotNil(t, s.PhotoConsentGivenAt, "consent timestamp must be stamped")
 	require.NotNil(t, s.PhotoConsentGivenBy, "consent actor must be stamped")

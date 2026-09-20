@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -38,14 +37,14 @@ type resolvedProfile struct {
 // request for staff approval. Tenant comes from context.
 func (l *AccountLifecycle) InviteToStudent(ctx context.Context, req domain.InviteToStudentRequest) (*domain.InviteToStudentResult, error) {
 	if req.StudentID <= 0 {
-		return nil, failed(opGuardianInviteToStudent, fmt.Errorf("student ID is required"))
+		return nil, invalidGuardianInvitation(opGuardianInviteToStudent, fmt.Errorf("student ID is required"))
 	}
 	if req.CreatedBy <= 0 {
-		return nil, failed(opGuardianInviteToStudent, fmt.Errorf("created_by is required"))
+		return nil, invalidGuardianInvitation(opGuardianInviteToStudent, fmt.Errorf("created_by is required"))
 	}
 	email := strings.ToLower(strings.TrimSpace(req.Email))
 	if email == "" {
-		return nil, failed(opGuardianInviteToStudent, fmt.Errorf("email is required"))
+		return nil, invalidGuardianInvitation(opGuardianInviteToStudent, fmt.Errorf("email is required"))
 	}
 
 	tenantID := l.runtime.TenantID(ctx)
@@ -183,6 +182,10 @@ func (l *AccountLifecycle) attachExistingAccountByEmail(ctx context.Context, pro
 		}
 		return failed(opGuardianInviteToStudent, err)
 	}
+	return l.attachExistingAccount(ctx, profile, account)
+}
+
+func (l *AccountLifecycle) attachExistingAccount(ctx context.Context, profile *domain.GuardianProfile, account domain.Account) error {
 	if _, err := l.sessions.GrantGuardianTenantAccess(ctx, account.ID); err != nil {
 		return failed(opGuardianInviteToStudent, fmt.Errorf("link account to tenant: %w", err))
 	}
@@ -338,22 +341,7 @@ func (l *AccountLifecycle) createStudentInvitation(ctx context.Context, req doma
 		}
 		return openInvitation, nil
 	}
-	invitation, err := l.invitations.InsertGuardianInvitation(ctx, domain.GuardianInvitation{
-		TenantID:                    tenantID,
-		Token:                       uuid.Must(uuid.NewV4()).String(),
-		GuardianProfileID:           profile.ID,
-		CreatedBy:                   req.CreatedBy,
-		ExpiresAt:                   time.Now().Add(l.delivery.InvitationExpiry(ctx)),
-		StudentID:                   &studentID,
-		RequestedByAccountID:        req.RequestedByParentAccountID,
-		ApprovalStatus:              approvalStatus,
-		ProfileCreatedForInvitation: profileCreated,
-		RoleUpgrade:                 roleUpgrade,
-	})
-	if err != nil {
-		return domain.GuardianInvitation{}, failed(opGuardianInviteToStudent, err)
-	}
-	return invitation, nil
+	return l.insertStudentInvitation(ctx, req, profile, tenantID, approvalStatus, profileCreated, roleUpgrade)
 }
 
 // closeSupersededApprovalRequests resolves parent-initiated requests for this
@@ -720,7 +708,7 @@ func (l *AccountLifecycle) revokeAccess(ctx context.Context, req domain.RevokeAc
 		return failed(opGuardianRevokeAccess, fmt.Errorf("student and guardian profile IDs are required"))
 	}
 
-	links, err := l.guardians.ListStudentGuardianLinksByStudent(ctx, req.StudentID)
+	links, err := l.guardians.ListStudentGuardianLinksByStudents(ctx, []int64{req.StudentID})
 	if err != nil {
 		return failed(opGuardianRevokeAccess, err)
 	}

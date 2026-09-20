@@ -166,6 +166,14 @@ func (m *Module) CountGuardianLinks(ctx context.Context, guardianIDs []int64) (m
 	return m.engine.CountGuardianLinks(ctx, guardianIDs)
 }
 
+func (m *Module) StudentsWithPortalGuardian(ctx context.Context, studentIDs []int64) (map[int64]bool, error) {
+	studentIDs = uniquePositive(studentIDs)
+	if len(studentIDs) == 0 {
+		return map[int64]bool{}, nil
+	}
+	return m.engine.StudentsWithPortalGuardian(ctx, studentIDs)
+}
+
 func (m *Module) GuardianPaymentMasked(ctx context.Context, guardianID int64, actor GuardianPaymentActor) (GuardianPayment, error) {
 	if guardianID <= 0 {
 		return GuardianPayment{}, invalidGuardian("guardian ID is required")

@@ -23,7 +23,7 @@ func TestPresenceStudents_UpdateLiveStatusFailsOnUnknownStudent(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	students := services.PresenceStudents(repoFactory.Student)
+	students := services.PresenceStudents(db, repoFactory.Student)
 
 	sick := true
 	now := time.Now()
@@ -67,7 +67,7 @@ func TestPresenceStudents_UpdateLiveStatusPersistsFlags(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	students := services.PresenceStudents(repoFactory.Student)
+	students := services.PresenceStudents(db, repoFactory.Student)
 	student := testpkg.CreateTestStudent(t, db, "Live", "Status", "LS1")
 	ctx := testpkg.Ctx(t)
 

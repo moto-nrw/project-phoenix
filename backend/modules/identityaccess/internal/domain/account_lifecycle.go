@@ -270,6 +270,13 @@ var (
 	ErrGuardianInvitationExpired        = errors.New("invitation has expired")
 )
 
+// GuardianInvitationValidationError marks input rejected by the guardian
+// invitation flows while retaining the original caller-facing explanation.
+type GuardianInvitationValidationError struct{ Err error }
+
+func (e *GuardianInvitationValidationError) Error() string { return e.Err.Error() }
+func (e *GuardianInvitationValidationError) Unwrap() error { return e.Err }
+
 // Guardian invitation approval states, as auth.guardian_invitations stores them.
 const (
 	GuardianInvitationApprovalNotRequired = "not_required"

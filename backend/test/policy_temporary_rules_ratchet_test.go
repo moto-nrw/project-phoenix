@@ -40,6 +40,11 @@ import (
 // This test does not fix any of that. It puts a number on the surface and lets
 // the number move one way only.
 //
+// #3416 adds per-rule cleanup issues and stale-rule detection. The account
+// above records the original seed, not the current evaluator. Its 167 stale
+// rule deletions lower these seeds to 483 conversion promises and 581 wider
+// compatibility markers; this prose counter remains as an independent guard.
+//
 // Three shrink-only measurements, all read-only on policy.json:
 //
 //	policyTempRulesTotal        — rules whose description contains the literal
@@ -88,12 +93,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 501
+	policyTempRulesTotal = 483
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 603
+	policyTempRulesCompatTotal = 581
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -124,9 +129,6 @@ var policyTempRulesFamilies = map[string]int{
 	// modules/careplan/legacy/careexitview. No open ticket carries its
 	// conversion.
 	"care-exit-view": 2,
-
-	// #3214 — closed.
-	"care-plan": 3,
 
 	// #3220, #3224 — closed.
 	"class-day-view": 4,
@@ -168,7 +170,7 @@ var policyTempRulesFamilies = map[string]int{
 	"inbound-operator": 2,
 
 	// #3229, #3214, #3220 — closed; #2725 (OPEN) for one rule.
-	"inbound-parent": 34,
+	"inbound-parent": 31,
 
 	// #3220 — closed. The single largest closed-issue family after
 	// inbound-timetable.
@@ -189,7 +191,7 @@ var policyTempRulesFamilies = map[string]int{
 
 	// #3218, #3220, #3214, #3224 — closed. The largest family: 90 rules, every
 	// one of them permitted by an issue that is done.
-	"inbound-timetable": 90,
+	"inbound-timetable": 89,
 
 	// #2725 (OPEN) and #3224 (closed) name most rules jointly; #3214 the rest.
 	// The only large family with a live issue behind it.
@@ -202,13 +204,13 @@ var policyTempRulesFamilies = map[string]int{
 	"open-room-move": 2,
 
 	// #2736 (OPEN) and #3232 (closed) name most rules jointly; #3214 the rest.
-	"organization-tenancy": 18,
+	"organization-tenancy": 14,
 
 	// #3220 — closed.
 	"parent-portal": 6,
 
 	// #3214, #3218 — closed; #3350 (PR #3408) added one.
-	"people-directory": 5,
+	"people-directory": 4,
 
 	// #3214, #3218, #3220 — closed.
 	"process-device-scan": 3,
@@ -227,16 +229,16 @@ var policyTempRulesFamilies = map[string]int{
 
 	// #2736 (OPEN) and #3232 (closed) name most rules jointly; #3207, #3214 the
 	// rest; #3350 (PR #3408) added one.
-	"settings-platform": 18,
+	"settings-platform": 17,
 
 	// #3214, #3207, #3218, #3224 — closed.
-	"student-presence": 29,
+	"student-presence": 28,
 
 	// #3214, #3218, #3229 — closed.
 	"test-support": 4,
 
 	// #3214, #3218, #3220, #3224 — closed.
-	"timetable-activities": 9,
+	"timetable-activities": 5,
 
 	// #3219, #3218 — closed.
 	"workforce": 4,

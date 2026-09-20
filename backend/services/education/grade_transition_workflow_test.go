@@ -75,13 +75,13 @@ func (d faultyDirectory) ReleaseTags(ctx context.Context, personIDs []int64) ([]
 	return released, d.inj.after("release_tags", err)
 }
 
-func (d faultyDirectory) GraduateStudents(ctx context.Context, ids []int64) (int64, error) {
-	count, err := d.Directory.GraduateStudents(ctx, ids)
+func (d faultyMembership) Graduate(ctx context.Context, ids []int64) (int64, error) {
+	count, err := d.Membership.Graduate(ctx, ids)
 	return count, d.inj.after("graduate", err)
 }
 
-func (d faultyDirectory) PromoteStudents(ctx context.Context, ids []int64, from, to string) (int64, error) {
-	count, err := d.Directory.PromoteStudents(ctx, ids, from, to)
+func (d faultyMembership) ChangeClass(ctx context.Context, ids []int64, from, to string) (int64, error) {
+	count, err := d.Membership.ChangeClass(ctx, ids, from, to)
 	return count, d.inj.after("promote", err)
 }
 
@@ -157,7 +157,7 @@ func studentClassAndStatus(t *testing.T, ctx context.Context, db *bun.DB, id int
 		SchoolClass string
 		Status      string
 	}
-	require.NoError(t, db.NewRaw(`SELECT school_class, status FROM users.students WHERE id = ?`, id).Scan(ctx, &row))
+	require.NoError(t, db.NewRaw(`SELECT school_class, status FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL`, id).Scan(ctx, &row))
 	return row.SchoolClass, row.Status
 }
 
@@ -281,7 +281,7 @@ func TestGradeTransitionWorkflow_RejectsStalePreviewBeforeAnyMutation(t *testing
 		_, err := workflow.Apply(ctx, scene.transitionID, preview.Fingerprint)
 		require.ErrorIs(t, err, gradetransition.ErrPreviewStale)
 		assertUntouched(t, ctx, db, scene)
-		_, err = db.NewRaw(`DELETE FROM users.students WHERE id = ?`, newcomer.ID).Exec(ctx)
+		_, err = db.NewRaw(`DELETE FROM users.student_profiles WHERE id = ?`, newcomer.ID).Exec(ctx)
 		require.NoError(t, err)
 	})
 

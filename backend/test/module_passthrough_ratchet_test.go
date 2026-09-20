@@ -197,7 +197,7 @@ var modulePassthroughBudgets = map[string]int{
 	// student.go (15), service.go (13) and student_records.go (12) lead;
 	// guardian links, enrollment, directory, deletion and photo reads follow,
 	// each one observeRun around a single s.store call.
-	"modules/peopledirectory": 63,
+	"modules/peopledirectory": 52,
 	// Calendar-period, closing-day and dateframe CRUD in service.go. The
 	// holiday and iCal methods are NOT in this number — they call a domain
 	// function, see known limitation 1.

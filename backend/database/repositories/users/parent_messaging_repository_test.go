@@ -664,7 +664,7 @@ func TestParentMessaging_UnreadCountExcludesAlumni(t *testing.T) {
 	require.Equal(t, 1, guardianUnread, "guard: the staff message counts while the child is active")
 
 	// The child graduates (soft delete via Jahrgangswechsel).
-	_, err = db.NewRaw(`UPDATE users.students SET status = 'alumnus' WHERE id = ?`, chain.StudentID).
+	_, err = db.NewRaw(`UPDATE users.student_school_memberships SET status = 'alumnus' WHERE student_profile_id = ? AND deleted_at IS NULL`, chain.StudentID).
 		Exec(ctx)
 	require.NoError(t, err)
 

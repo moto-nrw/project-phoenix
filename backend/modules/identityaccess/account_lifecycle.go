@@ -57,6 +57,13 @@ var (
 	ErrAccountLifecycleUnavailable = errors.New("account lifecycle is not composed")
 )
 
+// GuardianInvitationValidationError marks input rejected by the guardian
+// invitation flows while retaining the original caller-facing explanation.
+type GuardianInvitationValidationError struct{ Err error }
+
+func (e *GuardianInvitationValidationError) Error() string { return e.Err.Error() }
+func (e *GuardianInvitationValidationError) Unwrap() error { return e.Err }
+
 // IsSchoolIdentityRequestError reports whether the error is the caller's
 // fault rather than the server's: a missing name, a child's record, an
 // unknown or conflicting transponder. Handlers render these as 400.
@@ -401,6 +408,7 @@ type PendingApprovalView struct {
 // which opens one for the tenant in context and locks the child's row.
 type GuardianRelativeAccess interface {
 	InviteToStudent(ctx context.Context, req InviteToStudentRequest) (*InviteToStudentResult, error)
+	BulkInviteToStudents(ctx context.Context, req BulkInviteRequest) (*BulkInviteResult, error)
 	ApproveInvitation(ctx context.Context, invitationID, approverAccountID int64) error
 	RejectInvitation(ctx context.Context, invitationID, approverAccountID int64) error
 	PendingInvitationStudentID(ctx context.Context, invitationID int64) (int64, error)

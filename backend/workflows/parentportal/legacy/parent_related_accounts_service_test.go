@@ -206,7 +206,7 @@ func TestListRelatedAccounts_OpenInviteForAnotherChildIsNotPending(t *testing.T)
 		_, _ = db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
 		_, _ = db.NewDelete().TableExpr("users.students_guardians").Where("guardian_profile_id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
 		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
-		_, _ = db.NewDelete().TableExpr("users.students").Where("id = ?", otherStudent.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
+		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id = ?", otherStudent.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
 	}()
 	link := &userModels.StudentGuardian{
 		StudentID:         chain.StudentID,
@@ -291,7 +291,7 @@ func TestInviteRelatedAccount_UnownedChildIsRejected(t *testing.T) {
 	// A student the account is NOT a guardian of.
 	other := testpkg.CreateTestStudent(t, db, "Not", "Mine", "9z")
 	defer func() {
-		_, _ = db.NewDelete().TableExpr("users.students").Where("id = ?", other.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
+		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id = ?", other.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
 	}()
 
 	_, err := svc.InviteRelatedAccount(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, other.ID, "x@example.test", "", "", false)
@@ -508,7 +508,7 @@ func TestListRelatedAccounts_UnownedChildErrors(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	other := testpkg.CreateTestStudent(t, db, "Not", "Owned", "9z")
 	defer func() {
-		_, _ = db.NewDelete().TableExpr("users.students").Where("id = ?", other.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
+		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id = ?", other.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
 	}()
 
 	_, err := svc.ListRelatedAccounts(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, other.ID)

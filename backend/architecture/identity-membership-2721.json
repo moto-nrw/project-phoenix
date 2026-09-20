@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "ticket_kind": "migration",
   "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
   "prerequisites": [
@@ -54,20 +54,68 @@
     "source": "docs/runtime-checkpoints/identity-membership-2721.md, identity-membership-2721.raw.json and identity-membership-2721.baseline.raw.json",
     "workload": "2026-09-17 local isolated PostgreSQL 17.11 clone, Go 1.27.0 darwin/arm64; five warmups plus 30 sequential calls of each of the 13 migrated read operations, each in its own school or administrative transaction, run back to back on the merge base and the candidate with the same harness.",
     "thresholds": "No task-specific latency SLO or query budget is defined. Existing architecture, composition, query-budget and behavior gates apply; measured values are observations, not fitted thresholds or a production performance claim.",
-    "query_count": "Unchanged for every operation (4 to 9 statements including transaction scope), identical across all samples on both sides; every migrated read stays one statement.",
-    "errors": "0/30 errors per operation on both sides; 455 commits, zero rollbacks and zero retries including warmups.",
-    "lock_wait": "No lock acquisition event on either side; the operations take no locks and the workload is sequential, so this is not contention evidence.",
-    "failure": "Unbound owner queries fail closed with an error for every migrated method, and a failing role classification surfaces as an error instead of degrading accounts to plain staff.",
-    "rollback": "Not applicable to writes: the migrated operations only read. A failing owner read returns its error and the caller's transaction rolls back unchanged.",
-    "smoke": "Guardian permission, parent messaging, staff messaging, parent portal, operator dashboard, auth, operator and enrollment suites pass; golangci-lint reports no issue.",
-    "latency_p50": "Candidate 0.899 to 1.924 ms, baseline 1.049 to 2.251 ms per operation (nearest rank over 30 samples); per-operation values are in the evidence document.",
-    "latency_p95": "Candidate 1.269 to 2.338 ms, baseline 1.560 to 3.573 ms per operation (nearest rank over 30 samples); per-operation values are in the evidence document.",
-    "affected_rows": "Zero written rows for every sample; returned rows are identical on both sides (1 or 2 per operation).",
-    "pool_wait": "Zero pool waits in every measured sample on both sides; 490 zero-wait acquisition events including warmups.",
-    "deadlocks": "The database deadlock counter did not move on either side and no transaction retried.",
-    "job_duration": "Not applicable: this capability has no Worker path.",
-    "job_retries": "Not applicable: this capability has no Worker path.",
-    "job_backlog": "Not applicable: this capability has no Worker path."
+    "query_count": {
+      "state": "measured",
+      "result": "Unchanged for every operation (4 to 9 statements including transaction scope), identical across all samples on both sides; every migrated read stays one statement."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "0/30 errors per operation on both sides; 455 commits, zero rollbacks and zero retries including warmups."
+    },
+    "lock_wait": {
+      "state": "historical_gap",
+      "reason": "The pre-gate lock_wait text describes instrumentation or expected behavior, not a measurement of this metric. Preserve that text without claiming a new observation.",
+      "original": "No lock acquisition event on either side; the operations take no locks and the workload is sequential, so this is not contention evidence."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "Unbound owner queries fail closed with an error for every migrated method, and a failing role classification surfaces as an error instead of degrading accounts to plain staff."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "Not applicable to writes: the migrated operations only read. A failing owner read returns its error and the caller's transaction rolls back unchanged."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "Guardian permission, parent messaging, staff messaging, parent portal, operator dashboard, auth, operator and enrollment suites pass; golangci-lint reports no issue."
+    },
+    "latency_p50": {
+      "state": "measured",
+      "result": "Candidate 0.899 to 1.924 ms, baseline 1.049 to 2.251 ms per operation (nearest rank over 30 samples); per-operation values are in the evidence document."
+    },
+    "latency_p95": {
+      "state": "measured",
+      "result": "Candidate 1.269 to 2.338 ms, baseline 1.560 to 3.573 ms per operation (nearest rank over 30 samples); per-operation values are in the evidence document."
+    },
+    "affected_rows": {
+      "state": "measured",
+      "result": "Zero written rows for every sample; returned rows are identical on both sides (1 or 2 per operation)."
+    },
+    "pool_wait": {
+      "state": "measured",
+      "result": "Zero pool waits in every measured sample on both sides; 490 zero-wait acquisition events including warmups."
+    },
+    "deadlocks": {
+      "state": "measured",
+      "result": "The database deadlock counter did not move on either side and no transaction retried."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "Not applicable: this capability has no Worker path."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "Not applicable: this capability has no Worker path."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "Not applicable: this capability has no Worker path."
+    },
+    "sources": [
+      "docs/runtime-checkpoints/identity-membership-2721.baseline.raw.json",
+      "docs/runtime-checkpoints/identity-membership-2721.md",
+      "docs/runtime-checkpoints/identity-membership-2721.raw.json"
+    ]
   },
   "rollback_and_cleanup": "Revert the owner query bindings and consumer statements against unchanged table shapes; no schema change and no irreversible cleanup. The owner queries move with database/repositories/auth into modules/identityaccess under #3226.",
   "exit_criterion": "Every listed key is absent: five were still in the baseline at the base commit and are removed here, twelve were resolved by earlier waves. scripts/backend-architecture.sh check introduces no key and leaves policy ownership unchanged."

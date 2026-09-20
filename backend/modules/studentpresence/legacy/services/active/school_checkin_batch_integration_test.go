@@ -24,9 +24,9 @@ func setGroupID(t *testing.T, db *testpkg.DB, studentID, groupID int64) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_, err := db.NewUpdate().
-		Table("users.students").
+		Table("users.student_school_memberships").
 		Set("group_id = ?", groupID).
-		Where("id = ?", studentID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", studentID).
 		Exec(ctx)
 	require.NoError(t, err, "failed to assign educational group")
 }

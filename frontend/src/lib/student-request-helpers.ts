@@ -49,10 +49,6 @@ interface BackendStudentRequest {
   health_info?: string;
   supervisor_notes?: string;
   pickup_status?: string;
-  guardian_name?: string;
-  guardian_contact?: string;
-  guardian_email?: string;
-  guardian_phone?: string;
   // Guardians created atomically with the student (guardian_profiles system).
   guardians?: StudentGuardianPayload[];
   // Weekly recurring schedules created atomically with the student. Arrival
@@ -69,16 +65,6 @@ interface ValidatedStudentFields {
   firstName: string;
   lastName: string;
   schoolClass: string;
-  guardianName?: string;
-  guardianContact?: string;
-}
-
-/**
- * Guardian contact information
- */
-interface GuardianContact {
-  email?: string;
-  phone?: string;
 }
 
 /**
@@ -89,16 +75,12 @@ interface GuardianContact {
  * @returns Validated field values
  */
 export function validateStudentFields(
-  body: Partial<Student> & {
-    guardian_email?: string;
-    guardian_phone?: string;
-  },
+  body: Partial<Student>,
 ): ValidatedStudentFields {
+  rejectRetiredStudentContacts(body);
   const firstName = body.first_name?.trim();
   const lastName = body.second_name?.trim();
   const schoolClass = body.school_class?.trim();
-  const guardianName = body.name_lg?.trim();
-  const guardianContact = body.contact_lg?.trim();
 
   if (!firstName) {
     throw new Error("First name is required");
@@ -116,38 +98,28 @@ export function validateStudentFields(
     firstName,
     lastName,
     schoolClass,
-    guardianName,
-    guardianContact,
   };
 }
 
-/**
- * Parses guardian contact information from contact string
- * Determines if contact is email or phone number
- *
- * @param guardianEmail - Explicit guardian email
- * @param guardianPhone - Explicit guardian phone
- * @param contactLg - Contact string (may be email or phone)
- * @returns Parsed guardian contact information
- */
-export function parseGuardianContact(
-  guardianEmail?: string,
-  guardianPhone?: string,
-  contactLg?: string,
-): GuardianContact {
-  let email = guardianEmail;
-  let phone = guardianPhone;
-
-  if (!email && !phone && contactLg) {
-    // Parse guardian contact - check if it's an email or phone
-    if (contactLg.includes("@")) {
-      email = contactLg;
-    } else {
-      phone = contactLg;
+export function rejectRetiredStudentContacts(body: object): void {
+  const retired = new Set([
+    "name_lg",
+    "contact_lg",
+    "guardian_name",
+    "guardian_contact",
+    "guardian_email",
+    "guardian_phone",
+  ]);
+  for (const key of Object.keys(body)) {
+    if (retired.has(key.toLowerCase())) {
+      throw new ApiResponseError(
+        400,
+        JSON.stringify({
+          error: `${key} is no longer supported on students; use guardian contacts`,
+        }),
+      );
     }
   }
-
-  return { email, phone };
 }
 
 /**
@@ -155,19 +127,15 @@ export function parseGuardianContact(
  *
  * @param validated - Validated student fields
  * @param body - Original request body
- * @param guardianContact - Parsed guardian contact
  * @returns Backend-formatted student request
  */
 export function buildBackendStudentRequest(
   validated: ValidatedStudentFields,
   body: Partial<Student> & {
-    guardian_email?: string;
-    guardian_phone?: string;
     guardians?: StudentGuardianPayload[];
     arrival_schedules?: ArrivalScheduleFormEntry[];
     pickup_schedules?: BackendPickupScheduleRequest[];
   },
-  guardianContact: GuardianContact,
 ): BackendStudentRequest {
   // Transform frontend format to backend format
   const backendData = prepareStudentForBackend(body);
@@ -197,22 +165,6 @@ export function buildBackendStudentRequest(
     supervisor_notes: backendData.supervisor_notes,
     pickup_status: backendData.pickup_status,
   };
-
-  // Add legacy guardian fields if provided
-  if (validated.guardianName) {
-    request.guardian_name = validated.guardianName;
-  }
-  if (validated.guardianContact) {
-    request.guardian_contact = validated.guardianContact;
-  }
-  if (guardianContact.email || backendData.guardian_email) {
-    request.guardian_email =
-      guardianContact.email ?? backendData.guardian_email;
-  }
-  if (guardianContact.phone || backendData.guardian_phone) {
-    request.guardian_phone =
-      guardianContact.phone ?? backendData.guardian_phone;
-  }
 
   // Pass through guardians (guardian_profiles system) for atomic creation.
   if (body.guardians && body.guardians.length > 0) {

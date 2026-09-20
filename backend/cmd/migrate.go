@@ -97,7 +97,11 @@ var migrateCmd = &cobra.Command{
 	Short: "use bun migration tool",
 	Long:  `run bun migrations`,
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		return defaultMigrateRoot.runCommand(cmd.Context(), "migrate")
+		ctx, err := studentContractCommandContext(cmd, migrationReleaseCommit)
+		if err != nil {
+			return err
+		}
+		return defaultMigrateRoot.runCommand(ctx, "migrate")
 	},
 }
 
@@ -136,7 +140,11 @@ failing mid-migration and forcing a restore of the backup. Exits non-zero when a
 	// operator reading a deployment log actually needs.
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		return defaultMigrateRoot.runCommand(cmd.Context(), "preflight")
+		ctx, err := studentContractCommandContext(cmd, migrationReleaseCommit)
+		if err != nil {
+			return err
+		}
+		return defaultMigrateRoot.runCommand(ctx, "preflight")
 	},
 }
 
@@ -171,6 +179,9 @@ func runMigrationValidation(output io.Writer, detect, validate func() error, pri
 }
 
 func init() {
+	for _, command := range []*cobra.Command{migrateCmd, migratePreflightCmd} {
+		command.Flags().String(studentContractEvidenceFlag, "", "reviewed student storage Contract evidence JSON file")
+	}
 	RootCmd.AddCommand(migrateCmd)
 	migrateCmd.AddCommand(migrateResetCmd)
 	migrateCmd.AddCommand(migrateStatusCmd)

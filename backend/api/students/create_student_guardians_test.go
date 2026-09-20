@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // createStudentResponse is the minimal envelope shape needed to read the IDs of
@@ -26,74 +28,91 @@ type createStudentResponse struct {
 func TestCreateStudent_WithGuardians(t *testing.T) {
 	t.Parallel()
 
-	tc := setupStudentsRoute(t)
+	for _, presenceMode := range []string{configModel.PresenceModeBinary, configModel.PresenceModeDetailed} {
+		t.Run(presenceMode, func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			t.Parallel()
+			tc := setupStudentsRoute(t)
+			require.NoError(t, tc.resource.SettingsService.SetValue(testpkg.Ctx(t), configModel.KeyPresenceMode, presenceMode, nil, nil))
+			require.NoError(t, tc.resource.SettingsService.SetValue(testpkg.Ctx(t), configModel.KeyEnrollmentBookingsAuthoritative, false, nil, nil))
 
-	body := map[string]interface{}{
-		"first_name":   "Guarded",
-		"last_name":    "Child",
-		"school_class": "1a",
-		"guardians": []map[string]interface{}{
-			{
-				"first_name":           "Erika",
-				"last_name":            "Mustermann",
-				"email":                "erika.guardian.test@example.com",
-				"relationship_type":    "parent",
-				"is_primary":           true,
-				"can_pickup":           true,
-				"is_emergency_contact": true,
-				"emergency_priority":   1,
-				"phone_numbers": []map[string]interface{}{
-					{"phone_number": "0151 2345678", "phone_type": "mobile", "is_primary": true},
+			body := map[string]interface{}{
+				"first_name":   "Guarded",
+				"last_name":    "Child",
+				"school_class": "1a",
+				"guardians": []map[string]interface{}{
+					{
+						"first_name":           "Erika",
+						"last_name":            "Mustermann",
+						"email":                "erika.guardian.test@example.com",
+						"relationship_type":    "parent",
+						"is_primary":           true,
+						"can_pickup":           true,
+						"is_emergency_contact": true,
+						"emergency_priority":   1,
+						"phone_numbers": []map[string]interface{}{
+							{"phone_number": "0151 2345678", "phone_type": "mobile", "is_primary": true},
+						},
+					},
 				},
-			},
-		},
+			}
+
+			req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
+			rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+			require.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
+
+			var resp createStudentResponse
+			require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+			require.NotZero(t, resp.Data.ID, "expected a student id in the response")
+
+			ctx := context.Background()
+
+			relCount, err := tc.db.NewSelect().
+				Table("users.students_guardians").
+				Where("student_id = ?", resp.Data.ID).
+				Count(ctx)
+			require.NoError(t, err)
+			assert.Equal(t, 1, relCount, "expected exactly one student-guardian relationship")
+
+			var guardianID int64
+			require.NoError(t, tc.db.NewSelect().
+				Table("users.students_guardians").
+				Column("guardian_profile_id").
+				Where("student_id = ?", resp.Data.ID).
+				Scan(ctx, &guardianID))
+
+			var canPickup, isPrimary bool
+			require.NoError(t, tc.db.NewSelect().
+				Table("users.students_guardians").
+				Column("can_pickup").
+				Where("student_id = ?", resp.Data.ID).
+				Scan(ctx, &canPickup))
+			assert.True(t, canPickup, "guardian should be marked as pickup-authorized")
+			require.NoError(t, tc.db.NewSelect().
+				Table("users.students_guardians").
+				Column("is_primary").
+				Where("student_id = ?", resp.Data.ID).
+				Scan(ctx, &isPrimary))
+			assert.True(t, isPrimary, "guardian should be marked primary")
+
+			phoneCount, err := tc.db.NewSelect().
+				Table("users.guardian_phone_numbers").
+				Where("guardian_profile_id = ?", guardianID).
+				Count(ctx)
+			require.NoError(t, err)
+			assert.Equal(t, 1, phoneCount, "expected exactly one guardian phone number")
+			contacts, err := tc.resource.PeopleDirectory.ListStudentGuardians(testpkg.Ctx(t), resp.Data.ID)
+			require.NoError(t, err)
+			require.Len(t, contacts, 1)
+			assert.False(t, contacts[0].Guardian.HasAccount, "contacts do not require a parent account")
+			assert.Equal(t, "Erika", contacts[0].Guardian.FirstName)
+			require.NotNil(t, contacts[0].Guardian.Email)
+			assert.Equal(t, "erika.guardian.test@example.com", *contacts[0].Guardian.Email)
+			require.Len(t, contacts[0].Guardian.PhoneNumbers, 1)
+			assert.Equal(t, "0151 2345678", contacts[0].Guardian.PhoneNumbers[0].PhoneNumber)
+		})
 	}
-
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-	require.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
-
-	var resp createStudentResponse
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
-	require.NotZero(t, resp.Data.ID, "expected a student id in the response")
-
-	ctx := context.Background()
-
-	relCount, err := tc.db.NewSelect().
-		Table("users.students_guardians").
-		Where("student_id = ?", resp.Data.ID).
-		Count(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, 1, relCount, "expected exactly one student-guardian relationship")
-
-	var guardianID int64
-	require.NoError(t, tc.db.NewSelect().
-		Table("users.students_guardians").
-		Column("guardian_profile_id").
-		Where("student_id = ?", resp.Data.ID).
-		Scan(ctx, &guardianID))
-
-	var canPickup, isPrimary bool
-	require.NoError(t, tc.db.NewSelect().
-		Table("users.students_guardians").
-		Column("can_pickup").
-		Where("student_id = ?", resp.Data.ID).
-		Scan(ctx, &canPickup))
-	assert.True(t, canPickup, "guardian should be marked as pickup-authorized")
-	require.NoError(t, tc.db.NewSelect().
-		Table("users.students_guardians").
-		Column("is_primary").
-		Where("student_id = ?", resp.Data.ID).
-		Scan(ctx, &isPrimary))
-	assert.True(t, isPrimary, "guardian should be marked primary")
-
-	phoneCount, err := tc.db.NewSelect().
-		Table("users.guardian_phone_numbers").
-		Where("guardian_profile_id = ?", guardianID).
-		Count(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, 1, phoneCount, "expected exactly one guardian phone number")
 }
 
 // TestCreateStudent_GuardianFailureRollsBackStudent verifies the whole creation
@@ -144,7 +163,7 @@ func TestCreateStudent_GuardianFailureRollsBackStudent(t *testing.T) {
 			Where("first_name = ? AND last_name = ?", firstName, lastName).
 			Scan(ctx, &personIDs); err == nil {
 			for _, pid := range personIDs {
-				if _, err := tc.db.NewDelete().Table("users.students").Where("person_id = ?", pid).Exec(ctx); err != nil {
+				if _, err := tc.db.NewDelete().Table("users.student_profiles").Where("person_id = ?", pid).Exec(ctx); err != nil {
 					t.Logf("cleanup students: %v", err)
 				}
 				if _, err := tc.db.NewDelete().Table("users.persons").Where("id = ?", pid).Exec(ctx); err != nil {
@@ -211,7 +230,7 @@ func TestCreateStudent_InvalidGuardianPhoneRollsBackStudent(t *testing.T) {
 			Where("first_name = ? AND last_name = ?", firstName, lastName).
 			Scan(ctx, &personIDs); err == nil {
 			for _, pid := range personIDs {
-				if _, err := tc.db.NewDelete().Table("users.students").Where("person_id = ?", pid).Exec(ctx); err != nil {
+				if _, err := tc.db.NewDelete().Table("users.student_profiles").Where("person_id = ?", pid).Exec(ctx); err != nil {
 					t.Logf("cleanup students: %v", err)
 				}
 				if _, err := tc.db.NewDelete().Table("users.persons").Where("id = ?", pid).Exec(ctx); err != nil {
@@ -259,7 +278,7 @@ func assertGuardianBadRequestNoOrphan(
 			Where("first_name = ? AND last_name = ?", firstName, lastName).
 			Scan(ctx, &personIDs); err == nil {
 			for _, pid := range personIDs {
-				if _, err := tc.db.NewDelete().Table("users.students").Where("person_id = ?", pid).Exec(ctx); err != nil {
+				if _, err := tc.db.NewDelete().Table("users.student_profiles").Where("person_id = ?", pid).Exec(ctx); err != nil {
 					t.Logf("cleanup students: %v", err)
 				}
 				if _, err := tc.db.NewDelete().Table("users.persons").Where("id = ?", pid).Exec(ctx); err != nil {

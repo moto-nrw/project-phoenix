@@ -108,6 +108,22 @@ vi.mock("./selection-bulk-pickup-modal", () => ({
   ),
 }));
 
+vi.mock("./selection-bulk-invite-modal", () => ({
+  SelectionBulkInviteModal: (props: {
+    studentIds: string[];
+    onClose: () => void;
+  }) => (
+    <div
+      data-testid="invite-selection-modal"
+      data-student-ids={props.studentIds.join(",")}
+    >
+      <button type="button" onClick={props.onClose}>
+        close invite
+      </button>
+    </div>
+  ),
+}));
+
 vi.mock("./class-trip-bulk-status-modal", () => ({
   ClassTripBulkStatusModal: (props: {
     students: Student[];
@@ -552,6 +568,38 @@ describe("StudentsList", () => {
         screen.getByRole("button", { name: "Betreuung beenden" }),
       );
       expect(onEndCare).toHaveBeenCalled();
+    });
+
+    it("offers 'Eltern einladen' only with the create permission and hands over the selection (#3378)", () => {
+      const { rerender } = render(
+        <StudentsList
+          {...selectionProps}
+          students={[makeStudent("1"), makeStudent("2")]}
+          selectionMode
+          selectedStudentIds={new Set(["2"])}
+        />,
+      );
+      expect(
+        screen.queryByRole("button", { name: "Eltern einladen" }),
+      ).toBeNull();
+
+      rerender(
+        <StudentsList
+          {...selectionProps}
+          students={[makeStudent("1"), makeStudent("2")]}
+          selectionMode
+          selectedStudentIds={new Set(["2"])}
+          canInviteGuardians
+        />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Eltern einladen" }));
+      expect(screen.getByTestId("invite-selection-modal")).toHaveAttribute(
+        "data-student-ids",
+        "2",
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "close invite" }));
+      expect(screen.queryByTestId("invite-selection-modal")).toBeNull();
     });
 
     it("disables the bulk action while nothing is selected", () => {

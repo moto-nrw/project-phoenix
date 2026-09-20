@@ -53,7 +53,7 @@ func TestStudentOwnerCutoverPreconditionReportsBeforeTheBackfillHasEverRun(t *te
 		fmt.Sprintf("tenant %d: 1 unreconciled guardian values", tenantID))
 }
 
-func TestStudentOwnerCutoverPreconditionReportsAbsenceFlagWithoutStatusDay(t *testing.T) {
+func TestStudentOwnerCutoverPreconditionAllowsPreservedAbsenceFlagWithoutStatusDay(t *testing.T) {
 	t.Parallel()
 	db := setupStudentStorageBeforeCutover(t)
 	tenantID, ids := studentOwnerCutoverFixture(t, db, 2)
@@ -61,8 +61,7 @@ func TestStudentOwnerCutoverPreconditionReportsAbsenceFlagWithoutStatusDay(t *te
 		tenantID, ids[0]).Exec(t.Context())
 	require.NoError(t, err)
 
-	require.ErrorContains(t, studentOwnerCutoverPrecondition(t.Context(), db),
-		fmt.Sprintf("tenant %d: 1 absence flags without a status day", tenantID))
+	require.NoError(t, studentOwnerCutoverPrecondition(t.Context(), db))
 }
 
 // After the switch users.students is the compatibility view and the legacy
@@ -152,12 +151,12 @@ func TestDescribeStudentOwnerUnreconciledNamesBothVerdicts(t *testing.T) {
 	t.Parallel()
 	require.Equal(t,
 		"student owner cutover would refuse: tenant 4: 2 unreconciled guardian values; "+
-			"tenant 5: 1 absence flags without a status day; "+
-			"tenant 7: 3 unreconciled guardian values, 4 absence flags without a status day",
+			"tenant 5: students without a completed backfill pass; "+
+			"tenant 7: 3 unreconciled guardian values, students without a completed backfill pass",
 		describeStudentOwnerUnreconciled([]studentOwnerUnreconciled{
 			{TenantID: 4, Guardian: 2},
-			{TenantID: 5, CareState: 1},
-			{TenantID: 7, Guardian: 3, CareState: 4},
+			{TenantID: 5, NeverBackfilled: true},
+			{TenantID: 7, Guardian: 3, NeverBackfilled: true},
 		}))
 }
 

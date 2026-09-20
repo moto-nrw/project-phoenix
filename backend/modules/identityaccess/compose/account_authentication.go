@@ -301,6 +301,10 @@ func (tenantRuntime) WithoutTransaction(ctx context.Context) context.Context {
 	return tenant.ContextWithoutTransaction(ctx)
 }
 
+func (tenantRuntime) AcquireLock(ctx context.Context, key string) error {
+	return tenant.AcquireLock(ctx, key, false)
+}
+
 type rotationPolicy struct{}
 
 func (rotationPolicy) RecoveryGrace() time.Duration { return rotation.RecoveryGrace }

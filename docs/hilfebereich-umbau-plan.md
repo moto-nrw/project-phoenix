@@ -4,11 +4,11 @@
 alte Guide-System ist entfernt. Was davon noch offen ist, steht in Abschnitt 8.
 **Zielbranch:** `development`
 **Issue:** #2229 (Hilfebereich neu strukturieren)
-**Grundlagen:** ADR 0024 (Format und Plattform), ADR 0025 (Zielgruppen und Personalisierung)
+**Grundlagen:** ADR 0027 (Format und Plattform), ADR 0028 (Zielgruppen und Personalisierung)
 
 ## 1. Ausgangslage
 
-Gemessen am 29.08.2026, Details in ADR 0024/0025. Das Nötigste:
+Gemessen am 29.08.2026, Details in ADR 0027/0025. Das Nötigste:
 
 - `guide-data.ts`: 3.001 Zeilen (264 KB), 23 Kapitel, 108 Schritte, vier Kapitelsätze.
 - `/help/features` rendert 7 Kapitel mit ~60 Themen auf **einer** Route; das PDF hat 91 Seiten.
@@ -20,17 +20,17 @@ Gemessen am 29.08.2026, Details in ADR 0024/0025. Das Nötigste:
 
 ## 2. Leitentscheidungen (bereits getroffen)
 
-1. Typisiertes TS bleibt, kein MDX, kein Anbieter, kein zweiter Build (ADR 0024).
-2. Hilfe bleibt öffentlich; personalisiert wird der **Weg dorthin**, nicht der Hilfebereich (ADR 0025).
+1. Typisiertes TS bleibt, kein MDX, kein Anbieter, kein zweiter Build (ADR 0027).
+2. Hilfe bleibt öffentlich; personalisiert wird der **Weg dorthin**, nicht der Hilfebereich (ADR 0028).
 3. Die Grenze der Inhaltsbestände folgt dem Portal, nicht der Rolle. Leitung und Betreuungskraft
-   bekommen getrennte Einstiege auf einem gemeinsamen Bestand (ADR 0025).
+   bekommen getrennte Einstiege auf einem gemeinsamen Bestand (ADR 0028).
 
 ### 2.1 Der Stack — es gibt kein Doku-Framework
 
 **Der Hilfebereich ist eine Handvoll normaler Seiten in der bestehenden Next.js-App.** Es kommt keine
 Doku-Software dazu, weder gehostet noch als Bibliothek: kein Mintlify, kein Docusaurus, kein
 Starlight, kein Nextra, kein Fumadocs. Wer nach „welches Doku-Framework nutzen wir" sucht, findet
-hier die Antwort: **keins, und das ist die Entscheidung** (ADR 0024).
+hier die Antwort: **keins, und das ist die Entscheidung** (ADR 0027).
 
 Gebaut wird ausschließlich mit dem, was die App ohnehin mitbringt:
 
@@ -46,7 +46,7 @@ Gebaut wird ausschließlich mit dem, was die App ohnehin mitbringt:
 | Tests              | vitest                                                                   | u. a. `help-topics.test.ts` als Wächter      |
 
 Neue Abhängigkeiten sind für diesen Umbau **nicht vorgesehen**. Wird doch eine gebraucht, ist das
-eine Abweichung von ADR 0024 und gehört in der PR-Beschreibung begründet.
+eine Abweichung von ADR 0027 und gehört in der PR-Beschreibung begründet.
 
 ### 2.2 Umfang von #2229: erst entscheiden, dann migrieren
 
@@ -275,7 +275,7 @@ Neuer Schnitt nach Aufgabe und Rolle statt nach Sidebar-Bereich. Einstiege „Ic
 **D2 · Getrennte Rollen-Einstiege** — Größe M
 Zwei Einstiegskarten auf `/help` — „Für Betreuungskräfte" und „Für die Leitung" — je mit eigener
 Startseite und eigener Themenreihenfolge, sodass es sich wie zwei Anleitungen liest. **Ein
-Inhaltsbestand dahinter** (ADR 0025). Leitungsthemen stehen nicht zwischen den Themen der
+Inhaltsbestand dahinter** (ADR 0028). Leitungsthemen stehen nicht zwischen den Themen der
 Betreuungskraft, bleiben aber über „Weitere Themen für die Leitung" und über die Suche erreichbar —
 die durchsucht immer den ganzen Bestand.
 Zuordnung Kapitel → Rolle **neben der Kapiteldefinition**, nicht in einer separaten Liste (sonst
@@ -324,7 +324,7 @@ Aufrufstellen. **A1 ist der Flaschenhals**, nicht wegen des Aufwands, sondern we
 
 ## 6. Was wir NICHT bauen
 
-- Keine mandantenspezifische Hilfe und kein PDF pro Schule (ADR 0025).
+- Keine mandantenspezifische Hilfe und kein PDF pro Schule (ADR 0028).
 - Keine Filterung nach allen Mandanten-Einstellungen. Nur `nfc_enabled`, `presence_mode` und
   `group_mode` werden als URL-Kontext übergeben; auch sie blenden Themen nicht hart aus.
 - Keine harte Rollenfilterung innerhalb eines Portals; Vorbelegung ja, Ausblenden nein.

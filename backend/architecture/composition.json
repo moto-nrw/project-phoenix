@@ -52,7 +52,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        313
+        306
       ],
       "tables": []
     },
@@ -1018,7 +1018,7 @@
         174
       ],
       "tables": [
-        "users.students"
+        "users.student_school_memberships"
       ]
     },
     {
@@ -1895,10 +1895,10 @@
       "declaration": "TestStudentRepository_CompanionNoteSchemaCompatibility",
       "target": "database/repositories.NewFactory",
       "lines": [
-        437
+        428
       ],
       "tables": [
-        "users.students"
+        "users.student_care_profiles"
       ]
     },
     {
@@ -1907,7 +1907,7 @@
       "declaration": "TestStudentRepository_DepartureDaysRoundtrip",
       "target": "database/repositories.NewFactory",
       "lines": [
-        61
+        57
       ],
       "tables": []
     },
@@ -1917,7 +1917,7 @@
       "declaration": "TestStudentRepository_StaleDeparturePlanIsRebased",
       "target": "database/repositories.NewFactory",
       "lines": [
-        517
+        505
       ],
       "tables": []
     },
@@ -2030,7 +2030,7 @@
         38
       ],
       "tables": [
-        "users.students"
+        "users.student_school_memberships"
       ]
     },
     {
@@ -2042,7 +2042,7 @@
         91
       ],
       "tables": [
-        "users.students"
+        "users.student_school_memberships"
       ]
     },
     {
@@ -2240,7 +2240,7 @@
       "declaration": "TestStudentRepository_PickupDaysRoundtrip",
       "target": "database/repositories.NewFactory",
       "lines": [
-        41
+        39
       ],
       "tables": []
     },
@@ -2320,7 +2320,7 @@
       "declaration": "TestStudentRepository_AssignToGroup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        402
+        351
       ],
       "tables": []
     },
@@ -2330,7 +2330,7 @@
       "declaration": "TestStudentRepository_ClassRoster",
       "target": "database/repositories.NewFactory",
       "lines": [
-        506
+        455
       ],
       "tables": []
     },
@@ -2340,10 +2340,10 @@
       "declaration": "TestStudentRepository_CountEnrolledLeavesGraduatesOut",
       "target": "database/repositories.NewFactory",
       "lines": [
-        532
+        481
       ],
       "tables": [
-        "users.students"
+        "users.student_school_memberships"
       ]
     },
     {
@@ -2352,7 +2352,7 @@
       "declaration": "TestStudentRepository_CountWithOptions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        584
+        533
       ],
       "tables": []
     },
@@ -2362,7 +2362,7 @@
       "declaration": "TestStudentRepository_Create",
       "target": "database/repositories.NewFactory",
       "lines": [
-        49
+        47
       ],
       "tables": []
     },
@@ -2372,7 +2372,7 @@
       "declaration": "TestStudentRepository_Delete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        289
+        238
       ],
       "tables": [
         "users.persons"
@@ -2384,7 +2384,7 @@
       "declaration": "TestStudentRepository_FindByGroupID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        334
+        283
       ],
       "tables": []
     },
@@ -2394,7 +2394,7 @@
       "declaration": "TestStudentRepository_FindByGroupIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        367
+        316
       ],
       "tables": []
     },
@@ -2404,7 +2404,7 @@
       "declaration": "TestStudentRepository_FindByID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        199
+        158
       ],
       "tables": []
     },
@@ -2414,7 +2414,7 @@
       "declaration": "TestStudentRepository_FindByIDForUpdate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        891
+        840
       ],
       "tables": []
     },
@@ -2424,7 +2424,7 @@
       "declaration": "TestStudentRepository_FindByPersonID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        223
+        182
       ],
       "tables": []
     },
@@ -2434,10 +2434,10 @@
       "declaration": "TestStudentRepository_FindBySchoolClass",
       "target": "database/repositories.NewFactory",
       "lines": [
-        459
+        408
       ],
       "tables": [
-        "users.students"
+        "users.student_school_memberships"
       ]
     },
     {
@@ -2446,10 +2446,10 @@
       "declaration": "TestStudentRepository_FindOverlappingWithGroups",
       "target": "database/repositories.NewFactory",
       "lines": [
-        730
+        679
       ],
       "tables": [
-        "users.students"
+        "users.student_school_memberships"
       ]
     },
     {
@@ -2458,10 +2458,10 @@
       "declaration": "TestStudentRepository_FindOverlappingWithGroupsImmediateActivation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        818
+        767
       ],
       "tables": [
-        "users.students"
+        "users.student_school_memberships"
       ]
     },
     {
@@ -2470,10 +2470,10 @@
       "declaration": "TestStudentRepository_ListByGroupIDsIncludingAlumni",
       "target": "database/repositories.NewFactory",
       "lines": [
-        555
+        504
       ],
       "tables": [
-        "users.students"
+        "users.student_school_memberships"
       ]
     },
     {
@@ -2482,10 +2482,10 @@
       "declaration": "TestStudentRepository_RemoveFromGroup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        425
+        374
       ],
       "tables": [
-        "users.students"
+        "users.student_school_memberships"
       ]
     },
     {
@@ -2494,7 +2494,7 @@
       "declaration": "TestStudentRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        246
+        205
       ],
       "tables": []
     },
@@ -2504,7 +2504,7 @@
       "declaration": "newGroupProjectionFactory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        615
+        564
       ],
       "tables": []
     },
@@ -2517,7 +2517,7 @@
         28
       ],
       "tables": [
-        "users.students"
+        "users.student_school_memberships"
       ]
     },
     {
@@ -2848,7 +2848,7 @@
       "declaration": "TestCareOfferingService_Clone_ClearsLinkedTemplateAcrossPhases",
       "target": "database/repositories.NewFactory",
       "lines": [
-        847
+        846
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -2861,7 +2861,7 @@
       "declaration": "TestCareOfferingService_Clone_RepointsToTargetPhase",
       "target": "database/repositories.NewFactory",
       "lines": [
-        793
+        792
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -2874,7 +2874,7 @@
       "declaration": "TestCareOfferingService_Create_ActiveOfferingRequiresActivePeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        610
+        609
       ],
       "tables": []
     },
@@ -2884,7 +2884,7 @@
       "declaration": "TestCareOfferingService_Create_AllowsNonOccurrencePhaseBoundaries",
       "target": "database/repositories.NewFactory",
       "lines": [
-        580
+        579
       ],
       "tables": []
     },
@@ -2894,7 +2894,7 @@
       "declaration": "TestCareOfferingService_Create_RejectsAdvertisedDayAbsentFromShortPhase",
       "target": "database/repositories.NewFactory",
       "lines": [
-        521
+        520
       ],
       "tables": []
     },
@@ -2904,7 +2904,7 @@
       "declaration": "TestCareOfferingService_Create_UsesTemplateCalendarPeriodFallback",
       "target": "database/repositories.NewFactory",
       "lines": [
-        425
+        424
       ],
       "tables": []
     },
@@ -2914,7 +2914,7 @@
       "declaration": "createCareOfferingTemplateGroup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        142
+        141
       ],
       "tables": [
         "activities.schedules"
@@ -2926,7 +2926,7 @@
       "declaration": "createCareOfferingTestPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        124
+        123
       ],
       "tables": []
     },
@@ -2936,7 +2936,7 @@
       "declaration": "setupCareTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        71
+        70
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -3129,7 +3129,7 @@
       "declaration": "TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3996
+        3995
       ],
       "tables": []
     },
@@ -4237,6 +4237,7 @@
       "tables": [
         "auth.guardian_invitations",
         "users.guardian_profiles",
+        "users.student_profiles",
         "users.students",
         "users.students_guardians"
       ]
@@ -4306,7 +4307,7 @@
       ],
       "tables": [
         "users.student_data_change_requests",
-        "users.students"
+        "users.student_school_memberships"
       ]
     },
     {
@@ -4553,7 +4554,7 @@
       ],
       "tables": [
         "users.persons",
-        "users.students"
+        "users.student_school_memberships"
       ]
     },
     {
@@ -20961,27 +20962,27 @@
         },
         {
           "file": "api/base.go",
-          "line": 513,
+          "line": 506,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 676,
+          "line": 669,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 914,
+          "line": 907,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1319,
+          "line": 1312,
           "declaration": "activeSchoolMemberships"
         },
         {
           "file": "api/base.go",
-          "line": 1334,
+          "line": 1327,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -20991,7 +20992,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 313,
+          "line": 306,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -21006,17 +21007,17 @@
         },
         {
           "file": "api/base.go",
-          "line": 385,
+          "line": 378,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 429,
+          "line": 422,
           "declaration": "withFileStorageWiring"
         },
         {
           "file": "api/base.go",
-          "line": 673,
+          "line": 666,
           "declaration": "type API"
         },
         {

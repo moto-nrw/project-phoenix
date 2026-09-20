@@ -61,7 +61,7 @@ func (w *Workflow) Apply(ctx context.Context, id int64, expectedFingerprint stri
 // roster row for a child this apply is about to graduate nor race the
 // reconciliation.
 func (w *Workflow) lockGates(ctx context.Context) error {
-	if err := w.deps.Directory.LockEnrollmentClassWritesExclusive(ctx); err != nil {
+	if err := w.deps.Membership.LockStudentClassWrites(ctx, true); err != nil {
 		return err
 	}
 	if err := w.deps.LockRecurrenceWrites(ctx); err != nil {
@@ -129,7 +129,7 @@ func (w *Workflow) executeApply(ctx context.Context, actor Actor, transition sch
 	// that graduates in the same transition, and the graduation writes must
 	// never see a row the promotion already moved.
 	if len(graduates) > 0 {
-		graduated, err := w.deps.Directory.GraduateStudents(ctx, studentIDsOf(graduates))
+		graduated, err := w.deps.Membership.Graduate(ctx, studentIDsOf(graduates))
 		if err != nil {
 			return result, fmt.Errorf("failed to graduate students: %w", err)
 		}
@@ -420,7 +420,7 @@ func (w *Workflow) applyPromotions(ctx context.Context, mappings []schoolstructu
 	sort.Strings(fromClasses)
 	var promoted int64
 	for _, fromClass := range fromClasses {
-		count, err := w.deps.Directory.PromoteStudents(ctx, byFromClass[fromClass], fromClass, *targets[fromClass])
+		count, err := w.deps.Membership.ChangeClass(ctx, byFromClass[fromClass], fromClass, *targets[fromClass])
 		if err != nil {
 			return 0, fmt.Errorf("failed to promote students: %w", err)
 		}

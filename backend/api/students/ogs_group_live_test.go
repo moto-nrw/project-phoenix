@@ -367,8 +367,8 @@ func TestOGSGroupLive_UsesBookingBoundaryAndKeepsPresentChildren(t *testing.T) {
 	}
 	device := testpkg.CreateTestDevice(t, tc.db, "ogs-booking-boundary")
 	testpkg.CreateTestAttendance(t, tc.db, present.ID, teacher.Staff.ID, device.ID, time.Now().Add(-time.Hour), nil)
-	_, err := tc.db.NewUpdate().TableExpr("users.students").
-		Set("status = ?", userModels.StudentStatusAlumnus).Where("id = ?", present.ID).Exec(t.Context())
+	_, err := tc.db.NewUpdate().TableExpr("users.student_school_memberships").
+		Set("status = ?", userModels.StudentStatusAlumnus).Where("student_profile_id = ? AND deleted_at IS NULL", present.ID).Exec(t.Context())
 	require.NoError(t, err)
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/ogs-group-live?group_id=%d", group.ID), nil)
@@ -406,8 +406,8 @@ func TestOGSGroupLive_KeepsOpenVisitWithoutAttendance(t *testing.T) {
 	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "OGS Besuchsaktivität")
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 	testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now().Add(-time.Hour), nil)
-	_, err := tc.db.NewUpdate().TableExpr("users.students").
-		Set("status = ?", userModels.StudentStatusAlumnus).Where("id = ?", student.ID).Exec(t.Context())
+	_, err := tc.db.NewUpdate().TableExpr("users.student_school_memberships").
+		Set("status = ?", userModels.StudentStatusAlumnus).Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).Exec(t.Context())
 	require.NoError(t, err)
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/ogs-group-live?group_id=%d", group.ID), nil)

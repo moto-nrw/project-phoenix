@@ -2056,3 +2056,448 @@ describe("useOptionalSupervision", () => {
     expect(result.current.groups[0]?.name).toBe("Group A");
   });
 });
+
+// #3375: after a school switch the sidebar kept the previous school's groups.
+describe("SupervisionProvider school switch (#3375)", () => {
+  function sessionFor(tenantId: number | undefined, token: string | undefined) {
+    return {
+      data: {
+        user: {
+          token,
+          tenantId,
+          id: "1",
+          email: "test@example.com",
+          name: "Test User",
+          permissions: ["groups:read"],
+        },
+        expires: "2099-12-31",
+      },
+      status: "authenticated" as const,
+      update: vi.fn(),
+    } as unknown as ReturnType<typeof useSession>;
+  }
+
+  async function mockUrlTenant(
+    tenantId: number | null,
+    {
+      tenantSlug = "school-b",
+      tenantSubdomain = tenantSlug,
+      resolvedTenantSlug = tenantSlug,
+      routingMode = "subdomain",
+    }: {
+      tenantSlug?: string;
+      tenantSubdomain?: string;
+      resolvedTenantSlug?: string;
+      routingMode?: "path" | "subdomain";
+    } = {},
+  ) {
+    const tenantContext = await import("~/lib/tenant-context");
+    vi.mocked(tenantContext.useTenantSafe).mockReturnValue({
+      tenantSlug,
+      routingMode,
+      tenant:
+        tenantId === null
+          ? null
+          : {
+              tenantId,
+              slug: resolvedTenantSlug,
+              subdomain: tenantSubdomain,
+            },
+    } as unknown as ReturnType<typeof tenantContext.useTenantSafe>);
+  }
+
+  function groupsCalls() {
+    return mockFetch.mock.calls.filter(([url]) =>
+      String(url).includes("/api/groups/context"),
+    ).length;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(async () => {
+    const tenantContext = await import("~/lib/tenant-context");
+    vi.mocked(tenantContext.useTenantSafe).mockReturnValue({
+      tenantSlug: "test-tenant",
+      tenant: null,
+    } as unknown as ReturnType<typeof tenantContext.useTenantSafe>);
+  });
+
+  it("fetches nothing while the session belongs to another school", async () => {
+    await mockUrlTenant(2);
+    setupFetchMock({ groups: { groups: [{ id: 1, name: "Andere Schule" }] } });
+    vi.mocked(useSession).mockReturnValue(sessionFor(1, "token-a"));
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <SupervisionProvider>{children}</SupervisionProvider>
+      ),
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(result.current.isLoadingGroups).toBe(true);
+    expect(result.current.groups).toEqual([]);
+  });
+
+  it("reloads the groups at once when the session moves to another school", async () => {
+    await mockUrlTenant(2);
+    // The first load runs for school 2; the switch follows inside the
+    // five-second throttle window, which used to swallow the reload.
+    setupFetchMock({ groups: { groups: [{ id: 1, name: "Schule 2" }] } });
+    vi.mocked(useSession).mockReturnValue(sessionFor(2, "token-2"));
+
+    const { result, rerender } = renderHook(() => useSupervision(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <SupervisionProvider>{children}</SupervisionProvider>
+      ),
+    });
+    await waitFor(() => {
+      expect(result.current.groups[0]?.name).toBe("Schule 2");
+    });
+    expect(groupsCalls()).toBe(1);
+
+    await mockUrlTenant(3);
+    setupFetchMock({ groups: { groups: [{ id: 9, name: "Schule 3" }] } });
+    vi.mocked(useSession).mockReturnValue(sessionFor(3, "token-3"));
+    rerender();
+
+    await waitFor(() => {
+      expect(result.current.groups[0]?.name).toBe("Schule 3");
+    });
+    expect(groupsCalls()).toBe(2);
+  });
+
+  it("reloads a server snapshot when the resolved URL school changes", async () => {
+    await mockUrlTenant(null);
+    setupFetchMock({ groups: { groups: [{ id: 2, name: "Schule 2" }] } });
+    vi.mocked(useSession).mockReturnValue(sessionFor(2, "token-2"));
+
+    const { result, rerender } = renderHook(() => useSupervision(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <SupervisionProvider
+          initial={{
+            groups: [{ id: "1", name: "Schule 1" }],
+            supervised: [],
+            openRooms: [],
+            overviewOk: false,
+          }}
+        >
+          {children}
+        </SupervisionProvider>
+      ),
+    });
+
+    expect(result.current.groups[0]?.name).toBe("Schule 1");
+    expect(groupsCalls()).toBe(0);
+
+    await mockUrlTenant(2);
+    rerender();
+
+    await waitFor(() => {
+      expect(result.current.groups[0]?.name).toBe("Schule 2");
+    });
+    expect(groupsCalls()).toBe(1);
+  });
+
+  it("masks a server snapshot while URL tenant metadata is still stale", async () => {
+    await mockUrlTenant(2, { tenantSlug: "school-a" });
+    setupFetchMock({ groups: { groups: [{ id: 1, name: "Schule A" }] } });
+    vi.mocked(useSession).mockReturnValue(sessionFor(2, "token-2"));
+
+    const { result, rerender } = renderHook(() => useSupervision(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <SupervisionProvider
+          initial={{
+            groups: [{ id: "1", name: "Schule A" }],
+            supervised: [],
+            openRooms: [],
+            overviewOk: false,
+          }}
+        >
+          {children}
+        </SupervisionProvider>
+      ),
+    });
+
+    expect(result.current.groups[0]?.name).toBe("Schule A");
+
+    // The URL has already changed, but TenantProvider has not resolved the
+    // new school yet and still exposes the metadata for school A.
+    await mockUrlTenant(2, {
+      tenantSlug: "school-b",
+      tenantSubdomain: "school-a",
+    });
+    rerender();
+
+    expect(result.current.groups).toEqual([]);
+    expect(result.current.isLoadingGroups).toBe(true);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("loads supervision for a path tenant whose slug differs from its subdomain", async () => {
+    await mockUrlTenant(2, {
+      tenantSlug: "schule-im-pfad",
+      tenantSubdomain: "schule-unterdomain",
+      routingMode: "path",
+    });
+    setupFetchMock({
+      groups: { groups: [{ id: 2, name: "Schule im Pfad" }] },
+      supervised: { data: [] },
+    });
+    vi.mocked(useSession).mockReturnValue(sessionFor(2, "token-2"));
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <SupervisionProvider>{children}</SupervisionProvider>
+      ),
+    });
+
+    await waitFor(() => {
+      expect(result.current.groups[0]?.name).toBe("Schule im Pfad");
+      expect(result.current.isLoadingSupervision).toBe(false);
+    });
+  });
+
+  it("does not expose a server snapshot while the session catches up", async () => {
+    await mockUrlTenant(2);
+    let releaseGroups: (() => void) | undefined;
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/api/groups/context")) {
+        return new Promise((resolve) => {
+          releaseGroups = () =>
+            resolve({
+              ok: true,
+              json: async () => ({ groups: [{ id: 2, name: "Schule 2" }] }),
+            });
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+    });
+    vi.mocked(useSession).mockReturnValue(sessionFor(1, "token-1"));
+
+    const observedGroups: string[][] = [];
+    function Probe() {
+      const { groups } = useSupervision();
+      observedGroups.push(groups.map((group) => group.name));
+      return <>{groups.map((group) => group.name).join(", ")}</>;
+    }
+
+    const { rerender } = render(
+      <SupervisionProvider
+        initial={{
+          groups: [{ id: "1", name: "Schule 1" }],
+          supervised: [],
+          openRooms: [],
+          overviewOk: false,
+        }}
+      >
+        <Probe />
+      </SupervisionProvider>,
+    );
+
+    expect(observedGroups.flat()).not.toContain("Schule 1");
+    expect(mockFetch).not.toHaveBeenCalled();
+
+    vi.mocked(useSession).mockReturnValue(sessionFor(2, "token-2"));
+    rerender(
+      <SupervisionProvider
+        initial={{
+          groups: [{ id: "1", name: "Schule 1" }],
+          supervised: [],
+          openRooms: [],
+          overviewOk: false,
+        }}
+      >
+        <Probe />
+      </SupervisionProvider>,
+    );
+
+    await waitFor(() => expect(releaseGroups).toBeDefined());
+    expect(observedGroups.flat()).not.toContain("Schule 1");
+
+    await act(async () => {
+      releaseGroups?.();
+      await Promise.resolve();
+    });
+
+    await screen.findByText("Schule 2");
+  });
+
+  it("discards an in-flight response when the session loses its school", async () => {
+    await mockUrlTenant(2);
+    let releaseOld: (() => void) | undefined;
+    let oldResponseRead = false;
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/api/groups/context") && !releaseOld) {
+        return new Promise((resolve) => {
+          releaseOld = () =>
+            resolve({
+              ok: true,
+              json: async () => {
+                oldResponseRead = true;
+                return { groups: [{ id: 2, name: "Schule 2" }] };
+              },
+            });
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+    });
+    vi.mocked(useSession).mockReturnValue(sessionFor(2, "token-2"));
+
+    const { result, rerender } = renderHook(() => useSupervision(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <SupervisionProvider>{children}</SupervisionProvider>
+      ),
+    });
+    await waitFor(() => expect(releaseOld).toBeDefined());
+
+    vi.mocked(useSession).mockReturnValue(sessionFor(undefined, undefined));
+    rerender();
+
+    await act(async () => {
+      releaseOld?.();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(oldResponseRead).toBe(true);
+      expect(result.current.groups).toEqual([]);
+    });
+  });
+
+  it("discards an in-flight response when the session token changes", async () => {
+    await mockUrlTenant(2);
+    let releaseOld: (() => void) | undefined;
+    let releaseNew: (() => void) | undefined;
+    let oldResponseRead = false;
+    let groupRequests = 0;
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/api/groups/context")) {
+        groupRequests += 1;
+        if (groupRequests === 1) {
+          return new Promise((resolve) => {
+            releaseOld = () =>
+              resolve({
+                ok: true,
+                json: async () => {
+                  oldResponseRead = true;
+                  return { groups: [{ id: 2, name: "Alte Sitzung" }] };
+                },
+              });
+          });
+        }
+        return new Promise((resolve) => {
+          releaseNew = () =>
+            resolve({
+              ok: true,
+              json: async () => ({
+                groups: [{ id: 2, name: "Neue Sitzung" }],
+              }),
+            });
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+    });
+    vi.mocked(useSession).mockReturnValue(sessionFor(2, "token-old"));
+
+    const { result, rerender } = renderHook(() => useSupervision(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <SupervisionProvider
+          initial={{
+            groups: [{ id: "1", name: "Bestehende Gruppe" }],
+            supervised: [],
+            openRooms: [],
+            overviewOk: false,
+          }}
+        >
+          {children}
+        </SupervisionProvider>
+      ),
+    });
+
+    void result.current.refresh({ silent: true, force: true });
+    await waitFor(() => expect(releaseOld).toBeDefined());
+    expect(result.current.groups[0]?.name).toBe("Bestehende Gruppe");
+    expect(result.current.isLoadingGroups).toBe(false);
+
+    vi.mocked(useSession).mockReturnValue(sessionFor(2, "token-new"));
+    rerender();
+
+    expect(result.current.groups[0]?.name).toBe("Bestehende Gruppe");
+    expect(result.current.isLoadingGroups).toBe(false);
+
+    await act(async () => {
+      releaseOld?.();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(oldResponseRead).toBe(true);
+      expect(result.current.groups[0]?.name).toBe("Bestehende Gruppe");
+      expect(result.current.isLoadingGroups).toBe(false);
+      expect(releaseNew).toBeDefined();
+    });
+
+    await act(async () => {
+      releaseNew?.();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(result.current.groups[0]?.name).toBe("Neue Sitzung");
+    });
+  });
+
+  it("discards an answer of the previous school that arrives late", async () => {
+    await mockUrlTenant(2);
+    let releaseOld: (() => void) | undefined;
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/api/groups/context") && !releaseOld) {
+        return new Promise((resolve) => {
+          releaseOld = () =>
+            resolve({
+              ok: true,
+              json: async () => ({ groups: [{ id: 1, name: "Schule 2" }] }),
+            });
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () =>
+          url.includes("/api/groups/context")
+            ? { groups: [{ id: 9, name: "Schule 3" }] }
+            : { data: [] },
+      });
+    });
+    vi.mocked(useSession).mockReturnValue(sessionFor(2, "token-2"));
+
+    const { result, rerender } = renderHook(() => useSupervision(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <SupervisionProvider>{children}</SupervisionProvider>
+      ),
+    });
+    await waitFor(() => expect(releaseOld).toBeDefined());
+
+    await mockUrlTenant(3);
+    vi.mocked(useSession).mockReturnValue(sessionFor(3, "token-3"));
+    rerender();
+
+    await act(async () => {
+      releaseOld?.();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(result.current.groups[0]?.name).toBe("Schule 3");
+    });
+    expect(result.current.groups.map((g) => g.name)).not.toContain("Schule 2");
+  });
+});

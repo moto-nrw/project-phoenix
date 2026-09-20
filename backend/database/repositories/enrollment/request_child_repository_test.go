@@ -294,7 +294,7 @@ func TestRequestChildRepository_LinkCreatedStudent_StampsBackLink(t *testing.T) 
 	// Need a real student row for the FK on created_student_id.
 	student := testpkg.CreateTestStudent(t, db, "Lara", "Beispiel", "1a")
 	t.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("users.students").Where("id = ?", student.ID).Exec(context.Background())
+		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id = ?", student.ID).Exec(context.Background())
 		_, _ = db.NewDelete().TableExpr("users.persons").Where("id = ?", student.PersonID).Exec(context.Background())
 	})
 

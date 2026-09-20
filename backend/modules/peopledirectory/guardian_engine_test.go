@@ -39,6 +39,12 @@ func (e *recordingEngine) CountGuardianLinks(_ context.Context, ids []int64) (ma
 	return map[int64]int{}, nil
 }
 
+func (e *recordingEngine) StudentsWithPortalGuardian(_ context.Context, ids []int64) (map[int64]bool, error) {
+	e.calls++
+	e.guardian = guardianCall{ids: ids}
+	return map[int64]bool{}, nil
+}
+
 func (e *recordingEngine) ObserveGuardianOperation(operation string, _ time.Duration, err error) {
 	e.observed = append(e.observed, operation+":"+peopledirectory.ErrorCode(err))
 }

@@ -118,7 +118,7 @@ func TestArrivalBaselineHandlesStudentWithoutClassTimetable(t *testing.T) {
 	baseline := classArrivalBaseline(t, repos)
 	student := testpkg.CreateTestStudent(t, db, "Ohne", "Klasse", "3c")
 	staff := testpkg.CreateTestStaff(t, db, "Betreuung", "Person")
-	_, err := db.ExecContext(context.Background(), `UPDATE users.students SET school_class = '' WHERE id = ?`, student.ID)
+	_, err := db.ExecContext(context.Background(), `UPDATE users.student_school_memberships SET school_class = '' WHERE student_profile_id = ? AND deleted_at IS NULL`, student.ID)
 	require.NoError(t, err)
 	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayMonday, staff.ID, "")
 	monday := mondayOnOrAfter(timezone.TodayDate())

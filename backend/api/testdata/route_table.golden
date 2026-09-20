@@ -206,6 +206,7 @@ GET /api/enrollment/phases/public/{tenantSlug}
 GET /api/enrollment/phases/{id}/
 GET /api/enrollment/phases/{id}/delete-impact
 GET /api/enrollment/phases/{id}/manual-bootstrap
+GET /api/enrollment/phases/{id}/responses
 GET /api/enrollment/phases/{id}/review
 GET /api/enrollment/phases/{id}/rollover-preview
 GET /api/enrollment/requests/{statusToken}
@@ -678,6 +679,7 @@ POST /api/files/folders
 POST /api/files/folders/{folderId}/files
 POST /api/groups/
 POST /api/guardians/
+POST /api/guardians/bulk-invite
 POST /api/guardians/invitations/{invitationId}/approve
 POST /api/guardians/invitations/{invitationId}/reject
 POST /api/guardians/payment-overview/export

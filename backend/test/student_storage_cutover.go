@@ -2,10 +2,36 @@ package test
 
 import (
 	"context"
+	_ "embed"
 	"testing"
 
 	"github.com/uptrace/bun"
 )
+
+//go:embed testdata/student_storage_before_contract.sql
+var studentStorageBeforeContract string
+
+//go:embed testdata/student_compatibility_398.sql
+var studentCompatibilityBeforeContract string
+
+// RestoreStudentCompatibilityBeforeContract restores the frozen 1.15.398
+// rollback shape only inside a disposable historical application-test clone.
+// It is not a production recovery path and never copies current owner data.
+func RestoreStudentCompatibilityBeforeContract(tb testing.TB, db *bun.DB) {
+	tb.Helper()
+	requireIsolatedStudentStorage(tb, db)
+	var missing bool
+	if err := db.NewRaw(`SELECT to_regclass('users.students') IS NULL
+		AND to_regclass('users.students_legacy') IS NULL`).Scan(context.Background(), &missing); err != nil {
+		tb.Fatalf("inspect retired student compatibility storage: %v", err)
+	}
+	if !missing {
+		tb.Fatal("historical compatibility fixture requires contracted storage")
+	}
+	if _, err := db.ExecContext(context.Background(), studentStorageBeforeContract+studentCompatibilityBeforeContract); err != nil {
+		tb.Fatalf("restore historical student compatibility schema: %v", err)
+	}
+}
 
 // RestoreStudentStorageBeforeCutover turns users.students back into the
 // authoritative base table it was before migration 1.15.397 (#2759).
@@ -24,11 +50,25 @@ import (
 func RestoreStudentStorageBeforeCutover(tb testing.TB, db *bun.DB) {
 	tb.Helper()
 	requireIsolatedStudentStorage(tb, db)
+	var archiveMissing bool
+	if err := db.NewRaw(`SELECT to_regclass('users.students_legacy') IS NULL`).Scan(context.Background(), &archiveMissing); err != nil {
+		tb.Fatalf("inspect historical student archive: %v", err)
+	}
+	if archiveMissing {
+		if _, err := db.ExecContext(context.Background(), studentStorageBeforeContract); err != nil {
+			tb.Fatalf("restore historical student archive schema: %v", err)
+		}
+	}
 	if _, err := db.ExecContext(context.Background(), `
-		DROP VIEW users.expired_privacy_consents;
-		DROP VIEW users.students;
-		DROP FUNCTION users.route_student_compatibility();
-		DROP SEQUENCE users.student_compatibility_reads, users.student_compatibility_writes;
+		DROP VIEW IF EXISTS users.expired_privacy_consents;
+  DROP VIEW IF EXISTS users.students;
+  -- Return to the expand schema as well as the pre-cutover table. The
+  -- absence columns were added only by the application-owner switch.
+  ALTER TABLE users.student_care_profiles
+   DROP COLUMN IF EXISTS sick, DROP COLUMN IF EXISTS sick_since,
+   DROP COLUMN IF EXISTS excused, DROP COLUMN IF EXISTS excused_since;
+		DROP FUNCTION IF EXISTS users.route_student_compatibility();
+		DROP SEQUENCE IF EXISTS users.student_compatibility_reads, users.student_compatibility_writes;
 		DROP TRIGGER update_student_profiles_updated_at ON users.student_profiles;
 		DROP TRIGGER update_student_school_memberships_updated_at ON users.student_school_memberships;
 		DROP TRIGGER update_student_care_profiles_updated_at ON users.student_care_profiles;
@@ -87,12 +127,16 @@ func requireIsolatedStudentStorage(tb testing.TB, db *bun.DB) {
 	if db == nil {
 		tb.Fatal("restore student storage before cutover: database is required")
 	}
+	entry, isolated := isolatedTestDatabases.Load(topLevelTestName(tb))
+	if !isolated || entry.(*isolatedTestDatabase).db != db {
+		tb.Fatal("restore student storage before cutover requires this test's isolated database")
+	}
 	var relkind string
-	if err := db.NewRaw(`SELECT relkind::text FROM pg_class WHERE oid = 'users.students'::regclass`).
+	if err := db.NewRaw(`SELECT coalesce((SELECT relkind::text FROM pg_class WHERE oid = to_regclass('users.students')), '')`).
 		Scan(context.Background(), &relkind); err != nil {
 		tb.Fatalf("restore student storage before cutover: inspect users.students: %v", err)
 	}
-	if relkind != "v" {
+	if relkind != "v" && relkind != "" {
 		tb.Fatalf("restore student storage before cutover: users.students is already a base table (relkind %q)", relkind)
 	}
 }

@@ -42,24 +42,6 @@ func toApplicationStudentWrite(write peopledirectory.StudentWrite) application.S
 	}
 }
 
-func (e engine) SetStudentStatus(ctx context.Context, studentID int64, status string) error {
-	return mapError(e.students.SetStudentStatus(ctx, studentID, status))
-}
-
-func (e engine) TransitionStudentStatus(ctx context.Context, studentID int64, expected, next string) (bool, error) {
-	moved, err := e.students.TransitionStudentStatus(ctx, studentID, expected, next)
-	return moved, mapError(err)
-}
-
-func (e engine) SetStudentCareEnd(ctx context.Context, ids []int64, until string) (int64, error) {
-	affected, err := e.students.SetStudentCareEnd(ctx, ids, until)
-	return affected, mapError(err)
-}
-
-func (e engine) ReopenStudentCare(ctx context.Context, studentID int64, from, status string) error {
-	return mapError(e.students.ReopenStudentCare(ctx, studentID, from, status))
-}
-
 func (e engine) ListStudentCareEnds(ctx context.Context, ids []int64) (map[int64]string, error) {
 	bounds, err := e.students.ListStudentCareEnds(ctx, ids)
 	return bounds, mapError(err)

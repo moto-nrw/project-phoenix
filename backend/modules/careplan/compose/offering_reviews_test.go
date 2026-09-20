@@ -71,7 +71,7 @@ func TestOfferingNativeReviewScopeCursorDatesDiffAndCount(t *testing.T) {
 		PhaseID   int64
 	}
 	err := tenant.WithinTenant(ctx, mustTenantID(t, testpkg.Tenant(t)), func(txCtx context.Context) error {
-		return transactionDB(t, txCtx).NewRaw(`SELECT s.person_id,c.request_id,r.phase_id FROM users.students s JOIN enrollment.request_children c ON c.created_student_id=s.id JOIN enrollment.requests r ON r.id=c.request_id WHERE s.id=? AND c.id=?`, studentID, childID).Scan(txCtx, &facts)
+		return transactionDB(t, txCtx).NewRaw(`SELECT s.person_id,c.request_id,r.phase_id FROM users.student_profiles s JOIN enrollment.request_children c ON c.created_student_id=s.id JOIN enrollment.requests r ON r.id=c.request_id WHERE s.id=? AND c.id=?`, studentID, childID).Scan(txCtx, &facts)
 	})
 	require.NoError(t, err)
 	offering := createOffering(t, ctx, module, offeringFields(facts.PhaseID, "Native course"))

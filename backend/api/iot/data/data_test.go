@@ -519,9 +519,9 @@ func TestCheckRFIDTagAssignment_GraduatedStudentReadsAsUnassigned(t *testing.T) 
 	dbCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_, err := ctx.db.NewUpdate().
-		TableExpr(`users.students`).
+		TableExpr(`users.student_school_memberships`).
 		Set("status = ?", "alumnus").
-		Where("id = ?", student.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(dbCtx)
 	require.NoError(t, err)
 

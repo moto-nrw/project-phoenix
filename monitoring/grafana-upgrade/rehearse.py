@@ -139,7 +139,8 @@ schema_config:
                         time.sleep(1)
             rules = api('/api/v1/provisioning/alert-rules')
             assert {r['uid'] for r in rules} == {'booking-audit-technical-failure', 'booking-audit-missing-run',
-                'booking-audit-drift-increase', 'server-error-spike', 'postgres-error-lines'}
+                'booking-audit-drift-increase', 'server-error-spike', 'postgres-error-lines',
+                'student-contract-observation', 'student-contract-old-object-error'}
             assert any(c['uid'] == 'rehearsal-sink' for c in api('/api/v1/provisioning/contact-points'))
             assert api('/api/v1/provisioning/policies')['receiver'] == 'Rehearsal sink'
             logs = compose('logs', '--no-color', 'grafana', capture=True)

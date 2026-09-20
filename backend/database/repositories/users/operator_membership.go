@@ -3,6 +3,9 @@ package users
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentdirectoryview"
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/uptrace/bun"
 )
@@ -18,10 +21,9 @@ func FindOperatorPersonStudentMembership(ctx context.Context, db *bun.DB, person
 	var rows []struct {
 		PersonID int64 `bun:"person_id"`
 	}
-	query := base.GetDB(ctx, db).NewSelect().
-		TableExpr(`users.students AS "member"`).
-		ColumnExpr(`"member".person_id`).
-		Where(`"member".person_id IN (?)`, bun.List(personIDs))
+	query := studentdirectoryview.Query(base.GetDB(ctx, db), tenant.FromContext(ctx)).
+		ColumnExpr(`"student".person_id`).
+		Where(`"student".person_id IN (?)`, bun.List(personIDs))
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, err
 	}

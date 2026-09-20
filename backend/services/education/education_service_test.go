@@ -390,9 +390,9 @@ func TestEducationService_DeleteGroup(t *testing.T) {
 		student.GroupID = &group.ID
 		_, err := db.NewUpdate().
 			Model(student).
-			ModelTableExpr(`users.students AS "student"`).
+			ModelTableExpr(`users.student_school_memberships AS "student"`).
 			Column("group_id").
-			Where(`"student".id = ?`, student.ID).
+			Where(`"student".student_profile_id = ? AND "student".deleted_at IS NULL`, student.ID).
 			Exec(ctx)
 		require.NoError(t, err)
 

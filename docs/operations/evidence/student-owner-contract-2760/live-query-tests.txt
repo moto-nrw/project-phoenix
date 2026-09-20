@@ -1,0 +1,184 @@
+=== RUN   TestStudentContractEvidenceReaderIsStrict
+=== PAUSE TestStudentContractEvidenceReaderIsStrict
+=== RUN   TestStudentContractEvidenceRequiresAnAgreedRollbackWindow
+=== PAUSE TestStudentContractEvidenceRequiresAnAgreedRollbackWindow
+=== RUN   TestStudentContractEvidenceAcceptsCompleteObservedWindow
+=== PAUSE TestStudentContractEvidenceAcceptsCompleteObservedWindow
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof
+=== RUN   TestStudentContractQuerySnapshotDetectsDirectArchiveAccess
+=== PAUSE TestStudentContractQuerySnapshotDetectsDirectArchiveAccess
+=== RUN   TestStudentContractLiveStateRejectsChangedEvidence
+=== PAUSE TestStudentContractLiveStateRejectsChangedEvidence
+=== RUN   TestStudentContractLiveEvidenceRejectsWrongExecutingRelease
+=== PAUSE TestStudentContractLiveEvidenceRejectsWrongExecutingRelease
+=== RUN   TestStudentContractLiveStateRequiresOperationalStatistics
+=== PAUSE TestStudentContractLiveStateRequiresOperationalStatistics
+=== RUN   TestStudentContractInitialMigrationReachesContractedSchema
+=== PAUSE TestStudentContractInitialMigrationReachesContractedSchema
+=== RUN   TestStudentContractExistingInstallationRequiresEvidence
+=== PAUSE TestStudentContractExistingInstallationRequiresEvidence
+=== RUN   TestStudentContractFreshReplayRefusesUnexpectedStudentData
+=== PAUSE TestStudentContractFreshReplayRefusesUnexpectedStudentData
+=== CONT  TestStudentContractEvidenceReaderIsStrict
+=== CONT  TestStudentContractLiveEvidenceRejectsWrongExecutingRelease
+=== CONT  TestStudentContractExistingInstallationRequiresEvidence
+=== CONT  TestStudentContractInitialMigrationReachesContractedSchema
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/missing_database
+=== CONT  TestStudentContractLiveStateRejectsChangedEvidence
+=== CONT  TestStudentContractQuerySnapshotDetectsDirectArchiveAccess
+--- PASS: TestStudentContractLiveEvidenceRejectsWrongExecutingRelease (0.00s)
+=== CONT  TestStudentContractEvidenceAcceptsCompleteObservedWindow
+=== CONT  TestStudentContractFreshReplayRefusesUnexpectedStudentData
+--- PASS: TestStudentContractEvidenceAcceptsCompleteObservedWindow (0.00s)
+=== CONT  TestStudentContractEvidenceRequiresAnAgreedRollbackWindow
+--- PASS: TestStudentContractEvidenceRequiresAnAgreedRollbackWindow (0.00s)
+=== CONT  TestStudentContractLiveStateRequiresOperationalStatistics
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/missing_database
+=== RUN   TestStudentContractLiveStateRejectsChangedEvidence/observation_predates_recorded_cutover
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/abbreviated_commit
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/abbreviated_commit
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/missing_cluster
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/missing_cluster
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/missing_database_OID
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/missing_database_OID
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/single_measurement
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/single_measurement
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/before_cutover
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/before_cutover
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/future_observation
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/future_observation
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/stale_observation
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/stale_observation
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/omitted_read_count
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/omitted_read_count
+=== RUN   TestStudentContractLiveStateRejectsChangedEvidence/database
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/compatibility_read
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/compatibility_read
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/compatibility_write
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/compatibility_write
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/negative_count
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/negative_count
+=== RUN   TestStudentContractLiveStateRejectsChangedEvidence/cluster
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/old_table_access
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/old_table_access
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/old_caller
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/old_caller
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/statistics_reset
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/statistics_reset
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/statistics_began_late
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/statistics_began_late
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/missing_caller_artifact
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/missing_caller_artifact
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/missing_query_snapshot
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/missing_query_snapshot
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/statistics_evicted
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/statistics_evicted
+=== RUN   TestStudentContractLiveStateRejectsChangedEvidence/database_recreated
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/statistics_eviction_unmeasured
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/statistics_eviction_unmeasured
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/missing_backup_checksum
+=== RUN   TestStudentContractLiveStateRejectsChangedEvidence/missing_cutover
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/missing_backup_checksum
+=== RUN   TestStudentContractLiveStateRejectsChangedEvidence/reads
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/mutable_prior_image
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/mutable_prior_image
+=== RUN   TestStudentContractLiveStateRejectsChangedEvidence/writes
+=== RUN   TestStudentContractLiveStateRejectsChangedEvidence/statistics_reset
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/invalid_image_digest
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/invalid_image_digest
+=== RUN   TestStudentContractLiveStateRejectsChangedEvidence/statistics_eviction
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/old_release_backup
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/old_release_backup
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/future_backup
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/future_backup
+=== RUN   TestStudentContractLiveStateRejectsChangedEvidence/direct_archive_access
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/missing_restore
+--- PASS: TestStudentContractLiveStateRejectsChangedEvidence (0.00s)
+    --- PASS: TestStudentContractLiveStateRejectsChangedEvidence/observation_predates_recorded_cutover (0.00s)
+    --- PASS: TestStudentContractLiveStateRejectsChangedEvidence/database (0.00s)
+    --- PASS: TestStudentContractLiveStateRejectsChangedEvidence/cluster (0.00s)
+    --- PASS: TestStudentContractLiveStateRejectsChangedEvidence/database_recreated (0.00s)
+    --- PASS: TestStudentContractLiveStateRejectsChangedEvidence/missing_cutover (0.00s)
+    --- PASS: TestStudentContractLiveStateRejectsChangedEvidence/reads (0.00s)
+    --- PASS: TestStudentContractLiveStateRejectsChangedEvidence/writes (0.00s)
+    --- PASS: TestStudentContractLiveStateRejectsChangedEvidence/statistics_reset (0.00s)
+    --- PASS: TestStudentContractLiveStateRejectsChangedEvidence/statistics_eviction (0.00s)
+    --- PASS: TestStudentContractLiveStateRejectsChangedEvidence/direct_archive_access (0.00s)
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/missing_restore
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/other_backup_restored
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/other_backup_restored
+=== RUN   TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/future_restore
+=== PAUSE TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/future_restore
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/missing_database
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/statistics_reset
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/mutable_prior_image
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/other_backup_restored
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/future_restore
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/missing_restore
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/future_backup
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/invalid_image_digest
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/old_release_backup
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/missing_backup_checksum
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/statistics_evicted
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/negative_count
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/statistics_eviction_unmeasured
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/old_table_access
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/missing_caller_artifact
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/old_caller
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/missing_query_snapshot
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/compatibility_read
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/compatibility_write
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/omitted_read_count
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/stale_observation
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/single_measurement
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/statistics_began_late
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/missing_cluster
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/future_observation
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/missing_database_OID
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/abbreviated_commit
+=== CONT  TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/before_cutover
+--- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof (0.00s)
+    --- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/statistics_reset (0.00s)
+    --- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/missing_database (0.00s)
+    --- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/other_backup_restored (0.00s)
+    --- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/mutable_prior_image (0.00s)
+    --- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/missing_restore (0.00s)
+    --- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/future_backup (0.00s)
+    --- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/future_restore (0.00s)
+    --- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/invalid_image_digest (0.00s)
+    --- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/old_release_backup (0.00s)
+    --- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/missing_backup_checksum (0.00s)
+    --- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/statistics_evicted (0.00s)
+    --- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/negative_count (0.00s)
+    --- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/statistics_eviction_unmeasured (0.00s)
+    --- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/old_table_access (0.00s)
+    --- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/missing_caller_artifact (0.00s)
+    --- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/old_caller (0.00s)
+    --- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/missing_query_snapshot (0.00s)
+    --- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/compatibility_read (0.00s)
+    --- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/compatibility_write (0.00s)
+    --- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/omitted_read_count (0.00s)
+    --- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/stale_observation (0.00s)
+    --- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/single_measurement (0.00s)
+    --- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/statistics_began_late (0.00s)
+    --- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/future_observation (0.00s)
+    --- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/missing_database_OID (0.00s)
+    --- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/missing_cluster (0.00s)
+    --- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/abbreviated_commit (0.00s)
+    --- PASS: TestStudentContractEvidenceRejectsIncompleteOrContradictoryProof/before_cutover (0.00s)
+--- PASS: TestStudentContractEvidenceReaderIsStrict (0.00s)
+2026/09/20 05:42:25 INFO database pool configured max_open_conns=12 max_idle_conns=12 conn_max_lifetime=30m0s conn_max_idle_time=10m0s
+2026/09/20 05:42:26 INFO database pool configured max_open_conns=12 max_idle_conns=12 conn_max_lifetime=30m0s conn_max_idle_time=10m0s
+2026/09/20 05:42:26 INFO student owner backfill pass verified tenant_id=1 pass=1 stable=true source_count=0 target_count=0 mismatch_count=0 guardian_mismatch_count=0 care_state_mismatch_count=0 rows_copied=0 rows_rejected=0 rows_removed=0
+2026/09/20 05:42:26 INFO student owner backfill pass verified tenant_id=1326500001 pass=1 stable=false source_count=3 target_count=3 mismatch_count=0 guardian_mismatch_count=0 care_state_mismatch_count=0 rows_copied=3 rows_rejected=0 rows_removed=0
+2026/09/20 05:42:26 INFO student owner backfill pass verified tenant_id=1326500001 pass=2 stable=true source_count=3 target_count=3 mismatch_count=0 guardian_mismatch_count=0 care_state_mismatch_count=0 rows_copied=3 rows_rejected=0 rows_removed=0
+2026/09/20 05:42:26 INFO student owner backfill finished tenants=2 stable=true unstable_tenants=[] failed_tenants=0
+--- PASS: TestStudentContractInitialMigrationReachesContractedSchema (10.35s)
+--- PASS: TestStudentContractLiveStateRequiresOperationalStatistics (10.41s)
+--- PASS: TestStudentContractFreshReplayRefusesUnexpectedStudentData (10.43s)
+--- PASS: TestStudentContractQuerySnapshotDetectsDirectArchiveAccess (10.43s)
+--- PASS: TestStudentContractExistingInstallationRequiresEvidence (10.44s)
+PASS
+ok  	github.com/moto-nrw/project-phoenix/database/migrations	11.162s

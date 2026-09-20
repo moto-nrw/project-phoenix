@@ -328,9 +328,9 @@ func TestToggleStudentAttendance_CareEndedChildCanOnlyCheckOut(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, db, "toggle-care-ended")
 
 	_, err := db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_school_memberships").
 		Set("enrolled_until = ?", timezone.TodayDate().AddDays(-1)).
-		Where("id = ?", student.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 

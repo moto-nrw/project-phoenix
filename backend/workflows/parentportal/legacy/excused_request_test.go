@@ -110,9 +110,9 @@ func TestSubmitSick_ApprovalOn_CreatesPendingRequest(t *testing.T) {
 
 	var sick bool
 	require.NoError(t, db.NewSelect().
-		Table("users.students").
+		Table("users.student_care_profiles").
 		Column("sick").
-		Where("id = ?", chain.StudentID).
+		Where("membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", chain.StudentID).
 		Scan(testpkg.WithPackageTenantRuntime(context.Background()), &sick))
 	assert.False(t, sick, "the child stays expected until the OGS approves the sick request")
 }
@@ -160,9 +160,9 @@ func TestSickRequest_ApproveWritesSickStatusAndLiveFlag(t *testing.T) {
 
 	var sick bool
 	require.NoError(t, db.NewSelect().
-		Table("users.students").
+		Table("users.student_care_profiles").
 		Column("sick").
-		Where("id = ?", chain.StudentID).
+		Where("membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", chain.StudentID).
 		Scan(testpkg.WithPackageTenantRuntime(context.Background()), &sick))
 	assert.True(t, sick, "approving today's sick request must mark the child sick")
 }

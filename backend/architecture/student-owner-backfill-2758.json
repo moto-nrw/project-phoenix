@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "ticket_kind": "migration",
   "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
   "prerequisites": [
@@ -29,18 +29,70 @@
     "source": "docs/operations/student-owner-storage-backfill.md (local 2026-09-18 migration and CLI test runs; staging record pending)",
     "workload": "Local isolated PostgreSQL clones per test with two schools, up to seven students per school covering every copied column including the JSONB departure plan, consent timestamps, group assignment and enrollment window, batch sizes 1 to 10, passes until stable. Staging run with the previous image serving student traffic is pending.",
     "thresholds": "No latency SLO. Acceptance is per tenant: source_count = target_count, equal canonical checksums, mismatch_count 0, guardian_mismatch_count 0, care_state_mismatch_count 0, rows_rejected explained, rows_visible_to_tenant equal to the school's own target rows with no foreign row visible, stable = true. The command exits non-zero otherwise.",
-    "query_count": "Per attempt: worker PID lookup, one SET LOCAL statement, checkpoint row lock, combined copy CTE, checkpoint update; separate observer samples pg_stat_activity every 10 ms. Per pass end: orphan delete transaction, one REPEATABLE READ tenant-policy transaction (superuser count, SET LOCAL ROLE, tenant GUC, policy-filtered count, RESET ROLE), then one UTC REPEATABLE READ verification transaction containing SET LOCAL, two checksum queries, the row mismatch query, the guardian reconciliation query, the care-state query, snapshot/time query and checkpoint update. Per run: advisory acquire/release, school listing, one two-sequence alignment statement and status reads. Terminal failure adds one bounded telemetry-only update.",
-    "errors": "Zero errors in the local suites. Non-transient SQLSTATEs abort the run immediately with the committed checkpoint intact; transient classes retry up to five attempts and then fail with the attempt count.",
-    "failure": "Injected deadlock, serialization failure and lock timeout roll back the batch without double counting rows; the attempt cap surfaces 'gave up after N attempts'. A cross-tenant person reference is rejected, reported as mismatch with oldest_unmigrated_at, and keeps the tenant unstable. An unreconciled legacy guardian value and a sick flag without an open status day each keep the tenant unstable under their own counter without changing the mapped-column verdict. A person reassigned between two live students raises 23505; the rewind releases the stale per-person claim and the restarted pass converges, verified by reverting the fix and observing 'restarted the pass 5 times without converging'. A dropped tenant policy leaves the role seeing none of its own rows and a widened one leaves it seeing another school's; both fail the pass.",
-    "rollback": "Each interrupted batch rolls back to its previous checkpoint; resume continues exactly one batch further per run in the interrupt test. Reset and the migration down step truncate only target rows and this backfill's checkpoints, keeping other backfills' rows in the shared table; users.students row JSON is byte-identical before and after. Both refuse when users.students is a view. The down step drops the shared table only when empty, and the idempotent up step recreates it with the two student columns.",
-    "smoke": "scripts/test-changed.sh origin/development passed for the affected packages; migrate validate passed; architecture check introduced no key and left policy ownership unchanged; golangci-lint zero issues. Recorded in docs/operations/student-owner-storage-backfill.md.",
-    "affected_rows": "Local: rows_copied equals the source count on the first pass, zero on the stabilising pass; rows_removed equals physically deleted source rows. Staging per-tenant totals pending.",
-    "lock_wait": "Worker pg_stat_activity Lock waits are sampled on an independent connection every 10 ms and accumulated per tenant as lock_wait_ms, including successful sub-timeout waits and failed attempts. Sampling errors fail the batch. lock_timeout remains 5s; external staging observer corroboration is pending.",
-    "deadlocks": "Every 40P01 failed attempt is counted per tenant, including terminal exhaustion. Pending telemetry is flushed on terminal failure without advancing the data checkpoint; abrupt process death or unavailable database can prevent the bounded flush.",
-    "pool_wait": "Pool-wide sql.DBStats wait duration observed while each tenant's batches ran is persisted as pool_wait_ms (zero locally); it is an upper bound that includes concurrent users of the shared process pool.",
-    "job_duration": "batch_p95_ms and batch_max_ms are persisted per tenant; local batches complete in single-digit milliseconds. Staging migration wall time pending.",
-    "job_retries": "batches_retried counts actual retry starts; deadlocks, serialization_failures and lock_timeouts count all failed attempts. Successful batches persist pending counters atomically with progress; terminal failures flush counters separately with a 5s bound and preserve persistence errors. CLI prints available partial reports before returning errors.",
-    "job_backlog": "oldest_unmigrated_at records the oldest source row any of the three checks still reports at verification; null once stable."
+    "query_count": {
+      "state": "historical_gap",
+      "reason": "The pre-gate query_count text describes instrumentation or expected behavior, not a measurement of this metric. Preserve that text without claiming a new observation.",
+      "original": "Per attempt: worker PID lookup, one SET LOCAL statement, checkpoint row lock, combined copy CTE, checkpoint update; separate observer samples pg_stat_activity every 10 ms. Per pass end: orphan delete transaction, one REPEATABLE READ tenant-policy transaction (superuser count, SET LOCAL ROLE, tenant GUC, policy-filtered count, RESET ROLE), then one UTC REPEATABLE READ verification transaction containing SET LOCAL, two checksum queries, the row mismatch query, the guardian reconciliation query, the care-state query, snapshot/time query and checkpoint update. Per run: advisory acquire/release, school listing, one two-sequence alignment statement and status reads. Terminal failure adds one bounded telemetry-only update."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "Zero errors in the local suites. Non-transient SQLSTATEs abort the run immediately with the committed checkpoint intact; transient classes retry up to five attempts and then fail with the attempt count."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "Injected deadlock, serialization failure and lock timeout roll back the batch without double counting rows; the attempt cap surfaces 'gave up after N attempts'. A cross-tenant person reference is rejected, reported as mismatch with oldest_unmigrated_at, and keeps the tenant unstable. An unreconciled legacy guardian value and a sick flag without an open status day each keep the tenant unstable under their own counter without changing the mapped-column verdict. A person reassigned between two live students raises 23505; the rewind releases the stale per-person claim and the restarted pass converges, verified by reverting the fix and observing 'restarted the pass 5 times without converging'. A dropped tenant policy leaves the role seeing none of its own rows and a widened one leaves it seeing another school's; both fail the pass."
+    },
+    "rollback": {
+      "state": "measured",
+      "result": "Each interrupted batch rolls back to its previous checkpoint; resume continues exactly one batch further per run in the interrupt test. Reset and the migration down step truncate only target rows and this backfill's checkpoints, keeping other backfills' rows in the shared table; users.students row JSON is byte-identical before and after. Both refuse when users.students is a view. The down step drops the shared table only when empty, and the idempotent up step recreates it with the two student columns."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "scripts/test-changed.sh origin/development passed for the affected packages; migrate validate passed; architecture check introduced no key and left policy ownership unchanged; golangci-lint zero issues. Recorded in docs/operations/student-owner-storage-backfill.md."
+    },
+    "affected_rows": {
+      "state": "measured",
+      "result": "Local: rows_copied equals the source count on the first pass, zero on the stabilising pass; rows_removed equals physically deleted source rows. Staging per-tenant totals pending."
+    },
+    "lock_wait": {
+      "state": "historical_gap",
+      "reason": "The pre-gate lock_wait text describes instrumentation or expected behavior, not a measurement of this metric. Preserve that text without claiming a new observation.",
+      "original": "Worker pg_stat_activity Lock waits are sampled on an independent connection every 10 ms and accumulated per tenant as lock_wait_ms, including successful sub-timeout waits and failed attempts. Sampling errors fail the batch. lock_timeout remains 5s; external staging observer corroboration is pending."
+    },
+    "deadlocks": {
+      "state": "historical_gap",
+      "reason": "The pre-gate deadlocks text describes instrumentation or expected behavior, not a measurement of this metric. Preserve that text without claiming a new observation.",
+      "original": "Every 40P01 failed attempt is counted per tenant, including terminal exhaustion. Pending telemetry is flushed on terminal failure without advancing the data checkpoint; abrupt process death or unavailable database can prevent the bounded flush."
+    },
+    "pool_wait": {
+      "state": "measured",
+      "result": "Pool-wide sql.DBStats wait duration observed while each tenant's batches ran is persisted as pool_wait_ms (zero locally); it is an upper bound that includes concurrent users of the shared process pool."
+    },
+    "job_duration": {
+      "state": "measured",
+      "result": "batch_p95_ms and batch_max_ms are persisted per tenant; local batches complete in single-digit milliseconds. Staging migration wall time pending."
+    },
+    "job_retries": {
+      "state": "historical_gap",
+      "reason": "The pre-gate job_retries text describes instrumentation or expected behavior, not a measurement of this metric. Preserve that text without claiming a new observation.",
+      "original": "batches_retried counts actual retry starts; deadlocks, serialization_failures and lock_timeouts count all failed attempts. Successful batches persist pending counters atomically with progress; terminal failures flush counters separately with a 5s bound and preserve persistence errors. CLI prints available partial reports before returning errors."
+    },
+    "job_backlog": {
+      "state": "historical_gap",
+      "reason": "The pre-gate job_backlog text describes instrumentation or expected behavior, not a measurement of this metric. Preserve that text without claiming a new observation.",
+      "original": "oldest_unmigrated_at records the oldest source row any of the three checks still reports at verification; null once stable."
+    },
+    "sources": [
+      "docs/operations/student-owner-storage-backfill.md"
+    ],
+    "latency_p50": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record latency_p50 evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "latency_p95": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record latency_p95 evidence. This is a historical reporting gap, not a claim of non-applicability."
+    }
   },
   "rollback_and_cleanup": "Stop the run and keep the checkpoint. Before Cutover, `backfill student-owner reset` or migration down truncates only the target rows and checkpoints and restarts from zero; the old authoritative rows are never mutated or deleted. Contract of users.students happens after the Cutover rollback window, not here.",
   "exit_criterion": "Every school reports stable = true with equal counts and checksums, zero row, guardian and care-state mismatches, zero orphans, a tenant role that sees exactly its own target rows, and a complete checkpoint while users.students remains authoritative. scripts/backend-architecture.sh check introduces no key and leaves policy ownership unchanged; the shared checkpoint table stays owned by migrations."

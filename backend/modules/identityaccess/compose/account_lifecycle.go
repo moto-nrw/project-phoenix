@@ -163,7 +163,7 @@ type GuardianDirectory interface {
 	FindStudentGuardianLinkForUpdate(ctx context.Context, studentID, guardianProfileID int64) (StudentGuardianLink, bool, error)
 	LinkStudentGuardianIfAbsent(ctx context.Context, link StudentGuardianLink) (bool, error)
 	PromoteStudentGuardianLink(ctx context.Context, linkID int64) error
-	ListStudentGuardianLinksByStudent(ctx context.Context, studentID int64) ([]StudentGuardianLink, error)
+	ListStudentGuardianLinksByStudents(ctx context.Context, studentIDs []int64) ([]StudentGuardianLink, error)
 	ListStudentGuardianLinksByProfile(ctx context.Context, guardianProfileID int64) ([]StudentGuardianLink, error)
 	DeleteStudentGuardianLink(ctx context.Context, linkID int64) error
 	GuardianRoleClass(role string) GuardianRoleClass
@@ -457,8 +457,8 @@ func studentGuardianLinks(links []StudentGuardianLink) []domain.StudentGuardianL
 	return result
 }
 
-func (d guardianDirectory) ListStudentGuardianLinksByStudent(ctx context.Context, studentID int64) ([]domain.StudentGuardianLink, error) {
-	links, err := d.source.ListStudentGuardianLinksByStudent(ctx, studentID)
+func (d guardianDirectory) ListStudentGuardianLinksByStudents(ctx context.Context, studentIDs []int64) ([]domain.StudentGuardianLink, error) {
+	links, err := d.source.ListStudentGuardianLinksByStudents(ctx, studentIDs)
 	return studentGuardianLinks(links), err
 }
 
@@ -898,28 +898,4 @@ var lifecycleSentinels = []struct {
 	{domain.ErrInviteSocialWorkerManaged, identityaccess.ErrInviteSocialWorkerManaged},
 	{domain.ErrGuardianInvitationNotFound, identityaccess.ErrGuardianInvitationNotFound},
 	{domain.ErrGuardianInvitationExpired, identityaccess.ErrGuardianInvitationExpired},
-}
-
-// lifecycleError translates a flow error to the public contract: the
-// operation envelope keeps its text, a lifecycle sentinel gains its public
-// twin, and everything else falls through to the authentication mapping
-// (account, tenant and session sentinels the preview and offboarding share).
-func lifecycleError(err error) error {
-	if err == nil {
-		return nil
-	}
-	var operation *application.OperationError
-	if errors.As(err, &operation) && operation == err {
-		return &identityaccess.AuthenticationError{Op: operation.Op, Err: lifecycleError(operation.Err)}
-	}
-	for _, sentinel := range lifecycleSentinels {
-		if !errors.Is(err, sentinel.internal) {
-			continue
-		}
-		if err == sentinel.internal {
-			return sentinel.public
-		}
-		return &translatedError{text: err.Error(), public: sentinel.public, cause: err}
-	}
-	return authenticationError(err)
 }

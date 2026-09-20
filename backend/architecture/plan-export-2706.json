@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "ticket_kind": "migration",
   "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
   "prerequisites": [
@@ -77,11 +77,70 @@
     "source": "docs/runtime-checkpoints/plan-export-2706.md with candidate and baseline raw JSON, the baseline harness source and the EXPLAIN plans",
     "workload": "Local isolated PostgreSQL 17.11; baseline fixed at 939126a901186f7bbaeb984fee5ba7b10771a329; empty week, one week with 20 blocks, four weeks with 80 blocks as document, and the same four weeks as PDF; five warmups and 30 samples each, concurrency 1, real instance/staff/room sources, fixture-backed staff names, optional sources unbound.",
     "thresholds": "No new SLO. Compare local same-workload baseline, not staging/production parity. HTTP latency and the Dienstplan overview path excluded.",
-    "query_count": "Both readers: 5 statements for the empty week, 7 for every non-empty scenario including commit (three transaction-scope statements plus the block, instance-staff and room reads); 42 and 162 driver-reported rows for 20 and 80 blocks; 0 DML.",
-    "errors": "Zero unexpected errors, pool waits, deadlocks or observed lock waiters in both readers. No projection cache.",
-    "failure": "A failing block or instance-staff read fails the export with the stable wrapped error; failing optional reads cost the detail and are logged; malformed request days are refused with ErrInvalidParams before any read; the handlers keep their 400/403/500 mapping.",
-    "rollback": "The capability persists nothing; measured DML rows zero. Revert the factory, timetable, shift-planning and root wiring to restore the retained packages without data migration.",
-    "smoke": "Real renderer emits PDF; the routed timetable, shift-planning and birthday tests run the production routers with JWT/permission/tenant middleware; the RLS test uses the real instance and instance-staff repositories and the public Facilities facade."
+    "query_count": {
+      "state": "measured",
+      "result": "Both readers: 5 statements for the empty week, 7 for every non-empty scenario including commit (three transaction-scope statements plus the block, instance-staff and room reads); 42 and 162 driver-reported rows for 20 and 80 blocks; 0 DML."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "Zero unexpected errors, pool waits, deadlocks or observed lock waiters in both readers. No projection cache."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "A failing block or instance-staff read fails the export with the stable wrapped error; failing optional reads cost the detail and are logged; malformed request days are refused with ErrInvalidParams before any read; the handlers keep their 400/403/500 mapping."
+    },
+    "rollback": {
+      "state": "measured",
+      "result": "The capability persists nothing; measured DML rows zero. Revert the factory, timetable, shift-planning and root wiring to restore the retained packages without data migration."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "Real renderer emits PDF; the routed timetable, shift-planning and birthday tests run the production routers with JWT/permission/tenant middleware; the RLS test uses the real instance and instance-staff repositories and the public Facilities facade."
+    },
+    "sources": [
+      "docs/runtime-checkpoints/plan-export-2706.baseline.raw.json",
+      "docs/runtime-checkpoints/plan-export-2706.baseline_test.go.txt",
+      "docs/runtime-checkpoints/plan-export-2706.dienstplan.raw.json",
+      "docs/runtime-checkpoints/plan-export-2706.md",
+      "docs/runtime-checkpoints/plan-export-2706.plans.json",
+      "docs/runtime-checkpoints/plan-export-2706.raw.json"
+    ],
+    "affected_rows": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record affected_rows evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "latency_p50": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record latency_p50 evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "latency_p95": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record latency_p95 evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "pool_wait": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record pool_wait evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "lock_wait": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record lock_wait evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "deadlocks": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record deadlocks evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "job_duration": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record job_duration evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "job_retries": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record job_retries evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "job_backlog": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record job_backlog evidence. This is a historical reporting gap, not a claim of non-applicability."
+    }
   },
   "rollback_and_cleanup": "Revert consumer wiring as a whole. The capability owns no authoritative state and no document metadata is persisted by the export paths. Delete the compatibility adapter with the last retained schedule source once Timetable & Activities and Workforce expose the plan reads publicly. No deployment or staging/production requests.",
   "exit_criterion": "One public capability serves both plan exports with unchanged document, filename and authorization contracts; the birthday and object-store adapters serve unchanged routes; 28 of the 33 listed keys plus five caller keys absent, legacy 1614 from 1647, composition 796 unchanged, ownership and policy epoch preserved; the five File Storage keys remain tracked under this issue until #2707."

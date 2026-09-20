@@ -8,8 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
-
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -65,16 +63,15 @@ func MissingStudentError(op string) error {
 	return &base.DatabaseError{Op: op, Err: errors.Join(base.ErrNotFound, sql.ErrNoRows, ErrStudentRowMissing)}
 }
 
-// Student represents a student in the system
+// Student is the joined student DTO consumed by the retained API and service
+// interfaces. It has no owned storage table: writes go through People
+// Directory, School Membership and Care Plan. The column tags support scans
+// of explicit projections, not persistence through the retired student shape.
 type Student struct {
-	base.Model `bun:"schema:users,table:students"`
+	base.Model
 	base.TenantModel
 	PersonID          int64   `bun:"person_id,notnull" json:"person_id"`
 	SchoolClass       string  `bun:"school_class,notnull" json:"school_class"`
-	GuardianName      *string `bun:"guardian_name" json:"guardian_name,omitempty"`       // Optional: Legacy field, use guardian_profiles instead
-	GuardianContact   *string `bun:"guardian_contact" json:"guardian_contact,omitempty"` // Optional: Legacy field, use guardian_profiles instead
-	GuardianEmail     *string `bun:"guardian_email" json:"guardian_email,omitempty"`
-	GuardianPhone     *string `bun:"guardian_phone" json:"guardian_phone,omitempty"`
 	GroupID           *int64  `bun:"group_id" json:"group_id,omitempty"`
 	AddressStreet     *string `bun:"address_street" json:"address_street,omitempty"`
 	AddressCity       *string `bun:"address_city" json:"address_city,omitempty"`
@@ -201,18 +198,6 @@ func (s *Student) Validate() error {
 
 	s.SchoolClass = strings.TrimSpace(s.SchoolClass)
 
-	// Normalize optional legacy guardian fields
-	trimPtrString(s.GuardianName)
-	trimPtrStringOrNil(&s.GuardianContact)
-
-	// Validate optional contact fields
-	if err := validatePtrEmail(s.GuardianEmail, "guardian email"); err != nil {
-		return err
-	}
-	if err := validatePtrPhone(s.GuardianPhone, "guardian phone"); err != nil {
-		return err
-	}
-
 	trimPtrStringOrNil(&s.AddressStreet)
 	trimPtrStringOrNil(&s.AddressCity)
 	trimPtrStringOrNil(&s.AddressPostalCode)
@@ -258,13 +243,6 @@ func (s *Student) MarkDepartureCompanionDays(days ...string) {
 	}
 }
 
-// trimPtrString trims whitespace from a non-nil string pointer
-func trimPtrString(s *string) {
-	if s != nil && *s != "" {
-		*s = strings.TrimSpace(*s)
-	}
-}
-
 // trimPtrStringOrNil trims whitespace and sets to nil if empty
 func trimPtrStringOrNil(sp **string) {
 	if *sp == nil || **sp == "" {
@@ -276,36 +254,6 @@ func trimPtrStringOrNil(sp **string) {
 	} else {
 		**sp = trimmed
 	}
-}
-
-// validatePtrEmail validates an optional email pointer
-func validatePtrEmail(email *string, fieldName string) error {
-	if email == nil || *email == "" {
-		return nil
-	}
-	*email = strings.TrimSpace(*email)
-	// Pinned to the shared canonical pattern (email_validation.go) so the
-	// rule enforced here at student creation matches enrollment submit-time
-	// validation exactly — a value accepted at submit can't be rejected here.
-	if !contact.IsValidEmailFormat(*email) {
-		return errors.New("invalid " + fieldName + " format")
-	}
-	return nil
-}
-
-// validatePtrPhone validates an optional phone pointer
-func validatePtrPhone(phone *string, fieldName string) error {
-	if phone == nil || *phone == "" {
-		return nil
-	}
-	*phone = strings.TrimSpace(*phone)
-	// Pinned to the canonical optionalPhonePattern (phone_validation.go)
-	// so this student-creation check never diverges from the submit/edit
-	// validation in the enrollment service.
-	if !contact.IsValidPhoneFormat(*phone) {
-		return errors.New("invalid " + fieldName + " format")
-	}
-	return nil
 }
 
 // SetPerson links this student to a person

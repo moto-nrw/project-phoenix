@@ -32,10 +32,21 @@ import {
   mapUpdateRequestToBackend,
   formatStudentName,
   formatStudentStatus,
-  extractGuardianContact,
   getStatusColor,
 } from "./student-helpers";
 import { buildBackendStudent } from "~/test/fixtures/students";
+
+it("does not expose retired student contact fields", () => {
+  const student = mapStudentResponse(buildBackendStudent());
+  for (const key of [
+    "name_lg",
+    "contact_lg",
+    "guardian_email",
+    "guardian_phone",
+  ]) {
+    expect(student).not.toHaveProperty(key);
+  }
+});
 
 describe("mapSlimStudentResponse", () => {
   it("preserves the selected day's departure modes", () => {
@@ -81,10 +92,6 @@ const sampleBackendStudent = buildBackendStudent({
   bus: true,
   bus_days: { mon: true, tue: true, wed: true, thu: true, fri: true },
   sick: false,
-  guardian_name: "Hans Mustermann",
-  guardian_contact: "+49 123 456789",
-  guardian_email: "hans@example.com",
-  guardian_phone: "+49 987 654321",
   address_street: "Musterstraße 12",
   address_city: "Köln",
   address_postal_code: "50667",
@@ -327,10 +334,6 @@ describe("mapStudentResponse", () => {
     expect(result.group_id).toBe("5"); // int64 → string
     expect(result.bus).toBe(true);
     expect(result.sick).toBe(false);
-    expect(result.name_lg).toBe("Hans Mustermann"); // guardian_name → name_lg
-    expect(result.contact_lg).toBe("+49 123 456789"); // guardian_contact → contact_lg
-    expect(result.guardian_email).toBe("hans@example.com");
-    expect(result.guardian_phone).toBe("+49 987 654321");
     expect(result.address_street).toBe("Musterstraße 12");
     expect(result.address_city).toBe("Köln");
     expect(result.address_postal_code).toBe("50667");
@@ -575,7 +578,6 @@ describe("prepareStudentForBackend", () => {
       bus_days: { mon: true, fri: true },
       group_id: "5",
       tag_id: "RFID-12345",
-      guardian_email: "test@example.com",
       address_street: "Musterstraße 12",
       address_city: "Köln",
       address_postal_code: "50667",
@@ -594,7 +596,6 @@ describe("prepareStudentForBackend", () => {
     expect(result.bus_days).toEqual({ mon: true, fri: true });
     expect(result.group_id).toBe(5); // string → number
     expect(result.tag_id).toBe("RFID-12345");
-    expect(result.guardian_email).toBe("test@example.com");
     expect(result.address_street).toBe("Musterstraße 12");
     expect(result.address_city).toBe("Köln");
     expect(result.address_postal_code).toBe("50667");
@@ -750,11 +751,7 @@ describe("mapUpdateRequestToBackend", () => {
       second_name: "Mustermann",
       school_class: "3a",
       group_id: "5",
-      name_lg: "Hans Mustermann",
-      contact_lg: "+49 123 456789",
       tag_id: "RFID-12345",
-      guardian_email: "hans@example.com",
-      guardian_phone: "+49 987 654321",
       address_street: "Musterstraße 12",
       address_city: "Köln",
       address_postal_code: "50667",
@@ -774,14 +771,10 @@ describe("mapUpdateRequestToBackend", () => {
     expect(result.last_name).toBe("Mustermann"); // second_name → last_name
     expect(result.school_class).toBe("3a");
     expect(result.group_id).toBe(5); // string → number
-    expect(result.guardian_name).toBe("Hans Mustermann"); // name_lg → guardian_name
-    expect(result.guardian_contact).toBe("+49 123 456789"); // contact_lg → guardian_contact
     expect(result.tag_id).toBe("RFID-12345");
     expect(result.address_street).toBe("Musterstraße 12");
     expect(result.address_city).toBe("Köln");
     expect(result.address_postal_code).toBe("50667");
-    expect(result.guardian_email).toBe("hans@example.com");
-    expect(result.guardian_phone).toBe("+49 987 654321");
     expect(result.extra_info).toBe("Notes");
     expect(result.birthday).toBe("2015-06-15");
     expect(result.health_info).toBe("None");
@@ -912,50 +905,6 @@ describe("formatStudentStatus", () => {
     const result = formatStudentStatus(student);
 
     expect(result).toBe("Unbekannt");
-  });
-});
-
-describe("extractGuardianContact", () => {
-  it("prioritizes guardian_email when available", () => {
-    const result = extractGuardianContact({
-      guardian_email: "email@example.com",
-      contact_lg: "+49 123 456789",
-    });
-
-    expect(result).toBe("email@example.com");
-  });
-
-  it("falls back to contact_lg when guardian_email is missing", () => {
-    const result = extractGuardianContact({
-      contact_lg: "+49 123 456789",
-    });
-
-    expect(result).toBe("+49 123 456789");
-  });
-
-  it("returns empty string when no contact info available", () => {
-    const result = extractGuardianContact({});
-
-    expect(result).toBe("");
-  });
-
-  it("returns empty string when both fields are empty strings", () => {
-    const result = extractGuardianContact({
-      guardian_email: "",
-      contact_lg: "",
-    });
-
-    // Empty strings are falsy, so returns ""
-    expect(result).toBe("");
-  });
-
-  it("uses guardian_email even when contact_lg has value", () => {
-    const result = extractGuardianContact({
-      guardian_email: "test@test.com",
-      contact_lg: "phone number",
-    });
-
-    expect(result).toBe("test@test.com");
   });
 });
 

@@ -55,7 +55,7 @@ func newServiceWithPresenceSync(t *testing.T, db *testpkg.DB, presence active.St
 		SupervisorRepo:     repos.GroupSupervisor,
 		SchoolPresence:     presence,
 		AttendanceSyncer:   syncer,
-		StudentRepo:        services.PresenceStudents(repos.Student),
+		StudentRepo:        services.PresenceStudents(db, repos.Student),
 		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
 		RoomRepo:           services.NewAttendanceRooms(repos.Room),
 		ActivityGroupRepo:  repositories.NewSessionActivities(repos.ActivityGroup),
@@ -223,7 +223,7 @@ func TestBroadcast_UpdateVisitMoveSendsMovementEvents(t *testing.T) {
 		GroupRepo:          repos.ActiveGroup,
 		SupervisorRepo:     repos.GroupSupervisor,
 		SchoolPresence:     testSchoolPresence(t, db),
-		StudentRepo:        services.PresenceStudents(repos.Student),
+		StudentRepo:        services.PresenceStudents(db, repos.Student),
 		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
 		RoomRepo:           services.NewAttendanceRooms(repos.Room),
 		ActivityGroupRepo:  repositories.NewSessionActivities(repos.ActivityGroup),
@@ -535,9 +535,9 @@ func TestBroadcast_EndActivitySessionBatchesPerEducationGroup(t *testing.T) {
 func assignStudentToEducationGroup(tb testing.TB, db *testpkg.DB, ctx context.Context, studentID, groupID int64) {
 	tb.Helper()
 	_, err := db.NewUpdate().
-		Table("users.students").
+		Table("users.student_school_memberships").
 		Set("group_id = ?", groupID).
-		Where("id = ?", studentID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", studentID).
 		Exec(ctx)
 	require.NoError(tb, err, "failed to assign student to education group")
 }
