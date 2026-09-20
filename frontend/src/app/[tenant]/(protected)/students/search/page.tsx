@@ -3421,6 +3421,7 @@ function SearchPageContent() {
                                     <StudentAbsenceRow
                                       label={absence.label}
                                       wording={absenceWording}
+                                      note={student.pickup_notes}
                                     />
                                     {absencePickupRow}
                                   </>

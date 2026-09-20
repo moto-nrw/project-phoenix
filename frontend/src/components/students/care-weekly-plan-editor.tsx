@@ -18,6 +18,7 @@ import {
 import {
   formatDateISO,
   type PickupScheduleFormData,
+  type WeekdayNoteEntry,
 } from "~/lib/pickup-schedule-helpers";
 import type {
   PickupAdjustmentPreview,
@@ -41,6 +42,12 @@ import { PickupAdjustmentDecision } from "./pickup-adjustment-decision";
 export interface CarePlanWeeklySubmit {
   readonly arrivalSchedules: ArrivalScheduleFormEntry[];
   readonly pickupSchedules: PickupScheduleFormData[];
+  /**
+   * Notes of weekdays without a pickup time (#3369). They cannot ride on the
+   * pickup row: that row's existence marks the child as expected. Absent
+   * means: leave the stored weekday notes untouched.
+   */
+  readonly weekdayNotes?: WeekdayNoteEntry[];
 }
 
 export interface CarePlanWeeklyAdjustment {
@@ -67,6 +74,8 @@ export interface WeeklyRow {
   readonly pickupNotes: string;
 }
 
+const NO_WEEKDAY_NOTES: WeekdayNoteEntry[] = [];
+
 type WeeklyRowField =
   "arrivalTime" | "pickupTime" | "arrivalNotes" | "pickupNotes";
 
@@ -77,6 +86,7 @@ const TIME_PATTERN = /^([01]?\d|2[0-3]):[0-5]\d$/;
 function buildWeeklyRows(
   arrival: readonly ArrivalScheduleFormEntry[],
   pickup: readonly PickupScheduleFormData[],
+  weekdayNotes: readonly WeekdayNoteEntry[],
 ): WeeklyRow[] {
   return WEEKDAYS.map((day) => {
     const arrivalEntry = arrival.find(
@@ -94,12 +104,25 @@ function buildWeeklyRows(
       arrivalClassTime: arrivalEntry?.classTime ?? "",
       arrivalNotes: arrivalEntry?.notes ?? "",
       pickupTime: pickupEntry?.pickupTime ?? "",
-      pickupNotes: pickupEntry?.notes ?? "",
+      // ONE note field per day: the pickup row carries it while the day has a
+      // pickup time, the weekday note while it has none (#3369).
+      pickupNotes:
+        (pickupEntry?.notes ? pickupEntry.notes : undefined) ??
+        weekdayNotes.find((note) => note.weekday === day.value)?.content ??
+        "",
     };
   });
 }
 
-export function validateWeeklyRows(rows: readonly WeeklyRow[]): string | null {
+export function validateWeeklyRows(
+  rows: readonly WeeklyRow[],
+  /**
+   * The detail page stores a note without pickup time as a weekday note
+   * (#3369). The create assistant has no child yet to attach one to, so there
+   * the note still needs its pickup time.
+   */
+  notesWithoutPickup = false,
+): string | null {
   for (const row of rows) {
     const day = WEEKDAYS.find((weekday) => weekday.value === row.weekday);
     if (row.arrivalTime && !TIME_PATTERN.test(row.arrivalTime)) {
@@ -111,7 +134,11 @@ export function validateWeeklyRows(rows: readonly WeeklyRow[]): string | null {
     if (row.pickupTime && !TIME_PATTERN.test(row.pickupTime)) {
       return `Ungültige Abholzeit für ${day?.label ?? "diesen Tag"}.`;
     }
-    if (row.pickupNotes.trim() && !row.pickupTime.trim()) {
+    if (
+      !notesWithoutPickup &&
+      row.pickupNotes.trim() &&
+      !row.pickupTime.trim()
+    ) {
       return `Eine Abholnotiz für ${day?.label ?? "diesen Tag"} benötigt eine Abholzeit.`;
     }
   }
@@ -155,6 +182,8 @@ export function toWeeklySubmit(
   rows: readonly WeeklyRow[],
   pickupNeedsCareDay = false,
 ): CarePlanWeeklySubmit {
+  const keepsPickup = (row: WeeklyRow) =>
+    row.pickupTime.trim() !== "" && (!pickupNeedsCareDay || row.arrivalInCare);
   return {
     arrivalSchedules: rows
       .filter((row) => row.arrivalInCare)
@@ -166,16 +195,16 @@ export function toWeeklySubmit(
         expected_arrival: row.arrivalTime.trim(),
         notes: row.arrivalNotes.trim() ? row.arrivalNotes : null,
       })),
-    pickupSchedules: rows
-      .filter(
-        (row) =>
-          row.pickupTime.trim() !== "" &&
-          (!pickupNeedsCareDay || row.arrivalInCare),
-      )
+    pickupSchedules: rows.filter(keepsPickup).map((row) => ({
+      weekday: row.weekday,
+      pickupTime: row.pickupTime,
+      notes: row.pickupNotes.trim() ? row.pickupNotes : undefined,
+    })),
+    weekdayNotes: rows
+      .filter((row) => !keepsPickup(row) && row.pickupNotes.trim() !== "")
       .map((row) => ({
         weekday: row.weekday,
-        pickupTime: row.pickupTime,
-        notes: row.pickupNotes.trim() ? row.pickupNotes : undefined,
+        content: row.pickupNotes.trim(),
       })),
   };
 }
@@ -220,9 +249,10 @@ export interface WeeklyPlanDraft {
 export function useWeeklyPlanDraft(
   initialArrival: readonly ArrivalScheduleFormEntry[],
   initialPickup: readonly PickupScheduleFormData[],
+  initialWeekdayNotes: readonly WeekdayNoteEntry[] = [],
 ): WeeklyPlanDraft {
   const [rows, setRows] = useState<WeeklyRow[]>(() =>
-    buildWeeklyRows(initialArrival, initialPickup),
+    buildWeeklyRows(initialArrival, initialPickup, initialWeekdayNotes),
   );
   const [expandedWeekdays, setExpandedWeekdays] = useState<Set<number>>(
     () =>
@@ -279,6 +309,7 @@ export function CareWeeklyPlanGrid({
   removals,
   disabled = false,
   pickupNeedsCareDay = false,
+  notesWithoutPickup = false,
 }: {
   readonly draft: WeeklyPlanDraft;
   readonly careDaysSource: CareDaysSource;
@@ -288,6 +319,8 @@ export function CareWeeklyPlanGrid({
   readonly disabled?: boolean;
   /** In bookings mode a pickup time is only possible on a booked care day. */
   readonly pickupNeedsCareDay?: boolean;
+  /** A day without pickup time can still carry a note (#3369). */
+  readonly notesWithoutPickup?: boolean;
 }) {
   const { rows, expandedWeekdays, setField, toggleCare, toggleNotes } = draft;
   return (
@@ -307,6 +340,11 @@ export function CareWeeklyPlanGrid({
             const pickupLocked =
               disabled ||
               (pickupNeedsCareDay && careDaysSource === "bookings" && !inCare);
+            // Without a pickup time the note belongs to the day, not to an
+            // Abholung the child does not have (#3369).
+            const noteIsForDay =
+              notesWithoutPickup &&
+              (pickupLocked || !(row?.pickupTime ?? "").trim());
             return (
               <div
                 key={day.value}
@@ -396,9 +434,13 @@ export function CareWeeklyPlanGrid({
                     />
                     <WeeklyNoteField
                       id={`weekly-pickup-notes-${day.value}`}
-                      label="Abholnotiz (jede Woche)"
+                      label={
+                        noteIsForDay
+                          ? "Notiz zum Tag (jede Woche)"
+                          : "Abholnotiz (jede Woche)"
+                      }
                       value={row?.pickupNotes ?? ""}
-                      disabled={pickupLocked}
+                      disabled={notesWithoutPickup ? disabled : pickupLocked}
                       onChange={(value) =>
                         setField(day.value, "pickupNotes", value)
                       }
@@ -496,6 +538,8 @@ interface CareWeeklyPlanEditFormProps {
   readonly careDaysSource: CareDaysSource;
   readonly weeklyArrival: ArrivalScheduleFormEntry[];
   readonly weeklyPickup: PickupScheduleFormData[];
+  /** The notes of weekdays without a pickup time (#3369). */
+  readonly weeklyNotes?: WeekdayNoteEntry[];
   readonly onSubmitWeekly: (
     payload: CarePlanWeeklySubmit,
     adjustment?: CarePlanWeeklyAdjustment,
@@ -518,12 +562,13 @@ export function CareWeeklyPlanEditForm({
   careDaysSource,
   weeklyArrival,
   weeklyPickup,
+  weeklyNotes = NO_WEEKDAY_NOTES,
   onSubmitWeekly,
   onCancel,
   onSaved,
 }: CareWeeklyPlanEditFormProps) {
   const toast = useToast();
-  const draft = useWeeklyPlanDraft(weeklyArrival, weeklyPickup);
+  const draft = useWeeklyPlanDraft(weeklyArrival, weeklyPickup, weeklyNotes);
   const pickupNeedsCareDay = careDaysSource === "bookings";
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useFormError();
@@ -570,7 +615,7 @@ export function CareWeeklyPlanEditForm({
     event.preventDefault();
     if (weeklyAdjustment || isSubmitting) return;
     setError(null);
-    const invalid = validateWeeklyRows(draft.rows);
+    const invalid = validateWeeklyRows(draft.rows, true);
     if (invalid) {
       setError(invalid);
       return;
@@ -781,6 +826,7 @@ export function CareWeeklyPlanEditForm({
           removals={weeklyRemovals}
           disabled={isSubmitting}
           pickupNeedsCareDay
+          notesWithoutPickup
         />
         <EditActions onCancel={onCancel} saving={isSubmitting} />
       </form>

@@ -8,6 +8,7 @@ import type {
   PickupException,
   PickupNoteFormData,
   PickupNote,
+  WeekdayNoteEntry,
   BackendPickupData,
   BackendPickupException,
   BackendPickupNote,
@@ -585,6 +586,27 @@ export async function deleteStudentPickupNote(
   }
 
   await handleDeleteResponse(response, "Failed to delete pickup note");
+}
+
+/**
+ * Replace all recurring weekday notes in one request. Dated notes remain in
+ * place because they belong to the single-day editor.
+ */
+export async function replaceStudentWeekdayPickupNotes(
+  studentId: string,
+  notes: readonly WeekdayNoteEntry[],
+): Promise<void> {
+  const response = await fetch(`/api/students/${studentId}/pickup-notes`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ notes }),
+  });
+
+  if (!response.ok) {
+    await throwResponseError(response, "Failed to update pickup notes");
+  }
+
+  await handleDeleteResponse(response, "Failed to update pickup notes");
 }
 
 // =============================================================================

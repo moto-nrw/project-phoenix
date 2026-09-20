@@ -13,6 +13,7 @@ import {
   Minus,
   Plus,
   Route,
+  StickyNote,
 } from "lucide-react";
 import {
   CalendarXIcon,
@@ -522,8 +523,15 @@ export function PickupTimeRow({
 export function StudentAbsenceRow({
   label,
   wording = "Kommt heute nicht",
+  note,
 }: Readonly<{
   label: string;
+  /**
+   * The day's note, shown on its own line below (#3369): staff see at a glance
+   * that the child does not come AND why. A day without pickup time can carry
+   * one, so the absence line must not swallow it.
+   */
+  note?: string;
   /**
    * Leading phrase before the reason. The default fits the today view; a
    * non-today planning date (#1939) passes "Kommt nicht" so the card never
@@ -532,9 +540,19 @@ export function StudentAbsenceRow({
   wording?: string;
 }>) {
   return (
-    <StudentInfoRow icon={<AbsenceIcon />}>
-      {`${wording} (${label})`}
-    </StudentInfoRow>
+    <>
+      <StudentInfoRow icon={<AbsenceIcon />}>
+        {`${wording} (${label})`}
+      </StudentInfoRow>
+      {note ? (
+        <StudentInfoRow
+          icon={<StickyNote className="h-3.5 w-3.5 text-gray-400" />}
+          wrap
+        >
+          Notiz: {note}
+        </StudentInfoRow>
+      ) : null}
+    </>
   );
 }
 

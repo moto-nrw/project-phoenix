@@ -1159,6 +1159,7 @@ describe("StudentSearchPage", () => {
               actual_arrival_time: undefined,
               sick: true,
               has_full_access: true,
+              pickup_notes: "Montags bei Oma",
             },
           ],
         },
@@ -1179,6 +1180,7 @@ describe("StudentSearchPage", () => {
       expect(screen.queryByText(/Ankunftszeit:/)).not.toBeInTheDocument();
       expect(screen.getByText("Gehzeit: –")).toBeInTheDocument();
       expect(screen.queryByText(/Gehzeit: \d/)).not.toBeInTheDocument();
+      expect(screen.getByText("Notiz: Montags bei Oma")).toBeInTheDocument();
     });
 
     it("keeps a sick checked-in student out of the overdue pickup row", async () => {
