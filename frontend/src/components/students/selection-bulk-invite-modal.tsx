@@ -26,6 +26,12 @@ const PROBLEM_LABEL: Record<BulkInviteProblem["reason"], string> = {
   duplicate_email: "Gleiche E-Mail-Adresse wie eine andere Person",
 };
 
+const PROBLEM_ACTION: Record<BulkInviteProblem["reason"], string> = {
+  missing_email: "Tragen Sie die E-Mail-Adresse beim Kind ein.",
+  invalid_email: "Prüfen Sie die E-Mail-Adresse beim Kind.",
+  duplicate_email: "Prüfen Sie die E-Mail-Adressen bei den Eltern.",
+};
+
 function parents(count: number): string {
   return count === 1 ? "1 Elternteil" : `${count} Eltern`;
 }
@@ -280,7 +286,7 @@ function ProblemList({ problems }: { problems: BulkInviteProblem[] }) {
     <div className="space-y-2">
       <Alert
         type="warning"
-        message={`${parents(problems.length)} ${problems.length === 1 ? "kann" : "können"} nicht eingeladen werden. Tragen Sie die E-Mail-Adresse beim Kind ein. Laden Sie danach noch einmal ein.`}
+        message={`${parents(problems.length)} ${problems.length === 1 ? "kann" : "können"} nicht eingeladen werden. Prüfen Sie die Hinweise bei den Eltern.`}
       />
       <ul className="max-h-48 space-y-1 overflow-y-auto text-sm text-gray-700">
         {problems.map((problem) => (
@@ -291,7 +297,8 @@ function ProblemList({ problems }: { problems: BulkInviteProblem[] }) {
             {problem.studentNames.length > 0
               ? ` (${problem.studentNames.join(", ")})`
               : ""}
-            : {PROBLEM_LABEL[problem.reason]}
+            : {PROBLEM_LABEL[problem.reason]}.{" "}
+            <span>{PROBLEM_ACTION[problem.reason]}</span>
           </li>
         ))}
       </ul>

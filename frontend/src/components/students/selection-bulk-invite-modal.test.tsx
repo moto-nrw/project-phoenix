@@ -152,6 +152,44 @@ describe("SelectionBulkInviteModal", () => {
     ).toBeVisible();
   });
 
+  it("gives matching steps for each address problem", async () => {
+    bulkInvite.mockResolvedValueOnce(
+      result({
+        problems: [
+          {
+            guardianProfileId: "7",
+            guardianName: "Ohne Adresse",
+            studentNames: ["Mia Brenner"],
+            reason: "missing_email",
+          },
+          {
+            guardianProfileId: "8",
+            guardianName: "Falsche Adresse",
+            studentNames: ["Noah Brenner"],
+            reason: "invalid_email",
+          },
+          {
+            guardianProfileId: "9",
+            guardianName: "Doppelte Adresse",
+            studentNames: ["Lina Brenner"],
+            reason: "duplicate_email",
+          },
+        ],
+      }),
+    );
+    renderModal();
+
+    expect(
+      await screen.findByText("Tragen Sie die E-Mail-Adresse beim Kind ein."),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Prüfen Sie die E-Mail-Adresse beim Kind."),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Prüfen Sie die E-Mail-Adressen bei den Eltern."),
+    ).toBeVisible();
+  });
+
   it("reports a failed run in the dialog and keeps it open", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     bulkInvite

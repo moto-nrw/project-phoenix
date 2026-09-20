@@ -792,10 +792,17 @@ func (f *Factory) NewGuardianDirectoryRuntime(db *bun.DB) GuardianDirectoryRunti
 // failures come from persistence or delivery and must not be reported as bad
 // client input.
 func ClassifyGuardianInvitationFailure(err error) GuardianFailureKind {
-	if errors.Is(err, identityaccess.ErrInviteSocialWorkerManaged) {
+	var validation *identityaccess.GuardianInvitationValidationError
+	switch {
+	case errors.As(err, &validation),
+		errors.Is(err, identityaccess.ErrGuardianInvitationNotFound),
+		errors.Is(err, identityaccess.ErrGuardianInvitationExpired):
+		return GuardianFailureInvalidRequest
+	case errors.Is(err, identityaccess.ErrInviteSocialWorkerManaged):
 		return GuardianFailureForbidden
+	default:
+		return GuardianFailureInternal
 	}
-	return GuardianFailureInternal
 }
 
 // paymentExportSubtitle states how complete the list is. A bank list that

@@ -37,14 +37,14 @@ type resolvedProfile struct {
 // request for staff approval. Tenant comes from context.
 func (l *AccountLifecycle) InviteToStudent(ctx context.Context, req domain.InviteToStudentRequest) (*domain.InviteToStudentResult, error) {
 	if req.StudentID <= 0 {
-		return nil, failed(opGuardianInviteToStudent, fmt.Errorf("student ID is required"))
+		return nil, invalidGuardianInvitation(opGuardianInviteToStudent, fmt.Errorf("student ID is required"))
 	}
 	if req.CreatedBy <= 0 {
-		return nil, failed(opGuardianInviteToStudent, fmt.Errorf("created_by is required"))
+		return nil, invalidGuardianInvitation(opGuardianInviteToStudent, fmt.Errorf("created_by is required"))
 	}
 	email := strings.ToLower(strings.TrimSpace(req.Email))
 	if email == "" {
-		return nil, failed(opGuardianInviteToStudent, fmt.Errorf("email is required"))
+		return nil, invalidGuardianInvitation(opGuardianInviteToStudent, fmt.Errorf("email is required"))
 	}
 
 	tenantID := l.runtime.TenantID(ctx)

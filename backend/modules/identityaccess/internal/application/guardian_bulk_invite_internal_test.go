@@ -49,6 +49,8 @@ func TestBulkInvite_ValidatesTheRequest(t *testing.T) {
 	} {
 		_, err := f.lifecycle.BulkInviteToStudents(tenantContext(), req)
 		require.Error(t, err, name)
+		var validation *domain.GuardianInvitationValidationError
+		require.ErrorAs(t, err, &validation, name)
 	}
 }
 
@@ -71,7 +73,9 @@ func TestBulkInvite_OneMailPerGuardianAcrossSiblings(t *testing.T) {
 func TestBulkInvite_SkipsActiveRestrictedAndOpen(t *testing.T) {
 	t.Parallel()
 	f := newLifecycleFixture(t)
+	accountID := int64(40)
 	active := f.bulkGuardian("aktiv@example.test", roleLegal, 11)
+	active.AccountID = &accountID
 	active.HasAccount = true
 	f.guardians.profiles[active.ID] = active
 	f.bulkGuardian("oma@example.test", "pickup_only", 11)
@@ -90,7 +94,9 @@ func TestBulkInvite_SkipsActiveRestrictedAndOpen(t *testing.T) {
 func TestBulkInvite_RecordsAnActiveProfileEmailBeforeSkippingIt(t *testing.T) {
 	t.Parallel()
 	f := newLifecycleFixture(t)
+	accountID := int64(40)
 	active := f.bulkGuardian("geteilt@example.test", roleLegal, 11)
+	active.AccountID = &accountID
 	active.HasAccount = true
 	f.guardians.profiles[active.ID] = active
 	f.bulkGuardian("geteilt@example.test", roleLegal, 12)
@@ -103,6 +109,23 @@ func TestBulkInvite_RecordsAnActiveProfileEmailBeforeSkippingIt(t *testing.T) {
 	assert.Equal(t, domain.BulkInviteProblemDuplicateEmail, result.Problems[0].Reason)
 	assert.Zero(t, result.Invited)
 	assert.Empty(t, f.delivery.emails)
+}
+
+func TestBulkInvite_RegrantsTenantAccessForAnActiveGuardian(t *testing.T) {
+	t.Parallel()
+	f := newLifecycleFixture(t)
+	accountID := int64(40)
+	active := f.bulkGuardian("aktiv@example.test", roleLegal, 11)
+	active.AccountID = &accountID
+	active.HasAccount = true
+	f.guardians.profiles[active.ID] = active
+
+	result, err := f.lifecycle.BulkInviteToStudents(tenantContext(), bulkRequest(11))
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.SkippedActive)
+	assert.Equal(t, []int64{accountID}, f.store.granted,
+		"an active profile regains its tenant access when a previous mapping was removed")
 }
 
 func TestBulkInvite_LocksProfilesBeforeReadingOpenInvitations(t *testing.T) {
@@ -208,6 +231,26 @@ func TestBulkInvite_ExistingAccountIsLinkedAndToldWhereToLogIn(t *testing.T) {
 	assert.Empty(t, f.delivery.emails, "no token for somebody who can already log in")
 	require.Len(t, f.delivery.accessEmails, 1)
 	assert.Equal(t, parent.ID, f.delivery.accessEmails[0].ID)
+}
+
+func TestBulkInvite_ExistingAccountWinsOverAnOpenInvitation(t *testing.T) {
+	t.Parallel()
+	f := newLifecycleFixture(t)
+	f.store.addAccount(40, "konto@example.test", "hash:secret", true)
+	parent := f.bulkGuardian("konto@example.test", roleLegal, 11)
+	open := f.openInvitation(parent.ID, 11, domain.GuardianInvitationApprovalNotRequired, time.Now().Add(time.Hour))
+	req := bulkRequest(11)
+	req.ResendOpen = true
+
+	result, err := f.lifecycle.BulkInviteToStudents(tenantContext(), req)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.LinkedExistingAccount)
+	assert.Zero(t, result.Resent)
+	assert.Empty(t, f.delivery.emails, "an account holder must not receive another token")
+	require.Len(t, f.delivery.accessEmails, 1)
+	assert.Equal(t, parent.ID, f.delivery.accessEmails[0].ID)
+	assert.Equal(t, open.ExpiresAt, f.invitations.rows[open.ID].ExpiresAt, "the token is not resent")
 }
 
 func TestBulkInvite_DryRunWritesAndMailsNothing(t *testing.T) {

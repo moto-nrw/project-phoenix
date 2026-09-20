@@ -57,6 +57,13 @@ var (
 	ErrAccountLifecycleUnavailable = errors.New("account lifecycle is not composed")
 )
 
+// GuardianInvitationValidationError marks input rejected by the guardian
+// invitation flows while retaining the original caller-facing explanation.
+type GuardianInvitationValidationError struct{ Err error }
+
+func (e *GuardianInvitationValidationError) Error() string { return e.Err.Error() }
+func (e *GuardianInvitationValidationError) Unwrap() error { return e.Err }
+
 // IsSchoolIdentityRequestError reports whether the error is the caller's
 // fault rather than the server's: a missing name, a child's record, an
 // unknown or conflicting transponder. Handlers render these as 400.
