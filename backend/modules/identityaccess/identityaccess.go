@@ -323,6 +323,7 @@ type AccountSessionAccess interface {
 
 // Engine is the composed implementation behind the public module.
 type Engine interface {
+	AccountRoleQueries
 	GuardianSchools
 	GuardianAccess
 	OperatorAccess

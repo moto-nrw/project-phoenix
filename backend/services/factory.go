@@ -1767,10 +1767,8 @@ func newFactory(
 	guardianInvitationService := GuardianInvitationCapability(identityAccess)
 
 	caregiverCapabilityService := users.NewCaregiverCapabilityService(users.CaregiverCapabilityServiceDependencies{
-		AccountRepo:            repos.Account,
-		AccountTenantRepo:      repos.AccountTenant,
+		Identity:               caregiverIdentity{identityAccess},
 		AuthEventRepo:          repos.AuthEvent,
-		RoleRepo:               repos.Role,
 		PersonRepo:             repos.Person,
 		StaffRepo:              repos.Staff,
 		CaregiverBindingLock:   repos.CaregiverBindingLock,

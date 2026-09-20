@@ -136,7 +136,7 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	e := engine{
 		profiles: application.NewAccountProfiles(service, store), guardianSchools: application.NewGuardianSchools(service, store),
 		service: service, mfa: operatorMFARecords, tokens: tokens,
-		passkeys: operatorPasskeys, accountPasskeys: accountPasskeys,
+		passkeys: operatorPasskeys, accountPasskeys: accountPasskeys, accountRoleQueries: application.NewAccountRoleQueries(service, store),
 		auth: auth, operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle, roles: roles,
 		resets: resets, invitations: invitations, provisioning: provisioning, administration: administration,
 		mfaFlows: flows, operatorProvisioning: operatorProvisioning,
@@ -176,13 +176,14 @@ func (transaction) RunPlatform(ctx context.Context, callback func(context.Contex
 }
 
 type engine struct {
-	guardianSchools *application.GuardianSchools
-	profiles        *application.AccountProfiles
-	service         *application.Service
-	mfa             *application.OperatorMFA
-	tokens          *application.OperatorTokens
-	passkeys        *application.OperatorPasskey
-	accountPasskeys *application.AccountPasskey
+	accountRoleQueries *application.AccountRoleQueries
+	guardianSchools    *application.GuardianSchools
+	profiles           *application.AccountProfiles
+	service            *application.Service
+	mfa                *application.OperatorMFA
+	tokens             *application.OperatorTokens
+	passkeys           *application.OperatorPasskey
+	accountPasskeys    *application.AccountPasskey
 	// auth is nil when the module was composed without session dependencies.
 	auth *application.AccountAuthentication
 	// operatorAuth and accountAccess are nil when the module was composed

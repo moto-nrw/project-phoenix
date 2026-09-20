@@ -11,7 +11,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -21,10 +20,8 @@ import (
 // CaregiverCapabilityServiceDependencies contains the repositories and services
 // required to manage caregiver capability on existing accounts.
 type CaregiverCapabilityServiceDependencies struct {
-	AccountRepo            authModels.AccountRepository
-	AccountTenantRepo      authModels.AccountTenantRepository
+	Identity               CaregiverIdentity
 	AuthEventRepo          auditModels.AuthEventRepository
-	RoleRepo               authModels.RoleRepository
 	PersonRepo             userModels.PersonRepository
 	StaffRepo              userModels.StaffRepository
 	CaregiverBindingLock   userModels.CaregiverBindingLocker
@@ -168,15 +165,15 @@ func (s *caregiverCapabilityService) EnableCaregiverCapability(
 			details["requested_position"] = input.Position
 		}
 
-		userRole, err := authModels.ResolveSystemRoleByName(txCtx, s.RoleRepo, "user")
+		userRoleID, found, err := s.Identity.FindSystemRoleID(txCtx, "user")
 		if err != nil {
 			return err
 		}
-		if userRole == nil {
+		if !found {
 			return &UsersError{Op: "enable caregiver capability", Err: fmt.Errorf("user role not found")}
 		}
 
-		if err := s.RoleAssignments.AssignRoleToAccount(txCtx, accountID, userRole.ID); err != nil {
+		if err := s.RoleAssignments.AssignRoleToAccount(txCtx, accountID, userRoleID); err != nil {
 			return err
 		}
 
@@ -257,18 +254,18 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 		}
 
 		for _, roleName := range roleNamesToRemove {
-			role, err := authModels.ResolveSystemRoleByName(txCtx, s.RoleRepo, roleName)
+			roleID, found, err := s.Identity.FindSystemRoleID(txCtx, roleName)
 			if err != nil {
 				return err
 			}
-			if role == nil {
+			if !found {
 				return &UsersError{
 					Op:  "disable caregiver capability",
 					Err: fmt.Errorf("%s role not found", roleName),
 				}
 			}
 
-			if err := s.RoleAssignments.RemoveRoleFromAccount(txCtx, accountID, role.ID); err != nil {
+			if err := s.RoleAssignments.RemoveRoleFromAccount(txCtx, accountID, roleID); err != nil {
 				return err
 			}
 		}
@@ -407,15 +404,12 @@ func (s *caregiverCapabilityService) loadCapabilityStateWithRoleFlags(
 	}
 	roleFlags := caregiverRoleFlags{}
 
-	roles, err := s.RoleRepo.FindByAccountID(ctx, accountID)
+	roles, err := s.Identity.ListSchoolAccountRoleNames(ctx, accountID)
 	if err != nil {
 		return nil, caregiverRoleFlags{}, err
 	}
 	for _, role := range roles {
-		if role == nil {
-			continue
-		}
-		switch strings.ToLower(strings.TrimSpace(role.Name)) {
+		switch strings.ToLower(strings.TrimSpace(role)) {
 		case "admin":
 			roleFlags.hasAdminRole = true
 			roleFlags.hasOtherUsableRole = true
@@ -487,13 +481,13 @@ func (s *caregiverCapabilityService) loadCapabilityStateWithRoleFlags(
 func (s *caregiverCapabilityService) loadAccountAndTenant(
 	ctx context.Context,
 	accountID int64,
-) (*authModels.Account, int64, error) {
+) (*CaregiverAccount, int64, error) {
 	tenantID := tenant.FromContext(ctx)
 	if tenantID <= 0 {
 		return nil, 0, &UsersError{Op: "caregiver capability", Err: fmt.Errorf("tenant context is required")}
 	}
 
-	account, err := s.AccountRepo.FindByID(ctx, accountID)
+	account, err := s.Identity.FindCaregiverAccount(ctx, accountID)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -501,7 +495,7 @@ func (s *caregiverCapabilityService) loadAccountAndTenant(
 		return nil, 0, ErrAccountNotFound
 	}
 
-	exists, err := s.AccountTenantRepo.ExistsByAccountAndTenant(ctx, accountID, tenantID)
+	exists, err := s.Identity.HasActiveSchoolMembership(ctx, accountID)
 	if err != nil {
 		return nil, 0, err
 	}

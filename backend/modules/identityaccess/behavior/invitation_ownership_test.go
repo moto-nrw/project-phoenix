@@ -191,11 +191,9 @@ func TestInvitationLifecycleAndImportedSchoolIdentity(t *testing.T) {
 			repos, compositionErr := repositories.NewInvitationPersistence(db)
 			require.NoError(t, compositionErr)
 			ctx := testpkg.Ctx(t)
-			role := testpkg.CreateTestRole(t, db, "invited-staff")
+			roleID := testpkg.CreateTestRole(t, db, "invited-staff").ID
 			if strings.Contains(name, "school") {
-				var err error
-				role, err = authModels.ResolveSystemRoleByName(ctx, repos.Role, "lehrkraft")
-				require.NoError(t, err)
+				roleID = systemRoleID(t, db, "lehrkraft")
 			}
 			email := fmt.Sprintf("lifecycle-%d@example.com", testpkg.Tenant(t))
 			var owner *authModels.Account
@@ -209,7 +207,7 @@ func TestInvitationLifecycleAndImportedSchoolIdentity(t *testing.T) {
 			// The import creates a person before sending the invitation.
 			person := testpkg.CreateTestPerson(t, db, "Imported", "Staff")
 			invitation := &authModels.InvitationToken{
-				Email: email, RoleID: role.ID, Token: fmt.Sprintf("lifecycle-%d", testpkg.Tenant(t)), PersonID: &person.ID,
+				Email: email, RoleID: roleID, Token: fmt.Sprintf("lifecycle-%d", testpkg.Tenant(t)), PersonID: &person.ID,
 				FirstName: &person.FirstName, LastName: &person.LastName, ExpiresAt: time.Now().Add(time.Hour),
 			}
 			invitation.SetTenantID(testpkg.Tenant(t))
