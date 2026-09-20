@@ -90,7 +90,7 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	operatorMFARecords := application.NewOperatorMFA(service, store)
 	// The second factor is composed first: every login path consults its
 	// gate, and the passkey ceremonies below need the sessions it gates.
-	flows, err := newMFACore(service, operatorMFARecords, dependencies.Sessions, dependencies.MFA)
+	flows, err := newMFACore(service, operatorMFARecords, postgres.NewAccountMFARecords(store), dependencies.Sessions, dependencies.MFA)
 	if err != nil {
 		return nil, err
 	}

@@ -21,8 +21,7 @@ import (
 
 // Identity & Access owns the account and operator second factor and both
 // portals' passkey ceremonies (#3331). This file binds the seams those flows
-// need to the material the root still holds: the account MFA rows in the
-// retained repositories (they move under the module with #3226), the school
+// need to the material the root still holds: the school
 // settings that parameterise the gate, the challenge JWT codec, the Argon2id
 // code hasher, the two mails and the operator action log.
 
@@ -70,15 +69,11 @@ func mfaDependencies(wiring *mfaWiring) *identityaccessCompose.MFADependencies {
 	if backoff == nil {
 		backoff = mfaEmailBackoff
 	}
-	records := repositories.NewAccountMFARecords(wiring.repos)
-	if wiring.decorate != nil {
-		records = wiring.decorate(records)
-	}
 	return &identityaccessCompose.MFADependencies{
-		Records:  records,
-		Settings: mfaSettings{settings: wiring.settings},
-		Codec:    mfaChallengeCodec{tokenAuth: wiring.tokenAuth},
-		Codes:    shortCodeHasher{},
+		DecorateRecords: wiring.decorate,
+		Settings:        mfaSettings{settings: wiring.settings},
+		Codec:           mfaChallengeCodec{tokenAuth: wiring.tokenAuth},
+		Codes:           shortCodeHasher{},
 		Mail: mfaMailer{
 			dispatcher: wiring.dispatcher, from: wiring.defaultFrom,
 			frontendURL: wiring.frontendURL, logger: logger, backoff: backoff,
