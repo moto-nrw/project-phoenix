@@ -99,6 +99,7 @@ jobs:
         env:
           PG_CONTAINER: ${{ job.services.postgres.id }}
           PHOENIX_AUTH_PASSWORD: phoenix_auth_test
+          PHOENIX_DEMO_PASSWORD: phoenix_demo_test
         run: |
           # pg_dump omits global objects (roles, ALTER ROLE ... SET). Recreate
           # them exactly as migration 001014001_create_tenant_roles.go does,
@@ -111,6 +112,7 @@ jobs:
           # refuses a v17 server.
           docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d phoenix_test <<EOF
           CREATE ROLE phoenix_auth LOGIN NOINHERIT PASSWORD '${PHOENIX_AUTH_PASSWORD}';
+          CREATE ROLE phoenix_demo LOGIN NOINHERIT PASSWORD '${PHOENIX_DEMO_PASSWORD}';
           CREATE ROLE phoenix_tenant NOLOGIN;
           CREATE ROLE phoenix_admin NOLOGIN BYPASSRLS;
           GRANT phoenix_tenant TO phoenix_auth;
@@ -130,6 +132,7 @@ jobs:
           DB_CONN_MAX_LIFETIME: 30m
           DB_CONN_MAX_IDLE_TIME: 10m
           PHOENIX_AUTH_PASSWORD: phoenix_auth_test
+          PHOENIX_DEMO_PASSWORD: phoenix_demo_test
         run: go run main.go migrate
 
       - name: Dump migrated database for snapshot cache
@@ -160,6 +163,7 @@ jobs:
           # value must stay identical to testdb.AuthRolePassword — the test
           # lifecycle pins the cluster-global phoenix_auth role to it.
           PHOENIX_AUTH_PASSWORD: phoenix_auth_test
+          PHOENIX_DEMO_PASSWORD: phoenix_demo_test
           # Dummy 32+ char secret so services.NewFactory can init the MFA
           # service in tests. NewFactory hard-fails without it (the secret
           # is the HMAC key for trusted-device cookies). Production and
@@ -315,11 +319,13 @@ jobs:
 
     env:
       DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_seed?sslmode=disable
+      DEMO_DB_DSN: postgres://phoenix_demo@localhost:5432/phoenix_seed?sslmode=disable
       DB_MAX_OPEN_CONNS: "40"
       DB_MAX_IDLE_CONNS: "40"
       DB_CONN_MAX_LIFETIME: 30m
       DB_CONN_MAX_IDLE_TIME: 10m
       PHOENIX_AUTH_PASSWORD: phoenix_auth_test
+      PHOENIX_DEMO_PASSWORD: phoenix_demo_test
       # validateServeConfig() in cmd/serve.go requires every one of these:
       # there are no fallback defaults anywhere in this codebase.
       PORT: "8080"
@@ -450,6 +456,17 @@ jobs:
             finished=$(date +%s)
             echo "demo school ${slug}: seed $((seeded - started))s, full day $((finished - seeded))s"
           done
+
+      - name: Provision and restart the standing demo school
+        working-directory: backend
+        run: |
+          # The preceding scenarios consumed the operator's three MFA codes
+          # per 15-minute window. Reset only consumed challenge fixtures in
+          # this disposable CI database; keep production limits unchanged.
+          psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
+            'DELETE FROM platform.operator_mfa_email_challenges WHERE consumed_at IS NOT NULL'
+          "${RUNNER_TEMP}/phoenix" demo --url http://localhost:8080 --once
+          "${RUNNER_TEMP}/phoenix" demo --url http://localhost:8080 --once
 
       - name: Check seed coverage ratchet
         working-directory: backend

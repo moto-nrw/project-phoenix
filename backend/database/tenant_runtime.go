@@ -73,6 +73,7 @@ func (e *commitOutcomeUnknownError) CommitOutcomeUnknown() {}
 type PostgresUnitOfWork struct {
 	db              *bun.DB
 	observePoolWait func(context.Context, time.Duration)
+	skipTenantRole  bool
 }
 
 func NewPostgresUnitOfWork(db *bun.DB, observePoolWait func(context.Context, time.Duration)) (*PostgresUnitOfWork, error) {
@@ -80,6 +81,18 @@ func NewPostgresUnitOfWork(db *bun.DB, observePoolWait func(context.Context, tim
 		return nil, fmt.Errorf("unit of work: database and pool-wait observer are required")
 	}
 	return &PostgresUnitOfWork{db: db, observePoolWait: observePoolWait}, nil
+}
+
+// NewDemoPostgresUnitOfWork preserves tenant RLS without granting the demo
+// connection the broad phoenix_tenant role. The phoenix_demo login role has
+// only the snapshot reads needed by the sidecar.
+func NewDemoPostgresUnitOfWork(db *bun.DB, observePoolWait func(context.Context, time.Duration)) (*PostgresUnitOfWork, error) {
+	unitOfWork, err := NewPostgresUnitOfWork(db, observePoolWait)
+	if err != nil {
+		return nil, err
+	}
+	unitOfWork.skipTenantRole = true
+	return unitOfWork, nil
 }
 
 // IsRetryableTransactionError classifies PostgreSQL deadlock and
@@ -107,8 +120,10 @@ func (r *PostgresUnitOfWork) WithinTenant(ctx context.Context, tenantID int64, f
 	}
 
 	return r.runInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
-		if _, err := tx.ExecContext(txCtx, "SET LOCAL ROLE phoenix_tenant"); err != nil {
-			return fmt.Errorf("tenant runtime: set tenant role: %w", err)
+		if !r.skipTenantRole {
+			if _, err := tx.ExecContext(txCtx, "SET LOCAL ROLE phoenix_tenant"); err != nil {
+				return fmt.Errorf("tenant runtime: set tenant role: %w", err)
+			}
 		}
 		if _, err := tx.NewRaw(
 			"SELECT set_config('app.current_tenant_id', ?, true)",

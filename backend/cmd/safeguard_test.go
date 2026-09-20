@@ -4,6 +4,28 @@ import (
 	"testing"
 )
 
+func TestDemoTargetAllowsOnlyDemoOrLocalInternalServer(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		environment, url string
+		allowed          bool
+	}{
+		{"demo", "http://server:8080", true},
+		{"local", "http://localhost:8080", true},
+		{"development", "http://127.0.0.1:8080", true},
+		{"demo", "http://localhost:8080", false},
+		{"production", "http://server:8080", false},
+		{"staging", "http://localhost:8080", false},
+		{"demo", "https://demo.moto-app.de", false},
+		{"local", "ftp://localhost", false},
+	} {
+		err := validateDemoTarget(tc.url, tc.environment)
+		if (err == nil) != tc.allowed {
+			t.Errorf("environment=%s url=%s: allowed=%v, error=%v", tc.environment, tc.url, tc.allowed, err)
+		}
+	}
+}
+
 func TestAssertNonProductionURL(t *testing.T) {
 	t.Parallel()
 	allowed := []string{

@@ -22,11 +22,12 @@ def main():
     ).stdout
     values = dict(line.split("=", 1) for line in source.splitlines()
                   if "=" in line and not line.startswith("#"))
-    for key in ("POSTGRES_PASSWORD", "PHOENIX_AUTH_PASSWORD", "AUTH_JWT_SECRET",
+    for key in ("POSTGRES_PASSWORD", "PHOENIX_AUTH_PASSWORD", "PHOENIX_DEMO_PASSWORD", "AUTH_JWT_SECRET",
                 "NEXTAUTH_SECRET", "METRICS_BEARER_TOKEN", "ADMIN_PASSWORD", "OPERATOR_PASSWORD"):
         values[key] = secrets.token_hex(32) + "aA1!"
     values.update({
         "DB_DSN": "postgres://postgres:" + values["POSTGRES_PASSWORD"] + "@postgres:5432/postgres?sslmode=disable",
+        "DEMO_DB_DSN": "postgres://phoenix_demo@postgres:5432/postgres?sslmode=disable",
         "APP_ENV": "demo", "NEXT_PUBLIC_APP_ENV": "demo", "LOG_LEVEL": "info", "DB_DEBUG": "false",
         "NEXT_PUBLIC_API_URL": "https://api.demo.moto-app.de", "NEXTAUTH_URL": "https://demo.moto-app.de",
         "TENANT_DOMAIN": "demo.moto-app.de", "NEXT_PUBLIC_TENANT_DOMAIN": "demo.moto-app.de",

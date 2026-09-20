@@ -22,8 +22,10 @@ OPTIONAL_VALUES = {
 
 
 def compose_config(path, interpolate, env_file=ROOT / ".env.example"):
-    command = ["docker", "compose", "--profile", "maintenance", "--env-file", str(env_file),
-               "-f", str(path), "config", "--format", "json", "--no-env-resolution"]
+    command = ["docker", "compose", "--profile", "maintenance", "--env-file", str(env_file)]
+    for compose_path in path if isinstance(path, list) else [path]:
+        command.extend(["-f", str(compose_path)])
+    command.extend(["config", "--format", "json", "--no-env-resolution"])
     if not interpolate:
         command.append("--no-interpolate")
     # Keep Docker connectivity, but never inherit shell application credentials.
@@ -56,7 +58,7 @@ def check(path, target, expected):
         if any(".env" in str(volume.get("source", "")) for volume in service.get("volumes", [])):
             raise ValueError(name + ": dotenv mounts are forbidden")
         for key, value in service["environment"].items():
-            if key in ("DB_DSN", "API_URL", "PORT", "HOSTNAME") and name != "migrate":
+            if key in ("DB_DSN", "DEMO_DB_DSN", "API_URL", "PORT", "HOSTNAME") and name != "migrate":
                 continue
             operator = "?" if key in OPTIONAL_VALUES else ":?"
             if value != "${" + key + operator + key + " is required}":
@@ -106,13 +108,37 @@ def main():
                                             cwd=ROOT, capture_output=True, text=True, check=True)
                     path = Path(directory) / (target + ".yml")
                     path.write_text(result.stdout)
-                check(path, target, expected)
+                check(path, target, {name: keys for name, keys in expected.items() if name != "demo-runtime"})
                 check_missing_config(path, directory)
+            if not args.revision:
+                check_demo_runtime(expected["demo-runtime"])
         print("Runtime environment boundaries: PASS")
     except (ValueError, KeyError, subprocess.CalledProcessError) as error:
         print("Runtime environment boundaries: FAIL: " + str(error), file=sys.stderr)
         return 1
     return 0
+
+
+def check_demo_runtime(allowed):
+    paths = [ROOT / "docker-compose.example.yml", ROOT / "environments/demo-runtime.compose.yml"]
+    raw = compose_config(paths, False)["services"]["demo-runtime"]
+    compose_config(paths, True)
+    if set(raw.get("environment", {})) != set(allowed):
+        raise ValueError("demo-runtime: environment allowlist mismatch")
+    for key, value in raw["environment"].items():
+        if value != "${" + key + ":?" + key + " is required}":
+            raise ValueError("demo-runtime: missing fail-fast binding for " + key)
+    resolved = compose_config(paths, True)["services"]["demo-runtime"]["environment"]
+    dsn = urlsplit(resolved["DEMO_DB_DSN"])
+    if dsn.username != "phoenix_demo" or dsn.password is not None:
+        raise ValueError("demo-runtime: DEMO_DB_DSN must contain only the phoenix_demo endpoint")
+    if raw.get("env_file") or raw.get("volumes") or raw.get("ports"):
+        raise ValueError("demo-runtime: must not receive env files, volumes or published ports")
+    if raw.get("network_mode") != "service:server" or not raw.get("read_only"):
+        raise ValueError("demo-runtime: must share the server network with a read-only filesystem")
+    if raw.get("command") != ["./main", "demo", "--url", "http://server:8080"]:
+        raise ValueError("demo-runtime: must use the guarded command and internal server host")
+    print("Demo runtime environment boundary: PASS")
 
 
 if __name__ == "__main__":

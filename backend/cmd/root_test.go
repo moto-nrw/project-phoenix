@@ -78,3 +78,19 @@ func TestInitConfig_WithNonExistentConfigFile(t *testing.T) {
 	loadConfig(config, path, false)
 	assert.Equal(t, path, config.ConfigFileUsed())
 }
+
+func TestPropagateDatabaseConfigFrom_PropagatesDemoRuntimeConfig(t *testing.T) {
+	t.Parallel()
+	config := viper.New()
+	config.Set("demo_db_dsn", "postgres://phoenix_demo@localhost:5432/postgres?sslmode=disable")
+	config.Set("phoenix_demo_password", "demo-password")
+	effective := make(map[string]string)
+
+	propagateDatabaseConfigFrom(config, func(key, value string) error {
+		effective[key] = value
+		return nil
+	})
+
+	assert.Equal(t, "postgres://phoenix_demo@localhost:5432/postgres?sslmode=disable", effective["DEMO_DB_DSN"])
+	assert.Equal(t, "demo-password", effective["PHOENIX_DEMO_PASSWORD"])
+}

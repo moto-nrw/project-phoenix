@@ -25,6 +25,7 @@
     "phoenix cleanup timetable stats",
     "phoenix cleanup tokens",
     "phoenix cleanup visits",
+    "phoenix demo",
     "phoenix gendoc",
     "phoenix migrate",
     "phoenix migrate backfill",
