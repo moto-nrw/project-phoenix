@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -56,11 +56,11 @@ func mustClock(t *testing.T, hhmm string) time.Time {
 	t.Helper()
 	parsed, err := time.Parse("15:04", hhmm)
 	require.NoError(t, err)
-	return timezone.NormalizeWallClock(parsed)
+	return calendar.NormalizeWallClock(parsed)
 }
 
 func projectClassException(row *careplan.ArrivalSchedule, exception *careplan.ArrivalBaselineException) *careplan.ArrivalSchedule {
-	date := timezone.NewDate(2031, time.February, 3)
+	date := calendar.NewDate(2031, time.February, 3)
 	projection := &careplan.ArrivalBaselineProjection{
 		WeeklyByStudentDate:          careplan.ArrivalPlansByStudent{7: {date: {1: row}}},
 		ClassExceptionsByStudentDate: map[int64]careplan.ClassArrivalExceptionsByDate{7: {}},

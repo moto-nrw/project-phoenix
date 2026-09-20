@@ -3,7 +3,7 @@ package domain
 import (
 	"time"
 
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type EffectiveScheduleFields struct {
@@ -16,7 +16,7 @@ type EffectiveScheduleFields struct {
 type EffectiveExceptionFields struct {
 	ID                int64
 	StudentID         int64
-	Date              timezone.Date
+	Date              calendar.Date
 	Time              *time.Time
 	Reason            *string
 	Source            string
@@ -57,7 +57,7 @@ type EffectiveDayNote struct {
 }
 
 type EffectiveTimeResult struct {
-	Date        timezone.Date
+	Date        calendar.Date
 	Time        *time.Time
 	WeekdayName string
 	IsException bool
@@ -76,7 +76,7 @@ type EffectiveTimeResult struct {
 	ChangedAt *time.Time
 }
 
-func ISOWeekday(date timezone.Date) int {
+func ISOWeekday(date calendar.Date) int {
 	weekday := int(date.Weekday())
 	if weekday == 0 {
 		return 7
@@ -94,14 +94,14 @@ func WeekdayName(weekday int) string {
 
 // ApplyTimePatch preserves omitted fields and compares normalized wall clocks.
 // An unchanged clock must retain partial-absence ownership of the pickup time.
-func (fields *EffectiveExceptionFields) ApplyTimePatch(date timezone.Date, reason *string, value *time.Time, clearValue bool) {
+func (fields *EffectiveExceptionFields) ApplyTimePatch(date calendar.Date, reason *string, value *time.Time, clearValue bool) {
 	fields.Date = date
 	if fields.Time != nil {
-		normalized := timezone.NormalizeWallClock(*fields.Time)
+		normalized := calendar.NormalizeWallClock(*fields.Time)
 		fields.Time = &normalized
 	}
 	if fields.ExcusedFrom != nil {
-		normalized := timezone.NormalizeWallClock(*fields.ExcusedFrom)
+		normalized := calendar.NormalizeWallClock(*fields.ExcusedFrom)
 		fields.ExcusedFrom = &normalized
 	}
 	if reason != nil {
@@ -112,8 +112,8 @@ func (fields *EffectiveExceptionFields) ApplyTimePatch(date timezone.Date, reaso
 		}
 	}
 	if value != nil {
-		normalized := timezone.NormalizeWallClock(*value)
-		if fields.Time == nil || !timezone.SameClockTime(*fields.Time, normalized) {
+		normalized := calendar.NormalizeWallClock(*value)
+		if fields.Time == nil || !calendar.SameClockTime(*fields.Time, normalized) {
 			fields.TimeChanged = true
 		}
 		fields.Time = &normalized

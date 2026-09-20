@@ -10,7 +10,7 @@ import (
 
 type ArrivalScheduleRepository interface {
 	EffectiveScheduleRepository[*careplan.ArrivalSchedule]
-	FindByID(context.Context, any) (*careplan.ArrivalSchedule, error)
+	FindByID(context.Context, int64) (*careplan.ArrivalSchedule, error)
 }
 
 type ArrivalBulkStudent struct {

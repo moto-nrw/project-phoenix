@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // effectiveTimeCore is private implementation shared by arrival and pickup.
@@ -199,9 +199,9 @@ func (c *effectiveTimeCore[S, E, N, D]) loadNotes(
 func (c *effectiveTimeCore[S, E, N, D]) notesForDate(
 	ctx context.Context,
 	studentID int64,
-	date timezone.Date,
+	date calendar.Date,
 ) ([]N, error) {
-	rows, err := c.notes.FindByStudentIDAndDate(ctx, studentID, timezone.Date(date))
+	rows, err := c.notes.FindByStudentIDAndDate(ctx, studentID, calendar.Date(date))
 	if err != nil {
 		return nil, &careplan.ScheduleError{
 			Op:  c.operation("get student %s notes for date"),
@@ -293,7 +293,7 @@ func (c *effectiveTimeCore[S, E, N, D]) data(
 func (c *effectiveTimeCore[S, E, N, D]) effectiveTimeForDate(
 	ctx context.Context,
 	studentID int64,
-	date timezone.Date,
+	date calendar.Date,
 ) (*domain.EffectiveTimeResult, error) {
 	weekday := domain.ISOWeekday(date)
 	var row S
@@ -313,7 +313,7 @@ func (c *effectiveTimeCore[S, E, N, D]) effectiveTimeForDate(
 func (c *effectiveTimeCore[S, E, N, D]) effectiveTimeForDateWithSchedule(
 	ctx context.Context,
 	studentID int64,
-	date timezone.Date,
+	date calendar.Date,
 	scheduleRow S,
 ) (*domain.EffectiveTimeResult, error) {
 	weekday := domain.ISOWeekday(date)
@@ -326,13 +326,13 @@ func (c *effectiveTimeCore[S, E, N, D]) effectiveTimeForDateWithSchedule(
 	}
 
 	op := c.operation("get effective %s time")
-	exception, err := c.exceptions.FindByStudentIDAndDate(ctx, studentID, timezone.Date(date))
+	exception, err := c.exceptions.FindByStudentIDAndDate(ctx, studentID, calendar.Date(date))
 	if err != nil {
 		return nil, &careplan.ScheduleError{Op: op, Err: err}
 	}
 	c.applyScheduleAndException(result, scheduleRow, exception)
 
-	notes, err := c.notes.FindByStudentIDAndDate(ctx, studentID, timezone.Date(date))
+	notes, err := c.notes.FindByStudentIDAndDate(ctx, studentID, calendar.Date(date))
 	if err != nil {
 		return nil, &careplan.ScheduleError{Op: op, Err: err}
 	}
@@ -393,7 +393,7 @@ func (c *effectiveTimeCore[S, E, N, D]) appendDayNotes(result *domain.EffectiveT
 func (c *effectiveTimeCore[S, E, N, D]) bulkEffectiveTimesForDate(
 	ctx context.Context,
 	studentIDs []int64,
-	date timezone.Date,
+	date calendar.Date,
 ) (map[int64]*domain.EffectiveTimeResult, error) {
 	weekday := domain.ISOWeekday(date)
 	scheduleMap := make(map[int64]S, len(studentIDs))
@@ -414,7 +414,7 @@ func (c *effectiveTimeCore[S, E, N, D]) bulkEffectiveTimesForDate(
 func (c *effectiveTimeCore[S, E, N, D]) bulkEffectiveTimesForDateWithSchedules(
 	ctx context.Context,
 	studentIDs []int64,
-	date timezone.Date,
+	date calendar.Date,
 	scheduleMap map[int64]S,
 ) (map[int64]*domain.EffectiveTimeResult, error) {
 	if len(studentIDs) == 0 {
@@ -428,13 +428,13 @@ func (c *effectiveTimeCore[S, E, N, D]) bulkEffectiveTimesForDateWithSchedules(
 	}
 
 	op := c.operation("get bulk effective %s times")
-	exceptions, err := c.exceptions.FindByStudentIDsAndDate(ctx, studentIDs, timezone.Date(date))
+	exceptions, err := c.exceptions.FindByStudentIDsAndDate(ctx, studentIDs, calendar.Date(date))
 	if err != nil {
 		return nil, &careplan.ScheduleError{Op: op, Err: err}
 	}
 	exceptionMap := c.exceptionsByStudent(exceptions)
 
-	notes, err := c.notes.FindByStudentIDsAndDate(ctx, studentIDs, timezone.Date(date))
+	notes, err := c.notes.FindByStudentIDsAndDate(ctx, studentIDs, calendar.Date(date))
 	if err != nil {
 		return nil, &careplan.ScheduleError{Op: op, Err: err}
 	}
@@ -450,7 +450,7 @@ func (c *effectiveTimeCore[S, E, N, D]) bulkEffectiveTimesForDateWithSchedules(
 
 func initialEffectiveResults(
 	studentIDs []int64,
-	date timezone.Date,
+	date calendar.Date,
 	weekday int,
 ) map[int64]*domain.EffectiveTimeResult {
 	result := make(map[int64]*domain.EffectiveTimeResult, len(studentIDs))

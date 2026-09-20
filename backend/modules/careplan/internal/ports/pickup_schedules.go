@@ -9,7 +9,7 @@ import (
 
 type PickupScheduleRepository interface {
 	EffectiveScheduleRepository[*careplan.PickupSchedule]
-	FindByID(context.Context, any) (*careplan.PickupSchedule, error)
+	FindByID(context.Context, int64) (*careplan.PickupSchedule, error)
 }
 
 type PickupBulkStudent struct {

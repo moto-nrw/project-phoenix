@@ -4,25 +4,15 @@ import (
 	"context"
 	"time"
 
-	calendar "github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 )
 
-func (s *careScheduleRequestService) submissions() carerequests.Submissions {
-	adapter := requestSubmissionAdapter{s}
-	service, err := compose.NewRequestSubmissions(s.requestRecords, adapter, adapter, s.todayDate)
-	if err != nil {
-		panic(err)
-	}
-	return service
-}
-
 type requestSubmissionAdapter struct{ s *careScheduleRequestService }
 
-func (a requestSubmissionAdapter) PickupTime(ctx context.Context, id int64, date calendar.Date) (*time.Time, error) {
+func (a requestSubmissionAdapter) PickupTime(ctx context.Context, id int64, date timezone.Date) (*time.Time, error) {
 	if a.s.pickup == nil {
 		return nil, nil
 	}

@@ -10,15 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 )
 
-func (s *careScheduleRequestService) decisions() carerequests.Decisions {
-	adapter := requestDecisionAdapter{requestEditAdapter{requestSubmissionAdapter{s}}}
-	service, err := compose.NewRequestDecisions(compose.RequestDecisionDependencies{Records: s.requestRecords, People: adapter, Plans: adapter, Effects: adapter, Today: s.todayDate})
-	if err != nil {
-		panic(err)
-	}
-	return service
-}
-
 func (a requestDecisionAdapter) RecordMarkedDone(ctx context.Context, request *carerequests.Request, actorID int64, reason string) error {
 	row := request
 	return a.s.recordCareRequestEvent(ctx, row, usersModels.ParentRequestEventMarkedDone, actorID, map[string]any{"reason": reason})
@@ -60,7 +51,7 @@ func (a requestDecisionAdapter) GuardianHasAccess(ctx context.Context, studentID
 }
 
 func (a requestDecisionAdapter) Snapshot(ctx context.Context, request *carerequests.Request) *carerequests.DecisionSnapshot {
-	return a.s.diffs().Snapshot(ctx, request)
+	return a.s.requests.diffs.Snapshot(ctx, request)
 }
 func (a requestDecisionAdapter) ApplyWeekly(ctx context.Context, request *carerequests.Request, actorID int64) (bool, error) {
 	row := request

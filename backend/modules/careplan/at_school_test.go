@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -13,7 +13,7 @@ func TestIsAtSchoolBeforeCheckIn(t *testing.T) {
 
 	expected := DayPlanningDecision{ComesToday: true, Reason: DayPlanningReasonArrivalSchedule}
 	berlin := func(hour, minute int) time.Time {
-		return time.Date(2026, time.September, 16, hour, minute, 0, 0, timezone.Berlin)
+		return time.Date(2026, time.September, 16, hour, minute, 0, 0, calendar.Berlin)
 	}
 	wallClock := func(hour, minute int) *time.Time {
 		at := time.Date(0, time.January, 1, hour, minute, 0, 0, time.UTC)

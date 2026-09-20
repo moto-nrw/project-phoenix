@@ -7,7 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Care-day derivation (#1747).
@@ -70,22 +70,22 @@ func WireCareParticipation(service careplan.CareDayQuery, resolver CareParticipa
 	concrete.deps.CareParticipation = resolver
 }
 
-func (s *careDayService) ResolveForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]careplan.CareDayStatus, error) {
+func (s *careDayService) ResolveForDate(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]careplan.CareDayStatus, error) {
 	return NewCareDayQueries(s).ResolveForDate(ctx, studentIDs, date)
 }
 
-func (s *careDayService) ResolveForRange(ctx context.Context, studentIDs []int64, from, to timezone.Date) (map[int64]map[timezone.Date]careplan.CareDayStatus, error) {
+func (s *careDayService) ResolveForRange(ctx context.Context, studentIDs []int64, from, to calendar.Date) (map[int64]map[calendar.Date]careplan.CareDayStatus, error) {
 	return NewCareDayQueries(s).ResolveForRange(ctx, studentIDs, from, to)
 }
 
-func (s *careDayService) LoadCareDayFacts(ctx context.Context, studentIDs []int64, from, to timezone.Date) (map[int64]map[timezone.Date]careplan.CareDayFacts, error) {
+func (s *careDayService) LoadCareDayFacts(ctx context.Context, studentIDs []int64, from, to calendar.Date) (map[int64]map[calendar.Date]careplan.CareDayFacts, error) {
 	plans, err := s.loadCarePlans(ctx, studentIDs, from, to)
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[int64]map[timezone.Date]careplan.CareDayFacts, len(studentIDs))
+	result := make(map[int64]map[calendar.Date]careplan.CareDayFacts, len(studentIDs))
 	for _, id := range studentIDs {
-		days := make(map[timezone.Date]careplan.CareDayFacts)
+		days := make(map[calendar.Date]careplan.CareDayFacts)
 		for date := from; !date.After(to); date = date.AddDays(1) {
 			days[date] = plans.factsFor(id, date)
 		}
@@ -94,7 +94,7 @@ func (s *careDayService) LoadCareDayFacts(ctx context.Context, studentIDs []int6
 	return result, nil
 }
 
-func (s *careDayService) ParticipatingStudentIDsByDate(ctx context.Context, studentIDs []int64, from, to timezone.Date) (map[timezone.Date]map[int64]bool, error) {
+func (s *careDayService) ParticipatingStudentIDsByDate(ctx context.Context, studentIDs []int64, from, to calendar.Date) (map[calendar.Date]map[int64]bool, error) {
 	if s.deps.CareParticipation == nil {
 		return nil, &careplan.ScheduleError{Op: opResolveCareDay, Err: errors.New("care participation resolver is not configured")}
 	}
@@ -110,17 +110,17 @@ type carePlans struct {
 	// The arrival plan is undated. Pickup baselines can change within the
 	// range when booking validity changes, so they are keyed by date.
 	arrivalByStudentWeekday map[int64]map[int]*careplan.ArrivalSchedule
-	arrivalByStudentDate    map[int64]map[timezone.Date]*careplan.ArrivalSchedule
-	pickupByStudentDate     map[int64]map[timezone.Date]*careplan.PickupSchedule
-	hasPlan                 map[int64]map[timezone.Date]bool
+	arrivalByStudentDate    map[int64]map[calendar.Date]*careplan.ArrivalSchedule
+	pickupByStudentDate     map[int64]map[calendar.Date]*careplan.PickupSchedule
+	hasPlan                 map[int64]map[calendar.Date]bool
 	bookingsAuthoritative   bool
 
-	arrivalExceptions map[int64]map[timezone.Date]*careplan.ArrivalException
-	pickupExceptions  map[int64]map[timezone.Date]*careplan.PickupException
+	arrivalExceptions map[int64]map[calendar.Date]*careplan.ArrivalException
+	pickupExceptions  map[int64]map[calendar.Date]*careplan.PickupException
 }
 
 func (s *careDayService) loadCarePlans(
-	ctx context.Context, studentIDs []int64, from, to timezone.Date,
+	ctx context.Context, studentIDs []int64, from, to calendar.Date,
 ) (*carePlans, error) {
 	plans := newCarePlans()
 	if err := s.loadArrivalPlans(ctx, plans, studentIDs, from, to); err != nil {
@@ -138,11 +138,11 @@ func (s *careDayService) loadCarePlans(
 func newCarePlans() *carePlans {
 	return &carePlans{
 		arrivalByStudentWeekday: map[int64]map[int]*careplan.ArrivalSchedule{},
-		arrivalByStudentDate:    map[int64]map[timezone.Date]*careplan.ArrivalSchedule{},
-		pickupByStudentDate:     map[int64]map[timezone.Date]*careplan.PickupSchedule{},
-		hasPlan:                 map[int64]map[timezone.Date]bool{},
-		arrivalExceptions:       map[int64]map[timezone.Date]*careplan.ArrivalException{},
-		pickupExceptions:        map[int64]map[timezone.Date]*careplan.PickupException{},
+		arrivalByStudentDate:    map[int64]map[calendar.Date]*careplan.ArrivalSchedule{},
+		pickupByStudentDate:     map[int64]map[calendar.Date]*careplan.PickupSchedule{},
+		hasPlan:                 map[int64]map[calendar.Date]bool{},
+		arrivalExceptions:       map[int64]map[calendar.Date]*careplan.ArrivalException{},
+		pickupExceptions:        map[int64]map[calendar.Date]*careplan.PickupException{},
 	}
 }
 
@@ -150,7 +150,7 @@ func (s *careDayService) loadArrivalPlans(
 	ctx context.Context,
 	plans *carePlans,
 	studentIDs []int64,
-	from, to timezone.Date,
+	from, to calendar.Date,
 ) error {
 	if s.deps.ArrivalBaselines == nil {
 		return s.loadStoredArrivalPlans(ctx, plans, studentIDs, from, to)
@@ -170,7 +170,7 @@ func (s *careDayService) loadArrivalPlans(
 				continue
 			}
 			if plans.arrivalByStudentDate[studentID] == nil {
-				plans.arrivalByStudentDate[studentID] = make(map[timezone.Date]*careplan.ArrivalSchedule)
+				plans.arrivalByStudentDate[studentID] = make(map[calendar.Date]*careplan.ArrivalSchedule)
 			}
 			plans.arrivalByStudentDate[studentID][date] = row
 		}
@@ -184,7 +184,7 @@ func (s *careDayService) loadStoredArrivalPlans(
 	ctx context.Context,
 	plans *carePlans,
 	studentIDs []int64,
-	from, to timezone.Date,
+	from, to calendar.Date,
 ) error {
 	arrivals, err := s.deps.Records.ListArrivalSchedules(ctx, careplan.StudentScheduleFilter{StudentIDs: studentIDs})
 	if err != nil {
@@ -209,7 +209,7 @@ func (s *careDayService) loadPickupPlans(
 	ctx context.Context,
 	plans *carePlans,
 	studentIDs []int64,
-	from, to timezone.Date,
+	from, to calendar.Date,
 ) error {
 	pickups, err := s.deps.PickupBaselines.Project(ctx, studentIDs, from, to)
 	if err != nil {
@@ -225,7 +225,7 @@ func (s *careDayService) loadPickupPlans(
 				continue
 			}
 			if plans.pickupByStudentDate[studentID] == nil {
-				plans.pickupByStudentDate[studentID] = make(map[timezone.Date]*careplan.PickupSchedule)
+				plans.pickupByStudentDate[studentID] = make(map[calendar.Date]*careplan.PickupSchedule)
 			}
 			plans.pickupByStudentDate[studentID][date] = row
 		}
@@ -237,7 +237,7 @@ func (s *careDayService) loadCareExceptions(
 	ctx context.Context,
 	plans *carePlans,
 	studentIDs []int64,
-	from, to timezone.Date,
+	from, to calendar.Date,
 ) error {
 	arrivalExceptions, err := s.deps.Records.ListArrivalExceptions(ctx, careplan.StudentScheduleFilter{StudentIDs: studentIDs, From: careplan.Date(from), To: careplan.Date(to)})
 	if err != nil {
@@ -262,9 +262,9 @@ func (p *carePlans) addArrivalException(row *careplan.ArrivalException) {
 		return
 	}
 	if p.arrivalExceptions[row.StudentID] == nil {
-		p.arrivalExceptions[row.StudentID] = make(map[timezone.Date]*careplan.ArrivalException)
+		p.arrivalExceptions[row.StudentID] = make(map[calendar.Date]*careplan.ArrivalException)
 	}
-	p.arrivalExceptions[row.StudentID][timezone.Date(row.ExceptionDate)] = row
+	p.arrivalExceptions[row.StudentID][calendar.Date(row.ExceptionDate)] = row
 }
 
 func (p *carePlans) addPickupException(row *careplan.PickupException) {
@@ -272,19 +272,19 @@ func (p *carePlans) addPickupException(row *careplan.PickupException) {
 		return
 	}
 	if p.pickupExceptions[row.StudentID] == nil {
-		p.pickupExceptions[row.StudentID] = make(map[timezone.Date]*careplan.PickupException)
+		p.pickupExceptions[row.StudentID] = make(map[calendar.Date]*careplan.PickupException)
 	}
-	p.pickupExceptions[row.StudentID][timezone.Date(row.ExceptionDate)] = row
+	p.pickupExceptions[row.StudentID][calendar.Date(row.ExceptionDate)] = row
 }
 
-func (p *carePlans) markHasPlan(studentID int64, date timezone.Date) {
+func (p *carePlans) markHasPlan(studentID int64, date calendar.Date) {
 	if p.hasPlan[studentID] == nil {
-		p.hasPlan[studentID] = make(map[timezone.Date]bool)
+		p.hasPlan[studentID] = make(map[calendar.Date]bool)
 	}
 	p.hasPlan[studentID][date] = true
 }
 
-func (p *carePlans) hasArrivalSchedule(studentID int64, date timezone.Date) bool {
+func (p *carePlans) hasArrivalSchedule(studentID int64, date calendar.Date) bool {
 	if p.arrivalByStudentDate[studentID][date] != nil {
 		return true
 	}
@@ -294,7 +294,7 @@ func (p *carePlans) hasArrivalSchedule(studentID int64, date timezone.Date) bool
 // effectiveArrival mirrors the exception-beats-schedule merge of
 // GetBulkEffectiveArrivalTimesForDate for one day, minus the note loading the
 // derivation has no use for.
-func (p *carePlans) effectiveArrival(studentID int64, date timezone.Date) *careplan.EffectiveArrivalTime {
+func (p *carePlans) effectiveArrival(studentID int64, date calendar.Date) *careplan.EffectiveArrivalTime {
 	weekday := domain.ISOWeekday(date)
 	result := &careplan.EffectiveArrivalTime{Date: date, WeekdayName: domain.WeekdayName(weekday)}
 
@@ -325,7 +325,7 @@ func (p *carePlans) effectiveArrival(studentID int64, date timezone.Date) *carep
 }
 
 // effectivePickup is the pickup-side mirror of effectiveArrival.
-func (p *carePlans) effectivePickup(studentID int64, date timezone.Date) *careplan.EffectivePickupTime {
+func (p *carePlans) effectivePickup(studentID int64, date calendar.Date) *careplan.EffectivePickupTime {
 	weekday := domain.ISOWeekday(date)
 	result := &careplan.EffectivePickupTime{Date: date, WeekdayName: domain.WeekdayName(weekday)}
 
@@ -344,7 +344,7 @@ func (p *carePlans) effectivePickup(studentID int64, date timezone.Date) *carepl
 	return result
 }
 
-func (p *carePlans) factsFor(studentID int64, date timezone.Date) careplan.CareDayFacts {
+func (p *carePlans) factsFor(studentID int64, date calendar.Date) careplan.CareDayFacts {
 	return careplan.CareDayFacts{
 		BookingsAuthoritative: p.bookingsAuthoritative,
 		HasBookedCareDay:      p.arrivalByStudentDate[studentID][date] != nil,

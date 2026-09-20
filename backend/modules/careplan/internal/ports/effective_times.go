@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type EffectiveTimeEntity interface {
@@ -19,31 +19,31 @@ type EffectiveScheduleRepository[S EffectiveTimeEntity] interface {
 	FindByStudentIDs(context.Context, []int64) ([]S, error)
 	UpsertSchedule(context.Context, S) error
 	Create(context.Context, S) error
-	Delete(context.Context, any) error
+	Delete(context.Context, int64) error
 	DeleteByStudentID(context.Context, int64) error
 }
 
 type EffectiveExceptionRepository[E EffectiveTimeEntity] interface {
-	FindByID(context.Context, any) (E, error)
-	FindByIDForUpdate(context.Context, any) (E, error)
+	FindByID(context.Context, int64) (E, error)
+	FindByIDForUpdate(context.Context, int64) (E, error)
 	FindByStudentID(context.Context, int64) ([]E, error)
 	FindUpcomingByStudentID(context.Context, int64) ([]E, error)
-	FindByStudentIDAndDate(context.Context, int64, timezone.Date) (E, error)
-	FindByStudentIDsAndDate(context.Context, []int64, timezone.Date) ([]E, error)
+	FindByStudentIDAndDate(context.Context, int64, calendar.Date) (E, error)
+	FindByStudentIDsAndDate(context.Context, []int64, calendar.Date) ([]E, error)
 	Create(context.Context, E) error
 	Update(context.Context, E) error
-	Delete(context.Context, any) error
+	Delete(context.Context, int64) error
 	DeleteByStudentID(context.Context, int64) error
 }
 
 type EffectiveNoteRepository[N EffectiveTimeEntity] interface {
-	FindByID(context.Context, any) (N, error)
+	FindByID(context.Context, int64) (N, error)
 	FindByStudentID(context.Context, int64) ([]N, error)
-	FindByStudentIDAndDate(context.Context, int64, timezone.Date) ([]N, error)
-	FindByStudentIDsAndDate(context.Context, []int64, timezone.Date) ([]N, error)
+	FindByStudentIDAndDate(context.Context, int64, calendar.Date) ([]N, error)
+	FindByStudentIDsAndDate(context.Context, []int64, calendar.Date) ([]N, error)
 	Create(context.Context, N) error
 	Update(context.Context, N) error
-	Delete(context.Context, any) error
+	Delete(context.Context, int64) error
 	DeleteByStudentID(context.Context, int64) error
 }
 

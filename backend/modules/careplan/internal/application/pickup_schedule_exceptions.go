@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func (s *pickupScheduleService) GetStudentPickupExceptionByID(
@@ -19,7 +19,7 @@ func (s *pickupScheduleService) GetStudentPickupExceptionByID(
 func (s *pickupScheduleService) GetStudentPickupExceptionForDate(
 	ctx context.Context,
 	studentID int64,
-	date timezone.Date,
+	date calendar.Date,
 ) (*careplan.PickupException, error) {
 	return s.exceptionForDate(ctx, studentID, date)
 }
@@ -55,7 +55,7 @@ func (s *pickupScheduleService) UpdateStudentPickupException(
 func (s *pickupScheduleService) CreateOrReclaimException(
 	ctx context.Context,
 	studentID int64,
-	date timezone.Date,
+	date calendar.Date,
 	pickupTime *time.Time,
 	reason *string,
 	staffID int64,
@@ -127,7 +127,7 @@ func (s *pickupScheduleService) UpdateException(
 	ctx context.Context,
 	exceptionID int64,
 	studentID int64,
-	date timezone.Date,
+	date calendar.Date,
 	reason *string,
 	pickupTime *time.Time,
 	clearPickupTime bool,
@@ -238,7 +238,7 @@ func (s *pickupScheduleService) DeleteAllStudentPickupExceptions(
 	})
 }
 
-func (s *pickupScheduleService) lockPickupUpdateDays(ctx context.Context, exceptionID, studentID int64, date timezone.Date) error {
+func (s *pickupScheduleService) lockPickupUpdateDays(ctx context.Context, exceptionID, studentID int64, date calendar.Date) error {
 	// The row's stored date may differ from the submitted one; both days'
 	// block absences can be affected, so lock them in ascending order (the
 	// same convention DeleteAllExceptions uses) before detaching.
@@ -246,9 +246,9 @@ func (s *pickupScheduleService) lockPickupUpdateDays(ctx context.Context, except
 	if err != nil && !s.tx.IsNotFound(err) {
 		return err
 	}
-	lockDates := []timezone.Date{date}
-	if existing != nil && timezone.Date(existing.ExceptionDate) != date {
-		lockDates = append(lockDates, timezone.Date(existing.ExceptionDate))
+	lockDates := []calendar.Date{date}
+	if existing != nil && calendar.Date(existing.ExceptionDate) != date {
+		lockDates = append(lockDates, calendar.Date(existing.ExceptionDate))
 		sort.Slice(lockDates, func(i, j int) bool { return lockDates[i].Before(lockDates[j]) })
 	}
 	for _, lockDate := range lockDates {

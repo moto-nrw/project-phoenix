@@ -8,7 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type ClassArrivalExceptions struct {
@@ -37,7 +37,7 @@ const (
 func (s *ClassArrivalExceptions) ListClassArrivalExceptions(
 	ctx context.Context,
 	schoolClass string,
-	from, to timezone.Date,
+	from, to calendar.Date,
 ) ([]*careplan.ClassArrivalException, error) {
 	if s.store == nil {
 		return nil, &careplan.ScheduleError{Op: opListClassArrivalExceptions, Err: careplan.ErrClassArrivalExceptionNotConfigured}
@@ -46,7 +46,7 @@ func (s *ClassArrivalExceptions) ListClassArrivalExceptions(
 	if class == "" {
 		return []*careplan.ClassArrivalException{}, nil
 	}
-	rows, err := s.store.List(ctx, []string{class}, timezone.Date(from), timezone.Date(to))
+	rows, err := s.store.List(ctx, []string{class}, calendar.Date(from), calendar.Date(to))
 	if err != nil {
 		return nil, &careplan.ScheduleError{Op: opListClassArrivalExceptions, Err: err}
 	}
@@ -65,7 +65,7 @@ func (s *ClassArrivalExceptions) UpsertClassArrivalException(
 		return nil, &careplan.ScheduleError{Op: opUpsertClassArrivalException, Err: careplan.ErrClassArrivalExceptionNotConfigured}
 	}
 	class := strings.TrimSpace(input.SchoolClass)
-	if input.Date.Before(timezone.TodayDate()) {
+	if input.Date.Before(calendar.TodayDate()) {
 		return nil, &careplan.ScheduleError{Op: opUpsertClassArrivalException, Err: careplan.ErrClassArrivalExceptionPastDate}
 	}
 	if isWeekend(input.Date) {
@@ -81,8 +81,8 @@ func (s *ClassArrivalExceptions) UpsertClassArrivalException(
 	}
 	row := &careplan.ClassArrivalException{
 		SchoolClass: class,
-		Date:        timezone.Date(input.Date),
-		ArrivalTime: timezone.NormalizeWallClock(input.ArrivalTime),
+		Date:        calendar.Date(input.Date),
+		ArrivalTime: calendar.NormalizeWallClock(input.ArrivalTime),
 		Reason:      trimmedOptionalReason(input.Reason),
 		Origin:      origin,
 	}
@@ -103,15 +103,15 @@ func (s *ClassArrivalExceptions) UpsertClassArrivalException(
 func (s *ClassArrivalExceptions) DeleteClassArrivalException(
 	ctx context.Context,
 	schoolClass string,
-	date timezone.Date,
+	date calendar.Date,
 ) error {
 	if s.store == nil {
 		return &careplan.ScheduleError{Op: opDeleteClassArrivalException, Err: careplan.ErrClassArrivalExceptionNotConfigured}
 	}
-	if date.Before(timezone.TodayDate()) {
+	if date.Before(calendar.TodayDate()) {
 		return &careplan.ScheduleError{Op: opDeleteClassArrivalException, Err: careplan.ErrClassArrivalExceptionPastDate}
 	}
-	deleted, err := s.store.Delete(ctx, strings.TrimSpace(schoolClass), timezone.Date(date))
+	deleted, err := s.store.Delete(ctx, strings.TrimSpace(schoolClass), calendar.Date(date))
 	if err != nil {
 		return &careplan.ScheduleError{Op: opDeleteClassArrivalException, Err: err}
 	}
@@ -127,7 +127,7 @@ func (s *ClassArrivalExceptions) requireActiveClass(ctx context.Context, class, 
 	if class == "" {
 		return &careplan.ScheduleError{Op: op, Err: careplan.ErrClassArrivalExceptionClassNotFound}
 	}
-	active, err := s.students.HasActiveClass(ctx, class, timezone.TodayDate())
+	active, err := s.students.HasActiveClass(ctx, class, calendar.TodayDate())
 	if err != nil {
 		return &careplan.ScheduleError{Op: op, Err: fmt.Errorf("failed to find students for school class %s: %w", class, err)}
 	}
@@ -148,7 +148,7 @@ func trimmedOptionalReason(reason *string) *string {
 	return &value
 }
 
-func isWeekend(date timezone.Date) bool {
+func isWeekend(date calendar.Date) bool {
 	weekday := date.Weekday()
 	return weekday == time.Saturday || weekday == time.Sunday
 }

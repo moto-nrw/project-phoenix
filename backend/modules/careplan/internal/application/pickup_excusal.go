@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type PickupAutoExcusalSyncer struct {
@@ -65,7 +65,7 @@ func (s *PickupAutoExcusalSyncer) syncDerivedAbsence(ctx context.Context, row *c
 	desired, cutoff := desiredCutoff(row, baseline)
 
 	current := row.ExcusedAuto && row.ExcusedFrom != nil
-	if desired && current && timezone.SameClockTime(*row.ExcusedFrom, cutoff) {
+	if desired && current && calendar.SameClockTime(*row.ExcusedFrom, cutoff) {
 		return false, nil
 	}
 	if !desired && !current {
@@ -106,7 +106,7 @@ func (s *PickupAutoExcusalSyncer) syncDerivedAbsence(ctx context.Context, row *c
 // Preview lists the timetable blocks that would be excused by a proposed
 // pickup time. A later or unchanged pickup has no removal impact.
 func (s *PickupAutoExcusalSyncer) Preview(
-	ctx context.Context, studentID int64, date timezone.Date, pickupTime time.Time,
+	ctx context.Context, studentID int64, date calendar.Date, pickupTime time.Time,
 ) ([]carerequests.Block, error) {
 	row := &careplan.PickupException{
 		StudentID:     studentID,
@@ -135,7 +135,7 @@ func (s *PickupAutoExcusalSyncer) Preview(
 // for the date and clears its metadata, so a following overwrite or delete of
 // the exception row starts from a clean state. Manual partial absences are
 // left in place — their guards in the exception writers still apply.
-func (s *PickupAutoExcusalSyncer) DetachForDate(ctx context.Context, studentID int64, date timezone.Date) error {
+func (s *PickupAutoExcusalSyncer) DetachForDate(ctx context.Context, studentID int64, date calendar.Date) error {
 	row, err := s.pickups.FindByStudentIDAndDate(ctx, studentID, date)
 	if err != nil {
 		return fmt.Errorf("auto excusal: load pickup exception for detach: %w", err)
@@ -151,7 +151,7 @@ func (s *PickupAutoExcusalSyncer) DetachRow(ctx context.Context, row *careplan.P
 		return nil
 	}
 	if s.extensions != nil {
-		date := timezone.Date(row.ExceptionDate).String()
+		date := calendar.Date(row.ExceptionDate).String()
 		if err := s.extensions.ClearPickupDayExtension(ctx, row.StudentID, date); err != nil {
 			return fmt.Errorf("pickup extension: clear day %s: %w", date, err)
 		}
@@ -237,7 +237,7 @@ func (s *PickupAutoExcusalSyncer) baselineClock(
 	if row.PickupTime == nil {
 		return nil, nil
 	}
-	date := timezone.Date(row.ExceptionDate)
+	date := calendar.Date(row.ExceptionDate)
 	if domain.ISOWeekday(date) > 5 {
 		return nil, nil
 	}
@@ -249,7 +249,7 @@ func (s *PickupAutoExcusalSyncer) baselineClock(
 	if baseline == nil {
 		return nil, nil
 	}
-	clock := timezone.NormalizeWallClock(baseline.PickupTime)
+	clock := calendar.NormalizeWallClock(baseline.PickupTime)
 	return &clock, nil
 }
 
@@ -260,7 +260,7 @@ func desiredCutoff(row *careplan.PickupException, baseline *time.Time) (bool, ti
 	if row.PickupTime == nil || baseline == nil {
 		return false, time.Time{}
 	}
-	exceptionClock := timezone.NormalizeWallClock(*row.PickupTime)
+	exceptionClock := calendar.NormalizeWallClock(*row.PickupTime)
 	if !exceptionClock.Before(*baseline) {
 		return false, time.Time{}
 	}
@@ -276,8 +276,8 @@ func (s *PickupAutoExcusalSyncer) syncDayExtension(
 	if s.extensions == nil {
 		return nil
 	}
-	date := timezone.Date(row.ExceptionDate).String()
-	if row.PickupTime == nil || baseline == nil || !timezone.NormalizeWallClock(*row.PickupTime).After(*baseline) {
+	date := calendar.Date(row.ExceptionDate).String()
+	if row.PickupTime == nil || baseline == nil || !calendar.NormalizeWallClock(*row.PickupTime).After(*baseline) {
 		if err := s.extensions.ClearPickupDayExtension(ctx, row.StudentID, date); err != nil {
 			return fmt.Errorf("pickup extension: clear day %s: %w", date, err)
 		}
@@ -288,7 +288,7 @@ func (s *PickupAutoExcusalSyncer) syncDayExtension(
 		PickupExceptionID: row.ID,
 		Date:              date,
 		PreviousPickup:    baseline.Format("15:04"),
-		Pickup:            timezone.NormalizeWallClock(*row.PickupTime).Format("15:04"),
+		Pickup:            calendar.NormalizeWallClock(*row.PickupTime).Format("15:04"),
 	})
 	if err != nil {
 		return fmt.Errorf("pickup extension: record day %s: %w", date, err)
@@ -299,7 +299,7 @@ func (s *PickupAutoExcusalSyncer) syncDayExtension(
 // SnapshotWeeklyPickups captures the regular pickup times on date before a
 // weekly write. It returns nil when later pickups are not recorded.
 func (s *PickupAutoExcusalSyncer) SnapshotWeeklyPickups(
-	ctx context.Context, studentID int64, date timezone.Date,
+	ctx context.Context, studentID int64, date calendar.Date,
 ) (careplan.WeeklyPickupSnapshot, error) {
 	if s.extensions == nil {
 		return nil, nil
@@ -311,7 +311,7 @@ func (s *PickupAutoExcusalSyncer) SnapshotWeeklyPickups(
 	snapshot := careplan.WeeklyPickupSnapshot{}
 	for weekday, row := range projection.WeeklyForDate(studentID, date) {
 		if row != nil && weekday >= 1 && weekday <= 5 {
-			snapshot[weekday] = timezone.NormalizeWallClock(row.PickupTime).Format("15:04")
+			snapshot[weekday] = calendar.NormalizeWallClock(row.PickupTime).Format("15:04")
 		}
 	}
 	return snapshot, nil
@@ -323,7 +323,7 @@ func (s *PickupAutoExcusalSyncer) SnapshotWeeklyPickups(
 // closes it. A weekday that had no time before opens nothing: there is no
 // "longer than before" to plan for. A nil snapshot is a no-op.
 func (s *PickupAutoExcusalSyncer) RecordWeeklyPickupChanges(
-	ctx context.Context, studentID int64, date timezone.Date, before careplan.WeeklyPickupSnapshot,
+	ctx context.Context, studentID int64, date calendar.Date, before careplan.WeeklyPickupSnapshot,
 ) error {
 	if s.extensions == nil || before == nil {
 		return nil

@@ -16,6 +16,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -127,6 +128,9 @@ type careScheduleRequestService struct {
 	shareVisibility parentmessaging.ShareVisibilityResolver
 	events          usersService.ParentRequestEventRecorder
 	today           func() timezone.Date
+
+	// requests holds the native request capabilities, bound once at construction.
+	requests requestCapabilities
 }
 
 // CareRequestOption configures an optional collaborator of the care request
@@ -183,7 +187,51 @@ func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 	for _, option := range options {
 		option(svc)
 	}
+	requests, err := newRequestCapabilities(svc)
+	if err != nil {
+		panic(err)
+	}
+	svc.requests = requests
 	return svc
+}
+
+type requestCapabilities struct {
+	diffs       carerequests.Diffs
+	reads       carerequests.Reads
+	submissions carerequests.Submissions
+	edits       carerequests.Edits
+	decisions   carerequests.Decisions
+	conflicts   carerequests.Conflicts
+}
+
+// newRequestCapabilities builds the native request capabilities once, in
+// dependency order, so a wiring gap fails at startup and not on a request.
+func newRequestCapabilities(s *careScheduleRequestService) (requestCapabilities, error) {
+	var c requestCapabilities
+	var err error
+	diffAdapter := requestDiffAdapter{&weeklyApprovalAdapter{s: s}}
+	if c.diffs, err = compose.NewRequestDiffs(diffAdapter, diffAdapter, diffAdapter, s.logger); err != nil {
+		return c, fmt.Errorf("care request diffs: %w", err)
+	}
+	if c.reads, err = compose.NewRequestReads(s.requestRecords, c.diffs, s.logger); err != nil {
+		return c, fmt.Errorf("care request reads: %w", err)
+	}
+	submissionAdapter := requestSubmissionAdapter{s}
+	if c.submissions, err = compose.NewRequestSubmissions(s.requestRecords, submissionAdapter, submissionAdapter, s.todayDate); err != nil {
+		return c, fmt.Errorf("care request submissions: %w", err)
+	}
+	editAdapter := requestEditAdapter{submissionAdapter}
+	if c.edits, err = compose.NewRequestEdits(s.requestRecords, editAdapter, editAdapter, s.todayDate); err != nil {
+		return c, fmt.Errorf("care request edits: %w", err)
+	}
+	decisionAdapter := requestDecisionAdapter{editAdapter}
+	if c.decisions, err = compose.NewRequestDecisions(compose.RequestDecisionDependencies{Records: s.requestRecords, People: decisionAdapter, Plans: decisionAdapter, Effects: decisionAdapter, Today: s.todayDate}); err != nil {
+		return c, fmt.Errorf("care request decisions: %w", err)
+	}
+	if c.conflicts, err = compose.NewRequestConflicts(s.requestRecords, requestConflictPlans{s}, c.decisions, timezone.TodayDate); err != nil {
+		return c, fmt.Errorf("care request conflicts: %w", err)
+	}
+	return c, nil
 }
 
 func newCareScheduleRequestService(
@@ -221,7 +269,7 @@ func newCareScheduleRequestService(
 }
 
 func (s *careScheduleRequestService) CreateRequest(ctx context.Context, studentID, guardianAccountID int64, payload json.RawMessage) (*carerequests.Request, error) {
-	return s.submissions().CreateRequest(ctx, studentID, guardianAccountID, payload)
+	return s.requests.submissions.CreateRequest(ctx, studentID, guardianAccountID, payload)
 }
 
 // CreatePickupChangeRequest keeps the mandatory-reason behaviour every
@@ -235,11 +283,11 @@ func (s *careScheduleRequestService) CreatePickupChangeRequest(ctx context.Conte
 }
 
 func (s *careScheduleRequestService) CreatePickupChange(ctx context.Context, input carerequests.PickupChangeCreateInput) (*carerequests.Request, error) {
-	return s.submissions().CreatePickupChange(ctx, input)
+	return s.requests.submissions.CreatePickupChange(ctx, input)
 }
 
 func (s *careScheduleRequestService) EditRequest(ctx context.Context, input carerequests.EditInput) (*carerequests.Request, error) {
-	request, err := s.edits().EditRequest(ctx, input)
+	request, err := s.requests.edits.EditRequest(ctx, input)
 	if err != nil {
 		return nil, legacyEditError(err)
 	}
@@ -280,7 +328,7 @@ func (s *careScheduleRequestService) recordCareRequestEvent(
 }
 
 func (s *careScheduleRequestService) Decide(ctx context.Context, input carerequests.DecideInput) (*carerequests.ReviewItem, error) {
-	item, err := s.decisions().Decide(ctx, input)
+	item, err := s.requests.decisions.Decide(ctx, input)
 	if err != nil {
 		return nil, legacyEditError(err)
 	}
@@ -547,7 +595,7 @@ func careScheduleAuditSummary(payload json.RawMessage) string {
 const parentRequestDoneBody = "Anfrage abgeschlossen"
 
 func (s *careScheduleRequestService) MarkDone(ctx context.Context, requestID int64, expectedVersion, reason string, reviewedBy int64) error {
-	return legacyEditError(s.decisions().MarkDone(ctx, requestID, expectedVersion, reason, reviewedBy))
+	return legacyEditError(s.requests.decisions.MarkDone(ctx, requestID, expectedVersion, reason, reviewedBy))
 }
 
 func correctedCarePillBody(req *carerequests.Request, approve bool) string {

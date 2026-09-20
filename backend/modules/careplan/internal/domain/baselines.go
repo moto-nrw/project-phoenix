@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type ClassArrivalBaseline struct {
@@ -32,7 +32,7 @@ func canonicalDayToISOWeekday(day string) (int, bool) {
 func isCareDay(
 	careDays careplan.CareDayIndex,
 	studentID int64,
-	date timezone.Date,
+	date calendar.Date,
 	weekday int,
 	row *careplan.ArrivalSchedule,
 ) bool {
@@ -117,7 +117,7 @@ func EffectiveArrivalRow(
 //	            timetable. A care day whose class has no time yet stays a care
 //	            day and simply has no arrival time.
 
-func ProjectCareDayIndex(links []*careplan.ApprovedBooking, offerings map[int64]*careplan.CareOffering, from, to timezone.Date) careplan.CareDayIndex {
+func ProjectCareDayIndex(links []*careplan.ApprovedBooking, offerings map[int64]*careplan.CareOffering, from, to calendar.Date) careplan.CareDayIndex {
 	index := make(careplan.CareDayIndex, len(links))
 	for _, entry := range links {
 		if entry == nil || entry.Link == nil {
@@ -146,12 +146,12 @@ func bookedCareWeekdays(link *careplan.BookingSelection, offering *careplan.Care
 	}
 	return days
 }
-func addBookedCareDays(index careplan.CareDayIndex, id int64, date timezone.Date, weekdays []int) {
+func addBookedCareDays(index careplan.CareDayIndex, id int64, date calendar.Date, weekdays []int) {
 	if len(weekdays) == 0 {
 		return
 	}
 	if index[id] == nil {
-		index[id] = make(map[timezone.Date]map[int]bool)
+		index[id] = make(map[calendar.Date]map[int]bool)
 	}
 	if index[id][date] == nil {
 		index[id][date] = make(map[int]bool)
@@ -166,7 +166,7 @@ func MergePickupPlans(
 	studentIDs []int64,
 	manual map[int64]map[int]*careplan.PickupSchedule,
 	offering careplan.PickupPlansByStudent,
-	from, to timezone.Date,
+	from, to calendar.Date,
 ) {
 	for _, studentID := range studentIDs {
 		byDate := make(careplan.PickupPlanByDate)
@@ -191,7 +191,7 @@ func MergePickupPlans(
 func ProjectOfferingLinks(
 	links []*careplan.ApprovedBooking,
 	offeringByID map[int64]*careplan.CareOffering,
-	from, to timezone.Date,
+	from, to calendar.Date,
 ) (careplan.PickupPlansByStudent, error) {
 	out := make(careplan.PickupPlansByStudent)
 	for _, entry := range links {
@@ -217,7 +217,7 @@ func ProjectOfferingLinks(
 func projectOfferingWeek(
 	out careplan.PickupPlansByStudent,
 	studentID int64,
-	date timezone.Date,
+	date calendar.Date,
 	link *careplan.BookingSelection,
 	offering *careplan.CareOffering,
 ) error {
@@ -236,7 +236,7 @@ func projectOfferingWeek(
 			out[studentID][date] = make(careplan.PickupWeek)
 		}
 		current := out[studentID][date][weekday]
-		if current != nil && !timezone.NormalizeWallClock(current.PickupTime).Before(row.PickupTime) {
+		if current != nil && !calendar.NormalizeWallClock(current.PickupTime).Before(row.PickupTime) {
 			continue
 		}
 		out[studentID][date][weekday] = row
@@ -271,26 +271,26 @@ func ProjectedOfferingPickup(
 	}
 	offeringID := offering.ID
 	return weekday, &careplan.PickupSchedule{
-		StudentID: studentID, Weekday: weekday, PickupTime: timezone.NormalizeWallClock(parsed),
+		StudentID: studentID, Weekday: weekday, PickupTime: calendar.NormalizeWallClock(parsed),
 		Source: careplan.ScheduleSourceCareOffering, CareOfferingID: &offeringID,
 		CareOfferingName: offering.Name,
 	}, true, nil
 }
 
-func offeringLinkCovers(link *careplan.BookingSelection, date timezone.Date) bool {
+func offeringLinkCovers(link *careplan.BookingSelection, date calendar.Date) bool {
 	return link != nil &&
-		(link.ValidFrom == nil || !date.Before(timezone.Date(*link.ValidFrom))) &&
-		(link.ValidUntil == nil || date.Before(timezone.Date(*link.ValidUntil)))
+		(link.ValidFrom == nil || !date.Before(calendar.Date(*link.ValidFrom))) &&
+		(link.ValidUntil == nil || date.Before(calendar.Date(*link.ValidUntil)))
 }
 
-func ProjectArrivalWeeks(id int64, stored careplan.ArrivalWeek, times *ClassArrivalBaseline, days careplan.CareDayIndex, from, to timezone.Date) (careplan.ArrivalPlanByDate, careplan.ArrivalPlanByDate) {
+func ProjectArrivalWeeks(id int64, stored careplan.ArrivalWeek, times *ClassArrivalBaseline, days careplan.CareDayIndex, from, to calendar.Date) (careplan.ArrivalPlanByDate, careplan.ArrivalPlanByDate) {
 	weekly, derived := make(careplan.ArrivalPlanByDate), make(careplan.ArrivalPlanByDate)
 	for date := from; !date.After(to); date = date.AddDays(1) {
 		weekly[date], derived[date] = arrivalWeek(id, date, stored, times, days)
 	}
 	return weekly, derived
 }
-func arrivalWeek(id int64, date timezone.Date, stored careplan.ArrivalWeek, times *ClassArrivalBaseline, days careplan.CareDayIndex) (careplan.ArrivalWeek, careplan.ArrivalWeek) {
+func arrivalWeek(id int64, date calendar.Date, stored careplan.ArrivalWeek, times *ClassArrivalBaseline, days careplan.CareDayIndex) (careplan.ArrivalWeek, careplan.ArrivalWeek) {
 	weekly, derived := make(careplan.ArrivalWeek, 5), make(careplan.ArrivalWeek, 5)
 	for weekday := 1; weekday <= 5; weekday++ {
 		row := stored[weekday]

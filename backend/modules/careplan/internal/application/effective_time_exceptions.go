@@ -8,7 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func (c *effectiveTimeCore[S, E, N, D]) exceptionByID(
@@ -29,9 +29,9 @@ func (c *effectiveTimeCore[S, E, N, D]) exceptionByID(
 func (c *effectiveTimeCore[S, E, N, D]) exceptionForDate(
 	ctx context.Context,
 	studentID int64,
-	date timezone.Date,
+	date calendar.Date,
 ) (E, error) {
-	row, err := c.exceptions.FindByStudentIDAndDate(ctx, studentID, timezone.Date(date))
+	row, err := c.exceptions.FindByStudentIDAndDate(ctx, studentID, calendar.Date(date))
 	if err != nil {
 		var zero E
 		return zero, &careplan.ScheduleError{
@@ -99,8 +99,8 @@ func (c *effectiveTimeCore[S, E, N, D]) createException(
 		// pickup override along with the excusal metadata.
 		switch {
 		case fields.Time != nil:
-			normalized := timezone.NormalizeWallClock(*fields.Time)
-			if existingFields.Time == nil || !timezone.SameClockTime(*existingFields.Time, normalized) {
+			normalized := calendar.NormalizeWallClock(*fields.Time)
+			if existingFields.Time == nil || !calendar.SameClockTime(*existingFields.Time, normalized) {
 				existingFields.TimeChanged = true
 			}
 			existingFields.Time = &normalized
@@ -154,7 +154,7 @@ func (c *effectiveTimeCore[S, E, N, D]) updateExceptionRow(
 func (c *effectiveTimeCore[S, E, N, D]) createOrReclaimException(
 	ctx context.Context,
 	studentID int64,
-	date timezone.Date,
+	date calendar.Date,
 	value *time.Time,
 	reason *string,
 	staffID int64,
@@ -194,7 +194,7 @@ func (c *effectiveTimeCore[S, E, N, D]) updateException(
 	ctx context.Context,
 	exceptionID int64,
 	studentID int64,
-	date timezone.Date,
+	date calendar.Date,
 	reason *string,
 	value *time.Time,
 	clearValue bool,
@@ -332,7 +332,7 @@ func (c *effectiveTimeCore[S, E, N, D]) reclaimException(ctx context.Context, ex
 	return result, c.updateExceptionRow(ctx, result)
 }
 
-func prepareExceptionUpdate(fields *domain.EffectiveExceptionFields, studentID int64, date timezone.Date, clearValue bool, resolveStaffID func() (int64, error)) error {
+func prepareExceptionUpdate(fields *domain.EffectiveExceptionFields, studentID int64, date calendar.Date, clearValue bool, resolveStaffID func() (int64, error)) error {
 	if fields.StudentID != studentID {
 		return careplan.ErrCareExceptionWrongStudent
 	}
@@ -354,7 +354,7 @@ func prepareExceptionUpdate(fields *domain.EffectiveExceptionFields, studentID i
 
 type exceptionDeletionCandidate struct {
 	id   int64
-	date timezone.Date
+	date calendar.Date
 }
 
 func (c *effectiveTimeCore[S, E, N, D]) exceptionDeletionSnapshot(rows []E) []exceptionDeletionCandidate {
@@ -376,7 +376,7 @@ func (c *effectiveTimeCore[S, E, N, D]) exceptionDeletionSnapshot(rows []E) []ex
 }
 
 func (c *effectiveTimeCore[S, E, N, D]) lockExceptionSnapshot(ctx context.Context, studentID int64, candidates []exceptionDeletionCandidate) error {
-	var lockedDate timezone.Date
+	var lockedDate calendar.Date
 	for index, row := range candidates {
 		if index > 0 && row.date == lockedDate {
 			continue

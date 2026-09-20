@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ErrPickupChangeCutoffPassed means a guardian tried to set, edit or remove
@@ -67,7 +67,7 @@ func newSameDayCutoff(clock string, now time.Time, currentTime func() time.Time)
 // cutoff minute itself is still open: at exactly 11:00 a change to today is
 // accepted, one second later it is not. Now is compared in Europe/Berlin, so
 // the wall-clock cutoff holds across summer and winter time.
-func (c SameDayCutoff) Closed(date timezone.Date) bool {
+func (c SameDayCutoff) Closed(date calendar.Date) bool {
 	if c.Clock == "" {
 		return false
 	}
@@ -75,8 +75,8 @@ func (c SameDayCutoff) Closed(date timezone.Date) bool {
 	if c.now != nil {
 		now = c.now()
 	}
-	now = now.In(timezone.Berlin)
-	if date != timezone.DateFromTime(now) {
+	now = now.In(calendar.Berlin)
+	if date != calendar.DateFromTime(now) {
 		return false
 	}
 	clock, err := time.Parse(sameDayCutoffLayout, c.Clock)
@@ -84,6 +84,6 @@ func (c SameDayCutoff) Closed(date timezone.Date) bool {
 		// NewSameDayCutoff rejects this; a hand-built value fails closed.
 		return true
 	}
-	cutoff := time.Date(now.Year(), now.Month(), now.Day(), clock.Hour(), clock.Minute(), 0, 0, timezone.Berlin)
+	cutoff := time.Date(now.Year(), now.Month(), now.Day(), clock.Hour(), clock.Minute(), 0, 0, calendar.Berlin)
 	return now.After(cutoff)
 }

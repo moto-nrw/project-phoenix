@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	calendar "github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -26,7 +26,7 @@ type classArrivalExceptionRecords struct {
 	records timetable.ClassArrivalExceptions
 }
 
-func (s classArrivalExceptionRecords) List(ctx context.Context, classes []string, from, to calendar.Date) ([]*careplan.ClassArrivalException, error) {
+func (s classArrivalExceptionRecords) List(ctx context.Context, classes []string, from, to timezone.Date) ([]*careplan.ClassArrivalException, error) {
 	rows, err := s.records.ListClassArrivalExceptions(ctx, classes, from.String(), to.String())
 	if err != nil {
 		return nil, err
@@ -47,24 +47,24 @@ func (s classArrivalExceptionRecords) Upsert(ctx context.Context, row *careplan.
 	return err
 }
 
-func (s classArrivalExceptionRecords) Delete(ctx context.Context, class string, date calendar.Date) (bool, error) {
+func (s classArrivalExceptionRecords) Delete(ctx context.Context, class string, date timezone.Date) (bool, error) {
 	return s.records.DeleteClassArrivalException(ctx, class, date.String())
 }
 
 func carePlanClassException(row timetable.ClassArrivalException) *careplan.ClassArrivalException {
 	return &careplan.ClassArrivalException{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
-		SchoolClass: row.SchoolClass, Date: calendar.Date(row.Date), ArrivalTime: row.ArrivalTime, Reason: row.Reason, CreatedBy: row.CreatedBy, Origin: row.Origin}
+		SchoolClass: row.SchoolClass, Date: timezone.Date(row.Date), ArrivalTime: row.ArrivalTime, Reason: row.Reason, CreatedBy: row.CreatedBy, Origin: row.Origin}
 }
 
 type classArrivalStudents struct{ students classArrivalStudentDirectory }
 
-func (s classArrivalStudents) HasActiveClass(ctx context.Context, class string, today calendar.Date) (bool, error) {
+func (s classArrivalStudents) HasActiveClass(ctx context.Context, class string, today timezone.Date) (bool, error) {
 	rows, err := s.students.ListStudentRecordsByClass(ctx, []string{class}, peopledirectory.StudentScopeEnrolled)
 	if err != nil {
 		return false, err
 	}
 	for _, row := range rows {
-		if row.EnrolledUntil == "" || !today.After(calendar.Date(row.EnrolledUntil)) {
+		if row.EnrolledUntil == "" || !today.After(timezone.Date(row.EnrolledUntil)) {
 			return true, nil
 		}
 	}

@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	calendar "github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -14,7 +14,7 @@ import (
 // public block commands, preview, and later-pickup decisions.
 type pickupExcusalTimetable struct{ timetable.Capability }
 
-func (a pickupExcusalTimetable) FindPartialAbsenceBlocks(ctx context.Context, id int64, date calendar.Date, clock time.Time) ([]carerequests.Block, error) {
+func (a pickupExcusalTimetable) FindPartialAbsenceBlocks(ctx context.Context, id int64, date timezone.Date, clock time.Time) ([]carerequests.Block, error) {
 	rows, err := a.ListPartialAbsenceBlocks(ctx, id, date.String(), clock)
 	if err != nil {
 		return nil, err

@@ -9,7 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type ArrivalBaselineQueries struct{ source ports.ArrivalBaselineSource }
@@ -20,7 +20,7 @@ func NewArrivalBaselineQueries(source ports.ArrivalBaselineSource) *ArrivalBasel
 	}
 	return &ArrivalBaselineQueries{source: source}
 }
-func (q *ArrivalBaselineQueries) Project(ctx context.Context, ids []int64, from, to timezone.Date) (*careplan.ArrivalBaselineProjection, error) {
+func (q *ArrivalBaselineQueries) Project(ctx context.Context, ids []int64, from, to calendar.Date) (*careplan.ArrivalBaselineProjection, error) {
 	out := &careplan.ArrivalBaselineProjection{
 		WeeklyByStudentDate:          make(careplan.ArrivalPlansByStudent, len(ids)),
 		DerivedByStudentDate:         make(careplan.ArrivalPlansByStudent, len(ids)),
@@ -73,7 +73,7 @@ func arrivalRowsByStudent(rows []*careplan.ArrivalSchedule) map[int64]careplan.A
 	}
 	return out
 }
-func (q *ArrivalBaselineQueries) careDays(ctx context.Context, ids []int64, from, to timezone.Date) (careplan.CareDayIndex, error) {
+func (q *ArrivalBaselineQueries) careDays(ctx context.Context, ids []int64, from, to calendar.Date) (careplan.CareDayIndex, error) {
 	authoritative, err := q.source.BookingsAuthoritative(ctx)
 	if err != nil || !authoritative {
 		return nil, err
@@ -97,7 +97,7 @@ func NewPickupBaselineQueries(source ports.PickupBaselineSource) *PickupBaseline
 	}
 	return &PickupBaselineQueries{source: source}
 }
-func (q *PickupBaselineQueries) Project(ctx context.Context, ids []int64, from, to timezone.Date) (*careplan.PickupBaselineProjection, error) {
+func (q *PickupBaselineQueries) Project(ctx context.Context, ids []int64, from, to calendar.Date) (*careplan.PickupBaselineProjection, error) {
 	out := &careplan.PickupBaselineProjection{WeeklyByStudentDate: make(careplan.PickupPlansByStudent, len(ids)), OfferingByStudentDate: make(careplan.PickupPlansByStudent, len(ids))}
 	ids = uniqueBaselineIDs(ids)
 	if len(ids) == 0 || to.Before(from) {
@@ -141,7 +141,7 @@ func manualPickupRows(rows []*careplan.PickupSchedule) map[int64]map[int]*carepl
 	}
 	return out
 }
-func (q *PickupBaselineQueries) OfferingPickupForDate(ctx context.Context, id int64, date timezone.Date) (*careplan.PickupSchedule, error) {
+func (q *PickupBaselineQueries) OfferingPickupForDate(ctx context.Context, id int64, date calendar.Date) (*careplan.PickupSchedule, error) {
 	projection, err := q.Project(ctx, []int64{id}, date, date)
 	if err != nil {
 		return nil, err
@@ -152,7 +152,7 @@ func (q *PickupBaselineQueries) HasBookedOfferingPickupForWeekday(ctx context.Co
 	if weekday < 1 || weekday > 5 {
 		return false, nil
 	}
-	links, err := q.source.BookingRows(ctx, []int64{id}, timezone.TodayDate(), timezone.NewDate(9999, time.December, 31))
+	links, err := q.source.BookingRows(ctx, []int64{id}, calendar.TodayDate(), calendar.NewDate(9999, time.December, 31))
 	if err != nil {
 		return false, fmt.Errorf("find booked offering pickup: %w", err)
 	}

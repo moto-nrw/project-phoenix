@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type arrivalScheduleService struct {
@@ -42,7 +42,7 @@ func NewArrivalSchedules(schedules ports.ArrivalScheduleRepository, exceptions p
 func (s *arrivalScheduleService) projectedWeeklySchedules(
 	ctx context.Context,
 	studentIDs []int64,
-	date timezone.Date,
+	date calendar.Date,
 ) ([]*careplan.ArrivalSchedule, error) {
 	week, err := s.projectedWeek(ctx, studentIDs, date)
 	if err != nil {
@@ -69,7 +69,7 @@ func (s *arrivalScheduleService) projectedWeeklySchedules(
 func (s *arrivalScheduleService) projectedWeekRange(
 	ctx context.Context,
 	studentIDs []int64,
-	from, to timezone.Date,
+	from, to calendar.Date,
 ) ([]*careplan.ArrivalSchedule, error) {
 	if s.baselines == nil {
 		return s.projectedWeeklySchedules(ctx, studentIDs, from)
@@ -95,7 +95,7 @@ func (s *arrivalScheduleService) projectedWeekRange(
 	return rows, nil
 }
 
-func weekStart(date timezone.Date) timezone.Date {
+func weekStart(date calendar.Date) calendar.Date {
 	return date.AddDays(-(int(date.Weekday()) + 6) % 7)
 }
 
@@ -104,7 +104,7 @@ func weekStart(date timezone.Date) timezone.Date {
 func (s *arrivalScheduleService) projectedWeek(
 	ctx context.Context,
 	studentIDs []int64,
-	date timezone.Date,
+	date calendar.Date,
 ) (map[int64]careplan.ArrivalWeek, error) {
 	out := make(map[int64]careplan.ArrivalWeek, len(studentIDs))
 	if s.baselines == nil {
@@ -135,7 +135,7 @@ func (s *arrivalScheduleService) GetStudentArrivalSchedules(
 	ctx context.Context,
 	studentID int64,
 ) ([]*careplan.ArrivalSchedule, error) {
-	from := weekStart(timezone.TodayDate())
+	from := weekStart(calendar.TodayDate())
 	return s.projectedWeekRange(ctx, []int64{studentID}, from, from.AddDays(4))
 }
 
@@ -147,7 +147,7 @@ func (s *arrivalScheduleService) GetWeeklySchedulesByStudentIDsAndWeekday(
 	if weekday < 1 || weekday > 5 {
 		return nil, nil
 	}
-	date := weekStart(timezone.TodayDate()).AddDays(weekday - 1)
+	date := weekStart(calendar.TodayDate()).AddDays(weekday - 1)
 	rows, err := s.projectedWeeklySchedules(ctx, studentIDs, date)
 	if err != nil {
 		return nil, err
@@ -164,7 +164,7 @@ func (s *arrivalScheduleService) GetWeeklySchedulesByStudentIDsAndWeekday(
 func (s *arrivalScheduleService) GetWeeklySchedulesByStudentIDsForDate(
 	ctx context.Context,
 	studentIDs []int64,
-	date timezone.Date,
+	date calendar.Date,
 ) ([]*careplan.ArrivalSchedule, error) {
 	return s.projectedWeeklySchedules(ctx, studentIDs, date)
 }
@@ -183,7 +183,7 @@ func (s *arrivalScheduleService) GetStudentArrivalScheduleForWeekday(
 	if s.baselines == nil {
 		return stored, err
 	}
-	date := weekStart(timezone.TodayDate()).AddDays(weekday - 1)
+	date := weekStart(calendar.TodayDate()).AddDays(weekday - 1)
 	week, err := s.projectedWeek(ctx, []int64{studentID}, date)
 	if err != nil {
 		return nil, err
@@ -244,7 +244,7 @@ func (s *arrivalScheduleService) preserveInactiveBookingRows(
 	if s.baselines == nil {
 		return rows, nil
 	}
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	projection, err := s.baselines.Project(ctx, []int64{studentID}, today, today)
 	if err != nil {
 		return nil, &careplan.ScheduleError{Op: "preserve inactive booking arrival rows", Err: err}
@@ -267,7 +267,7 @@ func (s *arrivalScheduleService) preserveInactiveBookingRows(
 		if row != nil && !incoming[row.Weekday] {
 			preserved := *row
 			if !preserved.ExpectedArrival.IsZero() {
-				preserved.ExpectedArrival = timezone.NormalizeWallClock(preserved.ExpectedArrival)
+				preserved.ExpectedArrival = calendar.NormalizeWallClock(preserved.ExpectedArrival)
 			}
 			merged = append(merged, &preserved)
 		}
@@ -343,7 +343,7 @@ func (s *arrivalScheduleService) GetStudentArrivalExceptionByID(
 func (s *arrivalScheduleService) GetStudentArrivalExceptionForDate(
 	ctx context.Context,
 	studentID int64,
-	date timezone.Date,
+	date calendar.Date,
 ) (*careplan.ArrivalException, error) {
 	return s.exceptionForDate(ctx, studentID, date)
 }
@@ -379,7 +379,7 @@ func (s *arrivalScheduleService) UpdateStudentArrivalException(
 func (s *arrivalScheduleService) CreateOrReclaimException(
 	ctx context.Context,
 	studentID int64,
-	date timezone.Date,
+	date calendar.Date,
 	arrivalTime *time.Time,
 	reason *string,
 	staffID int64,
@@ -400,7 +400,7 @@ func (s *arrivalScheduleService) UpdateException(
 	ctx context.Context,
 	exceptionID int64,
 	studentID int64,
-	date timezone.Date,
+	date calendar.Date,
 	reason *string,
 	arrivalTime *time.Time,
 	clearArrivalTime bool,
@@ -449,7 +449,7 @@ func (s *arrivalScheduleService) GetStudentArrivalNotes(
 func (s *arrivalScheduleService) GetStudentArrivalNotesForDate(
 	ctx context.Context,
 	studentID int64,
-	date timezone.Date,
+	date calendar.Date,
 ) ([]*careplan.ArrivalNote, error) {
 	return s.notesForDate(ctx, studentID, date)
 }
@@ -486,14 +486,14 @@ func (s *arrivalScheduleService) GetStudentArrivalData(
 	ctx context.Context,
 	studentID int64,
 ) (*careplan.StudentArrivalData, error) {
-	from := weekStart(timezone.TodayDate())
+	from := weekStart(calendar.TodayDate())
 	return s.GetStudentArrivalDataForDateRange(ctx, studentID, from, from.AddDays(4))
 }
 
 func (s *arrivalScheduleService) GetStudentArrivalDataForDate(
 	ctx context.Context,
 	studentID int64,
-	date timezone.Date,
+	date calendar.Date,
 ) (*careplan.StudentArrivalData, error) {
 	data, err := s.data(ctx, studentID)
 	if err != nil {
@@ -519,7 +519,7 @@ func (s *arrivalScheduleService) GetStudentArrivalDataForDate(
 func (s *arrivalScheduleService) GetStudentArrivalDataForDateRange(
 	ctx context.Context,
 	studentID int64,
-	from, to timezone.Date,
+	from, to calendar.Date,
 ) (*careplan.StudentArrivalData, error) {
 	data, err := s.data(ctx, studentID)
 	if err != nil {
@@ -580,7 +580,7 @@ func (s *arrivalScheduleService) GetStudentsWithStoredArrivalSchedules(
 func (s *arrivalScheduleService) GetEffectiveArrivalTimeForDate(
 	ctx context.Context,
 	studentID int64,
-	date timezone.Date,
+	date calendar.Date,
 ) (*careplan.EffectiveArrivalTime, error) {
 	if s.baselines == nil {
 		result, err := s.effectiveTimeForDate(ctx, studentID, date)
@@ -614,7 +614,7 @@ func (s *arrivalScheduleService) GetEffectiveArrivalTimeForDate(
 func (s *arrivalScheduleService) bulkEffectiveResults(
 	ctx context.Context,
 	studentIDs []int64,
-	date timezone.Date,
+	date calendar.Date,
 ) (map[int64]*domain.EffectiveTimeResult, map[int64]*careplan.ArrivalSchedule, error) {
 	if s.baselines == nil {
 		results, err := s.bulkEffectiveTimesForDate(ctx, studentIDs, date)
@@ -648,7 +648,7 @@ func (s *arrivalScheduleService) bulkEffectiveResults(
 func (s *arrivalScheduleService) GetBulkEffectiveArrivalTimesForDate(
 	ctx context.Context,
 	studentIDs []int64,
-	date timezone.Date,
+	date calendar.Date,
 ) (map[int64]*careplan.EffectiveArrivalTime, error) {
 	results, schedules, err := s.bulkEffectiveResults(ctx, studentIDs, date)
 	if err != nil {

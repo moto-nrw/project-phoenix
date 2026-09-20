@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 var ErrInvalidPayload = errors.New("schedule: invalid care request payload")
@@ -96,7 +96,7 @@ func decodePayload[T any](raw json.RawMessage) (T, error) {
 }
 
 // parseWallClock turns an "HH:MM" string into the normalized wall-clock
-// time.Time the schedule TIME columns store. Routing through timezone.NormalizeWallClock
+// time.Time the schedule TIME columns store. Routing through calendar.NormalizeWallClock
 // is the mandated normalization for TIME columns (CLAUDE.md rule 11). Preserved
 // rows carried through a merge must be re-normalized the same way before
 // re-insert, since TIME columns scan back with a driver-chosen year that
@@ -106,7 +106,7 @@ func parseWallClock(hhmm string) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, err
 	}
-	return timezone.NormalizeWallClock(t), nil
+	return calendar.NormalizeWallClock(t), nil
 }
 
 // ParseWeekly validates a care-schedule payload (weekday range,

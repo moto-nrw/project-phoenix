@@ -7,18 +7,8 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
-
-func (s *careScheduleRequestService) edits() carerequests.Edits {
-	adapter := requestEditAdapter{requestSubmissionAdapter{s}}
-	service, err := compose.NewRequestEdits(s.requestRecords, adapter, adapter, s.todayDate)
-	if err != nil {
-		panic(err)
-	}
-	return service
-}
 
 type requestEditAdapter struct{ requestSubmissionAdapter }
 

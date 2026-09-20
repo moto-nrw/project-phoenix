@@ -6,18 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 )
-
-func (s *careScheduleRequestService) diffs() carerequests.Diffs {
-	a := requestDiffAdapter{&weeklyApprovalAdapter{s: s}}
-	service, err := compose.NewRequestDiffs(a, a, a, s.logger)
-	if err != nil {
-		panic(err)
-	}
-	return service
-}
 
 type requestDiffAdapter struct{ *weeklyApprovalAdapter }
 

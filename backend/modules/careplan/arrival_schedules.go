@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ArrivalScheduleService is the composed schedule capability used at wiring boundaries.
@@ -26,7 +26,7 @@ type ArrivalPlans interface {
 	GetWeeklySchedulesByStudentIDsAndWeekday(ctx context.Context, studentIDs []int64, weekday int) ([]*ArrivalSchedule, error)
 	// GetWeeklySchedulesByStudentIDsForDate returns the full recurring arrival
 	// plan applicable on date in one batch projection.
-	GetWeeklySchedulesByStudentIDsForDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*ArrivalSchedule, error)
+	GetWeeklySchedulesByStudentIDsForDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]*ArrivalSchedule, error)
 	GetStudentArrivalScheduleForWeekday(ctx context.Context, studentID int64, weekday int) (*ArrivalSchedule, error)
 	UpsertStudentArrivalSchedule(ctx context.Context, scheduleData *ArrivalSchedule) error
 	UpsertBulkStudentArrivalSchedules(ctx context.Context, studentID int64, schedules []*ArrivalSchedule) error
@@ -37,22 +37,22 @@ type ArrivalPlans interface {
 // ArrivalExceptions manages dated deviations from the weekly plan.
 type ArrivalExceptions interface {
 	GetStudentArrivalExceptionByID(ctx context.Context, exceptionID int64) (*ArrivalException, error)
-	GetStudentArrivalExceptionForDate(ctx context.Context, studentID int64, date timezone.Date) (*ArrivalException, error)
+	GetStudentArrivalExceptionForDate(ctx context.Context, studentID int64, date calendar.Date) (*ArrivalException, error)
 	GetStudentArrivalExceptions(ctx context.Context, studentID int64) ([]*ArrivalException, error)
 	GetUpcomingStudentArrivalExceptions(ctx context.Context, studentID int64) ([]*ArrivalException, error)
 	CreateStudentArrivalException(ctx context.Context, exception *ArrivalException) error
 	UpdateStudentArrivalException(ctx context.Context, exception *ArrivalException) error
 	DeleteStudentArrivalException(ctx context.Context, exceptionID, studentID int64) error
 	DeleteAllStudentArrivalExceptions(ctx context.Context, studentID int64) error
-	CreateOrReclaimException(ctx context.Context, studentID int64, date timezone.Date, arrivalTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error)) (*ArrivalException, error)
-	UpdateException(ctx context.Context, exceptionID, studentID int64, date timezone.Date, reason *string, arrivalTime *time.Time, clearArrivalTime bool, resolveStaffID func() (int64, error)) (*ArrivalException, error)
+	CreateOrReclaimException(ctx context.Context, studentID int64, date calendar.Date, arrivalTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error)) (*ArrivalException, error)
+	UpdateException(ctx context.Context, exceptionID, studentID int64, date calendar.Date, reason *string, arrivalTime *time.Time, clearArrivalTime bool, resolveStaffID func() (int64, error)) (*ArrivalException, error)
 }
 
 // ArrivalNotes manages the notes attached to a student's care days.
 type ArrivalNotes interface {
 	GetStudentArrivalNoteByID(ctx context.Context, noteID int64) (*ArrivalNote, error)
 	GetStudentArrivalNotes(ctx context.Context, studentID int64) ([]*ArrivalNote, error)
-	GetStudentArrivalNotesForDate(ctx context.Context, studentID int64, date timezone.Date) ([]*ArrivalNote, error)
+	GetStudentArrivalNotesForDate(ctx context.Context, studentID int64, date calendar.Date) ([]*ArrivalNote, error)
 	CreateStudentArrivalNote(ctx context.Context, note *ArrivalNote) error
 	UpdateStudentArrivalNote(ctx context.Context, note *ArrivalNote) error
 	DeleteStudentArrivalNote(ctx context.Context, noteID int64) error
@@ -63,15 +63,15 @@ type ArrivalNotes interface {
 type ArrivalTimes interface {
 	BulkArrivalTimes
 	GetStudentArrivalData(ctx context.Context, studentID int64) (*StudentArrivalData, error)
-	GetStudentArrivalDataForDate(ctx context.Context, studentID int64, date timezone.Date) (*StudentArrivalData, error)
-	GetStudentArrivalDataForDateRange(ctx context.Context, studentID int64, from, to timezone.Date) (*StudentArrivalData, error)
+	GetStudentArrivalDataForDate(ctx context.Context, studentID int64, date calendar.Date) (*StudentArrivalData, error)
+	GetStudentArrivalDataForDateRange(ctx context.Context, studentID int64, from, to calendar.Date) (*StudentArrivalData, error)
 	GetStudentsWithStoredArrivalSchedules(ctx context.Context, studentIDs []int64) (map[int64]bool, error)
-	GetEffectiveArrivalTimeForDate(ctx context.Context, studentID int64, date timezone.Date) (*EffectiveArrivalTime, error)
+	GetEffectiveArrivalTimeForDate(ctx context.Context, studentID int64, date calendar.Date) (*EffectiveArrivalTime, error)
 }
 
 // BulkArrivalTimes is the tenant-scoped effective-time projection used by dashboards.
 type BulkArrivalTimes interface {
-	GetBulkEffectiveArrivalTimesForDate(context.Context, []int64, timezone.Date) (map[int64]*EffectiveArrivalTime, error)
+	GetBulkEffectiveArrivalTimesForDate(context.Context, []int64, calendar.Date) (map[int64]*EffectiveArrivalTime, error)
 }
 
 type StudentArrivalData struct {

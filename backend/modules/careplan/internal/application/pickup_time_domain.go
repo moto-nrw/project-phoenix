@@ -3,7 +3,7 @@ package application
 import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type PickupTimeDomain struct{}
@@ -33,7 +33,7 @@ func (PickupTimeDomain) ExceptionFields(row *careplan.PickupException) domain.Ef
 	return domain.EffectiveExceptionFields{
 		ID:                row.ID,
 		StudentID:         row.StudentID,
-		Date:              timezone.Date(row.ExceptionDate),
+		Date:              calendar.Date(row.ExceptionDate),
 		Time:              row.PickupTime,
 		Reason:            row.Reason,
 		Source:            row.Source,
@@ -55,7 +55,7 @@ func (PickupTimeDomain) NewException(fields domain.EffectiveExceptionFields) *ca
 	// PickupTime; do the same for the partial-excusal cutoff here.
 	var excusedFrom = fields.ExcusedFrom
 	if excusedFrom != nil {
-		clock := timezone.NormalizeWallClock(*excusedFrom)
+		clock := calendar.NormalizeWallClock(*excusedFrom)
 		excusedFrom = &clock
 	}
 	row := &careplan.PickupException{

@@ -3,7 +3,7 @@ package application
 import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type ArrivalTimeDomain struct{}
@@ -33,7 +33,7 @@ func (ArrivalTimeDomain) ExceptionFields(row *careplan.ArrivalException) domain.
 	return domain.EffectiveExceptionFields{
 		ID:                row.ID,
 		StudentID:         row.StudentID,
-		Date:              timezone.Date(row.ExceptionDate),
+		Date:              calendar.Date(row.ExceptionDate),
 		Time:              row.ExpectedArrival,
 		Reason:            row.Reason,
 		Source:            row.Source,

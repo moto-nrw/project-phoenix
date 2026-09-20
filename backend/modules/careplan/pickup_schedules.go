@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // PickupScheduleService is the composed schedule capability used at wiring boundaries.
@@ -27,12 +27,12 @@ type PickupPlans interface {
 	GetWeeklySchedulesByStudentIDs(ctx context.Context, studentIDs []int64) ([]*PickupSchedule, error)
 	// GetWeeklySchedulesByStudentIDsForDate returns the full recurring pickup
 	// plan applicable on date in one batch projection.
-	GetWeeklySchedulesByStudentIDsForDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*PickupSchedule, error)
+	GetWeeklySchedulesByStudentIDsForDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]*PickupSchedule, error)
 	GetStudentPickupScheduleForWeekday(ctx context.Context, studentID int64, weekday int) (*PickupSchedule, error)
 	HasBookedOfferingPickupForWeekday(ctx context.Context, studentID int64, weekday int) (bool, error)
 	UpsertStudentPickupSchedule(ctx context.Context, scheduleData *PickupSchedule) error
 	UpsertBulkStudentPickupSchedules(ctx context.Context, studentID int64, schedules []*PickupSchedule) error
-	UpsertBulkStudentPickupSchedulesForDate(ctx context.Context, studentID int64, date timezone.Date, schedules []*PickupSchedule) error
+	UpsertBulkStudentPickupSchedulesForDate(ctx context.Context, studentID int64, date calendar.Date, schedules []*PickupSchedule) error
 	DeleteStudentPickupSchedule(ctx context.Context, scheduleID int64) error
 	DeleteAllStudentPickupSchedules(ctx context.Context, studentID int64) error
 }
@@ -40,22 +40,22 @@ type PickupPlans interface {
 // PickupExceptions manages dated deviations from the weekly plan.
 type PickupExceptions interface {
 	GetStudentPickupExceptionByID(ctx context.Context, exceptionID int64) (*PickupException, error)
-	GetStudentPickupExceptionForDate(ctx context.Context, studentID int64, date timezone.Date) (*PickupException, error)
+	GetStudentPickupExceptionForDate(ctx context.Context, studentID int64, date calendar.Date) (*PickupException, error)
 	GetStudentPickupExceptions(ctx context.Context, studentID int64) ([]*PickupException, error)
 	GetUpcomingStudentPickupExceptions(ctx context.Context, studentID int64) ([]*PickupException, error)
 	CreateStudentPickupException(ctx context.Context, exception *PickupException) error
 	UpdateStudentPickupException(ctx context.Context, exception *PickupException) error
 	DeleteStudentPickupException(ctx context.Context, exceptionID, studentID int64) error
 	DeleteAllStudentPickupExceptions(ctx context.Context, studentID int64) error
-	CreateOrReclaimException(ctx context.Context, studentID int64, date timezone.Date, pickupTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error)) (*PickupException, error)
-	UpdateException(ctx context.Context, exceptionID, studentID int64, date timezone.Date, reason *string, pickupTime *time.Time, clearPickupTime bool, resolveStaffID func() (int64, error)) (*PickupException, error)
+	CreateOrReclaimException(ctx context.Context, studentID int64, date calendar.Date, pickupTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error)) (*PickupException, error)
+	UpdateException(ctx context.Context, exceptionID, studentID int64, date calendar.Date, reason *string, pickupTime *time.Time, clearPickupTime bool, resolveStaffID func() (int64, error)) (*PickupException, error)
 }
 
 // PickupNotes manages the notes attached to a student's care days.
 type PickupNotes interface {
 	GetStudentPickupNoteByID(ctx context.Context, noteID int64) (*PickupNote, error)
 	GetStudentPickupNotes(ctx context.Context, studentID int64) ([]*PickupNote, error)
-	GetStudentPickupNotesForDate(ctx context.Context, studentID int64, date timezone.Date) ([]*PickupNote, error)
+	GetStudentPickupNotesForDate(ctx context.Context, studentID int64, date calendar.Date) ([]*PickupNote, error)
 	CreateStudentPickupNote(ctx context.Context, note *PickupNote) error
 	UpdateStudentPickupNote(ctx context.Context, note *PickupNote) error
 	DeleteStudentPickupNote(ctx context.Context, noteID int64) error
@@ -66,13 +66,13 @@ type PickupNotes interface {
 type PickupTimes interface {
 	BulkPickupTimes
 	GetStudentPickupData(ctx context.Context, studentID int64) (*StudentPickupData, error)
-	GetStudentPickupDataForRange(ctx context.Context, studentID int64, from, to timezone.Date) (*StudentPickupData, error)
-	GetEffectivePickupTimeForDate(ctx context.Context, studentID int64, date timezone.Date) (*EffectivePickupTime, error)
+	GetStudentPickupDataForRange(ctx context.Context, studentID int64, from, to calendar.Date) (*StudentPickupData, error)
+	GetEffectivePickupTimeForDate(ctx context.Context, studentID int64, date calendar.Date) (*EffectivePickupTime, error)
 }
 
 // BulkPickupTimes is the tenant-scoped effective-time projection used by dashboards.
 type BulkPickupTimes interface {
-	GetBulkEffectivePickupTimesForDate(context.Context, []int64, timezone.Date) (map[int64]*EffectivePickupTime, error)
+	GetBulkEffectivePickupTimesForDate(context.Context, []int64, calendar.Date) (map[int64]*EffectivePickupTime, error)
 }
 
 type PickupScheduleInput struct {
@@ -88,7 +88,7 @@ type StudentPickupData struct {
 }
 
 type DatedPickupSchedule struct {
-	Date             timezone.Date
+	Date             calendar.Date
 	Schedule         *PickupSchedule
 	OfferingSchedule *PickupSchedule
 }

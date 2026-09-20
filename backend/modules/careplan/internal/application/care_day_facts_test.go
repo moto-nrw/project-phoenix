@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,9 +14,9 @@ import (
 type fixedCareParticipation map[int64]bool
 
 func (f fixedCareParticipation) ParticipatingStudentIDsByDate(
-	_ context.Context, _ []int64, from, to timezone.Date,
-) (map[timezone.Date]map[int64]bool, error) {
-	result := make(map[timezone.Date]map[int64]bool)
+	_ context.Context, _ []int64, from, to calendar.Date,
+) (map[calendar.Date]map[int64]bool, error) {
+	result := make(map[calendar.Date]map[int64]bool)
 	for day := from; !day.After(to); day = day.AddDays(1) {
 		result[day] = f
 	}
@@ -28,10 +28,10 @@ type countingCareParticipation struct {
 }
 
 func (f *countingCareParticipation) ParticipatingStudentIDsByDate(
-	_ context.Context, studentIDs []int64, from, to timezone.Date,
-) (map[timezone.Date]map[int64]bool, error) {
+	_ context.Context, studentIDs []int64, from, to calendar.Date,
+) (map[calendar.Date]map[int64]bool, error) {
 	f.calls++
-	result := make(map[timezone.Date]map[int64]bool)
+	result := make(map[calendar.Date]map[int64]bool)
 	for day := from; !day.After(to); day = day.AddDays(1) {
 		result[day] = map[int64]bool{studentIDs[0]: true}
 	}
@@ -41,9 +41,9 @@ func (f *countingCareParticipation) ParticipatingStudentIDsByDate(
 // Monday 2026-04-20 / Thursday 2026-04-23 — fixed dates, so the matrix below
 // never depends on when the suite runs.
 var (
-	careDayMonday   = timezone.NewDate(2026, 4, 20)
-	careDayThursday = timezone.NewDate(2026, 4, 23)
-	careDaySaturday = timezone.NewDate(2026, 4, 25)
+	careDayMonday   = calendar.NewDate(2026, 4, 20)
+	careDayThursday = calendar.NewDate(2026, 4, 23)
+	careDaySaturday = calendar.NewDate(2026, 4, 25)
 )
 
 func careDayClock(hhmm string) time.Time {
@@ -59,11 +59,11 @@ func careDayClock(hhmm string) time.Time {
 func plansForStudent(studentID int64, arrivalWeekdays ...int) *carePlans {
 	plans := &carePlans{
 		arrivalByStudentWeekday: map[int64]map[int]*careplan.ArrivalSchedule{},
-		arrivalByStudentDate:    map[int64]map[timezone.Date]*careplan.ArrivalSchedule{},
-		pickupByStudentDate:     map[int64]map[timezone.Date]*careplan.PickupSchedule{},
-		hasPlan:                 map[int64]map[timezone.Date]bool{},
-		arrivalExceptions:       map[int64]map[timezone.Date]*careplan.ArrivalException{},
-		pickupExceptions:        map[int64]map[timezone.Date]*careplan.PickupException{},
+		arrivalByStudentDate:    map[int64]map[calendar.Date]*careplan.ArrivalSchedule{},
+		pickupByStudentDate:     map[int64]map[calendar.Date]*careplan.PickupSchedule{},
+		hasPlan:                 map[int64]map[calendar.Date]bool{},
+		arrivalExceptions:       map[int64]map[calendar.Date]*careplan.ArrivalException{},
+		pickupExceptions:        map[int64]map[calendar.Date]*careplan.PickupException{},
 	}
 	if len(arrivalWeekdays) > 0 {
 		byWeekday := map[int]*careplan.ArrivalSchedule{}
@@ -75,7 +75,7 @@ func plansForStudent(studentID int64, arrivalWeekdays ...int) *carePlans {
 			}
 		}
 		plans.arrivalByStudentWeekday[studentID] = byWeekday
-		plans.hasPlan[studentID] = map[timezone.Date]bool{
+		plans.hasPlan[studentID] = map[calendar.Date]bool{
 			careDayMonday: true, careDayThursday: true, careDaySaturday: true,
 		}
 	}
@@ -124,7 +124,7 @@ func TestCareDayStatusFor_Exceptions(t *testing.T) {
 	// day was booked and has to end as a recorded absence (#1747 review).
 	t.Run("exception without a time cancels an otherwise booked day", func(t *testing.T) {
 		plans := plansForStudent(studentID, 1)
-		plans.arrivalExceptions[studentID] = map[timezone.Date]*careplan.ArrivalException{
+		plans.arrivalExceptions[studentID] = map[calendar.Date]*careplan.ArrivalException{
 			careDayMonday: {StudentID: studentID, ExceptionDate: careplan.Date(careDayMonday)},
 		}
 
@@ -138,7 +138,7 @@ func TestCareDayStatusFor_Exceptions(t *testing.T) {
 	t.Run("exception with a time books a day the weekly plan skips", func(t *testing.T) {
 		arrival := careDayClock("09:30")
 		plans := plansForStudent(studentID, 1)
-		plans.arrivalExceptions[studentID] = map[timezone.Date]*careplan.ArrivalException{
+		plans.arrivalExceptions[studentID] = map[calendar.Date]*careplan.ArrivalException{
 			careDayThursday: {StudentID: studentID, ExceptionDate: careplan.Date(careDayThursday), ExpectedArrival: &arrival},
 		}
 
@@ -150,10 +150,10 @@ func TestCareDayStatusFor_Exceptions(t *testing.T) {
 	// not resurrect the day (#1725 contract in mergeCareExceptions).
 	t.Run("timeless arrival exception cancels the day despite a pickup schedule", func(t *testing.T) {
 		plans := plansForStudent(studentID, 1)
-		plans.pickupByStudentDate[studentID] = map[timezone.Date]*careplan.PickupSchedule{
+		plans.pickupByStudentDate[studentID] = map[calendar.Date]*careplan.PickupSchedule{
 			careDayMonday: {StudentID: studentID, Weekday: 1, PickupTime: careDayClock("16:00")},
 		}
-		plans.arrivalExceptions[studentID] = map[timezone.Date]*careplan.ArrivalException{
+		plans.arrivalExceptions[studentID] = map[calendar.Date]*careplan.ArrivalException{
 			careDayMonday: {StudentID: studentID, ExceptionDate: careplan.Date(careDayMonday)},
 		}
 
@@ -162,7 +162,7 @@ func TestCareDayStatusFor_Exceptions(t *testing.T) {
 
 	t.Run("timeless pickup exception cancels the day despite an arrival schedule", func(t *testing.T) {
 		plans := plansForStudent(studentID, 1)
-		plans.pickupExceptions[studentID] = map[timezone.Date]*careplan.PickupException{
+		plans.pickupExceptions[studentID] = map[calendar.Date]*careplan.PickupException{
 			careDayMonday: {StudentID: studentID, ExceptionDate: careplan.Date(careDayMonday)},
 		}
 
@@ -176,10 +176,10 @@ func TestCareDayStatusFor_Exceptions(t *testing.T) {
 	t.Run("a timed exception on the other leg does not beat the cancellation", func(t *testing.T) {
 		pickup := careDayClock("15:00")
 		plans := plansForStudent(studentID, 1)
-		plans.arrivalExceptions[studentID] = map[timezone.Date]*careplan.ArrivalException{
+		plans.arrivalExceptions[studentID] = map[calendar.Date]*careplan.ArrivalException{
 			careDayMonday: {StudentID: studentID, ExceptionDate: careplan.Date(careDayMonday)},
 		}
-		plans.pickupExceptions[studentID] = map[timezone.Date]*careplan.PickupException{
+		plans.pickupExceptions[studentID] = map[calendar.Date]*careplan.PickupException{
 			careDayMonday: {StudentID: studentID, ExceptionDate: careplan.Date(careDayMonday), PickupTime: &pickup},
 		}
 
@@ -193,7 +193,7 @@ func TestCareDayStatusFor_Exceptions(t *testing.T) {
 		assert.Equal(t, careplan.CareDayNotScheduled, careplan.ResolveCareDay(plans.factsFor(studentID, careDaySaturday)),
 			"weekends carry no weekly rows")
 
-		plans.arrivalExceptions[studentID] = map[timezone.Date]*careplan.ArrivalException{
+		plans.arrivalExceptions[studentID] = map[calendar.Date]*careplan.ArrivalException{
 			careDaySaturday: {StudentID: studentID, ExceptionDate: careplan.Date(careDaySaturday), ExpectedArrival: &arrival},
 		}
 		assert.Equal(t, careplan.CareDayScheduled, careplan.ResolveCareDay(plans.factsFor(studentID, careDaySaturday)))
@@ -209,10 +209,10 @@ func TestCareDayStatusFor_PickupOnlyPlan(t *testing.T) {
 	pickup := careDayClock("16:00")
 
 	plans := plansForStudent(studentID)
-	plans.pickupByStudentDate[studentID] = map[timezone.Date]*careplan.PickupSchedule{
+	plans.pickupByStudentDate[studentID] = map[calendar.Date]*careplan.PickupSchedule{
 		careDayMonday: {StudentID: studentID, Weekday: 1, PickupTime: pickup},
 	}
-	plans.hasPlan[studentID] = map[timezone.Date]bool{
+	plans.hasPlan[studentID] = map[calendar.Date]bool{
 		careDayMonday: true, careDayThursday: true, careDaySaturday: true,
 	}
 
@@ -230,10 +230,10 @@ func TestCareDayStatusFor_AuthoritativeBookingOutranksPickupPlan(t *testing.T) {
 	const studentID int64 = 46
 	plans := plansForStudent(studentID)
 	plans.bookingsAuthoritative = true
-	plans.pickupByStudentDate[studentID] = map[timezone.Date]*careplan.PickupSchedule{
+	plans.pickupByStudentDate[studentID] = map[calendar.Date]*careplan.PickupSchedule{
 		careDayMonday: {StudentID: studentID, Weekday: 1, PickupTime: careDayClock("16:00")},
 	}
-	plans.hasPlan[studentID] = map[timezone.Date]bool{careDayMonday: true}
+	plans.hasPlan[studentID] = map[calendar.Date]bool{careDayMonday: true}
 
 	assert.Equal(t, careplan.CareDayNotScheduled, careplan.ResolveCareDay(plans.factsFor(studentID, careDayMonday)),
 		"a pickup row must not add a care day when bookings are authoritative")
@@ -241,7 +241,7 @@ func TestCareDayStatusFor_AuthoritativeBookingOutranksPickupPlan(t *testing.T) {
 	// The arrival projection carries a placeholder row even when neither the
 	// child nor the class has an arrival time. That row is the positive booking
 	// signal; pickup details may enrich the day once it exists.
-	plans.arrivalByStudentDate[studentID] = map[timezone.Date]*careplan.ArrivalSchedule{
+	plans.arrivalByStudentDate[studentID] = map[calendar.Date]*careplan.ArrivalSchedule{
 		careDayMonday: {StudentID: studentID, Weekday: 1},
 	}
 	assert.Equal(t, careplan.CareDayScheduled, careplan.ResolveCareDay(plans.factsFor(studentID, careDayMonday)))
@@ -249,10 +249,10 @@ func TestCareDayStatusFor_AuthoritativeBookingOutranksPickupPlan(t *testing.T) {
 
 type careDayQueryFactsFixture struct {
 	CareParticipationResolver
-	facts map[int64]map[timezone.Date]careplan.CareDayFacts
+	facts map[int64]map[calendar.Date]careplan.CareDayFacts
 }
 
-func (f careDayQueryFactsFixture) LoadCareDayFacts(context.Context, []int64, timezone.Date, timezone.Date) (map[int64]map[timezone.Date]careplan.CareDayFacts, error) {
+func (f careDayQueryFactsFixture) LoadCareDayFacts(context.Context, []int64, calendar.Date, calendar.Date) (map[int64]map[calendar.Date]careplan.CareDayFacts, error) {
 	return f.facts, nil
 }
 
@@ -262,7 +262,7 @@ func TestCareParticipationBoundaryOverridesAStaleCarePlan(t *testing.T) {
 	const withdrawnID int64 = 47
 	var query careplan.CareDayQuery = NewCareDayQueries(careDayQueryFactsFixture{
 		CareParticipationResolver: fixedCareParticipation{participatingID: true},
-		facts: map[int64]map[timezone.Date]careplan.CareDayFacts{
+		facts: map[int64]map[calendar.Date]careplan.CareDayFacts{
 			participatingID: {careDayMonday: {HasPlan: true, HasArrivalSchedule: true}},
 			withdrawnID:     {careDayMonday: {HasPlan: true, HasArrivalSchedule: true}},
 		},
@@ -279,7 +279,7 @@ func TestCareParticipationRangeLoadsBoundariesOnce(t *testing.T) {
 	var query careplan.CareDayQuery = NewCareDayQueries(careDayQueryFactsFixture{
 		CareParticipationResolver: resolver,
 	})
-	from := timezone.NewDate(2026, time.August, 24)
+	from := calendar.NewDate(2026, time.August, 24)
 	out, err := query.ResolveForRange(context.Background(), []int64{41}, from, from.AddDays(20))
 	require.NoError(t, err)
 	require.Len(t, out[41], 21)
@@ -294,7 +294,7 @@ func TestCareDayStatusFor_ArrivalPlanWithoutTime(t *testing.T) {
 	plans.arrivalByStudentWeekday[studentID] = map[int]*careplan.ArrivalSchedule{
 		1: {StudentID: studentID, Weekday: 1},
 	}
-	plans.hasPlan[studentID] = map[timezone.Date]bool{careDayMonday: true}
+	plans.hasPlan[studentID] = map[calendar.Date]bool{careDayMonday: true}
 
 	status := careplan.ResolveCareDay(plans.factsFor(studentID, careDayMonday))
 	assert.Equal(t, careplan.CareDayScheduled, status)

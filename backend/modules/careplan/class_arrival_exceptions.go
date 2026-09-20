@@ -7,13 +7,13 @@ import (
 	"time"
 	"unicode/utf8"
 
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ClassArrivalExceptionInput is what a person enters for one class and date.
 type ClassArrivalExceptionInput struct {
 	SchoolClass string
-	Date        timezone.Date
+	Date        calendar.Date
 	// ArrivalTime is a wall-clock value; only hour and minute are used.
 	ArrivalTime time.Time
 	Reason      *string
@@ -49,7 +49,7 @@ type ClassArrivalException struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	SchoolClass string
-	Date        timezone.Date
+	Date        calendar.Date
 	ArrivalTime time.Time
 	Reason      *string
 	CreatedBy   *int64
@@ -59,9 +59,9 @@ type ClassArrivalException struct {
 // ClassArrivalExceptions applies Care Plan's class-day rules through the owning
 // module's write boundary. It does not expose an ORM repository to callers.
 type ClassArrivalExceptions interface {
-	ListClassArrivalExceptions(context.Context, string, timezone.Date, timezone.Date) ([]*ClassArrivalException, error)
+	ListClassArrivalExceptions(context.Context, string, calendar.Date, calendar.Date) ([]*ClassArrivalException, error)
 	UpsertClassArrivalException(context.Context, ClassArrivalExceptionInput, int64) (*ClassArrivalException, error)
-	DeleteClassArrivalException(context.Context, string, timezone.Date) error
+	DeleteClassArrivalException(context.Context, string, calendar.Date) error
 }
 
 func (e *ClassArrivalException) Validate() error {

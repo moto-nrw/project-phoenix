@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 var (
@@ -29,7 +29,7 @@ var (
 // module. FromTime is a wall-clock value; Date is a calendar date.
 type PartialAbsenceInput struct {
 	StudentID int64
-	Date      timezone.Date
+	Date      calendar.Date
 	FromTime  time.Time
 	Reason    string
 	StaffID   int64
@@ -38,7 +38,7 @@ type PartialAbsenceInput struct {
 // PartialAbsenceService coordinates the existing pickup-exception and
 // per-block attendance sources. It deliberately stores no third schedule.
 type PartialAbsenceService interface {
-	ListPartialAbsences(ctx context.Context, studentID int64, from, to timezone.Date) ([]*PickupException, error)
+	ListPartialAbsences(ctx context.Context, studentID int64, from, to calendar.Date) ([]*PickupException, error)
 	CreatePartialAbsence(ctx context.Context, input PartialAbsenceInput) (*PickupException, error)
 	UpdatePartialAbsence(ctx context.Context, exceptionID int64, input PartialAbsenceInput) (*PickupException, error)
 	DeletePartialAbsence(ctx context.Context, exceptionID, studentID int64) error

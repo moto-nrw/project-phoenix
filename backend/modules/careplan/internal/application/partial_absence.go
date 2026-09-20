@@ -7,7 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type partialAbsenceService struct {
@@ -25,7 +25,7 @@ func NewPartialAbsences(pickups ports.PartialAbsenceStore, conflicts ports.Parti
 }
 
 func (s *partialAbsenceService) ListPartialAbsences(
-	ctx context.Context, studentID int64, from, to timezone.Date,
+	ctx context.Context, studentID int64, from, to calendar.Date,
 ) ([]*careplan.PickupException, error) {
 	rows, err := s.pickups.FindByStudentIDAndDateRange(ctx, studentID, from, to)
 	if err != nil {
@@ -82,7 +82,7 @@ func (s *partialAbsenceService) createOrClaim(ctx context.Context, input carepla
 	if existing != nil {
 		return s.claimExisting(ctx, existing, input)
 	}
-	clock := timezone.NormalizeWallClock(input.FromTime)
+	clock := calendar.NormalizeWallClock(input.FromTime)
 	staffID := input.StaffID
 	row := &careplan.PickupException{
 		TenantID: s.tx.TenantID(ctx), StudentID: input.StudentID, ExceptionDate: careplan.Date(input.Date),
@@ -117,7 +117,7 @@ func (s *partialAbsenceService) claimExisting(ctx context.Context, row *careplan
 }
 
 func setManualExcusal(row *careplan.PickupException, input careplan.PartialAbsenceInput) {
-	clock := timezone.NormalizeWallClock(input.FromTime)
+	clock := calendar.NormalizeWallClock(input.FromTime)
 	staffID := input.StaffID
 	if row.ExcusedOwnsPickupTime {
 		row.PickupTime = &clock
@@ -215,7 +215,7 @@ func (s *partialAbsenceService) removeManual(ctx context.Context, row *careplan.
 	return nil
 }
 
-func (s *partialAbsenceService) ensureNoFullDayStatus(ctx context.Context, studentID int64, date timezone.Date) error {
+func (s *partialAbsenceService) ensureNoFullDayStatus(ctx context.Context, studentID int64, date calendar.Date) error {
 	exists, err := s.conflicts.HasFullDayStatus(ctx, studentID, date)
 	if err != nil {
 		return err
@@ -228,7 +228,7 @@ func (s *partialAbsenceService) ensureNoFullDayStatus(ctx context.Context, stude
 
 // ensureNoPendingExcusedRequest keeps partial-day writes mutually exclusive
 // with open full-day parent requests for the same child and date.
-func (s *partialAbsenceService) ensureNoPendingExcusedRequest(ctx context.Context, studentID int64, date timezone.Date) error {
+func (s *partialAbsenceService) ensureNoPendingExcusedRequest(ctx context.Context, studentID int64, date calendar.Date) error {
 	dates, err := s.conflicts.PendingExcusedDates(ctx, studentID)
 	if err != nil {
 		return err

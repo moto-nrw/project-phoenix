@@ -3,7 +3,7 @@ package careplan
 import (
 	"time"
 
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type ArrivalNoteData struct {
@@ -12,7 +12,7 @@ type ArrivalNoteData struct {
 }
 
 type EffectiveArrivalTime struct {
-	Date        timezone.Date     `json:"date"`
+	Date        calendar.Date     `json:"date"`
 	ArrivalTime *time.Time        `json:"arrival_time"`
 	WeekdayName string            `json:"weekday_name"`
 	IsException bool              `json:"is_exception"`
@@ -42,7 +42,7 @@ type NoteData struct {
 }
 
 type EffectivePickupTime struct {
-	Date        timezone.Date `json:"date"`
+	Date        calendar.Date `json:"date"`
 	PickupTime  *time.Time    `json:"pickup_time"`
 	WeekdayName string        `json:"weekday_name"`
 	IsException bool          `json:"is_exception"`

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // AtSchoolInputs carries the facts that decide whether a child who is not
@@ -47,5 +47,5 @@ func IsAtSchoolBeforeCheckIn(in AtSchoolInputs) bool {
 	if end == "" {
 		return true
 	}
-	return in.Now.In(timezone.Berlin).Format("15:04") < end
+	return in.Now.In(calendar.Berlin).Format("15:04") < end
 }

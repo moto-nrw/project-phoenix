@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -16,16 +15,8 @@ import (
 // owns pending checks, conflict-key parsing, day locks, and staff writes.
 var _ usersService.ParentRequestConflictPort = (*careScheduleRequestService)(nil)
 
-func (s *careScheduleRequestService) conflicts() carerequests.Conflicts {
-	service, err := compose.NewRequestConflicts(s.requestRecords, requestConflictPlans{s}, s.decisions(), timezone.TodayDate)
-	if err != nil {
-		panic(err)
-	}
-	return service
-}
-
 func (s *careScheduleRequestService) ConflictCandidate(ctx context.Context, id int64) (*usersService.ParentRequestConflictCandidate, error) {
-	row, err := s.conflicts().ConflictCandidate(ctx, id)
+	row, err := s.requests.conflicts.ConflictCandidate(ctx, id)
 	if err != nil {
 		return nil, legacyConflictError(err)
 	}
@@ -33,11 +24,11 @@ func (s *careScheduleRequestService) ConflictCandidate(ctx context.Context, id i
 }
 
 func (s *careScheduleRequestService) LockConflictRequest(ctx context.Context, id int64) error {
-	return legacyConflictError(s.conflicts().LockConflictRequest(ctx, id))
+	return legacyConflictError(s.requests.conflicts.LockConflictRequest(ctx, id))
 }
 
 func (s *careScheduleRequestService) DecideConflictRequest(ctx context.Context, decision usersService.ParentRequestConflictDecision) error {
-	return legacyConflictError(s.conflicts().DecideConflictRequest(ctx, carerequests.DecideInput{
+	return legacyConflictError(s.requests.conflicts.DecideConflictRequest(ctx, carerequests.DecideInput{
 		RequestID: decision.RequestID, Approve: decision.Approve, Reason: decision.Reason,
 		ReviewedBy: decision.ReviewerID, ExpectedVersion: decision.ExpectedVersion,
 	}))
@@ -48,7 +39,7 @@ func (s *careScheduleRequestService) WriteStaffValue(ctx context.Context, write 
 	if !ok {
 		return carerequests.ErrInvalidPayload
 	}
-	return legacyConflictError(s.conflicts().WriteStaffValue(ctx, carerequests.StaffValueWrite{
+	return legacyConflictError(s.requests.conflicts.WriteStaffValue(ctx, carerequests.StaffValueWrite{
 		StudentID: write.StudentID, RequestIDs: write.RequestIDs, ConflictKey: write.ConflictKey,
 		Reason: write.Reason, PickupTime: pickup,
 	}))
