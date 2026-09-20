@@ -638,7 +638,7 @@ func TestCalendarServiceIntegration_SubscriptionFeed(t *testing.T) {
 
 	cfg := calendarTestConfig(t, db)
 	repos := calendarTestRepositories(t, db)
-	cfg.AccountRepo = repos.Account
+	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.ParentsURL = "https://parents.test"
 	service := calendarRuntime.NewCalendarPortal(cfg)
 
@@ -741,7 +741,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionFeed(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repos := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.AccountRepo = repos.Account
+	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
 	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
 	cfg.PersonRepo = repos.Person
@@ -793,7 +793,7 @@ func TestCalendarServiceIntegration_StaffCalDAVUsesSharedReadOnlyProjectionAndTo
 	db := testpkg.SetupTestDB(t)
 	repos := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.AccountRepo = repos.Account
+	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
 	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
 	cfg.PersonRepo = repos.Person
@@ -878,7 +878,7 @@ func TestCalendarServiceIntegration_StaffCalDAVSettingFailureLeavesICalendarAvai
 	db := testpkg.SetupTestDB(t)
 	repos := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.AccountRepo = repos.Account
+	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
 	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
 	cfg.PersonRepo = repos.Person
@@ -903,7 +903,7 @@ func TestCalendarServiceIntegration_StaffFeedPreservesIdentityDatabaseErrors(t *
 	db := testpkg.SetupTestDB(t)
 	repos := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.AccountRepo = repos.Account
+	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
 	cfg.PersonRepo = repos.Person
 	cfg.FrontendURL = "https://moto.test"
@@ -925,7 +925,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionLifecycleKeepsParentFeedInd
 	db := testpkg.SetupTestDB(t)
 	repos := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.AccountRepo = repos.Account
+	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
 	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
 	cfg.PersonRepo = repos.Person
@@ -972,7 +972,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionMatchesPersonalCalendarWith
 	db := testpkg.SetupTestDB(t)
 	repos := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.AccountRepo = repos.Account
+	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
 	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
 	cfg.PersonRepo = repos.Person
@@ -1029,7 +1029,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionRetainsRemovedScheduleEvent
 	db := testpkg.SetupTestDB(t)
 	repos := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.AccountRepo = repos.Account
+	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
 	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
 	cfg.PersonRepo = repos.Person
@@ -1076,7 +1076,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionRetainsCancelledScheduleEve
 	db := testpkg.SetupTestDB(t)
 	repos := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.AccountRepo = repos.Account
+	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
 	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
 	cfg.PersonRepo = repos.Person
@@ -1128,7 +1128,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionPublishesOccurrenceAndDelet
 	db := testpkg.SetupTestDB(t)
 	repos := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.AccountRepo = repos.Account
+	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
 	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
 	cfg.PersonRepo = repos.Person
@@ -1270,7 +1270,7 @@ func TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone(t *testing.
 
 	cfg := calendarTestConfig(t, db)
 	repos := calendarTestRepositories(t, db)
-	cfg.AccountRepo = repos.Account
+	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.ParentsURL = "https://parents.test"
 	service := calendarRuntime.NewCalendarPortal(cfg)
 
@@ -1393,7 +1393,7 @@ func TestCalendarServiceIntegration_CancelledTombstoneSurvivesLookbackWindow(t *
 
 	cfg := calendarTestConfig(t, db)
 	repos := calendarTestRepositories(t, db)
-	cfg.AccountRepo = repos.Account
+	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.ParentsURL = "https://parents.test"
 	service := calendarRuntime.NewCalendarPortal(cfg)
 
@@ -2396,7 +2396,7 @@ func TestCalendarServiceIntegration_FeedRejectsInactiveAccount(t *testing.T) {
 
 	cfg := calendarTestConfig(t, db)
 	repos := calendarTestRepositories(t, db)
-	cfg.AccountRepo = repos.Account
+	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.ParentsURL = "https://parents.test"
 	service := calendarRuntime.NewCalendarPortal(cfg)
 
@@ -2990,7 +2990,7 @@ func TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries(t *testin
 
 	cfg := calendarTestConfig(t, db)
 	repos := calendarTestRepositories(t, db)
-	cfg.AccountRepo = repos.Account
+	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.ParentsURL = "https://parents.test"
 	service := calendarRuntime.NewCalendarPortal(cfg)
 

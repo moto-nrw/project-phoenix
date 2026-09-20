@@ -13,7 +13,6 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
@@ -32,15 +31,9 @@ type CalendarFacts struct {
 	StaffShiftRepo       scheduleModels.StaffShiftRepository
 	ShiftTypeRepo        scheduleModels.ShiftTypeRepository
 	SchoolRepo           organizationtenancy.Query
-	AccountRepo          CalendarFeedAccounts
+	AccountRepo          identityaccess.ParentCalendarFeeds
 	StaffFeedRepo        identityaccess.StaffCalendarFeeds
 	PersonRepo           userModels.PersonRepository
-}
-type CalendarFeedAccounts interface {
-	FindByID(context.Context, any) (*authModels.Account, error)
-	FindByCalendarFeedToken(context.Context, string) (*authModels.Account, error)
-	SetCalendarFeedToken(context.Context, int64, string) error
-	EnsureCalendarFeedToken(context.Context, int64, string) (string, error)
 }
 
 func NewCalendarFacts(d CalendarFacts) calendarCompose.Config {
@@ -331,11 +324,8 @@ func calendarRelationship(value *userModels.StudentGuardian) *calendarCompose.St
 	}
 	return &calendarCompose.StudentGuardian{GuardianProfileID: value.GuardianProfileID, StudentID: value.StudentID, PortalAccess: usersRepo.GuardianPortalAccess(value)}
 }
-func calendarAccount(value *authModels.Account) *calendarCompose.Account {
-	if value == nil {
-		return nil
-	}
-	return &calendarCompose.Account{ID: value.ID, Email: value.Email, Active: value.IsActive(), CalendarFeedToken: value.CalendarFeedToken}
+func calendarAccount(value identityaccess.ParentCalendarFeedAccount) *calendarCompose.Account {
+	return &calendarCompose.Account{ID: value.ID, Email: value.Email, Active: value.Active, CalendarFeedToken: &value.TokenHash}
 }
 func calendarMapSlice[A, B any](values []A, convert func(A) B) []B {
 	if values == nil {
@@ -358,15 +348,31 @@ func calendarMapByID[A, B any](values map[int64]A, convert func(A) B) map[int64]
 	return result
 }
 
-type calendarAccountPort struct{ CalendarFeedAccounts }
+type calendarAccountPort struct {
+	identityaccess.ParentCalendarFeeds
+}
 
 func (p calendarAccountPort) FindByID(ctx context.Context, id int64) (*calendarCompose.Account, error) {
-	value, err := p.CalendarFeedAccounts.FindByID(ctx, id)
+	value, found, err := p.FindParentCalendarFeedAccount(ctx, id)
+	if !found || err != nil {
+		return nil, err
+	}
 	return calendarAccount(value), err
 }
 func (p calendarAccountPort) FindByCalendarFeedToken(ctx context.Context, hash string) (*calendarCompose.Account, error) {
-	value, err := p.CalendarFeedAccounts.FindByCalendarFeedToken(ctx, hash)
+	value, found, err := p.FindParentCalendarFeedOwner(ctx, hash)
+	if !found || err != nil {
+		return nil, err
+	}
 	return calendarAccount(value), err
+}
+
+func (p calendarAccountPort) EnsureCalendarFeedToken(ctx context.Context, id int64, hash string) (string, error) {
+	return p.EnsureParentCalendarFeedToken(ctx, id, hash)
+}
+
+func (p calendarAccountPort) SetCalendarFeedToken(ctx context.Context, id int64, hash string) error {
+	return p.RotateParentCalendarFeedToken(ctx, id, hash)
 }
 
 type calendarStaffFeedPort struct {

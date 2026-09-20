@@ -62,7 +62,7 @@ func NewCalendarTestModule(db *bun.DB, unit tenant.UnitOfWork) (CalendarTestModu
 			StaffShiftRepo:       repos.StaffShift,
 			ShiftTypeRepo:        repos.ShiftType,
 			SchoolRepo:           repos.School,
-			AccountRepo:          repos.Account,
+			AccountRepo:          feeds.ParentFeed,
 			StaffFeedRepo:        feeds.StaffFeed,
 			PersonRepo:           repos.Person,
 		},

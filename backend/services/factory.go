@@ -2469,7 +2469,7 @@ func newFactory(
 			StaffShiftRepo:       repos.StaffShift,
 			ShiftTypeRepo:        repos.ShiftType,
 			SchoolRepo:           organizations,
-			AccountRepo:          repos.Account,
+			AccountRepo:          identityAccess,
 			StaffFeedRepo:        identityAccess,
 			PersonRepo:           repos.Person,
 		},

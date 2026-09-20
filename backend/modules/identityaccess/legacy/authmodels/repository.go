@@ -12,16 +12,6 @@ type AccountRepository interface {
 	FindManageableByID(ctx context.Context, id int64) (*Account, error)
 	FindByIDForUpdate(ctx context.Context, id int64) (*Account, error)
 	FindByEmail(ctx context.Context, email string) (*Account, error)
-	// FindByCalendarFeedToken resolves the account owning an iCalendar
-	// subscription token. Returns (nil, nil) when no account matches.
-	FindByCalendarFeedToken(ctx context.Context, token string) (*Account, error)
-	// SetCalendarFeedToken sets (or rotates) the account's calendar feed token.
-	SetCalendarFeedToken(ctx context.Context, accountID int64, token string) error
-	// EnsureCalendarFeedToken atomically claims newToken only if the account has
-	// no token yet, then returns the persisted token. Concurrent first-time
-	// callers therefore all receive the same stored value instead of a URL a
-	// later write overwrote.
-	EnsureCalendarFeedToken(ctx context.Context, accountID int64, newToken string) (string, error)
 	// ListEffectiveAdminAccountIDs returns the IDs of active accounts with
 	// effective admin scope in the current tenant: the literal admin role, or
 	// an admin:* / *:* permission from a role or granted directly.

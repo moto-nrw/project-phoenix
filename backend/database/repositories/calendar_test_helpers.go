@@ -23,6 +23,7 @@ type CalendarTestRepositories struct {
 	StudentGuardian            userModels.StudentGuardianRepository
 	ParentChild                parentModels.ChildRepository
 	StaffCalendarFeedToken     identityaccess.StaffCalendarFeeds
+	ParentCalendarFeed         identityaccess.ParentCalendarFeeds
 	CalendarStaffFeedTombstone schoolcalendar.FeedHistory
 	appointments               appointments.Capability
 	schoolCalendar             schoolcalendar.Capability
@@ -51,7 +52,7 @@ func NewCalendarTestRepositories(db *bun.DB) (CalendarTestRepositories, error) {
 		Account:                   identity.Account, AccountTenant: authRepo.NewAccountTenantRepository(db),
 		Profile: identity.Profile, GroupSubstitution: identity.Substitutions,
 		GuardianProfile: parents.GuardianProfile, StudentGuardian: parents.StudentGuardian,
-		ParentChild: parents.ParentChild, StaffCalendarFeedToken: feeds.StaffFeed,
+		ParentChild: parents.ParentChild, StaffCalendarFeedToken: feeds.StaffFeed, ParentCalendarFeed: feeds.ParentFeed,
 		CalendarStaffFeedTombstone: feeds.Tombstone, appointments: appointments, schoolCalendar: calendar,
 	}, nil
 }
@@ -60,11 +61,13 @@ func (r CalendarTestRepositories) Appointments() appointments.Capability     { r
 func (r CalendarTestRepositories) SchoolCalendar() schoolcalendar.Capability { return r.schoolCalendar }
 
 type CalendarFeedTestRepositories struct {
-	StaffFeed identityaccess.StaffCalendarFeeds
-	Tombstone schoolcalendar.FeedHistory
+	ParentFeed identityaccess.ParentCalendarFeeds
+	StaffFeed  identityaccess.StaffCalendarFeeds
+	Tombstone  schoolcalendar.FeedHistory
 }
 
 func NewCalendarFeedTestRepositories(db *bun.DB) CalendarFeedTestRepositories {
-	return CalendarFeedTestRepositories{StaffFeed: newIdentityAccess(db, nil),
+	identity := newIdentityAccess(db, nil)
+	return CalendarFeedTestRepositories{StaffFeed: identity, ParentFeed: identity,
 		Tombstone: schoolCalendarCompose.NewFeedHistory(db)}
 }

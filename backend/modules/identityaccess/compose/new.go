@@ -134,8 +134,8 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		return nil, err
 	}
 	e := engine{
-		staffCalendarFeeds: application.NewStaffCalendarFeeds(service, store),
-		profiles:           application.NewAccountProfiles(service, store), guardianSchools: application.NewGuardianSchools(service, store),
+		calendarFeeds: newCalendarFeeds(service, store),
+		profiles:      application.NewAccountProfiles(service, store), guardianSchools: application.NewGuardianSchools(service, store),
 		service: service, mfa: operatorMFARecords, tokens: tokens, rfidCards: application.NewRFIDCards(service, store),
 		passkeys: operatorPasskeys, accountPasskeys: accountPasskeys, accountRoleQueries: application.NewAccountRoleQueries(service, store, postgres.NewRoleStore(store)),
 		auth: auth, operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle, roles: roles,
@@ -181,7 +181,7 @@ func (transaction) RunPlatform(ctx context.Context, callback func(context.Contex
 }
 
 type engine struct {
-	staffCalendarFeeds *application.StaffCalendarFeeds
+	calendarFeeds
 	rfidCards          *application.RFIDCards
 	accountRoleQueries *application.AccountRoleQueries
 	guardianSchools    *application.GuardianSchools
