@@ -10,7 +10,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/uptrace/bun"
 )
@@ -53,7 +52,7 @@ func NewParentRouteTestRepositories(db *bun.DB) (ParentRouteTestRepositories, er
 		return ParentRouteTestRepositories{}, err
 	}
 	r := &Factory{db: db,
-		ParentChild: parentRepo.NewChildRepository(carePlanLegacy.NewParentRuntime(db), activeMembershipQuery(db)),
+		ParentChild: parentRepo.NewChildRepository(newIdentityAccess(db, nil).ListActiveAccountSchoolIDs),
 		Student:     NewStudentRepository(db), Person: NewPersonRepository(db),
 		GuardianProfile: NewGuardianProfileRepository(db), StudentGuardian: NewStudentGuardianRepository(db),
 	}

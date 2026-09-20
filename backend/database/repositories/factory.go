@@ -657,8 +657,8 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		SubmissionRateLimit: enrollmentModule,
 
 		// Parent (cross-tenant guardian portal — PR 9+)
-		ParentChild:             parentRepo.NewChildRepository(parentRuntime, activeMembershipQuery(db)),
-		ParentEnrollablePhase:   parentRepo.NewEnrollablePhaseRepository(parentRuntime, enrollmentModule, activeMembershipQuery(db)),
+		ParentChild:             parentRepo.NewChildRepository(identity.ListActiveAccountSchoolIDs),
+		ParentEnrollablePhase:   parentRepo.NewEnrollablePhaseRepository(enrollmentModule, identity.ListActiveAccountSchoolIDs),
 		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(parentRuntime, enrollmentModule, identityAccountDirectory{accounts: identity}),
 
 		// Parent Stammdaten direct-edit audit + change-request review
