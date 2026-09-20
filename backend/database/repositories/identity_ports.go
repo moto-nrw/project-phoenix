@@ -10,7 +10,6 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/uptrace/bun"
 )
@@ -84,11 +83,10 @@ func NewStudentGuardianRepository(db *bun.DB) userModels.StudentGuardianReposito
 
 // staffMessageIdentity returns the Identity & Access owner queries the staff
 // messaging reads filter through.
-func staffMessageIdentity(db *bun.DB, accounts authModels.AccountRepository) usersRepo.StaffMessageIdentity {
+func staffMessageIdentity(accounts identityaccess.StaffAccountQueries) usersRepo.StaffMessageIdentity {
 	return usersRepo.StaffMessageIdentity{
-		ActiveAccounts:    activeAccountQuery(mustAccountRepository(accounts)),
-		ActiveMemberships: activeMembershipQuery(db),
-		RoleClasses:       schoolRoleClassQuery(db),
+		ActiveSchoolAccounts: accounts.ListActiveAccountIDsForTenant,
+		RoleClasses:          schoolRoleClassQuery(accounts),
 	}
 }
 
@@ -105,8 +103,7 @@ func activeMembershipQuery(db *bun.DB) func(context.Context) *bun.SelectQuery {
 
 // schoolRoleClassQuery adapts the owner's role classification to the staff
 // messaging projection (#2721).
-func schoolRoleClassQuery(db *bun.DB) usersRepo.SchoolRoleClassQuery {
-	roles := newIdentityAccess(db, nil)
+func schoolRoleClassQuery(roles identityaccess.StaffAccountQueries) usersRepo.SchoolRoleClassQuery {
 	return func(ctx context.Context, tenantID int64, accountIDs []int64) ([]usersRepo.SchoolRoleClass, error) {
 		rows, err := roles.ClassifySchoolRoles(ctx, tenantID, accountIDs)
 		if err != nil {
@@ -126,12 +123,6 @@ func NewPersonRepository(db *bun.DB) userModels.PersonRepository {
 	return usersRepo.NewPersonRepository(db, usersRepo.WithAccountLookup(accountLookup(newIdentityAccess(db, nil))))
 }
 
-// activeAccountQuery returns the owner query the People Directory
-// repositories join.
-func activeAccountQuery(accounts *authRepo.AccountRepository) usersRepo.ActiveAccountQuery {
-	return func(ctx context.Context) *bun.SelectQuery { return accounts.ActiveAccountIDs(ctx) }
-}
-
 // accountLookup adapts the owner's by-id read to the People Directory
 // lookup: a missing account resolves to nil, as the former LEFT JOIN did.
 func accountLookup(accounts identityaccess.AccountProfiles) usersRepo.AccountLookup {
@@ -146,14 +137,4 @@ func accountLookup(accounts identityaccess.AccountProfiles) usersRepo.AccountLoo
 		result := userModels.PersonAccount(account)
 		return &result, nil
 	}
-}
-
-// mustAccountRepository returns the concrete Identity & Access account
-// repository whose owner queries the People Directory bindings consume.
-func mustAccountRepository(repository authModels.AccountRepository) *authRepo.AccountRepository {
-	accounts, ok := repository.(*authRepo.AccountRepository)
-	if !ok {
-		panic("repository factory: account repository must be the Identity & Access Postgres adapter")
-	}
-	return accounts
 }

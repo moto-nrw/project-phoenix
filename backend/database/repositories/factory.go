@@ -763,7 +763,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	// The decorators are wired once, innermost: they read the capability
 	// lazily so a later BindSchoolMembership swap reaches them too, and they
 	// stay under the school/person/group wrappers bound afterwards.
-	factory.bindStaffMembershipDecorators(timetableDependencies.Workforce)
+	factory.bindStaffMembershipDecorators(timetableDependencies.Workforce, identity)
 	// Same lazy capability for the repositories that used to join users.staff
 	// or users.teachers themselves; wired here so they sit inside the person,
 	// school and group wrappers bound afterwards (#2667, agent A2).

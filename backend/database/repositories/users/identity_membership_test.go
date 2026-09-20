@@ -158,18 +158,28 @@ func TestIdentityMembership_UnboundQueriesFailClosed(t *testing.T) {
 	require.ErrorIs(t, err, projectionFailure)
 	require.Nil(t, profiles, "failed account reachability must not return candidates")
 
-	activeAccounts := func(context.Context) *bun.SelectQuery {
-		return db.NewSelect().TableExpr(`auth.accounts AS "account"`).ColumnExpr(`"account".id`).Where(`"account".active = TRUE`)
-	}
-
 	staffAccounts := func(context.Context) ([]int64, error) { return []int64{chain.AccountID}, nil }
-	reads := usersRepo.NewMessageableStaffRepository(db, staffAccounts, usersRepo.StaffMessageIdentity{ActiveAccounts: activeAccounts})
+	reads := usersRepo.NewMessageableStaffRepository(db, staffAccounts, usersRepo.StaffMessageIdentity{})
 	_, err = reads.ListMessageableStaff(ctx, chain.AccountID)
-	require.ErrorContains(t, err, "membership queries are required")
+	require.ErrorContains(t, err, "active school account lookup is required")
 	_, err = reads.IsMessageableStaff(ctx, chain.AccountID)
-	require.ErrorContains(t, err, "membership queries are required")
+	require.ErrorContains(t, err, "active school account lookup is required")
 	_, err = reads.StaffRoleKinds(ctx, []int64{chain.AccountID})
 	require.ErrorContains(t, err, "role class query is required")
+
+	failingStaff := usersRepo.NewMessageableStaffRepository(db, staffAccounts, usersRepo.StaffMessageIdentity{
+		ActiveSchoolAccounts: func(_ context.Context, schoolID int64, accountIDs []int64) ([]int64, error) {
+			require.Equal(t, chain.TenantID, schoolID)
+			require.Equal(t, []int64{chain.AccountID}, accountIDs)
+			return nil, lookupFailure
+		},
+	})
+	staff, err := failingStaff.ListMessageableStaff(ctx, chain.AccountID)
+	require.ErrorIs(t, err, lookupFailure)
+	require.Nil(t, staff)
+	allowed, err := failingStaff.IsMessageableStaff(ctx, chain.AccountID)
+	require.ErrorIs(t, err, lookupFailure)
+	require.False(t, allowed)
 }
 
 // TestIdentityMembership_RoleClassFailureIsNotSwallowed pins that a failing

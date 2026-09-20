@@ -30,11 +30,6 @@ type GuardianProfileRepository struct {
 	portalMemberships PortalMembershipQuery
 }
 
-// ActiveAccountQuery returns the owner-built statement selecting the ids of
-// active platform accounts. It is a plain function type so this package does
-// not depend on the Identity & Access owner to state what it needs.
-type ActiveAccountQuery func(ctx context.Context) *bun.SelectQuery
-
 // GuardianProfileOption configures a GuardianProfileRepository at construction.
 type GuardianProfileOption func(*GuardianProfileRepository)
 

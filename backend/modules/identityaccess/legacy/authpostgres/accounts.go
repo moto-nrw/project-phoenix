@@ -21,17 +21,6 @@ type AccountRepository struct {
 	db *bun.DB
 }
 
-// ActiveAccountIDs is the owner query "every active platform account". Other
-// owners that must not read auth.accounts themselves join it as a subquery
-// (guardian portal reachability, staff messaging) so their statements stay
-// single round trips.
-func (r *AccountRepository) ActiveAccountIDs(ctx context.Context) *bun.SelectQuery {
-	return base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(accountTableAlias).
-		ColumnExpr(`"account".id`).
-		Where(`"account".active = ?`, true)
-}
-
 // NewAccountRepository creates a new AccountRepository
 func NewAccountRepository(db *bun.DB) authmodels.AccountRepository {
 	return &AccountRepository{
