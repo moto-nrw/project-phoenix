@@ -11,8 +11,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Only isolated DDL tests may call the core without operational evidence.
-// Registered production execution always uses studentOwnerContractUp.
+// Isolated DDL tests use the same live checks as ordinary deployments.
+// Registered execution enters through studentOwnerContractUp.
 func contractStudentOwnerStorage(ctx context.Context, db *bun.DB) error {
 	return contractStudentOwnerStorageChecked(ctx, db, nil)
 }
