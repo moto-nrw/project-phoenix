@@ -28,7 +28,6 @@ type AccountRepository interface {
 	// an admin:* / *:* permission from a role or granted directly.
 	ListEffectiveAdminAccountIDs(ctx context.Context) ([]int64, error)
 	FindEmailsByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error)
-	FindAvatarsByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 	// AnonymizeForDeletion overwrites the email with an anonymized
 	// placeholder and clears the username (GDPR person deletion).
 	AnonymizeForDeletion(ctx context.Context, accountID int64, anonymizedEmail string) error
@@ -63,7 +62,6 @@ type RoleRepository interface {
 	FindByIDForUpdate(ctx context.Context, id int64) (*Role, error)
 	FindByName(ctx context.Context, name string) (*Role, error)
 	FindByAccountID(ctx context.Context, accountID int64) ([]*Role, error)
-	FindRoleNamesByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 	AssignRoleToAccount(ctx context.Context, accountID int64, roleID int64) error
 	RemoveRoleFromAccount(ctx context.Context, accountID int64, roleID int64) error
 }

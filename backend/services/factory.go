@@ -1836,13 +1836,16 @@ func newFactory(
 			return len(rows), err
 		},
 		Groups: func(ctx context.Context) (int, error) { rows, err := repos.Group.List(ctx, nil); return len(rows), err },
-		Roles:  func(ctx context.Context) (int, error) { rows, err := repos.Role.List(ctx, nil); return len(rows), err },
+		Roles: func(ctx context.Context) (int, error) {
+			rows, err := identityAccess.ListRoles(ctx, identityaccess.RoleFilter{})
+			return len(rows), err
+		},
 		Devices: func(ctx context.Context) (int, error) {
 			rows, err := repos.Device.List(ctx, nil)
 			return len(rows), err
 		},
 		PermissionCount: func(ctx context.Context) (int, error) {
-			rows, err := repos.Permission.List(ctx, nil)
+			rows, err := identityAccess.ListPermissions(ctx, identityaccess.PermissionFilter{})
 			return len(rows), err
 		},
 	}, databaseLogger)
