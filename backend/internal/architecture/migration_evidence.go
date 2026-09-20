@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-const migrationTicketSchemaVersion = 2
+const migrationTicketSchemaVersion = 3
 const migrationTicketMaxBytes = 1 << 20
 
 type migrationTicket struct {
@@ -33,61 +33,82 @@ type migrationTicket struct {
 }
 
 type runtimeEvidence struct {
-	AffectedRows string `json:"affected_rows"`
-	Failure      string `json:"failure"`
-	Rollback     string `json:"rollback"`
-	Smoke        string `json:"smoke"`
-	Source       string `json:"source"`
-	Workload     string `json:"workload"`
-	Thresholds   string `json:"thresholds"`
-	QueryCount   string `json:"query_count"`
-	LatencyP50   string `json:"latency_p50"`
-	LatencyP95   string `json:"latency_p95"`
-	Errors       string `json:"errors"`
-	PoolWait     string `json:"pool_wait"`
-	LockWait     string `json:"lock_wait"`
-	Deadlocks    string `json:"deadlocks"`
-	JobDuration  string `json:"job_duration"`
-	JobRetries   string `json:"job_retries"`
-	JobBacklog   string `json:"job_backlog"`
+	AffectedRows evidenceMetric `json:"affected_rows"`
+	Sources      []string       `json:"sources,omitempty"`
+	Failure      evidenceMetric `json:"failure"`
+	Rollback     evidenceMetric `json:"rollback"`
+	Smoke        evidenceMetric `json:"smoke"`
+	Source       string         `json:"source"`
+	Workload     string         `json:"workload"`
+	Thresholds   string         `json:"thresholds"`
+	QueryCount   evidenceMetric `json:"query_count"`
+	LatencyP50   evidenceMetric `json:"latency_p50"`
+	LatencyP95   evidenceMetric `json:"latency_p95"`
+	Errors       evidenceMetric `json:"errors"`
+	PoolWait     evidenceMetric `json:"pool_wait"`
+	LockWait     evidenceMetric `json:"lock_wait"`
+	Deadlocks    evidenceMetric `json:"deadlocks"`
+	JobDuration  evidenceMetric `json:"job_duration"`
+	JobRetries   evidenceMetric `json:"job_retries"`
+	JobBacklog   evidenceMetric `json:"job_backlog"`
 }
 
 func runValidateMigrationTicket(args []string, dependencies CLIDependencies) error {
 	flags := flag.NewFlagSet("validate-ticket", flag.ContinueOnError)
 	checkpointsPath := flags.String("checkpoints", "backend/architecture/runtime-checkpoints.json", "reviewed checkpoint acceptance registry (relative to repository root)")
 	ticketPath := flags.String("ticket", "", "migration ticket JSON")
+	all := flags.Bool("all", false, "validate the complete shipped ticket inventory")
+	baseRef := flags.String("base-ref", "", "immutable base SHA; also validate aggregate removal coverage")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if flags.NArg() != 0 || *ticketPath == "" {
-		return fmt.Errorf("validate-ticket requires --ticket and no positional arguments")
+	if flags.NArg() != 0 || (*ticketPath == "" && !*all && *baseRef == "") || (*all && *ticketPath != "") {
+		return fmt.Errorf("validate-ticket requires --ticket or --all (or --base-ref), and no positional arguments")
 	}
-	path := *ticketPath
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(dependencies.ProjectRoot, path)
+	root := dependencies.ProjectRoot
+	if *baseRef != "" || *all {
+		if *ticketPath != "" {
+			if _, err := validateEvidenceFile(root, *ticketPath, *checkpointsPath); err != nil {
+				return err
+			}
+		}
+		return validateEvidenceInventory(root, *checkpointsPath, *baseRef)
 	}
-	ticket, err := loadMigrationTicket(path)
-	if err != nil {
+	if _, err := validateEvidenceFile(root, *ticketPath, *checkpointsPath); err != nil {
 		return err
-	}
-	if err := ticket.validate(); err != nil {
-		return fmt.Errorf("validate migration ticket: %w", err)
-	}
-	if ticket.TicketKind == "migration" {
-		registryPath := *checkpointsPath
-		if !filepath.IsAbs(registryPath) {
-			registryPath = filepath.Join(dependencies.ProjectRoot, registryPath)
-		}
-		var registry checkpointRegistry
-		if err := loadTicketJSON(registryPath, &registry); err != nil {
-			return err
-		}
-		if err := registry.validateReference(ticket.CheckpointReference); err != nil {
-			return err
-		}
 	}
 	fmt.Println("migration ticket passed")
 	return nil
+}
+
+func validateEvidenceFile(root, path, checkpointsPath string) (*migrationTicket, error) {
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(root, path)
+	}
+	ticket, err := loadMigrationTicket(path)
+	if err != nil {
+		return nil, err
+	}
+	if err := ticket.validate(); err != nil {
+		return nil, fmt.Errorf("validate migration ticket %s: %w", path, err)
+	}
+	if ticket.TicketKind == "migration" {
+		registryPath := checkpointsPath
+		if !filepath.IsAbs(registryPath) {
+			registryPath = filepath.Join(root, registryPath)
+		}
+		var registry checkpointRegistry
+		if err := loadTicketJSON(registryPath, &registry); err != nil {
+			return nil, err
+		}
+		if err := registry.validateReference(ticket.CheckpointReference); err != nil {
+			return nil, err
+		}
+	}
+	if err := validateEvidenceProvenance(root, path, ticket); err != nil {
+		return nil, err
+	}
+	return ticket, nil
 }
 
 func loadMigrationTicket(path string) (*migrationTicket, error) {
@@ -123,8 +144,12 @@ func loadTicketJSON(path string, target any) error {
 }
 
 func (ticket migrationTicket) validate() error {
-	if ticket.SchemaVersion != migrationTicketSchemaVersion {
-		return fmt.Errorf("schema_version must be %d, got %d", migrationTicketSchemaVersion, ticket.SchemaVersion)
+	version := migrationTicketSchemaVersion
+	if ticket.TicketKind == "checkpoint" {
+		version = 2
+	}
+	if ticket.SchemaVersion != version {
+		return fmt.Errorf("schema_version must be %d for %s, got %d", version, ticket.TicketKind, ticket.SchemaVersion)
 	}
 	if ticket.ExactRatchetKeys == nil {
 		return fmt.Errorf("exact_ratchet_keys is required; use an empty array for a zero-key ticket")
@@ -222,13 +247,18 @@ func requireTicketList(name string, values []string) error {
 }
 
 func (evidence runtimeEvidence) validate() error {
+	for name, metric := range evidence.metrics() {
+		if metric.State != "" {
+			return fmt.Errorf("checkpoint runtime_evidence.%s must remain a string", name)
+		}
+	}
 	for name, value := range map[string]string{
 		"source": evidence.Source, "workload": evidence.Workload, "thresholds": evidence.Thresholds,
-		"affected_rows": evidence.AffectedRows,
-		"query_count":   evidence.QueryCount, "latency_p50": evidence.LatencyP50, "latency_p95": evidence.LatencyP95,
-		"errors": evidence.Errors, "pool_wait": evidence.PoolWait, "lock_wait": evidence.LockWait,
-		"deadlocks": evidence.Deadlocks, "job_duration": evidence.JobDuration,
-		"job_retries": evidence.JobRetries, "job_backlog": evidence.JobBacklog,
+		"affected_rows": evidence.AffectedRows.Legacy,
+		"query_count":   evidence.QueryCount.Legacy, "latency_p50": evidence.LatencyP50.Legacy, "latency_p95": evidence.LatencyP95.Legacy,
+		"errors": evidence.Errors.Legacy, "pool_wait": evidence.PoolWait.Legacy, "lock_wait": evidence.LockWait.Legacy,
+		"deadlocks": evidence.Deadlocks.Legacy, "job_duration": evidence.JobDuration.Legacy,
+		"job_retries": evidence.JobRetries.Legacy, "job_backlog": evidence.JobBacklog.Legacy,
 	} {
 		if strings.TrimSpace(value) == "" {
 			return fmt.Errorf("runtime_evidence.%s is required", name)
@@ -285,14 +315,18 @@ func (registry checkpointRegistry) validateReference(reference string) error {
 }
 
 func (evidence runtimeEvidence) validateFlow() error {
-	for name, value := range map[string]string{
-		"source": evidence.Source, "workload": evidence.Workload, "thresholds": evidence.Thresholds,
-		"query_count": evidence.QueryCount, "errors": evidence.Errors,
-		"failure": evidence.Failure, "rollback": evidence.Rollback, "smoke": evidence.Smoke,
-	} {
-		if strings.TrimSpace(value) == "" {
-			return fmt.Errorf("runtime_evidence.%s is required", name)
+	for name, value := range map[string]string{"source": evidence.Source, "workload": evidence.Workload, "thresholds": evidence.Thresholds} {
+		if !meaningfulEvidence(value) {
+			return fmt.Errorf("runtime_evidence.%s is required (not a placeholder)", name)
 		}
+	}
+	for name, metric := range evidence.metrics() {
+		if err := metric.validate(); err != nil {
+			return fmt.Errorf("runtime_evidence.%s %w", name, err)
+		}
+	}
+	if err := requireTicketList("runtime_evidence.sources", evidence.Sources); err != nil {
+		return err
 	}
 	return nil
 }

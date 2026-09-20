@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "prerequisites": [
     "#2642"
   ],
@@ -16,17 +16,71 @@
     "Facade contract, RLS, rollback, and repository-failure tests."
   ],
   "runtime_evidence": {
-    "source": "Link flow-specific raw evidence.",
-    "workload": "Describe affected flows, environment and observation window.",
-    "thresholds": "Record applicable query budgets and acceptance criteria.",
-    "query_count": "Record query counts per operation or explain non-applicability.",
-    "errors": "Record stable errors and rates.",
-    "failure": "Record failure-path results or explain non-applicability.",
-    "rollback": "Record transaction rollback results or explain non-applicability.",
-    "smoke": "Record affected flow smoke checks and results."
+    "source": "Synthetic example only; replace with observed cutover evidence.",
+    "sources": [
+      "https://example.invalid/migration-evidence"
+    ],
+    "workload": "Synthetic example: 30 sequential calls after five warmups on an isolated PostgreSQL 17 database.",
+    "thresholds": "Synthetic example: at most two statements per call and no unexpected errors.",
+    "affected_rows": {
+      "state": "measured",
+      "result": "Synthetic example: one row inserted per successful call; zero committed after injected rollback."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "Synthetic example: two statements per successful call across 30 samples."
+    },
+    "latency_p50": {
+      "state": "measured",
+      "result": "Synthetic example: p50 2 ms across 30 samples."
+    },
+    "latency_p95": {
+      "state": "measured",
+      "result": "Synthetic example: p95 4 ms across 30 samples."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "Synthetic example: zero unexpected errors in 30 calls."
+    },
+    "pool_wait": {
+      "state": "measured",
+      "result": "Synthetic example: sql.DBStats wait count and duration stayed zero."
+    },
+    "lock_wait": {
+      "state": "measured",
+      "result": "Synthetic example: no Lock wait events in 10 ms PostgreSQL samples; polling can miss shorter waits."
+    },
+    "deadlocks": {
+      "state": "measured",
+      "result": "Synthetic example: database deadlock counter unchanged; no serialization retries."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "Synthetic example: the migrated capability has no worker path."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "Synthetic example: the migrated capability has no worker path."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "Synthetic example: the migrated capability has no worker path."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "Synthetic example: injected owner failure returned the expected stable error."
+    },
+    "rollback": {
+      "state": "measured",
+      "result": "Synthetic example: injected failure left the before/after database snapshots identical."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "Synthetic example: production router integration test passed for the affected route."
+    }
   },
   "rollback_and_cleanup": "Revert caller wiring; remove the old adapter after the observation window.",
   "exit_criterion": "All callers use one provider and the listed ratchet keys are absent.",
   "ticket_kind": "migration",
-  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3019"
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020"
 }

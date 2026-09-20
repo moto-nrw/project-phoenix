@@ -1543,8 +1543,8 @@ appear as a green audit.
 
 ## Migration evidence
 
-Schema version 2 separates ordinary waves from runtime checkpoints. Convert
-version 1 tickets explicitly. Both kinds retain prerequisites, owner/capability,
+Migration records use schema 3; checkpoint records retain schema 2. Convert
+older migration records explicitly. Both kinds retain prerequisites, owner/capability,
 packages, tables, exact ratchet keys, atomic cutover, tests, rollback/cleanup,
 and measurable exit criteria. Unknown fields and blank required evidence fail.
 
@@ -1555,13 +1555,97 @@ Set `ticket_kind` to `migration`. `checkpoint_reference` must be the canonical
 issue URL of the latest accepted checkpoint in `runtime-checkpoints.json`.
 Missing, malformed, future, unaccepted, and superseded references fail.
 
-Record only flow-specific evidence needed for the cutover: raw source,
-workload/environment/observation window, thresholds, query counts, stable
-errors, failure-path and transaction rollback results, and smoke results.
-Keep deployment rollback and cleanup in `rollback_and_cleanup`. Non-applicable
-evidence needs a concrete reason. Additional metrics are allowed when the flow
-needs them; a reference does not waive failure, rollback, query-budget, or smoke
-checks. Ordinary waves do not repeat the full benchmark suite independently.
+Record flow-specific evidence, not an independent rerun of the checkpoint
+benchmark suite. `runtime_evidence.source`, `workload` and `thresholds` describe
+provenance, environment/observation window and acceptance criteria.
+`runtime_evidence.sources` lists explicit repository-relative file paths or
+HTTP(S) references. Local files must exist and resolve inside the repository;
+the validator does not fetch remote references.
+
+Every remaining evidence field is required: `affected_rows`, `query_count`,
+`latency_p50`, `latency_p95`, `errors`, `pool_wait`, `lock_wait`, `deadlocks`,
+`job_duration`, `job_retries`, `job_backlog`, `failure`, `rollback` and `smoke`.
+Each has one of these shapes:
+
+```json
+{"state": "measured", "result": "0 unexpected errors in 30 calls; raw samples in the declared source."}
+```
+
+```json
+{"state": "not_applicable", "reason": "The migrated read capability has no worker path."}
+```
+
+Observed qualitative results are valid. Planned instrumentation and structural
+query estimates are not measurements. Bare placeholders and unchanged template
+example values fail. CI validates representation, not the truth of observations
+or adequacy of reasons; those remain review responsibilities. Keep deployment
+rollback and cleanup in `rollback_and_cleanup`.
+
+[ADR 0026](../../docs/adr/0026-migration-evidence-gate-preserves-provenance.md)
+allows a third state, `historical_gap`, only for exact existing files and metrics
+frozen at commit `e4bb1a38c94180ae337a68726bd565bcfe23ea00`. The field requires
+a concrete `reason` and preserves any old text in `original`. The validator
+checks the frozen record's metadata and source/workload against that Git object;
+renaming a new flow to an old filename does not grant an exemption. Full Git
+history is required when validating these records.
+
+A historical-gap record cannot cover a new retirement. Resolve its gaps or add
+a complete follow-up record for the same issue and scoped keys. Updating only
+the current checkpoint reference does not imply that old measurements were
+rerun. No exemption exists for newly written evidence.
+
+`student-owner-backfill-2758.json` and `student-owner-cutover-2759.json`
+retain the pre-gate observations and acceptance criteria, not current rollout
+approval. The subsequent absence-state fix (#3442) makes care-state mismatches
+diagnostic and preserves absence fields through migration 1.15.398. Current
+behavior and rollout checks are documented in the
+[backfill guide](../../docs/operations/student-owner-storage-backfill.md) and
+[cutover guide](../../docs/operations/student-owner-storage-cutover.md).
+Do not rewrite the frozen records to imply that their old measurements tested
+the later fix.
+
+### Inventory and removal coverage
+
+```bash
+scripts/backend-architecture.sh validate-ticket --ticket backend/architecture/migration-ticket-template.json
+scripts/backend-architecture.sh validate-ticket --all
+scripts/backend-architecture.sh validate-ticket --all --base-ref <full-base-sha>
+```
+
+`--ticket` validates one file. `--all` discovers every JSON file directly under
+`backend/architecture/`, including both required templates. A missing
+`ticket_kind` fails rather than excluding a file. Four named documents use
+other contracts and are excluded: `policy.json` (architecture policy),
+`composition.json` (composition inventory), `runtime-checkpoints.json`
+(acceptance registry), and `contract-active-2737-progress.json` (historical
+progress notes, not cutover evidence). The two templates contain synthetic
+examples and never provide retirement coverage.
+
+`--base-ref` requires a full immutable SHA and always validates the entire
+inventory, even when `--ticket` selects an additional file. It compares the
+base and candidate `legacy.jsonl` sets, reporting raw removals and additions
+separately. It reuses the checked relocation mapping from ADR 0020: a renamed
+debt key is not retirement. Existing architecture checks still decide which
+additions and relocations are permitted.
+
+`exact_ratchet_keys` is scoped debt, not a promise to finish in one PR. Each
+record reports pending keys, keys removed in this diff and keys already absent.
+Every actual retirement needs at least one complete non-template record;
+coverage is the union across records, including records from earlier PRs.
+Both old and new paths of a verified relocation can identify the same debt.
+New claims absent from both base and candidate debt fail. Previously committed
+claims remain historical; the gate does not demand retrospective backfill.
+
+CI runs this command in `Backend architecture ratchet`, using the PR base SHA,
+merge-group base SHA, or pre-push SHA. Missing or zero bases fail explicitly.
+Same-repository development-to-main PRs reuse exact-tree, successful development
+push evidence after the release promotion checks. For the first release push
+to `main` whose base predates this gate, a direct development parent or the
+fast-forward commit must prove the same successful CI and tree equality;
+otherwise the release fails. All current ticket files are still validated.
+Changes under `docs/runtime-checkpoints/` and `docs/operations/` also trigger
+the job. Keep declared local evidence in these routed directories or add its
+directory to the workflow when introducing another source location.
 
 ### Checkpoint measurements
 
@@ -1596,9 +1680,8 @@ evidence, not the repository. Template values are examples, not measurements.
 ### Recording acceptance
 
 `runtime-checkpoints.json` is a reviewed acceptance registry, not architecture
-policy. It starts empty because no checkpoint has been accepted. Ordinary
-waves cannot pass until #3019 is accepted; checkpoint measurements can be
-validated before acceptance. After explicit acceptance in the checkpoint issue,
+policy. Ordinary waves require at least #3019 to be accepted; checkpoint
+measurements can be validated before acceptance. After explicit acceptance in the checkpoint issue,
 append an entry in a reviewed change, in order without gaps:
 
 ```json
@@ -1609,6 +1692,11 @@ Replace the example comment ID with the actual acceptance comment. Validation
 checks issue order and comment-link shape, not comment truth or measurement
 accuracy. Review must verify acceptance, closed blockers, comparable runs,
 and explanations. A ticket-local `accepted` flag cannot grant acceptance.
+In the same change, repoint every migration record and the migration template
+to the new latest accepted checkpoint. Preserve measurement provenance and run
+`validate-ticket --all`; the inventory and checkpoint-transition tests enforce
+this maintenance step. The closed sequence ends at #3021; adding a fourth
+checkpoint requires a separate contract change.
 `--checkpoints path/to/registry.json` supports a reviewed registry snapshot
 and isolated test fixtures; paths resolve from the repository root. Do not
 use a self-authored registry to bypass acceptance.
