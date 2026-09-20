@@ -259,10 +259,14 @@ func formatAfterRatchet(components [][]string) string {
 }
 
 func formatCycleEdgeEvidence(edge CycleEdge) string {
-	if edge.Provenance == CycleTarget {
-		return "rules: " + strings.Join(edge.Rules, ", ")
+	parts := make([]string, 0, 2)
+	if len(edge.Rules) > 0 {
+		parts = append(parts, "rules: "+strings.Join(edge.Rules, ", "))
 	}
-	return "violations: " + strings.Join(edge.ViolationKeys, ", ")
+	if len(edge.ViolationKeys) > 0 {
+		parts = append(parts, "violations: "+strings.Join(edge.ViolationKeys, ", "))
+	}
+	return strings.Join(parts, "; ")
 }
 
 func runCycles(args []string) error {

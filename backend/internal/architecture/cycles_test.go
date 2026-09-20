@@ -98,6 +98,18 @@ func TestCyclesIgnoreSelfEdgesAndExternalNodes(t *testing.T) {
 	}
 }
 
+func TestFormatCycleEdgeEvidencePreservesMixedEvidence(t *testing.T) {
+	t.Parallel()
+	edge := CycleEdge{
+		Provenance:    CycleTarget,
+		Rules:         []string{"alpha-to-beta"},
+		ViolationKeys: []string{"production|imports.forbidden|alpha|beta"},
+	}
+	if got, want := formatCycleEdgeEvidence(edge), "rules: alpha-to-beta; violations: production|imports.forbidden|alpha|beta"; got != want {
+		t.Fatalf("cycle edge evidence = %q, want %q", got, want)
+	}
+}
+
 func TestCycleReportIsDeterministic(t *testing.T) {
 	t.Parallel()
 	policy, graph, baseline := loadCycleBaselineInputs(t)
