@@ -2,7 +2,7 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "GuardianBulkInviteAPI" });
 
-export type BulkInviteProblemReason =
+type BulkInviteProblemReason =
   "missing_email" | "invalid_email" | "duplicate_email";
 
 export interface BulkInviteProblem {
