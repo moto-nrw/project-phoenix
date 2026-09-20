@@ -8,13 +8,13 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const demoRuntimeRoleVersion = "1.15.401"
+const demoRuntimeRoleVersion = "1.15.403"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     demoRuntimeRoleVersion,
 		Description: "Create the least-privilege database role for the standing demo runtime (#3461)",
-		DependsOn:   []string{"1.14.1", "1.15.400"},
+		DependsOn:   []string{"1.14.1", "1.15.402"},
 	})
 	Migrations.MustRegister(demoRuntimeRoleUp, demoRuntimeRoleDown)
 }

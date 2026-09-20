@@ -9,7 +9,7 @@ import (
 
 func init() {
 	MigrationRegistry.Register(&Migration{
-		Version:     "1.15.400",
+		Version:     "1.15.402",
 		Description: "Persist synthetic demo school state outside the sidecar filesystem (#3461)",
 		DependsOn:   []string{"1.13.1", "1.14.1"},
 	})
