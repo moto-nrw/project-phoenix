@@ -83,7 +83,7 @@ func sessionRepositoriesOf(repos *repositories.Factory, organizations organizati
 		guardianProfiles: repos.GuardianProfile, studentGuardians: repos.StudentGuardian, authEvents: repos.AuthEvent,
 	}
 	return sessionRepositories{
-		schools: newSchoolDirectory(organizations, repos),
+		schools: schoolDirectory{schools: organizations},
 		persons: repos.Person, authEvents: repos.AuthEvent, pushSubscriptions: repos.PushSubscription,
 		lifecycle: lifecycle,
 	}
@@ -154,33 +154,8 @@ func (f *Factory) AccountAuthentication() *identityaccess.Module {
 
 // --- retained owner seams -------------------------------------------------
 
-// newSchoolDirectory binds the session school seam to the Organisation &
-// Tenancy capability and to the retained account-tenant memberships.
-func newSchoolDirectory(organizations organizationtenancy.Query, repos *repositories.Factory) schoolDirectory {
-	directory := schoolDirectory{schools: organizations}
-	if repos == nil || repos.AccountTenant == nil {
-		return directory
-	}
-	memberships := repos.AccountTenant
-	directory.activeTenantIDs = func(ctx context.Context, accountID int64) ([]int64, error) {
-		rows, err := memberships.FindActiveByAccountID(ctx, accountID)
-		if err != nil {
-			return nil, err
-		}
-		ids := make([]int64, 0, len(rows))
-		for _, row := range rows {
-			ids = append(ids, row.TenantID)
-		}
-		return ids, nil
-	}
-	return directory
-}
-
 type schoolDirectory struct {
 	schools organizationtenancy.Query
-	// activeTenantIDs lists the schools the account holds an active
-	// membership in.
-	activeTenantIDs func(ctx context.Context, accountID int64) ([]int64, error)
 }
 
 func schoolFact(school organizationtenancy.School) identityaccess.School {
@@ -230,13 +205,12 @@ func (d schoolDirectory) LockSchoolShared(ctx context.Context, id int64) (identi
 	return schoolFact(school), true, nil
 }
 
-func (d schoolDirectory) ListActiveSchoolsOfAccount(ctx context.Context, accountID int64) ([]identityaccess.School, error) {
-	if d.schools == nil || d.activeTenantIDs == nil {
+func (d schoolDirectory) ListActiveSchoolsByID(ctx context.Context, ids []int64) ([]identityaccess.School, error) {
+	if d.schools == nil {
 		return nil, errors.New("school directory is not composed")
 	}
-	ids, err := d.activeTenantIDs(ctx, accountID)
-	if err != nil || len(ids) == 0 {
-		return []identityaccess.School{}, err
+	if len(ids) == 0 {
+		return []identityaccess.School{}, nil
 	}
 	schools, err := d.schools.ListSchoolsByID(ctx, ids)
 	if err != nil {

@@ -7,6 +7,7 @@ import (
 )
 
 type AccountRoleQueryStore interface {
+	ListActiveTenantIDs(context.Context, int64) ([]int64, domain.OperationStats, error)
 	ListSchoolAccountListings(context.Context, []int64) ([]domain.SchoolAccountListing, domain.OperationStats, error)
 	FindActiveGuardianMemberships(context.Context, []int64) (map[int64][]int64, domain.OperationStats, error)
 	ClassifySchoolRoles(context.Context, int64, []int64) ([]domain.SchoolRoleClass, domain.OperationStats, error)

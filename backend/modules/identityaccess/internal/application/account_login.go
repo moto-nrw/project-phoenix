@@ -622,7 +622,7 @@ func (s *AccountAuthentication) resolveAccountTenantDefault(ctx context.Context,
 	if len(tenantIDs) == 0 {
 		return 0, 0, failed("resolve tenant", domain.ErrTenantNotFound)
 	}
-	schools, err := s.schools.ListActiveSchoolsOfAccount(ctx, accountID)
+	schools, err := s.schools.ListActiveSchoolsByID(ctx, tenantIDs)
 	if err != nil {
 		return 0, 0, fmt.Errorf("resolve account schools: %w", err)
 	}

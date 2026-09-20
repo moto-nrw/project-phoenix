@@ -51,12 +51,14 @@ func TestAccountTenantRepository_CreateAndQuery(t *testing.T) {
 	})
 
 	t.Run("finds active mappings by account id", func(t *testing.T) {
-		items, err := repo.FindActiveByAccountID(ctx, account.ID)
+		identity, err := repositories.NewIdentityAccessForTests(db)
+		require.NoError(t, err)
+		items, err := identity.ListActiveAccountSchoolIDs(ctx, account.ID)
 		require.NoError(t, err)
 		// Two: the one created above, plus the one CreateTestAccount claims
 		// for this test's own tenant (#2419).
 		require.Len(t, items, 2)
-		assert.Contains(t, activeTenantIDs(items), tenantID)
+		assert.Contains(t, items, tenantID)
 	})
 
 	t.Run("exists by account and tenant returns true", func(t *testing.T) {
@@ -70,16 +72,6 @@ func TestAccountTenantRepository_CreateAndQuery(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, exists)
 	})
-}
-
-// activeTenantIDs projects mappings onto their tenant IDs, so assertions can
-// name the tenants they care about instead of an index.
-func activeTenantIDs(items []authModels.AccountTenant) []int64 {
-	ids := make([]int64, 0, len(items))
-	for _, item := range items {
-		ids = append(ids, item.TenantID)
-	}
-	return ids
 }
 
 func TestAccountTenantRepository_CreateValidation(t *testing.T) {

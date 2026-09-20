@@ -42,39 +42,11 @@ type InvitationTokenRepository interface {
 	List(ctx context.Context, filters map[string]interface{}) ([]*InvitationToken, error)
 }
 
-// AccountTenantAccessInfo describes one school an account has (or had) access
-// to. Unlike the account listings above it is keyed by account, not by tenant,
-// and therefore spans every school in the platform — it backs the operator-only
-// "Schulzugänge" surface and must never be exposed to a tenant-scoped caller.
-//
-// Roles are NOT part of this row: they live in auth.account_roles and are
-// resolved separately by the identity capability; this row is a plain
-// per-mapping lookup.
-type AccountTenantAccessInfo struct {
-	TenantID         int64      `bun:"tenant_id" json:"tenant_id"`
-	SchoolName       string     `bun:"school_name" json:"school_name"`
-	SchoolSlug       string     `bun:"school_slug" json:"school_slug"`
-	SchoolActive     bool       `bun:"school_active" json:"school_active"`
-	OrganizationID   int64      `bun:"organization_id" json:"organization_id"`
-	OrganizationName string     `bun:"organization_name" json:"organization_name"`
-	Status           string     `bun:"status" json:"status"`
-	ActivatedAt      *time.Time `bun:"activated_at" json:"activated_at,omitempty"`
-	DeactivatedAt    *time.Time `bun:"deactivated_at" json:"deactivated_at,omitempty"`
-	HasPerson        bool       `bun:"has_person" json:"has_person"`
-	HasStaff         bool       `bun:"has_staff" json:"has_staff"`
-}
-
 // AccountTenantRepository defines operations for querying account-tenant mappings.
 type AccountTenantRepository interface {
 	Create(ctx context.Context, mapping *AccountTenant) error
 	EnsureActive(ctx context.Context, mapping *AccountTenant) error
-	FindActiveByAccountID(ctx context.Context, accountID int64) ([]AccountTenant, error)
 	ExistsByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (bool, error)
-	// ExistsActiveByAccountAndTenantForShare is ExistsByAccountAndTenant with a
-	// FOR SHARE row lock. Transaction-only: it blocks a concurrent membership
-	// revocation until the caller's transaction commits, which is what makes a
-	// membership check and a token write in that transaction atomic.
-	ExistsActiveByAccountAndTenantForShare(ctx context.Context, accountID, tenantID int64) (bool, error)
 }
 
 type StaffCalendarFeedOwner struct {

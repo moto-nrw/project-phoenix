@@ -2,8 +2,6 @@ package authpostgres
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"time"
 
@@ -75,22 +73,6 @@ func (r *AccountTenantRepository) EnsureActive(ctx context.Context, mapping *aut
 	return err
 }
 
-// FindActiveByAccountID returns all active tenant mappings for an account.
-func (r *AccountTenantRepository) FindActiveByAccountID(ctx context.Context, accountID int64) ([]authmodels.AccountTenant, error) {
-	var items []authmodels.AccountTenant
-	err := base.GetDB(ctx, r.db).NewSelect().
-		Model(&items).
-		ModelTableExpr(accountTenantTableAlias).
-		Where(`"account_tenant".account_id = ?`, accountID).
-		Where(`"account_tenant".status = ?`, authmodels.AccountTenantStatusActive).
-		OrderExpr(`"account_tenant".created_at ASC`).
-		Scan(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 // ExistsByAccountAndTenant checks if an active mapping exists for the given account and tenant.
 func (r *AccountTenantRepository) ExistsByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (bool, error) {
 	exists, err := base.GetDB(ctx, r.db).NewSelect().
@@ -100,35 +82,4 @@ func (r *AccountTenantRepository) ExistsByAccountAndTenant(ctx context.Context, 
 		Where("status = ?", authmodels.AccountTenantStatusActive).
 		Exists(ctx)
 	return exists, err
-}
-
-// ExistsActiveByAccountAndTenantForShare is ExistsByAccountAndTenant with a
-// FOR SHARE row lock. Must be called inside a transaction.
-//
-// Membership is revoked by Deactivate, which UPDATEs exactly this row. Under
-// READ COMMITTED a plain existence check only proves the mapping was active at
-// statement time — a revocation committing right afterwards still leaves the
-// caller free to write. The share lock makes that impossible: the revoking
-// UPDATE blocks until the calling transaction commits, so any token persisted
-// in the same transaction is provably backed by a live membership.
-//
-// No join here on purpose — FOR SHARE on a single table locks unambiguously.
-func (r *AccountTenantRepository) ExistsActiveByAccountAndTenantForShare(ctx context.Context, accountID, tenantID int64) (bool, error) {
-	var one int
-	err := base.GetDB(ctx, r.db).NewSelect().
-		ColumnExpr("1").
-		TableExpr(accountTenantTable).
-		Where("account_id = ?", accountID).
-		Where("tenant_id = ?", tenantID).
-		Where("status = ?", authmodels.AccountTenantStatusActive).
-		For("SHARE").
-		Limit(1).
-		Scan(ctx, &one)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return false, nil
-		}
-		return false, err
-	}
-	return true, nil
 }

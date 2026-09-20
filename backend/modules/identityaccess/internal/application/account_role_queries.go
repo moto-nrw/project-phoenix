@@ -17,6 +17,17 @@ func NewAccountRoleQueries(service *Service, store ports.AccountRoleQueryStore, 
 	return &AccountRoleQueries{RoleCatalog: NewRoleCatalog(catalog), service: service, store: store}
 }
 
+func (q *AccountRoleQueries) ListActiveAccountSchoolIDs(ctx context.Context, accountID int64) (ids []int64, err error) {
+	err = q.service.run(ctx, q.service.tx.RunPlatform, "list_active_account_school_ids", func(txCtx context.Context, stats *domain.OperationStats) error {
+		var queryStats domain.OperationStats
+		var queryErr error
+		ids, queryStats, queryErr = q.store.ListActiveTenantIDs(txCtx, accountID)
+		stats.Add(queryStats)
+		return queryErr
+	})
+	return ids, err
+}
+
 func (q *AccountRoleQueries) ListSchoolAccountRoleNames(ctx context.Context, accountID int64) (names []string, err error) {
 	err = q.service.run(ctx, q.service.withinSchoolRead, "list_school_account_role_names", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats

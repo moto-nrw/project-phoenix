@@ -20979,12 +20979,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 1309,
-          "declaration": "activeSchoolMemberships"
-        },
-        {
-          "file": "api/base.go",
-          "line": 1324,
+          "line": 1308,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -21076,11 +21071,6 @@
           "file": "services/account_authentication_composition.go",
           "line": 77,
           "declaration": "sessionRepositoriesOf"
-        },
-        {
-          "file": "services/account_authentication_composition.go",
-          "line": 159,
-          "declaration": "newSchoolDirectory"
         },
         {
           "file": "services/auth_test_helpers.go",

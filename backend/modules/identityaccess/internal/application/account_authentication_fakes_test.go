@@ -769,13 +769,14 @@ func (f *fakeSchools) LockSchoolShared(_ context.Context, id int64) (domain.Scho
 	return school, ok, nil
 }
 
-func (f *fakeSchools) ListActiveSchoolsOfAccount(_ context.Context, _ int64) ([]domain.School, error) {
+func (f *fakeSchools) ListActiveSchoolsByID(_ context.Context, schoolIDs []int64) ([]domain.School, error) {
 	if f.listActiveErr != nil {
 		return nil, f.listActiveErr
 	}
 	var result []domain.School
-	for _, school := range f.schools {
-		if school.Live() {
+	for _, id := range schoolIDs {
+		school, found := f.schools[id]
+		if found && school.Live() {
 			result = append(result, school)
 		}
 	}

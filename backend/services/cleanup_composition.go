@@ -99,7 +99,7 @@ func NewAuthCleanupService(db *bun.DB, runtime tenant.UnitOfWork, logger *slog.L
 	}
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
 		repos: sessionRepositories{
-			schools: newSchoolDirectory(repos.School, nil), persons: repos.Person, authEvents: repos.AuthEvent, pushSubscriptions: repos.PushSubscription,
+			schools: schoolDirectory{schools: repos.School}, persons: repos.Person, authEvents: repos.AuthEvent, pushSubscriptions: repos.PushSubscription,
 		},
 		tokenAuth: tokenAuth, audit: command, logger: logger,
 		// The cleanup root only removes spent links and stale windows; it

@@ -294,9 +294,9 @@ type SchoolDirectory interface {
 	// LockSchoolShared reads the school under a FOR SHARE lock inside the
 	// caller's transaction.
 	LockSchoolShared(ctx context.Context, id int64) (domain.School, bool, error)
-	// ListActiveSchoolsOfAccount returns the live, active schools the
-	// account is actively mapped to.
-	ListActiveSchoolsOfAccount(ctx context.Context, accountID int64) ([]domain.School, error)
+	// ListActiveSchoolsByID returns the live, active schools among the supplied IDs.
+	// Identity has already selected the account's active memberships.
+	ListActiveSchoolsByID(ctx context.Context, schoolIDs []int64) ([]domain.School, error)
 }
 
 // PersonDirectory is the consumer-owned port over the People Directory name
