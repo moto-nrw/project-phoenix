@@ -72,8 +72,8 @@ func (d *DemoRuntime) TenantRuntime() services.TenantRuntime { return d.transact
 
 // LatestDemoVisits translates the owner snapshot for the demo CLI.
 // The caller must provide its tenant-scoped transaction context.
-func (d *DemoRuntime) LatestDemoVisits(ctx context.Context, webDeviceID int64) ([]DemoVisit, error) {
-	rows, err := d.presence.LatestDemoVisits(ctx, webDeviceID)
+func (d *DemoRuntime) LatestDemoVisits(ctx context.Context, webDeviceID int64, fromDate, untilDate string) ([]DemoVisit, error) {
+	rows, err := d.presence.LatestDemoVisits(ctx, webDeviceID, fromDate, untilDate)
 	if err != nil {
 		return nil, err
 	}

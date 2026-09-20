@@ -16,6 +16,7 @@ import (
 
 	backendapi "github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/database"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/simulate"
@@ -195,10 +196,11 @@ func demoVisitsQuery(runtime *backendapi.DemoRuntime, schoolID int64, profile *s
 	}
 	return func(ctx context.Context) ([]simulate.DemoVisit, error) {
 		var rows []backendapi.DemoVisit
+		today := timezone.TodayDate()
 		ctx = tenant.WithTenantID(tenant.WithUnitOfWork(ctx, runtime.TenantRuntime()), schoolID)
 		err := tenant.WithinCurrentTenant(ctx, func(ctx context.Context) error {
 			var err error
-			rows, err = runtime.LatestDemoVisits(ctx, webDeviceID)
+			rows, err = runtime.LatestDemoVisits(ctx, webDeviceID, today.AddDays(-1).String(), today.String())
 			return err
 		})
 		if err != nil {

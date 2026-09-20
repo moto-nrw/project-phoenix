@@ -2,6 +2,7 @@ package studentpresence
 
 import (
 	"context"
+	"errors"
 	"time"
 )
 
@@ -14,8 +15,12 @@ type DemoVisit struct {
 
 // LatestDemoVisits requires a tenant-scoped transaction context.
 // Room visits determine occupancy; school attendance determines which device
-// booked the child's latest arrival or departure.
-func (m *Module) LatestDemoVisits(ctx context.Context, webDeviceID int64) ([]DemoVisit, error) {
+// booked the child's latest arrival or departure. The attendance date window
+// is required so periodic demo snapshots never read unbounded history.
+func (m *Module) LatestDemoVisits(ctx context.Context, webDeviceID int64, fromDate, untilDate string) ([]DemoVisit, error) {
+	if fromDate == "" || untilDate == "" {
+		return nil, errors.New("demo attendance window is required")
+	}
 	rows, err := m.ListVisitLocations(ctx, VisitLocationFilter{LatestPerStudent: true})
 	if err != nil {
 		return nil, err
@@ -27,7 +32,10 @@ func (m *Module) LatestDemoVisits(ctx context.Context, webDeviceID int64) ([]Dem
 			Active:    row.Visit.ExitTime == nil && row.Group != nil && row.Group.EndTime == nil,
 		}
 	}
-	attendance, err := m.ListAttendance(ctx, AttendanceFilter{NewestFirst: true, StudentOrder: true})
+	attendance, err := m.ListAttendance(ctx, AttendanceFilter{
+		FromDate: fromDate, UntilDate: untilDate,
+		NewestFirst: true, StudentOrder: true,
+	})
 	if err != nil {
 		return nil, err
 	}
