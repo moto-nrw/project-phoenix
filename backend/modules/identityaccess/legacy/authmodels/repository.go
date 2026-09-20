@@ -9,8 +9,6 @@ import (
 // AccountRepository defines operations for managing accounts
 type AccountRepository interface {
 	base.CRUDRepository[*Account]
-	FindManageableByID(ctx context.Context, id int64) (*Account, error)
-	FindByIDForUpdate(ctx context.Context, id int64) (*Account, error)
 	FindByEmail(ctx context.Context, email string) (*Account, error)
 }
 

@@ -2,140 +2,23 @@ package authpostgres
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 const (
 	accountTable      = "auth.accounts"
 	accountTableAlias = `auth.accounts AS "account"`
-	whereID           = "id = ?"
 )
-
-type manageableSchoolIDsKey struct{}
-
-// WithManageableSchoolIDs attaches the active school set resolved by the
-// Organization & Tenancy capability for an organization-scoped operation.
-func WithManageableSchoolIDs(ctx context.Context, ids []int64) context.Context {
-	return context.WithValue(ctx, manageableSchoolIDsKey{}, append([]int64(nil), ids...))
-}
-
-func manageableSchoolIDs(ctx context.Context) []int64 {
-	ids, _ := ctx.Value(manageableSchoolIDsKey{}).([]int64)
-	return ids
-}
-
-// OrganizationScope reports the organization selected by the caller context.
-func OrganizationScope(ctx context.Context) (int64, bool) {
-	id := tenant.OrgFromContext(ctx)
-	return id, tenant.ScopeFromContext(ctx) == tenant.ScopeOrg && id > 0
-}
-
-// membershipScopeKind names the account-visibility predicate a caller's
-// context selects. The predicates are compile-time SQL so the architecture
-// evaluator resolves the tables they read.
-type membershipScopeKind int
-
-const (
-	// membershipScopeGlobal keeps the global lookup (platform and admin
-	// contexts).
-	membershipScopeGlobal membershipScopeKind = iota
-	// membershipScopeDenied matches no account: an organization or tenant
-	// context without a resolvable scope.
-	membershipScopeDenied
-	// membershipScopeOrganization restricts to active memberships in the
-	// organization's manageable schools.
-	membershipScopeOrganization
-	// membershipScopeTenant restricts to an active membership in the tenant
-	// from the caller's context.
-	membershipScopeTenant
-)
-
-const (
-	membershipScopeDeniedSQL       = "FALSE"
-	membershipScopeOrganizationSQL = `EXISTS (
-			SELECT 1
-			FROM auth.account_tenants AS "account_tenant"
-			WHERE "account_tenant".account_id = "account".id
-			  AND "account_tenant".status = ?
-			  AND "account_tenant".tenant_id IN (?)
-		)`
-	membershipScopeTenantSQL = `EXISTS (
-		SELECT 1
-		FROM auth.account_tenants AS "account_tenant"
-		WHERE "account_tenant".account_id = "account".id
-		  AND "account_tenant".tenant_id = ?
-		  AND "account_tenant".status = ?
-	)`
-)
-
-func accountMembershipScope(ctx context.Context) (membershipScopeKind, []any) {
-	if tenant.ScopeFromContext(ctx) == tenant.ScopeOrg {
-		schoolIDs := manageableSchoolIDs(ctx)
-		if tenant.OrgFromContext(ctx) == 0 || len(schoolIDs) == 0 {
-			return membershipScopeDenied, nil
-		}
-		return membershipScopeOrganization, []any{authmodels.AccountTenantStatusActive, bun.List(schoolIDs)}
-	}
-	if tenant.IsAdminTx(ctx) || tenant.ScopeFromContext(ctx) == tenant.ScopePlatform {
-		return membershipScopeGlobal, nil
-	}
-
-	tenantID := tenant.FromContext(ctx)
-	if tenantID == 0 {
-		return membershipScopeDenied, nil
-	}
-	return membershipScopeTenant, []any{tenantID, authmodels.AccountTenantStatusActive}
-}
-
-// scopeToMembership applies the caller's membership scope to an account read
-// or write; the global scope leaves the query untouched. It is generic over
-// the query kind for the same reason base.WithTenantFilter is: selects and
-// updates must apply the identical predicate, and one definition is what
-// keeps them from drifting apart.
-func scopeToMembership[Q interface{ Where(string, ...any) Q }](ctx context.Context, query Q) Q {
-	switch kind, args := accountMembershipScope(ctx); kind {
-	case membershipScopeDenied:
-		return query.Where(membershipScopeDeniedSQL)
-	case membershipScopeOrganization:
-		return query.Where(membershipScopeOrganizationSQL, args...)
-	case membershipScopeTenant:
-		return query.Where(membershipScopeTenantSQL, args...)
-	default:
-		return query
-	}
-}
 
 // AccountRepository implements auth.AccountRepository interface
 type AccountRepository struct {
 	*base.Repository[*authmodels.Account]
 	db *bun.DB
-}
-
-// FindByIDForUpdate retrieves an account with a row lock. Refresh uses this
-// before locking token rows so login and refresh share one lock order.
-func (r *AccountRepository) FindByIDForUpdate(ctx context.Context, id int64) (*authmodels.Account, error) {
-	account := new(authmodels.Account)
-	err := base.GetDB(ctx, r.db).NewSelect().
-		Model(account).
-		ModelTableExpr(accountTableAlias).
-		Where(`"account".id = ?`, id).
-		For("UPDATE").
-		Scan(ctx)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, err
-		}
-		return nil, &modelBase.DatabaseError{Op: "find account by id for update", Err: base.TranslateNotFound(err)}
-	}
-	return account, nil
 }
 
 // ActiveAccountIDs is the owner query "every active platform account". Other
@@ -155,26 +38,6 @@ func NewAccountRepository(db *bun.DB) authmodels.AccountRepository {
 		Repository: base.NewRepository[*authmodels.Account](db, accountTable, "Account"),
 		db:         db,
 	}
-}
-
-// FindManageableByID restricts account administration to active memberships
-// in the tenant or organization from the caller's context. Platform and admin
-// contexts keep the global lookup used by operator flows.
-func (r *AccountRepository) FindManageableByID(ctx context.Context, id int64) (*authmodels.Account, error) {
-	if kind, _ := accountMembershipScope(ctx); kind == membershipScopeGlobal {
-		return r.FindByID(ctx, id)
-	}
-
-	account := new(authmodels.Account)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(account).
-		ModelTableExpr(accountTableAlias).
-		Where(`"account".id = ?`, id)
-	err := scopeToMembership(ctx, query).Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find by id", Err: base.TranslateNotFound(err)}
-	}
-	return account, nil
 }
 
 // FindByEmail retrieves an account by email address

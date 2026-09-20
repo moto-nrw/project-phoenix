@@ -27,10 +27,6 @@ func NewUserContextTestRepositories(db *bun.DB) (UserContextTestRepositories, er
 	if err != nil {
 		return UserContextTestRepositories{}, err
 	}
-	organizations, err := NewOrganizationTenancy(db)
-	if err != nil {
-		return UserContextTestRepositories{}, err
-	}
 	workTime, err := NewWorkforce(db, membership)
 	if err != nil {
 		return UserContextTestRepositories{}, err
@@ -40,6 +36,6 @@ func NewUserContextTestRepositories(db *bun.DB) (UserContextTestRepositories, er
 		substitutionStaffResolver(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }}))
 	return UserContextTestRepositories{
 		Timetable: timetable, Profile: newIdentityAccess(db, nil), Substitutions: substitutions,
-		Account: schoolAccountRepository{AccountRepository: authRepo.NewAccountRepository(db), schools: organizations},
+		Account: authRepo.NewAccountRepository(db),
 	}, nil
 }

@@ -339,9 +339,6 @@ func (f *Factory) BindOrganizationTenancy(capability organizationtenancy.Capabil
 		return
 	}
 	f.organizationTenancyBound = true
-	if f.Account != nil {
-		f.Account = schoolAccountRepository{AccountRepository: f.Account, schools: capability}
-	}
 	f.School = capability
 	if f.ParentChild != nil {
 		f.ParentChild = schoolChildRepository{ChildRepository: f.ParentChild, schools: capability}
