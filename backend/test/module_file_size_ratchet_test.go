@@ -56,7 +56,7 @@ var moduleFileSizeAllowlist = map[string]int{
 	"modules/appointments/appointments.go":                             846,
 	"modules/appointments/internal/adapters/postgres/store.go":         1011,
 	"modules/careplan/internal/adapters/postgres/requests.go":          847,
-	"modules/careplan/internal/adapters/postgres/student_schedules.go": 921,
+	"modules/careplan/internal/adapters/postgres/student_schedules.go": 814,
 	"modules/careplan/internal/application/excused_requests.go":        1567,
 	// Moved in by PR #3408 (#3350) from services/users and
 	// database/repositories/users; the size crossed the boundary with them.

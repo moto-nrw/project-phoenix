@@ -64,7 +64,8 @@ type PickupExceptionResponse struct {
 type PickupNoteResponse struct {
 	ID        int64  `json:"id"`
 	StudentID int64  `json:"student_id"`
-	NoteDate  string `json:"note_date"` // YYYY-MM-DD format
+	NoteDate  string `json:"note_date,omitempty"` // YYYY-MM-DD format; empty for a recurring note
+	Weekday   int    `json:"weekday,omitempty"`   // 1-5; set for a recurring weekday note (#3369)
 	Content   string `json:"content"`
 	CreatedBy int64  `json:"created_by"`
 	CreatedAt string `json:"created_at"`
@@ -112,15 +113,38 @@ type PickupExceptionRequest struct {
 	Reason          *string `json:"reason,omitempty"`
 }
 
-// PickupNoteRequest represents a request to create/update a pickup note
+// PickupNoteRequest represents a request to create/update a pickup note. A
+// note is either dated (note_date) or recurs on a weekday (weekday, #3369):
+// the recurring shape is what lets a day WITHOUT a pickup time carry a note,
+// because it does not mark the child as expected the way a weekly row does.
 type PickupNoteRequest struct {
 	NoteDate string `json:"note_date"` // YYYY-MM-DD format
+	Weekday  int    `json:"weekday"`   // 1 (Monday) to 5 (Friday)
 	Content  string `json:"content"`
 }
 
 // Bind implements render.Binder
 func (r *PickupNoteRequest) Bind(_ *http.Request) error {
-	return validateCareNoteRequest(r.NoteDate, r.Content)
+	if r.Weekday == 0 {
+		return validateCareNoteRequest(r.NoteDate, r.Content)
+	}
+	if r.NoteDate != "" {
+		return errors.New("a note takes note_date or weekday, not both")
+	}
+	if r.Weekday < schedule.WeekdayMonday || r.Weekday > schedule.WeekdayFriday {
+		return errors.New("weekday must be between 1 (Monday) and 5 (Friday)")
+	}
+	return validateCareNoteContent(r.Content)
+}
+
+// toModel maps the validated request onto a note for the given student.
+func (r *PickupNoteRequest) toModel(studentID, createdBy int64) *schedule.StudentPickupNote {
+	note := &schedule.StudentPickupNote{StudentID: studentID, Weekday: r.Weekday, Content: r.Content, CreatedBy: createdBy}
+	if r.Weekday == 0 {
+		noteDate, _ := timezone.ParseDate(r.NoteDate)
+		note.NoteDate = schedule.Date(noteDate)
+	}
+	return note
 }
 
 // Bind implements render.Binder
@@ -256,7 +280,8 @@ func mapNoteToResponse(n *schedule.StudentPickupNote) PickupNoteResponse {
 	return PickupNoteResponse{
 		ID:        n.ID,
 		StudentID: n.StudentID,
-		NoteDate:  n.NoteDate.Format(dateFormatISO),
+		NoteDate:  n.NoteDate.String(),
+		Weekday:   n.Weekday,
 		Content:   n.Content,
 		CreatedBy: n.CreatedBy,
 		CreatedAt: n.CreatedAt.Format(time.RFC3339),
@@ -807,13 +832,7 @@ func (rs *Resource) createStudentPickupNote(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	noteDate, _ := timezone.ParseDate(req.NoteDate)
-	note := &schedule.StudentPickupNote{
-		StudentID: student.ID,
-		NoteDate:  schedule.Date(noteDate),
-		Content:   req.Content,
-		CreatedBy: staffID,
-	}
+	note := req.toModel(student.ID, staffID)
 
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
@@ -856,13 +875,7 @@ func (rs *Resource) updateStudentPickupNote(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	noteDate, _ := timezone.ParseDate(req.NoteDate)
-	note := &schedule.StudentPickupNote{
-		StudentID: student.ID,
-		NoteDate:  schedule.Date(noteDate),
-		Content:   req.Content,
-		CreatedBy: existingNote.CreatedBy, // Preserve original creator
-	}
+	note := req.toModel(student.ID, existingNote.CreatedBy) // Preserve original creator
 	note.ID = noteID
 	note.CreatedAt = existingNote.CreatedAt // Preserve original creation timestamp
 	note.SetTenantID(existingNote.TenantID)

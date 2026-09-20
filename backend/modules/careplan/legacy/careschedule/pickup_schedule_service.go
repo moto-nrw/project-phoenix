@@ -950,16 +950,11 @@ func (s *pickupScheduleService) GetStudentPickupData(
 	if err != nil {
 		return nil, err
 	}
-	data := &StudentPickupData{Exceptions: coreData.Exceptions, Notes: coreData.Notes}
 	schedules, err := s.GetStudentPickupSchedules(ctx, studentID)
 	if err != nil {
 		return nil, err
 	}
-	return &StudentPickupData{
-		Schedules:  schedules,
-		Exceptions: data.Exceptions,
-		Notes:      data.Notes,
-	}, nil
+	return &StudentPickupData{Schedules: schedules, Exceptions: coreData.Exceptions, Notes: coreData.Notes}, nil
 }
 
 func (s *pickupScheduleService) GetStudentPickupDataForRange(
@@ -1043,6 +1038,11 @@ func (s *pickupScheduleService) GetBulkEffectivePickupTimesForDate(
 	mapped := make(map[int64]*EffectivePickupTime, len(results))
 	for studentID, result := range results {
 		if !projection.AllowsPickupForDate(studentID, date) {
+			// Outside a booked care day only the day's notes survive (#3369):
+			// the child stays not expected, the note still reaches the tile.
+			if len(result.DayNotes) > 0 {
+				mapped[studentID] = pickupEffectiveTime(&effectiveTimeResult{Date: result.Date, WeekdayName: result.WeekdayName, DayNotes: result.DayNotes})
+			}
 			continue
 		}
 		mapped[studentID] = pickupEffectiveTime(result)

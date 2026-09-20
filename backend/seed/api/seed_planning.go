@@ -179,6 +179,12 @@ func seedCarePlanDeviations(rt *Runtime, studentIDs []int64) error {
 			path: fmt.Sprintf("/api/students/%d/pickup-notes", studentIDs[1]),
 			body: map[string]any{"note_date": today.AddDays(3).String(), "content": "Heute holt die Tante das Kind ab."},
 		},
+		{
+			// A recurring weekday note needs no pickup time (#3369): it shows
+			// on the tile even on a day the child is not expected.
+			path: fmt.Sprintf("/api/students/%d/pickup-notes", studentIDs[1]),
+			body: map[string]any{"weekday": 5, "content": "Freitags bei den Großeltern."},
+		},
 	}
 	for _, request := range requests {
 		if _, err := rt.Client.Post(request.path, request.body); err != nil {
