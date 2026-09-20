@@ -13,7 +13,6 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -430,7 +429,7 @@ func TestRevokeAccess_ParentCancelsInviteForStaffManagedContactWithoutDeletingLi
 		CreatedBy:         actorID,
 		ExpiresAt:         time.Now().Add(time.Hour),
 		StudentID:         &studentID,
-		ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
+		ApprovalStatus:    identityaccess.GuardianInvitationApprovalNotRequired,
 	}
 	invitation.TenantID = testpkg.Tenant(t)
 	testpkg.InsertTestGuardianInvitation(t, env.db, invitation)
@@ -655,7 +654,7 @@ func TestInviteToStudent_DirectInvitePromotesPendingApproval(t *testing.T) {
 	assert.True(t, env.linkExists(t, student.ID, pending.GuardianProfileID), "staff/direct invite should create the child link")
 
 	invitation := testpkg.GuardianInvitationByID(t, env.db, *pending.InvitationID)
-	assert.Equal(t, authModels.GuardianInvitationApprovalNotRequired, invitation.ApprovalStatus)
+	assert.Equal(t, identityaccess.GuardianInvitationApprovalNotRequired, invitation.ApprovalStatus)
 }
 
 func TestListPendingApprovalsDetailed_ResolvesNames(t *testing.T) {
@@ -783,7 +782,7 @@ func TestApproveInvitation_ExistingAccount_LinksWithoutEmail(t *testing.T) {
 	assert.True(t, env.linkExists(t, student.ID, profile.ID), "approval must link the child")
 
 	inv := testpkg.GuardianInvitationByID(t, env.db, *result.InvitationID)
-	assert.Equal(t, authModels.GuardianInvitationApprovalApproved, inv.ApprovalStatus)
+	assert.Equal(t, identityaccess.GuardianInvitationApprovalApproved, inv.ApprovalStatus)
 	assert.NotNil(t, inv.AcceptedAt, "existing-account approval closes the invitation")
 }
 
@@ -1006,7 +1005,7 @@ func TestRejectInvitation_PreservesSharedPendingProfile(t *testing.T) {
 	assert.NotNil(t, p, "profile with another open invitation must survive reject cleanup")
 
 	inv := testpkg.GuardianInvitationByID(t, env.db, *second.InvitationID)
-	assert.Equal(t, authModels.GuardianInvitationApprovalPending, inv.ApprovalStatus)
+	assert.Equal(t, identityaccess.GuardianInvitationApprovalPending, inv.ApprovalStatus)
 }
 
 // createRestrictedContactLink links a guardian profile to a student with a
@@ -1232,7 +1231,7 @@ func TestInviteToStudent_ConfirmedUpgrade_ReusedPendingInvitationGetsFlag(t *tes
 		ExpiresAt:            time.Now().Add(time.Hour),
 		StudentID:            &studentID,
 		RequestedByAccountID: &creatorID,
-		ApprovalStatus:       authModels.GuardianInvitationApprovalPending,
+		ApprovalStatus:       identityaccess.GuardianInvitationApprovalPending,
 	}
 	existing.TenantID = testpkg.Tenant(t)
 	testpkg.InsertTestGuardianInvitation(t, env.db, existing)
@@ -1387,7 +1386,7 @@ func TestApproveInvitation_RoleUpgradeRefusesSocialWorkerLink(t *testing.T) {
 	assert.False(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess))
 
 	inv := testpkg.GuardianInvitationByID(t, env.db, *result.InvitationID)
-	assert.Equal(t, authModels.GuardianInvitationApprovalPending, inv.ApprovalStatus,
+	assert.Equal(t, identityaccess.GuardianInvitationApprovalPending, inv.ApprovalStatus,
 		"a refused upgrade must not mark the request approved")
 	assert.Nil(t, inv.ApprovedAt)
 	assert.Empty(t, outbox.requests, "no invitation email for access that was not granted")
@@ -1433,7 +1432,7 @@ func TestInviteToStudent_ConfirmedUpgrade_ParentDirectModeQueuesApproval(t *test
 
 	inv := testpkg.GuardianInvitationByID(t, env.db, *result.InvitationID)
 	assert.True(t, inv.RoleUpgrade, "queued request must persist the upgrade intent")
-	assert.Equal(t, authModels.GuardianInvitationApprovalPending, inv.ApprovalStatus)
+	assert.Equal(t, identityaccess.GuardianInvitationApprovalPending, inv.ApprovalStatus)
 
 	link := env.fetchLink(t, student.ID, profile.ID)
 	assert.Equal(t, authorize.GuardianRolePickupOnly, link.GuardianRole, "no upgrade before approval")
@@ -1479,7 +1478,7 @@ func TestInviteToStudent_ConfirmedUpgrade_RequeuesOpenDirectInvitation(t *testin
 		CreatedBy:         creatorID,
 		ExpiresAt:         time.Now().Add(48 * time.Hour),
 		StudentID:         &studentID,
-		ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
+		ApprovalStatus:    identityaccess.GuardianInvitationApprovalNotRequired,
 	}
 	existing.TenantID = testpkg.Tenant(t)
 	testpkg.InsertTestGuardianInvitation(t, env.db, existing)
@@ -1499,7 +1498,7 @@ func TestInviteToStudent_ConfirmedUpgrade_RequeuesOpenDirectInvitation(t *testin
 	assert.Equal(t, identityaccess.InviteOutcomePendingApproval, result.Outcome)
 
 	inv := testpkg.GuardianInvitationByID(t, env.db, existing.ID)
-	assert.Equal(t, authModels.GuardianInvitationApprovalPending, inv.ApprovalStatus,
+	assert.Equal(t, identityaccess.GuardianInvitationApprovalPending, inv.ApprovalStatus,
 		"reused not_required invitation must be re-queued as pending")
 	assert.True(t, inv.RoleUpgrade)
 	require.NotNil(t, inv.RequestedByAccountID)
@@ -1557,7 +1556,7 @@ func TestInviteToStudent_ConfirmedUpgrade_RequeueRefreshesExpiry(t *testing.T) {
 		CreatedBy:         creatorID,
 		ExpiresAt:         staleExpiry,
 		StudentID:         &studentID,
-		ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
+		ApprovalStatus:    identityaccess.GuardianInvitationApprovalNotRequired,
 		EmailSentAt:       &sentAt,
 		EmailError:        &emailError,
 	}
@@ -1576,7 +1575,7 @@ func TestInviteToStudent_ConfirmedUpgrade_RequeueRefreshesExpiry(t *testing.T) {
 	require.Equal(t, existing.ID, *result.InvitationID)
 
 	inv := testpkg.GuardianInvitationByID(t, env.db, existing.ID)
-	assert.Equal(t, authModels.GuardianInvitationApprovalPending, inv.ApprovalStatus)
+	assert.Equal(t, identityaccess.GuardianInvitationApprovalPending, inv.ApprovalStatus)
 	assert.True(t, inv.ExpiresAt.After(staleExpiry.Add(time.Hour)),
 		"re-queued request must get a fresh approval window, not the leftover expiry")
 	assert.Nil(t, inv.EmailSentAt, "stale email tracking must be cleared")
@@ -1640,7 +1639,7 @@ func TestInviteToStudent_DirectLinkClosesPendingApprovalRequest(t *testing.T) {
 	assert.True(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess))
 
 	inv := testpkg.GuardianInvitationByID(t, env.db, *queued.InvitationID)
-	assert.NotEqual(t, authModels.GuardianInvitationApprovalPending, inv.ApprovalStatus,
+	assert.NotEqual(t, identityaccess.GuardianInvitationApprovalPending, inv.ApprovalStatus,
 		"the superseded request must leave the approval queue")
 	assert.NotNil(t, inv.AcceptedAt, "access exists, so the request is resolved")
 
@@ -1674,8 +1673,8 @@ func TestInviteToStudent_PlainReinviteKeepsResolvedInvitation(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	for _, status := range []string{
-		authModels.GuardianInvitationApprovalApproved,
-		authModels.GuardianInvitationApprovalNotRequired,
+		identityaccess.GuardianInvitationApprovalApproved,
+		identityaccess.GuardianInvitationApprovalNotRequired,
 	} {
 		t.Run(status, func(t *testing.T) {
 			// One student per subtest: findOpenStudentInvitation is scoped by
@@ -1692,7 +1691,7 @@ func TestInviteToStudent_PlainReinviteKeepsResolvedInvitation(t *testing.T) {
 				StudentID:         &studentID,
 				ApprovalStatus:    status,
 			}
-			if status == authModels.GuardianInvitationApprovalApproved {
+			if status == identityaccess.GuardianInvitationApprovalApproved {
 				existing.ApprovedBy = &creatorID
 				existing.ApprovedAt = &now
 			}
@@ -1718,7 +1717,7 @@ func TestInviteToStudent_PlainReinviteKeepsResolvedInvitation(t *testing.T) {
 			assert.Equal(t, status, inv.ApprovalStatus,
 				"a plain re-invite must not revert a resolved invitation")
 			assert.False(t, inv.RoleUpgrade)
-			if status == authModels.GuardianInvitationApprovalApproved {
+			if status == identityaccess.GuardianInvitationApprovalApproved {
 				assert.NotNil(t, inv.ApprovedBy, "approval record must survive a duplicate submission")
 				assert.NotNil(t, inv.ApprovedAt)
 			}

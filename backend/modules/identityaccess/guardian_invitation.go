@@ -11,6 +11,14 @@ import (
 // writes instead of committing half of them.
 var ErrTransactionUnusable = errors.New("transaction state is unusable")
 
+// Guardian invitation approval states reported by the owner capability.
+const (
+	GuardianInvitationApprovalNotRequired = "not_required"
+	GuardianInvitationApprovalPending     = "pending"
+	GuardianInvitationApprovalApproved    = "approved"
+	GuardianInvitationApprovalRejected    = "rejected"
+)
+
 // Guardian invitations (#2722): the one-time link a guardian redeems for
 // their parents-portal account. A link is never stored already expired or
 // spent, a resend never revives one, and accepting it writes the account,

@@ -1,4 +1,4 @@
-package authmodels
+package behavior_test
 
 import (
 	"os"
@@ -6,12 +6,13 @@ import (
 	"regexp"
 	"sort"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
 // TestBaseRoleSyncAcrossLayers ensures ValidBaseRoles, the DB CHECK constraint,
 // and the frontend BASE_ROLE_LABELS all define the same set of base roles.
 // If this test fails, someone added a role in one place but not all three.
-// See also: role.go comment on ValidBaseRoles.
 func TestBaseRoleSyncAcrossLayers(t *testing.T) {
 	t.Parallel()
 
@@ -20,7 +21,7 @@ func TestBaseRoleSyncAcrossLayers(t *testing.T) {
 		t.Skipf("Cannot locate project root: %v", err)
 	}
 
-	validRoles := ValidBaseRoles()
+	validRoles := identityaccess.ValidBaseRoles()
 	goRoles := make([]string, len(validRoles))
 	copy(goRoles, validRoles)
 	sort.Strings(goRoles)

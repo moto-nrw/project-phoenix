@@ -13,7 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
-	authModel "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
 const errPasswordsNotMatch = "passwords do not match"
@@ -438,8 +438,8 @@ func (req *UpdateRoleRequest) Bind(_ *http.Request) error {
 
 // validateBaseRoleValue checks that a non-nil base_role value is one of the allowed system roles.
 func validateBaseRoleValue(value string) error {
-	if !slices.Contains(authModel.ValidBaseRoles(), value) {
-		return fmt.Errorf("base_role must be one of: %v", authModel.ValidBaseRoles())
+	if !slices.Contains(identityaccess.ValidBaseRoles(), value) {
+		return fmt.Errorf("base_role must be one of: %v", identityaccess.ValidBaseRoles())
 	}
 	return nil
 }
@@ -448,7 +448,7 @@ func validateBaseRoleValue(value string) error {
 // This runs at the request layer to return 400 (not 500) for invalid payloads.
 func validateBaseRole(br *string) error {
 	if br == nil {
-		return fmt.Errorf("base_role is required; must be one of: %v", authModel.ValidBaseRoles())
+		return fmt.Errorf("base_role is required; must be one of: %v", identityaccess.ValidBaseRoles())
 	}
 	return validateBaseRoleValue(*br)
 }

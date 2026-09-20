@@ -401,8 +401,8 @@ func TestGuardianInvitationService_PublicTokenRejectsUnapprovedStatuses(t *testi
 
 	creatorID := env.inviterAccountID(t)
 	statuses := []string{
-		authModels.GuardianInvitationApprovalPending,
-		authModels.GuardianInvitationApprovalRejected,
+		identityaccess.GuardianInvitationApprovalPending,
+		identityaccess.GuardianInvitationApprovalRejected,
 	}
 	for _, status := range statuses {
 		t.Run(status, func(t *testing.T) {

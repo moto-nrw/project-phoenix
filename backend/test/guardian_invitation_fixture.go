@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -27,7 +26,7 @@ func InsertTestGuardianInvitation(t *testing.T, db *bun.DB, invitation *Guardian
 		invitation.ExpiresAt = time.Now().Add(48 * time.Hour)
 	}
 	if invitation.ApprovalStatus == "" {
-		invitation.ApprovalStatus = authModels.GuardianInvitationApprovalNotRequired
+		invitation.ApprovalStatus = "not_required"
 	}
 	_, err := db.NewInsert().
 		Model(invitation).

@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -16,7 +18,6 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
@@ -46,7 +47,7 @@ func (r guardianInvitationReads) ListByProfile(ctx context.Context, guardianProf
 	for _, invitation := range invitations {
 		records = append(records, parentService.GuardianInvitationRecord{
 			ID: invitation.ID, GuardianProfileID: invitation.GuardianProfileID, StudentID: invitation.StudentID,
-			ExpiresAt: invitation.ExpiresAt, AcceptedAt: invitation.AcceptedAt, ApprovalStatus: invitation.ApprovalStatus,
+			ExpiresAt: invitation.ExpiresAt, AcceptedAt: invitation.AcceptedAt, Rejected: invitation.ApprovalStatus == identityaccess.GuardianInvitationApprovalRejected,
 		})
 	}
 	return records, nil
@@ -174,7 +175,7 @@ func TestListRelatedAccounts_NoAccountWithOpenInviteIsPending(t *testing.T) {
 		CreatedBy:         chain.AccountID,
 		ExpiresAt:         time.Now().Add(time.Hour),
 		StudentID:         &studentID,
-		ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
+		ApprovalStatus:    identityaccess.GuardianInvitationApprovalNotRequired,
 	}
 	invitation.TenantID = testpkg.Tenant(t)
 	testpkg.InsertTestGuardianInvitation(t, db, invitation)
@@ -223,7 +224,7 @@ func TestListRelatedAccounts_OpenInviteForAnotherChildIsNotPending(t *testing.T)
 		CreatedBy:         chain.AccountID,
 		ExpiresAt:         time.Now().Add(time.Hour),
 		StudentID:         &otherStudentID,
-		ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
+		ApprovalStatus:    identityaccess.GuardianInvitationApprovalNotRequired,
 	}
 	invitation.TenantID = testpkg.Tenant(t)
 	testpkg.InsertTestGuardianInvitation(t, db, invitation)
@@ -605,7 +606,7 @@ func TestListRelatedAccounts_AccountWithoutAccessWithOpenInviteIsPending(t *test
 		CreatedBy:         chain.AccountID,
 		ExpiresAt:         time.Now().Add(time.Hour),
 		StudentID:         &studentID,
-		ApprovalStatus:    authModels.GuardianInvitationApprovalPending,
+		ApprovalStatus:    identityaccess.GuardianInvitationApprovalPending,
 		RoleUpgrade:       true,
 	}
 	invitation.TenantID = testpkg.Tenant(t)

@@ -4234,7 +4234,7 @@
       "declaration": "TestGetStudentGuardians_AccountHolderPendingUpgradeApproval",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2361
+        2360
       ],
       "tables": [
         "auth.guardian_invitations",
@@ -4250,7 +4250,7 @@
       "declaration": "TestGuardianService_ContactWritersShareProfileLock",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2320
+        2319
       ],
       "tables": [
         "users.guardian_phone_numbers",
@@ -4263,7 +4263,7 @@
       "declaration": "setupGuardianService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        42
+        41
       ],
       "tables": []
     },

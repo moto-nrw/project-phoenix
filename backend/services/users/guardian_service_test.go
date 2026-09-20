@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	usermodels "github.com/moto-nrw/project-phoenix/models/users"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -753,7 +752,7 @@ func TestGuardianService_GetStudentGuardians(t *testing.T) {
 			GuardianProfileID: guardian.ID,
 			CreatedBy:         inviter.ID,
 			ExpiresAt:         time.Now().Add(48 * time.Hour),
-			ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
+			ApprovalStatus:    "not_required",
 		}
 		invitation.TenantID = testpkg.Tenant(t)
 		testpkg.InsertTestGuardianInvitation(t, db, invitation)
@@ -2219,7 +2218,7 @@ func TestGetStudentGuardians_NonOpenInvitationsNotPending(t *testing.T) {
 		{"accepted", func(i *testpkg.GuardianInvitation) { now := time.Now(); i.AcceptedAt = &now }},
 		{"expired", func(i *testpkg.GuardianInvitation) { i.ExpiresAt = time.Now().Add(-time.Hour) }},
 		{"rejected", func(i *testpkg.GuardianInvitation) {
-			i.ApprovalStatus = authModels.GuardianInvitationApprovalRejected
+			i.ApprovalStatus = "rejected"
 		}},
 	}
 	for _, c := range cases {
@@ -2241,7 +2240,7 @@ func TestGetStudentGuardians_NonOpenInvitationsNotPending(t *testing.T) {
 				GuardianProfileID: guardian.ID,
 				CreatedBy:         inviter.ID,
 				ExpiresAt:         time.Now().Add(48 * time.Hour),
-				ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
+				ApprovalStatus:    "not_required",
 			}
 			c.mutate(inv)
 			inv.TenantID = testpkg.Tenant(t)
@@ -2389,7 +2388,7 @@ func TestGetStudentGuardians_AccountHolderPendingUpgradeApproval(t *testing.T) {
 		CreatedBy:         account.ID,
 		ExpiresAt:         time.Now().Add(48 * time.Hour),
 		StudentID:         &siblingID,
-		ApprovalStatus:    authModels.GuardianInvitationApprovalPending,
+		ApprovalStatus:    "pending",
 		RoleUpgrade:       true,
 	}
 	inv.TenantID = testpkg.Tenant(t)
