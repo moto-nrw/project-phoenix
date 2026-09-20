@@ -53,7 +53,7 @@ func TestImportBatches_StudentCrossBatchGuardianAndExplicitPermissionRevocation(
 		var flags struct{ CanPickup, IsPrimary, IsEmergencyContact bool }
 		require.NoError(t, db.NewSelect().TableExpr("users.students_guardians sg").
 			ColumnExpr("sg.can_pickup, sg.is_primary, sg.is_emergency_contact").
-			Join("JOIN users.students s ON s.id = sg.student_id").Join("JOIN users.persons p ON p.id = s.person_id").
+			Join("JOIN users.student_profiles s ON s.id = sg.student_id").Join("JOIN users.persons p ON p.id = s.person_id").
 			Where("sg.tenant_id = ? AND p.first_name = ?", testpkg.Tenant(t), rows[0].FirstName).Scan(testpkg.Ctx(t), &flags))
 		assert.Equal(t, want, flags.CanPickup)
 		assert.Equal(t, want, flags.IsPrimary)

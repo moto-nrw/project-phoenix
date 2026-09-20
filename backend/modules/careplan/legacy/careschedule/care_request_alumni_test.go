@@ -44,9 +44,9 @@ func TestCareRequest_GraduatedChildLeavesQueueAndRefusesDecisions(t *testing.T) 
 
 	// The child graduates (grade-transition apply).
 	_, err = f.db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_school_memberships").
 		Set("status = ?", string(usersModels.StudentStatusAlumnus)).
-		Where("id = ?", f.chain.StudentID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", f.chain.StudentID).
 		Exec(ctx)
 	require.NoError(t, err)
 

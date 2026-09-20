@@ -40,9 +40,9 @@ func TestDeleteStudent_GraduatedBetweenSnapshotAndLock(t *testing.T) {
 
 	// The transition commits: the stored row is a graduate from here on.
 	_, err := tc.db.NewUpdate().
-		TableExpr(`users.students`).
+		TableExpr(`users.student_school_memberships`).
 		Set("status = ?", string(usersModels.StudentStatusAlumnus)).
-		Where("id = ?", student.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(t.Context())
 	require.NoError(t, err)
 
@@ -69,7 +69,7 @@ func TestDeleteStudent_GraduatedBetweenSnapshotAndLock(t *testing.T) {
 
 	// The row a revert needs is still there, person record included.
 	count, err := tc.db.NewSelect().
-		TableExpr(`users.students`).
+		TableExpr(`users.student_profiles`).
 		Where("id = ?", student.ID).
 		Count(t.Context())
 	require.NoError(t, err)

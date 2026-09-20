@@ -40,14 +40,15 @@ func testParticipantFinder(ctx context.Context, date string) ([]ParticipantCandi
 	}
 	var rows []testParticipantRow
 	err = tx.NewSelect().Model(&rows).
-		ModelTableExpr(`users.students AS "student"`).
-		ColumnExpr(`"student".id AS student_id, "person".first_name, "person".last_name, "student".school_class`).
+		ModelTableExpr(`users.student_profiles AS "student"`).
+		Join(`JOIN users.student_school_memberships AS "membership" ON "membership".student_profile_id = "student".id AND "membership".tenant_id = "student".tenant_id AND "membership".deleted_at IS NULL`).
+		ColumnExpr(`"student".id AS student_id, "person".first_name, "person".last_name, "membership".school_class`).
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id AND "person".tenant_id = "student".tenant_id`).
 		Where(`"student".tenant_id = ?`, tenantID.Int64()).
-		Where(`"student".status = 'active'`).
-		Where(`("student".enrolled_from IS NULL OR "student".enrolled_from <= ?)`, date).
-		Where(`("student".enrolled_until IS NULL OR "student".enrolled_until >= ?)`, date).
-		OrderExpr(`"student".school_class, "person".last_name, "person".first_name, "student".id`).
+		Where(`"membership".status = 'active'`).
+		Where(`("membership".enrolled_from IS NULL OR "membership".enrolled_from <= ?)`, date).
+		Where(`("membership".enrolled_until IS NULL OR "membership".enrolled_until >= ?)`, date).
+		OrderExpr(`"membership".school_class, "person".last_name, "person".first_name, "student".id`).
 		Scan(ctx)
 	if err != nil {
 		return nil, err

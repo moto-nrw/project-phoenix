@@ -513,9 +513,9 @@ func setEnrolledUntil(t *testing.T, db *bun.DB, studentID int64, until timezone.
 	defer cancel()
 
 	_, err := db.NewUpdate().
-		Table("users.students").
+		Table("users.student_school_memberships").
 		Set("enrolled_until = ?", until).
-		Where("id = ?", studentID).
+		Where("student_profile_id = ?", studentID).Where("deleted_at IS NULL").
 		Exec(ctx)
 	require.NoError(t, err, "stamp enrolled_until on test student")
 }

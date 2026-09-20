@@ -31,7 +31,7 @@ func TestEnrollmentStudentCommandsPreserveTenantAndRollback(t *testing.T) {
 	require.Equal(t, "2027-07-31", created.EnrolledUntil)
 	require.Equal(t, person.ID, created.PersonID)
 	// Renewal must not carry unrelated state from a previously hydrated row.
-	_, err = db.NewRaw("UPDATE users.students SET health_info = ? WHERE id = ?", "unchanged", created.ID).Exec(ctx)
+	_, err = db.NewRaw("UPDATE users.student_care_profiles SET health_info = ? WHERE membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", "unchanged", created.ID).Exec(ctx)
 	require.NoError(t, err)
 	renewed := input
 	renewed.SchoolClass = "2a"
@@ -39,14 +39,14 @@ func TestEnrollmentStudentCommandsPreserveTenantAndRollback(t *testing.T) {
 	renewed.EnrolledFrom = "2027-08-01"
 	require.NoError(t, module.RenewEnrollmentStudent(ctx, created.ID, renewed))
 	var health string
-	require.NoError(t, db.NewRaw("SELECT health_info FROM users.students WHERE id = ?", created.ID).Scan(ctx, &health))
+	require.NoError(t, db.NewRaw("SELECT health_info FROM users.student_care_profiles WHERE membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", created.ID).Scan(ctx, &health))
 	require.Equal(t, "unchanged", health)
 	extra := "keep this field"
 	require.NoError(t, module.ApplyEnrollmentProfile(ctx, created.ID, peopledirectory.EnrollmentProfilePatch{ExtraInfoSet: true, ExtraInfo: &extra}))
 	require.NoError(t, module.ApplyEnrollmentProfile(ctx, created.ID, peopledirectory.EnrollmentProfilePatch{HealthInfoSet: true}))
 	var clearedHealth *string
 	var storedExtra string
-	require.NoError(t, db.NewRaw("SELECT health_info, extra_info FROM users.students WHERE id = ?", created.ID).Scan(ctx, &clearedHealth, &storedExtra))
+	require.NoError(t, db.NewRaw("SELECT c.health_info, p.extra_info FROM users.student_profiles p JOIN users.student_school_memberships m ON m.tenant_id=p.tenant_id AND m.student_profile_id=p.id AND m.deleted_at IS NULL JOIN users.student_care_profiles c ON c.tenant_id=m.tenant_id AND c.membership_id=m.id WHERE p.id = ?", created.ID).Scan(ctx, &clearedHealth, &storedExtra))
 	require.Nil(t, clearedHealth, "explicit NULL must clear the field")
 	require.Equal(t, extra, storedExtra, "an unspecified field stays unchanged")
 
@@ -79,7 +79,7 @@ func TestEnrollmentStudentCommandsPreserveTenantAndRollback(t *testing.T) {
 	require.Len(t, rows, 1)
 	require.Equal(t, created.ID, rows[0].ID)
 	require.Equal(t, "2a", rows[0].SchoolClass)
-	require.NoError(t, db.NewRaw("SELECT extra_info FROM users.students WHERE id = ?", created.ID).Scan(ctx, &storedExtra))
+	require.NoError(t, db.NewRaw("SELECT extra_info FROM users.student_profiles WHERE id = ?", created.ID).Scan(ctx, &storedExtra))
 	require.Equal(t, extra, storedExtra, "profile writes must roll back with the outer workflow")
 }
 
@@ -136,7 +136,7 @@ func TestEnrollmentDepartureMirrorsAndRollback(t *testing.T) {
 	read := func() {
 		t.Helper()
 		storedNote = nil
-		require.NoError(t, db.NewRaw("SELECT pickup_status, departure_companion_note, departure_days::text, allowed_departure_modes::text FROM users.students WHERE id = ?", student.ID).Scan(ctx, &status, &storedNote, &departure, &allowed))
+		require.NoError(t, db.NewRaw("SELECT pickup_status, departure_companion_note, departure_days::text, allowed_departure_modes::text FROM users.student_care_profiles WHERE membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", student.ID).Scan(ctx, &status, &storedNote, &departure, &allowed))
 	}
 	read()
 	require.Equal(t, "Geht mit anderem Kind", status, "the exclusive bus mirror must not hide accompanied mode")

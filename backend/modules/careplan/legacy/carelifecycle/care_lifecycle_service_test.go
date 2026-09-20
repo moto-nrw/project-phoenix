@@ -99,13 +99,23 @@ func TestCareLifecycle_ConfirmAuditsOnlyCareEnd(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Audit", "CareEnd", "2a")
 
 	_, err := db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_school_memberships").
 		Set("status = ?", string(userModels.StudentStatusActive)).
-		Set("supervisor_notes = ?", "Nicht ändern").
+		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+	_, err = db.NewUpdate().
+		TableExpr("users.student_profiles").
 		Set("extra_info = ?", "Nicht ändern").
+		Where("id = ?", student.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+	_, err = db.NewUpdate().
+		TableExpr("users.student_care_profiles").
+		Set("supervisor_notes = ?", "Nicht ändern").
 		Set("health_info = ?", "Nicht ändern").
 		Set("pickup_status = ?", "pickup").
-		Where("id = ?", student.ID).
+		Where("membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", student.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 
@@ -233,10 +243,10 @@ func TestCareLifecycle_ConfirmRefusesStalePreview(t *testing.T) {
 
 	// Somebody edits one of the children between preview and confirmation.
 	_, err = db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_school_memberships").
 		Set("school_class = ?", "3b").
 		Set("updated_at = ?", time.Now().Add(time.Second)).
-		Where("id = ?", second.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", second.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
 
@@ -262,9 +272,9 @@ func TestCareLifecycle_BlockedChildStopsTheWholeAction(t *testing.T) {
 	fine := testpkg.CreateTestStudent(t, db, "Nele", "Wirth", "1b")
 	graduated := testpkg.CreateTestStudent(t, db, "Ben", "Wirth", "4b")
 	_, err := db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_school_memberships").
 		Set("status = ?", string(userModels.StudentStatusAlumnus)).
-		Where("id = ?", graduated.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", graduated.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
 
@@ -412,9 +422,9 @@ func TestCareLifecycle_CancelRefusesOrdinaryEnrollmentEnd(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Nora", "Hesse", "3c")
 	ordinaryEnd := timezone.NewDate(2026, 8, 24).AddDays(14)
 	_, err := db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_school_memberships").
 		Set("enrolled_until = ?", ordinaryEnd).
-		Where("id = ?", student.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 
@@ -434,7 +444,7 @@ func TestCareLifecycle_CancelRestoresPreviousEnrollmentEnd(t *testing.T) {
 	actorID := careActor(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Mara", "Hesse", "3c")
 	previousEnd := today.AddDays(40)
-	_, err := db.NewUpdate().TableExpr("users.students").Set("enrolled_until = ?", previousEnd).Where("id = ?", student.ID).Exec(ctx)
+	_, err := db.NewUpdate().TableExpr("users.student_school_memberships").Set("enrolled_until = ?", previousEnd).Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).Exec(ctx)
 	require.NoError(t, err)
 	endCare(t, ctx, svc, actorID, carelifecycle.CareExitInput{StudentIDs: []int64{student.ID}, LastCareDay: today.AddDays(10), Reason: userModels.CareExitReasonMovedAway})
 	_, err = svc.Cancel(ctx, []int64{student.ID}, actorID)
@@ -457,9 +467,9 @@ func TestCareLifecycle_CancelRefusedAfterItTookEffect(t *testing.T) {
 	// is about the state the day after a legitimate one.
 	yesterday := timezone.TodayDate().AddDays(-1)
 	_, err := db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_school_memberships").
 		Set("enrolled_until = ?", yesterday).
-		Where("id = ?", student.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
 	require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareExit.Upsert(ctx, &userModels.CareExit{
@@ -484,10 +494,10 @@ func TestCareLifecycle_Resume(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Yara", "Lorenz", "1c")
 	yesterday := today.AddDays(-1)
 	_, err := db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_school_memberships").
 		Set("enrolled_until = ?", yesterday).
 		Set("status = ?", string(userModels.StudentStatusInactive)).
-		Where("id = ?", student.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
 	require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareExit.Upsert(ctx, &userModels.CareExit{
@@ -546,10 +556,10 @@ func TestCareLifecycle_Resume(t *testing.T) {
 	t.Run("refuses an enrollment that ended without a recorded care exit", func(t *testing.T) {
 		naturalEnd := testpkg.CreateTestStudent(t, db, "Lina", "Lorenz", "1c")
 		_, err := db.NewUpdate().
-			TableExpr("users.students").
+			TableExpr("users.student_school_memberships").
 			Set("enrolled_until = ?", yesterday).
 			Set("status = ?", string(userModels.StudentStatusInactive)).
-			Where("id = ?", naturalEnd.ID).
+			Where("student_profile_id = ? AND deleted_at IS NULL", naturalEnd.ID).
 			Exec(context.Background())
 		require.NoError(t, err)
 
@@ -573,10 +583,10 @@ func TestCareLifecycle_ResumeForAFutureStartWaitsForTheScheduler(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, db, "Emil", "Roth", "2c")
 	_, err := db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_school_memberships").
 		Set("enrolled_until = ?", timezone.TodayDate().AddDays(-3)).
 		Set("status = ?", string(userModels.StudentStatusInactive)).
-		Where("id = ?", student.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
 	require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareExit.Upsert(ctx, &userModels.CareExit{
@@ -615,9 +625,9 @@ func TestCareLifecycle_ArchiveHoldsEveryRegularlyEndedCare(t *testing.T) {
 	yesterday := timezone.TodayDate().AddDays(-1)
 	for _, id := range []int64{manual.ID, phase.ID} {
 		_, err := db.NewUpdate().
-			TableExpr("users.students").
+			TableExpr("users.student_school_memberships").
 			Set("enrolled_until = ?", yesterday).
-			Where("id = ?", id).
+			Where("student_profile_id = ? AND deleted_at IS NULL", id).
 			Exec(context.Background())
 		require.NoError(t, err)
 	}
@@ -872,9 +882,9 @@ func TestCareLifecycle_ResumeDoesNotBringThePlanBack(t *testing.T) {
 
 	// The exit takes effect, then the family comes back.
 	_, err := db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_school_memberships").
 		Set("enrolled_until = ?", today.AddDays(-1)).
-		Where("id = ?", student.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
 

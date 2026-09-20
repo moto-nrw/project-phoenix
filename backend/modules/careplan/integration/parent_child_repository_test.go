@@ -132,7 +132,7 @@ func TestChildRepository_ListByAccount_HappyPath(t *testing.T) {
 
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Lara", "Beispiel", "1a")
 	t.Cleanup(func() {
-		_, _ = db.NewDelete().Table("users.students").
+		_, _ = db.NewDelete().Table("users.student_profiles").
 			Where("id = ?", student.ID).Exec(context.Background())
 		_, _ = db.NewDelete().Table("users.persons").
 			Where("id = ?", student.PersonID).Exec(context.Background())
@@ -174,7 +174,7 @@ func TestChildRepository_ListByAccount_FiltersInactiveMembership(t *testing.T) {
 
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Lara", "Inactive", "1a")
 	t.Cleanup(func() {
-		_, _ = db.NewDelete().Table("users.students").
+		_, _ = db.NewDelete().Table("users.student_profiles").
 			Where("id = ?", student.ID).Exec(context.Background())
 		_, _ = db.NewDelete().Table("users.persons").
 			Where("id = ?", student.PersonID).Exec(context.Background())
@@ -211,7 +211,7 @@ func TestChildRepository_ListByAccount_FiltersMissingPortalAccess(t *testing.T) 
 
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Lara", "Noportal", "1a")
 	t.Cleanup(func() {
-		_, _ = db.NewDelete().Table("users.students").
+		_, _ = db.NewDelete().Table("users.student_profiles").
 			Where("id = ?", student.ID).Exec(context.Background())
 		_, _ = db.NewDelete().Table("users.persons").
 			Where("id = ?", student.PersonID).Exec(context.Background())
@@ -244,7 +244,7 @@ func TestChildRepository_ListByAccount_FiltersSoftDeletedPerson(t *testing.T) {
 
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Lara", "Deleted", "1a")
 	t.Cleanup(func() {
-		_, _ = db.NewDelete().Table("users.students").
+		_, _ = db.NewDelete().Table("users.student_profiles").
 			Where("id = ?", student.ID).Exec(context.Background())
 		_, _ = db.NewDelete().Table("users.persons").
 			Where("id = ?", student.PersonID).Exec(context.Background())
@@ -294,7 +294,7 @@ func TestChildRepository_ListByAccount_CrossTenant(t *testing.T) {
 		for _, s := range []struct {
 			studentID, personID int64
 		}{{studentA.ID, studentA.PersonID}, {studentB.ID, studentB.PersonID}} {
-			_, _ = db.NewDelete().Table("users.students").Where("id = ?", s.studentID).Exec(bg)
+			_, _ = db.NewDelete().Table("users.student_profiles").Where("id = ?", s.studentID).Exec(bg)
 			_, _ = db.NewDelete().Table("users.persons").Where("id = ?", s.personID).Exec(bg)
 		}
 	})
@@ -342,7 +342,7 @@ func TestChildRepository_ListByAccount_OrdersBySchoolThenName(t *testing.T) {
 		for _, s := range []struct {
 			studentID, personID int64
 		}{{studentZ.ID, studentZ.PersonID}, {studentA.ID, studentA.PersonID}} {
-			_, _ = db.NewDelete().Table("users.students").Where("id = ?", s.studentID).Exec(bg)
+			_, _ = db.NewDelete().Table("users.student_profiles").Where("id = ?", s.studentID).Exec(bg)
 			_, _ = db.NewDelete().Table("users.persons").Where("id = ?", s.personID).Exec(bg)
 		}
 	})
@@ -417,7 +417,7 @@ func TestChildRepository_FindForAccount_OwnedChild(t *testing.T) {
 	})
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Felix", "Owned", "1a")
 	t.Cleanup(func() {
-		_, _ = db.NewDelete().Table("users.students").Where("id = ?", student.ID).Exec(context.Background())
+		_, _ = db.NewDelete().Table("users.student_profiles").Where("id = ?", student.ID).Exec(context.Background())
 		_, _ = db.NewDelete().Table("users.persons").Where("id = ?", student.PersonID).Exec(context.Background())
 	})
 	linkChildToAccount(t, db, account.ID, tenantID, student.ID)
@@ -445,7 +445,7 @@ func TestChildRepository_FindForAccount_NotLinkedReturnsNil(t *testing.T) {
 	t.Cleanup(func() {
 		bg := context.Background()
 		for _, s := range []struct{ sid, pid int64 }{{mine.ID, mine.PersonID}, {other.ID, other.PersonID}} {
-			_, _ = db.NewDelete().Table("users.students").Where("id = ?", s.sid).Exec(bg)
+			_, _ = db.NewDelete().Table("users.student_profiles").Where("id = ?", s.sid).Exec(bg)
 			_, _ = db.NewDelete().Table("users.persons").Where("id = ?", s.pid).Exec(bg)
 		}
 	})
@@ -468,7 +468,7 @@ func TestChildRepository_FindForAccount_InactiveMappingReturnsNil(t *testing.T) 
 	})
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Felix", "Inactive", "1a")
 	t.Cleanup(func() {
-		_, _ = db.NewDelete().Table("users.students").Where("id = ?", student.ID).Exec(context.Background())
+		_, _ = db.NewDelete().Table("users.student_profiles").Where("id = ?", student.ID).Exec(context.Background())
 		_, _ = db.NewDelete().Table("users.persons").Where("id = ?", student.PersonID).Exec(context.Background())
 	})
 	linkChildToAccount(t, db, account.ID, tenantID, student.ID)
@@ -503,7 +503,7 @@ func TestChildRepository_AlumnusChildIsHiddenAndUnwritable(t *testing.T) {
 	graduate := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Lena", "Abgang", "4a")
 	sibling := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Timo", "Bleibt", "1a")
 	t.Cleanup(func() {
-		_, _ = db.NewDelete().Table("users.students").
+		_, _ = db.NewDelete().Table("users.student_profiles").
 			Where("id IN (?, ?)", graduate.ID, sibling.ID).Exec(context.Background())
 		_, _ = db.NewDelete().Table("users.persons").
 			Where("id IN (?, ?)", graduate.PersonID, sibling.PersonID).Exec(context.Background())
@@ -522,7 +522,7 @@ func TestChildRepository_AlumnusChildIsHiddenAndUnwritable(t *testing.T) {
 	require.Len(t, before, 2)
 	require.NotNil(t, findChild(t, db, account.ID, graduate.ID))
 
-	_, err := db.NewRaw(`UPDATE users.students SET status = 'alumnus' WHERE id = ?`, graduate.ID).
+	_, err := db.NewRaw(`UPDATE users.student_school_memberships SET status = 'alumnus' WHERE student_profile_id = ? AND deleted_at IS NULL`, graduate.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
 

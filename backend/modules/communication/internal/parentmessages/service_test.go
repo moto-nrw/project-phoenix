@@ -603,7 +603,7 @@ func TestMessaging_GraduatedStudentIsForbidden(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = f.db.ExecContext(context.Background(), `
-		UPDATE users.students SET status = ? WHERE id = ?
+		UPDATE users.student_school_memberships SET status = ? WHERE student_profile_id = ? AND deleted_at IS NULL
 	`, usersModels.StudentStatusAlumnus, f.chain.StudentID)
 	require.NoError(t, err)
 

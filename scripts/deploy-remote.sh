@@ -11,8 +11,31 @@ deployment_directory=${1:-"$HOME/$DEPLOY_DIR"}
 [[ "$deployment_directory" = /* ]] || { echo 'Deployment directory must be absolute' >&2; exit 1; }
 cd "$deployment_directory"
 mkdir .release-operation.lock || { echo 'Another release operation owns this environment' >&2; exit 1; }
-trap 'rmdir .release-operation.lock' EXIT
+contract_evidence_directory=
+cleanup_operation() {
+  if [[ -n "$contract_evidence_directory" ]]; then
+    rm -f "$contract_evidence_directory/evidence.json"
+    rmdir "$contract_evidence_directory"
+  fi
+  rmdir .release-operation.lock
+}
+trap cleanup_operation EXIT
 [ -s .env.new ] && [ -s docker-compose.yml.new ] || { echo 'New configuration is missing' >&2; exit 1; }
+
+# Optional second positional argument: operator-reviewed Contract evidence.
+# Snapshot once so preflight and execution see the same bytes. The private
+# directory prevents other host users reading the container-readable file.
+contract_mount=()
+contract_arguments=()
+if [[ -n "${2:-}" ]]; then
+  [[ "$2" = /* && -f "$2" && -r "$2" && -s "$2" ]] || { echo 'Contract evidence must be an absolute readable nonempty file' >&2; exit 1; }
+  [[ "$deployment_directory" != *:* ]] || { echo 'Contract evidence mount does not support a colon in the deployment directory' >&2; exit 1; }
+  contract_evidence_directory=$(mktemp -d "$deployment_directory/.student-contract.XXXXXX")
+  cp -- "$2" "$contract_evidence_directory/evidence.json"
+  chmod 0444 "$contract_evidence_directory/evidence.json"
+  contract_mount=(--volume "$contract_evidence_directory/evidence.json:/run/student-contract-evidence.json:ro")
+  contract_arguments=(--student-contract-evidence /run/student-contract-evidence.json)
+fi
 
 # Pull before stopping the old application. Its configuration remains intact.
 sed "s|phoenix-server:[^ ]*|phoenix-server:${DEPLOY_SHA}|; s|phoenix-frontend:[^ ]*|phoenix-frontend:${DEPLOY_SHA}|" docker-compose.yml.new > docker-compose.yml.pinned
@@ -29,7 +52,7 @@ docker compose --env-file .env.new -f docker-compose.yml.new pull
 # --no-deps keeps compose from reconciling postgres against the new file while
 # the old release is still connected to it; the surrounding script already
 # assumes the database is up, the same way the backup below does.
-if ! docker compose --env-file .env.new -f docker-compose.yml.new run --rm --no-deps migrate ./main migrate preflight; then
+if ! docker compose --env-file .env.new -f docker-compose.yml.new run --rm --no-deps "${contract_mount[@]}" migrate ./main migrate preflight "${contract_arguments[@]}"; then
   echo 'Migration preflight failed; the running release was not touched' >&2
   exit 1
 fi
@@ -67,7 +90,11 @@ trap rollback ERR
 previous_sha=$(awk -F= '$1 == "CURRENT_SHA" {print $2}' .deploy-state)
 mv .env.new .env
 mv docker-compose.yml.new docker-compose.yml
-docker compose run --rm migrate
+if [[ -n "$contract_evidence_directory" ]]; then
+  docker compose run --rm "${contract_mount[@]}" migrate ./main migrate "${contract_arguments[@]}"
+else
+  docker compose run --rm migrate
+fi
 docker compose up -d --wait --remove-orphans server frontend
 
 {

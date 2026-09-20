@@ -51,11 +51,9 @@ func AssignStudentGroup(tb testing.TB, db *bun.DB, studentID, groupID int64) {
 	tb.Helper()
 	ctx, cancel := context.WithTimeout(Ctx(tb), 5*time.Second)
 	defer cancel()
-	_, err := db.NewUpdate().
-		Table("users.students").
-		Set("group_id = ?", groupID).
-		Where("id = ?", studentID).
-		Exec(ctx)
+	query, err := updateStudentMembershipFixture(ctx, db, studentID)
+	require.NoError(tb, err)
+	_, err = query.Set("group_id = ?", groupID).Exec(ctx)
 	require.NoError(tb, err, "assign group to test student")
 }
 
@@ -70,7 +68,10 @@ func HoldStudentRowLock(tb testing.TB, db *bun.DB, studentID int64) {
 
 	var locked int64
 	require.NoError(tb, transaction.NewRaw(
-		`SELECT id FROM users.students WHERE id = ? FOR UPDATE`, studentID,
+		`SELECT p.id FROM users.student_profiles p
+		JOIN users.student_school_memberships m ON m.tenant_id=p.tenant_id AND m.student_profile_id=p.id AND m.deleted_at IS NULL
+		JOIN users.student_care_profiles c ON c.tenant_id=m.tenant_id AND c.membership_id=m.id
+		WHERE p.id = ? FOR UPDATE OF p, m, c`, studentID,
 	).Scan(context.Background(), &locked))
 	require.Equal(tb, studentID, locked)
 }
@@ -86,10 +87,9 @@ func SetStudentLifecycle(
 	enrolledFrom, enrolledUntil *timezone.Date,
 ) {
 	tb.Helper()
-	query := db.NewUpdate().
-		TableExpr("users.students").
-		Set("status = ?", string(status)).
-		Where("id = ?", studentID)
+	query, err := updateStudentMembershipFixture(Ctx(tb), db, studentID)
+	require.NoError(tb, err)
+	query = query.Set("status = ?", string(status))
 	if enrolledFrom != nil {
 		query = query.Set("enrolled_from = ?", *enrolledFrom)
 	} else {
@@ -100,7 +100,7 @@ func SetStudentLifecycle(
 	} else {
 		query = query.Set("enrolled_until = NULL")
 	}
-	_, err := query.Exec(Ctx(tb))
+	_, err = query.Exec(Ctx(tb))
 	require.NoError(tb, err, "failed to seed lifecycle columns")
 }
 

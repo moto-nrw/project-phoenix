@@ -157,7 +157,7 @@ func studentClassAndStatus(t *testing.T, ctx context.Context, db *bun.DB, id int
 		SchoolClass string
 		Status      string
 	}
-	require.NoError(t, db.NewRaw(`SELECT school_class, status FROM users.students WHERE id = ?`, id).Scan(ctx, &row))
+	require.NoError(t, db.NewRaw(`SELECT school_class, status FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL`, id).Scan(ctx, &row))
 	return row.SchoolClass, row.Status
 }
 
@@ -281,7 +281,7 @@ func TestGradeTransitionWorkflow_RejectsStalePreviewBeforeAnyMutation(t *testing
 		_, err := workflow.Apply(ctx, scene.transitionID, preview.Fingerprint)
 		require.ErrorIs(t, err, gradetransition.ErrPreviewStale)
 		assertUntouched(t, ctx, db, scene)
-		_, err = db.NewRaw(`DELETE FROM users.students WHERE id = ?`, newcomer.ID).Exec(ctx)
+		_, err = db.NewRaw(`DELETE FROM users.student_profiles WHERE id = ?`, newcomer.ID).Exec(ctx)
 		require.NoError(t, err)
 	})
 

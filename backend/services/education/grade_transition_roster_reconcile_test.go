@@ -93,8 +93,8 @@ func TestGradeTransitionWorkflow_Apply_ReconcilesFutureRosters(t *testing.T) {
 	require.NoError(t, err)
 
 	var status string
-	require.NoError(t, db.NewSelect().TableExpr(`users.students`).Column("status").
-		Where("id = ?", student.ID).Scan(ctx, &status))
+	require.NoError(t, db.NewSelect().TableExpr(`users.student_school_memberships`).Column("status").
+		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).Scan(ctx, &status))
 	require.Equal(t, string(users.StudentStatusAlumnus), status)
 
 	assert.Equal(t, 0, countRow(futureInstance.ID), "graduated child must be dropped from the future roster")
@@ -104,8 +104,8 @@ func TestGradeTransitionWorkflow_Apply_ReconcilesFutureRosters(t *testing.T) {
 	_, err = wf.Revert(ctx, transitionID)
 	require.NoError(t, err)
 
-	require.NoError(t, db.NewSelect().TableExpr(`users.students`).Column("status").
-		Where("id = ?", student.ID).Scan(ctx, &status))
+	require.NoError(t, db.NewSelect().TableExpr(`users.student_school_memberships`).Column("status").
+		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).Scan(ctx, &status))
 	require.Equal(t, string(users.StudentStatusActive), status)
 
 	assert.Equal(t, 1, countRow(futureInstance.ID), "revert must re-add the restored child to the future roster")

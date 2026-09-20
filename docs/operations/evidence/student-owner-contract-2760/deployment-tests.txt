@@ -1,0 +1,31 @@
+✔ complete snapshot restores all components and the saved deployment state (2682.729667ms)
+✔ missing roles.sql blocks restore before stop or deletion (1370.1525ms)
+✔ missing uploads.tar.gz blocks restore before stop or deletion (1419.751416ms)
+✔ missing .env blocks restore before stop or deletion (1398.101917ms)
+✔ missing compose.yml blocks restore before stop or deletion (1393.292375ms)
+✔ missing images.tsv blocks restore before stop or deletion (1410.3925ms)
+✔ missing database.dump blocks restore before stop or deletion (1363.759833ms)
+✔ corruption and wrong environment fail preflight (1405.232834ms)
+✔ unavailable old images block restore before stopping the application (1506.756833ms)
+✔ restore-roles failure is not reported as successful restore (2111.321334ms)
+✔ restore-db failure is not reported as successful restore (2138.094708ms)
+✔ restore-uploads failure is not reported as successful restore (1765.461292ms)
+✔ running writers and invalid archives cannot produce a complete backup (1474.2945ms)
+✔ manual rollback uses the recorded backup, not an arbitrary target image (2310.946083ms)
+✔ deployment stop or backup failure never reaches migrations (1418.384083ms)
+✔ preflight failure aborts before the application is stopped (152.466709ms)
+✔ a passing preflight runs before the stop and does not migrate (219.333ms)
+✔ Contract evidence is mounted read-only for both deployment phases (1611.968667ms)
+✔ missing Contract evidence aborts before pulling or stopping (18.359375ms)
+✔ migration failure invokes complete automatic rollback (2487.816666ms)
+✔ successful deployment records a complete snapshot (1589.782083ms)
+✔ failed new and restored healthchecks leave the application stopped (2583.415625ms)
+✔ retention removes whole completed sets and preserves incomplete backups (1615.831959ms)
+ℹ tests 23
+ℹ suites 0
+ℹ pass 23
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 35491.572042

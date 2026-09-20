@@ -290,7 +290,7 @@ func TestEnrollmentDeletion_DeleteRequestCleansDependenciesAndPreservesPeople(t 
 		assert.Zero(t, tableCount(t, db, check.table, "id = ?", check.id), check.table)
 	}
 	assert.Equal(t, 1, tableCount(t, db, "platform.email_outbox", "id = ? AND status = 'cancelled'", outbox.ID))
-	assert.Equal(t, 1, tableCount(t, db, "users.students", "id = ?", student.ID))
+	assert.Equal(t, 1, tableCount(t, db, "users.student_profiles", "id = ?", student.ID))
 	assert.Equal(t, 1, tableCount(t, db, "users.guardian_profiles", "id = ?", profile.ID))
 	assert.Equal(t, 1, tableCount(t, db, "auth.accounts", "id = ?", guardianAccount.ID))
 	_, err = f.repos.Enrollment().RequestByToken(f.scope.Context(), request.StatusToken, false)
@@ -335,7 +335,7 @@ func TestEnrollmentDeletion_BlocksExistingStudent(t *testing.T) {
 	})
 	require.ErrorIs(t, err, enrollmentService.ErrEnrollmentDeletionStudentExists)
 	assert.Equal(t, 1, tableCount(t, db, "enrollment.requests", "id = ?", request.ID))
-	assert.Equal(t, 1, tableCount(t, db, "users.students", "id = ?", student.ID))
+	assert.Equal(t, 1, tableCount(t, db, "users.student_profiles", "id = ?", student.ID))
 	assert.Zero(t, tableCount(t, db, "audit.enrollment_deletions", "tenant_id = ?", f.scope.TenantID))
 }
 

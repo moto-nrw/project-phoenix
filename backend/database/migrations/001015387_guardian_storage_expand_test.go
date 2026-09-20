@@ -279,7 +279,7 @@ func TestGuardianStorageExpandConstraints(t *testing.T) {
 
 func TestGuardianStorageExpandReferenceDeletion(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupIsolatedStudentStorageBeforeCutover(t)
 	f := createGuardianStorageExpandFixture(t, db)
 	relationship := f.insertRelationship(t, db)
 	_, err := db.ExecContext(t.Context(), `INSERT INTO users.student_guardian_pickup_permissions (tenant_id, relationship_id, can_pickup) VALUES (?, ?, TRUE)`, f.tenant, relationship)

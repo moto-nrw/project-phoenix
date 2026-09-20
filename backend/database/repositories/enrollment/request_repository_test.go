@@ -616,7 +616,7 @@ func createMatchTestStudent(t *testing.T, db *bun.DB, tenantID int64) int64 {
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Lara", "Beispiel", "1a")
 	t.Cleanup(func() {
 		bg := context.Background()
-		_, _ = db.NewDelete().TableExpr("users.students").Where("id = ?", student.ID).Exec(bg)
+		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id = ?", student.ID).Exec(bg)
 		_, _ = db.NewDelete().TableExpr("users.persons").Where("id = ?", student.PersonID).Exec(bg)
 	})
 	return student.ID

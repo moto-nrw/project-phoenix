@@ -277,21 +277,21 @@ func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 	anna := testpkg.CreateTestStudent(t, tc.db, "Anna", "Anwesend", "1a")
 	bert := testpkg.CreateTestStudent(t, tc.db, "Bert", "Bettruhe", "1a")
 	alumnus := testpkg.CreateTestStudent(t, tc.db, "Alma", "Archiv", "1a")
-	_, err := tc.db.NewUpdate().TableExpr("users.students").
+	_, err := tc.db.NewUpdate().TableExpr("users.student_school_memberships").
 		Set("enrolled_until = ?", timezone.NewDate(2026, 6, 11)).
-		Where("id = ?", anna.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", anna.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 	insertAcceptedPrivacyConsent(t, tc.db, tenantID, anna.ID, 30)
 	insertAcceptedPrivacyConsent(t, tc.db, tenantID, bert.ID, 30)
 	insertAcceptedPrivacyConsent(t, tc.db, tenantID, alumnus.ID, 30)
 	for _, st := range []int64{anna.ID, bert.ID} {
-		_, err := tc.db.NewUpdate().TableExpr("users.students").Set("group_id = ?", group.ID).Where("id = ?", st).Exec(ctx)
+		_, err := tc.db.NewUpdate().TableExpr("users.student_school_memberships").Set("group_id = ?", group.ID).Where("student_profile_id = ? AND deleted_at IS NULL", st).Exec(ctx)
 		require.NoError(t, err)
 	}
-	_, err = tc.db.NewUpdate().TableExpr("users.students").
+	_, err = tc.db.NewUpdate().TableExpr("users.student_school_memberships").
 		Set("status = ?", userModels.StudentStatusAlumnus).
-		Where("id = ?", alumnus.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", alumnus.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 	device := testpkg.CreateTestDevice(t, tc.db, "stat-device")
@@ -427,9 +427,9 @@ func TestStatisticsReport_DropsCollapsedRoomVisits(t *testing.T) {
 	present := testpkg.CreateTestStudent(t, tc.db, "Immer", "Da", "1a")
 	insertAcceptedPrivacyConsent(t, tc.db, tenantID, gone.ID, 30)
 	insertAcceptedPrivacyConsent(t, tc.db, tenantID, present.ID, 30)
-	_, err := tc.db.NewUpdate().TableExpr("users.students").
+	_, err := tc.db.NewUpdate().TableExpr("users.student_school_memberships").
 		Set("enrolled_until = ?", timezone.NewDate(2026, 6, 5)).
-		Where("id = ?", gone.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", gone.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 
@@ -489,10 +489,10 @@ func TestStatisticsReport_CountsImmediatelyActivatedChild(t *testing.T) {
 		{activated.ID, userModels.StudentStatusActive},
 		{pending.ID, userModels.StudentStatusPending},
 	} {
-		_, err := tc.db.NewUpdate().TableExpr("users.students").
+		_, err := tc.db.NewUpdate().TableExpr("users.student_school_memberships").
 			Set("status = ?", row.status).
 			Set("enrolled_from = ?", startsLater).
-			Where("id = ?", row.id).
+			Where("student_profile_id = ? AND deleted_at IS NULL", row.id).
 			Exec(ctx)
 		require.NoError(t, err)
 	}
@@ -584,9 +584,9 @@ func TestStatisticsReport_ScopesRoomRetentionToTheFilteredPopulation(t *testing.
 		{longChild.ID, longGroup.ID, 30},
 		{shortChild.ID, shortGroup.ID, 7},
 	} {
-		_, err := tc.db.NewUpdate().TableExpr("users.students").
+		_, err := tc.db.NewUpdate().TableExpr("users.student_school_memberships").
 			Set("group_id = ?", row.groupID).
-			Where("id = ?", row.studentID).
+			Where("student_profile_id = ? AND deleted_at IS NULL", row.studentID).
 			Exec(ctx)
 		require.NoError(t, err)
 		insertAcceptedPrivacyConsent(t, tc.db, tenantID, row.studentID, row.days)
@@ -677,9 +677,9 @@ func TestStatisticsReport_CourseParticipation(t *testing.T) {
 	anna := testpkg.CreateTestStudent(t, tc.db, "Anna", "Aktiv", "1a")
 	bert := testpkg.CreateTestStudent(t, tc.db, "Bert", "Bummel", "1a")
 	alumnus := testpkg.CreateTestStudent(t, tc.db, "Alma", "Archiv", "1a")
-	_, err := tc.db.NewUpdate().TableExpr("users.students").
+	_, err := tc.db.NewUpdate().TableExpr("users.student_school_memberships").
 		Set("status = ?", userModels.StudentStatusAlumnus).
-		Where("id = ?", alumnus.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", alumnus.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 

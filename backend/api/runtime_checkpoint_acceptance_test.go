@@ -203,7 +203,7 @@ func (w *acceptanceWorkload) finalState(t *testing.T) map[string]int {
 	var students, linkedStudents int
 	require.NoError(t, w.db.NewRaw(`SELECT count(*) FILTER (WHERE child.created_student_id IS NOT NULL), count(student.id)
 		FROM enrollment.request_children child JOIN enrollment.requests request ON request.id = child.request_id AND request.tenant_id = child.tenant_id
-		LEFT JOIN users.students student ON student.id = child.created_student_id AND student.tenant_id = child.tenant_id
+		LEFT JOIN users.student_profiles student ON student.id = child.created_student_id AND student.tenant_id = child.tenant_id
 		WHERE request.phase_id = ? AND child.tenant_id = ?`, w.phaseID, w.tenantID).Scan(ctx, &students, &linkedStudents))
 	require.Equal(t, w.approved, students, "every approval must link exactly one created student")
 	require.Equal(t, students, linkedStudents, "every linked student must exist")

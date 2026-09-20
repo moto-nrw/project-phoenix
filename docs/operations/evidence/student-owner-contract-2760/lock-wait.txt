@@ -1,0 +1,22 @@
+=== RUN   TestStudentOwnerContractObservedLockWaitAndTimeout
+=== PAUSE TestStudentOwnerContractObservedLockWaitAndTimeout
+=== CONT  TestStudentOwnerContractObservedLockWaitAndTimeout
+=== RUN   TestStudentOwnerContractObservedLockWaitAndTimeout/released
+2026/09/20 04:46:40 INFO database pool configured max_open_conns=16 max_idle_conns=16 conn_max_lifetime=30m0s conn_max_idle_time=10m0s
+2026/09/20 04:46:40 INFO database pool configured max_open_conns=16 max_idle_conns=16 conn_max_lifetime=30m0s conn_max_idle_time=10m0s
+2026/09/20 04:46:40 INFO student owner backfill pass verified tenant_id=1 pass=1 stable=true source_count=0 target_count=0 mismatch_count=0 guardian_mismatch_count=0 care_state_mismatch_count=0 rows_copied=0 rows_rejected=0 rows_removed=0
+2026/09/20 04:46:40 INFO student owner backfill pass verified tenant_id=1493600001 pass=1 stable=false source_count=3 target_count=3 mismatch_count=0 guardian_mismatch_count=0 care_state_mismatch_count=0 rows_copied=3 rows_rejected=0 rows_removed=0
+2026/09/20 04:46:40 INFO student owner backfill pass verified tenant_id=1493600001 pass=2 stable=true source_count=3 target_count=3 mismatch_count=0 guardian_mismatch_count=0 care_state_mismatch_count=0 rows_copied=3 rows_rejected=0 rows_removed=0
+2026/09/20 04:46:40 INFO student owner backfill finished tenants=2 stable=true unstable_tenants=[] failed_tenants=0
+    student_owner_contract_lock_test.go:66: Contract lock case=released pg_blocking_pids_observed=true observed_wait_lower_bound=154.16175ms total_duration=198.636708ms snapshots_equal=true
+=== RUN   TestStudentOwnerContractObservedLockWaitAndTimeout/timeout
+2026/09/20 04:46:41 INFO student owner backfill pass verified tenant_id=1 pass=1 stable=true source_count=0 target_count=0 mismatch_count=0 guardian_mismatch_count=0 care_state_mismatch_count=0 rows_copied=0 rows_rejected=0 rows_removed=0
+2026/09/20 04:46:41 INFO student owner backfill pass verified tenant_id=1493600002 pass=1 stable=false source_count=3 target_count=3 mismatch_count=0 guardian_mismatch_count=0 care_state_mismatch_count=0 rows_copied=3 rows_rejected=0 rows_removed=0
+2026/09/20 04:46:41 INFO student owner backfill pass verified tenant_id=1493600002 pass=2 stable=true source_count=3 target_count=3 mismatch_count=0 guardian_mismatch_count=0 care_state_mismatch_count=0 rows_copied=3 rows_rejected=0 rows_removed=0
+2026/09/20 04:46:41 INFO student owner backfill finished tenants=2 stable=true unstable_tenants=[] failed_tenants=0
+    student_owner_contract_lock_test.go:66: Contract lock case=timeout pg_blocking_pids_observed=true observed_wait_lower_bound=154.130959ms total_duration=5.015356417s snapshots_equal=true
+--- PASS: TestStudentOwnerContractObservedLockWaitAndTimeout (6.03s)
+    --- PASS: TestStudentOwnerContractObservedLockWaitAndTimeout/released (0.74s)
+    --- PASS: TestStudentOwnerContractObservedLockWaitAndTimeout/timeout (5.30s)
+PASS
+ok  	github.com/moto-nrw/project-phoenix/database/migrations	6.614s

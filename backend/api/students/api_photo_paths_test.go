@@ -56,7 +56,7 @@ func seedPhotoFile(t *testing.T, tc *testContext, studentID int64) (storedURL, o
 
 	ctx := testpkg.Ctx(t)
 	_, err = tc.db.ExecContext(ctx,
-		`UPDATE users.students
+		`UPDATE users.student_profiles
 		    SET photo_path = ?,
 		        photo_consent_given_at = now(),
 		        photo_consent_given_by = 1
@@ -94,7 +94,7 @@ func readPhotoPath(t *testing.T, tc *testContext, studentID int64) string {
 	var path *string
 	err := tc.db.NewSelect().
 		ColumnExpr("photo_path").
-		Table("users.students").
+		Table("users.student_profiles").
 		Where("id = ?", studentID).
 		Scan(ctx, &path)
 	require.NoError(t, err, "read photo_path")
@@ -112,7 +112,7 @@ func readConsentTimestamp(t *testing.T, tc *testContext, studentID int64) bool {
 	ctx := testpkg.Ctx(t)
 	var stamped bool
 	err := tc.db.NewRaw(
-		`SELECT photo_consent_given_at IS NOT NULL FROM users.students WHERE id = ?`,
+		`SELECT photo_consent_given_at IS NOT NULL FROM users.student_profiles WHERE id = ?`,
 		studentID,
 	).Scan(ctx, &stamped)
 	require.NoError(t, err, "read photo_consent_given_at")
@@ -212,7 +212,7 @@ func TestUpdateStudent_PhotoConsentGrant_StampsAuditFields(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	var byActor int64
 	err := tc.db.NewRaw(
-		`SELECT COALESCE(photo_consent_given_by, 0) FROM users.students WHERE id = ?`,
+		`SELECT COALESCE(photo_consent_given_by, 0) FROM users.student_profiles WHERE id = ?`,
 		student.ID,
 	).Scan(ctx, &byActor)
 	require.NoError(t, err)
@@ -238,7 +238,7 @@ func TestUpdateStudent_PhotoConsentNoChange_NoOp(t *testing.T) {
 	// edit.
 	ctx := testpkg.Ctx(t)
 	_, err := tc.db.ExecContext(ctx,
-		`UPDATE users.students
+		`UPDATE users.student_profiles
 		    SET photo_consent_given_at = now(),
 		        photo_consent_given_by = 1
 		  WHERE id = ?`, student.ID)
@@ -287,7 +287,7 @@ func TestDeleteStudent_RemovesPhotoFile(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	var count int
 	err = tc.db.NewRaw(
-		`SELECT count(*) FROM users.students WHERE id = ?`, student.ID,
+		`SELECT count(*) FROM users.student_profiles WHERE id = ?`, student.ID,
 	).Scan(ctx, &count)
 	require.NoError(t, err)
 	assert.Equal(t, 0, count, "student row must be deleted")
@@ -312,7 +312,7 @@ func TestDeleteStudent_NoPhotoSucceeds(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	var count int
 	err := tc.db.NewRaw(
-		`SELECT count(*) FROM users.students WHERE id = ?`, student.ID,
+		`SELECT count(*) FROM users.student_profiles WHERE id = ?`, student.ID,
 	).Scan(ctx, &count)
 	require.NoError(t, err)
 	assert.Equal(t, 0, count)

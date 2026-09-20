@@ -86,7 +86,7 @@ func (d rawStudentDirectory) ListStudentsByID(ctx context.Context, ids []int64) 
 		ID     int64  `bun:"id"`
 		Status string `bun:"status"`
 	}
-	err := d.db.NewSelect().TableExpr("users.students").Column("id", "status").Where("id IN (?)", bun.List(ids)).Scan(ctx, &rows)
+	err := d.db.NewSelect().TableExpr("users.student_school_memberships").ColumnExpr("student_profile_id AS id, status").Where("student_profile_id IN (?) AND deleted_at IS NULL", bun.List(ids)).Scan(ctx, &rows)
 	if err != nil {
 		return nil, err
 	}

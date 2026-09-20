@@ -44,6 +44,10 @@ func migratePreflightTo(ctx context.Context, db *bun.DB, output io.Writer) error
 	if err != nil {
 		return fmt.Errorf("load migration status: %w", err)
 	}
+	ctx, err = studentContractRunContext(ctx, db)
+	if err != nil {
+		return err
+	}
 	return reportPreflightChecks(ctx, output, pendingPreconditions(status.Unapplied()), db)
 }
 

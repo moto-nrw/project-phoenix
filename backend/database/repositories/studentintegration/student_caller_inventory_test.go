@@ -14,14 +14,12 @@ import (
 
 // Inventory source literals rather than grep output: comments, relationship
 // tables, migration compatibility SQL and test fixtures are not app callers.
-// Runtime integration separately proves that the retained Student model tag
-// cannot make generic repository operations fall back to the rollback view.
+// Contract removes the last compatibility DTO table tag as well: no runtime
+// provider may retain a binding to the old view, archive or dependent view.
 func TestStudentCutoverCallerInventory(t *testing.T) {
 	t.Parallel()
 	root := filepath.Join("..", "..", "..")
-	oldTable := regexp.MustCompile(`\busers\s*"?\s*\.\s*"?students\b`)
-	sqlComments := regexp.MustCompile(`(?m)--[^\n]*`)
-	files, literals, modelTags := 0, 0, 0
+	files, literals := 0, 0
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -59,11 +57,7 @@ func TestStudentCutoverCallerInventory(t *testing.T) {
 				t.Fatal(err)
 			}
 			literals++
-			if relative == "models/users/student.go" && value == "bun:\"schema:users,table:students\"" {
-				modelTags++
-				return true
-			}
-			if oldTable.MatchString(sqlComments.ReplaceAllString(value, "")) || strings.Contains(value, "table:students\"") || strings.Contains(value, "table:students,") {
+			if referencesOldStudentStorage(value) {
 				t.Errorf("old application table literal at %s: %q", positions.Position(literal.Pos()), value)
 			}
 			return true
@@ -73,8 +67,32 @@ func TestStudentCutoverCallerInventory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if modelTags != 1 {
-		t.Fatalf("expected one documented compatibility DTO tag, got %d", modelTags)
+	t.Logf("Inventory: %d application Go files, %d string literals, zero old application table callers or compatibility DTO tags", files, literals)
+}
+
+var studentStorageSQLComment = regexp.MustCompile(`(?m)^\s*--[^\n]*`)
+var studentStorageReference = regexp.MustCompile(`(?i)(?:\busers\s*\.\s*|\btable:|\b(?:from|join|update|into|table)\s+)(?:students(?:_legacy)?|expired_privacy_consents)\b|\b(?:student_compatibility_reads|student_compatibility_writes|route_student_compatibility)\b`)
+
+func referencesOldStudentStorage(value string) bool {
+	value = studentStorageSQLComment.ReplaceAllString(value, "")
+	value = strings.ReplaceAll(value, `"`, "")
+	return studentStorageReference.MatchString(value)
+}
+
+func TestStudentStorageCallerInventoryRecognizesStorageNotWireNames(t *testing.T) {
+	t.Parallel()
+	for _, value := range []string{
+		`SELECT * FROM "users"."students"`, `UPDATE users.students_legacy SET sick = false`,
+		`SELECT * FROM students`, `bun:"schema:users,table:students"`,
+		`users.expired_privacy_consents`, `student_compatibility_reads`,
+	} {
+		if !referencesOldStudentStorage(value) {
+			t.Errorf("missed retired storage: %s", value)
+		}
 	}
-	t.Logf("Inventory: %d application Go files, %d string literals, %d compatibility DTO tag, zero old application table callers", files, literals, modelTags)
+	for _, value := range []string{`json:"students"`, `users.students_guardians`, `users.student_profiles`, "-- users.students is historical\nSELECT 42"} {
+		if referencesOldStudentStorage(value) {
+			t.Errorf("not a retired storage reference: %s", value)
+		}
+	}
 }

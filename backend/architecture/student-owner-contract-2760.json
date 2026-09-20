@@ -1,0 +1,115 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "prerequisites": [
+    "#2759",
+    "#3387",
+    "#3432",
+    "#3441"
+  ],
+  "owner_and_capability": "People Directory student profiles, School Membership lifecycle and Care Plan student care; retire rollback-only storage without changing public student identity.",
+  "affected_packages": [
+    "database/migrations",
+    "cmd",
+    "test",
+    "modules/studentpresence/internal/adapters/postgres"
+  ],
+  "affected_tables": [
+    "users.students",
+    "users.students_legacy",
+    "users.expired_privacy_consents",
+    "users.student_profiles",
+    "users.student_school_memberships",
+    "users.student_care_profiles",
+    "active.student_status_days"
+  ],
+  "exact_ratchet_keys": [],
+  "atomic_cutover": "Migration 1.15.399 replaces the stored visit-count function and drops compatibility objects in one transaction, with integrity checks and evidence revalidation under locks. Current callers and fixtures use owner storage. Existing installations fail closed because the required operating-duration decision remains unresolved; this is not a deployment approval.",
+  "tests": [
+    "Entire backend suite passed after Contract registration and stored-function correction; affected packages also passed with -count=1. See docs/operations/student-owner-storage-contract.md.",
+    "Contract tests cover preservation of current absence flags/timestamps and all owner/history snapshots, unknown function/view dependencies, integrity failures, lock timeout, transactional rollback, irreversible Down refusal, evidence/database/release binding and empty initial replay.",
+    "Real pg_dump/pg_restore of a synthetic pre-Contract database preserved all measured row hashes, enabled/forced RLS and validated owner FKs. The actual prior server image ed76e883668985014427f8cd860e1fe7efb24ed0 then started against it and returned HTTP 200 on localhost health; post-start fingerprints remained identical.",
+    "All 23 release backup/deployment boundary tests passed, including the same read-only evidence snapshot in preflight and migration despite mutation of its original input."
+  ],
+  "runtime_evidence": {
+    "source": "Local observations on 2026-09-20, PostgreSQL 17.11 aarch64. No production writes. Sources distinguish durable synthetic measurements from the earlier shared-test-server lock observation.",
+    "sources": [
+      "docs/operations/student-owner-storage-contract.md",
+      "docs/operations/evidence/student-owner-contract-2760/durable-cardinalities.txt",
+      "docs/operations/evidence/student-owner-contract-2760/sha256-contract-cardinalities.txt",
+      "docs/operations/evidence/student-owner-contract-2760/sha256-contract-source.txt",
+      "docs/operations/evidence/student-owner-contract-2760/monitoring.md",
+      "docs/operations/evidence/student-owner-contract-2760/deletion-runtime.txt",
+      "docs/operations/evidence/student-owner-contract-2760/lock-wait.txt",
+      "docs/operations/evidence/student-owner-contract-2760/recovery.md",
+      "docs/operations/evidence/student-owner-contract-2760/recovery-before.txt",
+      "docs/operations/evidence/student-owner-contract-2760/recovery-after.txt",
+      "docs/operations/evidence/student-owner-contract-2760/prior-image-startup.txt",
+      "docs/operations/evidence/student-owner-contract-2760/prior-image-health.txt",
+      "docs/operations/evidence/student-owner-contract-2760/prior-image-identity.txt",
+      "docs/operations/evidence/student-owner-contract-2760/recovery-after-image-start.txt",
+      "docs/operations/evidence/student-owner-contract-2760/deployment-tests.txt"
+    ],
+    "workload": "One ungated Contract core execution on 1448 synthetic profiles across 12 populated schools, 2830 status days and 16 current sick flags, with fsync/synchronous_commit/full_page_writes on. Separately, deletion preview and execute each have 30 sequential samples after five warmups against the contracted schema on that durable local server. Lock-blocking observations use the shared local test server as documented. These are not a production-data clone or evidence of an observed school day.",
+    "thresholds": "Require unchanged owner/history snapshots, no unexpected errors, and no retirement when operational/integrity gates fail. Contract has a 60-second context deadline and 5-second lock timeout. User-approved rollback window: at least 24 hours without old access, including one complete regular school day and relevant jobs, supported by reviewed evidence. Evidence/backup freshness caps are 24 hours, not additional waiting periods. API latency is descriptive; no production latency ceiling is claimed.",
+    "affected_rows": {
+      "state": "measured",
+      "result": "Contract preserved 1448 profiles, memberships and Care Plan rows, 2830 status-day rows, and 16 sick flags with timestamps; complete before/after owner/history JSON snapshots matched. The three retired relations were absent."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "Contract core: 26 BUN query events, including multi-statement batches as single events, not 26 PostgreSQL substatements. Deletion preview: 22 events per sample; execute: 54 per sample, each across 30 measured samples."
+    },
+    "latency_p50": {
+      "state": "measured",
+      "result": "Nearest-rank p50 across 30 post-warmup samples: deletion preview 4.011958 ms; execute 10.458625 ms. Local sequential workload, not production tail latency."
+    },
+    "latency_p95": {
+      "state": "measured",
+      "result": "Nearest-rank p95 across 30 post-warmup samples: deletion preview 4.82925 ms; execute 12.717 ms."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "The durable Contract run and all 60 measured deletion operations completed without unexpected errors. Expected lock-timeout and invalid-evidence failures are asserted separately."
+    },
+    "pool_wait": {
+      "state": "measured",
+      "result": "Contract DBStats WaitCount/WaitDuration deltas were 0/0s. Both deletion sample sets recorded aggregate pool wait count 0 and duration 0 ms."
+    },
+    "lock_wait": {
+      "state": "measured",
+      "result": "PostgreSQL wait_event_type=Lock and pg_blocking_pids observed the intended blocker: released case lower bound 154.161750 ms, total 198.636708 ms; timeout case lower bound 154.130959 ms, total 5.015356417 s. These are sampled lower bounds, not SQL-duration proxies. Raw source records the earlier shared-server run."
+    },
+    "deadlocks": {
+      "state": "measured",
+      "result": "Durable Contract database deadlock counters were 0 before and 0 after; deletion workload counter delta was 0. Short-run statistics observations, not a prediction under production concurrency."
+    },
+    "job_duration": {
+      "state": "measured",
+      "result": "Single durable synthetic Contract core run after the SHA-256 correction: 105.311875 ms. Fixture setup and assertions excluded. This does not measure the production deployment's backup, preflight or image startup."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "Contract is a synchronous one-shot migration, not a retrying background worker. A lock timeout aborts; operator rerun requires fresh checks. There is no job retry queue to measure."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "This removal has no background migration queue or remaining row-copy backlog; the backfill was completed by prerequisite migrations. Operational compatibility usage remains a separate release gate."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "Induced blocker caused PostgreSQL lock timeout after 5.015356417 s; the test verified current snapshots and both rollback relations remained. Unknown stored-function dependency regression first reproduced silent acceptance, then passed with preflight refusal."
+    },
+    "rollback": {
+      "state": "measured",
+      "result": "Failed Contract transactions preserved owner/history snapshots and rollback relations. Separately, the real 1827589-byte pre-Contract custom-format dump restored successfully into template0; six table SHA-256 fingerprints matched exactly, owner RLS and eight validated FKs survived, and the rollback view returned 1448 rows. The actual prior server image then started with local generated credentials against the restore, returned localhost health HTTP 200, and left all measured fingerprints unchanged. This is a backend startup smoke, not an authenticated school-day or frontend restore test."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "Full backend suite passed on the contracted default template after fixing the SQL-function dependency. The affected api/students, services/users, presence service and studentintegration packages passed uncached; raw repeated deletion workflow evidence also passed on durable PostgreSQL."
+    }
+  },
+  "rollback_and_cleanup": "No automatic Down reconstructs removed archive data. Restore a verified fresh pre-Contract backup together with its exact prior immutable application image. Local database restore and actual prior-backend-image startup were observed; production backup freshness must still be proved for each execution. The agreed 24-hour/school-day/jobs evidence is mandatory for existing installations.",
+  "exit_criterion": "Complete only after the rollback-window operating decision is explicit, required checks/review pass, and production execution remains outside this implementation request. The deployment script carries an immutable evidence snapshot into both phases; local database/prior-server-image recovery is measured. This record is not production execution approval.",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020"
+}

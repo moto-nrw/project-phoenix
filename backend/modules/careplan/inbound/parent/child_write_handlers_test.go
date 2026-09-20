@@ -180,7 +180,7 @@ func TestSickNoteEndpoint_ForbidsNonOwnedChild(t *testing.T) {
 	// A student id the account is not a guardian of.
 	other := testpkg.CreateTestStudent(t, db, "Fremd", "Kind", "4a")
 	defer func() {
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.students WHERE id = ?`, other.ID)
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.student_profiles WHERE id = ?`, other.ID)
 		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.persons WHERE id = ?`, other.PersonID)
 	}()
 	sid := strconv.FormatInt(other.ID, 10)
