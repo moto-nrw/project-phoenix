@@ -668,6 +668,7 @@ describe("CareWeeklyPlanEditForm", () => {
           { weekday: 1, pickupTime: "15:00", notes: "Bus" },
           { weekday: 2, pickupTime: "16:00", notes: undefined },
         ],
+        weekdayNotes: [],
       });
     });
   });
@@ -828,6 +829,7 @@ describe("CareWeeklyPlanEditForm", () => {
           { weekday: 1, pickupTime: "15:00", notes: "Bus" },
           { weekday: 2, pickupTime: "16:00", notes: undefined },
         ],
+        weekdayNotes: [],
       });
     });
   });
@@ -895,6 +897,74 @@ describe("CareWeeklyPlanEditForm", () => {
       ),
     ).toBeInTheDocument();
     expect(onSubmitWeekly).not.toHaveBeenCalled();
+  });
+
+  // #3369: a day the child does not come has no pickup time and must still
+  // carry a note, without inventing a pickup row that marks it as expected.
+  it("saves a note for a day without a pickup time as a weekday note", async () => {
+    const { onSubmitWeekly } = renderForm();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Notizen" })[2]!);
+    fireEvent.change(
+      screen.getByLabelText("Notiz zum Tag (jede Woche)", {
+        selector: "#weekly-pickup-notes-3",
+      }),
+      { target: { value: "Mittwochs bei den Großeltern" } },
+    );
+    save();
+
+    await waitFor(() => {
+      expect(onSubmitWeekly).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pickupSchedules: [
+            { weekday: 1, pickupTime: "15:00", notes: "Bus" },
+            { weekday: 2, pickupTime: "16:00", notes: undefined },
+          ],
+          weekdayNotes: [
+            { weekday: 3, content: "Mittwochs bei den Großeltern" },
+          ],
+        }),
+      );
+    });
+  });
+
+  it("keeps the note field open on an unbooked day in bookings mode", () => {
+    renderForm({
+      careDaysSource: "bookings",
+      weeklyNotes: [{ weekday: 4, content: "Donnerstags beim Vater" }],
+    });
+
+    const note = screen.getByLabelText("Notiz zum Tag (jede Woche)", {
+      selector: "#weekly-pickup-notes-4",
+    });
+    expect(note).toBeEnabled();
+    expect(note).toHaveValue("Donnerstags beim Vater");
+    expect(
+      screen.getByLabelText("Abholung", { selector: "#weekly-pickup-4" }),
+    ).toBeDisabled();
+  });
+
+  it("moves the note onto the pickup row once the day gets a pickup time", async () => {
+    const { onSubmitWeekly } = renderForm({
+      weeklyNotes: [{ weekday: 3, content: "Wird vom Opa geholt" }],
+    });
+
+    fireEvent.change(
+      screen.getByLabelText("Abholung", { selector: "#weekly-pickup-3" }),
+      { target: { value: "14:00" } },
+    );
+    save();
+
+    await waitFor(() => {
+      expect(onSubmitWeekly).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pickupSchedules: expect.arrayContaining([
+            { weekday: 3, pickupTime: "14:00", notes: "Wird vom Opa geholt" },
+          ]),
+          weekdayNotes: [],
+        }),
+      );
+    });
   });
 
   it("rejects an invalid weekly pickup time", async () => {

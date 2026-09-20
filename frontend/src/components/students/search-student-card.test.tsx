@@ -75,6 +75,23 @@ describe("SearchStudentCard", () => {
     expect(screen.getByText(/Gehzeit: 16:00 Uhr/)).toBeInTheDocument();
   });
 
+  it("shows the day note below a recorded absence", () => {
+    render(
+      renderCard({
+        student: {
+          ...student,
+          sick: true,
+          pickup_notes: "Heute beim Arzt",
+        },
+      }),
+    );
+
+    expect(
+      screen.getByText("Kommt heute nicht (krank gemeldet)"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Notiz: Heute beim Arzt")).toBeInTheDocument();
+  });
+
   // #2975: the card is memoised so that a page render — a filter toggle, a
   // check-in tap on ANOTHER child, a minute tick — stops at the card boundary
   // instead of rebuilding all 100 Kinderkarten.

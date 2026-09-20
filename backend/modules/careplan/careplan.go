@@ -213,12 +213,14 @@ type Command interface {
 type Capability interface {
 	Query
 	Command
+	WeekdayPickupNotesCommand
 	CareDayLocker
 }
 
 type engine interface {
 	Query
 	Command
+	WeekdayPickupNotesCommand
 	CareDayLocker
 }
 
