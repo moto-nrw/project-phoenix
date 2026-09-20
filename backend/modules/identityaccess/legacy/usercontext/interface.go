@@ -6,10 +6,17 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
+
+// AccountAccess supplies display facts and field-specific self-edits. The
+// authenticated subject is resolved from claims by the user-context service.
+type AccountAccess interface {
+	FindCurrentAccount(context.Context, int64) (*users.PersonAccount, error)
+	SetAccountUsername(context.Context, int64, string) error
+	SetAccountAvatar(context.Context, int64, string) error
+}
 
 // AccountProfiles supplies the school-scoped fields shown in the current
 // user's profile. The owner changes the bio without exposing its stored row.
@@ -26,7 +33,7 @@ type AccountProfiles interface {
 // behavior is unchanged. Contract: identity_request_cache.go.
 type UserContextService interface {
 	// GetCurrentUser retrieves the currently authenticated user account
-	GetCurrentUser(ctx context.Context) (*authmodels.Account, error)
+	GetCurrentUser(ctx context.Context) (*users.PersonAccount, error)
 
 	// GetCurrentPerson retrieves the person linked to the currently authenticated user
 	GetCurrentPerson(ctx context.Context) (*users.Person, error)

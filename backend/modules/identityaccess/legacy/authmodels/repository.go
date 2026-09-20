@@ -23,7 +23,6 @@ type AccountRepository interface {
 	// callers therefore all receive the same stored value instead of a URL a
 	// later write overwrote.
 	EnsureCalendarFeedToken(ctx context.Context, accountID int64, newToken string) (string, error)
-	UpdateAvatar(ctx context.Context, id int64, avatar string) error
 	// ListEffectiveAdminAccountIDs returns the IDs of active accounts with
 	// effective admin scope in the current tenant: the literal admin role, or
 	// an admin:* / *:* permission from a role or granted directly.

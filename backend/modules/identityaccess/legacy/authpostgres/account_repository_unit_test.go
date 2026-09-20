@@ -14,49 +14,6 @@ import (
 	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
-func TestAccountRepository_UpdateAvatar_Success(t *testing.T) {
-	t.Parallel()
-
-	sqlDB, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	// sqlmock without ExpectClose complains on Close; the close error is noise.
-	defer func() { _ = sqlDB.Close() }()
-
-	db := bun.NewDB(sqlDB, pgdialect.New())
-
-	repo := authrepo.NewAccountRepository(db)
-	mock.ExpectExec(`UPDATE "auth"\."accounts" AS "account" SET .*avatar.* WHERE .*id.*`).
-		WillReturnResult(sqlmock.NewResult(0, 1))
-
-	err = repo.UpdateAvatar(context.Background(), 42, "/uploads/avatars/global/success.jpg")
-	require.NoError(t, err)
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestAccountRepository_UpdateAvatar_ReturnsDatabaseError(t *testing.T) {
-	t.Parallel()
-
-	sqlDB, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	// sqlmock without ExpectClose complains on Close; the close error is noise.
-	defer func() { _ = sqlDB.Close() }()
-
-	db := bun.NewDB(sqlDB, pgdialect.New())
-
-	repo := authrepo.NewAccountRepository(db)
-	mock.ExpectExec(`UPDATE "auth"\."accounts" AS "account" SET .*avatar.* WHERE .*id.*`).
-		WillReturnError(errors.New("update failed"))
-
-	err = repo.UpdateAvatar(context.Background(), 42, "/uploads/avatars/global/fail.jpg")
-	require.Error(t, err)
-
-	var dbErr *modelBase.DatabaseError
-	require.ErrorAs(t, err, &dbErr)
-	assert.Equal(t, "update columns", dbErr.Op)
-	assert.EqualError(t, dbErr.Err, "update failed")
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
 func TestAccountRepository_FindAvatarsByAccountIDs_EmptyIDs(t *testing.T) {
 	t.Parallel()
 

@@ -824,7 +824,7 @@ func newFactory(
 		StudentDirectory:     repositories.NewStudentDirectory(persons),
 		PersonRepo:           repos.Person,
 		RFIDRepo:             repos.RFIDCard,
-		AccountRepo:          repos.Account,
+		AccountExists:        repositories.AccountExists(repos.Profile),
 		StudentRepo:          repos.Student,
 		StaffRepo:            repos.Staff,
 		TeacherRepo:          repos.Teacher,
@@ -1785,7 +1785,7 @@ func newFactory(
 
 	// Initialize user context service
 	userContextService := usercontext.NewUserContextServiceWithRepos(usercontext.UserContextRepositories{
-		AccountRepo:        repos.Account,
+		AccountRepo:        repositories.NewCurrentAccountAccess(repos.Profile),
 		PersonRepo:         repos.Person,
 		StaffRepo:          repos.Staff,
 		TeacherRepo:        repos.Teacher,

@@ -59,12 +59,12 @@ type PersonServiceDependencies struct {
 	// composition root binds database/repositories.NewStudentDirectory.
 	StudentDirectory StudentDirectoryLocker
 	// Repository dependencies
-	PersonRepo  userModels.PersonRepository
-	RFIDRepo    authmodels.RFIDCardRepository
-	AccountRepo authmodels.AccountRepository
-	StudentRepo userModels.StudentRepository
-	StaffRepo   userModels.StaffRepository
-	TeacherRepo userModels.TeacherRepository
+	PersonRepo    userModels.PersonRepository
+	RFIDRepo      authmodels.RFIDCardRepository
+	AccountExists func(context.Context, int64) (bool, error)
+	StudentRepo   userModels.StudentRepository
+	StaffRepo     userModels.StaffRepository
+	TeacherRepo   userModels.TeacherRepository
 	// LehrkraftRoles answers whether the staff member's account holds the
 	// Lehrkraft role. Required by the caregiver-profile paths: the Lehrkraft
 	// role (#1772) is provisioned without a profile on purpose and must not be
@@ -165,11 +165,11 @@ func (s *personService) Create(ctx context.Context, person *userModels.Person) e
 
 	// Check if the account exists if AccountID is set
 	if person.AccountID != nil {
-		account, err := s.AccountRepo.FindByID(ctx, *person.AccountID)
+		exists, err := s.AccountExists(ctx, *person.AccountID)
 		if err != nil {
 			return &UsersError{Op: opCreatePerson, Err: err}
 		}
-		if account == nil {
+		if !exists {
 			return &UsersError{Op: opCreatePerson, Err: ErrAccountNotFound}
 		}
 	}
@@ -253,10 +253,7 @@ func validateChangedRef[T comparable](ctx context.Context, newID, oldID *T, find
 // validateAccountIfChanged validates account exists if AccountID is being changed
 func (s *personService) validateAccountIfChanged(ctx context.Context, person, existingPerson *userModels.Person) error {
 	return validateChangedRef(ctx, person.AccountID, existingPerson.AccountID,
-		func(ctx context.Context, id int64) (bool, error) {
-			account, err := s.AccountRepo.FindByID(ctx, id)
-			return account != nil, err
-		}, ErrAccountNotFound)
+		s.AccountExists, ErrAccountNotFound)
 }
 
 // validateRFIDCardIfChanged validates RFID card exists if TagID is being changed
@@ -361,11 +358,11 @@ func (s *personService) FindByName(ctx context.Context, firstName, lastName stri
 // LinkToAccount associates a person with an account
 func (s *personService) LinkToAccount(ctx context.Context, personID int64, accountID int64) error {
 	// Verify the account exists
-	account, err := s.AccountRepo.FindByID(ctx, accountID)
+	exists, err := s.AccountExists(ctx, accountID)
 	if err != nil {
 		return &UsersError{Op: opLinkToAccount, Err: err}
 	}
-	if account == nil {
+	if !exists {
 		return &UsersError{Op: opLinkToAccount, Err: ErrAccountNotFound}
 	}
 

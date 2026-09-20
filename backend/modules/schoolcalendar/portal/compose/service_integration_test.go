@@ -56,7 +56,7 @@ func calendarTestConfig(t *testing.T, db *bun.DB) calendarRuntime.CalendarDepend
 	require.NoError(t, err)
 	userContext := usercontextSvc.NewUserContextServiceWithRepos(
 		usercontextSvc.UserContextRepositories{
-			AccountRepo:        repos.Account,
+			AccountRepo:        repositories.NewCurrentAccountAccess(repos.Profile),
 			PersonRepo:         repos.Person,
 			StaffRepo:          repos.Staff,
 			TeacherRepo:        repos.Teacher,

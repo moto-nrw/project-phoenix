@@ -93,12 +93,12 @@ type fixture struct {
 
 func newPersons(repos *repositories.Factory, db *bun.DB) usersService.PersonService {
 	return usersService.NewPersonService(usersService.PersonServiceDependencies{
-		PersonRepo:  repos.Person,
-		AccountRepo: repos.Account,
-		StudentRepo: repos.Student,
-		StaffRepo:   repos.Staff,
-		DB:          db,
-		Logger:      slog.Default(),
+		PersonRepo:    repos.Person,
+		AccountExists: repositories.AccountExists(repos.Profile),
+		StudentRepo:   repos.Student,
+		StaffRepo:     repos.Staff,
+		DB:            db,
+		Logger:        slog.Default(),
 	})
 }
 

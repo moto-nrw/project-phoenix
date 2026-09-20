@@ -27,7 +27,7 @@ func setupUserContextService(t *testing.T, db *bun.DB) usercontextSvc.UserContex
 	require.NoError(t, err)
 
 	repos := usercontextSvc.UserContextRepositories{
-		AccountRepo:        repoFactory.Account,
+		AccountRepo:        repositories.NewCurrentAccountAccess(repoFactory.Profile),
 		PersonRepo:         repoFactory.Person,
 		StaffRepo:          repoFactory.Staff,
 		TeacherRepo:        repoFactory.Teacher,

@@ -411,13 +411,6 @@ func (r *AccountRepository) ResetMFAAttempts(ctx context.Context, id int64) erro
 	return nil
 }
 
-// UpdateAvatar updates the global avatar path for an account.
-func (r *AccountRepository) UpdateAvatar(ctx context.Context, id int64, avatar string) error {
-	account := &authmodels.Account{Model: modelBase.Model{ID: id}, Avatar: avatar}
-	_, err := r.UpdateColumns(ctx, account, "avatar")
-	return err
-}
-
 // List retrieves accounts matching the provided filters without applying an
 // account-management boundary. Internal authentication flows remain global.
 func (r *AccountRepository) List(ctx context.Context, filters map[string]interface{}) ([]*authmodels.Account, error) {

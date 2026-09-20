@@ -18,7 +18,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
@@ -35,7 +34,7 @@ const (
 // UserContextRepositories groups all repository dependencies for UserContextService
 // This struct reduces the number of parameters passed to the constructor
 type UserContextRepositories struct {
-	AccountRepo        authmodels.AccountRepository
+	AccountRepo        AccountAccess
 	PersonRepo         users.PersonRepository
 	StaffRepo          users.StaffRepository
 	TeacherRepo        users.TeacherRepository
@@ -58,7 +57,7 @@ type UserContextRepositories struct {
 
 // userContextService implements the UserContextService interface
 type userContextService struct {
-	accountRepo        authmodels.AccountRepository
+	accountRepo        AccountAccess
 	personRepo         users.PersonRepository
 	staffRepo          users.StaffRepository
 	teacherRepo        users.TeacherRepository
@@ -118,7 +117,7 @@ func (s *userContextService) getUserIDFromContext(ctx context.Context) (int, err
 }
 
 // GetCurrentUser retrieves the currently authenticated user account
-func (s *userContextService) GetCurrentUser(ctx context.Context) (*authmodels.Account, error) {
+func (s *userContextService) GetCurrentUser(ctx context.Context) (*users.PersonAccount, error) {
 	userID, err := s.getUserIDFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -131,7 +130,7 @@ func (s *userContextService) GetCurrentUser(ctx context.Context) (*authmodels.Ac
 		}
 	}
 
-	account, err := s.accountRepo.FindByID(ctx, int64(userID))
+	account, err := s.accountRepo.FindCurrentAccount(ctx, int64(userID))
 	if err != nil {
 		return nil, &UserContextError{Op: "get current user", Err: err}
 	}
@@ -783,7 +782,7 @@ func (s *userContextService) GetCurrentProfile(ctx context.Context) (map[string]
 }
 
 // buildBaseResponse builds the base response with account data
-func buildBaseResponse(account *authmodels.Account) map[string]interface{} {
+func buildBaseResponse(account *users.PersonAccount) map[string]interface{} {
 	response := map[string]interface{}{
 		"email":      account.Email,
 		"username":   account.Username,
@@ -796,7 +795,7 @@ func buildBaseResponse(account *authmodels.Account) map[string]interface{} {
 }
 
 // addPersonOrAccountData adds person data if available, otherwise account fallback
-func addPersonOrAccountData(response map[string]interface{}, account *authmodels.Account, person *users.Person) {
+func addPersonOrAccountData(response map[string]interface{}, account *users.PersonAccount, person *users.Person) {
 	if person != nil {
 		addPersonData(response, person)
 	} else {
@@ -818,7 +817,7 @@ func addPersonData(response map[string]interface{}, person *users.Person) {
 }
 
 // addAccountFallbackData adds account data as fallback when person doesn't exist
-func addAccountFallbackData(response map[string]interface{}, account *authmodels.Account) {
+func addAccountFallbackData(response map[string]interface{}, account *users.PersonAccount) {
 	response["id"] = account.ID
 	response["created_at"] = account.CreatedAt
 	response["updated_at"] = account.UpdatedAt
@@ -878,7 +877,7 @@ func (s *userContextService) UpdateCurrentProfile(ctx context.Context, updates m
 }
 
 // updatePersonDataInTx handles person creation or update within transaction
-func (s *userContextService) updatePersonDataInTx(ctx context.Context, account *authmodels.Account, person *users.Person, personErr error, updates map[string]interface{}) error {
+func (s *userContextService) updatePersonDataInTx(ctx context.Context, account *users.PersonAccount, person *users.Person, personErr error, updates map[string]interface{}) error {
 	firstName, hasFirstName := updates["first_name"].(string)
 	lastName, hasLastName := updates["last_name"].(string)
 
@@ -931,19 +930,13 @@ func (s *userContextService) updateExistingPersonFields(ctx context.Context, per
 }
 
 // updateAccountUsernameInTx updates account username within transaction
-func (s *userContextService) updateAccountUsernameInTx(ctx context.Context, account *authmodels.Account, updates map[string]interface{}) error {
+func (s *userContextService) updateAccountUsernameInTx(ctx context.Context, account *users.PersonAccount, updates map[string]interface{}) error {
 	username, ok := updates["username"].(string)
 	if !ok {
 		return nil
 	}
 
-	if username == "" {
-		account.Username = nil
-	} else {
-		account.Username = &username
-	}
-
-	return s.accountRepo.Update(ctx, account)
+	return s.accountRepo.SetAccountUsername(ctx, account.ID, username)
 }
 
 // updateProfileBioInTx updates or creates profile for bio update
@@ -964,13 +957,13 @@ func (s *userContextService) UpdateAvatar(ctx context.Context, avatarURL string)
 	}
 
 	oldAvatarPath := getOldAvatarPath(account.Avatar)
-	if err := s.accountRepo.UpdateAvatar(ctx, account.ID, avatarURL); err != nil {
+	if err := s.accountRepo.SetAccountAvatar(ctx, account.ID, avatarURL); err != nil {
 		return nil, &UserContextError{Op: "update avatar", Err: err}
 	}
 
 	s.cleanupOldAvatar(ctx, oldAvatarPath)
 
-	// accountRepo.UpdateAvatar does not mutate the in-memory account struct —
+	// accountRepo.SetAccountAvatar does not mutate the in-memory account struct —
 	// a memoized account would ship the OLD avatar URL in the response below.
 	invalidateIdentity(ctx)
 

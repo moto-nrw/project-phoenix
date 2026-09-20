@@ -144,7 +144,7 @@ func mustAccountRoleRepository(db *bun.DB) *authRepo.AccountRoleRepository {
 // NewPersonRepository composes the People Directory person repository with
 // the Identity & Access account lookup FindWithAccount attaches (#2720).
 func NewPersonRepository(db *bun.DB) userModels.PersonRepository {
-	return usersRepo.NewPersonRepository(db, usersRepo.WithAccountLookup(accountLookup(authRepo.NewAccountRepository(db))))
+	return usersRepo.NewPersonRepository(db, usersRepo.WithAccountLookup(accountLookup(newIdentityAccess(db, nil))))
 }
 
 // activeAccountQuery returns the owner query the People Directory
@@ -155,23 +155,17 @@ func activeAccountQuery(accounts *authRepo.AccountRepository) usersRepo.ActiveAc
 
 // accountLookup adapts the owner's by-id read to the People Directory
 // lookup: a missing account resolves to nil, as the former LEFT JOIN did.
-func accountLookup(accounts authModels.AccountRepository) usersRepo.AccountLookup {
+func accountLookup(accounts identityaccess.AccountProfiles) usersRepo.AccountLookup {
 	return func(ctx context.Context, accountID int64) (*userModels.PersonAccount, error) {
-		account, err := accounts.FindByID(ctx, accountID)
-		if authRepo.IsNotFound(err) {
+		account, err := accounts.FindAccountMetadata(ctx, accountID)
+		if errors.Is(err, identityaccess.ErrAccountNotFound) {
 			return nil, nil
 		}
 		if err != nil {
 			return nil, err
 		}
-		if account == nil {
-			return nil, nil
-		}
-		return &userModels.PersonAccount{
-			ID: account.ID, CreatedAt: account.CreatedAt, UpdatedAt: account.UpdatedAt,
-			Email: account.Email, Username: account.Username, Avatar: account.Avatar,
-			Active: account.Active, IsPasswordOTP: account.IsPasswordOTP, LastLogin: account.LastLogin,
-		}, nil
+		result := userModels.PersonAccount(account)
+		return &result, nil
 	}
 }
 

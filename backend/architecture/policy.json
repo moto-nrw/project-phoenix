@@ -21493,18 +21493,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/2725"
     },
     {
-      "id": "inbound-usercontext.adapter-test.identity-access-domain",
-      "description": "The retained user-context tests drive the retained account rows (models/auth) while #2725 dissolves the read side into the Identity & Access application (#3224). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-usercontext",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2725"
-    },
-    {
       "id": "inbound-usercontext.adapter-test.inbound-common-http",
       "description": "The retained user-context tests drive the shared HTTP rendering, middleware and error helpers (api/common) while #2725 dissolves the read side into the Identity & Access application (#3224). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -21638,18 +21626,6 @@
       "source_role": "adapter",
       "target_owner": "identity-access",
       "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2725"
-    },
-    {
-      "id": "inbound-usercontext.adapter.identity-access-domain",
-      "description": "The retained user-context adapter binds the retained account rows (models/auth) while #2725 dissolves the read side into the Identity & Access application (#3224). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-usercontext",
-      "source_role": "adapter",
-      "target_owner": "identity-access",
-      "target_role": "domain",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/2725"
     },
     {

@@ -181,27 +181,6 @@ func TestAccountRepository_List(t *testing.T) {
 // Update Operations
 // ============================================================================
 
-func TestAccountRepository_UpdateAvatar(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
-	ctx := testpkg.Ctx(t)
-
-	t.Run("updates global avatar path", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, db, "avatar")
-
-		newAvatar := "/uploads/avatars/global/avatar-test.jpg"
-		err := repo.UpdateAvatar(ctx, account.ID, newAvatar)
-		require.NoError(t, err)
-
-		found, err := repo.FindByID(ctx, account.ID)
-		require.NoError(t, err)
-		assert.Equal(t, newAvatar, found.Avatar)
-	})
-}
-
 // ============================================================================
 // Complex Query Tests
 // ============================================================================
