@@ -21092,12 +21092,12 @@
         },
         {
           "file": "services/factory.go",
-          "line": 462,
+          "line": 464,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 512,
+          "line": 514,
           "declaration": "newFactory"
         },
         {

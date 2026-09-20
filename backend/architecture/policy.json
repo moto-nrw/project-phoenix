@@ -470,6 +470,13 @@
   ],
   "packages": [
     {
+      "path": "modules/documentrendering/compose",
+      "owner": "document-rendering",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "database/repositories/studentintegration",
       "owner": "legacy-composition",
       "role": "compose",
@@ -5000,6 +5007,60 @@
     }
   ],
   "rules": [
+    {
+      "id": "document-rendering.compose.cleanup-postgres",
+      "description": "Bind the retained document cleanup repository behind a consumer-owned port.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "compose",
+      "target_owner": "document-rendering",
+      "target_role": "postgres"
+    },
+    {
+      "id": "document-rendering.compose.cleanup-domain",
+      "description": "Translate retained document cleanup rows at the persistence composition boundary.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "compose",
+      "target_owner": "document-rendering",
+      "target_role": "domain"
+    },
+    {
+      "id": "document-rendering.compose.file-storage-port",
+      "description": "Implement File Storage's consumer-owned cleanup port without exposing the generic repository.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "compose",
+      "target_owner": "file-storage",
+      "target_role": "compose"
+    },
+    {
+      "id": "document-rendering.compose.orm-sql",
+      "description": "Construct the cleanup persistence binding with the root database.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "legacy-composition.to.document-cleanup-compose",
+      "description": "Supply the retained cleanup persistence through File Storage's consumer-owned port.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "document-rendering",
+      "target_role": "compose"
+    },
     {
       "id": "care-plan.postgres.student-directory-view",
       "description": "Resolve public student identities through the bounded directory projection (#2759).",
@@ -19465,90 +19526,6 @@
       "source_role": "compose",
       "target_owner": "people-directory",
       "target_role": "public"
-    },
-    {
-      "id": "file-storage.compose.settings-domain",
-      "description": "File Storage composition names the two file storage setting keys. Compatibility permission (#2707): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "file-storage",
-      "source_role": "compose",
-      "target_owner": "settings-platform",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3445"
-    },
-    {
-      "id": "file-storage.compose.audit-domain",
-      "description": "File Storage composition appends the file trail through the retained Audit file-event repository contract. Compatibility permission (#2707): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "file-storage",
-      "source_role": "compose",
-      "target_owner": "audit-platform",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3445"
-    },
-    {
-      "id": "file-storage.compose.security-application",
-      "description": "File Storage composition evaluates files:manage with the shared permission matcher. Compatibility permission (#2707): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "file-storage",
-      "source_role": "compose",
-      "target_owner": "security-runtime",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3445"
-    },
-    {
-      "id": "file-storage.compose.security-contract",
-      "description": "File Storage composition names the files:manage permission. Compatibility permission (#2707): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "file-storage",
-      "source_role": "compose",
-      "target_owner": "security-runtime",
-      "target_role": "contract",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3445"
-    },
-    {
-      "id": "file-storage.compose.delivery-adapter",
-      "description": "File Storage composition writes, opens and removes objects through the retained storage backend. Compatibility permission (#2707): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "file-storage",
-      "source_role": "compose",
-      "target_owner": "delivery-platform",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3445"
-    },
-    {
-      "id": "file-storage.compose.document-rendering-postgres",
-      "description": "File Storage composition binds the documents.file_cleanup intent operations to the retained generic document repository, because that table has no adoptable finding (ADR 0015). Compatibility permission (#2707): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "file-storage",
-      "source_role": "compose",
-      "target_owner": "document-rendering",
-      "target_role": "postgres",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3445"
-    },
-    {
-      "id": "file-storage.compose.document-rendering-domain",
-      "description": "File Storage composition satisfies the retained generic document repository's entity constraint for the documents.file_cleanup binding. Compatibility permission (#2707): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "file-storage",
-      "source_role": "compose",
-      "target_owner": "document-rendering",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3445"
     },
     {
       "id": "inbound-filestore.to.file-storage",
