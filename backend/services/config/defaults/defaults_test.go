@@ -199,6 +199,29 @@ func TestAllSettingsRegistered(t *testing.T) {
 	assert.GreaterOrEqual(t, len(all), len(expectedKeys), "all expected settings should be registered")
 }
 
+// Every lesson end time is an optional clock time the school team may change
+// (#3372): empty by default, so a school that maintains none offers no lesson.
+func TestSchoolPeriodEndSettings(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "school_periods.end_5", config.SchoolPeriodEndKey(5))
+	for period := 1; period <= config.SchoolPeriodCount; period++ {
+		def := config.GetDefinition(config.SchoolPeriodEndKey(period))
+		require.NotNilf(t, def, "lesson %d should be registered", period)
+		assert.Equal(t, config.FieldTime, def.Type)
+		assert.Equal(t, "", def.Default)
+		assert.Equal(t, "config:read", def.ReadPermission)
+		assert.Equal(t, "config:update", def.WritePermission)
+		assert.Equal(t, config.AccessShared, def.AccessPolicy)
+		assert.Equal(t, "operations", def.Tab)
+		assert.Equal(t, "schulstunden", def.Category)
+		assert.Equal(t, period, def.SortOrder)
+		assert.Nil(t, def.DependsOn)
+	}
+	assert.Equal(t, "Ende der 5. Stunde", config.GetDefinition(config.SchoolPeriodEndKey(5)).Label)
+	assert.Nil(t, config.GetDefinition(config.SchoolPeriodEndKey(config.SchoolPeriodCount+1)))
+}
+
 func TestCalendarCalDAVSetting(t *testing.T) {
 	t.Parallel()
 

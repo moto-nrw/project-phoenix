@@ -72,6 +72,7 @@ func TestSeedPlanningDemoStepCreatesRealPlanningFlows(t *testing.T) {
 		"/api/students/21/arrival-notes",
 		"/api/students/22/pickup-exceptions",
 		"/api/students/22/pickup-notes",
+		"/api/students/22/pickup-notes",
 		"/api/timetable/periods/bootstrap",
 		"/api/timetable/planning-tracks",
 		"/api/timetable/templates",

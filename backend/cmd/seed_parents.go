@@ -70,22 +70,19 @@ Usage:
 	},
 }
 
-// assertLocalDevEnv refuses to run anywhere but an explicitly local/dev/test
-// environment. Unset APP_ENV (the local-dev default) is allowed; staging,
-// production, or any unrecognised value is rejected via an allow-list so the
-// command can never create loginable guardian accounts against a deployed
-// database. It writes through DB_DSN, so refusing by APP_ENV alone is the
-// only signal available before connecting.
+// assertLocalDevEnv refuses to run anywhere but an environment on the dev-only
+// allow-list (isDevOnlyEnv), so the command can never create loginable
+// guardian accounts against a staging or production database. It writes
+// through DB_DSN, so refusing by APP_ENV alone is the only signal available
+// before connecting.
 func assertLocalDevEnv(appEnv string) error {
-	switch strings.ToLower(strings.TrimSpace(appEnv)) {
-	case "", "local", "development", "dev", "test":
+	if isDevOnlyEnv(appEnv) {
 		return nil
-	default:
-		return fmt.Errorf(
-			"seed-parents is dev-only; refusing to run with APP_ENV=%q (allowed: development, test, local, or unset)",
-			appEnv,
-		)
 	}
+	return fmt.Errorf(
+		"seed-parents is dev-only; refusing to run with APP_ENV=%q (allowed: development, test, local, demo, or unset)",
+		appEnv,
+	)
 }
 
 func init() {

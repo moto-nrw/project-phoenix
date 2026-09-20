@@ -6,6 +6,7 @@ import {
 } from "./env-validation";
 
 const validBuildEnv = {
+  NEXT_PUBLIC_APP_ENV: "production",
   API_URL: "http://server:8080",
   TENANT_DOMAIN: "moto-app.de",
   NEXT_PUBLIC_API_URL: "https://api.moto-app.de",
@@ -48,6 +49,17 @@ describe("env validation", () => {
 
   it("does not require runtime secrets during build validation", () => {
     expect(() => validateBuildEnv(validBuildEnv)).not.toThrow();
+  });
+
+  it("requires a known build-time deployment identity and accepts demo", () => {
+    expect(
+      validateBuildEnv({ ...validBuildEnv, NEXT_PUBLIC_APP_ENV: "demo" }),
+    ).toHaveProperty("NEXT_PUBLIC_APP_ENV", "demo");
+    for (const value of [undefined, "", "unknown"]) {
+      expect(() =>
+        validateBuildEnv({ ...validBuildEnv, NEXT_PUBLIC_APP_ENV: value }),
+      ).toThrow("NEXT_PUBLIC_APP_ENV");
+    }
   });
 
   it("fails build validation when a PostHog key has no ingestion host", () => {

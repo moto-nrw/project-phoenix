@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 
 	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -86,6 +87,16 @@ without physical terminals. The first developer admin can switch to it.
   --admin-email admin@test.com Override the bootstrap school admin email
   --randomize                  Create a unique ad-hoc school instead
 
+DEMO SCHOOLS:
+A --tenant-slug other than the profile's own makes the run repeatable in one
+database: every account email and username carries the slug, and the school
+joins the existing Demo-Träger. Add --profile vollbetrieb so the run creates no
+further schools, --school-name for the name, and --state for its own state file.
+
+  --school-name 'OGS Nord'     Override the profile's school name
+  --profile vollbetrieb        Seed only this profile
+  --state ogs-nord.json        Write the seed state to this file
+
 Usage:
   docker compose run server go run . seed --email op@example.com --password 'Test1234%' --pin 1234 --url http://server:8080
   docker compose run server go run . seed --email op@example.com --password 'Test1234%' --pin 1234 --url http://server:8080 --tenant-slug vollbetrieb --staff-password 'Test1234%' --admin-email vollbetrieb-admin@example.test`,
@@ -100,7 +111,7 @@ Usage:
 			return fmt.Errorf("--email, --password, and --pin are required")
 		}
 
-		if err := assertNonProductionURL(url); err != nil {
+		if err := assertDevOnlyTarget(url, os.Getenv("APP_ENV")); err != nil {
 			return err
 		}
 
@@ -108,12 +119,18 @@ Usage:
 		staffPassword, _ := cmd.Flags().GetString("staff-password")
 		adminEmail, _ := cmd.Flags().GetString("admin-email")
 		randomize, _ := cmd.Flags().GetBool("randomize")
+		schoolName, _ := cmd.Flags().GetString("school-name")
+		profile, _ := cmd.Flags().GetString("profile")
+		statePath, _ := cmd.Flags().GetString("state")
 
 		options := seedapi.SeedOptions{
 			TenantSlug:    tenantSlug,
 			StaffPassword: staffPassword,
 			AdminEmail:    adminEmail,
 			Randomize:     randomize,
+			SchoolName:    schoolName,
+			OnlyProfile:   profile,
+			StatePath:     statePath,
 		}
 
 		return defaultSeedRoot.run(cmd.Context(), url, verbose, options, email, password, pin)
@@ -130,5 +147,8 @@ func init() {
 	seedCmd.Flags().String("tenant-slug", "", "Override the default profile tenant slug")
 	seedCmd.Flags().String("staff-password", "", "Shared password for all 20 staff accounts")
 	seedCmd.Flags().String("admin-email", "", "Override the bootstrap school admin email")
+	seedCmd.Flags().String("school-name", "", "Override the default profile school name")
+	seedCmd.Flags().String("profile", "", "Seed only this profile (vollbetrieb); empty seeds all four")
+	seedCmd.Flags().String("state", "", "Output path for the seed state (default .seed-state.json)")
 	seedCmd.Flags().Bool("randomize", false, "Create a unique ad-hoc school with generated admin credentials")
 }

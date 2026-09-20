@@ -33,7 +33,8 @@ services:
     volumes:
       - database:/var/lib/postgresql/data
     healthcheck:
-      test: [CMD, pg_isready, -U, postgres]
+      # The init-only server accepts sockets before restarting; wait for TCP.
+      test: [CMD, pg_isready, -h, 127.0.0.1, -U, postgres]
       interval: 1s
       retries: 30
   server:

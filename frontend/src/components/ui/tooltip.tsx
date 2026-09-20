@@ -2,7 +2,7 @@
 
 /* oxlint-disable jsx-a11y/no-noninteractive-tabindex, jsx-a11y/no-static-element-interactions -- the ARIA tooltip pattern requires a focusable trigger even on non-interactive text; the only handler is Escape-to-dismiss */
 
-import { useId } from "react";
+import { Children, cloneElement, isValidElement, useId, useState } from "react";
 
 import { cn } from "~/lib/utils";
 
@@ -28,6 +28,13 @@ interface TooltipProps {
   className?: string;
   /** Extra classes for the bubble (e.g. to adjust placement). */
   bubbleClassName?: string;
+  /** Use the interactive child itself as the trigger, without an extra tab stop. */
+  asChild?: boolean;
+}
+
+interface InteractiveTooltipChildProps {
+  readonly "aria-describedby"?: string;
+  readonly onKeyDown?: React.KeyboardEventHandler<HTMLElement>;
 }
 
 export function Tooltip({
@@ -35,23 +42,58 @@ export function Tooltip({
   children,
   className,
   bubbleClassName,
+  asChild = false,
 }: TooltipProps) {
   const id = useId();
-  return (
-    <span className={cn("group relative inline-block", className)}>
+  const [isDismissed, setIsDismissed] = useState(false);
+  const dismissOnEscape: React.KeyboardEventHandler<HTMLElement> = (event) => {
+    if (event.key === "Escape") {
+      setIsDismissed(true);
+      event.currentTarget.blur();
+    }
+  };
+
+  let trigger: React.ReactNode;
+  if (asChild) {
+    const child = Children.only(children);
+    if (!isValidElement<InteractiveTooltipChildProps>(child)) {
+      throw new Error("Tooltip with asChild requires one React element");
+    }
+    const describedBy = [child.props["aria-describedby"], id]
+      .filter(Boolean)
+      .join(" ");
+    trigger = cloneElement(child, {
+      "aria-describedby": describedBy,
+      onKeyDown: (event) => {
+        child.props.onKeyDown?.(event);
+        if (!event.defaultPrevented) dismissOnEscape(event);
+      },
+    });
+  } else {
+    trigger = (
       <span
         tabIndex={0}
         aria-describedby={id}
         className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
-        onKeyDown={(event) => {
-          if (event.key === "Escape") event.currentTarget.blur();
-        }}
+        onKeyDown={dismissOnEscape}
       >
         {children}
       </span>
+    );
+  }
+
+  return (
+    <span
+      className={cn("group relative inline-block", className)}
+      onFocusCapture={() => setIsDismissed(false)}
+      onPointerEnter={() => setIsDismissed(false)}
+      onPointerLeave={() => setIsDismissed(false)}
+    >
+      {trigger}
       <span
         role="tooltip"
         id={id}
+        style={isDismissed ? { visibility: "hidden", opacity: 0 } : undefined}
         className={cn(
           "pointer-events-none invisible absolute top-full left-0 z-20 mt-1 w-max max-w-xs rounded-md bg-gray-900 px-2 py-1 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity",
           "group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100",

@@ -39,6 +39,10 @@ const touchedCommentKey = " touched:"
 // cluster on port 5433 / the CI service container.
 const AuthRolePassword = "phoenix_auth_test"
 
+// DemoRolePassword is the cluster-global phoenix_demo role password on the
+// throwaway test server. It is a fixture value, like AuthRolePassword.
+const DemoRolePassword = "phoenix_demo_test"
+
 // templateHashLen is how many hex characters of the migrations hash go into
 // the template name. 48 bits of collision resistance for a name that only
 // has to distinguish a handful of concurrently checked out branches.
@@ -445,6 +449,7 @@ func templateBuildEnvironment(inherited []string, templateDSN string) []string {
 		"APP_ENV=test",
 		"TEST_DB_DSN="+templateDSN,
 		"PHOENIX_AUTH_PASSWORD="+AuthRolePassword,
+		"PHOENIX_DEMO_PASSWORD="+DemoRolePassword,
 		"DB_MAX_OPEN_CONNS=4",
 		"DB_MAX_IDLE_CONNS=2",
 		"DB_CONN_MAX_LIFETIME=30m",

@@ -668,6 +668,7 @@ describe("CareWeeklyPlanEditForm", () => {
           { weekday: 1, pickupTime: "15:00", notes: "Bus" },
           { weekday: 2, pickupTime: "16:00", notes: undefined },
         ],
+        weekdayNotes: [],
       });
     });
   });
@@ -828,8 +829,52 @@ describe("CareWeeklyPlanEditForm", () => {
           { weekday: 1, pickupTime: "15:00", notes: "Bus" },
           { weekday: 2, pickupTime: "16:00", notes: undefined },
         ],
+        weekdayNotes: [],
       });
     });
+  });
+
+  // #3372: the lesson choice copies the school's end time into the arrival
+  // field; what is saved stays a plain clock time.
+  it("saves the end time of the lesson picked for the arrival", async () => {
+    const { onSubmitWeekly } = renderForm({
+      schoolPeriods: [
+        { period: 5, end_time: "12:35" },
+        { period: 6, end_time: "13:20" },
+      ],
+    });
+
+    fireEvent.click(
+      screen.getByRole("combobox", {
+        name: "Montag: Ankunft nach Schulstunde",
+      }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: "5. Stunde (12:35)" }));
+
+    expect(
+      screen.getByLabelText("Ankunft", { selector: "#weekly-arrival-1" }),
+    ).toHaveValue("12:35");
+    // A day outside care has no arrival, so its lesson choice is locked too.
+    expect(
+      screen.getByRole("combobox", {
+        name: "Mittwoch: Ankunft nach Schulstunde",
+      }),
+    ).toBeDisabled();
+
+    save();
+    await waitFor(() => expect(onSubmitWeekly).toHaveBeenCalled());
+    expect(onSubmitWeekly.mock.calls[0]?.[0]).toMatchObject({
+      arrivalSchedules: [
+        { weekday: 1, expected_arrival: "12:35" },
+        { weekday: 2, expected_arrival: "08:15" },
+      ],
+    });
+  });
+
+  it("offers no lesson choice while the school maintains no lesson end times", () => {
+    renderForm();
+
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 
   // Business rule changed with #2414: an arrival note hangs on the care day,
@@ -852,6 +897,74 @@ describe("CareWeeklyPlanEditForm", () => {
       ),
     ).toBeInTheDocument();
     expect(onSubmitWeekly).not.toHaveBeenCalled();
+  });
+
+  // #3369: a day the child does not come has no pickup time and must still
+  // carry a note, without inventing a pickup row that marks it as expected.
+  it("saves a note for a day without a pickup time as a weekday note", async () => {
+    const { onSubmitWeekly } = renderForm();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Notizen" })[2]!);
+    fireEvent.change(
+      screen.getByLabelText("Notiz zum Tag (jede Woche)", {
+        selector: "#weekly-pickup-notes-3",
+      }),
+      { target: { value: "Mittwochs bei den Großeltern" } },
+    );
+    save();
+
+    await waitFor(() => {
+      expect(onSubmitWeekly).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pickupSchedules: [
+            { weekday: 1, pickupTime: "15:00", notes: "Bus" },
+            { weekday: 2, pickupTime: "16:00", notes: undefined },
+          ],
+          weekdayNotes: [
+            { weekday: 3, content: "Mittwochs bei den Großeltern" },
+          ],
+        }),
+      );
+    });
+  });
+
+  it("keeps the note field open on an unbooked day in bookings mode", () => {
+    renderForm({
+      careDaysSource: "bookings",
+      weeklyNotes: [{ weekday: 4, content: "Donnerstags beim Vater" }],
+    });
+
+    const note = screen.getByLabelText("Notiz zum Tag (jede Woche)", {
+      selector: "#weekly-pickup-notes-4",
+    });
+    expect(note).toBeEnabled();
+    expect(note).toHaveValue("Donnerstags beim Vater");
+    expect(
+      screen.getByLabelText("Abholung", { selector: "#weekly-pickup-4" }),
+    ).toBeDisabled();
+  });
+
+  it("moves the note onto the pickup row once the day gets a pickup time", async () => {
+    const { onSubmitWeekly } = renderForm({
+      weeklyNotes: [{ weekday: 3, content: "Wird vom Opa geholt" }],
+    });
+
+    fireEvent.change(
+      screen.getByLabelText("Abholung", { selector: "#weekly-pickup-3" }),
+      { target: { value: "14:00" } },
+    );
+    save();
+
+    await waitFor(() => {
+      expect(onSubmitWeekly).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pickupSchedules: expect.arrayContaining([
+            { weekday: 3, pickupTime: "14:00", notes: "Wird vom Opa geholt" },
+          ]),
+          weekdayNotes: [],
+        }),
+      );
+    });
   });
 
   it("rejects an invalid weekly pickup time", async () => {

@@ -405,6 +405,17 @@ vi.mock("react-dom", async (importOriginal) => {
   };
 });
 
+// Der Seitenkopf rendert den Hilfe-Link, und der importiert die komplette
+// Hilfe-Inhaltsdatei samt ihrer Symbole. Fuer diese Seite zaehlt nur, dass
+// das Fragezeichen da ist -- gleiche Vertretung wie in header.test.tsx.
+vi.mock("~/components/help/context-help-link", () => ({
+  ContextHelpLink: ({ topic }: { topic: string }) => (
+    <a href={`/help/${topic}`} data-testid="context-help-link">
+      Hilfe
+    </a>
+  ),
+}));
+
 vi.mock("lucide-react", () => ({
   // Whitelist mock: every icon the page's tree renders must be listed, or the
   // component using it throws "No export is defined". The Check/Pencil/Plus/

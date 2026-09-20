@@ -66,6 +66,13 @@ function NavBadge({
  * bereits beim ersten Paint aus, damit beim Hydrieren keine Navigation
  * sichtbar hinein- oder herausspringt.
  */
+/**
+ * Ab diesem Eintrag laeuft eine Trennlinie: darunter steht, was nicht zum
+ * Alltag gehoert. Die Desktop-Seitenleiste zieht dieselbe Grenze -- dort
+ * beginnt bei der Hilfe die Region `Kontonavigation`.
+ */
+const PINNED_GROUP_START = "help";
+
 export function ParentBottomNav({
   badges,
   gates,
@@ -271,22 +278,26 @@ export function ParentBottomNav({
                   );
                 }
 
-                const active = isParentNavActive(item.href, pathname);
+                const active =
+                  !item.external && isParentNavActive(item.href, pathname);
                 const count = item.badge ? (badges[item.badge] ?? 0) : 0;
                 return (
                   <li
                     key={item.key}
                     data-parent-nav-group={
-                      item.key === "settings" ? "account" : undefined
+                      item.key === PINNED_GROUP_START ? "account" : undefined
                     }
                     className={
-                      item.key === "settings"
+                      item.key === PINNED_GROUP_START
                         ? "mt-5 border-t border-gray-200 pt-5"
                         : undefined
                     }
                   >
                     <NavLink
-                      href={parentPath(item.href)}
+                      href={item.external ? item.href : parentPath(item.href)}
+                      {...(item.external
+                        ? { target: "_blank", rel: "noopener noreferrer" }
+                        : {})}
                       data-parent-nav-item={item.key}
                       data-active={active ? "true" : "false"}
                       onClick={() => setMoreOpen(false)}

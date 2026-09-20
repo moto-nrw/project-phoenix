@@ -130,6 +130,9 @@ type PickupException struct {
 	CreatedByGuardian     *int64
 }
 
+// PickupNote is either dated (NoteDate) or recurring on a weekday (Weekday
+// 1-5, #3369), never both. A recurring note says nothing about attendance: it
+// exists so a day the child does not come can still carry a note.
 type PickupNote struct {
 	ID        int64
 	TenantID  int64
@@ -137,6 +140,7 @@ type PickupNote struct {
 	UpdatedAt time.Time
 	StudentID int64
 	NoteDate  Date
+	Weekday   int
 	Content   string
 	CreatedBy int64
 }
@@ -190,6 +194,12 @@ type StudentSchedulesCommand interface {
 	DeletePickupNotesBefore(context.Context, Date) (int64, error)
 	EndStudentSchedulesForCareExit(context.Context, []int64, Date) (int64, error)
 	RestoreStudentSchedulesForCareExit(context.Context, []int64) (int64, error)
+}
+
+// WeekdayPickupNotesCommand replaces recurring notes without enlarging the
+// retained StudentSchedulesCommand compatibility facade.
+type WeekdayPickupNotesCommand interface {
+	ReplaceWeekdayPickupNotes(context.Context, int64, int64, map[int]string) error
 }
 
 func normalizeStudentScheduleFilter(filter StudentScheduleFilter) StudentScheduleFilter {
@@ -293,6 +303,16 @@ func validateArrivalException(v ArrivalException) bool {
 }
 func validateNote(studentID int64, date Date, content string, createdBy int64) bool {
 	return studentID > 0 && !date.IsZero() && strings.TrimSpace(content) != "" && len(content) <= 500 && createdBy > 0
+}
+
+// validatePickupNote accepts a dated note or a recurring weekday note (#3369),
+// never a row that is both or neither.
+func validatePickupNote(v PickupNote) bool {
+	if v.Weekday == 0 {
+		return validateNote(v.StudentID, v.NoteDate, v.Content, v.CreatedBy)
+	}
+	return v.NoteDate.IsZero() && validWeekday(v.Weekday) &&
+		v.StudentID > 0 && strings.TrimSpace(v.Content) != "" && len(v.Content) <= 500 && v.CreatedBy > 0
 }
 func validatePickupSchedule(v PickupSchedule) bool {
 	if v.StudentID <= 0 || !validWeekday(v.Weekday) || v.PickupTime.IsZero() || !validText(v.Notes, 500) {
@@ -471,13 +491,13 @@ func (m *Module) DeletePickupExceptionsBefore(ctx context.Context, d Date) (int6
 	return m.engine.DeletePickupExceptionsBefore(ctx, d)
 }
 func (m *Module) CreatePickupNote(ctx context.Context, v PickupNote) (PickupNote, error) {
-	if !validateNote(v.StudentID, v.NoteDate, v.Content, v.CreatedBy) {
+	if !validatePickupNote(v) {
 		return PickupNote{}, scheduleInvalid()
 	}
 	return m.engine.CreatePickupNote(ctx, v)
 }
 func (m *Module) UpdatePickupNote(ctx context.Context, v PickupNote) error {
-	if v.ID <= 0 || !validateNote(v.StudentID, v.NoteDate, v.Content, v.CreatedBy) {
+	if v.ID <= 0 || !validatePickupNote(v) {
 		return scheduleInvalid()
 	}
 	return m.engine.UpdatePickupNote(ctx, v)
@@ -488,11 +508,26 @@ func (m *Module) DeletePickupNote(ctx context.Context, id int64) error {
 	}
 	return m.engine.DeletePickupNote(ctx, id)
 }
+func (m *Module) ReplaceWeekdayPickupNotes(ctx context.Context, studentID, createdBy int64, notes map[int]string) error {
+	if studentID <= 0 || createdBy <= 0 || !validWeekdayPickupNotes(notes) {
+		return scheduleInvalid()
+	}
+	return m.engine.ReplaceWeekdayPickupNotes(ctx, studentID, createdBy, notes)
+}
 func (m *Module) DeletePickupNotesByStudent(ctx context.Context, id int64) error {
 	if id <= 0 {
 		return scheduleInvalid()
 	}
 	return m.engine.DeletePickupNotesByStudent(ctx, id)
+}
+
+func validWeekdayPickupNotes(notes map[int]string) bool {
+	for weekday, content := range notes {
+		if !validWeekday(weekday) || strings.TrimSpace(content) == "" || len(content) > 500 {
+			return false
+		}
+	}
+	return true
 }
 func (m *Module) DeletePickupNotesBefore(ctx context.Context, d Date) (int64, error) {
 	if d.IsZero() {

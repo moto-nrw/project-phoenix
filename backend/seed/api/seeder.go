@@ -29,7 +29,13 @@ type SeedOptions struct {
 	StaffPassword string // Shared password for all 20 staff accounts
 	AdminEmail    string // Optional bootstrap school admin email override
 	Randomize     bool   // Append unique suffixes and generate admin credentials
+	SchoolName    string // Optional school name override
+	OnlyProfile   string // Restrict the run to one profile; empty seeds all four
 	StatePath     string // Output path; empty uses DefaultSeedStatePath
+	StandingDemo  bool   // Keep simulation devices but disable their user interface
+	// SaveState replaces file output, allowing the demo process to persist
+	// credentials in the database. A failure fails the seed workflow.
+	SaveState func(context.Context, *SeedState) error
 }
 
 // Seeder orchestrates the complete API-based seeding process
@@ -75,6 +81,10 @@ func NewSeeder(adapter Adapter, random io.Reader, verbose bool, options SeedOpti
 	if statePath == "" {
 		statePath = DefaultSeedStatePath
 	}
+	definition := fullOperationProfileDefinition()
+	if options.StandingDemo {
+		definition.Settings[profileSettingAttendanceNFC] = SeedSetting{Value: []byte(`false`), ManagedBy: SettingManagedByOperator}
+	}
 	return &Seeder{
 		client:     NewClientWithAdapter(newLoginCachingAdapter(adapter), verbose),
 		random:     random,
@@ -82,7 +92,7 @@ func NewSeeder(adapter Adapter, random io.Reader, verbose bool, options SeedOpti
 		options:    options,
 		statePath:  statePath,
 		profile:    DefaultProfileKey,
-		definition: fullOperationProfileDefinition(),
+		definition: definition,
 	}
 }
 
@@ -93,6 +103,9 @@ func (s *Seeder) Seed(ctx context.Context, email, password, staffPIN string) (*S
 	}
 	if s.random == nil {
 		return nil, fmt.Errorf("seed random source is required")
+	}
+	if s.options.OnlyProfile != "" && s.options.OnlyProfile != s.definition.Key {
+		return nil, fmt.Errorf("a run can only be restricted to profile %q, got %q", s.definition.Key, s.options.OnlyProfile)
 	}
 	runtime := newRuntime(s, email, password, staffPIN)
 	workflow := fullDemoWorkflow(s)
@@ -112,6 +125,10 @@ func (s *Seeder) Seed(ctx context.Context, email, password, staffPIN string) (*S
 func (s *Seeder) bootstrapTenant(ctx context.Context) (*bootstrapSeedState, error) {
 	identity := s.profileIdentity()
 	orgID, err := s.createSeedOrganization(identity.organizationName, identity.organizationSlug)
+	if err != nil && s.accountScope() != "" && isConflictError(err) {
+		// Every demo school of one database hangs under the same Demo-Träger.
+		orgID, err = s.findSeedOrganization(identity.organizationSlug)
+	}
 	if err != nil {
 		return nil, wrapConflictError(err, "organization")
 	}
@@ -149,10 +166,34 @@ func (s *Seeder) profileIdentity() seedProfileIdentity {
 	if s.options.TenantSlug != "" {
 		slug = s.options.TenantSlug
 	}
+	name := s.definition.SchoolName
+	if s.options.SchoolName != "" {
+		name = s.options.SchoolName
+	}
 	return seedProfileIdentity{
 		organizationName: s.definition.OrganizationName, organizationSlug: s.definition.OrganizationSlug,
-		schoolName: s.definition.SchoolName, schoolSlug: slug,
+		schoolName: name, schoolSlug: slug,
 	}
+}
+
+// accountScope is the slug every account of the school carries. Account emails
+// and usernames are unique across all schools of one database, so a school
+// seeded under a slug given from outside needs its own. The profile's own slug
+// yields no scope, which keeps the stable local credentials.
+func (s *Seeder) accountScope() string {
+	if s.options.Randomize || s.options.TenantSlug == s.definition.SchoolSlug {
+		return ""
+	}
+	return s.options.TenantSlug
+}
+
+// scopedEmail puts the scope in front of the @, e.g. demo1.ogs-nord@mail.de.
+func scopedEmail(email, scope string) string {
+	local, domain, ok := strings.Cut(email, "@")
+	if scope == "" || !ok {
+		return email
+	}
+	return local + "." + scope + "@" + domain
 }
 
 func (s *Seeder) profileAdminCredentials() (string, string, error) {
@@ -163,6 +204,8 @@ func (s *Seeder) profileAdminCredentialsFor(definition demoProfileDefinition) (s
 	email := definition.SchoolAdminEmail
 	if s.options.AdminEmail != "" && definition.Key == s.definition.Key {
 		email = s.options.AdminEmail
+	} else if scope := s.accountScope(); scope != "" {
+		email = scopedEmail(email, scope)
 	} else if s.options.Randomize {
 		email = fmt.Sprintf("%s-admin-%d@example.com", definition.Key, time.Now().UnixNano())
 	}
@@ -172,7 +215,7 @@ func (s *Seeder) profileAdminCredentialsFor(definition demoProfileDefinition) (s
 	if !s.options.Randomize {
 		return email, definition.SchoolAdminPassword, nil
 	}
-	password, err := generateSeedPassword(s.random)
+	password, err := GenerateSeedPassword(s.random)
 	if err != nil {
 		return "", "", fmt.Errorf("generate admin password: %w", err)
 	}
@@ -236,6 +279,28 @@ func (s *Seeder) createSeedOrganization(name, slug string) (int64, error) {
 	return payload.Data.ID, nil
 }
 
+func (s *Seeder) findSeedOrganization(slug string) (int64, error) {
+	resp, err := s.client.Get("/operator/organizations")
+	if err != nil {
+		return 0, fmt.Errorf("list organizations: %w", err)
+	}
+	var payload struct {
+		Data []struct {
+			ID   int64  `json:"id"`
+			Slug string `json:"slug"`
+		} `json:"data"`
+	}
+	if err := parseJSON(resp, &payload); err != nil {
+		return 0, fmt.Errorf("parse organizations response: %w", err)
+	}
+	for _, organization := range payload.Data {
+		if organization.Slug == slug {
+			return organization.ID, nil
+		}
+	}
+	return 0, fmt.Errorf("organization %q not found", slug)
+}
+
 func (s *Seeder) createSeedSchool(organizationID int64, name, slug, subdomain string) (int64, string, error) {
 	schoolResp, err := s.client.Post("/operator/schools", map[string]any{
 		"organization_id": organizationID,
@@ -258,7 +323,9 @@ func (s *Seeder) createSeedSchool(organizationID int64, name, slug, subdomain st
 	return payload.Data.ID, payload.Data.Subdomain, nil
 }
 
-func generateSeedPassword(randomSource io.Reader) (string, error) {
+// GenerateSeedPassword creates a random password satisfying the account policy.
+// Callers supply their cryptographically secure random source.
+func GenerateSeedPassword(randomSource io.Reader) (string, error) {
 	if randomSource == nil {
 		return "", fmt.Errorf("seed random source is required")
 	}
@@ -310,9 +377,13 @@ func truncateSeedSubdomain(subdomain string) string {
 
 // wrapConflictError checks if the error is a 409 Conflict from the API and
 // returns a user-friendly message directing the developer to run migrate reset.
-func wrapConflictError(err error, entity string) error {
+func isConflictError(err error) bool {
 	var apiErr *APIError
-	if errors.As(err, &apiErr) && apiErr.StatusCode == 409 {
+	return errors.As(err, &apiErr) && apiErr.StatusCode == 409
+}
+
+func wrapConflictError(err error, entity string) error {
+	if isConflictError(err) {
 		return fmt.Errorf("seed %s already exists (409 Conflict) — run 'docker compose run server go run . migrate reset' before re-seeding", entity)
 	}
 	return err

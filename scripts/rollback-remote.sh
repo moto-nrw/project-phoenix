@@ -4,7 +4,7 @@
 set -Eeuo pipefail
 umask 077
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-case "${DEPLOY_DIR:-}" in staging|production) ;; *) echo 'Invalid DEPLOY_DIR' >&2; exit 1;; esac
+case "${DEPLOY_DIR:-}" in staging|production|demo) ;; *) echo 'Invalid DEPLOY_DIR' >&2; exit 1;; esac
 deployment_directory=${1:-"$HOME/$DEPLOY_DIR"}
 [[ "$deployment_directory" = /* ]] || { echo 'Deployment directory must be absolute' >&2; exit 1; }
 cd "$deployment_directory"
@@ -20,9 +20,14 @@ fi
 }
 bundle="${deployment_directory%/*}/backups/$DEPLOY_DIR/$backup_id"
 bash "$script_dir/restore-db.sh" "$bundle"
+# The restored Compose file decides: a demo snapshot brings demo-runtime along.
+listed=$(bash "$script_dir/release-backup.sh" app-services)
 if ! docker compose up -d --wait --remove-orphans server frontend; then
   docker compose stop server frontend || true
   echo 'Restored application failed healthchecks and was stopped' >&2
   exit 1
 fi
+# Started without --wait: the sidecar's health never gates or stops the application.
+[[ " $listed " != *' demo-runtime '* ]] || docker compose up -d --no-deps --force-recreate demo-runtime ||
+  echo 'WARNING: demo-runtime did not start; the application itself is healthy' >&2
 echo "Complete release restored from $backup_id"

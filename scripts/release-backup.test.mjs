@@ -7,10 +7,10 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 const scripts = dirname(fileURLToPath(import.meta.url));
-function fixture(t) {
+function fixture(t, target = 'staging') {
   const root = mkdtempSync(join(tmpdir(), 'moto-release-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const cwd = join(root, 'staging');
+  const cwd = join(root, target);
   mkdirSync(cwd); mkdirSync(join(root, 'bin'));
   writeFileSync(join(root, 'bin/docker'), `#!/bin/sh\nexec '${process.execPath}' '${join(scripts, 'test-support/release-docker.mjs')}' "$@"\n`, { mode: 0o755 });
   for (const [file, content] of Object.entries({ '.env': 'MODE=old\n', '.deploy-state': 'CURRENT_SHA=aaaaaaa\n',
@@ -18,9 +18,9 @@ function fixture(t) {
     writeFileSync(join(cwd, file), content);
   }
   const log = join(root, 'docker.log');
-  const env = { ...process.env, DEPLOY_DIR: 'staging', DEPLOY_SHA: 'bbbbbbb', BACKUP_RETENTION: '2',
+  const env = { ...process.env, DEPLOY_DIR: target, DEPLOY_SHA: 'bbbbbbb', BACKUP_RETENTION: '2',
     PATH: `${join(root, 'bin')}:${process.env.PATH}`, RELEASE_TEST_LOG: log };
-  const bundle = join(root, 'backups/staging/release-20260914T010000Z-bbbbbbb');
+  const bundle = join(root, 'backups', target, 'release-20260914T010000Z-bbbbbbb');
   const run = (file, args = [], extra = {}) => spawnSync('bash', [join(scripts, file),
     ...(['deploy-remote.sh', 'rollback-remote.sh'].includes(file) ? [cwd] : []), ...args], {
     cwd, env: { ...env, ...extra }, encoding: 'utf8', timeout: 30000,
@@ -41,6 +41,108 @@ test('complete snapshot restores all components and the saved deployment state',
   assert.match(f.calls(), /find \/volume -mindepth/);
   assert.equal(readFileSync(join(f.cwd, '.env'), 'utf8'), 'MODE=old\n');
 });
+
+test('demo deploy pins its frontend image and can restore its own snapshot', t => {
+  const f = fixture(t, 'demo');
+  writeFileSync(join(f.cwd, 'docker-compose.yml.new'),
+    'services:\n  server:\n    image: ghcr.io/moto-nrw/phoenix-server:demo\n  frontend:\n    image: ghcr.io/moto-nrw/phoenix-frontend:demo\n');
+  const result = f.run('deploy-remote.sh');
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const compose = readFileSync(join(f.cwd, 'docker-compose.yml'), 'utf8');
+  assert.match(compose, /phoenix-server:bbbbbbb/);
+  assert.match(compose, /phoenix-frontend:demo-bbbbbbb/);
+  const state = readFileSync(join(f.cwd, '.deploy-state'), 'utf8');
+  const id = state.match(/BACKUP_ID=(.+)/)[1];
+  const bundle = join(f.root, 'backups/demo', id);
+  assert.equal(readFileSync(join(bundle, 'environment'), 'utf8'), 'demo\n');
+  const rollback = f.run('rollback-remote.sh');
+  assert.equal(rollback.status, 0, rollback.stdout + rollback.stderr);
+  assert.equal(readFileSync(join(f.cwd, '.env'), 'utf8'), 'MODE=old\n');
+});
+
+const demoStack = 'services:\n  server:\n    image: ghcr.io/moto-nrw/phoenix-server:demo\n  frontend:\n    image: ghcr.io/moto-nrw/phoenix-frontend:demo\n' +
+  '  demo-runtime:\n    image: ghcr.io/moto-nrw/phoenix-server:demo\n';
+// server and frontend gate the release; the sidecar follows, recreated because
+// it lives in the network namespace of the server container just replaced.
+const sidecarStart = /^compose up -d --wait --remove-orphans server frontend\ncompose up -d --no-deps --force-recreate demo-runtime$/m;
+test('first demo deploy with the sidecar starts it although the old stack never had it', t => {
+  const f = fixture(t, 'demo');
+  writeFileSync(join(f.cwd, 'docker-compose.yml.new'), demoStack);
+  const result = f.run('deploy-remote.sh');
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  // The previous file has no such service; naming it would fail the stop.
+  assert.match(f.calls(), /^compose stop server frontend$/m);
+  assert.match(f.calls(), sidecarStart);
+  // Same immutable backend revision as the server.
+  assert.match(readFileSync(join(f.cwd, 'docker-compose.yml'), 'utf8'),
+    /demo-runtime:\n    image: ghcr.io\/moto-nrw\/phoenix-server:bbbbbbb/);
+});
+test('repeated demo deploy stops the sidecar before the snapshot and restarts it', t => {
+  const f = fixture(t, 'demo');
+  writeFileSync(join(f.cwd, 'docker-compose.yml'), demoStack);
+  writeFileSync(join(f.cwd, 'docker-compose.yml.new'), demoStack);
+  const result = f.run('deploy-remote.sh');
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const calls = f.calls().trim().split('\n');
+  const stop = calls.indexOf('compose stop server frontend demo-runtime');
+  const backup = calls.findIndex(line => line.includes('pg_dump '));
+  const start = calls.indexOf('compose up -d --no-deps --force-recreate demo-runtime');
+  assert.ok(stop >= 0 && backup > stop && start > backup, f.calls());
+  const id = readFileSync(join(f.cwd, '.deploy-state'), 'utf8').match(/BACKUP_ID=(.+)/)[1];
+  assert.match(readFileSync(join(f.root, 'backups/demo', id, 'images.tsv'), 'utf8'), /^demo-runtime\t/m);
+  // Rollback returns the sidecar to the snapshot's state along with the rest.
+  writeFileSync(f.log, '');
+  const rollback = f.run('rollback-remote.sh');
+  assert.equal(rollback.status, 0, rollback.stdout + rollback.stderr);
+  assert.match(f.calls(), /^compose stop server frontend demo-runtime$/m);
+  assert.match(f.calls(), sidecarStart);
+});
+// The sidecar seeds for minutes and may fail on its own. Gating the release on
+// it would hold the deploy and then restore the database of a healthy application.
+test('a sidecar that cannot start neither fails nor rolls back the demo release', t => {
+  const f = fixture(t, 'demo');
+  writeFileSync(join(f.cwd, 'docker-compose.yml.new'), demoStack);
+  const result = f.run('deploy-remote.sh', [], { RELEASE_TEST_FAIL: 'sidecar' });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stderr, /WARNING: demo-runtime did not start/);
+  assert.doesNotMatch(f.calls(), /pg_restore -U/);
+  assert.match(readFileSync(join(f.cwd, '.deploy-state'), 'utf8'), /CURRENT_SHA=bbbbbbb/);
+});
+test('a running sidecar cannot produce a complete backup', t => {
+  const f = fixture(t, 'demo');
+  writeFileSync(join(f.cwd, 'docker-compose.yml'), demoStack);
+  const result = f.run('release-backup.sh', ['create', f.bundle], { RELEASE_TEST_FAIL: 'running-sidecar' });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /demo-runtime is still running/);
+  assert.equal(existsSync(join(f.bundle, 'complete')), false);
+});
+test('failed demo deploy rolls back to a stack without the sidecar', t => {
+  const f = fixture(t, 'demo');
+  writeFileSync(join(f.cwd, 'docker-compose.yml.new'), demoStack);
+  const result = f.run('deploy-remote.sh', [], { RELEASE_TEST_FAIL: 'migrate' });
+  assert.equal(result.status, 10, result.stdout + result.stderr);
+  assert.equal(f.calls().trim().split('\n').at(-1), 'compose up -d --wait --remove-orphans server frontend');
+});
+for (const target of ['staging', 'production']) {
+  test(`${target} deploy and rollback never name the demo sidecar`, t => {
+    const f = fixture(t, target);
+    assert.equal(f.run('deploy-remote.sh').status, 0);
+    assert.equal(f.run('rollback-remote.sh').status, 0);
+    assert.doesNotMatch(f.calls(), /demo-runtime/);
+  });
+}
+
+for (const source of ['demo', 'staging', 'production']) {
+  for (const target of ['demo', 'staging', 'production'].filter(value => value !== source)) {
+    test(`${target} rejects a ${source} snapshot before touching services`, t => {
+      const f = fixture(t, source); f.backup();
+      const result = f.run('restore-db.sh', [f.bundle], { DEPLOY_DIR: target });
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, /Backup belongs to another environment/);
+      assert.equal(f.calls(), '');
+    });
+  }
+}
 for (const file of ['roles.sql', 'uploads.tar.gz', '.env', 'compose.yml', 'images.tsv', 'database.dump']) {
   test(`missing ${file} blocks restore before stop or deletion`, t => {
     const f = fixture(t); f.backup(); rmSync(join(f.bundle, file));

@@ -29,7 +29,7 @@ func TestGenerateSeedPassword(t *testing.T) {
 
 	// Run multiple times to verify deterministic compliance (was probabilistic before fix).
 	for i := 0; i < 50; i++ {
-		password, err := generateSeedPassword(random)
+		password, err := GenerateSeedPassword(random)
 		require.NoError(t, err)
 		assert.Len(t, password, seedPasswordLength)
 		for _, char := range password {
@@ -669,6 +669,52 @@ func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 	assert.Len(t, bookings.Devices, 2)
 	assert.Equal(t, []string{"anmeldung-buchungen", "anmeldung-wochenplan"}, state.Organizations["demo-traeger-sued"].Profiles)
 	assertWithdrawalSeedTrace(t, trace)
+}
+
+// A long-running demo stores the same complete seed contract in its database,
+// without producing a credentials file on the sidecar filesystem.
+func TestSeeder_Seed_UsesStateSink(t *testing.T) {
+	t.Parallel()
+	srv := fullSeedAPIMock(t)
+	defer srv.Close()
+	statePath := filepath.Join(t.TempDir(), "must-not-exist.json")
+	var saved *SeedState
+	s := NewSeeder(newSeedTestAdapter(srv.URL), newSeedTestRandom(), false, SeedOptions{
+		OnlyProfile: DefaultProfileKey,
+		StatePath:   statePath,
+		SaveState: func(_ context.Context, state *SeedState) error {
+			saved = state
+			return nil
+		},
+	})
+	result, err := s.Seed(context.Background(), "operator@example.test", "test-password", "1234")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, saved)
+	require.Len(t, saved.Profiles, 1)
+	profile, err := saved.SelectProfile(DefaultProfileKey)
+	require.NoError(t, err)
+	assert.Len(t, profile.Entities.Students, len(DemoStudents))
+	require.NotEmpty(t, profile.Credentials.Accounts.Admin)
+	assert.NotEmpty(t, profile.Credentials.Accounts.Admin[0].Password)
+	assert.NotEmpty(t, profile.Devices)
+	_, err = os.Stat(statePath)
+	assert.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestSeeder_Seed_StateSinkFailureFailsRun(t *testing.T) {
+	t.Parallel()
+	srv := fullSeedAPIMock(t)
+	defer srv.Close()
+	s := NewSeeder(newSeedTestAdapter(srv.URL), newSeedTestRandom(), false, SeedOptions{
+		OnlyProfile: DefaultProfileKey,
+		SaveState: func(context.Context, *SeedState) error {
+			return fmt.Errorf("demo state storage unavailable")
+		},
+	})
+	result, err := s.Seed(context.Background(), "operator@example.test", "test-password", "1234")
+	require.ErrorContains(t, err, "demo state storage unavailable")
+	assert.Nil(t, result, "a school without saved credentials must not be reported as ready")
 }
 
 func TestManualGuardianForStudentUsesStudentIndex(t *testing.T) {

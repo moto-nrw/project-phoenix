@@ -1,6 +1,6 @@
 # Runtime environment boundaries
 
-Staging and production use the same service allowlists. SOPS remains the source
+Staging, production and demo use the same service allowlists. SOPS remains the source
 of secrets. CI delivers the decrypted file for Compose interpolation; containers
 receive only their explicit `environment` entries.
 
@@ -17,6 +17,7 @@ The groups below explain why each set exists.
 | Serving backend | Backend JWT key, application-role password, SMTP credentials, device PIN, VAPID private key, metrics token, analytics settings; pool sizing, public API and portal URLs, auth timing, rate limits, logging, scheduler and checkout configuration. | `backend/cmd/serve.go`, `database/database_config.go`, `services/factory.go`, `api/base.go`, `services/scheduler/` |
 | PostgreSQL | `POSTGRES_PASSWORD` and `TZ` only. Database administration stays inside this boundary. | PostgreSQL image startup; existing backup/restore commands |
 | Migration job | Privileged `DB_DSN`, pool sizing, `APP_ENV`, `TZ`, `PHOENIX_AUTH_PASSWORD`, and admin/operator bootstrap credentials. No HTTP signing, SMTP, device or push secrets. | `backend/cmd/migrate.go`; migrations `001006002`, `001011003`, `001014001` |
+| Demo sidecar only | Privileged `DB_DSN`, pool sizing, `APP_ENV`, `TZ`, operator bootstrap credentials and device PIN. No JWT signing, SMTP or frontend secrets; no filesystem state beyond a tmpfs heartbeat file. The environment and target-host guards reject staging, production and public hosts. | `backend/cmd/demo.go`, `demo-runtime` in `environments/demo.compose.yml`, [standing demo operations](standing-demo.md) |
 | Backup and restore | `pg_dump`, `pg_dumpall`, `psql`, and `pg_restore` execute inside PostgreSQL over its Unix socket. They need no backend or frontend environment. Globals dumps contain role credentials and remain protected backup artifacts. | `scripts/deploy-remote.sh`, `scripts/restore-db.sh` |
 
 The serving backend receives a credential-free endpoint:

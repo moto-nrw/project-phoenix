@@ -1026,6 +1026,7 @@ PUT /api/students/{id}/arrival-schedules
 PUT /api/students/{id}/family-protection
 PUT /api/students/{id}/partial-absences/{partialAbsenceId}
 PUT /api/students/{id}/pickup-exceptions/{exceptionId}
+PUT /api/students/{id}/pickup-notes
 PUT /api/students/{id}/pickup-notes/{noteId}
 PUT /api/students/{id}/pickup-schedules
 PUT /api/students/{id}/privacy-consent
