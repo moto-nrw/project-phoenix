@@ -21049,12 +21049,12 @@
       "locations": [
         {
           "file": "cmd/seed_parents.go",
-          "line": 162,
+          "line": 174,
           "declaration": "promotableGuardians"
         },
         {
           "file": "cmd/seed_parents.go",
-          "line": 205,
+          "line": 217,
           "declaration": "promoteGuardian"
         }
       ]

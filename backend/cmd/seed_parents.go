@@ -7,7 +7,6 @@ import (
 	"os"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/uptrace/bun"
@@ -16,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // seedParentsCmd promotes demo guardians (created by `seed`) into loginable
@@ -116,13 +116,20 @@ func seedParentAccounts(ctx context.Context, db *bun.DB, count int, password str
 
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
-	role, err := repos.Role.FindByName(ctx, "guardian")
+	grantAccess, err := services.NewGuardianSeedAccess(db)
 	if err != nil {
-		return fmt.Errorf("look up guardian role: %w", err)
+		return fmt.Errorf("compose guardian access: %w", err)
 	}
-	if role == nil {
-		return fmt.Errorf("guardian role not found — run migrations first")
+	postgresRuntime, err := database.NewPostgresUnitOfWork(db, tenant.ObservePoolWait)
+	if err != nil {
+		return err
 	}
+	runtime, err := services.BindTenantRuntime(postgresRuntime.WithinTenant, postgresRuntime.WithinAdmin,
+		postgresRuntime, database.IsRetryableTransactionError)
+	if err != nil {
+		return err
+	}
+	ctx = tenant.WithUnitOfWork(ctx, runtime)
 
 	candidates, err := promotableGuardians(ctx, repos, count)
 	if err != nil {
@@ -137,7 +144,12 @@ func seedParentAccounts(ctx context.Context, db *bun.DB, count int, password str
 	fmt.Printf("Promoting %d guardian(s) into parent accounts:\n\n", len(candidates))
 	created := 0
 	for _, c := range candidates {
-		reused, err := promoteGuardian(ctx, repos, role.ID, c, passwordHash)
+		var reused bool
+		err := tenant.WithinAdmin(ctx, func(txCtx context.Context) error {
+			var promoteErr error
+			reused, promoteErr = promoteGuardian(tenant.WithTenantID(txCtx, c.TenantID), repos, grantAccess, c, passwordHash)
+			return promoteErr
+		})
 		if err != nil {
 			return fmt.Errorf("promote %s: %w", c.Email, err)
 		}
@@ -203,7 +215,7 @@ func promotableGuardians(ctx context.Context, repos *repositories.Factory, count
 func promoteGuardian(
 	ctx context.Context,
 	repos *repositories.Factory,
-	roleID int64,
+	grantAccess func(context.Context, int64) error,
 	c parentCandidate,
 	passwordHash string,
 ) (bool, error) {
@@ -222,27 +234,9 @@ func promoteGuardian(
 		}
 	}
 
-	// Guardian role (idempotent). A not-found lookup (nil row, possibly with a
-	// not-found error) means we must create it; only an existing row is skipped.
-	existingRole, _ := repos.AccountRole.FindByAccountAndRole(ctx, account.ID, roleID)
-	if existingRole == nil {
-		assignment := &authModels.AccountRole{AccountID: account.ID, RoleID: roleID}
-		assignment.SetTenantID(c.TenantID)
-		if err := repos.AccountRole.Create(ctx, assignment); err != nil {
-			return false, fmt.Errorf("assign guardian role: %w", err)
-		}
-	}
-
-	// Active tenant mapping (idempotent via EnsureActive).
-	now := time.Now()
-	mapping := &authModels.AccountTenant{
-		AccountID:   account.ID,
-		TenantID:    c.TenantID,
-		Status:      authModels.AccountTenantStatusActive,
-		ActivatedAt: &now,
-	}
-	if err := repos.AccountTenant.EnsureActive(ctx, mapping); err != nil {
-		return false, fmt.Errorf("link account to tenant: %w", err)
+	// The owner reactivates membership and assigns the guardian role together.
+	if err := grantAccess(ctx, account.ID); err != nil {
+		return false, fmt.Errorf("grant guardian access: %w", err)
 	}
 
 	// Stamp the profile so the cross-tenant child query resolves.
