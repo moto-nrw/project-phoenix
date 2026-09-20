@@ -704,7 +704,6 @@ func (f *Factory) NewGuardianDirectoryRuntime(db *bun.DB) GuardianDirectoryRunti
 				result = append(result, PendingGuardianInvitation{
 					ID: invitation.ID, GuardianProfileID: invitation.GuardianProfileID, CreatedAt: invitation.CreatedAt,
 					ExpiresAt: invitation.ExpiresAt, EmailSentAt: invitation.EmailSentAt, EmailError: invitation.EmailError,
-					EmailRetryCount: invitation.EmailRetryCount,
 				})
 			}
 			return result, nil

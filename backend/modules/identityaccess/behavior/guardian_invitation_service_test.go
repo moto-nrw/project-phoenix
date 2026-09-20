@@ -188,6 +188,34 @@ func TestGuardianInvitationService_Create_RejectsProfileWithoutEmail(t *testing.
 	require.Error(t, err, "Create must reject a profile with no email")
 }
 
+func TestGuardianInvitationService_Create_RejectsInvalidIdentifiers(t *testing.T) {
+	t.Parallel()
+
+	env := setupGuardianInvitationTest(t)
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "invalid-invitation-identifiers")
+	creatorID := env.inviterAccountID(t)
+	for _, tc := range []struct {
+		name      string
+		profileID int64
+		creatorID int64
+		message   string
+	}{
+		{"zero profile", 0, creatorID, "guardian profile ID is required"},
+		{"negative profile", -1, creatorID, "guardian profile ID is required"},
+		{"zero creator", profile.ID, 0, "created_by is required"},
+		{"negative creator", profile.ID, -1, "created_by is required"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := env.service.CreateGuardianInvitation(testpkg.Ctx(t), identityaccess.GuardianInvitationRequest{
+				GuardianProfileID: tc.profileID,
+				CreatedBy:         tc.creatorID,
+			})
+			require.ErrorContains(t, err, tc.message)
+		})
+	}
+	assert.Empty(t, testpkg.GuardianInvitationsByProfile(t, env.db, profile.ID), "invalid identifiers must not create an invitation")
+}
+
 func TestGuardianInvitationService_Validate_ReturnsPublicInfo(t *testing.T) {
 	t.Parallel()
 
@@ -379,14 +407,14 @@ func TestGuardianInvitationService_PublicTokenRejectsUnapprovedStatuses(t *testi
 	for _, status := range statuses {
 		t.Run(status, func(t *testing.T) {
 			profile := testpkg.CreateTestGuardianProfile(t, env.db, "unapproved-token-"+status)
-			invitation := &authModels.GuardianInvitation{
+			invitation := &testpkg.GuardianInvitation{
 				Token:             "unapproved-token-" + status + "-" + time.Now().Format("150405.000000000"),
 				GuardianProfileID: profile.ID,
 				CreatedBy:         creatorID,
 				ExpiresAt:         time.Now().Add(time.Hour),
 				ApprovalStatus:    status,
 			}
-			invitation.SetTenantID(testpkg.Tenant(t))
+			invitation.TenantID = testpkg.Tenant(t)
 			testpkg.InsertTestGuardianInvitation(t, env.db, invitation)
 			defer env.cleanupInvitation(t, invitation.ID, profile.ID)
 

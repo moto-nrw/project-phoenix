@@ -424,7 +424,7 @@ func TestRevokeAccess_ParentCancelsInviteForStaffManagedContactWithoutDeletingLi
 	link.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, env.repos.StudentGuardian.Create(ctx, link))
 	studentID := student.ID
-	invitation := &authModels.GuardianInvitation{
+	invitation := &testpkg.GuardianInvitation{
 		Token:             fmt.Sprintf("staff-contact-open-invite-%d", time.Now().UnixNano()),
 		GuardianProfileID: profile.ID,
 		CreatedBy:         actorID,
@@ -432,7 +432,7 @@ func TestRevokeAccess_ParentCancelsInviteForStaffManagedContactWithoutDeletingLi
 		StudentID:         &studentID,
 		ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
 	}
-	invitation.SetTenantID(testpkg.Tenant(t))
+	invitation.TenantID = testpkg.Tenant(t)
 	testpkg.InsertTestGuardianInvitation(t, env.db, invitation)
 
 	require.NoError(t, env.service.RevokeAccess(ctx, identityaccess.RevokeAccessRequest{
@@ -1225,7 +1225,7 @@ func TestInviteToStudent_ConfirmedUpgrade_ReusedPendingInvitationGetsFlag(t *tes
 	ctx := testpkg.Ctx(t)
 	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRoleEmergency)
 	studentID := student.ID
-	existing := &authModels.GuardianInvitation{
+	existing := &testpkg.GuardianInvitation{
 		Token:                fmt.Sprintf("upgrade-reuse-%d", time.Now().UnixNano()),
 		GuardianProfileID:    profile.ID,
 		CreatedBy:            creatorID,
@@ -1234,7 +1234,7 @@ func TestInviteToStudent_ConfirmedUpgrade_ReusedPendingInvitationGetsFlag(t *tes
 		RequestedByAccountID: &creatorID,
 		ApprovalStatus:       authModels.GuardianInvitationApprovalPending,
 	}
-	existing.SetTenantID(testpkg.Tenant(t))
+	existing.TenantID = testpkg.Tenant(t)
 	testpkg.InsertTestGuardianInvitation(t, env.db, existing)
 
 	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
@@ -1473,7 +1473,7 @@ func TestInviteToStudent_ConfirmedUpgrade_RequeuesOpenDirectInvitation(t *testin
 
 	// Earlier staff direct invite: open, token emailed, no approval required.
 	studentID := student.ID
-	existing := &authModels.GuardianInvitation{
+	existing := &testpkg.GuardianInvitation{
 		Token:             fmt.Sprintf("upgrade-requeue-%d", time.Now().UnixNano()),
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
@@ -1481,7 +1481,7 @@ func TestInviteToStudent_ConfirmedUpgrade_RequeuesOpenDirectInvitation(t *testin
 		StudentID:         &studentID,
 		ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
 	}
-	existing.SetTenantID(testpkg.Tenant(t))
+	existing.TenantID = testpkg.Tenant(t)
 	testpkg.InsertTestGuardianInvitation(t, env.db, existing)
 
 	// Parent confirms the upgrade (direct mode — approval is forced).
@@ -1551,7 +1551,7 @@ func TestInviteToStudent_ConfirmedUpgrade_RequeueRefreshesExpiry(t *testing.T) {
 	staleExpiry := time.Now().Add(2 * time.Minute)
 	sentAt := time.Now().Add(-46 * time.Hour)
 	emailError := "smtp timeout"
-	existing := &authModels.GuardianInvitation{
+	existing := &testpkg.GuardianInvitation{
 		Token:             fmt.Sprintf("upgrade-expiry-%d", time.Now().UnixNano()),
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
@@ -1561,7 +1561,7 @@ func TestInviteToStudent_ConfirmedUpgrade_RequeueRefreshesExpiry(t *testing.T) {
 		EmailSentAt:       &sentAt,
 		EmailError:        &emailError,
 	}
-	existing.SetTenantID(testpkg.Tenant(t))
+	existing.TenantID = testpkg.Tenant(t)
 	testpkg.InsertTestGuardianInvitation(t, env.db, existing)
 
 	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
@@ -1684,7 +1684,7 @@ func TestInviteToStudent_PlainReinviteKeepsResolvedInvitation(t *testing.T) {
 			student := testpkg.CreateTestStudent(t, env.db, "Plain", "Reinvite", "7k")
 			now := time.Now()
 			studentID := student.ID
-			existing := &authModels.GuardianInvitation{
+			existing := &testpkg.GuardianInvitation{
 				Token:             fmt.Sprintf("plain-reinvite-%s-%d", status, now.UnixNano()),
 				GuardianProfileID: profile.ID,
 				CreatedBy:         creatorID,
@@ -1696,7 +1696,7 @@ func TestInviteToStudent_PlainReinviteKeepsResolvedInvitation(t *testing.T) {
 				existing.ApprovedBy = &creatorID
 				existing.ApprovedAt = &now
 			}
-			existing.SetTenantID(testpkg.Tenant(t))
+			existing.TenantID = testpkg.Tenant(t)
 			// Cleanup: the test-level defer deletes every invitation of this
 			// profile, so no per-subtest cleanup (which would also delete the
 			// shared profile).

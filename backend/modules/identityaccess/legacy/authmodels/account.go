@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
@@ -92,28 +91,6 @@ func (a *Account) SetLastLogin(time time.Time) {
 }
 
 // PIN-related methods
-
-// HashPIN hashes a PIN using Argon2id
-func (a *Account) HashPIN(pin string) error {
-	hashedPIN, err := userpass.HashPassword(pin, nil)
-	if err != nil {
-		return err
-	}
-	a.PINHash = &hashedPIN
-	return nil
-}
-
-// VerifyPIN verifies a PIN against the stored hash
-func (a *Account) VerifyPIN(pin string) bool {
-	if a.PINHash == nil {
-		return false
-	}
-	isValid, err := userpass.VerifyPassword(pin, *a.PINHash)
-	if err != nil {
-		return false
-	}
-	return isValid
-}
 
 // HasPIN checks if the account has a PIN set
 func (a *Account) HasPIN() bool {

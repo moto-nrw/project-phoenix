@@ -14,7 +14,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -77,10 +76,6 @@ type GuardianServiceDependencies struct {
 	GuardianPhoneNumberRepo users.GuardianPhoneNumberRepository
 	StudentGuardianRepo     users.StudentGuardianRepository
 	GuardianInvitations     GuardianInvitations
-	AccountRepo             authModels.AccountRepository
-	AccountTenantRepo       authModels.AccountTenantRepository
-	AccountRoleRepo         authModels.AccountRoleRepository
-	RoleRepo                authModels.RoleRepository
 	StudentRepo             users.StudentRepository
 	PersonRepo              users.PersonRepository
 
@@ -1067,24 +1062,8 @@ func (s *GuardianService) GetInvitableGuardians(ctx context.Context) ([]*users.G
 
 // GetPendingInvitations retrieves the guardian invitations whose link can
 // still be spent.
-func (s *GuardianService) GetPendingInvitations(ctx context.Context) ([]*authModels.GuardianInvitation, error) {
-	records, err := s.GuardianInvitations.ListRedeemable(ctx)
-	if err != nil {
-		return nil, err
-	}
-	invitations := make([]*authModels.GuardianInvitation, 0, len(records))
-	for _, record := range records {
-		invitation := &authModels.GuardianInvitation{
-			Token: record.Token, GuardianProfileID: record.GuardianProfileID, CreatedBy: record.CreatedBy,
-			ExpiresAt: record.ExpiresAt, AcceptedAt: record.AcceptedAt, EmailSentAt: record.EmailSentAt,
-			EmailError: record.EmailError, StudentID: record.StudentID, ApprovalStatus: record.ApprovalStatus,
-		}
-		invitation.ID = record.ID
-		invitation.CreatedAt = record.CreatedAt
-		invitation.SetTenantID(record.TenantID)
-		invitations = append(invitations, invitation)
-	}
-	return invitations, nil
+func (s *GuardianService) GetPendingInvitations(ctx context.Context) ([]GuardianInvitationRecord, error) {
+	return s.GuardianInvitations.ListRedeemable(ctx)
 }
 
 // ============================================================================
