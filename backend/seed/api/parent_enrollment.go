@@ -121,6 +121,7 @@ func (s parentEnrollmentSeedStep) seedParentAccounts(ctx context.Context, rt *Ru
 			return nil, nil, fmt.Errorf("demo guardian index %d out of range", idx)
 		}
 		guardian := DemoGuardians[idx]
+		guardian.Email = scopedEmail(guardian.Email, rt.FixedSeeder.accountScope)
 		guardianKey := fmt.Sprintf("%s %s", guardian.FirstName, guardian.LastName)
 		guardianID, ok := rt.FixedSeeder.guardianIDs[guardianKey]
 		if !ok || guardianID == 0 {

@@ -425,6 +425,31 @@ jobs:
           "${RUNNER_TEMP}/phoenix" simulate status --profile anmeldung-wochenplan
           "${RUNNER_TEMP}/phoenix" simulate status --profile anmeldung-buchungen
 
+      # The public demo (#3456) seeds one such school per visitor into a
+      # database that already holds others. The duration is what a visitor
+      # waits for, so it is printed per school.
+      - name: Seed two demo schools into the same database and simulate their day
+        working-directory: backend
+        run: |
+          for slug in demo-smoke-eins demo-smoke-zwei; do
+            started=$(date +%s)
+            "${RUNNER_TEMP}/phoenix" seed \
+              --email "${OPERATOR_EMAIL}" \
+              --password "${OPERATOR_PASSWORD}" \
+              --pin 1234 \
+              --url http://localhost:8080 \
+              --profile vollbetrieb \
+              --tenant-slug "${slug}" \
+              --school-name "OGS ${slug}" \
+              --staff-password 'SeedSmoke1234%' \
+              --state "${RUNNER_TEMP}/${slug}.seed-state.json"
+            seeded=$(date +%s)
+            "${RUNNER_TEMP}/phoenix" simulate full-day --profile vollbetrieb \
+              --state "${RUNNER_TEMP}/${slug}.seed-state.json"
+            finished=$(date +%s)
+            echo "demo school ${slug}: seed $((seeded - started))s, full day $((finished - seeded))s"
+          done
+
       - name: Check seed coverage ratchet
         working-directory: backend
         env:

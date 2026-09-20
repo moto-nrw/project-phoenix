@@ -29,7 +29,10 @@ through `devbox run` when the current process has not loaded the project environ
 | Generate route docs | `docker compose run server go run . gendoc --routes` |
 
 The seeder is **dev-only**. Staging/production infrastructure belongs in data
-migrations or the admin UI, never the seeder. See Cleanup CLI below for cleanup
+migrations or the admin UI, never the seeder. The one deployed exception is the
+public demo environment (`APP_ENV=demo`, ADR 0027): `seed`, `simulate`,
+`seed-parents`, and the seed-token exposure name `demo` in their allow-lists;
+`staging` and `production` stay rejected. See Cleanup CLI below for cleanup
 command shapes: some commands delete data and silently ignore extra arguments.
 
 ## Cleanup CLI
