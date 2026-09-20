@@ -53,7 +53,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        306
+        307
       ],
       "tables": []
     },
@@ -20963,27 +20963,27 @@
         },
         {
           "file": "api/base.go",
-          "line": 506,
+          "line": 507,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 669,
+          "line": 670,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 907,
+          "line": 908,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1320,
+          "line": 1321,
           "declaration": "activeSchoolMemberships"
         },
         {
           "file": "api/base.go",
-          "line": 1335,
+          "line": 1336,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -20993,7 +20993,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 306,
+          "line": 307,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -21008,17 +21008,17 @@
         },
         {
           "file": "api/base.go",
-          "line": 378,
+          "line": 379,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 422,
+          "line": 423,
           "declaration": "withFileStorageWiring"
         },
         {
           "file": "api/base.go",
-          "line": 666,
+          "line": 667,
           "declaration": "type API"
         },
         {
@@ -21073,22 +21073,22 @@
       "locations": [
         {
           "file": "services/account_authentication_composition.go",
-          "line": 77,
+          "line": 79,
           "declaration": "sessionRepositoriesOf"
         },
         {
           "file": "services/account_authentication_composition.go",
-          "line": 164,
+          "line": 193,
           "declaration": "newSchoolDirectory"
         },
         {
           "file": "services/auth_test_helpers.go",
-          "line": 46,
+          "line": 47,
           "declaration": "type AuthTestModule"
         },
         {
           "file": "services/auth_test_helpers.go",
-          "line": 281,
+          "line": 284,
           "declaration": "IdentityAccessForTests"
         },
         {
