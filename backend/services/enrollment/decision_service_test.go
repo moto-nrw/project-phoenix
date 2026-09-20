@@ -160,7 +160,7 @@ func newDecisionServiceForTestWithPickupExtensions(
 			StudentRepo: repositories.NewCareStudents(repoFactory.Student, repoFactory.SchoolMembership()), PersonRepo: repoFactory.Person,
 			CareExitRepo: repoFactory.CareExit, CleanupRepo: repoFactory.CareExitCleanup,
 			WithdrawalRepo: repoFactory.CareWithdrawal, TagReleaser: repoFactory.StudentTagReleaser(),
-			AuditService:          usersService.NewStudentAuditService(repositories.NewStudentAudit(env.db)),
+			AuditService:          usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(env.db)),
 			BookingsAuthoritative: testBookingsAuthority(settings),
 			DB:                    env.db, Logger: slog.Default(),
 		})
@@ -212,7 +212,7 @@ func newDecisionServiceForTestWithPickupExtensions(
 		DepartureCompanions:       repoFactory.StudentCompanion,
 		DeleteDepartureCompanions: repoFactory.CarePlan().DeleteCompanionEdges,
 		OutboxEnqueuer:            outbox,
-		StudentAudit:              usersService.NewStudentAuditService(repositories.NewStudentAudit(env.db)),
+		StudentAudit:              usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(env.db)),
 		StudentConsents:           studentConsents,
 		CareWithdrawal:            careWithdrawal,
 		FrontendURL:               "http://localhost:3000",

@@ -207,7 +207,7 @@ func TestStudentService_ReplaceCompanions_ExtensionRecordsCompanionAudit(t *test
 		LastName:  "Confirm",
 	})
 	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	audit := usersService.NewStudentAuditService(repositories.NewStudentAudit(db))
+	audit := usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(db))
 	service := carelifecycle.NewStudentCompanionService(factory.Student, factory.StudentCompanion, audit)
 
 	subject := testpkg.CreateTestStudent(t, db, "AuditSubject", "Companion", "1a")

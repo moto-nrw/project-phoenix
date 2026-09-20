@@ -186,7 +186,7 @@ func newWithdrawalLifecycle(env *decisionTestEnv) carelifecycle.CareLifecycleSer
 		StudentRepo: repositories.NewCareStudents(env.repos.Student, env.repos.SchoolMembership()), PersonRepo: env.repos.Person,
 		CareExitRepo: env.repos.CareExit, CleanupRepo: env.repos.CareExitCleanup,
 		WithdrawalRepo: env.repos.CareWithdrawal, TagReleaser: env.repos.StudentTagReleaser(),
-		AuditService: usersService.NewStudentAuditService(repositories.NewStudentAudit(env.db)),
+		AuditService: usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(env.db)),
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
 			return env.settings.ResolveBool(ctx, configModel.KeyEnrollmentBookingsAuthoritative)
 		},
@@ -301,7 +301,7 @@ func (f *withdrawalRaceFixture) wireRaceServices(authoritative *bool) {
 		StudentRepo: repositories.NewCareStudents(repos.Student, repos.SchoolMembership()), PersonRepo: repos.Person,
 		CareExitRepo: repos.CareExit, CleanupRepo: repos.CareExitCleanup,
 		WithdrawalRepo: repos.CareWithdrawal, TagReleaser: repos.StudentTagReleaser(),
-		AuditService: usersService.NewStudentAuditService(repositories.NewStudentAudit(f.env.db)),
+		AuditService: usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(f.env.db)),
 		LockCareBookingWrites: func(ctx context.Context) error {
 			close(f.completionWaiting)
 			return f.recurrenceGate(ctx)

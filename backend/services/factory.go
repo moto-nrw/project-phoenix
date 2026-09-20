@@ -1760,6 +1760,7 @@ func newFactory(
 	guardianInvitationService := GuardianInvitationCapability(identityAccess)
 
 	caregiverCapabilityService := users.NewCaregiverCapabilityService(users.CaregiverCapabilityServiceDependencies{
+		RequestActorScope:      requestActorScope,
 		Identity:               caregiverIdentity{identityAccess},
 		AuthEventRepo:          repos.AuthEvent,
 		PersonRepo:             repos.Person,
@@ -1946,7 +1947,7 @@ func newFactory(
 		repos.Enrollment(),
 	))
 
-	studentAuditService := users.NewStudentAuditService(repositories.NewStudentAuditFor(persons))
+	studentAuditService := users.NewStudentAuditService(requestAuditActor, repositories.NewStudentAuditFor(persons))
 	careLifecycleService := carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
 		StudentRepo:    repositories.NewCareStudents(repos.Student, membership),
 		PersonRepo:     repos.Person,

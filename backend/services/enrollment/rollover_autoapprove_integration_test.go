@@ -73,7 +73,7 @@ func setupAutoApproveIntegrationEnvWithSettings(
 		DepartureCompanions:       repoFactory.StudentCompanion,
 		DeleteDepartureCompanions: repoFactory.CarePlan().DeleteCompanionEdges,
 		OutboxEnqueuer:            env.outbox,
-		StudentAudit:              usersService.NewStudentAuditService(repositories.NewStudentAudit(env.db)),
+		StudentAudit:              usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(env.db)),
 		FrontendURL:               "http://localhost:3000",
 		ParentsURL:                "http://parents.localhost:3000",
 		Settings:                  settings,

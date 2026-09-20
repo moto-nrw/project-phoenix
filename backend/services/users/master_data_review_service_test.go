@@ -268,7 +268,7 @@ func TestMasterDataReview_ApproveAppliesSchoolClass(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	audit := userService.NewStudentAuditService(repositories.NewStudentAudit(db))
+	audit := userService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(db))
 	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(reviewPermissions, repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, audit, testpkg.RequestReviewPolicy{}, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -436,7 +436,7 @@ func TestMasterDataReview_ApproveAppliesDepartureModes(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	audit := userService.NewStudentAuditService(repositories.NewStudentAudit(db))
+	audit := userService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(db))
 	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(reviewPermissions, repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, audit, testpkg.RequestReviewPolicy{}, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)

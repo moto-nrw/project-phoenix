@@ -11,7 +11,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -20,6 +19,7 @@ import (
 // CaregiverCapabilityServiceDependencies contains the repositories and services
 // required to manage caregiver capability on existing accounts.
 type CaregiverCapabilityServiceDependencies struct {
+	RequestActorScope      func(context.Context) (accountID int64, scope string)
 	Identity               CaregiverIdentity
 	AuthEventRepo          auditModels.AuthEventRepository
 	PersonRepo             userModels.PersonRepository
@@ -62,6 +62,9 @@ const caregiverCapabilityAuditIP = "0.0.0.0"
 func NewCaregiverCapabilityService(
 	deps CaregiverCapabilityServiceDependencies,
 ) CaregiverCapabilityService {
+	if deps.RequestActorScope == nil {
+		panic("request actor scope is required")
+	}
 	return &caregiverCapabilityService{
 		CaregiverCapabilityServiceDependencies: deps,
 		txHandler:                              tenant.NewTransactionRunner(),
@@ -346,12 +349,12 @@ func (s *caregiverCapabilityService) buildCapabilityAuditMetadata(
 		metadata["tenant_id"] = tenantID
 	}
 
-	claims := jwt.ClaimsFromCtx(ctx)
-	if claims.ID > 0 {
-		metadata["actor_account_id"] = claims.ID
+	actorID, actorScope := s.RequestActorScope(ctx)
+	if actorID > 0 {
+		metadata["actor_account_id"] = actorID
 	}
-	if claims.Scope != "" {
-		metadata["actor_scope"] = claims.Scope
+	if actorScope != "" {
+		metadata["actor_scope"] = actorScope
 	}
 
 	for key, value := range details {
