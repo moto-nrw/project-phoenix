@@ -51,6 +51,7 @@ import {
 import {
   fetchArrivalSettings,
   type CareDaysSource,
+  type SchoolPeriod,
 } from "~/lib/student-arrival-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
@@ -224,6 +225,9 @@ export function StudentCreateModal({
   const [careDaysSource, setCareDaysSource] = useState<CareDaysSource | null>(
     null,
   );
+  const [schoolPeriods, setSchoolPeriods] = useState<readonly SchoolPeriod[]>(
+    [],
+  );
   const [arrivalSettingsLoading, setArrivalSettingsLoading] = useState(false);
   const [arrivalSettingsLoadError, setArrivalSettingsLoadError] =
     useState(false);
@@ -266,6 +270,7 @@ export function StudentCreateModal({
       setPickupSchedules([]);
       setCarePlanModalOpen(false);
       setCareDaysSource(null);
+      setSchoolPeriods([]);
       setArrivalSettingsLoading(false);
       setArrivalSettingsLoadError(false);
       setGuardianPickerOpen(false);
@@ -283,11 +288,15 @@ export function StudentCreateModal({
     setArrivalSettingsLoadError(false);
     void fetchArrivalSettings()
       .then((settings) => {
-        if (!cancelled) setCareDaysSource(settings.care_days_source);
+        if (!cancelled) {
+          setCareDaysSource(settings.care_days_source);
+          setSchoolPeriods(settings.school_periods ?? []);
+        }
       })
       .catch(() => {
         if (!cancelled) {
           setCareDaysSource(null);
+          setSchoolPeriods([]);
           setArrivalSettingsLoadError(true);
         }
       })
@@ -902,6 +911,7 @@ export function StudentCreateModal({
         <CareWeeklyPlanModal
           isOpen={carePlanModalOpen}
           careDaysSource={careDaysSource}
+          schoolPeriods={schoolPeriods}
           onClose={() => setCarePlanModalOpen(false)}
           initialArrivalSchedules={arrivalSchedules}
           initialPickupSchedules={pickupSchedules}

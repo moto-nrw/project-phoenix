@@ -98,7 +98,13 @@ image digests and configuration.
 Run **Build and Push Docker Images** with branch `main` and environment `demo`.
 Only `workflow_dispatch` can deploy demo. Pushes to `main` still deploy only
 production; pushes to `development` still deploy only staging. The demo job
-uses GitHub environment `demo` and concurrency group `deploy-demo`.
+uses GitHub environment `demo` and concurrency group `deploy-demo`. Each deploy
+also starts the standing demo school (`demo-runtime`) on the released backend
+image; see [standing demo school](standing-demo.md#deployed-sidecar).
+
+Release scripts are copied to `~/scripts/demo/`. Staging and production use
+their own `~/scripts/<environment>/`, so a demo deploy cannot overwrite a script
+that another environment on the same host is executing.
 
 For recovery, run **Manual Rollback**, also from `main`, and choose `demo`.
 It shares the deploy concurrency group and server-side lock. Three complete

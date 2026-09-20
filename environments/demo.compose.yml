@@ -165,6 +165,46 @@ services:
     networks:
       - demo
 
+  # Standing demo school (docs/operations/standing-demo.md). deploy-remote.sh
+  # pins the image to the server's revision and starts it with the application.
+  demo-runtime:
+    image: ghcr.io/moto-nrw/phoenix-server:demo
+    command: ["./main", "demo", "--url", "http://server:8080", "--heartbeat", "/tmp/demo-heartbeat"]
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+    # No published port, state file or upload volume belongs to the sidecar.
+    network_mode: service:server
+    read_only: true
+    tmpfs:
+      - /tmp
+    environment:
+      APP_ENV: ${APP_ENV:?APP_ENV is required}
+      TZ: ${TZ:?TZ is required}
+      DEMO_DB_DSN: ${DEMO_DB_DSN:?DEMO_DB_DSN is required}
+      DB_MAX_OPEN_CONNS: ${DB_MAX_OPEN_CONNS:?DB_MAX_OPEN_CONNS is required}
+      DB_MAX_IDLE_CONNS: ${DB_MAX_IDLE_CONNS:?DB_MAX_IDLE_CONNS is required}
+      DB_CONN_MAX_LIFETIME: ${DB_CONN_MAX_LIFETIME:?DB_CONN_MAX_LIFETIME is required}
+      DB_CONN_MAX_IDLE_TIME: ${DB_CONN_MAX_IDLE_TIME:?DB_CONN_MAX_IDLE_TIME is required}
+      PHOENIX_DEMO_PASSWORD: ${PHOENIX_DEMO_PASSWORD:?PHOENIX_DEMO_PASSWORD is required}
+      OPERATOR_EMAIL: ${OPERATOR_EMAIL:?OPERATOR_EMAIL is required}
+      OPERATOR_PASSWORD: ${OPERATOR_PASSWORD:?OPERATOR_PASSWORD is required}
+      OGS_DEVICE_PIN: ${OGS_DEVICE_PIN:?OGS_DEVICE_PIN is required}
+    logging:
+      driver: journald
+      options:
+        tag: demo-runtime
+    healthcheck:
+      # Every successful tick (5-8 s apart) rewrites the heartbeat. A frozen or
+      # failing runner turns unhealthy instead of leaving a silent, static demo.
+      test: ["CMD-SHELL", "[ -n \"$$(find /tmp/demo-heartbeat -mmin -2)\" ]"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      # The first start seeds the whole school before its first tick.
+      start_period: 15m
+
   # Explicit one-shot job, excluded from normal service startup.
   migrate:
     image: ghcr.io/moto-nrw/phoenix-server:demo

@@ -26,10 +26,22 @@ volume() {
   printf '%s\n' "$mounted"
 }
 
+# Everything that writes to the database or uploads: server and frontend
+# everywhere, plus the demo stack's demo-runtime. Read from the current Compose
+# file, so staging, production and older demo snapshots never name the sidecar.
+app_services() {
+  local listed
+  listed=$(compose config --services)
+  if grep -qx demo-runtime <<< "$listed"; then echo 'server frontend demo-runtime'; else echo 'server frontend'; fi
+}
+
 ensure_stopped() {
-  local service container
-  for service in server frontend; do
+  local service container services
+  services=$(app_services)
+  for service in $services; do
     container=$(compose ps -a -q "$service")
+    # The sidecar has no container until its first deployment has started it.
+    [ -n "$container" ] || [ "$service" != demo-runtime ] || continue
     [ -n "$container" ] || fail "Missing $service container"
     [ "$(docker inspect --format '{{.State.Running}}' "$container")" = false ] || fail "$service is still running"
   done
@@ -96,7 +108,8 @@ create() {
   printf 'services:\n' > "$bundle/images.yml"
   : > "$bundle/images.tsv"
   while IFS= read -r service; do
-    if [ "$service" = migrate ]; then
+    # migrate and demo-runtime run the serving backend image by contract.
+    if [ "$service" = migrate ] || [ "$service" = demo-runtime ]; then
       container=$(compose ps -a -q server)
     else
       container=$(compose ps -a -q "$service")
@@ -137,9 +150,11 @@ restore() {
   verify
   dedicated_cluster
   # All preflight checks happen before stopping or deleting anything.
-  compose stop server frontend
+  local uploads services
+  services=$(app_services)
+  # shellcheck disable=SC2086 # service names, split on purpose
+  compose stop $services
   ensure_stopped
-  local uploads
   cp "$bundle/.env" .env
   cp "$bundle/compose.yml" docker-compose.yml
   compose up -d --wait postgres
@@ -209,5 +224,6 @@ case "${1:-}" in
     [[ "$bundle" = /* && "$bundle" != *','* && "$bundle" != *$'\n'* ]] || fail 'Backup path must be absolute and contain no comma or newline'
     if [ "$1" = verify-files ]; then verify_files; else "$1"; fi
     ;;
+  app-services) app_services;;
   *) fail 'Expected create, verify or restore';;
 esac
