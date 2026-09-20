@@ -834,6 +834,49 @@ describe("CareWeeklyPlanEditForm", () => {
     });
   });
 
+  // #3372: the lesson choice copies the school's end time into the arrival
+  // field; what is saved stays a plain clock time.
+  it("saves the end time of the lesson picked for the arrival", async () => {
+    const { onSubmitWeekly } = renderForm({
+      schoolPeriods: [
+        { period: 5, end_time: "12:35" },
+        { period: 6, end_time: "13:20" },
+      ],
+    });
+
+    fireEvent.click(
+      screen.getByRole("combobox", {
+        name: "Montag: Ankunft nach Schulstunde",
+      }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: "5. Stunde (12:35)" }));
+
+    expect(
+      screen.getByLabelText("Ankunft", { selector: "#weekly-arrival-1" }),
+    ).toHaveValue("12:35");
+    // A day outside care has no arrival, so its lesson choice is locked too.
+    expect(
+      screen.getByRole("combobox", {
+        name: "Mittwoch: Ankunft nach Schulstunde",
+      }),
+    ).toBeDisabled();
+
+    save();
+    await waitFor(() => expect(onSubmitWeekly).toHaveBeenCalled());
+    expect(onSubmitWeekly.mock.calls[0]?.[0]).toMatchObject({
+      arrivalSchedules: [
+        { weekday: 1, expected_arrival: "12:35" },
+        { weekday: 2, expected_arrival: "08:15" },
+      ],
+    });
+  });
+
+  it("offers no lesson choice while the school maintains no lesson end times", () => {
+    renderForm();
+
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  });
+
   // Business rule changed with #2414: an arrival note hangs on the care day,
   // not on a time — the time may legitimately come from the class.
   it("rejects a weekly arrival note without a care day", async () => {

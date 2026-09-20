@@ -54,8 +54,18 @@ export interface ArrivalData {
 
 export type CareDaysSource = "weekly_plan" | "bookings";
 
+/** A lesson the school maintains an end time for (#3372). */
+export interface SchoolPeriod {
+  /** 1-based number of the lesson. */
+  period: number;
+  /** "HH:MM" */
+  end_time: string;
+}
+
 export interface ArrivalSettings {
   care_days_source: CareDaysSource;
+  /** In lesson order; empty when the school maintains no lesson end times. */
+  school_periods: SchoolPeriod[];
 }
 
 export interface ArrivalScheduleInput {
