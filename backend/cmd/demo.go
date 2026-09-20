@@ -38,7 +38,7 @@ var demoCmd = &cobra.Command{
 		}
 		ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
-		db, err := database.DBConn()
+		db, err := database.DBConnForDemo()
 		if err != nil {
 			return err
 		}

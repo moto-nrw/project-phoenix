@@ -21,7 +21,10 @@ func (m *Module) LatestDemoVisits(ctx context.Context, webDeviceID int64, fromDa
 	if fromDate == "" || untilDate == "" {
 		return nil, errors.New("demo attendance window is required")
 	}
-	rows, err := m.ListVisitLocations(ctx, VisitLocationFilter{LatestPerStudent: true})
+	rows, err := m.ListVisitLocations(ctx, VisitLocationFilter{
+		VisitFilter:      VisitFilter{OpenOnly: true},
+		LatestPerStudent: true,
+	})
 	if err != nil {
 		return nil, err
 	}

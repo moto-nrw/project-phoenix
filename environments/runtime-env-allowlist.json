@@ -3,12 +3,13 @@
     "APP_ENV",
     "DB_CONN_MAX_IDLE_TIME",
     "DB_CONN_MAX_LIFETIME",
-    "DB_DSN",
+    "DEMO_DB_DSN",
     "DB_MAX_IDLE_CONNS",
     "DB_MAX_OPEN_CONNS",
     "OGS_DEVICE_PIN",
     "OPERATOR_EMAIL",
     "OPERATOR_PASSWORD",
+    "PHOENIX_DEMO_PASSWORD",
     "TZ"
   ],
   "frontend": [
@@ -108,6 +109,7 @@
     "OPERATOR_EMAIL",
     "OPERATOR_PASSWORD",
     "PHOENIX_AUTH_PASSWORD",
+    "PHOENIX_DEMO_PASSWORD",
     "TZ"
   ]
 }

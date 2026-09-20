@@ -47,3 +47,24 @@ func TestLatestDemoVisitsReadsOnlyTodayAndYesterdayAttendance(t *testing.T) {
 	assert.Contains(t, byStudent, students[1].studentID, "yesterday remains available for the midnight grace period")
 	assert.NotContains(t, byStudent, students[2].studentID)
 }
+
+func TestLatestDemoVisitsExcludesClosedRoomVisits(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	module, err := compose.New(compose.Dependencies{DB: db, Observe: func(compose.Observation) {}})
+	require.NoError(t, err)
+	student := testpkg.CreateTestStudent(t, db, "Demo", "Closed visit", "3a")
+	activity := testpkg.CreateTestActivityGroup(t, db, "Demo closed visit")
+	room := testpkg.CreateTestRoom(t, db, "Demo closed visit")
+	group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	closedAt := time.Now().Add(-time.Minute)
+	testpkg.CreateTestVisit(t, db, student.ID, group.ID, closedAt.Add(-time.Hour), &closedAt)
+
+	today := testpkg.TodayDate()
+	visits, err := module.LatestDemoVisits(ctx, 0, today.AddDays(-1).String(), today.String())
+	require.NoError(t, err)
+	for _, visit := range visits {
+		assert.NotEqual(t, student.ID, visit.StudentID)
+	}
+}

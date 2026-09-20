@@ -45,3 +45,19 @@ func TestServeDSNMissingAndInvalidConfig(t *testing.T) {
 		assert.NotContains(t, err.Error(), "fixture-secret")
 	}
 }
+
+func TestDemoDSNCredentialFreeEndpoint(t *testing.T) {
+	t.Parallel()
+	env := testEnvironment{
+		"DEMO_DB_DSN":           "postgres://phoenix_demo@postgres:5432/postgres?sslmode=disable",
+		"PHOENIX_DEMO_PASSWORD": "fixture:p@ss/word?#%",
+	}
+	dsn, err := resolveDemoDSNFrom(env.getenv)
+	require.NoError(t, err)
+	parsed, err := url.Parse(dsn)
+	require.NoError(t, err)
+	assert.Equal(t, "phoenix_demo", parsed.User.Username())
+	password, present := parsed.User.Password()
+	assert.True(t, present)
+	assert.Equal(t, env["PHOENIX_DEMO_PASSWORD"], password)
+}

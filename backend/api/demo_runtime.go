@@ -41,7 +41,7 @@ func NewDemoRuntime(db *bun.DB) (*DemoRuntime, error) {
 	if err != nil {
 		return nil, err
 	}
-	pgRuntime, err := database.NewPostgresUnitOfWork(db, func(context.Context, time.Duration) {})
+	pgRuntime, err := database.NewDemoPostgresUnitOfWork(db, func(context.Context, time.Duration) {})
 	if err != nil {
 		return nil, err
 	}
