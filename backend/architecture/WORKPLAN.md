@@ -3,10 +3,10 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 19.09.2026 · Ratchet 682 · Composition 667 · Policy-Epoche 15 · 501 Regeln mit
+Stand 20.09.2026 · Ratchet 677 · Composition 667 · Policy-Epoche 15 · 501 Regeln mit
 `convert it to exact debt` · 92.928 LOC unter `modules/*/legacy`
 
-Summenprobe: 265 + 61 + 61 + 43 + 28 + 19 + 205 = 682 = `wc -l backend/architecture/legacy.jsonl`.
+Summenprobe: 260 + 61 + 61 + 43 + 28 + 19 + 205 = 677 = `wc -l backend/architecture/legacy.jsonl`.
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Entscheidungen
@@ -16,16 +16,15 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [ ] [#3414](https://github.com/moto-nrw/project-phoenix/issues/3414) Projection-Owner `operator-dashboard-view`: ADR oder auflösen
 - [ ] Gehört der Träger-Strang [#2809](https://github.com/moto-nrw/project-phoenix/issues/2809) / [#2821](https://github.com/moto-nrw/project-phoenix/issues/2821) zu #2580?
 
-## Jetzt vergebbar · 265 Keys
+## Jetzt vergebbar · 260 Keys
 
 - [ ] [#2733](https://github.com/moto-nrw/project-phoenix/issues/2733) services/enrollment, repositories/enrollment — 69
 - [ ] [#2742](https://github.com/moto-nrw/project-phoenix/issues/2742) services/education, repositories/education, api/groups, api/admin — 63
 - [ ] [#2728](https://github.com/moto-nrw/project-phoenix/issues/2728) services/users — 45
-- [ ] [#2734](https://github.com/moto-nrw/project-phoenix/issues/2734) api/enrollment — 33
+- [ ] [#2734](https://github.com/moto-nrw/project-phoenix/issues/2734) api/enrollment — 32
 - [ ] [#2738](https://github.com/moto-nrw/project-phoenix/issues/2738) api/common — 23
 - [ ] [#2727](https://github.com/moto-nrw/project-phoenix/issues/2727) database/repositories/users — 17
 - [ ] [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) models/users — 11
-- [ ] [#2740](https://github.com/moto-nrw/project-phoenix/issues/2740) services/platform, repositories/platform, api/platform — 4
 
 ## Legacy-Nester auflösen · 92.928 LOC, 0 Keys
 
