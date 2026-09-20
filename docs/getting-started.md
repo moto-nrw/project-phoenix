@@ -172,6 +172,16 @@ Reset the development database before recreating this deterministic profile:
 docker compose run server go run . migrate reset
 ```
 
+To add one more demo school to a database that is already seeded, give the run
+its own slug and restrict it to one profile. Every account of that school then
+carries the slug (`demo1.ogs-nord@mail.de`), and the school joins the existing
+Demo-Träger:
+
+```bash
+docker compose run server go run . seed --email op@example.com --password 'Test1234%' --pin 1234 --url http://server:8080 \
+  --profile vollbetrieb --tenant-slug ogs-nord --school-name 'OGS Nord' --state ogs-nord.seed-state.json
+```
+
 Use the seed command's `--randomize` flag only for an intentionally disposable,
 uniquely named school. The Go reader can migrate legacy version 2 state files;
 new consumers must use version 3 and select profiles through the shared reader.

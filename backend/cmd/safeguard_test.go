@@ -42,3 +42,23 @@ func TestAssertNonProductionURL(t *testing.T) {
 		}
 	}
 }
+
+// The internal host "server" is local in every compose project, so APP_ENV
+// decides: the public demo environment passes, staging and production do not.
+func TestAssertDevOnlyTarget(t *testing.T) {
+	t.Parallel()
+
+	for _, env := range []string{"", "local", "development", "dev", "test", "demo", "DEMO", "  demo  "} {
+		if err := assertDevOnlyTarget("http://server:8080", env); err != nil {
+			t.Errorf("expected APP_ENV=%q to be allowed, got: %v", env, err)
+		}
+	}
+	for _, env := range []string{"staging", "production", "prod", "preview", "demo-staging"} {
+		if err := assertDevOnlyTarget("http://server:8080", env); err == nil {
+			t.Errorf("expected APP_ENV=%q to be blocked, but it was allowed", env)
+		}
+	}
+	if err := assertDevOnlyTarget("https://demo.moto-app.de", "demo"); err == nil {
+		t.Error("expected the public demo host to be blocked even with APP_ENV=demo")
+	}
+}

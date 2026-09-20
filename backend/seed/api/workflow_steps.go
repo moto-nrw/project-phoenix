@@ -64,6 +64,7 @@ func (seedMasterDataStep) Name() string { return "Stammdaten seeding" }
 
 func (s seedMasterDataStep) Run(ctx context.Context, rt *Runtime) error {
 	fixedSeeder := NewFixedSeeder(rt.Client, rt.Verbose, s.seeder.options.StaffPassword)
+	fixedSeeder.accountScope = s.seeder.accountScope()
 	fixedResult, err := fixedSeeder.Seed(ctx)
 	if err != nil {
 		return err
@@ -192,49 +193,50 @@ func (s printSummaryStep) Run(_ context.Context, rt *Runtime) error {
 }
 
 func fullDemoWorkflow(seeder *Seeder) Workflow {
-	return Workflow{
-		Name: "full-demo",
-		Steps: []Step{
-			healthCheckStep{},
-			operatorLoginStep{},
-			bootstrapTenantStep{seeder: seeder},
-			configureProfileStep{definition: seeder.definition},
-			seedMasterDataStep{seeder: seeder},
-			seedPlanningDemoStep{},
-			seedStudentStatusVariantsStep{},
-			seedOperationsDemoStep{},
-			seedHomeLayoutStep{},
-			seedStaffMasterDataStep{},
-			seedImportAuditStep{},
-			seedAuditLifecycleStep{},
-			seedPrivacyConsentsStep{},
-			seedFamilyProtectionStep{},
-			markStudentsSickStep{},
-			seedCareExitsStep{},
-			seedAnnouncementsStep{},
-			seedStaffMessagingStep{},
-			seedStaffNoticesStep{},
-			seedFileStorageStep{},
-			// Vor der App-Historie: der IoT-Sitzungsstart erzeugt den echten
-			// NFC-Arbeitsblock. Nach einem App-Checkout am selben Tag verhindert
-			// die Zeiterfassung bewusst einen erneuten Auto-Check-in.
-			seedStatisticsDemoStep{},
-			seedTimeTrackingHistoryStep{},
-			seedDataAccessAuditStep{},
-			// Rührt weder an der Zeiterfassung noch am NFC-Block: legt nur
-			// vergangene Kurstermine samt Anwesenheit an (#2891).
-			seedCourseParticipationStep{},
-			parentEnrollmentSeedStep{seeder: seeder},
-			seedParentEngagementStep{},
-			seedGradeTransitionStep{},
-			seedParentLetterStep{},
-			seedInactiveAccountStep{},
-			verifyProfileStep{definition: seeder.definition},
+	steps := []Step{
+		healthCheckStep{},
+		operatorLoginStep{},
+		bootstrapTenantStep{seeder: seeder},
+		configureProfileStep{definition: seeder.definition},
+		seedMasterDataStep{seeder: seeder},
+		seedPlanningDemoStep{},
+		seedStudentStatusVariantsStep{},
+		seedOperationsDemoStep{},
+		seedHomeLayoutStep{},
+		seedStaffMasterDataStep{},
+		seedImportAuditStep{},
+		seedAuditLifecycleStep{},
+		seedPrivacyConsentsStep{},
+		seedFamilyProtectionStep{},
+		markStudentsSickStep{},
+		seedCareExitsStep{},
+		seedAnnouncementsStep{},
+		seedStaffMessagingStep{},
+		seedStaffNoticesStep{},
+		seedFileStorageStep{},
+		// Vor der App-Historie: der IoT-Sitzungsstart erzeugt den echten
+		// NFC-Arbeitsblock. Nach einem App-Checkout am selben Tag verhindert
+		// die Zeiterfassung bewusst einen erneuten Auto-Check-in.
+		seedStatisticsDemoStep{},
+		seedTimeTrackingHistoryStep{},
+		seedDataAccessAuditStep{},
+		// Rührt weder an der Zeiterfassung noch am NFC-Block: legt nur
+		// vergangene Kurstermine samt Anwesenheit an (#2891).
+		seedCourseParticipationStep{},
+		parentEnrollmentSeedStep{seeder: seeder},
+		seedParentEngagementStep{},
+		seedGradeTransitionStep{},
+		seedParentLetterStep{},
+		seedInactiveAccountStep{},
+		verifyProfileStep{definition: seeder.definition},
+	}
+	if seeder.options.OnlyProfile == "" {
+		steps = append(steps,
 			manualProfileStep{seeder: seeder},
 			seedEnrollmentWeeklyProfileStep{seeder: seeder},
 			seedEnrollmentBookingsProfileStep{seeder: seeder},
-			buildStateStep{seeder: seeder},
-			printSummaryStep{seeder: seeder},
-		},
+		)
 	}
+	steps = append(steps, buildStateStep{seeder: seeder}, printSummaryStep{seeder: seeder})
+	return Workflow{Name: "full-demo", Steps: steps}
 }
