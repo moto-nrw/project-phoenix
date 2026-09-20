@@ -21,6 +21,7 @@ import (
 // Organisation & Tenancy provisioning seams are bound to (#3253).
 type operatorProvisioningSources struct {
 	repos          *repositories.Factory
+	accounts       repositories.OperatorAccountDirectory
 	organizations  organizationtenancy.Capability
 	adapters       repositories.OperatorProvisioningAdapters
 	sessions       identityaccess.AccountSessionMaintenance
@@ -40,7 +41,7 @@ func newOperatorProvisioning(sources operatorProvisioningSources) (organizationt
 			repos: sources.repos, sessions: sources.sessions,
 			invitations: sources.invitations, provisioning: sources.provisioning,
 			administration: sources.administration, schoolIdentity: sources.schoolIdentity,
-			roles: sources.roles,
+			roles: sources.roles, accounts: sources.accounts,
 		},
 		Devices:           sources.adapters.Devices,
 		People:            sources.adapters.People,
@@ -60,9 +61,10 @@ type provisioningRoles interface {
 }
 
 // provisioningIdentity binds provisioning to public identity capabilities
-// and the remaining account and membership repositories.
+// and the remaining account repository.
 type provisioningIdentity struct {
 	repos          *repositories.Factory
+	accounts       repositories.OperatorAccountDirectory
 	sessions       identityaccess.AccountSessionMaintenance
 	invitations    identityaccess.SchoolInvitations
 	provisioning   identityaccess.AccountProvisioning
@@ -191,7 +193,7 @@ func (p provisioningIdentity) AssignRole(ctx context.Context, tenantID, accountI
 }
 
 func (p provisioningIdentity) ListSchoolAccounts(ctx context.Context, tenantID int64) ([]organizationCompose.SchoolAccount, error) {
-	accounts, err := p.repos.AccountTenant.ListAccountsByTenantID(ctx, tenantID)
+	accounts, err := p.accounts.ListAccountsByTenantID(ctx, tenantID)
 	if err != nil || accounts == nil {
 		return nil, err
 	}
@@ -203,7 +205,7 @@ func (p provisioningIdentity) ListSchoolAccounts(ctx context.Context, tenantID i
 }
 
 func (p provisioningIdentity) ListOrganizationAccounts(ctx context.Context, organizationID int64) ([]organizationCompose.OrganizationAccount, error) {
-	accounts, err := p.repos.AccountTenant.ListAccountsByOrganizationID(ctx, organizationID)
+	accounts, err := p.accounts.ListAccountsByOrganizationID(ctx, organizationID)
 	if err != nil || accounts == nil {
 		return nil, err
 	}
@@ -218,7 +220,7 @@ func (p provisioningIdentity) ListOrganizationAccounts(ctx context.Context, orga
 }
 
 func (p provisioningIdentity) ListAllAccounts(ctx context.Context) ([]organizationCompose.OrganizationAccount, error) {
-	accounts, err := p.repos.AccountTenant.ListAllAccounts(ctx)
+	accounts, err := p.accounts.ListAllAccounts(ctx)
 	if err != nil || accounts == nil {
 		return nil, err
 	}

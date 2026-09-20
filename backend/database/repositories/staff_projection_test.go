@@ -1,37 +1,28 @@
-package authpostgres_test
+package repositories_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// caregiverChainQuery mirrors the seam the account listings type-assert on.
-// The auth repository no longer joins users.staff / users.teachers itself;
-// School Membership answers the chain (#2667).
-type caregiverChainQuery interface {
-	CaregiverChainByPersonIDs(context.Context, []int64) (map[int64]authModels.CaregiverChain, error)
-}
-
 func TestCaregiverChainsComeFromSchoolMembership(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	membership, err := repositories.NewSchoolMembership(db)
+	require.NoError(t, err)
 
-	chains, ok := factory.AccountTenant.(caregiverChainQuery)
-	require.True(t, ok, "the account listings still resolve caregiver chains")
+	chains := repositories.CaregiverChainsForTests(membership)
 
 	teacher := testpkg.CreateTestTeacher(t, db, "Kette", "Lehrkraft")
 	plainStaff := testpkg.CreateTestStaff(t, db, "Kette", "Ohne Profil")
 	stranger := testpkg.CreateTestPerson(t, db, "Kette", "Ohne Anstellung")
 
-	staffRow, err := factory.Staff.FindByID(ctx, teacher.StaffID)
+	staffRow, err := membership.FindStaff(ctx, teacher.StaffID)
 	require.NoError(t, err)
 
 	result, err := chains.CaregiverChainByPersonIDs(ctx, []int64{staffRow.PersonID, plainStaff.PersonID, stranger.ID})
@@ -50,7 +41,7 @@ func TestCaregiverChainsComeFromSchoolMembership(t *testing.T) {
 	_, found = result[stranger.ID]
 	assert.False(t, found, "a person without a staff record has no caregiver chain")
 
-	require.NoError(t, factory.Staff.Delete(ctx, plainStaff.ID))
+	require.NoError(t, membership.DeleteStaff(ctx, plainStaff.ID))
 	result, err = chains.CaregiverChainByPersonIDs(ctx, []int64{plainStaff.PersonID})
 	require.NoError(t, err)
 	assert.Empty(t, result, "an offboarded staff member is no caregiver")

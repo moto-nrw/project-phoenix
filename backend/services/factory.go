@@ -2624,6 +2624,7 @@ func newFactory(
 		return nil, fmt.Errorf("compose operator provisioning adapters: %w", err)
 	}
 	operatorProvisioningService, err := newOperatorProvisioning(operatorProvisioningSources{
+		accounts:       repositories.NewOperatorAccountDirectory(identityAccess, persons, membership, organizations),
 		repos:          repos,
 		organizations:  organizations,
 		adapters:       provisioningAdapters,

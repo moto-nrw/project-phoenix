@@ -12,17 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 )
 
-type accountTenantSchoolRows interface {
-	ListAccountsBySchoolIDs(context.Context, []int64) ([]authModels.OrgAccountInfo, error)
-}
-
-type schoolAccountTenantRepository struct {
-	authModels.AccountTenantRepository
-	raw     accountTenantSchoolRows
-	schools organizationtenancy.Query
-}
-
-func (r schoolAccountTenantRepository) ListAccountsByOrganizationID(ctx context.Context, organizationID int64) ([]authModels.OrgAccountInfo, error) {
+func (r operatorAccountDirectory) ListAccountsByOrganizationID(ctx context.Context, organizationID int64) ([]OrgAccountInfo, error) {
 	schools, err := r.schools.ListSchoolsByOrganization(ctx, organizationID)
 	if err != nil {
 		return nil, fmt.Errorf("load organization schools for accounts: %w", err)
@@ -30,7 +20,7 @@ func (r schoolAccountTenantRepository) ListAccountsByOrganizationID(ctx context.
 	return r.listAccounts(ctx, activeSchoolIDs(schools, false))
 }
 
-func (r schoolAccountTenantRepository) ListAllAccounts(ctx context.Context) ([]authModels.OrgAccountInfo, error) {
+func (r operatorAccountDirectory) ListAllAccounts(ctx context.Context) ([]OrgAccountInfo, error) {
 	schools, err := r.schools.ListNonDeletedSchools(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("load schools for accounts: %w", err)
@@ -38,8 +28,8 @@ func (r schoolAccountTenantRepository) ListAllAccounts(ctx context.Context) ([]a
 	return r.listAccounts(ctx, activeSchoolIDs(schools, false))
 }
 
-func (r schoolAccountTenantRepository) listAccounts(ctx context.Context, schoolIDs []int64) ([]authModels.OrgAccountInfo, error) {
-	rows, err := r.raw.ListAccountsBySchoolIDs(ctx, schoolIDs)
+func (r operatorAccountDirectory) listAccounts(ctx context.Context, schoolIDs []int64) ([]OrgAccountInfo, error) {
+	rows, err := r.accountsBySchoolIDs(ctx, schoolIDs)
 	if err != nil || len(rows) == 0 {
 		return rows, err
 	}
@@ -54,7 +44,7 @@ func (r schoolAccountTenantRepository) listAccounts(ctx context.Context, schoolI
 		}
 		rows[index].SchoolName = school.Name
 	}
-	slices.SortStableFunc(rows, func(left, right authModels.OrgAccountInfo) int {
+	slices.SortStableFunc(rows, func(left, right OrgAccountInfo) int {
 		if order := compareStrings(left.SchoolName, right.SchoolName); order != 0 {
 			return order
 		}

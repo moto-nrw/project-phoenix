@@ -14,17 +14,18 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// newSchoolProjectedAccountTenantRepository composes the repository the
-// way the service graph does: person names and caregiver facts through the
-// People Directory (#2661), then the school projections on top.
-func newSchoolProjectedAccountTenantRepository(t *testing.T, db *bun.DB) authModels.AccountTenantRepository {
+// newSchoolProjectedAccountTenantRepository uses the serving owner projection.
+func newSchoolProjectedAccountTenantRepository(t *testing.T, db *bun.DB) repositories.OperatorAccountDirectory {
 	t.Helper()
-	capability, err := repositories.NewOrganizationTenancy(db)
+	schools, err := repositories.NewOrganizationTenancy(db)
 	require.NoError(t, err)
-	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
+	persons, err := repositories.NewPeopleDirectory(db)
 	require.NoError(t, err)
-	factory.BindOrganizationTenancy(capability)
-	return factory.AccountTenant
+	membership, err := repositories.NewSchoolMembership(db)
+	require.NoError(t, err)
+	identity, err := repositories.NewIdentityAccessForTests(db)
+	require.NoError(t, err)
+	return repositories.NewOperatorAccountDirectory(identity, persons, membership, schools)
 }
 
 func TestAccountTenantRepository_CreateAndQuery(t *testing.T) {
@@ -255,7 +256,7 @@ func TestAccountTenantRepository_ListAccountsByTenantID_IncludesPendingInvitatio
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
 	}()
 
-	repo := authRepo.NewAccountTenantRepository(db)
+	repo := newSchoolProjectedAccountTenantRepository(t, db)
 	accounts, err := repo.ListAccountsByTenantID(ctx, tenantID)
 	require.NoError(t, err)
 
@@ -354,7 +355,7 @@ func TestAccountTenantRepository_ListAllAccounts(t *testing.T) {
 }
 
 // containsAccount reports whether the result list includes an entry for the given email.
-func containsAccount(accounts []authModels.OrgAccountInfo, email string) bool {
+func containsAccount(accounts []repositories.OrgAccountInfo, email string) bool {
 	for _, a := range accounts {
 		if a.Email == email {
 			return true

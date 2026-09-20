@@ -42,29 +42,6 @@ type InvitationTokenRepository interface {
 	List(ctx context.Context, filters map[string]interface{}) ([]*InvitationToken, error)
 }
 
-// TenantAccountInfo holds flattened account data for a given tenant, used by operator dashboard.
-type TenantAccountInfo struct {
-	AccountID           int64  `bun:"account_id" json:"account_id"`
-	Email               string `bun:"email" json:"email"`
-	Active              bool   `bun:"active" json:"active"`
-	FirstName           string `bun:"first_name" json:"first_name"`
-	LastName            string `bun:"last_name" json:"last_name"`
-	RoleName            string `bun:"role_name" json:"role_name"`
-	PedagogicRole       string `bun:"pedagogic_role" json:"pedagogic_role"`
-	Status              string `bun:"status" json:"status"`
-	HasAdminRole        bool   `bun:"has_admin_role" json:"has_admin_role"`
-	HasUserRole         bool   `bun:"has_user_role" json:"has_user_role"`
-	HasCaregiverProfile bool   `bun:"has_caregiver_profile" json:"has_caregiver_profile"`
-	IsActiveCaregiver   bool   `bun:"is_active_caregiver" json:"is_active_caregiver"`
-}
-
-// OrgAccountInfo extends TenantAccountInfo with school context for org-level listings.
-type OrgAccountInfo struct {
-	TenantAccountInfo
-	SchoolID   int64  `bun:"school_id" json:"school_id"`
-	SchoolName string `bun:"school_name" json:"school_name"`
-}
-
 // AccountTenantAccessInfo describes one school an account has (or had) access
 // to. Unlike the account listings above it is keyed by account, not by tenant,
 // and therefore spans every school in the platform — it backs the operator-only
@@ -87,17 +64,6 @@ type AccountTenantAccessInfo struct {
 	HasStaff         bool       `bun:"has_staff" json:"has_staff"`
 }
 
-// CaregiverChain is the staff and teacher record behind one person at one
-// school. The account listings combine it with the People Directory's
-// person rows to derive the caregiver facts (#2661).
-type CaregiverChain struct {
-	PersonID    int64  `bun:"person_id"`
-	TenantID    int64  `bun:"tenant_id"`
-	StaffID     int64  `bun:"staff_id"`
-	TeacherID   int64  `bun:"teacher_id"`
-	TeacherRole string `bun:"teacher_role"`
-}
-
 // AccountTenantRepository defines operations for querying account-tenant mappings.
 type AccountTenantRepository interface {
 	Create(ctx context.Context, mapping *AccountTenant) error
@@ -109,9 +75,6 @@ type AccountTenantRepository interface {
 	// revocation until the caller's transaction commits, which is what makes a
 	// membership check and a token write in that transaction atomic.
 	ExistsActiveByAccountAndTenantForShare(ctx context.Context, accountID, tenantID int64) (bool, error)
-	ListAccountsByTenantID(ctx context.Context, tenantID int64) ([]TenantAccountInfo, error)
-	ListAccountsByOrganizationID(ctx context.Context, organizationID int64) ([]OrgAccountInfo, error)
-	ListAllAccounts(ctx context.Context) ([]OrgAccountInfo, error)
 }
 
 type StaffCalendarFeedOwner struct {

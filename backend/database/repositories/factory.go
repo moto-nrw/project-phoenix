@@ -341,12 +341,6 @@ func (f *Factory) BindOrganizationTenancy(capability organizationtenancy.Capabil
 		return
 	}
 	f.organizationTenancyBound = true
-	rawAccountTenant, ok := f.AccountTenant.(interface {
-		ListAccountsBySchoolIDs(context.Context, []int64) ([]authModels.OrgAccountInfo, error)
-	})
-	if ok {
-		f.AccountTenant = schoolAccountTenantRepository{AccountTenantRepository: f.AccountTenant, raw: rawAccountTenant, schools: capability}
-	}
 	if f.Account != nil {
 		f.Account = schoolAccountRepository{AccountRepository: f.Account, schools: capability}
 	}
