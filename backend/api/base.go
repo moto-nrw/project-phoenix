@@ -420,7 +420,7 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 // It hands both to the service factory, which composes the module where the
 // announcement ports live.
 func withFileStorageWiring(build func(services.FileStorageWiring) (*services.Factory, error)) (*services.Factory, error) {
-	uploads, err := apiCommon.UploadsBackend()
+	uploads, err := apiCommon.PrivateUploadsBackend()
 	if err != nil {
 		return nil, fmt.Errorf("resolve uploads backend: %w", err)
 	}

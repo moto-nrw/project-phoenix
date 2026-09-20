@@ -93,12 +93,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 483
+	policyTempRulesTotal = 476
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 581
+	policyTempRulesCompatTotal = 574
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -147,9 +147,6 @@ var policyTempRulesFamilies = map[string]int{
 
 	// #3214, #3224 — closed.
 	"facilities": 2,
-
-	// #2707 — closed.
-	"file-storage": 7,
 
 	// #3214, #3218, #3220, #3224 — closed; #3350 (PR #3408) added one.
 	"group-live-view": 5,
