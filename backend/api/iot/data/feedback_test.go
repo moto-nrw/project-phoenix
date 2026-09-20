@@ -195,9 +195,9 @@ func TestSubmitFeedback_Alumnus(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Graduate", "4a")
 
 	_, err := ctx.db.NewUpdate().
-		TableExpr(`users.students`).
+		TableExpr(`users.student_school_memberships`).
 		Set("status = ?", "alumnus").
-		Where("id = ?", student.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(t.Context())
 	require.NoError(t, err)
 

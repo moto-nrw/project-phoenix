@@ -47,9 +47,9 @@ func TestMasterDataReview_GraduatedChildLeavesQueueAndRefusesDecisions(t *testin
 
 	// The child graduates (grade-transition apply).
 	_, err = db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_school_memberships").
 		Set("status = ?", string(userModels.StudentStatusAlumnus)).
-		Where("id = ?", chain.StudentID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", chain.StudentID).
 		Exec(context.Background())
 	require.NoError(t, err)
 

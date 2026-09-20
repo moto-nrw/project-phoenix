@@ -377,7 +377,7 @@ func TestCleanup_PerStudentAuditRows_OneRowPerAffectedStudent(t *testing.T) {
 	assert.Equal(t, 2, r.StudentsAffected)
 
 	// The DELETE has fired — student IDs are gone via CASCADE? No: students
-	// are in users.students, which is not cascaded by activity_instances
+	// are in users.student_profiles, which is not cascaded by activity_instances
 	// deletion. So s1/s2 still exist, and their audit rows persist.
 	var auditCount int
 	auditCount, err = f.db.NewSelect().

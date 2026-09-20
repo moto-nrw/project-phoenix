@@ -27,14 +27,12 @@ func requireStudentsBusDaysColumn(t *testing.T, db *bun.DB) {
 			SELECT 1
 			FROM information_schema.columns
 			WHERE table_schema = 'users'
-			  AND table_name = 'students'
+			  AND table_name = 'student_care_profiles'
 			  AND column_name = 'bus_days'
 		)
 	`).Scan(testpkg.Ctx(t), &exists)
 	require.NoError(t, err)
-	if !exists {
-		t.Skip("users.students.bus_days column is not present in this test database")
-	}
+	require.True(t, exists, "users.student_care_profiles.bus_days column is not present in this test database")
 }
 
 // ============================================================================
@@ -270,9 +268,9 @@ func assignStudentToGroupDirect(t *testing.T, db *bun.DB, studentID, groupID int
 	t.Helper()
 	ctx := testpkg.Ctx(t)
 	_, err := db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_school_memberships").
 		Set("group_id = ?", groupID).
-		Where("id = ?", studentID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", studentID).
 		Exec(ctx)
 	require.NoError(t, err)
 }
@@ -386,9 +384,9 @@ func TestStudentRepository_RemoveFromGroup(t *testing.T) {
 
 		// Remove using direct method as workaround
 		_, err := db.NewUpdate().
-			TableExpr("users.students").
+			TableExpr("users.student_school_memberships").
 			Set("group_id = NULL").
-			Where("id = ?", student.ID).
+			Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 			Exec(ctx)
 		require.NoError(t, err)
 
@@ -426,9 +424,9 @@ func TestStudentRepository_FindBySchoolClass(t *testing.T) {
 		uniqueClass := fmt.Sprintf("TrimmedClass%d", time.Now().UnixNano())
 		student := testpkg.CreateTestStudent(t, db, "TrimmedClass", "Test", uniqueClass)
 		_, err := db.NewUpdate().
-			TableExpr(`users.students`).
+			TableExpr(`users.student_school_memberships`).
 			Set(`school_class = ?`, "  "+uniqueClass+"  ").
-			Where(`id = ?`, student.ID).
+			Where(`student_profile_id = ? AND deleted_at IS NULL`, student.ID).
 			Exec(ctx)
 		require.NoError(t, err)
 
@@ -488,9 +486,9 @@ func TestStudentRepository_CountEnrolledLeavesGraduatesOut(t *testing.T) {
 	require.NoError(t, err)
 	require.Positive(t, before)
 
-	_, err = db.NewUpdate().TableExpr("users.students").
+	_, err = db.NewUpdate().TableExpr("users.student_school_memberships").
 		Set("status = ?", users.StudentStatusAlumnus).
-		Where("id = ?", student.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 
@@ -508,10 +506,10 @@ func TestStudentRepository_ListByGroupIDsIncludingAlumni(t *testing.T) {
 
 	group := testpkg.CreateTestEducationGroup(t, db, fmt.Sprintf("CandidateGroup%d", time.Now().UnixNano()))
 	student := testpkg.CreateTestStudent(t, db, "Candidate", "Test", "1a")
-	_, err := db.NewUpdate().TableExpr("users.students").
+	_, err := db.NewUpdate().TableExpr("users.student_school_memberships").
 		Set("group_id = ?", group.ID).
 		Set("status = ?", users.StudentStatusAlumnus).
-		Where("id = ?", student.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 
@@ -700,12 +698,12 @@ func TestStudentRepository_FindOverlappingWithGroups(t *testing.T) {
 		{past.ID, "enrolled_until", pastUntil},
 		{future.ID, "enrolled_from", futureFrom},
 	} {
-		_, err := db.NewUpdate().TableExpr(`users.students`).Set(update.column+` = ?`, update.value).Where(`id = ?`, update.id).Exec(ctx)
+		_, err := db.NewUpdate().TableExpr(`users.student_school_memberships`).Set(update.column+` = ?`, update.value).Where(`student_profile_id = ? AND deleted_at IS NULL`, update.id).Exec(ctx)
 		require.NoError(t, err)
 	}
 	// A graduated child stays out even while the interval overlaps: alumni are
 	// soft-deleted, and the statistics room aggregate excludes them too (#2606).
-	_, err := db.NewUpdate().TableExpr(`users.students`).Set(`status = ?`, users.StudentStatusAlumnus).Where(`id = ?`, alumnus.ID).Exec(ctx)
+	_, err := db.NewUpdate().TableExpr(`users.student_school_memberships`).Set(`status = ?`, users.StudentStatusAlumnus).Where(`student_profile_id = ? AND deleted_at IS NULL`, alumnus.ID).Exec(ctx)
 	require.NoError(t, err)
 
 	// A day after the window: nobody gets the immediate-activation override,
@@ -725,9 +723,9 @@ func TestStudentRepository_FindOverlappingWithGroups(t *testing.T) {
 	assert.Equal(t, overlappingUntil, *ids[overlapping.ID].EnrolledUntil)
 
 	_, err = db.NewUpdate().
-		TableExpr(`users.students`).
+		TableExpr(`users.student_school_memberships`).
 		Set(`status = ?`, users.StudentStatusInactive).
-		Where(`id = ?`, overlapping.ID).
+		Where(`student_profile_id = ? AND deleted_at IS NULL`, overlapping.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 
@@ -786,11 +784,11 @@ func TestStudentRepository_FindOverlappingWithGroupsImmediateActivation(t *testi
 		{pending.ID, users.StudentStatusPending, &startsLater},
 		{dormant.ID, users.StudentStatusInactive, nil},
 	} {
-		query := db.NewUpdate().TableExpr(`users.students`).Set(`status = ?`, update.status)
+		query := db.NewUpdate().TableExpr(`users.student_school_memberships`).Set(`status = ?`, update.status)
 		if update.from != nil {
 			query = query.Set(`enrolled_from = ?`, *update.from)
 		}
-		_, err := query.Where(`id = ?`, update.id).Exec(ctx)
+		_, err := query.Where(`student_profile_id = ? AND deleted_at IS NULL`, update.id).Exec(ctx)
 		require.NoError(t, err)
 	}
 
@@ -868,7 +866,7 @@ func setPhotoPath(t *testing.T, db *bun.DB, studentID int64, path *string) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
 	_, err := db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_profiles").
 		Set("photo_path = ?", path).
 		Where("id = ?", studentID).
 		Exec(ctx)

@@ -62,6 +62,10 @@ func migrateWithLogger(ctx context.Context, db *bun.DB, logger *slog.Logger) err
 	)
 
 	// Run migrations
+	ctx, err = studentContractRunContext(ctx, db)
+	if err != nil {
+		return err
+	}
 	group, err := migrator.Migrate(ctx)
 	if err != nil {
 		runLog.logFailure(ctx, err)
@@ -148,6 +152,10 @@ func resetWithLogger(ctx context.Context, db *bun.DB, logger *slog.Logger) error
 
 	// Run migrations
 	runLog.logger.InfoContext(ctx, "replaying all migrations", "count", len(Migrations.Sorted()))
+	ctx, err := studentContractRunContext(ctx, db)
+	if err != nil {
+		return err
+	}
 	group, err := migrator.Migrate(ctx)
 	if err != nil {
 		runLog.logFailure(ctx, err)

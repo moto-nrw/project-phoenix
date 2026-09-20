@@ -44,9 +44,9 @@ func careWithdrawals(db *bun.DB) testpkg.CareWithdrawalWriter {
 func clearCompanionNote(t *testing.T, db *bun.DB, studentID int64) {
 	t.Helper()
 	_, err := db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_care_profiles").
 		Set("departure_companion_note = NULL").
-		Where("id = ?", studentID).
+		Where("membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", studentID).
 		Exec(context.Background())
 	require.NoError(t, err)
 }

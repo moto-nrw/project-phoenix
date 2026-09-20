@@ -1,0 +1,1 @@
+{"groups":[{"name":"student-contract","rules":[{"alert":"StudentContractObservation","expr":"((max(1 - phoenix_student_contract_observation_ok) or vector(1)) + (max((time() - phoenix_student_contract_observation_timestamp_seconds) > bool 180) or vector(1))) > 0"}]}]}

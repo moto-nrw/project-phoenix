@@ -32,26 +32,27 @@ func fillWideStudentFields(t *testing.T, db *bun.DB, studentID, personID int64) 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	_, err := db.NewRaw(`UPDATE users.students SET
-			guardian_name = 'Erika Mustermann',
-			guardian_contact = '0221 1234567',
-			guardian_email = 'erika.mustermann@example.com',
-			guardian_phone = '+49 170 1234567',
+	guardian := testpkg.CreateTestGuardianProfileNamed(t, db, "Erika", "Mustermann", "erika.mustermann@example.com")
+	testpkg.CreateTestStudentGuardianLink(t, db, studentID, guardian.ID, "parent")
+	_, err := db.NewRaw(`UPDATE users.student_profiles SET
 			address_street = 'Musterstrasse 12a',
 			address_city = 'Koeln',
 			address_postal_code = '50667',
 			extra_info = 'Geschwisterkind in Klasse 2b, kommt meist mit dem Rad',
+			agb_accepted_at = now(),
+			data_processing_accepted_at = now(),
+			email_contact_accepted_at = now()
+		WHERE id = ?`, studentID).Exec(ctx)
+	require.NoError(t, err, "failed to fill wide profile fields")
+	_, err = db.NewRaw(`UPDATE users.student_care_profiles SET
 			health_info = 'Laktoseintoleranz, Notfallmedikament im Gruppenraum',
 			supervisor_notes = 'Braucht manchmal etwas mehr Zeit bei Uebergaengen',
 			pickup_status = 'Wird abgeholt',
 			bus_days = '{"mon":true,"tue":true,"wed":true,"thu":true,"fri":true}'::jsonb,
 			pickup_days = '{"mon":true,"tue":true,"wed":true,"thu":true,"fri":true}'::jsonb,
 			departure_days = '{"mon":"pickup","tue":"pickup","wed":"pickup","thu":"pickup","fri":"pickup"}'::jsonb,
-			allowed_departure_modes = '{"mon":["pickup"],"tue":["pickup"],"wed":["pickup"],"thu":["pickup"],"fri":["pickup"]}'::jsonb,
-			agb_accepted_at = now(),
-			data_processing_accepted_at = now(),
-			email_contact_accepted_at = now()
-		WHERE id = ?`, studentID).Exec(ctx)
+			allowed_departure_modes = '{"mon":["pickup"],"tue":["pickup"],"wed":["pickup"],"thu":["pickup"],"fri":["pickup"]}'::jsonb
+		WHERE membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)`, studentID).Exec(ctx)
 	require.NoError(t, err, "failed to fill wide student fields")
 
 	_, err = db.NewRaw(`UPDATE users.persons SET birthday = DATE '2019-02-02' WHERE id = ?`, personID).Exec(ctx)

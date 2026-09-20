@@ -106,8 +106,8 @@ func TestStudentList_UsesBookingParticipationButKeepsAdministrationAndLivePresen
 	device := testpkg.CreateTestDevice(t, tc.db, "participation-live-reader")
 	setEnrolledUntil(t, tc, student.ID, today.AddDays(-1))
 	testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, time.Now().Add(-time.Hour), nil)
-	_, err := tc.db.NewUpdate().TableExpr("users.students").
-		Set("status = ?", userModels.StudentStatusAlumnus).Where("id = ?", student.ID).Exec(t.Context())
+	_, err := tc.db.NewUpdate().TableExpr("users.student_school_memberships").
+		Set("status = ?", userModels.StudentStatusAlumnus).Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).Exec(t.Context())
 	require.NoError(t, err)
 	assert.True(t, listedIDs("")[student.ID], "actual attendance overrides derived dates and technical status")
 }
@@ -535,9 +535,9 @@ func TestStudentList_CareStatusDecidesWhichSideIsShown(t *testing.T) {
 	})
 
 	t.Run("group-only archive view hides alumni", func(t *testing.T) {
-		_, err := tc.db.NewUpdate().TableExpr("users.students").
+		_, err := tc.db.NewUpdate().TableExpr("users.student_school_memberships").
 			Set("status = ?", userModels.StudentStatusAlumnus).
-			Where("id = ?", ended.ID).
+			Where("student_profile_id = ? AND deleted_at IS NULL", ended.ID).
 			Exec(t.Context())
 		require.NoError(t, err)
 
@@ -637,9 +637,9 @@ func flipCareExitTokenHex(t *testing.T, token string) string {
 func setEnrolledUntil(t *testing.T, tc *testContext, studentID int64, day timezone.Date) {
 	t.Helper()
 	_, err := tc.db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_school_memberships").
 		Set("enrolled_until = ?", day).
-		Where("id = ?", studentID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", studentID).
 		Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 }

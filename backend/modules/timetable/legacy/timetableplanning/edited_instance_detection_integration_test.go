@@ -109,10 +109,10 @@ func replaceScenarioTarget(t *testing.T, s *scenarioSetup, targetType string) {
 		group := testpkg.CreateTestEducationGroupForTenant(t, s.db, s.tenantID, "Zielgruppe-2526")
 		target.EducationGroupID = &group.ID
 		_, err := s.db.NewUpdate().
-			Table("users.students").
+			Table("users.student_school_memberships").
 			Set("group_id = ?", group.ID).
 			Where("tenant_id = ?", s.tenantID).
-			Where("id = ?", s.students[2]).
+			Where("student_profile_id = ? AND deleted_at IS NULL", s.students[2]).
 			Exec(s.ctx)
 		require.NoError(t, err)
 	}

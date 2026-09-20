@@ -63,9 +63,12 @@ func MissingStudentError(op string) error {
 	return &base.DatabaseError{Op: op, Err: errors.Join(base.ErrNotFound, sql.ErrNoRows, ErrStudentRowMissing)}
 }
 
-// Student represents a student in the system
+// Student is the joined student DTO consumed by the retained API and service
+// interfaces. It has no owned storage table: writes go through People
+// Directory, School Membership and Care Plan. The column tags support scans
+// of explicit projections, not persistence through the retired student shape.
 type Student struct {
-	base.Model `bun:"schema:users,table:students"`
+	base.Model
 	base.TenantModel
 	PersonID          int64   `bun:"person_id,notnull" json:"person_id"`
 	SchoolClass       string  `bun:"school_class,notnull" json:"school_class"`

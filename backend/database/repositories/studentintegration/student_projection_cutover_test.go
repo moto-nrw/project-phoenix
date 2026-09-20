@@ -1,7 +1,6 @@
 package studentintegration_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -46,8 +45,9 @@ func TestStudentOwnersWorkWithoutRollbackView(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	person := testpkg.CreateTestPerson(t, db, "No", "RollbackView")
-	_, err := db.NewRaw("DROP VIEW users.students").Exec(context.Background())
-	require.NoError(t, err)
+	var retired bool
+	require.NoError(t, db.NewRaw("SELECT to_regclass('users.students') IS NULL AND to_regclass('users.students_legacy') IS NULL").Scan(ctx, &retired))
+	require.True(t, retired)
 	directory := buildStudentOwnersModule(t, db)
 	record, err := directory.CreateStudent(ctx, peopledirectory.StudentWrite{Record: peopledirectory.StudentRecord{PersonID: person.ID, SchoolClass: "1a", Status: "active"}})
 	require.NoError(t, err)
@@ -71,7 +71,8 @@ func TestStudentOwnersWorkWithoutRollbackView(t *testing.T) {
 
 func TestRollbackViewSupportsOwnerCreatedStudents(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupIsolatedTestDB(t)
+	testpkg.RestoreStudentCompatibilityBeforeContract(t, db)
 	ctx := testpkg.Ctx(t)
 	person := testpkg.CreateTestPerson(t, db, "Rollback", "NewOwner")
 	directory := buildStudentOwnersModule(t, db)

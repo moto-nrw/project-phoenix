@@ -67,8 +67,8 @@ func TestGradeTransitionWorkflow_Fingerprint_PromotionToGraduateNamedClassIsNotG
 
 	// And the child was not graduated behind that refused apply.
 	var status string
-	require.NoError(t, db.NewSelect().TableExpr("users.students").Column("status").
-		Where("id = ?", student.ID).Scan(ctx, &status))
+	require.NoError(t, db.NewSelect().TableExpr("users.student_school_memberships").Column("status").
+		Where("student_profile_id = ?", student.ID).Where("deleted_at IS NULL").Scan(ctx, &status))
 	assert.Equal(t, string(users.StudentStatusActive), status)
 
 	// The freshly reviewed graduation fingerprint is accepted.

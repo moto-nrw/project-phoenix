@@ -173,7 +173,7 @@ func createSplitRequestChild(t *testing.T, s *scenarioSetup, studentID int64) in
 
 func createSplitRequestChildInPhase(t *testing.T, s *scenarioSetup, phaseID, studentID int64) int64 {
 	t.Helper()
-	suffix := time.Now().UnixNano()
+	suffix := testpkg.UniqueSuffix()
 	var requestID int64
 	require.NoError(t, s.db.NewRaw(`
 		INSERT INTO enrollment.requests

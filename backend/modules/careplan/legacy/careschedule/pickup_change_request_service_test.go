@@ -499,9 +499,9 @@ func TestPickupChangeApprovalRejectsDateAfterPlannedCareEnd(t *testing.T) {
 	req := seedPickupChangeRequest(t, f, date)
 	lastCareDay := date.AddDays(-1)
 	_, err := f.db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_school_memberships").
 		Set("enrolled_until = ?", lastCareDay).
-		Where("id = ?", f.chain.StudentID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", f.chain.StudentID).
 		Exec(ctx)
 	require.NoError(t, err)
 

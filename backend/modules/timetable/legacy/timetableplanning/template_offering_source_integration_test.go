@@ -121,7 +121,7 @@ func loadTemplateGroup(t *testing.T, s *scenarioSetup, templateID int64) *activi
 }
 
 // linkApprovedChildToOffering attaches an approved request-child (with a
-// live users.students row) to the offering so the create-time resync can
+// live student membership) to the offering so the create-time resync can
 // seed the template roster — the same path Franziska uses in the editor.
 func linkApprovedChildToOffering(
 	t *testing.T,
@@ -132,9 +132,9 @@ func linkApprovedChildToOffering(
 ) {
 	t.Helper()
 	require.NotNil(t, offering)
-	// Grade filter derives the Jahrgang from users.students.school_class.
+	// Grade filter derives the Jahrgang from users.student_school_memberships.school_class.
 	_, err := s.db.NewRaw(
-		`UPDATE users.students SET school_class = ? WHERE id = ?`,
+		`UPDATE users.student_school_memberships SET school_class = ? WHERE student_profile_id = ? AND deleted_at IS NULL`,
 		schoolClass, studentID,
 	).Exec(s.ctx)
 	require.NoError(t, err)

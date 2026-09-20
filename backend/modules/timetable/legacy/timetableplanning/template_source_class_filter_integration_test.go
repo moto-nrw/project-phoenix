@@ -166,7 +166,7 @@ func TestTemplateSourceClassFilter_SeedsOnlyTheFilteredClass(t *testing.T) {
 	assert.Nil(t, stored.SourceGradeLevels, "class and grade filter are mutually exclusive")
 }
 
-// The class name is free text in users.students.school_class. Matching must
+// The class name is free text in users.student_school_memberships.school_class. Matching must
 // ignore case and padding, or a school typing "1B" silently loses children.
 func TestTemplateSourceClassFilter_MatchesCaseInsensitively(t *testing.T) {
 	t.Parallel()
@@ -226,7 +226,7 @@ func TestTemplateSourceClassFilter_ClassChangeMovesTheChild(t *testing.T) {
 	require.Empty(t, sourcedStudentIDs(t, s, terminB.TemplateID))
 
 	_, err := s.db.NewRaw(
-		`UPDATE users.students SET school_class = ? WHERE id = ?`, "1b", s.students[0],
+		`UPDATE users.student_school_memberships SET school_class = ? WHERE student_profile_id = ? AND deleted_at IS NULL`, "1b", s.students[0],
 	).Exec(s.ctx)
 	require.NoError(t, err)
 	require.NoError(t, offeringSourceResyncer(t, s).ResyncOfferingSourcedTemplates(s.ctx, classSourceResyncDate))

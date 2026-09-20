@@ -742,9 +742,9 @@ func TestResyncOfferingSourcedTemplates_FollowsClassChange(t *testing.T) {
 
 	// Promotion: the child moves from Jahrgang 2 into Jahrgang 3.
 	_, err := env.db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_school_memberships").
 		Set("school_class = ?", "3a").
-		Where("id = ?", studentID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", studentID).
 		Exec(ctx)
 	require.NoError(t, err)
 

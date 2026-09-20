@@ -1018,7 +1018,7 @@
         174
       ],
       "tables": [
-        "users.students"
+        "users.student_school_memberships"
       ]
     },
     {
@@ -1895,11 +1895,10 @@
       "declaration": "TestStudentRepository_CompanionNoteSchemaCompatibility",
       "target": "database/repositories.NewFactory",
       "lines": [
-        432
+        428
       ],
       "tables": [
-        "users.student_care_profiles",
-        "users.students"
+        "users.student_care_profiles"
       ]
     },
     {
@@ -1908,7 +1907,7 @@
       "declaration": "TestStudentRepository_DepartureDaysRoundtrip",
       "target": "database/repositories.NewFactory",
       "lines": [
-        61
+        57
       ],
       "tables": []
     },
@@ -1918,7 +1917,7 @@
       "declaration": "TestStudentRepository_StaleDeparturePlanIsRebased",
       "target": "database/repositories.NewFactory",
       "lines": [
-        511
+        505
       ],
       "tables": []
     },
@@ -2031,7 +2030,7 @@
         38
       ],
       "tables": [
-        "users.students"
+        "users.student_school_memberships"
       ]
     },
     {
@@ -2043,7 +2042,7 @@
         91
       ],
       "tables": [
-        "users.students"
+        "users.student_school_memberships"
       ]
     },
     {
@@ -2241,7 +2240,7 @@
       "declaration": "TestStudentRepository_PickupDaysRoundtrip",
       "target": "database/repositories.NewFactory",
       "lines": [
-        41
+        39
       ],
       "tables": []
     },
@@ -2321,7 +2320,7 @@
       "declaration": "TestStudentRepository_AssignToGroup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        353
+        351
       ],
       "tables": []
     },
@@ -2331,7 +2330,7 @@
       "declaration": "TestStudentRepository_ClassRoster",
       "target": "database/repositories.NewFactory",
       "lines": [
-        457
+        455
       ],
       "tables": []
     },
@@ -2341,10 +2340,10 @@
       "declaration": "TestStudentRepository_CountEnrolledLeavesGraduatesOut",
       "target": "database/repositories.NewFactory",
       "lines": [
-        483
+        481
       ],
       "tables": [
-        "users.students"
+        "users.student_school_memberships"
       ]
     },
     {
@@ -2353,7 +2352,7 @@
       "declaration": "TestStudentRepository_CountWithOptions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        535
+        533
       ],
       "tables": []
     },
@@ -2363,7 +2362,7 @@
       "declaration": "TestStudentRepository_Create",
       "target": "database/repositories.NewFactory",
       "lines": [
-        49
+        47
       ],
       "tables": []
     },
@@ -2373,7 +2372,7 @@
       "declaration": "TestStudentRepository_Delete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        240
+        238
       ],
       "tables": [
         "users.persons"
@@ -2385,7 +2384,7 @@
       "declaration": "TestStudentRepository_FindByGroupID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        285
+        283
       ],
       "tables": []
     },
@@ -2395,7 +2394,7 @@
       "declaration": "TestStudentRepository_FindByGroupIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        318
+        316
       ],
       "tables": []
     },
@@ -2405,7 +2404,7 @@
       "declaration": "TestStudentRepository_FindByID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        160
+        158
       ],
       "tables": []
     },
@@ -2415,7 +2414,7 @@
       "declaration": "TestStudentRepository_FindByIDForUpdate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        842
+        840
       ],
       "tables": []
     },
@@ -2425,7 +2424,7 @@
       "declaration": "TestStudentRepository_FindByPersonID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        184
+        182
       ],
       "tables": []
     },
@@ -2435,10 +2434,10 @@
       "declaration": "TestStudentRepository_FindBySchoolClass",
       "target": "database/repositories.NewFactory",
       "lines": [
-        410
+        408
       ],
       "tables": [
-        "users.students"
+        "users.student_school_memberships"
       ]
     },
     {
@@ -2447,10 +2446,10 @@
       "declaration": "TestStudentRepository_FindOverlappingWithGroups",
       "target": "database/repositories.NewFactory",
       "lines": [
-        681
+        679
       ],
       "tables": [
-        "users.students"
+        "users.student_school_memberships"
       ]
     },
     {
@@ -2459,10 +2458,10 @@
       "declaration": "TestStudentRepository_FindOverlappingWithGroupsImmediateActivation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        769
+        767
       ],
       "tables": [
-        "users.students"
+        "users.student_school_memberships"
       ]
     },
     {
@@ -2471,10 +2470,10 @@
       "declaration": "TestStudentRepository_ListByGroupIDsIncludingAlumni",
       "target": "database/repositories.NewFactory",
       "lines": [
-        506
+        504
       ],
       "tables": [
-        "users.students"
+        "users.student_school_memberships"
       ]
     },
     {
@@ -2483,10 +2482,10 @@
       "declaration": "TestStudentRepository_RemoveFromGroup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        376
+        374
       ],
       "tables": [
-        "users.students"
+        "users.student_school_memberships"
       ]
     },
     {
@@ -2495,7 +2494,7 @@
       "declaration": "TestStudentRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        207
+        205
       ],
       "tables": []
     },
@@ -2505,7 +2504,7 @@
       "declaration": "newGroupProjectionFactory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        566
+        564
       ],
       "tables": []
     },
@@ -2518,7 +2517,7 @@
         28
       ],
       "tables": [
-        "users.students"
+        "users.student_school_memberships"
       ]
     },
     {
@@ -4238,6 +4237,7 @@
       "tables": [
         "auth.guardian_invitations",
         "users.guardian_profiles",
+        "users.student_profiles",
         "users.students",
         "users.students_guardians"
       ]
@@ -4307,7 +4307,7 @@
       ],
       "tables": [
         "users.student_data_change_requests",
-        "users.students"
+        "users.student_school_memberships"
       ]
     },
     {
@@ -4554,7 +4554,7 @@
       ],
       "tables": [
         "users.persons",
-        "users.students"
+        "users.student_school_memberships"
       ]
     },
     {

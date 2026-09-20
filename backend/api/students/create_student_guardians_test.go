@@ -163,7 +163,7 @@ func TestCreateStudent_GuardianFailureRollsBackStudent(t *testing.T) {
 			Where("first_name = ? AND last_name = ?", firstName, lastName).
 			Scan(ctx, &personIDs); err == nil {
 			for _, pid := range personIDs {
-				if _, err := tc.db.NewDelete().Table("users.students").Where("person_id = ?", pid).Exec(ctx); err != nil {
+				if _, err := tc.db.NewDelete().Table("users.student_profiles").Where("person_id = ?", pid).Exec(ctx); err != nil {
 					t.Logf("cleanup students: %v", err)
 				}
 				if _, err := tc.db.NewDelete().Table("users.persons").Where("id = ?", pid).Exec(ctx); err != nil {
@@ -230,7 +230,7 @@ func TestCreateStudent_InvalidGuardianPhoneRollsBackStudent(t *testing.T) {
 			Where("first_name = ? AND last_name = ?", firstName, lastName).
 			Scan(ctx, &personIDs); err == nil {
 			for _, pid := range personIDs {
-				if _, err := tc.db.NewDelete().Table("users.students").Where("person_id = ?", pid).Exec(ctx); err != nil {
+				if _, err := tc.db.NewDelete().Table("users.student_profiles").Where("person_id = ?", pid).Exec(ctx); err != nil {
 					t.Logf("cleanup students: %v", err)
 				}
 				if _, err := tc.db.NewDelete().Table("users.persons").Where("id = ?", pid).Exec(ctx); err != nil {
@@ -278,7 +278,7 @@ func assertGuardianBadRequestNoOrphan(
 			Where("first_name = ? AND last_name = ?", firstName, lastName).
 			Scan(ctx, &personIDs); err == nil {
 			for _, pid := range personIDs {
-				if _, err := tc.db.NewDelete().Table("users.students").Where("person_id = ?", pid).Exec(ctx); err != nil {
+				if _, err := tc.db.NewDelete().Table("users.student_profiles").Where("person_id = ?", pid).Exec(ctx); err != nil {
 					t.Logf("cleanup students: %v", err)
 				}
 				if _, err := tc.db.NewDelete().Table("users.persons").Where("id = ?", pid).Exec(ctx); err != nil {

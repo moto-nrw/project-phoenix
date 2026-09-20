@@ -2363,7 +2363,7 @@ func TestDecisionService_Decide_ConsentAuditFailureRollsBackFreshStudent(t *test
 	)
 
 	studentCountBefore, err := env.db.NewSelect().
-		TableExpr("users.students").
+		TableExpr("users.student_profiles").
 		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Count(ctx)
 	require.NoError(t, err)
@@ -2381,7 +2381,7 @@ func TestDecisionService_Decide_ConsentAuditFailureRollsBackFreshStudent(t *test
 	require.ErrorIs(t, decideErr, auditErr)
 
 	studentCountAfter, err := env.db.NewSelect().
-		TableExpr("users.students").
+		TableExpr("users.student_profiles").
 		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Count(ctx)
 	require.NoError(t, err)
@@ -3049,7 +3049,7 @@ func TestDecisionService_Decide_ExistingStudentAppliesWithdrawnConsent(t *testin
 	stamped := time.Now().Add(-24 * time.Hour)
 	_, err := env.db.NewUpdate().
 		Model((*usersModels.Student)(nil)).
-		ModelTableExpr(`users.students AS "student"`).
+		ModelTableExpr(`users.student_profiles AS "student"`).
 		Set("photo_consent_given_at = ?", stamped).
 		Set("photo_consent_given_by = ?", env.creatorID).
 		Set("email_contact_accepted_at = ?", stamped).
@@ -4564,9 +4564,9 @@ func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterPhase
 	// care end. Keep the student's master interval aligned with the corrected
 	// phase; otherwise enrolled_until must win and cap every rematerialization.
 	_, err = env.db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_school_memberships").
 		Set("enrolled_until = ?", env.sourcePhase.ServiceEndDate).
-		Where("id = ?", *outcome.Child.CreatedStudentID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", *outcome.Child.CreatedStudentID).
 		Exec(ctx)
 	require.NoError(t, err)
 

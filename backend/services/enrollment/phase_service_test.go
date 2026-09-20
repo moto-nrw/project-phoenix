@@ -494,7 +494,7 @@ func TestPhaseService_Delete_RemovesRequestsAndKeepsCreatedStudents(t *testing.T
 	student := testpkg.CreateTestStudent(t, db, "Kept", "Child", "1a")
 	defer func() {
 		bg := context.Background()
-		_, _ = db.NewDelete().TableExpr("users.students").Where("id = ?", student.ID).Exec(bg)
+		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id = ?", student.ID).Exec(bg)
 	}()
 
 	phase, err := svc.Create(ctx, minimalPhase(t, t.Name()))
@@ -533,7 +533,7 @@ func TestPhaseService_Delete_RemovesRequestsAndKeepsCreatedStudents(t *testing.T
 	// The student must survive — deleting the request child never deletes
 	// the student it points to.
 	studentCount, err := db.NewSelect().
-		TableExpr("users.students").
+		TableExpr("users.student_profiles").
 		Where("id = ?", student.ID).
 		Count(ctx)
 	require.NoError(t, err)
@@ -551,7 +551,7 @@ func TestPhaseService_DeleteImpact_ReportsCounts(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Impact", "Child", "1a")
 	defer func() {
 		bg := context.Background()
-		_, _ = db.NewDelete().TableExpr("users.students").Where("id = ?", student.ID).Exec(bg)
+		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id = ?", student.ID).Exec(bg)
 	}()
 
 	phase, err := svc.Create(ctx, minimalPhase(t, t.Name()))

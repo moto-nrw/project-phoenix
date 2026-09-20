@@ -1,0 +1,35 @@
+Unable to find image 'prom/prometheus:v3.7.3' locally
+v3.7.3: Pulling from prom/prometheus
+b150778528f0: Pulling fs layer
+6ce8b87a9754: Pulling fs layer
+d2f8aae8d80e: Pulling fs layer
+c68b486ef412: Pulling fs layer
+bc1208468eb9: Pulling fs layer
+a0137ef1f49e: Pulling fs layer
+2c520e315aed: Pulling fs layer
+02872a85ab69: Pulling fs layer
+8c7998df4188: Pulling fs layer
+db299616c5ed: Pulling fs layer
+b150778528f0: Download complete
+db299616c5ed: Download complete
+a0137ef1f49e: Download complete
+02872a85ab69: Download complete
+2c520e315aed: Download complete
+8c7998df4188: Download complete
+d2f8aae8d80e: Download complete
+6ce8b87a9754: Download complete
+6ce8b87a9754: Pull complete
+d2f8aae8d80e: Pull complete
+c68b486ef412: Download complete
+c68b486ef412: Pull complete
+bc1208468eb9: Download complete
+a0137ef1f49e: Pull complete
+02872a85ab69: Pull complete
+2c520e315aed: Pull complete
+bc1208468eb9: Pull complete
+b150778528f0: Pull complete
+db299616c5ed: Pull complete
+8c7998df4188: Pull complete
+Digest: sha256:49214755b6153f90a597adcbff0252cc61069f8ab69ce8411285cd4a560e8038
+Status: Downloaded newer image for prom/prometheus:v3.7.3
+  SUCCESS

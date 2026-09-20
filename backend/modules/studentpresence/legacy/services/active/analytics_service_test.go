@@ -61,9 +61,9 @@ func TestGetDashboardAnalytics(t *testing.T) {
 
 		flagTrue := true
 		_, err = db.NewUpdate().
-			Model(legacyOverlapStudent).
+			Table("users.student_care_profiles").
 			Set("excused = ?", flagTrue).
-			Where("id = ?", legacyOverlapStudent.ID).
+			Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", legacyOverlapStudent.ID).
 			Exec(ctx)
 		require.NoError(t, err)
 
@@ -97,15 +97,15 @@ func TestGetDashboardAnalytics(t *testing.T) {
 
 		flagTrue := true
 		_, err = db.NewUpdate().
-			Model(alreadyExcusedStudent).
+			Table("users.student_care_profiles").
 			Set("excused = ?", flagTrue).
-			Where("id = ?", alreadyExcusedStudent.ID).
+			Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", alreadyExcusedStudent.ID).
 			Exec(ctx)
 		require.NoError(t, err)
 		_, err = db.NewUpdate().
-			Model(sickClassTripStudent).
+			Table("users.student_care_profiles").
 			Set("sick = ?", flagTrue).
-			Where("id = ?", sickClassTripStudent.ID).
+			Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", sickClassTripStudent.ID).
 			Exec(ctx)
 		require.NoError(t, err)
 

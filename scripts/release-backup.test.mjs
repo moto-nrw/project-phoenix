@@ -124,6 +124,33 @@ test('a passing preflight runs before the stop and does not migrate', t => {
   assert.ok(preflight >= 0 && stop > preflight, f.calls());
   assert.doesNotMatch(f.calls(), /run --rm migrate$/m);
 });
+
+test('Contract evidence is mounted read-only for both deployment phases', t => {
+  const f = fixture(t);
+  const evidence = join(f.root, 'reviewed evidence.json');
+  writeFileSync(evidence, '{"release_commit":"reviewed"}\n');
+  const result = f.run('deploy-remote.sh', [evidence], { RELEASE_TEST_MUTATE_EVIDENCE: evidence });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const calls = f.calls().split('\n').filter(line => line.includes('--student-contract-evidence'));
+  assert.equal(calls.length, 2, f.calls());
+  assert.ok(calls[0].includes('migrate preflight --student-contract-evidence /run/student-contract-evidence.json'));
+  assert.ok(calls[1].includes('migrate --student-contract-evidence /run/student-contract-evidence.json'));
+  const mounts = calls.map(line => line.match(/--volume (.+):\/run\/student-contract-evidence.json:ro/)[1]);
+  assert.equal(mounts[0], mounts[1]);
+  assert.notEqual(mounts[0], evidence, 'deployment must snapshot reviewed bytes, not remount a changing input');
+  assert.equal(existsSync(mounts[0]), false, 'temporary evidence must be cleaned up');
+  const observed = f.calls().split('\n').filter(line => line.startsWith('contract-evidence-content '));
+  assert.deepEqual(observed, Array(2).fill(`contract-evidence-content ${JSON.stringify('{"release_commit":"reviewed"}\n')}`));
+  assert.equal(readFileSync(evidence, 'utf8'), 'changed after preflight');
+});
+
+test('missing Contract evidence aborts before pulling or stopping', t => {
+  const f = fixture(t);
+  const result = f.run('deploy-remote.sh', [join(f.root, 'missing.json')]);
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.equal(existsSync(f.log), false);
+  assert.equal(existsSync(join(f.cwd, '.release-operation.lock')), false);
+});
 test('migration failure invokes complete automatic rollback', t => {
   const f = fixture(t);
   const result = f.run('deploy-remote.sh', [], { RELEASE_TEST_FAIL: 'migrate' });

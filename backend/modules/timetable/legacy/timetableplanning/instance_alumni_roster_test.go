@@ -28,9 +28,9 @@ import (
 func graduate(t *testing.T, s *lifecycleSetup, studentID int64) {
 	t.Helper()
 	_, err := s.db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_school_memberships").
 		Set("status = ?", string(usersModel.StudentStatusAlumnus)).
-		Where("id = ?", studentID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", studentID).
 		Exec(s.ctx)
 	require.NoError(t, err)
 }

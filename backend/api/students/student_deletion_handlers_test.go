@@ -69,7 +69,7 @@ func TestStudentDeletionHandlers_RequirePreviewAndExplicitConfirmation(t *testin
 	legacyRequest := testutil.NewAuthenticatedRequest(t, http.MethodDelete, fmt.Sprintf("/%d", target.ID), nil)
 	legacyResponse := authExec(t, tc, legacyRequest, claims, []string{"admin:*"})
 	require.Equal(t, http.StatusConflict, legacyResponse.Code, "Body: %s", legacyResponse.Body.String())
-	assert.Equal(t, 1, studentDeletionRowCount(t, tc, "users.students", target.ID))
+	assert.Equal(t, 1, studentDeletionRowCount(t, tc, "users.student_profiles", target.ID))
 
 	wrongNameRequest := testutil.NewAuthenticatedRequest(t, http.MethodDelete, fmt.Sprintf("/%d", target.ID), map[string]any{
 		"expected_fingerprint": previewBody.Data.Fingerprint,
@@ -79,7 +79,7 @@ func TestStudentDeletionHandlers_RequirePreviewAndExplicitConfirmation(t *testin
 	})
 	wrongNameResponse := authExec(t, tc, wrongNameRequest, claims, []string{"admin:*"})
 	require.Equal(t, http.StatusBadRequest, wrongNameResponse.Code, "Body: %s", wrongNameResponse.Body.String())
-	assert.Equal(t, 1, studentDeletionRowCount(t, tc, "users.students", target.ID))
+	assert.Equal(t, 1, studentDeletionRowCount(t, tc, "users.student_profiles", target.ID))
 
 	deleteRequest := testutil.NewAuthenticatedRequest(t, http.MethodDelete, fmt.Sprintf("/%d", target.ID), map[string]any{
 		"expected_fingerprint": previewBody.Data.Fingerprint,
@@ -90,9 +90,9 @@ func TestStudentDeletionHandlers_RequirePreviewAndExplicitConfirmation(t *testin
 	deleteResponse := authExec(t, tc, deleteRequest, claims, []string{"admin:*"})
 	require.Equal(t, http.StatusOK, deleteResponse.Code, "Body: %s", deleteResponse.Body.String())
 
-	assert.Zero(t, studentDeletionRowCount(t, tc, "users.students", target.ID))
+	assert.Zero(t, studentDeletionRowCount(t, tc, "users.student_profiles", target.ID))
 	assert.Zero(t, studentDeletionRowCount(t, tc, "schedule.instance_students", targetAssignment.ID))
-	assert.Equal(t, 1, studentDeletionRowCount(t, tc, "users.students", spared.ID))
+	assert.Equal(t, 1, studentDeletionRowCount(t, tc, "users.student_profiles", spared.ID))
 	assert.Equal(t, 1, studentDeletionRowCount(t, tc, "schedule.instance_students", sparedAssignment.ID))
 	assert.Equal(t, 1, studentDeletionRowCount(t, tc, "schedule.activity_instances", instance.ID))
 

@@ -396,7 +396,7 @@ func TestUpdateGuardianContact_RejectsCrossFamilySharedProfile(t *testing.T) {
 	defer func() {
 		bg := testpkg.WithPackageTenantRuntime(context.Background())
 		_, _ = db.NewDelete().TableExpr("users.students_guardians").Where("student_id = ?", other.ID).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("users.students").Where("id = ?", other.ID).Exec(bg)
+		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id = ?", other.ID).Exec(bg)
 		_, _ = db.NewDelete().TableExpr("users.persons").Where("id = ?", other.PersonID).Exec(bg)
 	}()
 	otherLink := &userModels.StudentGuardian{

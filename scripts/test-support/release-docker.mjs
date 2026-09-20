@@ -4,6 +4,14 @@ import { appendFileSync, writeFileSync, readFileSync } from 'node:fs';
 const args = process.argv.slice(2);
 const call = args.join(' ');
 appendFileSync(process.env.RELEASE_TEST_LOG, `${call}\n`);
+const contractMount = args.find(value => value.endsWith(':/run/student-contract-evidence.json:ro'));
+if (contractMount) {
+  const source = contractMount.slice(0, -':/run/student-contract-evidence.json:ro'.length);
+  appendFileSync(process.env.RELEASE_TEST_LOG, `contract-evidence-content ${JSON.stringify(readFileSync(source, 'utf8'))}\n`);
+  if (call.includes('migrate preflight') && process.env.RELEASE_TEST_MUTATE_EVIDENCE) {
+    writeFileSync(process.env.RELEASE_TEST_MUTATE_EVIDENCE, 'changed after preflight');
+  }
+}
 const fail = process.env.RELEASE_TEST_FAIL;
 const isCompose = args[0] === 'compose';
 const input = isCompose && args.includes('psql') && !args.includes('-c') ? readFileSync(0, 'utf8') : '';

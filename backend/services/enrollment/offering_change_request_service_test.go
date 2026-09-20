@@ -473,8 +473,8 @@ func TestOfferingChangeRequestService_Decide_RefusesApprovalAfterPlannedCareEnd(
 		Selections: []enrollmentService.OfferingChangeSelection{{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}}},
 	})
 	require.NoError(t, err)
-	_, err = env.db.NewUpdate().TableExpr("users.students").
-		Set("enrolled_until = ?", fx.switchDate.AddDays(-1)).Where("id = ?", fx.studentID).Exec(ctx)
+	_, err = env.db.NewUpdate().TableExpr("users.student_school_memberships").
+		Set("enrolled_until = ?", fx.switchDate.AddDays(-1)).Where("student_profile_id = ? AND deleted_at IS NULL", fx.studentID).Exec(ctx)
 	require.NoError(t, err)
 
 	err = svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID})
@@ -494,8 +494,8 @@ func TestOfferingChangeRequestService_Decide_CapsRebookingAtPlannedCareEnd(t *te
 		Selections: []enrollmentService.OfferingChangeSelection{{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}}},
 	})
 	require.NoError(t, err)
-	_, err = env.db.NewUpdate().TableExpr("users.students").
-		Set("enrolled_until = ?", fx.switchDate).Where("id = ?", fx.studentID).Exec(ctx)
+	_, err = env.db.NewUpdate().TableExpr("users.student_school_memberships").
+		Set("enrolled_until = ?", fx.switchDate).Where("student_profile_id = ? AND deleted_at IS NULL", fx.studentID).Exec(ctx)
 	require.NoError(t, err)
 
 	require.NoError(t, svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{

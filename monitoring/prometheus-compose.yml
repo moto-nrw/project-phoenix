@@ -38,12 +38,14 @@ services:
     restart: unless-stopped
     command:
       - --path.rootfs=/host
+      - --collector.textfile.directory=/var/lib/node-exporter/textfile
       - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/containers/storage/.+)($$|/)
     pid: host
     ports:
       - 127.0.0.1:9100:9100
     volumes:
       - /:/host:ro,rslave
+      - ./node-exporter-textfile:/var/lib/node-exporter/textfile:ro
     logging:
       driver: journald
       options:

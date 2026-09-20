@@ -400,10 +400,7 @@ func CreateTestStudent(tb testing.TB, db *bun.DB, firstName, lastName, schoolCla
 	}
 	student.SetTenantID(fixtureTenantID(tb))
 
-	err := db.NewInsert().
-		Model(student).
-		ModelTableExpr(`users.students`).
-		Scan(ctx)
+	err := insertStudentFixture(ctx, db, student)
 	require.NoError(tb, err, "Failed to create test student")
 
 	return student
@@ -878,10 +875,7 @@ func CreateTestStudentWithAccount(tb testing.TB, db *bun.DB, firstName, lastName
 	}
 	student.SetTenantID(fixtureTenantID(tb))
 
-	err := db.NewInsert().
-		Model(student).
-		ModelTableExpr(`users.students`).
-		Scan(ctx)
+	err := insertStudentFixture(ctx, db, student)
 	require.NoError(tb, err, "Failed to create test student with account")
 
 	return student, account
@@ -999,12 +993,9 @@ func AssignStudentToGroup(tb testing.TB, db *bun.DB, studentID, groupID int64) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	_, err := db.NewUpdate().
-		Model((*users.Student)(nil)).
-		ModelTableExpr(`users.students`).
-		Set("group_id = ?", groupID).
-		Where(whereIDEquals, studentID).
-		Exec(ctx)
+	query, err := updateStudentMembershipFixture(ctx, db, studentID)
+	require.NoError(tb, err)
+	_, err = query.Set("group_id = ?", groupID).Exec(ctx)
 	require.NoError(tb, err, "Failed to assign student to group")
 }
 
@@ -1820,10 +1811,7 @@ func CreateTestStudentForTenant(tb testing.TB, db *bun.DB, tenantID int64, first
 	}
 	student.SetTenantID(tenantID)
 
-	err := db.NewInsert().
-		Model(student).
-		ModelTableExpr(`users.students`).
-		Scan(ctx)
+	err := insertStudentFixture(ctx, db, student)
 	require.NoError(tb, err, "Failed to create test student for tenant")
 
 	student.Person = person
