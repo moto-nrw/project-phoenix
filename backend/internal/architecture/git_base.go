@@ -29,7 +29,7 @@ func LoadBasePolicyAndManifest(project, policyPath, baselinePath, ref string) (*
 	if err != nil {
 		return nil, nil, fmt.Errorf("read base legacy baseline: %w", err)
 	}
-	policy, err := DecodePolicy(bytes.NewReader(policyBlob))
+	policy, err := decodePolicy(bytes.NewReader(policyBlob), true)
 	if err != nil {
 		return nil, nil, fmt.Errorf("decode base policy: %w", err)
 	}
