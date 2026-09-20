@@ -4,20 +4,20 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
 // AnnouncementsResource handles user-facing announcements endpoints
 type AnnouncementsResource struct {
 	announcementService communication.Capability
+	runtime             Runtime
 }
 
 // NewAnnouncementsResource creates a new announcements resource
-func NewAnnouncementsResource(announcementService communication.Capability) *AnnouncementsResource {
+func NewAnnouncementsResource(announcementService communication.Capability, runtime Runtime) *AnnouncementsResource {
 	return &AnnouncementsResource{
 		announcementService: announcementService,
+		runtime:             runtime,
 	}
 }
 
@@ -32,14 +32,21 @@ type AnnouncementResponse struct {
 	PublishedAt string  `json:"published_at"`
 }
 
+func (rs *AnnouncementsResource) internalError(w http.ResponseWriter, r *http.Request, message string, err error) {
+	rs.runtime.Failure(w, r, Failure{Message: message, Err: err})
+}
+
+func (rs *AnnouncementsResource) announcementID(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	return rs.runtime.IDParam(w, r, "id", "invalid announcement ID")
+}
+
 // GetUnread handles getting unread announcements for the current user, scoped to the session tenant/org
 func (rs *AnnouncementsResource) GetUnread(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
-	userID := int64(claims.ID)
+	viewer := rs.runtime.Viewer(r)
 
-	announcements, err := rs.announcementService.GetUnreadForUser(r.Context(), userID, claims.Roles, claims.TenantID, claims.OrgID)
+	announcements, err := rs.announcementService.GetUnreadForUser(r.Context(), viewer.AccountID, viewer.Roles, viewer.TenantID, viewer.OrgID)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to retrieve announcements", err))
+		rs.internalError(w, r, "failed to retrieve announcements", err)
 		return
 	}
 
@@ -60,55 +67,52 @@ func (rs *AnnouncementsResource) GetUnread(w http.ResponseWriter, r *http.Reques
 		})
 	}
 
-	common.Respond(w, r, http.StatusOK, responses, "Unread announcements retrieved successfully")
+	rs.runtime.Success(w, r, http.StatusOK, responses, "Unread announcements retrieved successfully")
 }
 
 // GetUnreadCount handles getting the count of unread announcements
 func (rs *AnnouncementsResource) GetUnreadCount(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
-	userID := int64(claims.ID)
+	viewer := rs.runtime.Viewer(r)
 
-	count, err := rs.announcementService.CountUnread(r.Context(), userID, claims.Roles, claims.TenantID, claims.OrgID)
+	count, err := rs.announcementService.CountUnread(r.Context(), viewer.AccountID, viewer.Roles, viewer.TenantID, viewer.OrgID)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to count announcements", err))
+		rs.internalError(w, r, "failed to count announcements", err)
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, map[string]int{"count": count}, "")
+	rs.runtime.Success(w, r, http.StatusOK, map[string]int{"count": count}, "")
 }
 
 // MarkSeen handles marking an announcement as seen
 func (rs *AnnouncementsResource) MarkSeen(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
-	userID := int64(claims.ID)
+	viewer := rs.runtime.Viewer(r)
 
-	announcementID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid announcement ID")
+	announcementID, ok := rs.announcementID(w, r)
 	if !ok {
 		return
 	}
 
-	if err := rs.announcementService.MarkSeen(r.Context(), userID, announcementID); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to mark announcement as seen", err))
+	if err := rs.announcementService.MarkSeen(r.Context(), viewer.AccountID, announcementID); err != nil {
+		rs.internalError(w, r, "failed to mark announcement as seen", err)
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, nil, "Announcement marked as seen")
+	rs.runtime.Success(w, r, http.StatusOK, nil, "Announcement marked as seen")
 }
 
 // MarkDismissed handles marking an announcement as dismissed
 func (rs *AnnouncementsResource) MarkDismissed(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
-	userID := int64(claims.ID)
+	viewer := rs.runtime.Viewer(r)
 
-	announcementID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid announcement ID")
+	announcementID, ok := rs.announcementID(w, r)
 	if !ok {
 		return
 	}
 
-	if err := rs.announcementService.MarkDismissed(r.Context(), userID, announcementID); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to mark announcement as dismissed", err))
+	if err := rs.announcementService.MarkDismissed(r.Context(), viewer.AccountID, announcementID); err != nil {
+		rs.internalError(w, r, "failed to mark announcement as dismissed", err)
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, nil, "Announcement dismissed")
+	rs.runtime.Success(w, r, http.StatusOK, nil, "Announcement dismissed")
 }

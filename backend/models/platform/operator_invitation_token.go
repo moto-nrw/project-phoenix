@@ -1,14 +1,12 @@
 package platform
 
-import (
-	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
-)
+import "time"
 
 // OperatorInvitationToken represents a pending operator invitation
 type OperatorInvitationToken struct {
-	base.Model      `bun:"schema:platform,table:operator_invitation_tokens"`
+	ID              int64      `bun:"id,pk,autoincrement" json:"id"`
+	CreatedAt       time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp" json:"created_at"`
+	UpdatedAt       time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp" json:"updated_at"`
 	Email           string     `bun:"email,notnull" json:"email"`
 	Token           string     `bun:"token,notnull" json:"token"`
 	ExpiresAt       time.Time  `bun:"expires_at,notnull" json:"expires_at"`
