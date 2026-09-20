@@ -22,7 +22,7 @@ type CalendarTestRepositories struct {
 	GuardianProfile            userModels.GuardianProfileRepository
 	StudentGuardian            userModels.StudentGuardianRepository
 	ParentChild                parentModels.ChildRepository
-	StaffCalendarFeedToken     authModels.StaffCalendarFeedTokenRepository
+	StaffCalendarFeedToken     identityaccess.StaffCalendarFeeds
 	CalendarStaffFeedTombstone schoolcalendar.FeedHistory
 	appointments               appointments.Capability
 	schoolCalendar             schoolcalendar.Capability
@@ -60,11 +60,11 @@ func (r CalendarTestRepositories) Appointments() appointments.Capability     { r
 func (r CalendarTestRepositories) SchoolCalendar() schoolcalendar.Capability { return r.schoolCalendar }
 
 type CalendarFeedTestRepositories struct {
-	StaffFeed authModels.StaffCalendarFeedTokenRepository
+	StaffFeed identityaccess.StaffCalendarFeeds
 	Tombstone schoolcalendar.FeedHistory
 }
 
 func NewCalendarFeedTestRepositories(db *bun.DB) CalendarFeedTestRepositories {
-	return CalendarFeedTestRepositories{StaffFeed: authRepo.NewStaffCalendarFeedTokenRepository(db),
+	return CalendarFeedTestRepositories{StaffFeed: newIdentityAccess(db, nil),
 		Tombstone: schoolCalendarCompose.NewFeedHistory(db)}
 }

@@ -12,6 +12,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -32,7 +33,7 @@ type CalendarFacts struct {
 	ShiftTypeRepo        scheduleModels.ShiftTypeRepository
 	SchoolRepo           organizationtenancy.Query
 	AccountRepo          CalendarFeedAccounts
-	StaffFeedRepo        authModels.StaffCalendarFeedTokenRepository
+	StaffFeedRepo        identityaccess.StaffCalendarFeeds
 	PersonRepo           userModels.PersonRepository
 }
 type CalendarFeedAccounts interface {
@@ -369,13 +370,21 @@ func (p calendarAccountPort) FindByCalendarFeedToken(ctx context.Context, hash s
 }
 
 type calendarStaffFeedPort struct {
-	authModels.StaffCalendarFeedTokenRepository
+	identityaccess.StaffCalendarFeeds
 }
 
 func (p calendarStaffFeedPort) FindOwnerByTokenHash(ctx context.Context, hash string) (*calendarCompose.FeedOwner, error) {
-	value, err := p.StaffCalendarFeedTokenRepository.FindOwnerByTokenHash(ctx, hash)
-	if value == nil {
+	value, found, err := p.FindStaffCalendarFeedOwner(ctx, hash)
+	if !found || err != nil {
 		return nil, err
 	}
 	return &calendarCompose.FeedOwner{AccountID: value.AccountID, TenantID: value.TenantID}, err
+}
+
+func (p calendarStaffFeedPort) EnsureToken(ctx context.Context, accountID, tenantID int64, hash string) (string, error) {
+	return p.EnsureStaffCalendarFeedToken(ctx, accountID, tenantID, hash)
+}
+
+func (p calendarStaffFeedPort) RotateToken(ctx context.Context, accountID, tenantID int64, hash string) (bool, error) {
+	return p.RotateStaffCalendarFeedToken(ctx, accountID, tenantID, hash)
 }

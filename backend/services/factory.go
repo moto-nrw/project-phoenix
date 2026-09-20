@@ -2470,7 +2470,7 @@ func newFactory(
 			ShiftTypeRepo:        repos.ShiftType,
 			SchoolRepo:           organizations,
 			AccountRepo:          repos.Account,
-			StaffFeedRepo:        repos.StaffCalendarFeedToken,
+			StaffFeedRepo:        identityAccess,
 			PersonRepo:           repos.Person,
 		},
 		Appointments:           repos.Appointments(),

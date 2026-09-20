@@ -63,7 +63,7 @@ const moduleLegacyBudgetCheck = "legacy LOC budget"
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 89024
+const moduleLegacyBudgetTotal = 88911
 
 // moduleLegacyBudgets maps a legacy tree to its production LOC on 2026-09-18.
 // The comment on each entry names the ticket that is supposed to dissolve the
@@ -88,7 +88,7 @@ var moduleLegacyBudgets = map[string]int{
 	// added the carelifecycle import to legacy.go.
 	"modules/grouplive/legacy": 585,
 	// #3226 (auth/jwt + repositories move) and #2725 (usercontext read side).
-	"modules/identityaccess/legacy": 4847,
+	"modules/identityaccess/legacy": 4734,
 	// No ticket today.
 	"modules/planexport/legacy": 410,
 	// #3352 covers the api/students consumer only, not the tree.

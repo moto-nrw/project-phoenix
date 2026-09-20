@@ -123,8 +123,7 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	operatorPasskeys := application.NewOperatorPasskey(service, store)
-	accountPasskeys := application.NewAccountPasskey(service, store)
+	operatorPasskeys, accountPasskeys := newPasskeyRecords(service, store)
 	flows, err = withPasskeyFlows(flows, service, auth, operatorAuth, accountPasskeys, operatorPasskeys,
 		dependencies.Sessions, dependencies.MFA)
 	if err != nil {
@@ -135,7 +134,8 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		return nil, err
 	}
 	e := engine{
-		profiles: application.NewAccountProfiles(service, store), guardianSchools: application.NewGuardianSchools(service, store),
+		staffCalendarFeeds: application.NewStaffCalendarFeeds(service, store),
+		profiles:           application.NewAccountProfiles(service, store), guardianSchools: application.NewGuardianSchools(service, store),
 		service: service, mfa: operatorMFARecords, tokens: tokens, rfidCards: application.NewRFIDCards(service, store),
 		passkeys: operatorPasskeys, accountPasskeys: accountPasskeys, accountRoleQueries: application.NewAccountRoleQueries(service, store, postgres.NewRoleStore(store)),
 		auth: auth, operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle, roles: roles,
@@ -145,6 +145,10 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	}
 	e.runtime = runtime.Attach
 	return identityaccess.NewModule(e, runtime), nil
+}
+
+func newPasskeyRecords(service *application.Service, store *postgres.Store) (*application.OperatorPasskey, *application.AccountPasskey) {
+	return application.NewOperatorPasskey(service, store), application.NewAccountPasskey(service, store)
 }
 
 type transaction struct{}
@@ -177,6 +181,7 @@ func (transaction) RunPlatform(ctx context.Context, callback func(context.Contex
 }
 
 type engine struct {
+	staffCalendarFeeds *application.StaffCalendarFeeds
 	rfidCards          *application.RFIDCards
 	accountRoleQueries *application.AccountRoleQueries
 	guardianSchools    *application.GuardianSchools
