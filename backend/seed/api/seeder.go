@@ -32,6 +32,10 @@ type SeedOptions struct {
 	SchoolName    string // Optional school name override
 	OnlyProfile   string // Restrict the run to one profile; empty seeds all four
 	StatePath     string // Output path; empty uses DefaultSeedStatePath
+	StandingDemo  bool   // Keep simulation devices but disable their user interface
+	// SaveState replaces file output, allowing the demo process to persist
+	// credentials in the database. A failure fails the seed workflow.
+	SaveState func(context.Context, *SeedState) error
 }
 
 // Seeder orchestrates the complete API-based seeding process
@@ -77,6 +81,10 @@ func NewSeeder(adapter Adapter, random io.Reader, verbose bool, options SeedOpti
 	if statePath == "" {
 		statePath = DefaultSeedStatePath
 	}
+	definition := fullOperationProfileDefinition()
+	if options.StandingDemo {
+		definition.Settings[profileSettingAttendanceNFC] = SeedSetting{Value: []byte(`false`), ManagedBy: SettingManagedByOperator}
+	}
 	return &Seeder{
 		client:     NewClientWithAdapter(newLoginCachingAdapter(adapter), verbose),
 		random:     random,
@@ -84,7 +92,7 @@ func NewSeeder(adapter Adapter, random io.Reader, verbose bool, options SeedOpti
 		options:    options,
 		statePath:  statePath,
 		profile:    DefaultProfileKey,
-		definition: fullOperationProfileDefinition(),
+		definition: definition,
 	}
 }
 
@@ -207,7 +215,7 @@ func (s *Seeder) profileAdminCredentialsFor(definition demoProfileDefinition) (s
 	if !s.options.Randomize {
 		return email, definition.SchoolAdminPassword, nil
 	}
-	password, err := generateSeedPassword(s.random)
+	password, err := GenerateSeedPassword(s.random)
 	if err != nil {
 		return "", "", fmt.Errorf("generate admin password: %w", err)
 	}
@@ -315,7 +323,9 @@ func (s *Seeder) createSeedSchool(organizationID int64, name, slug, subdomain st
 	return payload.Data.ID, payload.Data.Subdomain, nil
 }
 
-func generateSeedPassword(randomSource io.Reader) (string, error) {
+// GenerateSeedPassword creates a random password satisfying the account policy.
+// Callers supply their cryptographically secure random source.
+func GenerateSeedPassword(randomSource io.Reader) (string, error) {
 	if randomSource == nil {
 		return "", fmt.Errorf("seed random source is required")
 	}

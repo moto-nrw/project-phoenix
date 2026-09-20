@@ -450,6 +450,17 @@ jobs:
             echo "demo school ${slug}: seed $((seeded - started))s, full day $((finished - seeded))s"
           done
 
+      - name: Provision and restart the standing demo school
+        working-directory: backend
+        run: |
+          # The preceding scenarios consumed the operator's three MFA codes
+          # per 15-minute window. Reset only consumed challenge fixtures in
+          # this disposable CI database; keep production limits unchanged.
+          psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
+            'DELETE FROM platform.operator_mfa_email_challenges WHERE consumed_at IS NOT NULL'
+          "${RUNNER_TEMP}/phoenix" demo --url http://localhost:8080 --once
+          "${RUNNER_TEMP}/phoenix" demo --url http://localhost:8080 --once
+
       - name: Check seed coverage ratchet
         working-directory: backend
         env:
