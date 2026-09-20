@@ -22,7 +22,7 @@ func TestTenantMiddleware_PopulatesContext(t *testing.T) {
 	var gotScope string
 	var gotTLSVersion uint16
 
-	handler := jwtpkg.TenantMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := jwtpkg.TenantMiddleware(tenant.ClaimScope{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotTenantID = tenant.FromContext(r.Context())
 		gotOrgID = tenant.OrgFromContext(r.Context())
 		gotScope = tenant.ScopeFromContext(r.Context())
@@ -55,7 +55,7 @@ func TestTenantMiddleware_PopulatesContext(t *testing.T) {
 func TestTenantMiddleware_NoClaims_Unauthorized(t *testing.T) {
 	t.Parallel()
 
-	handler := jwtpkg.TenantMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := jwtpkg.TenantMiddleware(tenant.ClaimScope{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("handler should not be called when no claims present")
 	}))
 
@@ -71,7 +71,7 @@ func TestTenantMiddleware_ZeroTenantID_IsRejected(t *testing.T) {
 	t.Parallel()
 	var observed tenant.RuntimeEvent
 
-	handler := jwtpkg.TenantMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := jwtpkg.TenantMiddleware(tenant.ClaimScope{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("handler should not be called with a zero tenant ID")
 	}))
 
@@ -97,7 +97,7 @@ func TestTenantMiddleware_PlatformScope(t *testing.T) {
 
 	var gotIsPlatform bool
 
-	handler := jwtpkg.TenantMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := jwtpkg.TenantMiddleware(tenant.ClaimScope{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotIsPlatform = tenant.ScopeFromContext(r.Context()) == tenant.ScopePlatform
 		w.WriteHeader(http.StatusOK)
 	}))

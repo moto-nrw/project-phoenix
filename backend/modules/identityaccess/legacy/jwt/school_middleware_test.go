@@ -38,7 +38,7 @@ func TestSchoolMiddleware_AcceptsSchoolScope(t *testing.T) {
 	var gotScope string
 	var handlerCalled bool
 
-	handler := jwtpkg.SchoolMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := jwtpkg.SchoolMiddleware(tenant.ClaimScope{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handlerCalled = true
 		gotTenantID = tenant.FromContext(r.Context())
 		gotOrgID = tenant.OrgFromContext(r.Context())
@@ -68,7 +68,7 @@ func TestSchoolMiddleware_AcceptsSchoolScope(t *testing.T) {
 func TestSchoolMiddleware_NoClaims_Unauthorized(t *testing.T) {
 	t.Parallel()
 
-	handler := jwtpkg.SchoolMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := jwtpkg.SchoolMiddleware(tenant.ClaimScope{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("handler should not be called when no claims present")
 	}))
 
@@ -101,7 +101,7 @@ func TestSchoolMiddleware_RejectsOtherScopes(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			handler := jwtpkg.SchoolMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := jwtpkg.SchoolMiddleware(tenant.ClaimScope{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				t.Fatalf("%s token must NOT reach the wrapped handler", tc.name)
 			}))
 
@@ -121,7 +121,7 @@ func TestSchoolMiddleware_ZeroTenantID_Unauthorized(t *testing.T) {
 	t.Parallel()
 	var observed tenant.RuntimeEvent
 
-	handler := jwtpkg.SchoolMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := jwtpkg.SchoolMiddleware(tenant.ClaimScope{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("tenant_id=0 school token must NOT reach the wrapped handler")
 	}))
 
@@ -145,7 +145,7 @@ func TestSchoolMiddleware_ZeroTenantID_Unauthorized(t *testing.T) {
 func TestSchoolMiddleware_ZeroID_Unauthorized(t *testing.T) {
 	t.Parallel()
 
-	handler := jwtpkg.SchoolMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := jwtpkg.SchoolMiddleware(tenant.ClaimScope{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("ID=0 claims must NOT reach the wrapped handler")
 	}))
 
@@ -167,7 +167,7 @@ func TestSchoolMiddleware_ZeroID_Unauthorized(t *testing.T) {
 func TestTenantMiddleware_RejectsSchoolScope(t *testing.T) {
 	t.Parallel()
 
-	handler := jwtpkg.TenantMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := jwtpkg.TenantMiddleware(tenant.ClaimScope{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("school-scope token must NOT reach a tenant handler")
 	}))
 

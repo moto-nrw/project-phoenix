@@ -139,7 +139,7 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 			r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 			r.Use(jwt.Authenticator)
 			r.Use(common.ReadOnlyPreviewMiddleware)
-			r.Use(jwt.SchoolMiddleware)
+			r.Use(common.SchoolScopeMiddleware)
 			r.Use(common.SecurityPrincipalMiddleware)
 
 			// School switching for Lehrkraft accounts mapped to several

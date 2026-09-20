@@ -1641,7 +1641,7 @@ func newPlatformRuntime(tokenAuth *projectJWT.TokenAuth) platformAPI.Runtime {
 				r.Use(tokenAuth.Verifier())
 				r.Use(projectJWT.Authenticator)
 				r.Use(apiCommon.ReadOnlyPreviewMiddleware)
-				r.Use(projectJWT.TenantMiddleware)
+				r.Use(apiCommon.TenantScopeMiddleware)
 				r.Use(apiCommon.SecurityPrincipalMiddleware)
 				register(r)
 			})

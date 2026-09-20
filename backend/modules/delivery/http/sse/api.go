@@ -27,7 +27,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
-		r.Use(jwt.TenantMiddleware)
+		r.Use(jwt.TenantMiddleware(tenant.ClaimScope{}))
 		r.Get("/events", rs.eventsHandler)
 	})
 

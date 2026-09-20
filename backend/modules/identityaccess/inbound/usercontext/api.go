@@ -53,7 +53,7 @@ func NewResource(service usercontext.UserContextService, db *bun.DB) *Resource {
 	r.router.Use(tokenAuth.Verifier())
 	r.router.Use(jwt.Authenticator)
 	r.router.Use(common.ReadOnlyPreviewMiddleware)
-	r.router.Use(jwt.TenantMiddleware)
+	r.router.Use(common.TenantScopeMiddleware)
 	r.router.Use(common.SecurityPrincipalMiddleware)
 	withTx := common.TenantTxMiddleware
 

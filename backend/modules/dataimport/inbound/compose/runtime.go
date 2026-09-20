@@ -35,7 +35,7 @@ func HTTPRuntime(db *bun.DB, people peopledirectory.Capability, membership schoo
 	runtime := importapi.Runtime{
 		Middleware: []importapi.Middleware{
 			jwtauth.Verifier(jwt.MustNewTokenAuth().JwtAuth), jwt.Authenticator,
-			common.ReadOnlyPreviewMiddleware, jwt.TenantMiddleware,
+			common.ReadOnlyPreviewMiddleware, common.TenantScopeMiddleware,
 			common.SecurityPrincipalMiddleware, common.TenantOperationMiddleware,
 		},
 		RequireAnyPermission: common.RequiresAnyPermission,

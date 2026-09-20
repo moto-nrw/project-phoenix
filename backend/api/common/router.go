@@ -7,10 +7,29 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Middleware is the standard chi middleware shape.
 type Middleware = func(http.Handler) http.Handler
+
+// The scope gates of the token adapter, bound to the tenant runtime. Each
+// accepts exactly one portal's tokens and must follow jwt.Authenticator.
+
+// TenantScopeMiddleware rejects parent and school tokens and binds the tenant.
+func TenantScopeMiddleware(next http.Handler) http.Handler {
+	return jwt.TenantMiddleware(tenant.ClaimScope{})(next)
+}
+
+// ParentScopeMiddleware accepts parents-portal tokens only and binds no tenant.
+func ParentScopeMiddleware(next http.Handler) http.Handler {
+	return jwt.ParentMiddleware(tenant.ClaimScope{})(next)
+}
+
+// SchoolScopeMiddleware accepts school-portal tokens only and binds their school.
+func SchoolScopeMiddleware(next http.Handler) http.Handler {
+	return jwt.SchoolMiddleware(tenant.ClaimScope{})(next)
+}
 
 // ProtectedTenantGroup registers a route group behind the standard
 // JWT + tenant middleware chain (Verifier → Authenticator → TenantMiddleware)
@@ -36,7 +55,7 @@ func ProtectedTenantRoutes(r chi.Router, fn func(r chi.Router, withTx Middleware
 		// after the Authenticator: it only reads the parsed claims and must
 		// reject before any transaction middleware can run.
 		gr.Use(ReadOnlyPreviewMiddleware)
-		gr.Use(jwt.TenantMiddleware)
+		gr.Use(TenantScopeMiddleware)
 		gr.Use(SecurityPrincipalMiddleware)
 		// Request-scoped settings memo cache (issue #2065) and identity memo
 		// cache (issue #2099). Unlike withTx these ARE applied group-wide:
@@ -62,7 +81,7 @@ func ProtectedParentGroup(r chi.Router, fn func(r chi.Router)) {
 	r.Group(func(gr chi.Router) {
 		gr.Use(tokenAuth.Verifier())
 		gr.Use(jwt.Authenticator)
-		gr.Use(jwt.ParentMiddleware)
+		gr.Use(ParentScopeMiddleware)
 		fn(gr)
 	})
 }
@@ -81,7 +100,7 @@ func ProtectedSchoolGroup(r chi.Router, db *bun.DB, fn func(r chi.Router, withTx
 		// Preview tokens are never school-scope, so SchoolMiddleware already
 		// rejects them — this is defense-in-depth mirroring the tenant group.
 		gr.Use(ReadOnlyPreviewMiddleware)
-		gr.Use(jwt.SchoolMiddleware)
+		gr.Use(SchoolScopeMiddleware)
 		gr.Use(SecurityPrincipalMiddleware)
 		gr.Use(RequestSettingsCacheMiddleware)
 		gr.Use(RequestIdentityCacheMiddleware)

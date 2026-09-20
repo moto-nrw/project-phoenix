@@ -204,7 +204,7 @@ func (rs *Resource) Router() chi.Router {
 		// token must not switch tenants, change passwords, manage roles, or
 		// start another preview. Same placement as in ProtectedTenantGroup.
 		r.Use(common.ReadOnlyPreviewMiddleware)
-		r.Use(jwt.TenantMiddleware)
+		r.Use(common.TenantScopeMiddleware)
 		r.Use(common.SecurityPrincipalMiddleware)
 
 		// Tenant switching

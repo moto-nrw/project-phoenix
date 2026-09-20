@@ -53,7 +53,7 @@ func (rs *Resource) SchoolRouter() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
-		r.Use(jwt.SchoolMiddleware)
+		r.Use(jwt.SchoolMiddleware(tenant.ClaimScope{}))
 		r.Get("/events", rs.schoolEventsHandler)
 	})
 

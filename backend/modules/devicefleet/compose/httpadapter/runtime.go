@@ -55,7 +55,7 @@ func protectedRoutes(r chi.Router, register func(chi.Router, displayHTTP.Middlew
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(projectJWT.Authenticator)
 		r.Use(apiCommon.ReadOnlyPreviewMiddleware)
-		r.Use(projectJWT.TenantMiddleware)
+		r.Use(apiCommon.TenantScopeMiddleware)
 		r.Use(apiCommon.SecurityPrincipalMiddleware)
 		register(r, apiCommon.TenantTxMiddleware)
 	})

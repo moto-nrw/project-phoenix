@@ -137,7 +137,7 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
 		r.Use(common.ReadOnlyPreviewMiddleware)
-		r.Use(jwt.ParentMiddleware)
+		r.Use(common.ParentScopeMiddleware)
 		r.Use(common.SecurityPrincipalMiddleware)
 
 		// Cross-tenant children list — every student the parent is
