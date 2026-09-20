@@ -4,6 +4,7 @@ import (
 	"context"
 
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
+	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -13,6 +14,12 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/uptrace/bun"
 )
+
+// NewStudentGuardianRepository binds relationship permission checks to native
+// Identity membership facts for tests that do not construct the serving graph.
+func NewStudentGuardianRepository(db *bun.DB) usersModels.StudentGuardianRepository {
+	return usersRepo.NewStudentGuardianRepository(db, usersRepo.WithStudentGuardianMemberships(newIdentityAccess(db, nil).FindActiveSchoolMemberships))
+}
 
 type ParentRouteTestRepositories struct {
 	ParentChild            parentModels.ChildRepository

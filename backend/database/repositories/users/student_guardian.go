@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentdirectoryview"
@@ -22,17 +23,16 @@ import (
 type StudentGuardianRepository struct {
 	*base.Repository[*users.StudentGuardian]
 	db *bun.DB
-	// activeMemberships is the Identity & Access owner query for the school
-	// mapping the permission checks require (#2721).
-	activeMemberships ActiveMembershipQuery
+	// activeMemberships supplies bounded account-school facts for permission checks.
+	activeMemberships SchoolMembershipLookup
 }
 
 // StudentGuardianOption configures a StudentGuardianRepository at construction.
 type StudentGuardianOption func(*StudentGuardianRepository)
 
 // WithStudentGuardianMemberships installs the Identity & Access
-// active-membership query the permission checks filter through (#2721).
-func WithStudentGuardianMemberships(query ActiveMembershipQuery) StudentGuardianOption {
+// bounded membership lookup the permission checks filter through (#2721).
+func WithStudentGuardianMemberships(query SchoolMembershipLookup) StudentGuardianOption {
 	return func(r *StudentGuardianRepository) { r.activeMemberships = query }
 }
 
@@ -50,13 +50,13 @@ func NewStudentGuardianRepository(db *bun.DB, options ...StudentGuardianOption) 
 	return repository
 }
 
-// memberships returns the owner's active-membership query and fails closed
+// memberships returns the owner's bounded active-membership facts and fails closed
 // when the composition did not bind it.
-func (r *StudentGuardianRepository) memberships(ctx context.Context) (*bun.SelectQuery, error) {
+func (r *StudentGuardianRepository) memberships(ctx context.Context, accountIDs []int64, schoolID int64) (map[int64][]int64, error) {
 	if r.activeMemberships == nil {
 		return nil, errors.New("student guardian: active membership query is required")
 	}
-	return r.activeMemberships(ctx), nil
+	return r.activeMemberships(ctx, accountIDs, []int64{schoolID})
 }
 
 // LinkIfNotExists inserts the student↔guardian relationship, treating a
@@ -247,9 +247,12 @@ func (r *StudentGuardianRepository) AccountHasStudentPermission(ctx context.Cont
 	if strings.TrimSpace(permission) == "" {
 		return false, fmt.Errorf("student guardian: permission must not be empty")
 	}
-	memberships, err := r.memberships(ctx)
+	memberships, err := r.memberships(ctx, []int64{accountID}, tenantID)
 	if err != nil {
 		return false, err
+	}
+	if !slices.Contains(memberships[accountID], tenantID) {
+		return false, nil
 	}
 	const query = `
 		SELECT EXISTS (
@@ -262,10 +265,9 @@ func (r *StudentGuardianRepository) AccountHasStudentPermission(ctx context.Cont
 				AND sg.student_id = ?
 				AND gp.account_id = ?
 				AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
-				AND (gp.account_id, gp.tenant_id) IN (?)
 		)`
 	var granted bool
-	if err := base.GetDB(ctx, r.db).NewRaw(query, tenantID, studentID, accountID, permission, memberships).Scan(ctx, &granted); err != nil {
+	if err := base.GetDB(ctx, r.db).NewRaw(query, tenantID, studentID, accountID, permission).Scan(ctx, &granted); err != nil {
 		return false, fmt.Errorf("student guardian: account permission for student: %w", err)
 	}
 	return granted, nil
@@ -307,7 +309,7 @@ func (r *StudentGuardianRepository) FilterAccountsWithStudentAccess(ctx context.
 		}
 	}
 
-	memberships, err := r.memberships(ctx)
+	memberships, err := r.memberships(ctx, guardianAccountIDs, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -320,15 +322,13 @@ func (r *StudentGuardianRepository) FilterAccountsWithStudentAccess(ctx context.
 		WHERE sg.tenant_id   = ?
 			AND sg.student_id  IN (?)
 			AND gp.account_id  IN (?)
-			AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
-			AND (gp.account_id, gp.tenant_id) IN (?)`
+			AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE`
 	var granted []int64
 	if err := base.GetDB(ctx, r.db).NewRaw(query,
 		tenantID,
 		bun.List(studentIDs),
 		bun.List(guardianAccountIDs),
 		permission,
-		memberships,
 	).Scan(ctx, &granted); err != nil {
 		return nil, fmt.Errorf("student guardian: filter accounts with student access: %w", err)
 	}
@@ -338,7 +338,9 @@ func (r *StudentGuardianRepository) FilterAccountsWithStudentAccess(ctx context.
 
 	grantedSet := make(map[int64]struct{}, len(granted))
 	for _, accountID := range granted {
-		grantedSet[accountID] = struct{}{}
+		if slices.Contains(memberships[accountID], tenantID) {
+			grantedSet[accountID] = struct{}{}
+		}
 	}
 	permitted := make([]int64, 0, len(granted))
 	seen := make(map[int64]struct{}, len(granted))
@@ -388,13 +390,11 @@ func (r *StudentGuardianRepository) GuardianEmailHasStudentPermission(ctx contex
 	if strings.TrimSpace(permission) == "" {
 		return false, fmt.Errorf("student guardian: permission must not be empty")
 	}
-	memberships, err := r.memberships(ctx)
-	if err != nil {
-		return false, err
+	if r.activeMemberships == nil {
+		return false, errors.New("student guardian: active membership query is required")
 	}
 	const query = `
-		SELECT EXISTS (
-			SELECT 1
+			SELECT gp.account_id
 			FROM users.students_guardians AS sg
 			JOIN users.guardian_profiles AS gp
 				ON gp.id = sg.guardian_profile_id
@@ -402,17 +402,31 @@ func (r *StudentGuardianRepository) GuardianEmailHasStudentPermission(ctx contex
 			WHERE sg.tenant_id  = ?
 				AND sg.student_id = ?
 				AND LOWER(gp.email) = ?
-				AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
-				AND (
-					gp.account_id IS NULL
-					OR (gp.account_id, gp.tenant_id) IN (?)
-				)
-		)`
-	var granted bool
-	if err := base.GetDB(ctx, r.db).NewRaw(query, tenantID, studentID, normalizedEmail, permission, memberships).Scan(ctx, &granted); err != nil {
+				AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE`
+	var rows []struct{ AccountID *int64 }
+	if err := base.GetDB(ctx, r.db).NewRaw(query, tenantID, studentID, normalizedEmail, permission).Scan(ctx, &rows); err != nil {
 		return false, fmt.Errorf("student guardian: email permission for student: %w", err)
 	}
-	return granted, nil
+	accountIDs := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		if row.AccountID == nil {
+			return true, nil
+		}
+		accountIDs = append(accountIDs, *row.AccountID)
+	}
+	if len(accountIDs) == 0 {
+		return false, nil
+	}
+	memberships, err := r.memberships(ctx, accountIDs, tenantID)
+	if err != nil {
+		return false, err
+	}
+	for _, accountID := range accountIDs {
+		if slices.Contains(memberships[accountID], tenantID) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // FindByStudentAndGuardianForUpdate returns the relationship row joining the

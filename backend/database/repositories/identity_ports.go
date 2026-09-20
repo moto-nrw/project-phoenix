@@ -74,13 +74,6 @@ func NewGuardianProfileRepository(db *bun.DB) userModels.GuardianProfileReposito
 	)
 }
 
-// NewStudentGuardianRepository composes the People Directory relationship
-// repository with the Identity & Access active-membership query its
-// permission checks filter through (#2721).
-func NewStudentGuardianRepository(db *bun.DB) userModels.StudentGuardianRepository {
-	return usersRepo.NewStudentGuardianRepository(db, usersRepo.WithStudentGuardianMemberships(activeMembershipQuery(db)))
-}
-
 // staffMessageIdentity returns the Identity & Access owner queries the staff
 // messaging reads filter through.
 func staffMessageIdentity(accounts identityaccess.StaffAccountQueries) usersRepo.StaffMessageIdentity {

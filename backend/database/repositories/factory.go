@@ -524,7 +524,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 			db, &factory, NewEnrollmentBookingProjection(enrollmentModule), presenceCapability, timetableCapability,
 		)),
 		Profile:             identity,
-		StudentGuardian:     NewStudentGuardianRepository(db),
+		StudentGuardian:     users.NewStudentGuardianRepository(db, users.WithStudentGuardianMemberships(identity.FindActiveSchoolMemberships)),
 		StudentCompanion:    nil, // bound to Care Plan below
 		GuardianProfile:     NewGuardianProfileRepository(db),
 		GuardianPhoneNumber: users.NewGuardianPhoneNumberRepository(db),

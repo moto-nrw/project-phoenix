@@ -2,18 +2,12 @@ package users
 
 import (
 	"context"
-
-	"github.com/uptrace/bun"
 )
 
 // The school mapping, the role assignments and the roles belong to Identity
 // & Access (#2721). Repositories here state the owner facts they filter by as
 // plain function types, so this package does not depend on that owner; the
 // composition root binds them to the owner queries.
-
-// ActiveMembershipQuery returns the owner-built statement selecting
-// (account_id, tenant_id) of every ACTIVE school mapping.
-type ActiveMembershipQuery func(ctx context.Context) *bun.SelectQuery
 
 // PortalMembershipQuery maps the requested accounts to schools where their
 // account, school membership, and guardian role make the portal reachable.

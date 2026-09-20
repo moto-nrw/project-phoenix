@@ -135,6 +135,21 @@ func TestIdentityMembership_UnboundQueriesFailClosed(t *testing.T) {
 	_, err = usersRepo.NewMessageableGuardianRepository(db, nil).ListGuardiansForStudent(ctx, chain.StudentID)
 	require.Error(t, err)
 	lookupFailure := errors.New("school membership lookup failed")
+	failingRelationships := usersRepo.NewStudentGuardianRepository(db, usersRepo.WithStudentGuardianMemberships(
+		func(_ context.Context, accountIDs, schoolIDs []int64) (map[int64][]int64, error) {
+			require.Equal(t, []int64{chain.AccountID}, accountIDs)
+			require.Equal(t, []int64{chain.TenantID}, schoolIDs)
+			return nil, lookupFailure
+		}))
+	accountGranted, err := failingRelationships.AccountHasStudentPermission(ctx, chain.AccountID, chain.StudentID, chain.TenantID, perm)
+	require.ErrorIs(t, err, lookupFailure)
+	require.False(t, accountGranted)
+	emailGranted, err := failingRelationships.GuardianEmailHasStudentPermission(ctx, chain.Email, chain.StudentID, chain.TenantID, perm)
+	require.ErrorIs(t, err, lookupFailure)
+	require.False(t, emailGranted)
+	permitted, err := failingRelationships.FilterAccountsWithStudentAccess(ctx, []int64{chain.AccountID}, []int64{chain.StudentID}, chain.TenantID, perm)
+	require.ErrorIs(t, err, lookupFailure)
+	require.Nil(t, permitted)
 	failingRecipients := usersRepo.NewMessageableGuardianRepository(db,
 		func(_ context.Context, accountIDs, schoolIDs []int64) (map[int64][]int64, error) {
 			require.Equal(t, []int64{chain.AccountID}, accountIDs)
