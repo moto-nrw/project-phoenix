@@ -25,23 +25,23 @@ func TestDemoEntryBaseIsTheStandingSchoolsOrigin(t *testing.T) {
 func TestDemoRoutesAnswerTheWebsitesPreflight(t *testing.T) {
 	t.Parallel()
 	router := chi.NewRouter()
-	router.Use(corsHandler("https://moto.nrw,https://www.moto.nrw"))
+	router.Use(corsHandler("https://moto-ogs.de,https://www.moto-ogs.de"))
 	router.Post("/demo/access-requests", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusAccepted) })
 
 	req := httptest.NewRequest(http.MethodOptions, "/demo/access-requests", nil)
-	req.Header.Set("Origin", "https://www.moto.nrw")
+	req.Header.Set("Origin", "https://www.moto-ogs.de")
 	req.Header.Set("Access-Control-Request-Method", http.MethodPost)
 	req.Header.Set("Access-Control-Request-Headers", "content-type")
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
-	assert.Equal(t, "https://www.moto.nrw", rr.Header().Get("Access-Control-Allow-Origin"))
+	assert.Equal(t, "https://www.moto-ogs.de", rr.Header().Get("Access-Control-Allow-Origin"))
 
 	req = httptest.NewRequest(http.MethodPost, "/demo/access-requests", strings.NewReader("{}"))
-	req.Header.Set("Origin", "https://www.moto.nrw")
+	req.Header.Set("Origin", "https://www.moto-ogs.de")
 	rr = httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusAccepted, rr.Code, "a request without cookies passes")
-	assert.Equal(t, "https://www.moto.nrw", rr.Header().Get("Access-Control-Allow-Origin"))
+	assert.Equal(t, "https://www.moto-ogs.de", rr.Header().Get("Access-Control-Allow-Origin"))
 
 	req = httptest.NewRequest(http.MethodPost, "/demo/access-requests", strings.NewReader("{}"))
 	req.Header.Set("Origin", "https://evil.example")

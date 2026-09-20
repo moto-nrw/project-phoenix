@@ -81,7 +81,7 @@ describe("DemoEntry", () => {
       ).toBeInTheDocument();
       expect(
         screen.getByRole("link", { name: "Neuen Link anfordern" }),
-      ).toHaveAttribute("href", "https://moto.nrw/demo/");
+      ).toHaveAttribute("href", "https://moto-ogs.de/demo");
       expect(signIn).not.toHaveBeenCalled();
     },
   );

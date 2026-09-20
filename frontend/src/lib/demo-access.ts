@@ -3,7 +3,7 @@
 // log records it.
 
 /** Demo page of the website; the way back for an unknown or expired link. */
-export const DEMO_WEBSITE_URL = "https://moto.nrw/demo/";
+export const DEMO_WEBSITE_URL = "https://moto-ogs.de/demo";
 
 export type DemoAccessStatus = "preparing" | "ready" | "invalid";
 
