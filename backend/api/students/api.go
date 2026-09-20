@@ -407,6 +407,7 @@ func (rs *Resource) Router() chi.Router {
 
 		// Pickup note routes (full access required - checked in handlers)
 		r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/pickup-notes", rs.createStudentPickupNote)
+		r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/pickup-notes", rs.replaceStudentWeekdayPickupNotes)
 		r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/pickup-notes/{noteId}", rs.updateStudentPickupNote)
 		r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/pickup-notes/{noteId}", rs.deleteStudentPickupNote)
 

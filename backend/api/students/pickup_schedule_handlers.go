@@ -123,6 +123,36 @@ type PickupNoteRequest struct {
 	Content  string `json:"content"`
 }
 
+// WeekdayPickupNotesRequest replaces the notes that recur every week. Dated
+// notes stay owned by the single-day editor and are deliberately excluded.
+type WeekdayPickupNotesRequest struct {
+	Notes []PickupNoteRequest `json:"notes"`
+}
+
+// Bind implements render.Binder.
+func (r *WeekdayPickupNotesRequest) Bind(_ *http.Request) error {
+	if r.Notes == nil {
+		return errors.New("notes is required")
+	}
+	seen := make(map[int]struct{}, len(r.Notes))
+	for _, note := range r.Notes {
+		if note.NoteDate != "" {
+			return errors.New("weekday notes cannot have note_date")
+		}
+		if note.Weekday < schedule.WeekdayMonday || note.Weekday > schedule.WeekdayFriday {
+			return errors.New("weekday must be between 1 (Monday) and 5 (Friday)")
+		}
+		if _, exists := seen[note.Weekday]; exists {
+			return errors.New("weekday notes must be unique")
+		}
+		seen[note.Weekday] = struct{}{}
+		if err := validateCareNoteContent(note.Content); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Bind implements render.Binder
 func (r *PickupNoteRequest) Bind(_ *http.Request) error {
 	if r.Weekday == 0 {
@@ -850,6 +880,88 @@ func (rs *Resource) createStudentPickupNote(w http.ResponseWriter, r *http.Reque
 	})
 
 	common.Respond(w, r, http.StatusCreated, mapNoteToResponse(note), "Pickup note created successfully")
+}
+
+// replaceStudentWeekdayPickupNotes handles PUT /students/{id}/pickup-notes.
+// All writes share the request transaction: a failed create, update, or delete
+// leaves the recurring notes exactly as they were before the request.
+func (rs *Resource) replaceStudentWeekdayPickupNotes(w http.ResponseWriter, r *http.Request) {
+	student := rs.requirePickupWriteAccess(w, r, "replace pickup notes")
+	if student == nil {
+		return
+	}
+
+	req := &WeekdayPickupNotesRequest{}
+	if err := render.Bind(r, req); err != nil {
+		renderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	staffID, err := rs.getStaffIDFromJWT(r)
+	if err != nil {
+		renderError(w, r, common.ErrorForbidden(err))
+		return
+	}
+
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.replaceWeekdayPickupNotes(ctx, student.ID, staffID, req.Notes)
+	}); err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.broadcastPickupScheduleChanged(tenantID, student.ID)
+	})
+	common.Respond(w, r, http.StatusOK, nil, "Pickup notes updated successfully")
+}
+
+func (rs *Resource) replaceWeekdayPickupNotes(
+	ctx context.Context,
+	studentID, staffID int64,
+	wanted []PickupNoteRequest,
+) error {
+	stored, err := rs.PickupScheduleService.GetStudentPickupNotes(ctx, studentID)
+	if err != nil {
+		return err
+	}
+
+	byWeekday := make(map[int]*schedule.StudentPickupNote, len(stored))
+	for _, note := range stored {
+		if note.Weekday != 0 {
+			byWeekday[note.Weekday] = note
+		}
+	}
+	wantedByWeekday := make(map[int]PickupNoteRequest, len(wanted))
+	for _, note := range wanted {
+		wantedByWeekday[note.Weekday] = note
+	}
+
+	for weekday, note := range byWeekday {
+		if _, keep := wantedByWeekday[weekday]; !keep {
+			if err := rs.PickupScheduleService.DeleteStudentPickupNote(ctx, note.ID); err != nil {
+				return err
+			}
+		}
+	}
+	for _, wantedNote := range wanted {
+		storedNote := byWeekday[wantedNote.Weekday]
+		if storedNote == nil {
+			if err := rs.PickupScheduleService.CreateStudentPickupNote(ctx, wantedNote.toModel(studentID, staffID)); err != nil {
+				return err
+			}
+			continue
+		}
+		if storedNote.Content == wantedNote.Content {
+			continue
+		}
+		storedNote.Content = wantedNote.Content
+		if err := rs.PickupScheduleService.UpdateStudentPickupNote(ctx, storedNote); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // updateStudentPickupNote handles PUT /students/{id}/pickup-notes/{noteId}

@@ -3,7 +3,6 @@ import {
   getDayData,
   mapPickupNoteFormToBackend,
   mapPickupNoteResponse,
-  planWeekdayNoteSync,
   type PickupNote,
 } from "./pickup-schedule-helpers";
 
@@ -62,26 +61,5 @@ describe("recurring weekday notes", () => {
 
     const thursday = getDayData(new Date(2026, 8, 10), [], [], false, notes);
     expect(thursday.weekdayNote).toBeUndefined();
-  });
-
-  it("plans only the writes that change something and leaves dated notes alone", () => {
-    const stored = [
-      note({ id: "1", weekday: 1, content: "bleibt" }),
-      note({ id: "2", weekday: 2, content: "alt" }),
-      note({ id: "3", weekday: 3, content: "fällt weg" }),
-      note({ id: "4", noteDate: "2026-09-09", content: "datiert" }),
-    ];
-
-    expect(
-      planWeekdayNoteSync(stored, [
-        { weekday: 1, content: "bleibt" },
-        { weekday: 2, content: "neu" },
-        { weekday: 5, content: "kommt dazu" },
-      ]),
-    ).toEqual({
-      create: [{ weekday: 5, content: "kommt dazu" }],
-      update: [{ id: "2", entry: { weekday: 2, content: "neu" } }],
-      remove: ["3"],
-    });
   });
 });

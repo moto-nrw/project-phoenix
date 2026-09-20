@@ -55,6 +55,7 @@ import {
   fetchStudentPickupData,
   applyStudentPickupAdjustment,
   previewStudentPickupAdjustment,
+  replaceStudentWeekdayPickupNotes,
   type PickupAdjustmentPayload,
   type PickupAdjustmentPreview,
   resetStudentPickupToOffering,
@@ -71,7 +72,6 @@ import {
   getDayData as getPickupDayData,
   mergeSchedulesWithTemplate as mergePickupSchedulesWithTemplate,
   pickupScheduleSourceLabel,
-  planWeekdayNoteSync,
 } from "~/lib/pickup-schedule-helpers";
 import { createLogger } from "~/lib/logger";
 import type {
@@ -554,18 +554,9 @@ export function CareScheduleManager({
   const syncWeekdayNotes = useCallback(
     async (next: CarePlanWeeklySubmit["weekdayNotes"]) => {
       if (!next) return;
-      const plan = planWeekdayNoteSync(pickupData.notes, next);
-      for (const noteId of plan.remove) {
-        await deleteStudentPickupNote(studentId, noteId);
-      }
-      for (const { id, entry } of plan.update) {
-        await updateStudentPickupNote(studentId, id, entry);
-      }
-      for (const entry of plan.create) {
-        await createStudentPickupNote(studentId, entry);
-      }
+      await replaceStudentWeekdayPickupNotes(studentId, next);
     },
-    [studentId, pickupData.notes],
+    [studentId],
   );
 
   const handleUpdateWeeklyPlan = useCallback(

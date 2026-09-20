@@ -176,38 +176,6 @@ export interface WeekdayNoteEntry {
   readonly content: string;
 }
 
-export interface WeekdayNoteSyncPlan {
-  create: WeekdayNoteEntry[];
-  update: Array<{ id: string; entry: WeekdayNoteEntry }>;
-  remove: string[];
-}
-
-/**
- * Which writes turn the stored recurring notes into the wanted ones. Dated
- * notes are never touched: they belong to the day editor.
- */
-export function planWeekdayNoteSync(
-  stored: readonly PickupNote[],
-  wanted: readonly WeekdayNoteEntry[],
-): WeekdayNoteSyncPlan {
-  const plan: WeekdayNoteSyncPlan = { create: [], update: [], remove: [] };
-  const recurring = stored.filter((note) => note.weekday);
-  for (const note of recurring) {
-    const entry = wanted.find((item) => item.weekday === note.weekday);
-    if (!entry) {
-      plan.remove.push(note.id);
-    } else if (entry.content !== note.content) {
-      plan.update.push({ id: note.id, entry });
-    }
-  }
-  for (const entry of wanted) {
-    if (!recurring.some((note) => note.weekday === entry.weekday)) {
-      plan.create.push(entry);
-    }
-  }
-  return plan;
-}
-
 // Mapping Functions
 
 export function mapPickupScheduleResponse(

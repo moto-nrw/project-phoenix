@@ -80,6 +80,38 @@ func TestWeekdayPickupNoteWithoutPickupTime(t *testing.T) {
 		assert.Contains(t, rr.Body.String(), "Montags bei Oma")
 	})
 
+	t.Run("replaces_weekday_notes_without_touching_dated_notes", func(t *testing.T) {
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-notes", student.ID),
+			map[string]any{"note_date": "2026-02-03", "content": "Nur an diesem Tag"})
+		rr := authExec(t, tc, req, claims, []string{"admin:*"})
+		require.Equal(t, http.StatusCreated, rr.Code, "Body: %s", rr.Body.String())
+
+		req = testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/pickup-notes", student.ID), map[string]any{
+			"notes": []map[string]any{
+				{"weekday": 1, "content": "Montags bei Tante"},
+				{"weekday": 2, "content": "Dienstags zu Hause"},
+			},
+		})
+		rr = authExec(t, tc, req, claims, []string{"admin:*"})
+		require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+
+		notes, err := tc.resource.PickupScheduleService.GetStudentPickupNotes(testpkg.Ctx(t), student.ID)
+		require.NoError(t, err)
+		assert.Len(t, notes, 3)
+		byWeekday := make(map[int]string, len(notes))
+		var dated string
+		for _, note := range notes {
+			if note.Weekday == 0 {
+				dated = note.Content
+				continue
+			}
+			byWeekday[note.Weekday] = note.Content
+		}
+		assert.Equal(t, "Montags bei Tante", byWeekday[1])
+		assert.Equal(t, "Dienstags zu Hause", byWeekday[2])
+		assert.Equal(t, "Nur an diesem Tag", dated)
+	})
+
 	t.Run("rejects_date_and_weekday_together", func(t *testing.T) {
 		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-notes", student.ID),
 			map[string]any{"weekday": 2, "note_date": "2026-01-27", "content": "x"})

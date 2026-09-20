@@ -517,7 +517,7 @@ export const setupChapters: readonly GuideChapter[] = [
           tone: "orange",
         },
         screenshot:
-          "Betreuungszeiten eines Kindes mit Herkunft der Ankunftszeit und Schaltfläche Wochenplan bearbeiten.",
+          "Wochenplan eines Kindes mit einer Notiz zum Tag ohne Abholzeit.",
         image: "/help/screens/betreuungszeiten-pflegen.webp",
       },
       {
