@@ -115,12 +115,14 @@ Docker volumes as part of automatic test-server cleanup.
 
 ## Environment Management (SOPS)
 
-Edit `environments/{staging,production}.sops.env` only through the SOPS CLI.
+Edit `environments/{staging,production,demo}.sops.env` only through the SOPS CLI.
 Never hand-edit ciphertext or deployed `.env` files over SSH. Share age private
 keys through 1Password/Signal, never Slack/email.
 
 1. `sops environments/staging.sops.env` decrypts into the editor and re-encrypts.
 2. Push to `development` deploys staging; push to `main` deploys production.
+   Demo deploys only through manual dispatch from `main`; see
+   [demo environment](../operations/demo-environment.md) for host setup and ports.
 3. CI decrypts and copies `.env`, compose, and `deploy-remote.sh` to the server.
 4. Deployment pulls images, runs `migrate preflight`, backs up the DB, migrates,
    starts, and healthchecks; failures after the backup trigger rollback.
@@ -134,22 +136,22 @@ refusal a human has to resolve registers that same check next to its `Up`.
 
 | File | Purpose |
 |---|---|
-| `environments/{staging,production}.sops.env` | Encrypted values, plaintext keys for sync checking |
-| `environments/{staging,production}.compose.yml` | GHCR images pinned to commit SHA |
+| `environments/{staging,production,demo}.sops.env` | Encrypted values, plaintext keys for sync checking |
+| `environments/{staging,production,demo}.compose.yml` | GHCR images pinned to commit SHA |
 | `.sops.yaml`, `scripts/sops-setup.sh` | Encryption config and age setup |
 | `scripts/env-check.sh` | Key parity across deployed envs and `.env.example`; dev-only exceptions are declared in the script |
 | `scripts/deploy-remote.sh` | Exit 0: success; 1: aborted before migration; 10: rollback succeeded; 11: rollback failed (critical) |
 
-Both encrypted files must have identical keys and match `.env.example` except
+All encrypted files must have identical keys and match `.env.example` except
 the script's dev-only whitelist. The shared `.env` supplies Compose interpolation
 only. Each service receives an explicit environment allowlist; `migrate` alone
 receives the privileged DSN. Read [runtime environment boundaries](../operations/runtime-environment-boundaries.md)
 before changing deployment environments or maintenance jobs.
 
-CI uses `SOPS_AGE_KEY`, `STAGING_SSH_*`, and `PRODUCTION_SSH_*` secrets;
+CI uses `SOPS_AGE_KEY`, `STAGING_SSH_*`, `PRODUCTION_SSH_*`, and `DEMO_SSH_*` secrets;
 failure recipients are in the `DEPLOY_NOTIFY_EMAILS` repository variable.
-Server layout is `~/{staging,production}/` (`.env`, `docker-compose.yml`,
-`.deploy-state`) and `~/backups/{env}/` (3 staging / 7 production complete
+Server layout is `~/{staging,production,demo}/` (`.env`, `docker-compose.yml`,
+`.deploy-state`) and `~/backups/{env}/` (3 staging / 7 production / 3 demo complete
 snapshot sets). See [complete release backup and rollback](../operations/release-backup-rollback.md)
 for snapshot contents, verification, manual recovery and data-loss boundaries.
 Rollbacks restore matching images, configuration, roles, database and uploads;

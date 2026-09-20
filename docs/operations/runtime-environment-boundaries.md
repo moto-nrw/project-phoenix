@@ -1,6 +1,6 @@
 # Runtime environment boundaries
 
-Staging and production use the same service allowlists. SOPS remains the source
+Staging, production and demo use the same service allowlists. SOPS remains the source
 of secrets. CI delivers the decrypted file for Compose interpolation; containers
 receive only their explicit `environment` entries.
 

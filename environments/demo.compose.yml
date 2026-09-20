@@ -1,6 +1,8 @@
-# Production Docker Compose
-# Deployed automatically by CI — changes here are synced to ~/production/docker-compose.yml on the server.
+# Demo Docker Compose
+# Deployed manually from main by CI — changes here are synced to ~/demo/docker-compose.yml on the server.
 # Uses pre-built images from GHCR (pushed by CI build step).
+
+name: demo
 
 services:
   postgres:
@@ -8,10 +10,9 @@ services:
     restart: unless-stopped
     # Loopback only: read-only developer access via SSH tunnel (see /root/README.md on the server).
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:5434:5432"
     volumes:
-      - postgres:/var/lib/postgresql/data
-      - /etc/docker/postgres/ssl/certs:/var/lib/postgresql/ssl/certs:ro
+      - demo-postgres:/var/lib/postgresql/data
     environment:
       TZ: ${TZ:?TZ is required}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
@@ -19,55 +20,38 @@ services:
       [
         "postgres",
         "-c",
-        "ssl=on",
-        "-c",
-        "ssl_cert_file=/var/lib/postgresql/ssl/certs/server.crt",
-        "-c",
-        "ssl_key_file=/var/lib/postgresql/ssl/certs/server.key",
-        "-c",
-        "ssl_ca_file=/var/lib/postgresql/ssl/certs/ca.crt",
-        "-c",
-        "ssl_min_protocol_version=TLSv1.2",
-        "-c",
-        "password_encryption=scram-sha-256",
-        "-c",
-        "listen_addresses=*",
-        "-c",
         "shared_preload_libraries=pg_stat_statements",
         "-c",
         "pg_stat_statements.track=all",
-        "-c",
-        "shared_buffers=1GB",
-        "-c",
-        "effective_cache_size=3GB",
       ]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      # The init-only server accepts sockets before restarting; wait for TCP.
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres"]
       interval: 1s
       timeout: 1s
       retries: 5
     logging:
       driver: journald
       options:
-        tag: prod-postgres
+        tag: demo-postgres
     networks:
-      - production
+      - demo
 
   server:
-    image: ghcr.io/moto-nrw/phoenix-server:main
+    image: ghcr.io/moto-nrw/phoenix-server:demo
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     command: ["./main", "serve"]
     ports:
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:8082:8080"
     volumes:
-      - production-avatar-uploads:/app/public/uploads
+      - demo-avatar-uploads:/app/public/uploads
     environment:
       # Endpoint only. The application password is added by GetServeDSN.
       # Never interpolate the privileged maintenance DB_DSN here.
-      DB_DSN: postgres://phoenix_auth@postgres:5432/postgres?sslmode=require
+      DB_DSN: postgres://phoenix_auth@postgres:5432/postgres?sslmode=disable
       TZ: ${TZ:?TZ is required}
       APP_ENV: ${APP_ENV:?APP_ENV is required}
       LOG_LEVEL: ${LOG_LEVEL:?LOG_LEVEL is required}
@@ -124,7 +108,7 @@ services:
     logging:
       driver: journald
       options:
-        tag: prod-server
+        tag: demo-server
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
       interval: 30s
@@ -132,15 +116,15 @@ services:
       retries: 3
       start_period: 15s
     networks:
-      - production
+      - demo
 
   frontend:
-    image: ghcr.io/moto-nrw/phoenix-frontend:main
+    image: ghcr.io/moto-nrw/phoenix-frontend:demo
     restart: unless-stopped
     depends_on:
       - server
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:3002:3000"
     environment:
       # Allowlist: browser build values and frontend-owned runtime secrets only.
       TZ: ${TZ:?TZ is required}
@@ -171,7 +155,7 @@ services:
     logging:
       driver: journald
       options:
-        tag: prod-frontend
+        tag: demo-frontend
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
       interval: 30s
@@ -179,11 +163,11 @@ services:
       retries: 3
       start_period: 10s
     networks:
-      - production
+      - demo
 
   # Explicit one-shot job, excluded from normal service startup.
   migrate:
-    image: ghcr.io/moto-nrw/phoenix-server:main
+    image: ghcr.io/moto-nrw/phoenix-server:demo
     profiles: ["maintenance"]
     depends_on:
       postgres:
@@ -204,13 +188,13 @@ services:
       OPERATOR_PASSWORD: ${OPERATOR_PASSWORD:?OPERATOR_PASSWORD is required}
       OPERATOR_DISPLAY_NAME: ${OPERATOR_DISPLAY_NAME:?OPERATOR_DISPLAY_NAME is required}
     networks:
-      - production
+      - demo
 
 networks:
-  production:
+  demo:
     driver: bridge
 
 volumes:
-  postgres:
-  production-avatar-uploads:
-    name: phoenix-production-uploads
+  demo-postgres:
+  demo-avatar-uploads:
+    name: phoenix-demo-uploads
