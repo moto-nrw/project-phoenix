@@ -45,10 +45,28 @@ getrennt erkennbar.
 ## Demo-Daten
 
 Ein **Demo-Schulprofil** ist ein stabil benanntes, synthetisches Szenario für
-genau eine Schule im lokalen Entwicklungs-Seed. Es legt die schulbezogenen
-Einstellungen, Zugangsdaten, Stammdaten und fachlich erwarteten Zustände fest
-und wird über dieselben HTTP-Schnittstellen aufgebaut, die auch das Produkt
-verwendet.
+genau eine Schule. Es legt die schulbezogenen Einstellungen, Zugangsdaten,
+Stammdaten und fachlich erwarteten Zustände fest und wird über dieselben
+HTTP-Schnittstellen aufgebaut, die auch das Produkt verwendet. Aus einem
+Profil entstehen die Schulen des lokalen Entwicklungs-Seeds und die
+Demo-Schulen der öffentlichen Demo.
+
+Die **öffentliche Demo** ist das Angebot, moto ohne Vertrag und ohne eigene
+Daten auszuprobieren. Sie enthält ausschließlich synthetische Daten und läuft
+getrennt von den Schulen echter Träger.
+
+Eine **Demo-Schule** ist eine aus einem Demo-Schulprofil erzeugte Schule, die
+genau einem Interessenten gehört. Er darf darin alles ändern; seine Änderungen
+sind für niemanden sonst sichtbar. Eine Demo-Schule verfällt, wenn sie länger
+nicht genutzt wird.
+
+Ein **Demo-Zugang** verbindet die E-Mail-Adresse eines Interessenten mit
+seiner Demo-Schule. Der Interessent betritt die Demo-Schule über einen Link
+aus einer E-Mail und wählt dort eine **Demo-Rolle** (Betreuungskraft,
+OGS-Leitung oder Elternteil), ohne sich ein Passwort zu setzen.
+
+_Vermeiden_: Demo-Tenant (klingt nach einer gemeinsamen Schule für alle),
+Sandbox, Testzugang, Probeaccount.
 
 **Szenarioparität** bedeutet, dass die Demo-Schulprofile die relevanten, in
 echten Schulen vorkommenden Konfigurationen und fachlichen Zustände
