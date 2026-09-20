@@ -106,7 +106,7 @@ type Factory struct {
 
 	// Users domain
 	Person              userModels.PersonRepository
-	RFIDCard            authModels.RFIDCardRepository
+	RFIDCard            identityaccess.RFIDCards
 	Staff               userModels.StaffRepository
 	Student             userModels.StudentRepository
 	CareExit            userModels.CareExitRepository
@@ -552,7 +552,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 
 		// Users repositories
 		Person:   personRepo,
-		RFIDCard: authpostgres.NewRFIDCardRepository(db),
+		RFIDCard: identity,
 		Student:  studentRepo,
 		CareExit: carelifecycle.NewCareExitRepository(db, careExitReasonsOf(&factory)),
 		CareExitCleanup: carelifecycle.NewCareExitCleanupRepository(db, newCareExitCleanup(

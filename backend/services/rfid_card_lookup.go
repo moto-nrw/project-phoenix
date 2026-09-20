@@ -6,50 +6,23 @@ import (
 	"errors"
 	"fmt"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/services/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/services/users"
 )
 
-// rfidCard is what the staff clock needs to know about an identity-access
-// card. The root never names that owner's model (#2662): the repository's
-// return type satisfies this interface through the base string-id model.
-type rfidCard interface {
-	GetID() any
-	IsActive() bool
-}
+// rfidCardLookup maps the owner's validated card facts to the staff-clock port.
+type rfidCardLookup struct{ cards identityaccess.RFIDCards }
 
-// rfidCardLookup adapts the identity-access card repository to the narrow
-// port the staff clock reads. The type parameter is inferred from the
-// repository method, so no identity-access import is needed here. It also
-// owns the tag normalization, which belongs to the card's owner and must not
-// leak into the workflow.
-type rfidCardLookup[C interface {
-	comparable
-	rfidCard
-}] struct {
-	find func(context.Context, string) (C, error)
-}
-
-func newRFIDCardLookup[C interface {
-	comparable
-	rfidCard
-}](find func(context.Context, string) (C, error)) rfidCardLookup[C] {
-	return rfidCardLookup[C]{find: find}
-}
-
-func (l rfidCardLookup[C]) FindCard(ctx context.Context, rawTag string) (*staffclock.Card, error) {
-	normalized := userModels.NormalizeTagID(rawTag)
-	if err := userModels.ValidateTagID(normalized); err != nil {
+func (l rfidCardLookup) FindCard(ctx context.Context, rawTag string) (*staffclock.Card, error) {
+	if err := l.cards.ValidateRFIDTag(rawTag); err != nil {
 		return nil, fmt.Errorf("%w: %v", staffclock.ErrInvalidRFIDTag, err)
 	}
-	card, err := l.find(ctx, normalized)
-	var missing C
-	if err != nil || card == missing {
+	id, active, found, err := l.cards.LookupRFIDCard(ctx, rawTag)
+	if err != nil || !found {
 		return nil, err
 	}
-	cardID, _ := card.GetID().(string)
-	return &staffclock.Card{ID: cardID, Active: card.IsActive()}, nil
+	return &staffclock.Card{ID: id, Active: active}, nil
 }
 
 // staffClockStaffLookup resolves the staff member behind a normalized tag

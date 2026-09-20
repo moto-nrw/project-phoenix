@@ -1,4 +1,4 @@
-package authmodels
+package domain
 
 import (
 	"testing"

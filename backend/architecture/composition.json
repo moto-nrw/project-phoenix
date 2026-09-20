@@ -20974,17 +20974,17 @@
         },
         {
           "file": "api/base.go",
-          "line": 907,
+          "line": 904,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1312,
+          "line": 1309,
           "declaration": "activeSchoolMemberships"
         },
         {
           "file": "api/base.go",
-          "line": 1327,
+          "line": 1324,
           "declaration": "initializeAPIResources"
         }
       ]

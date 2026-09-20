@@ -135,7 +135,7 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	}
 	e := engine{
 		profiles: application.NewAccountProfiles(service, store), guardianSchools: application.NewGuardianSchools(service, store),
-		service: service, mfa: operatorMFARecords, tokens: tokens,
+		service: service, mfa: operatorMFARecords, tokens: tokens, rfidCards: application.NewRFIDCards(service, store),
 		passkeys: operatorPasskeys, accountPasskeys: accountPasskeys, accountRoleQueries: application.NewAccountRoleQueries(service, store),
 		auth: auth, operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle, roles: roles,
 		resets: resets, invitations: invitations, provisioning: provisioning, administration: administration,
@@ -176,6 +176,7 @@ func (transaction) RunPlatform(ctx context.Context, callback func(context.Contex
 }
 
 type engine struct {
+	rfidCards          *application.RFIDCards
 	accountRoleQueries *application.AccountRoleQueries
 	guardianSchools    *application.GuardianSchools
 	profiles           *application.AccountProfiles

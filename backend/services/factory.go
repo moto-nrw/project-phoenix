@@ -927,7 +927,7 @@ func newFactory(
 		timetracking.WithWorkSessionHolidays(nonWorkingDayService),
 		timetracking.WithWorkSessionAbsenceTypes(staffAbsenceTypeService),
 	)
-	staffClockService := newStaffClockService(usersService, repos.RFIDCard.FindByID, workSessionService)
+	staffClockService := newStaffClockService(usersService, repos.RFIDCard, workSessionService)
 
 	// Monatskarte read model (#1842) — everything computed on read, the
 	// Übertrag is live.

@@ -29,29 +29,6 @@ func TestModel_Fields(t *testing.T) {
 	}
 }
 
-func TestStringIDModel_Fields(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	m := StringIDModel{
-		ID:        "RFID12345678",
-		CreatedAt: now,
-		UpdatedAt: now.Add(time.Hour),
-	}
-
-	if m.ID != "RFID12345678" {
-		t.Errorf("StringIDModel.ID = %v, want RFID12345678", m.ID)
-	}
-
-	if !m.CreatedAt.Equal(now) {
-		t.Errorf("StringIDModel.CreatedAt = %v, want %v", m.CreatedAt, now)
-	}
-
-	if !m.UpdatedAt.Equal(now.Add(time.Hour)) {
-		t.Errorf("StringIDModel.UpdatedAt = %v, want %v", m.UpdatedAt, now.Add(time.Hour))
-	}
-}
-
 func TestDatabaseError_Error(t *testing.T) {
 	t.Parallel()
 

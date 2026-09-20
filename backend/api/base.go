@@ -887,11 +887,8 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL 
 	api.MealPlan = newMealPlanResource(modules.mealPlan, db, newMealPlanExportRenderer())
 	api.Feedback = newFeedbackResource(modules.feedback, db)
 	api.Users = newUsersResource(modules.persons, repoFactory.Account.FindEmailsByAccountIDs, func(ctx context.Context, tagID string) (bool, error) {
-		cards, err := repoFactory.RFIDCard.List(ctx, map[string]any{"id": tagID})
-		if err != nil {
-			return false, err
-		}
-		return len(cards) > 0, nil
+		_, _, found, err := repoFactory.RFIDCard.LookupRFIDCard(ctx, tagID)
+		return found, err
 	}, db)
 
 	// Register routes with rate limiting

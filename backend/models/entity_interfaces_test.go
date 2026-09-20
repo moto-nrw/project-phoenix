@@ -50,7 +50,6 @@ var (
 	_ base.Entity = (*users.GuardianProfile)(nil)
 	_ base.Entity = (*users.Person)(nil)
 	_ base.Entity = (*users.PrivacyConsent)(nil)
-	_ base.Entity = (*authmodels.RFIDCard)(nil)
 	_ base.Entity = (*users.Staff)(nil)
 	_ base.Entity = (*users.Student)(nil)
 	_ base.Entity = (*users.StudentGuardian)(nil)

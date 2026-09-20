@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 )
 
 func TestPerson_Validate(t *testing.T) {
@@ -215,8 +214,8 @@ func TestPerson_SetRFIDCard(t *testing.T) {
 			LastName:  "Doe",
 		}
 
-		card := &authmodels.RFIDCard{
-			StringIDModel: base.StringIDModel{ID: "RFID123456AB"},
+		card := &PersonRFIDCard{
+			ID: "RFID123456AB",
 		}
 
 		person.SetRFIDCard(card)

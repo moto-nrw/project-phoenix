@@ -887,8 +887,8 @@ func TestRegisterRoutes_UsersRoutesRunThroughProtectedGroup(t *testing.T) {
 	identity, err := repositories.NewRFIDTestRepositories(db)
 	require.NoError(t, err)
 	resource := newUsersResource(people, identity.Membership.Account.FindEmailsByAccountIDs, func(ctx context.Context, tagID string) (bool, error) {
-		cards, err := identity.RFID.List(ctx, map[string]any{"id": tagID})
-		return len(cards) > 0, err
+		_, _, found, err := identity.RFID.LookupRFIDCard(ctx, tagID)
+		return found, err
 	}, db)
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
