@@ -14,21 +14,6 @@ func studentOwnerContractDown(context.Context, *bun.DB) error {
 	return errors.New("student owner Contract is irreversible: restore the verified pre-Contract backup and its prior application image together; automatic Down cannot recreate removed rollback storage")
 }
 
-// contractStudentOwnerStorageWithEvidence checks operational evidence before
-// acquiring locks, then checks it again inside the destructive transaction.
-func contractStudentOwnerStorageWithEvidence(ctx context.Context, db *bun.DB, evidence StudentContractEvidence, policy StudentContractPolicy, release string) error {
-	if db == nil {
-		return errors.New("student contract: database is required")
-	}
-	check := func(ctx context.Context, connection bun.IDB) error {
-		return validateStudentContractLiveEvidence(ctx, connection, evidence, policy, release, time.Now().UTC())
-	}
-	if err := check(ctx, db); err != nil {
-		return err
-	}
-	return contractStudentOwnerStorageChecked(ctx, db, check)
-}
-
 func contractStudentOwnerStorageChecked(ctx context.Context, db *bun.DB, check func(context.Context, bun.IDB) error) error {
 	if db == nil {
 		return errors.New("student contract: database is required")
@@ -135,15 +120,9 @@ func studentOwnerContractDataPreflight(ctx context.Context, db bun.IDB) error {
 	if !ready {
 		return errors.New("student contract: requires completed cutover and Care Plan absence migration")
 	}
-	var reads, writes int64
-	if err := db.NewRaw(`SELECT
-		coalesce(pg_sequence_last_value('users.student_compatibility_reads'), 0),
-		coalesce(pg_sequence_last_value('users.student_compatibility_writes'), 0)`).Scan(ctx, &reads, &writes); err != nil {
-		return fmt.Errorf("student contract: inspect compatibility counters: %w", err)
-	}
-	if reads != 0 || writes != 0 {
-		return fmt.Errorf("student contract: compatibility hits prevent Contract (reads=%d writes=%d)", reads, writes)
-	}
+	// Historical compatibility counters are diagnostic, not a cleanup gate.
+	// Deployment stops the old application before migration and restores the
+	// complete release backup on failure; only current integrity matters here.
 	var functionName string
 	if err := db.NewRaw(`SELECT coalesce((SELECT p.oid::regprocedure::text
 		FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace

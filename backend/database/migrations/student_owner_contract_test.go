@@ -17,10 +17,10 @@ func contractStudentOwnerStorage(ctx context.Context, db *bun.DB) error {
 	return contractStudentOwnerStorageChecked(ctx, db, nil)
 }
 
-func TestStudentOwnerContractRechecksEvidenceBeforeDestructiveDDL(t *testing.T) {
+func TestStudentOwnerContractRunsLockedCheckBeforeDestructiveDDL(t *testing.T) {
 	t.Parallel()
 	db := setupStudentStorageBeforeContract(t)
-	changed := errors.New("operational evidence changed while acquiring locks")
+	changed := errors.New("locked replay check refused cleanup")
 	checked := false
 	err := contractStudentOwnerStorageChecked(t.Context(), db, func(ctx context.Context, connection bun.IDB) error {
 		_, inTransaction := connection.(bun.Tx)
@@ -71,14 +71,14 @@ func TestStudentOwnerContractRejectsUntrackedFunctionDependency(t *testing.T) {
 	require.True(t, retained)
 }
 
-func TestStudentOwnerContractRefusesLiveCompatibilityHits(t *testing.T) {
+func TestStudentOwnerContractAllowsHistoricalCompatibilityHits(t *testing.T) {
 	t.Parallel()
 	for _, counter := range []string{"users.student_compatibility_reads", "users.student_compatibility_writes"} {
 		t.Run(counter, func(t *testing.T) {
 			db := setupStudentStorageBeforeContract(t)
 			_, err := db.NewRaw(`SELECT nextval(?::regclass)`, counter).Exec(t.Context())
 			require.NoError(t, err)
-			require.ErrorContains(t, studentOwnerContractDataPreflight(t.Context(), db), "compatibility hits prevent Contract")
+			require.NoError(t, studentOwnerContractDataPreflight(t.Context(), db))
 		})
 	}
 }

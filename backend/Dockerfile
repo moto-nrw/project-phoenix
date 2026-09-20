@@ -14,12 +14,9 @@ RUN --mount=type=cache,mode=0755,target=/go/pkg/mod \
 COPY . .
 
 # Reuse downloaded modules and compiled packages across builds.
-ARG RELEASE_COMMIT
 RUN --mount=type=cache,mode=0755,target=/go/pkg/mod \
     --mount=type=cache,mode=0755,target=/root/.cache/go-build \
-    { test "${#RELEASE_COMMIT}" -eq 40 || { echo 'RELEASE_COMMIT must be a full lowercase commit SHA' >&2; exit 1; }; } && \
-    case "$RELEASE_COMMIT" in *[!0-9a-f]*) echo 'RELEASE_COMMIT must be a full lowercase commit SHA' >&2; exit 1 ;; esac && \
-    CGO_ENABLED=0 go build -ldflags="-s -w -X github.com/moto-nrw/project-phoenix/cmd.migrationReleaseCommit=${RELEASE_COMMIT}" -o main .
+    CGO_ENABLED=0 go build -ldflags="-s -w" -o main .
 
 # Multi-Stage production build
 FROM alpine:3.21 AS production
