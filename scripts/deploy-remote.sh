@@ -5,7 +5,7 @@ set -Eeuo pipefail
 (( $# <= 1 )) || { echo 'Usage: deploy-remote.sh [deployment-directory]; evidence files are no longer supported' >&2; exit 1; }
 umask 077
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-case "${DEPLOY_DIR:-}" in staging|production) ;; *) echo 'Invalid DEPLOY_DIR' >&2; exit 1;; esac
+case "${DEPLOY_DIR:-}" in staging|production|demo) ;; *) echo 'Invalid DEPLOY_DIR' >&2; exit 1;; esac
 [[ "${DEPLOY_SHA:-}" =~ ^[a-f0-9]{7,40}$ ]] || { echo 'Invalid DEPLOY_SHA' >&2; exit 1; }
 [[ "${BACKUP_RETENTION:-}" =~ ^[1-9][0-9]*$ ]] || { echo 'Invalid BACKUP_RETENTION' >&2; exit 1; }
 deployment_directory=${1:-"$HOME/$DEPLOY_DIR"}
@@ -19,7 +19,9 @@ trap cleanup_operation EXIT
 [ -s .env.new ] && [ -s docker-compose.yml.new ] || { echo 'New configuration is missing' >&2; exit 1; }
 
 # Pull before stopping the old application. Its configuration remains intact.
-sed "s|phoenix-server:[^ ]*|phoenix-server:${DEPLOY_SHA}|; s|phoenix-frontend:[^ ]*|phoenix-frontend:${DEPLOY_SHA}|" docker-compose.yml.new > docker-compose.yml.pinned
+frontend_tag="$DEPLOY_SHA"
+if [[ "$DEPLOY_DIR" = demo ]]; then frontend_tag="demo-$DEPLOY_SHA"; fi
+sed "s|phoenix-server:[^ ]*|phoenix-server:${DEPLOY_SHA}|; s|phoenix-frontend:[^ ]*|phoenix-frontend:${frontend_tag}|" docker-compose.yml.new > docker-compose.yml.pinned
 mv docker-compose.yml.pinned docker-compose.yml.new
 docker compose --env-file .env.new -f docker-compose.yml.new pull
 

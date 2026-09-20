@@ -42,6 +42,7 @@ function requiredEnv(values, name) {
 
 /** Alles, was `next build`/`next start`/`next dev` und proxy.ts brauchen. */
 const SERVER_ENV_KEYS = [
+  "NEXT_PUBLIC_APP_ENV",
   "API_URL",
   "NEXT_PUBLIC_API_URL",
   "NEXT_PUBLIC_OPERATOR_HOSTNAME",

@@ -97,6 +97,7 @@ services:
       # Server-side API URL (internal Docker network, never leaves container network)
       API_URL: "http://server:8080"
       # Client-side API URL (browser-accessible, must be reachable from user's browser)
+      NEXT_PUBLIC_APP_ENV: ${NEXT_PUBLIC_APP_ENV}
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
       # NextAuth configuration
       NEXTAUTH_URL: ${NEXTAUTH_URL}
