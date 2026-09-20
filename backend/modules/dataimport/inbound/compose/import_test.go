@@ -436,7 +436,7 @@ func TestImportStudents_PersistsBusPermission(t *testing.T) {
 	err := tc.db.NewSelect().
 		Model(&student).
 		Column("student.id").
-		ModelTableExpr(`users.students AS "student"`).
+		ModelTableExpr(`users.student_profiles AS "student"`).
 		Join(`JOIN users.persons AS "person" ON "person".id = "student".person_id`).
 		Where(`"person".first_name = ?`, "Buskind").
 		Where(`"person".last_name = ?`, "Phase1Regression").
@@ -473,7 +473,7 @@ func TestImportStudents_PersistsDepartureFromGehweise(t *testing.T) {
 	require.NoError(t, tc.db.NewSelect().
 		Model(&student).
 		Column("student.id").
-		ModelTableExpr(`users.students AS "student"`).
+		ModelTableExpr(`users.student_profiles AS "student"`).
 		Join(`JOIN users.persons AS "person" ON "person".id = "student".person_id`).
 		Where(`"person".first_name = ?`, "Departure").
 		Where(`"person".last_name = ?`, "GehweiseImport").
@@ -511,7 +511,7 @@ func TestImportStudents_LegacyTemplateStillImports(t *testing.T) {
 	require.NoError(t, tc.db.NewSelect().
 		Model(&student).
 		Column("student.id").
-		ModelTableExpr(`users.students AS "student"`).
+		ModelTableExpr(`users.student_profiles AS "student"`).
 		Join(`JOIN users.persons AS "person" ON "person".id = "student".person_id`).
 		Where(`"person".first_name = ?`, "Legacy").
 		Where(`"person".last_name = ?`, "GehweiseFallback").
@@ -549,7 +549,7 @@ func TestImportStudents_PersistsEnrollmentDatesAndStatus(t *testing.T) {
 
 	read := func(firstName string) peopledirectory.EnrollmentRecord {
 		var id int64
-		err := tc.db.NewSelect().TableExpr("users.students AS student").Column("student.id").
+		err := tc.db.NewSelect().TableExpr("users.student_profiles AS student").Column("student.id").
 			Join("JOIN users.persons AS person ON person.id = student.person_id").
 			Where("person.first_name = ?", firstName).Where("person.last_name = ?", "EnrollRegression").Scan(context.Background(), &id)
 		require.NoError(t, err, "imported student %q should exist", firstName)
@@ -598,7 +598,7 @@ func TestImportStudents_PersistsConsentDates(t *testing.T) {
 	err := tc.db.NewSelect().
 		Model(&student).
 		Column("student.id").
-		ModelTableExpr(`users.students AS "student"`).
+		ModelTableExpr(`users.student_profiles AS "student"`).
 		Join(`JOIN users.persons AS "person" ON "person".id = "student".person_id`).
 		Where(`"person".first_name = ?`, "Consent").
 		Where(`"person".last_name = ?`, "Phase2bRegression").
@@ -1083,8 +1083,9 @@ func TestImportStudents_UpsertModeUpdatesExisting(t *testing.T) {
 		AddressStreet *string `bun:"address_street"`
 		AddressCity   *string `bun:"address_city"`
 	}
-	err := tc.db.NewSelect().Table("users.students").
-		ColumnExpr("students.school_class, students.address_street, students.address_city").
+	err := tc.db.NewSelect().TableExpr("users.student_profiles AS students").
+		ColumnExpr("membership.school_class, students.address_street, students.address_city").
+		Join("JOIN users.student_school_memberships AS membership ON membership.student_profile_id = students.id AND membership.tenant_id = students.tenant_id AND membership.deleted_at IS NULL").
 		Join("JOIN users.persons AS p ON p.id = students.person_id").
 		Where("p.last_name = ?", fmt.Sprintf("Ert%d", unique)).
 		Scan(context.Background(), &stored)

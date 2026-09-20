@@ -1,0 +1,60 @@
+time=2026-09-20T05:30:52.210+02:00 level=INFO msg="initializing API server" env=development
+time=2026-09-20T05:30:52.213+02:00 level=INFO msg="database pool configured (phoenix_auth)" env=development max_open_conns=10 max_idle_conns=5 conn_max_lifetime=30m0s conn_max_idle_time=5m0s
+time=2026-09-20T05:30:52.246+02:00 level=WARN msg="SMTP mailer not configured, using mock mailer (emails will be logged only)" env=development
+time=2026-09-20T05:30:52.246+02:00 level=WARN msg="SMTP mailer not configured; using mock mailer (tokens will not be sent via SMTP)" env=development
+time=2026-09-20T05:30:52.260+02:00 level=INFO msg="web push disabled: VAPID keys not configured (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBSCRIBER)" env=development
+time=2026-09-20T05:30:52.312+02:00 level=INFO msg="server listening" env=development addr=:8080
+time=2026-09-20T05:30:52.317+02:00 level=INFO msg="capacity snapshot" env=development component=capacity goroutines=6 heap_alloc_bytes=6175248 heap_sys_bytes=11436032 total_alloc_bytes=10657576 gc_cycles=4 http_active_requests=0 http_routes=[] sse_clients=0 db_open_connections=1 db_in_use=0 db_idle=1 db_wait_count=0 db_wait_duration_ms=0 db_max_idle_closed=0 db_max_lifetime_closed=0
+time=2026-09-20T05:30:52.317+02:00 level=INFO msg="starting scheduler service" env=development service=scheduler registered_job_count=26 registered_job_ids="[visit-cleanup timetable-cleanup time-tracking-cleanup student-change-log-cleanup pwa-usage-cleanup staff-message-cleanup booking-consistency-audit session-end token-cleanup staff-document-file-cleanup student-document-file-cleanup file-store-cleanup session-cleanup break-auto-end auto-checkout status-flag-clear timetable-materialization instance-overdue reminder-notifications timetable-auto-start timetable-auto-end activate-students email-outbox rollover-deadline appointment-reminders announcement-reminders]"
+time=2026-09-20T05:30:52.317+02:00 level=INFO msg="cleanup scheduler is disabled via env var" env=development service=scheduler
+time=2026-09-20T05:30:52.318+02:00 level=INFO msg="session end scheduler is disabled via env var" env=development service=scheduler
+time=2026-09-20T05:30:52.318+02:00 level=INFO msg="staff message cleanup task using minute-polling for per-tenant scheduling" env=development service=scheduler
+time=2026-09-20T05:30:52.318+02:00 level=INFO msg="timetable cleanup task using minute-polling for per-tenant scheduling" env=development service=scheduler
+time=2026-09-20T05:30:52.318+02:00 level=INFO msg="pwa usage cleanup task using minute-polling for per-tenant scheduling" env=development service=scheduler
+time=2026-09-20T05:30:52.318+02:00 level=INFO msg="time-tracking cleanup task using minute-polling for per-tenant scheduling" env=development service=scheduler
+time=2026-09-20T05:30:52.318+02:00 level=INFO msg="student change-log cleanup task using minute-polling for per-tenant scheduling" env=development service=scheduler
+time=2026-09-20T05:30:52.318+02:00 level=INFO msg="token cleanup task scheduled to run every hour" env=development service=scheduler
+time=2026-09-20T05:30:52.318+02:00 level=INFO msg="booking consistency audit using interval polling" env=development service=scheduler
+time=2026-09-20T05:30:52.319+02:00 level=INFO msg="student document file cleanup using interval polling" env=development service=scheduler
+time=2026-09-20T05:30:52.319+02:00 level=INFO msg="staff document file cleanup using interval polling" env=development service=scheduler
+time=2026-09-20T05:30:52.319+02:00 level=INFO msg="file store cleanup using interval polling" env=development service=scheduler
+time=2026-09-20T05:30:52.321+02:00 level=INFO msg="running scheduled token cleanup" env=development correlation_id=e5ee7341-f414-4d4c-b30e-6bb9b6005d98
+time=2026-09-20T05:30:52.322+02:00 level=INFO msg="instance overdue tick using minute-polling" env=development service=scheduler
+time=2026-09-20T05:30:52.323+02:00 level=INFO msg="status flag clear task using minute-polling for per-tenant scheduling" env=development service=scheduler
+time=2026-09-20T05:30:52.323+02:00 level=INFO msg="reminder notification tick using minute-polling" env=development service=scheduler
+time=2026-09-20T05:30:52.323+02:00 level=INFO msg="timetable materialization using minute-polling for per-tenant scheduling" env=development service=scheduler
+time=2026-09-20T05:30:52.323+02:00 level=INFO msg="auto-checkout polling started" env=development service=scheduler
+time=2026-09-20T05:30:52.323+02:00 level=INFO msg="timetable auto-start tick using minute-polling" env=development service=scheduler
+time=2026-09-20T05:30:52.323+02:00 level=INFO msg="timetable auto-end tick using minute-polling" env=development service=scheduler
+time=2026-09-20T05:30:52.323+02:00 level=INFO msg="session cleanup using 5-minute polling for per-tenant scheduling" env=development service=scheduler
+time=2026-09-20T05:30:52.324+02:00 level=INFO msg="break auto-end polling started" env=development service=scheduler interval_seconds=60
+time=2026-09-20T05:30:52.324+02:00 level=INFO msg="activate-students using interval polling for per-tenant scheduling" env=development service=scheduler
+time=2026-09-20T05:30:52.325+02:00 level=INFO msg="outbox worker using interval polling" env=development service=scheduler
+time=2026-09-20T05:30:52.325+02:00 level=INFO msg="rollover-deadline task started" env=development service=scheduler interval=1h0m0s
+time=2026-09-20T05:30:52.326+02:00 level=INFO msg="appointment reminder tick using interval polling" env=development service=scheduler
+time=2026-09-20T05:30:52.326+02:00 level=INFO msg="announcement reminder tick using interval polling" env=development service=scheduler
+time=2026-09-20T05:30:52.369+02:00 level=INFO msg="cleanup job completed" env=development correlation_id=e5ee7341-f414-4d4c-b30e-6bb9b6005d98 job="Auth token cleanup" records_deleted=0
+time=2026-09-20T05:30:52.370+02:00 level=INFO msg="cleanup job completed" env=development correlation_id=e5ee7341-f414-4d4c-b30e-6bb9b6005d98 job="Password reset token cleanup" records_deleted=0
+time=2026-09-20T05:30:52.371+02:00 level=INFO msg="password reset rate limit cleanup completed" env=development service=auth records_deleted=0
+time=2026-09-20T05:30:52.371+02:00 level=INFO msg="cleanup job completed" env=development correlation_id=e5ee7341-f414-4d4c-b30e-6bb9b6005d98 job="Password reset rate limit cleanup" records_deleted=0
+time=2026-09-20T05:30:52.372+02:00 level=INFO msg="cleanup job completed" env=development correlation_id=e5ee7341-f414-4d4c-b30e-6bb9b6005d98 job="Invitation cleanup" records_deleted=0
+time=2026-09-20T05:30:52.374+02:00 level=INFO msg="cleanup job completed" env=development correlation_id=e5ee7341-f414-4d4c-b30e-6bb9b6005d98 job="Email change token cleanup" records_deleted=0
+time=2026-09-20T05:30:52.375+02:00 level=INFO msg="cleanup job completed" env=development correlation_id=e5ee7341-f414-4d4c-b30e-6bb9b6005d98 job="Operator invitation token cleanup" records_deleted=0
+time=2026-09-20T05:30:52.375+02:00 level=INFO msg="token cleanup completed" env=development correlation_id=e5ee7341-f414-4d4c-b30e-6bb9b6005d98 duration=55ms
+time=2026-09-20T05:31:07.364+02:00 level=INFO msg="outbox worker tick complete" env=development service=scheduler job_id=email-outbox processed=0 backlog=0 duration=24.58184ms
+time=2026-09-20T05:31:22.343+02:00 level=INFO msg="booking consistency audit passed" env=development service=scheduler tenant_id=2 audit_date=2026-09-20 pickup_projection_missing_days=0 approved_without_required_offering=0 approved_without_optional_offering=0 total_findings=0
+time=2026-09-20T05:31:22.346+02:00 level=INFO msg="booking consistency audit passed" env=development service=scheduler tenant_id=11 audit_date=2026-09-20 pickup_projection_missing_days=0 approved_without_required_offering=0 approved_without_optional_offering=0 total_findings=0
+time=2026-09-20T05:31:22.349+02:00 level=INFO msg="booking consistency audit passed" env=development service=scheduler tenant_id=12 audit_date=2026-09-20 pickup_projection_missing_days=0 approved_without_required_offering=0 approved_without_optional_offering=0 total_findings=0
+time=2026-09-20T05:31:22.351+02:00 level=INFO msg="booking consistency audit passed" env=development service=scheduler tenant_id=13 audit_date=2026-09-20 pickup_projection_missing_days=0 approved_without_required_offering=0 approved_without_optional_offering=0 total_findings=0
+time=2026-09-20T05:31:22.353+02:00 level=INFO msg="booking consistency audit passed" env=development service=scheduler tenant_id=3 audit_date=2026-09-20 pickup_projection_missing_days=0 approved_without_required_offering=0 approved_without_optional_offering=0 total_findings=0
+time=2026-09-20T05:31:22.355+02:00 level=INFO msg="booking consistency audit passed" env=development service=scheduler tenant_id=4 audit_date=2026-09-20 pickup_projection_missing_days=0 approved_without_required_offering=0 approved_without_optional_offering=0 total_findings=0
+time=2026-09-20T05:31:22.357+02:00 level=INFO msg="booking consistency audit passed" env=development service=scheduler tenant_id=5 audit_date=2026-09-20 pickup_projection_missing_days=0 approved_without_required_offering=0 approved_without_optional_offering=0 total_findings=0
+time=2026-09-20T05:31:22.359+02:00 level=INFO msg="booking consistency audit passed" env=development service=scheduler tenant_id=6 audit_date=2026-09-20 pickup_projection_missing_days=0 approved_without_required_offering=0 approved_without_optional_offering=0 total_findings=0
+time=2026-09-20T05:31:22.361+02:00 level=INFO msg="booking consistency audit passed" env=development service=scheduler tenant_id=7 audit_date=2026-09-20 pickup_projection_missing_days=0 approved_without_required_offering=0 approved_without_optional_offering=0 total_findings=0
+time=2026-09-20T05:31:22.362+02:00 level=INFO msg="booking consistency audit passed" env=development service=scheduler tenant_id=8 audit_date=2026-09-20 pickup_projection_missing_days=0 approved_without_required_offering=0 approved_without_optional_offering=0 total_findings=0
+time=2026-09-20T05:31:22.364+02:00 level=INFO msg="booking consistency audit passed" env=development service=scheduler tenant_id=9 audit_date=2026-09-20 pickup_projection_missing_days=0 approved_without_required_offering=0 approved_without_optional_offering=0 total_findings=0
+time=2026-09-20T05:31:22.365+02:00 level=INFO msg="booking consistency audit passed" env=development service=scheduler tenant_id=10 audit_date=2026-09-20 pickup_projection_missing_days=0 approved_without_required_offering=0 approved_without_optional_offering=0 total_findings=0
+time=2026-09-20T05:31:22.367+02:00 level=INFO msg="booking consistency audit passed" env=development service=scheduler tenant_id=1 audit_date=2026-09-20 pickup_projection_missing_days=0 approved_without_required_offering=0 approved_without_optional_offering=0 total_findings=0
+time=2026-09-20T05:31:37.420+02:00 level=INFO msg="outbox worker tick complete" env=development service=scheduler job_id=email-outbox processed=0 backlog=0 duration=4.165898ms
+time=2026-09-20T05:31:52.330+02:00 level=INFO msg="capacity snapshot" env=development component=capacity goroutines=31 heap_alloc_bytes=8373256 heap_sys_bytes=19038208 total_alloc_bytes=15827384 gc_cycles=6 http_active_requests=0 http_routes=[] sse_clients=0 db_open_connections=5 db_in_use=0 db_idle=5 db_wait_count=123 db_wait_duration_ms=115 db_max_idle_closed=5 db_max_lifetime_closed=0
+time=2026-09-20T05:32:07.430+02:00 level=INFO msg="outbox worker tick complete" env=development service=scheduler job_id=email-outbox processed=0 backlog=0 duration=2.984724ms

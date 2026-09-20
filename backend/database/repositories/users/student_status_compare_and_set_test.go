@@ -32,9 +32,9 @@ func TestStudentRepository_TransitionStatus_GraduationRaces(t *testing.T) {
 		t.Helper()
 		var status string
 		require.NoError(t, db.NewSelect().
-			TableExpr("users.students").
+			TableExpr("users.student_school_memberships").
 			Column("status").
-			Where("id = ?", studentID).
+			Where("student_profile_id = ? AND deleted_at IS NULL", studentID).
 			Scan(ctx, &status))
 		return status
 	}

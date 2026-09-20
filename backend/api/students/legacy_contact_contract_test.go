@@ -16,12 +16,9 @@ func TestStudentAPIExcludesRetiredContacts(t *testing.T) {
 	t.Parallel()
 	tc := setupStudentsRoute(t)
 	student := testpkg.CreateTestStudent(t, tc.db, "Contact", "Read", "1a")
-	// Arrange a pre-cutover row independently of the current student write API.
-	_, err := tc.db.NewUpdate().Table("users.students").
-		Set("guardian_name = ?", "Legacy Contact").Set("guardian_contact = ?", "legacy@example.test").
-		Set("guardian_email = ?", "legacy@example.test").Set("guardian_phone = ?", "0123456789").
-		Where("tenant_id = ?", testpkg.Tenant(t)).Where("id = ?", student.ID).Exec(testpkg.Ctx(t))
-	require.NoError(t, err)
+	// Linked contacts must not reintroduce retired student response fields.
+	guardian := testpkg.CreateTestGuardianProfileNamed(t, tc.db, "Linked", "Contact", "linked@example.test")
+	testpkg.CreateTestStudentGuardianLink(t, tc.db, student.ID, guardian.ID, "parent")
 	for _, path := range []string{fmt.Sprintf("/%d", student.ID), "/"} {
 		t.Run(path, func(t *testing.T) {
 			rr := authExec(t, tc, testutil.NewRequest(http.MethodGet, path, nil), testutil.AdminTestClaims(1), []string{"admin:*"})

@@ -20,7 +20,7 @@ import (
 func studentStatus(t *testing.T, db *bun.DB, id int64) string {
 	t.Helper()
 	var status string
-	err := db.NewSelect().TableExpr("users.students").Column("status").Where("id = ?", id).Scan(context.Background(), &status)
+	err := db.NewSelect().TableExpr("users.student_school_memberships").Column("status").Where("student_profile_id = ?", id).Where("deleted_at IS NULL").Scan(context.Background(), &status)
 	require.NoError(t, err)
 	return status
 }

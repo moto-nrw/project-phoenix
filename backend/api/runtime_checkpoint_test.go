@@ -256,7 +256,7 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 	}
 	require.NoError(t, db.NewRaw("SELECT name, setting, COALESCE(unit, '') AS unit FROM pg_settings WHERE name IN ('server_version_num', 'max_connections', 'shared_buffers', 'work_mem', 'effective_cache_size', 'fsync', 'synchronous_commit', 'track_activities', 'track_counts', 'TimeZone') ORDER BY name").Scan(context.Background(), &databaseSettings))
 	volumes := map[string]int64{}
-	for _, table := range []string{"users.students", "users.guardian_profiles", "users.staff", "facilities.rooms", "education.groups", "activities.groups", "activities.categories", "enrollment.phases", "enrollment.care_offerings", "enrollment.change_requests", "enrollment.change_request_messages", "enrollment.requests", "enrollment.request_children", "auth.account_tenants", "auth.account_roles", "schedule.calendar_periods"} {
+	for _, table := range []string{"users.student_profiles", "users.student_school_memberships", "users.student_care_profiles", "users.guardian_profiles", "users.staff", "facilities.rooms", "education.groups", "activities.groups", "activities.categories", "enrollment.phases", "enrollment.care_offerings", "enrollment.change_requests", "enrollment.change_request_messages", "enrollment.requests", "enrollment.request_children", "auth.account_tenants", "auth.account_roles", "schedule.calendar_periods"} {
 		var count int64
 		require.NoError(t, db.NewRaw("SELECT count(*) FROM "+table+" WHERE tenant_id = ?", testpkg.Tenant(t)).Scan(context.Background(), &count))
 		volumes[table] = count

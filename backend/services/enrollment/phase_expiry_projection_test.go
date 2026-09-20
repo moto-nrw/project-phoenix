@@ -387,7 +387,7 @@ func newExpiryStudentFixture(t *testing.T, db *bun.DB) expiryStudentFixture {
 
 func (f expiryStudentFixture) set(ctx context.Context, ids []int64, values map[string]any) (count int64, err error) {
 	err = testpkg.WithTenantTx(f.t, ctx, f.db, testpkg.Tenant(f.t), func(ctx context.Context, tx bun.Tx) error {
-		query := tx.NewUpdate().TableExpr("users.students").Where("tenant_id = ?", testpkg.Tenant(f.t)).Where("id IN (?)", bun.List(ids))
+		query := tx.NewUpdate().TableExpr("users.student_school_memberships").Where("tenant_id = ?", testpkg.Tenant(f.t)).Where("deleted_at IS NULL").Where("student_profile_id IN (?)", bun.List(ids))
 		for column, value := range values {
 			query = query.Set("? = ?", bun.Ident(column), value)
 		}

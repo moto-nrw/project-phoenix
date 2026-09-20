@@ -49,7 +49,7 @@ func TestBackfillClassArrivalTimes(t *testing.T) {
 	backfillClassArrivalTimesMu.Lock()
 	defer backfillClassArrivalTimesMu.Unlock()
 
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	tenantID := testpkg.Tenant(t)
 	staff := testpkg.CreateTestStaff(t, db, "Backfill", "Betreuung")
 
@@ -108,7 +108,7 @@ func TestBackfillClassArrivalTimesCombinesNormalizedClassLabels(t *testing.T) {
 	backfillClassArrivalTimesMu.Lock()
 	defer backfillClassArrivalTimesMu.Unlock()
 
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	tenantID := testpkg.Tenant(t)
 	staff := testpkg.CreateTestStaff(t, db, "Backfill", "Klassenname")
 	first := testpkg.CreateTestStudent(t, db, "Erste", "Form", "6x")

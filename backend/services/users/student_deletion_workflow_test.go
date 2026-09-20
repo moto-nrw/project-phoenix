@@ -66,9 +66,9 @@ func careWithdrawals(db *bun.DB) testpkg.CareWithdrawalWriter {
 func clearCompanionNote(t *testing.T, db *bun.DB, studentID int64) {
 	t.Helper()
 	_, err := db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_care_profiles").
 		Set("departure_companion_note = NULL").
-		Where("id = ?", studentID).
+		Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", studentID).
 		Exec(context.Background())
 	require.NoError(t, err)
 }
@@ -180,7 +180,7 @@ func TestStudentDeletionWorkflow_DeletePreservesSharedInstanceAndAnonymizesPerso
 	_, err = db.NewRaw(`UPDATE users.persons SET account_id = ?, tag_id = ? WHERE id = ?`, childAccount.ID, card.ID, target.PersonID).Exec(ctx)
 	require.NoError(t, err)
 	photoPath := "students/delete-service-target.webp"
-	_, err = db.NewUpdate().TableExpr(`users.students AS "student"`).Set(`photo_path = ?`, photoPath).
+	_, err = db.NewUpdate().TableExpr(`users.student_profiles AS "student"`).Set(`photo_path = ?`, photoPath).
 		Where(`"student".id = ?`, target.ID).Exec(ctx)
 	require.NoError(t, err)
 	var legacyGuardianLinkID int64
@@ -207,7 +207,7 @@ func TestStudentDeletionWorkflow_DeletePreservesSharedInstanceAndAnonymizesPerso
 	assert.Equal(t, 1, result.PrimaryRowsDeleted)
 	assert.EqualValues(t, 1, result.HistoryAnonymized)
 
-	assert.Zero(t, rowCount(t, db, "users.students", target.ID))
+	assert.Zero(t, rowCount(t, db, "users.student_profiles", target.ID))
 	assert.Zero(t, rowCount(t, db, "schedule.instance_students", targetAssignment.ID))
 	assert.Zero(t, rowCount(t, db, "users.persons_guardians", legacyGuardianLinkID))
 	assert.Zero(t, rowCount(t, db, "users.parent_message_threads", messageThreadID))
@@ -215,7 +215,7 @@ func TestStudentDeletionWorkflow_DeletePreservesSharedInstanceAndAnonymizesPerso
 	var readCursorCount int
 	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM users.parent_message_reads WHERE thread_id = ?`, messageThreadID).Scan(ctx, &readCursorCount))
 	assert.Zero(t, readCursorCount)
-	assert.Equal(t, 1, rowCount(t, db, "users.students", spared.ID))
+	assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", spared.ID))
 	assert.Equal(t, 1, rowCount(t, db, "schedule.instance_students", sparedAssignment.ID))
 	assert.Equal(t, 1, rowCount(t, db, "schedule.activity_instances", instance.ID))
 	var historyName string
@@ -362,7 +362,7 @@ func TestStudentDeletionWorkflow_RejectsStalePreview(t *testing.T) {
 
 		_, err = workflow.Execute(ctx, target.ID, confirm(preview, studentdeletion.ReasonTestData))
 		require.ErrorIs(t, err, studentdeletion.ErrPreviewChanged)
-		assert.Equal(t, 1, rowCount(t, db, "users.students", target.ID))
+		assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", target.ID))
 		assert.Equal(t, 1, rowCount(t, db, "schedule.instance_students", assignment.ID))
 	})
 
@@ -381,7 +381,7 @@ func TestStudentDeletionWorkflow_RejectsStalePreview(t *testing.T) {
 
 		_, err = workflow.Execute(ctx, target.ID, confirm(preview, studentdeletion.ReasonTestData))
 		require.ErrorIs(t, err, studentdeletion.ErrPreviewChanged)
-		assert.Equal(t, 1, rowCount(t, db, "users.students", target.ID))
+		assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", target.ID))
 	})
 
 	t.Run("a person edit after the confirmed name", func(t *testing.T) {
@@ -393,7 +393,7 @@ func TestStudentDeletionWorkflow_RejectsStalePreview(t *testing.T) {
 
 		_, err = workflow.Execute(ctx, target.ID, confirm(preview, studentdeletion.ReasonTestData))
 		require.ErrorIs(t, err, studentdeletion.ErrPreviewChanged)
-		assert.Equal(t, 1, rowCount(t, db, "users.students", target.ID))
+		assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", target.ID))
 		firstName, deletedAt := personSnapshot(t, db, target.PersonID)
 		assert.Equal(t, "DeleteStale", firstName)
 		assert.Nil(t, deletedAt)
@@ -435,7 +435,7 @@ func TestStudentDeletionWorkflow_RejectsIncompleteConfirmation(t *testing.T) {
 	wrongName.ConfirmationName = "Wrong Name"
 	_, err = workflow.Execute(ctx, student.ID, wrongName)
 	require.ErrorIs(t, err, studentdeletion.ErrConfirmationMismatch)
-	assert.Equal(t, 1, rowCount(t, db, "users.students", student.ID))
+	assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", student.ID))
 }
 
 func TestStudentDeletionWorkflow_GraduatesUsePurgeNotDelete(t *testing.T) {
@@ -445,8 +445,8 @@ func TestStudentDeletionWorkflow_GraduatesUsePurgeNotDelete(t *testing.T) {
 	f := newDeletionFixture(t, db)
 	workflow := f.workflow(t)
 	graduate := func(id int64) {
-		_, err := db.NewUpdate().TableExpr(`users.students AS "student"`).Set(`status = ?`, userModels.StudentStatusAlumnus).
-			Where(`"student".id = ?`, id).Exec(ctx)
+		_, err := db.NewUpdate().TableExpr(`users.student_school_memberships AS "student"`).Set(`status = ?`, userModels.StudentStatusAlumnus).
+			Where(`"student".student_profile_id = ?`, id).Where(`"student".deleted_at IS NULL`).Exec(ctx)
 		require.NoError(t, err)
 	}
 
@@ -463,13 +463,13 @@ func TestStudentDeletionWorkflow_GraduatesUsePurgeNotDelete(t *testing.T) {
 	graduate(late.ID)
 	_, err = workflow.Execute(ctx, late.ID, confirm(preview, studentdeletion.ReasonTestData))
 	require.ErrorIs(t, err, studentdeletion.ErrGraduatedUnderLock)
-	assert.Equal(t, 1, rowCount(t, db, "users.students", late.ID))
+	assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", late.ID))
 
 	// The purge is the mirror image: it needs the alumnus state under lock.
 	active := testpkg.CreateTestStudent(t, db, "PurgeActive", "Target", "1a")
 	_, err = workflow.PurgeGraduate(ctx, active.ID)
 	require.ErrorIs(t, err, studentdeletion.ErrNotGraduated)
-	assert.Equal(t, 1, rowCount(t, db, "users.students", active.ID))
+	assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", active.ID))
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2027-2028", f.actorID)
 	history := &educationModels.GradeTransitionHistory{
@@ -483,7 +483,7 @@ func TestStudentDeletionWorkflow_GraduatesUsePurgeNotDelete(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, studentdeletion.ReasonGraduatePurge, result.Reason)
 	assert.Equal(t, 2, result.PrimaryRowsDeleted)
-	assert.Zero(t, rowCount(t, db, "users.students", alumnus.ID))
+	assert.Zero(t, rowCount(t, db, "users.student_profiles", alumnus.ID))
 	var historyName string
 	require.NoError(t, db.NewRaw(`SELECT person_name FROM education.grade_transition_history WHERE id = ?`, history.ID).Scan(ctx, &historyName))
 	assert.Equal(t, "Gelöschtes Kind", historyName)
@@ -634,7 +634,7 @@ func TestStudentDeletionWorkflow_RollsBackAfterEachOwnerCommand(t *testing.T) {
 			require.Equal(t, studentdeletion.Result{}, result)
 			assert.False(t, photoRemoved)
 
-			assert.Equal(t, 1, rowCount(t, db, "users.students", target.ID), "%s: the student row survives", phase)
+			assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", target.ID), "%s: the student row survives", phase)
 			assert.Equal(t, 1, rowCount(t, db, "schedule.instance_students", assignment.ID), "%s: the assignment survives", phase)
 			assert.Equal(t, 1, rowCount(t, db, "users.persons_guardians", legacyLinkID), "%s: the legacy guardian link survives", phase)
 			assert.Equal(t, 1, rowCount(t, db, "users.student_documents", document.ID), "%s: the document row survives", phase)
@@ -662,7 +662,7 @@ func TestStudentDeletionWorkflow_RollsBackAfterEachOwnerCommand(t *testing.T) {
 			require.NoError(t, err)
 			_, err = retry.Execute(ctx, target.ID, confirm(fresh, studentdeletion.ReasonIncorrectEntry))
 			require.NoError(t, err)
-			assert.Zero(t, rowCount(t, db, "users.students", target.ID))
+			assert.Zero(t, rowCount(t, db, "users.student_profiles", target.ID))
 		})
 	}
 }
@@ -704,7 +704,7 @@ func TestStudentDeletionWorkflow_QueuesDocumentCleanupInsideTheTransaction(t *te
 	require.NoError(t, err)
 	assert.Equal(t, 2, result.DocumentCleanups)
 
-	assert.Zero(t, rowCount(t, db, "users.students", student.ID))
+	assert.Zero(t, rowCount(t, db, "users.student_profiles", student.ID))
 	assert.Zero(t, rowCount(t, db, "users.student_documents", live.ID))
 	assert.Zero(t, rowCount(t, db, "users.student_documents", deleted.ID))
 
@@ -875,10 +875,10 @@ func TestStudentDeletionWorkflow_RetentionReasonOnlyForEndedCare(t *testing.T) {
 	require.NoError(t, err)
 	_, err = workflow.Execute(ctx, student.ID, confirm(preview, studentdeletion.ReasonRetentionExpired))
 	require.ErrorIs(t, err, studentdeletion.ErrRetentionNotEnded)
-	assert.Equal(t, 1, rowCount(t, db, "users.students", student.ID), "the refused deletion left the child untouched")
+	assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", student.ID), "the refused deletion left the child untouched")
 
-	_, err = db.NewUpdate().TableExpr("users.students").Set("enrolled_until = ?", timezone.TodayDate().AddDays(-1)).
-		Where("id = ?", student.ID).Exec(ctx)
+	_, err = db.NewUpdate().TableExpr("users.student_school_memberships").Set("enrolled_until = ?", timezone.TodayDate().AddDays(-1)).
+		Where("student_profile_id = ?", student.ID).Where("deleted_at IS NULL").Exec(ctx)
 	require.NoError(t, err)
 	fresh, err := workflow.Preview(ctx, student.ID)
 	require.NoError(t, err)
@@ -904,7 +904,7 @@ func TestStudentDeletionWorkflow_AuthorizationAndTenantIsolation(t *testing.T) {
 		require.ErrorIs(t, err, studentdeletion.ErrUnauthorized)
 		_, err = workflow.Execute(ctx, student.ID, studentdeletion.Confirmation{ExpectedFingerprint: "aa", Acknowledged: true, Reason: studentdeletion.ReasonTestData})
 		require.ErrorIs(t, err, studentdeletion.ErrUnauthorized)
-		assert.Equal(t, 1, rowCount(t, db, "users.students", student.ID))
+		assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", student.ID))
 	})
 
 	t.Run("the composed gate requires the tenant principal with users:delete", func(t *testing.T) {
@@ -923,7 +923,7 @@ func TestStudentDeletionWorkflow_AuthorizationAndTenantIsolation(t *testing.T) {
 		_, err = workflow.Execute(ctx, foreign.ID, studentdeletion.Confirmation{ExpectedFingerprint: "aa", Acknowledged: true, Reason: studentdeletion.ReasonTestData})
 		require.ErrorIs(t, err, studentdeletion.ErrStudentNotFound)
 		var count int
-		require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM users.students WHERE id = ? AND tenant_id = ?`, foreign.ID, foreignTenantID).Scan(foreignCtx, &count))
+		require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM users.student_profiles WHERE id = ? AND tenant_id = ?`, foreign.ID, foreignTenantID).Scan(foreignCtx, &count))
 		assert.Equal(t, 1, count)
 	})
 }
@@ -974,7 +974,7 @@ func TestStudentDeletionWorkflow_CompanionGraphLockAndStrandingCheck(t *testing.
 	// link; deleting the subject would strand them.
 	_, err = workflow.Execute(ctx, subject.ID, confirm(preview, studentdeletion.ReasonTestData))
 	require.ErrorIs(t, err, studentdeletion.ErrCompanionWouldLoseDeparture)
-	assert.Equal(t, 1, rowCount(t, db, "users.students", subject.ID))
+	assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", subject.ID))
 	assert.Zero(t, broadcasts)
 
 	// A concurrent holder of the far end's row blocks the ascending lock pass
@@ -989,7 +989,7 @@ func TestStudentDeletionWorkflow_CompanionGraphLockAndStrandingCheck(t *testing.
 	_, err = workflow.Execute(lockCtx, subject.ID, confirm(preview, studentdeletion.ReasonTestData))
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, studentdeletion.ErrCompanionLockBusy, "the first pass waits in ascending order; NOWAIT is only for late lower ids")
-	assert.Equal(t, 1, rowCount(t, db, "users.students", subject.ID))
+	assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", subject.ID))
 }
 
 func TestStudentDeletionWorkflow_RemovesCompanionEdgesAndNotifies(t *testing.T) {
@@ -1019,7 +1019,7 @@ func TestStudentDeletionWorkflow_RemovesCompanionEdgesAndNotifies(t *testing.T) 
 	require.NoError(t, err)
 	assert.Equal(t, []int64{companion.ID}, result.CompanionIDs)
 	assert.Equal(t, []int64{subject.ID}, notified)
-	assert.Equal(t, 1, rowCount(t, db, "users.students", companion.ID))
+	assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", companion.ID))
 	remaining, err := service.ListCompanions(ctx, companion.ID)
 	require.NoError(t, err)
 	assert.Empty(t, remaining, "the cascade removed the edge from the surviving child's card")

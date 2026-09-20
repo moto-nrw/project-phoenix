@@ -53,7 +53,7 @@ func TestStudentCareMigrationPreservesFlagsWithoutCurrentStatusDays(t *testing.T
 
 func TestStudentCareAbsenceOwnerAndRollbackImageShareState(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeContract(t)
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Care", "Compatibility", "2a")
 	_, err := db.NewRaw(`UPDATE users.student_care_profiles AS c SET sick = true

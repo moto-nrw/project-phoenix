@@ -55,7 +55,7 @@ func TestGradeTransitionWorkflow_History_StudentStates(t *testing.T) {
 
 	_, err = db.NewDelete().
 		Model((*struct{})(nil)).
-		ModelTableExpr("users.students").
+		ModelTableExpr("users.student_profiles").
 		Where("id = ?", purged.ID).
 		Exec(ctx)
 	require.NoError(t, err)

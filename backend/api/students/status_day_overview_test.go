@@ -96,18 +96,18 @@ func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
 	require.NoError(t, err)
 	_, err = tc.db.NewUpdate().
 		Model((*usersModel.Student)(nil)).
-		ModelTableExpr("users.students").
+		ModelTableExpr("users.student_school_memberships").
 		Set("enrolled_until = ?", today).
-		Where("id = ?", endedChild.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", endedChild.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 	_, err = tc.db.NewUpdate().
 		Model((*usersModel.Student)(nil)).
-		ModelTableExpr("users.students").
+		ModelTableExpr("users.student_school_memberships").
 		Set("status = ?", usersModel.StudentStatusInactive).
 		Set("enrolled_from = NULL").
 		Set("enrolled_until = NULL").
-		Where("id = ?", inactiveLegacyChild.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", inactiveLegacyChild.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 	privateNote := "Vertraulicher Grund"
@@ -260,17 +260,17 @@ func TestGetStudentStatusDaysOverview_PaginatesEligibleEntriesByName(t *testing.
 	defer cancel()
 	_, err := tc.db.NewUpdate().
 		Model((*usersModel.Student)(nil)).
-		ModelTableExpr("users.students").
+		ModelTableExpr("users.student_school_memberships").
 		Set("enrolled_until = ?", today.AddDays(-1)).
-		Where("id = ?", endedChild.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", endedChild.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 	_, err = tc.db.NewUpdate().
 		Model((*usersModel.Student)(nil)).
-		ModelTableExpr("users.students").
+		ModelTableExpr("users.student_school_memberships").
 		Set("enrolled_from = ?", today.AddDays(7)).
 		Set("status = ?", usersModel.StudentStatusActive).
-		Where("id = ?", aChild.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", aChild.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 

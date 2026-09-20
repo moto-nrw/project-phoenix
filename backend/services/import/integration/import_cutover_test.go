@@ -39,7 +39,7 @@ func countImportRows(t *testing.T, db *bun.DB, tenantID int64) importCounts {
 		return n
 	}
 	return importCounts{
-		persons: count("users.persons"), students: count("users.students"), guardians: count("users.guardian_profiles"),
+		persons: count("users.persons"), students: count("users.student_profiles"), guardians: count("users.guardian_profiles"),
 		links: count("users.students_guardians"), phones: count("users.guardian_phone_numbers"), consents: count("users.privacy_consents"),
 		arrivals: count("schedule.student_arrival_schedules"), pickups: count("schedule.student_pickup_schedules"),
 		audits: count("audit.data_imports"), consentHistory: count("audit.student_consent_changes"),
@@ -144,8 +144,10 @@ func TestDataImportCutover_StudentCreateUpdateAndReplay(t *testing.T) {
 		Status            string  `bun:"status"`
 		AGBAcceptedAtNull bool    `bun:"agb_null"`
 	}
-	require.NoError(t, db.NewSelect().TableExpr("users.students AS s").
-		ColumnExpr("s.id, s.person_id, s.school_class, s.address_street, s.address_city, s.pickup_status, s.departure_days::text AS departure_days, s.status, s.agb_accepted_at IS NULL AS agb_null").
+	require.NoError(t, db.NewSelect().TableExpr("users.student_profiles AS s").
+		Join("JOIN users.student_school_memberships m ON m.tenant_id=s.tenant_id AND m.student_profile_id=s.id AND m.deleted_at IS NULL").
+		Join("JOIN users.student_care_profiles c ON c.tenant_id=m.tenant_id AND c.membership_id=m.id").
+		ColumnExpr("s.id, s.person_id, m.school_class, s.address_street, s.address_city, c.pickup_status, c.departure_days::text AS departure_days, m.status, s.agb_accepted_at IS NULL AS agb_null").
 		Join("JOIN users.persons p ON p.id = s.person_id").Where("s.tenant_id = ? AND p.tag_id = ?", tenantID, card.ID).Scan(ctx, &student))
 	assert.Equal(t, "1A", student.SchoolClass)
 	assert.Equal(t, "Kinderweg 3", *student.AddressStreet)
@@ -201,8 +203,10 @@ func TestDataImportCutover_StudentCreateUpdateAndReplay(t *testing.T) {
 	require.NoError(t, err)
 	requireNoRowErrors(t, result)
 	assert.Equal(t, 1, result.UpdatedCount)
-	require.NoError(t, db.NewSelect().TableExpr("users.students AS s").
-		ColumnExpr("s.id, s.person_id, s.school_class, s.address_street, s.address_city, s.pickup_status, s.departure_days::text AS departure_days, s.status, s.agb_accepted_at IS NULL AS agb_null").
+	require.NoError(t, db.NewSelect().TableExpr("users.student_profiles AS s").
+		Join("JOIN users.student_school_memberships m ON m.tenant_id=s.tenant_id AND m.student_profile_id=s.id AND m.deleted_at IS NULL").
+		Join("JOIN users.student_care_profiles c ON c.tenant_id=m.tenant_id AND c.membership_id=m.id").
+		ColumnExpr("s.id, s.person_id, m.school_class, s.address_street, s.address_city, c.pickup_status, c.departure_days::text AS departure_days, m.status, s.agb_accepted_at IS NULL AS agb_null").
 		Where("s.tenant_id = ? AND s.id = ?", tenantID, student.ID).Scan(ctx, &student))
 	assert.Equal(t, "2A", student.SchoolClass)
 	assert.Equal(t, "Bonn", *student.AddressCity)
@@ -408,7 +412,7 @@ func TestDataImportCutover_BatchValidationRowSavepointAndRollback(t *testing.T) 
 	assert.Equal(t, after.consents+1, retried.consents)
 	assert.Equal(t, foreignBefore, countImportRows(t, db, otherTenant), "the other tenant's rows are untouched")
 	var foreignClass string
-	require.NoError(t, db.NewSelect().TableExpr("users.students").Column("school_class").Where("id = ?", foreign.ID).Scan(context.Background(), &foreignClass))
+	require.NoError(t, db.NewSelect().TableExpr("users.student_school_memberships").Column("school_class").Where("student_profile_id = ?", foreign.ID).Where("deleted_at IS NULL").Scan(context.Background(), &foreignClass))
 	assert.Equal(t, "1a", foreignClass)
 
 	// The same name in the other tenant is not a duplicate for this tenant:
@@ -463,7 +467,7 @@ func countImportRowsInTx(t *testing.T, ctx context.Context, tenantID int64) impo
 		return n
 	}
 	return importCounts{
-		persons: count("users.persons"), students: count("users.students"), guardians: count("users.guardian_profiles"),
+		persons: count("users.persons"), students: count("users.student_profiles"), guardians: count("users.guardian_profiles"),
 		links: count("users.students_guardians"), phones: count("users.guardian_phone_numbers"), consents: count("users.privacy_consents"),
 		arrivals: count("schedule.student_arrival_schedules"), pickups: count("schedule.student_pickup_schedules"),
 		audits: count("audit.data_imports"), consentHistory: count("audit.student_consent_changes"),

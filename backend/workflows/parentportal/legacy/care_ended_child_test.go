@@ -25,9 +25,9 @@ import (
 func endCareFor(t *testing.T, db *bun.DB, studentID int64) {
 	t.Helper()
 	_, err := db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_school_memberships").
 		Set("enrolled_until = ?", timezone.NewDate(2026, 8, 24).AddDays(-1)).
-		Where("id = ?", studentID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", studentID).
 		Exec(testpkg.WithPackageTenantRuntime(context.Background()))
 	require.NoError(t, err)
 }

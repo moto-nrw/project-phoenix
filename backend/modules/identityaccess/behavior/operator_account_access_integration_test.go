@@ -746,7 +746,7 @@ func TestIntegration_UpdateAccountTenantRole_RefusesStudentAsNameSource(t *testi
 	testpkg.EnsureTestTenant(t, db, accessTargetTenantID(t))
 	testpkg.MapAccountToTenant(t, db, account.ID, accessTargetTenantID(t))
 	defer func() {
-		_, err := db.ExecContext(ctx, `DELETE FROM users.students WHERE id = ?`, student.ID)
+		_, err := db.ExecContext(ctx, `DELETE FROM users.student_profiles WHERE id = ?`, student.ID)
 		require.NoError(t, err)
 		cleanupAccessFixtures(t, db, account.ID)
 	}()

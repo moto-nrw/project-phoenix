@@ -389,17 +389,21 @@ func TestSnapshotInputsEnforceRLS(t *testing.T) {
 			phone := &usersModels.GuardianPhoneNumber{GuardianProfileID: guardian.ID, PhoneNumber: "02551 " + side, PhoneType: usersModels.PhoneTypeMobile, IsPrimary: true}
 			phone.SetTenantID(testpkg.Tenant(t))
 			require.NoError(t, db.NewInsert().Model(phone).ModelTableExpr("users.guardian_phone_numbers").Scan(ctx))
+			var membershipID int64
+			require.NoError(t, db.NewSelect().Table("users.student_school_memberships").Column("id").Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).Scan(ctx, &membershipID))
 			fixtures = append(fixtures, fixture{
 				ctx: ctx, tenantID: testpkg.Tenant(t), studentID: student.ID, roomName: room.Name,
 				guardian: "Guardian " + side, phone: "02551 " + side,
 				rows: map[string]int64{
-					"users.students":               student.ID,
-					"users.students_guardians":     link.ID,
-					"users.guardian_profiles":      guardian.ID,
-					"users.guardian_phone_numbers": phone.ID,
-					"facilities.rooms":             room.ID,
-					"active.attendance":            attendance.ID,
-					"active.visits":                visit.ID,
+					"users.student_profiles":           student.ID,
+					"users.student_school_memberships": membershipID,
+					"users.student_care_profiles":      membershipID,
+					"users.students_guardians":         link.ID,
+					"users.guardian_profiles":          guardian.ID,
+					"users.guardian_phone_numbers":     phone.ID,
+					"facilities.rooms":                 room.ID,
+					"active.attendance":                attendance.ID,
+					"active.visits":                    visit.ID,
 				},
 			})
 		})
@@ -407,13 +411,17 @@ func TestSnapshotInputsEnforceRLS(t *testing.T) {
 	require.Len(t, fixtures, 2)
 	for table, ownID := range fixtures[0].rows {
 		t.Run(table, func(t *testing.T) {
+			key := "id"
+			if table == "users.student_care_profiles" {
+				key = "membership_id"
+			}
 			for _, fixture := range fixtures {
 				require.NoError(t, testpkg.WithTenantTx(t, fixture.ctx, db, fixture.tenantID, func(txCtx context.Context, tx bun.Tx) error {
 					var bypass bool
 					require.NoError(t, tx.NewRaw("SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user").Scan(txCtx, &bypass))
 					require.False(t, bypass, "the tenant transaction must run under the least-privilege role")
 					var ids []int64
-					require.NoError(t, tx.NewSelect().Table(table).Column("id").Where("id IN (?, ?)", ownID, fixtures[1].rows[table]).Scan(txCtx, &ids))
+					require.NoError(t, tx.NewSelect().Table(table).Column(key).Where("? IN (?, ?)", bun.Ident(key), ownID, fixtures[1].rows[table]).Scan(txCtx, &ids))
 					require.Equal(t, []int64{fixture.rows[table]}, ids, "%s leaks across the tenant boundary", table)
 					return nil
 				}))

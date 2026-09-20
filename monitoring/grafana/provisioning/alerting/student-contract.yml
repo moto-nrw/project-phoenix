@@ -1,0 +1,78 @@
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: Phoenix Student Contract
+    folder: Phoenix Alerts
+    interval: 1m
+    rules:
+      - uid: student-contract-observation
+        title: Student Contract old access or missing observation
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: prometheus
+            model:
+              expr: >-
+                (max(1 - phoenix_student_contract_observation_ok) or vector(1))
+                + (max((time() - phoenix_student_contract_observation_timestamp_seconds) > bool 180) or vector(1))
+              instant: true
+              refId: A
+          - refId: B
+            relativeTimeRange: {from: 0, to: 0}
+            datasourceUid: __expr__
+            model: {expression: A, reducer: last, refId: B, type: reduce}
+          - refId: C
+            relativeTimeRange: {from: 0, to: 0}
+            datasourceUid: __expr__
+            model:
+              expression: B
+              refId: C
+              type: threshold
+              conditions:
+                - evaluator: {params: [0], type: gt}
+                  operator: {type: and}
+                  reducer: {type: last}
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 0s
+        annotations:
+          summary: Old student access, changed statistics, or failed/stale observation. Do not run Contract.
+          runbook_url: https://github.com/moto-nrw/project-phoenix/blob/main/monitoring/runbooks/student-contract.md
+        labels: {env: prod, issue: "2760", severity: critical}
+        isPaused: false
+      - uid: student-contract-old-object-error
+        title: Student Contract old object SQL error
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: P8E80F9AEF21F6940
+            model:
+              expr: >-
+                sum(count_over_time({env="prod",service="postgres"} |~ `(?i)(ERROR|PANIC):.*\b(students|students_legacy|expired_privacy_consents)\b` [5m])) or vector(0)
+              instant: true
+              refId: A
+          - refId: B
+            relativeTimeRange: {from: 0, to: 0}
+            datasourceUid: __expr__
+            model: {expression: A, reducer: last, refId: B, type: reduce}
+          - refId: C
+            relativeTimeRange: {from: 0, to: 0}
+            datasourceUid: __expr__
+            model:
+              expression: B
+              refId: C
+              type: threshold
+              conditions:
+                - evaluator: {params: [0], type: gt}
+                  operator: {type: and}
+                  reducer: {type: last}
+        noDataState: OK
+        execErrState: Alerting
+        for: 0s
+        annotations:
+          summary: At least one SQL error names a retired student object. Find and stop the old caller.
+          runbook_url: https://github.com/moto-nrw/project-phoenix/blob/main/monitoring/runbooks/student-contract.md
+        labels: {env: prod, issue: "2760", service: postgres, severity: critical}
+        isPaused: false

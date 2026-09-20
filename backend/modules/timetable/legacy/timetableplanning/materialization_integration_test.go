@@ -260,9 +260,9 @@ func TestMaterializeForTenant_ExcludesGraduatedStudents(t *testing.T) {
 	// Graduate one of the two students with a valid enrollment. Their enrollment
 	// row is intentionally left in place (soft delete).
 	_, err := s.db.NewUpdate().
-		TableExpr(`users.students`).
+		TableExpr(`users.student_school_memberships`).
 		Set("status = ?", string(usersModels.StudentStatusAlumnus)).
-		Where("id = ?", s.students[0]).
+		Where("student_profile_id = ? AND deleted_at IS NULL", s.students[0]).
 		Where("tenant_id = ?", s.tenantID).
 		Exec(s.ctx)
 	require.NoError(t, err)
@@ -315,10 +315,10 @@ func TestMaterializeForTenant_MultipleDynamicTargetsFollowClassChanges(t *testin
 	require.Len(t, firstInstances, 1)
 
 	_, err = s.db.NewUpdate().
-		Table("users.students").
+		Table("users.student_school_memberships").
 		Set("school_class = ?", class4a).
 		Where("tenant_id = ?", s.tenantID).
-		Where("id = ?", laterStudent.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", laterStudent.ID).
 		Exec(s.ctx)
 	require.NoError(t, err)
 

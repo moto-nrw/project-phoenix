@@ -21,14 +21,12 @@ func requireStudentsDepartureDaysColumn(t *testing.T, db *bun.DB) {
 			SELECT 1
 			FROM information_schema.columns
 			WHERE table_schema = 'users'
-			  AND table_name = 'students'
+			  AND table_name = 'student_care_profiles'
 			  AND column_name = 'departure_days'
 		)
 	`).Scan(testpkg.Ctx(t), &exists)
 	require.NoError(t, err)
-	if !exists {
-		t.Skip("users.students.departure_days column is not present in this test database")
-	}
+	require.True(t, exists, "users.student_care_profiles.departure_days column is not present in this test database")
 }
 
 func requireStudentsAllowedDepartureModesColumn(t *testing.T, db *bun.DB) {
@@ -39,14 +37,12 @@ func requireStudentsAllowedDepartureModesColumn(t *testing.T, db *bun.DB) {
 			SELECT 1
 			FROM information_schema.columns
 			WHERE table_schema = 'users'
-			  AND table_name = 'students'
+			  AND table_name = 'student_care_profiles'
 			  AND column_name = 'allowed_departure_modes'
 		)
 	`).Scan(testpkg.Ctx(t), &exists)
 	require.NoError(t, err)
-	if !exists {
-		t.Skip("users.students.allowed_departure_modes column is not present in this test database")
-	}
+	require.True(t, exists, "users.student_care_profiles.allowed_departure_modes column is not present in this test database")
 }
 
 // TestStudentRepository_DepartureDaysRoundtrip exercises the unified
@@ -409,7 +405,7 @@ func companionNoteColumnExists(t *testing.T, db *bun.DB) bool {
 			SELECT 1
 			FROM information_schema.columns
 			WHERE table_schema = 'users'
-			  AND table_name = 'students'
+			  AND table_name = 'student_care_profiles'
 			  AND column_name = 'departure_companion_note'
 		)
 	`).Scan(testpkg.Ctx(t), &exists))
@@ -432,9 +428,7 @@ func TestStudentRepository_CompanionNoteSchemaCompatibility(t *testing.T) {
 	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
-	if !companionNoteColumnExists(t, db) {
-		t.Skip("users.students.departure_companion_note column is not present in this test database")
-	}
+	require.True(t, companionNoteColumnExists(t, db), "Care Plan companion note column must exist")
 
 	t.Run("note round-trips through the explicit guarded write and hydration", func(t *testing.T) {
 		requireStudentsAllowedDepartureModesColumn(t, db)

@@ -860,9 +860,9 @@ func TestBuildList_StaffReadsEveryStudentRow(t *testing.T) {
 	groupB := testpkg.CreateTestEducationGroup(t, f.db, "SL-GroupB")
 	t.Cleanup(func() {
 		_, err := f.db.NewUpdate().
-			TableExpr(`users.students`).
+			TableExpr(`users.student_school_memberships`).
 			Set(`group_id = NULL`).
-			Where(`id IN (?)`, bun.List([]int64{f.plannedID, f.missingID, f.walkInID})).
+			Where(`student_profile_id IN (?) AND deleted_at IS NULL`, bun.List([]int64{f.plannedID, f.missingID, f.walkInID})).
 			Exec(ctx)
 		require.NoError(t, err)
 	})
@@ -873,9 +873,9 @@ func TestBuildList_StaffReadsEveryStudentRow(t *testing.T) {
 		f.walkInID:  groupB.ID,
 	} {
 		_, err := f.db.NewUpdate().
-			TableExpr(`users.students`).
+			TableExpr(`users.student_school_memberships`).
 			Set(`group_id = ?`, groupID).
-			Where(`id = ?`, studentID).
+			Where(`student_profile_id = ? AND deleted_at IS NULL`, studentID).
 			Exec(ctx)
 		require.NoError(t, err)
 	}
@@ -1800,10 +1800,10 @@ func TestBuildList_PickupCohortExcludesExpiredStudents(t *testing.T) {
 	gone := testpkg.CreateTestStudent(t, db, "SL-Gone", fmt.Sprintf("G-%d", suffix), "2d")
 	staff := testpkg.CreateTestStaff(t, db, "SL-Staff", fmt.Sprintf("SI-%d", suffix))
 
-	_, err := db.NewUpdate().TableExpr(`users.students`).
+	_, err := db.NewUpdate().TableExpr(`users.student_school_memberships`).
 		Set(`status = ?`, string(userModels.StudentStatusInactive)).
 		Set(`enrolled_until = ?`, pickupDate.AddDays(-1)).
-		Where(`id = ?`, gone.ID).Exec(ctx)
+		Where(`student_profile_id = ? AND deleted_at IS NULL`, gone.ID).Exec(ctx)
 	require.NoError(t, err)
 
 	pickupRepo := studentPickupScheduleRepository(db)
@@ -1897,11 +1897,11 @@ func TestBuildList_PickupCohortUsesEnrollmentInterval(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "SL-EnrStaff", fmt.Sprintf("ES-%d", suffix))
 
 	setEnrollment := func(id int64, status userModels.StudentStatus, from, until *timezone.Date) {
-		_, err := db.NewUpdate().TableExpr(`users.students`).
+		_, err := db.NewUpdate().TableExpr(`users.student_school_memberships`).
 			Set(`status = ?`, string(status)).
 			Set(`enrolled_from = ?`, from).
 			Set(`enrolled_until = ?`, until).
-			Where(`id = ?`, id).Exec(ctx)
+			Where(`student_profile_id = ? AND deleted_at IS NULL`, id).Exec(ctx)
 		require.NoError(t, err)
 	}
 	endedUntil := pickupDate.AddDays(-1)   // day before pickupDate
@@ -1949,10 +1949,10 @@ func TestBuildList_PickupCohortKeepsExpiredActualAttendance(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "SL-Live", fmt.Sprintf("EX-%d", testpkg.UniqueSuffix()), "2a")
 	staff := testpkg.CreateTestStaff(t, db, "SL-LiveStaff", fmt.Sprintf("LS-%d", testpkg.UniqueSuffix()))
 	device := testpkg.CreateTestDevice(t, db, fmt.Sprintf("slot-live-%d", testpkg.UniqueSuffix()))
-	_, err := db.NewUpdate().TableExpr(`users.students`).
+	_, err := db.NewUpdate().TableExpr(`users.student_school_memberships`).
 		Set(`status = ?`, string(userModels.StudentStatusAlumnus)).
 		Set(`enrolled_until = ?`, pickupDate.AddDays(-1)).
-		Where(`id = ?`, student.ID).Exec(ctx)
+		Where(`student_profile_id = ? AND deleted_at IS NULL`, student.ID).Exec(ctx)
 	require.NoError(t, err)
 	pickup := &scheduleModels.StudentPickupSchedule{StudentID: student.ID, Weekday: int(pickupDate.Weekday()),
 		PickupTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC), CreatedBy: staff.ID}
@@ -2060,10 +2060,10 @@ func TestBuildList_SlotListDropsPlannedRowForEndedEnrollment(t *testing.T) {
 	ended := testpkg.CreateTestStudent(t, db, "SL-Left", fmt.Sprintf("LF-%d", suffix), "5a")
 
 	endedUntil := listDate.AddDays(-1) // day before listDate
-	_, err = db.NewUpdate().TableExpr(`users.students`).
+	_, err = db.NewUpdate().TableExpr(`users.student_school_memberships`).
 		Set(`status = ?`, string(userModels.StudentStatusInactive)).
 		Set(`enrolled_until = ?`, endedUntil).
-		Where(`id = ?`, ended.ID).Exec(ctx)
+		Where(`student_profile_id = ? AND deleted_at IS NULL`, ended.ID).Exec(ctx)
 	require.NoError(t, err)
 
 	isRepo := newBoundInstanceStudentRepository(db)

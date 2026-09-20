@@ -21,9 +21,9 @@ import (
 func assignGroup(t *testing.T, db *bun.DB, studentID, groupID int64) {
 	t.Helper()
 	_, err := db.NewUpdate().
-		TableExpr(`users.students`).
+		TableExpr(`users.student_school_memberships`).
 		Set("group_id = ?", groupID).
-		Where("id = ?", studentID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", studentID).
 		Exec(t.Context())
 	require.NoError(t, err)
 }

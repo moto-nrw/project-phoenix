@@ -671,9 +671,9 @@ func TestActiveService_GetDashboardAnalytics(t *testing.T) {
 
 		excused := true
 		_, err = db.NewUpdate().
-			Model(student).
+			Table("users.student_care_profiles").
 			Set("excused = ?", excused).
-			Where("id = ?", student.ID).
+			Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", student.ID).
 			Exec(ctx)
 		require.NoError(t, err)
 

@@ -535,9 +535,9 @@ func TestBroadcast_EndActivitySessionBatchesPerEducationGroup(t *testing.T) {
 func assignStudentToEducationGroup(tb testing.TB, db *testpkg.DB, ctx context.Context, studentID, groupID int64) {
 	tb.Helper()
 	_, err := db.NewUpdate().
-		Table("users.students").
+		Table("users.student_school_memberships").
 		Set("group_id = ?", groupID).
-		Where("id = ?", studentID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", studentID).
 		Exec(ctx)
 	require.NoError(tb, err, "failed to assign student to education group")
 }

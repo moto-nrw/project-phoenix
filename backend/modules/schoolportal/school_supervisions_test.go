@@ -299,9 +299,9 @@ func TestSchoolSupervisionStudentBoundary(t *testing.T) {
 	// The stored roster is retained as history, but an alumnus must leave the
 	// effective current roster and cannot be checked out through this route.
 	_, err := f.db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_school_memberships").
 		Set("status = ?", "alumnus").
-		Where("id = ?", onRoster.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", onRoster.ID).
 		Exec(testpkg.TenantContext(f.tenantID))
 	require.NoError(t, err)
 	rec = f.request(t, http.MethodPost, fmt.Sprintf("/supervisions/%d/students/%d/check-out", mine.ID, onRoster.ID), nil)
@@ -310,9 +310,9 @@ func TestSchoolSupervisionStudentBoundary(t *testing.T) {
 	careEnded := testpkg.CreateTestStudentForTenant(t, f.db, f.tenantID, "Betreuung", "Beendet", "2a")
 	testpkg.CreateTestInstanceStudent(t, f.db, mine.ID, careEnded.ID, scheduleModel.AttendanceStatusExpected)
 	_, err = f.db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_school_memberships").
 		Set("enrolled_until = ?", timezone.NewDate(2026, 8, 24).AddDays(-1)).
-		Where("id = ?", careEnded.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", careEnded.ID).
 		Exec(testpkg.TenantContext(f.tenantID))
 	require.NoError(t, err)
 	rec = f.request(t, http.MethodPost, fmt.Sprintf("/supervisions/%d/students/%d/check-in", mine.ID, careEnded.ID), nil)

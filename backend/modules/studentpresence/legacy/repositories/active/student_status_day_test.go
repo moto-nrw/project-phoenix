@@ -213,9 +213,9 @@ func TestStudentStatusDayRepository_CountEffectiveDashboardAbsences(t *testing.T
 	}
 	setFlag := func(studentID int64, flag string) {
 		_, err := db.NewUpdate().
-			TableExpr(`users.students`).
+			TableExpr(`users.student_care_profiles`).
 			Set(flag+" = ?", trueValue).
-			Where("id = ?", studentID).
+			Where("membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", studentID).
 			Exec(ctxA)
 		require.NoError(t, err)
 	}

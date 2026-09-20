@@ -1487,9 +1487,9 @@ func TestCalendarServiceIntegration_AllSchoolParentsExcludesInactiveStudents(t *
 
 	// Mark the second family's child as a former (inactive) student.
 	_, err := db.NewUpdate().
-		Table("users.students").
+		Table("users.student_school_memberships").
 		Set("status = ?", string(userModels.StudentStatusInactive)).
-		Where("id = ?", formerChain.StudentID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", formerChain.StudentID).
 		Exec(context.Background())
 	require.NoError(t, err)
 

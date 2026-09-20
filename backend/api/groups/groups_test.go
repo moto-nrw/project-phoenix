@@ -403,9 +403,9 @@ func TestDeleteGroup_ConflictWithStudents(t *testing.T) {
 	student.GroupID = &group.ID
 	_, err := tc.db.NewUpdate().
 		Model(student).
-		ModelTableExpr(`users.students AS "student"`).
+		ModelTableExpr(`users.student_school_memberships AS "student"`).
 		Column("group_id").
-		Where(`"student".id = ?`, student.ID).
+		Where(`"student".student_profile_id = ? AND "student".deleted_at IS NULL`, student.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 
@@ -569,9 +569,9 @@ func TestGetGroupStudents_WithStudent(t *testing.T) {
 	// Assign student to group
 	_, err := tc.db.NewUpdate().
 		Model((*users.Student)(nil)).
-		ModelTableExpr("users.students").
+		ModelTableExpr("users.student_school_memberships").
 		Set("group_id = ?", group.ID).
-		Where("id = ?", student.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
 
@@ -776,16 +776,14 @@ func TestGetGroupStudents_WithFullAccessAdmin(t *testing.T) {
 	// Create a student with guardian info
 	student := testpkg.CreateTestStudent(t, tc.db, "GuardianTest", "Student", "2a")
 
-	// Update student with guardian info
-	guardianName := "Test Guardian"
-	guardianEmail := "guardian@test.com"
+	// Assign the group and link the guardian through their owner records.
+	guardian := testpkg.CreateTestGuardianProfileNamed(t, tc.db, "Test", "Guardian", "guardian@test.com")
+	testpkg.CreateTestStudentGuardianLink(t, tc.db, student.ID, guardian.ID, "parent")
 	_, err := tc.db.NewUpdate().
 		Model((*users.Student)(nil)).
-		ModelTableExpr("users.students").
+		ModelTableExpr("users.student_school_memberships").
 		Set("group_id = ?", group.ID).
-		Set("guardian_name = ?", guardianName).
-		Set("guardian_email = ?", guardianEmail).
-		Where("id = ?", student.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
 

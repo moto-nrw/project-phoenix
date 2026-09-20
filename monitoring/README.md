@@ -92,6 +92,15 @@ UI so the two do not fire side by side. Verify in Explore that
 rule; a different label means the Alloy mapping differs and both rules need
 the same correction. Runbook: [`runbooks/server-errors.md`](runbooks/server-errors.md).
 
+## Student storage Contract observation
+
+Before the #2760 rollback window, install the read-only collector and Grafana
+rules described in [the Student Contract runbook](runbooks/student-contract.md).
+The Node Exporter overlay includes its textfile collector mount. Missing or stale
+observations alert rather than implying zero access; a separate PostgreSQL-log
+rule detects old-object query errors after Contract. Provisioning and actual
+notification delivery must be checked by the operator before claiming coverage.
+
 ## Caddy
 
 `caddy/Caddyfile.observability.example` enables Caddy Prometheus metrics and GDPR-safer JSON access logs:

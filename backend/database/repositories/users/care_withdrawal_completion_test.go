@@ -199,7 +199,7 @@ func TestCareWithdrawalCompletionRepository_ParticipationBoundaryUsesPendingComp
 	day := timezone.NewDate(2026, 9, 7)
 	setEnrolledUntil := func(studentID int64, until timezone.Date) {
 		t.Helper()
-		_, err := db.NewUpdate().TableExpr("users.students").Set("enrolled_until = ?", until).Where("id = ?", studentID).Exec(ctx)
+		_, err := db.NewUpdate().TableExpr("users.student_school_memberships").Set("enrolled_until = ?", until).Where("student_profile_id = ? AND deleted_at IS NULL", studentID).Exec(ctx)
 		require.NoError(t, err)
 	}
 	upsert := func(studentID int64, gap timezone.Date, trigger string) {

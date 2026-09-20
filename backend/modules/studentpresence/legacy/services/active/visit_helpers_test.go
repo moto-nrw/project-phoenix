@@ -255,7 +255,7 @@ func TestCreateVisit_AutoClearsSick(t *testing.T) {
 	now := time.Now()
 	student.Sick = &sickTrue
 	student.SickSince = &now
-	_, err := db.NewUpdate().Model(student).Column("sick", "sick_since").Where("id = ?", student.ID).Exec(ctx)
+	_, err := db.NewUpdate().Model(student).ModelTableExpr("users.student_care_profiles").Column("sick", "sick_since").Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", student.ID).Exec(ctx)
 	require.NoError(t, err)
 
 	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
@@ -274,9 +274,9 @@ func TestCreateVisit_AutoClearsSick(t *testing.T) {
 		SickSince *time.Time `bun:"sick_since"`
 	}
 	err = db.NewSelect().
-		Table("users.students").
+		Table("users.student_care_profiles").
 		Column("sick", "sick_since").
-		Where("id = ?", student.ID).
+		Where("membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", student.ID).
 		Scan(ctx, &reloaded)
 	require.NoError(t, err)
 	assert.False(t, reloaded.Sick, "sick should be cleared on check-in under next_checkin mode")
@@ -320,7 +320,7 @@ func TestCreateVisit_AutoClearsExcused_WhenSettingNextCheckin(t *testing.T) {
 	now := time.Now()
 	student.Excused = &excusedTrue
 	student.ExcusedSince = &now
-	_, err = db.NewUpdate().Model(student).Column("excused", "excused_since").Where("id = ?", student.ID).Exec(ctx)
+	_, err = db.NewUpdate().Model(student).ModelTableExpr("users.student_care_profiles").Column("excused", "excused_since").Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", student.ID).Exec(ctx)
 	require.NoError(t, err)
 
 	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
@@ -338,9 +338,9 @@ func TestCreateVisit_AutoClearsExcused_WhenSettingNextCheckin(t *testing.T) {
 		ExcusedSince *time.Time `bun:"excused_since"`
 	}
 	err = db.NewSelect().
-		Table("users.students").
+		Table("users.student_care_profiles").
 		Column("excused", "excused_since").
-		Where("id = ?", student.ID).
+		Where("membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", student.ID).
 		Scan(ctx, &reloaded)
 	require.NoError(t, err)
 	assert.False(t, reloaded.Excused, "excused must be cleared when clear_mode override is next_checkin")
@@ -368,7 +368,7 @@ func TestCreateVisit_DoesNotClearExcused_WhenDefaultMode(t *testing.T) {
 	now := time.Now()
 	student.Excused = &excusedTrue
 	student.ExcusedSince = &now
-	_, err := db.NewUpdate().Model(student).Column("excused", "excused_since").Where("id = ?", student.ID).Exec(ctx)
+	_, err := db.NewUpdate().Model(student).ModelTableExpr("users.student_care_profiles").Column("excused", "excused_since").Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", student.ID).Exec(ctx)
 	require.NoError(t, err)
 
 	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
@@ -386,9 +386,9 @@ func TestCreateVisit_DoesNotClearExcused_WhenDefaultMode(t *testing.T) {
 		ExcusedSince *time.Time `bun:"excused_since"`
 	}
 	err = db.NewSelect().
-		Table("users.students").
+		Table("users.student_care_profiles").
 		Column("excused", "excused_since").
-		Where("id = ?", student.ID).
+		Where("membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", student.ID).
 		Scan(ctx, &reloaded)
 	require.NoError(t, err)
 	assert.True(t, reloaded.Excused, "excused should remain set when clear_mode is end_of_day (default)")
@@ -417,7 +417,7 @@ func TestCreateVisit_ClearsPlannedStatusForToday(t *testing.T) {
 	student.SickSince = &now
 	student.Excused = &trueVal
 	student.ExcusedSince = &now
-	_, err := db.NewUpdate().Model(student).Column("sick", "sick_since", "excused", "excused_since").Where("id = ?", student.ID).Exec(ctx)
+	_, err := db.NewUpdate().Model(student).ModelTableExpr("users.student_care_profiles").Column("sick", "sick_since", "excused", "excused_since").Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", student.ID).Exec(ctx)
 	require.NoError(t, err)
 
 	today := timezone.DateFromTime(now)
@@ -456,9 +456,9 @@ func TestCreateVisit_ClearsPlannedStatusForToday(t *testing.T) {
 		ExcusedSince *time.Time `bun:"excused_since"`
 	}
 	err = db.NewSelect().
-		Table("users.students").
+		Table("users.student_care_profiles").
 		Column("sick", "sick_since", "excused", "excused_since").
-		Where("id = ?", student.ID).
+		Where("membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", student.ID).
 		Scan(ctx, &reloaded)
 	require.NoError(t, err)
 	assert.False(t, reloaded.Sick)

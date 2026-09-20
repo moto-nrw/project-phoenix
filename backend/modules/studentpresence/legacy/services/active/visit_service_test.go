@@ -774,9 +774,9 @@ func TestActiveService_CheckIn_RejectsAlumnus(t *testing.T) {
 
 	// Graduate the student (soft delete) the same way the grade-transition flow does.
 	_, err := db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_school_memberships").
 		Set("status = ?", "alumnus").
-		Where("id = ?", student.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 

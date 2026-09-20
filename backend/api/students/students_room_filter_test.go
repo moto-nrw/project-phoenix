@@ -250,21 +250,21 @@ func TestListStudents_LocationStateTransitWithGroupID_IntersectsFilters(t *testi
 	matchingAbsentStudent := testpkg.CreateTestStudent(t, tc.db, "MatchingAbsent", "Student", "TGFS3")
 
 	_, err := tc.db.NewUpdate().
-		TableExpr(`users.students`).
+		TableExpr(`users.student_school_memberships`).
 		Set("group_id = ?", targetGroup.ID).
-		Where("id = ?", matchingTransitStudent.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", matchingTransitStudent.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 	_, err = tc.db.NewUpdate().
-		TableExpr(`users.students`).
+		TableExpr(`users.student_school_memberships`).
 		Set("group_id = ?", otherGroup.ID).
-		Where("id = ?", otherGroupTransitStudent.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", otherGroupTransitStudent.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 	_, err = tc.db.NewUpdate().
-		TableExpr(`users.students`).
+		TableExpr(`users.student_school_memberships`).
 		Set("group_id = ?", targetGroup.ID).
-		Where("id = ?", matchingAbsentStudent.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", matchingAbsentStudent.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 
@@ -361,9 +361,9 @@ func TestListStudents_LocationStateTransitWithGroupID_NoIntersectionReturnsEmpty
 	transitStudent := testpkg.CreateTestStudent(t, tc.db, "TransitNoMatch", "Student", "TNMS1")
 
 	_, err := tc.db.NewUpdate().
-		TableExpr(`users.students`).
+		TableExpr(`users.student_school_memberships`).
 		Set("group_id = ?", studentGroup.ID).
-		Where("id = ?", transitStudent.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", transitStudent.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 

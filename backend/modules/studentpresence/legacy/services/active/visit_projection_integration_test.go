@@ -36,16 +36,16 @@ func TestPresenceProjection_ActiveGroupStudentDisplay(t *testing.T) {
 
 	educationGroup := testpkg.CreateTestEducationGroup(t, db, "Visit Display Group")
 	_, err := db.NewUpdate().
-		Table("users.students").
+		Table("users.student_school_memberships").
 		Set("group_id = ?", educationGroup.ID).
-		Where("id = ?", data.Student1).
+		Where("student_profile_id = ? AND deleted_at IS NULL", data.Student1).
 		Exec(ctx)
 	require.NoError(t, err)
 	defer func() {
 		_, _ = db.NewUpdate().
-			Table("users.students").
+			Table("users.student_school_memberships").
 			Set("group_id = NULL").
-			Where("id = ?", data.Student1).
+			Where("student_profile_id = ? AND deleted_at IS NULL", data.Student1).
 			Exec(ctx)
 		_, _ = db.NewDelete().
 			Table("education.groups").

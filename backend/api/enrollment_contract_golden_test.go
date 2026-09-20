@@ -255,7 +255,7 @@ func checkEnrollmentAcceptanceGolden(t *testing.T, api *API, db *testpkg.DB, sta
 	require.NoError(t, db.NewRaw("SELECT created_student_id FROM enrollment.request_children WHERE id = ? AND tenant_id = ?", childID, tenantID).Scan(context.Background(), &linkedStudentID))
 	require.Equal(t, studentID, strconv.FormatInt(linkedStudentID, 10))
 	var firstName, lastName string
-	require.NoError(t, db.NewRaw("SELECT p.first_name, p.last_name FROM users.students s JOIN users.persons p ON p.id = s.person_id WHERE s.id = ? AND s.tenant_id = ?", linkedStudentID, tenantID).Scan(context.Background(), &firstName, &lastName))
+	require.NoError(t, db.NewRaw("SELECT p.first_name, p.last_name FROM users.student_profiles s JOIN users.persons p ON p.id = s.person_id WHERE s.id = ? AND s.tenant_id = ?", linkedStudentID, tenantID).Scan(context.Background(), &firstName, &lastName))
 	require.Equal(t, "Contract", firstName)
 	require.Equal(t, "Child-parent", lastName)
 	// The submitting parent's guardian profile holds the primary link.

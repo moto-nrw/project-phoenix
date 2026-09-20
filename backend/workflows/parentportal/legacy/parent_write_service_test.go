@@ -170,8 +170,8 @@ func TestSubmitSickNote_TodayFlipsLiveFlagAndStoresReason(t *testing.T) {
 	assert.Equal(t, "Fieber, beim Arzt", *sickResult.StatusDays[0].Note)
 
 	var sick bool
-	require.NoError(t, db.NewSelect().ColumnExpr("COALESCE(sick,false)").TableExpr("users.students").
-		Where("id = ?", chain.StudentID).Scan(testpkg.WithPackageTenantRuntime(context.Background()), &sick))
+	require.NoError(t, db.NewSelect().ColumnExpr("COALESCE(sick,false)").TableExpr("users.student_care_profiles").
+		Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", chain.StudentID).Scan(testpkg.WithPackageTenantRuntime(context.Background()), &sick))
 	assert.True(t, sick, "today's sick note must flip the live sick flag")
 
 	assert.Contains(t, tenantBroadcastIDs(bc), chain.TenantID, "SSE broadcast must fire for the tenant")
@@ -314,7 +314,7 @@ func TestPostChildMessage_NotOwned(t *testing.T) {
 
 	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
 	defer func() {
-		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.students WHERE id = ?`, other.ID)
+		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.student_profiles WHERE id = ?`, other.ID)
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.persons WHERE id = ?`, other.PersonID)
 	}()
 
@@ -335,7 +335,7 @@ func TestGetChildConversation_NotOwned(t *testing.T) {
 
 	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
 	defer func() {
-		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.students WHERE id = ?`, other.ID)
+		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.student_profiles WHERE id = ?`, other.ID)
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.persons WHERE id = ?`, other.PersonID)
 	}()
 
@@ -359,8 +359,8 @@ func TestSubmitSickNote_FutureDateDoesNotFlipLiveFlag(t *testing.T) {
 	assert.Equal(t, "Fieber", *sickResult.StatusDays[0].Note)
 
 	var sick bool
-	require.NoError(t, db.NewSelect().ColumnExpr("COALESCE(sick,false)").TableExpr("users.students").
-		Where("id = ?", chain.StudentID).Scan(testpkg.WithPackageTenantRuntime(context.Background()), &sick))
+	require.NoError(t, db.NewSelect().ColumnExpr("COALESCE(sick,false)").TableExpr("users.student_care_profiles").
+		Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", chain.StudentID).Scan(testpkg.WithPackageTenantRuntime(context.Background()), &sick))
 	assert.False(t, sick, "a future-only sick note must not flip today's live flag")
 }
 
@@ -507,7 +507,7 @@ func TestSubmitSickNote_NotOwnedChild(t *testing.T) {
 
 	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
 	defer func() {
-		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.students WHERE id = ?`, other.ID)
+		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.student_profiles WHERE id = ?`, other.ID)
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.persons WHERE id = ?`, other.PersonID)
 	}()
 
@@ -763,7 +763,7 @@ func TestSubmitSickNote_ExcusedTodayStoresExcusedWithoutLiveFlag(t *testing.T) {
 	var sick, excused bool
 	require.NoError(t, db.NewSelect().
 		ColumnExpr("COALESCE(sick,false), COALESCE(excused,false)").
-		TableExpr("users.students").Where("id = ?", chain.StudentID).
+		TableExpr("users.student_care_profiles").Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", chain.StudentID).
 		Scan(testpkg.WithPackageTenantRuntime(context.Background()), &sick, &excused))
 	assert.False(t, sick, "an excused absence must not set the live sick flag")
 	assert.False(t, excused, "an excused absence must not set a live excused flag (issue #1735)")
@@ -791,8 +791,8 @@ func TestSubmitSickNote_ExcusedTodayClearsStaleLiveSickFlag(t *testing.T) {
 	assert.Equal(t, activeModels.StudentStatusDayExcused, sickResult.StatusDays[0].Status)
 
 	var sick bool
-	require.NoError(t, db.NewSelect().ColumnExpr("COALESCE(sick,false)").TableExpr("users.students").
-		Where("id = ?", chain.StudentID).Scan(testpkg.WithPackageTenantRuntime(context.Background()), &sick))
+	require.NoError(t, db.NewSelect().ColumnExpr("COALESCE(sick,false)").TableExpr("users.student_care_profiles").
+		Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", chain.StudentID).Scan(testpkg.WithPackageTenantRuntime(context.Background()), &sick))
 	assert.False(t, sick, "switching today from sick to excused must clear the live sick flag")
 }
 

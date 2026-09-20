@@ -828,9 +828,9 @@ func TestGuardianService_GetGuardianStudents(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = db.NewUpdate().
-			TableExpr("users.students").
+			TableExpr("users.student_school_memberships").
 			Set("status = ?", string(usermodels.StudentStatusAlumnus)).
-			Where("id = ?", student.ID).
+			Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 			Exec(ctx)
 		require.NoError(t, err)
 
@@ -2368,7 +2368,7 @@ func TestGetStudentGuardians_AccountHolderPendingUpgradeApproval(t *testing.T) {
 		_, _ = db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", guardian.ID).Exec(context.Background())
 		_, _ = db.NewDelete().TableExpr("users.students_guardians").Where("guardian_profile_id = ?", guardian.ID).Exec(context.Background())
 		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", guardian.ID).Exec(context.Background())
-		_, _ = db.NewDelete().TableExpr("users.students").Where("id IN (?, ?)", student.ID, sibling.ID).Exec(context.Background())
+		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id IN (?, ?)", student.ID, sibling.ID).Exec(context.Background())
 	}()
 
 	require.NoError(t, repoFactory.GuardianProfile.LinkAccount(ctx, guardian.ID, account.ID))

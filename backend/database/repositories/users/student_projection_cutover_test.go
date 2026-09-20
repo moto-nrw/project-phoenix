@@ -24,7 +24,7 @@ func TestCareExitWithoutStudentCompatibilityView(t *testing.T) {
 	membershipID := separateStudentMembership(t, db, student.ID)
 	repos, err := repositories.NewCareLifecycleTestRepositories(db, nil)
 	require.NoError(t, err)
-	dropStudentCompatibilityView(t, db)
+	assertStudentCompatibilityStorageAbsent(t, db)
 
 	rows, total, err := repos.CareExit.ListEnded(ctx, today, usersModels.CareExitListFilter{Search: "3b"})
 	require.NoError(t, err)
@@ -64,7 +64,7 @@ func TestParentAudienceWithoutStudentCompatibilityView(t *testing.T) {
 	ctx := tenantCtx(t)
 	poll, _ := pollAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID, usersModels.ParentAnnouncementResponseSingleChoice)
 	membershipID := separateStudentMembership(t, db, chain.StudentID)
-	dropStudentCompatibilityView(t, db)
+	assertStudentCompatibilityStorageAbsent(t, db)
 
 	count, err := repo.CountAudience(ctx, chain.TenantID, poll.ID)
 	require.NoError(t, err)
@@ -124,7 +124,7 @@ func TestParentInboxWithoutStudentCompatibilityView(t *testing.T) {
 	message := newMessage(t, thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "Owner read")
 	require.NoError(t, repos.Message.Create(ctx, message))
 	membershipID := separateStudentMembership(t, db, chain.StudentID)
-	dropStudentCompatibilityView(t, db)
+	assertStudentCompatibilityStorageAbsent(t, db)
 
 	rows, err := repos.Read.ListInboxForStaff(ctx, staff.ID, true, false)
 	require.NoError(t, err)
@@ -194,12 +194,12 @@ func separateStudentMembership(t *testing.T, db *bun.DB, studentID int64) int64 
 	return nextID
 }
 
-func dropStudentCompatibilityView(t *testing.T, db *bun.DB) {
+func assertStudentCompatibilityStorageAbsent(t *testing.T, db *bun.DB) {
 	t.Helper()
-	// Callers use a disposable per-test clone and arrange all legacy fixtures
-	// first. No CASCADE: this does not silently remove dependent contracts.
-	_, err := db.ExecContext(tenantCtx(t), `DROP VIEW users.students`)
-	require.NoError(t, err)
+	var absent bool
+	require.NoError(t, db.NewRaw(`SELECT to_regclass('users.students') IS NULL
+		AND to_regclass('users.students_legacy') IS NULL`).Scan(tenantCtx(t), &absent))
+	require.True(t, absent, "current repositories must operate without rollback storage")
 }
 
 func assertMissingStudentProjectionStates(t *testing.T, db *bun.DB, membershipID int64, assertHidden func()) {

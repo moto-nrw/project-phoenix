@@ -352,9 +352,9 @@ func TestGradeTransitionWorkflow_Apply(t *testing.T) {
 			SchoolClass string `bun:"school_class"`
 		}
 		err = db.NewSelect().
-			TableExpr(`users.students`).
+			TableExpr(`users.student_school_memberships`).
 			Column("school_class").
-			Where("id = ?", student1.ID).
+			Where("deleted_at IS NULL").Where("student_profile_id = ?", student1.ID).
 			Scan(ctx, &updatedStudent1)
 		require.NoError(t, err)
 		assert.Equal(t, toClass, updatedStudent1.SchoolClass)
@@ -444,9 +444,9 @@ func TestGradeTransitionWorkflow_Revert(t *testing.T) {
 		// Verify student is in toClass
 		var classAfterApply string
 		err = db.NewSelect().
-			TableExpr(`users.students`).
+			TableExpr(`users.student_school_memberships`).
 			Column("school_class").
-			Where("id = ?", student.ID).
+			Where("deleted_at IS NULL").Where("student_profile_id = ?", student.ID).
 			Scan(ctx, &classAfterApply)
 		require.NoError(t, err)
 		assert.Equal(t, toClass, classAfterApply)
@@ -460,9 +460,9 @@ func TestGradeTransitionWorkflow_Revert(t *testing.T) {
 		// Verify student is back in fromClass
 		var classAfterRevert string
 		err = db.NewSelect().
-			TableExpr(`users.students`).
+			TableExpr(`users.student_school_memberships`).
 			Column("school_class").
-			Where("id = ?", student.ID).
+			Where("deleted_at IS NULL").Where("student_profile_id = ?", student.ID).
 			Scan(ctx, &classAfterRevert)
 		require.NoError(t, err)
 		assert.Equal(t, fromClass, classAfterRevert)
@@ -964,9 +964,9 @@ func TestGradeTransitionWorkflow_Apply_GraduateStudents(t *testing.T) {
 		// Verify student was NOT deleted — row kept with status alumnus
 		var status string
 		err = db.NewSelect().
-			TableExpr(`users.students`).
+			TableExpr(`users.student_school_memberships`).
 			Column("status").
-			Where("id = ?", student.ID).
+			Where("deleted_at IS NULL").Where("student_profile_id = ?", student.ID).
 			Scan(ctx, &status)
 		require.NoError(t, err)
 		assert.Equal(t, string(users.StudentStatusAlumnus), status)
@@ -1008,10 +1008,10 @@ func TestGradeTransitionWorkflow_Apply_CascadingGraduation(t *testing.T) {
 	readStudent := func(id int64) (string, string) {
 		var class, status string
 		err := db.NewSelect().
-			TableExpr(`users.students`).
+			TableExpr(`users.student_school_memberships`).
 			ColumnExpr("school_class").
 			ColumnExpr("status").
-			Where("id = ?", id).
+			Where("deleted_at IS NULL").Where("student_profile_id = ?", id).
 			Scan(ctx, &class, &status)
 		require.NoError(t, err)
 		return class, status
@@ -1079,9 +1079,9 @@ func TestGradeTransitionWorkflow_Revert_WithGraduatedStudents(t *testing.T) {
 		// Verify student status is back to active
 		var status string
 		err = db.NewSelect().
-			TableExpr(`users.students`).
+			TableExpr(`users.student_school_memberships`).
 			Column("status").
-			Where("id = ?", student.ID).
+			Where("deleted_at IS NULL").Where("student_profile_id = ?", student.ID).
 			Scan(ctx, &status)
 		require.NoError(t, err)
 		assert.Equal(t, string(users.StudentStatusActive), status)
@@ -1147,7 +1147,7 @@ func TestGradeTransitionWorkflow_Revert_ReconcilesOnlyReactivatedStudents(t *tes
 		"both graduates leave the future rosters on apply")
 
 	// An admin decides one departed child is simply inactive, not an alumnus.
-	_, err = db.NewRaw(`UPDATE users.students SET status = 'inactive' WHERE id = ?`, handChanged.ID).
+	_, err = db.NewRaw(`UPDATE users.student_school_memberships SET status = 'inactive' WHERE student_profile_id = ? AND deleted_at IS NULL`, handChanged.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 
@@ -1161,8 +1161,8 @@ func TestGradeTransitionWorkflow_Revert_ReconcilesOnlyReactivatedStudents(t *tes
 		"the hand-changed child must not be replayed onto future rosters")
 
 	var status string
-	require.NoError(t, db.NewSelect().TableExpr(`users.students`).Column("status").
-		Where("id = ?", handChanged.ID).Scan(ctx, &status))
+	require.NoError(t, db.NewSelect().TableExpr(`users.student_school_memberships`).Column("status").
+		Where("deleted_at IS NULL").Where("student_profile_id = ?", handChanged.ID).Scan(ctx, &status))
 	assert.Equal(t, string(users.StudentStatusInactive), status,
 		"the manual status decision survives the revert")
 }
@@ -1193,7 +1193,7 @@ func TestGradeTransitionWorkflow_Revert_SkipsRosterReplayForNonActiveRestores(t 
 
 	// A future enrollment that never started: the child graduates with
 	// from_status = pending and must come back as exactly that.
-	_, err := db.NewRaw(`UPDATE users.students SET status = 'pending' WHERE id = ?`, pendingChild.ID).
+	_, err := db.NewRaw(`UPDATE users.student_school_memberships SET status = 'pending' WHERE student_profile_id = ? AND deleted_at IS NULL`, pendingChild.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 
@@ -1211,8 +1211,8 @@ func TestGradeTransitionWorkflow_Revert_SkipsRosterReplayForNonActiveRestores(t 
 		"only the child restored as active is replayed onto future rosters")
 
 	var status string
-	require.NoError(t, db.NewSelect().TableExpr(`users.students`).Column("status").
-		Where("id = ?", pendingChild.ID).Scan(ctx, &status))
+	require.NoError(t, db.NewSelect().TableExpr(`users.student_school_memberships`).Column("status").
+		Where("deleted_at IS NULL").Where("student_profile_id = ?", pendingChild.ID).Scan(ctx, &status))
 	assert.Equal(t, string(users.StudentStatusPending), status,
 		"the pending child returns to pending, not active")
 }
@@ -1308,9 +1308,9 @@ func TestGradeTransitionWorkflow_AlumniExcluded(t *testing.T) {
 
 	// Mark one student as alumnus directly (as a previous transition would)
 	_, err := db.NewUpdate().
-		TableExpr(`users.students`).
+		TableExpr(`users.student_school_memberships`).
 		Set("status = ?", string(users.StudentStatusAlumnus)).
-		Where("id = ?", alumnus.ID).
+		Where("deleted_at IS NULL").Where("student_profile_id = ?", alumnus.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 
@@ -1361,9 +1361,9 @@ func TestGradeTransitionWorkflow_PromotionSkipsAlumni(t *testing.T) {
 	alumnus := testpkg.CreateTestStudent(t, db, "FormerPromo", "Kid", fromClass)
 
 	_, err := db.NewUpdate().
-		TableExpr(`users.students`).
+		TableExpr(`users.student_school_memberships`).
 		Set("status = ?", string(users.StudentStatusAlumnus)).
-		Where("id = ?", alumnus.ID).
+		Where("deleted_at IS NULL").Where("student_profile_id = ?", alumnus.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 
@@ -1376,9 +1376,9 @@ func TestGradeTransitionWorkflow_PromotionSkipsAlumni(t *testing.T) {
 	// Alumnus keeps the old class name
 	var currentClass string
 	err = db.NewSelect().
-		TableExpr(`users.students`).
+		TableExpr(`users.student_school_memberships`).
 		Column("school_class").
-		Where("id = ?", alumnus.ID).
+		Where("deleted_at IS NULL").Where("student_profile_id = ?", alumnus.ID).
 		Scan(ctx, &currentClass)
 	require.NoError(t, err)
 	assert.Equal(t, fromClass, currentClass)

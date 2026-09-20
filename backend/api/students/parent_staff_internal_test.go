@@ -74,7 +74,7 @@ func TestStaffStatusDay_ReasonStoredAndReturned(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Reason", "Kind", "1a")
 	defer func() {
 		_, _ = db.ExecContext(context.Background(), `DELETE FROM active.student_status_days WHERE student_id = ?`, student.ID)
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.students WHERE id = ?`, student.ID)
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.student_profiles WHERE id = ?`, student.ID)
 		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.persons WHERE id = ?`, student.PersonID)
 	}()
 
