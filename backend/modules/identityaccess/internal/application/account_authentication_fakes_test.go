@@ -257,6 +257,8 @@ func stats() domain.OperationStats { return domain.OperationStats{Queries: 1} }
 
 // ports.AccountLoginStore
 
+func (s *fakeStore) DemoAccountExists(context.Context, int64) (bool, error) { return false, nil }
+
 func (s *fakeStore) HasActiveAccountTenant(_ context.Context, accountID, tenantID int64) (bool, domain.OperationStats, error) {
 	s.record("HasActiveAccountTenant")
 	if s.hasMappingErr != nil {

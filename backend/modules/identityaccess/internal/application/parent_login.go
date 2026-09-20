@@ -124,7 +124,7 @@ func (s *AccountAuthentication) SwitchTenant(ctx context.Context, accountID int6
 	if domain.IsSchoolPortalOnly(metadata.Roles) {
 		return "", "", failed("switch tenant", domain.ErrMustUseSchoolPortal)
 	}
-	session, err := s.createRefreshSessionGuarded(ctx, account, metadata.TenantID, metadata.Scope, nil, presentedFamilyID)
+	session, err := s.createRefreshSessionGuarded(ctx, account, metadata.TenantID, metadata.Scope, s.demoTenantLock, presentedFamilyID)
 	if err != nil {
 		return "", "", err
 	}

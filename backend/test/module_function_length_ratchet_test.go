@@ -154,7 +154,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/exporttransfer/internal/adapters/sftp/client.go:(*Client).Prepare":                                                           75,
 	"modules/exporttransfer/internal/application/service.go:(*Service).Transfer":                                                          75,
 	"modules/filestorage/internal/application/cleanup.go:(*Service).sweep":                                                                70,
-	"modules/identityaccess/compose/new.go:New":                                                                                           97,
+	"modules/identityaccess/compose/new.go:New":                                                                                           81,
 	"modules/identityaccess/internal/application/account_mfa_admin.go:(*AccountMFAFlows).OperatorSetGlobalMFAOverride":                    70,
 	"modules/identityaccess/internal/application/account_mfa_admin.go:(*AccountMFAFlows).setTenantOverride":                               73,
 	"modules/identityaccess/internal/application/account_mfa_flow.go:(*AccountMFAFlows).StartChallenge":                                   81,

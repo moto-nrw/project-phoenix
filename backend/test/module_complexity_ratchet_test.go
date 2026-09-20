@@ -189,7 +189,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/filestorage/internal/application/folders.go:(*Service).UpdateFolder":         21,
 	"modules/filestorage/internal/application/folders.go:(*Service).validateAudience":     20,
 
-	"modules/identityaccess/compose/new.go:New": 20,
 	"modules/identityaccess/internal/application/account_login.go:(*AccountAuthentication).loadPersonNamesFromMappedTenants":    17,
 	"modules/identityaccess/internal/application/account_login.go:(*AccountAuthentication).persistSessionInTransaction":         19,
 	"modules/identityaccess/internal/application/account_mfa_admin.go:(*AccountMFAFlows).OperatorSetGlobalMFAOverride":          21,

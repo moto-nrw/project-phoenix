@@ -908,6 +908,9 @@ func initializeAPIResourcesWithRequestFeed(api *API, repoFactory *repositories.F
 	if err := initializeAPIResources(api, repoFactory, modules, db, logger); err != nil {
 		return nil, err
 	}
+	if err := mountDemoAccess(api, db, viper.GetString("app_env"), frontendURL, viper.GetString("tenant_domain")); err != nil {
+		return nil, err
+	}
 	requestFeed, err := requestFeedCompose.New(requestFeedCompose.Dependencies{
 		DB: db, FrontendURL: frontendURL, Now: time.Now,
 		NewToken: projectJWT.NewOpaqueCapabilityToken, HashToken: projectJWT.OpaqueCapabilityFingerprint,
@@ -998,7 +1001,12 @@ func setupCORSIfEnabled(router chi.Router, enabled bool) {
 // setupCORS configures CORS middleware with allowed origins from environment.
 // Supports wildcard subdomain patterns like "*.example.com" via AllowOriginFunc.
 func setupCORS(router chi.Router) {
-	exactOrigins, wildcardSuffixes := parseAllowedOrigins(os.Getenv("CORS_ALLOWED_ORIGINS"))
+	router.Use(corsHandler(os.Getenv("CORS_ALLOWED_ORIGINS")))
+}
+
+// corsHandler builds the CORS middleware for a CORS_ALLOWED_ORIGINS value.
+func corsHandler(allowedOrigins string) func(http.Handler) http.Handler {
+	exactOrigins, wildcardSuffixes := parseAllowedOrigins(allowedOrigins)
 
 	opts := cors.Options{
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -1014,7 +1022,7 @@ func setupCORS(router chi.Router) {
 		opts.AllowedOrigins = exactOrigins
 	}
 
-	router.Use(cors.Handler(opts))
+	return cors.Handler(opts)
 }
 
 // buildCORSOriginFunc returns a CORS origin matcher that accepts any exact

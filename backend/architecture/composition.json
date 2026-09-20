@@ -20978,12 +20978,12 @@
         },
         {
           "file": "api/base.go",
-          "line": 1312,
+          "line": 1320,
           "declaration": "activeSchoolMemberships"
         },
         {
           "file": "api/base.go",
-          "line": 1327,
+          "line": 1335,
           "declaration": "initializeAPIResources"
         }
       ]

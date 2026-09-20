@@ -86,6 +86,15 @@ tables: `users.profiles` belongs to the account, not the person, so its model,
 contract and repository move to `modules/identityaccess/legacy/authmodels` and
 `modules/identityaccess/legacy/authpostgres` under `identity-access`.
 
+#3462 assigns the demo access of the public demo (ADR 0029),
+`auth.demo_accesses`, to `identity-access`: it is a passwordless credential
+whose only effect is a session, and the session is minted by that owner's
+existing account authentication. It is a capability of its own
+(`identityaccess.DemoAccess`, composed only under `APP_ENV=demo`), not a
+wider module engine. The demo school stays with `organization-tenancy`: the
+capability resolves it through that owner's `FindSchoolBySlug`, bound in
+`services.NewDemoAccess`, and reads no `platform` table itself.
+
 #3349 settles the one table two owners reached for: `users.privacy_consents`
 stays with `student-presence`. The recorded window bounds how long presence
 data is kept, and the GDPR cleanup reads it through that owner's

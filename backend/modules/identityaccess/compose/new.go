@@ -85,23 +85,7 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	scope := func(ctx context.Context) postgres.TenantScope {
 		return postgres.TenantScope{TenantID: tenant.FromContext(ctx), AdminTransaction: tenant.IsAdminTx(ctx)}
 	}
-	store := postgres.New(func(ctx context.Context) (bun.IDB, error) {
-		transaction, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return dependencies.DB, nil
-		}
-		switch tx := transaction.(type) {
-		case bun.Tx:
-			return tx, nil
-		case *bun.Tx:
-			if tx != nil {
-				return *tx, nil
-			}
-			return dependencies.DB, nil
-		default:
-			return nil, fmt.Errorf("identity access postgres: unsupported transaction %T", transaction)
-		}
-	}, scope)
+	store := postgres.New(requestDatabase(dependencies.DB), scope)
 	service := application.New(store, store, store, transaction{}, tenant.FromContext, func(observation Observation) {
 		observation.Err = mapError(observation.Err)
 		dependencies.Observe(observation)
@@ -163,6 +147,28 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	}
 	e.runtime = runtime.Attach
 	return identityaccess.NewModule(e, runtime), nil
+}
+
+// requestDatabase resolves the caller's transaction, or the root connection
+// without one.
+func requestDatabase(root *bun.DB) postgres.Database {
+	return func(ctx context.Context) (bun.IDB, error) {
+		transaction, ok := tenant.TransactionFromContext(ctx)
+		if !ok {
+			return root, nil
+		}
+		switch tx := transaction.(type) {
+		case bun.Tx:
+			return tx, nil
+		case *bun.Tx:
+			if tx != nil {
+				return *tx, nil
+			}
+			return root, nil
+		default:
+			return nil, fmt.Errorf("identity access postgres: unsupported transaction %T", transaction)
+		}
+	}
 }
 
 type transaction struct{}
