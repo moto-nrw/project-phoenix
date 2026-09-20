@@ -59,6 +59,8 @@ type accountAuthenticationWiring struct {
 	// flows (#3332); nil composes the module without them and every
 	// operator link reports it as unavailable.
 	operatorLinks *operatorLinkWiring
+	// demoAccess composes the public demo flow only for APP_ENV=demo.
+	demoAccess bool
 }
 
 // sessionRepositories are the retained repositories the session seams read:
@@ -142,11 +144,38 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 			Logger:        wiring.logger,
 		},
 		Operators: wiring.operators,
+		Demo:      demoDependencies(wiring.demoAccess, wiring.repos.schools.schools),
 	})
 	if err != nil {
 		return nil, err
 	}
 	return module, nil
+}
+
+func demoDependencies(enabled bool, schools organizationtenancy.Query) *identityaccessCompose.DemoDependencies {
+	if !enabled {
+		return nil
+	}
+	return &identityaccessCompose.DemoDependencies{
+		Schools:  demoSchoolDirectory{schools: schools},
+		NewToken: authjwt.NewOpaqueCapabilityToken, Fingerprint: authjwt.OpaqueCapabilityFingerprint,
+	}
+}
+
+type demoSchoolDirectory struct{ schools organizationtenancy.Query }
+
+func (d demoSchoolDirectory) FindDemoSchool(ctx context.Context, slug string) (int64, bool, error) {
+	school, err := d.schools.FindSchoolBySlug(ctx, slug)
+	if errors.Is(err, organizationtenancy.ErrSchoolNotFound) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	if !school.Active || school.IsDeleted() {
+		return 0, false, nil
+	}
+	return school.ID, true, nil
 }
 
 // AccountAuthentication returns the Identity & Access module the session,

@@ -29,6 +29,7 @@ type AuthTestModule struct {
 	// through the capabilities they were bound to (#3364).
 	Auth                  *identityaccess.Module
 	AccountAuthentication *identityaccess.Module
+	DemoAccess            *identityaccess.DemoAccess
 	StaffPINAuth          StaffPINAuthenticator
 	Invitation            InvitationCapability
 	GuardianInvitation    GuardianInvitationCapability
@@ -222,7 +223,8 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 	}
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
 		repos: sessionRepos, tokenAuth: tokenAuth, settings: settings.Settings, audit: command, logger: logger,
-		operators: operators,
+		operators:  operators,
+		demoAccess: true,
 		mfa: &mfaWiring{
 			repos: r, settings: mfaSettingsService(settings.Settings, settingsOverrides), tokenAuth: tokenAuth,
 			dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL,
@@ -265,6 +267,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 	guardian := GuardianInvitationCapability(identityAccess)
 	return AuthTestModule{
 		Auth: identityAccess, AccountAuthentication: identityAccess,
+		DemoAccess:   identityAccess.DemoAccess(),
 		StaffPINAuth: NewStaffPINAuthenticator(identityAccess),
 		MFA:          identityAccess, Passkeys: identityAccess,
 		OperatorMFA: identityAccess, OperatorPasskeys: identityAccess,

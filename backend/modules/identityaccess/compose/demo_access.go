@@ -13,6 +13,24 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// DemoDependencies are the Organisation & Tenancy facts the demo flow needs
+// when the Identity & Access module is composed for the demo environment.
+type DemoDependencies struct {
+	Schools     DemoSchools
+	NewToken    func() (raw, fingerprint string, err error)
+	Fingerprint func(raw string) string
+}
+
+func composeDemoAccess(db *bun.DB, sessions DemoSessions, dependencies *DemoDependencies) (*identityaccess.DemoAccess, error) {
+	if dependencies == nil {
+		return nil, nil
+	}
+	return NewDemoAccess(DemoAccessDependencies{
+		DB: db, Sessions: sessions, Schools: dependencies.Schools,
+		NewToken: dependencies.NewToken, Fingerprint: dependencies.Fingerprint,
+	})
+}
+
 // DemoSessions is the session minting the demo access redeems into; the
 // composed Identity & Access module satisfies it.
 type DemoSessions interface {

@@ -17,6 +17,10 @@ func TestDemoEntryBaseIsTheStandingSchoolsOrigin(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "https://messe-demo.demo.moto-app.de", base)
 
+	base, err = demoEntryBase("http://localhost:3000", "localhost")
+	require.NoError(t, err)
+	assert.Equal(t, "http://messe-demo.localhost:3000", base)
+
 	_, err = demoEntryBase("https://demo.moto-app.de", "")
 	assert.Error(t, err)
 }

@@ -430,7 +430,8 @@ type TenantRuntimeBinding interface {
 
 // Module is the public Identity & Access facade.
 type Module struct {
-	engine Engine
+	engine     Engine
+	demoAccess *DemoAccess
 	// runtime is the binding for the unit of work the module opens its own
 	// transactions under. The root composes the module before it has built
 	// the runtime, so it is bound afterwards through SetTenantRuntime.
@@ -440,12 +441,20 @@ type Module struct {
 // NewModule wraps the composed engine and the runtime binding the
 // composition captured for its transactions. Composition supplies both;
 // consumers depend on the interfaces above.
-func NewModule(engine Engine, runtime TenantRuntimeBinding) *Module {
+func NewModule(engine Engine, runtime TenantRuntimeBinding, demoAccess ...*DemoAccess) *Module {
 	if engine == nil {
 		panic("identity access: engine is required")
 	}
-	return &Module{engine: engine, runtime: runtime}
+	module := &Module{engine: engine, runtime: runtime}
+	if len(demoAccess) > 0 {
+		module.demoAccess = demoAccess[0]
+	}
+	return module
 }
+
+// DemoAccess returns the demo-only capability when this module was composed
+// in the demo environment.
+func (m *Module) DemoAccess() *DemoAccess { return m.demoAccess }
 
 // SetTenantRuntime binds the unit of work the module opens its session,
 // lifecycle and operator transactions under. The composition root wires it

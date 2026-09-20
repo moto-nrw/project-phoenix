@@ -2,12 +2,12 @@ package api
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
-	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/uptrace/bun"
 )
 
 // standingDemoSchoolSlug is the school every demo access enters until a
@@ -16,20 +16,19 @@ const standingDemoSchoolSlug = "messe-demo"
 
 // mountDemoAccess adds the public demo routes (#3462); they exist under
 // APP_ENV=demo only, and only there the entry origin must resolve.
-func mountDemoAccess(api *API, db *bun.DB, appEnv, frontendURL, tenantDomain string) error {
+func mountDemoAccess(router chi.Router, accesses authAPI.DemoAccesses, appEnv, frontendURL, tenantDomain string) error {
 	entryBase, err := demoEntryBase(frontendURL, tenantDomain)
 	if err != nil {
 		// Outside the demo environment the origin is never used.
 		entryBase = ""
 	}
 	compose := func() (authAPI.DemoAccesses, error) {
-		accesses, err := services.NewDemoAccess(db, api.Services.AccountAuthentication(), api.Services.Schools)
-		if err != nil {
-			return nil, err
+		if accesses == nil {
+			return nil, fmt.Errorf("demo access is not composed")
 		}
 		return accesses, nil
 	}
-	return authAPI.MountDemoRoutes(api.Router, appEnv, compose, standingDemoSchoolSlug, entryBase)
+	return authAPI.MountDemoRoutes(router, appEnv, compose, standingDemoSchoolSlug, entryBase)
 }
 
 // demoEntryBase is the demo school's origin: the scheme of FRONTEND_URL and
@@ -40,5 +39,9 @@ func demoEntryBase(frontendURL, tenantDomain string) (string, error) {
 	if err != nil || parsed.Scheme == "" || tenantDomain == "" {
 		return "", fmt.Errorf("the demo routes require FRONTEND_URL and TENANT_DOMAIN")
 	}
-	return parsed.Scheme + "://" + standingDemoSchoolSlug + "." + tenantDomain, nil
+	host := standingDemoSchoolSlug + "." + tenantDomain
+	if port := parsed.Port(); port != "" {
+		host = net.JoinHostPort(host, port)
+	}
+	return parsed.Scheme + "://" + host, nil
 }

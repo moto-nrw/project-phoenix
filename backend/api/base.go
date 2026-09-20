@@ -179,6 +179,7 @@ func recordHTTPRuntimeEvent(tracer *observability.Tracer, observation httpRuntim
 type moduleServices struct {
 	repositories  *repositories.Factory
 	services      *services.Factory
+	demoAccess    authAPI.DemoAccesses
 	communication *communicationModule.Module
 	mealPlan      *mealplanModule.Module
 	feedback      *feedbackModule.Module
@@ -411,7 +412,7 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 		return moduleServices{}, err
 	}
 	legacyFacilities = factory.Facilities
-	return moduleServices{repositories: repoFactory, services: factory, communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime}, nil
+	return moduleServices{repositories: repoFactory, services: factory, demoAccess: factory.AccountAuthentication().DemoAccess(), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime}, nil
 }
 
 // withFileStorageWiring resolves what the File Storage module needs from the
@@ -908,7 +909,7 @@ func initializeAPIResourcesWithRequestFeed(api *API, repoFactory *repositories.F
 	if err := initializeAPIResources(api, repoFactory, modules, db, logger); err != nil {
 		return nil, err
 	}
-	if err := mountDemoAccess(api, db, viper.GetString("app_env"), frontendURL, viper.GetString("tenant_domain")); err != nil {
+	if err := mountDemoAccess(api.Router, modules.demoAccess, viper.GetString("app_env"), frontendURL, viper.GetString("tenant_domain")); err != nil {
 		return nil, err
 	}
 	requestFeed, err := requestFeedCompose.New(requestFeedCompose.Dependencies{

@@ -18,7 +18,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -40,9 +39,7 @@ func newDemoEnv(t *testing.T) demoEnv {
 	db, svc := testutil.SetupAuthModule(t)
 	var slug string
 	require.NoError(t, db.NewRaw(`SELECT slug FROM platform.schools WHERE id = ?`, testpkg.Tenant(t)).Scan(context.Background(), &slug))
-	accesses, err := services.NewDemoAccess(db, svc.AccountAuthentication, svc.Schools)
-	require.NoError(t, err)
-	resource, err := authAPI.NewDemoResource(accesses, slug, demoEntryOrigin+"/")
+	resource, err := authAPI.NewDemoResource(svc.DemoAccess, slug, demoEntryOrigin+"/")
 	require.NoError(t, err)
 	auth := authAPI.NewResource(svc.Auth, svc.Invitation, testSchoolDirectory{schools: svc.Schools, db: db, runtime: testpkg.TenantRuntime(t, db)}, svc.AccountAuthentication, db)
 	router := testutil.NewTenantRouter(db)
