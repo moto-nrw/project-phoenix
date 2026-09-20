@@ -79,7 +79,7 @@ type CleanupStore interface {
 }
 
 // Object is an open stored object; http.ServeContent needs exactly this shape.
-type Object interface {
+type Object = interface {
 	io.ReadSeekCloser
 	ModTime() time.Time
 }

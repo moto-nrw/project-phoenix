@@ -41,6 +41,7 @@ import (
 	devicefleetModule "github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
+	documentCompose "github.com/moto-nrw/project-phoenix/modules/documentrendering/compose"
 	"github.com/moto-nrw/project-phoenix/modules/emergencysnapshot"
 	emergencysnapshotlegacy "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/legacy"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
@@ -63,6 +64,7 @@ import (
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/statistics"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
@@ -2594,8 +2596,10 @@ func newFactory(
 			Objects:          fileStorage.Objects,
 			Identity:         guardianAccess,
 			People:           persons,
-			Settings:         settingsService,
-			Events:           repos.FileEvent,
+			Settings:         fileStorageSettings{service: settingsService},
+			Events:           fileStorageEvents{repo: repos.FileEvent},
+			FileCleanups:     documentCompose.NewFileCleanupStore(db),
+			HasPermission:    securityruntime.HasPermission,
 			Announcements:    parentAnnouncementService,
 			GuardianAudience: parentService,
 			Observe:          fileStorage.Observe,
