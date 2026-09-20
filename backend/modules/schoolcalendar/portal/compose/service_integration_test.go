@@ -22,7 +22,6 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	usercontextSvc "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
@@ -39,7 +38,7 @@ func deactivateAccountTenant(t *testing.T, db *bun.DB, accountID, tenantID int64
 	t.Helper()
 	_, err := db.NewUpdate().
 		TableExpr("auth.account_tenants").
-		Set("status = ?", authModels.AccountTenantStatusInactive).
+		Set("status = ?", "inactive").
 		Set("deactivated_at = NOW()").
 		Set("staff_calendar_feed_token = NULL").
 		Set("updated_at = NOW()").
@@ -958,10 +957,9 @@ func TestCalendarServiceIntegration_StaffSubscriptionLifecycleKeepsParentFeedInd
 	deactivateAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 	_, _, err = service.StaffCalendarFeedByToken(testpkg.Ctx(t), rotatedToken)
 	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
-	require.NoError(t, repos.AccountTenant.EnsureActive(testpkg.Ctx(t), &authModels.AccountTenant{
-		AccountID: account.ID,
-		TenantID:  testpkg.Tenant(t),
-	}))
+	_, err = db.NewRaw(`UPDATE auth.account_tenants SET status = 'active', activated_at = NOW(),
+		deactivated_at = NULL, updated_at = NOW() WHERE account_id = ? AND tenant_id = ?`, account.ID, testpkg.Tenant(t)).Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
 	_, _, err = service.StaffCalendarFeedByToken(testpkg.Ctx(t), rotatedToken)
 	assert.ErrorIs(t, err, calendarSvc.ErrNotFound, "reactivation must not resurrect a capability issued before offboarding")
 }
@@ -1729,7 +1727,7 @@ func TestCalendarServiceIntegration_RecipientOptionsAndGroupedTargets(t *testing
 	_, err := db.ExecContext(
 		context.Background(),
 		`UPDATE auth.account_tenants SET status = ? WHERE account_id = ? AND tenant_id = ?`,
-		authModels.AccountTenantStatusInactive,
+		"inactive",
 		inactiveParentChain.AccountID,
 		inactiveParentChain.TenantID,
 	)

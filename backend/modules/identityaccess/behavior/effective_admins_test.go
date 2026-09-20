@@ -22,10 +22,10 @@ func grantTenantRole(t *testing.T, db *bun.DB, ctx context.Context, accountID, t
 	t.Helper()
 
 	now := time.Now()
-	mapping := &authModels.AccountTenant{
+	mapping := &testpkg.AccountTenantFixture{
 		AccountID:   accountID,
 		TenantID:    tenantID,
-		Status:      authModels.AccountTenantStatusActive,
+		Status:      "active",
 		ActivatedAt: &now,
 	}
 	// Upsert: since #2419 CreateTestAccount already maps a fixture account to
@@ -159,7 +159,7 @@ func TestNativeEffectiveAdminAccountIDs(t *testing.T) {
 
 		_, err := db.NewUpdate().
 			TableExpr("auth.account_tenants").
-			Set("status = ?", authModels.AccountTenantStatusInactive).
+			Set("status = ?", "inactive").
 			Where("account_id = ? AND tenant_id = ?", admin.ID, testpkg.Tenant(t)).
 			Exec(ctx)
 		require.NoError(t, err)

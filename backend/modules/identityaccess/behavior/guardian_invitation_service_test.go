@@ -18,7 +18,6 @@ import (
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -331,7 +330,7 @@ func TestGuardianInvitationService_Accept_HappyPath(t *testing.T) {
 	assert.True(t, updatedProfile.HasAccount, "guardian_profile.has_account should flip true")
 
 	// Account-tenant mapping must exist + be active.
-	exists, err := env.repos.AccountTenant.ExistsByAccountAndTenant(context.Background(), account.ID, testpkg.Tenant(t))
+	exists, err := testpkg.ActiveAccountTenantExists(context.Background(), env.db, account.ID, testpkg.Tenant(t))
 	require.NoError(t, err)
 	assert.True(t, exists, "account_tenant mapping should be created on accept")
 
@@ -476,12 +475,12 @@ func TestGuardianInvitationService_Accept_ReactivatesExistingTenantMapping(t *te
 	creatorID := env.inviterAccountID(t)
 	account := testpkg.CreateTestAccountWithPassword(t, env.db, *profile.Email, "Existing!2026")
 	deactivatedAt := time.Now().Add(-time.Hour)
-	require.NoError(t, env.repos.AccountTenant.Create(context.Background(), &authModels.AccountTenant{
-		AccountID:     account.ID,
-		TenantID:      testpkg.Tenant(t),
-		Status:        authModels.AccountTenantStatusInactive,
-		DeactivatedAt: &deactivatedAt,
-	}))
+	_, err := env.db.NewRaw(`UPDATE auth.account_tenants SET status = 'inactive', deactivated_at = ?
+		WHERE account_id = ? AND tenant_id = ?`, deactivatedAt, account.ID, testpkg.Tenant(t)).Exec(context.Background())
+	require.NoError(t, err)
+	active, err := testpkg.ActiveAccountTenantExists(context.Background(), env.db, account.ID, testpkg.Tenant(t))
+	require.NoError(t, err)
+	require.False(t, active, "reactivation must start from an inactive mapping")
 	t.Cleanup(func() {
 		_, _ = env.db.NewDelete().TableExpr("auth.account_roles").Where("account_id = ?", account.ID).Exec(context.Background())
 		_, _ = env.db.NewDelete().TableExpr("auth.account_tenants").Where("account_id = ?", account.ID).Exec(context.Background())
@@ -502,7 +501,7 @@ func TestGuardianInvitationService_Accept_ReactivatesExistingTenantMapping(t *te
 	})
 	require.NoError(t, err)
 
-	var mapping authModels.AccountTenant
+	var mapping testpkg.AccountTenantFixture
 	err = env.db.NewSelect().
 		Model(&mapping).
 		ModelTableExpr(`auth.account_tenants AS "account_tenant"`).
@@ -510,7 +509,7 @@ func TestGuardianInvitationService_Accept_ReactivatesExistingTenantMapping(t *te
 		Where(`"account_tenant".tenant_id = ?`, testpkg.Tenant(t)).
 		Scan(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, authModels.AccountTenantStatusActive, mapping.Status)
+	assert.Equal(t, "active", mapping.Status)
 	assert.Nil(t, mapping.DeactivatedAt)
 	assert.NotNil(t, mapping.ActivatedAt)
 }

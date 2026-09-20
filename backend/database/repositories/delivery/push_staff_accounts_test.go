@@ -133,7 +133,7 @@ func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
 	t.Run("drops a device whose tenant mapping is no longer active", func(t *testing.T) {
 		_, err := db.NewUpdate().
 			TableExpr("auth.account_tenants").
-			Set("status = ?", authModels.AccountTenantStatusInactive).
+			Set("status = ?", "inactive").
 			Where("account_id = ? AND tenant_id = ?", addressed.ID, testpkg.Tenant(t)).
 			Exec(ctx)
 		require.NoError(t, err)
@@ -141,7 +141,7 @@ func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
 		defer func() {
 			_, resetErr := db.NewUpdate().
 				TableExpr("auth.account_tenants").
-				Set("status = ?", authModels.AccountTenantStatusActive).
+				Set("status = ?", "active").
 				Where("account_id = ? AND tenant_id = ?", addressed.ID, testpkg.Tenant(t)).
 				Exec(ctx)
 			require.NoError(t, resetErr)

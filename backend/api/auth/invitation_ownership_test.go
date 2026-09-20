@@ -56,7 +56,7 @@ func TestInvitationHTTPRequiresVerifiedOwner(t *testing.T) {
 	stored, err := repos.Account.FindByID(context.Background(), owner.ID)
 	require.NoError(t, err)
 	require.Equal(t, owner.PasswordHash, stored.PasswordHash)
-	joined, err := repos.AccountTenant.ExistsByAccountAndTenant(context.Background(), owner.ID, schoolA)
+	joined, err := testpkg.ActiveAccountTenantExists(context.Background(), db, owner.ID, schoolA)
 	require.NoError(t, err)
 	require.False(t, joined)
 	req = testutil.NewJSONRequest(t, http.MethodPost, path, map[string]string{})

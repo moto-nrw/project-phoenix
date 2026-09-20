@@ -925,10 +925,10 @@ func CreateTestCalendarStaff(tb testing.TB, db *bun.DB, firstName, lastName stri
 	staff, account := CreateTestStaffWithAccount(tb, db, firstName, lastName)
 
 	now := time.Now()
-	mapping := &authmodels.AccountTenant{
+	mapping := &AccountTenantFixture{
 		AccountID:   account.ID,
 		TenantID:    fixtureTenantID(tb),
-		Status:      authmodels.AccountTenantStatusActive,
+		Status:      "active",
 		ActivatedAt: &now,
 	}
 	// Upsert: CreateTestAccount already mapped the account to this test's
@@ -2908,10 +2908,10 @@ func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 	require.NoError(tb, err, "Failed to create students_guardians link")
 
 	now := time.Now()
-	mapping := &authmodels.AccountTenant{
+	mapping := &AccountTenantFixture{
 		AccountID:   account.ID,
 		TenantID:    fixtureTenantID(tb),
-		Status:      authmodels.AccountTenantStatusActive,
+		Status:      "active",
 		ActivatedAt: &now,
 	}
 	// Upsert for the same reason as in CreateTestCalendarStaff: the account
@@ -3087,10 +3087,10 @@ func CreateTestCoGuardianForStudent(
 	require.NoError(tb, err, "Failed to link co-guardian to student")
 
 	now := time.Now()
-	mapping := &authmodels.AccountTenant{
+	mapping := &AccountTenantFixture{
 		AccountID:   account.ID,
 		TenantID:    fixtureTenantID(tb),
-		Status:      authmodels.AccountTenantStatusActive,
+		Status:      "active",
 		ActivatedAt: &now,
 	}
 	_, err = db.NewInsert().Model(mapping).ModelTableExpr(`auth.account_tenants`).

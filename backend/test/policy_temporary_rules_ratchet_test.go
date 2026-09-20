@@ -42,7 +42,7 @@ import (
 //
 // #3416 adds per-rule cleanup issues and stale-rule detection. The account
 // above records the original seed, not the current evaluator. Its 167 stale
-// rule deletions lower these seeds to 481 conversion promises and 578 wider
+// rule deletions lower these seeds to 481 conversion promises and 577 wider
 // compatibility markers; this prose counter remains as an independent guard.
 //
 // Three shrink-only measurements, all read-only on policy.json:
@@ -98,7 +98,7 @@ const (
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 578
+	policyTempRulesCompatTotal = 577
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the

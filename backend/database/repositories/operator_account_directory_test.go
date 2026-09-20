@@ -1,4 +1,4 @@
-package authpostgres_test
+package repositories_test
 
 import (
 	"context"
@@ -6,16 +6,14 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
-	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
-// newSchoolProjectedAccountTenantRepository uses the serving owner projection.
-func newSchoolProjectedAccountTenantRepository(t *testing.T, db *bun.DB) repositories.OperatorAccountDirectory {
+// newProjectedOperatorAccountDirectory uses the serving owner projection.
+func newProjectedOperatorAccountDirectory(t *testing.T, db *bun.DB) repositories.OperatorAccountDirectory {
 	t.Helper()
 	schools, err := repositories.NewOrganizationTenancy(db)
 	require.NoError(t, err)
@@ -28,154 +26,7 @@ func newSchoolProjectedAccountTenantRepository(t *testing.T, db *bun.DB) reposit
 	return repositories.NewOperatorAccountDirectory(identity, persons, membership, schools)
 }
 
-func TestAccountTenantRepository_CreateAndQuery(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := authRepo.NewAccountTenantRepository(db)
-	ctx := testpkg.Ctx(t)
-	account := testpkg.CreateTestAccount(t, db, "acctenant")
-	tenantID := testpkg.UniqueTestTenantID(t)
-	testpkg.EnsureTestTenant(t, db, tenantID)
-
-	t.Run("creates active mapping", func(t *testing.T) {
-		item := &authModels.AccountTenant{
-			AccountID: account.ID,
-			TenantID:  tenantID,
-			Status:    authModels.AccountTenantStatusActive,
-		}
-		err := repo.Create(ctx, item)
-		require.NoError(t, err)
-		assert.NotZero(t, item.ID)
-	})
-
-	t.Run("finds active mappings by account id", func(t *testing.T) {
-		identity, err := repositories.NewIdentityAccessForTests(db)
-		require.NoError(t, err)
-		items, err := identity.ListActiveAccountSchoolIDs(ctx, account.ID)
-		require.NoError(t, err)
-		// Two: the one created above, plus the one CreateTestAccount claims
-		// for this test's own tenant (#2419).
-		require.Len(t, items, 2)
-		assert.Contains(t, items, tenantID)
-	})
-
-	t.Run("exists by account and tenant returns true", func(t *testing.T) {
-		exists, err := repo.ExistsByAccountAndTenant(ctx, account.ID, tenantID)
-		require.NoError(t, err)
-		assert.True(t, exists)
-	})
-
-	t.Run("exists by account and tenant returns false for missing mapping", func(t *testing.T) {
-		exists, err := repo.ExistsByAccountAndTenant(ctx, account.ID, tenantID+999999)
-		require.NoError(t, err)
-		assert.False(t, exists)
-	})
-}
-
-func TestAccountTenantRepository_CreateValidation(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := authRepo.NewAccountTenantRepository(db)
-	ctx := testpkg.Ctx(t)
-
-	err := repo.Create(ctx, nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "account tenant cannot be nil")
-
-	err = repo.Create(ctx, &authModels.AccountTenant{})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "account_id is required")
-}
-
-func TestAccountTenantRepository_EnsureActive(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := authRepo.NewAccountTenantRepository(db)
-	ctx := testpkg.Ctx(t)
-	account := testpkg.CreateTestAccount(t, db, "acctenant-reactivate")
-	tenantID := testpkg.UniqueTestTenantID(t)
-	testpkg.EnsureTestTenant(t, db, tenantID)
-
-	deactivatedAt := time.Now().Add(-time.Hour)
-	inactive := &authModels.AccountTenant{
-		AccountID:     account.ID,
-		TenantID:      tenantID,
-		Status:        authModels.AccountTenantStatusInactive,
-		DeactivatedAt: &deactivatedAt,
-	}
-	require.NoError(t, repo.Create(ctx, inactive))
-
-	activatedAt := time.Now()
-	err := repo.EnsureActive(ctx, &authModels.AccountTenant{
-		AccountID:   account.ID,
-		TenantID:    tenantID,
-		Status:      authModels.AccountTenantStatusActive,
-		ActivatedAt: &activatedAt,
-	})
-	require.NoError(t, err)
-
-	var mapping authModels.AccountTenant
-	err = db.NewSelect().
-		Model(&mapping).
-		ModelTableExpr(`auth.account_tenants AS "account_tenant"`).
-		Where(`"account_tenant".account_id = ?`, account.ID).
-		Where(`"account_tenant".tenant_id = ?`, tenantID).
-		Scan(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, authModels.AccountTenantStatusActive, mapping.Status)
-	assert.NotNil(t, mapping.ActivatedAt)
-	assert.Nil(t, mapping.DeactivatedAt)
-}
-
-func TestAccountTenantRepository_EnsureActiveReactivatesInactiveMapping(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := authRepo.NewAccountTenantRepository(db)
-	ctx := testpkg.Ctx(t)
-	account := testpkg.CreateTestAccount(t, db, "acctenant-reactivate")
-	tenantID := testpkg.UniqueTestTenantID(t)
-	testpkg.EnsureTestTenant(t, db, tenantID)
-
-	require.NoError(t, repo.Create(ctx, &authModels.AccountTenant{
-		AccountID: account.ID,
-		TenantID:  tenantID,
-		Status:    authModels.AccountTenantStatusActive,
-	}))
-	_, err := db.NewUpdate().
-		TableExpr("auth.account_tenants").
-		Set("status = ?", authModels.AccountTenantStatusInactive).
-		Set("deactivated_at = NOW()").
-		Set("staff_calendar_feed_token = NULL").
-		Set("updated_at = NOW()").
-		Where("account_id = ?", account.ID).
-		Where("tenant_id = ?", tenantID).
-		Exec(ctx)
-	require.NoError(t, err)
-
-	exists, err := repo.ExistsByAccountAndTenant(ctx, account.ID, tenantID)
-	require.NoError(t, err)
-	assert.False(t, exists)
-
-	now := time.Now()
-	require.NoError(t, repo.EnsureActive(ctx, &authModels.AccountTenant{
-		AccountID:   account.ID,
-		TenantID:    tenantID,
-		ActivatedAt: &now,
-	}))
-	exists, err = repo.ExistsByAccountAndTenant(ctx, account.ID, tenantID)
-	require.NoError(t, err)
-	assert.True(t, exists)
-}
-
-func TestAccountTenantRepository_ListAccountsByTenantID(t *testing.T) {
+func TestOperatorAccountDirectory_ListAccountsByTenantID(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -200,7 +51,7 @@ func TestAccountTenantRepository_ListAccountsByTenantID(t *testing.T) {
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
 	}()
 
-	repo := newSchoolProjectedAccountTenantRepository(t, db)
+	repo := newProjectedOperatorAccountDirectory(t, db)
 
 	t.Run("returns accounts for tenant", func(t *testing.T) {
 		// The composed repository resolves persons through the tenant runtime.
@@ -227,7 +78,7 @@ func TestAccountTenantRepository_ListAccountsByTenantID(t *testing.T) {
 	})
 }
 
-func TestAccountTenantRepository_ListAccountsByTenantID_IncludesPendingInvitations(t *testing.T) {
+func TestOperatorAccountDirectory_ListAccountsByTenantID_IncludesPendingInvitations(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -248,7 +99,7 @@ func TestAccountTenantRepository_ListAccountsByTenantID_IncludesPendingInvitatio
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
 	}()
 
-	repo := newSchoolProjectedAccountTenantRepository(t, db)
+	repo := newProjectedOperatorAccountDirectory(t, db)
 	accounts, err := repo.ListAccountsByTenantID(ctx, tenantID)
 	require.NoError(t, err)
 
@@ -264,7 +115,7 @@ func TestAccountTenantRepository_ListAccountsByTenantID_IncludesPendingInvitatio
 	assert.True(t, found, "expected to find pending invitation in results")
 }
 
-func TestAccountTenantRepository_ListAccountsByOrganizationID(t *testing.T) {
+func TestOperatorAccountDirectory_ListAccountsByOrganizationID(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -284,7 +135,7 @@ func TestAccountTenantRepository_ListAccountsByOrganizationID(t *testing.T) {
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
 	}()
 
-	repo := newSchoolProjectedAccountTenantRepository(t, db)
+	repo := newProjectedOperatorAccountDirectory(t, db)
 
 	t.Run("returns accounts for organization", func(t *testing.T) {
 		accounts, err := repo.ListAccountsByOrganizationID(ctx, orgID)
@@ -308,7 +159,7 @@ func TestAccountTenantRepository_ListAccountsByOrganizationID(t *testing.T) {
 	})
 }
 
-func TestAccountTenantRepository_ListAllAccounts(t *testing.T) {
+func TestOperatorAccountDirectory_ListAllAccounts(t *testing.T) {
 	t.Parallel()
 
 	// A "list all" sweep reads every school twice (IDs first, names second).
@@ -331,7 +182,7 @@ func TestAccountTenantRepository_ListAllAccounts(t *testing.T) {
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
 	}()
 
-	repo := newSchoolProjectedAccountTenantRepository(t, db)
+	repo := newProjectedOperatorAccountDirectory(t, db)
 	accounts, err := repo.ListAllAccounts(ctx)
 	require.NoError(t, err)
 
@@ -356,10 +207,10 @@ func containsAccount(accounts []repositories.OrgAccountInfo, email string) bool 
 	return false
 }
 
-// TestAccountTenantRepository_ListAllAccounts_ExcludesDeletedSchool verifies that
+// TestOperatorAccountDirectory_ListAllAccounts_ExcludesDeletedSchool verifies that
 // the global org-accounts listing hides accounts whose tenant school is in the
 // Papierkorb (soft-deleted), and re-includes them after restore.
-func TestAccountTenantRepository_ListAllAccounts_ExcludesDeletedSchool(t *testing.T) {
+func TestOperatorAccountDirectory_ListAllAccounts_ExcludesDeletedSchool(t *testing.T) {
 	t.Parallel()
 
 	// Same sweep as above, same race with parallel school deletes.
@@ -383,7 +234,7 @@ func TestAccountTenantRepository_ListAllAccounts_ExcludesDeletedSchool(t *testin
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
 	})
 
-	repo := newSchoolProjectedAccountTenantRepository(t, db)
+	repo := newProjectedOperatorAccountDirectory(t, db)
 
 	// Baseline: account is visible while school is active.
 	accounts, err := repo.ListAllAccounts(ctx)

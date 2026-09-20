@@ -866,7 +866,7 @@ func TestCaregiverDirectory_ListAndFindActiveCaregiversIncludingLegacyTeacherRol
 		db,
 		inactiveMembershipAccount.ID,
 		tenantID,
-		authModels.AccountTenantStatusInactive,
+		"inactive",
 	)
 
 	directory, err := usersSvc.CaregiverDirectoryFromPersonService(factory.Users)

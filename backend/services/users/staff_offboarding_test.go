@@ -437,7 +437,7 @@ func TestOffboardStaff_RevokesAccountAccess(t *testing.T) {
 
 	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
 
-	exists, err := sc.repos.AccountTenant.ExistsByAccountAndTenant(sc.ctx, account.ID, testpkg.Tenant(t))
+	exists, err := testpkg.ActiveAccountTenantExists(sc.ctx, sc.db, account.ID, testpkg.Tenant(t))
 	require.NoError(t, err)
 	assert.False(t, exists, "account-tenant mapping must be inactive after offboarding")
 
@@ -510,11 +510,11 @@ func TestOffboardStaff_MultiTenantAccountKeepsOtherSchool(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, active, "account with another active school mapping must stay active")
 
-	existsA, err := sc.repos.AccountTenant.ExistsByAccountAndTenant(sc.ctx, account.ID, testpkg.Tenant(t))
+	existsA, err := testpkg.ActiveAccountTenantExists(sc.ctx, sc.db, account.ID, testpkg.Tenant(t))
 	require.NoError(t, err)
 	assert.False(t, existsA, "offboarded school mapping must be inactive")
 
-	existsB, err := sc.repos.AccountTenant.ExistsByAccountAndTenant(sc.ctx, account.ID, otherTenant)
+	existsB, err := testpkg.ActiveAccountTenantExists(sc.ctx, sc.db, account.ID, otherTenant)
 	require.NoError(t, err)
 	assert.True(t, existsB, "other school mapping must stay active")
 
@@ -595,7 +595,7 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 	require.NoError(t, err, "a dormant account is restored by its invitation")
 	require.Equal(t, account.ID, reactivated.ID, "the invitee keeps the account the address belongs to")
 
-	exists, err := sc.repos.AccountTenant.ExistsByAccountAndTenant(sc.ctx, account.ID, testpkg.Tenant(t))
+	exists, err := testpkg.ActiveAccountTenantExists(sc.ctx, sc.db, account.ID, testpkg.Tenant(t))
 	require.NoError(t, err)
 	assert.True(t, exists, "the accepted invitation restores the tenant mapping")
 
@@ -915,7 +915,7 @@ func TestOffboardStaff_PreservesGuardianAccess(t *testing.T) {
 	assert.Zero(t, countRole(staffRole.ID), "staff role must be removed")
 	assert.Equal(t, 1, countRole(guardianRole.ID), "guardian role must be kept")
 
-	exists, err := sc.repos.AccountTenant.ExistsByAccountAndTenant(sc.ctx, account.ID, testpkg.Tenant(t))
+	exists, err := testpkg.ActiveAccountTenantExists(sc.ctx, sc.db, account.ID, testpkg.Tenant(t))
 	require.NoError(t, err)
 	assert.True(t, exists, "tenant mapping must stay active for the guardian")
 

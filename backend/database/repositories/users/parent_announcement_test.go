@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -431,9 +430,9 @@ func TestParentAnnouncementAudience_InactiveMembershipExcluded(t *testing.T) {
 
 	// Revoke school access: flip the mapping to inactive.
 	_, err = db.NewUpdate().
-		Model((*authModels.AccountTenant)(nil)).
+		Model((*testpkg.AccountTenantFixture)(nil)).
 		ModelTableExpr("auth.account_tenants").
-		Set("status = ?", authModels.AccountTenantStatusInactive).
+		Set("status = ?", "inactive").
 		Where("account_id = ? AND tenant_id = ?", chain.AccountID, chain.TenantID).
 		Exec(context.Background())
 	require.NoError(t, err)

@@ -89,8 +89,7 @@ type Factory struct {
 	students         peopledirectory.Capability
 
 	// Auth domain
-	Account       authModels.AccountRepository
-	AccountTenant authModels.AccountTenantRepository
+	Account authModels.AccountRepository
 
 	// Users domain
 	Person              userModels.PersonRepository
@@ -497,7 +496,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	studentDeletionAudit := audit.NewStudentDeletionRepository(auditRepositoryRuntime)
 	enrollmentOfferingAdjustment := audit.NewEnrollmentOfferingAdjustmentRepository(auditRepositoryRuntime)
 	accountRepo := authpostgres.NewAccountRepository(db)
-	accountTenantRepo := authpostgres.NewAccountTenantRepository(db)
 	// The account facts other owners read belong to Identity & Access
 	// (#2720): the account lookups the People Directory and Care Plan
 	// repositories need are bound at construction.
@@ -512,8 +510,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	factory = &Factory{
 		db: db,
 		// Auth repositories
-		Account:       accountRepo,
-		AccountTenant: accountTenantRepo,
+		Account: accountRepo,
 
 		// Users repositories
 		Person:   personRepo,

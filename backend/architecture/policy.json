@@ -8737,17 +8737,6 @@
       "target_role": "postgres"
     },
     {
-      "id": "communication.messages.workflow-identity-domain",
-      "description": "Staff-message compatibility fixtures assign existing account roles.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "communication",
-      "source_role": "workflow-integration-test",
-      "target_owner": "identity-access",
-      "target_role": "domain"
-    },
-    {
       "id": "inbound-operator.to.organization-tenancy",
       "description": "inbound-operator calls exactly one public capability.",
       "scopes": [
@@ -15112,17 +15101,6 @@
       "target_role": "adapter"
     },
     {
-      "id": "parent-portal.adapter-test.identity-domain",
-      "description": "The retained parent-portal behaviour tests (workflows/parentportal/legacy) read the guardian invitation rows they script (models/auth); compatibility permission until the package exists at a base SHA (#3228).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "domain"
-    },
-    {
       "id": "parent-portal.adapter-test.security-application",
       "description": "The retained parent-portal behaviour tests (workflows/parentportal/legacy) grant guardian permissions by name (auth/authorize); compatibility permission until the package exists at a base SHA (#3228).",
       "scopes": [
@@ -17922,17 +17900,6 @@
       "source_owner": "school-calendar",
       "source_role": "e2e-test",
       "target_owner": "legacy-shared",
-      "target_role": "domain"
-    },
-    {
-      "id": "calendar-portal.external_test.school-calendar.e2e-test.identity-access.domain",
-      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "school-calendar",
-      "source_role": "e2e-test",
-      "target_owner": "identity-access",
       "target_role": "domain"
     },
     {

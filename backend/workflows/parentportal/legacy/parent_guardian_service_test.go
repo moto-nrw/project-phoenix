@@ -18,7 +18,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
 )
@@ -786,10 +785,10 @@ func linkAccountGuardian(t *testing.T, db *bun.DB, studentID int64, seed string,
 	require.NoError(t, err)
 
 	now := time.Now()
-	mapping := &authModels.AccountTenant{
+	mapping := &testpkg.AccountTenantFixture{
 		AccountID:   account.ID,
 		TenantID:    testpkg.Tenant(t),
-		Status:      authModels.AccountTenantStatusActive,
+		Status:      "active",
 		ActivatedAt: &now,
 	}
 	// Upsert: since #2419 CreateTestAccount already maps a fixture account to

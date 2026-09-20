@@ -13,9 +13,9 @@ import (
 
 type EnrollmentTestRepositories struct {
 	TimetableTestRepositories
-	School              organizationtenancy.Capability
-	Account             authModels.AccountRepository
-	AccountTenant       authModels.AccountTenantRepository
+	School  organizationtenancy.Capability
+	Account authModels.AccountRepository
+
 	StudentGuardian     usersModels.StudentGuardianRepository
 	GuardianProfile     usersModels.GuardianProfileRepository
 	GuardianPhoneNumber usersModels.GuardianPhoneNumberRepository
@@ -46,13 +46,13 @@ func NewEnrollmentTestRepositories(db *bun.DB, command auditModels.Command) (Enr
 		return EnrollmentTestRepositories{}, err
 	}
 	r := &Factory{db: db,
-		Account: members.Account, AccountTenant: members.AccountTenant,
+		Account: members.Account,
 	}
 	r.BindPeopleDirectory(people)
 	r.bindCarePlanAdapters(care)
 	r.BindOrganizationTenancy(organizations)
 	return EnrollmentTestRepositories{TimetableTestRepositories: tt,
-		School: r.School, Account: r.Account, AccountTenant: r.AccountTenant,
+		School: r.School, Account: r.Account,
 		StudentGuardian: NewStudentGuardianRepository(db), GuardianProfile: NewGuardianProfileRepository(db), GuardianPhoneNumber: usersRepo.NewGuardianPhoneNumberRepository(db),
 		StudentCompanion: r.StudentCompanion, Membership: members.Membership,
 		DataAccessLog: dataAccessLogCommand{auditRepo.NewDataAccessLogRepository(newTestAuditRuntime(db)), command}}, nil

@@ -141,7 +141,7 @@ func TestIntegration_GrantAccountTenantAccess_AddsSchoolWithRole(t *testing.T) {
 
 	granted := entryFor(entries, accessTargetTenantID(t))
 	require.NotNil(t, granted, "the new school must show up in the returned access list")
-	assert.Equal(t, authModels.AccountTenantStatusActive, granted.Status)
+	assert.Equal(t, "active", granted.Status)
 	assert.Equal(t, []string{"admin"}, roleNamesAt(entries, accessTargetTenantID(t)))
 
 	// The account must be usable at the new school, which means a person and a
@@ -387,7 +387,7 @@ func TestIntegration_RevokeAccountTenantAccess_DeactivatesMappingAndRoles(t *tes
 
 	revoked := entryFor(entries, accessTargetTenantID(t))
 	require.NotNil(t, revoked, "a revoked mapping stays visible as inactive")
-	assert.Equal(t, authModels.AccountTenantStatusInactive, revoked.Status)
+	assert.Equal(t, "inactive", revoked.Status)
 	assert.Empty(t, roleNamesAt(entries, accessTargetTenantID(t)), "tenant-scoped roles must be removed")
 
 	// The account keeps its original school and therefore stays active.
@@ -413,7 +413,7 @@ func TestIntegration_RevokeAccountTenantAccess_AllowsCustomRoleNamedUser(t *test
 
 	entries, err := service.RevokeAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t), operator.ID, testClientIP)
 	require.NoError(t, err)
-	assert.Equal(t, authModels.AccountTenantStatusInactive, entryFor(entries, accessTargetTenantID(t)).Status)
+	assert.Equal(t, "inactive", entryFor(entries, accessTargetTenantID(t)).Status)
 }
 
 func TestIntegration_RevokeAccountTenantAccess_RejectsRolesOwnedByOtherFeatures(t *testing.T) {
@@ -454,7 +454,7 @@ func TestIntegration_RevokeAccountTenantAccess_RejectsRolesOwnedByOtherFeatures(
 
 			entries, err := service.ListAccountTenantAccess(ctx, account.ID)
 			require.NoError(t, err)
-			assert.Equal(t, authModels.AccountTenantStatusActive, entryFor(entries, accessTargetTenantID(t)).Status)
+			assert.Equal(t, "active", entryFor(entries, accessTargetTenantID(t)).Status)
 		})
 	}
 }
@@ -601,7 +601,7 @@ func TestIntegration_GrantAccountTenantAccess_ReactivatesAccountAfterRestoringLa
 
 	granted := entryFor(entries, accessTargetTenantID(t))
 	require.NotNil(t, granted)
-	assert.Equal(t, authModels.AccountTenantStatusActive, granted.Status)
+	assert.Equal(t, "active", granted.Status)
 	assertAccountActive(t, db, account.ID, true)
 
 	// The caregiver role also creates the teacher record, carrying the position.
@@ -851,7 +851,7 @@ func TestIntegration_GrantAccountTenantAccess_ReGrantReusesLocalIdentityDespiteA
 
 	granted := entryFor(entries, accessTargetTenantID(t))
 	require.NotNil(t, granted)
-	assert.Equal(t, authModels.AccountTenantStatusActive, granted.Status)
+	assert.Equal(t, "active", granted.Status)
 
 	// The retained person was reused rather than duplicated, and nothing
 	// overwrote the name it already carried.

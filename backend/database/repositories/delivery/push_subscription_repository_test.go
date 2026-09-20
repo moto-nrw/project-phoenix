@@ -19,10 +19,10 @@ import (
 func createAccountTenantMapping(t *testing.T, db *bun.DB, accountID, tenantID int64) {
 	t.Helper()
 	now := time.Now()
-	mapping := &authModels.AccountTenant{
+	mapping := &testpkg.AccountTenantFixture{
 		AccountID:   accountID,
 		TenantID:    tenantID,
-		Status:      authModels.AccountTenantStatusActive,
+		Status:      "active",
 		ActivatedAt: &now,
 	}
 	// Upsert: since #2419 CreateTestAccount already maps a fixture account to
@@ -339,8 +339,8 @@ func TestPushSubscriptionRepository(t *testing.T) {
 	})
 
 	t.Run("recipient finders exclude inactive tenant mappings", func(t *testing.T) {
-		setAccountTenantStatus(t, db, authModels.AccountTenantStatusInactive, account.ID, guardian.ID)
-		defer setAccountTenantStatus(t, db, authModels.AccountTenantStatusActive, account.ID, guardian.ID)
+		setAccountTenantStatus(t, db, "inactive", account.ID, guardian.ID)
+		defer setAccountTenantStatus(t, db, "active", account.ID, guardian.ID)
 
 		staffSubs, err := repo.FindForTenantStaff(ctx)
 		require.NoError(t, err)
