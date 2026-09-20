@@ -1,36 +1,57 @@
 package platform
 
 import (
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
+
+// Viewer is the authenticated account the announcement routes act for.
+type Viewer struct {
+	AccountID int64
+	Roles     []string
+	TenantID  int64
+	OrgID     int64
+}
+
+// Failure is an internal error the composition root renders as a 500.
+type Failure struct {
+	Message string
+	Err     error
+}
+
+// Runtime carries the HTTP runtime the composition root binds: the
+// authenticated route group, the verified viewer, URL-parameter parsing, and
+// the response bodies.
+type Runtime struct {
+	Protected func(chi.Router, func(chi.Router))
+	Viewer    func(*http.Request) Viewer
+	// IDParam parses an int64 URL parameter and renders a 400 with errMsg
+	// when it is not numeric.
+	IDParam func(w http.ResponseWriter, r *http.Request, param, errMsg string) (int64, bool)
+	Success func(http.ResponseWriter, *http.Request, int, any, string)
+	Failure func(http.ResponseWriter, *http.Request, Failure)
+}
 
 // Resource defines the platform API resource (user-facing)
 type Resource struct {
 	announcementsResource *AnnouncementsResource
-	tokenAuth             *jwt.TokenAuth
+	runtime               Runtime
 }
 
 // ResourceConfig holds dependencies for the platform resource
 type ResourceConfig struct {
 	AnnouncementsService communication.Capability
-	TokenAuth            *jwt.TokenAuth
+	Runtime              Runtime
 }
 
 // NewResource creates a new platform resource
 func NewResource(cfg ResourceConfig) *Resource {
-	tokenAuth := cfg.TokenAuth
-	if tokenAuth == nil {
-		// Create internal token auth for JWT verification
-		tokenAuth = jwt.MustNewTokenAuth()
-	}
-
 	return &Resource{
-		announcementsResource: NewAnnouncementsResource(cfg.AnnouncementsService),
-		tokenAuth:             tokenAuth,
+		announcementsResource: NewAnnouncementsResource(cfg.AnnouncementsService, cfg.Runtime),
+		runtime:               cfg.Runtime,
 	}
 }
 
@@ -39,18 +60,9 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// All routes require authentication. TenantMiddleware supplies the
-	// scope guard on top: parent- and school-scope tokens are rejected
-	// with 401 (#2207) — before it, this group was the only /api mount
-	// without a scope check, so a portal-bound token could read tenant
-	// announcements here. Tenant, org, and platform tokens pass unchanged.
-	r.Group(func(r chi.Router) {
-		r.Use(rs.tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
-		r.Use(common.ReadOnlyPreviewMiddleware)
-		r.Use(jwt.TenantMiddleware)
-		r.Use(common.SecurityPrincipalMiddleware)
-
+	// All routes require authentication; the composition root binds the
+	// authenticated group including the tenant scope guard (#2207).
+	rs.runtime.Protected(r, func(r chi.Router) {
 		// Announcements for users
 		r.Route("/announcements", func(r chi.Router) {
 			r.Get("/unread", rs.announcementsResource.GetUnread)

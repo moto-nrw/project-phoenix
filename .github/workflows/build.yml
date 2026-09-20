@@ -31,6 +31,7 @@ on:
         options:
           - staging
           - production
+          - demo
 
 permissions: {}
 
@@ -46,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       should_deploy: ${{ steps.check.outputs.should_deploy }}
-      is_staging: ${{ steps.check.outputs.is_staging }}
+      environment: ${{ steps.check.outputs.environment }}
     steps:
       - name: Determine environment
         id: check
@@ -54,26 +55,29 @@ jobs:
           # Production: Push to main
           if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
             echo "should_deploy=true" >> "$GITHUB_OUTPUT"
-            echo "is_staging=false" >> "$GITHUB_OUTPUT"
+            echo "environment=production" >> "$GITHUB_OUTPUT"
             echo "✅ Push to main - will build and deploy to production"
 
           # Staging: Push to development
           elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/development" ]]; then
             echo "should_deploy=true" >> "$GITHUB_OUTPUT"
-            echo "is_staging=true" >> "$GITHUB_OUTPUT"
+            echo "environment=staging" >> "$GITHUB_OUTPUT"
             echo "✅ Push to development - will build and deploy to staging"
 
           # Manual dispatch
           elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo "should_deploy=true" >> "$GITHUB_OUTPUT"
             if [[ "${{ github.event.inputs.environment }}" == "staging" ]]; then
-              echo "is_staging=true" >> "$GITHUB_OUTPUT"
+              echo "environment=staging" >> "$GITHUB_OUTPUT"
             else
               if [[ "${{ github.ref }}" != "refs/heads/main" ]]; then
-                echo "❌ Production manual deploys must run from main (current ref: ${{ github.ref }})"
+                echo "❌ Production and demo manual deploys must run from main (current ref: ${{ github.ref }})"
                 exit 1
               fi
-              echo "is_staging=false" >> "$GITHUB_OUTPUT"
+              case "${{ inputs.environment }}" in
+                production|demo) echo "environment=${{ inputs.environment }}" >> "$GITHUB_OUTPUT" ;;
+                *) echo "Unknown environment"; exit 1 ;;
+              esac
             fi
             echo "✅ Manual trigger for ${{ github.event.inputs.environment }}"
           fi
@@ -111,7 +115,7 @@ jobs:
     # Cancel superseded builds on rapid pushes to the same ref. Deploy jobs
     # have their own concurrency groups, so they are NOT affected.
     concurrency:
-      group: build-backend-${{ github.ref }}
+      group: build-backend-${{ github.ref }}-${{ needs.check-environment.outputs.environment }}
       cancel-in-progress: true
     permissions:
       contents: read
@@ -142,21 +146,20 @@ jobs:
           images: ${{ env.BACKEND_IMAGE }}
           tags: |
             # Branch name (main for production)
-            type=ref,event=branch
+            type=ref,event=branch,enable=${{ needs.check-environment.outputs.environment != 'demo' }}
             # Short SHA for traceability
             type=sha,prefix=,format=short
+            type=raw,value=demo,enable=${{ needs.check-environment.outputs.environment == 'demo' }}
             # 'staging' tag for staging deployments
-            type=raw,value=staging,enable=${{ needs.check-environment.outputs.is_staging == 'true' }}
+            type=raw,value=staging,enable=${{ needs.check-environment.outputs.environment == 'staging' }}
             # 'latest' tag for production (main branch)
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=latest,enable=${{ needs.check-environment.outputs.environment == 'production' }}
 
       - name: Build and push backend
         uses: useblacksmith/build-push-action@9b0579bbec7a6cad2f171596c57e7ac1e7658850 # v2.3.0
         with:
           context: ./backend
           file: ./backend/Dockerfile
-          build-args: |
-            RELEASE_COMMIT=${{ github.sha }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -175,7 +178,7 @@ jobs:
     # Cancel superseded builds on rapid pushes to the same ref. Deploy jobs
     # have their own concurrency groups, so they are NOT affected.
     concurrency:
-      group: build-frontend-${{ github.ref }}
+      group: build-frontend-${{ github.ref }}-${{ needs.check-environment.outputs.environment }}
       cancel-in-progress: true
     permissions:
       contents: read
@@ -206,19 +209,22 @@ jobs:
           images: ${{ env.FRONTEND_IMAGE }}
           tags: |
             # Branch name (main for production)
-            type=ref,event=branch
+            type=ref,event=branch,enable=${{ needs.check-environment.outputs.environment != 'demo' }}
             # Short SHA for traceability
-            type=sha,prefix=,format=short
+            type=sha,prefix=${{ needs.check-environment.outputs.environment == 'demo' && 'demo-' || '' }},format=short
             # 'staging' tag for staging deployments
-            type=raw,value=staging,enable=${{ needs.check-environment.outputs.is_staging == 'true' }}
+            type=raw,value=staging,enable=${{ needs.check-environment.outputs.environment == 'staging' }}
+            type=raw,value=demo,enable=${{ needs.check-environment.outputs.environment == 'demo' }}
             # 'latest' tag for production (main branch)
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=latest,enable=${{ needs.check-environment.outputs.environment == 'production' }}
 
       - name: Determine API URL
         id: api_url
         run: |
-          if [[ "${{ needs.check-environment.outputs.is_staging }}" == "true" ]]; then
+          if [[ "${{ needs.check-environment.outputs.environment }}" == "staging" ]]; then
             echo "url=https://api-staging.moto-app.de" >> $GITHUB_OUTPUT
+          elif [[ "${{ needs.check-environment.outputs.environment }}" == "demo" ]]; then
+            echo "url=https://api.demo.moto-app.de" >> $GITHUB_OUTPUT
           else
             echo "url=https://api.moto-app.de" >> $GITHUB_OUTPUT
           fi
@@ -226,8 +232,10 @@ jobs:
       - name: Determine operator hostname
         id: operator_hostname
         run: |
-          if [[ "${{ needs.check-environment.outputs.is_staging }}" == "true" ]]; then
+          if [[ "${{ needs.check-environment.outputs.environment }}" == "staging" ]]; then
             echo "hostname=operator.staging.moto-app.de" >> $GITHUB_OUTPUT
+          elif [[ "${{ needs.check-environment.outputs.environment }}" == "demo" ]]; then
+            echo "hostname=operator.demo.moto-app.de" >> $GITHUB_OUTPUT
           else
             echo "hostname=operator.moto-app.de" >> $GITHUB_OUTPUT
           fi
@@ -235,8 +243,10 @@ jobs:
       - name: Determine parents hostname
         id: parents_hostname
         run: |
-          if [[ "${{ needs.check-environment.outputs.is_staging }}" == "true" ]]; then
+          if [[ "${{ needs.check-environment.outputs.environment }}" == "staging" ]]; then
             echo "hostname=eltern.staging.moto-app.de" >> $GITHUB_OUTPUT
+          elif [[ "${{ needs.check-environment.outputs.environment }}" == "demo" ]]; then
+            echo "hostname=eltern.demo.moto-app.de" >> $GITHUB_OUTPUT
           else
             echo "hostname=eltern.moto-app.de" >> $GITHUB_OUTPUT
           fi
@@ -244,8 +254,10 @@ jobs:
       - name: Determine school hostname
         id: school_hostname
         run: |
-          if [[ "${{ needs.check-environment.outputs.is_staging }}" == "true" ]]; then
+          if [[ "${{ needs.check-environment.outputs.environment }}" == "staging" ]]; then
             echo "hostname=schule.staging.moto-app.de" >> $GITHUB_OUTPUT
+          elif [[ "${{ needs.check-environment.outputs.environment }}" == "demo" ]]; then
+            echo "hostname=schule.demo.moto-app.de" >> $GITHUB_OUTPUT
           else
             echo "hostname=schule.moto-app.de" >> $GITHUB_OUTPUT
           fi
@@ -253,8 +265,10 @@ jobs:
       - name: Determine tenant domain
         id: tenant_domain
         run: |
-          if [[ "${{ needs.check-environment.outputs.is_staging }}" == "true" ]]; then
+          if [[ "${{ needs.check-environment.outputs.environment }}" == "staging" ]]; then
             echo "domain=staging.moto-app.de" >> $GITHUB_OUTPUT
+          elif [[ "${{ needs.check-environment.outputs.environment }}" == "demo" ]]; then
+            echo "domain=demo.moto-app.de" >> $GITHUB_OUTPUT
           else
             echo "domain=moto-app.de" >> $GITHUB_OUTPUT
           fi
@@ -322,6 +336,7 @@ jobs:
         # complete server env on `next start`, so CI must provide harmless
         # throwaway values for vars the guide pages do not use.
         env:
+          NEXT_PUBLIC_APP_ENV: ${{ needs.check-environment.outputs.environment }}
           SKIP_ENV_VALIDATION: "true"
           METRICS_BEARER_TOKEN: "ci-guide-render-throwaway-token"
           API_URL: "http://server:8080"
@@ -352,6 +367,7 @@ jobs:
           # client (kept only for env-check key sync + server-side env
           # validation); editing them there does NOT change the shipped host.
           build-args: |
+            NEXT_PUBLIC_APP_ENV=${{ needs.check-environment.outputs.environment }}
             API_URL=http://server:8080
             NEXT_PUBLIC_API_URL=${{ steps.api_url.outputs.url }}
             NEXT_PUBLIC_OPERATOR_HOSTNAME=${{ steps.operator_hostname.outputs.hostname }}
@@ -359,9 +375,9 @@ jobs:
             NEXT_PUBLIC_SCHOOL_HOSTNAME=${{ steps.school_hostname.outputs.hostname }}
             TENANT_DOMAIN=${{ steps.tenant_domain.outputs.domain }}
             NEXT_PUBLIC_TENANT_DOMAIN=${{ steps.tenant_domain.outputs.domain }}
-            NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
-            NEXT_PUBLIC_SENTRY_ENVIRONMENT=${{ needs.check-environment.outputs.is_staging == 'true' && 'staging' || 'production' }}
-            NEXT_PUBLIC_POSTHOG_KEY=${{ secrets.NEXT_PUBLIC_POSTHOG_KEY }}
+            NEXT_PUBLIC_SENTRY_DSN=${{ secrets[needs.check-environment.outputs.environment == 'demo' && 'DEMO_NEXT_PUBLIC_SENTRY_DSN' || 'NEXT_PUBLIC_SENTRY_DSN'] }}
+            NEXT_PUBLIC_SENTRY_ENVIRONMENT=${{ needs.check-environment.outputs.environment }}
+            NEXT_PUBLIC_POSTHOG_KEY=${{ secrets[needs.check-environment.outputs.environment == 'demo' && 'DEMO_NEXT_PUBLIC_POSTHOG_KEY' || 'NEXT_PUBLIC_POSTHOG_KEY'] }}
             NEXT_PUBLIC_POSTHOG_HOST=https://eu.i.posthog.com
           # Layer cache is mounted automatically via Blacksmith sticky disks (per repo + Dockerfile)
           provenance: false
@@ -375,7 +391,7 @@ jobs:
   # Exit codes from deploy-remote.sh: 0=success, 1=pre-deploy abort, 10=rollback ok, 11=rollback failed
   deploy-staging:
     needs: [check-environment, build-backend, build-frontend]
-    if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_staging == 'true'
+    if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.environment == 'staging'
     concurrency:
       group: deploy-staging
       cancel-in-progress: false
@@ -468,7 +484,7 @@ jobs:
   # Exit codes from deploy-remote.sh: 0=success, 1=pre-deploy abort, 10=rollback ok, 11=rollback failed
   deploy-production:
     needs: [check-environment, build-backend, build-frontend]
-    if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_staging == 'false'
+    if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.environment == 'production'
     concurrency:
       group: deploy-production
       cancel-in-progress: false
@@ -566,6 +582,115 @@ jobs:
           webhook_url: ${{ secrets.SLACK_DEPLOY_WEBHOOK }}
           job_status: ${{ job.status }}
           environment: production
+          app_name: Phoenix
+          exit_code: ${{ steps.deploy.outputs.deploy_exit }}
+          github_token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          commit_url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+          sha: ${{ github.sha }}
+
+  # Deploy to demo with automatic rollback on failure
+  # Exit codes from deploy-remote.sh: 0=success, 1=pre-deploy abort, 10=rollback ok, 11=rollback failed
+  deploy-demo:
+    needs: [check-environment, build-backend, build-frontend]
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && needs.check-environment.outputs.environment == 'demo'
+    concurrency:
+      group: deploy-demo
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    environment:
+      name: demo
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Guard demo source
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref }}
+        run: |
+          if [[ "$REF_NAME" != "refs/heads/main" ]]; then
+            echo "Demo deploys must run from refs/heads/main, got $REF_NAME"
+            exit 1
+          fi
+          if [[ "$EVENT_NAME" != "workflow_dispatch" ]]; then
+            echo "Demo deploys only allow workflow_dispatch, got $EVENT_NAME"
+            exit 1
+          fi
+
+      - name: Install SOPS
+        run: |
+          curl -LsS https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
+          chmod +x /usr/local/bin/sops
+
+      - name: Decrypt demo environment
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: sops decrypt environments/demo.sops.env > /tmp/demo.env
+
+      - name: Deploy to demo
+        id: deploy
+        env:
+          SSH_KEY: ${{ secrets.DEMO_SSH_KEY }}
+          SSH_HOST: ${{ secrets.DEMO_HOST }}
+          SSH_KNOWN_HOSTS: ${{ secrets.DEMO_SSH_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+
+          ssh -i ~/.ssh/deploy_key root@$SSH_HOST "mkdir -p ~/scripts"
+          scp -i ~/.ssh/deploy_key /tmp/demo.env root@$SSH_HOST:~/demo/.env.new
+          scp -i ~/.ssh/deploy_key environments/demo.compose.yml root@$SSH_HOST:~/demo/docker-compose.yml.new
+          scp -i ~/.ssh/deploy_key scripts/deploy-remote.sh root@$SSH_HOST:~/scripts/deploy-remote.sh
+          scp -i ~/.ssh/deploy_key scripts/restore-db.sh root@$SSH_HOST:~/scripts/restore-db.sh
+          scp -i ~/.ssh/deploy_key scripts/release-backup.sh root@$SSH_HOST:~/scripts/release-backup.sh
+
+          set +e
+          ssh -i ~/.ssh/deploy_key root@$SSH_HOST \
+            "DEPLOY_DIR=demo DEPLOY_SHA=$SHORT_SHA BACKUP_RETENTION=3 bash ~/scripts/deploy-remote.sh"
+          DEPLOY_EXIT=$?
+          set -e
+
+          echo "deploy_exit=$DEPLOY_EXIT" >> $GITHUB_OUTPUT
+
+          if [ "$DEPLOY_EXIT" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Cleanup secrets
+        if: always()
+        run: rm -f ~/.ssh/deploy_key /tmp/demo.env
+
+      - name: Notify on deploy failure
+        if: always() && steps.deploy.outputs.deploy_exit != '' && steps.deploy.outputs.deploy_exit != '0'
+        uses: ./.github/actions/notify-deploy-failure
+        with:
+          exit_code: ${{ steps.deploy.outputs.deploy_exit }}
+          environment: demo
+          resend_api_key: ${{ secrets.RESEND_API_KEY }}
+          notify_emails: ${{ vars.DEPLOY_NOTIFY_EMAILS }}
+          run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          commit_url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+          sha: ${{ github.sha }}
+          actor: ${{ github.actor }}
+
+      - name: Notify Slack
+        if: always()
+        uses: ./.github/actions/notify-deploy-slack
+        with:
+          webhook_url: ${{ secrets.SLACK_DEPLOY_WEBHOOK }}
+          job_status: ${{ job.status }}
+          environment: demo
           app_name: Phoenix
           exit_code: ${{ steps.deploy.outputs.deploy_exit }}
           github_token: ${{ github.token }}

@@ -67,7 +67,7 @@ type apiContext struct {
 
 func setupFileStoreRoute(t *testing.T) *apiContext {
 	t.Helper()
-	objects, err := common.UploadsBackend()
+	objects, err := common.PrivateUploadsBackend()
 	require.NoError(t, err)
 	db, svc := testutil.SetupFileStoreModule(t, objects)
 	resource := filestoreAPI.NewResource(svc.FileStore, db, slog.Default())

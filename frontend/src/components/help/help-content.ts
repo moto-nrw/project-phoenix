@@ -467,7 +467,8 @@ function editStudentTopic(): HelpTopic {
           "Wählen Sie oben rechts `Wochenplan`.",
           "Setzen Sie bei den Betreuungstagen einen Haken.",
           "Tragen Sie je Tag `Ankunft` und `Abholung` ein.",
-          "Klappen Sie bei Bedarf `Notizen` auf und tragen Sie einen Hinweis ein.",
+          "Kommt das Kind an einem Wochentag nicht? Lassen Sie `Abholung` leer.",
+          "Öffnen Sie `Notizen`. Tragen Sie den Hinweis unter `Notiz zum Tag (jede Woche)` ein.",
           "Wählen Sie `Speichern`.",
         ],
       },
@@ -489,7 +490,7 @@ function editStudentTopic(): HelpTopic {
       },
     ],
     result:
-      "Die gespeicherten Angaben gelten sofort. Eine Ausnahme ändert den regelmäßigen Wochenplan nicht.",
+      "Die gespeicherten Angaben gelten sofort. Eine Notiz ohne Abholzeit steht auf der Kinderkarte unter `Kommt heute nicht`. Eine Ausnahme ändert den regelmäßigen Wochenplan nicht.",
     differences: [
       "Die Kennzeichnung `Für Eltern sichtbar` zeigt Angaben, die Eltern sehen.",
       "Kommen die Betreuungstage aus Buchungen? Dann lassen sich die Tage nicht auswählen. Ändern Sie nur Zeiten an gebuchten Tagen.",
@@ -2837,7 +2838,8 @@ function careTimesTopic(): HelpTopic {
           "Wählen Sie `Wochenplan`.",
           "Wählen Sie die Betreuungstage.",
           "Tragen Sie `Ankunft` und `Abholung` ein.",
-          "Ergänzen Sie bei Bedarf eine Notiz.",
+          "Kommt das Kind an einem Wochentag nicht? Lassen Sie `Abholung` leer.",
+          "Öffnen Sie `Notizen`. Tragen Sie den Hinweis unter `Notiz zum Tag (jede Woche)` ein.",
           "Wählen Sie `Wochenplan speichern`.",
         ],
       },
@@ -2863,7 +2865,7 @@ function careTimesTopic(): HelpTopic {
       },
     ],
     result:
-      "Die Zeiten gelten sofort. Eine Ausnahme ändert den Wochenplan nicht.",
+      "Die Zeiten gelten sofort. Eine Notiz ohne Abholzeit steht auf der Kinderkarte unter `Kommt heute nicht`. Eine Ausnahme ändert den Wochenplan nicht.",
     notes: [
       "Ohne eigene Zeit gilt die Klassenzeit des Kindes.",
       "Den Wochenplan können Sie schon beim Anlegen des Kindes mitgeben.",
@@ -2873,7 +2875,7 @@ function careTimesTopic(): HelpTopic {
       // Satz beginnt bei dem, was zu sehen ist -- den Namen der Einstellung
       // kennt die Leserin nicht (care-weekly-plan-modal.tsx:271).
       "Lassen sich die Betreuungstage nicht anhaken? Dann bestimmen bei Ihnen die gebuchten Betreuungsangebote, wann ein Kind da ist.",
-      "An einem Tag ohne Buchung sind `Ankunft` und `Abholung` grau.",
+      "An einem Tag ohne Buchung sind `Ankunft` und `Abholung` grau. `Notiz zum Tag (jede Woche)` bleibt frei.",
     ],
     troubleshootingDetails: [
       "Fehlt `Wochenplan`? Dann fehlen Ihnen die Schreibrechte für dieses Kind.",

@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"errors"
+	"os"
 
 	backendapi "github.com/moto-nrw/project-phoenix/api"
 	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
@@ -60,7 +61,7 @@ func commandSeedError(err error) error {
 }
 
 func newSimulationClient(baseURL string, verbose bool) (simulate.Client, error) {
-	if err := assertNonProductionURL(baseURL); err != nil {
+	if err := assertDevOnlyTarget(baseURL, os.Getenv("APP_ENV")); err != nil {
 		return nil, err
 	}
 	return seedapi.NewClientWithAdapter(newSeedCommandAdapter(baseURL, verbose), verbose), nil

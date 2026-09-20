@@ -24,6 +24,7 @@ export const env = createEnv({
    * middlewares) or client-side so we need to destruct manually.
    */
   runtimeEnv: {
+    NEXT_PUBLIC_APP_ENV: process.env.NEXT_PUBLIC_APP_ENV,
     API_URL: process.env.API_URL,
     AUTH_JWT_EXPIRY: process.env.AUTH_JWT_EXPIRY,
     AUTH_JWT_REFRESH_EXPIRY: process.env.AUTH_JWT_REFRESH_EXPIRY,

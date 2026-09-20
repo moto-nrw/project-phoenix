@@ -82,7 +82,7 @@
       "declaration": "seedParentAccounts",
       "target": "database/repositories.NewFactory",
       "lines": [
-        117
+        114
       ],
       "tables": []
     },
@@ -1157,7 +1157,7 @@
       "declaration": "TestGuardianProfileRepository_Create",
       "target": "database/repositories.NewFactory",
       "lines": [
-        32
+        33
       ],
       "tables": []
     },
@@ -1167,7 +1167,7 @@
       "declaration": "TestGuardianProfileRepository_Delete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        167
+        168
       ],
       "tables": []
     },
@@ -1177,7 +1177,7 @@
       "declaration": "TestGuardianProfileRepository_FindByAccountID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        342
+        343
       ],
       "tables": []
     },
@@ -1187,7 +1187,7 @@
       "declaration": "TestGuardianProfileRepository_FindByAccountID_PrefersExplicitPortalLocale",
       "target": "database/repositories.NewFactory",
       "lines": [
-        587
+        588
       ],
       "tables": [
         "users.guardian_profiles"
@@ -1199,7 +1199,7 @@
       "declaration": "TestGuardianProfileRepository_FindByAccountID_ReturnsLinkedProfile",
       "target": "database/repositories.NewFactory",
       "lines": [
-        556
+        557
       ],
       "tables": []
     },
@@ -1209,7 +1209,7 @@
       "declaration": "TestGuardianProfileRepository_FindByEmail",
       "target": "database/repositories.NewFactory",
       "lines": [
-        96
+        97
       ],
       "tables": []
     },
@@ -1219,7 +1219,7 @@
       "declaration": "TestGuardianProfileRepository_FindByID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        72
+        73
       ],
       "tables": []
     },
@@ -1229,7 +1229,7 @@
       "declaration": "TestGuardianProfileRepository_FindInvitable",
       "target": "database/repositories.NewFactory",
       "lines": [
-        252
+        253
       ],
       "tables": []
     },
@@ -1239,7 +1239,7 @@
       "declaration": "TestGuardianProfileRepository_FindWithoutAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        226
+        227
       ],
       "tables": []
     },
@@ -1249,7 +1249,7 @@
       "declaration": "TestGuardianProfileRepository_LinkAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        302
+        303
       ],
       "tables": []
     },
@@ -1259,7 +1259,7 @@
       "declaration": "TestGuardianProfileRepository_ListWithOptions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        198
+        199
       ],
       "tables": []
     },
@@ -1269,9 +1269,9 @@
       "declaration": "TestGuardianProfileRepository_LoadProfileWithChildren_FiltersPortalAccess",
       "target": "database/repositories.NewFactory",
       "lines": [
-        361,
-        388,
-        389
+        362,
+        389,
+        390
       ],
       "tables": []
     },
@@ -1281,7 +1281,7 @@
       "declaration": "TestGuardianProfileRepository_LockByIDForUpdate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        636
+        637
       ],
       "tables": []
     },
@@ -1291,7 +1291,7 @@
       "declaration": "TestGuardianProfileRepository_SearchByText",
       "target": "database/repositories.NewFactory",
       "lines": [
-        424
+        425
       ],
       "tables": []
     },
@@ -1301,7 +1301,7 @@
       "declaration": "TestGuardianProfileRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        128
+        129
       ],
       "tables": []
     },
@@ -1311,7 +1311,7 @@
       "declaration": "TestGuardianProfileRepository_UpdatePortalLocaleByAccountID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        509
+        510
       ],
       "tables": []
     },
@@ -21047,12 +21047,12 @@
       "locations": [
         {
           "file": "cmd/seed_parents.go",
-          "line": 162,
+          "line": 159,
           "declaration": "promotableGuardians"
         },
         {
           "file": "cmd/seed_parents.go",
-          "line": 205,
+          "line": 202,
           "declaration": "promoteGuardian"
         }
       ]
@@ -21062,7 +21062,7 @@
       "locations": [
         {
           "file": "cmd/seed_parents.go",
-          "line": 117,
+          "line": 114,
           "declaration": "seedParentAccounts"
         }
       ]
@@ -21092,12 +21092,12 @@
         },
         {
           "file": "services/factory.go",
-          "line": 462,
+          "line": 464,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 512,
+          "line": 514,
           "declaration": "newFactory"
         },
         {

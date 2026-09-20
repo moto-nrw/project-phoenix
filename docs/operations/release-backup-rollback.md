@@ -41,7 +41,7 @@ Automatic rollback uses the same snapshot if migration or startup fails.
 
 ## Manual rollback
 
-1. Run **Manual Rollback** on the deployed branch. Production requires `main`.
+1. Run **Manual Rollback** on the deployed branch. Production and demo require `main`.
 2. Choose the environment. Leave `backup_id` empty to use its recorded
    pre-deployment snapshot, or supply a complete backup directory's basename.
 3. The workflow validates the full snapshot and old images before any

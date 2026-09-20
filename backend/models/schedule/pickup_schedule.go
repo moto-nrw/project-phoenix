@@ -303,8 +303,13 @@ type StudentPickupNote struct {
 	Model `bun:"schema:schedule,table:student_pickup_notes"`
 	TenantModel
 
-	StudentID int64  `bun:"student_id,notnull" json:"student_id"`
-	NoteDate  Date   `bun:"note_date,notnull" json:"note_date"`
+	StudentID int64 `bun:"student_id,notnull" json:"student_id"`
+	// NoteDate is empty for a recurring weekday note (#3369): the row then
+	// carries Weekday (1-5) instead and applies to every such weekday. A
+	// recurring note says nothing about attendance, so a day the child does
+	// not come can still carry one.
+	NoteDate  Date   `bun:"note_date,nullzero" json:"note_date,omitempty"`
+	Weekday   int    `bun:"weekday,nullzero" json:"weekday,omitempty"`
 	Content   string `bun:"content,notnull" json:"content"`
 	CreatedBy int64  `bun:"created_by,notnull" json:"created_by"`
 }
@@ -314,8 +319,14 @@ func (n *StudentPickupNote) Validate() error {
 	if n.StudentID <= 0 {
 		return errors.New(errMsgStudentIDRequired)
 	}
-	if n.NoteDate.IsZero() {
+	if n.Weekday == 0 && n.NoteDate.IsZero() {
 		return errors.New("note_date is required")
+	}
+	if n.Weekday != 0 && !n.NoteDate.IsZero() {
+		return errors.New("a note is either dated or recurring, not both")
+	}
+	if n.Weekday != 0 && (n.Weekday < WeekdayMonday || n.Weekday > WeekdayFriday) {
+		return errors.New("weekday must be between 1 (Monday) and 5 (Friday)")
 	}
 	if n.Content == "" {
 		return errors.New("content is required")

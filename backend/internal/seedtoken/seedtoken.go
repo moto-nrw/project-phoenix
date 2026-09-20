@@ -15,8 +15,9 @@ var allowedLocalHostnames = map[string]bool{
 }
 
 // ShouldExposeInvitationToken gates seed-only raw invitation token exposure.
-// API handlers call this only to support local demo seeding; deployed
-// environments must never receive tokens in normal invitation responses.
+// API handlers call this only to support demo seeding: locally, and in the
+// public demo environment (ADR 0027), which holds synthetic data only. Staging
+// and production must never receive tokens in normal invitation responses.
 func ShouldExposeInvitationToken(headerValue, requestHost, appEnv string) bool {
 	if !strings.EqualFold(strings.TrimSpace(headerValue), "true") {
 		return false
@@ -29,7 +30,7 @@ func ShouldExposeInvitationToken(headerValue, requestHost, appEnv string) bool {
 
 func isAllowedEnvironment(appEnv string) bool {
 	switch strings.ToLower(strings.TrimSpace(appEnv)) {
-	case "development", "dev", "local", "test":
+	case "development", "dev", "local", "test", "demo":
 		return true
 	default:
 		return false

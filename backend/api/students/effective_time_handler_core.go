@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/go-chi/render"
@@ -110,7 +111,11 @@ func validateCareNoteRequest(noteDate string, content string) error {
 	if _, err := time.Parse(dateFormatISO, noteDate); err != nil {
 		return errors.New("invalid note_date format, expected YYYY-MM-DD")
 	}
-	if content == "" {
+	return validateCareNoteContent(content)
+}
+
+func validateCareNoteContent(content string) error {
+	if strings.TrimSpace(content) == "" {
 		return errors.New("content is required")
 	}
 	if len(content) > 500 {

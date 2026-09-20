@@ -13,6 +13,7 @@ export NEXT_PUBLIC_API_URL=http://localhost:8080 SKIP_ENV_VALIDATION=true
 export API_URL=http://localhost:8080 TENANT_DOMAIN=localhost
 export NEXT_PUBLIC_OPERATOR_HOSTNAME=operator.localhost:3000
 export NEXT_PUBLIC_PARENTS_HOSTNAME=parents.localhost:3000
+export NEXT_PUBLIC_APP_ENV=test
 export NEXT_PUBLIC_SCHOOL_HOSTNAME=schule.localhost:3000
 quality_step locales pnpm exec node scripts/verify-locales.mjs
 quality_step frontend-lint pnpm run lint --max-warnings 0

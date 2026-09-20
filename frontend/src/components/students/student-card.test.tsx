@@ -663,6 +663,30 @@ describe("StudentAbsenceRow", () => {
   });
 });
 
+describe("StudentAbsenceRow day note (#3369)", () => {
+  it("shows the day's note on its own line below the absence", () => {
+    render(
+      <StudentAbsenceRow
+        label="kein Plan für heute"
+        note="Freitags bei den Großeltern"
+      />,
+    );
+
+    expect(
+      screen.getByText("Kommt heute nicht (kein Plan für heute)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Notiz: Freitags bei den Großeltern"),
+    ).toBeInTheDocument();
+  });
+
+  it("adds no line without a note", () => {
+    render(<StudentAbsenceRow label="kein Plan für heute" />);
+
+    expect(screen.queryByText(/Notiz:/)).not.toBeInTheDocument();
+  });
+});
+
 describe("StudentPendingExcusedRow", () => {
   it("uses the shared amber status tone", () => {
     render(<StudentPendingExcusedRow note="Noch offen" />);

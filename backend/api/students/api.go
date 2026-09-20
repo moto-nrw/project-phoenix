@@ -83,6 +83,12 @@ type ClassListEntryReader interface {
 	ListClassListEntriesInDisplayOrder(context.Context) ([]ClassListEntry, error)
 }
 
+// WeekdayPickupNoteReplacer owns the one atomic write that replaces the
+// recurring day notes for a child. It deliberately excludes dated notes.
+type WeekdayPickupNoteReplacer interface {
+	ReplaceWeekdayPickupNotes(context.Context, int64, int64, map[int]string) error
+}
+
 // ResourceConfig holds all dependencies for creating a students Resource.
 // Using a config struct instead of individual parameters improves maintainability.
 type ResourceConfig struct {
@@ -93,6 +99,7 @@ type ResourceConfig struct {
 	ActiveService          activeService.Service
 	IoTService             iotSvc.Service
 	PickupScheduleService  careschedule.PickupScheduleService
+	WeekdayPickupNotes     WeekdayPickupNoteReplacer
 	PartialAbsenceService  careschedule.PartialAbsenceService
 	ArrivalScheduleService careschedule.ArrivalScheduleService
 	InstanceService        timetableplanning.InstanceService
@@ -407,6 +414,7 @@ func (rs *Resource) Router() chi.Router {
 
 		// Pickup note routes (full access required - checked in handlers)
 		r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/pickup-notes", rs.createStudentPickupNote)
+		r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/pickup-notes", rs.replaceStudentWeekdayPickupNotes)
 		r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/pickup-notes/{noteId}", rs.updateStudentPickupNote)
 		r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/pickup-notes/{noteId}", rs.deleteStudentPickupNote)
 

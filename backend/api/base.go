@@ -420,7 +420,7 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 // It hands both to the service factory, which composes the module where the
 // announcement ports live.
 func withFileStorageWiring(build func(services.FileStorageWiring) (*services.Factory, error)) (*services.Factory, error) {
-	uploads, err := apiCommon.UploadsBackend()
+	uploads, err := apiCommon.PrivateUploadsBackend()
 	if err != nil {
 		return nil, fmt.Errorf("resolve uploads backend: %w", err)
 	}
@@ -1383,6 +1383,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		IoTService:                   api.Services.IoT,
 		DeviceAuthenticator:          deviceAuth.Device(),
 		PickupScheduleService:        api.Services.PickupSchedule,
+		WeekdayPickupNotes:           modules.repositories.CarePlan(),
 		PartialAbsenceService:        api.Services.PartialAbsence,
 		ArrivalScheduleService:       api.Services.ArrivalSchedule,
 		InstanceService:              api.Services.Instance,
@@ -1643,9 +1644,38 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	})
 	api.Platform = platformAPI.NewResource(platformAPI.ResourceConfig{
 		AnnouncementsService: api.Services.Announcement,
-		TokenAuth:            nil, // Uses tenant auth middleware
+		Runtime:              newPlatformRuntime(projectJWT.MustNewTokenAuth()),
 	})
 	return nil
+}
+
+func newPlatformRuntime(tokenAuth *projectJWT.TokenAuth) platformAPI.Runtime {
+	return platformAPI.Runtime{
+		// TenantMiddleware supplies the scope guard: parent- and school-scope
+		// tokens are rejected with 401 (#2207) — before it, this group was the
+		// only /api mount without a scope check, so a portal-bound token could
+		// read tenant announcements here. Tenant, org, and platform tokens pass
+		// unchanged.
+		Protected: func(router chi.Router, register func(chi.Router)) {
+			router.Group(func(r chi.Router) {
+				r.Use(tokenAuth.Verifier())
+				r.Use(projectJWT.Authenticator)
+				r.Use(apiCommon.ReadOnlyPreviewMiddleware)
+				r.Use(projectJWT.TenantMiddleware)
+				r.Use(apiCommon.SecurityPrincipalMiddleware)
+				register(r)
+			})
+		},
+		Viewer: func(r *http.Request) platformAPI.Viewer {
+			claims := projectJWT.ClaimsFromCtx(r.Context())
+			return platformAPI.Viewer{AccountID: int64(claims.ID), Roles: claims.Roles, TenantID: claims.TenantID, OrgID: claims.OrgID}
+		},
+		IDParam: apiCommon.ParseInt64IDWithError,
+		Success: apiCommon.Respond,
+		Failure: func(w http.ResponseWriter, r *http.Request, failure platformAPI.Failure) {
+			apiCommon.RenderError(w, r, apiCommon.ErrorInternalServerWrap(failure.Message, failure.Err))
+		},
+	}
 }
 
 func requireHomeLayoutOperations(settings any) configAPI.HomeLayoutOperations {

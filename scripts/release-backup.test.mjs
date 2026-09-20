@@ -7,10 +7,10 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 const scripts = dirname(fileURLToPath(import.meta.url));
-function fixture(t) {
+function fixture(t, target = 'staging') {
   const root = mkdtempSync(join(tmpdir(), 'moto-release-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const cwd = join(root, 'staging');
+  const cwd = join(root, target);
   mkdirSync(cwd); mkdirSync(join(root, 'bin'));
   writeFileSync(join(root, 'bin/docker'), `#!/bin/sh\nexec '${process.execPath}' '${join(scripts, 'test-support/release-docker.mjs')}' "$@"\n`, { mode: 0o755 });
   for (const [file, content] of Object.entries({ '.env': 'MODE=old\n', '.deploy-state': 'CURRENT_SHA=aaaaaaa\n',
@@ -18,9 +18,9 @@ function fixture(t) {
     writeFileSync(join(cwd, file), content);
   }
   const log = join(root, 'docker.log');
-  const env = { ...process.env, DEPLOY_DIR: 'staging', DEPLOY_SHA: 'bbbbbbb', BACKUP_RETENTION: '2',
+  const env = { ...process.env, DEPLOY_DIR: target, DEPLOY_SHA: 'bbbbbbb', BACKUP_RETENTION: '2',
     PATH: `${join(root, 'bin')}:${process.env.PATH}`, RELEASE_TEST_LOG: log };
-  const bundle = join(root, 'backups/staging/release-20260914T010000Z-bbbbbbb');
+  const bundle = join(root, 'backups', target, 'release-20260914T010000Z-bbbbbbb');
   const run = (file, args = [], extra = {}) => spawnSync('bash', [join(scripts, file),
     ...(['deploy-remote.sh', 'rollback-remote.sh'].includes(file) ? [cwd] : []), ...args], {
     cwd, env: { ...env, ...extra }, encoding: 'utf8', timeout: 30000,
@@ -41,6 +41,36 @@ test('complete snapshot restores all components and the saved deployment state',
   assert.match(f.calls(), /find \/volume -mindepth/);
   assert.equal(readFileSync(join(f.cwd, '.env'), 'utf8'), 'MODE=old\n');
 });
+
+test('demo deploy pins its frontend image and can restore its own snapshot', t => {
+  const f = fixture(t, 'demo');
+  writeFileSync(join(f.cwd, 'docker-compose.yml.new'),
+    'services:\n  server:\n    image: ghcr.io/moto-nrw/phoenix-server:demo\n  frontend:\n    image: ghcr.io/moto-nrw/phoenix-frontend:demo\n');
+  const result = f.run('deploy-remote.sh');
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const compose = readFileSync(join(f.cwd, 'docker-compose.yml'), 'utf8');
+  assert.match(compose, /phoenix-server:bbbbbbb/);
+  assert.match(compose, /phoenix-frontend:demo-bbbbbbb/);
+  const state = readFileSync(join(f.cwd, '.deploy-state'), 'utf8');
+  const id = state.match(/BACKUP_ID=(.+)/)[1];
+  const bundle = join(f.root, 'backups/demo', id);
+  assert.equal(readFileSync(join(bundle, 'environment'), 'utf8'), 'demo\n');
+  const rollback = f.run('rollback-remote.sh');
+  assert.equal(rollback.status, 0, rollback.stdout + rollback.stderr);
+  assert.equal(readFileSync(join(f.cwd, '.env'), 'utf8'), 'MODE=old\n');
+});
+
+for (const source of ['demo', 'staging', 'production']) {
+  for (const target of ['demo', 'staging', 'production'].filter(value => value !== source)) {
+    test(`${target} rejects a ${source} snapshot before touching services`, t => {
+      const f = fixture(t, source); f.backup();
+      const result = f.run('restore-db.sh', [f.bundle], { DEPLOY_DIR: target });
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, /Backup belongs to another environment/);
+      assert.equal(f.calls(), '');
+    });
+  }
+}
 for (const file of ['roles.sql', 'uploads.tar.gz', '.env', 'compose.yml', 'images.tsv', 'database.dump']) {
   test(`missing ${file} blocks restore before stop or deletion`, t => {
     const f = fixture(t); f.backup(); rmSync(join(f.bundle, file));
@@ -125,32 +155,14 @@ test('a passing preflight runs before the stop and does not migrate', t => {
   assert.doesNotMatch(f.calls(), /run --rm migrate$/m);
 });
 
-test('Contract evidence is mounted read-only for both deployment phases', t => {
+test('retired evidence argument is rejected before deployment', t => {
   const f = fixture(t);
-  const evidence = join(f.root, 'reviewed evidence.json');
-  writeFileSync(evidence, '{"release_commit":"reviewed"}\n');
-  const result = f.run('deploy-remote.sh', [evidence], { RELEASE_TEST_MUTATE_EVIDENCE: evidence });
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  const calls = f.calls().split('\n').filter(line => line.includes('--student-contract-evidence'));
-  assert.equal(calls.length, 2, f.calls());
-  assert.ok(calls[0].includes('migrate preflight --student-contract-evidence /run/student-contract-evidence.json'));
-  assert.ok(calls[1].includes('migrate --student-contract-evidence /run/student-contract-evidence.json'));
-  const mounts = calls.map(line => line.match(/--volume (.+):\/run\/student-contract-evidence.json:ro/)[1]);
-  assert.equal(mounts[0], mounts[1]);
-  assert.notEqual(mounts[0], evidence, 'deployment must snapshot reviewed bytes, not remount a changing input');
-  assert.equal(existsSync(mounts[0]), false, 'temporary evidence must be cleaned up');
-  const observed = f.calls().split('\n').filter(line => line.startsWith('contract-evidence-content '));
-  assert.deepEqual(observed, Array(2).fill(`contract-evidence-content ${JSON.stringify('{"release_commit":"reviewed"}\n')}`));
-  assert.equal(readFileSync(evidence, 'utf8'), 'changed after preflight');
+  const result = f.run('deploy-remote.sh', [join(f.root, 'evidence.json')]);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /evidence files are no longer supported/);
+  assert.equal(existsSync(f.log), false);
 });
 
-test('missing Contract evidence aborts before pulling or stopping', t => {
-  const f = fixture(t);
-  const result = f.run('deploy-remote.sh', [join(f.root, 'missing.json')]);
-  assert.equal(result.status, 1, result.stdout + result.stderr);
-  assert.equal(existsSync(f.log), false);
-  assert.equal(existsSync(join(f.cwd, '.release-operation.lock')), false);
-});
 test('migration failure invokes complete automatic rollback', t => {
   const f = fixture(t);
   const result = f.run('deploy-remote.sh', [], { RELEASE_TEST_FAIL: 'migrate' });
@@ -162,6 +174,16 @@ test('migration failure invokes complete automatic rollback', t => {
 test('successful deployment records a complete snapshot', t => {
   const f = fixture(t); const result = f.run('deploy-remote.sh');
   assert.equal(result.status, 0, result.stdout + result.stderr);
+  const calls = f.calls().trim().split('\n');
+  const preflight = calls.findIndex(line => line.includes('migrate preflight'));
+  const stop = calls.findIndex(line => line.includes('stop server frontend'));
+  const backup = calls.findIndex(line => line.includes('pg_dump '));
+  const verifyBackup = calls.findIndex(line => line.includes('pg_restore --list'));
+  const migrate = calls.findIndex(line => line === 'compose run --rm migrate');
+  const start = calls.findIndex(line => line.includes('up -d --wait --remove-orphans server frontend'));
+  assert.ok(preflight >= 0 && stop > preflight && backup > stop &&
+    verifyBackup > backup && migrate > verifyBackup && start > migrate, f.calls());
+  assert.doesNotMatch(f.calls(), /student-contract-evidence/);
   const state = readFileSync(join(f.cwd, '.deploy-state'), 'utf8');
   assert.match(state, /CURRENT_SHA=bbbbbbb\nPREVIOUS_SHA=aaaaaaa/);
   const id = state.match(/BACKUP_ID=(.+)/)[1];

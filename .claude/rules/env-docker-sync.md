@@ -98,7 +98,7 @@ When modifying any file, update its counterpart:
 - [ ] Add to `backend/dev.env.example` (with safe default or placeholder)
 - [ ] Add to `docker-compose.example.yml` server `environment:` block (bare `${VAR}` — no `:-` default)
 - [ ] Add to `.env.example` (with placeholder value)
-- [ ] Add to both `environments/*.sops.env` files via `sops` CLI
+- [ ] Add to all `environments/*.sops.env` files via `sops` CLI
 - [ ] If used by `os.Getenv()`: confirm it is in docker-compose `environment:` block (not just dev.env)
 
 ## Adding a New Frontend Env Var Checklist
@@ -106,7 +106,7 @@ When modifying any file, update its counterpart:
 - [ ] Add to `frontend/.env.example`
 - [ ] If needed in Docker: add to `docker-compose.example.yml` frontend `environment:` block
 - [ ] If needed in Docker: add to `.env.example`
-- [ ] Add to both `environments/*.sops.env` files via `sops` CLI
+- [ ] Add to all `environments/*.sops.env` files via `sops` CLI
 - [ ] If needs per-service override: add to `environment:` block in `environments/*.compose.yml`
 - [ ] If `NEXT_PUBLIC_*`: client-accessible, no server import restrictions
 - [ ] If server-only: use `getServerApiUrl()` pattern, don't import in mixed client/server files
@@ -115,7 +115,7 @@ When modifying any file, update its counterpart:
 
 ## Deployed Environments (SOPS)
 
-Staging and production use SOPS-encrypted env files in `environments/`. CI decrypts one `.env` for Compose interpolation. Explicit service allowlists control what enters each container; see `docs/operations/runtime-environment-boundaries.md` and `environments/runtime-env-allowlist.json`. Read `docs/agents/operations.md` Environment Management (SOPS) for deployment and rollback details.
+Staging, production and demo use SOPS-encrypted env files in `environments/`. CI decrypts one `.env` for Compose interpolation. Explicit service allowlists control what enters each container; see `docs/operations/runtime-environment-boundaries.md` and `environments/runtime-env-allowlist.json`. Read `docs/agents/operations.md` Environment Management (SOPS) for deployment and rollback details.
 
 Keep the frontend's explicit `PORT: 3000` and the serving backend's credential-free application DSN. Privileged `DB_DSN` interpolation belongs only to the explicit `migrate` job. Update the allowlist and its matrix when changing service variables; `scripts/env-check.sh` verifies the boundary.
 

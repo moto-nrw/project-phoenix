@@ -115,6 +115,7 @@ jobs:
       NEXT_PUBLIC_TENANT_DOMAIN: localhost
       NEXT_PUBLIC_OPERATOR_HOSTNAME: operator.localhost:3000
       NEXT_PUBLIC_PARENTS_HOSTNAME: parents.localhost:3000
+      NEXT_PUBLIC_APP_ENV: test
       NEXT_PUBLIC_SCHOOL_HOSTNAME: schule.localhost:3000
       NEXTAUTH_URL: http://localhost:3000
       NEXTAUTH_SECRET: ci-perf-nightly-throwaway-secret

@@ -14,6 +14,10 @@ import (
 // The message text is kept stable because other packages match on it.
 var ErrGuardianProfileNotFound = errors.New("guardian profile not found")
 
+// ErrGuardianAccountConflict means linking would replace another account or
+// remove an existing parent's access to children. It requires reconciliation.
+var ErrGuardianAccountConflict = errors.New("guardian account link conflicts with an existing profile")
+
 // GuardianProfile represents a guardian's personal information
 // Guardians can exist with or without portal accounts
 type GuardianProfile struct {

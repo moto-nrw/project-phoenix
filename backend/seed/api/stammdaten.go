@@ -40,6 +40,7 @@ type FixedSeeder struct {
 	accountIDs       map[string]int64   // "firstName lastName" -> account id
 	guardianIDs      map[string]int64   // guardian "firstName lastName" -> id
 	staffCredentials []StaffCredentials // created staff credentials for summary
+	accountScope     string             // slug all account emails and usernames carry; empty for the local seed
 }
 
 // FixedResult contains counts of created entities
@@ -727,7 +728,7 @@ func (s *FixedSeeder) seedGuardians(_ context.Context, result *FixedResult) erro
 
 		// Add contact methods
 		if guardian.Email != "" {
-			body["email"] = guardian.Email
+			body["email"] = scopedEmail(guardian.Email, s.accountScope)
 		}
 		if guardian.Phone != "" {
 			body["phone"] = guardian.Phone
@@ -1251,7 +1252,11 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 		// Email: demo{n}@mail.de where n = account number (1-20)
 		// Password: per-account defaults, or shared --staff-password when set
 		accountNum := i + 1
-		email := fmt.Sprintf("demo%d@mail.de", accountNum)
+		email := scopedEmail(fmt.Sprintf("demo%d@mail.de", accountNum), s.accountScope)
+		username := fmt.Sprintf("demo%d", accountNum)
+		if s.accountScope != "" {
+			username += "-" + s.accountScope
+		}
 		password := demoPasswords[i]
 		if s.staffPassword != "" {
 			password = s.staffPassword
@@ -1280,7 +1285,7 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 		// (tenant_id, account_id) against the person it just created.
 		registerBody := map[string]any{
 			"email":            email,
-			"username":         fmt.Sprintf("demo%d", accountNum),
+			"username":         username,
 			"password":         password,
 			"confirm_password": password,
 			"role_id":          roleID,

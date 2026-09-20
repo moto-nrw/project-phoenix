@@ -98,7 +98,7 @@ def main():
     expected = json.loads((ROOT / "environments/runtime-env-allowlist.json").read_text())
     try:
         with tempfile.TemporaryDirectory(prefix="phoenix-env-check-") as directory:
-            for target in ("staging", "production"):
+            for target in ("staging", "production", "demo"):
                 relative = "environments/" + target + ".compose.yml"
                 path = ROOT / relative
                 if args.revision:
