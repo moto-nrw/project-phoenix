@@ -569,6 +569,7 @@ type GuardianFailureKind string
 const (
 	GuardianFailureInvalidRequest GuardianFailureKind = "invalid_request"
 	GuardianFailureForbidden      GuardianFailureKind = "forbidden"
+	GuardianFailureInternal       GuardianFailureKind = "internal"
 )
 
 // GuardianInvitationSummary is the staff-initiated invitation the deprecated
@@ -787,14 +788,14 @@ func (f *Factory) NewGuardianDirectoryRuntime(db *bun.DB) GuardianDirectoryRunti
 	}
 }
 
-// ClassifyGuardianInvitationFailure maps the invitation sentinels: a
-// school-managed social worker contact is forbidden, everything else is bad
-// input.
+// ClassifyGuardianInvitationFailure maps the invitation sentinels. Unknown
+// failures come from persistence or delivery and must not be reported as bad
+// client input.
 func ClassifyGuardianInvitationFailure(err error) GuardianFailureKind {
 	if errors.Is(err, identityaccess.ErrInviteSocialWorkerManaged) {
 		return GuardianFailureForbidden
 	}
-	return GuardianFailureInvalidRequest
+	return GuardianFailureInternal
 }
 
 // paymentExportSubtitle states how complete the list is. A bank list that

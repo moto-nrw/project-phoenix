@@ -40,10 +40,14 @@ func renderPeopleDirectoryFailure(w http.ResponseWriter, r *http.Request, kind u
 }
 
 func guardianFailureKind(kind services.GuardianFailureKind) usersAPI.FailureKind {
-	if kind == services.GuardianFailureForbidden {
+	switch kind {
+	case services.GuardianFailureForbidden:
 		return usersAPI.FailureForbidden
+	case services.GuardianFailureInvalidRequest:
+		return usersAPI.FailureInvalidRequest
+	default:
+		return usersAPI.FailureInternal
 	}
-	return usersAPI.FailureInvalidRequest
 }
 
 // newGuardiansResource binds the guardian HTTP adapter over the People

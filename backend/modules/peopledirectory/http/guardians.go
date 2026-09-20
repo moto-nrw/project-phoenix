@@ -155,8 +155,8 @@ type GuardianRuntime struct {
 
 	InviteGuardianToStudent func(context.Context, GuardianInvite) (GuardianInviteResult, error)
 	BulkInviteGuardians     func(context.Context, GuardianBulkInvite) (GuardianBulkInviteResult, error)
-	// InviteFailureKind classifies an invitation failure: forbidden for a
-	// school-managed contact, invalid request otherwise.
+	// InviteFailureKind classifies invitation failures as forbidden, invalid
+	// request, or internal errors.
 	InviteFailureKind          func(error) FailureKind
 	ListPendingApprovals       func(context.Context) ([]GuardianPendingApproval, error)
 	PendingInvitationStudentID func(context.Context, int64) (int64, error)
