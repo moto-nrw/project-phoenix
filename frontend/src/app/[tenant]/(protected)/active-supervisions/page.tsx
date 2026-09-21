@@ -381,6 +381,7 @@ function MeinRaumPageContent() {
       variant="outline"
       size="md"
       onClick={() => setAddSupervisorTarget(additionalSupervisionActiveGroupId)}
+      className="gap-2"
     >
       <UserPlus className="h-4 w-4" aria-hidden="true" />
       Betreuer hinzufügen
