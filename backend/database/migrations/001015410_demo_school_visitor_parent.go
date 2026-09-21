@@ -9,9 +9,9 @@ import (
 
 func init() {
 	MigrationRegistry.Register(&Migration{
-		Version:     "1.15.409",
+		Version:     "1.15.410",
 		Description: "Name the visitor's parent account of a demo school for the demo role parent (#3468)",
-		DependsOn:   []string{"1.15.408"},
+		DependsOn:   []string{"1.15.409"},
 	})
 	Migrations.MustRegister(demoSchoolVisitorParentUp, demoSchoolVisitorParentDown)
 }
