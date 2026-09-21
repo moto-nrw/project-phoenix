@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres"
@@ -19,6 +20,8 @@ type Observation = ports.Observation
 type Dependencies struct {
 	DB      *bun.DB
 	Observe func(Observation)
+	// Now is the clock the module reads the school day from; nil uses time.Now.
+	Now func() time.Time
 }
 
 func New(deps Dependencies) (*studentpresence.Module, error) {
@@ -26,7 +29,11 @@ func New(deps Dependencies) (*studentpresence.Module, error) {
 		return nil, errors.New("student presence compose: all dependencies are required")
 	}
 	store := postgres.New(databaseRuntime(deps.DB))
-	return studentpresence.NewModule(engine{Service: application.New(store, transaction{}, deps.Observe)}), nil
+	now := deps.Now
+	if now == nil {
+		now = time.Now
+	}
+	return studentpresence.NewModule(engine{Service: application.New(store, transaction{}, deps.Observe), now: now}), nil
 }
 
 func databaseRuntime(db *bun.DB) postgres.Database {
