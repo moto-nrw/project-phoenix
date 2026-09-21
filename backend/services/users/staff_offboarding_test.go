@@ -14,7 +14,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -155,8 +155,8 @@ func assertConcurrentSupervisionRejected(t *testing.T, operation string) {
 					_, err := active.Active.UpdateActiveGroupSupervisors(writerCtx, group.ID, []int64{staff.ID})
 					return err
 				}
-				return active.Active.CreateGroupSupervisor(writerCtx, &activeModels.GroupSupervisor{
-					StaffID: staff.ID, GroupID: group.ID, Role: "supervisor", StartDate: timezone.TodayDate(),
+				return active.Active.CreateGroupSupervisor(writerCtx, &studentpresence.GroupSupervision{
+					StaffID: staff.ID, GroupID: group.ID, Role: "supervisor", StartDate: timezone.TodayDate().String(),
 				})
 			})
 		}()

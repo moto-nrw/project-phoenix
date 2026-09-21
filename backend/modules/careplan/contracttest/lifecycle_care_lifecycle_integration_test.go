@@ -30,7 +30,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -38,14 +39,14 @@ import (
 
 // newActiveService wires the presence service the way the server does, minus
 // the broadcaster (these tests assert on data, not on SSE).
-func newActiveService(t *testing.T, db *bun.DB) activeService.Service {
+func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 	t.Helper()
 	// RFID tag release runs through the People Directory composition (#2661).
 	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
-	svc := activeService.NewService(activeService.ServiceDependencies{
+	svc := presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		PrincipalReader:    services.AttendancePrincipal,
 		GroupRepo:          repos.ActiveGroup,
 		SupervisorRepo:     repos.GroupSupervisor,
@@ -68,7 +69,7 @@ func newActiveService(t *testing.T, db *bun.DB) activeService.Service {
 		})),
 		DB:     db,
 		Logger: slog.Default(),
-	}, activeService.WithSettings(services.PresenceSettings(&configtest.Mock{ResolveStringFn: func(context.Context, string) (string, error) {
+	}, presenceservice.WithPresenceSettings(services.PresenceSettings(&configtest.Mock{ResolveStringFn: func(context.Context, string) (string, error) {
 		return "binary", nil
 	}})))
 	return svc
@@ -165,7 +166,7 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 
 	t.Run("web and kiosk check-in are refused", func(t *testing.T) {
 		_, err := presence.ToggleStudentAttendance(ctx, student.ID, staff.ID, device.ID, true)
-		require.ErrorIs(t, err, activeService.ErrStudentCareEnded)
+		require.ErrorIs(t, err, studentpresence.ErrStudentCareEnded)
 	})
 
 	t.Run("the child is gone from the group roster reads", func(t *testing.T) {

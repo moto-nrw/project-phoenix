@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 )
 
 type attendanceStaffRecords interface {
@@ -15,7 +15,7 @@ type attendanceStaffRecords interface {
 
 type attendanceStaffDirectory struct{ source attendanceStaffRecords }
 
-func NewAttendanceStaffDirectory(source attendanceStaffRecords) active.AttendanceStaff {
+func NewAttendanceStaffDirectory(source attendanceStaffRecords) presenceservice.AttendanceStaff {
 	return attendanceStaffDirectory{source: source}
 }
 

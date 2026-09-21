@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -119,7 +118,7 @@ func TestBuildAttendanceHistoryDays_WithinRoomCap_IncludesVisits(t *testing.T) {
 	exit := checkIn.Add(90 * time.Minute)
 	room := testpkg.CreateTestRoom(t, testpkg.SetupTestDB(t), "History Room")
 	roomID := room.ID
-	visit := &activeService.VisitHistoryEntry{
+	visit := &studentpresence.VisitHistoryEntry{
 		EntryTime: checkIn,
 		ExitTime:  &exit,
 		RoomID:    &roomID, RoomName: "Gruppenraum A",
@@ -128,7 +127,7 @@ func TestBuildAttendanceHistoryDays_WithinRoomCap_IncludesVisits(t *testing.T) {
 	days := buildAttendanceHistoryDays(
 		[]*studentpresence.Attendance{row},
 		nil,
-		map[string][]*activeService.VisitHistoryEntry{key: {visit}},
+		map[string][]*studentpresence.VisitHistoryEntry{key: {visit}},
 		roomCutoff,
 	)
 
@@ -166,7 +165,7 @@ func TestBuildAttendanceHistoryDays_ExactlyOnRoomCutoff_IncludesVisits(t *testin
 	exit := checkIn.Add(time.Hour)
 	room := testpkg.CreateTestRoom(t, testpkg.SetupTestDB(t), "History Room")
 	roomID := room.ID
-	visit := &activeService.VisitHistoryEntry{
+	visit := &studentpresence.VisitHistoryEntry{
 		EntryTime: checkIn,
 		ExitTime:  &exit,
 		RoomID:    &roomID, RoomName: "Boundary Room",
@@ -175,7 +174,7 @@ func TestBuildAttendanceHistoryDays_ExactlyOnRoomCutoff_IncludesVisits(t *testin
 	days := buildAttendanceHistoryDays(
 		[]*studentpresence.Attendance{row},
 		nil,
-		map[string][]*activeService.VisitHistoryEntry{key: {visit}},
+		map[string][]*studentpresence.VisitHistoryEntry{key: {visit}},
 		roomCutoff,
 	)
 	require.Len(t, days, 1)
@@ -199,7 +198,7 @@ func TestBuildAttendanceHistoryDays_VisitWithNilActiveGroup(t *testing.T) {
 		DeviceID:    7,
 	}
 	exit := checkIn.Add(time.Hour)
-	visit := &activeService.VisitHistoryEntry{
+	visit := &studentpresence.VisitHistoryEntry{
 		EntryTime: checkIn,
 		ExitTime:  &exit,
 		RoomID:    nil, // No group info
@@ -208,7 +207,7 @@ func TestBuildAttendanceHistoryDays_VisitWithNilActiveGroup(t *testing.T) {
 	days := buildAttendanceHistoryDays(
 		[]*studentpresence.Attendance{row},
 		nil,
-		map[string][]*activeService.VisitHistoryEntry{key: {visit}},
+		map[string][]*studentpresence.VisitHistoryEntry{key: {visit}},
 		roomCutoff,
 	)
 	require.Len(t, days, 1)
@@ -228,7 +227,7 @@ func TestBuildAttendanceHistoryDays_MultipleDays(t *testing.T) {
 		{TenantID: testpkg.Tenant(t), StudentID: 10, Date: timezone.DateFromTime(today).String(), CheckInTime: today.Add(8 * time.Hour), CheckedInBy: 42, DeviceID: 7},
 		{TenantID: testpkg.Tenant(t), StudentID: 10, Date: timezone.DateFromTime(yesterday).String(), CheckInTime: yesterday.Add(8 * time.Hour), CheckedInBy: 42, DeviceID: 7},
 	}
-	days := buildAttendanceHistoryDays(rows, nil, map[string][]*activeService.VisitHistoryEntry{}, roomCutoff)
+	days := buildAttendanceHistoryDays(rows, nil, map[string][]*studentpresence.VisitHistoryEntry{}, roomCutoff)
 	assert.Len(t, days, 2, "should return one day entry per unique date")
 }
 
@@ -252,7 +251,7 @@ func TestBuildAttendanceHistoryDays_StatusOnlyDay(t *testing.T) {
 		},
 	}
 
-	days := buildAttendanceHistoryDays(nil, statusRows, map[string][]*activeService.VisitHistoryEntry{}, roomCutoff)
+	days := buildAttendanceHistoryDays(nil, statusRows, map[string][]*studentpresence.VisitHistoryEntry{}, roomCutoff)
 
 	require.Len(t, days, 1)
 	assert.Equal(t, timezone.DateFromTime(today).String(), days[0].Date)
@@ -280,7 +279,7 @@ func TestBuildAttendanceHistoryDays_MultipleRowsSameDay_Consolidated(t *testing.
 		{TenantID: testpkg.Tenant(t), StudentID: 10, Date: timezone.DateFromTime(today).String(), CheckInTime: morningIn, CheckOutTime: &morningOut, CheckedInBy: 42, DeviceID: 7},
 		{TenantID: testpkg.Tenant(t), StudentID: 10, Date: timezone.DateFromTime(today).String(), CheckInTime: afternoonIn, CheckOutTime: &afternoonOut, CheckedInBy: 43, DeviceID: 8},
 	}
-	days := buildAttendanceHistoryDays(rows, nil, map[string][]*activeService.VisitHistoryEntry{}, roomCutoff)
+	days := buildAttendanceHistoryDays(rows, nil, map[string][]*studentpresence.VisitHistoryEntry{}, roomCutoff)
 
 	require.Len(t, days, 1, "two rows on same day must consolidate into one entry")
 	day := days[0]
@@ -308,7 +307,7 @@ func TestBuildAttendanceHistoryDays_MultipleRowsSameDay_OneOpenSession(t *testin
 		{TenantID: testpkg.Tenant(t), StudentID: 10, Date: timezone.DateFromTime(today).String(), CheckInTime: morningIn, CheckOutTime: &morningOut, CheckedInBy: 42, DeviceID: 7},
 		{TenantID: testpkg.Tenant(t), StudentID: 10, Date: timezone.DateFromTime(today).String(), CheckInTime: afternoonIn, CheckedInBy: 43, DeviceID: 8},
 	}
-	days := buildAttendanceHistoryDays(rows, nil, map[string][]*activeService.VisitHistoryEntry{}, roomCutoff)
+	days := buildAttendanceHistoryDays(rows, nil, map[string][]*studentpresence.VisitHistoryEntry{}, roomCutoff)
 
 	require.Len(t, days, 1)
 	assert.Nil(t, days[0].Attendance.CheckOutTime, "nil check-out (still present) takes precedence")
@@ -335,7 +334,7 @@ func TestBuildAttendanceHistoryDays_OutsideRoomCap_HidesVisits(t *testing.T) {
 	days := buildAttendanceHistoryDays(
 		[]*studentpresence.Attendance{row},
 		nil,
-		map[string][]*activeService.VisitHistoryEntry{},
+		map[string][]*studentpresence.VisitHistoryEntry{},
 		roomCutoff,
 	)
 	require.Len(t, days, 1)
@@ -348,13 +347,13 @@ func TestAttachSlotAttendance_KeepsOpposingStatusesOnSameDay(t *testing.T) {
 	t.Parallel()
 
 	date := timezone.NewDate(2026, 7, 15)
-	morning := &activeService.HistorySlotInstance{
+	morning := &studentpresence.HistorySlotInstance{
 		Date: timezone.Date(date), Title: "Morgenbetreuung",
 		StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
 	}
 	morning.ID = 101
-	afternoon := &activeService.HistorySlotInstance{
+	afternoon := &studentpresence.HistorySlotInstance{
 		Date: timezone.Date(date), Title: "Nachmittagsbetreuung",
 		StartTime: time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
@@ -362,9 +361,9 @@ func TestAttachSlotAttendance_KeepsOpposingStatusesOnSameDay(t *testing.T) {
 	afternoon.ID = 102
 	sick := schedule.AttendanceSubstatusSick
 
-	days := attachSlotAttendance(nil, []*activeService.HistorySlot{
-		{Instance: morning, Attendance: &activeService.HistorySlotAttendance{Status: schedule.AttendanceStatusPresent}},
-		{Instance: afternoon, Attendance: &activeService.HistorySlotAttendance{Status: schedule.AttendanceStatusAbsent, Substatus: &sick}},
+	days := attachSlotAttendance(nil, []*studentpresence.HistorySlot{
+		{Instance: morning, Attendance: &studentpresence.HistorySlotAttendance{Status: schedule.AttendanceStatusPresent}},
+		{Instance: afternoon, Attendance: &studentpresence.HistorySlotAttendance{Status: schedule.AttendanceStatusAbsent, Substatus: &sick}},
 	}, nil, date.BerlinMidnight())
 
 	require.Len(t, days, 1)
@@ -382,14 +381,14 @@ func TestAttachSlotAttendance_SlotOnlyDayRespectsRoomRetention(t *testing.T) {
 	t.Parallel()
 
 	date := timezone.NewDate(2026, 7, 10)
-	instance := &activeService.HistorySlotInstance{
+	instance := &studentpresence.HistorySlotInstance{
 		Date: timezone.Date(date), Title: "Morgenbetreuung",
 		StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
 	}
 	instance.ID = 201
-	rows := []*activeService.HistorySlot{
-		{Instance: instance, Attendance: &activeService.HistorySlotAttendance{Status: schedule.AttendanceStatusPresent}},
+	rows := []*studentpresence.HistorySlot{
+		{Instance: instance, Attendance: &studentpresence.HistorySlotAttendance{Status: schedule.AttendanceStatusPresent}},
 	}
 
 	t.Run("outside window stays unavailable", func(t *testing.T) {
@@ -401,7 +400,7 @@ func TestAttachSlotAttendance_SlotOnlyDayRespectsRoomRetention(t *testing.T) {
 
 	t.Run("within window attaches visits for the date", func(t *testing.T) {
 		entry := time.Date(2026, 7, 10, 9, 0, 0, 0, timezone.Berlin)
-		visits := map[string][]*activeService.VisitHistoryEntry{
+		visits := map[string][]*studentpresence.VisitHistoryEntry{
 			date.String(): {{EntryTime: entry}},
 		}
 		days := attachSlotAttendance(nil, rows, visits, date.BerlinMidnight())
@@ -616,21 +615,21 @@ func TestHasPlannedSlotRow(t *testing.T) {
 
 	date := timezone.NewDate(2026, 7, 15)
 	assert.False(t, hasPlannedSlotRow(nil))
-	assert.False(t, hasPlannedSlotRow([]*activeService.HistorySlot{
+	assert.False(t, hasPlannedSlotRow([]*studentpresence.HistorySlot{
 		nil,
-		{Instance: &activeService.HistorySlotInstance{Date: timezone.Date(date)}, Attendance: nil},
+		{Instance: &studentpresence.HistorySlotInstance{Date: timezone.Date(date)}, Attendance: nil},
 	}))
-	assert.False(t, hasPlannedSlotRow([]*activeService.HistorySlot{{
-		Instance:   &activeService.HistorySlotInstance{Date: timezone.Date(date), Title: "Spontan-AG"},
-		Attendance: &activeService.HistorySlotAttendance{Status: schedule.AttendanceStatusPresent, IsUnplanned: true},
+	assert.False(t, hasPlannedSlotRow([]*studentpresence.HistorySlot{{
+		Instance:   &studentpresence.HistorySlotInstance{Date: timezone.Date(date), Title: "Spontan-AG"},
+		Attendance: &studentpresence.HistorySlotAttendance{Status: schedule.AttendanceStatusPresent, IsUnplanned: true},
 	}}), "walk-in rows must not count as care-plan evidence")
-	assert.False(t, hasPlannedSlotRow([]*activeService.HistorySlot{{
-		Instance:   &activeService.HistorySlotInstance{Date: timezone.Date(date), Title: "Ausgefallene AG", Status: schedule.InstanceStatusCancelled},
-		Attendance: &activeService.HistorySlotAttendance{Status: schedule.AttendanceStatusExpected},
+	assert.False(t, hasPlannedSlotRow([]*studentpresence.HistorySlot{{
+		Instance:   &studentpresence.HistorySlotInstance{Date: timezone.Date(date), Title: "Ausgefallene AG", Status: schedule.InstanceStatusCancelled},
+		Attendance: &studentpresence.HistorySlotAttendance{Status: schedule.AttendanceStatusExpected},
 	}}), "cancelled instances must not count as care-plan evidence")
-	assert.True(t, hasPlannedSlotRow([]*activeService.HistorySlot{{
-		Instance:   &activeService.HistorySlotInstance{Date: timezone.Date(date), Title: "Morgenbetreuung"},
-		Attendance: &activeService.HistorySlotAttendance{Status: schedule.AttendanceStatusPresent},
+	assert.True(t, hasPlannedSlotRow([]*studentpresence.HistorySlot{{
+		Instance:   &studentpresence.HistorySlotInstance{Date: timezone.Date(date), Title: "Morgenbetreuung"},
+		Attendance: &studentpresence.HistorySlotAttendance{Status: schedule.AttendanceStatusPresent},
 	}}))
 }
 
@@ -638,7 +637,7 @@ func TestAttachSlotAttendance_SerializesInt64InstanceIDAsDecimalString(t *testin
 	t.Parallel()
 
 	date := timezone.NewDate(2026, 7, 15)
-	instance := &activeService.HistorySlotInstance{
+	instance := &studentpresence.HistorySlotInstance{
 		Date:      timezone.Date(date),
 		StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
@@ -646,9 +645,9 @@ func TestAttachSlotAttendance_SerializesInt64InstanceIDAsDecimalString(t *testin
 	}
 	instance.ID = math.MaxInt64
 
-	days := attachSlotAttendance(nil, []*activeService.HistorySlot{{
+	days := attachSlotAttendance(nil, []*studentpresence.HistorySlot{{
 		Instance:   instance,
-		Attendance: &activeService.HistorySlotAttendance{Status: schedule.AttendanceStatusExpected},
+		Attendance: &studentpresence.HistorySlotAttendance{Status: schedule.AttendanceStatusExpected},
 	}}, nil, date.BerlinMidnight())
 
 	require.Len(t, days, 1)
@@ -661,14 +660,14 @@ func TestAttachSlotAttendance_CarriesInstanceLifecycleStatus(t *testing.T) {
 	t.Parallel()
 
 	date := timezone.NewDate(2026, 7, 15)
-	instance := &activeService.HistorySlotInstance{
+	instance := &studentpresence.HistorySlotInstance{
 		Date: timezone.Date(date), Status: schedule.InstanceStatusActive,
 	}
 	instance.ID = 203
 
-	days := attachSlotAttendance(nil, []*activeService.HistorySlot{{
+	days := attachSlotAttendance(nil, []*studentpresence.HistorySlot{{
 		Instance:   instance,
-		Attendance: &activeService.HistorySlotAttendance{Status: schedule.AttendanceStatusPresent},
+		Attendance: &studentpresence.HistorySlotAttendance{Status: schedule.AttendanceStatusPresent},
 	}}, nil, date.BerlinMidnight())
 
 	require.Len(t, days, 1)
@@ -684,7 +683,7 @@ func TestAttachSlotAttendance_CarriesTheAttendanceNote(t *testing.T) {
 	t.Parallel()
 
 	date := timezone.NewDate(2026, 7, 15)
-	instance := &activeService.HistorySlotInstance{
+	instance := &studentpresence.HistorySlotInstance{
 		Date: timezone.Date(date), Title: "Fußball-AG",
 		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
@@ -693,8 +692,8 @@ func TestAttachSlotAttendance_CarriesTheAttendanceNote(t *testing.T) {
 	note := "Hat sich am Knie gestoßen, Eltern informiert"
 	late := schedule.AttendanceSubstatusLate
 
-	days := attachSlotAttendance(nil, []*activeService.HistorySlot{
-		{Instance: instance, Attendance: &activeService.HistorySlotAttendance{
+	days := attachSlotAttendance(nil, []*studentpresence.HistorySlot{
+		{Instance: instance, Attendance: &studentpresence.HistorySlotAttendance{
 			Status:    schedule.AttendanceStatusPresent,
 			Substatus: &late,
 			Note:      &note,
@@ -713,15 +712,15 @@ func TestAttachSlotAttendance_OmitsMissingNote(t *testing.T) {
 	t.Parallel()
 
 	date := timezone.NewDate(2026, 7, 15)
-	instance := &activeService.HistorySlotInstance{
+	instance := &studentpresence.HistorySlotInstance{
 		Date: timezone.Date(date), Title: "Betreuung",
 		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
 	}
 	instance.ID = 202
 
-	days := attachSlotAttendance(nil, []*activeService.HistorySlot{
-		{Instance: instance, Attendance: &activeService.HistorySlotAttendance{Status: schedule.AttendanceStatusPresent}},
+	days := attachSlotAttendance(nil, []*studentpresence.HistorySlot{
+		{Instance: instance, Attendance: &studentpresence.HistorySlotAttendance{Status: schedule.AttendanceStatusPresent}},
 	}, nil, date.BerlinMidnight())
 
 	require.Len(t, days, 1)

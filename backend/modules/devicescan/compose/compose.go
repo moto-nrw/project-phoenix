@@ -17,7 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
-	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
@@ -60,7 +60,7 @@ type Dependencies struct {
 	Rooms    Rooms
 	// Active is the retained presence service that still owns the visit,
 	// session and attendance transitions.
-	Active activeSvc.Service
+	Active studentpresence.Presence
 	// Users is the retained people service the cards resolve through.
 	Users usersSvc.PersonService
 	// Activities is the retained activity catalog the special rooms

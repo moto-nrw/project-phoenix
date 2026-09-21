@@ -1,0 +1,314 @@
+// Package active_test tests the timeout-related service methods with hermetic testing pattern.
+//
+// This file tests:
+// - UpdateSessionActivity: Updates the LastActivity timestamp of an active session
+// - ValidateSessionTimeout: Validates if a timeout request is valid for a device
+// - GetSessionTimeoutInfo: Retrieves comprehensive timeout information for a device session
+//
+// Each test creates its own fixtures, performs operations, and cleans up after itself.
+// No mocks are used - all tests run against a real test database.
+package presence_test
+
+import (
+	"errors"
+	"testing"
+	"time"
+
+	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// TestUpdateSessionActivity tests updating session activity timestamp
+func TestUpdateSessionActivity(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.Ctx(t)
+
+	t.Run("successful activity update", func(t *testing.T) {
+		// ARRANGE: Create test fixtures
+		activity := testpkg.CreateTestActivityGroup(t, db, "Update Activity Test")
+		device := testpkg.CreateTestDevice(t, db, "update-device-001")
+		room := testpkg.CreateTestRoom(t, db, "Update Test Room")
+		staff := testpkg.CreateTestStaff(t, db, "Update", "Tester")
+
+		// Start a session to test activity update
+		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
+		require.NoError(t, err)
+		require.NotNil(t, session)
+
+		// Wait a small amount of time so LastActivity will be different
+		time.Sleep(50 * time.Millisecond)
+		originalLastActivity := session.LastActivity
+
+		// ACT: Update session activity
+		err = service.UpdateSessionActivity(ctx, session.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify LastActivity was updated
+		updatedSession, err := service.GetActiveGroup(ctx, session.ID)
+		require.NoError(t, err)
+		assert.True(t, updatedSession.LastActivity.After(originalLastActivity),
+			"LastActivity should be updated to a later time")
+	})
+
+	t.Run("session not found", func(t *testing.T) {
+		// ACT: Try to update a non-existent session
+		err := service.UpdateSessionActivity(ctx, 99999)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.ErrorIs(t, err, activeService.ErrActiveGroupNotFound)
+	})
+
+	t.Run("session already ended", func(t *testing.T) {
+		// ARRANGE: Create test fixtures
+		activity := testpkg.CreateTestActivityGroup(t, db, "Ended Session Activity")
+		device := testpkg.CreateTestDevice(t, db, "ended-device-001")
+		room := testpkg.CreateTestRoom(t, db, "Ended Session Room")
+		staff := testpkg.CreateTestStaff(t, db, "Ended", "Staff")
+
+		// Start and immediately end a session
+		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
+		require.NoError(t, err)
+
+		err = service.EndActivitySession(ctx, session.ID)
+		require.NoError(t, err)
+
+		// ACT: Try to update the ended session
+		err = service.UpdateSessionActivity(ctx, session.ID)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.ErrorIs(t, err, activeService.ErrActiveGroupAlreadyEnded)
+	})
+
+	t.Run("wrapped active errors still unwrap to sentinels", func(t *testing.T) {
+		err := service.UpdateSessionActivity(ctx, 99999)
+
+		require.Error(t, err)
+		var activeErr *activeService.ActiveError
+		assert.True(t, errors.As(err, &activeErr))
+		assert.ErrorIs(t, activeErr, activeService.ErrActiveGroupNotFound)
+	})
+}
+
+// TestValidateSessionTimeout tests timeout validation logic
+func TestValidateSessionTimeout(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.Ctx(t)
+
+	t.Run("valid timeout - session is timed out", func(t *testing.T) {
+		// ARRANGE: Create test fixtures
+		activity := testpkg.CreateTestActivityGroup(t, db, "Timeout Activity 1")
+		device := testpkg.CreateTestDevice(t, db, "timeout-device-001")
+		room := testpkg.CreateTestRoom(t, db, "Timeout Room 1")
+		staff := testpkg.CreateTestStaff(t, db, "Timeout", "Staff1")
+
+		// Start a session
+		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
+		require.NoError(t, err)
+
+		// Manually set LastActivity to 35 minutes ago (older than the 30-minute timeout)
+		_, err = db.NewUpdate().
+			Table("active.groups").
+			Set("last_activity = ?", time.Now().Add(-35*time.Minute)).
+			Where("id = ?", session.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		// ACT: Validate with 30-minute timeout (session is 35 min inactive)
+		err = service.ValidateSessionTimeout(ctx, device.ID, 30)
+
+		// ASSERT: Should succeed because 35 min > 30 min timeout
+		require.NoError(t, err)
+	})
+
+	t.Run("invalid timeout - session not yet timed out", func(t *testing.T) {
+		// ARRANGE: Create test fixtures
+		activity := testpkg.CreateTestActivityGroup(t, db, "Fresh Activity")
+		device := testpkg.CreateTestDevice(t, db, "fresh-device-001")
+		room := testpkg.CreateTestRoom(t, db, "Fresh Room")
+		staff := testpkg.CreateTestStaff(t, db, "Fresh", "Staff")
+
+		// Start a fresh session (LastActivity = now)
+		_, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
+		require.NoError(t, err)
+
+		// ACT: Validate immediately - should fail because session is fresh
+		err = service.ValidateSessionTimeout(ctx, device.ID, 30)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not yet timed out")
+	})
+
+	t.Run("invalid timeout minutes - too high", func(t *testing.T) {
+		// ARRANGE: Create test fixtures
+		activity := testpkg.CreateTestActivityGroup(t, db, "High Timeout Activity")
+		device := testpkg.CreateTestDevice(t, db, "high-timeout-device-001")
+		room := testpkg.CreateTestRoom(t, db, "High Timeout Room")
+		staff := testpkg.CreateTestStaff(t, db, "High", "Staff")
+
+		// Start a session
+		_, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
+		require.NoError(t, err)
+
+		// ACT: Validate with 500 minutes (>480 max)
+		err = service.ValidateSessionTimeout(ctx, device.ID, 500)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid timeout minutes")
+	})
+
+	t.Run("invalid timeout minutes - zero", func(t *testing.T) {
+		// ARRANGE: Create test fixtures
+		activity := testpkg.CreateTestActivityGroup(t, db, "Zero Timeout Activity")
+		device := testpkg.CreateTestDevice(t, db, "zero-timeout-device-001")
+		room := testpkg.CreateTestRoom(t, db, "Zero Timeout Room")
+		staff := testpkg.CreateTestStaff(t, db, "Zero", "Staff")
+
+		// Start a session
+		_, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
+		require.NoError(t, err)
+
+		// ACT: Validate with 0 minutes
+		err = service.ValidateSessionTimeout(ctx, device.ID, 0)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid timeout minutes")
+	})
+
+	t.Run("no active session", func(t *testing.T) {
+		// ARRANGE: Create a device without a session
+		device := testpkg.CreateTestDevice(t, db, "orphan-device-001")
+
+		// ACT: Try to validate timeout for device with no session
+		err := service.ValidateSessionTimeout(ctx, device.ID, 30)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no active session")
+	})
+}
+
+// TestGetSessionTimeoutInfo tests retrieving timeout information
+func TestGetSessionTimeoutInfo(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.Ctx(t)
+
+	t.Run("successful timeout info retrieval", func(t *testing.T) {
+		// ARRANGE: Create test fixtures
+		activity := testpkg.CreateTestActivityGroup(t, db, "Info Activity")
+		device := testpkg.CreateTestDevice(t, db, "info-device-001")
+		room := testpkg.CreateTestRoom(t, db, "Info Room")
+		staff := testpkg.CreateTestStaff(t, db, "Info", "Staff")
+
+		// Start a session
+		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
+		require.NoError(t, err)
+
+		// ACT: Get timeout info
+		info, err := service.GetSessionTimeoutInfo(ctx, device.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		assert.Equal(t, session.ID, info.SessionID)
+		if assert.NotNil(t, info.ActivityID) {
+			assert.Equal(t, activity.ID, *info.ActivityID)
+		}
+		assert.Equal(t, 0, info.ActiveStudentCount) // No visits yet
+		assert.False(t, info.IsTimedOut)            // Fresh session
+	})
+
+	t.Run("timeout info with active visits", func(t *testing.T) {
+		// ARRANGE: Create test fixtures
+		activity := testpkg.CreateTestActivityGroup(t, db, "Visit Info Activity")
+		device := testpkg.CreateTestDevice(t, db, "visit-info-device-001")
+		room := testpkg.CreateTestRoom(t, db, "Visit Info Room")
+		staff := testpkg.CreateTestStaff(t, db, "Visit", "Staff")
+		student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a")
+		student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "1b")
+
+		// Start a session
+		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
+		require.NoError(t, err)
+
+		// Timeout retrieval needs room stays without school attendance transitions.
+		testpkg.CreateTestVisit(t, db, student1.ID, session.ID, time.Now(), nil)
+		testpkg.CreateTestVisit(t, db, student2.ID, session.ID, time.Now(), nil)
+		// ACT: Get timeout info
+		info, err := service.GetSessionTimeoutInfo(ctx, device.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		assert.Equal(t, session.ID, info.SessionID)
+		if assert.NotNil(t, info.ActivityID) {
+			assert.Equal(t, activity.ID, *info.ActivityID)
+		}
+		assert.Equal(t, 2, info.ActiveStudentCount) // Two active visits
+		assert.False(t, info.IsTimedOut)            // Fresh session
+	})
+
+	t.Run("timeout info shows timed out session", func(t *testing.T) {
+		// ARRANGE: Create test fixtures
+		activity := testpkg.CreateTestActivityGroup(t, db, "Timed Out Info Activity")
+		device := testpkg.CreateTestDevice(t, db, "timedout-info-device-001")
+		room := testpkg.CreateTestRoom(t, db, "Timed Out Info Room")
+		staff := testpkg.CreateTestStaff(t, db, "TimedOut", "Staff")
+
+		// Start a session
+		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
+		require.NoError(t, err)
+
+		// Manually set LastActivity to 35 minutes ago and TimeoutMinutes to 30
+		_, err = db.NewUpdate().
+			Table("active.groups").
+			Set("last_activity = ?", time.Now().Add(-35*time.Minute)).
+			Set("timeout_minutes = ?", 30).
+			Where("id = ?", session.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		// ACT: Get timeout info
+		info, err := service.GetSessionTimeoutInfo(ctx, device.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		assert.Equal(t, session.ID, info.SessionID)
+		assert.Equal(t, 30, info.TimeoutMinutes)
+		assert.True(t, info.IsTimedOut) // Should be timed out (35 min > 30 min timeout)
+	})
+
+	t.Run("no active session returns error", func(t *testing.T) {
+		// ARRANGE: Create a device without a session
+		device := testpkg.CreateTestDevice(t, db, "no-session-info-device-001")
+
+		// ACT: Try to get info for device with no session
+		info, err := service.GetSessionTimeoutInfo(ctx, device.ID)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, info)
+		assert.Contains(t, err.Error(), "no active session")
+	})
+}

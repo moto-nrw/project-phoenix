@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
@@ -111,7 +110,7 @@ type attendanceStatusEntry struct {
 type attendanceHistorySources struct {
 	Attendance []*studentpresence.Attendance
 	Statuses   []*absencerecords.StudentStatusDay
-	Slots      []*activeService.HistorySlot
+	Slots      []*studentpresence.HistorySlot
 	// SlotExpectation reports whether assignment hints apply to the loaded
 	// range at all (see resolveSlotExpectation).
 	SlotExpectation bool
@@ -243,8 +242,8 @@ func (rs *Resource) loadAttendanceHistorySources(
 // is entirely in the future. Read failures abort the history response.
 func (rs *Resource) loadRoomVisitsByDate(
 	ctx context.Context, studentID int64, start, end, endOfToday, roomCutoff time.Time, roomCap int,
-) (map[string][]*activeService.VisitHistoryEntry, error) {
-	visitsByDate := map[string][]*activeService.VisitHistoryEntry{}
+) (map[string][]*studentpresence.VisitHistoryEntry, error) {
+	visitsByDate := map[string][]*studentpresence.VisitHistoryEntry{}
 	if roomCap <= 0 || start.After(endOfToday) {
 		return visitsByDate, nil
 	}
@@ -272,7 +271,7 @@ func (rs *Resource) loadRoomVisitsByDate(
 // Walk-in rows (is_unplanned) never count as plan evidence: a spontaneous
 // drop-in also happens at schools that plan nothing.
 func (rs *Resource) resolveSlotExpectation(
-	ctx context.Context, slots []*activeService.HistorySlot, from, to timezone.Date,
+	ctx context.Context, slots []*studentpresence.HistorySlot, from, to timezone.Date,
 ) (bool, error) {
 	if hasPlannedSlotRow(slots) {
 		return true, nil
@@ -285,7 +284,7 @@ func (rs *Resource) resolveSlotExpectation(
 // purpose — see resolveSlotExpectation. Cancelled instances are excluded too:
 // their instance_students rows survive the cancellation, but a booking on a
 // cancelled-only occurrence is no usable slot to report assignments against.
-func hasPlannedSlotRow(slots []*activeService.HistorySlot) bool {
+func hasPlannedSlotRow(slots []*studentpresence.HistorySlot) bool {
 	for _, row := range slots {
 		if row != nil && row.Instance != nil && row.Attendance != nil &&
 			!row.Attendance.IsUnplanned && row.Instance.Status != scheduleModel.InstanceStatusCancelled {
@@ -360,7 +359,7 @@ func clampAttendanceHistoryRange(start, end, endOfToday time.Time, attendanceCap
 // checkout followed by a re-check-in) are consolidated into one day entry with
 // the earliest check-in, latest check-out, and total duration.
 // Days older than roomCutoff have RoomDetailAvailable=false.
-func buildAttendanceHistoryDays(rows []*studentpresence.Attendance, statusRows []*absencerecords.StudentStatusDay, visitsByDate map[string][]*activeService.VisitHistoryEntry, roomCutoff time.Time) []attendanceHistoryDay {
+func buildAttendanceHistoryDays(rows []*studentpresence.Attendance, statusRows []*absencerecords.StudentStatusDay, visitsByDate map[string][]*studentpresence.VisitHistoryEntry, roomCutoff time.Time) []attendanceHistoryDay {
 	dayMap, dayOrder := groupAttendanceRowsByDate(rows)
 	dayOrder = appendStatusDays(dayMap, dayOrder, statusRows)
 
@@ -460,7 +459,7 @@ func appendStatusDays(dayMap map[string]*attendanceHistoryDay, dayOrder []string
 
 // assembleAttendanceHistoryDays materializes the ordered days, computing each
 // day's duration and attaching room-detail visits within the retention cutoff.
-func assembleAttendanceHistoryDays(dayMap map[string]*attendanceHistoryDay, dayOrder []string, visitsByDate map[string][]*activeService.VisitHistoryEntry, roomCutoff time.Time) []attendanceHistoryDay {
+func assembleAttendanceHistoryDays(dayMap map[string]*attendanceHistoryDay, dayOrder []string, visitsByDate map[string][]*studentpresence.VisitHistoryEntry, roomCutoff time.Time) []attendanceHistoryDay {
 	days := make([]attendanceHistoryDay, 0, len(dayOrder))
 	for _, dateKey := range dayOrder {
 		day := dayMap[dateKey]
@@ -481,7 +480,7 @@ func assembleAttendanceHistoryDays(dayMap map[string]*attendanceHistoryDay, dayO
 }
 
 // attendanceVisitEntries maps visit rows to their response shape.
-func attendanceVisitEntries(visits []*activeService.VisitHistoryEntry) []attendanceVisitEntry {
+func attendanceVisitEntries(visits []*studentpresence.VisitHistoryEntry) []attendanceVisitEntry {
 	entries := make([]attendanceVisitEntry, 0, len(visits))
 	for _, v := range visits {
 		entry := attendanceVisitEntry{
@@ -521,8 +520,8 @@ func calculateAttendanceDuration(attendance *attendanceDayRecord) {
 
 func attachSlotAttendance(
 	days []attendanceHistoryDay,
-	rows []*activeService.HistorySlot,
-	visitsByDate map[string][]*activeService.VisitHistoryEntry,
+	rows []*studentpresence.HistorySlot,
+	visitsByDate map[string][]*studentpresence.VisitHistoryEntry,
 	roomCutoff time.Time,
 ) []attendanceHistoryDay {
 	index := make(map[string]int, len(days))
@@ -696,7 +695,7 @@ func (rs *Resource) writeAttendanceHistoryAudit(r *http.Request, studentID int64
 	}
 
 	studentIDPtr := studentID
-	entry := &activeService.DataAccessEvent{
+	entry := &studentpresence.DataAccessEvent{
 		ActorAccountID: actorAccountID,
 		ActorRole:      actorRole,
 		ResourceType:   auditModels.ResourceTypeAttendanceHistory,

@@ -8,7 +8,7 @@ import (
 )
 
 // GroupSupervisorCreator persists supervisors for cross-module service tests.
-// Production composition injects modules/studentpresence/legacy/services/active, whose own tests cover the
+// Production composition injects modules/studentpresence/internal/application/presence, whose own tests cover the
 // additional validation and automatic work-session check-in.
 type GroupSupervisorCreator struct {
 	Repository active.GroupSupervisorRepository

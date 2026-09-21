@@ -9,7 +9,7 @@ import (
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	pwaSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -31,8 +31,8 @@ type WorkerDependencies struct {
 	UnitOfWorkObserver        func(entryPoint, kind, result string, duration time.Duration, retries int)
 	Tracer                    WorkerTracer
 	Settings                  SettingsResolver
-	Active                    active.Service
-	ActiveCleanup             active.CleanupService
+	Active                    studentpresence.SessionMaintenance
+	ActiveCleanup             studentpresence.PresenceCleanup
 	AuthCleanup               AuthCleanup
 	InvitationCleanup         InvitationCleaner
 	EmailChangeCleanup        EmailChangeTokenCleaner

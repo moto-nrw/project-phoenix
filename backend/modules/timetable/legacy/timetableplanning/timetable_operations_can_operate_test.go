@@ -15,7 +15,6 @@ import (
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -320,7 +319,7 @@ func TestTimetableOperationsWriteResponsesReportCanOperate(t *testing.T) {
 	wireAssignedStaff(deps, 711, 811, 911, instanceID)
 	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
 	deps.visitRepo.byActiveGroup[activeGroupID] = []*studentpresence.Visit{{StudentID: studentID, ActiveGroupID: activeGroupID, EntryTime: time.Now()}}
-	deps.activeService.endErr = activeSvc.ErrVisitAlreadyEnded
+	deps.activeService.endErr = studentpresence.ErrVisitAlreadyEnded
 
 	roster, err := deps.service.CheckOutStudent(context.Background(), 711, false, instanceID, studentID)
 

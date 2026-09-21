@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 )
 
 type sseGroupQuery interface {
@@ -29,7 +28,7 @@ func activeStaffGroupIDs(ctx context.Context, presence interface {
 	day := timezone.TodayDate().String()
 	rows, err := presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffID: &staffID, ActiveOn: &day})
 	if err != nil {
-		return nil, &activeService.ActiveError{Op: "GetStaffActiveSupervisions", Err: activeService.ErrDatabaseOperation}
+		return nil, &studentpresence.OperationError{Op: "GetStaffActiveSupervisions", Err: studentpresence.ErrDatabaseOperation}
 	}
 	// ActiveOn is the owner's rule: started on or before the day, not ended by it.
 	ids := make([]int64, 0, len(rows))
@@ -42,7 +41,7 @@ func activeStaffGroupIDs(ctx context.Context, presence interface {
 func (s ssePresence) ListSSEGroups(ctx context.Context) ([]studentpresence.LiveGroup, error) {
 	rows, err := s.groups.QueryLiveGroups(ctx, studentpresence.LiveGroupFilter{})
 	if err != nil {
-		return nil, &activeService.ActiveError{Op: "ListActiveGroups", Err: fmt.Errorf("list failed: %w", err)}
+		return nil, &studentpresence.OperationError{Op: "ListActiveGroups", Err: fmt.Errorf("list failed: %w", err)}
 	}
 	return rows, nil
 }

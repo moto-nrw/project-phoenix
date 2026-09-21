@@ -28,7 +28,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/users/userstest"
@@ -1010,13 +1009,13 @@ func TestOperationsIDParsingAndErrorMapping(t *testing.T) {
 		{timetableplanning.ErrTimetableOperationConflict, http.StatusConflict},
 		{timetableplanning.ErrInvalidInstanceTransition, http.StatusConflict},
 		{timetableplanning.ErrInstanceNotFound, http.StatusNotFound},
-		{activeSvc.ErrStudentAlreadyActive, http.StatusConflict},
-		{activeSvc.ErrRoomConflict, http.StatusConflict},
-		{activeSvc.ErrRoomCapacityExceeded, http.StatusConflict},
-		{activeSvc.ErrActiveGroupAlreadyEnded, http.StatusConflict},
-		{activeSvc.ErrStudentNotFound, http.StatusNotFound},
-		{activeSvc.ErrVisitNotFound, http.StatusNotFound},
-		{activeSvc.ErrInvalidData, http.StatusBadRequest},
+		{studentpresence.ErrStudentAlreadyActive, http.StatusConflict},
+		{studentpresence.ErrRoomConflict, http.StatusConflict},
+		{studentpresence.ErrRoomCapacityExceeded, http.StatusConflict},
+		{studentpresence.ErrGroupAlreadyEnded, http.StatusConflict},
+		{studentpresence.ErrStudentNotFound, http.StatusNotFound},
+		{studentpresence.ErrVisitNotFound, http.StatusNotFound},
+		{studentpresence.ErrInvalidData, http.StatusBadRequest},
 		{errors.New("boom"), http.StatusInternalServerError},
 	}
 
@@ -1103,8 +1102,8 @@ type stubOpActiveService struct{}
 
 func (stubOpActiveService) CreateVisit(context.Context, *studentpresence.Visit) error { return nil }
 func (stubOpActiveService) EndVisit(context.Context, int64) error                     { return nil }
-func (stubOpActiveService) MoveStudentsToActiveGroupAuthorized(_ context.Context, studentIDs []int64, activeGroupID int64, _ activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
-	return &activeSvc.StudentMoveResult{Moved: studentIDs, ActiveGroupID: &activeGroupID}, nil
+func (stubOpActiveService) MoveStudentsToActiveGroupAuthorized(_ context.Context, studentIDs []int64, activeGroupID int64, _ studentpresence.StudentMoveAuthorization) (*studentpresence.StudentMoveResult, error) {
+	return &studentpresence.StudentMoveResult{Moved: studentIDs, ActiveGroupID: &activeGroupID}, nil
 }
 
 type stubOpArrivalService struct{}

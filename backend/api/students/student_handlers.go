@@ -24,7 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -563,7 +563,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	now := rs.Now()
 	rs.applyStatusDaysForDateToResponse(r.Context(), &response.StudentResponse, now)
 
-	attendances := map[int64]*activeService.AttendanceStatus{}
+	attendances := map[int64]*studentpresence.DailyAttendanceStatus{}
 	if hasFullAccess {
 		attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(r.Context(), student.ID)
 		if err != nil {
@@ -1523,7 +1523,7 @@ func updateStudentTxErrorRenderer(err error) render.Renderer {
 		return common.ErrorForbidden(errors.New("insufficient permissions to update this student's data"))
 	case errors.Is(err, errStudentNotFoundUnderLock):
 		return common.ErrorNotFound(errors.New("student not found"))
-	case errors.Is(err, activeService.ErrStudentStatusDayPartialAbsenceConflict):
+	case errors.Is(err, studentpresence.ErrStudentStatusDayPartialAbsenceConflict):
 		return common.ErrorConflictWithCode(err, "partial_absence_conflict")
 	// The merged plan (request modes applied onto the stored row) can violate
 	// the accompanied-requires-note invariant — e.g. a caller sets a "Mit

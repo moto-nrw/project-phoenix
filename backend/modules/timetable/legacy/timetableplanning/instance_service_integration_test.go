@@ -28,7 +28,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -1037,7 +1036,7 @@ func TestInstance_Reopen_RejectsOccupiedRoom(t *testing.T) {
 
 	_, err = s.svc.Reopen(s.ctx, first.ID, 0, true)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, activeSvc.ErrRoomConflict)
+	assert.ErrorIs(t, err, studentpresence.ErrRoomConflict)
 }
 
 func TestInstance_Reopen_RejectsRoomCapacity(t *testing.T) {
@@ -1065,7 +1064,7 @@ func TestInstance_Reopen_RejectsRoomCapacity(t *testing.T) {
 
 	_, err = s.svc.Reopen(s.ctx, ai.ID, 0, true)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, activeSvc.ErrRoomCapacityExceeded)
+	assert.ErrorIs(t, err, studentpresence.ErrRoomCapacityExceeded)
 }
 
 func TestInstance_Reopen_RejectsNonActor(t *testing.T) {
@@ -1367,11 +1366,11 @@ func TestInstance_Start_OccupiedRoomIsNotAConflict(t *testing.T) {
 	// room is sanctioned (parallel groups may use one room), so starting in
 	// an occupied room must produce NO warning at all.
 	now := time.Now()
-	preGroup := &activeModels.Group{
+	preGroup := &studentpresence.LiveGroup{
 		StartTime: now, LastActivity: now, TimeoutMinutes: 30,
-		GroupID: &s.tmplID, RoomID: s.roomID,
+		ActivityGroupID: &s.tmplID, RoomID: s.roomID,
 	}
-	preGroup.SetTenantID(testpkg.Tenant(t))
+	preGroup.TenantID = testpkg.Tenant(t)
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
 
 	ai := seedInstance(t, s, true, false)
@@ -1390,12 +1389,12 @@ func TestInstance_Start_StaffSameRoomIsNotAConflict(t *testing.T) {
 	// Our staff member already supervises a live group in the SAME room the
 	// instance starts in — sanctioned parallel supervision (#2139).
 	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
-	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: s.roomID}
-	preGroup.SetTenantID(testpkg.Tenant(t))
+	preGroup := &studentpresence.LiveGroup{StartTime: now, LastActivity: now, TimeoutMinutes: 30, ActivityGroupID: &s.tmplID, RoomID: s.roomID}
+	preGroup.TenantID = testpkg.Tenant(t)
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
 
-	sup := &activeModels.GroupSupervisor{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: timezone.DateFromTime(now)}
-	sup.SetTenantID(testpkg.Tenant(t))
+	sup := &studentpresence.GroupSupervision{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: timezone.DateFromTime(now).String()}
+	sup.TenantID = testpkg.Tenant(t)
 	require.NoError(t, s.factory.Active.CreateGroupSupervisor(s.ctx, sup))
 
 	ai := seedInstance(t, s, true, false)
@@ -1414,7 +1413,7 @@ func TestInstance_Start_StaffSameRoomIsNotAConflict(t *testing.T) {
 // started multi-room block leaves behind: the active.group stores only the
 // primary room, the per-staff room lives on the bridged instance's roster
 // (#2151 review).
-func seedBridgedActiveInstance(t *testing.T, s *lifecycleSetup, group *activeModels.Group, staffID int64, overrideRoomID *int64, withStaffRow bool) {
+func seedBridgedActiveInstance(t *testing.T, s *lifecycleSetup, group *studentpresence.LiveGroup, staffID int64, overrideRoomID *int64, withStaffRow bool) {
 	t.Helper()
 	ai := &scheduleModels.ActivityInstance{
 		Date:          scheduleModels.NewDate(2026, 4, 20),
@@ -1450,12 +1449,12 @@ func TestInstance_Start_StaffBridgedOverrideSameRoom_NoConflict(t *testing.T) {
 	otherRoom := testpkg.CreateTestRoom(t, s.db, fmt.Sprintf("LC-BridgeRoomA-%d", time.Now().UnixNano()))
 
 	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
-	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: otherRoom.ID}
-	preGroup.SetTenantID(testpkg.Tenant(t))
+	preGroup := &studentpresence.LiveGroup{StartTime: now, LastActivity: now, TimeoutMinutes: 30, ActivityGroupID: &s.tmplID, RoomID: otherRoom.ID}
+	preGroup.TenantID = testpkg.Tenant(t)
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
 
-	sup := &activeModels.GroupSupervisor{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: timezone.DateFromTime(now)}
-	sup.SetTenantID(testpkg.Tenant(t))
+	sup := &studentpresence.GroupSupervision{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: timezone.DateFromTime(now).String()}
+	sup.TenantID = testpkg.Tenant(t)
 	require.NoError(t, s.factory.Active.CreateGroupSupervisor(s.ctx, sup))
 
 	seedBridgedActiveInstance(t, s, preGroup, s.staffID, &s.roomID, true)
@@ -1482,12 +1481,12 @@ func TestInstance_Start_StaffBridgedOverrideDifferentRoom_Conflict(t *testing.T)
 	otherRoom := testpkg.CreateTestRoom(t, s.db, fmt.Sprintf("LC-BridgeRoomB-%d", time.Now().UnixNano()))
 
 	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
-	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: s.roomID}
-	preGroup.SetTenantID(testpkg.Tenant(t))
+	preGroup := &studentpresence.LiveGroup{StartTime: now, LastActivity: now, TimeoutMinutes: 30, ActivityGroupID: &s.tmplID, RoomID: s.roomID}
+	preGroup.TenantID = testpkg.Tenant(t)
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
 
-	sup := &activeModels.GroupSupervisor{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: timezone.DateFromTime(now)}
-	sup.SetTenantID(testpkg.Tenant(t))
+	sup := &studentpresence.GroupSupervision{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: timezone.DateFromTime(now).String()}
+	sup.TenantID = testpkg.Tenant(t)
 	require.NoError(t, s.factory.Active.CreateGroupSupervisor(s.ctx, sup))
 
 	seedBridgedActiveInstance(t, s, preGroup, s.staffID, &otherRoom.ID, true)
@@ -1516,12 +1515,12 @@ func TestInstance_Start_StaffBridgedWithoutRosterRow_Conflict(t *testing.T) {
 	// does not contain the staff member — the effective room is undetermined,
 	// so the warning must stay ("not certainly the same room").
 	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
-	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: s.roomID}
-	preGroup.SetTenantID(testpkg.Tenant(t))
+	preGroup := &studentpresence.LiveGroup{StartTime: now, LastActivity: now, TimeoutMinutes: 30, ActivityGroupID: &s.tmplID, RoomID: s.roomID}
+	preGroup.TenantID = testpkg.Tenant(t)
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
 
-	sup := &activeModels.GroupSupervisor{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: timezone.DateFromTime(now)}
-	sup.SetTenantID(testpkg.Tenant(t))
+	sup := &studentpresence.GroupSupervision{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: timezone.DateFromTime(now).String()}
+	sup.TenantID = testpkg.Tenant(t)
 	require.NoError(t, s.factory.Active.CreateGroupSupervisor(s.ctx, sup))
 
 	seedBridgedActiveInstance(t, s, preGroup, s.staffID, nil, false)
@@ -1550,12 +1549,12 @@ func TestInstance_Start_ConflictWarning_Staff(t *testing.T) {
 	otherRoom := testpkg.CreateTestRoom(t, s.db, fmt.Sprintf("LC-OtherRoom-%d", time.Now().UnixNano()))
 
 	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
-	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: otherRoom.ID}
-	preGroup.SetTenantID(testpkg.Tenant(t))
+	preGroup := &studentpresence.LiveGroup{StartTime: now, LastActivity: now, TimeoutMinutes: 30, ActivityGroupID: &s.tmplID, RoomID: otherRoom.ID}
+	preGroup.TenantID = testpkg.Tenant(t)
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
 
-	sup := &activeModels.GroupSupervisor{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: timezone.DateFromTime(now)}
-	sup.SetTenantID(testpkg.Tenant(t))
+	sup := &studentpresence.GroupSupervision{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: timezone.DateFromTime(now).String()}
+	sup.TenantID = testpkg.Tenant(t)
 	require.NoError(t, s.factory.Active.CreateGroupSupervisor(s.ctx, sup))
 
 	ai := seedInstance(t, s, true, false)
@@ -1580,8 +1579,8 @@ func TestInstance_Start_ConflictWarning_Student(t *testing.T) {
 	otherRoom := testpkg.CreateTestRoom(t, s.db, fmt.Sprintf("LC-OtherRoom2-%d", time.Now().UnixNano()))
 
 	now := time.Now()
-	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: otherRoom.ID}
-	preGroup.SetTenantID(testpkg.Tenant(t))
+	preGroup := &studentpresence.LiveGroup{StartTime: now, LastActivity: now, TimeoutMinutes: 30, ActivityGroupID: &s.tmplID, RoomID: otherRoom.ID}
+	preGroup.TenantID = testpkg.Tenant(t)
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
 
 	// The conflict check needs a visit, without a school attendance transition.

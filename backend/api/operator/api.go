@@ -14,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	provisioningoperator "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
 	settingsoperator "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
-	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -66,7 +66,7 @@ type ResourceConfig struct {
 	// responses so the frontend operator proxy can bust the slug-keyed
 	// `tenant-${slug}` cache after tenant-resolve-affecting toggles.
 	SchoolService settingsoperator.SchoolLookup
-	ActiveService activeSvc.Service
+	ActiveService studentpresence.Presence
 	CareLifecycle careplan.BookingAuthority
 	// SettingValueSet runs the settings side effects of an operator write
 	// (e.g. auto-provisioning system rooms when checkout toggles flip on).

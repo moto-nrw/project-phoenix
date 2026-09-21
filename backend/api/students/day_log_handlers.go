@@ -22,7 +22,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
@@ -494,7 +493,7 @@ func buildDayLogStudent(student *usersModel.Student, data *dayLogData) dayLogStu
 // excused), then a cancelled care day (reported absence), then a non-booked
 // day, and only the unexplained rest is absent.
 func classifyDayLogStudent(row *dayLogStudent, attendance []*studentpresence.Attendance, statuses []*absencerecords.StudentStatusDay, careDay careplan.CareDayStatus) {
-	eff := activeService.ResolveEffectiveStatus(statuses)
+	eff := studentpresence.ResolveEffectiveStatus(statuses)
 
 	if len(attendance) > 0 {
 		row.Status = dayLogStatusPresent
@@ -520,7 +519,7 @@ func classifyDayLogStudent(row *dayLogStudent, attendance []*studentpresence.Att
 	}
 }
 
-func applyDayLogSignOff(row *dayLogStudent, eff activeService.EffectiveStatus, statuses []*absencerecords.StudentStatusDay) bool {
+func applyDayLogSignOff(row *dayLogStudent, eff studentpresence.EffectiveStatus, statuses []*absencerecords.StudentStatusDay) bool {
 	var status string
 	var since *time.Time
 	switch {
@@ -580,7 +579,7 @@ func mergeDayLogAttendance(rows []*studentpresence.Attendance) (time.Time, *time
 	return checkIn, checkOut
 }
 
-func dayLogPresentHint(eff activeService.EffectiveStatus) string {
+func dayLogPresentHint(eff studentpresence.EffectiveStatus) string {
 	switch {
 	case eff.Sick:
 		return "Krankmeldung liegt vor"
@@ -631,7 +630,7 @@ func (rs *Resource) writeDayLogAudit(r *http.Request, date timezone.Date, groups
 		groupIDs = append(groupIDs, group.ID)
 	}
 
-	entry := &activeService.DataAccessEvent{
+	entry := &studentpresence.DataAccessEvent{
 		ActorAccountID: int64(claims.ID),
 		ActorRole:      actorRole,
 		ResourceType:   auditModels.ResourceTypeAttendanceDayLog,
@@ -639,7 +638,7 @@ func (rs *Resource) writeDayLogAudit(r *http.Request, date timezone.Date, groups
 		RangeEnd:       date.EndOfDay(),
 		AccessedAt:     time.Now(),
 	}
-	entry.Metadata = map[string]interface{}{"group_ids": groupIDs, "date": date.String()}
+	entry.Scope = &studentpresence.DataAccessScope{GroupIDs: groupIDs, Date: date.String()}
 
 	if err := rs.StudentHistoryService.RecordDataAccess(r.Context(), entry); err != nil {
 		logger.Error("audit log write failed, refusing to serve day log",

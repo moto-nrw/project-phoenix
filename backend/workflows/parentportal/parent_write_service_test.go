@@ -22,7 +22,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/services"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -441,7 +442,7 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 		Logger:      slog.Default(),
 	})
 
-	statusSvc := activeService.NewStudentStatusDayServiceWithPartialAbsences(repos.StudentStatusDay, nil, nil, repos.CarePlan().LockExceptionDay)
+	statusSvc := presenceservice.NewStatusDays(repos.StudentStatusDay, nil, nil, repos.CarePlan().LockExceptionDay)
 	studentSvc := usersService.NewStudentService(repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)), repositories.MustNewPeopleDirectory(db), repos.Student)
 	staffAttempted := make(chan struct{})
 	staffStudentSvc := &signalingStudentService{StudentService: studentSvc, attempted: staffAttempted}
@@ -464,7 +465,7 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 
 	staffResult := make(chan error, 1)
 	go func() {
-		staffResult <- statusSvc.CreateForDates(testpkg.TenantContext(chain.TenantID), activeService.StatusDayWriteContext{
+		staffResult <- statusSvc.CreateForDates(testpkg.TenantContext(chain.TenantID), studentpresence.StatusDayWriteContext{
 			DB:             db,
 			TenantID:       chain.TenantID,
 			StudentService: services.StatusDayStudents(staffStudentSvc, services.AllowAllStatusDayWrites),
@@ -486,7 +487,7 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 	close(releaseParent)
 	require.NoError(t, <-parentResult)
 	staffErr := <-staffResult
-	var conflictErr *activeService.StudentStatusDayConflictError
+	var conflictErr *studentpresence.StudentStatusDayConflictError
 	require.ErrorAs(t, staffErr, &conflictErr)
 	require.Len(t, conflictErr.Conflicts, 1)
 	assert.Equal(t, absencerecords.StudentStatusDaySick, conflictErr.Conflicts[0].Status)

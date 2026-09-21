@@ -1,0 +1,260 @@
+// End-to-end SSE enrichment test for WP-B10.
+//
+// The repo and service layers each have their own hermetic coverage, but
+// nothing asserts the wiring glue: that CreateVisit actually threads the
+// AttendanceSyncer result into broadcastVisitCreated and that the
+// resulting student_checkin Event carries attendance_status/substatus/note.
+// Without this test, a reviewer could delete applyAttendanceSnapshot from
+// visit_helpers.go and every lower-level test would still pass — the SSE
+// enrichment would silently disappear in production.
+//
+// The test wires the real AttendanceSyncService into active.NewService
+// (same way services.NewFactory wires it) against a seeded instance +
+// instance_students row and asserts the broadcast shape.
+package presence_test
+
+import (
+	"fmt"
+	"log/slog"
+	"testing"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/services"
+
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// firstOfType returns the first event of the given type seen across every
+// recorded broadcast call, in call order, or nil if none matches.
+func firstOfType(b *testpkg.RecordingBroadcaster, t active.BroadcastEventType) *active.BroadcastEvent {
+	events := b.EventsOfType(t)
+	if len(events) == 0 {
+		return nil
+	}
+	return &events[0]
+}
+
+func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	ctx := testpkg.Ctx(t)
+	suffix := time.Now().UnixNano()
+
+	// Real attendance syncer, wired the same way services.NewFactory does.
+	syncer := timetableplanning.NewAttendanceSyncService(
+		repos.ActivityInstance,
+		repos.InstanceStudent,
+		slog.Default(),
+	)
+	broadcaster := testpkg.NewRecordingBroadcaster()
+
+	svc := active.NewService(active.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
+		GroupRepo:          repos.ActiveGroup,
+		SupervisorRepo:     repos.GroupSupervisor,
+		SchoolPresence:     testSchoolPresence(t, db),
+		StudentRepo:        services.PresenceStudents(db, repos.Student),
+		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
+		RoomRepo:           services.NewAttendanceRooms(repos.Room),
+		ActivityGroupRepo:  repositories.NewSessionActivities(repos.ActivityGroup),
+		ActivityCatRepo:    services.NewAttendanceActivityCategories(repos.ActivityCategory),
+		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
+		DeviceRepo:         services.NewSessionDeviceDirectory(repos.Device, nil, nil),
+		DB:                 db,
+		Broadcaster:        broadcaster,
+		AttendanceSyncer:   syncer,
+		Logger:             slog.Default(),
+	})
+	active.ConfigureForTest(svc, active.WithSettings(defaultPresenceSettings()))
+
+	// Fixtures: activity + room + active.group + student + staff + device.
+	// CreateVisit requires staff + device on ctx for attendance FK.
+	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("E2E-Act-%d", suffix))
+	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("E2E-Room-%d", suffix))
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	student := testpkg.CreateTestStudent(t, db, "E2E-Stu", fmt.Sprintf("A-%d", suffix), "3a")
+	staff := testpkg.CreateTestStaff(t, db, "E2E-Staff", fmt.Sprintf("S-%d", suffix))
+	iotDevice := testpkg.CreateTestDevice(t, db, fmt.Sprintf("e2e-%d", suffix))
+
+	// Create an instance bridged to the active.group and an instance_students
+	// row in 'expected' — exactly what the syncer is designed to flip.
+	instance := &scheduleModels.ActivityInstance{
+		Date:            scheduleModels.NewDate(2026, 4, 21),
+		ActivityGroupID: &activity.ID,
+		Title:           fmt.Sprintf("E2E-Inst-%d", suffix),
+		StartTime:       time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
+		EndTime:         time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
+		RoomID:          room.ID,
+		Status:          scheduleModels.InstanceStatusActive,
+		ActiveGroupID:   &activeGroup.ID,
+	}
+	instance.SetTenantID(testpkg.Tenant(t))
+	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
+	require.NoError(t, err)
+
+	isRepo := repos.InstanceStudent
+	row := &scheduleModels.InstanceStudent{
+		InstanceID: instance.ID,
+		StudentID:  student.ID,
+		Status:     scheduleModels.AttendanceStatusExpected,
+	}
+	row.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, isRepo.Create(ctx, row))
+
+	// ACT: drive a check-in through the service.
+	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+	deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
+
+	visit := &studentpresence.Visit{
+		StudentID:     student.ID,
+		ActiveGroupID: activeGroup.ID,
+		EntryTime:     time.Now(),
+	}
+	require.NoError(t, svc.CreateVisit(deviceCtx, visit))
+
+	// ASSERT: student_checkin event carries attendance_status=present.
+	// This is the load-bearing assertion — it's what protects against
+	// someone silently removing applyAttendanceSnapshot from visit_helpers.go.
+	ev := firstOfType(broadcaster, active.EventStudentCheckIn)
+	require.NotNil(t, ev, "expected student_checkin event to be broadcast")
+	require.NotNil(t, ev.Data.AttendanceStatus,
+		"attendance_status must be populated when the visit bridges to an instance_students row")
+	assert.Equal(t, scheduleModels.AttendanceStatusPresent, *ev.Data.AttendanceStatus)
+	// Substatus/note are null for a first-time flip — the column defaults
+	// are NULL and no PATCH has happened.
+	assert.Nil(t, ev.Data.AttendanceSubstatus)
+	assert.Nil(t, ev.Data.AttendanceNote)
+
+	// DB post-condition: the mirrored row flipped to 'present'.
+	updated, err := isRepo.FindByID(ctx, row.ID)
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.AttendanceStatusPresent, updated.Status)
+	require.NotNil(t, updated.CheckedInAt, "checked_in_at must be stamped by the mirror write")
+
+	// Create a second bridged care slot, then move the same visit. The source
+	// slot must close at the transfer boundary and the target must open at that
+	// exact boundary, even though broadcasting is not responsible for syncing.
+	targetActivity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("E2E-Target-Act-%d", suffix))
+	targetRoom := testpkg.CreateTestRoom(t, db, fmt.Sprintf("E2E-Target-Room-%d", suffix))
+	targetGroup := testpkg.CreateTestActiveGroup(t, db, targetActivity.ID, targetRoom.ID)
+
+	targetInstance := &scheduleModels.ActivityInstance{
+		Date:            scheduleModels.NewDate(2026, 4, 21),
+		ActivityGroupID: &targetActivity.ID,
+		Title:           fmt.Sprintf("E2E-Target-Inst-%d", suffix),
+		StartTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:         time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:          targetRoom.ID,
+		Status:          scheduleModels.InstanceStatusActive,
+		ActiveGroupID:   &targetGroup.ID,
+	}
+	targetInstance.SetTenantID(testpkg.Tenant(t))
+	_, err = db.NewInsert().Model(targetInstance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
+	require.NoError(t, err)
+
+	targetRow := &scheduleModels.InstanceStudent{
+		InstanceID: targetInstance.ID,
+		StudentID:  student.ID,
+		Status:     scheduleModels.AttendanceStatusExpected,
+	}
+	targetRow.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, isRepo.Create(ctx, targetRow))
+
+	visit.ActiveGroupID = targetGroup.ID
+	require.NoError(t, svc.UpdateVisit(deviceCtx, visit))
+
+	sourceAfterTransfer, err := isRepo.FindByID(ctx, row.ID)
+	require.NoError(t, err)
+	require.NotNil(t, sourceAfterTransfer.CheckedOutAt, "transfer must close the source slot")
+	require.NotNil(t, sourceAfterTransfer.CheckedInAt)
+	assert.False(t, sourceAfterTransfer.CheckedOutAt.Before(*sourceAfterTransfer.CheckedInAt))
+
+	targetAfterTransfer, err := isRepo.FindByID(ctx, targetRow.ID)
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.AttendanceStatusPresent, targetAfterTransfer.Status)
+	require.NotNil(t, targetAfterTransfer.CheckedInAt, "transfer must open the target slot")
+	assert.Nil(t, targetAfterTransfer.CheckedOutAt, "transfer must not immediately close the target slot")
+	assert.WithinDuration(t, *sourceAfterTransfer.CheckedOutAt, *targetAfterTransfer.CheckedInAt, time.Millisecond)
+
+	// A detailed-mode daily checkout ends the visit through attendance_service,
+	// not EndVisit. It must still close the exact bridged care slot.
+	_, err = svc.CheckOutStudent(deviceCtx, student.ID, staff.ID, true)
+	require.NoError(t, err)
+	updated, err = isRepo.FindByID(ctx, targetRow.ID)
+	require.NoError(t, err)
+	require.NotNil(t, updated.CheckedOutAt, "daily checkout must stamp the bridged care slot")
+	assert.False(t, updated.CheckedOutAt.Before(*updated.CheckedInAt))
+}
+
+// TestCreateVisit_WalkInLeavesAttendanceFieldsUnset is the negative case
+// for the same wiring: when the visit does NOT bridge to an instance
+// (walk-in, non-planned active group), the syncer returns nil and the SSE
+// event MUST omit the three attendance fields. This rules out a regression
+// where we accidentally stamp status="present" for every check-in.
+func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	suffix := time.Now().UnixNano()
+	syncer := timetableplanning.NewAttendanceSyncService(
+		repos.ActivityInstance,
+		repos.InstanceStudent,
+		slog.Default(),
+	)
+	broadcaster := testpkg.NewRecordingBroadcaster()
+
+	svc := active.NewService(active.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
+		GroupRepo:          repos.ActiveGroup,
+		SupervisorRepo:     repos.GroupSupervisor,
+		SchoolPresence:     testSchoolPresence(t, db),
+		StudentRepo:        services.PresenceStudents(db, repos.Student),
+		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
+		RoomRepo:           services.NewAttendanceRooms(repos.Room),
+		ActivityGroupRepo:  repositories.NewSessionActivities(repos.ActivityGroup),
+		ActivityCatRepo:    services.NewAttendanceActivityCategories(repos.ActivityCategory),
+		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
+		DeviceRepo:         services.NewSessionDeviceDirectory(repos.Device, nil, nil),
+		DB:                 db,
+		Broadcaster:        broadcaster,
+		AttendanceSyncer:   syncer,
+		Logger:             slog.Default(),
+	})
+	active.ConfigureForTest(svc, active.WithSettings(defaultPresenceSettings()))
+
+	// NO instance bridges to this active.group — it's a walk-in session.
+	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("E2E-Walk-%d", suffix))
+	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("E2E-Walk-Room-%d", suffix))
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	student := testpkg.CreateTestStudent(t, db, "E2E-Walk", fmt.Sprintf("W-%d", suffix), "3a")
+	staff := testpkg.CreateTestStaff(t, db, "E2E-Walk-Staff", fmt.Sprintf("W-%d", suffix))
+	iotDevice := testpkg.CreateTestDevice(t, db, fmt.Sprintf("e2e-walk-%d", suffix))
+
+	ctx := testpkg.Ctx(t)
+	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+	deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
+
+	visit := &studentpresence.Visit{
+		StudentID:     student.ID,
+		ActiveGroupID: activeGroup.ID,
+		EntryTime:     time.Now(),
+	}
+	require.NoError(t, svc.CreateVisit(deviceCtx, visit))
+
+	ev := firstOfType(broadcaster, active.EventStudentCheckIn)
+	require.NotNil(t, ev, "expected student_checkin event to be broadcast")
+	assert.Nil(t, ev.Data.AttendanceStatus, "walk-in must not stamp attendance_status")
+	assert.Nil(t, ev.Data.AttendanceSubstatus)
+	assert.Nil(t, ev.Data.AttendanceNote)
+}

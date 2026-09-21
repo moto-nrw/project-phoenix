@@ -16,7 +16,7 @@ import (
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // Absence overview (#2288): one forward-looking list of every entered
@@ -93,9 +93,9 @@ func (rs *Resource) getStudentStatusDaysOverview(w http.ResponseWriter, r *http.
 		return
 	}
 
-	overviewGroups := make([]*activeService.StatusDayOverviewGroup, len(queryGroups))
+	overviewGroups := make([]*studentpresence.StatusDayOverviewGroup, len(queryGroups))
 	for i, group := range queryGroups {
-		overviewGroups[i] = &activeService.StatusDayOverviewGroup{ID: group.ID, Name: group.Name}
+		overviewGroups[i] = &studentpresence.StatusDayOverviewGroup{ID: group.ID, Name: group.Name}
 	}
 	overview, err := rs.AbsenceOverview.GetOverview(ctx, overviewGroups, from, to, today, filters)
 	if err != nil {
@@ -118,15 +118,15 @@ func (rs *Resource) getStudentStatusDaysOverview(w http.ResponseWriter, r *http.
 	common.Respond(w, r, http.StatusOK, statusDayOverviewResponse{From: from.String(), To: to.String(), Groups: responseGroups, Entries: entries, Page: page, PageSize: pageSize, HasMore: overview.HasMore}, "Student status days retrieved successfully")
 }
 
-func parseStatusDayOverviewFilters(r *http.Request, page, pageSize int) (activeService.StatusDayOverviewFilters, error) {
+func parseStatusDayOverviewFilters(r *http.Request, page, pageSize int) (studentpresence.StatusDayOverviewFilters, error) {
 	status := strings.TrimSpace(r.URL.Query().Get("status"))
 	if status != "" && status != "all" && !slices.Contains(absencerecords.StudentStatusDayStatuses(), status) {
-		return activeService.StatusDayOverviewFilters{}, errors.New("invalid status filter")
+		return studentpresence.StatusDayOverviewFilters{}, errors.New("invalid status filter")
 	}
 	if status == "all" {
 		status = ""
 	}
-	return activeService.StatusDayOverviewFilters{Query: r.URL.Query().Get("q"), Status: status, Page: page, PageSize: pageSize}, nil
+	return studentpresence.StatusDayOverviewFilters{Query: r.URL.Query().Get("q"), Status: status, Page: page, PageSize: pageSize}, nil
 }
 
 func (rs *Resource) writeStatusDayOverviewAudit(r *http.Request, from, to timezone.Date, groups []*educationModel.Group, logger *slog.Logger) error {
@@ -144,7 +144,7 @@ func (rs *Resource) writeStatusDayOverviewAudit(r *http.Request, from, to timezo
 	for _, group := range groups {
 		groupIDs = append(groupIDs, group.ID)
 	}
-	entry := &activeService.DataAccessEvent{
+	entry := &studentpresence.DataAccessEvent{
 		ActorAccountID: int64(claims.ID),
 		ActorRole:      actorRole,
 		ResourceType:   auditModels.ResourceTypeStudentStatusDayOverview,
@@ -152,7 +152,7 @@ func (rs *Resource) writeStatusDayOverviewAudit(r *http.Request, from, to timezo
 		RangeEnd:       to.EndOfDay(),
 		AccessedAt:     time.Now(),
 	}
-	entry.Metadata = map[string]interface{}{"group_ids": groupIDs}
+	entry.Scope = &studentpresence.DataAccessScope{GroupIDs: groupIDs}
 
 	if err := rs.StudentHistoryService.RecordDataAccess(r.Context(), entry); err != nil {
 		logger.Error("audit log write failed, refusing to serve absence overview",
@@ -164,7 +164,7 @@ func (rs *Resource) writeStatusDayOverviewAudit(r *http.Request, from, to timezo
 	return nil
 }
 
-func mapStatusDayOverviewEntries(overview *activeService.StatusDayOverview) []statusDayOverviewEntry {
+func mapStatusDayOverviewEntries(overview *studentpresence.StatusDayOverview) []statusDayOverviewEntry {
 	rows := overview.Entries
 	entries := make([]statusDayOverviewEntry, 0, len(rows))
 	for _, row := range rows {

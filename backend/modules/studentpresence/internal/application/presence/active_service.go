@@ -1,0 +1,1671 @@
+package presence
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/tenant"
+)
+
+const (
+	activeSupervisionReasonActivityStarted = "activity_started"
+	activeSupervisionReasonActivityEnded   = "activity_ended"
+	activeSupervisionReasonStudentMoved    = "student_moved"
+)
+
+// defaultDeviceOnlineWindow is the fallback online/offline cutoff used by the
+// abandoned-session cleanup when no tenant override
+// (iot.device_online_window_minutes) is configured. Moved off the iot.Device
+// model per issue #586 (Rule 12: models hold data, not decisions).
+const defaultDeviceOnlineWindow = 5 * time.Minute
+
+// RoomConflictStrategy defines how to handle room conflicts when determining room ID
+type RoomConflictStrategy int
+
+const (
+	// RoomConflictFail returns error if room has conflicts
+	RoomConflictFail RoomConflictStrategy = iota
+	// RoomConflictIgnore skips conflict checking entirely
+	RoomConflictIgnore
+	// RoomConflictWarn logs warning but continues
+	RoomConflictWarn
+)
+
+// CrossTenantRepo defines the interface for cross-tenant student queries.
+type CrossTenantRepo interface {
+	FindCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]active.CrossTenantStudent, error)
+}
+
+type SchoolQuery interface {
+	ListSchoolsByID(context.Context, []int64) ([]School, error)
+}
+
+type School struct {
+	ID   int64
+	Slug string
+}
+
+// SettingsResolver resolves tenant-scoped settings. Implemented by config.SettingsService.
+// Optional dependency — when nil, auto-clear behavior falls back to the registry default.
+type SettingsResolver interface {
+	// PresenceMode is the tenant's attendance granularity, one of
+	// PresenceModeDetailed or PresenceModeBinary.
+	PresenceMode(ctx context.Context) (string, error)
+	// SickClearMode and ExcusedClearMode say when a reported sick or excused
+	// flag is cleared; ClearModeNextCheckin is the value the check-in acts on.
+	SickClearMode(ctx context.Context) (string, error)
+	ExcusedClearMode(ctx context.Context) (string, error)
+	// SessionInactivityTimeoutMinutes is how long a kiosk session may idle.
+	SessionInactivityTimeoutMinutes(ctx context.Context) (int, error)
+	// AttendanceEditScope and OperationalOverviewScope gate who may edit
+	// attendance and who sees the tenant-wide overview.
+	AttendanceEditScope(ctx context.Context) (string, error)
+	OperationalOverviewScope(ctx context.Context) (string, error)
+}
+
+// Settings values the presence flows compare against. They are the stored
+// column values of the settings registry, so they are named here the same way
+// the wire vocabulary is.
+const (
+	ClearModeNextCheckin        = "next_checkin"
+	AttendanceEditScopeOwn      = "own"
+	AttendanceEditScopeAllStaff = "all_staff"
+	OverviewScopeAllStaff       = "all_staff"
+)
+
+// TimetableBridgeCompleter marks timetable instances that are still bridged
+// to active groups as completed. Implemented by schedule.ActivityInstanceRepository.
+type TimetableBridgeCompleter interface {
+	CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error)
+}
+
+// ServiceDependencies contains all dependencies required by the active service
+type ServiceDependencies struct {
+	PrincipalReader func(context.Context) RequestPrincipal
+	// Active domain repositories
+	GroupRepo        active.GroupRepository
+	SessionStartLock interface {
+		LockSessionStart(context.Context, int64) error
+	}
+	SupervisorRepo    active.GroupSupervisorRepository
+	SchoolPresence    StudentPresence
+	StudentDisplay    StudentDisplayReader
+	StudentStatusRepo StudentStatusDayRepository
+
+	// Cross-tenant query repository (optional - nil-safe)
+	CrossTenantRepo CrossTenantRepo
+	Schools         SchoolQuery
+
+	// User domain repositories
+	StudentRepo PresenceStudents
+	StaffRepo   AttendanceStaff
+
+	// Supporting domain repositories
+	RoomRepo           AttendanceRooms
+	YardRoomColor      func(context.Context) (*string, error)
+	ActivityGroupRepo  AttendanceActivityGroups
+	ActivityCatRepo    AttendanceActivityCategories
+	EducationGroupRepo AttendanceEducationGroups
+	DeviceRepo         SessionDeviceDirectory
+
+	// External services
+	StaffNames AttendanceStaffNames
+
+	// Infrastructure
+	DB          DatabaseHandle
+	Broadcaster EventPublisher // SSE event broadcaster (optional - can be nil for testing)
+
+	// Optional: Product analytics tracker (nil-safe, no student PII)
+	Tracker productEventTracker
+
+	// Optional: Work session service for NFC auto-check-in
+	WorkSessionService WorkSessionService
+
+	// Optional: Attendance sync (WP-B10). When non-nil, visit create/end
+	// calls mirror into schedule.instance_students and enrich check-in/out
+	// SSE events with attendance status/substatus/note.
+	AttendanceSyncer AttendanceSyncer
+
+	// Optional: Timetable bridge cleanup for force-ended IoT sessions.
+	TimetableBridgeCompleter TimetableBridgeCompleter
+
+	// Optional: Structured logger (nil-safe, Phase 2b will add logging calls)
+	Logger *slog.Logger
+	Now    func() time.Time
+}
+
+// Service implements the Active Service interface
+type service struct {
+	ServiceDependencies
+	tenantRuntime *tenant.UnitOfWork
+
+	// Optional: Tenant-scoped settings resolver for auto-clear logic.
+	// When nil, auto-clear falls back to the registry default behavior.
+	// Injected post-construction via SetSettingsService.
+	settings SettingsResolver
+
+	// Optional: weckt die Sorgeberechtigten eines Kindes nach einer
+	// Anwesenheitsaenderung, damit die Eltern-App ihren Tagesstatus (#2252)
+	// live nachlaedt. Injiziert via SetGuardianWaker; nil ist ein No-op.
+	guardianWaker GuardianWaker
+}
+
+func (s *service) now() time.Time {
+	if s.Now != nil {
+		return s.Now()
+	}
+	return time.Now()
+}
+
+func (s *service) todayDate() timezone.Date {
+	return timezone.DateFromTime(s.now())
+}
+
+// GetPresenceMode resolves the tenant value or registry default and propagates failures.
+func (s *service) GetPresenceMode(ctx context.Context) (string, error) {
+	if s.settings == nil {
+		return "", errors.New("resolve presence mode: settings service is not configured")
+	}
+	mode, err := s.settings.PresenceMode(ctx)
+	if err != nil {
+		return "", fmt.Errorf("resolve presence mode: %w", err)
+	}
+	if mode != PresenceModeDetailed && mode != PresenceModeBinary {
+		return "", fmt.Errorf("resolve presence mode: invalid value %q", mode)
+	}
+	return mode, nil
+}
+
+// getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
+func (s *service) getLogger() *slog.Logger {
+	return loggerOrDefault(s.Logger)
+}
+
+// trackProductEvent captures a product analytics event scoped to the tenant
+// from context. Fire-and-forget and nil-safe. GDPR: props must never contain
+// student IDs or any student PII — only tenant-level properties.
+//
+// The capture is deferred via tenant.RegisterAfterCommit so events fire only
+// after the surrounding tenant transaction commits — a rolled-back check-in
+// must not appear in analytics. Outside a tenant tx the capture runs
+// immediately.
+func (s *service) trackProductEvent(ctx context.Context, event string, props map[string]any) {
+	if s.Tracker == nil {
+		return
+	}
+	tenantID := tenant.FromContext(ctx)
+	if tenantID == 0 {
+		return
+	}
+	if props == nil {
+		props = map[string]any{}
+	}
+	school := strconv.FormatInt(tenantID, 10)
+	props["school_id"] = tenantID
+	props["$groups"] = map[string]any{"school": school}
+	tenant.RegisterAfterCommit(ctx, func() {
+		s.Tracker.Capture("school:"+school, event, props)
+	})
+}
+
+// checkout_type values for the student_checked_out analytics event — which
+// flow ended the attendance, orthogonal to method (rfid vs manual).
+const (
+	checkoutTypeDaily  = "daily"  // daily-checkout kiosk flow (CheckOutStudentFromDevice)
+	checkoutTypeToggle = "toggle" // kiosk toggle-out (ToggleStudentAttendance)
+	checkoutTypeWeb    = "web"    // web/staff-UI checkout (CheckOutStudent)
+)
+
+// checkin_type values mirroring the checkout_type set above. They ride the
+// student_checkin SSE event as its `source`; the checkout constants are kept
+// separate because their values are pinned to the checkout_type analytics
+// property.
+const (
+	checkinTypeToggle = "toggle" // kiosk toggle-in (ToggleStudentAttendance)
+	checkinTypeWeb    = "web"    // web/staff-UI check-in (CheckInStudent)
+)
+
+// dailyCheckoutSource is the `source` carried by the student_checkout event of
+// the kiosk daily-checkout flow. Kept as its own value (rather than the
+// checkoutTypeDaily label) because it is a wire field consumers may already
+// match on.
+const dailyCheckoutSource = "daily_checkout"
+
+// checkoutSourceLabel maps an internal checkout_type onto the student_checkout
+// `source` wire field, preserving the historical value of the daily flow.
+func checkoutSourceLabel(checkoutType string) string {
+	if checkoutType == checkoutTypeDaily {
+		return dailyCheckoutSource
+	}
+	return checkoutType
+}
+
+// attendanceMethod derives how an attendance change was triggered: RFID/kiosk
+// requests carry device auth in context, everything else is web/manual.
+func (s *service) attendanceMethod(ctx context.Context) string {
+	if s.attendancePrincipal(ctx).IsIoT {
+		return "rfid"
+	}
+	return "manual"
+}
+
+// NewService creates a new active service instance
+func NewService(deps ServiceDependencies, options ...ServiceOption) Service {
+	svc := &service{ServiceDependencies: deps}
+	for _, option := range options {
+		option(svc)
+	}
+	return svc
+}
+
+// Active Group operations
+func (s *service) GetActiveGroup(ctx context.Context, id int64) (*active.Group, error) {
+	group, err := s.GroupRepo.FindByID(ctx, id)
+	if err != nil {
+		if base.IsNoRows(err) {
+			return nil, &ActiveError{Op: "GetActiveGroup", Err: ErrActiveGroupNotFound}
+		}
+		return nil, &ActiveError{Op: "GetActiveGroup", Err: ErrDatabaseOperation}
+	}
+	if group == nil {
+		return nil, &ActiveError{Op: "GetActiveGroup", Err: ErrActiveGroupNotFound}
+	}
+
+	// Ensure we always have room metadata so downstream callers
+	// (location resolver, SSE payloads) can render friendly labels.
+	if group != nil && group.Room == nil && group.RoomID > 0 {
+		if room, roomErr := s.RoomRepo.FindByID(ctx, group.RoomID); roomErr == nil {
+			group.Room = room
+		}
+	}
+
+	return group, nil
+}
+
+func (s *service) GetActiveGroupsByIDs(ctx context.Context, groupIDs []int64) (map[int64]*active.Group, error) {
+	if len(groupIDs) == 0 {
+		return map[int64]*active.Group{}, nil
+	}
+
+	groups, err := s.GroupRepo.FindByIDs(ctx, groupIDs)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetActiveGroupsByIDs", Err: ErrDatabaseOperation}
+	}
+
+	if groups == nil {
+		groups = make(map[int64]*active.Group)
+	}
+
+	return groups, nil
+}
+
+func (s *service) CreateActiveGroup(ctx context.Context, group *active.Group) error {
+	if group == nil || group.Validate() != nil {
+		return &ActiveError{Op: "CreateActiveGroup", Err: ErrInvalidData}
+	}
+	return s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		return s.createActiveGroupLocked(txCtx, group)
+	})
+}
+
+func (s *service) createActiveGroupLocked(ctx context.Context, group *active.Group) error {
+	// Check for room conflicts if room is assigned
+	if group.RoomID > 0 {
+		if err := s.SchoolPresence.LockRoomSessionWrites(ctx, group.RoomID); err != nil {
+			return &ActiveError{Op: "CreateActiveGroup", Err: ErrDatabaseOperation}
+		}
+		hasConflict, _, err := s.GroupRepo.CheckRoomConflict(ctx, group.RoomID, 0)
+		if err != nil {
+			return &ActiveError{Op: "CreateActiveGroup", Err: fmt.Errorf("check room conflict: %w", err)}
+		}
+		if hasConflict {
+			return &ActiveError{Op: "CreateActiveGroup", Err: ErrRoomConflict}
+		}
+	}
+
+	group.SetTenantID(tenant.FromContext(ctx))
+	if err := s.GroupRepo.Create(ctx, group); err != nil {
+		return &ActiveError{Op: "CreateActiveGroup", Err: fmt.Errorf("create failed: %w", err)}
+	}
+
+	return nil
+}
+
+func (s *service) UpdateActiveGroup(ctx context.Context, group *active.Group) error {
+	if group == nil || group.Validate() != nil {
+		return &ActiveError{Op: "UpdateActiveGroup", Err: ErrInvalidData}
+	}
+	return s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		return s.updateActiveGroupLocked(txCtx, group)
+	})
+}
+
+func (s *service) updateActiveGroupLocked(ctx context.Context, group *active.Group) error {
+	if group.RoomID > 0 {
+		if err := s.SchoolPresence.LockRoomSessionWrites(ctx, group.RoomID); err != nil {
+			return &ActiveError{Op: "UpdateActiveGroup", Err: ErrDatabaseOperation}
+		}
+	}
+	existing, err := s.GroupRepo.FindByIDForUpdate(ctx, group.ID)
+	if err != nil {
+		if base.IsNoRows(err) {
+			return &ActiveError{Op: "UpdateActiveGroup", Err: ErrActiveGroupNotFound}
+		}
+		return &ActiveError{Op: "UpdateActiveGroup", Err: ErrDatabaseOperation}
+	}
+	if existing == nil {
+		return &ActiveError{Op: "UpdateActiveGroup", Err: ErrActiveGroupNotFound}
+	}
+
+	// Check for room conflicts if room is assigned (exclude current group)
+	if group.RoomID > 0 {
+		hasConflict, _, err := s.GroupRepo.CheckRoomConflict(ctx, group.RoomID, group.ID)
+		if err != nil {
+			return &ActiveError{Op: "UpdateActiveGroup", Err: fmt.Errorf("check room conflict: %w", err)}
+		}
+		if hasConflict {
+			return &ActiveError{Op: "UpdateActiveGroup", Err: ErrRoomConflict}
+		}
+		if existing.RoomID != group.RoomID {
+			incoming, err := s.SchoolPresence.CountOpenVisitsInGroup(ctx, group.ID)
+			if err != nil {
+				return &ActiveError{Op: "UpdateActiveGroup", Err: ErrDatabaseOperation}
+			}
+			if err := s.ensureRoomCapacity(ctx, group.RoomID, incoming); err != nil {
+				return err
+			}
+		}
+	}
+
+	if err := s.GroupRepo.Update(ctx, group); err != nil {
+		return &ActiveError{Op: "UpdateActiveGroup", Err: fmt.Errorf("update failed: %w", err)}
+	}
+
+	return nil
+}
+
+func (s *service) DeleteActiveGroup(ctx context.Context, id int64) error {
+	// Check if there are any active visits for this group
+	visits, err := s.SchoolPresence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{id}})
+	if err != nil {
+		return &ActiveError{Op: "DeleteActiveGroup", Err: fmt.Errorf("find visits: %w", err)}
+	}
+
+	// Check if any of the visits are still active
+	for _, visit := range visits {
+		if visit.ExitTime == nil {
+			return &ActiveError{Op: "DeleteActiveGroup", Err: ErrCannotDeleteActiveGroup}
+		}
+	}
+
+	// Delete the active group
+	_, err = s.GroupRepo.FindByID(ctx, id)
+	if err != nil {
+		if base.IsNoRows(err) {
+			return &ActiveError{Op: "DeleteActiveGroup", Err: ErrActiveGroupNotFound}
+		}
+		return &ActiveError{Op: "DeleteActiveGroup", Err: fmt.Errorf("find group: %w", err)}
+	}
+
+	if err := s.GroupRepo.Delete(ctx, id); err != nil {
+		return &ActiveError{Op: "DeleteActiveGroup", Err: fmt.Errorf("delete failed: %w", err)}
+	}
+
+	return nil
+}
+
+// EnsureOpenRoomSession returns the room session of a released room: the open
+// session of the room's system activity. Independent room stays (#3066) live
+// in it, apart from any other activity session in the same room, so ending
+// that activity leaves them untouched.
+//
+// The canonical Schulhof keeps Schulhof Freispiel, so a phone move joins the
+// running kiosk session when that activity is already open on a device. A
+// device-less stay is reused the same way, so a later kiosk start can attach
+// to it instead of opening a second group.
+//
+// It deliberately skips CreateActiveGroup's one-session-per-room conflict: a
+// room session coexists with activity sessions by design. The room's session
+// write lock serializes concurrent first moves, so the room never gets a
+// second room session; the lock is held until the caller's transaction ends.
+func (s *service) EnsureOpenRoomSession(ctx context.Context, roomID, activityID int64) (*active.Group, error) {
+	const op = "EnsureOpenRoomSession"
+	if roomID <= 0 || activityID <= 0 {
+		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
+	}
+	var session *active.Group
+	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		if err := s.SchoolPresence.LockRoomSessionWrites(txCtx, roomID); err != nil {
+			return &ActiveError{Op: op, Err: ErrDatabaseOperation}
+		}
+		groups, err := s.GroupRepo.FindActiveByRoomID(txCtx, roomID)
+		if err != nil {
+			return &ActiveError{Op: op, Err: fmt.Errorf("find room sessions: %w", err)}
+		}
+		if existing := openSessionForActivity(groups, activityID); existing != nil {
+			session = existing
+			return nil
+		}
+		now := time.Now()
+		created := &active.Group{StartTime: now, LastActivity: now, GroupID: &activityID, RoomID: roomID}
+		created.SetTenantID(tenant.FromContext(txCtx))
+		if err := s.GroupRepo.Create(txCtx, created); err != nil {
+			return &ActiveError{Op: op, Err: fmt.Errorf("create room session: %w", err)}
+		}
+		session = created
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return session, nil
+}
+
+// openSessionForActivity returns the open session of activityID in the given
+// groups. A device-owned row (kiosk) wins over a device-less stay so phone
+// moves join the running Schulhof journey.
+func openSessionForActivity(groups []*active.Group, activityID int64) *active.Group {
+	var deviceLess *active.Group
+	for _, group := range groups {
+		if group == nil {
+			continue
+		}
+		templateID, ok := group.TemplateID()
+		if !ok || templateID != activityID {
+			continue
+		}
+		if group.DeviceID != nil {
+			return group
+		}
+		if deviceLess == nil {
+			deviceLess = group
+		}
+	}
+	return deviceLess
+}
+
+// joinableOpenSession is the session a kiosk start may attach to: a running
+// kiosk copy of the activity, or an independent room stay. Device-less
+// planner and app sessions of the same activity are not joinable.
+func joinableOpenSession(groups []*active.Group, activityID int64, activityIsSystem bool) *active.Group {
+	existing := openSessionForActivity(groups, activityID)
+	if existing == nil || existing.DeviceID != nil || existing.IsIndependentRoomSession(activityIsSystem) {
+		return existing
+	}
+	return nil
+}
+
+func (s *service) systemActivity(ctx context.Context, activityID int64) (bool, error) {
+	if s.ActivityGroupRepo == nil {
+		return false, nil
+	}
+	activity, err := s.ActivityGroupRepo.FindByID(ctx, activityID)
+	if err != nil {
+		return false, err
+	}
+	return activity != nil && activity.IsSystem, nil
+}
+
+func (s *service) FindDeviceActiveGroupInRoom(ctx context.Context, roomID int64, deviceID int64) (*active.Group, error) {
+	group, err := s.GroupRepo.FindActiveByRoomIDAndDeviceID(ctx, roomID, deviceID)
+	if err != nil {
+		return nil, &ActiveError{Op: "FindDeviceActiveGroupInRoom", Err: fmt.Errorf("find by room and device: %w", err)}
+	}
+	return group, nil
+}
+
+func (s *service) EndActiveGroupSession(ctx context.Context, id int64) error {
+	// Ending a group by hand (POST /active/groups/{id}/end, and the Schulhof
+	// stale-session sweep) is a session end like any other, so it closes the
+	// timetable side too (#1747 review). Skipping it leaves the linked instance
+	// active with its expected rows unfinalized, and nothing repairs that
+	// afterwards: the nightly bridge only looks at active.groups that are still
+	// running, and this one is not.
+	//
+	// The state check runs BEFORE the bridge on purpose. EndActivitySession
+	// rejects an already-ended group as ErrActiveGroupAlreadyEnded, which the
+	// handler renders as 4xx — and the tenant middleware only rolls back on its
+	// own for 5xx, so bridging first would commit a completed instance beside
+	// that rejection.
+	// Both writes are one transition (#1747 review). runInSessionTx joins the
+	// caller's transaction when there is one (the HTTP path) and opens its own
+	// when there is none — the Schulhof sweep calls this straight from the
+	// scheduler, where a committed bridge write beside a failed session end
+	// would leave a completed instance next to an open group that no later run
+	// repairs.
+	var broadcasts sessionEndSSEData
+	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		group, err := s.GroupRepo.FindByIDForUpdate(txCtx, id)
+		if err != nil || group == nil {
+			return &ActiveError{Op: "EndActiveGroupSession", Err: ErrActiveGroupNotFound}
+		}
+		if !group.IsActive() {
+			return &ActiveError{Op: "EndActiveGroupSession", Err: ErrActiveGroupAlreadyEnded}
+		}
+		// Complete the failure-prone timetable half before mutating the active
+		// session. Broadcasts are queued only after both halves succeed.
+		if err := s.completeTimetableMirrorsForEndedSessions(txCtx, []int64{id}); err != nil {
+			return &ActiveError{Op: "EndActiveGroupSession", Err: err}
+		}
+
+		broadcasts, err = s.endActivitySessionLocked(txCtx, group)
+		if err != nil {
+			// The bridge already completed the mirrored instance, so the
+			// transaction has to go. Joining the request's transaction means
+			// nothing here can roll it back, and the tenant middleware only
+			// rolls back on its own for 5xx — ErrActiveGroupAlreadyEnded and
+			// friends render as 4xx and would commit exactly that split state.
+			tenant.MarkRollback(txCtx)
+			// Wrap the error with our operation name for clarity
+			if activeErr, ok := err.(*ActiveError); ok {
+				return &ActiveError{Op: "EndActiveGroupSession", Err: activeErr.Err}
+			}
+			return &ActiveError{Op: "EndActiveGroupSession", Err: err}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	s.queueActivitySessionEndBroadcasts(ctx, id, broadcasts)
+	return nil
+}
+
+// Visit operations
+
+func (s *service) CreateVisit(ctx context.Context, visit *studentpresence.Visit) error {
+	return s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		return s.createVisit(txCtx, visit)
+	})
+}
+
+func (s *service) createVisit(ctx context.Context, visit *studentpresence.Visit) error {
+	if !validPresenceVisit(visit) {
+		return &ActiveError{Op: "CreateVisit", Err: ErrInvalidData}
+	}
+
+	// Validate the student exists and is not a graduated alumnus before INSERT
+	// (prevents FK errors in logs and, via the FOR UPDATE lock, closes the race
+	// against a concurrent grade-transition apply — see the helper doc, #405).
+	// Runs BEFORE the binary-mode short-circuit: binary-mode check-ins reach
+	// CreateVisit via the timetable path and would otherwise mark a departed
+	// alumnus present without ever hitting this guard.
+	if err := s.ensureStudentCheckinAllowed(ctx, visit.StudentID); err != nil {
+		return &ActiveError{Op: "CreateVisit", Err: err}
+	}
+
+	// Binary-mode tenants don't track room visits — attendance is the only
+	// surface. Short-circuit here so every caller (IoT, web, scheduler) stays
+	// consistent without having to resolve the mode at each call site.
+	mode, err := s.GetPresenceMode(ctx)
+	if err != nil {
+		return &ActiveError{Op: "CreateVisit", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
+	if mode == PresenceModeBinary {
+		return nil
+	}
+
+	// Lock and re-check the target immediately before the visit-side writes.
+	// The lock serializes check-ins with session absorption/end paths, which
+	// take the same active.groups row lock before closing the session.
+	targetGroup, err := s.lockActiveGroupOpenForUpdate(ctx, visit.ActiveGroupID)
+	if err != nil {
+		return &ActiveError{Op: "CreateVisit", Err: err}
+	}
+
+	deviceID, staffID := s.extractContextIDs(ctx)
+
+	// Ensure no existing active visit for this student
+	if err := s.ensureStudentHasNoActiveVisit(ctx, visit.StudentID); err != nil {
+		if activeErr, ok := err.(*ActiveError); ok {
+			return activeErr
+		}
+		return &ActiveError{Op: "CreateVisit", Err: ErrDatabaseOperation}
+	}
+	if visit.ExitTime == nil {
+		if err := s.ensureRoomCapacity(ctx, targetGroup.RoomID, 1); err != nil {
+			return err
+		}
+	}
+
+	// Handle attendance (create new or update on re-entry)
+	if err := s.ensureOrUpdateAttendance(ctx, visit, staffID, deviceID); err != nil {
+		if activeErr, ok := err.(*ActiveError); ok {
+			return activeErr
+		}
+		return &ActiveError{Op: "CreateVisit", Err: ErrDatabaseOperation}
+	}
+
+	// Auto-clear sickness / excused flags when student checks in
+	// (only triggers when the tenant's clear_mode setting is "next_checkin").
+	if err := s.autoClearStudentSickness(ctx, visit.StudentID); err != nil {
+		return &ActiveError{Op: "CreateVisit", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
+	if err := s.autoClearStudentExcused(ctx, visit.StudentID); err != nil {
+		return &ActiveError{Op: "CreateVisit", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
+	if err := s.autoClearPlannedStudentStatuses(ctx, visit.StudentID); err != nil {
+		return &ActiveError{Op: "CreateVisit", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
+
+	// Create the visit record
+	visit.TenantID = tenant.FromContext(ctx)
+	stored, err := s.SchoolPresence.RecordVisit(ctx, studentpresence.Visit{
+		ID: visit.ID, TenantID: visit.TenantID, CreatedAt: visit.CreatedAt, UpdatedAt: visit.UpdatedAt,
+		StudentID: visit.StudentID, ActiveGroupID: visit.ActiveGroupID,
+		EntryTime: visit.EntryTime, ExitTime: visit.ExitTime,
+	})
+	if err != nil {
+		// The partial unique index uniq_active_visits_open_per_student is the
+		// race-safety net behind ensureStudentHasNoActiveVisit above. When
+		// two concurrent requests both pass the read-then-write check, the
+		// loser hits 23505 here. Translate to ErrStudentAlreadyActive so the
+		// IoT handler maps it to 409 Conflict instead of 500.
+		if isDuplicateActiveVisitViolation(err) {
+			return &ActiveError{Op: "CreateVisit", Err: ErrStudentAlreadyActive}
+		}
+		return &ActiveError{Op: "CreateVisit", Err: ErrDatabaseOperation}
+	}
+	visit.ID, visit.CreatedAt, visit.UpdatedAt = stored.ID, stored.CreatedAt, stored.UpdatedAt
+
+	// Mirror the visit into its timetable instance in the same transaction.
+	// Missing assignments are valid; failures must precede any success event.
+	var snapshot *AttendanceSnapshot
+	if s.AttendanceSyncer != nil {
+		snapshot, err = s.AttendanceSyncer.MirrorCheckInForVisit(ctx, presenceVisitSnapshot(visit))
+		if err != nil {
+			return &ActiveError{Op: "CreateVisit", Err: errors.Join(ErrDatabaseOperation, err)}
+		}
+	}
+
+	// Queue the success event for commit.
+	s.broadcastVisitCreated(ctx, visit, snapshot)
+
+	return nil
+}
+
+// isDuplicateActiveVisitViolation returns true when err carries PostgreSQL
+// error code 23505 (unique_violation) on the partial unique index
+// uniq_active_visits_open_per_student, defined in migration 1.15.47 on
+// active.visits (tenant_id, student_id) WHERE exit_time IS NULL.
+//
+// We match by constraint name (Field 'n') rather than just the error code
+// so a future unrelated unique index on active.visits doesn't accidentally
+// translate into ErrStudentAlreadyActive.
+func isDuplicateActiveVisitViolation(err error) bool {
+	return base.IsUniqueViolationOn(err, "uniq_active_visits_open_per_student")
+}
+
+// validateStudentExists checks if a student exists, returning appropriate errors
+func (s *service) validateStudentExists(ctx context.Context, studentID int64) error {
+	if _, err := s.StudentRepo.FindByID(ctx, studentID); err != nil {
+		if base.IsNoRows(err) {
+			return ErrStudentNotFound
+		}
+		return err
+	}
+	return nil
+}
+
+// ensureStudentCheckinAllowed validates the student exists and is not a
+// graduated (alumnus) soft-deleted record, taking a FOR UPDATE row lock in the
+// process. The lock is held for the caller's request transaction, so it
+// serializes against a concurrent grade-transition apply that flips the same
+// student to alumnus: the two transactions block on the shared row rather than
+// interleaving into a stranded open attendance/visit the kiosk can no longer
+// close (#405). Nil-safe for the partial unit-test services that never wire a
+// StudentRepo; production always does.
+func (s *service) ensureStudentCheckinAllowed(ctx context.Context, studentID int64) error {
+	if s.StudentRepo == nil {
+		return nil
+	}
+	student, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID)
+	if err != nil {
+		if base.IsNoRows(err) {
+			return ErrStudentNotFound
+		}
+		return err
+	}
+	if student.IsAlumnus() {
+		return ErrStudentGraduated
+	}
+	// A child whose care ended yesterday cannot start a new day here (#2487).
+	// Checked against the enrollment interval rather than the lifecycle
+	// status: the status only follows once the scheduler ticks, and the kiosk
+	// must not let a departed child in during that window.
+	if student.CareEndedOn(s.todayDate()) {
+		return ErrStudentCareEnded
+	}
+	return nil
+}
+
+// validateActiveGroupExists checks if an active group exists, returning appropriate errors
+func (s *service) validateActiveGroupExists(ctx context.Context, groupID int64) error {
+	if _, err := s.GroupRepo.FindByID(ctx, groupID); err != nil {
+		if base.IsNoRows(err) {
+			return ErrActiveGroupNotFound
+		}
+		return err
+	}
+	return nil
+}
+
+// validateActiveGroupOpenForUpdate locks the target group and rejects ended
+// sessions. Tenant HTTP requests and scheduler operations already run inside a
+// tenant transaction, so the lock remains held through the subsequent visit
+// or supervisor INSERT. This prevents a row selected before a concurrent
+// absorption from attaching to the group after that absorption ends it.
+func (s *service) validateActiveGroupOpenForUpdate(ctx context.Context, groupID int64) error {
+	_, err := s.lockActiveGroupOpenForUpdate(ctx, groupID)
+	return err
+}
+
+func (s *service) lockActiveGroupOpenForUpdate(ctx context.Context, groupID int64) (*active.Group, error) {
+	group, err := s.GroupRepo.FindByIDForUpdate(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	if group == nil || group.EndTime != nil {
+		return nil, ErrActiveGroupNotFound
+	}
+	return group, nil
+}
+
+// validateStaffExists locks a live staff member and maps missing-row errors.
+func (s *service) validateStaffExists(ctx context.Context, staffID int64) error {
+	found, err := s.StaffRepo.LockStaffExists(ctx, staffID)
+	if base.IsNoRows(err) || (err == nil && !found) {
+		return ErrStaffNotFound
+	}
+	return err
+}
+
+// lockStaffForSupervision serializes operational supervision writes with
+// Membership retirement. A foreign key alone cannot reject a staff tombstone.
+func (s *service) lockStaffForSupervision(ctx context.Context, staffID int64) error {
+	// Supervision may auto-open a work session later in this transaction.
+	// Take its balance lock before the staff row, matching offboarding.
+	if tenant.FromContext(ctx) <= 0 || staffID <= 0 {
+		return ErrStaffNotFound
+	}
+	if err := tenant.AcquireLock(ctx, fmt.Sprintf("staff-balance:%d:%d", tenant.FromContext(ctx), staffID), false); err != nil {
+		return err
+	}
+	return s.validateStaffExists(ctx, staffID)
+}
+
+// extractContextIDs extracts device and staff IDs from context
+func (s *service) extractContextIDs(ctx context.Context) (deviceID, staffID int64) {
+	principal := s.attendancePrincipal(ctx)
+	return principal.DeviceID, principal.StaffID
+}
+
+func (s *service) UpdateVisit(ctx context.Context, visit *studentpresence.Visit) error {
+	var operationErr error
+	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		operationErr = s.updateVisit(txCtx, visit)
+		return operationErr
+	})
+	if err != nil && operationErr == nil {
+		return &ActiveError{Op: "UpdateVisit", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
+	return err
+}
+
+func (s *service) updateVisit(ctx context.Context, visit *studentpresence.Visit) error {
+	if !validPresenceVisit(visit) {
+		return &ActiveError{Op: "UpdateVisit", Err: ErrInvalidData}
+	}
+
+	stored, err := s.SchoolPresence.FindVisit(ctx, visit.ID)
+	if err != nil {
+		if errors.Is(err, studentpresence.ErrVisitNotFound) {
+			return &ActiveError{Op: "UpdateVisit", Err: ErrVisitNotFound}
+		}
+		return &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
+	}
+	if stored == nil {
+		return &ActiveError{Op: "UpdateVisit", Err: ErrVisitNotFound}
+	}
+	existing := stored
+
+	isActiveGroupMove, transferAt, err := s.prepareVisitTransfer(ctx, existing, visit)
+	if err != nil {
+		return err
+	}
+	intervalChanged := visitIntervalChanged(existing, visit)
+
+	if _, err := s.SchoolPresence.ReviseVisit(ctx, *visit); err != nil {
+		return &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
+	}
+
+	if intervalChanged {
+		if err := s.syncAttendanceForVisitRevision(ctx, existing, visit); err != nil {
+			return &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
+		}
+	}
+
+	if isActiveGroupMove {
+		sourceSnapshot, targetSnapshot, err := s.syncMovedVisitAttendance(ctx, existing, visit, transferAt)
+		if err != nil {
+			return &ActiveError{Op: "UpdateVisit", Err: errors.Join(ErrDatabaseOperation, err)}
+		}
+		s.broadcastVisitMoved(ctx, existing, visit, sourceSnapshot, targetSnapshot)
+		s.trackProductEvent(ctx, "room_transfer", nil)
+	} else if intervalChanged {
+		if s.AttendanceSyncer != nil {
+			if err := s.AttendanceSyncer.MirrorVisitRevision(ctx, presenceVisitSnapshot(existing), presenceVisitSnapshot(visit)); err != nil {
+				return &ActiveError{Op: "UpdateVisit", Err: errors.Join(ErrDatabaseOperation, err)}
+			}
+		}
+	}
+
+	return nil
+}
+
+func visitIntervalChanged(previous, updated *studentpresence.Visit) bool {
+	if previous == nil || updated == nil || !previous.EntryTime.Equal(updated.EntryTime) {
+		return true
+	}
+	if previous.ExitTime == nil || updated.ExitTime == nil {
+		return previous.ExitTime != updated.ExitTime
+	}
+	return !previous.ExitTime.Equal(*updated.ExitTime)
+}
+
+func (s *service) prepareVisitTransfer(
+	ctx context.Context,
+	existing, updated *studentpresence.Visit,
+) (bool, time.Time, error) {
+	isReopening := existing.ExitTime != nil && updated.ExitTime == nil
+	isGroupMove := existing.ExitTime == nil && existing.ActiveGroupID != updated.ActiveGroupID
+	if !isReopening && !isGroupMove {
+		return false, time.Time{}, nil
+	}
+
+	targetGroup, err := s.GroupRepo.FindByIDForUpdate(ctx, updated.ActiveGroupID)
+	if err != nil {
+		if base.IsNoRows(err) {
+			return false, time.Time{}, &ActiveError{Op: "UpdateVisit", Err: ErrActiveGroupNotFound}
+		}
+		return false, time.Time{}, &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
+	}
+	if targetGroup == nil || !targetGroup.IsActive() {
+		return false, time.Time{}, &ActiveError{Op: "UpdateVisit", Err: ErrActiveGroupNotFound}
+	}
+
+	if isReopening {
+		if err := s.ensureRoomCapacity(ctx, targetGroup.RoomID, 1); err != nil {
+			return false, time.Time{}, err
+		}
+	} else {
+		sourceGroup, err := s.GroupRepo.FindByID(ctx, existing.ActiveGroupID)
+		if err != nil || sourceGroup == nil {
+			return false, time.Time{}, &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
+		}
+		if updated.ExitTime == nil && sourceGroup.RoomID != targetGroup.RoomID {
+			if err := s.ensureRoomCapacity(ctx, targetGroup.RoomID, 1); err != nil {
+				return false, time.Time{}, err
+			}
+		}
+	}
+
+	transferAt := time.Now()
+	if updated.ExitTime != nil {
+		// A combined transfer/checkout has no separate transfer timestamp in the
+		// request. Use checkout as the boundary so target check-in precedes close.
+		transferAt = *updated.ExitTime
+	}
+	return isGroupMove, transferAt, nil
+}
+
+// syncMovedVisitAttendance mirrors a transfer independently of SSE. The
+// pre-update visit identifies the source slot; a transfer-time copy identifies
+// the target slot. This avoids resolving checkout against the already-mutated
+// target group.
+func (s *service) syncMovedVisitAttendance(
+	ctx context.Context,
+	previousVisit, movedVisit *studentpresence.Visit,
+	transferAt time.Time,
+) (sourceSnapshot, targetSnapshot *AttendanceSnapshot, err error) {
+	if s.AttendanceSyncer == nil || previousVisit == nil || movedVisit == nil {
+		return nil, nil, nil
+	}
+
+	source := *previousVisit
+	source.ExitTime = &transferAt
+	sourceSnapshot, err = s.AttendanceSyncer.MirrorCheckOutForVisit(ctx, &source)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	target := *movedVisit
+	target.EntryTime = transferAt
+	target.ExitTime = nil
+	targetSnapshot, err = s.AttendanceSyncer.MirrorCheckInForVisit(ctx, &target)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if movedVisit.ExitTime != nil {
+		target.ExitTime = movedVisit.ExitTime
+		closedSnapshot, err := s.AttendanceSyncer.MirrorCheckOutForVisit(ctx, &target)
+		if err != nil {
+			return nil, nil, err
+		}
+		if closedSnapshot != nil {
+			targetSnapshot = closedSnapshot
+		}
+	}
+	return sourceSnapshot, targetSnapshot, nil
+}
+
+func (s *service) DeleteVisit(ctx context.Context, id int64) error {
+	return s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		return s.deleteVisit(txCtx, id)
+	})
+}
+
+func (s *service) deleteVisit(ctx context.Context, id int64) error {
+	if id <= 0 {
+		return &ActiveError{Op: "DeleteVisit", Err: ErrVisitNotFound}
+	}
+	_, err := s.SchoolPresence.FindVisit(ctx, id)
+	if err != nil {
+		if errors.Is(err, studentpresence.ErrVisitNotFound) {
+			return &ActiveError{Op: "DeleteVisit", Err: ErrVisitNotFound}
+		}
+		return &ActiveError{Op: "DeleteVisit", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
+
+	if err := s.SchoolPresence.DeleteVisit(ctx, id); err != nil {
+		return &ActiveError{Op: "DeleteVisit", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
+
+	return nil
+}
+
+func (s *service) FindVisitsByStudentID(ctx context.Context, studentID int64) ([]studentpresence.Visit, error) {
+	visits, err := s.SchoolPresence.ListVisits(ctx, studentpresence.VisitFilter{StudentIDs: []int64{studentID}, OpenOnly: true})
+	if err != nil {
+		return nil, &ActiveError{Op: "FindVisitsByStudentID", Err: ErrDatabaseOperation}
+	}
+	return visits, nil
+}
+
+func (s *service) EndVisit(ctx context.Context, id int64) error {
+	return s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		return s.endVisit(txCtx, id)
+	})
+}
+
+func (s *service) endVisit(ctx context.Context, id int64) error {
+	// Binary-mode tenants don't keep visit rows, so there's nothing to end.
+	// Callers that hold a stale visit ID from before a mode switch hit this
+	// no-op path instead of a missing-row error.
+	mode, err := s.GetPresenceMode(ctx)
+	if err != nil {
+		return &ActiveError{Op: "EndVisit", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
+	if mode == PresenceModeBinary {
+		return nil
+	}
+
+	endedVisit, snapshot, err := s.endVisitWithAttendanceSync(ctx, id)
+	if err != nil {
+		if activeErr, ok := err.(*ActiveError); ok {
+			return activeErr
+		}
+		return &ActiveError{Op: "EndVisit", Err: ErrDatabaseOperation}
+	}
+
+	s.broadcastVisitCheckout(ctx, endedVisit, snapshot)
+	return nil
+}
+
+// endVisitWithAttendanceSync closes one visit and mirrors its exact persisted
+// checkout timestamp into slot attendance. Session-end and timeout paths use
+// this helper too. The one visit-ending path that bypasses it — the nightly
+// bulk close in EndDailySessions — mirrors its checkouts via the scheduler's
+// session-end bridge (CloseOpenCheckoutsByActiveGroupIDs).
+// A missing bridge returns no snapshot. Sync failures abort the visit close.
+func (s *service) endVisitWithAttendanceSync(
+	ctx context.Context, id int64,
+) (*studentpresence.Visit, *AttendanceSnapshot, error) {
+	endedVisit, err := s.endVisitRecord(ctx, id)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var snapshot *AttendanceSnapshot
+	if s.AttendanceSyncer != nil {
+		snapshot, err = s.AttendanceSyncer.MirrorCheckOutForVisit(ctx, presenceVisitSnapshot(endedVisit))
+		if err != nil {
+			return nil, nil, &ActiveError{Op: "EndVisit", Err: errors.Join(ErrDatabaseOperation, err)}
+		}
+	}
+	s.wakeGuardiansAfterCommit(ctx, endedVisit.StudentID)
+	return endedVisit, snapshot, nil
+}
+
+// endVisitRecord ends the visit record and returns the updated visit
+func (s *service) endVisitRecord(ctx context.Context, id int64) (*studentpresence.Visit, error) {
+	visit, err := s.SchoolPresence.FindVisit(ctx, id)
+	if err != nil {
+		if errors.Is(err, studentpresence.ErrVisitNotFound) {
+			return nil, &ActiveError{Op: "EndVisit", Err: ErrVisitNotFound}
+		}
+		return nil, &ActiveError{Op: "EndVisit", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
+	if visit == nil {
+		return nil, &ActiveError{Op: "EndVisit", Err: ErrVisitNotFound}
+	}
+	if visit.ExitTime != nil {
+		return nil, &ActiveError{Op: "EndVisit", Err: ErrVisitAlreadyEnded}
+	}
+	closed, err := s.SchoolPresence.CloseVisits(ctx, []int64{id}, time.Now())
+	if err != nil {
+		return nil, &ActiveError{Op: "EndVisit", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
+	if len(closed) == 0 {
+		return nil, &ActiveError{Op: "EndVisit", Err: ErrVisitAlreadyEnded}
+	}
+	return &closed[0], nil
+}
+
+// broadcastVisitCheckout broadcasts SSE event for visit checkout.
+// snapshot (WP-B10) may be nil — when present, it enriches the event
+// with attendance_status/substatus/note so the frontend can display
+// the current attendance state alongside the checkout line.
+func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *studentpresence.Visit, snapshot *AttendanceSnapshot) {
+	if s.Broadcaster == nil || endedVisit == nil {
+		return
+	}
+
+	educationGroupID := s.getEducationGroupForSSE(ctx, endedVisit.StudentID)
+	broadcastCtx := tenant.ContextWithoutTransaction(ctx)
+	tenant.RegisterAfterCommit(ctx, func() {
+		s.emitVisitCheckout(broadcastCtx, endedVisit, snapshot, educationGroupID, "")
+	})
+}
+
+// emitVisitCheckout is broadcastVisitCheckout with the student routing data
+// already resolved. Split out so the attendance checkout paths can read the
+// student inside their request transaction and defer only the emission to a
+// tenant.RegisterAfterCommit hook (#2113): by the time hooks run, the tx stored
+// in ctx is closed, so a repository call from inside the hook would fail — and
+// running it outside the tenant tx would be blocked by RLS.
+func (s *service) emitVisitCheckout(
+	ctx context.Context,
+	endedVisit *studentpresence.Visit,
+	snapshot *AttendanceSnapshot,
+	educationGroupID *int64,
+	source string,
+) {
+	if s.Broadcaster == nil || endedVisit == nil {
+		return
+	}
+
+	activeGroupID := fmt.Sprintf("%d", endedVisit.ActiveGroupID)
+	eduGroupIDs := eduGroupIDsOf(educationGroupID)
+
+	realtimeevents.PublishVisitCheckOut(ctx, s.Broadcaster, s.getLogger(), realtimeevents.VisitChange{
+		ActiveGroupID:    activeGroupID,
+		StudentID:        fmt.Sprintf("%d", endedVisit.StudentID),
+		EducationGroupID: educationGroupID,
+		Source:           source,
+		Attendance:       attendanceDetail(snapshot),
+	})
+
+	// Notify every client of the tenant so dashboard counts refresh, scoped to
+	// the affected educational group when known (#2057).
+	s.broadcastSupervisionRefresh(ctx, activeGroupID, activeSupervisionReasonStudentMoved, eduGroupIDs)
+}
+
+// broadcastVisitMoved publishes a checkout from the source active group and a
+// checkin into the target active group. Attendance mutation happens before this
+// helper so synchronization does not depend on a broadcaster being configured.
+func (s *service) broadcastVisitMoved(
+	ctx context.Context,
+	previousVisit, movedVisit *studentpresence.Visit,
+	sourceSnapshot, targetSnapshot *AttendanceSnapshot,
+) {
+	if previousVisit == nil || movedVisit == nil {
+		return
+	}
+
+	// Moving a visit used to delegate to broadcastVisitCreated, which also
+	// wakes guardians. Keep that side effect while reusing the resolved student.
+	s.wakeGuardiansAfterCommit(ctx, movedVisit.StudentID)
+	if s.Broadcaster == nil {
+		return
+	}
+	educationGroupID := s.getEducationGroupForSSE(ctx, movedVisit.StudentID)
+	s.emitVisitCheckout(ctx, previousVisit, sourceSnapshot, educationGroupID, "")
+	s.emitVisitCreated(ctx, movedVisit, targetSnapshot, educationGroupID)
+}
+
+// broadcastStudentCheckoutEvents sends a batched checkout SSE notification when
+// a whole session ends. All visits in the batch share one active_group_id (the
+// session). Instead of one student_checkout per student — which produced 2N+
+// events on a single client channel and overflowed its 10-slot buffer
+// (issue #848) — this emits one bulk_student_checkout per affected topic:
+// one to the active-group topic carrying every student, and one per distinct
+// educational group carrying that group's students. SSE events are triggers,
+// not payloads (the client refetches via bulk endpoints), so the per-student
+// attendance snapshot is not carried in this bulk event; only the student IDs
+// drive the client's per-student detail-cache invalidation. Slot-attendance
+// checkout persistence still runs before this helper for every ended visit.
+func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDStr string, visitsToNotify []visitSSEData) {
+	if len(visitsToNotify) == 0 {
+		return
+	}
+
+	// Collect every student ID for the active-group topic, and bucket them by
+	// educational group for the per-edu-group topics.
+	allStudentIDs := make([]string, 0, len(visitsToNotify))
+	eduGroups := make(map[int64][]string)
+	for _, visitData := range visitsToNotify {
+		idStr := strconv.FormatInt(visitData.StudentID, 10)
+		allStudentIDs = append(allStudentIDs, idStr)
+		if visitData.EducationGroupID != nil {
+			gid := *visitData.EducationGroupID
+			eduGroups[gid] = append(eduGroups[gid], idStr)
+		}
+	}
+
+	// Every affected educational group id, for scoped client-side invalidation
+	// (#2057). Students without an OGS group contribute no id; they appear in
+	// no ogs-students-{gid} list, so the scope stays correct.
+	allEduGroupIDs := make([]string, 0, len(eduGroups))
+	for gid := range eduGroups {
+		allEduGroupIDs = append(allEduGroupIDs, strconv.FormatInt(gid, 10))
+	}
+
+	// One event to the active-group topic carrying every checked-out student
+	// and every affected educational group.
+	realtimeevents.PublishBulkStudentChange(ctx, s.Broadcaster, s.getLogger(), false, sessionIDStr, allStudentIDs, allEduGroupIDs)
+
+	// One event per distinct educational group, carrying only that group's
+	// students so each subscribed client invalidates the right detail caches.
+	for gid, ids := range eduGroups {
+		realtimeevents.PublishBulkStudentChangeToEducationGroup(ctx, s.Broadcaster, s.getLogger(), false, sessionIDStr, gid, ids)
+	}
+
+	// Single tenant-wide broadcast for the entire batch, scoped to the
+	// affected educational groups (#2057).
+	s.broadcastSupervisionRefresh(ctx, sessionIDStr, activeSupervisionReasonStudentMoved, allEduGroupIDs)
+}
+
+// broadcastActivityEndEvent sends the activity_end SSE event for a completed
+// session. It performs no database access: data was resolved inside the
+// ending transaction, because this runs from an after-commit hook where no
+// tenant role is set (#2951).
+func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionIDStr string, data activityEndSSEData) {
+	realtimeevents.PublishActivityEnd(ctx, s.Broadcaster, s.getLogger(), realtimeevents.ActivitySession{
+		ActiveGroupID: sessionIDStr,
+		ActivityName:  data.ActivityName,
+		RoomID:        fmt.Sprintf("%d", data.RoomID),
+		RoomName:      data.RoomName,
+	})
+
+	// Notify every client of the tenant (including zero-topic) so dashboards
+	// refresh. No group scope: a session end affects room occupancy across
+	// groups, so clients fall back to a broad refresh (#2057).
+	s.broadcastSupervisionRefresh(ctx, sessionIDStr, activeSupervisionReasonActivityEnded, nil)
+}
+
+func (s *service) findActivityName(ctx context.Context, groupID *int64) (string, error) {
+	if groupID == nil {
+		return "", nil
+	}
+	activity, err := s.ActivityGroupRepo.FindByID(ctx, *groupID)
+	if err != nil {
+		return "", err
+	}
+	if activity == nil {
+		return "", nil
+	}
+	return activity.Name, nil
+}
+
+func (s *service) findRoomName(ctx context.Context, roomID int64) (string, error) {
+	room, err := s.RoomRepo.FindByID(ctx, roomID)
+	if err != nil {
+		return "", err
+	}
+	if room == nil {
+		return "", nil
+	}
+	return room.Name, nil
+}
+
+// getActivityName retrieves an activity name for an SSE event. A nil groupID
+// marks a spontaneous session (WP-B6), which has no template to look up.
+func (s *service) getActivityName(ctx context.Context, groupID *int64) string {
+	name, err := s.findActivityName(ctx, groupID)
+	if err != nil {
+		s.getLogger().Warn("SSE activity name lookup failed",
+			slog.Int64("activity_group_id", *groupID),
+			slog.String("error", err.Error()),
+		)
+	}
+	return name
+}
+
+// getRoomName retrieves a room name for an SSE event.
+func (s *service) getRoomName(ctx context.Context, roomID int64) string {
+	name, err := s.findRoomName(ctx, roomID)
+	if err != nil {
+		s.getLogger().Warn("SSE room name lookup failed",
+			slog.Int64("room_id", roomID),
+			slog.String("error", err.Error()),
+		)
+	}
+	return name
+}
+
+// getActivityEndActivityName keeps an optional lookup from aborting the
+// session-ending transaction. PostgreSQL marks a transaction failed after a
+// query error, so the lookup has to use a savepoint before it can be ignored.
+func (s *service) getActivityEndActivityName(ctx context.Context, groupID *int64) (string, error) {
+	if groupID == nil {
+		return "", nil
+	}
+	return s.getActivityEndName(ctx, func(ctx context.Context) (string, error) {
+		return s.findActivityName(ctx, groupID)
+	}, "SSE activity name lookup failed", slog.Int64("activity_group_id", *groupID))
+}
+
+func (s *service) getActivityEndRoomName(ctx context.Context, roomID int64) (string, error) {
+	return s.getActivityEndName(ctx, func(ctx context.Context) (string, error) {
+		return s.findRoomName(ctx, roomID)
+	}, "SSE room name lookup failed", slog.Int64("room_id", roomID))
+}
+
+func (s *service) getActivityEndName(
+	ctx context.Context,
+	lookup func(context.Context) (string, error),
+	message string,
+	attrs slog.Attr,
+) (string, error) {
+	var name string
+	lookupFn := func(lookupCtx context.Context) error {
+		var err error
+		name, err = lookup(lookupCtx)
+		return err
+	}
+
+	if _, inTx := tenant.TransactionFromContext(ctx); inTx {
+		if err := tenant.WithSavepoint(ctx, lookupFn); err != nil {
+			if errors.Is(err, tenant.ErrSavepointControl) {
+				return "", err
+			}
+			s.getLogger().LogAttrs(ctx, slog.LevelWarn, message,
+				attrs,
+				slog.String("error", err.Error()),
+			)
+			return "", nil
+		}
+		return name, nil
+	}
+
+	if err := lookupFn(ctx); err != nil {
+		s.getLogger().LogAttrs(ctx, slog.LevelWarn, message,
+			attrs,
+			slog.String("error", err.Error()),
+		)
+		return "", nil
+	}
+	return name, nil
+}
+
+func (s *service) GetStudentCurrentVisit(ctx context.Context, studentID int64) (*studentpresence.Visit, error) {
+	visits, err := s.SchoolPresence.ListVisits(ctx, studentpresence.VisitFilter{
+		StudentIDs: []int64{studentID}, OpenOnly: true, NewestFirst: true, Limit: 1,
+	})
+	if err != nil {
+		return nil, &ActiveError{Op: "GetStudentCurrentVisit", Err: ErrDatabaseOperation}
+	}
+	if len(visits) == 0 {
+		return nil, &ActiveError{Op: "GetStudentCurrentVisit", Err: ErrVisitNotFound}
+	}
+	return &visits[0], nil
+}
+
+func (s *service) GetStudentCurrentVisitWithRoom(ctx context.Context, studentID int64) (*VisitWithRoom, error) {
+	locations, err := s.SchoolPresence.ListVisitLocations(ctx, studentpresence.VisitLocationFilter{VisitFilter: studentpresence.VisitFilter{
+		StudentIDs: []int64{studentID}, OpenOnly: true, NewestFirst: true, Limit: 1,
+	}})
+	if err != nil {
+		return nil, &ActiveError{Op: "GetStudentCurrentVisitWithRoom", Err: ErrDatabaseOperation}
+	}
+	if len(locations) == 0 {
+		return nil, &ActiveError{Op: "GetStudentCurrentVisitWithRoom", Err: ErrVisitNotFound}
+	}
+	visit := &VisitWithRoom{Visit: locations[0].Visit}
+	group := locations[0].Group
+	if group == nil {
+		return visit, nil
+	}
+	visit.ActiveGroup = &VisitRoomGroup{
+		ID: group.ID, CreatedAt: group.CreatedAt, UpdatedAt: group.UpdatedAt,
+		RoomID: group.RoomID, StartTime: group.StartTime, EndTime: group.EndTime,
+		LastActivity: group.LastActivity, GroupID: group.TemplateID, DeviceID: group.DeviceID, TimeoutMinutes: group.TimeoutMinutes,
+	}
+	rooms, err := s.RoomRepo.FindByIDs(ctx, []int64{group.RoomID})
+	if err != nil {
+		return nil, &ActiveError{Op: "GetStudentCurrentVisitWithRoom", Err: ErrDatabaseOperation}
+	}
+	for _, room := range rooms {
+		if room.ID == group.RoomID {
+			visit.ActiveGroup.Room = &VisitRoom{ID: room.ID, CreatedAt: room.CreatedAt, UpdatedAt: room.UpdatedAt, Name: room.Name}
+			break
+		}
+	}
+	return visit, nil
+}
+
+func (s *service) GetStudentsCurrentVisits(ctx context.Context, studentIDs []int64) (map[int64]*studentpresence.Visit, error) {
+	visits, err := s.currentPresenceVisits(ctx, studentIDs, false)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetStudentsCurrentVisits", Err: ErrDatabaseOperation}
+	}
+	return visits, nil
+}
+
+func (s *service) CountActiveVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) (int, error) {
+	count, err := s.SchoolPresence.CountOpenVisitsInGroup(ctx, activeGroupID)
+	if err != nil {
+		return 0, &ActiveError{Op: "CountActiveVisitsByActiveGroupID", Err: ErrDatabaseOperation}
+	}
+	return count, nil
+}
+
+// ListStudentsPresentInRoom returns the IDs of students currently checked-in
+// to any active group in the given room. The student list handler feeds
+// these IDs through the standard ListWithOptions pipeline, which applies
+// GDPR redaction and pagination.
+func (s *service) ListStudentsPresentInRoom(ctx context.Context, roomID int64) ([]int64, error) {
+	if roomID <= 0 {
+		return []int64{}, nil
+	}
+	rows, err := s.SchoolPresence.ListOpenVisitRooms(ctx, roomID)
+	if err != nil {
+		return nil, &ActiveError{Op: "ListStudentsPresentInRoom", Err: fmt.Errorf("list active student IDs: %w", err)}
+	}
+	ids := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.StudentID)
+	}
+	return ids, nil
+}
+
+// ListOpenVisitStudentIDsByRoom returns the current tenant's room presence in
+// one read for consumers rendering several rooms at once.
+func (s *service) ListOpenVisitStudentIDsByRoom(ctx context.Context) (map[int64][]int64, error) {
+	rows, err := s.SchoolPresence.ListOpenVisitRooms(ctx, 0)
+	if err != nil {
+		return nil, &ActiveError{Op: "ListOpenVisitStudentIDsByRoom", Err: fmt.Errorf("list open visits by room: %w", err)}
+	}
+	rooms := make(map[int64][]int64)
+	for _, row := range rows {
+		rooms[row.RoomID] = append(rooms[row.RoomID], row.StudentID)
+	}
+	return rooms, nil
+}
+
+// Group Supervisor operations
+func (s *service) CreateGroupSupervisor(ctx context.Context, supervisor *active.GroupSupervisor) error {
+	if supervisor == nil || supervisor.Validate() != nil {
+		return &ActiveError{Op: "CreateGroupSupervisor", Err: ErrInvalidData}
+	}
+	return s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		return s.createGroupSupervisor(txCtx, supervisor)
+	})
+}
+
+func (s *service) createGroupSupervisor(ctx context.Context, supervisor *active.GroupSupervisor) error {
+	if err := s.lockStaffForSupervision(ctx, supervisor.StaffID); err != nil {
+		return &ActiveError{Op: "CreateGroupSupervisor", Err: err}
+	}
+
+	// Lock the group and reject ended sessions before INSERT. The same
+	// active.groups row lock serializes this write with session absorption
+	// (absorbUnsupervisedOpenGroups) and ClaimActiveGroup, so a supervisor
+	// cannot attach to a group that a concurrent absorption is ending.
+	if err := s.validateActiveGroupOpenForUpdate(ctx, supervisor.GroupID); err != nil {
+		return &ActiveError{Op: "CreateGroupSupervisor", Err: err}
+	}
+
+	// Check if staff is already supervising this group (only check active supervisors)
+	supervisors, err := s.SupervisorRepo.FindByActiveGroupID(ctx, supervisor.GroupID, true)
+	if err != nil {
+		return &ActiveError{Op: "CreateGroupSupervisor", Err: ErrDatabaseOperation}
+	}
+
+	for _, s := range supervisors {
+		if s.StaffID == supervisor.StaffID {
+			return &ActiveError{Op: "CreateGroupSupervisor", Err: ErrStaffAlreadySupervising}
+		}
+	}
+
+	supervisor.SetTenantID(tenant.FromContext(ctx))
+	if s.SupervisorRepo.Create(ctx, supervisor) != nil {
+		return &ActiveError{Op: "CreateGroupSupervisor", Err: ErrDatabaseOperation}
+	}
+
+	// Taking over a supervision that starts today means the staff member is
+	// working right now — auto-open their work session so they show as
+	// "Anwesend" (issue #1439). Kiosk-driven session starts already do this
+	// in assignMultipleSupervisorsNonCritical; this covers the web app path.
+	if supervisor.StartDate == s.todayDate() {
+		source := stampSourceApp
+		if s.attendancePrincipal(ctx).IsIoT {
+			source = stampSourceNFC
+		}
+		s.ensureStaffPresence(ctx, supervisor.StaffID, source)
+	}
+
+	return nil
+}
+
+func (s *service) UpdateGroupSupervisor(ctx context.Context, supervisor *active.GroupSupervisor) error {
+	if supervisor == nil || supervisor.Validate() != nil {
+		return &ActiveError{Op: "UpdateGroupSupervisor", Err: ErrInvalidData}
+	}
+	original, err := s.SupervisorRepo.FindByID(ctx, supervisor.ID)
+	if err != nil || original == nil {
+		return &ActiveError{Op: "UpdateGroupSupervisor", Err: ErrGroupSupervisorNotFound}
+	}
+	return s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		if supervisor.EndDate == nil || supervisor.EndDate.After(s.todayDate()) {
+			if err := s.lockStaffForSupervision(txCtx, supervisor.StaffID); err != nil {
+				return &ActiveError{Op: "UpdateGroupSupervisor", Err: err}
+			}
+		}
+		if err := s.lockGroupRows(txCtx, original.GroupID, supervisor.GroupID); err != nil {
+			return &ActiveError{Op: "UpdateGroupSupervisor", Err: ErrDatabaseOperation}
+		}
+		current, err := s.SupervisorRepo.FindByID(txCtx, supervisor.ID)
+		if err != nil || current == nil || current.GroupID != original.GroupID {
+			return &ActiveError{Op: "UpdateGroupSupervisor", Err: ErrGroupSupervisorNotFound}
+		}
+		if err := s.SupervisorRepo.Update(txCtx, supervisor); err != nil {
+			return &ActiveError{Op: "UpdateGroupSupervisor", Err: ErrDatabaseOperation}
+		}
+		return nil
+	})
+}
+
+func (s *service) DeleteGroupSupervisor(ctx context.Context, id int64) error {
+	supervision, err := s.SupervisorRepo.FindByID(ctx, id)
+	if err != nil || supervision == nil {
+		return &ActiveError{Op: "DeleteGroupSupervisor", Err: ErrGroupSupervisorNotFound}
+	}
+	return s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		if err := s.lockGroupRows(txCtx, supervision.GroupID); err != nil {
+			return &ActiveError{Op: "DeleteGroupSupervisor", Err: ErrDatabaseOperation}
+		}
+		current, err := s.SupervisorRepo.FindByID(txCtx, id)
+		if err != nil || current == nil || current.GroupID != supervision.GroupID {
+			return &ActiveError{Op: "DeleteGroupSupervisor", Err: ErrGroupSupervisorNotFound}
+		}
+		if err := s.SupervisorRepo.Delete(txCtx, id); err != nil {
+			return &ActiveError{Op: "DeleteGroupSupervisor", Err: ErrDatabaseOperation}
+		}
+		return nil
+	})
+}
+
+func (s *service) EndSupervision(ctx context.Context, id int64) error {
+	supervision, err := s.SupervisorRepo.FindByID(ctx, id)
+	if err != nil {
+		if base.IsNoRows(err) {
+			return &ActiveError{Op: "EndSupervision", Err: ErrGroupSupervisorNotFound}
+		}
+		return &ActiveError{Op: "EndSupervision", Err: fmt.Errorf("failed to verify supervision: %w", err)}
+	}
+	if supervision == nil {
+		return &ActiveError{Op: "EndSupervision", Err: ErrGroupSupervisorNotFound}
+	}
+	return s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		group, err := s.GroupRepo.FindByIDForUpdate(txCtx, supervision.GroupID)
+		if err != nil {
+			return &ActiveError{Op: "EndSupervision", Err: fmt.Errorf("lock active group: %w", err)}
+		}
+		if group == nil {
+			return &ActiveError{Op: "EndSupervision", Err: ErrActiveGroupNotFound}
+		}
+		current, err := s.SupervisorRepo.FindByID(txCtx, id)
+		if err != nil {
+			return &ActiveError{Op: "EndSupervision", Err: fmt.Errorf("recheck supervision: %w", err)}
+		}
+		if current == nil || current.GroupID != supervision.GroupID {
+			return &ActiveError{Op: "EndSupervision", Err: ErrGroupSupervisorNotFound}
+		}
+		if err := s.SupervisorRepo.EndSupervision(txCtx, id); err != nil {
+			return &ActiveError{Op: "EndSupervision", Err: fmt.Errorf("end supervision failed: %w", err)}
+		}
+		return nil
+	})
+}
+
+// GetCrossTenantStudents returns students visiting from other tenants.
+func (s *service) GetCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]active.CrossTenantStudent, error) {
+	if s.CrossTenantRepo == nil {
+		return []active.CrossTenantStudent{}, nil
+	}
+
+	students, err := s.CrossTenantRepo.FindCrossTenantStudents(ctx, hostingTenantID)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetCrossTenantStudents", Err: fmt.Errorf("query failed: %w", err)}
+	}
+	if len(students) > 0 {
+		if s.Schools == nil {
+			return nil, &ActiveError{Op: "GetCrossTenantStudents", Err: errors.New("school query is required")}
+		}
+		ids := make([]int64, 0, len(students))
+		seen := make(map[int64]struct{}, len(students))
+		for _, student := range students {
+			if _, found := seen[student.HomeTenantID]; !found {
+				seen[student.HomeTenantID] = struct{}{}
+				ids = append(ids, student.HomeTenantID)
+			}
+		}
+		schools, schoolErr := s.Schools.ListSchoolsByID(ctx, ids)
+		if schoolErr != nil {
+			return nil, &ActiveError{Op: "GetCrossTenantStudents", Err: fmt.Errorf("load home schools: %w", schoolErr)}
+		}
+		slugs := make(map[int64]string, len(schools))
+		for _, school := range schools {
+			slugs[school.ID] = school.Slug
+		}
+		for index := range students {
+			slug, found := slugs[students[index].HomeTenantID]
+			if !found {
+				return nil, &ActiveError{Op: "GetCrossTenantStudents", Err: fmt.Errorf("home school %d not found", students[index].HomeTenantID)}
+			}
+			students[index].HomeTenant = slug
+		}
+	}
+
+	s.getLogger().Info("cross-tenant students queried",
+		slog.Int64("hosting_tenant_id", hostingTenantID),
+		slog.Int("count", len(students)),
+	)
+
+	return students, nil
+}
+
+// GetTrackingIndicators returns per-student match results for the given labels.
+// For each student, it checks today's visits and matches activity group name + room name
+// against each label using case-insensitive substring matching.
+func (s *service) GetTrackingIndicators(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error) {
+	result := make(map[int64][]bool, len(studentIDs))
+	if len(studentIDs) == 0 || len(labels) == 0 {
+		return result, nil
+	}
+
+	visitNames, err := s.todayVisitNames(ctx, studentIDs)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetTrackingIndicators", Err: ErrDatabaseOperation}
+	}
+
+	// Build a map of student ID → concatenated visit texts for matching.
+	studentVisitTexts := make(map[int64][]string, len(studentIDs))
+	for _, vn := range visitNames {
+		text := strings.ToLower(strings.TrimSpace(vn.ActivityGroupName + " " + vn.RoomName))
+		studentVisitTexts[vn.StudentID] = append(studentVisitTexts[vn.StudentID], text)
+	}
+
+	// Lowercase the labels once.
+	lowerLabels := make([]string, len(labels))
+	for i, l := range labels {
+		lowerLabels[i] = strings.ToLower(strings.TrimSpace(l))
+	}
+
+	// For each student, check each label against their visit texts.
+	for _, sid := range studentIDs {
+		matches := make([]bool, len(labels))
+		texts := studentVisitTexts[sid]
+		for li, ll := range lowerLabels {
+			for _, t := range texts {
+				if strings.Contains(t, ll) {
+					matches[li] = true
+					break
+				}
+			}
+		}
+		result[sid] = matches
+	}
+
+	return result, nil
+}
+
+// visitSSEData holds data needed for SSE broadcasts after a visit is ended
+type visitSSEData struct {
+	StudentID        int64
+	EducationGroupID *int64
+}
+
+// HasOpenAttendanceOn reports whether any attendance row on the given
+// calendar date is still open (check_out_time IS NULL).
+func (s *service) HasOpenAttendanceOn(ctx context.Context, date timezone.Date) (bool, error) {
+	return s.SchoolPresence.HasAttendance(ctx, studentpresence.AttendanceFilter{FromDate: date.String(), UntilDate: date.String(), OpenOnly: true})
+}
+
+// GetRoomsByIDs retrieves rooms by ID.
+func (s *service) GetRoomsByIDs(ctx context.Context, ids []int64) ([]*active.SessionRoom, error) {
+	return s.RoomRepo.FindByIDs(ctx, ids)
+}

@@ -18,7 +18,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -1069,7 +1068,7 @@ func TestTimetableOperationsCheckInMovesVisitCreatedDuringCheckIn(t *testing.T) 
 		nil,
 		{StudentID: studentID, ActiveGroupID: originActiveGroupID, EntryTime: time.Now()},
 	}
-	deps.activeService.createErr = activeSvc.ErrStudentAlreadyActive
+	deps.activeService.createErr = studentpresence.ErrStudentAlreadyActive
 
 	roster, err := deps.service.CheckInStudent(context.Background(), 661, false, instanceID, studentID)
 
@@ -1100,7 +1099,7 @@ func TestTimetableOperationsCheckInMovesStudentActiveElsewhere(t *testing.T) {
 		wireAssignedStaff(deps, 670, 490, 251, instanceID)
 		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
 		deps.visitRepo.currentByStudent[studentID] = &studentpresence.Visit{StudentID: studentID, ActiveGroupID: originActiveGroupID, EntryTime: time.Now()}
-		deps.activeService.moveResult = &activeSvc.StudentMoveResult{
+		deps.activeService.moveResult = &studentpresence.StudentMoveResult{
 			Moved:                  []int64{studentID},
 			PreviousActiveGroupIDs: map[int64]int64{studentID: originActiveGroupID},
 			ActiveGroupID:          &activeGroupID,
@@ -1188,8 +1187,8 @@ func TestTimetableOperationsCheckInMovesStudentActiveElsewhere(t *testing.T) {
 
 	t.Run("maps a skipped move to a conflict", func(t *testing.T) {
 		deps := newDeps()
-		deps.activeService.moveResult = &activeSvc.StudentMoveResult{
-			Skipped: []activeSvc.StudentMoveSkipped{{StudentID: studentID, Reason: activeSvc.StudentMoveSkipConflict}},
+		deps.activeService.moveResult = &studentpresence.StudentMoveResult{
+			Skipped: []studentpresence.StudentMoveSkipped{{StudentID: studentID, Reason: studentpresence.StudentMoveSkipConflict}},
 		}
 		ctx := tenant.WithRollbackMarker(context.Background())
 
@@ -1202,7 +1201,7 @@ func TestTimetableOperationsCheckInMovesStudentActiveElsewhere(t *testing.T) {
 
 	t.Run("treats an unchanged result as same-group success without move notice", func(t *testing.T) {
 		deps := newDeps()
-		deps.activeService.moveResult = &activeSvc.StudentMoveResult{Unchanged: []int64{studentID}}
+		deps.activeService.moveResult = &studentpresence.StudentMoveResult{Unchanged: []int64{studentID}}
 
 		roster, err := deps.service.CheckInStudent(context.Background(), 670, false, instanceID, studentID)
 
@@ -1244,7 +1243,7 @@ func TestTimetableOperationsCheckOutAlreadyEndedReturnsRoster(t *testing.T) {
 	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
 	deps.visitRepo.byActiveGroup[activeGroupID] = []*studentpresence.Visit{{StudentID: studentID, ActiveGroupID: activeGroupID, EntryTime: time.Now()}}
 	deps.visitRepo.byActiveGroup[activeGroupID][0].ID = visitID
-	deps.activeService.endErr = activeSvc.ErrVisitAlreadyEnded
+	deps.activeService.endErr = studentpresence.ErrVisitAlreadyEnded
 
 	roster, err := deps.service.CheckOutStudent(context.Background(), 682, false, instanceID, studentID)
 
@@ -2319,17 +2318,17 @@ type fakeOpsActiveService struct {
 	createErr  error
 	endErr     error
 	moveCalls  []opsMoveCall
-	moveResult *activeSvc.StudentMoveResult
+	moveResult *studentpresence.StudentMoveResult
 	moveErr    error
 }
 
 type opsMoveCall struct {
 	studentIDs    []int64
 	activeGroupID int64
-	auth          activeSvc.StudentMoveAuthorization
+	auth          studentpresence.StudentMoveAuthorization
 }
 
-func (s *fakeOpsActiveService) MoveStudentsToActiveGroupAuthorized(_ context.Context, studentIDs []int64, activeGroupID int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
+func (s *fakeOpsActiveService) MoveStudentsToActiveGroupAuthorized(_ context.Context, studentIDs []int64, activeGroupID int64, auth studentpresence.StudentMoveAuthorization) (*studentpresence.StudentMoveResult, error) {
 	s.moveCalls = append(s.moveCalls, opsMoveCall{studentIDs: studentIDs, activeGroupID: activeGroupID, auth: auth})
 	if s.moveErr != nil {
 		return nil, s.moveErr
@@ -2337,7 +2336,7 @@ func (s *fakeOpsActiveService) MoveStudentsToActiveGroupAuthorized(_ context.Con
 	if s.moveResult != nil {
 		return s.moveResult, nil
 	}
-	return &activeSvc.StudentMoveResult{Moved: studentIDs, ActiveGroupID: &activeGroupID}, nil
+	return &studentpresence.StudentMoveResult{Moved: studentIDs, ActiveGroupID: &activeGroupID}, nil
 }
 
 func (s *fakeOpsActiveService) CreateVisit(_ context.Context, visit *studentpresence.Visit) error {

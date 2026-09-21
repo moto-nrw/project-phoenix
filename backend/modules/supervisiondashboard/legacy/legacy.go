@@ -23,8 +23,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
@@ -45,15 +44,15 @@ type CallerContext interface {
 	CurrentStaffID(context.Context) (*int64, error)
 	FullStudentAccess(context.Context) (bool, error)
 	HasCurrentStaff(context.Context) (bool, error)
-	GetMySupervisedGroups(context.Context) ([]*activeModels.Group, error)
+	GetMySupervisedGroups(context.Context) ([]*studentpresence.SessionDetail, error)
 	MyGroups(context.Context) ([]CallerGroup, error)
 }
 
 // Sources are the retained owner services the projection's ports adapt.
 type Sources struct {
-	Active       activeService.Service
+	Active       studentpresence.Presence
 	ActiveGroups OpenRoomSessions
-	OpenVisits   activeService.VisitDisplayBatchReader
+	OpenVisits   studentpresence.SessionReads
 	Rooms        supervisiondashboard.RoomDirectory
 	UserContext  CallerContext
 	Education    educationService.Service
@@ -124,7 +123,7 @@ func (a access) Caller(ctx context.Context) (supervisiondashboard.Caller, error)
 }
 
 type sessions struct {
-	active      activeService.Service
+	active      studentpresence.Presence
 	groups      OpenRoomSessions
 	userContext CallerContext
 }
@@ -141,7 +140,7 @@ func (s sessions) Running(ctx context.Context) ([]supervisiondashboard.Session, 
 	if err != nil {
 		return nil, fmt.Errorf("load active group relations: %w", err)
 	}
-	groups := make([]*activeModels.Group, 0, len(ids))
+	groups := make([]*studentpresence.SessionDetail, 0, len(ids))
 	for _, id := range ids {
 		if group := loaded[id]; group != nil {
 			groups = append(groups, group)
@@ -201,7 +200,7 @@ func (s sessions) InRooms(ctx context.Context, roomIDs []int64) ([]supervisionda
 
 // records maps the rows to session records with their rooms resolved and
 // sorts them in German dictionary order of the room name.
-func (s sessions) records(ctx context.Context, groups []*activeModels.Group) ([]supervisiondashboard.Session, error) {
+func (s sessions) records(ctx context.Context, groups []*studentpresence.SessionDetail) ([]supervisiondashboard.Session, error) {
 	rooms, err := s.rooms(ctx, groups)
 	if err != nil {
 		return nil, err
@@ -209,8 +208,8 @@ func (s sessions) records(ctx context.Context, groups []*activeModels.Group) ([]
 	result := make([]supervisiondashboard.Session, 0, len(groups))
 	for _, group := range groups {
 		item := supervisiondashboard.Session{ID: group.ID}
-		if group.ActualGroup != nil {
-			item.Name = group.ActualGroup.Name
+		if group.Activity != nil {
+			item.Name = group.Activity.Name
 		}
 		if group.RoomID > 0 {
 			roomID := group.RoomID
@@ -230,10 +229,10 @@ func (s sessions) records(ctx context.Context, groups []*activeModels.Group) ([]
 
 // rooms bulk-resolves rooms for groups whose relation is not preloaded —
 // this replaces the former per-group GET /api/rooms/{id} N+1.
-func (s sessions) rooms(ctx context.Context, groups []*activeModels.Group) (map[int64]*activeModels.SessionRoom, error) {
+func (s sessions) rooms(ctx context.Context, groups []*studentpresence.SessionDetail) (map[int64]*studentpresence.SessionRoomSummary, error) {
 	missing := make([]int64, 0, len(groups))
 	seen := map[int64]struct{}{}
-	result := map[int64]*activeModels.SessionRoom{}
+	result := map[int64]*studentpresence.SessionRoomSummary{}
 	for _, group := range groups {
 		if group.RoomID <= 0 {
 			continue
@@ -491,8 +490,8 @@ func conflictWarning(warning timetableplanning.InstanceConflictWarning) supervis
 }
 
 type presence struct {
-	active     activeService.Service
-	openVisits activeService.VisitDisplayBatchReader
+	active     studentpresence.Presence
+	openVisits studentpresence.SessionReads
 }
 
 func (p presence) GroupVisits(ctx context.Context, activeGroupID int64) ([]supervisiondashboard.VisitRecord, error) {
@@ -503,7 +502,7 @@ func (p presence) GroupVisits(ctx context.Context, activeGroupID int64) ([]super
 	return visitRecords(rows), nil
 }
 
-func visitRecords(rows []*activeService.VisitWithStudentDisplay) []supervisiondashboard.VisitRecord {
+func visitRecords(rows []*studentpresence.VisitDisplay) []supervisiondashboard.VisitRecord {
 	result := make([]supervisiondashboard.VisitRecord, 0, len(rows))
 	for _, row := range rows {
 		if row == nil {

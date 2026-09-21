@@ -19,7 +19,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	pwaSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/config"
@@ -158,8 +158,8 @@ type SettingsResolver interface {
 
 // Scheduler manages scheduled tasks
 type Scheduler struct {
-	activeService              active.Service
-	cleanupService             active.CleanupService
+	activeService              studentpresence.SessionMaintenance
+	cleanupService             studentpresence.PresenceCleanup
 	authCleanup                AuthCleanup
 	invitationCleanup          InvitationCleaner
 	workSessionCleanup         WorkSessionCleaner
@@ -958,7 +958,7 @@ func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64)
 // tenant transaction created by the scheduler runtime. If this sync fails, callers
 // return the error so the active close rolls back too instead of leaving the
 // planner in a stale "active" state.
-func (s *Scheduler) completeTimetableInstancesForEndedSessions(ctx context.Context, result *active.DailySessionCleanupResult) (int, error) {
+func (s *Scheduler) completeTimetableInstancesForEndedSessions(ctx context.Context, result *studentpresence.DailySessionCleanupResult) (int, error) {
 	if result == nil || len(result.EndedActiveGroupIDs) == 0 {
 		return 0, nil
 	}

@@ -224,8 +224,12 @@ var modulePassthroughBudgets = map[string]int{
 	// School-year transition (9) plus the transition history and service reads.
 	"modules/schoolstructure": 13,
 	// Attendance, visit, supervision, group-mapping and room reads/writes
-	// across 18 files, each one store call inside the operation wrapper.
-	"modules/studentpresence": 64,
+	// across 18 files, each one store call inside the operation wrapper (64).
+	// #3422 slice 4b: moved from legacy/services/active, refactor pending —
+	// the 22 single-call methods of internal/application/presence (status-day
+	// reads, presence mode, session and visit lookups, history slots) came
+	// with the move and fold into the owner's queries in slice 4b.
+	"modules/studentpresence": 86,
 	// The largest block, and the one the previous version could not see at
 	// all: service.go (23), instance_students.go (21), activity_instances.go
 	// (14) and 19 more files, every one of them s.run around a single

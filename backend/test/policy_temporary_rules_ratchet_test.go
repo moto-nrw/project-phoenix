@@ -107,12 +107,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 289
+	policyTempRulesTotal = 252
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 351
+	policyTempRulesCompatTotal = 312
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -137,7 +137,8 @@ var policyTempRulesCompatMarkers = []string{
 // when the family is empty, and never raise one.
 var policyTempRulesFamilies = map[string]int{
 	// #3214, #3218, #3220, #3224 — all closed.
-	"calendar-view": 4,
+	// #3422 removed 2 that went stale with legacy/services/active.
+	"calendar-view": 2,
 
 	// #2736 (OPEN), #3232, #3224.
 	"communication": 4,
@@ -149,23 +150,12 @@ var policyTempRulesFamilies = map[string]int{
 	// had added.
 	"enrollment": 3,
 
-	// #3214, #3224 — closed.
-	"facilities": 1,
-
 	// #3214, #3218, #3220, #3224 — closed; #3427 removed the one #3350 added.
-	"group-live-view": 2,
+	// #3422 removed 1 that went stale with legacy/services/active.
+	"group-live-view": 1,
 
 	// #3364 — closed.
 	"identity-access": 18,
-
-	// #3214, #3224 — closed.
-	"inbound-common": 3,
-
-	// #3214, #3224 — closed.
-	"inbound-groups": 2,
-
-	// #3214 — closed; #3427 removed the one #3350 (PR #3408) added.
-	"inbound-operator": 1,
 
 	// #3229, #3214, #3220 — closed; #2725 (OPEN) for one rule.
 	"inbound-parent": 27,
@@ -175,46 +165,52 @@ var policyTempRulesFamilies = map[string]int{
 
 	// #3214, #3218, #3220, #3224 — closed. #3427 removed the 36 that #3350
 	// (PR #3408) had added with the care-lifecycle adapter.
-	"inbound-students": 6,
+	// #3422 removed 4 that went stale with legacy/services/active.
+	"inbound-students": 2,
 
 	// #3218, #3220, #3214, #3224 — closed. The largest family: 90 rules, every
 	// one of them permitted by an issue that is done.
-	"inbound-timetable": 81,
+	// #3422 removed 5 that went stale with legacy/services/active.
+	"inbound-timetable": 76,
 
 	// #2725 (OPEN) and #3224 (closed) name most rules jointly; #3214 the rest.
 	// The only large family with a live issue behind it.
 
 	// #3214, #3218, #3219, #3220, #3224 — closed; #3427 removed the one #3350
 	// (PR #3408) added.
-	"legacy-composition": 5,
-
-	// #3214 — closed.
-	"open-room-move": 2,
+	// #3422 removed 1 that went stale with legacy/services/active.
+	"legacy-composition": 4,
 
 	// #2736 (OPEN) and #3232 (closed) name most rules jointly; #3214 the rest.
 	"organization-tenancy": 14,
 
 	// #3214, #3218 — closed; #3427 removed the one #3350 (PR #3408) added.
-	"people-directory": 3,
+	// #3422 removed 1 that went stale with legacy/services/active.
+	"people-directory": 2,
 
 	// #3214, #3218, #3220 — closed.
-	"process-device-scan": 2,
+	// #3422 removed 1 that went stale with legacy/services/active.
+	"process-device-scan": 1,
 
 	// #3207, #3214, #3217, #3218, #3219, #3220, #3224, #3229 — all closed.
-	"root-composition": 8,
+	// #3422 removed 2 that went stale with legacy/services/active.
+	"root-composition": 6,
 
 	// #3214, #3218, #3220 — closed.
-	"scheduler-runtime": 6,
+	// #3422 removed 3 that went stale with legacy/services/active.
+	"scheduler-runtime": 3,
 
 	// #3214, #3218 — closed.
 	"school-structure": 2,
 
 	// #2736 (OPEN) and #3232 (closed) name most rules jointly; #3207, #3214 the
 	// rest; #3427 removed the one #3350 (PR #3408) added.
-	"settings-platform": 16,
+	// #3422 removed 1 that went stale with legacy/services/active.
+	"settings-platform": 15,
 
 	// #3214, #3207, #3218, #3224 — closed.
-	"student-presence": 27,
+	// #3422 removed 7 that went stale with legacy/services/active.
+	"student-presence": 20,
 
 	// #3214, #3218, #3229 — closed.
 	"test-support": 4,

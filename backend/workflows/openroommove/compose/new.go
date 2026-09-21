@@ -6,8 +6,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
 	"github.com/moto-nrw/project-phoenix/workflows/openroommove/internal/application"
@@ -16,13 +15,11 @@ import (
 
 type Observation = ports.Observation
 
-// RetainedPresence is the part of the retained Student Presence service the
-// move binds to until the owner exposes these operations publicly: the room
-// session lookup-or-create and the move into it. It is a compatibility
-// binding, not a target dependency.
+// RetainedPresence is the Student Presence move facade the workflow binds to:
+// the room session lookup-or-create and the move into it.
 type RetainedPresence interface {
-	EnsureOpenRoomSession(ctx context.Context, roomID, activityID int64) (*active.Group, error)
-	MoveStudentsToOpenRoomSessionAuthorized(ctx context.Context, studentIDs []int64, roomSessionID int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error)
+	EnsureOpenRoomSession(ctx context.Context, roomID, activityID int64) (*studentpresence.SessionDetail, error)
+	MoveStudentsToOpenRoomSessionAuthorized(ctx context.Context, studentIDs []int64, roomSessionID int64, auth studentpresence.StudentMoveAuthorization) (*studentpresence.StudentMoveResult, error)
 }
 
 // Dependencies are the owner capabilities the workflow coordinates.
@@ -68,7 +65,7 @@ func (r roomSessions) EnsureOpenRoomSession(ctx context.Context, roomID, activit
 type moves struct{ presence RetainedPresence }
 
 func (m moves) MoveIntoRoomSession(ctx context.Context, roomSessionID int64, studentIDs []int64, actor openroommove.Actor) (ports.MoveOutcome, error) {
-	result, err := m.presence.MoveStudentsToOpenRoomSessionAuthorized(ctx, studentIDs, roomSessionID, activeSvc.StudentMoveAuthorization{
+	result, err := m.presence.MoveStudentsToOpenRoomSessionAuthorized(ctx, studentIDs, roomSessionID, studentpresence.StudentMoveAuthorization{
 		StaffID:                      actor.StaffID,
 		BypassResourceChecks:         actor.BypassResourceChecks,
 		SchoolWideAttendanceEligible: actor.SchoolWideAttendanceEligible,

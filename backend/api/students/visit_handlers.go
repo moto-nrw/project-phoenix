@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
@@ -92,7 +92,7 @@ func (rs *Resource) checkGroupRoomAccessAuthorization(r *http.Request, _ int64) 
 }
 
 // buildGroupRoomResponse constructs the response for in-group-room check
-func buildGroupRoomResponse(activeGroup *active.Group, groupRoomID int64, groupRoomName string) map[string]interface{} {
+func buildGroupRoomResponse(activeGroup *studentpresence.SessionDetail, groupRoomID int64, groupRoomName string) map[string]interface{} {
 	inGroupRoom := activeGroup.RoomID == groupRoomID
 	response := map[string]interface{}{
 		"in_group_room":   inGroupRoom,

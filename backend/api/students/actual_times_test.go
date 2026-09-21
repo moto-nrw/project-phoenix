@@ -6,7 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // These tests cover the small pure helpers that thread today's actual
@@ -19,7 +19,7 @@ func TestApplyActualTimesFromAttendance_NilGuards(t *testing.T) {
 
 	t.Run("nil response is a no-op", func(t *testing.T) {
 		// Should not panic.
-		applyActualTimesFromAttendance(nil, &activeService.AttendanceStatus{})
+		applyActualTimesFromAttendance(nil, &studentpresence.DailyAttendanceStatus{})
 	})
 
 	t.Run("nil status leaves response untouched", func(t *testing.T) {
@@ -46,7 +46,7 @@ func TestApplyActualTimesFromAttendance_FormatsBothClocks(t *testing.T) {
 	checkOut := time.Date(2026, 4, 27, 13, 42, 0, 0, time.UTC) // 15:42 Berlin (CEST)
 
 	response := &StudentResponse{}
-	status := &activeService.AttendanceStatus{
+	status := &studentpresence.DailyAttendanceStatus{
 		Status:       "checked_out",
 		CheckInTime:  &checkIn,
 		CheckOutTime: &checkOut,
@@ -68,7 +68,7 @@ func TestApplyActualTimesFromAttendance_CheckedInOnly(t *testing.T) {
 	checkIn := time.Date(2026, 1, 15, 7, 12, 0, 0, timezone.Berlin) // already in Berlin
 
 	response := &StudentResponse{}
-	applyActualTimesFromAttendance(response, &activeService.AttendanceStatus{
+	applyActualTimesFromAttendance(response, &studentpresence.DailyAttendanceStatus{
 		Status:      "checked_in",
 		CheckInTime: &checkIn,
 	})
@@ -93,7 +93,7 @@ func TestApplyActualTimesFromSnapshot_NilGuards(t *testing.T) {
 
 	applyActualTimesFromSnapshot(response, &common.StudentDataSnapshot{
 		LocationSnapshot: &common.StudentLocationSnapshot{
-			Attendances: map[int64]*activeService.AttendanceStatus{},
+			Attendances: map[int64]*studentpresence.DailyAttendanceStatus{},
 		},
 	})
 
@@ -112,7 +112,7 @@ func TestApplyActualTimesFromSnapshot_LooksUpByResponseID(t *testing.T) {
 
 	snapshot := &common.StudentDataSnapshot{
 		LocationSnapshot: &common.StudentLocationSnapshot{
-			Attendances: map[int64]*activeService.AttendanceStatus{
+			Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 				studentID: {
 					Status:       "checked_out",
 					CheckInTime:  &checkIn,
@@ -143,7 +143,7 @@ func TestApplyActualTimesFromSnapshot_StudentMissingFromSnapshot(t *testing.T) {
 
 	snapshot := &common.StudentDataSnapshot{
 		LocationSnapshot: &common.StudentLocationSnapshot{
-			Attendances: map[int64]*activeService.AttendanceStatus{
+			Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 				99: {Status: "checked_in"},
 			},
 		},

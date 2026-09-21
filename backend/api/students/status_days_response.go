@@ -6,7 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 func newStudentStatusDayResponse(entry *absencerecords.StudentStatusDay) StudentStatusDayResponse {
@@ -117,7 +117,7 @@ func applyEffectiveStatusDays(response *StudentResponse, statusRows []*absencere
 		return
 	}
 
-	eff := activeService.ResolveEffectiveStatus(statusRows)
+	eff := studentpresence.ResolveEffectiveStatus(statusRows)
 	if eff.Sick {
 		response.Sick = true
 		response.SickSince = eff.SickSince

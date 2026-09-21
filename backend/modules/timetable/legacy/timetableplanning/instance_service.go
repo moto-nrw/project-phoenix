@@ -42,7 +42,6 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -1225,7 +1224,7 @@ func (s *instanceService) validateReopenOccupancy(ctx context.Context, instance 
 		return &ScheduleError{Op: "reopen instance: check room", Err: err}
 	}
 	if hasConflict {
-		return activeSvc.ErrRoomConflict
+		return studentpresence.ErrRoomConflict
 	}
 	if len(snapshot.VisitIDs) == 0 {
 		return nil

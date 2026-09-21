@@ -6,7 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -133,7 +133,7 @@ func TestResolveDayPlanningForDateNonToday(t *testing.T) {
 	t.Parallel()
 
 	checkInTime := time.Date(2026, time.June, 1, 8, 0, 0, 0, time.UTC)
-	attendance := &activeService.AttendanceStatus{Status: "checked_in", CheckInTime: &checkInTime}
+	attendance := &studentpresence.DailyAttendanceStatus{Status: "checked_in", CheckInTime: &checkInTime}
 	arrivalTime := time.Date(2026, time.June, 2, 8, 0, 0, 0, time.UTC)
 
 	t.Run("current_attendance_is_not_a_plan_for_another_day", func(t *testing.T) {

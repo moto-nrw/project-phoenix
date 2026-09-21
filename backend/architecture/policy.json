@@ -633,6 +633,13 @@
       "external_test_role": "workflow-integration-test"
     },
     {
+      "path": "modules/studentpresence/compose/presenceservice",
+      "owner": "student-presence",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
       "path": "modules/studentpresence/inbound/presence",
       "owner": "student-presence",
       "role": "http",
@@ -645,6 +652,13 @@
       "role": "application",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/studentpresence/internal/application/presence",
+      "owner": "student-presence",
+      "role": "application",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "e2e-test"
     },
     {
       "path": "modules/studentpresence/internal/application/statistics",
@@ -1681,13 +1695,6 @@
       "role": "contract",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "modules/studentpresence/legacy/services/active",
-      "owner": "student-presence",
-      "role": "adapter",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "e2e-test"
     },
     {
       "path": "services/activities",
@@ -6516,7 +6523,8 @@
       "id": "inbound-students.adapter-test.student-presence-compose",
       "description": "Student HTTP fixtures construct the production presence provider.",
       "scopes": [
-        "external_test"
+        "external_test",
+        "internal_test"
       ],
       "source_owner": "inbound-students",
       "source_role": "adapter-test",
@@ -7691,17 +7699,6 @@
       "target_role": "public"
     },
     {
-      "id": "open-room-move.compose.student-presence-domain",
-      "description": "Compatibility binding: the retained Student Presence room session is returned as its domain row until the owner exposes it publicly (ADR 0018).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "open-room-move",
-      "source_role": "compose",
-      "target_owner": "student-presence",
-      "target_role": "domain"
-    },
-    {
       "id": "open-room-move.adapter-test.compose",
       "description": "Open-room move integration tests bind the production composition.",
       "scopes": [
@@ -7722,17 +7719,6 @@
       "source_role": "adapter-test",
       "target_owner": "facilities",
       "target_role": "compose"
-    },
-    {
-      "id": "open-room-move.adapter-test.student-presence-domain",
-      "description": "Open-room move integration tests fake the retained Student Presence binding, which returns the room session row (ADR 0018).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "open-room-move",
-      "source_role": "adapter-test",
-      "target_owner": "student-presence",
-      "target_role": "domain"
     },
     {
       "id": "student-presence.http.to.open-room-move",
@@ -16222,17 +16208,6 @@
       "target_role": "compose"
     },
     {
-      "id": "parent-portal.decision-test.student-presence.adapter",
-      "description": "Portal behaviour tests (#3420) build the real composition, fixtures and owner rows they assert on.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "workflow-decision-test",
-      "target_owner": "student-presence",
-      "target_role": "adapter"
-    },
-    {
       "id": "parent-portal.decision-test.tenant-runtime.public",
       "description": "Portal behaviour tests (#3420) build the real composition, fixtures and owner rows they assert on.",
       "scopes": [
@@ -17780,17 +17755,6 @@
       "target_role": "public"
     },
     {
-      "id": "process-device-scan.compose.student-presence-domain",
-      "description": "Compatibility binding (#2698): the session port maps the retained active group row.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "process-device-scan",
-      "source_role": "compose",
-      "target_owner": "student-presence",
-      "target_role": "domain"
-    },
-    {
       "id": "process-device-scan.compose.people-application",
       "description": "Compatibility binding (#2698): the people port resolves cards, students and staff through the retained people service until People Directory exposes them publicly.",
       "scopes": [
@@ -18043,17 +18007,6 @@
       "target_role": "domain"
     },
     {
-      "id": "calendar-view.adapter.student-presence-domain",
-      "description": "The supervision compatibility adapter maps the retained active-group rows into session records (#2703).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter",
-      "target_owner": "student-presence",
-      "target_role": "domain"
-    },
-    {
       "id": "calendar-view.adapter.settings-platform-application",
       "description": "The supervision compatibility adapter prefetches and reads tenant settings through the retained settings service (#2703).",
       "scopes": [
@@ -18117,28 +18070,6 @@
       "source_owner": "calendar-view",
       "source_role": "adapter-test",
       "target_owner": "legacy-shared",
-      "target_role": "domain"
-    },
-    {
-      "id": "calendar-view.adapter-test.transaction-runtime-domain",
-      "description": "Adapter tests build retained rows with the shared model base (#2703).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter-test",
-      "target_owner": "transaction-runtime",
-      "target_role": "domain"
-    },
-    {
-      "id": "calendar-view.adapter-test.student-presence-domain",
-      "description": "Adapter tests build retained active-group rows (#2703).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter-test",
-      "target_owner": "student-presence",
       "target_role": "domain"
     },
     {
@@ -20963,58 +20894,6 @@
       "target_role": "compose"
     },
     {
-      "id": "inbound-common.adapter-test.student-presence-domain",
-      "description": "The shared HTTP helper tests still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test",
-        "internal_test"
-      ],
-      "source_owner": "inbound-common",
-      "source_role": "adapter-test",
-      "target_owner": "student-presence",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "inbound-common.adapter-test.student-presence-adapter",
-      "description": "The shared HTTP helper tests still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test",
-        "internal_test"
-      ],
-      "source_owner": "inbound-common",
-      "source_role": "adapter-test",
-      "target_owner": "student-presence",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "inbound-students.adapter-test.student-presence-domain",
-      "description": "The student route tests still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test",
-        "internal_test"
-      ],
-      "source_owner": "inbound-students",
-      "source_role": "adapter-test",
-      "target_owner": "student-presence",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3352"
-    },
-    {
-      "id": "inbound-students.adapter-test.student-presence-adapter",
-      "description": "The student route tests still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test",
-        "internal_test"
-      ],
-      "source_owner": "inbound-students",
-      "source_role": "adapter-test",
-      "target_owner": "student-presence",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3352"
-    },
-    {
       "id": "student-presence.e2e-test.legacy-shared-domain",
       "description": "The retained Presence behaviour tests pin calendar-day expectations with the retained calendar-date type (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -21135,18 +21014,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
     },
     {
-      "id": "student-presence.e2e-test.student-presence-adapter",
-      "description": "The retained Presence behaviour tests drive the retained services they moved with (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "e2e-test",
-      "target_owner": "student-presence",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
       "id": "student-presence.e2e-test.people-directory-application",
       "description": "The retained Presence behaviour tests build the retained person service the staff names resolve through (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -21171,30 +21038,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
     },
     {
-      "id": "people-directory.module-behavior-test.student-presence-domain",
-      "description": "The retained person behaviour tests still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "module-behavior-test",
-      "target_owner": "student-presence",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "open-room-move.adapter-test.student-presence-adapter",
-      "description": "The open-room move composition tests still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "open-room-move",
-      "source_role": "adapter-test",
-      "target_owner": "student-presence",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
       "id": "inbound-timetable.adapter-test.student-presence-domain",
       "description": "The timetable route tests still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -21204,30 +21047,6 @@
       "source_role": "adapter-test",
       "target_owner": "student-presence",
       "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "inbound-timetable.adapter-test.student-presence-adapter",
-      "description": "The timetable route tests still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "adapter-test",
-      "target_owner": "student-presence",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "root-composition.module-internal-test.student-presence-adapter",
-      "description": "The cleanup CLI tests still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "module-internal-test",
-      "target_owner": "student-presence",
-      "target_role": "adapter",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
     },
     {
@@ -21255,42 +21074,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
     },
     {
-      "id": "calendar-view.adapter-test.student-presence-adapter",
-      "description": "The supervision compatibility adapter tests still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter-test",
-      "target_owner": "student-presence",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "scheduler-runtime.module-internal-test.student-presence-domain",
-      "description": "The scheduler tests still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "scheduler-runtime",
-      "source_role": "module-internal-test",
-      "target_owner": "student-presence",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "scheduler-runtime.module-internal-test.student-presence-adapter",
-      "description": "The scheduler tests still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "scheduler-runtime",
-      "source_role": "module-internal-test",
-      "target_owner": "student-presence",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
       "id": "test-support.e2e-test.student-presence-domain",
       "description": "The end-to-end timetable and isolation tests still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -21300,54 +21083,6 @@
       "source_role": "e2e-test",
       "target_owner": "student-presence",
       "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "inbound-common.http.student-presence-adapter",
-      "description": "The shared HTTP helpers still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-common",
-      "source_role": "http",
-      "target_owner": "student-presence",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "inbound-groups.http.student-presence-domain",
-      "description": "The group routes still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-groups",
-      "source_role": "http",
-      "target_owner": "student-presence",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "inbound-groups.http.student-presence-adapter",
-      "description": "The group routes still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-groups",
-      "source_role": "http",
-      "target_owner": "student-presence",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "inbound-operator.http.student-presence-adapter",
-      "description": "The operator routes still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-operator",
-      "source_role": "http",
-      "target_owner": "student-presence",
-      "target_role": "adapter",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
     },
     {
@@ -21710,54 +21445,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/2748"
     },
     {
-      "id": "inbound-students.http.student-presence-domain",
-      "description": "The student routes still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-students",
-      "source_role": "http",
-      "target_owner": "student-presence",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3352"
-    },
-    {
-      "id": "inbound-students.http.student-presence-adapter",
-      "description": "The student routes still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-students",
-      "source_role": "http",
-      "target_owner": "student-presence",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3352"
-    },
-    {
-      "id": "inbound-timetable.http.student-presence-adapter",
-      "description": "The timetable routes still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "http",
-      "target_owner": "student-presence",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "root-composition.cli.student-presence-adapter",
-      "description": "The cleanup CLI still reaches the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "cli",
-      "target_owner": "student-presence",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
       "id": "legacy-composition.compose.student-presence-domain",
       "description": "The legacy composition roots still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -21767,42 +21454,6 @@
       "source_role": "compose",
       "target_owner": "student-presence",
       "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "process-device-scan.compose.student-presence-adapter",
-      "description": "The device-scan composition still reaches the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "process-device-scan",
-      "source_role": "compose",
-      "target_owner": "student-presence",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "facilities.compose.student-presence-adapter",
-      "description": "The Facilities composition still reaches the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "facilities",
-      "source_role": "compose",
-      "target_owner": "student-presence",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "group-live-view.adapter.student-presence-adapter",
-      "description": "The live-group compatibility adapter still reaches the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "group-live-view",
-      "source_role": "adapter",
-      "target_owner": "student-presence",
-      "target_role": "adapter",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
     },
     {
@@ -21842,114 +21493,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
     },
     {
-      "id": "student-presence.adapter.legacy-shared-domain",
-      "description": "The retained Presence services compute calendar days with the retained calendar-date type (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "adapter",
-      "target_owner": "legacy-shared",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "student-presence.adapter.workforce-time-records",
-      "description": "The presence port to the Workforce time clock returns the retained work-session row the retained time-tracking service opens (#3422). It falls when the port stops returning the row.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "adapter",
-      "target_owner": "workforce",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "student-presence.adapter.workforce-public",
-      "description": "The presence port to the Workforce time clock names the canonical work-session stamp channels (#3422).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "adapter",
-      "target_owner": "workforce",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "student-presence.adapter.transaction-runtime-domain",
-      "description": "The retained Presence services page and classify repository errors through the shared persistence base (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "adapter",
-      "target_owner": "transaction-runtime",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "student-presence.adapter.delivery-platform-application",
-      "description": "The retained Presence services name the realtime event types they queue after commit (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "adapter",
-      "target_owner": "delivery-platform",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "student-presence.adapter.student-presence-public",
-      "description": "The retained Presence services persist visits and attendance through the public Student Presence contract (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "adapter",
-      "target_owner": "student-presence",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "student-presence.adapter.student-presence-domain",
-      "description": "The retained Presence services still speak the retained rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "adapter",
-      "target_owner": "student-presence",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "student-presence.adapter.tenant-runtime-public",
-      "description": "The retained Presence services open their own tenant transaction for commands that run without a request (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "adapter",
-      "target_owner": "tenant-runtime",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "calendar-view.adapter.student-presence-adapter",
-      "description": "The supervision compatibility adapter still reaches the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter",
-      "target_owner": "student-presence",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
       "id": "school-structure.application.student-presence-domain",
       "description": "The retained education services still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -21959,18 +21502,6 @@
       "source_role": "application",
       "target_owner": "student-presence",
       "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "scheduler-runtime.application.student-presence-adapter",
-      "description": "The scheduler still reaches the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "scheduler-runtime",
-      "source_role": "application",
-      "target_owner": "student-presence",
-      "target_role": "adapter",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
     },
     {
@@ -21986,18 +21517,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
     },
     {
-      "id": "legacy-composition.compose.student-presence-adapter",
-      "description": "The legacy composition roots still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "student-presence",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
       "id": "test-support.test-support.student-presence-domain",
       "description": "The shared test fixtures still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -22007,18 +21526,6 @@
       "source_role": "test-support",
       "target_owner": "student-presence",
       "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "open-room-move.compose.student-presence-adapter",
-      "description": "The open-room move composition still reaches the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "open-room-move",
-      "source_role": "compose",
-      "target_owner": "student-presence",
-      "target_role": "adapter",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
     },
     {
@@ -22838,18 +22345,6 @@
       "target_role": "public"
     },
     {
-      "id": "settings-platform.http.student-presence-adapter",
-      "description": "The presence-mode guard reads open attendance from the retained Presence services in modules/studentpresence/legacy/services/active (#3214, #3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "settings-platform",
-      "source_role": "http",
-      "target_owner": "student-presence",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
-    },
-    {
       "id": "settings-platform.http.delivery-public",
       "description": "The operator school settings routes broadcast the tenant settings change through the Delivery producer (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -23280,18 +22775,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
-      "id": "inbound-timetable.module-behavior-test.student-presence-adapter",
-      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import modules/studentpresence/legacy/services/active as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "module-behavior-test",
-      "target_owner": "student-presence",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
       "id": "inbound-timetable.module-behavior-test.student-presence-compose",
       "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import modules/studentpresence/compose as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -23410,18 +22893,6 @@
       "target_owner": "inbound-timetable",
       "target_role": "adapter",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
-      "id": "student-presence.adapter.care-plan-absence-records",
-      "description": "The retained presence services read and write status days as the Care Plan absence records of modules/careplan/absencerecords through their own repository port (#3422).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "adapter",
-      "target_owner": "care-plan",
-      "target_role": "contract",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
     },
     {
       "id": "student-presence.e2e-test.care-plan-absence-records",
@@ -23601,18 +23072,6 @@
       "source_role": "module-internal-test",
       "target_owner": "settings-platform",
       "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
-      "id": "inbound-timetable.module-internal-test.student-presence-adapter",
-      "description": "The retained timetable and instance unit tests in modules/timetable/legacy/timetableplanning still import modules/studentpresence/legacy/services/active as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "module-internal-test",
-      "target_owner": "student-presence",
-      "target_role": "adapter",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
@@ -23994,18 +23453,6 @@
       "source_role": "adapter",
       "target_owner": "settings-platform",
       "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
-      "id": "inbound-timetable.adapter.student-presence-adapter",
-      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import modules/studentpresence/legacy/services/active as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "adapter",
-      "target_owner": "student-presence",
-      "target_role": "adapter",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
@@ -24834,17 +24281,6 @@
       "target_role": "application"
     },
     {
-      "id": "care-plan.contracttest.student-presence.adapter",
-      "description": "The care-lifecycle behavior suites moved from the retired modules/careplan/legacy/carelifecycle into the Care Plan contract suite keep the fixture reach they had there (#3427, ADR 0035); no runtime package gains an import.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "e2e-test",
-      "target_owner": "student-presence",
-      "target_role": "adapter"
-    },
-    {
       "id": "care-plan.contract.calendar-date",
       "description": "The absence records in modules/careplan/absencerecords carry the DATE columns of active.student_status_days and active.excused_absence_requests as the canonical calendar-date type (#3422).",
       "scopes": [
@@ -24878,6 +24314,258 @@
       "source_role": "test-support",
       "target_owner": "legacy-shared",
       "target_role": "domain",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "student-presence.e2e-test.student-presence-application",
+      "description": "The presence behaviour tests moved with legacy/services/active drive the application service in modules/studentpresence/internal/application/presence (#3422).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "e2e-test",
+      "target_owner": "student-presence",
+      "target_role": "application",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "people-directory.module-behavior-test.student-presence-public",
+      "description": "services/users/staff_offboarding_test.go records a concurrent supervision through the public GroupSupervision value (#3422).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "public",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "parent-portal.decision-test.student-presence-public",
+      "description": "workflows/parentportal/parent_write_service_test.go writes status days through the public status-day write context and conflict error (#3422).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-decision-test",
+      "target_owner": "student-presence",
+      "target_role": "public",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "student-presence.internal-test.care-plan-absence-records",
+      "description": "The effective-status unit tests of the public package build Care Plan status-day records (#3422).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "module-internal-test",
+      "target_owner": "care-plan",
+      "target_role": "contract",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "inbound-common.http.student-presence-public",
+      "description": "api/common builds the student location snapshot from the public presence facades and location types (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-common",
+      "source_role": "http",
+      "target_owner": "student-presence",
+      "target_role": "public",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "inbound-groups.http.student-presence-public",
+      "description": "api/groups reads room sessions and attendance through the public presence facades (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-groups",
+      "source_role": "http",
+      "target_owner": "student-presence",
+      "target_role": "public",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "inbound-operator.http.student-presence-public",
+      "description": "api/operator hands the presence capability to the operator settings guard (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-operator",
+      "source_role": "http",
+      "target_owner": "student-presence",
+      "target_role": "public",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "root-composition.cli.student-presence-public",
+      "description": "cmd cleanup renders the public retention cleanup and session maintenance reports (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "cli",
+      "target_owner": "student-presence",
+      "target_role": "public",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "facilities.compose.student-presence-public",
+      "description": "modules/facilities/compose/httpadapter lists open visits and transit students through the public presence facades (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "public",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "facilities.compose.student-presence-compose",
+      "description": "modules/facilities/compose/legacy implements the presence room port (AttendanceRooms, SessionRoom) named by modules/studentpresence/compose/presenceservice (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "compose",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "settings-platform.http.student-presence-public",
+      "description": "The operator settings route asks the public attendance reads whether attendance is still open (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "http",
+      "target_owner": "student-presence",
+      "target_role": "public",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "student-presence.application.transaction-runtime-domain",
+      "description": "The presence application moved from legacy/services/active still uses the models/base list options and not-found helpers until slice 5 (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "application",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "student-presence.application.care-plan-absence-records",
+      "description": "The presence application reads and writes status days as Care Plan absence records through its own repository port (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "application",
+      "target_owner": "care-plan",
+      "target_role": "contract",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "student-presence.application.delivery-platform-application",
+      "description": "The presence application publishes realtime presence events through the Delivery realtimeevents publisher (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "application",
+      "target_owner": "delivery-platform",
+      "target_role": "application",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "student-presence.application.workforce-public",
+      "description": "The presence application names the Workforce work-session stamp sources (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "application",
+      "target_owner": "workforce",
+      "target_role": "public",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "student-presence.application.workforce-time-records",
+      "description": "The presence application's time-clock port returns the Workforce work-session row (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "application",
+      "target_owner": "workforce",
+      "target_role": "adapter",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "student-presence.application.tenant-runtime-public",
+      "description": "The presence application opens tenant transactions and after-commit hooks through the tenant runtime (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "application",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "student-presence.public.care-plan-absence-records",
+      "description": "The public status-day facades and the effective-status resolver carry Care Plan status-day records (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "public",
+      "target_owner": "care-plan",
+      "target_role": "contract",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "calendar-view.adapter.student-presence-public",
+      "description": "modules/supervisiondashboard/legacy reads session details, rooms and visit displays through the public presence facades (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter",
+      "target_owner": "student-presence",
+      "target_role": "public",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "scheduler-runtime.application.student-presence-public",
+      "description": "The scheduler runs the public session maintenance and retention cleanup facades (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "scheduler-runtime",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "open-room-move.compose.student-presence-public",
+      "description": "The open-room move binds the public session detail and student move values (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "public",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
     }
   ],

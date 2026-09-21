@@ -926,6 +926,21 @@ retained services dissolve into the Student Presence application and domain
 layers; `modules/workforce/legacy/timetracking` keeps importing the retained
 rows until then.
 
+#3422 dissolves the nest in slices. `legacy/statistics` became
+`internal/application/statistics`; the Workforce and Care Plan rows left
+`legacy/models/active`; and `legacy/services/active` moved into
+`modules/studentpresence/internal/application/presence`
+(`student-presence`/`application`, `adapter-test` in the package, `e2e-test`
+for the behaviour tests). Consumers call it through the small public facades
+in `modules/studentpresence/presence.go` (`SessionReads`, `KioskSessions`,
+`SessionCommands`, `VisitReads`, `AttendanceCommands`, the status-day,
+history and cleanup facades, and the wiring composite `Presence`), built by
+`modules/studentpresence/compose/presenceservice`. That compose package is
+separate from `modules/studentpresence/compose` because the shared `test`
+fixtures import the latter, and the application's in-package tests import
+`test`. The application still reads `legacy/models/active` and
+`legacy/repositories/active` until slice 5 moves them behind the owner.
+
 The import HTTP composition (`modules/dataimport/inbound`, with its runtime
 binding in `modules/dataimport/inbound/compose`) keeps the `inbound-import`
 owner and its `http` / `compose` roles after replacing `api/import` (#3217).

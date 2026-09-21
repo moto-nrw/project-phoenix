@@ -21,7 +21,6 @@ import (
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activityService "github.com/moto-nrw/project-phoenix/services/activities"
@@ -95,7 +94,7 @@ type ResourceConfig struct {
 	PeopleDirectory        peopleModule.Capability
 	EducationService       educationService.Service
 	UserContextService     CallerContext
-	ActiveService          activeService.Service
+	ActiveService          studentpresence.Presence
 	IoTService             iotSvc.Service
 	PickupScheduleService  careplan.PickupScheduleService
 	WeekdayPickupNotes     WeekdayPickupNoteReplacer
@@ -156,9 +155,9 @@ type ResourceConfig struct {
 	// the aggregated list and the pending-count badge. Optional for bare
 	// test Resources; the two routes answer 500 without it.
 	RequestReview           requestreview.Query
-	StudentStatusDayService *activeService.StudentStatusDayService
-	AbsenceOverview         *activeService.StudentStatusDayOverviewService
-	StudentHistoryService   activeService.StudentHistoryService
+	StudentStatusDayService studentpresence.StatusDays
+	AbsenceOverview         studentpresence.StatusDayOverviews
+	StudentHistoryService   studentpresence.StudentHistory
 	OGSGroupLiveService     grouplive.Query
 	ActivityService         activityService.ActivityService
 	EnrollmentDecision      enrollmentService.DecisionService

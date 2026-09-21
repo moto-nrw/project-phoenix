@@ -21,7 +21,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -97,7 +97,7 @@ func (operatorSettingsRuntime) Today() configModel.CalendarDate {
 	return configModel.NewCalendarDate(today.Year(), today.Month(), today.Day())
 }
 
-type openAttendanceAdapter struct{ service activeSvc.Service }
+type openAttendanceAdapter struct{ service studentpresence.Presence }
 
 func (a openAttendanceAdapter) HasOpenAttendanceOn(ctx context.Context, day configModel.CalendarDate) (bool, error) {
 	if a.service == nil {
@@ -120,7 +120,7 @@ type SettingsConfig struct {
 	// for tenant-resolve-affecting settings (e.g. student_photos_enabled).
 	Schools SchoolLookup
 	// Active feeds the presence-mode guard. Optional: nil disables it.
-	Active        activeSvc.Service
+	Active        studentpresence.Presence
 	CareLifecycle careplan.BookingAuthority
 	// OnValueSet runs after a setting value change is validated and
 	// persisted, inside the tenant transaction; the optional postCommit

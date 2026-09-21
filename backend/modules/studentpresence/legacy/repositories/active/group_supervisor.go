@@ -78,7 +78,7 @@ func (r *GroupSupervisorRepository) ListActiveSupervisedRooms(ctx context.Contex
 
 // FindStaleOpen returns supervisor rows started before the given day that
 // still lack an end_date. Feeds the nightly stale-supervisor cleanup and its
-// preview (modules/studentpresence/legacy/services/active/cleanup_service.go, session_service.go).
+// preview (modules/studentpresence/internal/application/presence/cleanup_service.go, session_service.go).
 func (r *GroupSupervisorRepository) FindStaleOpen(ctx context.Context, before active.Date) ([]*active.GroupSupervisor, error) {
 	date := before.String()
 	return r.querySupervisions(ctx, SupervisionFilter{OpenOnly: true, StartedBefore: &date})
