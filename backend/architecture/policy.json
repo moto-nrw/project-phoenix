@@ -4148,6 +4148,14 @@
       "write_owner": "workforce"
     },
     {
+      "name": "users.staff_compatibility_reads",
+      "write_owner": "migrations"
+    },
+    {
+      "name": "users.staff_compatibility_writes",
+      "write_owner": "migrations"
+    },
+    {
       "name": "users.staff_document_file_cleanup",
       "write_owner": "workforce"
     },

@@ -10,7 +10,6 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // The adapters in this file serve the legacy users.StaffRepository,
@@ -664,17 +663,11 @@ func (r staffMembershipRepository) AddNotes(ctx context.Context, id int64, notes
 	}))
 }
 
-// withLiveStaff locks the live membership and runs write in the same tenant
-// transaction, joining the caller's when there is one.
+// withLiveStaff runs write only for a live membership. Inside the caller's
+// transaction the membership stays locked until it commits.
 func (r staffMembershipRepository) withLiveStaff(ctx context.Context, staffID int64, write func(context.Context) error) error {
-	run := func(ctx context.Context) error {
-		if _, err := r.membership.FindStaffForMutation(ctx, staffID); err != nil {
-			return err
-		}
-		return write(ctx)
+	if _, err := r.membership.FindStaffForMutation(ctx, staffID); err != nil {
+		return err
 	}
-	if _, ok := tenant.TransactionFromContext(ctx); ok {
-		return run(ctx)
-	}
-	return tenant.WithinCurrentTenant(ctx, run)
+	return write(ctx)
 }

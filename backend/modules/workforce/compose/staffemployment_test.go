@@ -5,8 +5,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -118,42 +116,37 @@ func TestStaffEmploymentRebasesTheAnchorOfLiveAssigneesOnly(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	employment := buildStaffEmployment(t, db)
+	capability := buildWorkforce(t, db)
 	ctx := testpkg.Ctx(t)
-	modelID := employmentWorkTimeModel(t, db, "Rotation A/B")
+	model, err := capability.CreateWorkTimeModel(ctx, workforce.CreateWorkTimeModel{WorkTimeModelFields: workforce.WorkTimeModelFields{
+		Name: "Rotation A/B", RotationLength: 2, RotationAnchorDate: "2026-01-05",
+	}})
+	require.NoError(t, err)
 	first := testpkg.CreateTestStaff(t, db, "First", "Assigned")
 	second := testpkg.CreateTestStaff(t, db, "Second", "Assigned")
 	offboarded := testpkg.CreateTestStaff(t, db, "Offboarded", "Assigned")
 	unassigned := testpkg.CreateTestStaff(t, db, "Not", "Assigned")
 	for _, id := range []int64{first.ID, second.ID, offboarded.ID} {
-		require.NoError(t, employment.SaveStaffEmployment(ctx, workforce.StaffEmployment{MembershipID: id, WorkTimeModelID: &modelID}))
+		require.NoError(t, employment.SaveStaffEmployment(ctx, workforce.StaffEmployment{MembershipID: id, WorkTimeModelID: &model.ID}))
 	}
 	retireMembership(t, db, offboarded.ID)
 
-	bound, err := employment.StaffOnWorkTimeModel(ctx, modelID)
+	bound, err := employment.StaffOnWorkTimeModel(ctx, model.ID)
 	require.NoError(t, err)
 	assert.Equal(t, []int64{first.ID, second.ID, offboarded.ID}, bound, "the binding is Workforce's, regardless of the membership lifecycle")
 
-	runtime := testpkg.ConfigRuntime(db)
-	rebase := assignments{store: postgres.New(databaseRuntime(db)), live: runtime.LiveStaffIDs}
-	var rebased []int64
-	require.NoError(t, tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
-		rebased, err = rebase.RebaseAnchor(txCtx, modelID, "2026-09-07")
-		return err
-	}))
-	assert.Equal(t, []int64{first.ID, second.ID}, rebased, "only live assignees, in ascending ID order")
-
-	stored, err := employment.StaffEmployments(ctx, []int64{second.ID, offboarded.ID, unassigned.ID})
+	// A template edit stamps its anchor onto the live assignees only; School
+	// Membership answers which of them are live.
+	_, err = capability.UpdateWorkTimeModel(ctx, workforce.UpdateWorkTimeModel{ID: model.ID, WorkTimeModelFields: workforce.WorkTimeModelFields{
+		Name: "Rotation A/B", RotationLength: 2, RotationAnchorDate: "2026-09-07",
+	}})
 	require.NoError(t, err)
+	stored, err := employment.StaffEmployments(ctx, []int64{first.ID, second.ID, offboarded.ID, unassigned.ID})
+	require.NoError(t, err)
+	assert.Equal(t, "2026-09-07", stored[first.ID].RotationAnchorDate)
 	assert.Equal(t, "2026-09-07", stored[second.ID].RotationAnchorDate)
 	assert.Empty(t, stored[offboarded.ID].RotationAnchorDate)
 	assert.Empty(t, stored[unassigned.ID].RotationAnchorDate)
-
-	var none []int64
-	require.NoError(t, tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
-		none, err = rebase.RebaseAnchor(txCtx, employmentWorkTimeModel(t, db, "Ohne Zuordnung"), "2026-09-07")
-		return err
-	}))
-	assert.Empty(t, none)
 }
 
 func TestStaffEmploymentKeepsPersonnelNumbersUniqueAmongLiveStaff(t *testing.T) {
@@ -183,7 +176,7 @@ func TestStaffEmploymentIsTenantScoped(t *testing.T) {
 
 	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
-	otherCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), otherTenantID)
+	otherCtx := testpkg.TenantContext(otherTenantID)
 
 	visible, err := employment.StaffEmployments(otherCtx, []int64{staff.ID})
 	require.NoError(t, err)

@@ -49,15 +49,17 @@ func installStaffOwnerCompatibility(ctx context.Context, tx bun.Tx) error {
 	`); err != nil {
 		return fmt.Errorf("archive users.staff: %w", err)
 	}
-	for _, statement := range []struct{ name, sql string }{
-		{"personnel number uniqueness", staffPersonnelNumberUniqueness},
-		{"compatibility view", staffOwnerCompatibilityView},
-		{"compatibility routing", staffOwnerCompatibilityRouting},
-		{"time-tracking audit view", staffOwnerAuditLogView},
-	} {
-		if _, err := tx.ExecContext(ctx, statement.sql); err != nil {
-			return fmt.Errorf("install staff %s: %w", statement.name, err)
-		}
+	if _, err := tx.ExecContext(ctx, staffPersonnelNumberUniqueness); err != nil {
+		return fmt.Errorf("install staff personnel number uniqueness: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, staffOwnerCompatibilityView); err != nil {
+		return fmt.Errorf("install staff compatibility view: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, staffOwnerCompatibilityRouting); err != nil {
+		return fmt.Errorf("install staff compatibility routing: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, staffOwnerAuditLogView); err != nil {
+		return fmt.Errorf("install staff time-tracking audit view: %w", err)
 	}
 	return nil
 }

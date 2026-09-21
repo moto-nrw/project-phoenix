@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -126,9 +125,8 @@ func reconcileStaffOwnerFinalDelta(ctx context.Context, tx bun.Tx, tenantID int6
 		SELECT count(*) FROM removed`, tenantID).Scan(ctx, &removed); err != nil {
 		return fmt.Errorf("staff owner cutover: tenant %d remove orphans: %w", tenantID, err)
 	}
-	var batch staffOwnerBatch
-	if err := tx.NewRaw(staffOwnerCopyBatch, tenantID, 0, math.MaxInt32, 0).
-		Scan(ctx, &batch.Scanned, &batch.LastID, &batch.Rejected, &batch.Copied); err != nil {
+	batch, err := copyStaffOwnerTenant(ctx, tx, tenantID)
+	if err != nil {
 		return fmt.Errorf("staff owner cutover: tenant %d final delta: %w", tenantID, err)
 	}
 	verification, err := verifyStaffOwnerTenant(ctx, tx, tenantID)
@@ -140,23 +138,6 @@ func reconcileStaffOwnerFinalDelta(ctx context.Context, tx bun.Tx, tenantID int6
 			tenantID, batch.Rejected, verification.Describe())
 	}
 	return persistStaffOwnerCutoverEvidence(ctx, tx, tenantID, verification, batch.Copied, removed)
-}
-
-// verifyStaffOwnerTenant uses the backfill's own projections: one definition
-// of equality, not a second one that could drift from it.
-func verifyStaffOwnerTenant(ctx context.Context, tx bun.Tx, tenantID int64) (StaffOwnerVerification, error) {
-	var v StaffOwnerVerification
-	if err := tx.NewRaw(staffOwnerSourceChecksum, tenantID).Scan(ctx, &v.SourceCount, &v.SourceChecksum); err != nil {
-		return v, fmt.Errorf("staff owner cutover: tenant %d source checksum: %w", tenantID, err)
-	}
-	if err := tx.NewRaw(staffOwnerTargetChecksum, tenantID).Scan(ctx, &v.TargetCount, &v.TargetChecksum); err != nil {
-		return v, fmt.Errorf("staff owner cutover: tenant %d target checksum: %w", tenantID, err)
-	}
-	var oldest *time.Time
-	if err := tx.NewRaw(staffOwnerMismatch, tenantID, tenantID).Scan(ctx, &v.MismatchCount, &oldest); err != nil {
-		return v, fmt.Errorf("staff owner cutover: tenant %d mismatches: %w", tenantID, err)
-	}
-	return v, nil
 }
 
 // persistStaffOwnerCutoverEvidence leaves the switch's own verdict in the

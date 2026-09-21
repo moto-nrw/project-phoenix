@@ -669,14 +669,6 @@ func escapeLike(value string) string {
 	return strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(value)
 }
 
-func sortInt64(values []int64) {
-	for i := 1; i < len(values); i++ {
-		for j := i; j > 0 && values[j-1] > values[j]; j-- {
-			values[j-1], values[j] = values[j], values[j-1]
-		}
-	}
-}
-
 func wrapStaffWriteError(operation string, err error) error {
 	if isUniqueViolationOn(err, staffPersonIndex) {
 		return domain.ErrStaffPersonConflict

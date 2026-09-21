@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 21.09.2026 · Ratchet 624 · Composition 636 · Policy-Epoche 20 · 296 Regeln mit
+Stand 21.09.2026 · Ratchet 624 · Composition 635 · Policy-Epoche 20 · 296 Regeln mit
 `convert it to exact debt` · 73.473 LOC unter `modules/*/legacy`
 
 Summenprobe: 251 + 61 + 37 + 43 + 28 + 19 + 185 = 624 = `wc -l backend/architecture/legacy.jsonl`.
@@ -67,7 +67,7 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [ ] [#2755](https://github.com/moto-nrw/project-phoenix/issues/2755) Backfill `users.students_guardians`
 - [ ] [#2756](https://github.com/moto-nrw/project-phoenix/issues/2756) Cutover `users.students_guardians`
 - [ ] [#2757](https://github.com/moto-nrw/project-phoenix/issues/2757) Contract `users.students_guardians`
-- [ ] [#2753](https://github.com/moto-nrw/project-phoenix/issues/2753) Cutover `users.staff`
+- [x] [#2753](https://github.com/moto-nrw/project-phoenix/issues/2753) Cutover `users.staff` — Migration 1.15.409 und Caller-Switch in einem Release: School Membership schreibt die Mitgliedschaft, Workforce das Beschäftigungsprofil (`StaffEmployments`); Kompatibilitäts-View, Archiv und Zähler bleiben für #2754
 - [ ] [#2754](https://github.com/moto-nrw/project-phoenix/issues/2754) Contract `users.staff`
 - [ ] [#2762](https://github.com/moto-nrw/project-phoenix/issues/2762) Cutover Activity Instances und Participants
 - [ ] [#2763](https://github.com/moto-nrw/project-phoenix/issues/2763) Contract Activity Instances und Participants

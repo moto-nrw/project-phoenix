@@ -1,0 +1,99 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2752"
+  ],
+  "owner_and_capability": "Required ownership splits — Cut over Membership and Workforce reads and writes from users.staff; School Membership owns users.staff_school_memberships (Staff Query/Command over the membership row), Workforce owns users.staff_employment_profiles (StaffEmployments query and commands), migrations own the rollback counters users.staff_compatibility_reads and users.staff_compatibility_writes",
+  "affected_packages": [
+    "database/migrations",
+    "database/repositories",
+    "modules/schoolmembership",
+    "modules/workforce",
+    "services",
+    "workflows/staffoffboarding",
+    "api"
+  ],
+  "affected_tables": [
+    "users.staff",
+    "users.staff_school_memberships",
+    "users.staff_employment_profiles",
+    "audit.time_tracking_audit_log"
+  ],
+  "exact_ratchet_keys": [],
+  "atomic_cutover": "Migration 1.15.409 takes the staff backfill's advisory session lock, refuses unless users.staff is still a base table, and opens one transaction with a 5s lock timeout and a 60s statement timeout that locks users.staff and both targets ACCESS EXCLUSIVE. Per school it removes memberships whose source row is gone, copies the remaining delta with the backfill's own statement in one pass, and re-verifies counts, canonical checksums and the row-wise mismatch with the backfill's own projections; any failing verdict or a school with staff but no completed backfill pass aborts the whole transaction, and the verdict is written into the school's checkpoint. It hands identity allocation to the membership sequence, repoints all 63 staff foreign keys onto users.staff_school_memberships NOT VALID, renames users.staff to users.staff_legacy, gives the membership's live-person index the old name, adds the membership updated_at trigger, a personnel-number uniqueness trigger that raises the old constraint name, the two hit counters and the users.staff security-invoker view with an INSTEAD OF routing trigger, and redefines audit.time_tracking_audit_log over the membership. The repointed constraints are validated after the commit; an interrupted validation is resumed by the next migrate. The same release switches every caller: School Membership stores memberships only and composes the Workforce profile through a consumer-owned port; CreateStaff and UpdateStaff are the one unit of work that writes both owners, inside a savepoint; the employment-only commands, the template binding and the schedule reads move to Workforce. The old School Membership employment provider is removed. The DB compatibility shape exists only for previous-image rollback: no fallback read chain and no application dual write.",
+  "tests": [
+    "database/migrations: contract golden that the previous image reads the same columns, NULLs and soft deletions through the view; final delta with an edit, a physical delete, a newcomer and a target-only edit plus the sequence hand-over; refusal without a completed backfill pass; refusal and preflight on a foreign work-time model; full rollback of the delta and its checkpoint when the switch fails, a half-applied switch leaving the base table, and an idempotent retry; routed previous-image insert, update, soft delete and delete with immutable identity and the retained SELECT ... FOR UPDATE; conflicts classified by the old index names on both the view and the owner table, and a retired holder freeing the number; the foreign-key repoint with post-commit validation, resumability, a dependent row of a staff member created after the switch and a deletable detached template; the redefined audit view; two-tenant RLS on the view and both targets; hit counters moving for the view and not for owner storage; refusal to switch twice and Up resuming validation; a routed update keeping a concurrent owner write and skipping a row retired under it. The Expand and Backfill contracts run against a restored pre-cutover clone.",
+    "database/repositories: caller inventory proving zero application literals reach users.staff, the archive or the counters; every current staff path working with the view dropped; failure injected after the membership command and after the employment command with the caller catching the error and committing, followed by a clean retry; an update rolled back with its outer transaction; the personnel-number conflict in both owner and legacy vocabulary; two-tenant isolation through both owners.",
+    "modules/workforce/compose: the StaffEmployments capability saves, reads, appends notes, toggles the opt-out, detaches a retired membership's template, keeps personnel numbers unique among live staff, rebases the anchor of live assignees only, and refuses another school's profile. modules/schoolmembership/compose: staff reads compose the profile, a refused employment write leaves no membership, and the module refuses to start without the Workforce port.",
+    "Whole-suite regression: the backend suite runs against the switched schema, including the unchanged query budgets."
+  ],
+  "runtime_evidence": {
+    "source": "docs/operations/staff-owner-storage-cutover.md and docs/operations/staff-owner-storage-cutover.sql (local 2026-09-21 measurements on disposable PostgreSQL clones; staging record table in the same file)",
+    "sources": [
+      "docs/operations/staff-owner-storage-cutover.md",
+      "docs/operations/staff-owner-storage-cutover.sql"
+    ],
+    "workload": "Switch: one isolated clone with three schools and 600 staff rows covering every copied column, a completed backfill and a 25-row final delta. Owner paths: 30 sequential calls each of create, find, list and update after five warm-ups on an isolated clone, through the composed School Membership and Workforce owners.",
+    "thresholds": "No latency SLO. Acceptance per school inside the switch: source_count = target_count, equal canonical checksums, mismatch_count 0. Afterwards: zero memberships without a profile, zero duplicate live personnel numbers, zero unvalidated repointed constraints, and compatibility counters that trend to zero on the new image.",
+    "affected_rows": {
+      "state": "measured",
+      "result": "Local switch: 626 rows copied in total across the backfill and the final delta (600 seeded rows, the bootstrap staff member and the 25-row delta), 0 memberships removed; per-school totals are persisted in the staff-owner checkpoints."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "Owner paths including transaction control: create_staff 8, find_staff 6, list_staff 6, update_staff 9 statements per call. The registered work-time query budgets stay unchanged (future_comp_time_commitment 4 exact, work_session_history 7 max) because schedule reads go to Workforce in one statement."
+    },
+    "latency_p50": {
+      "state": "measured",
+      "result": "Local p50 over 30 samples: create_staff 3.9 ms, find_staff 8.4 ms, list_staff 12.3 ms, update_staff 14.3 ms."
+    },
+    "latency_p95": {
+      "state": "measured",
+      "result": "Local p95 over 30 samples: create_staff 14.2 ms, find_staff 73.1 ms, list_staff 25.2 ms, update_staff 26.8 ms."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "Zero unexpected errors in the local suites and measurements. A missing checkpoint, unequal checksums, a foreign work-time model and a lock timeout each abort the switch and change nothing; running it twice fails on the base-table guard."
+    },
+    "pool_wait": {
+      "state": "measured",
+      "result": "sql.DBStats wait duration stayed 0 s during the local switch and the 120 owner calls."
+    },
+    "lock_wait": {
+      "state": "measured",
+      "result": "The local switch held its ACCESS EXCLUSIVE locks for 122 ms for 600 staff (schema switch 85 ms); VALIDATE CONSTRAINT took 27 ms after the commit under share-update-exclusive locks."
+    },
+    "deadlocks": {
+      "state": "measured",
+      "result": "pg_stat_database.deadlocks unchanged (delta 0) across the local switch; the concurrent routed-update tests complete without deadlock."
+    },
+    "job_duration": {
+      "state": "measured",
+      "result": "Local migration switch for 600 staff across three schools: 122 ms locked transaction plus 27 ms validation; the preceding backfill run took 126 ms."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "Not applicable: the switch does not retry. A failed switch leaves users.staff as the base table and its backfill checkpoints untouched; rerunning the migration retries it."
+    },
+    "job_backlog": {
+      "state": "measured",
+      "result": "Compatibility counters after 120 owner calls on the new image: 0 reads, 0 writes. The counters are the rollback-window backlog and must trend to zero before #2754."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "An error injected after the final delta rolls back the copied rows and the checkpoint evidence together, a half-applied switch leaves the base table, and the retry switches. An owner failure injected after the membership command and after the employment command leaves neither row even when the caller commits, and the retry writes both."
+    },
+    "rollback": {
+      "state": "measured",
+      "result": "The down step is an error on purpose. The previous-image contract is proven by the golden read comparison, the routed write tests and the whole School Membership suite of the previous store passing against the view before the caller switch. The pre-cutover backfill and its reset refuse to run against the view."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "The complete backend test suite passes against the switched schema; scripts/backend-architecture.sh check passes with 624 legacy violations (unchanged) and the composition surface 636 -> 635; the caller inventory finds zero application literals of the old storage."
+    }
+  },
+  "rollback_and_cleanup": "Rollback deploys the previous image against the retained compatibility view; no down migration runs and the archive is never renamed back. The archive, the view, its routing, the personnel-number trigger, the renamed indexes and the counters stay for #2754, which removes them after the counters reach zero, together with the models/users.Staff table tag that only test fixtures still bind. If compatibility or checksum drift appears, deploy the new image again and correct the owner tables; the pre-cutover backfill refuses to run against the view.",
+  "exit_criterion": "Every current caller uses the named owner interfaces: School Membership for the membership row and Workforce for the employment profile; each field has exactly one application provider (the School Membership and Workforce Postgres adapters); checksums were equal per school inside the switch; compatibility hits are observable through the two counters. scripts/backend-architecture.sh check introduces no key and leaves policy ownership unchanged."
+}
