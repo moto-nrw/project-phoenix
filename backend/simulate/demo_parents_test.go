@@ -28,8 +28,9 @@ type demoParentRecorder struct {
 	posts  []demoParentPost
 	// reject answers every post to the path with the status.
 	reject map[string]int
-	// loginErr fails every parent login.
-	loginErr error
+	// loginErr fails every parent login; loginAttempts counts them all.
+	loginErr      error
+	loginAttempts int
 }
 
 type demoParentHTTPError struct{ status int }
@@ -47,6 +48,7 @@ type demoParentRecorderClient struct {
 }
 
 func (c *demoParentRecorderClient) LoginParent(email, _ string) error {
+	c.recorder.loginAttempts++
 	if c.recorder.loginErr != nil {
 		return c.recorder.loginErr
 	}
@@ -184,7 +186,9 @@ func TestOtherDemoParentsLeaveTheVisitorsFamilyAlone(t *testing.T) {
 	assert.Len(t, OtherDemoParents(parents, 0), 3, "without a visitor every parent with a child takes part")
 }
 
-// A parent who cannot sign in is reported, but the children move on.
+// A parent who cannot sign in is logged, not a failed tick: the first tick
+// opens a new demo school, and the children move on all the same. The next
+// try waits for the next interval instead of hammering the login.
 func TestDemoParentTickFailureDoesNotStopTheChildren(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)
@@ -192,7 +196,15 @@ func TestDemoParentTickFailureDoesNotStopTheChildren(t *testing.T) {
 	children := &demoRecordingClient{}
 	ticker := newDemoParentTickerWith(t, &now, demoOtherParents, recorder, children)
 
-	require.ErrorContains(t, ticker.Tick(t.Context()), "parent login refused")
+	require.NoError(t, ticker.Tick(t.Context()))
 	assert.Contains(t, children.studentActions, "/api/iot/checkin", "the day is rebuilt all the same")
 	assert.Empty(t, recorder.posts)
+	require.Equal(t, 1, recorder.loginAttempts)
+
+	now = now.Add(time.Minute)
+	require.NoError(t, ticker.Tick(t.Context()))
+	assert.Equal(t, 1, recorder.loginAttempts, "no second try within the interval")
+	now = now.Add(demoParentActionInterval)
+	require.NoError(t, ticker.Tick(t.Context()))
+	assert.Equal(t, 2, recorder.loginAttempts, "the next interval tries again")
 }

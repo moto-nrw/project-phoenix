@@ -3,6 +3,7 @@ package simulate
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"time"
 
@@ -87,13 +88,22 @@ var (
 )
 
 // parentTick lets the parent of the current turn act when the interval has
-// passed. A request the school refuses (a feature switched off, a day that
-// already has a change) is skipped; the next action follows as usual.
-func (d *DemoTicker) parentTick(now time.Time) error {
+// passed. The parents stand apart from the children: whatever goes wrong
+// here is logged and never fails the tick, so a school still opens and its
+// children still move. A failed action waits for the next interval, like a
+// refused one (a feature switched off, a day that already has a change).
+func (d *DemoTicker) parentTick(now time.Time) {
 	parents := d.options.Parents
 	if len(parents) == 0 || d.options.ParentClient == nil || now.Before(d.parents.nextAction) {
-		return nil
+		return
 	}
+	d.parents.nextAction = now.Add(demoParentActionInterval)
+	if err := d.parentAction(now, parents); err != nil {
+		slog.Warn("demo parent action failed", "error", err)
+	}
+}
+
+func (d *DemoTicker) parentAction(now time.Time, parents []DemoParent) error {
 	state := &d.parents
 	if state.client == nil {
 		state.client = d.options.ParentClient()
@@ -114,12 +124,13 @@ func (d *DemoTicker) parentTick(now time.Time) error {
 	if err != nil {
 		return err
 	}
-	if _, err := state.client.Post(path, body); err != nil && !isRefusedByTheSchool(err) {
-		state.loggedIn = false
-		return fmt.Errorf("demo parent action: %w", err)
-	}
 	state.actions++
-	state.nextAction = now.Add(demoParentActionInterval)
+	if _, err := state.client.Post(path, body); err != nil {
+		if !isRefusedByTheSchool(err) {
+			state.loggedIn = false
+		}
+		return fmt.Errorf("demo parent action %s: %w", path, err)
+	}
 	return nil
 }
 
@@ -144,7 +155,9 @@ func demoParentAction(parent DemoParent, action int, now time.Time) (string, map
 
 // demoPickupDate is a school day in Berlin from the day after tomorrow on,
 // as YYYY-MM-DD; later requests move further ahead, so they rarely hit a
-// day already changed.
+// day already changed. The simulator may not import internal/timezone (the
+// architecture policy keeps dev tools off the shared domain), so it loads
+// Berlin itself, as fullday.go does.
 func demoPickupDate(now time.Time, pick int) (string, error) {
 	berlin, err := time.LoadLocation("Europe/Berlin")
 	if err != nil {

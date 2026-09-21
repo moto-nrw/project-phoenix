@@ -261,5 +261,5 @@ func TestVisitorParentAccountID(t *testing.T) {
 		{Name: coParent.FirstName + " " + coParent.LastName, AccountID: 7},
 		{Name: visitor.FirstName + " " + visitor.LastName, AccountID: 9},
 	}
-	assert.Equal(t, int64(9), VisitorParentAccountID(profile))
+	assert.Equal(t, profile.Credentials.Parents[1].AccountID, VisitorParentAccountID(profile))
 }

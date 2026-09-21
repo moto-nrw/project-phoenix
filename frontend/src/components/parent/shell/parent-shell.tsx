@@ -77,7 +77,7 @@ export function ParentShell({
             badges={badges}
             gates={gates}
             childCount={childCount}
-            stripActive={demoBannerShown}
+            demoBannerShown={demoBannerShown}
           />
         }
         bottomNav={

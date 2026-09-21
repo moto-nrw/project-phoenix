@@ -35,10 +35,10 @@ export function ParentSidebar({
   badges,
   gates,
   childCount,
-  stripActive = false,
+  demoBannerShown = false,
 }: ParentNavCounts & {
   /** The demo banner (#3468) sits above the header; the sidebar moves with it. */
-  readonly stripActive?: boolean;
+  readonly demoBannerShown?: boolean;
 }) {
   const t = useTranslations("parentNav");
   const pathname = usePathname();
@@ -109,7 +109,7 @@ export function ParentSidebar({
       <aside className="hidden min-h-screen w-64 shrink-0 border-r border-gray-200/70 bg-white/95 lg:block">
         <div
           className={`sticky flex flex-col ${
-            stripActive
+            demoBannerShown
               ? "top-[105px] h-[calc(100vh-105px)]"
               : "top-[57px] h-[calc(100vh-57px)]"
           }`}

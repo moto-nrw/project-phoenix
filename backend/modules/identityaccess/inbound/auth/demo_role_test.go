@@ -10,7 +10,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -159,16 +158,6 @@ func TestDemoAccessRequestCarriesAPreselectedRoleIntoTheLink(t *testing.T) {
 	body["role"] = "operator"
 	rr := env.post(t, "/demo/access-requests", body)
 	assert.Equal(t, http.StatusUnprocessableEntity, rr.Code, rr.Body.String())
-}
-
-// seedDemoSchoolWithParent is seedDemoSchool plus the parent who carries the
-// visitor's name (#3468), as the demo process names both.
-func seedDemoSchoolWithParent(t *testing.T, db *bun.DB, slug string, schoolID, visitorAccountID, parentAccountID int64) {
-	t.Helper()
-	seedDemoSchool(t, db, slug, schoolID, visitorAccountID)
-	_, err := db.NewRaw(`UPDATE platform.demo_school_states SET visitor_parent_account_id = ? WHERE name = ?`,
-		parentAccountID, slug).Exec(context.Background())
-	require.NoError(t, err)
 }
 
 // The demo role parent (#3468): the same token, redeemed on the parents host,

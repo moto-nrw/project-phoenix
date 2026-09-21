@@ -191,6 +191,8 @@ func (d *DemoAccess) Redeem(ctx context.Context, token string, role domain.DemoR
 		if err := d.schools.MarkDemoSchoolUsed(txCtx, access.SchoolSlug, d.now()); err != nil {
 			return err
 		}
+		// The access keeps naming the caregiver, also for the role parent:
+		// the tenant lock and the session cap key on that account (#3462).
 		return d.store.RecordDemoAccessUse(txCtx, access.ID, entry.AccountID, d.now())
 	})
 	if err != nil {

@@ -96,8 +96,10 @@ func (d *DemoTicker) Tick(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	// The parents act apart from the children: one failing never stops the other.
-	return errors.Join(d.childrenTick(ctx, &state, rooms, active), d.parentTick(now))
+	// The parents act apart from the children: a failing parent is logged
+	// and never stops the children or the opening of a school.
+	d.parentTick(now)
+	return d.childrenTick(ctx, &state, rooms, active)
 }
 
 // childrenTick moves the eligible children, or rebuilds the day when none is present.

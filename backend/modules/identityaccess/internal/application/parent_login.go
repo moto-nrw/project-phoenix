@@ -25,12 +25,9 @@ func (s *AccountAuthentication) LoginParentWithAudit(ctx context.Context, email,
 // (#3468). It skips the credential check but otherwise is the parent login,
 // so the session is indistinguishable from one.
 func (s *AccountAuthentication) IssueParentTokensForAuthenticatedAccount(ctx context.Context, accountID int64, ipAddress, userAgent string) (string, string, error) {
-	account, found, _, err := s.store.FindLoginAccount(ctx, accountID, false)
-	if err != nil || !found {
-		return "", "", failed("issue parent tokens", domain.ErrAccountNotFound)
-	}
-	if !account.Active {
-		return "", "", failed("issue parent tokens", domain.ErrAccountInactive)
+	account, err := s.authenticatedAccount(ctx, "issue parent tokens", accountID)
+	if err != nil {
+		return "", "", err
 	}
 	return s.issueParentTokens(ctx, account, account.Email, ipAddress, userAgent)
 }
