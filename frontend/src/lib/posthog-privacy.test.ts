@@ -51,6 +51,54 @@ describe("sanitizePostHogEvent", () => {
     ).toBeNull();
   });
 
+  it("keeps the public demo's events with the demo access as identity", () => {
+    for (const event of [
+      "demo_entered",
+      "demo_role_switched",
+      "demo_start_clicked",
+    ]) {
+      const result = sanitizePostHogEvent({
+        uuid: "018f47ac-10b5-7c3d-9d3c-0123456789ab",
+        event,
+        properties: {
+          token: "phc_test",
+          distinct_id: "4711",
+          deployment: "demo",
+          src: "messe",
+          demo_role: "lead",
+          email: "kim@ogs-beispiel.de",
+          person_name: "Kim Beispiel",
+        },
+      });
+
+      expect(result?.properties).toEqual({
+        token: "phc_test",
+        distinct_id: "4711",
+        deployment: "demo",
+        src: "messe",
+        demo_role: "lead",
+        $geoip_disable: true,
+        $process_person_profile: false,
+      });
+    }
+  });
+
+  it("drops a demo source or role that is not a plain label", () => {
+    const result = sanitizePostHogEvent({
+      uuid: "018f47ac-10b5-7c3d-9d3c-0123456789ab",
+      event: "demo_entered",
+      properties: {
+        token: "phc_test",
+        distinct_id: "4711",
+        src: "kim@ogs-beispiel.de",
+        demo_role: "operator",
+      },
+    });
+
+    expect(result?.properties).not.toHaveProperty("src");
+    expect(result?.properties).not.toHaveProperty("demo_role");
+  });
+
   it("drops unrecognized values even for allowlisted property names", () => {
     const result = sanitizePostHogEvent({
       uuid: "018f47ac-10b5-7c3d-9d3c-0123456789ab",

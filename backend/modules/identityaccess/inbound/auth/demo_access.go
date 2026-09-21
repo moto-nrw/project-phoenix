@@ -21,7 +21,7 @@ import (
 type DemoAccesses interface {
 	RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) error
 	DemoAccessStatus(ctx context.Context, token string) (identityaccess.DemoAccessProgress, error)
-	RedeemDemoAccess(ctx context.Context, token, ipAddress, userAgent string) (string, string, error)
+	RedeemDemoAccess(ctx context.Context, token, role, ipAddress, userAgent string) (identityaccess.DemoEntry, error)
 }
 
 // ComposedDemoAccess keeps a capability that was not composed a nil
@@ -91,6 +91,8 @@ type demoAccessRequestBody struct {
 	PersonName   string `json:"person_name"`
 	ContactOptIn bool   `json:"contact_opt_in"`
 	Source       string `json:"src"`
+	// Role preselects the demo role; the entry page then skips its cards.
+	Role string `json:"role"`
 }
 
 func (rs *DemoResource) requestAccess(w http.ResponseWriter, r *http.Request) {
@@ -104,7 +106,7 @@ func (rs *DemoResource) requestAccess(w http.ResponseWriter, r *http.Request) {
 	// token out of every server and proxy log.
 	err := rs.accesses.RequestDemoAccess(r.Context(), identityaccess.DemoAccessRequest{
 		Email: body.Email, PersonName: body.PersonName, SchoolName: body.SchoolName,
-		Source: body.Source, ContactOptIn: body.ContactOptIn, ClientIP: getClientIP(r),
+		Source: body.Source, ContactOptIn: body.ContactOptIn, Role: body.Role, ClientIP: getClientIP(r),
 		EntryURLPrefix: rs.origins.Waiting + "/demo#token=",
 	})
 	if err != nil {
@@ -135,20 +137,43 @@ func (rs *DemoResource) accessStatus(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, response)
 }
 
+// demoSessionResponse is the token pair plus what the demo banner shows and
+// reports (#3467). access_id is a string, like every ID on the wire.
+type demoSessionResponse struct {
+	TokenResponse
+	Demo demoSessionFacts `json:"demo"`
+}
+
+type demoSessionFacts struct {
+	AccessID string `json:"access_id"`
+	Role     string `json:"role,omitempty"`
+	Source   string `json:"src,omitempty"`
+	// FixedRole: the standing school's session keeps all functions; the
+	// banner shows its role without a switch.
+	FixedRole bool `json:"fixed_role"`
+}
+
+// createSession redeems the token. With a demo role it first switches the
+// visitor's account to that role (#3467), so the banner's role switch is the
+// same call as the entry.
 func (rs *DemoResource) createSession(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Token string `json:"token"`
+		Role  string `json:"role"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<12)).Decode(&body); err != nil {
 		rs.renderError(w, r, identityaccess.ErrDemoAccessUnknown)
 		return
 	}
-	accessToken, refreshToken, err := rs.accesses.RedeemDemoAccess(r.Context(), body.Token, getClientIP(r), r.UserAgent())
+	entry, err := rs.accesses.RedeemDemoAccess(r.Context(), body.Token, body.Role, getClientIP(r), r.UserAgent())
 	if err != nil {
 		rs.renderError(w, r, err)
 		return
 	}
-	render.JSON(w, r, TokenResponse{AccessToken: accessToken, RefreshToken: refreshToken})
+	render.JSON(w, r, demoSessionResponse{
+		TokenResponse: TokenResponse{AccessToken: entry.AccessToken, RefreshToken: entry.RefreshToken},
+		Demo:          demoSessionFacts{AccessID: strconv.FormatInt(entry.AccessID, 10), Role: entry.Role, Source: entry.Source, FixedRole: entry.FixedRole},
+	})
 }
 
 // demoError answers with the status and the stable code the entry page
