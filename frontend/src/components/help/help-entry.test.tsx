@@ -65,6 +65,27 @@ describe("HelpEntry", () => {
     }
   });
 
+  it("marks a selected school answer clearly", () => {
+    renderEntry();
+
+    fireEvent.click(screen.getByText("Betreuungskraft"));
+    const nfcQuestion = screen.getByRole("group", {
+      name: "Nutzt Ihre OGS ein NFC-Tablet?",
+    });
+    const yes = within(nfcQuestion).getByRole("button", { name: "Ja" });
+    const no = within(nfcQuestion).getByRole("button", { name: "Nein" });
+
+    fireEvent.click(yes);
+
+    expect(yes).toHaveAttribute("aria-pressed", "true");
+    expect(yes).toHaveAttribute("data-state", "selected");
+    expect(no).toHaveAttribute("data-state", "unselected");
+    expect(yes).toHaveClass("bg-moto-green-soft");
+    expect(yes).not.toHaveClass("bg-moto-green/10");
+    expect(yes.querySelector("svg")).toHaveClass("opacity-100");
+    expect(no.querySelector("svg")).toHaveClass("opacity-0");
+  });
+
   it("sends roles from the other portals straight to their guide", () => {
     const onSubmit = renderEntry();
 

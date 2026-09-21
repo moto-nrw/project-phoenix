@@ -38,6 +38,7 @@ import {
 } from "./help-content";
 import { HelpEntry, type HelpEntryAnswers } from "./help-entry";
 import { useHelpSidebarScrollRestoration } from "./help-sidebar-scroll";
+import { useHelpTableOfContents } from "./help-table-of-contents";
 
 // Reihenfolge der Oberthemen je Rolle. Jede Rolle hat eine eigene
 // Seitenleiste (#2229, Informationsarchitektur Abschnitt 3).
@@ -546,6 +547,8 @@ function DocumentationArticle({
       show: topic.related.length > 0,
     },
   ].filter((item) => item.show);
+  const { activeSectionId, scrollToSection } =
+    useHelpTableOfContents(tableOfContents);
 
   return (
     <div className="xl:grid xl:grid-cols-[minmax(0,42rem)_12rem] xl:gap-x-16">
@@ -803,7 +806,15 @@ function DocumentationArticle({
                 <li key={item.id}>
                   <a
                     href={`#${item.id}`}
-                    className="text-sm leading-5 text-gray-500 hover:text-gray-950"
+                    aria-current={
+                      activeSectionId === item.id ? "location" : undefined
+                    }
+                    onClick={(event) => scrollToSection(event, item.id)}
+                    className={cn(
+                      "-ml-[21px] block border-l-2 border-transparent py-0.5 pl-5 text-sm leading-5 text-gray-500 transition-colors hover:text-gray-950",
+                      activeSectionId === item.id &&
+                        "border-moto-green text-moto-green-strong font-semibold",
+                    )}
                   >
                     {item.label}
                   </a>
@@ -816,7 +827,19 @@ function DocumentationArticle({
                         <li key={child.id}>
                           <a
                             href={`#${child.id}`}
-                            className="block text-sm leading-5 text-gray-500 hover:text-gray-950"
+                            aria-current={
+                              activeSectionId === child.id
+                                ? "location"
+                                : undefined
+                            }
+                            onClick={(event) =>
+                              scrollToSection(event, child.id)
+                            }
+                            className={cn(
+                              "-ml-[17px] block border-l-2 border-transparent py-0.5 pl-4 text-sm leading-5 text-gray-500 transition-colors hover:text-gray-950",
+                              activeSectionId === child.id &&
+                                "border-moto-green text-moto-green-strong font-semibold",
+                            )}
                           >
                             <InlineCode text={child.label} />
                           </a>
