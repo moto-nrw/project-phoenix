@@ -3586,6 +3586,10 @@
       "write_owner": "identity-access"
     },
     {
+      "name": "auth.demo_accesses",
+      "write_owner": "identity-access"
+    },
+    {
       "name": "auth.guardian_invitations",
       "write_owner": "identity-access"
     },

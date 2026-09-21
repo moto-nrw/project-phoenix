@@ -583,6 +583,7 @@ var authenticationSentinels = []struct {
 	{domain.ErrAccountNoGuardianRole, identityaccess.ErrAccountNoGuardianRole},
 	{domain.ErrAccountNoSchoolPortalRole, identityaccess.ErrAccountNoSchoolPortalRole},
 	{domain.ErrMustUseSchoolPortal, identityaccess.ErrMustUseSchoolPortal},
+	{domain.ErrDemoSessionTenantLocked, identityaccess.ErrDemoSessionTenantLocked},
 	{domain.ErrInvalidToken, identityaccess.ErrInvalidToken},
 	{domain.ErrTokenExpired, identityaccess.ErrTokenExpired},
 	{domain.ErrTokenNotFound, identityaccess.ErrTokenNotFound},

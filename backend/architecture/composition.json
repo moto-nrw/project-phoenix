@@ -53,7 +53,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        317
+        318
       ],
       "tables": []
     },
@@ -20953,22 +20953,22 @@
         },
         {
           "file": "api/base.go",
-          "line": 517,
+          "line": 518,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 680,
+          "line": 681,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 923,
+          "line": 924,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1325,
+          "line": 1334,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -20978,7 +20978,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 317,
+          "line": 318,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -20993,17 +20993,17 @@
         },
         {
           "file": "api/base.go",
-          "line": 389,
+          "line": 390,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 433,
+          "line": 434,
           "declaration": "withFileStorageWiring"
         },
         {
           "file": "api/base.go",
-          "line": 677,
+          "line": 678,
           "declaration": "type API"
         },
         {
@@ -21058,17 +21058,17 @@
       "locations": [
         {
           "file": "services/account_authentication_composition.go",
-          "line": 77,
+          "line": 79,
           "declaration": "sessionRepositoriesOf"
         },
         {
           "file": "services/auth_test_helpers.go",
-          "line": 46,
+          "line": 47,
           "declaration": "type AuthTestModule"
         },
         {
           "file": "services/auth_test_helpers.go",
-          "line": 285,
+          "line": 288,
           "declaration": "IdentityAccessForTests"
         },
         {

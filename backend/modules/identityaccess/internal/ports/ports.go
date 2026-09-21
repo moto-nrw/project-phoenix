@@ -260,6 +260,9 @@ type Observer func(Observation)
 // connection the caller's context carries; the locking variants require an
 // ambient transaction.
 type AccountLoginStore interface {
+	// DemoAccountExists reports whether a demo access of the public demo
+	// signed the account in (#3462). It needs the administrative transaction.
+	DemoAccountExists(ctx context.Context, accountID int64) (bool, error)
 	// HasActiveAccountTenant reports an active mapping of the account at the
 	// school.
 	HasActiveAccountTenant(ctx context.Context, accountID, tenantID int64) (bool, domain.OperationStats, error)

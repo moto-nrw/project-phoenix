@@ -167,7 +167,7 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/filestorage/internal/application/folders.go:(*Service).validateAudience":     20,
 
 	"modules/identityaccess/internal/application/account_login.go:(*AccountAuthentication).loadPersonNamesFromMappedTenants":    17,
-	"modules/identityaccess/internal/application/account_login.go:(*AccountAuthentication).persistSessionInTransaction":         19,
+	"modules/identityaccess/internal/application/account_login.go:(*AccountAuthentication).persistSessionInTransaction":         17,
 	"modules/identityaccess/internal/application/account_mfa_admin.go:(*AccountMFAFlows).OperatorSetGlobalMFAOverride":          21,
 	"modules/identityaccess/internal/application/account_mfa_admin.go:(*AccountMFAFlows).setTenantOverride":                     22,
 	"modules/identityaccess/internal/application/account_mfa_flow.go:(*AccountMFAFlows).resolvePolicy":                          16,
