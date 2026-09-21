@@ -89,8 +89,9 @@ func TestWireShape_CurrentUserAndProfile(t *testing.T) {
 		data, ok := getData(t, tc, "/", account.ID, "Current user retrieved successfully").(map[string]any)
 		require.True(t, ok, "data must be an object")
 		assert.Equal(t, sorted(
-			"id", "created_at", "updated_at", "email", "username", "avatar",
-			"active", "is_password_otp", "last_login",
+			"id", "created_at", "updated_at", "email", "avatar", "active", "last_login",
+			"username",
+			"is_password_otp",
 		), sortedKeys(data))
 		assert.Equal(t, float64(account.ID), data["id"])
 		assert.Equal(t, username, data["username"])
