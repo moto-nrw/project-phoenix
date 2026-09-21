@@ -217,6 +217,36 @@ describe("MasterDetailLayout", () => {
       expect(cards).toHaveLength(1);
       expect(cards[0]).toHaveClass("moto-scroll-surface", "flex-1");
     });
+
+    it("measures the restored desktop container after switching from mobile", () => {
+      vi.mocked(useIsMobile).mockReturnValue(true);
+      const { container, rerender } = render(
+        <MasterDetailLayout
+          list={<div>List</div>}
+          detail={<div>Detail</div>}
+          selectedId="1"
+          onDeselect={vi.fn()}
+        />,
+      );
+      const getBoundingClientRect = vi
+        .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+        .mockReturnValue({ top: 120 } as DOMRect);
+
+      vi.mocked(useIsMobile).mockReturnValue(false);
+      rerender(
+        <MasterDetailLayout
+          list={<div>List</div>}
+          detail={<div>Detail</div>}
+          selectedId="1"
+          onDeselect={vi.fn()}
+        />,
+      );
+
+      expect((container.firstChild as HTMLElement).style.height).toBe(
+        "calc(100dvh - 152px)",
+      );
+      getBoundingClientRect.mockRestore();
+    });
   });
 
   describe("mobile", () => {
