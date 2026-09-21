@@ -140,7 +140,7 @@ function MobileSheetModal({
         className="z-[9999] max-h-[calc(100dvh-env(safe-area-inset-top)-1rem)] overflow-hidden bg-white"
         onOpenAutoFocus={
           focusTitleOnOpen
-            ? (event) => {
+            ? (event: Event) => {
                 event.preventDefault();
                 titleRef.current?.focus();
               }
