@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 17,
+  "policy_epoch": 18,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -268,10 +268,6 @@
     },
     {
       "id": "inbound-rooms",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-schedules",
       "kind": "inbound"
     },
     {
@@ -1142,13 +1138,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/identityaccess/legacy/authpostgres",
-      "owner": "identity-access",
-      "role": "postgres",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "database/repositories/base",
       "owner": "transaction-runtime",
       "role": "postgres",
@@ -1480,13 +1469,6 @@
     {
       "path": "models/audit",
       "owner": "audit-platform",
-      "role": "domain",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "modules/identityaccess/legacy/authmodels",
-      "owner": "identity-access",
       "role": "domain",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
@@ -2528,13 +2510,6 @@
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "modules/careplan/legacy/careschedule",
-      "owner": "inbound-schedules",
-      "role": "adapter",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/careplan/legacy/carelifecycle",
       "owner": "inbound-students",
       "role": "adapter",
@@ -2545,13 +2520,6 @@
       "path": "modules/careplan/legacy/careexitview",
       "owner": "care-exit-view",
       "role": "postgres",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "modules/careplan/legacy/careschedule/carescheduletest",
-      "owner": "inbound-schedules",
-      "role": "test-support",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -2988,6 +2956,13 @@
       "role": "test-support",
       "internal_test_role": "workflow-integration-test",
       "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/contracttest",
+      "owner": "care-plan",
+      "role": "test-support",
+      "internal_test_role": "e2e-test",
+      "external_test_role": "e2e-test"
     },
     {
       "path": "modules/careplan/careplantest",
@@ -3608,6 +3583,10 @@
     },
     {
       "name": "auth.accounts_parents",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.demo_accesses",
       "write_owner": "identity-access"
     },
     {
@@ -5064,6 +5043,676 @@
       "source_role": "compose",
       "target_owner": "document-rendering",
       "target_role": "compose"
+    },
+    {
+      "id": "request-review-view.compose.impact-token",
+      "description": "Render the existing SHA-256 pickup-impact wire token from native facts (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "compose",
+      "target_class": "crypto"
+    },
+    {
+      "id": "care-plan.contracttest.security-runtime.public",
+      "description": "The new Care Plan contract suite binds the existing SHA-256 primitive to the native impact-fingerprint port (#3351).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "security-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "care-schedule-cutover.inbound-students.adapter-test.care-plan.compose.test-construction",
+      "description": "Replace legacy Care Schedule construction in the same test scope with the native owner seam (#3351, ADR 0030).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter-test",
+      "target_owner": "care-plan",
+      "target_role": "compose"
+    },
+    {
+      "id": "care-schedule-cutover.enrollment.module-behavior-test.care-plan.compose.test-construction",
+      "description": "Replace legacy Care Schedule construction in the same test scope with the native owner seam (#3351, ADR 0030).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "module-behavior-test",
+      "target_owner": "care-plan",
+      "target_role": "compose"
+    },
+    {
+      "id": "care-schedule-cutover.parent-portal.workflow-integration-test.care-plan.compose.test-construction",
+      "description": "Replace legacy Care Schedule construction in the same test scope with the native owner seam (#3351, ADR 0030).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-integration-test",
+      "target_owner": "care-plan",
+      "target_role": "compose"
+    },
+    {
+      "id": "care-schedule-cutover.parent-portal.adapter-test.care-plan.compose.test-construction",
+      "description": "Replace legacy Care Schedule construction in the same test scope with the native owner seam (#3351, ADR 0030).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter-test",
+      "target_owner": "care-plan",
+      "target_role": "compose"
+    },
+    {
+      "id": "care-schedule-cutover.inbound-timetable.adapter-test.care-plan.compose.test-construction",
+      "description": "Replace legacy Care Schedule construction in the same test scope with the native owner seam (#3351, ADR 0030).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter-test",
+      "target_owner": "care-plan",
+      "target_role": "compose"
+    },
+    {
+      "id": "care-schedule-cutover.device-fleet.workflow-integration-test.care-plan.public.test-construction",
+      "description": "Replace legacy Care Schedule construction in the same test scope with the native owner seam (#3351, ADR 0030).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-schedule-cutover.device-fleet.workflow-integration-test.care-plan.compose.test-construction",
+      "description": "Replace legacy Care Schedule construction in the same test scope with the native owner seam (#3351, ADR 0030).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "care-plan",
+      "target_role": "compose"
+    },
+    {
+      "id": "care-plan.contracttest.care-plan.test-support",
+      "description": "The test-only native Care Plan contract suite uses owner fixtures and canonical calendar values (#3351).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "care-plan",
+      "target_role": "test-support"
+    },
+    {
+      "id": "care-plan.contracttest.shared-kernel.contract",
+      "description": "The test-only native Care Plan contract suite uses owner fixtures and canonical calendar values (#3351).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "shared-kernel",
+      "target_role": "contract"
+    },
+    {
+      "id": "care-schedule-cutover.care-plan.module-behavior-test.shared-kernel.contract",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "module-behavior-test",
+      "target_owner": "shared-kernel",
+      "target_role": "contract"
+    },
+    {
+      "id": "care-schedule-cutover.inbound-timetable.module-behavior-test.care-plan.public",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-schedule-cutover.enrollment.module-behavior-test.care-plan.contract",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "module-behavior-test",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "care-schedule-cutover.care-plan.module-internal-test.shared-kernel.contract",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "module-internal-test",
+      "target_owner": "shared-kernel",
+      "target_role": "contract"
+    },
+    {
+      "id": "care-schedule-cutover.inbound-timetable.module-internal-test.care-plan.public",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-internal-test",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-schedule-cutover.enrollment.module-internal-test.care-plan.public",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "module-internal-test",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-schedule-cutover.parent-portal.workflow-integration-test.care-plan.public",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-integration-test",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-schedule-cutover.parent-portal.workflow-integration-test.care-plan.contract",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-integration-test",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "care-schedule-cutover.inbound-students.http.care-plan.public",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "http",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-schedule-cutover.inbound-timetable.http.care-plan.public",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "http",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-schedule-cutover.legacy-composition.compose.care-plan.contract",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "care-schedule-cutover.care-plan.contract.shared-kernel.contract",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "contract",
+      "target_owner": "shared-kernel",
+      "target_role": "contract"
+    },
+    {
+      "id": "care-schedule-cutover.care-plan.compose.care-plan.contract",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "care-schedule-cutover.care-plan.compose.shared-kernel.contract",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "compose",
+      "target_owner": "shared-kernel",
+      "target_role": "contract"
+    },
+    {
+      "id": "care-schedule-cutover.care-plan.application.care-plan.contract",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "application",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "care-schedule-cutover.care-plan.application.shared-kernel.contract",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "application",
+      "target_owner": "shared-kernel",
+      "target_role": "contract"
+    },
+    {
+      "id": "care-schedule-cutover.care-plan.domain.shared-kernel.contract",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "domain",
+      "target_owner": "shared-kernel",
+      "target_role": "contract"
+    },
+    {
+      "id": "care-schedule-cutover.care-plan.port.care-plan.public",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "port",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-schedule-cutover.care-plan.port.care-plan.contract",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "port",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "care-schedule-cutover.care-plan.port.shared-kernel.contract",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "port",
+      "target_owner": "shared-kernel",
+      "target_role": "contract"
+    },
+    {
+      "id": "care-schedule-cutover.care-plan.public.shared-kernel.contract",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "public",
+      "target_owner": "shared-kernel",
+      "target_role": "contract"
+    },
+    {
+      "id": "care-schedule-cutover.class-day-view.compose.care-plan.public",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-schedule-cutover.device-fleet.compose.care-plan.public",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-schedule-cutover.process-device-scan.compose.care-plan.public",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-schedule-cutover.group-live-view.adapter.care-plan.public",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-schedule-cutover.calendar-view.adapter.care-plan.public",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-schedule-cutover.inbound-timetable.adapter.care-plan.public",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-schedule-cutover.enrollment.application.care-plan.public",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "application",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-schedule-cutover.parent-portal.application.care-plan.contract",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "application",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "care-schedule-cutover.parent-portal.adapter.care-plan.contract",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "care-plan.contracttest.care-plan.contract",
+      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "care-plan.contracttest.people-directory.domain",
+      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "care-plan.contracttest.tenant-runtime.public",
+      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.contracttest.legacy-shared.domain",
+      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "care-plan.contracttest.timetable-activities.domain",
+      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "care-plan.contracttest.care-plan.public",
+      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.contracttest.timetable-activities.compose",
+      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "timetable-activities",
+      "target_role": "compose"
+    },
+    {
+      "id": "care-plan.contracttest.school-structure.domain",
+      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "school-structure",
+      "target_role": "domain"
+    },
+    {
+      "id": "care-plan.contracttest.security-runtime.application",
+      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "security-runtime",
+      "target_role": "application"
+    },
+    {
+      "id": "care-plan.contracttest.identity-access.adapter",
+      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "care-plan.contracttest.request-review-view.compose",
+      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "request-review-view",
+      "target_role": "compose"
+    },
+    {
+      "id": "care-plan.contracttest.communication.application",
+      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "communication",
+      "target_role": "application"
+    },
+    {
+      "id": "care-plan.contracttest.student-presence.public",
+      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.contracttest.student-presence.compose",
+      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "care-plan.contracttest.communication.test-support",
+      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "communication",
+      "target_role": "test-support"
+    },
+    {
+      "id": "care-plan.contracttest.inbound-timetable.adapter",
+      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "care-plan.contracttest.delivery-platform.public",
+      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.contracttest.care-plan.compose",
+      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "care-plan",
+      "target_role": "compose"
+    },
+    {
+      "id": "care-plan.contracttest.student-presence.domain",
+      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "care-plan.contracttest.timetable-activities.public",
+      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
     },
     {
       "id": "care-plan.postgres.student-directory-view",
@@ -8802,17 +9451,6 @@
       "target_role": "postgres"
     },
     {
-      "id": "communication.messages.workflow-identity-domain",
-      "description": "Staff-message compatibility fixtures assign existing account roles.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "communication",
-      "source_role": "workflow-integration-test",
-      "target_owner": "identity-access",
-      "target_role": "domain"
-    },
-    {
       "id": "inbound-operator.to.organization-tenancy",
       "description": "inbound-operator calls exactly one public capability.",
       "scopes": [
@@ -10357,17 +10995,6 @@
       "target_role": "domain"
     },
     {
-      "id": "timetable-activities.http-integration-test.identity-domain",
-      "description": "Timetable HTTP integration tests build retained account rows.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "workflow-integration-test",
-      "target_owner": "identity-access",
-      "target_role": "domain"
-    },
-    {
       "id": "timetable-activities.http-integration-test.people-domain",
       "description": "Timetable HTTP integration tests build retained people rows.",
       "scopes": [
@@ -11691,17 +12318,6 @@
       "target_role": "public"
     },
     {
-      "id": "delivery.adapter-test.identity-domain",
-      "description": "Delivery persistence tests create account and role fixtures for eligibility checks.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "domain"
-    },
-    {
       "id": "delivery.application.same-owner-adapter",
       "description": "Delivery applications delegate localization and provider details to owned adapters.",
       "scopes": [
@@ -12121,17 +12737,6 @@
       "target_role": "application"
     },
     {
-      "id": "delivery-cutover.006",
-      "description": "Allows one dependency introduced by the Delivery package cutover.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "application",
-      "target_owner": "identity-access",
-      "target_role": "domain"
-    },
-    {
       "id": "delivery-cutover.008",
       "description": "Allows one dependency introduced by the Delivery package cutover.",
       "scopes": [
@@ -12196,29 +12801,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "delivery-platform",
       "target_role": "public"
-    },
-    {
-      "id": "delivery-cutover.016",
-      "description": "Allows one dependency introduced by the Delivery package cutover.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "workflow-integration-test",
-      "target_owner": "identity-access",
-      "target_role": "domain"
-    },
-    {
-      "id": "delivery-cutover.017",
-      "description": "Allows one dependency introduced by the Delivery package cutover.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "workflow-integration-test",
-      "target_owner": "identity-access",
-      "target_role": "postgres"
     },
     {
       "id": "delivery-cutover.018",
@@ -14980,17 +15562,6 @@
       "target_role": "domain"
     },
     {
-      "id": "parent-portal.adapter.identity-domain",
-      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the guardian invitation store (models/auth); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "adapter",
-      "target_owner": "identity-access",
-      "target_role": "domain"
-    },
-    {
       "id": "parent-portal.adapter.transaction-domain",
       "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the pointer and unique-violation helpers (models/base); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
       "scopes": [
@@ -15208,17 +15779,6 @@
       "source_role": "adapter-test",
       "target_owner": "identity-access",
       "target_role": "adapter"
-    },
-    {
-      "id": "parent-portal.adapter-test.identity-domain",
-      "description": "The retained parent-portal behaviour tests (workflows/parentportal/legacy) read the guardian invitation rows they script (models/auth); compatibility permission until the package exists at a base SHA (#3228).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "domain"
     },
     {
       "id": "parent-portal.adapter-test.security-application",
@@ -16717,18 +17277,6 @@
       "target_role": "compose"
     },
     {
-      "id": "class-day-view.integration-test.people-directory-postgres",
-      "description": "Compatibility permission (#2701): class-day integration tests hand the retained student and person repositories to the retained schedule services.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "class-day-view",
-      "source_role": "workflow-integration-test",
-      "target_owner": "people-directory",
-      "target_role": "postgres",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3444"
-    },
-    {
       "id": "class-day-view.integration-test.calendar-date",
       "description": "Class-day integration tests pin fixed calendar days and Berlin instants (#2701).",
       "scopes": [
@@ -18023,17 +18571,6 @@
       "target_role": "domain"
     },
     {
-      "id": "calendar-portal.external_test.school-calendar.e2e-test.identity-access.domain",
-      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "school-calendar",
-      "source_role": "e2e-test",
-      "target_owner": "identity-access",
-      "target_role": "domain"
-    },
-    {
       "id": "calendar-portal.external_test.school-calendar.e2e-test.school-calendar.domain",
       "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
       "scopes": [
@@ -19082,16 +19619,6 @@
       "source_role": "http",
       "target_owner": "request-review-view",
       "target_role": "compose"
-    },
-    {
-      "id": "request-review-view.compose.impact-token",
-      "description": "Render the existing SHA-256 pickup-impact wire token from native facts (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "request-review-view",
-      "source_role": "compose",
-      "target_class": "crypto"
     },
     {
       "id": "request-review-view.compose.enrollment.public",
@@ -20717,18 +21244,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
     },
     {
-      "id": "inbound-parent.http.timetable-domain",
-      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) maps the retained care-exception and care-schedule rows in models/schedule. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "http",
-      "target_owner": "timetable-activities",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
       "id": "inbound-parent.http.people-directory-domain",
       "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) maps the retained person and guardian rows in models/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -21474,18 +21989,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/2725"
     },
     {
-      "id": "inbound-usercontext.adapter-test.identity-access-domain",
-      "description": "The retained user-context tests drive the retained account rows (models/auth) while #2725 dissolves the read side into the Identity & Access application (#3224). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-usercontext",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2725"
-    },
-    {
       "id": "inbound-usercontext.adapter-test.inbound-common-http",
       "description": "The retained user-context tests drive the shared HTTP rendering, middleware and error helpers (api/common) while #2725 dissolves the read side into the Identity & Access application (#3224). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -21619,18 +22122,6 @@
       "source_role": "adapter",
       "target_owner": "identity-access",
       "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2725"
-    },
-    {
-      "id": "inbound-usercontext.adapter.identity-access-domain",
-      "description": "The retained user-context adapter binds the retained account rows (models/auth) while #2725 dissolves the read side into the Identity & Access application (#3224). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-usercontext",
-      "source_role": "adapter",
-      "target_owner": "identity-access",
-      "target_role": "domain",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/2725"
     },
     {
@@ -24002,19 +24493,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
-      "id": "inbound-students.adapter-test.inbound-schedules-adapter",
-      "description": "The retained care, arrival and pickup services that moved from services/schedule to modules/careplan/legacy/careschedule (#3220) are still consumed by api/students. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "inbound-students",
-      "source_role": "adapter-test",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
       "id": "inbound-timetable.adapter-test.inbound-timetable-test-support",
       "description": "The retained timetable SQL test providers that moved from database/repositories/schedule to modules/timetable/legacy/timetablesqltest (#3220) are still consumed by api/timetable. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -24026,258 +24504,6 @@
       "target_owner": "inbound-timetable",
       "target_role": "test-support",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
-      "id": "inbound-schedules.module-behavior-test.identity-access-adapter",
-      "description": "The retained care, arrival and pickup behaviour tests in modules/careplan/legacy/careschedule still import auth/jwt as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "module-behavior-test",
-      "target_owner": "identity-access",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.module-behavior-test.legacy-composition-compose",
-      "description": "The retained care, arrival and pickup behaviour tests in modules/careplan/legacy/careschedule still import database/repositories, services as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "module-behavior-test",
-      "target_owner": "legacy-composition",
-      "target_role": "compose",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.module-behavior-test.legacy-shared-domain",
-      "description": "The retained care, arrival and pickup behaviour tests in modules/careplan/legacy/careschedule still import internal/timezone as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "module-behavior-test",
-      "target_owner": "legacy-shared",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.module-behavior-test.transaction-runtime-domain",
-      "description": "The retained care, arrival and pickup behaviour tests in modules/careplan/legacy/careschedule still import models/base as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "module-behavior-test",
-      "target_owner": "transaction-runtime",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.module-behavior-test.school-structure-domain",
-      "description": "The retained care, arrival and pickup behaviour tests in modules/careplan/legacy/careschedule still import models/education as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "module-behavior-test",
-      "target_owner": "school-structure",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.module-behavior-test.timetable-activities-domain",
-      "description": "The retained care, arrival and pickup behaviour tests in modules/careplan/legacy/careschedule still import models/schedule as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "module-behavior-test",
-      "target_owner": "timetable-activities",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.module-behavior-test.people-directory-domain",
-      "description": "The retained care, arrival and pickup behaviour tests in modules/careplan/legacy/careschedule still import models/users as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "module-behavior-test",
-      "target_owner": "people-directory",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.module-behavior-test.inbound-schedules-adapter",
-      "description": "The retained care, arrival and pickup behaviour tests in modules/careplan/legacy/careschedule drive the compatibility package they moved with (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "module-behavior-test",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.module-behavior-test.inbound-schedules-test-support",
-      "description": "The retained care, arrival and pickup behaviour tests in modules/careplan/legacy/careschedule still import modules/careplan/legacy/careschedule/carescheduletest as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "module-behavior-test",
-      "target_owner": "inbound-schedules",
-      "target_role": "test-support",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.module-behavior-test.communication-test-support",
-      "description": "The retained care, arrival and pickup behaviour tests in modules/careplan/legacy/careschedule still import modules/communication/communicationtest as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "module-behavior-test",
-      "target_owner": "communication",
-      "target_role": "test-support",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.module-behavior-test.student-presence-public",
-      "description": "The retained care, arrival and pickup behaviour tests in modules/careplan/legacy/careschedule still import modules/studentpresence as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "module-behavior-test",
-      "target_owner": "student-presence",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.module-behavior-test.student-presence-compose",
-      "description": "The retained care, arrival and pickup behaviour tests in modules/careplan/legacy/careschedule still import modules/studentpresence/compose as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "module-behavior-test",
-      "target_owner": "student-presence",
-      "target_role": "compose",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.module-behavior-test.student-presence-domain",
-      "description": "The retained care, arrival and pickup behaviour tests in modules/careplan/legacy/careschedule still import modules/studentpresence/legacy/models/active as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "module-behavior-test",
-      "target_owner": "student-presence",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.module-behavior-test.inbound-timetable-adapter",
-      "description": "The retained care, arrival and pickup behaviour tests in modules/careplan/legacy/careschedule still import modules/timetable/legacy/timetableplanning as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "module-behavior-test",
-      "target_owner": "inbound-timetable",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.module-behavior-test.delivery-platform-public",
-      "description": "The retained care, arrival and pickup behaviour tests in modules/careplan/legacy/careschedule still import realtime as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "module-behavior-test",
-      "target_owner": "delivery-platform",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.module-behavior-test.communication-application",
-      "description": "The retained care, arrival and pickup behaviour tests in modules/careplan/legacy/careschedule still import services/parentmessaging as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "module-behavior-test",
-      "target_owner": "communication",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.module-behavior-test.tenant-runtime-public",
-      "description": "The retained care, arrival and pickup behaviour tests in modules/careplan/legacy/careschedule still import tenant as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "module-behavior-test",
-      "target_owner": "tenant-runtime",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "class-day-view.workflow-integration-test.inbound-schedules-adapter",
-      "description": "The retained care, arrival and pickup services that moved from services/schedule to modules/careplan/legacy/careschedule (#3220) are still consumed by modules/classday/compose. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "class-day-view",
-      "source_role": "workflow-integration-test",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "class-day-view.workflow-integration-test.inbound-schedules-test-support",
-      "description": "The care schedule test doubles that moved from services/schedule/scheduletest to modules/careplan/legacy/careschedule/carescheduletest (#3220) are still consumed by modules/classday/compose. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "class-day-view",
-      "source_role": "workflow-integration-test",
-      "target_owner": "inbound-schedules",
-      "target_role": "test-support",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "timetable-activities.workflow-integration-test.inbound-schedules-adapter",
-      "description": "The retained care, arrival and pickup services that moved from services/schedule to modules/careplan/legacy/careschedule (#3220) are still consumed by modules/timetable/compose/httpintegration. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "workflow-integration-test",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-timetable.module-behavior-test.inbound-schedules-adapter",
-      "description": "The retained care, arrival and pickup services that moved from services/schedule to modules/careplan/legacy/careschedule (#3220) are still consumed by modules/timetable/legacy/timetableplanning. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "module-behavior-test",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
     },
     {
       "id": "inbound-timetable.module-behavior-test.inbound-timetable-test-support",
@@ -24388,30 +24614,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
-      "id": "enrollment.module-behavior-test.inbound-schedules-adapter",
-      "description": "The retained care, arrival and pickup services that moved from services/schedule to modules/careplan/legacy/careschedule (#3220) are still consumed by services/enrollment. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "module-behavior-test",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "enrollment.module-behavior-test.inbound-schedules-test-support",
-      "description": "The care schedule test doubles that moved from services/schedule/scheduletest to modules/careplan/legacy/careschedule/carescheduletest (#3220) are still consumed by services/enrollment. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "module-behavior-test",
-      "target_owner": "inbound-schedules",
-      "target_role": "test-support",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
       "id": "enrollment.module-behavior-test.inbound-timetable-test-support",
       "description": "The retained timetable SQL test providers that moved from database/repositories/schedule to modules/timetable/legacy/timetablesqltest (#3220) are still consumed by services/enrollment. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -24421,152 +24623,7 @@
       "source_role": "module-behavior-test",
       "target_owner": "inbound-timetable",
       "target_role": "test-support",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "parent-portal.workflow-integration-test.inbound-schedules-adapter",
-      "description": "The retained care, arrival and pickup services that moved from services/schedule to modules/careplan/legacy/careschedule (#3220) are still consumed by workflows/parentportal/care. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "workflow-integration-test",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "parent-portal.workflow-integration-test.inbound-schedules-test-support",
-      "description": "The care schedule test doubles that moved from services/schedule/scheduletest to modules/careplan/legacy/careschedule/carescheduletest (#3220) are still consumed by workflows/parentportal/care. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "workflow-integration-test",
-      "target_owner": "inbound-schedules",
-      "target_role": "test-support",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "parent-portal.adapter-test.inbound-schedules-adapter",
-      "description": "The retained care, arrival and pickup services that moved from services/schedule to modules/careplan/legacy/careschedule (#3220) are still consumed by workflows/parentportal/legacy. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "adapter-test",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "parent-portal.adapter-test.inbound-schedules-test-support",
-      "description": "The care schedule test doubles that moved from services/schedule/scheduletest to modules/careplan/legacy/careschedule/carescheduletest (#3220) are still consumed by workflows/parentportal/legacy. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "adapter-test",
-      "target_owner": "inbound-schedules",
-      "target_role": "test-support",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-parent.adapter-test.inbound-schedules-adapter",
-      "description": "The retained care, arrival and pickup services that moved from services/schedule to modules/careplan/legacy/careschedule (#3220) are still consumed by modules/careplan/inbound/parent. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "adapter-test",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-timetable.adapter-test.inbound-schedules-adapter",
-      "description": "The retained care, arrival and pickup services that moved from services/schedule to modules/careplan/legacy/careschedule (#3220) are still consumed by api/timetable. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "adapter-test",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-timetable.adapter-test.inbound-schedules-test-support",
-      "description": "The care schedule test doubles that moved from services/schedule/scheduletest to modules/careplan/legacy/careschedule/carescheduletest (#3220) are still consumed by api/timetable. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "adapter-test",
-      "target_owner": "inbound-schedules",
-      "target_role": "test-support",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.module-internal-test.legacy-shared-domain",
-      "description": "The retained care, arrival and pickup unit tests in modules/careplan/legacy/careschedule still import internal/timezone as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "module-internal-test",
-      "target_owner": "legacy-shared",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.module-internal-test.timetable-activities-domain",
-      "description": "The retained care, arrival and pickup unit tests in modules/careplan/legacy/careschedule still import models/schedule as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "module-internal-test",
-      "target_owner": "timetable-activities",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.module-internal-test.people-directory-domain",
-      "description": "The retained care, arrival and pickup unit tests in modules/careplan/legacy/careschedule still import models/users as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "module-internal-test",
-      "target_owner": "people-directory",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "device-fleet.workflow-integration-test.inbound-schedules-adapter",
-      "description": "The retained care, arrival and pickup services that moved from services/schedule to modules/careplan/legacy/careschedule (#3220) are still consumed by modules/devicefleet/compose/httpadapter. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "workflow-integration-test",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "device-fleet.workflow-integration-test.inbound-schedules-test-support",
-      "description": "The care schedule test doubles that moved from services/schedule/scheduletest to modules/careplan/legacy/careschedule/carescheduletest (#3220) are still consumed by modules/devicefleet/compose/httpadapter. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "workflow-integration-test",
-      "target_owner": "inbound-schedules",
-      "target_role": "test-support",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
       "id": "document-rendering.adapter-test.inbound-timetable-test-support",
@@ -24578,43 +24635,7 @@
       "source_role": "adapter-test",
       "target_owner": "inbound-timetable",
       "target_role": "test-support",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "calendar-view.adapter-test.inbound-schedules-adapter",
-      "description": "The retained care, arrival and pickup services that moved from services/schedule to modules/careplan/legacy/careschedule (#3220) are still consumed by modules/supervisiondashboard/legacy. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter-test",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-timetable.module-internal-test.inbound-schedules-adapter",
-      "description": "The retained care, arrival and pickup services that moved from services/schedule to modules/careplan/legacy/careschedule (#3220) are still consumed by modules/timetable/legacy/timetableplanning. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "module-internal-test",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "enrollment.module-internal-test.inbound-schedules-adapter",
-      "description": "The retained care, arrival and pickup services that moved from services/schedule to modules/careplan/legacy/careschedule (#3220) are still consumed by services/enrollment. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "module-internal-test",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
       "id": "scheduler-runtime.module-internal-test.inbound-timetable-test-support",
@@ -24626,448 +24647,7 @@
       "source_role": "module-internal-test",
       "target_owner": "inbound-timetable",
       "target_role": "test-support",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-students.http.inbound-schedules-adapter",
-      "description": "The retained care, arrival and pickup services that moved from services/schedule to modules/careplan/legacy/careschedule (#3220) are still consumed by api/students. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-students",
-      "source_role": "http",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-timetable.http.inbound-schedules-adapter",
-      "description": "The retained care, arrival and pickup services that moved from services/schedule to modules/careplan/legacy/careschedule (#3220) are still consumed by api/timetable. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "http",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "root-composition.compose.inbound-schedules-adapter",
-      "description": "The retained care, arrival and pickup services that moved from services/schedule to modules/careplan/legacy/careschedule (#3220) are still consumed by api. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.test-support.legacy-shared-domain",
-      "description": "The care schedule test doubles in modules/careplan/legacy/careschedule/carescheduletest still import internal/timezone as services/schedule/scheduletest did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "test-support",
-      "target_owner": "legacy-shared",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.test-support.enrollment-domain",
-      "description": "The care schedule test doubles in modules/careplan/legacy/careschedule/carescheduletest still import models/enrollment as services/schedule/scheduletest did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "test-support",
-      "target_owner": "enrollment",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.test-support.timetable-activities-domain",
-      "description": "The care schedule test doubles in modules/careplan/legacy/careschedule/carescheduletest still import models/schedule as services/schedule/scheduletest did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "test-support",
-      "target_owner": "timetable-activities",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.test-support.inbound-schedules-adapter",
-      "description": "The care schedule test doubles in modules/careplan/legacy/careschedule/carescheduletest still import modules/careplan/legacy/careschedule as services/schedule/scheduletest did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "test-support",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.test-support.test-support-test-support",
-      "description": "The care schedule test doubles in modules/careplan/legacy/careschedule/carescheduletest still import services/config/configtest as services/schedule/scheduletest did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "test-support",
-      "target_owner": "test-support",
-      "target_role": "test-support",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.adapter.test",
-      "description": "The retained care, arrival and pickup services in modules/careplan/legacy/careschedule still import cmp as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "adapter",
-      "target_class": "test",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.adapter.crypto",
-      "description": "The retained care, arrival and pickup services in modules/careplan/legacy/careschedule still import crypto/sha256 as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "adapter",
-      "target_class": "crypto",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.adapter.orm-sql",
-      "description": "The retained care, arrival and pickup services in modules/careplan/legacy/careschedule still import database/sql, github.com/uptrace/bun as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "adapter",
-      "target_class": "orm-sql",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.adapter.security-runtime-application",
-      "description": "The retained care, arrival and pickup services in modules/careplan/legacy/careschedule still import auth/authorize as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "adapter",
-      "target_owner": "security-runtime",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.adapter.identity-access-adapter",
-      "description": "The retained care, arrival and pickup services in modules/careplan/legacy/careschedule still import auth/jwt as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "adapter",
-      "target_owner": "identity-access",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.adapter.care-plan-domain",
-      "description": "The retained care, arrival and pickup services in modules/careplan/legacy/careschedule still import internal/careplanning as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "adapter",
-      "target_owner": "care-plan",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.adapter.school-structure-domain",
-      "description": "The retained care, arrival and pickup services in modules/careplan/legacy/careschedule still import internal/schoolclass, models/education as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "adapter",
-      "target_owner": "school-structure",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.adapter.legacy-shared-domain",
-      "description": "The retained care, arrival and pickup services in modules/careplan/legacy/careschedule still import internal/sliceutil, internal/timezone as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "adapter",
-      "target_owner": "legacy-shared",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.adapter.transaction-runtime-domain",
-      "description": "The retained care, arrival and pickup services in modules/careplan/legacy/careschedule still import models/base as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "adapter",
-      "target_owner": "transaction-runtime",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.adapter.settings-platform-domain",
-      "description": "The retained care, arrival and pickup services in modules/careplan/legacy/careschedule still import models/config as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "adapter",
-      "target_owner": "settings-platform",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.adapter.enrollment-domain",
-      "description": "The retained care, arrival and pickup services in modules/careplan/legacy/careschedule still import models/enrollment as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "adapter",
-      "target_owner": "enrollment",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.adapter.timetable-activities-domain",
-      "description": "The retained care, arrival and pickup services in modules/careplan/legacy/careschedule still import models/schedule as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "adapter",
-      "target_owner": "timetable-activities",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.adapter.people-directory-domain",
-      "description": "The retained care, arrival and pickup services in modules/careplan/legacy/careschedule still import models/users as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "adapter",
-      "target_owner": "people-directory",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.adapter.inbound-usercontext-adapter",
-      "description": "The retained care, arrival and pickup services in modules/careplan/legacy/careschedule still import modules/identityaccess/legacy/usercontext as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "adapter",
-      "target_owner": "inbound-usercontext",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.adapter.student-presence-public",
-      "description": "The retained care, arrival and pickup services in modules/careplan/legacy/careschedule still import modules/studentpresence as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "adapter",
-      "target_owner": "student-presence",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.adapter.student-presence-domain",
-      "description": "The retained care, arrival and pickup services in modules/careplan/legacy/careschedule still import modules/studentpresence/legacy/models/active as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "adapter",
-      "target_owner": "student-presence",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.adapter.timetable-activities-public",
-      "description": "The retained care, arrival and pickup services in modules/careplan/legacy/careschedule still import modules/timetable as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "adapter",
-      "target_owner": "timetable-activities",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.adapter.delivery-platform-public",
-      "description": "The retained care, arrival and pickup services in modules/careplan/legacy/careschedule still import realtime as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "adapter",
-      "target_owner": "delivery-platform",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.adapter.settings-platform-application",
-      "description": "The retained care, arrival and pickup services in modules/careplan/legacy/careschedule still import services/config as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "adapter",
-      "target_owner": "settings-platform",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.adapter.communication-application",
-      "description": "The retained care, arrival and pickup services in modules/careplan/legacy/careschedule still import services/parentmessaging as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "adapter",
-      "target_owner": "communication",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.adapter.people-directory-application",
-      "description": "The retained care, arrival and pickup services in modules/careplan/legacy/careschedule still import services/users as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "adapter",
-      "target_owner": "people-directory",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-schedules.adapter.tenant-runtime-public",
-      "description": "The retained care, arrival and pickup services in modules/careplan/legacy/careschedule still import tenant as services/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-schedules",
-      "source_role": "adapter",
-      "target_owner": "tenant-runtime",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "class-day-view.compose.inbound-schedules-adapter",
-      "description": "The retained care, arrival and pickup services that moved from services/schedule to modules/careplan/legacy/careschedule (#3220) are still consumed by modules/classday/compose. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "class-day-view",
-      "source_role": "compose",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "device-fleet.compose.inbound-schedules-adapter",
-      "description": "The retained care, arrival and pickup services that moved from services/schedule to modules/careplan/legacy/careschedule (#3220) are still consumed by modules/devicefleet/compose/legacy. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "compose",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "process-device-scan.compose.inbound-schedules-adapter",
-      "description": "The retained care, arrival and pickup services that moved from services/schedule to modules/careplan/legacy/careschedule (#3220) are still consumed by modules/devicescan/compose. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "process-device-scan",
-      "source_role": "compose",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "group-live-view.adapter.inbound-schedules-adapter",
-      "description": "The retained care, arrival and pickup services that moved from services/schedule to modules/careplan/legacy/careschedule (#3220) are still consumed by modules/grouplive/legacy. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "group-live-view",
-      "source_role": "adapter",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "calendar-view.adapter.inbound-schedules-adapter",
-      "description": "The retained care, arrival and pickup services that moved from services/schedule to modules/careplan/legacy/careschedule (#3220) are still consumed by modules/supervisiondashboard/legacy. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "timetable-activities.compose.inbound-schedules-adapter",
-      "description": "The retained care, arrival and pickup services that moved from services/schedule to modules/careplan/legacy/careschedule (#3220) are still consumed by modules/timetable/compose/httpadapter. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "compose",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "inbound-timetable.adapter.inbound-schedules-adapter",
-      "description": "The retained care, arrival and pickup services that moved from services/schedule to modules/careplan/legacy/careschedule (#3220) are still consumed by modules/timetable/legacy/timetableplanning. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "adapter",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
       "id": "inbound-timetable.test-support.transaction-runtime-postgres",
@@ -25130,54 +24710,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
-      "id": "enrollment.application.inbound-schedules-adapter",
-      "description": "The retained care, arrival and pickup services that moved from services/schedule to modules/careplan/legacy/careschedule (#3220) are still consumed by services/enrollment. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "application",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "legacy-composition.compose.inbound-schedules-adapter",
-      "description": "The retained care, arrival and pickup services that moved from services/schedule to modules/careplan/legacy/careschedule (#3220) are still consumed by services. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "parent-portal.application.inbound-schedules-adapter",
-      "description": "The retained care, arrival and pickup services that moved from services/schedule to modules/careplan/legacy/careschedule (#3220) are still consumed by workflows/parentportal/care. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "application",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
-      "id": "parent-portal.adapter.inbound-schedules-adapter",
-      "description": "The retained care, arrival and pickup services that moved from services/schedule to modules/careplan/legacy/careschedule (#3220) are still consumed by workflows/parentportal/legacy. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "adapter",
-      "target_owner": "inbound-schedules",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
-    },
-    {
       "id": "identity-access.behaviour.identity-public",
       "description": "The Identity & Access behaviour suites in modules/identityaccess/behavior drive the composed module over the retained rows and the service root. Compatibility permission of #3364: the suites moved with the retained ports they used to drive; convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -25211,18 +24743,6 @@
       "source_role": "e2e-test",
       "target_owner": "identity-access",
       "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3446"
-    },
-    {
-      "id": "identity-access.behaviour.identity-domain",
-      "description": "The Identity & Access behaviour suites in modules/identityaccess/behavior drive the composed module over the retained rows and the service root. Compatibility permission of #3364: the suites moved with the retained ports they used to drive; convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "identity-access",
-      "source_role": "e2e-test",
-      "target_owner": "identity-access",
-      "target_role": "domain",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3446"
     },
     {
@@ -25987,22 +25507,89 @@
       "target_owner": "inbound-students",
       "target_role": "adapter",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3427"
+    },
+    {
+      "id": "care-schedule-cutover.timetable-activities.compose.student-presence.public",
+      "description": "Replace the retired room-capacity sentinel alias with its public owner (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "care-schedule-cutover.inbound-timetable.module-internal-test.timetable-activities.public",
+      "description": "Assert Timetable errors at their native owner after Care Schedule retirement (#3351, ADR 0030).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-internal-test",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "care-schedule-cutover.inbound-timetable.module-behavior-test.timetable-activities.public",
+      "description": "Assert Timetable errors at their native owner after Care Schedule retirement (#3351, ADR 0030).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "care-schedule-cutover.enrollment.module-behavior-test.timetable-activities.public",
+      "description": "Bind the native Timetable contract formerly exposed through Care Schedule (#3351, ADR 0030).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "module-behavior-test",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.contracttest.people-directory.public",
+      "description": "Verify native directory plans and audit snapshots through request approval in the new cross-owner contract suite (#3351).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "care-schedule-cutover.enrollment.module-behavior-test.timetable-activities.compose",
+      "description": "Construct native class-arrival projections in the retained enrollment integration fixture (#3351, ADR 0030).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "module-behavior-test",
+      "target_owner": "timetable-activities",
+      "target_role": "compose"
+    },
+    {
+      "id": "care-schedule-cutover.inbound-timetable.adapter-test.timetable-activities.compose",
+      "description": "Construct native class-arrival projections in the retained timetable HTTP fixture (#3351, ADR 0030).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter-test",
+      "target_owner": "timetable-activities",
+      "target_role": "compose"
     }
   ],
   "relocations": [
     {
       "from": "auth/jwt",
       "to": "modules/identityaccess/legacy/jwt",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3226"
-    },
-    {
-      "from": "database/repositories/auth",
-      "to": "modules/identityaccess/legacy/authpostgres",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3226"
-    },
-    {
-      "from": "models/auth",
-      "to": "modules/identityaccess/legacy/authmodels",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3226"
     }
   ]

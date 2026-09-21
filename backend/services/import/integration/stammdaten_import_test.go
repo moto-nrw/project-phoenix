@@ -65,9 +65,6 @@ func TestStaffImportConfig_Create_FilesStammdatensatzAndInvitation(t *testing.T)
 	}
 	config, repos := newStammdatenStaffConfig(t, db, invitations)
 	role := testpkg.CreateTestRoleForTenant(t, db, "Betreuungskraft", testpkg.Tenant(t))
-	baseRole := "user"
-	role.BaseRole = &baseRole
-	require.NoError(t, repos.Role.Update(testpkg.Ctx(t), role))
 
 	email := fmt.Sprintf("import.%d@example.test", role.ID)
 	row := importModels.StaffImportRow{

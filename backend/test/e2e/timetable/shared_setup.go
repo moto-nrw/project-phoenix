@@ -23,7 +23,7 @@ type (
 
 var (
 	newTimetableTestResource = timetableAPI.NewResource
-	newTimetableTokenAuth    = jwt.NewTokenAuth
+	newTimetableTokenAuth    = configuredTimetableTokenAuth
 )
 
 // Seed the JWT values before the test-only scenario creates a TokenAuth.
@@ -37,4 +37,12 @@ func init() {
 	if viper.GetDuration("auth_jwt_refresh_expiry") == 0 {
 		viper.Set("auth_jwt_refresh_expiry", time.Hour)
 	}
+}
+
+func configuredTimetableTokenAuth() (*jwt.TokenAuth, error) {
+	return jwt.NewTokenAuthWithDurations(
+		viper.GetString("auth_jwt_secret"),
+		viper.GetDuration("auth_jwt_expiry"),
+		viper.GetDuration("auth_jwt_refresh_expiry"),
+	)
 }

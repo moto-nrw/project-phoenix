@@ -9,7 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -84,7 +84,7 @@ func TestCalendarPeriodMutationCareOfferingPreflightLeavesPeriodUnchanged(t *tes
 	assert.Nil(t, replacements[1], "delete preflight is represented by a nil replacement")
 
 	assert.False(t, errors.Is(
-		&careschedule.ScheduleError{Op: "probe", Err: errors.New("database unavailable")},
+		&careplan.ScheduleError{Op: "probe", Err: errors.New("database unavailable")},
 		scheduleModel.ErrCalendarPeriodCareOfferingConflict,
 	), "infrastructure errors must not be classified as care-link conflicts")
 }

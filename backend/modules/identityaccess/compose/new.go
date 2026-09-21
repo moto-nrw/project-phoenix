@@ -55,6 +55,8 @@ type Dependencies struct {
 	// change flows (#3332). They require Sessions and Operators;
 	// compositions without it report ErrOperatorProvisioningUnavailable.
 	OperatorProvisioning *OperatorProvisioningDependencies
+	// Demo composes public demo access only in the demo environment.
+	Demo *DemoDependencies
 }
 
 // New composes the Identity & Access module. Guardian operations run on the
@@ -71,10 +73,6 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("identity access compose: all dependencies are required")
 	}
-	// Every flow attaches the unit of work through the same reference, so
-	// a root that only has its runtime after the module is composed binds
-	// it once and every flow composed above sees it (#3364). The caller's
-	// own attachment stays the fallback until then.
 	runtime := tenant.NewRuntimeRef(nil)
 	if dependencies.Sessions != nil {
 		sessions := *dependencies.Sessions
@@ -82,26 +80,7 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		sessions.TenantRuntime = runtime.Attach
 		dependencies.Sessions = &sessions
 	}
-	scope := func(ctx context.Context) postgres.TenantScope {
-		return postgres.TenantScope{TenantID: tenant.FromContext(ctx), AdminTransaction: tenant.IsAdminTx(ctx)}
-	}
-	store := postgres.New(func(ctx context.Context) (bun.IDB, error) {
-		transaction, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return dependencies.DB, nil
-		}
-		switch tx := transaction.(type) {
-		case bun.Tx:
-			return tx, nil
-		case *bun.Tx:
-			if tx != nil {
-				return *tx, nil
-			}
-			return dependencies.DB, nil
-		default:
-			return nil, fmt.Errorf("identity access postgres: unsupported transaction %T", transaction)
-		}
-	}, scope)
+	store := newStore(dependencies.DB)
 	service := application.New(store, store, store, transaction{}, tenant.FromContext, func(observation Observation) {
 		observation.Err = mapError(observation.Err)
 		dependencies.Observe(observation)
@@ -109,7 +88,7 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	operatorMFARecords := application.NewOperatorMFA(service, store)
 	// The second factor is composed first: every login path consults its
 	// gate, and the passkey ceremonies below need the sessions it gates.
-	flows, err := newMFACore(service, operatorMFARecords, dependencies.Sessions, dependencies.MFA)
+	flows, err := newMFACore(service, operatorMFARecords, postgres.NewAccountMFARecords(store), dependencies.Sessions, dependencies.MFA)
 	if err != nil {
 		return nil, err
 	}
@@ -142,8 +121,7 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	operatorPasskeys := application.NewOperatorPasskey(service, store)
-	accountPasskeys := application.NewAccountPasskey(service, store)
+	operatorPasskeys, accountPasskeys := newPasskeyRecords(service, store)
 	flows, err = withPasskeyFlows(flows, service, auth, operatorAuth, accountPasskeys, operatorPasskeys,
 		dependencies.Sessions, dependencies.MFA)
 	if err != nil {
@@ -153,16 +131,26 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if err != nil {
 		return nil, err
 	}
+	demoAccess, err := composeDemoAccess(dependencies.DB, auth, dependencies.Demo)
+	if err != nil {
+		return nil, err
+	}
 	e := engine{
-		service: service, mfa: operatorMFARecords, tokens: tokens,
-		passkeys: operatorPasskeys, accountPasskeys: accountPasskeys,
+		calendarFeeds: newCalendarFeeds(service, store),
+		profiles:      application.NewAccountProfiles(service, store), guardianSchools: application.NewGuardianSchools(service, store),
+		service: service, mfa: operatorMFARecords, tokens: tokens, rfidCards: application.NewRFIDCards(service, store),
+		passkeys: operatorPasskeys, accountPasskeys: accountPasskeys, accountRoleQueries: application.NewAccountRoleQueries(service, store, postgres.NewRoleStore(store)),
 		auth: auth, operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle, roles: roles,
 		resets: resets, invitations: invitations, provisioning: provisioning, administration: administration,
 		mfaFlows: flows, operatorProvisioning: operatorProvisioning,
 		invitationMaintenance: application.NewSchoolInvitationMaintenance(store, invitationLogger(dependencies.Invitations)),
 	}
 	e.runtime = runtime.Attach
-	return identityaccess.NewModule(e, runtime), nil
+	return identityaccess.NewDemoModule(e, runtime, demoAccess), nil
+}
+
+func newPasskeyRecords(service *application.Service, store *postgres.Store) (*application.OperatorPasskey, *application.AccountPasskey) {
+	return application.NewOperatorPasskey(service, store), application.NewAccountPasskey(service, store)
 }
 
 type transaction struct{}
@@ -195,11 +183,16 @@ func (transaction) RunPlatform(ctx context.Context, callback func(context.Contex
 }
 
 type engine struct {
-	service         *application.Service
-	mfa             *application.OperatorMFA
-	tokens          *application.OperatorTokens
-	passkeys        *application.OperatorPasskey
-	accountPasskeys *application.AccountPasskey
+	calendarFeeds
+	rfidCards          *application.RFIDCards
+	accountRoleQueries *application.AccountRoleQueries
+	guardianSchools    *application.GuardianSchools
+	profiles           *application.AccountProfiles
+	service            *application.Service
+	mfa                *application.OperatorMFA
+	tokens             *application.OperatorTokens
+	passkeys           *application.OperatorPasskey
+	accountPasskeys    *application.AccountPasskey
 	// auth is nil when the module was composed without session dependencies.
 	auth *application.AccountAuthentication
 	// operatorAuth and accountAccess are nil when the module was composed

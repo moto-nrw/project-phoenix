@@ -10,8 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -54,14 +53,14 @@ type ClassDayArrivalExceptionWrite struct {
 // Sentinels the HTTP layer classifies. They share identity with the schedule
 // service's errors, so errors.Is works on either name.
 var (
-	ErrClassDayArrivalExceptionPastDate      = careschedule.ErrClassArrivalExceptionPastDate
-	ErrClassDayArrivalExceptionWeekend       = careschedule.ErrClassArrivalExceptionWeekend
-	ErrClassDayArrivalExceptionClassNotFound = careschedule.ErrClassArrivalExceptionClassNotFound
-	ErrClassDayArrivalExceptionNotFound      = careschedule.ErrClassArrivalExceptionNotFound
+	ErrClassDayArrivalExceptionPastDate      = careplan.ErrClassArrivalExceptionPastDate
+	ErrClassDayArrivalExceptionWeekend       = careplan.ErrClassArrivalExceptionWeekend
+	ErrClassDayArrivalExceptionClassNotFound = careplan.ErrClassArrivalExceptionClassNotFound
+	ErrClassDayArrivalExceptionNotFound      = careplan.ErrClassArrivalExceptionNotFound
 )
 
 // ClassDayArrivalExceptionOriginSchool marks an entry a Lehrkraft made.
-const ClassDayArrivalExceptionOriginSchool = scheduleModel.ClassArrivalExceptionOriginSchool
+const ClassDayArrivalExceptionOriginSchool = careplan.ClassArrivalExceptionOriginSchool
 
 // ClassDaySettingsReader is the slice of the settings service the seam needs.
 type ClassDaySettingsReader interface {
@@ -92,7 +91,7 @@ type ClassDayArrivalExceptionService interface {
 
 // ClassDayArrivalExceptionConfig wires the seam.
 type ClassDayArrivalExceptionConfig struct {
-	ArrivalSchedule careschedule.ArrivalScheduleService
+	ArrivalSchedule careplan.ClassArrivalExceptions
 	Settings        ClassDaySettingsReader
 	BlockStarts     ClassDayBlockStartReader
 	// Broadcaster is optional: without it nothing is announced.
@@ -149,12 +148,12 @@ func (s *classDayArrivalExceptionService) Set(ctx context.Context, in ClassDayAr
 	if s.cfg.ArrivalSchedule == nil {
 		return nil, errors.New("class day arrival exceptions: arrival schedule service not configured")
 	}
-	row, err := s.cfg.ArrivalSchedule.UpsertClassArrivalException(ctx, careschedule.ClassArrivalExceptionInput{
+	row, err := s.cfg.ArrivalSchedule.UpsertClassArrivalException(ctx, careplan.ClassArrivalExceptionInput{
 		SchoolClass: in.SchoolClass,
 		Date:        in.Date,
 		ArrivalTime: in.ArrivalTime,
 		Reason:      in.Reason,
-		Origin:      scheduleModel.ClassArrivalExceptionOriginSchool,
+		Origin:      careplan.ClassArrivalExceptionOriginSchool,
 	}, in.CreatedBy)
 	if err != nil {
 		return nil, err
@@ -201,10 +200,10 @@ func (s *classDayArrivalExceptionService) announceAfterCommit(ctx context.Contex
 	})
 }
 
-func classDayArrivalExceptionEntry(row *scheduleModel.ClassArrivalException) ClassDayArrivalExceptionEntry {
+func classDayArrivalExceptionEntry(row *careplan.ClassArrivalException) ClassDayArrivalExceptionEntry {
 	origin := strings.TrimSpace(row.Origin)
 	if origin == "" {
-		origin = scheduleModel.ClassArrivalExceptionOriginOGS
+		origin = careplan.ClassArrivalExceptionOriginOGS
 	}
 	return ClassDayArrivalExceptionEntry{
 		SchoolClass: row.SchoolClass,

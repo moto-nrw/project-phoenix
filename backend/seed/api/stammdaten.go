@@ -138,6 +138,9 @@ func (s *FixedSeeder) Seed(ctx context.Context) (*FixedResult, error) {
 	if err := s.seedStudents(ctx, result); err != nil {
 		return nil, fmt.Errorf("failed to seed students: %w", err)
 	}
+	if err := s.seedSchoolPeriods(); err != nil {
+		return nil, fmt.Errorf("failed to seed school periods: %w", err)
+	}
 	if err := s.seedClassArrivalTimes(ctx, result); err != nil {
 		return nil, fmt.Errorf("failed to seed class arrival times: %w", err)
 	}
@@ -198,6 +201,23 @@ func (s *FixedSeeder) Seed(ctx context.Context) (*FixedResult, error) {
 
 	fmt.Println("✅ Fixed data creation complete!")
 	return result, nil
+}
+
+// seedSchoolPeriods maintains the lesson end times of the demo school (#3372),
+// so the arrival forms offer "nach der 5. Stunde". The 4th to 6th lesson end
+// where the seeded classes have their Unterrichtsschluss.
+func (s *FixedSeeder) seedSchoolPeriods() error {
+	endTimes := []string{"08:45", "09:30", "10:40", "11:45", "12:45", "13:30"}
+	for index, endTime := range endTimes {
+		path := fmt.Sprintf("/api/settings/values/school_periods.end_%d", index+1)
+		if _, err := s.client.Put(path, map[string]any{"value": endTime}); err != nil {
+			return fmt.Errorf("seed end of lesson %d: %w", index+1, err)
+		}
+	}
+	if s.verbose {
+		fmt.Printf("  ✓ %d school periods seeded\n", len(endTimes))
+	}
+	return nil
 }
 
 func (s *FixedSeeder) seedClassArrivalTimes(_ context.Context, result *FixedResult) error {

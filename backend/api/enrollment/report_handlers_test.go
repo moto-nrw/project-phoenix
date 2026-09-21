@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -57,16 +58,17 @@ func TestClassRosterExportRequiresConfigManageAndUsersRead(t *testing.T) {
 			return fn(r.Context())
 		},
 	}).Router()
+	served := testpkg.SessionVerifier(router)
 	body := `{"format":"xlsx","filters":{"phase_id":42,"school_class":"1a"}}`
 
 	configOnly := newClassRosterExportHTTPRequest(t, body, []string{permissions.ConfigManage})
 	configOnlyRecorder := httptest.NewRecorder()
-	router.ServeHTTP(configOnlyRecorder, configOnly)
+	served.ServeHTTP(configOnlyRecorder, configOnly)
 	assert.Equal(t, http.StatusForbidden, configOnlyRecorder.Code)
 
 	configAndUsersRead := newClassRosterExportHTTPRequest(t, body, []string{permissions.ConfigManage, permissions.UsersRead})
 	configAndUsersReadRecorder := httptest.NewRecorder()
-	router.ServeHTTP(configAndUsersReadRecorder, configAndUsersRead)
+	served.ServeHTTP(configAndUsersReadRecorder, configAndUsersRead)
 	assert.Equal(t, http.StatusOK, configAndUsersReadRecorder.Code)
 }
 

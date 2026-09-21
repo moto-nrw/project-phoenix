@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +27,7 @@ func moveGuardianAccessToOtherSchool(t *testing.T, db *bun.DB, chain testpkg.Par
 	_, err := db.ExecContext(ctx, `
 		INSERT INTO auth.account_roles (account_id, role_id, tenant_id)
 		SELECT ?, id, ? FROM auth.roles WHERE name = ? AND tenant_id IS NULL`,
-		chain.AccountID, other, authModels.BaseRoleGuardian)
+		chain.AccountID, other, "guardian")
 	require.NoError(t, err)
 	_, err = db.ExecContext(ctx, change, chain.AccountID, chain.TenantID)
 	require.NoError(t, err)
@@ -134,24 +133,67 @@ func TestIdentityMembership_UnboundQueriesFailClosed(t *testing.T) {
 
 	_, err = usersRepo.NewMessageableGuardianRepository(db, nil).ListGuardiansForStudent(ctx, chain.StudentID)
 	require.Error(t, err)
+	lookupFailure := errors.New("school membership lookup failed")
+	failingRelationships := usersRepo.NewStudentGuardianRepository(db, usersRepo.WithStudentGuardianMemberships(
+		func(_ context.Context, accountIDs, schoolIDs []int64) (map[int64][]int64, error) {
+			require.Equal(t, []int64{chain.AccountID}, accountIDs)
+			require.Equal(t, []int64{chain.TenantID}, schoolIDs)
+			return nil, lookupFailure
+		}))
+	accountGranted, err := failingRelationships.AccountHasStudentPermission(ctx, chain.AccountID, chain.StudentID, chain.TenantID, perm)
+	require.ErrorIs(t, err, lookupFailure)
+	require.False(t, accountGranted)
+	emailGranted, err := failingRelationships.GuardianEmailHasStudentPermission(ctx, chain.Email, chain.StudentID, chain.TenantID, perm)
+	require.ErrorIs(t, err, lookupFailure)
+	require.False(t, emailGranted)
+	permitted, err := failingRelationships.FilterAccountsWithStudentAccess(ctx, []int64{chain.AccountID}, []int64{chain.StudentID}, chain.TenantID, perm)
+	require.ErrorIs(t, err, lookupFailure)
+	require.Nil(t, permitted)
+	failingRecipients := usersRepo.NewMessageableGuardianRepository(db,
+		func(_ context.Context, accountIDs, schoolIDs []int64) (map[int64][]int64, error) {
+			require.Equal(t, []int64{chain.AccountID}, accountIDs)
+			require.Equal(t, []int64{chain.TenantID}, schoolIDs)
+			return nil, lookupFailure
+		})
+	listed, err := failingRecipients.ListGuardiansForStudent(ctx, chain.StudentID)
+	require.ErrorIs(t, err, lookupFailure)
+	require.Nil(t, listed, "failed membership reads must not return relationship candidates")
 
-	// Only the #2720 account switch is bound, so the #2721 school access
-	// queries are what is missing.
-	activeAccounts := func(context.Context) *bun.SelectQuery {
-		return db.NewSelect().TableExpr(`auth.accounts AS "account"`).ColumnExpr(`"account".id`).Where(`"account".active = TRUE`)
-	}
-	_, err = usersRepo.NewGuardianProfileRepository(db, usersRepo.WithActiveAccounts(activeAccounts)).
+	_, err = usersRepo.NewGuardianProfileRepository(db).
 		FindActivePortalProfilesByIDs(ctx, []int64{chain.GuardianProfileID})
-	require.ErrorContains(t, err, "school access queries are required")
+	require.ErrorContains(t, err, "portal membership query is required")
+	projectionFailure := errors.New("portal membership lookup failed")
+	failingProfiles := usersRepo.NewGuardianProfileRepository(db, usersRepo.WithPortalMemberships(
+		func(_ context.Context, accountIDs []int64) (map[int64][]int64, error) {
+			require.Equal(t, []int64{chain.AccountID}, accountIDs)
+			return nil, projectionFailure
+		}))
+	profiles, err := failingProfiles.FindActivePortalProfilesByIDs(ctx, []int64{chain.GuardianProfileID})
+	require.ErrorIs(t, err, projectionFailure)
+	require.Nil(t, profiles, "failed account reachability must not return candidates")
 
 	staffAccounts := func(context.Context) ([]int64, error) { return []int64{chain.AccountID}, nil }
-	reads := usersRepo.NewMessageableStaffRepository(db, staffAccounts, usersRepo.StaffMessageIdentity{ActiveAccounts: activeAccounts})
+	reads := usersRepo.NewMessageableStaffRepository(db, staffAccounts, usersRepo.StaffMessageIdentity{})
 	_, err = reads.ListMessageableStaff(ctx, chain.AccountID)
-	require.ErrorContains(t, err, "membership queries are required")
+	require.ErrorContains(t, err, "active school account lookup is required")
 	_, err = reads.IsMessageableStaff(ctx, chain.AccountID)
-	require.ErrorContains(t, err, "membership queries are required")
+	require.ErrorContains(t, err, "active school account lookup is required")
 	_, err = reads.StaffRoleKinds(ctx, []int64{chain.AccountID})
 	require.ErrorContains(t, err, "role class query is required")
+
+	failingStaff := usersRepo.NewMessageableStaffRepository(db, staffAccounts, usersRepo.StaffMessageIdentity{
+		ActiveSchoolAccounts: func(_ context.Context, schoolID int64, accountIDs []int64) ([]int64, error) {
+			require.Equal(t, chain.TenantID, schoolID)
+			require.Equal(t, []int64{chain.AccountID}, accountIDs)
+			return nil, lookupFailure
+		},
+	})
+	staff, err := failingStaff.ListMessageableStaff(ctx, chain.AccountID)
+	require.ErrorIs(t, err, lookupFailure)
+	require.Nil(t, staff)
+	allowed, err := failingStaff.IsMessageableStaff(ctx, chain.AccountID)
+	require.ErrorIs(t, err, lookupFailure)
+	require.False(t, allowed)
 }
 
 // TestIdentityMembership_RoleClassFailureIsNotSwallowed pins that a failing

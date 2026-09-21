@@ -63,6 +63,19 @@ func TestExceptionQueriesShareTenantAndTransactionWithoutStatusSlotCommands(t *t
 	}
 }
 
+func TestNativeDayLocksRejectMissingTenantBeforeStudentLock(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	locks, err := NewDayLocks(db, func(context.Context, int64) error {
+		t.Fatal("missing tenant reached student lock")
+		return nil
+	}, errors.New("missing student"))
+	require.NoError(t, err)
+	require.ErrorContains(t, locks.LockStudentAndExceptionDay(context.Background(), 123, "2031-02-03"), "tenant is required")
+	module := buildModule(t, db)
+	require.ErrorContains(t, module.LockStudentAndExceptionDay(context.Background(), 123, "2031-02-03"), "tenant is required")
+}
+
 func TestDayLocksPreserveStudentFailureContracts(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

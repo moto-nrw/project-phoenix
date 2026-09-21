@@ -11,14 +11,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -71,26 +69,26 @@ type ClassArrivalExceptionListResponse struct {
 }
 
 var classArrivalExceptionErrorRenderer = common.RulesRenderer([]common.ErrorRule{
-	{Target: careschedule.ErrClassArrivalExceptionPastDate, Render: func(err error) render.Renderer {
+	{Target: careplan.ErrClassArrivalExceptionPastDate, Render: func(err error) render.Renderer {
 		return common.ErrorInvalidRequestWithCode(err, "class_arrival_exception_past_date")
 	}},
-	{Target: careschedule.ErrClassArrivalExceptionWeekend, Render: func(err error) render.Renderer {
+	{Target: careplan.ErrClassArrivalExceptionWeekend, Render: func(err error) render.Renderer {
 		return common.ErrorInvalidRequestWithCode(err, "class_arrival_exception_weekend")
 	}},
-	{Target: careschedule.ErrClassArrivalExceptionClassNotFound, Render: func(err error) render.Renderer {
+	{Target: careplan.ErrClassArrivalExceptionClassNotFound, Render: func(err error) render.Renderer {
 		return common.ErrorNotFoundWithCode(err, "class_arrival_exception_class_not_found")
 	}},
-	{Target: careschedule.ErrClassArrivalExceptionNotFound, Render: common.ErrorNotFound},
+	{Target: careplan.ErrClassArrivalExceptionNotFound, Render: common.ErrorNotFound},
 }, common.ErrorInternalServer)
 
-func mapClassArrivalException(row *scheduleModel.ClassArrivalException) ClassArrivalExceptionResponse {
+func mapClassArrivalException(row *careplan.ClassArrivalException) ClassArrivalExceptionResponse {
 	return ClassArrivalExceptionResponse{
 		SchoolClass: row.SchoolClass,
 		Date:        row.Date.String(),
 		ArrivalTime: row.ArrivalTime.Format("15:04"),
 		Reason:      row.Reason,
 		CreatedAt:   row.CreatedAt.Format(time.RFC3339),
-		Origin:      cmp.Or(row.Origin, scheduleModel.ClassArrivalExceptionOriginOGS),
+		Origin:      cmp.Or(row.Origin, careplan.ClassArrivalExceptionOriginOGS),
 	}
 }
 
@@ -217,7 +215,7 @@ func (rs *Resource) putClassArrivalException(w http.ResponseWriter, r *http.Requ
 	}
 	arrivalTime, _ := parseTimeOnly(req.ArrivalTime)
 
-	row, err := rs.ArrivalScheduleService.UpsertClassArrivalException(r.Context(), careschedule.ClassArrivalExceptionInput{
+	row, err := rs.ArrivalScheduleService.UpsertClassArrivalException(r.Context(), careplan.ClassArrivalExceptionInput{
 		SchoolClass: chi.URLParam(r, "schoolClass"),
 		Date:        date,
 		ArrivalTime: arrivalTime,

@@ -20,7 +20,7 @@ import (
 // operatorProvisioningSources are the retained services and repositories the
 // Organisation & Tenancy provisioning seams are bound to (#3253).
 type operatorProvisioningSources struct {
-	repos          *repositories.Factory
+	accounts       repositories.OperatorAccountDirectory
 	organizations  organizationtenancy.Capability
 	adapters       repositories.OperatorProvisioningAdapters
 	sessions       identityaccess.AccountSessionMaintenance
@@ -28,7 +28,7 @@ type operatorProvisioningSources struct {
 	provisioning   identityaccess.AccountProvisioning
 	administration identityaccess.AccountAdministration
 	schoolIdentity identityaccess.SchoolIdentityProvisioning
-	roles          identityaccess.RoleCommand
+	roles          provisioningRoles
 	settings       config.SettingsService
 	logger         *slog.Logger
 }
@@ -37,45 +37,49 @@ func newOperatorProvisioning(sources operatorProvisioningSources) (organizationt
 	return organizationCompose.NewProvisioning(organizationCompose.ProvisioningDependencies{
 		Organizations: sources.organizations,
 		Identity: provisioningIdentity{
-			repos: sources.repos, sessions: sources.sessions,
+			sessions:    sources.sessions,
 			invitations: sources.invitations, provisioning: sources.provisioning,
 			administration: sources.administration, schoolIdentity: sources.schoolIdentity,
-			roles: sources.roles,
+			roles: sources.roles, accounts: sources.accounts,
 		},
-		Devices:           sources.adapters.Devices,
-		People:            sources.adapters.People,
-		Presence:          sources.adapters.Presence,
-		Categories:        sources.adapters.Categories,
-		Settings:          provisioningSettings{settings: sources.settings},
-		Audit:             sources.adapters.Audit,
-		Logger:            sources.logger,
-		ActiveMemberships: sources.adapters.ActiveMemberships,
+		Devices:             sources.adapters.Devices,
+		People:              sources.adapters.People,
+		Presence:            sources.adapters.Presence,
+		Categories:          sources.adapters.Categories,
+		Settings:            provisioningSettings{settings: sources.settings},
+		Audit:               sources.adapters.Audit,
+		Logger:              sources.logger,
+		ActiveAccountCounts: sources.adapters.ActiveAccountCounts,
 	})
 }
 
-// provisioningIdentity binds the Identity & Access part of provisioning to
-// the public role administration and the retained auth services and
-// repositories.
+type provisioningRoles interface {
+	identityaccess.RoleCommand
+	ListRoles(context.Context, identityaccess.RoleFilter) ([]identityaccess.Role, error)
+	GetRole(context.Context, int64) (identityaccess.Role, error)
+}
+
+// provisioningIdentity binds provisioning to public identity capabilities.
 type provisioningIdentity struct {
-	repos          *repositories.Factory
+	accounts       repositories.OperatorAccountDirectory
 	sessions       identityaccess.AccountSessionMaintenance
 	invitations    identityaccess.SchoolInvitations
 	provisioning   identityaccess.AccountProvisioning
 	administration identityaccess.AccountAdministration
 	schoolIdentity identityaccess.SchoolIdentityProvisioning
-	roles          identityaccess.RoleCommand
+	roles          provisioningRoles
 }
 
 var _ organizationCompose.ProvisioningIdentity = provisioningIdentity{}
 
 func (p provisioningIdentity) ListSystemRoles(ctx context.Context) ([]organizationCompose.ProvisioningRole, error) {
-	roles, err := p.repos.Role.List(ctx, map[string]any{"is_system": true})
+	roles, err := p.roles.ListRoles(ctx, identityaccess.RoleFilter{})
 	if err != nil {
 		return nil, err
 	}
 	result := make([]organizationCompose.ProvisioningRole, 0, len(roles))
 	for _, role := range roles {
-		if role != nil {
+		if role.IsSystem {
 			result = append(result, p.role(role.ID, role.Name, role.IsSystem, role.TenantID, role.BaseRole))
 		}
 	}
@@ -97,9 +101,14 @@ func (p provisioningIdentity) FindSystemRole(ctx context.Context, name string) (
 	return organizationCompose.ProvisioningRole{}, false, nil
 }
 
+// FindRole reports a missing role as not found rather than as a failure, so
+// provisioning answers 400 for an unknown role_id instead of 500.
 func (p provisioningIdentity) FindRole(ctx context.Context, id int64) (organizationCompose.ProvisioningRole, bool, error) {
-	role, err := p.repos.Role.FindByID(ctx, id)
-	if err != nil || role == nil {
+	role, err := p.roles.GetRole(ctx, id)
+	if errors.Is(err, identityaccess.ErrRoleNotFound) {
+		return organizationCompose.ProvisioningRole{}, false, nil
+	}
+	if err != nil {
 		return organizationCompose.ProvisioningRole{}, false, err
 	}
 	return p.role(role.ID, role.Name, role.IsSystem, role.TenantID, role.BaseRole), true, nil
@@ -186,7 +195,7 @@ func (p provisioningIdentity) AssignRole(ctx context.Context, tenantID, accountI
 }
 
 func (p provisioningIdentity) ListSchoolAccounts(ctx context.Context, tenantID int64) ([]organizationCompose.SchoolAccount, error) {
-	accounts, err := p.repos.AccountTenant.ListAccountsByTenantID(ctx, tenantID)
+	accounts, err := p.accounts.ListAccountsByTenantID(ctx, tenantID)
 	if err != nil || accounts == nil {
 		return nil, err
 	}
@@ -198,7 +207,7 @@ func (p provisioningIdentity) ListSchoolAccounts(ctx context.Context, tenantID i
 }
 
 func (p provisioningIdentity) ListOrganizationAccounts(ctx context.Context, organizationID int64) ([]organizationCompose.OrganizationAccount, error) {
-	accounts, err := p.repos.AccountTenant.ListAccountsByOrganizationID(ctx, organizationID)
+	accounts, err := p.accounts.ListAccountsByOrganizationID(ctx, organizationID)
 	if err != nil || accounts == nil {
 		return nil, err
 	}
@@ -213,7 +222,7 @@ func (p provisioningIdentity) ListOrganizationAccounts(ctx context.Context, orga
 }
 
 func (p provisioningIdentity) ListAllAccounts(ctx context.Context) ([]organizationCompose.OrganizationAccount, error) {
-	accounts, err := p.repos.AccountTenant.ListAllAccounts(ctx)
+	accounts, err := p.accounts.ListAllAccounts(ctx)
 	if err != nil || accounts == nil {
 		return nil, err
 	}
@@ -240,7 +249,7 @@ func (p provisioningIdentity) DeactivateAccount(ctx context.Context, accountID i
 }
 
 func (p provisioningIdentity) AnonymizeAccount(ctx context.Context, accountID int64, email string) error {
-	return p.repos.Account.AnonymizeForDeletion(ctx, accountID, email)
+	return p.administration.AnonymizeAccountForDeletion(ctx, accountID, email)
 }
 
 // invalidSchoolIdentityError marks an identity chain input error for the

@@ -30,15 +30,18 @@ type ReviewItem struct {
 	Reason          *string
 	AffectedBlocks  []Block
 	ImpactAvailable bool
+	ImpactToken     string
 }
 
 type HistoryItem struct {
-	Request      *Request
-	FirstName    string
-	LastName     string
-	ReviewerName string
-	Requested    []DiffEntry
-	Diff         []DiffEntry
+	Request       *Request
+	FirstName     string
+	LastName      string
+	ReviewerName  string
+	Requested     []DiffEntry
+	Diff          []DiffEntry
+	RequestReason *string
+	PickupChange  *PickupChangeTerms
 }
 
 type Block struct {

@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { mutate } from "~/lib/swr";
 import { clearSessionCache } from "~/lib/session-cache";
 import { TenantSwitchError, performTenantSwitch } from "~/lib/tenant-api";
 import { performEndStaffPreview } from "~/lib/staff-preview-api";
 import { useTenant } from "~/lib/tenant-context";
+import { isDemoEntryPath } from "~/lib/demo-access";
 import { createLogger } from "~/lib/logger";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -43,8 +45,19 @@ function browserRedirect(url: string): void {
  * and "Neu anmelden" instead of waiting forever (#3375).
  *
  * RLS provides defense-in-depth during any brief mismatch window.
+ *
+ * The entry page of the public demo (#3462) is exempt: it replaces whatever
+ * session the visitor brought, so switching or signing out first would end
+ * the entry before the demo token is redeemed.
  */
-export function TenantGuard({
+export function TenantGuard(props: TenantGuardProps) {
+  const pathname = usePathname();
+  const { tenant } = useTenant();
+  if (isDemoEntryPath(pathname, tenant?.slug)) return <>{props.children}</>;
+  return <GuardedTenant {...props} />;
+}
+
+function GuardedTenant({
   children,
   redirect = browserRedirect,
 }: TenantGuardProps) {

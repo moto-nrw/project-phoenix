@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -590,13 +590,13 @@ func TestScheduleService_TimeframeCareOfferingGuard(t *testing.T) {
 	openEnded := *timeframe
 	openEnded.EndTime = nil
 	err := service.UpdateTimeframe(ctx, &openEnded)
-	require.ErrorIs(t, err, careschedule.ErrTimeframeRequiredByCareOffering)
+	require.ErrorIs(t, err, timetableModule.ErrTimeframeRequiredByCareOffering)
 	stored, findErr := repos.Timeframe.FindByID(ctx, timeframe.ID)
 	require.NoError(t, findErr)
 	require.NotNil(t, stored.EndTime, "rejected update must leave the timeframe unchanged")
 
 	err = service.DeleteTimeframe(ctx, timeframe.ID)
-	require.ErrorIs(t, err, careschedule.ErrTimeframeRequiredByCareOffering)
+	require.ErrorIs(t, err, timetableModule.ErrTimeframeRequiredByCareOffering)
 	_, findErr = repos.Timeframe.FindByID(ctx, timeframe.ID)
 	require.NoError(t, findErr, "rejected delete must leave the timeframe intact")
 	assert.Equal(t, 2, lockCalls)

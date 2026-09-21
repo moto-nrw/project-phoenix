@@ -11,11 +11,12 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -100,9 +101,9 @@ type BulkPickupScheduleRequest struct {
 }
 
 type BulkPickupSchedulePatchRequest struct {
-	StudentIDs         []int64                            `json:"student_ids"`
-	Schedules          []careschedule.PickupScheduleInput `json:"schedules"`
-	ConfirmedException bool                               `json:"confirmed_exception"`
+	StudentIDs         []int64                        `json:"student_ids"`
+	Schedules          []careplan.PickupScheduleInput `json:"schedules"`
+	ConfirmedException bool                           `json:"confirmed_exception"`
 }
 
 // PickupExceptionRequest represents a request to create/update a pickup exception
@@ -168,11 +169,11 @@ func (r *PickupNoteRequest) Bind(_ *http.Request) error {
 }
 
 // toModel maps the validated request onto a note for the given student.
-func (r *PickupNoteRequest) toModel(studentID, createdBy int64) *schedule.StudentPickupNote {
-	note := &schedule.StudentPickupNote{StudentID: studentID, Weekday: r.Weekday, Content: r.Content, CreatedBy: createdBy}
+func (r *PickupNoteRequest) toModel(studentID, createdBy int64) *careplan.PickupNote {
+	note := &careplan.PickupNote{StudentID: studentID, Weekday: r.Weekday, Content: r.Content, CreatedBy: createdBy}
 	if r.Weekday == 0 {
 		noteDate, _ := timezone.ParseDate(r.NoteDate)
-		note.NoteDate = schedule.Date(noteDate)
+		note.NoteDate = careplan.Date(noteDate)
 	}
 	return note
 }
@@ -236,11 +237,11 @@ func validatePickupScheduleItems(items []PickupScheduleRequest) error {
 // via their Bind): the parse error below is intentionally discarded because the
 // time format is already guaranteed valid at that point. Mapping unvalidated
 // items here would silently persist a zero time.
-func toPickupScheduleModels(items []PickupScheduleRequest, studentID, staffID int64) []*schedule.StudentPickupSchedule {
-	schedules := make([]*schedule.StudentPickupSchedule, 0, len(items))
+func toPickupScheduleModels(items []PickupScheduleRequest, studentID, staffID int64) []*careplan.PickupSchedule {
+	schedules := make([]*careplan.PickupSchedule, 0, len(items))
 	for _, s := range items {
 		pickupTime, _ := parseTimeOnly(s.PickupTime)
-		schedules = append(schedules, &schedule.StudentPickupSchedule{
+		schedules = append(schedules, &careplan.PickupSchedule{
 			StudentID:  studentID,
 			Weekday:    s.Weekday,
 			PickupTime: pickupTime,
@@ -257,12 +258,12 @@ func (r *PickupExceptionRequest) Bind(_ *http.Request) error {
 }
 
 // mapScheduleToResponse converts a schedule model to API response
-func mapScheduleToResponse(s *schedule.StudentPickupSchedule) PickupScheduleResponse {
+func mapScheduleToResponse(s *careplan.PickupSchedule) PickupScheduleResponse {
 	resp := PickupScheduleResponse{
 		ID:               s.ID,
 		StudentID:        s.StudentID,
 		Weekday:          s.Weekday,
-		WeekdayName:      s.GetWeekdayName(),
+		WeekdayName:      schedule.WeekdayNames[s.Weekday],
 		PickupTime:       s.PickupTime.Format("15:04"),
 		Notes:            s.Notes,
 		Source:           s.Source,
@@ -282,7 +283,7 @@ func mapScheduleToResponse(s *schedule.StudentPickupSchedule) PickupScheduleResp
 }
 
 // mapExceptionToResponse converts an exception model to API response
-func mapExceptionToResponse(e *schedule.StudentPickupException) PickupExceptionResponse {
+func mapExceptionToResponse(e *careplan.PickupException) PickupExceptionResponse {
 	resp := PickupExceptionResponse{
 		ID:            e.ID,
 		StudentID:     e.StudentID,
@@ -306,7 +307,7 @@ func mapExceptionToResponse(e *schedule.StudentPickupException) PickupExceptionR
 }
 
 // mapNoteToResponse converts a note model to API response
-func mapNoteToResponse(n *schedule.StudentPickupNote) PickupNoteResponse {
+func mapNoteToResponse(n *careplan.PickupNote) PickupNoteResponse {
 	return PickupNoteResponse{
 		ID:        n.ID,
 		StudentID: n.StudentID,
@@ -321,7 +322,7 @@ func mapNoteToResponse(n *schedule.StudentPickupNote) PickupNoteResponse {
 
 // verifyExceptionOwnership checks that an exception exists and belongs to the given student.
 // Returns the exception if valid, or writes an error response and returns nil.
-func (rs *Resource) verifyExceptionOwnership(w http.ResponseWriter, r *http.Request, exceptionID, studentID int64) *schedule.StudentPickupException {
+func (rs *Resource) verifyExceptionOwnership(w http.ResponseWriter, r *http.Request, exceptionID, studentID int64) *careplan.PickupException {
 	return verifyCareOwnership(
 		w,
 		r,
@@ -330,13 +331,13 @@ func (rs *Resource) verifyExceptionOwnership(w http.ResponseWriter, r *http.Requ
 		"pickup exception not found",
 		"exception does not belong to this student",
 		rs.PickupScheduleService.GetStudentPickupExceptionByID,
-		func(exception *schedule.StudentPickupException) int64 { return exception.StudentID },
+		func(exception *careplan.PickupException) int64 { return exception.StudentID },
 	)
 }
 
 // verifyNoteOwnership checks that a note exists and belongs to the given student.
 // Returns the note if valid, or writes an error response and returns nil.
-func (rs *Resource) verifyNoteOwnership(w http.ResponseWriter, r *http.Request, noteID, studentID int64) *schedule.StudentPickupNote {
+func (rs *Resource) verifyNoteOwnership(w http.ResponseWriter, r *http.Request, noteID, studentID int64) *careplan.PickupNote {
 	return verifyCareOwnership(
 		w,
 		r,
@@ -345,7 +346,7 @@ func (rs *Resource) verifyNoteOwnership(w http.ResponseWriter, r *http.Request, 
 		"pickup note not found",
 		"note does not belong to this student",
 		rs.PickupScheduleService.GetStudentPickupNoteByID,
-		func(note *schedule.StudentPickupNote) int64 { return note.StudentID },
+		func(note *careplan.PickupNote) int64 { return note.StudentID },
 	)
 }
 
@@ -427,7 +428,7 @@ func (rs *Resource) getStudentPickupSchedules(w http.ResponseWriter, r *http.Req
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	var data *careschedule.StudentPickupData
+	var data *careplan.StudentPickupData
 	if hasRange {
 		data, err = rs.PickupScheduleService.GetStudentPickupDataForRange(r.Context(), student.ID, from, to)
 	} else {
@@ -467,7 +468,7 @@ func pickupScheduleDateRange(r *http.Request) (timezone.Date, timezone.Date, boo
 }
 
 // buildPickupDataResponse converts service pickup data to API response
-func buildPickupDataResponse(data *careschedule.StudentPickupData) PickupDataResponse {
+func buildPickupDataResponse(data *careplan.StudentPickupData) PickupDataResponse {
 	response := PickupDataResponse{
 		Schedules:          make([]PickupScheduleResponse, 0, len(data.Schedules)),
 		EffectiveSchedules: make([]DatedPickupScheduleResponse, 0, len(data.EffectiveSchedules)),
@@ -647,8 +648,8 @@ func (rs *Resource) bulkUpsertPickupSchedules(w http.ResponseWriter, r *http.Req
 			StudentIDs: req.StudentIDs, Schedules: req.Schedules,
 			ConfirmedException: req.ConfirmedException, CreatedByStaffID: staffID,
 			ActorAccountID: int64(claims.ID),
-			Authorize: func(ctx context.Context, student *users.Student) (bool, error) {
-				return canUpdateStudent(ctx, permissions, student, rs.UserContextService)
+			Authorize: func(ctx context.Context, student careplan.ScheduleStudent) (bool, error) {
+				return authorize.CanUpdateStudent(ctx, permissions, student, rs.UserContextService)
 			},
 		},
 	)
@@ -659,11 +660,11 @@ func (rs *Resource) bulkUpsertPickupSchedules(w http.ResponseWriter, r *http.Req
 			))
 			return
 		}
-		if errors.Is(err, careschedule.ErrBulkStudentUnauthorized) {
+		if errors.Is(err, careplan.ErrBulkStudentUnauthorized) {
 			renderError(w, r, common.ErrorForbidden(err))
 			return
 		}
-		if errors.Is(err, careschedule.ErrBulkStudentNotFound) {
+		if errors.Is(err, careplan.ErrBulkStudentNotFound) {
 			renderError(w, r, common.ErrorNotFound(err))
 			return
 		}
@@ -809,29 +810,14 @@ func (rs *Resource) deleteStudentPickupException(w http.ResponseWriter, r *http.
 	}
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := careschedule.LockCareExceptionDay(ctx, rs.DB, student.ID, timezone.Date(existingException.ExceptionDate)); err != nil {
-			return err
-		}
-		freshException, err := rs.PickupScheduleService.GetStudentPickupExceptionByID(ctx, exceptionID)
-		if err != nil {
-			return err
-		}
-		if freshException == nil {
-			return nil
-		}
-		if freshException.StudentID != student.ID {
-			return ErrExceptionWrongStudent
-		}
-		return rs.PickupScheduleService.DeleteStudentPickupException(ctx, freshException.ID)
-	}); err != nil {
+	if err := rs.PickupScheduleService.DeleteStudentPickupException(r.Context(), exceptionID, student.ID); err != nil {
 		renderExceptionWriteError(w, r, err)
 		return
 	}
 
 	// Wake the child's guardians so the "Heute" pickup tile drops the removed
-	// override live; defer to the outer request tx's commit (nested handler
-	// WithTenantTx is not committed on return) (#1725 review).
+	// override live; defer to the outer request transaction's commit. The
+	// native delete joins that transaction (#1725 review).
 	// broadcastStudentUpdated: the delete may have released auto-excused
 	// blocks back to expected (#2360).
 	tenant.RegisterAfterCommit(r.Context(), func() {
@@ -1034,7 +1020,7 @@ func (rs *Resource) getBulkPickupTimes(w http.ResponseWriter, r *http.Request) {
 
 func mapBulkPickupTimeResponse(
 	studentID int64,
-	effectiveTime *careschedule.EffectivePickupTime,
+	effectiveTime *careplan.EffectivePickupTime,
 ) BulkPickupTimeResponse {
 	response := BulkPickupTimeResponse{
 		StudentID:   studentID,

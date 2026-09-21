@@ -68,7 +68,7 @@ func TestMasterDataDecisionTellsTheOtherGuardian(t *testing.T) {
 			broadcaster := testpkg.NewRecordingBroadcaster()
 			emitter := communicationtest.NewParentEventEmitter(db, testpkg.TenantRuntime(t, db), repos.ParentMessageThread, repos.ParentMessage,
 				reviewNotesSettings{enabled: true}, broadcaster, slog.Default())
-			svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(
+			svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(reviewPermissions,
 				repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, emitter, nil,
 				testpkg.RequestReviewPolicy{}, nil, slog.Default(), broadcaster)
 			sink, ok := svc.(interface {

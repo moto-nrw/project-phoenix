@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
@@ -193,16 +194,13 @@ type LifecycleDependencies struct {
 	// pre-account enrollment requests.
 	Enrollments GuardianEnrollments
 	Financial   FinancialAudit
-	// Roles is the retained role and permission storage the role
-	// administration (#3314) reads and writes.
-	Roles  RoleDirectory
-	Logger *slog.Logger
+	Logger      *slog.Logger
 }
 
 // newAccountLifecycle composes the lifecycle flows and the role
 // administration: offboarding removes roles through the administration, and
 // an assignment completes the school identity through the lifecycle.
-func newAccountLifecycle(service *application.Service, auth *application.AccountAuthentication, store lifecycleStore, sessions *SessionDependencies, deps *LifecycleDependencies, administration *application.AccountAdministration) (*application.AccountLifecycle, *application.RoleAdministration, error) {
+func newAccountLifecycle(service *application.Service, auth *application.AccountAuthentication, store *postgres.Store, sessions *SessionDependencies, deps *LifecycleDependencies, administration *application.AccountAdministration) (*application.AccountLifecycle, *application.RoleAdministration, error) {
 	if deps == nil {
 		return nil, nil, nil
 	}
@@ -211,8 +209,7 @@ func newAccountLifecycle(service *application.Service, auth *application.Account
 	}
 	switch {
 	case deps.Staff == nil, deps.Audit == nil,
-		deps.Passwords == nil, deps.Guardians == nil, deps.Delivery == nil, deps.Financial == nil,
-		deps.Roles == nil:
+		deps.Passwords == nil, deps.Guardians == nil, deps.Delivery == nil, deps.Financial == nil:
 		return nil, nil, errors.New("identity access compose: every lifecycle dependency is required")
 	case administration == nil:
 		return nil, nil, errors.New("identity access compose: the account administration is required")
@@ -223,7 +220,7 @@ func newAccountLifecycle(service *application.Service, auth *application.Account
 	}
 	runtime := tenantRuntime{attach: attach, runner: newTransactionRunner()}
 	var lifecycle *application.AccountLifecycle
-	roles, err := newRoleAdministration(auth, runtime, deps, func() *application.AccountLifecycle { return lifecycle })
+	roles, err := newRoleAdministration(auth, runtime, postgres.NewRoleStore(store), administration, deps, func() *application.AccountLifecycle { return lifecycle })
 	if err != nil {
 		return nil, nil, err
 	}
@@ -249,14 +246,6 @@ func newAccountLifecycle(service *application.Service, auth *application.Account
 		return nil, nil, err
 	}
 	return lifecycle, roles, nil
-}
-
-// lifecycleStore is the module store as the lifecycle flows read it.
-type lifecycleStore interface {
-	ports.AccountLifecycleStore
-	ports.AccountLoginStore
-	ports.GuardianInvitationStore
-	ports.Store
 }
 
 // --- port adapters ---------------------------------------------------------

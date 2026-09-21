@@ -5,8 +5,7 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	owner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
@@ -91,8 +90,8 @@ func (p *ApprovedOfferingProjection) resolveSelections(ctx context.Context, sele
 	return result, nil
 }
 
-func (p *ApprovedOfferingProjection) ListApprovedByStudentIDsInRange(ctx context.Context, ids []int64, from, to timezone.Date) ([]*careschedule.ApprovedBooking, error) {
-	result := make([]*careschedule.ApprovedBooking, 0)
+func (p *ApprovedOfferingProjection) ListApprovedByStudentIDsInRange(ctx context.Context, ids []int64, from, to timezone.Date) ([]*careplan.ApprovedBooking, error) {
+	result := make([]*careplan.ApprovedBooking, 0)
 	if len(ids) == 0 || to.Before(from) {
 		return result, nil
 	}
@@ -121,9 +120,9 @@ func (p *ApprovedOfferingProjection) ListApprovedByStudentIDsInRange(ctx context
 		return nil, err
 	}
 	for _, child := range children {
-		booking := &careschedule.ApprovedBooking{StudentID: child.StudentID}
+		booking := &careplan.ApprovedBooking{StudentID: child.StudentID}
 		if child.Link != nil {
-			booking.Link = &careschedule.BookingSelection{
+			booking.Link = &careplan.BookingSelection{
 				CareOfferingID: child.Link.CareOfferingID,
 				SelectedDays:   child.Link.SelectedDays,
 				ValidFrom:      child.Link.ValidFrom,

@@ -70,11 +70,9 @@ type ProvisioningDependencies struct {
 	Categories    ProvisioningCategories
 	Settings      ProvisioningSettings
 	Audit         OperatorAudit
-	// ActiveMemberships is the Identity & Access statement selecting
-	// (account_id, tenant_id) of every active school mapping (#2721); the
-	// dashboard account counts aggregate over it.
-	ActiveMemberships func(context.Context) *bun.SelectQuery
-	Logger            *slog.Logger
+	// ActiveAccountCounts supplies bounded distinct-account aggregates.
+	ActiveAccountCounts func(context.Context, map[int64][]int64) (map[int64]int, error)
+	Logger              *slog.Logger
 }
 
 // NewProvisioning composes the operator provisioning capability over the
@@ -90,7 +88,7 @@ func NewProvisioning(dependencies ProvisioningDependencies) (organizationtenancy
 			return nil, fmt.Errorf("organization tenancy operator dashboard: unsupported transaction %T", transaction)
 		}
 		return tx, nil
-	}, dependencies.ActiveMemberships)
+	}, dependencies.ActiveAccountCounts)
 	provisioning, err := application.NewProvisioning(application.ProvisioningDependencies{
 		Organizations: dependencies.Organizations, Transaction: transaction{}, Dashboard: dashboard,
 		Identity: dependencies.Identity, Devices: dependencies.Devices, People: dependencies.People,

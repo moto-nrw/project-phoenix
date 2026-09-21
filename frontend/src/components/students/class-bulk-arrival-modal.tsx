@@ -13,11 +13,14 @@ import { createLogger } from "~/lib/logger";
 import {
   type ArrivalScheduleInput,
   type BulkArrivalFilter,
+  type SchoolPeriod,
   WEEKDAYS,
   bulkUpsertArrivalSchedules,
+  fetchArrivalSettings,
   fetchBulkArrivalScheduleStatus,
   fetchClassArrivalTimes,
 } from "~/lib/student-arrival-api";
+import { SchoolPeriodSelect } from "./school-period-select";
 import { formatDate } from "~/lib/date-helpers";
 import { stripClassPrefix } from "~/lib/arrival-schedule-helpers";
 import { cn } from "~/lib/utils";
@@ -98,6 +101,11 @@ export function FilteredBulkArrivalModal({
   const [classTimesError, setClassTimesError] = useState(false);
   const [classTimesLoadAttempt, setClassTimesLoadAttempt] = useState(0);
   const [collisionCount, setCollisionCount] = useState(0);
+  // Lessons a time can be picked by (#3372). The modal works without them, so
+  // a failed read only leaves the choice out.
+  const [schoolPeriods, setSchoolPeriods] = useState<readonly SchoolPeriod[]>(
+    [],
+  );
   const [view, setView] = useState<ClassArrivalView>("weekly");
   // A school class sets the class timetable once for everyone (#2414); a group
   // is not a class, so there it still sets a time per child.
@@ -168,6 +176,24 @@ export function FilteredBulkArrivalModal({
       cancelled = true;
     };
   }, [isOpen, studentsInFilter]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    void fetchArrivalSettings()
+      .then((settings) => {
+        if (!cancelled) setSchoolPeriods(settings.school_periods ?? []);
+      })
+      .catch((err) => {
+        logger.warn("school_periods_fetch_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!cancelled) setSchoolPeriods([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
 
   const targetTitle =
     filter.type === "school_class"
@@ -356,7 +382,7 @@ export function FilteredBulkArrivalModal({
                   <div
                     key={day.value}
                     className={cn(
-                      "grid grid-cols-[minmax(0,1fr)_8rem] items-center gap-x-3 gap-y-1 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5",
+                      "grid grid-cols-[minmax(0,1fr)_10rem] items-center gap-x-3 gap-y-1 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5",
                       invalid && "border-moto-red/30 bg-moto-red-soft",
                     )}
                   >
@@ -382,6 +408,24 @@ export function FilteredBulkArrivalModal({
                       }
                       className="focus:border-moto-green focus:ring-moto-green/30 w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:ring-2 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
                     />
+                    <div className="col-start-2 empty:hidden">
+                      <SchoolPeriodSelect
+                        id={`bulk-arrival-period-${day.value}`}
+                        periods={schoolPeriods}
+                        time={value}
+                        ariaLabel={`${day.label}: Zeit nach Schulstunde`}
+                        disabled={
+                          isClassTimetable &&
+                          (classTimesLoading || classTimesError)
+                        }
+                        onSelect={(endTime) =>
+                          setDraft((prev) => ({
+                            ...prev,
+                            [day.value]: endTime,
+                          }))
+                        }
+                      />
+                    </div>
                     {invalid ? (
                       <span className="text-moto-red col-start-2 text-xs">
                         Format HH:MM

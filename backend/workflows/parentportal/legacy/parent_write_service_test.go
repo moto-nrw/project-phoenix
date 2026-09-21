@@ -103,10 +103,10 @@ func writeServiceConfig(t *testing.T, sickEnabled, notesEnabled bool, reportFlag
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	bc := testpkg.NewRecordingBroadcaster()
 	cfg := parentService.ServiceConfig{
-		ChildRepo:           repos.ParentChild,
-		StatusDayRepo:       repos.StudentStatusDay,
-		StudentRepo:         repos.Student,
-		PickupExceptionRepo: repos.StudentPickupException,
+		ChildRepo:      repos.ParentChild,
+		StatusDayRepo:  repos.StudentStatusDay,
+		StudentRepo:    repos.Student,
+		CareExceptions: repos.CarePlan(),
 		Settings: parentSettingsStub{
 			boolValues: values,
 			stringValues: map[string]string{
@@ -127,11 +127,10 @@ func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (p
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:            repos.ParentChild,
-		StatusDayRepo:        repos.StudentStatusDay,
-		StudentRepo:          repos.Student,
-		PickupExceptionRepo:  repos.StudentPickupException,
-		ArrivalExceptionRepo: repos.StudentArrivalException,
+		ChildRepo:      repos.ParentChild,
+		StatusDayRepo:  repos.StudentStatusDay,
+		StudentRepo:    repos.Student,
+		CareExceptions: repos.CarePlan(),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
 				configModels.KeyParentSickNoteEnabled: sickEnabled,
@@ -412,9 +411,9 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 	parentLocked := make(chan struct{})
 	releaseParent := make(chan struct{})
 	parentSvc := parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:           repos.ParentChild,
-		StatusDayRepo:       repos.StudentStatusDay,
-		PickupExceptionRepo: repos.StudentPickupException,
+		ChildRepo:      repos.ParentChild,
+		StatusDayRepo:  repos.StudentStatusDay,
+		CareExceptions: repos.CarePlan(),
 		StudentRepo: &pausingStudentRepository{
 			StudentRepository: repos.Student,
 			locked:            parentLocked,

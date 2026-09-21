@@ -6,20 +6,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule/carescheduletest"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // buildTodayStatusService baut den Parent-Service mit genau den Abhaengigkeiten,
@@ -50,41 +47,21 @@ func buildTodayStatusServiceWithSchedule(t *testing.T) (*care.Service, *bun.DB) 
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	arrivals, err := services.NewArrivalSchedules(db, repos.CarePlan(), repositories.MustNewPeopleDirectory(db), nil, nil, nil, slog.Default())
+	require.NoError(t, err)
+	pickups, err := services.NewPickupSchedules(db, repos.CarePlan(), repositories.MustNewPeopleDirectory(db), newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)), // Auto-excusal (#2360) is not what these cases assert.
+		nil, slog.Default())
+	require.NoError(t, err)
 	return care.New(care.Config{
-		RequestSharing: unconfiguredRequestSharer{},
-		ChildRepo:      repos.ParentChild,
-		Attendance:     parentAttendance(t, db),
-		StatusDayRepo:  repos.StudentStatusDay,
-		StudentRepo:    repos.Student,
-		ArrivalSchedules: careschedule.NewArrivalScheduleServiceWithBaselines(
-			repos.StudentArrivalSchedule,
-			repos.StudentArrivalException,
-			repos.StudentArrivalNote,
-			repos.Student,
-			repos.Person,
-			nil,
-			nil,
-			db,
-			slog.Default(),
-		),
-		PickupSchedules: careschedule.NewPickupScheduleServiceWithBulk(
-			repos.StudentPickupSchedule,
-			repos.StudentPickupException,
-			repos.StudentPickupNote,
-			repos.Student,
-			repos.Person,
-			// Auto-excusal (#2360) is not what these cases assert.
-			nil,
-			carescheduletest.NewPickupBaselineService(
-				repos.StudentPickupSchedule,
-				approvedOfferingProjection(t),
-				repos.CareOffering,
-			),
-			db,
-			slog.Default(),
-		),
-		DB:     db,
-		Logger: slog.Default(),
+		RequestSharing:   unconfiguredRequestSharer{},
+		ChildRepo:        repos.ParentChild,
+		Attendance:       parentAttendance(t, db),
+		StatusDayRepo:    repos.StudentStatusDay,
+		StudentRepo:      repos.Student,
+		ArrivalSchedules: arrivals,
+		PickupSchedules:  pickups,
+		DB:               db,
+		Logger:           slog.Default(),
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 13, 0, 0, 0, time.UTC)
 		},

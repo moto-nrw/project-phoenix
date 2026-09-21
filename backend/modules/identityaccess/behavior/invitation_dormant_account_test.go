@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -99,9 +98,7 @@ func TestInvitationLeavesDisabledAccountWithSchoolAccessAlone(t *testing.T) {
 	require.NoError(t, err)
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 	setAccountActive(t, db, account.ID, false)
-	repos, compositionErr := repositories.NewInvitationPersistence(db)
-	require.NoError(t, compositionErr)
-	before, err := repos.Account.FindByID(context.Background(), account.ID)
+	before, err := testpkg.ReadAccountState(context.Background(), db, account.ID)
 	require.NoError(t, err)
 
 	otherID := testpkg.UniqueTestTenantID(t)
@@ -124,7 +121,7 @@ func TestInvitationLeavesDisabledAccountWithSchoolAccessAlone(t *testing.T) {
 	})
 	require.ErrorIs(t, err, identityaccess.ErrInvitationOwnerRequired)
 
-	stored, err := repos.Account.FindByID(context.Background(), account.ID)
+	stored, err := testpkg.ReadAccountState(context.Background(), db, account.ID)
 	require.NoError(t, err)
 	require.False(t, stored.Active, "the deliberate deactivation stands")
 	require.Equal(t, before.PasswordHash, stored.PasswordHash, "the invitation must not replace the credential")

@@ -207,10 +207,6 @@ func (r *StudentRepository) FindByGroupIDs(context.Context, []int64) ([]*users.S
 	return nil, errStudentWritesMoved
 }
 
-func (r *StudentRepository) FindBySchoolClass(context.Context, string) ([]*users.Student, error) {
-	return nil, errStudentWritesMoved
-}
-
 func (r *StudentRepository) ExistsEnrolledByNameAndBirthday(
 	context.Context, int64, string, string, timezone.Date,
 ) (bool, error) {

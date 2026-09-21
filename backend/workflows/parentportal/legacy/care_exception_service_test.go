@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -30,50 +32,40 @@ var errBoom = errors.New("boom: repository unavailable")
 // without a broken database. Embedding the interface means every method not
 // overridden here delegates to the real repo.
 type stubPickupRepo struct {
-	scheduleModels.StudentPickupExceptionRepository
+	parentService.CareExceptions
 	findErr  error
 	rangeErr error
 }
 
-func (s stubPickupRepo) FindByStudentIDAndDate(ctx context.Context, studentID int64, date scheduleModels.Date) (*scheduleModels.StudentPickupException, error) {
-	if s.findErr != nil {
+func (s stubPickupRepo) ListPickupExceptions(ctx context.Context, filter careplan.StudentScheduleFilter) ([]careplan.PickupException, error) {
+	if filter.Date != "" && s.findErr != nil {
 		return nil, s.findErr
 	}
-	return s.StudentPickupExceptionRepository.FindByStudentIDAndDate(ctx, studentID, date)
-}
-
-func (s stubPickupRepo) FindByStudentIDAndDateRange(ctx context.Context, studentID int64, from, to scheduleModels.Date) ([]*scheduleModels.StudentPickupException, error) {
-	if s.rangeErr != nil {
+	if filter.Date == "" && s.rangeErr != nil {
 		return nil, s.rangeErr
 	}
-	return s.StudentPickupExceptionRepository.FindByStudentIDAndDateRange(ctx, studentID, from, to)
+	return s.CareExceptions.ListPickupExceptions(ctx, filter)
 }
 
-// stubArrivalRepo mirrors stubPickupRepo for the arrival leg.
 type stubArrivalRepo struct {
-	scheduleModels.StudentArrivalExceptionRepository
+	parentService.CareExceptions
 	findErr  error
 	rangeErr error
 }
 
-func (s stubArrivalRepo) FindByStudentIDAndDate(ctx context.Context, studentID int64, date scheduleModels.Date) (*scheduleModels.StudentArrivalException, error) {
-	if s.findErr != nil {
+func (s stubArrivalRepo) ListArrivalExceptions(ctx context.Context, filter careplan.StudentScheduleFilter) ([]careplan.ArrivalException, error) {
+	if filter.Date != "" && s.findErr != nil {
 		return nil, s.findErr
 	}
-	return s.StudentArrivalExceptionRepository.FindByStudentIDAndDate(ctx, studentID, date)
-}
-
-func (s stubArrivalRepo) FindByStudentIDAndDateRange(ctx context.Context, studentID int64, from, to scheduleModels.Date) ([]*scheduleModels.StudentArrivalException, error) {
-	if s.rangeErr != nil {
+	if filter.Date == "" && s.rangeErr != nil {
 		return nil, s.rangeErr
 	}
-	return s.StudentArrivalExceptionRepository.FindByStudentIDAndDateRange(ctx, studentID, from, to)
+	return s.CareExceptions.ListArrivalExceptions(ctx, filter)
 }
 
-// careRepoWrap optionally wraps each exception repository for fault injection.
 type careRepoWrap struct {
-	pickup  func(scheduleModels.StudentPickupExceptionRepository) scheduleModels.StudentPickupExceptionRepository
-	arrival func(scheduleModels.StudentArrivalExceptionRepository) scheduleModels.StudentArrivalExceptionRepository
+	pickup  func(parentService.CareExceptions) parentService.CareExceptions
+	arrival func(parentService.CareExceptions) parentService.CareExceptions
 }
 
 type careTestService struct {
@@ -98,21 +90,19 @@ func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (careTestService, *
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	pickup := repos.StudentPickupException
+	var records parentService.CareExceptions = repos.CarePlan()
 	if w.pickup != nil {
-		pickup = w.pickup(repos.StudentPickupException)
+		records = w.pickup(records)
 	}
-	arrival := repos.StudentArrivalException
 	if w.arrival != nil {
-		arrival = w.arrival(repos.StudentArrivalException)
+		records = w.arrival(records)
 	}
 	svc := parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:            repos.ParentChild,
-		Attendance:           parentAttendance(t, db),
-		StatusDayRepo:        repos.StudentStatusDay,
-		StudentRepo:          repos.Student,
-		PickupExceptionRepo:  pickup,
-		ArrivalExceptionRepo: arrival,
+		ChildRepo:      repos.ParentChild,
+		Attendance:     parentAttendance(t, db),
+		StatusDayRepo:  repos.StudentStatusDay,
+		StudentRepo:    repos.Student,
+		CareExceptions: records,
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{configModels.KeyParentPickupChangeEnabled: true},
 		},
@@ -128,7 +118,7 @@ func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (careTestService, *
 
 // buildCareServiceWithPickupRepo builds the care service with a wrapped pickup
 // repository, used to inject read failures.
-func buildCareServiceWithPickupRepo(t *testing.T, wrap func(scheduleModels.StudentPickupExceptionRepository) scheduleModels.StudentPickupExceptionRepository) (careTestService, *bun.DB) {
+func buildCareServiceWithPickupRepo(t *testing.T, wrap func(parentService.CareExceptions) parentService.CareExceptions) (careTestService, *bun.DB) {
 	return buildCareServiceWithRepos(t, careRepoWrap{pickup: wrap})
 }
 
@@ -138,12 +128,11 @@ func buildCareService(t *testing.T, pickupChangeEnabled bool) (careTestService, 
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:            repos.ParentChild,
-		Attendance:           parentAttendance(t, db),
-		StatusDayRepo:        repos.StudentStatusDay,
-		StudentRepo:          repos.Student,
-		PickupExceptionRepo:  repos.StudentPickupException,
-		ArrivalExceptionRepo: repos.StudentArrivalException,
+		ChildRepo:      repos.ParentChild,
+		Attendance:     parentAttendance(t, db),
+		StatusDayRepo:  repos.StudentStatusDay,
+		StudentRepo:    repos.Student,
+		CareExceptions: repos.CarePlan(),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{configModels.KeyParentPickupChangeEnabled: pickupChangeEnabled},
 		},
@@ -740,8 +729,8 @@ func TestDeleteCareException_RemovesPickupAndPreservesArrival(t *testing.T) {
 func TestSubmitCareException_RepoErrorSurfaces(t *testing.T) {
 	t.Parallel()
 
-	svc, db := buildCareServiceWithPickupRepo(t, func(r scheduleModels.StudentPickupExceptionRepository) scheduleModels.StudentPickupExceptionRepository {
-		return stubPickupRepo{StudentPickupExceptionRepository: r, findErr: errBoom}
+	svc, db := buildCareServiceWithPickupRepo(t, func(r parentService.CareExceptions) parentService.CareExceptions {
+		return stubPickupRepo{CareExceptions: r, findErr: errBoom}
 	})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
@@ -767,8 +756,8 @@ func TestSubmitCareException_RepoErrorSurfaces(t *testing.T) {
 func TestListCareExceptions_RepoErrorSurfaces(t *testing.T) {
 	t.Parallel()
 
-	svc, db := buildCareServiceWithPickupRepo(t, func(r scheduleModels.StudentPickupExceptionRepository) scheduleModels.StudentPickupExceptionRepository {
-		return stubPickupRepo{StudentPickupExceptionRepository: r, rangeErr: errBoom}
+	svc, db := buildCareServiceWithPickupRepo(t, func(r parentService.CareExceptions) parentService.CareExceptions {
+		return stubPickupRepo{CareExceptions: r, rangeErr: errBoom}
 	})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -785,8 +774,8 @@ func TestListCareExceptions_RepoErrorSurfaces(t *testing.T) {
 func TestDeleteCareException_RepoErrorSurfaces(t *testing.T) {
 	t.Parallel()
 
-	svc, db := buildCareServiceWithPickupRepo(t, func(r scheduleModels.StudentPickupExceptionRepository) scheduleModels.StudentPickupExceptionRepository {
-		return stubPickupRepo{StudentPickupExceptionRepository: r, findErr: errBoom}
+	svc, db := buildCareServiceWithPickupRepo(t, func(r parentService.CareExceptions) parentService.CareExceptions {
+		return stubPickupRepo{CareExceptions: r, findErr: errBoom}
 	})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -802,8 +791,8 @@ func TestListCareExceptions_ArrivalRepoErrorSurfaces(t *testing.T) {
 	t.Parallel()
 
 	svc, db := buildCareServiceWithRepos(t, careRepoWrap{
-		arrival: func(r scheduleModels.StudentArrivalExceptionRepository) scheduleModels.StudentArrivalExceptionRepository {
-			return stubArrivalRepo{StudentArrivalExceptionRepository: r, rangeErr: errBoom}
+		arrival: func(r parentService.CareExceptions) parentService.CareExceptions {
+			return stubArrivalRepo{CareExceptions: r, rangeErr: errBoom}
 		},
 	})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -831,11 +820,10 @@ func TestDeleteCareException_DoesNotReadArrival(t *testing.T) {
 	// Delete via a service whose arrival reads fail.
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:            repos.ParentChild,
-		StatusDayRepo:        repos.StudentStatusDay,
-		StudentRepo:          repos.Student,
-		PickupExceptionRepo:  repos.StudentPickupException,
-		ArrivalExceptionRepo: stubArrivalRepo{StudentArrivalExceptionRepository: repos.StudentArrivalException, findErr: errBoom},
+		ChildRepo:      repos.ParentChild,
+		StatusDayRepo:  repos.StudentStatusDay,
+		StudentRepo:    repos.Student,
+		CareExceptions: stubArrivalRepo{CareExceptions: repos.CarePlan(), findErr: errBoom},
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{configModels.KeyParentPickupChangeEnabled: true},
 		},

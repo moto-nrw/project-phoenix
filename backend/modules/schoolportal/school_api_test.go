@@ -78,7 +78,7 @@ func (emptySchoolMessagingRouter) SchoolRouter() chi.Router { return chi.NewRout
 // newSchoolRouter builds the school portal router with a stubbed second
 // factor; the composed one stays on the resource.
 func newSchoolRouter(resource *schoolportal.Resource, mfa schoolportal.MFARuntime) http.Handler {
-	return schoolportal.NewResource(resource.AuthService, mfa, resource.Resets, resource.ClassDay, resource.Timetable, resource.StaffMessaging, resource.StaffNotices, resource.Notifications).Router()
+	return testpkg.SessionVerifier(schoolportal.NewResource(resource.AuthService, mfa, resource.Resets, resource.ClassDay, resource.Timetable, resource.StaffMessaging, resource.StaffNotices, resource.Notifications).Router())
 }
 
 // newSchoolChiRouter is newSchoolRouter without the http.Handler erasure, for
@@ -244,7 +244,7 @@ func TestSchoolMFAEndpoints_RejectForeignScopes(t *testing.T) {
 
 	_, accountID := registerLehrkraft(t, db, resource, tenantID, "school-foreign-scope")
 
-	tokenAuth := jwt.MustNewTokenAuth()
+	tokenAuth := testutil.TestTokenAuth(t)
 	tenantChallenge, err := tokenAuth.CreateMFAChallengeJWT(jwt.MFAChallengeClaims{
 		AccountID: accountID,
 		Scope:     jwt.MFAChallengeScopeTenant,
@@ -329,7 +329,7 @@ func TestSchoolMFAVerify_MintsSchoolSession(t *testing.T) {
 	require.NotEmpty(t, tokens.AccessToken)
 	require.NotEmpty(t, tokens.RefreshToken)
 
-	decoded, err := jwt.MustNewTokenAuth().JwtAuth.Decode(tokens.AccessToken)
+	decoded, err := testutil.TestTokenAuth(t).JwtAuth.Decode(tokens.AccessToken)
 	require.NoError(t, err)
 	var scope string
 	require.NoError(t, decoded.Get("scope", &scope))
@@ -409,7 +409,7 @@ func TestSchoolMFAStatusUnavailable_Returns503(t *testing.T) {
 
 	_, accountID := registerLehrkraft(t, db, resource, tenantID, "school-mfa-unavailable")
 
-	enrollmentToken, err := jwt.MustNewTokenAuth().CreateMFAEnrollmentJWT(jwt.MFAEnrollmentClaims{
+	enrollmentToken, err := testutil.TestTokenAuth(t).CreateMFAEnrollmentJWT(jwt.MFAEnrollmentClaims{
 		AccountID: accountID,
 		Scope:     jwt.MFAEnrollmentScopeSchool,
 		TenantID:  tenantID,
@@ -452,7 +452,7 @@ func TestSchoolMFAEnroll_BoundToItsOwnChallenge(t *testing.T) {
 
 	_, accountID := registerLehrkraft(t, db, resource, tenantID, "school-enroll")
 
-	enrollmentToken, err := jwt.MustNewTokenAuth().CreateMFAEnrollmentJWT(jwt.MFAEnrollmentClaims{
+	enrollmentToken, err := testutil.TestTokenAuth(t).CreateMFAEnrollmentJWT(jwt.MFAEnrollmentClaims{
 		AccountID: accountID,
 		Scope:     jwt.MFAEnrollmentScopeSchool,
 		TenantID:  tenantID,
@@ -542,7 +542,7 @@ func TestSchoolMFAEnroll_BoundToItsOwnChallenge(t *testing.T) {
 		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &tokens))
 		require.NotEmpty(t, tokens.AccessToken)
 
-		decoded, err := jwt.MustNewTokenAuth().JwtAuth.Decode(tokens.AccessToken)
+		decoded, err := testutil.TestTokenAuth(t).JwtAuth.Decode(tokens.AccessToken)
 		require.NoError(t, err)
 		var scope string
 		require.NoError(t, decoded.Get("scope", &scope))

@@ -10,20 +10,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -308,8 +307,8 @@ func TestResolveDayPlanningStatusDaysOverridePlans(t *testing.T) {
 
 	status, reason, _ := resolveDayPlanningForDate(
 		StudentResponse{ID: 90, Sick: true},
-		&careschedule.EffectiveArrivalTime{ArrivalTime: &arrivalTime},
-		&careschedule.EffectivePickupTime{PickupTime: &pickupTime},
+		&careplan.EffectiveArrivalTime{ArrivalTime: &arrivalTime},
+		&careplan.EffectivePickupTime{PickupTime: &pickupTime},
 		nil,
 		timetableIDs,
 		true,

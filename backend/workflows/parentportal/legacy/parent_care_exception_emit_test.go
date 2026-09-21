@@ -34,11 +34,10 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 	emitter := communicationtest.NewParentEventEmitter(db, testpkg.TenantRuntime(t, db), repos.ParentMessageThread, repos.ParentMessage,
 		parentSettingsStub{boolDefault: true}, testpkg.NewRecordingBroadcaster(), slog.Default())
 	svc := parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:            repos.ParentChild,
-		StatusDayRepo:        repos.StudentStatusDay,
-		StudentRepo:          repos.Student,
-		PickupExceptionRepo:  repos.StudentPickupException,
-		ArrivalExceptionRepo: repos.StudentArrivalException,
+		ChildRepo:      repos.ParentChild,
+		StatusDayRepo:  repos.StudentStatusDay,
+		StudentRepo:    repos.Student,
+		CareExceptions: repos.CarePlan(),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
 				configModels.KeyParentPickupChangeEnabled: true,
@@ -97,11 +96,10 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 	emitter := communicationtest.NewParentEventEmitter(db, testpkg.TenantRuntime(t, db), repos.ParentMessageThread, repos.ParentMessage,
 		parentSettingsStub{boolDefault: true}, emitterBC, slog.Default())
 	svc := parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:            repos.ParentChild,
-		StatusDayRepo:        repos.StudentStatusDay,
-		StudentRepo:          repos.Student,
-		PickupExceptionRepo:  repos.StudentPickupException,
-		ArrivalExceptionRepo: repos.StudentArrivalException,
+		ChildRepo:      repos.ParentChild,
+		StatusDayRepo:  repos.StudentStatusDay,
+		StudentRepo:    repos.Student,
+		CareExceptions: repos.CarePlan(),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
 				configModels.KeyParentPickupChangeEnabled: true,

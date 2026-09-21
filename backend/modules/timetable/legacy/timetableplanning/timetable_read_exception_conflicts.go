@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
 
 // Conflict kinds — stable strings surfaced to clients.
@@ -188,7 +189,7 @@ type arrivalPreload struct {
 	// that date. Keyed by date rather than by weekday because whether a
 	// weekday is a care day at all can change within the window once the
 	// approved bookings decide it (#2414, ADR 0005).
-	bySchedule map[string]map[int64]*scheduleModel.StudentArrivalSchedule
+	bySchedule map[string]map[int64]*careplan.ArrivalSchedule
 }
 
 func (s *TimetableDataService) loadArrivalPreload(
@@ -198,7 +199,7 @@ func (s *TimetableDataService) loadArrivalPreload(
 ) (*arrivalPreload, error) {
 	pre := &arrivalPreload{
 		byException: map[string]map[int64]*scheduleModel.StudentArrivalException{},
-		bySchedule:  map[string]map[int64]*scheduleModel.StudentArrivalSchedule{},
+		bySchedule:  map[string]map[int64]*careplan.ArrivalSchedule{},
 	}
 
 	// Arrival exceptions: one query per unique date. Range is capped at
@@ -252,9 +253,6 @@ func (s *TimetableDataService) loadArrivalPreload(
 // time, and with enrollment.bookings_authoritative on the approved bookings
 // supply the care days — so a stale row on an unbooked weekday no longer
 // produces a conflict warning about a child that is not coming.
-//
-// Without a baseline reader (CLI, partial test facades) the stored rows apply
-// on every date of their weekday, which is the pre-#2414 behaviour.
 func (s *TimetableDataService) fillArrivalSchedules(
 	ctx context.Context,
 	pre *arrivalPreload,
@@ -265,7 +263,7 @@ func (s *TimetableDataService) fillArrivalSchedules(
 		return nil
 	}
 	if s.deps.ArrivalBaselines == nil {
-		return s.fillStoredArrivalSchedules(ctx, pre, needed, dateObjByKey)
+		return errArrivalBaselineMissing
 	}
 
 	studentIDs := make(map[int64]struct{})
@@ -288,46 +286,13 @@ func (s *TimetableDataService) fillArrivalSchedules(
 		return err
 	}
 	for dk, stuMap := range needed {
-		byStu := make(map[int64]*scheduleModel.StudentArrivalSchedule, len(stuMap))
+		byStu := make(map[int64]*careplan.ArrivalSchedule, len(stuMap))
 		for stuID := range stuMap {
 			if row := projection.ForDate(stuID, dateObjByKey[dk]); row != nil {
 				byStu[stuID] = row
 			}
 		}
 		pre.bySchedule[dk] = byStu
-	}
-	return nil
-}
-
-func (s *TimetableDataService) fillStoredArrivalSchedules(
-	ctx context.Context,
-	pre *arrivalPreload,
-	needed map[string]map[int64]struct{},
-	dateObjByKey map[string]timezone.Date,
-) error {
-	// One query per unique weekday, as before the projection existed.
-	byWeekday := make(map[int]map[int64]*scheduleModel.StudentArrivalSchedule)
-	idsByWeekday := make(map[int]map[int64]struct{})
-	for dk, stuMap := range needed {
-		wd := isoWeekday(dateObjByKey[dk])
-		if idsByWeekday[wd] == nil {
-			idsByWeekday[wd] = make(map[int64]struct{})
-		}
-		maps.Copy(idsByWeekday[wd], stuMap)
-	}
-	for wd, stuMap := range idsByWeekday {
-		schedules, err := s.deps.ArrivalScheduleRepo.FindByStudentIDsAndWeekday(ctx, slices.Collect(maps.Keys(stuMap)), wd)
-		if err != nil {
-			return err
-		}
-		byStu := make(map[int64]*scheduleModel.StudentArrivalSchedule, len(schedules))
-		for _, sc := range schedules {
-			byStu[sc.StudentID] = sc
-		}
-		byWeekday[wd] = byStu
-	}
-	for dk := range needed {
-		pre.bySchedule[dk] = byWeekday[isoWeekday(dateObjByKey[dk])]
 	}
 	return nil
 }
@@ -364,7 +329,7 @@ func lookupArrivalException(byException map[string]map[int64]*scheduleModel.Stud
 	return nil, false
 }
 
-func lookupArrivalSchedule(bySchedule map[string]map[int64]*scheduleModel.StudentArrivalSchedule, dateKey string, studentID int64) (*scheduleModel.StudentArrivalSchedule, bool) {
+func lookupArrivalSchedule(bySchedule map[string]map[int64]*careplan.ArrivalSchedule, dateKey string, studentID int64) (*careplan.ArrivalSchedule, bool) {
 	if byStu, ok := bySchedule[dateKey]; ok {
 		if sched, has := byStu[studentID]; has && sched != nil {
 			return sched, true

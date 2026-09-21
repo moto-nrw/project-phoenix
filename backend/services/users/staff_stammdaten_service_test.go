@@ -36,7 +36,7 @@ func newStammdatenScenario(t *testing.T) *stammdatenScenario {
 	svc := usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
 		PersonRepo:             repos.Person,
 		RFIDRepo:               repos.RFIDCard,
-		AccountRepo:            repos.Account,
+		AccountExists:          repositories.AccountExists(repos.Profile),
 		StudentRepo:            repos.Student,
 		StaffRepo:              repos.Staff,
 		TeacherRepo:            repos.Teacher,

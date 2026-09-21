@@ -6,12 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Fakes embed the repository interfaces so only the handful of methods the
@@ -64,19 +63,19 @@ func (f *bridgeStudentRepoStub) MarkExpectedAbsentByActiveGroupIDs(
 }
 
 type bridgeCareDayStub struct {
-	byStudent map[int64]careschedule.CareDayStatus
+	byStudent map[int64]careplan.CareDayStatus
 }
 
-func (f *bridgeCareDayStub) ResolveForDate(_ context.Context, _ []int64, _ timezone.Date) (map[int64]careschedule.CareDayStatus, error) {
+func (f *bridgeCareDayStub) ResolveForDate(_ context.Context, _ []int64, _ timezone.Date) (map[int64]careplan.CareDayStatus, error) {
 	return f.byStudent, nil
 }
 
 func (f *bridgeCareDayStub) ResolveForRange(
 	_ context.Context, studentIDs []int64, from, to timezone.Date,
-) (map[int64]map[timezone.Date]careschedule.CareDayStatus, error) {
-	out := map[int64]map[timezone.Date]careschedule.CareDayStatus{}
+) (map[int64]map[timezone.Date]careplan.CareDayStatus, error) {
+	out := map[int64]map[timezone.Date]careplan.CareDayStatus{}
 	for _, studentID := range studentIDs {
-		byDate := map[timezone.Date]careschedule.CareDayStatus{}
+		byDate := map[timezone.Date]careplan.CareDayStatus{}
 		for date := from; !date.After(to); date = date.AddDays(1) {
 			byDate[date] = f.byStudent[studentID]
 		}
@@ -126,10 +125,10 @@ func TestTimetableBridgeCompletesOnlyAfterFinalizingAttendance(t *testing.T) {
 	svc := NewTimetableBridgeService(TimetableBridgeDependencies{
 		Instances:        instances,
 		InstanceStudents: students,
-		CareDays: &bridgeCareDayStub{byStudent: map[int64]careschedule.CareDayStatus{
-			bookedStudent:  careschedule.CareDayScheduled,
-			notBookedChild: careschedule.CareDayNotScheduled,
-			cancelledChild: careschedule.CareDayCancelled,
+		CareDays: &bridgeCareDayStub{byStudent: map[int64]careplan.CareDayStatus{
+			bookedStudent:  careplan.CareDayScheduled,
+			notBookedChild: careplan.CareDayNotScheduled,
+			cancelledChild: careplan.CareDayCancelled,
 		}},
 	})
 
@@ -196,8 +195,8 @@ func TestTimetableBridgeUndoesStatusDayAbsenceForUnbookedChild(t *testing.T) {
 	svc := NewTimetableBridgeService(TimetableBridgeDependencies{
 		Instances:        instances,
 		InstanceStudents: students,
-		CareDays: &bridgeCareDayStub{byStudent: map[int64]careschedule.CareDayStatus{
-			notBookedChild: careschedule.CareDayNotScheduled,
+		CareDays: &bridgeCareDayStub{byStudent: map[int64]careplan.CareDayStatus{
+			notBookedChild: careplan.CareDayNotScheduled,
 		}},
 	})
 

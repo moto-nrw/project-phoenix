@@ -20,7 +20,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
 	"github.com/uptrace/bun"
 
@@ -116,8 +115,6 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	tokenAuth := jwt.MustNewTokenAuth()
-
 	// Public auth routes. parent-credentials login issues a
 	// parent-scope JWT that's NOT bound to any tenant_id; per-action
 	// tenant resolution happens at downstream parent endpoints from
@@ -134,10 +131,9 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 	// Authenticated parent routes — all require scope=parent.
 	// jwt.ParentMiddleware rejects tenant + operator tokens.
 	r.Group(func(r chi.Router) {
-		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
 		r.Use(common.ReadOnlyPreviewMiddleware)
-		r.Use(jwt.ParentMiddleware)
+		r.Use(common.ParentScopeMiddleware)
 		r.Use(common.SecurityPrincipalMiddleware)
 
 		// Cross-tenant children list — every student the parent is

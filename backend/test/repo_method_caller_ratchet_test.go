@@ -128,32 +128,14 @@ func collectRepoInterfaceMethods(t *testing.T, backendRoot string) []string {
 	return names
 }
 
-// retainedCallerFiles are production call sites under database/ that serve an
-// owner module over the retained repositories; the Identity & Access role
-// administration (#3314) calls the role, permission, assignment and grant
-// repositories only through this adapter, and the second factor (#3331) the
-// MFA credential, challenge, trusted-device and override repositories, until
-// #3226 moves the stores into the module; delete the entry with the file.
-var retainedCallerFiles = []string{
-	"database/repositories/identity_roles.go",
-	"database/repositories/identity_mfa.go",
-}
-
 // collectCallerFileContents loads every non-test .go file outside models/ and
 // database/ (the caller universe: services, api, auth, cmd, seed, scheduler,
-// simulate, tenant, realtime, internal, ...) plus the retained caller files.
+// simulate, tenant, realtime, internal, ...).
 func collectCallerFileContents(t *testing.T, backendRoot string) []string {
 	t.Helper()
 
 	skipDirs := map[string]bool{"models": true, "database": true}
 	var contents []string
-	for _, rel := range retainedCallerFiles {
-		data, readErr := os.ReadFile(filepath.Join(backendRoot, filepath.FromSlash(rel))) // #nosec G304 -- test scans repo-local source files
-		if readErr != nil {
-			t.Fatalf("retained caller file %s: %v", rel, readErr)
-		}
-		contents = append(contents, string(data))
-	}
 	err := filepath.WalkDir(backendRoot, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err

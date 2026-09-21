@@ -108,6 +108,41 @@ and must use HTTPS in production. Env change checklist:
 Reserved slug lists in `backend/models/platform/organization.go` and
 `frontend/src/lib/reserved-slugs.ts` must stay in sync; verify both when changed.
 
+### Demo access (public demo, #3462)
+
+The routes below are mounted only when `APP_ENV=demo`
+(`authAPI.MountDemoRoutes`); elsewhere they answer 404 and the capability is
+not composed. They are public, take no cookies, and rely on
+`CORS_ALLOWED_ORIGINS` naming the website origins in the demo environment.
+
+| Route | Contract |
+|---|---|
+| `POST /demo/access-requests` | `email`, `school_name`, `person_name`, `contact_opt_in`, optional `src` → `202 {entry_url}`; `422 demo_access_invalid` |
+| `GET /demo/access/status` | token in `Authorization: Bearer` → `{status: preparing\|ready}` |
+| `POST /demo/access/sessions` | `{token}` → `{access_token, refresh_token}` (tenant session); `409 demo_school_preparing` |
+
+Unknown token: `404 demo_access_unknown`; expired: `410 demo_access_expired`.
+The token is opaque, stored as SHA-256 fingerprint in `auth.demo_accesses`
+(owner `identity-access`), valid 14 days, reusable, every use counted. It
+travels in the URL fragment (`{slug}.TENANT_DOMAIN/demo#token=…`), request
+bodies, or the header above, never in a URL a server logs. The frontend
+entry page `[tenant]/(public)/demo` redeems it through `/api/demo/access/*`
+and signs in with the `internalRefresh` credentials path.
+
+A demo session signs in the administrator of the standing school
+`messe-demo`. `SwitchTenant` refuses any account a demo access signed in
+(`403 demo_session`), through a mint guard inside the switch transaction.
+All visitors share that account, so it is exempt from the session cap
+(`capSessionsUnlessDemo`); otherwise the sixth visitor would sign the first
+one out. `TenantGuard` leaves the entry page alone (`isDemoEntryPath`) and
+guards every other tenant route as before.
+
+`ready` means: the school exists and has an active administrator. The server
+role cannot read `platform.demo_school_states` by design (#3461), so `ready`
+can appear while the one-time provisioning of `messe-demo` still seeds data.
+There is no `failed` status yet; the entry page gives up after two minutes.
+#3463 replaces both with a state per demo access.
+
 ### Embedded enrollment
 
 The parents portal serves `/parents/anmeldung/{slug}/{phaseId}` with the same

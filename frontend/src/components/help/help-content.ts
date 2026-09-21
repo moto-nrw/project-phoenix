@@ -496,6 +496,9 @@ function editStudentTopic(): HelpTopic {
       "Kommen die Betreuungstage aus Buchungen? Dann lassen sich die Tage nicht auswählen. Ändern Sie nur Zeiten an gebuchten Tagen.",
       "Fehlt `Bearbeiten` oder `Wochenplan`? Fragen Sie Ihre Leitung nach den nötigen Rechten.",
     ],
+    notes: [
+      "Steht unter dem Feld `Ankunft` die Auswahl `Nach Schulstunde`? Wählen Sie zum Beispiel `5. Stunde`. moto trägt die passende Uhrzeit ein.",
+    ],
     related: [
       HELP_TOPICS.studentSearch,
       HELP_TOPICS.carePlan,
@@ -2869,6 +2872,12 @@ function careTimesTopic(): HelpTopic {
     notes: [
       "Ohne eigene Zeit gilt die Klassenzeit des Kindes.",
       "Den Wochenplan können Sie schon beim Anlegen des Kindes mitgeben.",
+      // #3372: Die Auswahl erscheint nur mit gepflegten Schulstunden
+      // (school-period-select.tsx) und kopiert die Uhrzeit ins Zeitfeld.
+      "Schneller geht es mit `Nach Schulstunde` unter dem Feld `Ankunft`: Wählen Sie zum Beispiel `5. Stunde`. moto trägt die passende Uhrzeit ein.",
+      "Dieselbe Auswahl gibt es für eine ganze Klasse: unter `Kinderdaten` im Menü der Klasse bei `Ankunftszeit bearbeiten`.",
+      "Die Auswahl erscheint, wenn unter `Einstellungen` bei `Schulstunden` Uhrzeiten stehen. Jede Schule pflegt ihre eigenen Zeiten.",
+      "Ändern Sie später eine Schulstunde, bleiben gespeicherte Zeiten unverändert.",
     ],
     differences: [
       // Einstellung `enrollment.bookings_authoritative`, Vorgabe aus. Der

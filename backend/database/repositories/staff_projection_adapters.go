@@ -63,9 +63,7 @@ func (f *Factory) bindStaffProjections(membership staffLookup, workTime workforc
 	if setter, ok := f.Room.(supervisorPersonsResolverSetter); ok {
 		setter.SetSupervisorPersonsResolver(supervisorPersonsResolver(membership))
 	}
-	if f.AccountTenant != nil {
-		f.AccountTenant = newStaffAccountTenantRepository(f.AccountTenant, membership)
-	}
+
 }
 
 // staffByID resolves the staff members for ids through the owner query,

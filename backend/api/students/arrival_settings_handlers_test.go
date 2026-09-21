@@ -51,6 +51,46 @@ func TestGetArrivalSettings(t *testing.T) {
 	})
 }
 
+// The lesson end times a school maintains feed the "nach der 5. Stunde" choice
+// of the arrival forms (#3372).
+func TestGetArrivalSettingsSchoolPeriods(t *testing.T) {
+	t.Parallel()
+
+	tc := setupStudentsRoute(t)
+
+	t.Run("no lesson is offered while the school maintains none", func(t *testing.T) {
+		req := testutil.NewRequest("GET", "/arrival-settings", nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"users:read"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), `"school_periods":[]`)
+	})
+
+	t.Run("maintained lessons come back in lesson order, gaps left out", func(t *testing.T) {
+		ctx := testpkg.Ctx(t)
+		for period, endTime := range map[int]string{6: "13:20", 5: "12:35", 4: ""} {
+			key := configModel.SchoolPeriodEndKey(period)
+			require.NoError(t, tc.resource.SettingsService.SetValue(ctx, key, endTime, nil, nil))
+			t.Cleanup(func() {
+				require.NoError(t, tc.resource.SettingsService.ResetValue(testpkg.Ctx(t), key, nil, nil))
+			})
+		}
+
+		req := testutil.NewRequest("GET", "/arrival-settings", nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"users:read"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(),
+			`"school_periods":[{"period":5,"end_time":"12:35"},{"period":6,"end_time":"13:20"}]`)
+	})
+
+	t.Run("a value that is no clock time is refused", func(t *testing.T) {
+		err := tc.resource.SettingsService.SetValue(
+			testpkg.Ctx(t), configModel.SchoolPeriodEndKey(1), "nach der Pause", nil, nil)
+		require.Error(t, err)
+	})
+}
+
 func TestGetClassArrivalTimesUsesStandardEnvelope(t *testing.T) {
 	t.Parallel()
 

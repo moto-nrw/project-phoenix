@@ -300,7 +300,7 @@ func TestAuthService_EndStaffPreview(t *testing.T) {
 		_, endErr := service.EndStaffPreview(ctx, "not-a-token", "", "")
 		requirePreviewErr(t, endErr, identityaccess.ErrPreviewTokenInvalid)
 
-		regular, mintErr := jwt.MustNewTokenAuth().CreateJWT(jwt.AppClaims{
+		regular, mintErr := testpkg.GetTestTokenAuth(t).CreateJWT(jwt.AppClaims{
 			ID: int(admin.ID), Sub: "regular@test.local", TenantID: tenantID,
 		})
 		require.NoError(t, mintErr)

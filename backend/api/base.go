@@ -53,7 +53,6 @@ import (
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	parentAPI "github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	requestFeedCompose "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/compose"
 	requestFeedHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/http"
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
@@ -179,6 +178,7 @@ func recordHTTPRuntimeEvent(tracer *observability.Tracer, observation httpRuntim
 type moduleServices struct {
 	repositories  *repositories.Factory
 	services      *services.Factory
+	demoAccess    authAPI.DemoAccesses
 	communication *communicationModule.Module
 	mealPlan      *mealplanModule.Module
 	feedback      *feedbackModule.Module
@@ -207,7 +207,39 @@ func NewCleanupTimetable(db *bun.DB) (timetableModule.Capability, error) {
 	if err != nil {
 		return nil, err
 	}
-	return repositories.NewTimetable(db, students, rooms, careschedule.TimetableCareDayLocker(db))
+	careLocks, err := carePlanCompose.NewDayLocks(db, students.LockStudent, peopleModule.ErrStudentNotFound)
+	if err != nil {
+		return nil, err
+	}
+	return repositories.NewTimetable(db, students, rooms, careLocks)
+}
+
+func composeTimetable(db *bun.DB, persons *peopleModule.Module, rooms *facilitiesModule.Module, membership *schoolMembershipModule.Module) (*timetableModule.Module, error) {
+	careQueries, err := repositories.NewTimetableCarePlanQueries(db, func(observation carePlanCompose.Observation) {
+		observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
+	})
+	if err != nil {
+		return nil, err
+	}
+	careLocks, err := carePlanCompose.NewDayLocks(db, persons.LockStudent, peopleModule.ErrStudentNotFound)
+	if err != nil {
+		return nil, err
+	}
+	return timetableCompose.New(timetableCompose.Dependencies{
+		LockStaffAssignment: func(ctx context.Context, staffID int64) error {
+			_, err := membership.FindStaffForMutation(ctx, staffID)
+			return err
+		},
+		CarePlan: careQueries,
+		DB:       db, Students: timetableStudents(persons), Rooms: timetableRooms(rooms), CareDays: careLocks,
+		Observe: func(observation timetableCompose.Observation) {
+			observability.ObserveTimetableActivitiesOperation(
+				observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows,
+				observation.Stats.DuplicatePreventionConflicts, observation.Stats.StatementDuration,
+				timetableModule.ErrorCode(observation.Err), observation.Err,
+			)
+		},
+	})
 }
 
 func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logger, tenantRuntime apiCommon.TenantRuntime) (moduleServices, error) {
@@ -264,27 +296,7 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	if err != nil {
 		return moduleServices{}, err
 	}
-	careQueries, err := repositories.NewTimetableCarePlanQueries(db, func(observation carePlanCompose.Observation) {
-		observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
-	})
-	if err != nil {
-		return moduleServices{}, err
-	}
-	timetableCapability, err := timetableCompose.New(timetableCompose.Dependencies{
-		LockStaffAssignment: func(ctx context.Context, staffID int64) error {
-			_, err := membership.FindStaffForMutation(ctx, staffID)
-			return err
-		},
-		CarePlan: careQueries,
-		DB:       db, Students: timetableStudents(persons), Rooms: timetableRooms(rooms), CareDays: careschedule.TimetableCareDayLocker(db),
-		Observe: func(observation timetableCompose.Observation) {
-			observability.ObserveTimetableActivitiesOperation(
-				observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows,
-				observation.Stats.DuplicatePreventionConflicts, observation.Stats.StatementDuration,
-				timetableModule.ErrorCode(observation.Err), observation.Err,
-			)
-		},
-	})
+	timetableCapability, err := composeTimetable(db, persons, rooms, membership)
 	if err != nil {
 		return moduleServices{}, err
 	}
@@ -411,7 +423,7 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 		return moduleServices{}, err
 	}
 	legacyFacilities = factory.Facilities
-	return moduleServices{repositories: repoFactory, services: factory, communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime}, nil
+	return moduleServices{repositories: repoFactory, services: factory, demoAccess: authAPI.ComposedDemoAccess(factory.AccountAuthentication().DemoAccess()), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime}, nil
 }
 
 // withFileStorageWiring resolves what the File Storage module needs from the
@@ -877,21 +889,26 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL 
 	// Setup CORS, security logging, and rate limiting
 	setupCORSIfEnabled(api.Router, enableCORS)
 	securityLogger := setupSecurityLogging(api.Router)
-	setupRateLimiting(api.Router, securityLogger)
+	sessionAuth, err := newSessionTokenAuth()
+	if err != nil {
+		return nil, err
+	}
+	setupRateLimiting(api.Router, securityLogger, sessionAuth)
+	// One verifier serves every route: it only parses the presented token, and
+	// each protected group still rejects through the Authenticator and its
+	// scope gate. A group mounted without it fails closed.
+	api.Router.Use(sessionAuth.Verifier())
 
-	requestFeedResource, err := initializeAPIResourcesWithRequestFeed(api, repoFactory, modules, db, logger, frontendURL)
+	requestFeedResource, err := initializeAPIResourcesWithRequestFeed(api, repoFactory, modules, db, logger, frontendURL, sessionAuth)
 	if err != nil {
 		return nil, err
 	}
 	api.WorkTimeModels = worktimemodelsHTTPAdapter.NewResource(modules.workforce, db, services.StaffTimeTrackingNotifier(api.Services.RealtimeHub))
 	api.MealPlan = newMealPlanResource(modules.mealPlan, db, newMealPlanExportRenderer())
 	api.Feedback = newFeedbackResource(modules.feedback, db)
-	api.Users = newUsersResource(modules.persons, repoFactory.Account.FindEmailsByAccountIDs, func(ctx context.Context, tagID string) (bool, error) {
-		cards, err := repoFactory.RFIDCard.List(ctx, map[string]any{"id": tagID})
-		if err != nil {
-			return false, err
-		}
-		return len(cards) > 0, nil
+	api.Users = newUsersResource(modules.persons, api.Services.Auth.ListAccountEmails, func(ctx context.Context, tagID string) (bool, error) {
+		_, _, found, err := repoFactory.RFIDCard.LookupRFIDCard(ctx, tagID)
+		return found, err
 	}, db)
 
 	// Register routes with rate limiting
@@ -904,8 +921,11 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL 
 	return api, nil
 }
 
-func initializeAPIResourcesWithRequestFeed(api *API, repoFactory *repositories.Factory, modules moduleServices, db *bun.DB, logger *slog.Logger, frontendURL string) (*requestFeedHTTP.Resource, error) {
-	if err := initializeAPIResources(api, repoFactory, modules, db, logger); err != nil {
+func initializeAPIResourcesWithRequestFeed(api *API, repoFactory *repositories.Factory, modules moduleServices, db *bun.DB, logger *slog.Logger, frontendURL string, sessionAuth *projectJWT.TokenAuth) (*requestFeedHTTP.Resource, error) {
+	if err := initializeAPIResources(api, repoFactory, modules, db, logger, sessionAuth); err != nil {
+		return nil, err
+	}
+	if err := mountDemoAccess(api.Router, modules.demoAccess, viper.GetString("app_env"), frontendURL, viper.GetString("tenant_domain")); err != nil {
 		return nil, err
 	}
 	requestFeed, err := requestFeedCompose.New(requestFeedCompose.Dependencies{
@@ -998,7 +1018,12 @@ func setupCORSIfEnabled(router chi.Router, enabled bool) {
 // setupCORS configures CORS middleware with allowed origins from environment.
 // Supports wildcard subdomain patterns like "*.example.com" via AllowOriginFunc.
 func setupCORS(router chi.Router) {
-	exactOrigins, wildcardSuffixes := parseAllowedOrigins(os.Getenv("CORS_ALLOWED_ORIGINS"))
+	router.Use(corsHandler(os.Getenv("CORS_ALLOWED_ORIGINS")))
+}
+
+// corsHandler builds the CORS middleware for a CORS_ALLOWED_ORIGINS value.
+func corsHandler(allowedOrigins string) func(http.Handler) http.Handler {
+	exactOrigins, wildcardSuffixes := parseAllowedOrigins(allowedOrigins)
 
 	opts := cors.Options{
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -1014,7 +1039,7 @@ func setupCORS(router chi.Router) {
 		opts.AllowedOrigins = exactOrigins
 	}
 
-	router.Use(cors.Handler(opts))
+	return cors.Handler(opts)
 }
 
 // buildCORSOriginFunc returns a CORS origin matcher that accepts any exact
@@ -1089,7 +1114,7 @@ func setupSecurityLogging(router chi.Router) *customMiddleware.SecurityLogger {
 }
 
 // setupRateLimiting configures rate limiting middleware if enabled
-func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.SecurityLogger) {
+func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.SecurityLogger, tokenAuth *projectJWT.TokenAuth) {
 	if os.Getenv("RATE_LIMIT_ENABLED") != "true" {
 		return
 	}
@@ -1107,9 +1132,7 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 		}
 	})
 	generalRateLimiter.SetRejectObserver(observability.RecordRateLimitRejection)
-	if tokenAuth, err := projectJWT.NewTokenAuth(); err == nil {
-		generalRateLimiter.SetKeyFunc(identityRateLimitKey(tokenAuth))
-	}
+	generalRateLimiter.SetKeyFunc(identityRateLimitKey(tokenAuth))
 	if securityLogger != nil {
 		generalRateLimiter.SetLogger(securityLogger)
 	}
@@ -1208,12 +1231,12 @@ func (api *API) requestReviewGroupIDs(ctx context.Context) ([]int64, error) {
 }
 
 // requestReviewDependencies binds native owner capabilities for the staff projection.
-func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (requestreviewcompose.ProjectionDependencies, error) {
+func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (requestreviewcompose.ProjectionDependencies, carePlanModule.CareScheduleReviewQuery, error) {
 	reviewStudents, err := requestreviewcompose.NewStudentDirectory(db, modules.persons, func(observation requestreviewcompose.DirectoryObservation) {
 		observability.ObserveSchoolStructureOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, schoolStructureModule.ErrorCode(observation.Err), observation.Err)
 	})
 	if err != nil {
-		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("request review student directory: %w", err)
+		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review student directory: %w", err)
 	}
 	reviewPolicy, err := reviewidentity.New(reviewidentity.Dependencies{
 		Principal: studentsAPI.RequestReviewPrincipal,
@@ -1223,7 +1246,7 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 		GroupIDs: api.requestReviewGroupIDs,
 	})
 	if err != nil {
-		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("request review policy: %w", err)
+		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review policy: %w", err)
 	}
 	// Report the union of ordinary and absence-review rights, as the
 	// navigation capability does. Each native queue keeps its own scope.
@@ -1231,7 +1254,7 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 		return api.Services.RequestReviewPolicy.AccessLevel(ctx, projectJWT.PermissionsFromCtx(ctx))
 	})
 	if err != nil {
-		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("request review access: %w", err)
+		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review access: %w", err)
 	}
 	masterDataReviews, err := requestreviewcompose.NewMasterDataReviews(db, modules.persons,
 		func(ctx context.Context) (carePlanCompose.ReviewScope, error) {
@@ -1241,7 +1264,7 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
 		})
 	if err != nil {
-		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("master data review queue: %w", err)
+		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("master data review queue: %w", err)
 	}
 	careReviews, err := requestreviewcompose.NewScheduleReviews(db, requestreviewcompose.ScheduleReviewDependencies{
 		People: modules.persons,
@@ -1261,11 +1284,11 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 		},
 	})
 	if err != nil {
-		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("care schedule reviews: %w", err)
+		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("care schedule reviews: %w", err)
 	}
 	careQueue, err := requestreviewcompose.NewCareScheduleQueue(careReviews, carePlanLegacy.TodayDate)
 	if err != nil {
-		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("care schedule review queue: %w", err)
+		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("care schedule review queue: %w", err)
 	}
 	offeringReviews, err := requestreviewcompose.NewOfferingReviews(db, requestreviewcompose.OfferingReviewDependencies{
 		People: modules.persons,
@@ -1282,53 +1305,37 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 		},
 	})
 	if err != nil {
-		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("offering reviews: %w", err)
+		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("offering reviews: %w", err)
 	}
 	offeringQueue, err := requestreviewcompose.NewOfferingQueue(offeringReviews, carePlanLegacy.TodayDate)
 	if err != nil {
-		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("offering review queue: %w", err)
+		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("offering review queue: %w", err)
 	}
 	corrections, err := requestreviewcompose.NewCorrectionLog(db, modules.persons, func(ctx context.Context) bool {
 		return studentsAPI.RequestReviewCorrectionAccess(ctx, api.Services.UserContext.HasCurrentStaff)
 	}, func(requestreviewcompose.AuditObservation) {})
 	if err != nil {
-		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("direct correction history: %w", err)
+		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("direct correction history: %w", err)
 	}
 	masterQueue, err := requestreviewcompose.NewMasterDataQueue(masterDataReviews)
 	if err != nil {
-		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("master data review queue: %w", err)
+		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("master data review queue: %w", err)
 	}
 	excusedQueue, err := requestreviewcompose.NewExcusedQueue(api.Services.ExcusedRequests, carePlanLegacy.TodayDate)
 	if err != nil {
-		return requestreviewcompose.ProjectionDependencies{}, fmt.Errorf("excused review queue: %w", err)
+		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("excused review queue: %w", err)
 	}
 	return requestreviewcompose.ProjectionDependencies{
 		Queues:   requestreviewcompose.Queues{DirectCorrections: corrections, MasterData: masterQueue, CareSchedule: careQueue, Offering: offeringQueue, Excused: excusedQueue},
 		Students: reviewStudents, FamilyProtection: requestreviewcompose.NewFamilyProtection(api.Services.PeopleDirectory), Access: reviewAccess,
-	}, nil
+	}, careReviews, nil
 }
 
-// activeSchoolMemberships lists the schools an account is actively mapped to.
-func activeSchoolMemberships(repoFactory *repositories.Factory) accountSchoolMemberships {
-	accountTenants := repoFactory.AccountTenant
-	return func(ctx context.Context, accountID int64) ([]int64, error) {
-		memberships, err := accountTenants.FindActiveByAccountID(ctx, accountID)
-		if err != nil {
-			return nil, err
-		}
-		ids := make([]int64, 0, len(memberships))
-		for _, membership := range memberships {
-			ids = append(ids, membership.TenantID)
-		}
-		return ids, nil
-	}
-}
-
-func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules moduleServices, db *bun.DB, logger *slog.Logger) error {
+func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules moduleServices, db *bun.DB, logger *slog.Logger, sessionAuth *projectJWT.TokenAuth) error {
 	workforce := modules.workforce
 	// One device authentication composition serves every kiosk route group,
 	// so the IoT and students resources share its last-seen debouncer.
-	authSchools := authSchoolDirectory{schools: api.Services.Schools, memberships: activeSchoolMemberships(repoFactory)}
+	authSchools := authSchoolDirectory{schools: api.Services.Schools, memberships: api.Services.Auth.ListActiveAccountSchoolIDs}
 	deviceAuth := deviceauth.New(deviceauth.Dependencies{
 		Devices:     api.Services.IoT.Fleet(),
 		Schools:     deviceSchoolDirectory{schools: api.Services.Schools},
@@ -1359,7 +1366,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	// students resource's privacy-consent routes (#3349).
 	presence := newStudentPresence(db, logger)
 	studentClassResyncer, _ := api.Services.EnrollmentDecision.(educationSvc.OfferingSourceResyncer)
-	reviewDependencies, err := requestReviewDependencies(api, modules, db)
+	reviewDependencies, careReviews, err := requestReviewDependencies(api, modules, db)
 	if err != nil {
 		return err
 	}
@@ -1391,6 +1398,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		SettingsService:              api.Services.Settings,
 		MasterDataReviewService:      api.Services.MasterDataReview,
 		CareRequestService:           api.Services.CareRequests,
+		CareRequestReviews:           careReviews,
 		OfferingChangeService:        api.Services.OfferingChanges,
 		PickupAdjustmentService:      api.Services.PickupAdjustments,
 		ExcusedRequestService:        api.Services.ExcusedRequests,
@@ -1625,7 +1633,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		// the corresponding checkout toggle flips on).
 		SettingValueSet:  api.Services.SettingsSideEffects.Dispatch,
 		TenantMFAService: api.Services.MFA,
-		TokenAuth:        nil, // Created internally by operator API
+		TokenAuth:        sessionAuth,
 		DB:               db,
 	})
 	api.Parent = parentAPI.NewResource(parentAPI.ResourceConfig{
@@ -1643,12 +1651,12 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	})
 	api.Platform = platformAPI.NewResource(platformAPI.ResourceConfig{
 		AnnouncementsService: api.Services.Announcement,
-		Runtime:              newPlatformRuntime(projectJWT.MustNewTokenAuth()),
+		Runtime:              newPlatformRuntime(),
 	})
 	return nil
 }
 
-func newPlatformRuntime(tokenAuth *projectJWT.TokenAuth) platformAPI.Runtime {
+func newPlatformRuntime() platformAPI.Runtime {
 	return platformAPI.Runtime{
 		// TenantMiddleware supplies the scope guard: parent- and school-scope
 		// tokens are rejected with 401 (#2207) — before it, this group was the
@@ -1657,10 +1665,9 @@ func newPlatformRuntime(tokenAuth *projectJWT.TokenAuth) platformAPI.Runtime {
 		// unchanged.
 		Protected: func(router chi.Router, register func(chi.Router)) {
 			router.Group(func(r chi.Router) {
-				r.Use(tokenAuth.Verifier())
 				r.Use(projectJWT.Authenticator)
 				r.Use(apiCommon.ReadOnlyPreviewMiddleware)
-				r.Use(projectJWT.TenantMiddleware)
+				r.Use(apiCommon.TenantScopeMiddleware)
 				r.Use(apiCommon.SecurityPrincipalMiddleware)
 				register(r)
 			})
@@ -2083,4 +2090,17 @@ func (a *API) servePublicCalendarFeed(w http.ResponseWriter, r *http.Request) {
 // composition layer so both production and route tests receive a real renderer.
 func newMealPlanExportRenderer() services.SimpleListRenderer {
 	return services.NewSimpleListRenderer()
+}
+
+// newSessionTokenAuth resolves the signing configuration once for the API root.
+func newSessionTokenAuth() (*projectJWT.TokenAuth, error) {
+	tokenAuth, err := projectJWT.NewTokenAuthWithDurations(
+		viper.GetString("auth_jwt_secret"),
+		viper.GetDuration("auth_jwt_expiry"),
+		viper.GetDuration("auth_jwt_refresh_expiry"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("invalid auth JWT configuration: %w", err)
+	}
+	return tokenAuth, nil
 }

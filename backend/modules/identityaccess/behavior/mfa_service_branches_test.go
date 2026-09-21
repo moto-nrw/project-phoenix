@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	authModel "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -45,7 +44,7 @@ func TestMFAService_OperatorSetGlobalMFAOverride_RejectsEmptyReason(t *testing.T
 	acc := testpkg.CreateTestAccount(t, db, "global-empty-reason")
 
 	for _, reason := range []string{"", "   ", "\t\n"} {
-		err := svc.OperatorSetGlobalMFAOverride(ctx, 99, acc.ID, authModel.MFAAdminOverrideForceOff, reason)
+		err := svc.OperatorSetGlobalMFAOverride(ctx, 99, acc.ID, identityaccess.MFAAdminOverrideForceOff, reason)
 		require.Error(t, err, "whitespace-only reason %q must be rejected", reason)
 		require.Contains(t, err.Error(), "reason")
 	}
@@ -57,14 +56,14 @@ func TestMFAService_OperatorSetGlobalMFAOverride_NoneOnEmptyState(t *testing.T) 
 	// "none" on a fresh account must succeed even though there's no row
 	// to delete — DeleteGlobal is idempotent and the audit row still fires.
 	ctx := context.Background()
-	svc, repos, db := newTestMFAService(t)
+	svc, _, db := newTestMFAService(t)
 	acc := testpkg.CreateTestAccount(t, db, "global-none-noop")
 
-	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, 99, acc.ID, authModel.MFAAdminOverrideNone, "no-op"))
+	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, 99, acc.ID, identityaccess.MFAAdminOverrideNone, "no-op"))
 
-	row, err := repos.MFAOverride.FindGlobal(ctx, acc.ID)
+	_, found, err := nativeMFARecords(t, db).FindGlobalOverride(ctx, acc.ID)
 	require.NoError(t, err)
-	assert.Nil(t, row)
+	assert.False(t, found)
 }
 
 func TestMFAService_OperatorSetGlobalMFAOverride_ForceOnKeepsExistingDevice(t *testing.T) {
@@ -85,7 +84,7 @@ func TestMFAService_OperatorSetGlobalMFAOverride_ForceOnKeepsExistingDevice(t *t
 	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, tenantID, "UA-test", net.ParseIP("203.0.113.10"))
 	require.NoError(t, err)
 
-	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, 99, acc.ID, authModel.MFAAdminOverrideForceOn, "hardening"))
+	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, 99, acc.ID, identityaccess.MFAAdminOverrideForceOn, "hardening"))
 
 	devices, err := svc.ListTrustedDevices(ctx, acc.ID, tenantID)
 	require.NoError(t, err)
@@ -115,7 +114,7 @@ func TestMFAService_OperatorSetGlobalMFAOverride_ForceOffRevokesAcrossAllTenants
 	_, _, err = svc.IssueTrustedDevice(ctx, acc.ID, tenantB, "UA-B", net.ParseIP("203.0.113.22"))
 	require.NoError(t, err)
 
-	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, 99, acc.ID, authModel.MFAAdminOverrideForceOff, "mailbox lockout"))
+	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, 99, acc.ID, identityaccess.MFAAdminOverrideForceOff, "mailbox lockout"))
 
 	for _, tid := range []int64{tenantA, tenantB} {
 		devices, err := svc.ListTrustedDevices(ctx, acc.ID, tid)
@@ -134,7 +133,7 @@ func TestMFAService_SetMFAOverride_RejectsEmptyReason(t *testing.T) {
 	acc, tenantID := tenantMappedAccount(t, db, "tenant-empty-reason")
 
 	perms := []string{"users:manage"}
-	err := svc.SetMFAOverride(ctx, 11, tenantID, acc.ID, authModel.MFAAdminOverrideForceOff, "  ", perms)
+	err := svc.SetMFAOverride(ctx, 11, tenantID, acc.ID, identityaccess.MFAAdminOverrideForceOff, "  ", perms)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "reason")
 }
@@ -146,22 +145,22 @@ func TestMFAService_SetMFAOverride_NoneClearsExistingRow(t *testing.T) {
 	// After clearing, FindByAccountAndTenant must return nil (not the
 	// stale row, not an error).
 	ctx := context.Background()
-	svc, repos, db := newTestMFAService(t)
+	svc, _, db := newTestMFAService(t)
 
 	acc, tenantID := tenantMappedAccount(t, db, "tenant-none-clears")
 
 	perms := []string{"users:manage"}
-	require.NoError(t, svc.SetMFAOverride(ctx, 11, tenantID, acc.ID, authModel.MFAAdminOverrideForceOn, "harden", perms))
+	require.NoError(t, svc.SetMFAOverride(ctx, 11, tenantID, acc.ID, identityaccess.MFAAdminOverrideForceOn, "harden", perms))
 
-	row, err := repos.MFAOverride.FindByAccountAndTenant(ctx, acc.ID, tenantID)
+	_, found, err := nativeMFARecords(t, db).FindTenantOverride(ctx, acc.ID, tenantID)
 	require.NoError(t, err)
-	require.NotNil(t, row)
+	require.True(t, found)
 
-	require.NoError(t, svc.SetMFAOverride(ctx, 11, tenantID, acc.ID, authModel.MFAAdminOverrideNone, "policy reverted", perms))
+	require.NoError(t, svc.SetMFAOverride(ctx, 11, tenantID, acc.ID, identityaccess.MFAAdminOverrideNone, "policy reverted", perms))
 
-	row, err = repos.MFAOverride.FindByAccountAndTenant(ctx, acc.ID, tenantID)
+	_, found, err = nativeMFARecords(t, db).FindTenantOverride(ctx, acc.ID, tenantID)
 	require.NoError(t, err)
-	assert.Nil(t, row, "none must DELETE the row, not leave it with a stale override value")
+	assert.False(t, found, "none must DELETE the row, not leave it with a stale override value")
 }
 
 func TestMFAService_SetMFAOverride_ForceOnKeepsTrustedDevices(t *testing.T) {
@@ -178,7 +177,7 @@ func TestMFAService_SetMFAOverride_ForceOnKeepsTrustedDevices(t *testing.T) {
 	require.NoError(t, err)
 
 	perms := []string{"users:manage"}
-	require.NoError(t, svc.SetMFAOverride(ctx, 11, tenantID, acc.ID, authModel.MFAAdminOverrideForceOn, "harden", perms))
+	require.NoError(t, svc.SetMFAOverride(ctx, 11, tenantID, acc.ID, identityaccess.MFAAdminOverrideForceOn, "harden", perms))
 
 	devices, err := svc.ListTrustedDevices(ctx, acc.ID, tenantID)
 	require.NoError(t, err)
@@ -206,7 +205,7 @@ func TestMFAService_SetMFAOverride_ForceOffOnlyAffectsTargetTenant(t *testing.T)
 
 	// Tenant-A admin disables MFA on tenant A only.
 	perms := []string{"users:manage"}
-	require.NoError(t, svc.SetMFAOverride(ctx, 11, tenantA, acc.ID, authModel.MFAAdminOverrideForceOff, "tenant-A lockout", perms))
+	require.NoError(t, svc.SetMFAOverride(ctx, 11, tenantA, acc.ID, identityaccess.MFAAdminOverrideForceOff, "tenant-A lockout", perms))
 
 	devicesA, err := svc.ListTrustedDevices(ctx, acc.ID, tenantA)
 	require.NoError(t, err)
@@ -240,7 +239,7 @@ func TestMFAService_OperatorSetGlobalMFAOverride_WaitsForTheAccountRowLock(t *te
 	// (account_id does not change), so nothing but the explicit account lock
 	// orders the flip against a mint that already read the old value.
 	require.NoError(t, svc.OperatorSetGlobalMFAOverride(
-		ctx, 99, acc.ID, authModel.MFAAdminOverrideForceOff, "seed"))
+		ctx, 99, acc.ID, identityaccess.MFAAdminOverrideForceOff, "seed"))
 
 	// Stand in for the mint transaction, which owns the account row from its
 	// precondition check until commit.
@@ -253,7 +252,7 @@ func TestMFAService_OperatorSetGlobalMFAOverride_WaitsForTheAccountRowLock(t *te
 	written := make(chan error, 1)
 	go func() {
 		written <- svc.OperatorSetGlobalMFAOverride(
-			context.Background(), 99, acc.ID, authModel.MFAAdminOverrideForceOn, "lock order")
+			context.Background(), 99, acc.ID, identityaccess.MFAAdminOverrideForceOn, "lock order")
 	}()
 
 	select {

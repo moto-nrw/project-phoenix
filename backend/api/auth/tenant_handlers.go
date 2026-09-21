@@ -378,6 +378,9 @@ func (rs *Resource) switchTenant(w http.ResponseWriter, r *http.Request) {
 			case errors.Is(err, identityaccess.ErrMustUseSchoolPortal):
 				common.RenderError(w, r, common.ErrorForbiddenWithCode(
 					identityaccess.ErrMustUseSchoolPortal, "use_school_portal"))
+			case errors.Is(err, identityaccess.ErrDemoSessionTenantLocked):
+				common.RenderError(w, r, common.ErrorForbiddenWithCode(
+					identityaccess.ErrDemoSessionTenantLocked, "demo_session"))
 			default:
 				common.RenderError(w, r, common.ErrorInternalServer(err))
 			}

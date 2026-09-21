@@ -94,7 +94,7 @@ func TestRefreshClaimsRejectReadOnlyPreviewToken(t *testing.T) {
 func TestParseAccessJWTVerifiesPreviewTokens(t *testing.T) {
 	t.Parallel()
 
-	tokenAuth, err := NewTokenAuthWithSecret("parse-access-jwt-test-secret")
+	tokenAuth, err := NewTokenAuthWithDurations("parse-access-jwt-test-secret", 0, 0)
 	require.NoError(t, err)
 	tokenAuth.JwtExpiry = time.Hour
 
@@ -117,14 +117,14 @@ func TestParseAccessJWTVerifiesPreviewTokens(t *testing.T) {
 	assert.EqualValues(t, 77, parsed.TenantID)
 
 	t.Run("rejects a token signed with another secret", func(t *testing.T) {
-		other, otherErr := NewTokenAuthWithSecret("a-different-secret")
+		other, otherErr := NewTokenAuthWithDurations("a-different-secret", 0, 0)
 		require.NoError(t, otherErr)
 		_, parseErr := other.ParseAccessJWT(token)
 		require.Error(t, parseErr)
 	})
 
 	t.Run("rejects an expired token", func(t *testing.T) {
-		expiring, expErr := NewTokenAuthWithSecret("parse-access-jwt-test-secret")
+		expiring, expErr := NewTokenAuthWithDurations("parse-access-jwt-test-secret", 0, 0)
 		require.NoError(t, expErr)
 		expiring.JwtExpiry = -time.Minute
 		expired, createErr := expiring.CreateJWT(minted)
@@ -141,10 +141,10 @@ func TestParseAccessJWTVerifiesPreviewTokens(t *testing.T) {
 func TestParseExpiredAccessJWTAcceptsExpiredPreviewTokens(t *testing.T) {
 	t.Parallel()
 
-	tokenAuth, err := NewTokenAuthWithSecret("parse-expired-access-jwt-secret")
+	tokenAuth, err := NewTokenAuthWithDurations("parse-expired-access-jwt-secret", 0, 0)
 	require.NoError(t, err)
 
-	expiring, err := NewTokenAuthWithSecret("parse-expired-access-jwt-secret")
+	expiring, err := NewTokenAuthWithDurations("parse-expired-access-jwt-secret", 0, 0)
 	require.NoError(t, err)
 	expiring.JwtExpiry = -time.Minute
 	expired, err := expiring.CreateJWT(AppClaims{
@@ -168,7 +168,7 @@ func TestParseExpiredAccessJWTAcceptsExpiredPreviewTokens(t *testing.T) {
 	assert.Equal(t, "cafebabe", parsed.PreviewID)
 
 	t.Run("still rejects a foreign signature", func(t *testing.T) {
-		other, otherErr := NewTokenAuthWithSecret("a-different-secret")
+		other, otherErr := NewTokenAuthWithDurations("a-different-secret", 0, 0)
 		require.NoError(t, otherErr)
 		_, parseErr := other.ParseExpiredAccessJWT(expired)
 		require.Error(t, parseErr)

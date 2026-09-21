@@ -19,6 +19,10 @@ vi.mock("~/lib/student-arrival-api", async () => {
   >("~/lib/student-arrival-api");
   return {
     ...actual,
+    fetchArrivalSettings: vi.fn().mockResolvedValue({
+      care_days_source: "weekly_plan",
+      school_periods: [],
+    }),
     fetchBulkArrivalScheduleStatus: mockFetchBulkArrivalScheduleStatus,
     fetchClassArrivalTimes: mockFetchClassArrivalTimes,
     bulkUpsertArrivalSchedules: vi.fn(),

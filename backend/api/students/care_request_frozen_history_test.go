@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -38,7 +40,7 @@ func TestCareRequestHistory_ServesFrozenDecisionDiff(t *testing.T) {
 	upsertPickup := func(hour, minute int) {
 		require.NoError(t, tc.resource.PickupScheduleService.UpsertStudentPickupSchedule(
 			tenantCtx,
-			&scheduleModels.StudentPickupSchedule{
+			&careplan.PickupSchedule{
 				StudentID:  chain.StudentID,
 				Weekday:    1,
 				PickupTime: time.Date(1, 1, 1, hour, minute, 0, 0, time.UTC),
@@ -51,11 +53,9 @@ func TestCareRequestHistory_ServesFrozenDecisionDiff(t *testing.T) {
 	upsertPickup(15, 0)
 
 	// The guardian requests Monday pickup 16:00.
-	pending, err := tc.resource.CareRequestService.CreateRequest(
+	pending, err := tc.careRequests.CreateRequest(
 		tenantCtx, chain.StudentID, chain.AccountID,
-		map[string]any{"weekdays": []any{
-			map[string]any{"weekday": 1, "pickup": "16:00"},
-		}},
+		json.RawMessage(`{"weekdays":[{"weekday":1,"pickup":"16:00"}]}`),
 	)
 	require.NoError(t, err)
 

@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -387,7 +386,7 @@ func sortedConflictIDs(ids []int64) []int64 {
 func (s *ParentRequestCoordinator) conflictPort(
 	ctx context.Context, kind ParentRequestKind,
 ) (ParentRequestConflictPort, error) {
-	if err := authorizeConflictKind(ctx, kind); err != nil {
+	if err := authorizeConflictKind(s.requestPermissions(ctx), kind); err != nil {
 		return nil, err
 	}
 	port := s.conflictPorts[kind]
@@ -400,8 +399,7 @@ func (s *ParentRequestCoordinator) conflictPort(
 // authorizeConflictKind mirrors authorizeBulkParentRequestKinds: everything is
 // a users:update write except an absence, which a users:absence holder may
 // decide too (#2232).
-func authorizeConflictKind(ctx context.Context, kind ParentRequestKind) error {
-	granted := jwt.PermissionsFromCtx(ctx)
+func authorizeConflictKind(granted []string, kind ParentRequestKind) error {
 	if authorize.HasPermission(permissions.UsersUpdate, granted) {
 		return nil
 	}

@@ -4,12 +4,14 @@ import "@testing-library/jest-dom/vitest";
 import type { Student } from "~/lib/student-helpers";
 
 const {
+  mockFetchArrivalSettings,
   mockFetchBulkArrivalScheduleStatus,
   mockFetchClassArrivalTimes,
   mockBulkUpsert,
   mockToastSuccess,
   mockToastError,
 } = vi.hoisted(() => ({
+  mockFetchArrivalSettings: vi.fn(),
   mockFetchBulkArrivalScheduleStatus: vi.fn(),
   mockFetchClassArrivalTimes: vi.fn(),
   mockBulkUpsert: vi.fn(),
@@ -23,6 +25,7 @@ vi.mock("~/lib/student-arrival-api", async () => {
   >("~/lib/student-arrival-api");
   return {
     ...actual,
+    fetchArrivalSettings: mockFetchArrivalSettings,
     fetchBulkArrivalScheduleStatus: mockFetchBulkArrivalScheduleStatus,
     fetchClassArrivalTimes: mockFetchClassArrivalTimes,
     bulkUpsertArrivalSchedules: mockBulkUpsert,
@@ -92,6 +95,10 @@ function makeStudent(id: string): Student {
 describe("FilteredBulkArrivalModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockFetchArrivalSettings.mockResolvedValue({
+      care_days_source: "weekly_plan",
+      school_periods: [],
+    });
     mockFetchBulkArrivalScheduleStatus.mockResolvedValue(0);
     mockFetchClassArrivalTimes.mockResolvedValue({
       school_class: "3a",
@@ -300,6 +307,63 @@ describe("FilteredBulkArrivalModal", () => {
     expect(onSuccess).toHaveBeenCalled();
     expect(onClose).toHaveBeenCalled();
     expect(mockToastSuccess).toHaveBeenCalled();
+  });
+
+  // #3372: the Unterrichtsschluss of a class is picked by lesson; the class
+  // still stores a plain clock time.
+  it("saves the end time of the lesson picked for a weekday", async () => {
+    mockFetchArrivalSettings.mockResolvedValue({
+      care_days_source: "weekly_plan",
+      school_periods: [
+        { period: 5, end_time: "12:35" },
+        { period: 6, end_time: "13:20" },
+      ],
+    });
+    mockBulkUpsert.mockResolvedValue(undefined);
+
+    render(
+      <FilteredBulkArrivalModal
+        isOpen={true}
+        onClose={vi.fn()}
+        filter={{ type: "school_class", schoolClass: "3a" }}
+        filterLabel="3a"
+        studentsInFilter={[makeStudent("1")]}
+      />,
+    );
+
+    const trigger = await screen.findByRole("combobox", {
+      name: "Dienstag: Zeit nach Schulstunde",
+    });
+    await waitFor(() => expect(trigger).toBeEnabled());
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("option", { name: "6. Stunde (13:20)" }));
+
+    expect(screen.getByLabelText("Dienstag")).toHaveValue("13:20");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(mockBulkUpsert).toHaveBeenCalledWith(
+        { type: "school_class", schoolClass: "3a" },
+        [{ weekday: 2, expected_arrival: "13:20" }],
+      ),
+    );
+  });
+
+  it("works without a lesson choice when the lesson end times cannot be read", async () => {
+    mockFetchArrivalSettings.mockRejectedValue(new Error("offline"));
+
+    render(
+      <FilteredBulkArrivalModal
+        isOpen={true}
+        onClose={vi.fn()}
+        filter={{ type: "school_class", schoolClass: "3a" }}
+        filterLabel="3a"
+        studentsInFilter={[makeStudent("1")]}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByLabelText("Montag")).toBeEnabled());
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 
   it("submits a group filter and names the group in the dialog", async () => {

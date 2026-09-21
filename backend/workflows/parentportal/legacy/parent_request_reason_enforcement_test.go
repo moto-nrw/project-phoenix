@@ -56,15 +56,15 @@ func buildReasonPolicyServices(t *testing.T, policy string) (parentService.Servi
 	})
 	require.NoError(t, err)
 	svc := parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:           repos.ParentChild,
-		StatusDayRepo:       repos.StudentStatusDay,
-		StudentRepo:         repos.Student,
-		PickupExceptionRepo: repos.StudentPickupException,
-		Settings:            reasonPolicySettings{policy: policy},
-		ExcusedRequests:     excused,
-		ExcusedRequestRepo:  repos.ExcusedAbsenceRequest,
-		DB:                  db,
-		Logger:              slog.Default(),
+		ChildRepo:          repos.ParentChild,
+		StatusDayRepo:      repos.StudentStatusDay,
+		StudentRepo:        repos.Student,
+		CareExceptions:     repos.CarePlan(),
+		Settings:           reasonPolicySettings{policy: policy},
+		ExcusedRequests:    excused,
+		ExcusedRequestRepo: repos.ExcusedAbsenceRequest,
+		DB:                 db,
+		Logger:             slog.Default(),
 	})
 	return svc, excused, db
 }

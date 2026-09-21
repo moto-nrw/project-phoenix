@@ -11,7 +11,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -25,10 +24,6 @@ import (
 // moving. The staff and teacher half lives in staff_directory_service.go,
 // because School Membership owns those tables.
 
-// PIN brute-force lockout policy (issue #586 — extracted from the model).
-// After PINLockoutThreshold failed PIN entries the account is locked for
-// PINLockoutDuration. These mirror the MFA lockout policy in services/auth.
-// Per-tenant overrides live behind security.account_lockout_* settings keys.
 const (
 	// opGetPerson is the operation name for Get operations
 	opGetPerson = "get person"
@@ -59,12 +54,12 @@ type PersonServiceDependencies struct {
 	// composition root binds database/repositories.NewStudentDirectory.
 	StudentDirectory StudentDirectoryLocker
 	// Repository dependencies
-	PersonRepo  userModels.PersonRepository
-	RFIDRepo    authmodels.RFIDCardRepository
-	AccountRepo authmodels.AccountRepository
-	StudentRepo userModels.StudentRepository
-	StaffRepo   userModels.StaffRepository
-	TeacherRepo userModels.TeacherRepository
+	PersonRepo    userModels.PersonRepository
+	RFIDRepo      RFIDCards
+	AccountExists func(context.Context, int64) (bool, error)
+	StudentRepo   userModels.StudentRepository
+	StaffRepo     userModels.StaffRepository
+	TeacherRepo   userModels.TeacherRepository
 	// LehrkraftRoles answers whether the staff member's account holds the
 	// Lehrkraft role. Required by the caregiver-profile paths: the Lehrkraft
 	// role (#1772) is provisioned without a profile on purpose and must not be
@@ -165,22 +160,22 @@ func (s *personService) Create(ctx context.Context, person *userModels.Person) e
 
 	// Check if the account exists if AccountID is set
 	if person.AccountID != nil {
-		account, err := s.AccountRepo.FindByID(ctx, *person.AccountID)
+		exists, err := s.AccountExists(ctx, *person.AccountID)
 		if err != nil {
 			return &UsersError{Op: opCreatePerson, Err: err}
 		}
-		if account == nil {
+		if !exists {
 			return &UsersError{Op: opCreatePerson, Err: ErrAccountNotFound}
 		}
 	}
 
 	// Check if the RFID card exists if TagID is set
 	if person.TagID != nil {
-		card, err := s.RFIDRepo.FindByID(ctx, *person.TagID)
+		_, _, found, err := s.RFIDRepo.LookupRFIDCard(ctx, *person.TagID)
 		if err != nil {
 			return &UsersError{Op: opCreatePerson, Err: err}
 		}
-		if card == nil {
+		if !found {
 			return &UsersError{Op: opCreatePerson, Err: ErrRFIDCardNotFound}
 		}
 	}
@@ -253,18 +248,15 @@ func validateChangedRef[T comparable](ctx context.Context, newID, oldID *T, find
 // validateAccountIfChanged validates account exists if AccountID is being changed
 func (s *personService) validateAccountIfChanged(ctx context.Context, person, existingPerson *userModels.Person) error {
 	return validateChangedRef(ctx, person.AccountID, existingPerson.AccountID,
-		func(ctx context.Context, id int64) (bool, error) {
-			account, err := s.AccountRepo.FindByID(ctx, id)
-			return account != nil, err
-		}, ErrAccountNotFound)
+		s.AccountExists, ErrAccountNotFound)
 }
 
 // validateRFIDCardIfChanged validates RFID card exists if TagID is being changed
 func (s *personService) validateRFIDCardIfChanged(ctx context.Context, person, existingPerson *userModels.Person) error {
 	return validateChangedRef(ctx, person.TagID, existingPerson.TagID,
 		func(ctx context.Context, id string) (bool, error) {
-			card, err := s.RFIDRepo.FindByID(ctx, id)
-			return card != nil, err
+			_, _, found, err := s.RFIDRepo.LookupRFIDCard(ctx, id)
+			return found, err
 		}, ErrRFIDCardNotFound)
 }
 
@@ -361,11 +353,11 @@ func (s *personService) FindByName(ctx context.Context, firstName, lastName stri
 // LinkToAccount associates a person with an account
 func (s *personService) LinkToAccount(ctx context.Context, personID int64, accountID int64) error {
 	// Verify the account exists
-	account, err := s.AccountRepo.FindByID(ctx, accountID)
+	exists, err := s.AccountExists(ctx, accountID)
 	if err != nil {
 		return &UsersError{Op: opLinkToAccount, Err: err}
 	}
-	if account == nil {
+	if !exists {
 		return &UsersError{Op: opLinkToAccount, Err: ErrAccountNotFound}
 	}
 
@@ -395,18 +387,13 @@ func (s *personService) UnlinkFromAccount(ctx context.Context, personID int64) e
 // LinkToRFIDCard associates a person with an RFID card
 func (s *personService) LinkToRFIDCard(ctx context.Context, personID int64, tagID string) error {
 	// Check if the RFID card exists, create it if it doesn't (auto-create on assignment)
-	card, err := s.RFIDRepo.FindByID(ctx, tagID)
+	_, _, found, err := s.RFIDRepo.LookupRFIDCard(ctx, tagID)
 	if err != nil {
 		return &UsersError{Op: opLinkToRFIDCard, Err: err}
 	}
-	if card == nil {
+	if !found {
 		// Auto-create RFID card on assignment (per RFID Implementation Guide)
-		newCard := &authmodels.RFIDCard{
-			StringIDModel: base.StringIDModel{ID: tagID},
-			Active:        true,
-		}
-		newCard.SetTenantID(tenant.FromContext(ctx))
-		if err := s.RFIDRepo.Create(ctx, newCard); err != nil {
+		if err := s.RFIDRepo.RegisterRFIDCard(ctx, tagID); err != nil {
 			return &UsersError{Op: opLinkToRFIDCard, Err: err}
 		}
 	}

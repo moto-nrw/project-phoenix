@@ -8,7 +8,6 @@ import (
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -24,17 +23,15 @@ func assignSeededRole(t *testing.T, db *bun.DB, accountID, tenantID int64, roleN
 		TableExpr("auth.roles").
 		Where("name = ?", roleName).
 		Scan(ctx, &roleID))
-	assignment := &authModels.AccountRole{AccountID: accountID, RoleID: roleID}
-	assignment.SetTenantID(tenantID)
-	_, err := db.NewInsert().Model(assignment).ModelTableExpr(`auth.account_roles`).Exec(ctx)
+	_, err := db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+		accountID, roleID, tenantID).Exec(ctx)
 	require.NoError(t, err)
 }
 
 func assertTokenCountByPortal(t *testing.T, db *bun.DB, accountID int64, portalScope string, want int) {
 	t.Helper()
 	count, err := db.NewSelect().
-		Model((*authModels.Token)(nil)).
-		ModelTableExpr(`auth.tokens AS "token"`).
+		TableExpr(`auth.tokens AS "token"`).
 		Where(`"token".account_id = ?`, accountID).
 		Where(`"token".portal_scope = ?`, portalScope).
 		Where(`"token".rotated_at IS NULL`).
@@ -186,13 +183,13 @@ func TestRevokeAllTokensFromTenantTxClearsOtherSchools(t *testing.T) {
 
 	_, _, err = service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
-	other := &authModels.Token{
+	other := &testpkg.TokenFixture{
 		AccountID:   account.ID,
 		Token:       uniqueTestName("other-school-live"),
 		Expiry:      time.Now().Add(time.Hour),
-		PortalScope: authModels.PortalScopeTenant,
+		PortalScope: "tenant",
 	}
-	other.SetTenantID(secondaryTenantID)
+	other.TenantID = secondaryTenantID
 	_, err = db.NewInsert().Model(other).ModelTableExpr("auth.tokens").Exec(context.Background())
 	require.NoError(t, err)
 	insertStaffPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/tx-school-a", "family-a")
@@ -316,8 +313,8 @@ func TestLogoutLeavesOtherPortalSessionsIntact(t *testing.T) {
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	assignSeededRole(t, db, account.ID, tenantID, authModels.BaseRoleUser)
-	assignSeededRole(t, db, account.ID, tenantID, authModels.BaseRoleGuardian)
+	assignSeededRole(t, db, account.ID, tenantID, "user")
+	assignSeededRole(t, db, account.ID, tenantID, "guardian")
 
 	_, tenantRefresh, err := service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
@@ -344,8 +341,8 @@ func TestSessionCapDoesNotEvictOtherPortalSessions(t *testing.T) {
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	assignSeededRole(t, db, account.ID, tenantID, authModels.BaseRoleUser)
-	assignSeededRole(t, db, account.ID, tenantID, authModels.BaseRoleGuardian)
+	assignSeededRole(t, db, account.ID, tenantID, "user")
+	assignSeededRole(t, db, account.ID, tenantID, "guardian")
 
 	_, parentRefresh, err := service.LoginParent(ctx, email, testPassword)
 	require.NoError(t, err)
@@ -358,8 +355,8 @@ func TestSessionCapDoesNotEvictOtherPortalSessions(t *testing.T) {
 	_, _, err = service.RefreshToken(ctx, parentRefresh)
 	require.NoError(t, err, "five tenant sessions must not evict a parent-portal session")
 
-	assertTokenCountByPortal(t, db, account.ID, authModels.PortalScopeParent, 1)
-	assertTokenCountByPortal(t, db, account.ID, authModels.PortalScopeTenant, 5)
+	assertTokenCountByPortal(t, db, account.ID, "parent", 1)
+	assertTokenCountByPortal(t, db, account.ID, "tenant", 5)
 }
 
 func TestSessionCapRemovesStaffPushForEvictedFamily(t *testing.T) {
@@ -439,7 +436,7 @@ func TestRoleChangeKeepsStaffPushAtOtherSchools(t *testing.T) {
 	insertStaffPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/this-school", localFamily)
 	insertStaffPush(t, db, account.ID, secondaryTenantID, "https://fcm.googleapis.com/other-school", "other-family")
 
-	role, err := rbac.CreateRole(ctx, uniqueTestName("role-change-push"), "limit push wipe", testpkg.StrPtr(authModels.BaseRoleUser))
+	role, err := rbac.CreateRole(ctx, uniqueTestName("role-change-push"), "limit push wipe", testpkg.StrPtr("user"))
 	require.NoError(t, err)
 	require.NoError(t, rbac.AssignRoleToAccount(ctx, account.ID, role.ID))
 
@@ -464,17 +461,17 @@ func TestAssignRoleFromAdminTxKeepsOtherSchoolSessions(t *testing.T) {
 
 	_, _, err = service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
-	other := &authModels.Token{
+	other := &testpkg.TokenFixture{
 		AccountID:   account.ID,
 		Token:       uniqueTestName("role-other-school"),
 		Expiry:      time.Now().Add(time.Hour),
-		PortalScope: authModels.PortalScopeTenant,
+		PortalScope: "tenant",
 	}
-	other.SetTenantID(secondaryTenantID)
+	other.TenantID = secondaryTenantID
 	_, err = db.NewInsert().Model(other).ModelTableExpr("auth.tokens").Exec(context.Background())
 	require.NoError(t, err)
 
-	role, err := rbac.CreateRole(ctx, uniqueTestName("admin-role-other"), "keep other school", testpkg.StrPtr(authModels.BaseRoleUser))
+	role, err := rbac.CreateRole(ctx, uniqueTestName("admin-role-other"), "keep other school", testpkg.StrPtr("user"))
 	require.NoError(t, err)
 	require.NoError(t, testpkg.WithAdminTx(t, ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
 		return rbac.AssignRoleToAccount(tenant.WithTenantID(adminCtx, tenantID), account.ID, role.ID)
@@ -507,7 +504,7 @@ func TestLogoutRemovesParentPushForFamily(t *testing.T) {
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	assignSeededRole(t, db, account.ID, tenantID, authModels.BaseRoleGuardian)
+	assignSeededRole(t, db, account.ID, tenantID, "guardian")
 
 	_, firstRefresh, err := service.LoginParent(ctx, email, testPassword)
 	require.NoError(t, err)
@@ -543,7 +540,7 @@ func TestLogoutRemovesUnboundParentPushAtSessionTenant(t *testing.T) {
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	assignSeededRole(t, db, account.ID, tenantID, authModels.BaseRoleGuardian)
+	assignSeededRole(t, db, account.ID, tenantID, "guardian")
 	secondaryTenantID, _ := testpkg.CreateTestTenant(t, db)
 	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
 
@@ -595,7 +592,7 @@ func TestSessionCapRemovesParentPushForEvictedFamily(t *testing.T) {
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	assignSeededRole(t, db, account.ID, tenantID, authModels.BaseRoleGuardian)
+	assignSeededRole(t, db, account.ID, tenantID, "guardian")
 
 	_, _, err = service.LoginParent(ctx, email, testPassword)
 	require.NoError(t, err)
@@ -656,7 +653,7 @@ func TestLogoutUnknownScopeRemovesBothUnboundPortals(t *testing.T) {
 	require.NoError(t, err)
 	_, err = db.NewUpdate().
 		TableExpr("auth.tokens").
-		Set("portal_scope = ?", authModels.PortalScopeUnknown).
+		Set("portal_scope = ?", "unknown").
 		Where("account_id = ?", account.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
@@ -683,13 +680,13 @@ func TestSessionCapLeavesUnknownSessionsIsolated(t *testing.T) {
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
 
 	for i := range 5 {
-		legacy := &authModels.Token{
+		legacy := &testpkg.TokenFixture{
 			AccountID:   account.ID,
 			Token:       uniqueTestName("unknown-session") + "-" + string(rune('a'+i)),
 			Expiry:      time.Now().Add(time.Hour),
-			PortalScope: authModels.PortalScopeUnknown,
+			PortalScope: "unknown",
 		}
-		legacy.SetTenantID(tenantID)
+		legacy.TenantID = tenantID
 		_, err = db.NewInsert().Model(legacy).ModelTableExpr("auth.tokens").Exec(context.Background())
 		require.NoError(t, err)
 	}
@@ -697,8 +694,8 @@ func TestSessionCapLeavesUnknownSessionsIsolated(t *testing.T) {
 	_, _, err = service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
 
-	assertTokenCountByPortal(t, db, account.ID, authModels.PortalScopeUnknown, 5)
-	assertTokenCountByPortal(t, db, account.ID, authModels.PortalScopeTenant, 1)
+	assertTokenCountByPortal(t, db, account.ID, "unknown", 5)
+	assertTokenCountByPortal(t, db, account.ID, "tenant", 1)
 }
 
 func TestRevokeAllTokensDeletesSessionsAcrossTenants(t *testing.T) {
@@ -717,13 +714,13 @@ func TestRevokeAllTokensDeletesSessionsAcrossTenants(t *testing.T) {
 
 	_, _, err = service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
-	other := &authModels.Token{
+	other := &testpkg.TokenFixture{
 		AccountID:   account.ID,
 		Token:       uniqueTestName("other-school-session"),
 		Expiry:      time.Now().Add(time.Hour),
-		PortalScope: authModels.PortalScopeTenant,
+		PortalScope: "tenant",
 	}
-	other.SetTenantID(secondaryTenantID)
+	other.TenantID = secondaryTenantID
 	_, err = db.NewInsert().Model(other).ModelTableExpr("auth.tokens").Exec(context.Background())
 	require.NoError(t, err)
 
@@ -745,7 +742,7 @@ func TestOrphanCleanupKeepsUnboundParentPushAtOtherSchool(t *testing.T) {
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	assignSeededRole(t, db, account.ID, tenantID, authModels.BaseRoleGuardian)
+	assignSeededRole(t, db, account.ID, tenantID, "guardian")
 	secondaryTenantID, _ := testpkg.CreateTestTenant(t, db)
 	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
 
@@ -776,13 +773,13 @@ func TestRevokeAllFromAdminTxWithTenantDeletesOtherSchoolTokens(t *testing.T) {
 
 	_, _, err = service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
-	other := &authModels.Token{
+	other := &testpkg.TokenFixture{
 		AccountID:   account.ID,
 		Token:       uniqueTestName("admin-tx-other-school"),
 		Expiry:      time.Now().Add(time.Hour),
-		PortalScope: authModels.PortalScopeTenant,
+		PortalScope: "tenant",
 	}
-	other.SetTenantID(secondaryTenantID)
+	other.TenantID = secondaryTenantID
 	_, err = db.NewInsert().Model(other).ModelTableExpr("auth.tokens").Exec(context.Background())
 	require.NoError(t, err)
 
@@ -916,7 +913,7 @@ func TestCleanupExpiredTokensRevokesRefreshedFamilyAfterPendingWipe(t *testing.T
 		INSERT INTO auth.tokens (account_id, token, expiry, tenant_id, portal_scope, family_id, generation, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, 1, ?)
 	`, account.ID, uniqueTestName("pre-revoke-succ"), time.Now().Add(14*24*time.Hour),
-		tenantID, authModels.PortalScopeTenant, familyID, time.Now()).
+		tenantID, "tenant", familyID, time.Now()).
 		Exec(context.Background())
 	require.NoError(t, err)
 	insertPendingAccountWideWipe(t, db, account.ID, tenantID, "administrative_revoke", cutoff)
@@ -952,7 +949,7 @@ func TestCleanupExpiredTokensRetriesPendingWipeOlderThanSevenDays(t *testing.T) 
 		INSERT INTO auth.tokens (account_id, token, expiry, tenant_id, portal_scope, family_id, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`, account.ID, uniqueTestName("old-pre-revoke"), time.Now().Add(14*24*time.Hour),
-		tenantID, authModels.PortalScopeTenant, uniqueTestName("old-family"), tokenCreatedAt).
+		tenantID, "tenant", uniqueTestName("old-family"), tokenCreatedAt).
 		Exec(context.Background())
 	require.NoError(t, err)
 	insertPendingAccountWideWipe(t, db, account.ID, tenantID, "password_reset", wipeAt)
@@ -982,13 +979,13 @@ func TestCleanupExpiredTokensKeepsParentPushForUnknownSession(t *testing.T) {
 	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
 
-	legacy := &authModels.Token{
+	legacy := &testpkg.TokenFixture{
 		AccountID:   account.ID,
 		Token:       uniqueTestName("legacy-parent-session"),
 		Expiry:      time.Now().Add(time.Hour),
-		PortalScope: authModels.PortalScopeUnknown,
+		PortalScope: "unknown",
 	}
-	legacy.SetTenantID(tenantID)
+	legacy.TenantID = tenantID
 	_, err = db.NewInsert().Model(legacy).ModelTableExpr("auth.tokens").Exec(context.Background())
 	require.NoError(t, err)
 	insertParentPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/legacy-parent", "")

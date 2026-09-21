@@ -10,7 +10,3 @@ type CareWeeklyPlan = carerequests.WeeklyPlan
 func WeeklyCareDiff(changes []CareWeekdayChange, current CareWeeklyPlan) []CareRequestDiffEntry {
 	return carerequests.WeeklyDiff(changes, current)
 }
-
-func WeeklyCareSummary(changes []CareWeekdayChange) []CareRequestDiffEntry {
-	return carerequests.WeeklySummary(changes)
-}

@@ -28,7 +28,7 @@ import (
 )
 
 // init seeds JWT viper defaults before any test constructs a Resource via
-// jwt.MustNewTokenAuth() (inside Router()). CI runs without a .env so
+// the session verifier of the shared executors. CI runs without a .env so
 // AUTH_JWT_SECRET is unset; without a secret jwx refuses HMAC signing.
 func init() {
 	testutil.SeedTestJWTConfig()

@@ -257,6 +257,8 @@ func stats() domain.OperationStats { return domain.OperationStats{Queries: 1} }
 
 // ports.AccountLoginStore
 
+func (s *fakeStore) DemoAccountExists(context.Context, int64) (bool, error) { return false, nil }
+
 func (s *fakeStore) HasActiveAccountTenant(_ context.Context, accountID, tenantID int64) (bool, domain.OperationStats, error) {
 	s.record("HasActiveAccountTenant")
 	if s.hasMappingErr != nil {
@@ -379,6 +381,10 @@ func (s *fakeStore) FindAccount(_ context.Context, id int64) (domain.Account, bo
 }
 func (s *fakeStore) FindAccountByEmail(context.Context, string) (domain.Account, bool, domain.OperationStats, error) {
 	panic("not used")
+}
+
+func (s *fakeStore) InsertAccount(context.Context, string, string) (domain.LoginAccount, domain.OperationStats, error) {
+	panic("unexpected account insertion in authentication test")
 }
 func (s *fakeStore) FindAccountsByEmails(context.Context, []string) (map[string]domain.Account, domain.OperationStats, error) {
 	panic("not used")
@@ -769,13 +775,14 @@ func (f *fakeSchools) LockSchoolShared(_ context.Context, id int64) (domain.Scho
 	return school, ok, nil
 }
 
-func (f *fakeSchools) ListActiveSchoolsOfAccount(_ context.Context, _ int64) ([]domain.School, error) {
+func (f *fakeSchools) ListActiveSchoolsByID(_ context.Context, schoolIDs []int64) ([]domain.School, error) {
 	if f.listActiveErr != nil {
 		return nil, f.listActiveErr
 	}
 	var result []domain.School
-	for _, school := range f.schools {
-		if school.Live() {
+	for _, id := range schoolIDs {
+		school, found := f.schools[id]
+		if found && school.Live() {
 			result = append(result, school)
 		}
 	}

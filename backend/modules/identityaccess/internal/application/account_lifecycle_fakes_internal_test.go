@@ -155,6 +155,10 @@ func (s *lifecycleStore) FindAccountByEmail(_ context.Context, email string) (do
 	return domain.Account{}, false, stats(), nil
 }
 
+func (s *lifecycleStore) InsertAccount(context.Context, string, string) (domain.LoginAccount, domain.OperationStats, error) {
+	panic("unexpected seed account insertion in lifecycle test")
+}
+
 func (s *lifecycleStore) FindAccountsByEmails(_ context.Context, emails []string) (map[string]domain.Account, domain.OperationStats, error) {
 	s.findAccountsByEmailsCalls++
 	accounts := make(map[string]domain.Account)

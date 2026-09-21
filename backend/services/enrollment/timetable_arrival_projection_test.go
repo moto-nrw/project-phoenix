@@ -13,7 +13,6 @@ import (
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule/carescheduletest"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -36,20 +35,15 @@ func timetableDataWithArrivalBaseline(
 		ActivityInstanceRepo:  timetablesqltest.NewActivityInstanceRepository(env.db),
 		ActivityExceptionRepo: timetablesqltest.NewActivityExceptionRepository(env.db),
 		ActivityScheduleRepo:  env.repos.ActivitySchedule,
-		ArrivalScheduleRepo:   env.repos.StudentArrivalSchedule,
 		ArrivalBaselines:      bookingModeArrivalBaseline(t, env, authoritative),
 		ArrivalExceptionRepo:  env.repos.StudentArrivalException,
 		PickupScheduleRepo:    env.repos.StudentPickupSchedule,
-		PickupBaselines: carescheduletest.NewPickupBaselineService(
-			env.repos.StudentPickupSchedule,
-			approvedOfferingTestProjection(env.repos),
-			env.repos.CareOffering,
-		),
-		PickupExceptionRepo: env.repos.StudentPickupException,
-		Presence:            presence,
-		EducationGroupRepo:  educationRepo.NewGroupRepository(env.db),
-		Logger:              slog.Default(),
-		DB:                  env.db,
+		PickupBaselines:       newPickupBaselineService(env.repos.CarePlan(), approvedOfferingTestProjection(env.repos)),
+		PickupExceptionRepo:   env.repos.StudentPickupException,
+		Presence:              presence,
+		EducationGroupRepo:    educationRepo.NewGroupRepository(env.db),
+		Logger:                slog.Default(),
+		DB:                    env.db,
 	})
 }
 

@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -57,7 +56,7 @@ type identityRequestCache struct {
 // clean "not linked" outcome, not an error.
 type identityEntry struct {
 	accountLoaded bool
-	account       *authmodels.Account
+	account       *users.PersonAccount
 	personLoaded  bool
 	person        *users.Person
 	staffLoaded   bool
@@ -129,7 +128,7 @@ func (c *identityRequestCache) entryLocked(key identityCacheKey) *identityEntry 
 	return entry
 }
 
-func (c *identityRequestCache) accountFor(key identityCacheKey) (*authmodels.Account, bool) {
+func (c *identityRequestCache) accountFor(key identityCacheKey) (*users.PersonAccount, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	entry, ok := c.entries[key]
@@ -139,7 +138,7 @@ func (c *identityRequestCache) accountFor(key identityCacheKey) (*authmodels.Acc
 	return entry.account, true
 }
 
-func (c *identityRequestCache) storeAccount(key identityCacheKey, account *authmodels.Account) {
+func (c *identityRequestCache) storeAccount(key identityCacheKey, account *users.PersonAccount) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	entry := c.entryLocked(key)

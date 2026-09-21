@@ -52,7 +52,7 @@ func NewCalendarTestModule(db *bun.DB, unit tenant.UnitOfWork) (CalendarTestModu
 		CalendarFacts: repositories.CalendarFacts{
 			StaffRepo:            repos.Staff,
 			StudentRepo:          repos.Student,
-			GuardianProfileRepo:  repos.GuardianProfile,
+			GuardianProfileRepo:  repositories.NewCalendarGuardianDirectory(repos.GuardianProfile, repositories.MustNewPeopleDirectory(db)),
 			StudentGuardianRepo:  repos.StudentGuardian,
 			ChildRepo:            parents.ParentChild,
 			GroupRepo:            repos.Group,
@@ -62,7 +62,7 @@ func NewCalendarTestModule(db *bun.DB, unit tenant.UnitOfWork) (CalendarTestModu
 			StaffShiftRepo:       repos.StaffShift,
 			ShiftTypeRepo:        repos.ShiftType,
 			SchoolRepo:           repos.School,
-			AccountRepo:          repos.Account,
+			AccountRepo:          feeds.ParentFeed,
 			StaffFeedRepo:        feeds.StaffFeed,
 			PersonRepo:           repos.Person,
 		},
