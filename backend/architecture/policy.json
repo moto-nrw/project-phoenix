@@ -2090,6 +2090,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/schoolstructure/internal/adapters/staffgroups",
+      "owner": "school-structure",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "modules/facilities",
       "owner": "facilities",
       "role": "public",
@@ -10634,6 +10641,61 @@
       "target_role": "public"
     },
     {
+      "id": "school-structure.compose.staff-groups-adapter",
+      "description": "School Structure composition binds the staff-keyed group reads (#3499).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "compose",
+      "target_owner": "school-structure",
+      "target_role": "adapter"
+    },
+    {
+      "id": "school-structure.staff-groups.public",
+      "description": "The staff-keyed group reads implement the School Structure contract and load groups through its query (#3499).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "adapter",
+      "target_owner": "school-structure",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.staff-groups.membership-public",
+      "description": "The staff-keyed group reads resolve teacher and class assignments through the public School Membership capability (#3499).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "adapter",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.staff-groups.workforce-public",
+      "description": "The staff-keyed group reads resolve active substitutions through the public Workforce capability (#3499).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "adapter",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.staff-groups.calendar-contract",
+      "description": "The staff-keyed substitution read parses its day with the canonical shared-kernel calendar Date (#3499).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "adapter",
+      "target_owner": "shared-kernel",
+      "target_role": "contract"
+    },
+    {
       "id": "school-structure.integration-test.public",
       "description": "School Structure integration tests exercise the public facade.",
       "scopes": [
@@ -10654,6 +10716,50 @@
       "source_role": "workflow-integration-test",
       "target_owner": "test-support",
       "target_role": "test-support"
+    },
+    {
+      "id": "school-structure.adapter-test.compose",
+      "description": "Staff-keyed group read tests build the reads through School Structure composition (#3499).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "adapter-test",
+      "target_owner": "school-structure",
+      "target_role": "compose"
+    },
+    {
+      "id": "school-structure.adapter-test.membership-compose",
+      "description": "Staff-keyed group read tests construct the real School Membership owner for teacher and class assignments (#3499).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "adapter-test",
+      "target_owner": "school-membership",
+      "target_role": "compose"
+    },
+    {
+      "id": "school-structure.adapter-test.workforce-compose",
+      "description": "Staff-keyed group read tests construct the real Workforce owner for substitutions (#3499).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "adapter-test",
+      "target_owner": "workforce",
+      "target_role": "compose"
+    },
+    {
+      "id": "school-structure.adapter-test.calendar-contract",
+      "description": "Staff-keyed group read tests use fixed shared-kernel calendar dates (#3499).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "adapter-test",
+      "target_owner": "shared-kernel",
+      "target_role": "contract"
     },
     {
       "id": "root-composition.to.school-structure-compose",
