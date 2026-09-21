@@ -578,6 +578,9 @@ function WeeklyTimeField({
             : null;
           onChange(nextValue);
         }}
+        onBlur={() => {
+          completedOneDigitHour.current = null;
+        }}
       />
     </div>
   );

@@ -6,7 +6,7 @@ import { SettingsTimeField } from "./time-field";
 describe("SettingsTimeField", () => {
   it("renders with value", () => {
     render(<SettingsTimeField value="18:00" onChange={vi.fn()} />);
-    const input = screen.getByPlaceholderText("HH:MM") as HTMLInputElement;
+    const input = screen.getByPlaceholderText("HH:MM");
     expect(input.value).toBe("18:00");
   });
 
@@ -131,6 +131,22 @@ describe("SettingsTimeField", () => {
     await user.type(input, "5");
 
     expect(input).toHaveValue("12:34");
+  });
+
+  it("does not continue a one-digit-hour entry after leaving the field", async () => {
+    const user = userEvent.setup();
+    render(<SettingsTimeField value="" onChange={vi.fn()} />);
+
+    const input = screen.getByPlaceholderText("HH:MM") as HTMLInputElement;
+    await user.type(input, "130");
+    expect(input).toHaveValue("01:30");
+
+    fireEvent.blur(input);
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+    await user.type(input, "5");
+
+    expect(input).toHaveValue("01:30");
   });
 
   it("strips non-digit characters", () => {

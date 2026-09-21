@@ -82,6 +82,7 @@ export function SettingsTimeField({
   );
 
   const handleBlur = useCallback(() => {
+    completedOneDigitHour.current = null;
     if (!isValidTime(display)) {
       setDisplay(value);
       if (value === "") {

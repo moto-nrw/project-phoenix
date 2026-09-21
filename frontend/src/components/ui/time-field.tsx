@@ -119,6 +119,9 @@ export function TimeField({
             : null;
           onChange(nextValue);
         }}
+        onBlur={() => {
+          completedOneDigitHour.current = null;
+        }}
         className={`h-10 w-full rounded-lg border px-3 text-base text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
           invalid
             ? "border-parent-red focus-visible:border-parent-red"

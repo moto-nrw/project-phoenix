@@ -927,6 +927,23 @@ describe("CareWeeklyPlanEditForm", () => {
     expect(pickup).toHaveValue("12:34");
   });
 
+  it("does not continue a one-digit-hour entry after leaving the field", () => {
+    renderForm();
+
+    const pickup = screen.getByLabelText("Abholung", {
+      selector: "#weekly-pickup-1",
+    });
+    fireEvent.change(pickup, { target: { value: "1" } });
+    fireEvent.change(pickup, { target: { value: "13" } });
+    fireEvent.change(pickup, { target: { value: "130" } });
+    expect(pickup).toHaveValue("01:30");
+
+    fireEvent.blur(pickup);
+    fireEvent.change(pickup, { target: { value: "01:305" } });
+
+    expect(pickup).toHaveValue("01:30");
+  });
+
   it("pads a one-digit hour when typing a clock time", () => {
     renderForm();
 
