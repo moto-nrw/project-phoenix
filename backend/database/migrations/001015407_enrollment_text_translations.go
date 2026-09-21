@@ -9,7 +9,7 @@ import (
 
 func init() {
 	MigrationRegistry.Register(&Migration{
-		Version:     "1.15.406",
+		Version:     "1.15.407",
 		Description: "Store school-written translations of phase and care offering texts (#3377)",
 		DependsOn:   []string{"1.15.405"},
 	})
