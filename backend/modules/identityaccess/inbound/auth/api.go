@@ -135,8 +135,8 @@ func (rs *Resource) Router() chi.Router {
 }
 
 // RouterWithAuthRateLimiter returns the auth router with the given rate
-// limiter middleware on login, register and password-reset; nil mounts them
-// unthrottled.
+// limiter middleware on the public login, password-reset, MFA and
+// passkey-login routes; nil mounts them unthrottled.
 func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler) http.Handler) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))

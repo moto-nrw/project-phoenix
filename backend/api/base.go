@@ -1846,7 +1846,8 @@ func (a *API) registerPublicRoutes(requestFeed *requestFeedHTTP.Resource) {
 // operator, parent) and applies the auth rate limiters when present.
 func (a *API) registerPortalRoutes(limiters authRateLimiters) {
 	// Auth routes mounted at root level to match frontend expectations
-	// Rate limiting is applied per-route inside Auth.Router() (only login, register, password-reset)
+	// RouterWithAuthRateLimiter applies the limiter only to the public login,
+	// password-reset, MFA and passkey-login routes.
 	var authRateLimiter func(http.Handler) http.Handler
 	if limiters.auth != nil {
 		authRateLimiter = limiters.auth.Middleware()
