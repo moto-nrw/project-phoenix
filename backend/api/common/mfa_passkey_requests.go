@@ -8,8 +8,9 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation"
 )
 
-// MFA and passkey request bodies shared verbatim by the tenant (api/auth)
-// and operator (api/operator) portals. Both portals alias these types so
+// MFA and passkey request bodies shared verbatim by the tenant
+// (modules/identityaccess/inbound/auth) and operator
+// (modules/identityaccess/inbound/operator) portals. Both alias these types so
 // their wire formats cannot drift; portal-specific requests (e.g. the
 // tenant-only passkey login-options body) stay in their portal package.
 

@@ -6,8 +6,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
-
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,7 +18,7 @@ func TestMapOperatorMFAError_RemainingCases(t *testing.T) {
 	t.Run("permission_denied_maps_to_403", func(t *testing.T) {
 		rr := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "/", nil)
-		mapOperatorMFAError(rr, req, identityoperator.ErrMFAPermissionDenied)
+		mapOperatorMFAError(rr, req, ErrMFAPermissionDenied)
 		assert.Equal(t, http.StatusForbidden, rr.Code)
 	})
 
