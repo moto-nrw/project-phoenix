@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { signIn } from "next-auth/react";
 import { ButtonLink } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Loading } from "~/components/ui/loading";
@@ -10,43 +9,24 @@ import {
   DEMO_ENTRY_PROBLEMS,
   DEMO_WEBSITE_URL,
   type DemoEntryPhase,
-  redeemDemoAccess,
   takeDemoTokenFromFragment,
   waitForDemoSchool,
 } from "~/lib/demo-access";
 import { createLogger } from "~/lib/logger";
 
-const logger = createLogger({ component: "DemoEntryPage" });
+const logger = createLogger({ component: "DemoWaitingRoom" });
 
-// Entry page of the public demo (#3462): takes the token from the URL
-// fragment, waits until the demo school can be entered, redeems the token by
-// POST and signs in with the issued token pair, then opens the start page.
-// A new demo school does not exist while it is seeded, so visitors wait on
-// the main domain (`/demo`) and arrive here once it is ready (#3463).
-export default function DemoEntryPage() {
+// Waiting room of the public demo (#3463). Every visitor gets a demo school
+// of their own, and its subdomain answers only once the school is seeded. So
+// the link from the website leads here, on the main domain. The page waits
+// until the school is ready and then hands the token on to the school's own
+// entry page, again in the URL fragment, where it is redeemed.
+export default function DemoWaitingRoomPage() {
   const [phase, setPhase] = useState<DemoEntryPhase>("opening");
   const tokenRef = useRef<string | null>(null);
 
   useEffect(() => {
     const run = { cancelled: false };
-
-    async function enter(token: string): Promise<DemoEntryPhase | "entered"> {
-      const waited = await waitForDemoSchool(token, run, () =>
-        setPhase("preparing"),
-      );
-      if (waited.phase === "cancelled") return "opening";
-      if (waited.phase !== "ready") return waited.phase;
-      const tokens = await redeemDemoAccess(token);
-      if (!tokens) return "invalid";
-      const result = await signIn("credentials", {
-        redirect: false,
-        internalRefresh: true,
-        token: tokens.access_token,
-        refreshToken: tokens.refresh_token,
-      });
-      return result?.error ? "failed" : "entered";
-    }
-
     // The fragment is read once and removed; a repeated effect run (React
     // strict mode) must find the token again.
     tokenRef.current ??= takeDemoTokenFromFragment();
@@ -55,14 +35,22 @@ export default function DemoEntryPage() {
       setPhase("invalid");
       return;
     }
-    enter(token)
-      .then((outcome) => {
-        if (run.cancelled) return;
-        if (outcome === "entered") globalThis.location.assign("/");
-        else setPhase(outcome);
+    waitForDemoSchool(token, run, () => setPhase("preparing"))
+      .then((waited) => {
+        if (run.cancelled || waited.phase === "cancelled") return;
+        if (waited.phase !== "ready") {
+          setPhase(waited.phase);
+          return;
+        }
+        if (!waited.schoolUrl?.startsWith("http")) {
+          throw new Error("ready demo school without an address");
+        }
+        globalThis.location.assign(
+          `${waited.schoolUrl}/demo#token=${encodeURIComponent(token)}`,
+        );
       })
       .catch((error: unknown) => {
-        logger.error("demo_entry_failed", {
+        logger.error("demo_waiting_room_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
         if (!run.cancelled) setPhase("failed");

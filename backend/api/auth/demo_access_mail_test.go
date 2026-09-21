@@ -37,7 +37,7 @@ func TestDemoAccessRequestMailsTheLinkAndTheLead(t *testing.T) {
 	assert.NotEmpty(t, link.From.Address, "the sender of the product mails")
 	content, ok := link.Content.(map[string]any)
 	require.True(t, ok)
-	assert.Equal(t, demoEntryOrigin+"/demo#token="+token, content["EntryURL"])
+	assert.Equal(t, demoEntryPrefix+token, content["EntryURL"])
 	// Anyone can type a foreign address, so nothing the form carried may
 	// reach that inbox from our sender.
 	assert.Empty(t, link.To.Name)

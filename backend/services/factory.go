@@ -1653,8 +1653,9 @@ func newFactory(
 				TenantDomain: tenantDomain, OperatorFrontendURL: operatorFrontendURL,
 			},
 		},
-		operators:  operatorDependencies,
-		demoAccess: demoAccessWiringFor(appEnv, dispatcher, defaultFrom, frontendURL, authLogger),
+		operators:          operatorDependencies,
+		demoAccess:         demoAccessWiringFor(appEnv, dispatcher, defaultFrom, frontendURL, authLogger),
+		demoStandingSchool: standingDemoSchool(viper.GetBool("demo_standing_school")),
 		operatorLinks: &operatorLinkWiring{
 			dispatcher: dispatcher, defaultFrom: defaultFrom,
 			frontendURL: frontendURL, operatorFrontendURL: operatorFrontendURL,
