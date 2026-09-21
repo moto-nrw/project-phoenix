@@ -64,8 +64,8 @@ func reqWithSchoolAccount(t *testing.T, method, schoolID, accountID string, body
 	return r.WithContext(ctx)
 }
 
-func mfaAdminResourceFor(mfa identityoperator.AccountMFA) *SchoolAccountMFAResource {
-	return &SchoolAccountMFAResource{
+func mfaAdminResourceFor(mfa identityoperator.AccountMFA) *identityoperator.SchoolAccountMFAResource {
+	return &identityoperator.SchoolAccountMFAResource{
 		TenantMFAService: mfa,
 	}
 }
@@ -131,7 +131,7 @@ func TestResetSchoolAccountMFA_HappyPath(t *testing.T) {
 	rs := mfaAdminResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodDelete, "10", "200",
-		MFAAdminResetRequest{Reason: "User left organization"}, 7)
+		identityoperator.MFAAdminResetRequest{Reason: "User left organization"}, 7)
 	rr := httptest.NewRecorder()
 	rs.ResetSchoolAccountMFA(rr, r)
 
@@ -146,7 +146,7 @@ func TestResetSchoolAccountMFA_RequiresOperatorClaim(t *testing.T) {
 	rs := mfaAdminResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodDelete, "10", "200",
-		MFAAdminResetRequest{Reason: "ok ok ok"}, 0) // no claim
+		identityoperator.MFAAdminResetRequest{Reason: "ok ok ok"}, 0) // no claim
 	rr := httptest.NewRecorder()
 	rs.ResetSchoolAccountMFA(rr, r)
 
@@ -161,7 +161,7 @@ func TestResetSchoolAccountMFA_BadJSONRequest(t *testing.T) {
 
 	// Empty reason fails Bind validation
 	r := reqWithSchoolAccount(t, http.MethodDelete, "10", "200",
-		MFAAdminResetRequest{Reason: ""}, 7)
+		identityoperator.MFAAdminResetRequest{Reason: ""}, 7)
 	rr := httptest.NewRecorder()
 	rs.ResetSchoolAccountMFA(rr, r)
 
@@ -178,7 +178,7 @@ func TestResetSchoolAccountMFA_PermissionDenied_Returns403(t *testing.T) {
 	rs := mfaAdminResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodDelete, "10", "200",
-		MFAAdminResetRequest{Reason: "User left"}, 7)
+		identityoperator.MFAAdminResetRequest{Reason: "User left"}, 7)
 	rr := httptest.NewRecorder()
 	rs.ResetSchoolAccountMFA(rr, r)
 
@@ -197,7 +197,7 @@ func TestSetSchoolAccountMFAOverride_HappyPath(t *testing.T) {
 	rs := mfaAdminResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodPut, "10", "200",
-		MFAAdminOverrideSetRequest{
+		identityoperator.MFAAdminOverrideSetRequest{
 			Override: identityoperator.MFAAdminOverrideForceOff,
 			Reason:   "Compromise reported",
 		}, 7)
@@ -215,7 +215,7 @@ func TestSetSchoolAccountMFAOverride_RejectsBadOverride(t *testing.T) {
 	rs := mfaAdminResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodPut, "10", "200",
-		MFAAdminOverrideSetRequest{Override: "bogus", Reason: "ok ok"}, 7)
+		identityoperator.MFAAdminOverrideSetRequest{Override: "bogus", Reason: "ok ok"}, 7)
 	rr := httptest.NewRecorder()
 	rs.SetSchoolAccountMFAOverride(rr, r)
 
@@ -232,7 +232,7 @@ func TestSetSchoolAccountMFAOverride_InvalidOverrideFromService(t *testing.T) {
 	rs := mfaAdminResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodPut, "10", "200",
-		MFAAdminOverrideSetRequest{Override: identityoperator.MFAAdminOverrideForceOff, Reason: "ok ok"}, 7)
+		identityoperator.MFAAdminOverrideSetRequest{Override: identityoperator.MFAAdminOverrideForceOff, Reason: "ok ok"}, 7)
 	rr := httptest.NewRecorder()
 	rs.SetSchoolAccountMFAOverride(rr, r)
 
@@ -249,7 +249,7 @@ func TestSetSchoolAccountMFAOverride_PermissionDenied(t *testing.T) {
 	rs := mfaAdminResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodPut, "10", "200",
-		MFAAdminOverrideSetRequest{Override: identityoperator.MFAAdminOverrideForceOn, Reason: "ok ok"}, 7)
+		identityoperator.MFAAdminOverrideSetRequest{Override: identityoperator.MFAAdminOverrideForceOn, Reason: "ok ok"}, 7)
 	rr := httptest.NewRecorder()
 	rs.SetSchoolAccountMFAOverride(rr, r)
 
@@ -259,14 +259,14 @@ func TestSetSchoolAccountMFAOverride_PermissionDenied(t *testing.T) {
 func TestMFAAdminResetRequest_BindRejectsShortReason(t *testing.T) {
 	t.Parallel()
 
-	req := &MFAAdminResetRequest{Reason: "no"}
+	req := &identityoperator.MFAAdminResetRequest{Reason: "no"}
 	require.Error(t, req.Bind(nil))
 }
 
 func TestMFAAdminOverrideSetRequest_Trim(t *testing.T) {
 	t.Parallel()
 
-	req := &MFAAdminOverrideSetRequest{
+	req := &identityoperator.MFAAdminOverrideSetRequest{
 		Override: "  force_off  ",
 		Reason:   "   compromise   ",
 	}

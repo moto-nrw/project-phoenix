@@ -95,11 +95,11 @@ func TestOperatorPasskeyLoginHandlers(t *testing.T) {
 	t.Parallel()
 
 	svc := &operatorPasskeyServiceStub{}
-	rs := &Resource{passkeyService: svc}
+	rs := identityoperator.NewPasskeyResource(svc)
 
 	w := httptest.NewRecorder()
 	req := operatorPasskeyJSONRequest("/auth/passkeys/login/options", `{}`)
-	req.Header.Set(headerOperatorFrontendOrigin, "https://operator.localhost")
+	req.Header.Set("X-Moto-Frontend-Origin", "https://operator.localhost")
 	rs.PasskeyLoginOptions(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
@@ -131,7 +131,7 @@ func TestOperatorPasskeyLoginRoutesArePublic(t *testing.T) {
 	}).Router()
 
 	req := operatorPasskeyJSONRequest("/auth/passkeys/login/options", `{}`)
-	req.Header.Set(headerOperatorFrontendOrigin, "https://operator.localhost")
+	req.Header.Set("X-Moto-Frontend-Origin", "https://operator.localhost")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -172,7 +172,7 @@ func TestOperatorPasskeyAuthenticatedHandlers(t *testing.T) {
 	t.Parallel()
 
 	svc := &operatorPasskeyServiceStub{}
-	rs := &Resource{passkeyService: svc}
+	rs := identityoperator.NewPasskeyResource(svc)
 	claims := jwt.AppClaims{ID: 21, Scope: "platform"}
 
 	w := httptest.NewRecorder()
@@ -216,23 +216,15 @@ func TestOperatorPasskeyAuthenticatedHandlers(t *testing.T) {
 func TestOperatorPasskeyHandlerErrors(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{}
+	rs := identityoperator.NewPasskeyResource(nil)
 	w := httptest.NewRecorder()
 	rs.PasskeyLoginOptions(w, operatorPasskeyJSONRequest("/auth/passkeys/login/options", `{}`))
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 
-	rs.passkeyService = &operatorPasskeyServiceStub{}
+	rs = identityoperator.NewPasskeyResource(&operatorPasskeyServiceStub{})
 	w = httptest.NewRecorder()
 	rs.PasskeyLoginOptions(w, operatorPasskeyJSONRequest("/auth/passkeys/login/options", `{}`))
 	assert.Equal(t, http.StatusBadRequest, w.Code)
-
-	w = httptest.NewRecorder()
-	mapOperatorPasskeyError(w, httptest.NewRequest(http.MethodPost, "/", nil), identityoperator.ErrPasskeyNotFound)
-	assert.Equal(t, http.StatusNotFound, w.Code)
-
-	w = httptest.NewRecorder()
-	mapOperatorPasskeyError(w, httptest.NewRequest(http.MethodPost, "/", nil), errors.New("boom"))
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 // TestOperatorPasskeyStoreFailuresAreNotClientErrors pins the wire outcome
@@ -244,21 +236,21 @@ func TestOperatorPasskeyStoreFailuresAreNotClientErrors(t *testing.T) {
 
 	storeDown := errors.New("database error during consume operator passkey session: connection reset")
 	claims := jwt.AppClaims{ID: 41}
-	loginVerify := func(rs *Resource, w http.ResponseWriter) {
+	loginVerify := func(rs *identityoperator.PasskeyResource, w http.ResponseWriter) {
 		rs.PasskeyLoginVerify(w, operatorPasskeyJSONRequest("/auth/passkeys/login/verify", `{"session_id":"s","response":{"id":"a"}}`))
 	}
-	registerVerify := func(rs *Resource, w http.ResponseWriter) {
+	registerVerify := func(rs *identityoperator.PasskeyResource, w http.ResponseWriter) {
 		req := operatorPasskeyJSONRequest("/auth/passkeys/register/verify", `{"session_id":"s","response":{"id":"a"}}`)
 		rs.PasskeyRegisterVerify(w, withOperatorPasskeyClaims(req, claims))
 	}
-	revoke := func(rs *Resource, w http.ResponseWriter) {
+	revoke := func(rs *identityoperator.PasskeyResource, w http.ResponseWriter) {
 		req := withOperatorPasskeyClaims(httptest.NewRequest(http.MethodDelete, "/auth/passkeys/7", nil), claims)
 		rs.PasskeyRevoke(w, withOperatorPasskeyRouteParam(req, "passkeyId", "7"))
 	}
 	tests := []struct {
 		name     string
 		svc      *operatorPasskeyServiceStub
-		call     func(*Resource, http.ResponseWriter)
+		call     func(*identityoperator.PasskeyResource, http.ResponseWriter)
 		wantCode int
 	}{
 		{"login with a spent ceremony", &operatorPasskeyServiceStub{finishLoginErr: identityoperator.ErrPasskeySessionInvalid}, loginVerify, http.StatusUnauthorized},
@@ -273,7 +265,7 @@ func TestOperatorPasskeyStoreFailuresAreNotClientErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			tt.call(&Resource{passkeyService: tt.svc}, w)
+			tt.call(identityoperator.NewPasskeyResource(tt.svc), w)
 			assert.Equal(t, tt.wantCode, w.Code)
 			assert.NotContains(t, w.Body.String(), "connection reset", "store details stay out of the response")
 		})

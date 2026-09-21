@@ -12,7 +12,6 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
@@ -25,14 +24,14 @@ var errOperatorMFAServiceUnavailable = errors.New("operator mfa service is not c
 // login routes of Identity & Access stay focused on the password step.
 type MFAResource struct {
 	authService OperatorAccess
-	mfaService  identityoperator.OperatorMFA
+	mfaService  OperatorMFA
 	tokenAuth   *jwt.TokenAuth
 }
 
 // NewMFAResource wires the dependencies. mfaService may be nil — handlers
 // will return 503 in that case so deployments that haven't enabled MFA yet
 // still answer cleanly.
-func NewMFAResource(authSvc OperatorAccess, mfaSvc identityoperator.OperatorMFA, tokenAuth *jwt.TokenAuth) *MFAResource {
+func NewMFAResource(authSvc OperatorAccess, mfaSvc OperatorMFA, tokenAuth *jwt.TokenAuth) *MFAResource {
 	return &MFAResource{
 		authService: authSvc,
 		mfaService:  mfaSvc,
@@ -51,24 +50,24 @@ func (rs *MFAResource) requireMFA(w http.ResponseWriter, r *http.Request) bool {
 // errors.Is table serves both surfaces.
 func mapOperatorMFAError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, identityoperator.ErrMFAChallengeTokenInvalid):
-		common.RenderError(w, r, ErrUnauthorized())
-	case errors.Is(err, identityoperator.ErrMFACodeInvalid):
-		common.RenderError(w, r, ErrUnauthorized())
-	case errors.Is(err, identityoperator.ErrMFALocked):
-		common.RenderError(w, r, ErrTooManyRequests("MFA temporarily locked"))
-	case errors.Is(err, identityoperator.ErrMFARateLimited):
-		common.RenderError(w, r, ErrTooManyRequests("Too many MFA emails — try again later"))
-	case errors.Is(err, identityoperator.ErrMFANotEnrolled):
-		common.RenderError(w, r, ErrForbidden("MFA is not enrolled for this operator"))
-	case errors.Is(err, identityoperator.ErrMFAAlreadyEnrolled):
-		common.RenderError(w, r, ErrConflict("MFA is already enrolled"))
-	case errors.Is(err, identityoperator.ErrMFAPermissionDenied):
-		common.RenderError(w, r, ErrForbidden("Permission denied"))
-	case errors.Is(err, identityoperator.ErrMFAStatusUnavailable):
-		common.RenderError(w, r, ErrServiceUnavailable("MFA ist gerade nicht verfügbar. Bitte versuchen Sie es erneut."))
+	case errors.Is(err, ErrMFAChallengeTokenInvalid):
+		common.RenderError(w, r, common.OperatorUnauthorized())
+	case errors.Is(err, ErrMFACodeInvalid):
+		common.RenderError(w, r, common.OperatorUnauthorized())
+	case errors.Is(err, ErrMFALocked):
+		common.RenderError(w, r, common.OperatorTooManyRequests("MFA temporarily locked"))
+	case errors.Is(err, ErrMFARateLimited):
+		common.RenderError(w, r, common.OperatorTooManyRequests("Too many MFA emails — try again later"))
+	case errors.Is(err, ErrMFANotEnrolled):
+		common.RenderError(w, r, common.OperatorForbidden("MFA is not enrolled for this operator"))
+	case errors.Is(err, ErrMFAAlreadyEnrolled):
+		common.RenderError(w, r, common.OperatorConflict("MFA is already enrolled"))
+	case errors.Is(err, ErrMFAPermissionDenied):
+		common.RenderError(w, r, common.OperatorForbidden("Permission denied"))
+	case errors.Is(err, ErrMFAStatusUnavailable):
+		common.RenderError(w, r, common.OperatorServiceUnavailable("MFA ist gerade nicht verfügbar. Bitte versuchen Sie es erneut."))
 	default:
-		common.RenderError(w, r, ErrInternal("MFA operation failed"))
+		common.RenderError(w, r, common.OperatorInternal("MFA operation failed"))
 	}
 }
 
@@ -87,7 +86,7 @@ func (rs *MFAResource) Verify(w http.ResponseWriter, r *http.Request) {
 	}
 	req := &MFAVerifyRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(err))
+		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 		return
 	}
 
@@ -116,7 +115,7 @@ func (rs *MFAResource) Resend(w http.ResponseWriter, r *http.Request) {
 	}
 	req := &MFAResendRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(err))
+		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 		return
 	}
 	renewed, err := rs.mfaService.ResendOperatorMFAChallenge(r.Context(), req.ChallengeToken, parseOperatorClientIP(r))
@@ -139,7 +138,7 @@ func (rs *MFAResource) EnrollStart(w http.ResponseWriter, r *http.Request) {
 	}
 	claims, ok := jwt.EnrollmentClaimsFromCtx(r.Context())
 	if !ok || claims.AccountID == 0 || claims.Scope != jwt.MFAEnrollmentScopePlatform {
-		common.RenderError(w, r, ErrUnauthorized())
+		common.RenderError(w, r, common.OperatorUnauthorized())
 		return
 	}
 	if _, err := rs.mfaService.StartOperatorMFAChallenge(r.Context(), claims.AccountID, parseOperatorClientIP(r)); err != nil {
@@ -166,12 +165,12 @@ func (rs *MFAResource) EnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	}
 	claims, ok := jwt.EnrollmentClaimsFromCtx(r.Context())
 	if !ok || claims.AccountID == 0 || claims.Scope != jwt.MFAEnrollmentScopePlatform {
-		common.RenderError(w, r, ErrUnauthorized())
+		common.RenderError(w, r, common.OperatorUnauthorized())
 		return
 	}
 	req := &MFAEnrollConfirmRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(err))
+		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 		return
 	}
 
@@ -184,7 +183,7 @@ func (rs *MFAResource) EnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	if err := rs.mfaService.EnrollOperatorMFA(r.Context(), operatorID); err != nil {
 		// Already-enrolled is not fatal — a retried request must still mint
 		// a real session (no longer the pre-enrollment token).
-		if !errors.Is(err, identityoperator.ErrMFAAlreadyEnrolled) {
+		if !errors.Is(err, ErrMFAAlreadyEnrolled) {
 			mapOperatorMFAError(w, r, err)
 			return
 		}
@@ -205,7 +204,7 @@ func (rs *MFAResource) ListTrustedDevices(w http.ResponseWriter, r *http.Request
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
-		common.RenderError(w, r, ErrUnauthorized())
+		common.RenderError(w, r, common.OperatorUnauthorized())
 		return
 	}
 	devices, err := rs.mfaService.ListOperatorTrustedDevices(r.Context(), int64(claims.ID))
@@ -213,7 +212,7 @@ func (rs *MFAResource) ListTrustedDevices(w http.ResponseWriter, r *http.Request
 		mapOperatorMFAError(w, r, err)
 		return
 	}
-	dtos := common.MapTrustedDevices(devices, func(d identityoperator.OperatorTrustedDevice) common.TrustedDeviceRow {
+	dtos := common.MapTrustedDevices(devices, func(d OperatorTrustedDevice) common.TrustedDeviceRow {
 		return common.TrustedDeviceRow{
 			ID:         d.ID,
 			UserAgent:  d.UserAgent,
@@ -235,13 +234,13 @@ func (rs *MFAResource) RevokeTrustedDevice(w http.ResponseWriter, r *http.Reques
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
-		common.RenderError(w, r, ErrUnauthorized())
+		common.RenderError(w, r, common.OperatorUnauthorized())
 		return
 	}
 	idStr := chi.URLParam(r, "deviceId")
 	deviceID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || deviceID <= 0 {
-		common.RenderError(w, r, ErrInvalidRequest(errors.New("invalid device id")))
+		common.RenderError(w, r, common.OperatorInvalidRequest(errors.New("invalid device id")))
 		return
 	}
 	if err := rs.mfaService.RevokeOperatorTrustedDeviceOwned(r.Context(), int64(claims.ID), deviceID); err != nil {
@@ -265,7 +264,7 @@ type MFATokenResponse struct {
 // writes the response. Both the email-code and recovery-code paths funnel
 // through here so cookie-handling stays in one place.
 func (rs *MFAResource) completeMFAExchange(w http.ResponseWriter, r *http.Request, operatorID int64, rememberDevice bool) {
-	clientIP := getClientIP(r)
+	clientIP := common.ParseClientIP(r)
 	ipAddress := ""
 	if clientIP != nil {
 		ipAddress = clientIP.String()
@@ -277,12 +276,12 @@ func (rs *MFAResource) completeMFAExchange(w http.ResponseWriter, r *http.Reques
 	)
 	if err != nil {
 		switch {
-		case errors.Is(err, identityoperator.ErrOperatorInactive):
-			common.RenderError(w, r, ErrForbidden("Operator account is inactive"))
-		case errors.Is(err, identityoperator.ErrOperatorNotFound):
-			common.RenderError(w, r, ErrUnauthorized())
+		case errors.Is(err, ErrOperatorInactive):
+			common.RenderError(w, r, common.OperatorForbidden("Operator account is inactive"))
+		case errors.Is(err, ErrOperatorNotFound):
+			common.RenderError(w, r, common.OperatorUnauthorized())
 		default:
-			common.RenderError(w, r, ErrInternal("Failed to issue tokens"))
+			common.RenderError(w, r, common.OperatorInternal("Failed to issue tokens"))
 		}
 		return
 	}
@@ -313,7 +312,7 @@ func (rs *MFAResource) issueTrustedDeviceCookie(w http.ResponseWriter, r *http.R
 		return err
 	}
 	http.SetCookie(w, &http.Cookie{
-		Name:    trustedDeviceCookieName,
+		Name:    TrustedDeviceCookieName,
 		Value:   cookieValue,
 		Path:    "/",
 		Expires: expiresAt,
@@ -329,8 +328,8 @@ func (rs *MFAResource) issueTrustedDeviceCookie(w http.ResponseWriter, r *http.R
 	return nil
 }
 
-// parseOperatorClientIP wraps getClientIP and returns it as a net.IP, or
+// parseOperatorClientIP returns the request's client IP as a net.IP, or
 // nil when nothing parseable is on the request.
 func parseOperatorClientIP(r *http.Request) net.IP {
-	return getClientIP(r)
+	return common.ParseClientIP(r)
 }

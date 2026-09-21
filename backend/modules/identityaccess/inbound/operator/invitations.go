@@ -11,7 +11,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
@@ -142,12 +141,12 @@ func (rs *InvitationsResource) CreateInvitation(w http.ResponseWriter, r *http.R
 
 	req := &CreateInvitationRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(err))
+		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 		return
 	}
 
-	if err := rs.invitationService.InviteOperator(r.Context(), identityoperator.OperatorInvitationRequest{
-		Email: req.Email, DisplayName: req.DisplayName, CreatedBy: operatorID, IPAddress: clientAddress(r),
+	if err := rs.invitationService.InviteOperator(r.Context(), OperatorInvitationRequest{
+		Email: req.Email, DisplayName: req.DisplayName, CreatedBy: operatorID, IPAddress: clientIP(r),
 	}); err != nil {
 		common.RenderError(w, r, invitationErrorRenderer(err))
 		return
@@ -160,13 +159,13 @@ func (rs *InvitationsResource) CreateInvitation(w http.ResponseWriter, r *http.R
 func (rs *InvitationsResource) ListInvitations(w http.ResponseWriter, r *http.Request) {
 	pending, err := rs.invitationService.ListPendingOperatorInvitations(r.Context())
 	if err != nil {
-		common.RenderError(w, r, ErrInternal("Failed to list invitations"))
+		common.RenderError(w, r, common.OperatorInternal("Failed to list invitations"))
 		return
 	}
 
 	operators, err := rs.invitationService.ListOperators(r.Context())
 	if err != nil {
-		common.RenderError(w, r, ErrInternal("Failed to list operators"))
+		common.RenderError(w, r, common.OperatorInternal("Failed to list operators"))
 		return
 	}
 
@@ -219,11 +218,11 @@ func (rs *InvitationsResource) ResendInvitation(w http.ResponseWriter, r *http.R
 	idStr := chi.URLParam(r, "id")
 	invitationID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(errors.New("invalid invitation ID")))
+		common.RenderError(w, r, common.OperatorInvalidRequest(errors.New("invalid invitation ID")))
 		return
 	}
 
-	if err := rs.invitationService.ResendOperatorInvitationByActor(r.Context(), invitationID, operatorID, clientAddress(r)); err != nil {
+	if err := rs.invitationService.ResendOperatorInvitationByActor(r.Context(), invitationID, operatorID, clientIP(r)); err != nil {
 		common.RenderError(w, r, invitationErrorRenderer(err))
 		return
 	}
@@ -239,11 +238,11 @@ func (rs *InvitationsResource) RevokeInvitation(w http.ResponseWriter, r *http.R
 	idStr := chi.URLParam(r, "id")
 	invitationID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(errors.New("invalid invitation ID")))
+		common.RenderError(w, r, common.OperatorInvalidRequest(errors.New("invalid invitation ID")))
 		return
 	}
 
-	if err := rs.invitationService.RevokeOperatorInvitationByActor(r.Context(), invitationID, operatorID, clientAddress(r)); err != nil {
+	if err := rs.invitationService.RevokeOperatorInvitationByActor(r.Context(), invitationID, operatorID, clientIP(r)); err != nil {
 		common.RenderError(w, r, invitationErrorRenderer(err))
 		return
 	}
@@ -255,7 +254,7 @@ func (rs *InvitationsResource) RevokeInvitation(w http.ResponseWriter, r *http.R
 func (rs *InvitationsResource) ValidateInvitation(w http.ResponseWriter, r *http.Request) {
 	req := &ValidateInvitationRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(err))
+		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 		return
 	}
 
@@ -276,12 +275,12 @@ func (rs *InvitationsResource) ValidateInvitation(w http.ResponseWriter, r *http
 func (rs *InvitationsResource) AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 	req := &AcceptInvitationRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(err))
+		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 		return
 	}
 
-	operator, err := rs.invitationService.AcceptOperatorInvitation(r.Context(), identityoperator.OperatorInvitationAcceptance{
-		Token: req.Token, DisplayName: req.DisplayName, Password: req.Password, IPAddress: clientAddress(r),
+	operator, err := rs.invitationService.AcceptOperatorInvitation(r.Context(), OperatorInvitationAcceptance{
+		Token: req.Token, DisplayName: req.DisplayName, Password: req.Password, IPAddress: clientIP(r),
 	})
 	if err != nil {
 		common.RenderError(w, r, publicInvitationErrorRenderer(err))
@@ -319,33 +318,33 @@ func translateInvitationValidationError(err error) string {
 // --- Error renderers ---
 
 func invitationErrorRenderer(err error) render.Renderer {
-	if invalid, ok := identityoperator.InvalidInput(err); ok {
-		return ErrInvalidRequest(errors.New(translateInvitationValidationError(invalid)))
+	if invalid, ok := InvalidInput(err); ok {
+		return common.OperatorInvalidRequest(errors.New(translateInvitationValidationError(invalid)))
 	}
 	switch {
-	case errors.Is(err, identityoperator.ErrOperatorInvitationNotFound):
-		return ErrNotFound("Einladung nicht gefunden oder abgelaufen")
-	case errors.Is(err, identityoperator.ErrOperatorEmailExists):
-		return ErrConflict("Ein Operator mit dieser E-Mail existiert bereits")
-	case errors.Is(err, identityoperator.ErrOperatorInvitationRateLimited):
-		return ErrTooManyRequests("Zu viele Einladungen. Bitte warte eine Stunde.")
+	case errors.Is(err, ErrOperatorInvitationNotFound):
+		return common.OperatorNotFound("Einladung nicht gefunden oder abgelaufen")
+	case errors.Is(err, ErrOperatorEmailExists):
+		return common.OperatorConflict("Ein Operator mit dieser E-Mail existiert bereits")
+	case errors.Is(err, ErrOperatorInvitationRateLimited):
+		return common.OperatorTooManyRequests("Zu viele Einladungen. Bitte warte eine Stunde.")
 	default:
-		return ErrInternal("Ein Fehler ist aufgetreten")
+		return common.OperatorInternal("Ein Fehler ist aufgetreten")
 	}
 }
 
 // publicInvitationErrorRenderer maps errors on unauthenticated endpoints.
 // Uses generic messages to prevent enumeration.
 func publicInvitationErrorRenderer(err error) render.Renderer {
-	if invalid, ok := identityoperator.InvalidInput(err); ok {
-		return ErrInvalidRequest(errors.New(translateInvitationValidationError(invalid)))
+	if invalid, ok := InvalidInput(err); ok {
+		return common.OperatorInvalidRequest(errors.New(translateInvitationValidationError(invalid)))
 	}
 	switch {
-	case errors.Is(err, identityoperator.ErrOperatorInvitationNotFound),
-		errors.Is(err, identityoperator.ErrOperatorEmailExists):
+	case errors.Is(err, ErrOperatorInvitationNotFound),
+		errors.Is(err, ErrOperatorEmailExists):
 		// Generic message for both cases to prevent email enumeration
-		return ErrInvalidRequest(errors.New("dieser Link ist abgelaufen oder ungültig"))
+		return common.OperatorInvalidRequest(errors.New("dieser Link ist abgelaufen oder ungültig"))
 	default:
-		return ErrInternal("Ein Serverfehler ist aufgetreten")
+		return common.OperatorInternal("Ein Serverfehler ist aufgetreten")
 	}
 }

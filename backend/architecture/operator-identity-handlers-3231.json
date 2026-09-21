@@ -1,0 +1,101 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#3252 operator login, refresh, profile and school-access routes in modules/identityaccess/inbound/operator",
+    "#3230 relocation of api/auth to modules/identityaccess/inbound/auth"
+  ],
+  "owner_and_capability": "identity-access — the operator MFA, passkey, invitation, profile and school-account MFA administration handlers move from api/operator to modules/identityaccess/inbound/operator and call identityaccess.OperatorMFAFlows, OperatorPasskeyFlows, OperatorProvisioning, OperatorQuery and AccountMFA (#3231)",
+  "affected_packages": [
+    "api/operator",
+    "modules/identityaccess/inbound/operator",
+    "modules/identityaccess/compose",
+    "api/common"
+  ],
+  "affected_tables": [
+    "auth.accounts",
+    "auth.mfa_overrides"
+  ],
+  "exact_ratchet_keys": [
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/operator|github.com/moto-nrw/project-phoenix/tenant"
+  ],
+  "atomic_cutover": "One PR moves the identity handlers and the RequiresOperatorScope and RequiresActiveOperator middleware into modules/identityaccess/inbound/operator and deletes api/operator/auth.go, errors.go and identity.go. The only tenant.WithTenantID call in api/operator (school-account MFA administration) moves into modules/identityaccess/compose/mfa.go as operatorSchoolContext, allowed by identity-access.compose.tenant-runtime, so the school-scoped override and disable writes keep the same tenant context and the api/operator -> tenant key disappears. A missing school id is passed through unchanged; the application refuses it as before. api/operator keeps api.go and the foreign-owner composition until #2736.",
+  "tests": [
+    "scripts/test-changed.sh origin/development without --fast: the moved operator MFA, passkey, invitation, profile and MFA admin suites and the api/operator adapter tests, with no weakened assertion.",
+    "modules/identityaccess/compose/operator_mfa_admin_internal_test.go TestOperatorMFAAdminWritesRunUnderTheNamedSchool and TestOperatorMFAAdminWritesLeaveAMissingSchoolToTheApplication.",
+    "modules/identityaccess/behavior TestMFAService_OperatorSetMFAOverride_RejectsZeroSchoolID and TestMFAService_OperatorSetMFAOverride_RejectsCrossSchool.",
+    "api/route_table_golden_test.go TestFullProductionRouterGolden: route_table.golden unchanged, middleware_table.golden changes only the package of the two operator middleware functions.",
+    "scripts/backend-architecture.sh check with the listed key absent from legacy.jsonl."
+  ],
+  "runtime_evidence": {
+    "source": "Local run on the PR branch after merging development at d154855b0e. The change relocates HTTP handlers and moves one tenant-context call into the module composition without touching a statement, so the evidence is the unchanged route, behaviour and compose suites plus the architecture check, not a benchmark rerun.",
+    "sources": [
+      "backend/modules/identityaccess/compose/mfa.go",
+      "backend/modules/identityaccess/compose/operator_mfa_admin_internal_test.go",
+      "backend/modules/identityaccess/inbound/operator/mfa_admin.go",
+      "backend/api/testdata/middleware_table.golden",
+      "https://github.com/moto-nrw/project-phoenix/pull/3514"
+    ],
+    "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",
+    "thresholds": "The suites pass with unchanged assertions, route_table.golden is unchanged, middleware_table.golden changes only package names, and the architecture check reports no new violation and no stale baseline entry.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "No write statement changes. The MFA override and disable writes run the same AccountMFA capability under the same school tenant context."
+    },
+    "query_count": {
+      "state": "not_applicable",
+      "reason": "No list endpoint or statement changes; the handlers call the same capabilities with the same arguments."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "The request paths execute the same capability calls and statements; only package location and the place that sets the tenant context changed."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "The request paths execute the same capability calls and statements; only package location and the place that sets the tenant context changed."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "scripts/test-changed.sh origin/development passed for the affected packages with no failing test and no panic; golangci-lint on ./api/... and ./modules/identityaccess/... reported 0 issues."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection is acquired differently: the same WithAdminTx unit of work runs under the same context values."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "No lock statement or lock order changes; LockAccountForOverrideWrite is untouched."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No transaction boundary changes."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The operator identity handlers have no worker path."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "The operator identity handlers have no worker path."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "The operator identity handlers have no worker path."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "Status codes and error bodies are unchanged and covered by the moved suites and the AuthErrorRenderer body assertions; a zero school id is still refused by the application, pinned by the new compose test."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data or schema change. Reverting the PR restores the handlers in api/operator and the baseline entry together."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed locally with the key absent: 680 legacy violations remain, composition surface 638 -> 638."
+    }
+  },
+  "rollback_and_cleanup": "Revert the PR; the handlers, api/operator/auth.go, errors.go and identity.go and the api/operator -> tenant baseline entry return together. No data cleanup.",
+  "exit_criterion": "No identity handler named in #3231 remains under backend/api/operator, backend/api/operator does not import github.com/moto-nrw/project-phoenix/tenant, and the listed key is absent from legacy.jsonl."
+}

@@ -1162,7 +1162,8 @@ resources from its configuration and mounts them
 `inbound-operator.http.communication-http`). The operator error body and
 the operator-audited id action live in `api/common` (`OperatorErrResponse`,
 `OperatorAuditedIDAction`), so every half of the operator surface renders
-one wire format; `api/operator` keeps its `Err*` names as thin delegations.
+one wire format; #3231 removed the thin `Err*` delegations `api/operator`
+kept until then.
 The three packages are the only packages of their points, which exist only
 in the candidate. The owner rules `organization-tenancy.http.public`,
 `settings-platform.http.organization-public` and `communication.http.public`
@@ -1193,9 +1194,33 @@ Tenancy (`api/school_directories.go`) and hands the built router to
 the school and Träger narrowing and labelling, and the administrative
 transaction are unchanged. The retained `services/audit` review path
 (`ListForOperator`, `Resolve`) and its repository methods are deleted; the
-service keeps recording and expiring scans. The school MFA admin handlers
-stay in `api/operator` with the identity half (#3231), which also removes
-`api.go` and the package.
+service keeps recording and expiring scans.
+
+The identity half of `api/operator` moved to
+`modules/identityaccess/inbound/operator` (`identity-access`/`http`, #3231):
+the operator second factor, the passkey ceremonies (`PasskeyResource`), the
+invitations, the profile read and e-mail change, the school-account MFA
+administration, the operator scope and active-operator middleware and the
+authentication and profile error mappings, next to the login, refresh,
+profile and school access routes #3252 moved. No route path, status code,
+error string or authorization check changed; the middleware golden only
+names the new package. `api/operator` keeps `api.go` and the package: it is
+the only point the policy lets mount the Organisation & Tenancy, Settings
+Platform and Communication operator routes
+(`inbound-operator.http.*-http`), and PR mode admits no new permission for
+the root or for an existing `identity-access` point. For the same reason
+the handler tests that mint operator claims (`legacy/jwt`) or map the
+retained `models/platform` rows stay in `api/operator` as its adapter tests
+and drive the moved handlers through their exported constructors
+(`inbound-operator.adapter-test.identity-access-http`). The module keeps
+the tests of its unexported mappings and guards and the rendered-body tests
+of `AuthErrorRenderer`, none of which name `legacy/jwt`, `api/common` or
+the retained rows. The school-scoped
+MFA admin writes now take their tenant context in
+`modules/identityaccess/compose` (`identity-access.compose.tenant-runtime`)
+instead of the HTTP adapter, which removes the
+`production|api/operator|tenant` debt. Deleting `api/operator` and the
+remaining `inbound-operator` debt stays with #2736, after #2725.
 
 The session end workflow (`workflows/sessionend`, owner `session-end`, kind
 `workflow`, #2697) is a cross-module write workflow of #2580. Its
