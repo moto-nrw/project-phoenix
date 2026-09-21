@@ -12,6 +12,14 @@ const { mockUseSession, mockSignIn, mockSignOut } = vi.hoisted(() => ({
   mockSignOut: vi.fn(),
 }));
 
+const { mockUsePathname } = vi.hoisted(() => ({
+  mockUsePathname: vi.fn<() => string | null>(),
+}));
+
+vi.mock("next/navigation", () => ({
+  usePathname: mockUsePathname,
+}));
+
 const { mockUseTenant } = vi.hoisted(() => ({
   mockUseTenant: vi.fn(),
 }));
@@ -112,6 +120,7 @@ describe("TenantGuard", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUsePathname.mockReturnValue("/");
     mockMutate.mockResolvedValue(undefined);
     mockSignIn.mockResolvedValue({ ok: true });
     mockSignOut.mockResolvedValue(undefined);
@@ -325,6 +334,35 @@ describe("TenantGuard", () => {
     ).toBeInTheDocument();
     expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: "/" });
   });
+
+  it.each(["/demo", "/school-a/demo"])(
+    "leaves the demo entry page %s alone, whatever session arrives",
+    async (pathname) => {
+      mockUsePathname.mockReturnValue(pathname);
+      mockUseSession.mockReturnValue({
+        data: {
+          user: { tenantId: undefined, scope: "platform", token: "operator" },
+        },
+        status: "authenticated",
+        update: vi.fn(),
+      });
+      mockUseTenant.mockReturnValue({
+        tenantSlug: "school-a",
+        tenant: tenantA,
+      });
+
+      render(
+        <TenantGuard>
+          <div data-testid="child" />
+        </TenantGuard>,
+      );
+
+      expect(screen.getByTestId("child")).toBeInTheDocument();
+      await Promise.resolve();
+      expect(mockSignOut).not.toHaveBeenCalled();
+      expect(mockPerformTenantSwitch).not.toHaveBeenCalled();
+    },
+  );
 
   it("signs out operator session on tenant subdomain and blocks render", async () => {
     mockUseSession.mockReturnValue({

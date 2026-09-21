@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import type { Session } from "next-auth";
+import { TenantGuard } from "~/components/tenant/tenant-guard";
 import { TenantProviders } from "./providers";
 import { loadShellBootstrap } from "~/lib/shell-bootstrap.server";
 import type { ShellBootstrap } from "~/lib/shell-seed";
@@ -118,8 +119,8 @@ function isTenantSubdomainHost(currentHost: string | null, subdomain: string) {
 
 /**
  * Preload the app shell for a session that belongs to this tenant (#2973).
- * A mismatched tenant fetches nothing here and keeps the client path. The
- * protected route layout owns the client-side tenant switch.
+ * A mismatched tenant is TenantGuard's job (auto-switch), an errored session
+ * ends in a sign-out; both fetch nothing here and keep the client path.
  */
 async function loadShell(
   session: Session | null,
@@ -209,7 +210,7 @@ export default async function TenantLayout({
       session={session}
       shell={shell}
     >
-      {children}
+      <TenantGuard>{children}</TenantGuard>
     </TenantProviders>
   );
 }

@@ -5,6 +5,19 @@
 /** Demo page of the website; the way back for an unknown or expired link. */
 export const DEMO_WEBSITE_URL = "https://moto-ogs.de/demo";
 
+/**
+ * True for the demo entry page, on a school subdomain (`/demo`) and in path
+ * mode (`/{slug}/demo`).
+ */
+export function isDemoEntryPath(
+  pathname: string | null,
+  tenantSlug: string | undefined,
+): boolean {
+  if (!pathname) return false;
+  const path = pathname.replace(/\/+$/, "");
+  return path === "/demo" || (!!tenantSlug && path === `/${tenantSlug}/demo`);
+}
+
 export type DemoAccessStatus = "preparing" | "ready" | "invalid";
 
 export interface DemoTokenPair {
