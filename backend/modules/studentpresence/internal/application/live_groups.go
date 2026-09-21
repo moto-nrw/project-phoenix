@@ -41,6 +41,32 @@ func (s *Service) QueryLiveGroups(ctx context.Context, filter ports.LiveGroupFil
 	return result, err
 }
 
+// ListSupervisedLiveGroups returns the open sessions the staff member
+// supervises on date. A supervision counts from its start date up to, not
+// including, its end date.
+func (s *Service) ListSupervisedLiveGroups(ctx context.Context, staffID int64, date ports.Date) (result []ports.LiveGroup, err error) {
+	err = s.run("list_supervised_live_groups", func() (ports.Stats, error) {
+		if staffID <= 0 {
+			return ports.Stats{}, errors.New("student presence: invalid staff ID")
+		}
+		supervisions, stats, err := s.store.QueryGroupSupervisions(ctx, ports.GroupSupervisionFilter{StaffID: &staffID, ActiveOn: &date})
+		if err != nil {
+			return stats, err
+		}
+		groupIDs := make([]int64, 0, len(supervisions))
+		for _, supervision := range supervisions {
+			groupIDs = append(groupIDs, supervision.GroupID)
+		}
+		var sessionStats ports.Stats
+		result, sessionStats, err = s.store.QueryLiveGroups(ctx, ports.LiveGroupFilter{IDs: groupIDs, OpenOnly: true})
+		stats.Queries += sessionStats.Queries
+		stats.Rows += sessionStats.Rows
+		stats.StatementDuration += sessionStats.StatementDuration
+		return stats, err
+	})
+	return result, err
+}
+
 func (s *Service) OccupiedActivityGroupIDs(ctx context.Context, ids []int64) (result []int64, err error) {
 	err = s.run("occupied_activity_group_ids", func() (ports.Stats, error) {
 		for _, id := range ids {
