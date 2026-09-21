@@ -13,6 +13,12 @@
    It creates disposable source files and removes them at exit. Run it when
    no build or test watcher is active, since those files deliberately contain errors.
 
+A worktree created with `wt add` runs step 1 itself and copies the local env
+files, Compose file and certificates from the main checkout with its own
+ports; run `wt doctor` inside it when something is missing. To run backend
+and frontend on the host instead of in Compose, use `devbox run dev up`
+(`scripts/dev-native.sh`, see `docs/agents/operations.md`).
+
 `devbox run` works without a shell's direnv hook. For an interactive shell,
 use `devbox shell`, or enable direnv's shell hook and run `direnv allow`.
 After tool updates, reopen editors and agent sessions; existing processes keep

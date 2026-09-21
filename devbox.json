@@ -47,6 +47,7 @@
   "shell": {
     "scripts": {
       "bootstrap":    "scripts/bootstrap-dev.sh",
+      "dev":          "scripts/dev-native.sh \"$@\"",
       "doctor":       "node scripts/check-dev-environment.mjs",
       "check-lsp":    "node scripts/check-lsp.mjs",
       "editor":       "zed . \"$@\"",
