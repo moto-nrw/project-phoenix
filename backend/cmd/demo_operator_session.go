@@ -20,58 +20,69 @@ const (
 	demoOperatorLoginPause = time.Minute
 )
 
-// sharedOperatorSession lets the seed workers of the demo scheduler share one
-// operator login (#3463). Every operator login drives the second factor, which
-// is limited to a few codes per window; one login per demo school would lock
-// the operator out as soon as several prospects arrive together.
-type sharedOperatorSession struct {
-	seedapi.Adapter
+// sharedLogin keeps one successful login for its lifetime and waits out a
+// refused one, whoever asks.
+type sharedLogin[T any] struct {
 	now func() time.Time
 
 	mu       sync.Mutex
-	auth     seedapi.AuthRef
+	value    T
 	expires  time.Time
 	failedAt time.Time
 	failure  error
 }
 
-func newSharedOperatorSession(adapter seedapi.Adapter) *sharedOperatorSession {
-	return &sharedOperatorSession{Adapter: adapter, now: time.Now}
-}
-
-func (s *sharedOperatorSession) LoginOperator(ctx context.Context, email, password string) (seedapi.AuthRef, error) {
+func (s *sharedLogin[T]) login(fetch func() (T, error)) (T, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.now().Before(s.expires) {
-		return s.auth, nil
+		return s.value, nil
 	}
 	if s.pausedLocked() {
-		return seedapi.AuthRef{}, s.failure
+		var none T
+		return none, s.failure
 	}
-	auth, err := s.Adapter.LoginOperator(ctx, email, password)
+	value, err := fetch()
 	if err != nil {
 		s.failedAt, s.failure = s.now(), err
-		return auth, err
+		return value, err
 	}
-	s.auth, s.expires = auth, s.now().Add(demoOperatorSessionLifetime)
-	return auth, nil
+	s.value, s.expires = value, s.now().Add(demoOperatorSessionLifetime)
+	return value, nil
 }
 
-// forget makes the next seed sign in again.
-func (s *sharedOperatorSession) forget() {
+// forget makes the next caller sign in again.
+func (s *sharedLogin[T]) forget() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.expires = time.Time{}
 }
 
-// paused reports a refused login the scheduler still waits out. No order can
-// be seeded meanwhile, and none of them is to blame.
-func (s *sharedOperatorSession) paused() bool {
+// paused reports a refused login that is still waited out.
+func (s *sharedLogin[T]) paused() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.pausedLocked()
 }
 
-func (s *sharedOperatorSession) pausedLocked() bool {
+func (s *sharedLogin[T]) pausedLocked() bool {
 	return s.failure != nil && s.now().Before(s.failedAt.Add(demoOperatorLoginPause))
+}
+
+// sharedOperatorSession lets the seed workers of the demo scheduler share one
+// operator login (#3463). Every operator login drives the second factor, which
+// is limited to a few codes per window; one login per demo school would lock
+// the operator out as soon as several prospects arrive together. While a
+// login is refused no order can be seeded, and none of them is to blame.
+type sharedOperatorSession struct {
+	seedapi.Adapter
+	*sharedLogin[seedapi.AuthRef]
+}
+
+func newSharedOperatorSession(adapter seedapi.Adapter) *sharedOperatorSession {
+	return &sharedOperatorSession{Adapter: adapter, sharedLogin: &sharedLogin[seedapi.AuthRef]{now: time.Now}}
+}
+
+func (s *sharedOperatorSession) LoginOperator(ctx context.Context, email, password string) (seedapi.AuthRef, error) {
+	return s.login(func() (seedapi.AuthRef, error) { return s.Adapter.LoginOperator(ctx, email, password) })
 }

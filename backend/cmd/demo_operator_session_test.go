@@ -1,67 +1,70 @@
 package cmd
 
 import (
-	"context"
 	"errors"
 	"sync"
 	"testing"
 	"time"
 
-	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type countingOperatorAdapter struct {
-	seedapi.Adapter
+// countingLogin stands in for the operator login with its second factor.
+type countingLogin struct {
 	mu     sync.Mutex
 	logins int
 	err    error
 }
 
-func (a *countingOperatorAdapter) LoginOperator(context.Context, string, string) (seedapi.AuthRef, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.logins++
-	return seedapi.AuthRef{Kind: seedapi.AuthBearer, Token: "operator"}, a.err
+func (c *countingLogin) fetch() (string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.logins++
+	return "operator", c.err
+}
+
+func newTestSharedLogin(now *time.Time) *sharedLogin[string] {
+	return &sharedLogin[string]{now: func() time.Time { return *now }}
 }
 
 // Parallel seed workers must not each drive the operator's second factor.
-func TestSharedOperatorSessionSignsInOncePerLifetime(t *testing.T) {
+func TestSharedLoginSignsInOncePerLifetime(t *testing.T) {
 	t.Parallel()
-	inner := &countingOperatorAdapter{}
-	session := newSharedOperatorSession(inner)
 	now := time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)
-	session.now = func() time.Time { return now }
+	inner, session := &countingLogin{}, newTestSharedLogin(&now)
 
 	var workers sync.WaitGroup
 	for range demoSeedWorkers {
 		workers.Go(func() {
-			auth, err := session.LoginOperator(context.Background(), "operator@example.test", "secret")
+			token, err := session.login(inner.fetch)
 			assert.NoError(t, err)
-			assert.Equal(t, "operator", auth.Token)
+			assert.Equal(t, "operator", token)
 		})
 	}
 	workers.Wait()
 	assert.Equal(t, 1, inner.logins)
 
-	now = now.Add(demoOperatorSessionLifetime)
-	_, err := session.LoginOperator(context.Background(), "operator@example.test", "secret")
+	session.forget()
+	_, err := session.login(inner.fetch)
 	require.NoError(t, err)
-	assert.Equal(t, 2, inner.logins, "an old session is not handed to a new seed")
+	assert.Equal(t, 2, inner.logins, "a failed seed makes the repetition sign in again")
+
+	now = now.Add(demoOperatorSessionLifetime)
+	_, err = session.login(inner.fetch)
+	require.NoError(t, err)
+	assert.Equal(t, 3, inner.logins, "an old session is not handed to a new seed")
 }
 
 // A refused login (the second factor allows three codes in 15 minutes) must
 // not be repeated by every waiting order, and it is never kept as a session.
-func TestSharedOperatorSessionPausesAfterARefusedLogin(t *testing.T) {
+func TestSharedLoginPausesAfterARefusedLogin(t *testing.T) {
 	t.Parallel()
-	inner := &countingOperatorAdapter{err: errors.New("429 - Too many code requests")}
-	session := newSharedOperatorSession(inner)
 	now := time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)
-	session.now = func() time.Time { return now }
+	inner, session := &countingLogin{err: errors.New("429 - Too many code requests")}, newTestSharedLogin(&now)
 
 	for range 5 {
-		_, err := session.LoginOperator(context.Background(), "operator@example.test", "secret")
+		_, err := session.login(inner.fetch)
 		require.Error(t, err)
 	}
 	assert.Equal(t, 1, inner.logins)
@@ -70,7 +73,8 @@ func TestSharedOperatorSessionPausesAfterARefusedLogin(t *testing.T) {
 	now = now.Add(demoOperatorLoginPause)
 	inner.err = nil
 	assert.False(t, session.paused())
-	_, err := session.LoginOperator(context.Background(), "operator@example.test", "secret")
+	token, err := session.login(inner.fetch)
 	require.NoError(t, err)
+	assert.Equal(t, "operator", token)
 	assert.Equal(t, 2, inner.logins)
 }
