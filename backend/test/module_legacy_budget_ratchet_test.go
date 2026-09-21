@@ -66,7 +66,7 @@ const moduleLegacyBudgetCheck = "legacy LOC budget"
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 65857
+const moduleLegacyBudgetTotal = 63883
 
 // moduleLegacyBudgets maps a legacy tree to its production LOC on 2026-09-18.
 // The comment on each entry names the ticket that is supposed to dissolve the
@@ -79,17 +79,20 @@ var moduleLegacyBudgets = map[string]int{
 	"modules/emergencysnapshot/legacy": 319,
 	// No ticket today.
 	"modules/facilities/compose/legacy": 518,
-	// No ticket today. Back at the first seed since #3427 removed the
-	// carelifecycle import PR #3408 (#3350) had added to legacy.go.
-	"modules/grouplive/legacy": 584,
-	// #3226 (auth/jwt + repositories move) and #2725 (usercontext read side).
-	"modules/identityaccess/legacy": 3331,
+	// No ticket today. Two lines under the first seed: #3427 removed the
+	// carelifecycle import PR #3408 (#3350) had added to legacy.go, and #3501
+	// replaced the user-context service with a local CallerContext port.
+	"modules/grouplive/legacy": 582,
+	// #3226 (auth/jwt + repositories move). The usercontext read side (#2725)
+	// dissolved into the Identity & Access caller context with #3501; its
+	// request memo slot stayed in the session adapter (legacy/jwt).
+	"modules/identityaccess/legacy": 1363,
 	// No ticket today.
 	"modules/planexport/legacy": 410,
 	// #3352 covers the api/students consumer only, not the tree.
 	"modules/studentpresence/legacy": 13969,
 	// No ticket today.
-	"modules/supervisiondashboard/legacy": 734,
+	"modules/supervisiondashboard/legacy": 730,
 	// No ticket today — and the largest tree of the twelve.
 	"modules/timetable/legacy": 24305,
 	// No ticket today — grew from 15,402 LOC at creation to this.

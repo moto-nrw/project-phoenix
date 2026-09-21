@@ -968,6 +968,31 @@ the generic `external.http-router.adapter` rule, and the former
 `inbound-usercontext.to.identity-access` target rule is removed until that
 contract exists.
 
+#3501 dissolved both packages; all 55 #2725 entries fell without a new one.
+The read side is the Identity & Access caller context: public ID-based
+contract types and sentinels in `modules/identityaccess` (`CallerContext`,
+`RequestIdentityCache`), use cases in `internal/application` (`caller_*.go`,
+`parent_request_review.go`) over their own `internal/ports`, and
+`compose.NewCallerContext`, whose public-typed seams the legacy composition
+binds in `services/caller_context.go`: People Directory rows for the person,
+the School Membership facade for staff and teacher (#3498), the School
+Structure staff group reads (#3499), the Student Presence supervised and
+live-group reads (#3500), and the retained activity repository for the
+planned supervisions, which no Timetable contract serves yet. The `/api/me`
+routes moved to `modules/identityaccess/inbound/me`, a new package on the
+existing `identity-access`/`http` point, so the root mounts it under
+`root-composition.to.identity-access-http` and no rule was added; the tenant
+transaction the writes ran in is the use case's own. Consumers that are
+forbidden the public package declare their own port; the legacy composition
+serves them `database/repositories.CallerRows`, which resolves the reach
+through the caller context and loads only the retained rows a consumer still
+renders. The `inbound-usercontext` owner and its four `student-presence`
+rules are gone. The request identity memo slot lives in the session adapter
+(`legacy/jwt`), the one Identity & Access package `api/common` and the
+legacy composition already reach, so `api/common` keeps attaching it
+router-wide and group-wide as before and the root binds it as the caller
+context's memo; the memo's contents stay in the application.
+
 The settings test support (`services/config/settingstest`, `settings-platform`/
 `test-support`) scripts the payroll and work-schedule settings that presence
 behaviour tests drive through their real services, so those tests name a school's

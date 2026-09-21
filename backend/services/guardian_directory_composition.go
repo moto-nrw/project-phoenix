@@ -674,8 +674,8 @@ const exportConfidentialityNote = "Vertraulich. Enthält Bankverbindungen. Bitte
 func (f *Factory) NewGuardianDirectoryRuntime(db *bun.DB) GuardianDirectoryRuntime {
 	return GuardianDirectoryRuntime{
 		IsVerifiedStaff: func(ctx context.Context) bool {
-			staff, err := f.UserContext.GetCurrentStaff(ctx)
-			return err == nil && staff != nil
+			staff, err := f.UserContext.HasCurrentStaff(ctx)
+			return err == nil && staff
 		},
 		MarkRollback: tenant.MarkRollback,
 		SendInvitation: func(ctx context.Context, guardianID, actorAccountID int64) (GuardianInvitationSummary, error) {

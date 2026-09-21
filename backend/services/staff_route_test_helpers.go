@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/services/config"
@@ -19,24 +18,21 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func newStaffIdentityForTests(db *bun.DB) (usercontext.UserContextService, repositories.MembershipTestRepositories, error) {
+func newStaffIdentityForTests(db *bun.DB) (*repositories.CallerRows, repositories.MembershipTestRepositories, error) {
 	members, err := repositories.NewMembershipTestRepositories(db)
 	if err != nil {
 		return nil, members, err
 	}
-	accounts, err := repositories.NewIdentityAccessForTests(db)
+	identity, err := newCallerRowsForTests(db, nil)
 	if err != nil {
 		return nil, members, err
 	}
-	identity := usercontext.NewUserContextServiceWithRepos(usercontext.UserContextRepositories{
-		AccountRepo: repositories.NewCurrentAccountAccess(accounts), PersonRepo: members.Person, StaffRepo: members.Staff, TeacherRepo: members.Teacher,
-	}, slog.Default())
 	return identity, members, nil
 }
 
 type AbsenceTypeTestModule struct {
 	Catalog     workforce.Capability
-	UserContext usercontext.UserContextService
+	UserContext *repositories.CallerRows
 }
 
 func NewAbsenceTypeTestModule(db *bun.DB) (AbsenceTypeTestModule, error) {
@@ -49,7 +45,7 @@ func NewAbsenceTypeTestModule(db *bun.DB) (AbsenceTypeTestModule, error) {
 
 type BirthdayTestModule struct {
 	Birthdays   users.BirthdayService
-	UserContext usercontext.UserContextService
+	UserContext *repositories.CallerRows
 	Settings    config.SettingsService
 	ListExport  *listexport.RendererService
 }

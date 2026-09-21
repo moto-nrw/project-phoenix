@@ -9,7 +9,6 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
@@ -62,11 +61,10 @@ func (rs *Resource) getCheckoutContext(ctx context.Context, studentID int64) (*c
 // Returns the staff record if authorized, error otherwise
 // Note: Any authenticated staff member can checkout any checked-in student
 func (rs *Resource) authorizeStudentCheckout(ctx context.Context) (*StaffIdentity, error) {
+	// A caller without a staff link resolves to no staff and no error; only a
+	// failed lookup is an error.
 	staff, err := rs.UserContextService.GetCurrentStaff(ctx)
 	if err != nil {
-		if common.IsUnlinkedStaffIdentity(err) {
-			return nil, ErrNotAuthorized
-		}
 		return nil, ErrStaffNotFound
 	}
 	if staff == nil {

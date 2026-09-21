@@ -35,7 +35,8 @@ import (
 // nor a staleness check for them, so a temporary permission outlives its issue
 // silently — 34 of the 39 families below cite only issues that are closed
 // today. The five exceptions all hang on #2725 or #2736: communication,
-// inbound-parent, inbound-usercontext, organization-tenancy, settings-platform.
+// inbound-parent, inbound-usercontext (gone with #3501), organization-tenancy,
+// settings-platform.
 //
 // This test does not fix any of that. It puts a number on the surface and lets
 // the number move one way only.
@@ -46,9 +47,11 @@ import (
 // compatibility markers. The #3351 care-schedule cutover and the seven
 // file-storage rules #3461 removed lower them to 395 and 492, and the #3226
 // identity persistence rewrite to 392 and 487, and the #2725 conversion of the
-// 46 user-context permissions to exact debt to 346 and 441. The #3427
-// care-lifecycle cutover deleted the 46 permissions #3350 had added and lowers
-// them to 300 and 363; this prose counter remains as an independent guard.
+// 46 user-context permissions to exact debt to 346 and 441, and the #3501
+// dissolution of the user-context package, which took its four Presence
+// rules along, to 342 and 437. The #3427 care-lifecycle cutover deleted the
+// 46 permissions #3350 had added and lowers them to 296 and 359;
+// this prose counter remains as an independent guard.
 //
 // Three shrink-only measurements, all read-only on policy.json:
 //
@@ -98,12 +101,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 300
+	policyTempRulesTotal = 296
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 363
+	policyTempRulesCompatTotal = 359
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -177,7 +180,6 @@ var policyTempRulesFamilies = map[string]int{
 
 	// #2725 (OPEN) and #3224 (closed) name most rules jointly; #3214 the rest.
 	// The only large family with a live issue behind it.
-	"inbound-usercontext": 4,
 
 	// #3214, #3218, #3219, #3220, #3224 — closed; #3427 removed the one #3350
 	// (PR #3408) added.

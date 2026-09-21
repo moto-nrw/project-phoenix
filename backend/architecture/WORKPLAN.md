@@ -3,10 +3,10 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 21.09.2026 · Ratchet 679 · Composition 636 · Policy-Epoche 20 · 300 Regeln mit
-`convert it to exact debt` · 75.505 LOC unter `modules/*/legacy`
+Stand 21.09.2026 · Ratchet 624 · Composition 636 · Policy-Epoche 20 · 296 Regeln mit
+`convert it to exact debt` · 73.473 LOC unter `modules/*/legacy`
 
-Summenprobe: 251 + 61 + 92 + 43 + 28 + 19 + 185 = 679 = `wc -l backend/architecture/legacy.jsonl`.
+Summenprobe: 251 + 61 + 37 + 43 + 28 + 19 + 185 = 624 = `wc -l backend/architecture/legacy.jsonl`.
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Entscheidungen
@@ -26,17 +26,17 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [ ] [#2727](https://github.com/moto-nrw/project-phoenix/issues/2727) database/repositories/users — 14
 - [ ] [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) models/users — 9
 
-## Legacy-Nester auflösen · 75.505 LOC, 0 Keys
+## Legacy-Nester auflösen · 73.473 LOC, 0 Keys
 
 - [ ] [#3424](https://github.com/moto-nrw/project-phoenix/issues/3424) `modules/timetable/legacy/timetableplanning` — 23.300 LOC, blockt #2732
 - [ ] [#3422](https://github.com/moto-nrw/project-phoenix/issues/3422) `modules/studentpresence/legacy` — 13.969 LOC
 - [ ] [#3413](https://github.com/moto-nrw/project-phoenix/issues/3413) `modules/workforce/legacy/timetracking` — 13.511 LOC
 - [ ] [#3418](https://github.com/moto-nrw/project-phoenix/issues/3418) `modules/workforce/legacy/shiftplanning` — 5.336 LOC, blockt #2747, #2750
-- [x] [#3427](https://github.com/moto-nrw/project-phoenix/issues/3427) `modules/careplan/legacy` aufgelöst (`carelifecycle` und `careexitview`) — 5.278 LOC, 46 Kompatibilitätsregeln weg, 1 Key weniger (680 → 679); Ausnahme für Operator-Setting und verschobene Suiten per ADR 0035
+- [x] [#3427](https://github.com/moto-nrw/project-phoenix/issues/3427) `modules/careplan/legacy` aufgelöst (`carelifecycle` und `careexitview`) — 5.278 LOC, 46 Kompatibilitätsregeln weg, 1 Key weniger (625 → 624); Ausnahme für Operator-Setting und verschobene Suiten per ADR 0035
 - [x] [#3420](https://github.com/moto-nrw/project-phoenix/issues/3420) `workflows/parentportal/legacy` aufgelöst — 5.881 LOC, 46 Kompatibilitätsregeln weg, Schreibpfade als Owner-Commands (Care Plan, People Directory, Audit Platform); offen: Announcement-Quittungen in `messaging` (Communication)
 - [x] [#3410](https://github.com/moto-nrw/project-phoenix/issues/3410) `modules/careplan/legacy` Wurzelpaket aufgelöst — 874 LOC, 15 Keys weniger (644 → 629)
 
-## Schuld sichtbar machen · 300 Regeln
+## Schuld sichtbar machen · 296 Regeln
 
 - [ ] [#3421](https://github.com/moto-nrw/project-phoenix/issues/3421) `inbound-parent.*` zu exaktem Debt konvertieren — 34 Regeln
 - [ ] [#3416](https://github.com/moto-nrw/project-phoenix/issues/3416) `issue`-Feld an Policy-Regeln und `rules.stale`
@@ -51,13 +51,13 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [ ] [#3356](https://github.com/moto-nrw/project-phoenix/issues/3356) Settings-, Listenexport-, Messaging-, IoT-, Aktivitäts- und Schulstruktur-Kanten
 - [ ] [#2731](https://github.com/moto-nrw/project-phoenix/issues/2731) Carrier — 61
 
-## Identity · 92 Keys
+## Identity · 37 Keys
 
 - [ ] [#3487](https://github.com/moto-nrw/project-phoenix/issues/3487) `legacy/jwt` aus dem `legacy/`-Pfad umbenennen — entschieden in ADR 0031: das Paket bleibt der Session-Adapter, der Umzug läuft zuletzt nach den Carriern und blockt nichts
 - [x] [#3230](https://github.com/moto-nrw/project-phoenix/issues/3230) `api/auth` → `modules/identityaccess/inbound/auth` — Relocation (Epoche 19), 3 Keys weniger (684 → 681), 26 bleiben unter dem neuen Pfad bei #2736
 - [x] [#3231](https://github.com/moto-nrw/project-phoenix/issues/3231) Identity-Handler aus `api/operator` → `modules/identityaccess/inbound/operator`, 1 Key weniger (681 → 680). Router, Fremd-Komposition und die Handler-Tests mit `jwt` oder `models/platform` bleiben in `api/operator`: nur `inbound-operator` darf die Owner-Routen mounten, PR-Modus lässt keine neue Erlaubnis zu. Paketlöschung bei #2736 nach #2725
 - [ ] [#2736](https://github.com/moto-nrw/project-phoenix/issues/2736) Carrier `modules/identityaccess/inbound/auth`, api/operator — 37
-- [ ] [#2725](https://github.com/moto-nrw/project-phoenix/issues/2725) Carrier `modules/identityaccess/legacy/usercontext` — 55, aus 46 Kompatibilitätsregeln konvertiert (keine neue Kante). Auflösung wartet auf Owner-Contracts: Staff-/Teacher-Mitgliedschaft (`school-membership`, an #2753 ausrichten), eigene Gruppen und Vertretungen (`school-structure`), beaufsichtigte und aktive Gruppen (`student-presence`). Front-Tickets: #3498, #3499, #3500, danach #3501 (Auflösung)
+- [x] [#3501](https://github.com/moto-nrw/project-phoenix/issues/3501) `modules/identityaccess/legacy/usercontext` in den Caller-Context von Identity & Access aufgelöst — alle 55 Keys von #2725 weg (680 → 625), `/api/me` in `modules/identityaccess/inbound/me`; offen: Timetable-Read der geplanten Aufsichten, Personen-Read und -Schreiben über People Directory
 
 ## Storage
 

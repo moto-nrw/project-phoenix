@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 type attendanceRoutePeopleSource interface {
@@ -62,7 +63,7 @@ func (p attendanceRoutePeople) GetStudentByID(ctx context.Context, id int64) (in
 }
 
 type attendanceRouteStaffSource interface {
-	GetCurrentStaff(context.Context) (*users.Staff, error)
+	CurrentStaffID(context.Context) (int64, bool, error)
 	HasCurrentStaff(context.Context) (bool, error)
 }
 type attendanceRouteStaff struct{ source attendanceRouteStaffSource }
@@ -71,12 +72,17 @@ type attendanceRouteStaff struct{ source attendanceRouteStaffSource }
 func NewAttendanceRouteStaff(source attendanceRouteStaffSource) attendanceRouteStaff {
 	return attendanceRouteStaff{source: source}
 }
+
+// GetCurrentStaff reports the caller's staff member in the request's
+// tenant, the only tenant the staff read reaches. A caller who is no staff
+// member is not found, without an error, so the routes deny access instead
+// of reporting a lookup failure.
 func (p attendanceRouteStaff) GetCurrentStaff(ctx context.Context) (int64, int64, bool, error) {
-	row, err := p.source.GetCurrentStaff(ctx)
-	if row == nil {
+	staffID, found, err := p.source.CurrentStaffID(ctx)
+	if err != nil || !found {
 		return 0, 0, false, err
 	}
-	return row.ID, row.TenantID, true, err
+	return staffID, tenant.FromContext(ctx), true, nil
 }
 func (p attendanceRouteStaff) HasCurrentStaff(ctx context.Context) (bool, error) {
 	return p.source.HasCurrentStaff(ctx)

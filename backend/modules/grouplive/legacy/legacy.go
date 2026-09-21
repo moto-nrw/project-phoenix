@@ -27,7 +27,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
@@ -37,13 +36,21 @@ import (
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
+// CallerContext is the Identity & Access caller context the adapters read.
+type CallerContext interface {
+	HasCurrentStaff(context.Context) (bool, error)
+	HasFullStudentAccess(context.Context) bool
+	MyGroupRecords(context.Context) ([]grouplive.GroupRecord, error)
+	GetSubstitutedGroupIDs(context.Context) (map[int64]bool, error)
+}
+
 // Sources are the retained owner services the projection's ports adapt.
 type Sources struct {
 	Presence          studentpresence.Query
 	People            userService.PersonService
 	Education         educationService.Service
 	Substitutions     educationService.SubstitutionModule
-	UserContext       userContextService.UserContextService
+	UserContext       CallerContext
 	Active            activeService.Service
 	Settings          configService.SettingsService
 	Pickups           careplan.BulkPickupTimes
@@ -90,7 +97,7 @@ func New(sources Sources) (grouplive.Query, error) {
 
 type access struct {
 	settings    configService.SettingsService
-	userContext userContextService.UserContextService
+	userContext CallerContext
 }
 
 func (a access) Caller(ctx context.Context) (grouplive.Caller, error) {
@@ -110,7 +117,7 @@ func (a access) Caller(ctx context.Context) (grouplive.Caller, error) {
 }
 
 func (a access) FullStudentAccess(ctx context.Context) (bool, error) {
-	return userContextService.ResolveStudentAccess(ctx, a.userContext).HasFullAccess(), nil
+	return a.userContext.HasFullStudentAccess(ctx), nil
 }
 
 // parseDay converts the projection's calendar day into the retained
@@ -121,21 +128,12 @@ func parseDay(date grouplive.Date) (timezone.Date, error) {
 
 type directory struct {
 	education   educationService.Service
-	userContext userContextService.UserContextService
+	userContext CallerContext
 }
 
 func (d directory) SupervisedGroups(ctx context.Context) ([]grouplive.GroupRecord, error) {
-	groups, err := d.userContext.GetMyGroups(ctx)
-	if err != nil {
-		return nil, err
-	}
-	records := make([]grouplive.GroupRecord, 0, len(groups))
-	for _, group := range groups {
-		if group != nil {
-			records = append(records, grouplive.GroupRecord{ID: group.ID, Name: group.Name, RoomID: group.RoomID})
-		}
-	}
-	return sortedRecords(records), nil
+	records, err := d.userContext.MyGroupRecords(ctx)
+	return sortedRecords(records), err
 }
 
 func (d directory) TenantGroups(ctx context.Context) ([]grouplive.GroupRecord, error) {

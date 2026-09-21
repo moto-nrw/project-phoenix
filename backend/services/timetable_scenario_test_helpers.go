@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
@@ -19,7 +18,7 @@ type TimetableScenarioTestModule struct {
 	TimetableTestModule
 	Active           active.Service
 	Users            users.PersonService
-	UserContext      usercontext.UserContextService
+	UserContext      *repositories.CallerRows
 	Settings         config.SettingsService
 	TimetableCleanup timetableplanning.TimetableCleanupService
 }

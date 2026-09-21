@@ -1,0 +1,169 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#3020",
+    "#3498",
+    "#3499",
+    "#3500"
+  ],
+  "owner_and_capability": "Identity & Access — identityaccess.CallerContext (CallerIdentities, CallerReach, CallerProfiles and ParentRequestReviews), composed by compose.NewCallerContext, consumed without the dissolved modules/identityaccess/legacy/usercontext package, with /api/me served by modules/identityaccess/inbound/me (#3501)",
+  "affected_packages": [
+    "modules/identityaccess/legacy/usercontext",
+    "modules/identityaccess/inbound/usercontext",
+    "modules/identityaccess/inbound/me",
+    "modules/identityaccess",
+    "modules/identityaccess/compose",
+    "modules/identityaccess/internal/application",
+    "modules/identityaccess/legacy/jwt",
+    "database/repositories",
+    "services",
+    "api",
+    "api/common"
+  ],
+  "affected_tables": [
+    "users.persons",
+    "users.staff",
+    "users.teachers",
+    "users.profiles"
+  ],
+  "exact_ratchet_keys": [
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/common|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/usercontext|github.com/moto-nrw/project-phoenix/api/common",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/usercontext|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext|github.com/moto-nrw/project-phoenix/database/repositories",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext|github.com/moto-nrw/project-phoenix/models/users",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext|github.com/moto-nrw/project-phoenix/modules/studentpresence/compose",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/usercontext|github.com/moto-nrw/project-phoenix/api/common",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/usercontext|github.com/moto-nrw/project-phoenix/models/activities",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/usercontext|github.com/moto-nrw/project-phoenix/models/education",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/usercontext|github.com/moto-nrw/project-phoenix/models/users",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/usercontext|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext|github.com/moto-nrw/project-phoenix/models/base",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext|github.com/moto-nrw/project-phoenix/models/config",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext|github.com/moto-nrw/project-phoenix/models/education",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext|github.com/moto-nrw/project-phoenix/models/users",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/legacy|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/common|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/groups|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/usercontext",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/birthdays/http|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/classday/compose|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/communication/composition|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/delivery/http/sse|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/facilities/compose/httpadapter|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/grouplive/legacy|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/usercontext|github.com/moto-nrw/project-phoenix/api/common",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/usercontext|github.com/moto-nrw/project-phoenix/models/education",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/usercontext|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/usercontext|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/usercontext|github.com/moto-nrw/project-phoenix/tenant",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/usercontext|github.com/uptrace/bun",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext|cmp",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext|database/sql",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext|github.com/moto-nrw/project-phoenix/auth/authorize",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext|github.com/moto-nrw/project-phoenix/models/activities",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext|github.com/moto-nrw/project-phoenix/models/education",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext|github.com/moto-nrw/project-phoenix/models/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext|github.com/moto-nrw/project-phoenix/modules/studentpresence",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext|github.com/moto-nrw/project-phoenix/tenant",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/legacy|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
+  ],
+  "atomic_cutover": "Both packages modules/identityaccess/legacy/usercontext and modules/identityaccess/inbound/usercontext are deleted in one PR together with every import of them. The identity chain, the caller's groups, navigation, SSE subscription, profile self-edits, the parent request review policy and student access move into the Identity & Access application behind identityaccess.CallerContext and run over its own ports. services/caller_context.go binds those ports to People Directory, School Membership (#3498), School Structure (#3499), Student Presence (#3500) and the retained activity repository. Each consumer declares its own port, served by database/repositories.CallerRows. /api/me moves to modules/identityaccess/inbound/me with unchanged paths, status codes, error texts and JSON shapes. The #2099 request memo moves with the application; its per-request slot stays in the session adapter, so RequestIdentityCacheMiddleware stays mounted exactly as before.",
+  "tests": [
+    "scripts/test-changed.sh origin/development without --fast: the full backend suite, including the ported user-context, SSE-subscription, request-review-policy and identity-cache tests.",
+    "modules/identityaccess/behavior caller context tests, including caller_request_cache_test.go for the #2099 memo contract.",
+    "modules/identityaccess/inbound/me adapter tests and wire_shape_test.go, which pins the /api/me JSON shapes.",
+    "test/query_budgets.go: the identity-chain budgets hold at their unchanged exact values.",
+    "scripts/backend-architecture.sh check with the listed keys absent from legacy.jsonl."
+  ],
+  "runtime_evidence": {
+    "source": "Local run on the PR branch at commit 0326796a1f. The change relocates the caller context behind an owner capability, so the evidence is the unchanged behaviour and exact query-budget suites plus the architecture check, not a benchmark rerun.",
+    "sources": [
+      "backend/modules/identityaccess/caller_context.go",
+      "backend/modules/identityaccess/internal/application/caller_context.go",
+      "backend/services/caller_context.go",
+      "backend/database/repositories/caller_rows.go",
+      "backend/modules/identityaccess/behavior/caller_request_cache_test.go",
+      "backend/modules/identityaccess/inbound/me/wire_shape_test.go",
+      "backend/test/query_budgets.go",
+      "https://github.com/moto-nrw/project-phoenix/pull/3513"
+    ],
+    "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",
+    "thresholds": "The suite passes with unchanged assertion strength and the identity-chain query budgets at their exact values, and the architecture check reports no new violation and no stale baseline entry.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "No write statement changes. Profile self-edits write the same rows through the same repositories; only the calling package moved."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "The exact identity-chain query budgets (services.usercontext.identity_chain.*) passed with their values in test/query_budgets.go unchanged, so the #2099 memo still deduplicates the chain."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "The request paths resolve the same identity chain under the same memo. The relocated code is in-memory translation and was not timed."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "The request paths resolve the same identity chain under the same memo. The relocated code is in-memory translation and was not timed."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "scripts/test-changed.sh origin/development passed 152 packages with no failing test and no panic; golangci-lint reported 0 issues."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection is acquired differently; the owners' tenant-scoped reads run on the same request transaction or pool as before."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "The caller context only reads during request resolution; no lock statement or lock order changes."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No transaction boundary or lock order changes."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The caller context has no worker path."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "The caller context has no worker path."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "The caller context has no worker path."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "Error texts (usercontext.<op>: ...) and HTTP status codes are unchanged and covered by the ported application tests and inbound/me errors_test.go; the public ErrCaller* sentinels replace the package sentinels."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data or schema change. Reverting the PR restores both packages, their callers and the baseline entries together."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed locally with the keys absent: 626 legacy violations remain (681 -> 626), composition surface unchanged at 638."
+    }
+  },
+  "rollback_and_cleanup": "Revert the PR; both packages, the inbound-usercontext owner and its temporary rules, the policy classification and the 55 baseline entries return together. No data cleanup.",
+  "exit_criterion": "No file imports github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext or github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/usercontext, both directories are gone, and the listed keys are absent from legacy.jsonl."
+}
