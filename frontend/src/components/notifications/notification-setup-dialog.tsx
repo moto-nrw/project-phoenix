@@ -46,6 +46,7 @@ export { setupStorageKey } from "./notification-setup-decision";
 const logger = createLogger({ component: "NotificationSetupDialog" });
 const INSTALL_GUIDE_REMIND_MS = 24 * 60 * 60 * 1000;
 const REMIND_LATER_MS = 7 * 24 * 60 * 60 * 1000;
+const ACTION_CLASS = "w-full max-sm:min-h-11 sm:w-auto";
 
 type SetupMode = "enable" | "install-ios" | "install-android" | "denied";
 
@@ -275,6 +276,61 @@ export function NotificationSetupDialog({
 
   if (!mode) return null;
 
+  // Kompakte Modal-Aktionen im gemeinsamen Footer (#3368); auf dem Handy
+  // stapelt das Sheet sie in voller Breite mit Touch-Höhe.
+  const footer = (
+    <>
+      {mode === "enable" && (
+        <Button
+          type="button"
+          variant="surface"
+          size="md"
+          className={ACTION_CLASS}
+          disabled={busy}
+          onClick={remindLater}
+        >
+          {t("later")}
+        </Button>
+      )}
+      {mode === "enable" ? (
+        <Button
+          type="button"
+          size="md"
+          className={ACTION_CLASS}
+          disabled={busy}
+          onClick={() => void enable()}
+        >
+          {busy && (
+            <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
+          )}
+          {t("enable")}
+        </Button>
+      ) : mode === "install-android" && installPromptReady ? (
+        <Button
+          type="button"
+          size="md"
+          className={ACTION_CLASS}
+          isLoading={busy}
+          loadingText={t("installing")}
+          onClick={() => void installAndroid()}
+        >
+          {t("installApp")}
+        </Button>
+      ) : (
+        <Button
+          type="button"
+          size="md"
+          className={ACTION_CLASS}
+          onClick={
+            mode.startsWith("install-") ? finishInstallGuide : remindLater
+          }
+        >
+          {mode.startsWith("install-") ? t("closeGuide") : t("understood")}
+        </Button>
+      )}
+    </>
+  );
+
   return (
     <Modal
       isOpen
@@ -289,6 +345,7 @@ export function NotificationSetupDialog({
       closeLabel={t("close")}
       backdropLabel={t("close")}
       isDismissDisabled={busy}
+      footer={footer}
       mobileSheet
     >
       <div className="space-y-5">
@@ -322,56 +379,6 @@ export function NotificationSetupDialog({
         )}
 
         {error && <Alert type="error" message={error} />}
-
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          {mode === "enable" && (
-            <Button
-              type="button"
-              variant="surface"
-              size="touch"
-              disabled={busy}
-              onClick={remindLater}
-            >
-              {t("later")}
-            </Button>
-          )}
-          {mode === "enable" ? (
-            <Button
-              type="button"
-              size="touch"
-              disabled={busy}
-              onClick={() => void enable()}
-            >
-              {busy && (
-                <Loader2
-                  className="mr-2 h-5 w-5 animate-spin"
-                  aria-hidden="true"
-                />
-              )}
-              {t("enable")}
-            </Button>
-          ) : mode === "install-android" && installPromptReady ? (
-            <Button
-              type="button"
-              size="touch"
-              isLoading={busy}
-              loadingText={t("installing")}
-              onClick={() => void installAndroid()}
-            >
-              {t("installApp")}
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              size="touch"
-              onClick={
-                mode.startsWith("install-") ? finishInstallGuide : remindLater
-              }
-            >
-              {mode.startsWith("install-") ? t("closeGuide") : t("understood")}
-            </Button>
-          )}
-        </div>
       </div>
     </Modal>
   );
