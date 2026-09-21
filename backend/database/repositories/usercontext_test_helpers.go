@@ -45,21 +45,3 @@ func NewUserContextTestRepositories(db *bun.DB) (UserContextTestRepositories, er
 		Timetable: timetable, Profile: newIdentityAccess(db, nil), Substitutions: substitutions, StaffGroups: staffGroups,
 	}, nil
 }
-
-// NewUserContextStaffGroupsForTests composes the staff group reads over the
-// real School Structure, School Membership and Workforce owners.
-func NewUserContextStaffGroupsForTests(db *bun.DB) (schoolstructure.StaffGroupQuery, error) {
-	membership, err := NewSchoolMembership(db)
-	if err != nil {
-		return nil, err
-	}
-	workTime, err := NewWorkforce(db, membership)
-	if err != nil {
-		return nil, err
-	}
-	structure, err := NewSchoolStructure(db)
-	if err != nil {
-		return nil, err
-	}
-	return NewUserContextStaffGroups(structure, membership, workTime)
-}
