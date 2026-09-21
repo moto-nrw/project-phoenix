@@ -40,11 +40,11 @@ func (a pickupApprovalAdapter) EnrolledUntil(ctx context.Context, id int64) (*ti
 	return &date, nil
 }
 func (a pickupApprovalAdapter) ActingStaffID(ctx context.Context) (int64, error) {
-	staff, err := a.s.resolvePickupChangeStaff(ctx)
+	staffID, err := a.s.resolvePickupChangeStaff(ctx)
 	if err != nil {
 		return 0, err
 	}
-	return staff.ID, nil
+	return staffID, nil
 }
 func (a pickupApprovalAdapter) LockStudentAttendance(ctx context.Context, id int64) error {
 	return a.s.attendance.LockStudentAttendance(ctx, id)

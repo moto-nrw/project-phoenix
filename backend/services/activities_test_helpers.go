@@ -4,7 +4,6 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/services/users"
@@ -15,7 +14,7 @@ type ActivitiesTestModule struct {
 	Activities  activities.ActivityService
 	Schedule    timetableplanning.Service
 	Users       users.PersonService
-	UserContext usercontext.UserContextService
+	UserContext *repositories.CallerRows
 }
 
 func NewActivitiesTestModule(db *bun.DB) (ActivitiesTestModule, error) {

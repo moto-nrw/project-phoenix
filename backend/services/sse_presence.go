@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 )
@@ -15,12 +14,9 @@ type sseGroupQuery interface {
 	QueryGroupSupervisions(context.Context, studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error)
 }
 
+// ssePresence reads the room sessions a live-update client subscribes to.
 type ssePresence struct {
 	groups sseGroupQuery
-}
-
-func NewSSEPresence(groups sseGroupQuery) usercontext.SSEPresence {
-	return ssePresence{groups: groups}
 }
 
 func (s ssePresence) GetStaffActiveGroupIDs(ctx context.Context, staffID int64) ([]int64, error) {

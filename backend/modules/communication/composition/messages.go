@@ -17,7 +17,6 @@ import (
 	staffMessages "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffmessages"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
@@ -25,11 +24,13 @@ import (
 )
 
 type ParentMessagingConfig struct {
-	ThreadRepo       usersModels.ParentMessageThreadRepository
-	MessageRepo      usersModels.ParentMessageRepository
-	ReadRepo         usersModels.ParentMessageReadRepository
-	Persons          userService.PersonService
-	UserContext      userContextService.UserContextService
+	ThreadRepo  usersModels.ParentMessageThreadRepository
+	MessageRepo usersModels.ParentMessageRepository
+	ReadRepo    usersModels.ParentMessageReadRepository
+	Persons     userService.PersonService
+	UserContext interface {
+		HasCurrentStaff(context.Context) (bool, error)
+	}
 	Settings         configService.SettingsService
 	Broadcaster      realtime.Broadcaster
 	DB               *bun.DB

@@ -1,7 +1,6 @@
 package inbound
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -222,12 +221,6 @@ func setupAbsenceTypesRoute(t *testing.T) (*bun.DB, chi.Router) {
 	t.Helper()
 
 	db, svc := testutil.SetupAbsenceTypeModule(t)
-	resource := NewAbsenceTypesResource(services.AbsenceTypeAdministration(svc.Catalog, slog.Default()), db, func(ctx context.Context) (int64, error) {
-		current, err := svc.UserContext.GetCurrentStaff(ctx)
-		if err != nil {
-			return 0, err
-		}
-		return current.ID, nil
-	})
+	resource := NewAbsenceTypesResource(services.AbsenceTypeAdministration(svc.Catalog, slog.Default()), db, svc.UserContext.Caller().StaffID)
 	return db, resource.Router()
 }

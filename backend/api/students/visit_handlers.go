@@ -85,7 +85,7 @@ func (rs *Resource) checkGroupRoomAccessAuthorization(r *http.Request, _ int64) 
 	if authorize.HasAdminWildcard(getPermissionsFromRequest(r)) {
 		return nil
 	}
-	if staff, err := rs.UserContextService.GetCurrentStaff(r.Context()); err == nil && staff != nil {
+	if staff, err := rs.UserContextService.HasCurrentStaff(r.Context()); err == nil && staff {
 		return nil
 	}
 	return errors.New("unauthorized to view student room status")

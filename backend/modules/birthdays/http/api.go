@@ -21,7 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
@@ -31,7 +30,7 @@ import (
 type Resource struct {
 	BirthdayService    usersSvc.BirthdayService
 	ListExportService  *listexport.RendererService
-	UserContextService usercontext.UserContextService
+	UserContextService common.StudentAccessSource
 	db                 *bun.DB
 	logger             *slog.Logger
 }
@@ -42,7 +41,7 @@ type Resource struct {
 func NewResource(
 	birthdayService usersSvc.BirthdayService,
 	listExportService *listexport.RendererService,
-	userContextService usercontext.UserContextService,
+	userContextService common.StudentAccessSource,
 	db *bun.DB,
 	logger *slog.Logger,
 ) *Resource {

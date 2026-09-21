@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
@@ -39,17 +38,22 @@ type GroupStudentResponse struct {
 	TagID       string `json:"tag_id,omitempty"`
 }
 
+// CallerGroups resolves the educational groups of the request's caller.
+type CallerGroups interface {
+	GetMyGroups(ctx context.Context) ([]*education.Group, error)
+}
+
 // Resource defines the group API resource
 type Resource struct {
 	EducationService   educationSvc.Service
 	ActiveService      activeService.Service
 	UserService        userService.PersonService
-	UserContextService userContextService.UserContextService
+	UserContextService CallerGroups
 	db                 *bun.DB
 }
 
 // NewResource creates a new groups resource
-func NewResource(educationService educationSvc.Service, activeService activeService.Service, userService userService.PersonService, userContextService userContextService.UserContextService, db *bun.DB) *Resource {
+func NewResource(educationService educationSvc.Service, activeService activeService.Service, userService userService.PersonService, userContextService CallerGroups, db *bun.DB) *Resource {
 	return &Resource{
 		EducationService:   educationService,
 		ActiveService:      activeService,
