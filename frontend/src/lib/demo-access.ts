@@ -30,6 +30,21 @@ export const DEMO_SETUP_STEPS = [
   "OGS-Tag starten",
 ] as const;
 
+export const DEMO_SETUP_HINT = "Das dauert meist weniger als eine Minute.";
+
+/** What a screen reader hears after each setup line. */
+export const DEMO_SETUP_LINE_STATE = {
+  done: "erledigt",
+  running: "läuft",
+  next: "folgt",
+} as const;
+
+/** The action of the `failed` phase: the page waits once more. */
+export const DEMO_ENTRY_RETRY = "Noch einmal versuchen";
+
+/** The action of every other problem: only a new request helps. */
+export const DEMO_ENTRY_NEW_LINK = "Neuen Link anfordern";
+
 const POLLS_PER_SETUP_STEP = 3;
 
 /** Index of the setup line that runs after the given number of polls. */

@@ -7,7 +7,9 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { Loading } from "~/components/ui/loading";
 import {
   DEMO_ENTRY_OPENING,
+  DEMO_ENTRY_NEW_LINK,
   DEMO_ENTRY_PROBLEMS,
+  DEMO_ENTRY_RETRY,
   DEMO_WEBSITE_URL,
   type DemoEntryPhase,
   type DemoSetupProgress,
@@ -86,11 +88,11 @@ export default function DemoWaitingRoomPage() {
                 setAttempt((current) => current + 1);
               }}
             >
-              Noch einmal versuchen
+              {DEMO_ENTRY_RETRY}
             </Button>
           ) : (
             <ButtonLink href={DEMO_WEBSITE_URL}>
-              Neuen Link anfordern
+              {DEMO_ENTRY_NEW_LINK}
             </ButtonLink>
           )
         }

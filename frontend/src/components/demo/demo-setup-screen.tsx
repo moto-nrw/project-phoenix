@@ -1,11 +1,31 @@
 import { CheckIcon, SpinnerIcon } from "~/components/ui/icons";
+import { SectionCard } from "~/components/ui/section-card";
 import {
+  DEMO_SETUP_HINT,
+  DEMO_SETUP_LINE_STATE,
   DEMO_SETUP_STEPS,
   type DemoSetupProgress,
   demoSetupTitle,
 } from "~/lib/demo-access";
 
-const LINE_STATE = { done: "erledigt", running: "läuft", next: "folgt" };
+type LineState = keyof typeof DEMO_SETUP_LINE_STATE;
+
+function lineState(index: number, step: number): LineState {
+  if (index < step) return "done";
+  return index === step ? "running" : "next";
+}
+
+function LineIcon({ state }: { readonly state: LineState }) {
+  if (state === "done") {
+    return <CheckIcon className="text-moto-green-strong h-5 w-5" />;
+  }
+  if (state === "running") {
+    return (
+      <SpinnerIcon className="h-4 w-4 text-gray-600 motion-reduce:animate-none" />
+    );
+  }
+  return <span className="h-2 w-2 rounded-full bg-gray-300" />;
+}
 
 // Setup screen of the public demo (#3464): names the visitor's OGS and shows
 // what is being prepared, line by line. The kit's Loading carries one message
@@ -15,37 +35,23 @@ export function DemoSetupScreen({ schoolName, step }: DemoSetupProgress) {
   const running = DEMO_SETUP_STEPS[step] ?? DEMO_SETUP_STEPS[0];
   return (
     <main className="flex min-h-dvh items-center justify-center px-4 py-8">
-      <section
-        aria-busy="true"
-        aria-labelledby="demo-setup-title"
-        className="moto-content-surface w-full max-w-md rounded-2xl border p-6 shadow-sm"
+      <SectionCard
+        headingLevel={1}
+        title={demoSetupTitle(schoolName)}
+        titleClassName="break-words"
+        description={DEMO_SETUP_HINT}
+        className="w-full max-w-md"
       >
-        <h1
-          id="demo-setup-title"
-          className="text-lg font-semibold break-words text-gray-900"
-        >
-          {demoSetupTitle(schoolName)}
-        </h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Das dauert meist weniger als eine Minute.
-        </p>
-        <ol className="mt-5 space-y-3">
+        <ol className="space-y-3">
           {DEMO_SETUP_STEPS.map((label, index) => {
-            const state =
-              index < step ? "done" : index === step ? "running" : "next";
+            const state = lineState(index, step);
             return (
               <li key={label} className="flex items-center gap-3 text-sm">
                 <span
                   aria-hidden="true"
                   className="flex h-5 w-5 shrink-0 items-center justify-center"
                 >
-                  {state === "done" ? (
-                    <CheckIcon className="text-moto-green-strong h-5 w-5" />
-                  ) : state === "running" ? (
-                    <SpinnerIcon className="h-4 w-4 text-gray-600 motion-reduce:animate-none" />
-                  ) : (
-                    <span className="h-2 w-2 rounded-full bg-gray-300" />
-                  )}
+                  <LineIcon state={state} />
                 </span>
                 <span
                   className={
@@ -56,15 +62,17 @@ export function DemoSetupScreen({ schoolName, step }: DemoSetupProgress) {
                 >
                   {label}
                 </span>
-                <span className="sr-only">{LINE_STATE[state]}</span>
+                <span className="sr-only">{DEMO_SETUP_LINE_STATE[state]}</span>
               </li>
             );
           })}
         </ol>
+        {/* No aria-busy around it: some screen readers hold back live
+            announcements inside a busy region. */}
         <output aria-live="polite" className="sr-only">
           {running} …
         </output>
-      </section>
+      </SectionCard>
     </main>
   );
 }
