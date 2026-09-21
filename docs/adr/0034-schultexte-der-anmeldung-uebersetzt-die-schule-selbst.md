@@ -42,7 +42,7 @@ nach dem Übersetzen ändert.
    Form: `translations` = Sprache → Attribut → `{text, source}`. Im
    Formularschema liegt das im vorhandenen JSONB der Felder, Auswahlwerte und
    Rechtsblöcke und wird mit jeder Schemaversion mitversioniert. Anmeldephasen
-   und Betreuungsangebote bekommen eine JSONB-Spalte (Migration 1.15.405).
+   und Betreuungsangebote bekommen eine JSONB-Spalte (Migration 1.15.407).
    Kopieren, Duplizieren und Verlängern nehmen die Übersetzungen dadurch ohne
    eigenen Code mit.
 6. **Das Frontend wählt die Sprache.** Elternseitige Antworten tragen alle
