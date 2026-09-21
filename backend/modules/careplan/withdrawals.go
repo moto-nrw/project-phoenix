@@ -75,13 +75,6 @@ type WithdrawalListFilter struct {
 	Students  []WithdrawalStudent
 }
 
-// WithdrawalCompletionKey is the (child, first bookingless day) pair of one
-// stored task in any state.
-type WithdrawalCompletionKey struct {
-	StudentID           int64
-	FirstBookinglessDay Date
-}
-
 type WithdrawalQuery interface {
 	// FindWithdrawalCompletion reads one task, optionally locking it FOR
 	// UPDATE. ErrWithdrawalNotFound for an unknown task.
@@ -103,9 +96,6 @@ type WithdrawalQuery interface {
 	// bookingless day of its pending task. Booking-expiry tasks count only
 	// when includeBookingExpired is set.
 	ListPendingWithdrawalBoundaries(ctx context.Context, studentIDs []int64, includeBookingExpired bool) (map[int64]Date, error)
-	// ListWithdrawalCompletionKeys returns the key of every task, in any
-	// state, that names one of the children.
-	ListWithdrawalCompletionKeys(ctx context.Context, studentIDs []int64) ([]WithdrawalCompletionKey, error)
 }
 
 // WithdrawalCommand changes withdrawal tasks. Every command joins the
@@ -164,13 +154,6 @@ func (m *Module) ListPendingWithdrawalBoundaries(ctx context.Context, studentIDs
 		return map[int64]Date{}, nil
 	}
 	return m.engine.ListPendingWithdrawalBoundaries(ctx, studentIDs, includeBookingExpired)
-}
-
-func (m *Module) ListWithdrawalCompletionKeys(ctx context.Context, studentIDs []int64) ([]WithdrawalCompletionKey, error) {
-	if len(studentIDs) == 0 {
-		return []WithdrawalCompletionKey{}, nil
-	}
-	return m.engine.ListWithdrawalCompletionKeys(ctx, studentIDs)
 }
 
 func (m *Module) UpsertPendingWithdrawal(ctx context.Context, value WithdrawalCompletion) (WithdrawalCompletion, error) {

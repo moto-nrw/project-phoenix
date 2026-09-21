@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/stretchr/testify/require"
 )
 
@@ -136,15 +136,15 @@ func TestUpdateStudentRequestBind_CompanionCount(t *testing.T) {
 
 	t.Run("a list at the cap is accepted", func(t *testing.T) {
 		req := &UpdateStudentRequest{
-			Companions:            entries(carelifecycle.MaxStudentCompanions),
+			Companions:            entries(careplan.MaxStudentCompanions),
 			CompanionsFingerprint: &fingerprint,
 		}
 		require.NoError(t, req.Bind(nil))
 	})
 
 	t.Run("a list over the cap is rejected before any lock", func(t *testing.T) {
-		req := &UpdateStudentRequest{Companions: entries(carelifecycle.MaxStudentCompanions + 1)}
-		require.ErrorIs(t, req.Bind(nil), carelifecycle.ErrTooManyCompanions)
+		req := &UpdateStudentRequest{Companions: entries(careplan.MaxStudentCompanions + 1)}
+		require.ErrorIs(t, req.Bind(nil), careplan.ErrTooManyCompanions)
 	})
 
 	t.Run("no companions key is untouched", func(t *testing.T) {
@@ -271,7 +271,7 @@ func TestCompanionEntryUnmarshal_AcceptsStringIDs(t *testing.T) {
 	t.Run("a non-numeric id is refused with the German sentinel", func(t *testing.T) {
 		var entry CompanionEntry
 		err := json.Unmarshal([]byte(`{"companion_student_id":"abc","weekdays":["mon"]}`), &entry)
-		require.ErrorIs(t, err, users.ErrCompanionStudentIDRequired)
+		require.ErrorIs(t, err, careplan.ErrCompanionStudentIDRequired)
 	})
 
 	t.Run("a missing id stays zero for Bind to reject", func(t *testing.T) {

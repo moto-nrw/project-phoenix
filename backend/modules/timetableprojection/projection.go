@@ -250,58 +250,12 @@ func CountStudentEnrollments(ctx context.Context, db bun.IDB, tenantID, studentI
 	return count, wrapCountError(err)
 }
 
-func CountRunningEnrollmentsAfter(ctx context.Context, db bun.IDB, tenantID int64, studentIDs []int64, validUntil timezone.Date, removals string) (map[int64]int, error) {
-	if tenantID <= 0 {
-		return nil, ErrInvalidTenantID
-	}
-	counts := make(map[int64]int, len(studentIDs))
-	if len(studentIDs) == 0 {
-		return counts, nil
-	}
-	var rows []struct {
-		StudentID int64 `bun:"student_id"`
-		Total     int   `bun:"total"`
-	}
-	err := db.NewRaw(runningEnrollmentsQuery, removals, tenantID, bun.List(studentIDs), validUntil, validUntil,
-		removals, tenantID, bun.List(studentIDs), validUntil).Scan(ctx, &rows)
-	if err != nil {
-		return nil, fmt.Errorf("timetable projection: count running enrollments: %w", err)
-	}
-	for _, row := range rows {
-		counts[row.StudentID] = row.Total
-	}
-	return counts, nil
-}
-
 func wrapCountError(err error) error {
 	if err == nil {
 		return nil
 	}
 	return fmt.Errorf("timetable projection: count enrollments: %w", err)
 }
-
-const runningEnrollmentsQuery = `SELECT student_id, COUNT(*)::int AS total FROM (
-	SELECT enrollment.student_id
-	FROM activities.student_enrollments AS enrollment
-	LEFT JOIN jsonb_to_recordset(?::jsonb) AS removal(
-		tenant_id bigint, student_id bigint, kind text, enrollment_id bigint,
-		was_deleted boolean, previous_valid_until date)
-	  ON removal.kind = 'booking' AND removal.tenant_id = enrollment.tenant_id
-	 AND removal.enrollment_id = enrollment.id AND removal.was_deleted = FALSE
-	WHERE enrollment.tenant_id = ? AND enrollment.student_id IN (?)
-	  AND ((removal.enrollment_id IS NULL AND (enrollment.valid_until IS NULL OR enrollment.valid_until > ?))
-	    OR (removal.enrollment_id IS NOT NULL AND (removal.previous_valid_until IS NULL OR removal.previous_valid_until > ?)))
-	UNION ALL
-	SELECT removal.student_id
-	FROM jsonb_to_recordset(?::jsonb) AS removal(
-		tenant_id bigint, student_id bigint, kind text, enrollment_id bigint,
-		was_deleted boolean, previous_valid_until date)
-	WHERE removal.kind = 'booking' AND removal.was_deleted = TRUE
-	  AND removal.tenant_id = ? AND removal.student_id IN (?)
-	  AND (removal.previous_valid_until IS NULL OR removal.previous_valid_until > ?)
-	  AND NOT EXISTS (SELECT 1 FROM activities.student_enrollments AS live
-		WHERE live.id = removal.enrollment_id AND live.tenant_id = removal.tenant_id)
-) AS baseline GROUP BY student_id`
 
 type ManualPlanningOccurrence struct {
 	ActivityGroupID   int64

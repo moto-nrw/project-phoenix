@@ -20,7 +20,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -41,11 +40,19 @@ type deletionFixture struct {
 	feedback *testpkg.FeedbackEntryCounterMock
 }
 
-// newCompanionTestService wires the real repositories behind the Care Plan
-// companion service so the deletion tests stage links the way a request does.
-func newCompanionTestService(db *bun.DB) carelifecycle.StudentCompanionService {
-	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	return carelifecycle.NewStudentCompanionService(factory.Student, repositories.NewStudentCompanionRepository(factory.CarePlan()), nil)
+// companionLinks is the Care Plan record store behind the "läuft mit" edges,
+// through the repository contract the retained student services read, so the
+// deletion tests read links without driving the companion capability itself.
+func companionLinks(db *bun.DB) userModels.StudentCompanionRepository {
+	return repositories.NewStudentCompanionRepository(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CarePlan())
+}
+
+// linkCompanions stages one Monday link between two children.
+func linkCompanions(t *testing.T, ctx context.Context, db *bun.DB, subjectID, companionID int64) {
+	t.Helper()
+	edge, err := userModels.NewStudentCompanion(subjectID, companionID, 1)
+	require.NoError(t, err)
+	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, companionLinks(db), subjectID, []*userModels.StudentCompanion{edge}))
 }
 
 // studentPlans is the child repository the departure-plan fixture writes
@@ -951,16 +958,11 @@ func TestStudentDeletionWorkflow_CompanionGraphLockAndStrandingCheck(t *testing.
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	f := newDeletionFixture(t, db)
-	service := newCompanionTestService(db)
 	subject := testpkg.CreateTestStudent(t, db, "DeleteSubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "DeleteCompanion", "Companion", "1a")
 	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), subject.ID, "mon")
 	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), companion.ID, "mon")
-	conflicts, err := service.ReplaceCompanions(ctx, subject.ID, carelifecycle.CompanionUpdate{
-		Links: []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon"}}},
-	})
-	require.NoError(t, err)
-	require.Empty(t, conflicts)
+	linkCompanions(t, ctx, db, subject.ID, companion.ID)
 	clearCompanionNote(t, db, companion.ID)
 	broadcasts := 0
 	f.deps.CompanionsChanged = func(context.Context, studentdeletion.Actor, int64) { broadcasts++ }
@@ -997,16 +999,11 @@ func TestStudentDeletionWorkflow_RemovesCompanionEdgesAndNotifies(t *testing.T) 
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	f := newDeletionFixture(t, db)
-	service := newCompanionTestService(db)
 	subject := testpkg.CreateTestStudent(t, db, "DeleteSubject", "Notified", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "DeleteCompanion", "Notified", "1a")
 	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), subject.ID, "mon")
 	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), companion.ID, "mon")
-	conflicts, err := service.ReplaceCompanions(ctx, subject.ID, carelifecycle.CompanionUpdate{
-		Links: []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon"}}},
-	})
-	require.NoError(t, err)
-	require.Empty(t, conflicts)
+	linkCompanions(t, ctx, db, subject.ID, companion.ID)
 	var notified []int64
 	f.deps.CompanionsChanged = func(_ context.Context, _ studentdeletion.Actor, studentID int64) {
 		notified = append(notified, studentID)
@@ -1020,9 +1017,9 @@ func TestStudentDeletionWorkflow_RemovesCompanionEdgesAndNotifies(t *testing.T) 
 	assert.Equal(t, []int64{companion.ID}, result.CompanionIDs)
 	assert.Equal(t, []int64{subject.ID}, notified)
 	assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", companion.ID))
-	remaining, err := service.ListCompanions(ctx, companion.ID)
+	remaining, err := companionLinks(db).ListLinksForStudents(ctx, []int64{companion.ID})
 	require.NoError(t, err)
-	assert.Empty(t, remaining, "the cascade removed the edge from the surviving child's card")
+	assert.Empty(t, remaining[companion.ID], "the cascade removed the edge from the surviving child's card")
 }
 
 // Local cutover evidence for #2710, not a production observation or a new

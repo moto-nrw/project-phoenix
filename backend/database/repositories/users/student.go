@@ -155,10 +155,6 @@ func (r *StudentRepository) FindByIDForUpdate(context.Context, int64) (*users.St
 	return nil, errStudentWritesMoved
 }
 
-func (r *StudentRepository) FindByIDForUpdateNoWait(context.Context, int64) (*users.Student, error) {
-	return nil, errStudentWritesMoved
-}
-
 func (r *StudentRepository) LockStudentClassWritesShared(context.Context) error {
 	return errStudentWritesMoved
 }
@@ -220,10 +216,6 @@ func (r *StudentRepository) FindEnrolledStudentIDByNameAndBirthday(
 }
 
 func (r *StudentRepository) ListSchoolClasses(context.Context) ([]string, error) {
-	return nil, errStudentWritesMoved
-}
-
-func (r *StudentRepository) ListIDs(context.Context) ([]int64, error) {
 	return nil, errStudentWritesMoved
 }
 

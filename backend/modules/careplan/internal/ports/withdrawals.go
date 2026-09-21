@@ -15,7 +15,6 @@ type WithdrawalStore interface {
 	ListPendingWithdrawalsByStudent(ctx context.Context, studentIDs []int64) (map[int64]domain.WithdrawalCompletion, domain.OperationStats, error)
 	ListPendingWithdrawalStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]bool, domain.OperationStats, error)
 	ListPendingWithdrawalBoundaries(ctx context.Context, studentIDs []int64, includeBookingExpired bool) (map[int64]domain.Date, domain.OperationStats, error)
-	ListWithdrawalCompletionKeys(ctx context.Context, studentIDs []int64) ([]domain.WithdrawalCompletionKey, domain.OperationStats, error)
 	UpsertPendingWithdrawal(ctx context.Context, value domain.WithdrawalCompletion) (domain.WithdrawalCompletion, domain.OperationStats, error)
 	ResolveWithdrawal(ctx context.Context, id, actorAccountID int64, at time.Time) (bool, domain.OperationStats, error)
 	MarkWithdrawalObsoleteForRebooking(ctx context.Context, studentID int64, careStartsOn domain.Date, at time.Time) (bool, domain.OperationStats, error)

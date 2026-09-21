@@ -2,11 +2,13 @@ package services
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/config"
@@ -16,7 +18,7 @@ import (
 )
 
 type CareLifecycleTestModule struct {
-	CareLifecycle carelifecycle.CareLifecycleService
+	CareLifecycle careplan.CareLifecycle
 	StudentAudit  users.StudentAuditService
 	Settings      config.SettingsService
 }
@@ -35,18 +37,26 @@ func NewCareLifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork) (CareLifecyc
 		return CareLifecycleTestModule{}, err
 	}
 	audit := users.NewStudentAuditService(requestAuditActor, repositories.NewStudentAudit(db))
-	membership, err := repositories.NewSchoolMembership(db)
-	if err != nil {
-		return CareLifecycleTestModule{}, err
-	}
-	service := carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
-		StudentRepo: repositories.NewCareStudents(r.Student, membership), PersonRepo: r.Person, CareExitRepo: r.CareExit, CleanupRepo: r.CareExitCleanup,
-		WithdrawalRepo: r.CareWithdrawal, TagReleaser: r.TagReleaser, AuditService: audit,
+	lifecycle, err := r.NewCareLifecycle(repositories.CareLifecycleTestConfig{
+		Audit:                 audit,
 		LockCareBookingWrites: func(ctx context.Context) error { return timetableplanning.LockTenantRecurrenceWrites(ctx, db) },
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
 			return settings.Settings.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 		},
-		DB: db, Logger: slog.Default(),
 	})
-	return CareLifecycleTestModule{CareLifecycle: service, StudentAudit: audit, Settings: settings.Settings}, nil
+	if err != nil {
+		return CareLifecycleTestModule{}, err
+	}
+	return CareLifecycleTestModule{CareLifecycle: lifecycle, StudentAudit: audit, Settings: settings.Settings}, nil
+}
+
+// NewStudentDocumentsTestModule composes the production child document
+// capability over the given collaborators, so a suite can stand in the
+// caller's staff identity or leave an audit repository out.
+func NewStudentDocumentsTestModule(
+	db *bun.DB, records careplan.Capability, students userModels.StudentRepository,
+	userContext securityruntime.StudentAccessUserContext,
+	edits auditModels.StudentFieldEditRepository, accessLog auditModels.DataAccessLogRepository,
+) (careplan.StudentDocuments, error) {
+	return newStudentDocuments(db, records, students, userContext, edits, accessLog)
 }

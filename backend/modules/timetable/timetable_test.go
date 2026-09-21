@@ -14,6 +14,7 @@ import (
 type recordingEngine struct {
 	timetable.RecurrenceRuleQuery
 	timetable.CareExitRosterCommand
+	timetable.CareExitBaselineQuery
 	timetable.ConflictAckCapability
 	timetable.PickupExtensionCapability
 	create     timetable.CreateCategory

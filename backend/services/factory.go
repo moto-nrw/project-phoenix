@@ -24,7 +24,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
@@ -198,7 +197,7 @@ type Factory struct {
 	Users                     users.PersonService
 	Birthdays                 users.BirthdayService
 	StaffDocuments            users.StaffDocumentService
-	StudentDocuments          carelifecycle.StudentDocumentService
+	StudentDocuments          careplan.StudentDocuments
 	FileStore                 *filestorageModule.Module
 	CaregiverCapability       users.CaregiverCapabilityService
 	Guardian                  *users.GuardianService
@@ -240,7 +239,7 @@ type Factory struct {
 	Schools              organizationtenancy.Capability
 	Students             StudentServices
 	StudentDeletion      *studentdeletion.Workflow
-	CareLifecycle        carelifecycle.CareLifecycleService
+	CareLifecycle        careplan.CareLifecycle
 	StudentAudit         users.StudentAuditService
 	MasterDataReview     users.MasterDataReviewService
 	CareRequests         carerequests.Service
@@ -1955,23 +1954,24 @@ func newFactory(
 	))
 
 	studentAuditService := users.NewStudentAuditService(requestAuditActor, repositories.NewStudentAuditFor(persons))
-	careLifecycleService := carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
-		StudentRepo:    repositories.NewCareStudents(repos.Student, membership),
-		PersonRepo:     repos.Person,
-		CareExitRepo:   repos.CareExit,
-		CleanupRepo:    repos.CareExitCleanup,
-		WithdrawalRepo: repos.CareWithdrawal,
-		TagReleaser:    repositories.NewStudentTagReleaser(persons),
-		AuditService:   studentAuditService,
+	careLifecycleService, err := careplanCompose.NewCareLifecycle(careplanCompose.CareLifecycleDependencies{
+		DB: db, Records: repos.CarePlan(),
+		Owners: repositories.NewCareLifecycleOwners(db, repositories.CareLifecycleOwnerSources{
+			Students: repos.Student, Persons: repos.Person, Membership: membership,
+			People: persons, Timetable: timetableCapability, Calendar: calendar,
+		}, repositories.NewCareEndRecorder(studentAuditService)),
 		LockCareBookingWrites: func(ctx context.Context) error {
 			return timetableplanning.LockTenantRecurrenceWrites(ctx, db)
 		},
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
 			return settingsService.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 		},
-		DB:     db,
-		Logger: logger.With("service", "care_lifecycle"),
+		Fingerprint: securityruntime.Fingerprint,
+		Logger:      logger.With("service", "care_lifecycle"),
 	})
+	if err != nil {
+		return nil, fmt.Errorf("compose care lifecycle: %w", err)
+	}
 	users.WirePersonCareParticipation(usersService, careParticipationResolver(careLifecycleService))
 	careplanCompose.WireCareParticipation(careDayService, careLifecycleService)
 	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
@@ -2183,24 +2183,18 @@ func newFactory(
 	)
 	// Created before the change-request service: its multi-child approval takes
 	// the companion lock order through this service.
-	companionService := carelifecycle.NewStudentCompanionService(
-		repos.Student,
-		repositories.NewStudentCompanionRepository(repos.CarePlan()),
-		studentAuditService,
-	)
+	companionService, err := careplanCompose.NewCompanions(repos.CarePlan(), repositories.NewCompanionStudents(repos.Student, persons, studentAuditService))
+	if err != nil {
+		return nil, fmt.Errorf("compose care plan companions: %w", err)
+	}
 
 	// Child documents (#777): metadata, per-category authority and the
 	// per-child access gate for the Dokumente tab. Needs the user context to
-	// answer "does this caller supervise this child", so it is wired after it.
-	studentDocumentService := carelifecycle.NewStudentDocumentService(
-		db,
-		repositories.NewStudentDocumentRepository(repos.CarePlan()),
-		repos.Student,
-		repos.StudentFieldEdit,
-		repos.DataAccessLog,
-		userContextService,
-		logger.With("service", "student_documents"),
-	)
+	// answer "is this caller verified staff", so it is wired after it.
+	studentDocumentService, err := newStudentDocuments(db, repos.CarePlan(), repos.Student, userContextService, repos.StudentFieldEdit, repos.DataAccessLog)
+	if err != nil {
+		return nil, fmt.Errorf("compose care plan documents: %w", err)
+	}
 
 	enrollmentChangeRequestService := enrollment.NewChangeRequestService(enrollment.ChangeRequestServiceConfig{
 		Bookings:             enrollmentCareBookingCommands{owner: repos.CarePlan()},
@@ -2217,7 +2211,7 @@ func newFactory(
 		StudentRepo:          repos.Student,
 		GuardianAuthorizer:   repos.StudentGuardian,
 		DecisionService:      enrollmentDecisionApplier,
-		CompanionGraphLocker: companionService,
+		CompanionGraphLocker: companionGraphCoordinator{CompanionLocks: companionService, strandings: repos.Student},
 		Settings:             settingsService,
 		OutboxEnqueuer:       outboxEnqueuer{outbox: emailOutboxService},
 		FrontendURL:          frontendURL,
@@ -3060,7 +3054,7 @@ func newFactory(
 
 	factory.SettingsSideEffects = sideeffects.NewRegistry()
 	facilitiesLegacy.RegisterSettingsSideEffects(factory.SettingsSideEffects, schulhofService, wcService)
-	carelifecycle.RegisterCareWithdrawalSettingsSideEffects(factory.SettingsSideEffects, careLifecycleService)
+	registerCareWithdrawalSettingsSideEffects(factory.SettingsSideEffects, careLifecycleService)
 	tenantSettings := config.NewTenantOperations(
 		settingsService,
 		payrollStatusService,

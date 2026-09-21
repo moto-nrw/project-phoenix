@@ -169,7 +169,7 @@ func linkCompanionPartnerOnTuesday(t *testing.T, env *decisionTestEnv, studentID
 
 	edge, err := usersModels.NewStudentCompanion(studentID, partner.ID, 2)
 	require.NoError(t, err)
-	require.NoError(t, repositories.NewStudentCompanionRepository(env.repos.CarePlan()).ReplaceForStudent(ctx, studentID,
+	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repositories.NewStudentCompanionRepository(env.repos.CarePlan()), studentID,
 		[]*usersModels.StudentCompanion{edge}))
 
 	if !withOwnNote {

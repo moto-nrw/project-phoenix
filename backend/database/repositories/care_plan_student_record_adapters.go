@@ -34,14 +34,6 @@ func (r companionRepository) ListForStudent(ctx context.Context, studentID int64
 	return result, nil
 }
 
-func (r companionRepository) ListLinksForStudent(ctx context.Context, studentID int64) ([]usersRepo.CompanionLink, error) {
-	values, err := r.ListLinksForStudents(ctx, []int64{studentID})
-	if err != nil {
-		return nil, err
-	}
-	return values[studentID], nil
-}
-
 func (r companionRepository) ListLinksForStudents(ctx context.Context, studentIDs []int64) (map[int64][]usersRepo.CompanionLink, error) {
 	values, err := r.capability.ListCompanionLinks(ctx, studentIDs)
 	if err != nil {
@@ -56,17 +48,6 @@ func (r companionRepository) ListLinksForStudents(ctx context.Context, studentID
 		result[studentID] = converted
 	}
 	return result, nil
-}
-
-func (r companionRepository) ReplaceForStudent(ctx context.Context, studentID int64, edges []*usersRepo.StudentCompanion) error {
-	values := make([]careplan.CompanionEdge, 0, len(edges))
-	for _, edge := range edges {
-		if edge == nil {
-			return errors.New("companion edge cannot be nil")
-		}
-		values = append(values, companionToPublic(edge))
-	}
-	return usersRepo.WrapError("replace student companions", r.capability.ReplaceCompanionEdges(ctx, studentID, values))
 }
 
 func (r companionRepository) CompanionIDsForWeekday(ctx context.Context, studentIDs []int64, weekday int) (map[int64][]int64, error) {

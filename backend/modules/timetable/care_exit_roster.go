@@ -22,6 +22,13 @@ type CareExitRosterRow struct {
 	PickupExceptionID  *int64     `json:"pickup_exception_id"`
 }
 
+// CareExitRoster is what ending a child's care needs from the timetable: the
+// roster rows it removes and restores, and the baseline its preview counts.
+type CareExitRoster interface {
+	CareExitRosterCommand
+	CareExitBaselineQuery
+}
+
 type CareExitRosterCommand interface {
 	LockPlannedRosterForCareExit(context.Context, []int64, string) error
 	RemovePlannedRosterForCareExit(context.Context, []int64, string) ([]CareExitRosterRow, error)

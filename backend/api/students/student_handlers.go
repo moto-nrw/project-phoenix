@@ -21,7 +21,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
@@ -1545,16 +1545,16 @@ func updateStudentTxErrorRenderer(err error) render.Renderer {
 	// Companion input the client should not have sent: a day the child's own
 	// plan does not allow, a duplicate, a self-link, an unknown child. All 4xx,
 	// with the German sentinel text going straight to the UI.
-	case errors.Is(err, carelifecycle.ErrCompanionNotFound):
+	case errors.Is(err, careplan.ErrCompanionNotFound):
 		return common.ErrorNotFound(err)
-	case errors.Is(err, carelifecycle.ErrCompanionDayNotAllowed),
-		errors.Is(err, carelifecycle.ErrDuplicateCompanion),
-		errors.Is(err, carelifecycle.ErrCompanionWeekdayRequired),
-		errors.Is(err, carelifecycle.ErrTooManyCompanions),
-		errors.Is(err, carelifecycle.ErrCompanionAtLimit),
-		errors.Is(err, users.ErrCompanionSelfLink),
-		errors.Is(err, users.ErrCompanionStudentIDRequired),
-		errors.Is(err, users.ErrCompanionInvalidWeekday):
+	case errors.Is(err, careplan.ErrCompanionDayNotAllowed),
+		errors.Is(err, careplan.ErrDuplicateCompanion),
+		errors.Is(err, careplan.ErrCompanionWeekdayRequired),
+		errors.Is(err, careplan.ErrTooManyCompanions),
+		errors.Is(err, careplan.ErrCompanionAtLimit),
+		errors.Is(err, careplan.ErrCompanionSelfLink), errors.Is(err, users.ErrCompanionSelfLink),
+		errors.Is(err, careplan.ErrCompanionStudentIDRequired), errors.Is(err, users.ErrCompanionStudentIDRequired),
+		errors.Is(err, careplan.ErrCompanionInvalidWeekday), errors.Is(err, users.ErrCompanionInvalidWeekday):
 		return common.ErrorInvalidRequest(err)
 	// The two sentinels every departure-plan write shares (stranded companion,
 	// locked companion row) — classified once, in companionPlanErrorRenderer.

@@ -1758,7 +1758,7 @@
       "declaration": "TestStudentCompanionRepository_CompanionIDsForWeekday",
       "target": "database/repositories.NewFactory",
       "lines": [
-        192
+        193
       ],
       "tables": []
     },
@@ -1768,17 +1768,17 @@
       "declaration": "TestStudentCompanionRepository_CompanionIDsForWeekdayTransitive",
       "target": "database/repositories.NewFactory",
       "lines": [
-        253
+        254
       ],
       "tables": []
     },
     {
       "scope": "test",
       "file": "database/repositories/users/student_companion_repository_test.go",
-      "declaration": "TestStudentCompanionRepository_ListLinksForStudent",
+      "declaration": "TestStudentCompanionRepository_ListLinksFoldsWeekdays",
       "target": "database/repositories.NewFactory",
       "lines": [
-        298
+        299
       ],
       "tables": []
     },
@@ -1788,7 +1788,7 @@
       "declaration": "TestStudentCompanionRepository_ListLinksForStudents",
       "target": "database/repositories.NewFactory",
       "lines": [
-        345
+        347
       ],
       "tables": []
     },
@@ -1798,7 +1798,7 @@
       "declaration": "TestStudentCompanionRepository_ReplaceForStudent_EmptyClears",
       "target": "database/repositories.NewFactory",
       "lines": [
-        116
+        117
       ],
       "tables": []
     },
@@ -1808,7 +1808,7 @@
       "declaration": "TestStudentCompanionRepository_ReplaceForStudent_IsSymmetric",
       "target": "database/repositories.NewFactory",
       "lines": [
-        50
+        51
       ],
       "tables": []
     },
@@ -1818,7 +1818,7 @@
       "declaration": "TestStudentCompanionRepository_ReplaceForStudent_LeavesUnrelatedEdges",
       "target": "database/repositories.NewFactory",
       "lines": [
-        147
+        148
       ],
       "tables": []
     },
@@ -1828,7 +1828,7 @@
       "declaration": "TestStudentCompanionRepository_ReplaceForStudent_MultipleWeekdays",
       "target": "database/repositories.NewFactory",
       "lines": [
-        85
+        86
       ],
       "tables": []
     },
@@ -3080,7 +3080,7 @@
       "declaration": "TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3984
+        3978
       ],
       "tables": []
     },
@@ -4584,14 +4584,14 @@
       "declaration": "careWithdrawals",
       "target": "database/repositories.NewFactory",
       "lines": [
-        60
+        67
       ],
       "tables": []
     },
     {
       "scope": "test",
       "file": "services/users/student_deletion_workflow_test.go",
-      "declaration": "newCompanionTestService",
+      "declaration": "companionLinks",
       "target": "database/repositories.NewFactory",
       "lines": [
         47
@@ -4604,7 +4604,7 @@
       "declaration": "newDeletionFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        81
+        88
       ],
       "tables": []
     },
@@ -4614,7 +4614,7 @@
       "declaration": "studentPlans",
       "target": "database/repositories.NewFactory",
       "lines": [
-        54
+        61
       ],
       "tables": []
     },
@@ -21028,17 +21028,17 @@
         },
         {
           "file": "services/auth_test_helpers.go",
-          "line": 299,
+          "line": 300,
           "declaration": "IdentityAccessForTests"
         },
         {
           "file": "services/factory.go",
-          "line": 465,
+          "line": 464,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 515,
+          "line": 514,
           "declaration": "newFactory"
         },
         {

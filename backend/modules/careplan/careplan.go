@@ -44,9 +44,10 @@ const (
 	GuardianPermissionEnrollmentsView  = "parent_portal.enrollments.view"
 	GuardianPermissionEnrollmentSubmit = "parent_portal.enrollment.submit"
 
-	StudentStatusPending = "pending"
-	StudentStatusActive  = "active"
-	StudentStatusAlumnus = "alumnus"
+	StudentStatusPending  = "pending"
+	StudentStatusActive   = "active"
+	StudentStatusInactive = "inactive"
+	StudentStatusAlumnus  = "alumnus"
 )
 
 var (

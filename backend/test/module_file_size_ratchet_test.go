@@ -59,9 +59,6 @@ var moduleFileSizeAllowlist = map[string]int{
 	"modules/careplan/internal/application/excused_requests.go": 1567,
 	// Moved in by PR #3408 (#3350) from services/users and
 	// database/repositories/users; the size crossed the boundary with them.
-	"modules/careplan/legacy/carelifecycle/care_exit_cleanup.go":                     1280,
-	"modules/careplan/legacy/carelifecycle/care_lifecycle_service.go":                1405,
-	"modules/careplan/legacy/carelifecycle/student_companion_service.go":             910,
 	"modules/classday/internal/application/slotlists.go":                             2642,
 	"modules/communication/internal/adapters/parentaudience/projection.go":           950,
 	"modules/communication/internal/adapters/parentpostgres/parent_announcements.go": 950,

@@ -2,7 +2,6 @@ package users
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"time"
 
@@ -25,8 +24,6 @@ const (
 	CareWithdrawalUrgencyPlanned = "planned"
 	CareWithdrawalUrgencyOverdue = "overdue"
 )
-
-var ErrCareWithdrawalAlreadyResolved = errors.New("Die Abmeldung wurde bereits erledigt oder ist nicht mehr aktuell.") //nolint:staticcheck // user-facing German message
 
 // CareWithdrawalCompletion is the durable task created when a school removes
 // a child's final care day from authoritative bookings. It stores events only;
@@ -79,57 +76,6 @@ func (f CareWithdrawalCompletionFilter) Normalized() CareWithdrawalCompletionFil
 		f.PageSize = 20
 	}
 	return f
-}
-
-type CareWithdrawalBookingChange struct {
-	StudentID             int64
-	FirstBookinglessDay   timezone.Date
-	WasCompleteWithdrawal bool
-	SourceAdjustmentID    int64
-	SourceRequestChildID  int64
-	ConfirmedBy           int64
-	ConfirmedRole         string
-	SourceOfferings       []CareExitSourceOffering
-}
-
-// CareBookingPeriod is one effective care-counting booking window. Validity
-// is half-open: ValidFrom is inclusive and ValidUntil is the first day on
-// which the booking no longer applies. Nil bounds are unbounded.
-type CareBookingPeriod struct {
-	ValidFrom            *timezone.Date
-	ValidUntil           *timezone.Date
-	Days                 []string
-	SourceRequestChildID int64
-	SourceOfferings      []CareExitSourceOffering
-}
-
-// CareBookingFacts contains the repository facts needed by the shared booking
-// evaluator. Names and class are read-model data for the operator preview.
-type CareBookingFacts struct {
-	StudentID     int64
-	FirstName     string
-	LastName      string
-	SchoolClass   string
-	EnrolledUntil *timezone.Date
-	// ConfirmedBookinglessDay is supplied only by a mutation that explicitly
-	// confirmed removing the final care booking. It lets the evaluator retain
-	// the boundary after the mutation has removed every source period.
-	ConfirmedBookinglessDay *timezone.Date
-	Periods                 []CareBookingPeriod
-}
-
-// CareBookingEvaluation is the single interpretation of CareBookingFacts used
-// by setting impact checks, natural expiry reconciliation, and operational
-// participation. A nil FirstBookinglessDay means no completion is needed.
-type CareBookingEvaluation struct {
-	StudentID            int64
-	FirstName            string
-	LastName             string
-	SchoolClass          string
-	HasCareDays          bool
-	FirstBookinglessDay  *timezone.Date
-	SourceRequestChildID int64
-	SourceOfferings      []CareExitSourceOffering
 }
 
 type CareWithdrawalCompletionRepository interface {
