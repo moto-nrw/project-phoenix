@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -14,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -565,7 +565,7 @@ func TestAutoExcusal_FullDayStatusCoexistsAndReleaseReplays(t *testing.T) {
 	// Clearing the sick day (production path: MarkClearedByID sets cleared_at,
 	// then releases the slots) restores its rows — and must replay the still
 	// active pickup cutoff instead of leaving the late blocks expected.
-	err = repos.StudentStatusDay.MarkClearedByID(h.ctx, statusDay.ID, time.Now(), activeModel.StudentStatusSourceManual)
+	err = repos.StudentStatusDay.MarkClearedByID(h.ctx, statusDay.ID, time.Now(), absencerecords.StudentStatusSourceManual)
 	require.NoError(t, err)
 
 	assert.Equal(t, scheduleModel.AttendanceStatusExpected, h.attendance(t, h.beforeRow).Status)

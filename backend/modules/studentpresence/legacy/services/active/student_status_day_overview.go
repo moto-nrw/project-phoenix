@@ -8,7 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 )
 
 type StatusDayOverviewPeople interface {
@@ -19,11 +19,11 @@ type StatusDayOverviewPeople interface {
 // StudentStatusDayOverviewService owns the fully configured read model for
 // the tenant-wide absence overview.
 type StudentStatusDayOverviewService struct {
-	repo   activeModels.StudentStatusDayOverviewRepository
+	repo   StudentStatusDayOverviewRepository
 	people StatusDayOverviewPeople
 }
 
-func NewStudentStatusDayOverviewService(repo activeModels.StudentStatusDayOverviewRepository, people StatusDayOverviewPeople) *StudentStatusDayOverviewService {
+func NewStudentStatusDayOverviewService(repo StudentStatusDayOverviewRepository, people StatusDayOverviewPeople) *StudentStatusDayOverviewService {
 	return &StudentStatusDayOverviewService{repo: repo, people: people}
 }
 
@@ -34,7 +34,7 @@ type StatusDayOverviewGroup struct {
 }
 
 type StatusDayOverviewEntry struct {
-	StatusDay *activeModels.StudentStatusDay
+	StatusDay *absencerecords.StudentStatusDay
 	Student   *StudentRecord
 	Person    *PersonName
 	Group     *StatusDayOverviewGroup
@@ -126,7 +126,7 @@ func statusDayOverviewOptions(studentIDs []int64, students map[int64]*StudentRec
 	filter := modelBase.NewFilter().GreaterThanOrEqual("date", from).LessThanOrEqual("date", to)
 	filter.And(*statusDayEnrollmentFilter(studentIDs, students, today))
 	active := modelBase.NewFilter().IsNull("cleared_at")
-	active.Or(*modelBase.NewFilter().Equal("source", activeModels.StudentStatusSourceEndOfDay))
+	active.Or(*modelBase.NewFilter().Equal("source", absencerecords.StudentStatusSourceEndOfDay))
 	filter.And(*active)
 	if filters.Status != "" {
 		filter.Equal("status", filters.Status)
@@ -211,7 +211,7 @@ func indexOverviewStudents(students []*StudentRecord) ([]int64, []int64, map[int
 	return studentIDs, personIDs, byID
 }
 
-func assembleStatusDayOverview(rows []*activeModels.StudentStatusDay, students map[int64]*StudentRecord, persons map[int64]*PersonName, groups map[int64]*StatusDayOverviewGroup, today timezone.Date) []StatusDayOverviewEntry {
+func assembleStatusDayOverview(rows []*absencerecords.StudentStatusDay, students map[int64]*StudentRecord, persons map[int64]*PersonName, groups map[int64]*StatusDayOverviewGroup, today timezone.Date) []StatusDayOverviewEntry {
 	entries := make([]StatusDayOverviewEntry, 0, len(rows))
 	for _, row := range rows {
 		student := students[row.StudentID]

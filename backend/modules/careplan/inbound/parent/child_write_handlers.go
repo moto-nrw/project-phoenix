@@ -12,8 +12,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
@@ -73,7 +73,7 @@ type StatusDayResponse struct {
 	Note       *string   `json:"note,omitempty"`
 }
 
-func toStatusDayResponse(d *activeModels.StudentStatusDay) StatusDayResponse {
+func toStatusDayResponse(d *absencerecords.StudentStatusDay) StatusDayResponse {
 	return StatusDayResponse{
 		ID:         strconv.FormatInt(d.ID, 10),
 		StudentID:  strconv.FormatInt(d.StudentID, 10),
@@ -152,7 +152,7 @@ func (rs *Resource) submitSickNote(w http.ResponseWriter, r *http.Request) {
 	// keep reporting Krankmeldungen unchanged. The service validates the value.
 	status := req.Status
 	if status == "" {
-		status = activeModels.StudentStatusDaySick
+		status = absencerecords.StudentStatusDaySick
 	}
 
 	recipients, ok := parseCreateRecipients(w, r, req.RecipientGuardianProfileIDs)

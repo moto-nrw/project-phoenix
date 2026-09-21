@@ -17,9 +17,9 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
@@ -110,7 +110,7 @@ type attendanceStatusEntry struct {
 
 type attendanceHistorySources struct {
 	Attendance []*studentpresence.Attendance
-	Statuses   []*active.StudentStatusDay
+	Statuses   []*absencerecords.StudentStatusDay
 	Slots      []*activeService.HistorySlot
 	// SlotExpectation reports whether assignment hints apply to the loaded
 	// range at all (see resolveSlotExpectation).
@@ -217,7 +217,7 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 func (rs *Resource) loadAttendanceHistorySources(
 	ctx context.Context, studentID int64, from, to timezone.Date,
 ) (attendanceHistorySources, error) {
-	sources := attendanceHistorySources{Statuses: []*active.StudentStatusDay{}}
+	sources := attendanceHistorySources{Statuses: []*absencerecords.StudentStatusDay{}}
 	var err error
 	sources.Attendance, err = rs.StudentHistoryService.GetAttendanceByStudentAndDateRange(ctx, studentID, from, to)
 	if err != nil {
@@ -360,7 +360,7 @@ func clampAttendanceHistoryRange(start, end, endOfToday time.Time, attendanceCap
 // checkout followed by a re-check-in) are consolidated into one day entry with
 // the earliest check-in, latest check-out, and total duration.
 // Days older than roomCutoff have RoomDetailAvailable=false.
-func buildAttendanceHistoryDays(rows []*studentpresence.Attendance, statusRows []*active.StudentStatusDay, visitsByDate map[string][]*activeService.VisitHistoryEntry, roomCutoff time.Time) []attendanceHistoryDay {
+func buildAttendanceHistoryDays(rows []*studentpresence.Attendance, statusRows []*absencerecords.StudentStatusDay, visitsByDate map[string][]*activeService.VisitHistoryEntry, roomCutoff time.Time) []attendanceHistoryDay {
 	dayMap, dayOrder := groupAttendanceRowsByDate(rows)
 	dayOrder = appendStatusDays(dayMap, dayOrder, statusRows)
 
@@ -439,7 +439,7 @@ func mergeAttendanceRow(rec *attendanceDayRecord, row *studentpresence.Attendanc
 
 // appendStatusDays attaches status entries (sick/excused) to their day,
 // creating a status-only day when no attendance row exists for that date.
-func appendStatusDays(dayMap map[string]*attendanceHistoryDay, dayOrder []string, statusRows []*active.StudentStatusDay) []string {
+func appendStatusDays(dayMap map[string]*attendanceHistoryDay, dayOrder []string, statusRows []*absencerecords.StudentStatusDay) []string {
 	for _, row := range statusRows {
 		dateKey := row.Date.String()
 		day, seen := dayMap[dateKey]
@@ -668,9 +668,9 @@ func unassignedSlotEntry(index int, session attendanceSessionRecord) attendanceS
 
 func studentStatusLabel(status string) string {
 	switch status {
-	case active.StudentStatusDaySick:
+	case absencerecords.StudentStatusDaySick:
 		return "Krank"
-	case active.StudentStatusDayExcused:
+	case absencerecords.StudentStatusDayExcused:
 		return "Abgemeldet"
 	default:
 		return status

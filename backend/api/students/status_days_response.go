@@ -5,11 +5,11 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 )
 
-func newStudentStatusDayResponse(entry *active.StudentStatusDay) StudentStatusDayResponse {
+func newStudentStatusDayResponse(entry *absencerecords.StudentStatusDay) StudentStatusDayResponse {
 	return StudentStatusDayResponse{
 		ID:         entry.ID,
 		StudentID:  entry.StudentID,
@@ -27,16 +27,16 @@ func newStudentStatusDayResponse(entry *active.StudentStatusDay) StudentStatusDa
 
 func studentStatusDayLabel(status string) string {
 	switch status {
-	case active.StudentStatusDaySick:
+	case absencerecords.StudentStatusDaySick:
 		return "Krank"
-	case active.StudentStatusDayClassTrip:
+	case absencerecords.StudentStatusDayClassTrip:
 		return "Klassenfahrt"
 	default:
 		return "Entschuldigt"
 	}
 }
 
-func newStudentStatusDayResponses(entries []*active.StudentStatusDay) []StudentStatusDayResponse {
+func newStudentStatusDayResponses(entries []*absencerecords.StudentStatusDay) []StudentStatusDayResponse {
 	responses := make([]StudentStatusDayResponse, 0, len(entries))
 	for _, entry := range entries {
 		responses = append(responses, newStudentStatusDayResponse(entry))
@@ -47,7 +47,7 @@ func newStudentStatusDayResponses(entries []*active.StudentStatusDay) []StudentS
 // newStudentStatusDayConflictResponses maps active rows for a 409 conflict
 // payload. Free-text notes are omitted so proxy/server logs of the error body
 // cannot capture sick-note content (GDPR).
-func newStudentStatusDayConflictResponses(entries []*active.StudentStatusDay) []StudentStatusDayResponse {
+func newStudentStatusDayConflictResponses(entries []*absencerecords.StudentStatusDay) []StudentStatusDayResponse {
 	responses := newStudentStatusDayResponses(entries)
 	for i := range responses {
 		responses[i].Note = nil
@@ -55,12 +55,12 @@ func newStudentStatusDayConflictResponses(entries []*active.StudentStatusDay) []
 	return responses
 }
 
-func applyEffectiveStatusDaysToResponses(responses []StudentResponse, statusRows []*active.StudentStatusDay) {
+func applyEffectiveStatusDaysToResponses(responses []StudentResponse, statusRows []*absencerecords.StudentStatusDay) {
 	if len(responses) == 0 || len(statusRows) == 0 {
 		return
 	}
 
-	rowsByStudent := make(map[int64][]*active.StudentStatusDay, len(statusRows))
+	rowsByStudent := make(map[int64][]*absencerecords.StudentStatusDay, len(statusRows))
 	for _, row := range statusRows {
 		rowsByStudent[row.StudentID] = append(rowsByStudent[row.StudentID], row)
 	}
@@ -112,7 +112,7 @@ func (rs *Resource) applyStatusDaysForDateToResponse(ctx context.Context, respon
 	applyEffectiveStatusDays(response, rows)
 }
 
-func applyEffectiveStatusDays(response *StudentResponse, statusRows []*active.StudentStatusDay) {
+func applyEffectiveStatusDays(response *StudentResponse, statusRows []*absencerecords.StudentStatusDay) {
 	if response == nil || len(statusRows) == 0 {
 		return
 	}

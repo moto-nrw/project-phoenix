@@ -7,8 +7,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
 func boolPtrValue(v *bool) bool {
@@ -24,10 +24,10 @@ func statusReportedAt(now time.Time, existing *time.Time) time.Time {
 
 func newlyReportedAbsenceStatus(student *users.Student, wasSick, wasExcused bool) string {
 	if !wasSick && boolPtrValue(student.Sick) {
-		return active.StudentStatusDaySick
+		return absencerecords.StudentStatusDaySick
 	}
 	if !wasExcused && boolPtrValue(student.Excused) {
-		return active.StudentStatusDayExcused
+		return absencerecords.StudentStatusDayExcused
 	}
 	return ""
 }
@@ -42,10 +42,10 @@ func (rs *Resource) persistStudentStatusHistory(ctx context.Context, student *us
 
 	today := timezone.DateFromTime(now)
 	// Only the sick status carries a free-text reason; excused stays note-less.
-	if err := rs.persistSingleStatusHistory(ctx, student.ID, active.StudentStatusDaySick, wasSick, boolPtrValue(student.Sick), statusReportedAt(now, student.SickSince), today, now, sickNote); err != nil {
+	if err := rs.persistSingleStatusHistory(ctx, student.ID, absencerecords.StudentStatusDaySick, wasSick, boolPtrValue(student.Sick), statusReportedAt(now, student.SickSince), today, now, sickNote); err != nil {
 		return err
 	}
-	if err := rs.persistSingleStatusHistory(ctx, student.ID, active.StudentStatusDayExcused, wasExcused, boolPtrValue(student.Excused), statusReportedAt(now, student.ExcusedSince), today, now, nil); err != nil {
+	if err := rs.persistSingleStatusHistory(ctx, student.ID, absencerecords.StudentStatusDayExcused, wasExcused, boolPtrValue(student.Excused), statusReportedAt(now, student.ExcusedSince), today, now, nil); err != nil {
 		return err
 	}
 	return nil
@@ -53,26 +53,26 @@ func (rs *Resource) persistStudentStatusHistory(ctx context.Context, student *us
 
 func (rs *Resource) persistSingleStatusHistory(ctx context.Context, studentID int64, status string, wasActive, isActive bool, reportedAt time.Time, date timezone.Date, now time.Time, note *string) error {
 	if isActive {
-		return rs.StudentStatusDayService.UpsertReported(ctx, &active.StudentStatusDay{
+		return rs.StudentStatusDayService.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 			StudentID:  studentID,
 			Date:       date,
 			Status:     status,
 			ReportedAt: reportedAt,
-			Source:     active.StudentStatusSourceManual,
+			Source:     absencerecords.StudentStatusSourceManual,
 			Note:       note,
 		})
 	}
 	if wasActive {
-		if err := rs.StudentStatusDayService.UpsertReported(ctx, &active.StudentStatusDay{
+		if err := rs.StudentStatusDayService.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 			StudentID:  studentID,
 			Date:       date,
 			Status:     status,
 			ReportedAt: reportedAt,
-			Source:     active.StudentStatusSourceManual,
+			Source:     absencerecords.StudentStatusSourceManual,
 		}); err != nil {
 			return err
 		}
-		return rs.StudentStatusDayService.MarkCleared(ctx, studentID, status, date, now, active.StudentStatusSourceManual)
+		return rs.StudentStatusDayService.MarkCleared(ctx, studentID, status, date, now, absencerecords.StudentStatusSourceManual)
 	}
 	return nil
 }

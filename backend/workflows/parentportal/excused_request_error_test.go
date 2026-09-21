@@ -13,7 +13,7 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -96,7 +96,7 @@ func TestSubmitExcusedRequest_MapsServiceErrors(t *testing.T) {
 			chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 			_, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-				[]timezone.Date{day}, "Familienfeier", activeModels.StudentStatusDayExcused, nil)
+				[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 			require.Error(t, err)
 			if tc.want != nil {
 				assert.ErrorIs(t, err, tc.want)
@@ -144,7 +144,7 @@ func TestSubmitExcused_NoServiceConfigured(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	_, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{timezone.TodayDate().AddDays(3)}, "Familienfeier", activeModels.StudentStatusDayExcused, nil)
+		[]timezone.Date{timezone.TodayDate().AddDays(3)}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "not configured")
 }

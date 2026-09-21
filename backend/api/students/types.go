@@ -12,9 +12,9 @@ import (
 	iotDataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
 // validateDepartureCompanionNote bounds the free-text "mit wem" companion note
@@ -751,7 +751,7 @@ func (req *BulkCreateStudentStatusDaysRequest) Bind(_ *http.Request) error {
 
 func isValidStudentStatusDayStatus(status string) bool {
 	switch status {
-	case active.StudentStatusDaySick, active.StudentStatusDayExcused, active.StudentStatusDayClassTrip:
+	case absencerecords.StudentStatusDaySick, absencerecords.StudentStatusDayExcused, absencerecords.StudentStatusDayClassTrip:
 		return true
 	default:
 		return false

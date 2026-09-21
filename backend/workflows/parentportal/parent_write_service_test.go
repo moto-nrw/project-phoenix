@@ -19,9 +19,9 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/services"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
@@ -166,11 +166,11 @@ func TestSubmitSickNote_TodayFlipsLiveFlagAndStoresReason(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	sickResult, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{timezone.TodayDate()}, "Fieber, beim Arzt", activeModels.StudentStatusDaySick, nil)
+		[]timezone.Date{timezone.TodayDate()}, "Fieber, beim Arzt", absencerecords.StudentStatusDaySick, nil)
 	require.NoError(t, err)
 	require.Len(t, sickResult.StatusDays, 1)
-	assert.Equal(t, activeModels.StudentStatusDaySick, sickResult.StatusDays[0].Status)
-	assert.Equal(t, activeModels.StudentStatusSourceParent, sickResult.StatusDays[0].Source)
+	assert.Equal(t, absencerecords.StudentStatusDaySick, sickResult.StatusDays[0].Status)
+	assert.Equal(t, absencerecords.StudentStatusSourceParent, sickResult.StatusDays[0].Source)
 	require.NotNil(t, sickResult.StatusDays[0].Note)
 	assert.Equal(t, "Fieber, beim Arzt", *sickResult.StatusDays[0].Note)
 
@@ -199,14 +199,14 @@ func TestSubmitSickNote_ResubmitDoesNotNotifyAgain(t *testing.T) {
 			chain.StudentID,
 			[]timezone.Date{timezone.TodayDate()},
 			"Fieber",
-			activeModels.StudentStatusDaySick,
+			absencerecords.StudentStatusDaySick,
 			nil,
 		)
 		require.NoError(t, err)
 	}
 
 	require.Len(t, notifier.reports, 1)
-	assert.Equal(t, activeModels.StudentStatusDaySick, notifier.reports[0].Status)
+	assert.Equal(t, absencerecords.StudentStatusDaySick, notifier.reports[0].Status)
 }
 
 // TestChildMessaging_RequiresNotesWritePermission is the regression guard for the
@@ -357,7 +357,7 @@ func TestSubmitSickNote_FutureDateDoesNotFlipLiveFlag(t *testing.T) {
 
 	future := timezone.TodayDate().AddDays(7)
 	sickResult, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{future}, "Fieber", activeModels.StudentStatusDaySick, nil)
+		[]timezone.Date{future}, "Fieber", absencerecords.StudentStatusDaySick, nil)
 	require.NoError(t, err)
 	require.Len(t, sickResult.StatusDays, 1)
 	require.NotNil(t, sickResult.StatusDays[0].Note)
@@ -395,7 +395,7 @@ func TestSubmitSickNote_RefusesPartialAbsenceConflict(t *testing.T) {
 
 	_, err := svc.SubmitSickNote(
 		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{date}, "Fieber", activeModels.StudentStatusDaySick,
+		[]timezone.Date{date}, "Fieber", absencerecords.StudentStatusDaySick,
 		nil,
 	)
 	require.ErrorIs(t, err, parentService.ErrCareExceptionConflict)
@@ -452,7 +452,7 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 	parentResult := make(chan error, 1)
 	go func() {
 		_, err := parentSvc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
-			[]timezone.Date{date}, "Fieber", activeModels.StudentStatusDaySick, nil)
+			[]timezone.Date{date}, "Fieber", absencerecords.StudentStatusDaySick, nil)
 		parentResult <- err
 	}()
 
@@ -469,7 +469,7 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 			TenantID:       chain.TenantID,
 			StudentService: services.StatusDayStudents(staffStudentSvc, services.AllowAllStatusDayWrites),
 			AfterCommit:    func(int64) {},
-		}, chain.StudentID, activeModels.StudentStatusDayExcused, "Termin", []timezone.Date{date})
+		}, chain.StudentID, absencerecords.StudentStatusDayExcused, "Termin", []timezone.Date{date})
 	}()
 
 	select {
@@ -489,12 +489,12 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 	var conflictErr *activeService.StudentStatusDayConflictError
 	require.ErrorAs(t, staffErr, &conflictErr)
 	require.Len(t, conflictErr.Conflicts, 1)
-	assert.Equal(t, activeModels.StudentStatusDaySick, conflictErr.Conflicts[0].Status)
+	assert.Equal(t, absencerecords.StudentStatusDaySick, conflictErr.Conflicts[0].Status)
 
 	rows, err := statusSvc.GetActiveByStudentAndDateRange(testpkg.TenantContext(chain.TenantID), chain.StudentID, date, date)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
-	assert.Equal(t, activeModels.StudentStatusDaySick, rows[0].Status,
+	assert.Equal(t, absencerecords.StudentStatusDaySick, rows[0].Status,
 		"the staff write must not overwrite the parent row after waiting for its lock")
 }
 
@@ -502,7 +502,7 @@ func TestSubmitSickNote_NoDates(t *testing.T) {
 	t.Parallel()
 
 	svc, _, _ := buildWriteService(t, true, true)
-	_, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), 123, 456, nil, "", activeModels.StudentStatusDaySick, nil)
+	_, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), 123, 456, nil, "", absencerecords.StudentStatusDaySick, nil)
 	require.ErrorIs(t, err, parentService.ErrNoDates)
 }
 
@@ -519,7 +519,7 @@ func TestSubmitSickNote_NotOwnedChild(t *testing.T) {
 	}()
 
 	_, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, other.ID,
-		[]timezone.Date{timezone.TodayDate()}, "", activeModels.StudentStatusDaySick, nil)
+		[]timezone.Date{timezone.TodayDate()}, "", absencerecords.StudentStatusDaySick, nil)
 	require.ErrorIs(t, err, parentService.ErrChildNotLinked)
 }
 
@@ -530,7 +530,7 @@ func TestSubmitSickNote_FeatureDisabled(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	_, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{timezone.TodayDate()}, "", activeModels.StudentStatusDaySick, nil)
+		[]timezone.Date{timezone.TodayDate()}, "", absencerecords.StudentStatusDaySick, nil)
 	require.ErrorIs(t, err, parentService.ErrSickNoteDisabled)
 }
 
@@ -548,7 +548,7 @@ func TestSubmitSickNote_MissingGuardianPermission(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{timezone.TodayDate()}, "", activeModels.StudentStatusDaySick, nil)
+		[]timezone.Date{timezone.TodayDate()}, "", absencerecords.StudentStatusDaySick, nil)
 	require.ErrorIs(t, err, parentService.ErrGuardianPermissionDenied)
 }
 
@@ -559,7 +559,7 @@ func TestSubmitSickNote_ReasonTooLong(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	_, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{timezone.TodayDate()}, strings.Repeat("x", 2001), activeModels.StudentStatusDaySick, nil)
+		[]timezone.Date{timezone.TodayDate()}, strings.Repeat("x", 2001), absencerecords.StudentStatusDaySick, nil)
 	require.ErrorIs(t, err, parentService.ErrNoteTooLong)
 }
 
@@ -570,7 +570,7 @@ func TestSubmitSickNote_EmptyReasonRejected(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	_, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{timezone.TodayDate()}, "   ", activeModels.StudentStatusDaySick, nil)
+		[]timezone.Date{timezone.TodayDate()}, "   ", absencerecords.StudentStatusDaySick, nil)
 	require.ErrorIs(t, err, parentService.ErrEmptyNote)
 }
 
@@ -583,23 +583,23 @@ func TestSubmitSickNote_ClearsClassTripForSubmittedDate(t *testing.T) {
 	statusRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentStatusDay
 	ctx := testpkg.TenantContext(chain.TenantID)
 	date := timezone.NewDate(2026, 8, 24).AddDays(7)
-	require.NoError(t, statusRepo.UpsertReported(ctx, &activeModels.StudentStatusDay{
+	require.NoError(t, statusRepo.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 		StudentID:  chain.StudentID,
 		Date:       date,
-		Status:     activeModels.StudentStatusDayClassTrip,
+		Status:     absencerecords.StudentStatusDayClassTrip,
 		ReportedAt: time.Now(),
-		Source:     activeModels.StudentStatusSourcePlanned,
+		Source:     absencerecords.StudentStatusSourcePlanned,
 	}))
 
-	sickResult, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, []timezone.Date{date}, "Krank", activeModels.StudentStatusDaySick, nil)
+	sickResult, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, []timezone.Date{date}, "Krank", absencerecords.StudentStatusDaySick, nil)
 	require.NoError(t, err)
 	require.Len(t, sickResult.StatusDays, 1)
-	assert.Equal(t, activeModels.StudentStatusDaySick, sickResult.StatusDays[0].Status)
+	assert.Equal(t, absencerecords.StudentStatusDaySick, sickResult.StatusDays[0].Status)
 
 	activeRows, err := statusRepo.FindActiveByStudentAndDateRange(ctx, chain.StudentID, date, date)
 	require.NoError(t, err)
 	require.Len(t, activeRows, 1)
-	assert.Equal(t, activeModels.StudentStatusDaySick, activeRows[0].Status)
+	assert.Equal(t, absencerecords.StudentStatusDaySick, activeRows[0].Status)
 }
 
 // --- ListSickDays ---
@@ -612,7 +612,7 @@ func TestListSickDays_ReturnsSickOnlyAfterSubmit(t *testing.T) {
 
 	day := timezone.TodayDate().AddDays(3)
 	_, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Krank", activeModels.StudentStatusDaySick, nil)
+		[]timezone.Date{day}, "Krank", absencerecords.StudentStatusDaySick, nil)
 	require.NoError(t, err)
 
 	from := timezone.TodayDate()
@@ -620,7 +620,7 @@ func TestListSickDays_ReturnsSickOnlyAfterSubmit(t *testing.T) {
 	sick, err := svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, from, to)
 	require.NoError(t, err)
 	require.Len(t, sick, 1)
-	assert.Equal(t, activeModels.StudentStatusDaySick, sick[0].Status)
+	assert.Equal(t, absencerecords.StudentStatusDaySick, sick[0].Status)
 }
 
 func TestListSickDays_HidesAnotherGuardiansReason(t *testing.T) {
@@ -645,7 +645,7 @@ func TestListSickDays_HidesAnotherGuardiansReason(t *testing.T) {
 
 	day := timezone.NewDate(2026, 8, 24).AddDays(3)
 	_, err = svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Vertraulicher Grund", activeModels.StudentStatusDaySick, nil)
+		[]timezone.Date{day}, "Vertraulicher Grund", absencerecords.StudentStatusDaySick, nil)
 	require.NoError(t, err)
 	var storedAuthor *int64
 	require.NoError(t, db.NewRaw(`
@@ -667,7 +667,7 @@ func TestListSickDays_HidesAnotherGuardiansReason(t *testing.T) {
 	assert.Nil(t, other[0].Note, "the submitting guardian's free text stays private")
 
 	_, err = svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), otherAccount.ID, chain.StudentID,
-		[]timezone.Date{day}, "Neuer vertraulicher Grund", activeModels.StudentStatusDaySick, nil)
+		[]timezone.Date{day}, "Neuer vertraulicher Grund", absencerecords.StudentStatusDaySick, nil)
 	require.NoError(t, err)
 	other, err = svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), otherAccount.ID, chain.StudentID, day, day)
 	require.NoError(t, err)
@@ -688,7 +688,7 @@ func TestListSickDays_AllowsPortalAccessWithoutWritePermissions(t *testing.T) {
 
 	day := timezone.NewDate(2026, 8, 24).AddDays(2)
 	_, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Krank", activeModels.StudentStatusDaySick, nil)
+		[]timezone.Date{day}, "Krank", absencerecords.StudentStatusDaySick, nil)
 	require.NoError(t, err)
 
 	_, err = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `
@@ -701,7 +701,7 @@ func TestListSickDays_AllowsPortalAccessWithoutWritePermissions(t *testing.T) {
 	sick, err := svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, day, day)
 	require.NoError(t, err)
 	require.Len(t, sick, 1)
-	assert.Equal(t, activeModels.StudentStatusDaySick, sick[0].Status)
+	assert.Equal(t, absencerecords.StudentStatusDaySick, sick[0].Status)
 }
 
 func TestListSickDays_NotOwned(t *testing.T) {
@@ -732,20 +732,20 @@ func TestSubmitSickNote_NonContiguousExcludesUnrelatedRows(t *testing.T) {
 	wed := base.AddDays(2)
 
 	// Pre-existing excused row on Tuesday (between the two sick days).
-	require.NoError(t, statusRepo.UpsertReported(tctx, &activeModels.StudentStatusDay{
+	require.NoError(t, statusRepo.UpsertReported(tctx, &absencerecords.StudentStatusDay{
 		StudentID:  chain.StudentID,
 		Date:       tue,
-		Status:     activeModels.StudentStatusDayExcused,
+		Status:     absencerecords.StudentStatusDayExcused,
 		ReportedAt: time.Now(),
-		Source:     activeModels.StudentStatusSourceManual,
+		Source:     absencerecords.StudentStatusSourceManual,
 	}))
 
 	sickResult, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{mon, wed}, "Krank", activeModels.StudentStatusDaySick, nil)
+		[]timezone.Date{mon, wed}, "Krank", absencerecords.StudentStatusDaySick, nil)
 	require.NoError(t, err)
 	require.Len(t, sickResult.StatusDays, 2, "only the two submitted sick days, not the Tuesday excused row")
 	for _, r := range sickResult.StatusDays {
-		assert.Equal(t, activeModels.StudentStatusDaySick, r.Status)
+		assert.Equal(t, absencerecords.StudentStatusDaySick, r.Status)
 		assert.NotEqual(t, tue, r.Date, "Tuesday excused row must be excluded")
 	}
 }
@@ -759,11 +759,11 @@ func TestSubmitSickNote_ExcusedTodayStoresExcusedWithoutLiveFlag(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	sickResult, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{timezone.TodayDate()}, "Zahnarzttermin", activeModels.StudentStatusDayExcused, nil)
+		[]timezone.Date{timezone.TodayDate()}, "Zahnarzttermin", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 	require.Len(t, sickResult.StatusDays, 1)
-	assert.Equal(t, activeModels.StudentStatusDayExcused, sickResult.StatusDays[0].Status)
-	assert.Equal(t, activeModels.StudentStatusSourceParent, sickResult.StatusDays[0].Source)
+	assert.Equal(t, absencerecords.StudentStatusDayExcused, sickResult.StatusDays[0].Status)
+	assert.Equal(t, absencerecords.StudentStatusSourceParent, sickResult.StatusDays[0].Source)
 	require.NotNil(t, sickResult.StatusDays[0].Note)
 	assert.Equal(t, "Zahnarzttermin", *sickResult.StatusDays[0].Note)
 
@@ -788,14 +788,14 @@ func TestSubmitSickNote_ExcusedTodayClearsStaleLiveSickFlag(t *testing.T) {
 	// day to an excused absence: the stale live sick flag must be cleared so the
 	// flag stays consistent with the now-cleared sick status day.
 	_, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{timezone.TodayDate()}, "Krank", activeModels.StudentStatusDaySick, nil)
+		[]timezone.Date{timezone.TodayDate()}, "Krank", absencerecords.StudentStatusDaySick, nil)
 	require.NoError(t, err)
 
 	sickResult, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{timezone.TodayDate()}, "Termin", activeModels.StudentStatusDayExcused, nil)
+		[]timezone.Date{timezone.TodayDate()}, "Termin", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 	require.Len(t, sickResult.StatusDays, 1)
-	assert.Equal(t, activeModels.StudentStatusDayExcused, sickResult.StatusDays[0].Status)
+	assert.Equal(t, absencerecords.StudentStatusDayExcused, sickResult.StatusDays[0].Status)
 
 	var sick bool
 	require.NoError(t, db.NewSelect().ColumnExpr("COALESCE(sick,false)").TableExpr("users.student_care_profiles").
@@ -823,10 +823,10 @@ func TestListSickDays_ReturnsSickAndExcused(t *testing.T) {
 	sickDay := timezone.NewDate(2026, 8, 24).AddDays(2)
 	excusedDay := timezone.NewDate(2026, 8, 24).AddDays(4)
 	_, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{sickDay}, "Krank", activeModels.StudentStatusDaySick, nil)
+		[]timezone.Date{sickDay}, "Krank", absencerecords.StudentStatusDaySick, nil)
 	require.NoError(t, err)
 	_, err = svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{excusedDay}, "Termin", activeModels.StudentStatusDayExcused, nil)
+		[]timezone.Date{excusedDay}, "Termin", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 
 	from := timezone.NewDate(2026, 8, 24)
@@ -838,8 +838,8 @@ func TestListSickDays_ReturnsSickAndExcused(t *testing.T) {
 	for _, a := range absences {
 		byStatus[a.Status] = a.Date
 	}
-	assert.Equal(t, sickDay, byStatus[activeModels.StudentStatusDaySick])
-	assert.Equal(t, excusedDay, byStatus[activeModels.StudentStatusDayExcused])
+	assert.Equal(t, sickDay, byStatus[absencerecords.StudentStatusDaySick])
+	assert.Equal(t, excusedDay, byStatus[absencerecords.StudentStatusDayExcused])
 }
 
 // A staff-created excused day (source=planned/manual) is an internal scheduled
@@ -860,18 +860,18 @@ func TestListSickDays_ExcludesStaffCreatedExcused(t *testing.T) {
 	staffNote := "interner Hinweis"
 
 	// Staff-created excused row (source=manual, carries a staff note).
-	require.NoError(t, statusRepo.UpsertReported(tctx, &activeModels.StudentStatusDay{
+	require.NoError(t, statusRepo.UpsertReported(tctx, &absencerecords.StudentStatusDay{
 		StudentID:  chain.StudentID,
 		Date:       staffExcusedDay,
-		Status:     activeModels.StudentStatusDayExcused,
+		Status:     absencerecords.StudentStatusDayExcused,
 		ReportedAt: time.Now(),
-		Source:     activeModels.StudentStatusSourceManual,
+		Source:     absencerecords.StudentStatusSourceManual,
 		Note:       &staffNote,
 	}))
 
 	// Parent's own excused report on a different date.
 	_, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{parentExcusedDay}, "Termin", activeModels.StudentStatusDayExcused, nil)
+		[]timezone.Date{parentExcusedDay}, "Termin", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 
 	from := timezone.NewDate(2026, 8, 24)
@@ -880,7 +880,7 @@ func TestListSickDays_ExcludesStaffCreatedExcused(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, absences, 1, "only the parent-reported excused day must be listed")
 	assert.Equal(t, parentExcusedDay, absences[0].Date)
-	assert.Equal(t, activeModels.StudentStatusSourceParent, absences[0].Source)
+	assert.Equal(t, absencerecords.StudentStatusSourceParent, absences[0].Source)
 	for _, a := range absences {
 		assert.NotEqual(t, staffExcusedDay, a.Date, "staff-created excused day must not leak to the parent")
 	}
@@ -908,14 +908,14 @@ func TestParentReportKindsAreIndependent(t *testing.T) {
 					status  string
 					enabled bool
 				}{
-					{activeModels.StudentStatusDaySick, sickEnabled},
-					{activeModels.StudentStatusDayExcused, excusedEnabled},
+					{absencerecords.StudentStatusDaySick, sickEnabled},
+					{absencerecords.StudentStatusDayExcused, excusedEnabled},
 				} {
 					result, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID, []timezone.Date{timezone.TodayDate().AddDays(index)}, "Testmeldung", report.status, nil)
 					if report.enabled {
 						require.NoError(t, err)
 						require.Len(t, result.StatusDays, 1)
-						assert.Equal(t, activeModels.StudentStatusSourceParent, result.StatusDays[0].Source)
+						assert.Equal(t, absencerecords.StudentStatusSourceParent, result.StatusDays[0].Source)
 					} else {
 						require.ErrorIs(t, err, parentService.ErrSickNoteDisabled)
 						assert.Nil(t, result)

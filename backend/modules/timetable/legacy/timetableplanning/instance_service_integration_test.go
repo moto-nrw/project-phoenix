@@ -24,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
@@ -740,12 +741,12 @@ func TestInstance_Reopen_RestoresAbsenceProvenance(t *testing.T) {
 		}
 	}
 
-	sick := &activeModels.StudentStatusDay{
+	sick := &absencerecords.StudentStatusDay{
 		StudentID:  s.student1,
 		Date:       timezone.Date(ai.Date),
-		Status:     activeModels.StudentStatusDaySick,
+		Status:     absencerecords.StudentStatusDaySick,
 		ReportedAt: time.Now(),
-		Source:     activeModels.StudentStatusSourcePlanned,
+		Source:     absencerecords.StudentStatusSourcePlanned,
 	}
 	require.NoError(t, s.repos.StudentStatusDay.UpsertReported(s.ctx, sick))
 
@@ -1753,13 +1754,13 @@ func TestInstance_CreateAndUpdatePlanned_ReapplyActiveStatusDays(t *testing.T) {
 	createdDate := timezone.NewDate(2026, 5, 12)
 	updatedDate := timezone.NewDate(2026, 5, 13)
 
-	sick := &activeModels.StudentStatusDay{
-		StudentID: s.student1, Date: createdDate, Status: activeModels.StudentStatusDaySick,
-		ReportedAt: time.Now(), Source: activeModels.StudentStatusSourcePlanned,
+	sick := &absencerecords.StudentStatusDay{
+		StudentID: s.student1, Date: createdDate, Status: absencerecords.StudentStatusDaySick,
+		ReportedAt: time.Now(), Source: absencerecords.StudentStatusSourcePlanned,
 	}
-	excused := &activeModels.StudentStatusDay{
-		StudentID: s.student2, Date: updatedDate, Status: activeModels.StudentStatusDayExcused,
-		ReportedAt: time.Now().Add(time.Minute), Source: activeModels.StudentStatusSourcePlanned,
+	excused := &absencerecords.StudentStatusDay{
+		StudentID: s.student2, Date: updatedDate, Status: absencerecords.StudentStatusDayExcused,
+		ReportedAt: time.Now().Add(time.Minute), Source: absencerecords.StudentStatusSourcePlanned,
 	}
 	require.NoError(t, s.repos.StudentStatusDay.UpsertReported(s.ctx, sick))
 	require.NoError(t, s.repos.StudentStatusDay.UpsertReported(s.ctx, excused))

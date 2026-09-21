@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/services"
 
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
@@ -29,7 +30,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
@@ -249,15 +249,15 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 	require.NoError(t, repos.StudentEnrollment.Create(ctx, booking))
 
 	// A parent request nobody has decided yet.
-	request := &activeModels.ExcusedAbsenceRequest{
+	request := &testpkg.ExcusedAbsenceRequestRow{
 		StudentID:     studentID,
 		SubmittedBy:   chain.AccountID,
 		Dates:         []timezone.Date{today.AddDays(3)},
 		Note:          "Arzttermin",
 		AbsenceStatus: "excused",
-		Status:        activeModels.ExcusedRequestStatusPending,
+		Status:        absencerecords.ExcusedRequestStatusPending,
 	}
-	request.SetTenantID(testpkg.Tenant(t))
+	request.TenantID = testpkg.Tenant(t)
 	_, err = db.NewInsert().
 		Model(request).
 		ModelTableExpr("active.excused_absence_requests").
@@ -313,7 +313,7 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 	})
 
 	t.Run("the open request survives until the exit takes effect", func(t *testing.T) {
-		assert.Equal(t, activeModels.ExcusedRequestStatusPending,
+		assert.Equal(t, absencerecords.ExcusedRequestStatusPending,
 			reloadRequestStatus(t, db, request.ID),
 			"a request about a day the child is still in care stays decidable")
 	})
@@ -324,7 +324,7 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("the open request is closed with its own outcome", func(t *testing.T) {
-		assert.Equal(t, activeModels.ExcusedRequestStatusCareEnded,
+		assert.Equal(t, absencerecords.ExcusedRequestStatusCareEnded,
 			reloadRequestStatus(t, db, request.ID),
 			"neither approved nor rejected — the care simply ended")
 	})

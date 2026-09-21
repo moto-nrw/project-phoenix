@@ -6,7 +6,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 )
 
 // The read ports below are the rows of other owners the messaging flows read.
@@ -26,7 +26,7 @@ type CareRequestReads interface {
 
 // ExcusedRequestReads reads one absence request.
 type ExcusedRequestReads interface {
-	FindByID(ctx context.Context, id any) (*activeModels.ExcusedAbsenceRequest, error)
+	FindByID(ctx context.Context, id any) (*absencerecords.ExcusedAbsenceRequest, error)
 }
 
 // OfferingChangeRequestReads reads one offering change request.

@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -425,7 +425,7 @@ func (s *service) autoClearOnBatchCheckin(
 	if err != nil {
 		return fmt.Errorf("load planned student statuses: %w", err)
 	}
-	rowsByStudent := make(map[int64][]*active.StudentStatusDay, len(actionable))
+	rowsByStudent := make(map[int64][]*absencerecords.StudentStatusDay, len(actionable))
 	for _, row := range rows {
 		rowsByStudent[row.StudentID] = append(rowsByStudent[row.StudentID], row)
 	}

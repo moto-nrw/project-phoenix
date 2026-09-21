@@ -62,7 +62,7 @@ type TimetableTestRepositories struct {
 	StudentPickupSchedule     scheduleModels.StudentPickupScheduleRepository
 	StudentPickupException    scheduleModels.StudentPickupExceptionRepository
 	StudentPickupNote         scheduleModels.StudentPickupNoteRepository
-	StudentStatusDay          activeModels.StudentStatusDayOverviewRepository
+	StudentStatusDay          *StudentStatusDayRepository
 	// CarePlan is the owner capability the schedule adapters above delegate to.
 	CarePlan              careplan.Capability
 	Room                  facilitiesModels.RoomRepository

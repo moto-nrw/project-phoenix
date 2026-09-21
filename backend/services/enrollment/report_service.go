@@ -22,8 +22,8 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
 var (
@@ -253,6 +253,12 @@ type ReportService interface {
 	SupervisionStudentSheet(ctx context.Context, in SupervisionSheetInput) (*SupervisionStudentSheet, error)
 }
 
+// StudentStatusDayReader reads the active scheduled day statuses of many
+// students for one calendar date.
+type StudentStatusDayReader interface {
+	FindActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*absencerecords.StudentStatusDay, error)
+}
+
 type ReportServiceConfig struct {
 	Requests            ReportRequests
 	Children            ReportChildren
@@ -275,7 +281,7 @@ type ReportServiceConfig struct {
 	// not configured") rather than serving a sheet where a sick child shows
 	// as staying. The enrollment reports and the class roster never consume
 	// it, so a config built only for those may leave it nil.
-	StudentStatusDayRepo activeModels.StudentStatusDayRepository
+	StudentStatusDayRepo StudentStatusDayReader
 	// PickupScheduleSvc / ArrivalScheduleSvc supply the effective per-date
 	// times (weekly plan + day exceptions) for the class day view. They are
 	// the CURRENT truth — the enrollment form answer is only the snapshot the

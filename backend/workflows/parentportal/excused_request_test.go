@@ -14,8 +14,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/services"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -105,11 +105,11 @@ func TestSubmitSick_ApprovalOn_CreatesPendingRequest(t *testing.T) {
 
 	day := timezone.TodayDate()
 	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Fieber", activeModels.StudentStatusDaySick, nil)
+		[]timezone.Date{day}, "Fieber", absencerecords.StudentStatusDaySick, nil)
 	require.NoError(t, err)
 	require.NotNil(t, res.PendingRequest, "a sick report must become a pending request when approval is on")
 	assert.Empty(t, res.StatusDays, "no status day is written while the sick request is pending")
-	assert.Equal(t, activeModels.StudentStatusDaySick, res.PendingRequest.AbsenceStatus)
+	assert.Equal(t, absencerecords.StudentStatusDaySick, res.PendingRequest.AbsenceStatus)
 
 	var sick bool
 	require.NoError(t, db.NewSelect().
@@ -128,11 +128,11 @@ func TestSubmitSick_ApprovalOff_WritesDirectly(t *testing.T) {
 
 	day := timezone.TodayDate().AddDays(2)
 	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Fieber", activeModels.StudentStatusDaySick, nil)
+		[]timezone.Date{day}, "Fieber", absencerecords.StudentStatusDaySick, nil)
 	require.NoError(t, err)
 	require.Nil(t, res.PendingRequest)
 	require.Len(t, res.StatusDays, 1)
-	assert.Equal(t, activeModels.StudentStatusDaySick, res.StatusDays[0].Status)
+	assert.Equal(t, absencerecords.StudentStatusDaySick, res.StatusDays[0].Status)
 }
 
 func TestSickRequest_ApproveWritesSickStatusAndLiveFlag(t *testing.T) {
@@ -143,7 +143,7 @@ func TestSickRequest_ApproveWritesSickStatusAndLiveFlag(t *testing.T) {
 	today := timezone.NewDate(2026, 8, 24)
 
 	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{today}, "Fieber", activeModels.StudentStatusDaySick, nil)
+		[]timezone.Date{today}, "Fieber", absencerecords.StudentStatusDaySick, nil)
 	require.NoError(t, err)
 
 	err = testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
@@ -159,7 +159,7 @@ func TestSickRequest_ApproveWritesSickStatusAndLiveFlag(t *testing.T) {
 	absences, err := svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, today, today)
 	require.NoError(t, err)
 	require.Len(t, absences, 1)
-	assert.Equal(t, activeModels.StudentStatusDaySick, absences[0].Status)
+	assert.Equal(t, absencerecords.StudentStatusDaySick, absences[0].Status)
 
 	var sick bool
 	require.NoError(t, db.NewSelect().
@@ -187,12 +187,12 @@ func TestSubmitExcused_ApprovalOn_CreatesPendingRequest(t *testing.T) {
 
 	day := timezone.TodayDate().AddDays(3)
 	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Familienfeier", activeModels.StudentStatusDayExcused, nil)
+		[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 	require.NotNil(t, res.PendingRequest, "an excused report must become a pending request when approval is on")
 	assert.Empty(t, res.StatusDays, "no status day is written while the request is pending")
-	assert.Equal(t, activeModels.ExcusedRequestStatusPending, res.PendingRequest.Status)
-	assert.Equal(t, activeModels.StudentStatusDayExcused, res.PendingRequest.AbsenceStatus)
+	assert.Equal(t, absencerecords.ExcusedRequestStatusPending, res.PendingRequest.Status)
+	assert.Equal(t, absencerecords.StudentStatusDayExcused, res.PendingRequest.AbsenceStatus)
 	assert.Equal(t, "Familienfeier", res.PendingRequest.Note)
 
 	// The absence list (status days) stays empty — the child is still expected.
@@ -206,7 +206,7 @@ func TestSubmitExcused_ApprovalOn_CreatesPendingRequest(t *testing.T) {
 	reqs, err := svc.ListExcusedRequests(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, reqs, 1)
-	assert.Equal(t, activeModels.ExcusedRequestStatusPending, reqs[0].Status)
+	assert.Equal(t, absencerecords.ExcusedRequestStatusPending, reqs[0].Status)
 }
 
 // TestSubmitExcused_ApprovalOff_WritesDirectly verifies the gate-off path is
@@ -219,11 +219,11 @@ func TestSubmitExcused_ApprovalOff_WritesDirectly(t *testing.T) {
 
 	day := timezone.TodayDate().AddDays(3)
 	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Familienfeier", activeModels.StudentStatusDayExcused, nil)
+		[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 	require.Nil(t, res.PendingRequest, "no request is created when the gate is off")
 	require.Len(t, res.StatusDays, 1)
-	assert.Equal(t, activeModels.StudentStatusDayExcused, res.StatusDays[0].Status)
+	assert.Equal(t, absencerecords.StudentStatusDayExcused, res.StatusDays[0].Status)
 }
 
 // TestSubmitExcused_EmptyNoteRejected verifies AC2: a note is mandatory for an
@@ -237,7 +237,7 @@ func TestSubmitExcused_EmptyNoteRejected(t *testing.T) {
 
 		day := timezone.TodayDate().AddDays(3)
 		_, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-			[]timezone.Date{day}, "   ", activeModels.StudentStatusDayExcused, nil)
+			[]timezone.Date{day}, "   ", absencerecords.StudentStatusDayExcused, nil)
 		assert.ErrorIs(t, err, parentService.ErrEmptyNote, "excused with blank note must be rejected (gate=%v)", gate)
 
 	}
@@ -253,7 +253,7 @@ func TestExcusedRequest_ApproveWritesStatusDays(t *testing.T) {
 
 	day := timezone.NewDate(2026, 8, 24).AddDays(3)
 	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Familienfeier", activeModels.StudentStatusDayExcused, nil)
+		[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 	require.NotNil(t, res.PendingRequest)
 	requestID := res.PendingRequest.ID
@@ -267,7 +267,7 @@ func TestExcusedRequest_ApproveWritesStatusDays(t *testing.T) {
 		if derr != nil {
 			return derr
 		}
-		require.Equal(t, activeModels.ExcusedRequestStatusApproved, item.Request.Status)
+		require.Equal(t, absencerecords.ExcusedRequestStatusApproved, item.Request.Status)
 		return nil
 	})
 	require.NoError(t, err)
@@ -278,9 +278,9 @@ func TestExcusedRequest_ApproveWritesStatusDays(t *testing.T) {
 	absences, err := svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, from, to)
 	require.NoError(t, err)
 	require.Len(t, absences, 1, "approving the request writes the excused status day")
-	assert.Equal(t, activeModels.StudentStatusDayExcused, absences[0].Status)
+	assert.Equal(t, absencerecords.StudentStatusDayExcused, absences[0].Status)
 	assert.Equal(t, day, absences[0].Date)
-	assert.Equal(t, activeModels.StudentStatusSourceParent, absences[0].Source)
+	assert.Equal(t, absencerecords.StudentStatusSourceParent, absences[0].Source)
 }
 
 // TestExcusedRequest_RejectWritesNoStatusDay verifies a rejection leaves the
@@ -293,7 +293,7 @@ func TestExcusedRequest_RejectWritesNoStatusDay(t *testing.T) {
 
 	day := timezone.TodayDate().AddDays(3)
 	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Familienfeier", activeModels.StudentStatusDayExcused, nil)
+		[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 	requestID := res.PendingRequest.ID
 
@@ -328,7 +328,7 @@ func TestListExcusedRequests_ShowsRecentlyRejectedLongPending(t *testing.T) {
 
 	day := timezone.TodayDate().AddDays(3)
 	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Familienfeier", activeModels.StudentStatusDayExcused, nil)
+		[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 	requestID := res.PendingRequest.ID
 
@@ -357,7 +357,7 @@ func TestListExcusedRequests_ShowsRecentlyRejectedLongPending(t *testing.T) {
 	reqs, err := svc.ListExcusedRequests(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, reqs, 1, "a long-pending request rejected today must stay visible so the parent learns the outcome")
-	assert.Equal(t, activeModels.ExcusedRequestStatusRejected, reqs[0].Status)
+	assert.Equal(t, absencerecords.ExcusedRequestStatusRejected, reqs[0].Status)
 	assert.Equal(t, requestID, reqs[0].ID)
 }
 
@@ -377,7 +377,7 @@ func TestListExcusedRequests_ShowsApprovedForOutOfWindowDates(t *testing.T) {
 	// A date well beyond the parent's ~2-month status-day window.
 	far := timezone.TodayDate().AddDays(120)
 	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{far}, "Urlaub", activeModels.StudentStatusDayExcused, nil)
+		[]timezone.Date{far}, "Urlaub", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 	requestID := res.PendingRequest.ID
 
@@ -401,6 +401,6 @@ func TestListExcusedRequests_ShowsApprovedForOutOfWindowDates(t *testing.T) {
 	reqs, err := svc.ListExcusedRequests(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, reqs, 1, "an approved out-of-window request must stay visible so the parent sees the confirmation")
-	assert.Equal(t, activeModels.ExcusedRequestStatusApproved, reqs[0].Status)
+	assert.Equal(t, absencerecords.ExcusedRequestStatusApproved, reqs[0].Status)
 	assert.Equal(t, requestID, reqs[0].ID)
 }

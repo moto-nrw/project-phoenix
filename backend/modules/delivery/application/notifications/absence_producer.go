@@ -8,7 +8,7 @@ import (
 	"sort"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -137,7 +137,7 @@ func (n *absenceNotifier) notify(ctx context.Context, report AbsenceReport) erro
 		return nil
 	}
 	switch report.Status {
-	case activeModel.StudentStatusDaySick, activeModel.StudentStatusDayExcused:
+	case absencerecords.StudentStatusDaySick, absencerecords.StudentStatusDayExcused:
 	default:
 		// A class trip is not news, and a cleared status even less so.
 		return nil
@@ -246,12 +246,12 @@ func (n *absenceNotifier) resolveDeliveries(ctx context.Context, report AbsenceR
 
 func absenceBody(report AbsenceReport) string {
 	if len(report.StudentIDs) > 1 {
-		if report.Status == activeModel.StudentStatusDayExcused {
+		if report.Status == absencerecords.StudentStatusDayExcused {
 			return fmt.Sprintf(absenceReportedBodyExcusedMany, len(report.StudentIDs))
 		}
 		return fmt.Sprintf(absenceReportedBodySickMany, len(report.StudentIDs))
 	}
-	if report.Status == activeModel.StudentStatusDayExcused {
+	if report.Status == absencerecords.StudentStatusDayExcused {
 		return absenceReportedBodyExcused
 	}
 	if report.FromParent {

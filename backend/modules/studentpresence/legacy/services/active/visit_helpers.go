@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -209,7 +209,7 @@ func (s *service) clearSickFlagOnCheckin(ctx context.Context, student *StudentRe
 		return nil
 	}
 
-	if err := s.recordStudentStatusForClear(ctx, student.ID, active.StudentStatusDaySick, student.SickSince, now, active.StudentStatusSourceNextCheckin); err != nil {
+	if err := s.recordStudentStatusForClear(ctx, student.ID, absencerecords.StudentStatusDaySick, student.SickSince, now, absencerecords.StudentStatusSourceNextCheckin); err != nil {
 		return err
 	}
 
@@ -256,7 +256,7 @@ func (s *service) clearExcusedFlagOnCheckin(ctx context.Context, student *Studen
 		return nil
 	}
 
-	if err := s.recordStudentStatusForClear(ctx, student.ID, active.StudentStatusDayExcused, student.ExcusedSince, now, active.StudentStatusSourceNextCheckin); err != nil {
+	if err := s.recordStudentStatusForClear(ctx, student.ID, absencerecords.StudentStatusDayExcused, student.ExcusedSince, now, absencerecords.StudentStatusSourceNextCheckin); err != nil {
 		return err
 	}
 
@@ -283,7 +283,7 @@ func (s *service) recordStudentStatusForClear(ctx context.Context, studentID int
 		reportedAt = *since
 	}
 	today := timezone.DateFromTime(now)
-	if err := s.StudentStatusRepo.UpsertReported(ctx, &active.StudentStatusDay{
+	if err := s.StudentStatusRepo.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 		StudentID:  studentID,
 		Date:       today,
 		Status:     status,
@@ -322,7 +322,7 @@ func (s *service) clearPlannedStatusRows(
 	ctx context.Context,
 	studentID int64,
 	student *StudentRecord,
-	rows []*active.StudentStatusDay,
+	rows []*absencerecords.StudentStatusDay,
 	now time.Time,
 ) error {
 	hasPlannedSick := false
@@ -332,17 +332,17 @@ func (s *service) clearPlannedStatusRows(
 		// "scheduled ahead" rows the live-flag path doesn't cover, so the
 		// next-checkin clear must treat them the same — otherwise a parent
 		// sick note for today stays active even after the child checks in.
-		if row.Source != active.StudentStatusSourcePlanned &&
-			row.Source != active.StudentStatusSourceParent {
+		if row.Source != absencerecords.StudentStatusSourcePlanned &&
+			row.Source != absencerecords.StudentStatusSourceParent {
 			continue
 		}
-		if err := s.StudentStatusRepo.MarkClearedByID(ctx, row.ID, now, active.StudentStatusSourceNextCheckin); err != nil {
+		if err := s.StudentStatusRepo.MarkClearedByID(ctx, row.ID, now, absencerecords.StudentStatusSourceNextCheckin); err != nil {
 			return fmt.Errorf("clear planned student status: %w", err)
 		}
-		if row.Status == active.StudentStatusDaySick {
+		if row.Status == absencerecords.StudentStatusDaySick {
 			hasPlannedSick = true
 		}
-		if row.Status == active.StudentStatusDayExcused || row.Status == active.StudentStatusDayClassTrip {
+		if row.Status == absencerecords.StudentStatusDayExcused || row.Status == absencerecords.StudentStatusDayClassTrip {
 			hasPlannedExcused = true
 		}
 	}

@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -51,7 +51,7 @@ func TestFilterOverviewStudentIDsKeepsUnresolvedPeopleWithoutNameFilter(t *testi
 }
 
 type cappedOverviewRepository struct {
-	activeModels.StudentStatusDayOverviewRepository
+	StudentStatusDayOverviewRepository
 	total       int
 	listCalled  bool
 	listOptions *QueryOptions
@@ -61,10 +61,10 @@ func (r *cappedOverviewRepository) CountWithOptions(context.Context, *QueryOptio
 	return r.total, nil
 }
 
-func (r *cappedOverviewRepository) ListOverviewWithOptions(_ context.Context, options *QueryOptions, _ []int64) ([]*activeModels.StudentStatusDay, error) {
+func (r *cappedOverviewRepository) ListOverviewWithOptions(_ context.Context, options *QueryOptions, _ []int64) ([]*absencerecords.StudentStatusDay, error) {
 	r.listCalled = true
 	r.listOptions = options
-	return []*activeModels.StudentStatusDay{{ID: 1, StudentID: 1}}, nil
+	return []*absencerecords.StudentStatusDay{{ID: 1, StudentID: 1}}, nil
 }
 
 type overviewPeopleStub struct {

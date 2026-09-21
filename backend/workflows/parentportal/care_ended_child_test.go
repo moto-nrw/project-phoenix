@@ -15,7 +15,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
@@ -45,7 +45,7 @@ func TestParentPortal_CareEndedChildIsReadOnly(t *testing.T) {
 	// While the child is still in care the family can report an absence.
 	_, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
 		[]timezone.Date{timezone.NewDate(2026, 8, 24).AddDays(2)}, "Fieber",
-		activeModels.StudentStatusDaySick, nil)
+		absencerecords.StudentStatusDaySick, nil)
 	require.NoError(t, err)
 
 	endCareFor(t, db, chain.StudentID)
@@ -53,7 +53,7 @@ func TestParentPortal_CareEndedChildIsReadOnly(t *testing.T) {
 	t.Run("no new direct absence can be reported", func(t *testing.T) {
 		_, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
 			[]timezone.Date{timezone.NewDate(2026, 8, 24).AddDays(3)}, "Fieber",
-			activeModels.StudentStatusDaySick, nil)
+			absencerecords.StudentStatusDaySick, nil)
 		require.ErrorIs(t, err, parentService.ErrChildCareEnded)
 	})
 
@@ -61,7 +61,7 @@ func TestParentPortal_CareEndedChildIsReadOnly(t *testing.T) {
 		pendingSvc, _, _, _ := buildAbsenceApprovalServices(t, true, false)
 		_, err := pendingSvc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
 			[]timezone.Date{timezone.NewDate(2026, 8, 24).AddDays(3)}, "Fieber",
-			activeModels.StudentStatusDaySick, nil)
+			absencerecords.StudentStatusDaySick, nil)
 		require.ErrorIs(t, err, parentService.ErrChildCareEnded)
 	})
 

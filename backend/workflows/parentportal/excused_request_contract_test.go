@@ -7,7 +7,7 @@ import (
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 )
 
 // TestExcusedRequestContractMatchesPersistedVocabulary pins the persisted
@@ -18,20 +18,20 @@ import (
 func TestExcusedRequestContractMatchesPersistedVocabulary(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, activeModels.StudentStatusDaySick, careplan.StudentStatusDaySick)
-	assert.Equal(t, activeModels.StudentStatusDayExcused, careplan.StudentStatusDayExcused)
-	assert.Equal(t, activeModels.StudentStatusDayClassTrip, careplan.StudentStatusDayClassTrip)
-	assert.Equal(t, activeModels.StudentStatusDayPresent, careplan.StudentStatusDayPresent)
-	assert.Equal(t, activeModels.StudentStatusSourceManual, careplan.StudentStatusSourceManual)
-	assert.Equal(t, activeModels.StudentStatusSourceParent, careplan.StudentStatusSourceParent)
-	assert.Equal(t, activeModels.StudentStatusDayStatuses(), careplan.StudentStatusDayStatusesExcept(""))
+	assert.Equal(t, absencerecords.StudentStatusDaySick, careplan.StudentStatusDaySick)
+	assert.Equal(t, absencerecords.StudentStatusDayExcused, careplan.StudentStatusDayExcused)
+	assert.Equal(t, absencerecords.StudentStatusDayClassTrip, careplan.StudentStatusDayClassTrip)
+	assert.Equal(t, absencerecords.StudentStatusDayPresent, careplan.StudentStatusDayPresent)
+	assert.Equal(t, absencerecords.StudentStatusSourceManual, careplan.StudentStatusSourceManual)
+	assert.Equal(t, absencerecords.StudentStatusSourceParent, careplan.StudentStatusSourceParent)
+	assert.Equal(t, absencerecords.StudentStatusDayStatuses(), careplan.StudentStatusDayStatusesExcept(""))
 
-	assert.Equal(t, activeModels.ExcusedRequestStatusPending, careplan.ExcusedRequestStatusPending)
-	assert.Equal(t, activeModels.ExcusedRequestStatusApproved, careplan.ExcusedRequestStatusApproved)
-	assert.Equal(t, activeModels.ExcusedRequestStatusRejected, careplan.ExcusedRequestStatusRejected)
-	assert.Equal(t, activeModels.ExcusedRequestStatusWithdrawn, careplan.ExcusedRequestStatusWithdrawn)
-	assert.Equal(t, activeModels.ExcusedRequestStatusDone, careplan.ExcusedRequestStatusDone)
-	assert.Equal(t, activeModels.ExcusedRequestStatusCareEnded, careplan.ExcusedRequestStatusCareEnded)
+	assert.Equal(t, absencerecords.ExcusedRequestStatusPending, careplan.ExcusedRequestStatusPending)
+	assert.Equal(t, absencerecords.ExcusedRequestStatusApproved, careplan.ExcusedRequestStatusApproved)
+	assert.Equal(t, absencerecords.ExcusedRequestStatusRejected, careplan.ExcusedRequestStatusRejected)
+	assert.Equal(t, absencerecords.ExcusedRequestStatusWithdrawn, careplan.ExcusedRequestStatusWithdrawn)
+	assert.Equal(t, absencerecords.ExcusedRequestStatusDone, careplan.ExcusedRequestStatusDone)
+	assert.Equal(t, absencerecords.ExcusedRequestStatusCareEnded, careplan.ExcusedRequestStatusCareEnded)
 
 	assert.Equal(t, usersModels.ParentRequestTypeExcusedAbsence, careplan.ParentRequestTypeExcusedAbsence)
 	assert.Equal(t, usersModels.ParentRequestEventSubmitted, careplan.ParentRequestEventSubmitted)

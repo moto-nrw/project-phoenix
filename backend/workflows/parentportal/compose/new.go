@@ -18,7 +18,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	careplancompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -47,7 +46,7 @@ type Dependencies struct {
 	GuardianPhoneRepo   usersModels.GuardianPhoneNumberRepository
 	StudentGuardianRepo usersModels.StudentGuardianRepository
 	ChangeRequestRepo   usersModels.StudentDataChangeRequestRepository
-	StatusDayRepo       activeModels.StudentStatusDayRepository
+	StatusDayRepo       care.StatusDayReads
 	Attendance          care.AttendanceReader
 
 	ArrivalSchedules careplan.ArrivalScheduleService
@@ -89,7 +88,7 @@ type Dependencies struct {
 	Conversations             messaging.ConversationCore
 	AnnouncementRepo          usersModels.ParentAnnouncementRepository
 	CareRequestRepo           scheduleModels.CareScheduleChangeRequestRepository
-	ExcusedRequestRepo        activeModels.ExcusedAbsenceRequestRepository
+	ExcusedRequestRepo        messaging.ExcusedRequestReads
 	OfferingChangeRequestRepo enrollmentModels.OfferingChangeRequestRepository
 	FamilyProtectionEvents    usersModels.FamilyProtectionEventRepository
 	ParentRequestShares       usersModels.ParentRequestShareEventRepository

@@ -3,7 +3,7 @@ package active
 import (
 	"time"
 
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 )
 
 // EffectiveStatus is the resolved status precedence for a set of active
@@ -22,19 +22,19 @@ type EffectiveStatus struct {
 // fetched rows. It is a pure function with no I/O; callers map the result onto
 // their own response shape (the excused branch is intentionally reported
 // independently so callers can gate it on a pre-existing sick flag).
-func ResolveEffectiveStatus(statusRows []*activeModels.StudentStatusDay) EffectiveStatus {
-	var sickRow, classTripRow, excusedRow *activeModels.StudentStatusDay
+func ResolveEffectiveStatus(statusRows []*absencerecords.StudentStatusDay) EffectiveStatus {
+	var sickRow, classTripRow, excusedRow *absencerecords.StudentStatusDay
 	for _, row := range statusRows {
 		switch row.Status {
-		case activeModels.StudentStatusDaySick:
+		case absencerecords.StudentStatusDaySick:
 			if sickRow == nil || row.ReportedAt.After(sickRow.ReportedAt) {
 				sickRow = row
 			}
-		case activeModels.StudentStatusDayClassTrip:
+		case absencerecords.StudentStatusDayClassTrip:
 			if classTripRow == nil || row.ReportedAt.After(classTripRow.ReportedAt) {
 				classTripRow = row
 			}
-		case activeModels.StudentStatusDayExcused:
+		case absencerecords.StudentStatusDayExcused:
 			if excusedRow == nil || row.ReportedAt.After(excusedRow.ReportedAt) {
 				excusedRow = row
 			}

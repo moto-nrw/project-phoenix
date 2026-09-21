@@ -9,7 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 )
 
 // ListExcusedRequests is the legacy-named read path for the child's pending and
@@ -153,25 +153,25 @@ func (s *Service) EditExcusedRequest(
 // (source=planned/manual) are an internal scheduled status the parent neither set
 // nor manages here, so they are NOT surfaced. Class-trip days stay excluded for
 // the same reason.
-func (s *Service) ListSickDays(ctx context.Context, accountID, studentID int64, from, to timezone.Date) ([]*activeModels.StudentStatusDay, error) {
+func (s *Service) ListSickDays(ctx context.Context, accountID, studentID int64, from, to timezone.Date) ([]*absencerecords.StudentStatusDay, error) {
 	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
 	if err != nil {
 		return nil, err
 	}
 
-	var out []*activeModels.StudentStatusDay
+	var out []*absencerecords.StudentStatusDay
 	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		rows, err := s.StatusDayRepo.FindActiveByStudentAndDateRange(txCtx, studentID, from, to)
 		if err != nil {
 			return err
 		}
-		absences := make([]*activeModels.StudentStatusDay, 0, len(rows))
+		absences := make([]*absencerecords.StudentStatusDay, 0, len(rows))
 		for _, r := range rows {
 			switch {
-			case r.Status == activeModels.StudentStatusDaySick:
+			case r.Status == absencerecords.StudentStatusDaySick:
 				absences = append(absences, parentVisibleStatusDay(r, accountID))
-			case r.Status == activeModels.StudentStatusDayExcused &&
-				r.Source == activeModels.StudentStatusSourceParent:
+			case r.Status == absencerecords.StudentStatusDayExcused &&
+				r.Source == absencerecords.StudentStatusSourceParent:
 				// Only parent-reported excused days belong in the parents
 				// portal; staff-created excused rows (planned/manual) stay
 				// internal so we don't leak their note/source to guardians.
@@ -187,7 +187,7 @@ func (s *Service) ListSickDays(ctx context.Context, accountID, studentID int64, 
 	return out, nil
 }
 
-func parentVisibleStatusDay(row *activeModels.StudentStatusDay, accountID int64) *activeModels.StudentStatusDay {
+func parentVisibleStatusDay(row *absencerecords.StudentStatusDay, accountID int64) *absencerecords.StudentStatusDay {
 	visible := *row
 	if row.GuardianAccountID == nil || *row.GuardianAccountID != accountID {
 		visible.Note = nil

@@ -25,10 +25,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
@@ -343,7 +343,7 @@ func (p presence) EffectiveStatuses(ctx context.Context, studentIDs []int64, dat
 	if err != nil {
 		return nil, err
 	}
-	byStudent := make(map[int64][]*activeModels.StudentStatusDay)
+	byStudent := make(map[int64][]*absencerecords.StudentStatusDay)
 	for _, row := range rows {
 		byStudent[row.StudentID] = append(byStudent[row.StudentID], row)
 	}

@@ -12,6 +12,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/stretchr/testify/assert"
@@ -208,7 +209,7 @@ func sickToday(studentIDs ...int64) notifications.AbsenceReport {
 	return notifications.AbsenceReport{
 		TenantID:   absenceTenant,
 		StudentIDs: studentIDs,
-		Status:     activeModel.StudentStatusDaySick,
+		Status:     absencerecords.StudentStatusDaySick,
 		Dates:      []timezone.Date{timezone.TodayDate()},
 		FromParent: true,
 	}
@@ -288,7 +289,7 @@ func TestAbsenceNotifierWording(t *testing.T) {
 			name: "an excuse reads differently",
 			report: func() notifications.AbsenceReport {
 				r := sickToday(absenceStudentA)
-				r.Status = activeModel.StudentStatusDayExcused
+				r.Status = absencerecords.StudentStatusDayExcused
 				return r
 			},
 			wantBody: "Für ein Kind aus Ihrer Gruppe wurde heute eine Entschuldigung eingetragen.",
@@ -306,7 +307,7 @@ func TestAbsenceNotifierWording(t *testing.T) {
 			name: "three excused children use plural wording",
 			report: func() notifications.AbsenceReport {
 				r := sickToday(71, 72, 73)
-				r.Status = activeModel.StudentStatusDayExcused
+				r.Status = absencerecords.StudentStatusDayExcused
 				return r
 			},
 			wantBody: "3 Kinder wurden für heute entschuldigt.",
@@ -358,7 +359,7 @@ func TestAbsenceNotifierSilentCases(t *testing.T) {
 			name: "a class trip is not news",
 			report: func() notifications.AbsenceReport {
 				r := sickToday(absenceStudentA)
-				r.Status = activeModel.StudentStatusDayClassTrip
+				r.Status = absencerecords.StudentStatusDayClassTrip
 				return r
 			}(),
 			why: "only sick and excused are reported",

@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 )
 
 // SickNoteEventBody renders the chat pill for a parent absence submission. The
@@ -19,7 +19,7 @@ func SickNoteEventBody(status string, dates []timezone.Date) string {
 		parts = append(parts, d.Format("02.01."))
 	}
 	label := "Krankmeldung"
-	if status == activeModels.StudentStatusDayExcused {
+	if status == absencerecords.StudentStatusDayExcused {
 		label = "Entschuldigte Abwesenheit"
 	}
 	return label + ": " + strings.Join(parts, ", ")

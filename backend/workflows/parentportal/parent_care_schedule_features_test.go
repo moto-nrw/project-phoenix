@@ -17,8 +17,8 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -105,7 +105,7 @@ func TestGetChildCareSchedule_TodayAbsentReflectsStatusDay(t *testing.T) {
 			(tenant_id, student_id, date, status, reported_at, source)
 		VALUES (?, ?, ?, ?, now(), ?)
 	`, chain.TenantID, chain.StudentID, timezone.NewDate(2026, 8, 24),
-		activeModels.StudentStatusDayClassTrip, activeModels.StudentStatusSourcePlanned)
+		absencerecords.StudentStatusDayClassTrip, absencerecords.StudentStatusSourcePlanned)
 	require.NoError(t, err)
 	defer func() {
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()),

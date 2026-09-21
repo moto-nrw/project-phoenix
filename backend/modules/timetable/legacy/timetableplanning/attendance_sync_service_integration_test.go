@@ -27,6 +27,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
@@ -45,7 +46,7 @@ type attendanceSyncSetup struct {
 	syncer      *timetableplanning.AttendanceSyncService
 	instRepo    scheduleModels.ActivityInstanceRepository
 	isRepo      scheduleModels.InstanceStudentRepository
-	statusRepo  activeModels.StudentStatusDayRepository
+	statusRepo  *repositories.StudentStatusDayRepository
 	groupRepo   activeModels.GroupRepository
 	db          *bun.DB
 	ctx         context.Context
@@ -308,10 +309,10 @@ func TestAttendancePerCareSlot_MorningPresentAfternoonSickAndClearIndependent(t 
 	require.NoError(t, s.isRepo.Create(s.ctx, afternoon))
 
 	statusRepo := s.statusRepo
-	statusDay := &activeModels.StudentStatusDay{
+	statusDay := &absencerecords.StudentStatusDay{
 		StudentID: student.ID, Date: timezone.Date(afternoonInstance.Date),
-		Status: activeModels.StudentStatusDaySick, ReportedAt: morningCheckOut,
-		Source: activeModels.StudentStatusSourceManual,
+		Status: absencerecords.StudentStatusDaySick, ReportedAt: morningCheckOut,
+		Source: absencerecords.StudentStatusSourceManual,
 	}
 	require.NoError(t, statusRepo.UpsertReported(s.ctx, statusDay))
 
@@ -336,7 +337,7 @@ func TestAttendancePerCareSlot_MorningPresentAfternoonSickAndClearIndependent(t 
 	require.NoError(t, err)
 	require.Len(t, historyRows, 2, "history and exports must retain one row per care slot")
 
-	require.NoError(t, statusRepo.MarkClearedByID(s.ctx, statusDay.ID, morningCheckOut.Add(time.Minute), activeModels.StudentStatusSourceManual))
+	require.NoError(t, statusRepo.MarkClearedByID(s.ctx, statusDay.ID, morningCheckOut.Add(time.Minute), absencerecords.StudentStatusSourceManual))
 	gotMorning, err = s.isRepo.FindByID(s.ctx, morning.ID)
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.AttendanceStatusPresent, gotMorning.Status)

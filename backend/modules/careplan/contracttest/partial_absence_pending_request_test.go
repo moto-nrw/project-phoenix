@@ -4,13 +4,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,14 +32,14 @@ func TestPartialAbsenceCreate_RefusesPendingFullDayRequest(t *testing.T) {
 	day := timezone.NewDate(2026, 8, 24).AddDays(5)
 	ctx := testpkg.TenantContext(chain.TenantID)
 
-	req := &activeModels.ExcusedAbsenceRequest{
+	req := &absencerecords.ExcusedAbsenceRequest{
 		StudentID:   chain.StudentID,
 		SubmittedBy: chain.AccountID,
 		Dates:       []timezone.Date{day},
 		Note:        "Familienfeier",
-		Status:      activeModels.ExcusedRequestStatusPending,
+		Status:      absencerecords.ExcusedRequestStatusPending,
 	}
-	req.SetTenantID(chain.TenantID)
+	req.TenantID = chain.TenantID
 	require.NoError(t, repos.ExcusedAbsenceRequest.Create(ctx, req))
 
 	_, err = svc.CreatePartialAbsence(ctx, careplan.PartialAbsenceInput{

@@ -13,7 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/services"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -66,7 +66,7 @@ func TestParentRequestLedgerRecordsSubmitAndDecision(t *testing.T) {
 	day := timezone.TodayDate().AddDays(3)
 
 	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Familienfeier", activeModels.StudentStatusDayExcused, nil)
+		[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 	require.NotNil(t, res.PendingRequest)
 	requestID := res.PendingRequest.ID
@@ -111,7 +111,7 @@ func TestParentRequestLedgerRollsBackWithItsWrite(t *testing.T) {
 	day := timezone.TodayDate().AddDays(4)
 
 	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Familienfeier", activeModels.StudentStatusDayExcused, nil)
+		[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 	requestID := res.PendingRequest.ID
 

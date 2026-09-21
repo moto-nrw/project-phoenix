@@ -14,10 +14,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -241,15 +240,15 @@ func TestBuildAttendanceHistoryDays_StatusOnlyDay(t *testing.T) {
 	reportedAt := today.Add(7 * time.Hour)
 	clearedAt := today.Add(16 * time.Hour)
 
-	statusRows := []*active.StudentStatusDay{
+	statusRows := []*absencerecords.StudentStatusDay{
 		{
-			TenantModel: base.TenantModel{TenantID: testpkg.Tenant(t)},
-			StudentID:   10,
-			Date:        timezone.DateFromTime(today),
-			Status:      active.StudentStatusDaySick,
-			ReportedAt:  reportedAt,
-			ClearedAt:   &clearedAt,
-			Source:      active.StudentStatusSourceEndOfDay,
+			TenantID:   testpkg.Tenant(t),
+			StudentID:  10,
+			Date:       timezone.DateFromTime(today),
+			Status:     absencerecords.StudentStatusDaySick,
+			ReportedAt: reportedAt,
+			ClearedAt:  &clearedAt,
+			Source:     absencerecords.StudentStatusSourceEndOfDay,
 		},
 	}
 

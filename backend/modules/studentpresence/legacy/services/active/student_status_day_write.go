@@ -9,7 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -32,7 +32,7 @@ const MaxStudentStatusDayConflictDetails = 32
 // clearing or replacing them. Conflicts may be a capped sample; Total is the
 // full count when set (or len(Conflicts) when zero).
 type StudentStatusDayConflictError struct {
-	Conflicts []*activeModels.StudentStatusDay
+	Conflicts []*absencerecords.StudentStatusDay
 	// Total is the full conflict count before sampling. Zero means "use
 	// len(Conflicts)" for single-student writes that return the full set.
 	Total int
@@ -55,7 +55,7 @@ func (e *StudentStatusDayConflictError) ConflictTotal() int {
 
 // SampleConflicts returns at most MaxStudentStatusDayConflictDetails rows for
 // a 409 body. Bulk writers should already keep Conflicts within this bound.
-func (e *StudentStatusDayConflictError) SampleConflicts() []*activeModels.StudentStatusDay {
+func (e *StudentStatusDayConflictError) SampleConflicts() []*absencerecords.StudentStatusDay {
 	if e == nil {
 		return nil
 	}
@@ -172,7 +172,7 @@ func (s *StudentStatusDayService) BulkCreateForDates(ctx context.Context, wc Sta
 		// Phase 2: preflight every student/date pair so no existing sick,
 		// excused, or class-trip row is cleared or overwritten. Keep only a
 		// sample of rows for the 409 body; Total carries the full count.
-		conflictSamples := make([]*activeModels.StudentStatusDay, 0, MaxStudentStatusDayConflictDetails)
+		conflictSamples := make([]*absencerecords.StudentStatusDay, 0, MaxStudentStatusDayConflictDetails)
 		conflictTotal := 0
 		for _, studentID := range sortedIDs {
 			studentConflicts, err := s.findRequestedActiveConflicts(ctx, studentID, dates)
@@ -264,7 +264,7 @@ func (s *StudentStatusDayService) ensureNoPartialAbsenceConflicts(
 // findRequestedActiveConflicts returns active status-day rows that already
 // cover any of the requested dates for one student. Callers must reject the
 // whole write when this list is non-empty.
-func (s *StudentStatusDayService) findRequestedActiveConflicts(ctx context.Context, studentID int64, dates []timezone.Date) ([]*activeModels.StudentStatusDay, error) {
+func (s *StudentStatusDayService) findRequestedActiveConflicts(ctx context.Context, studentID int64, dates []timezone.Date) ([]*absencerecords.StudentStatusDay, error) {
 	if len(dates) == 0 {
 		return nil, nil
 	}
@@ -281,7 +281,7 @@ func (s *StudentStatusDayService) findRequestedActiveConflicts(ctx context.Conte
 	if err != nil {
 		return nil, err
 	}
-	conflicts := make([]*activeModels.StudentStatusDay, 0, len(activeRows))
+	conflicts := make([]*absencerecords.StudentStatusDay, 0, len(activeRows))
 	for _, row := range activeRows {
 		if _, requested := requestedDates[row.Date]; requested {
 			conflicts = append(conflicts, row)
@@ -322,7 +322,7 @@ func (s *StudentStatusDayService) DeleteByID(ctx context.Context, wc StatusDayWr
 			return err
 		}
 
-		if err := s.repo.MarkClearedByID(ctx, row.ID, now, activeModels.StudentStatusSourceManual); err != nil {
+		if err := s.repo.MarkClearedByID(ctx, row.ID, now, absencerecords.StudentStatusSourceManual); err != nil {
 			return err
 		}
 		if row.Date == today {
@@ -343,12 +343,12 @@ func (s *StudentStatusDayService) writeStatusForStudent(ctx context.Context, wc 
 		return false, err
 	}
 	for _, date := range dates {
-		if err := s.repo.UpsertReported(ctx, &activeModels.StudentStatusDay{
+		if err := s.repo.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 			StudentID:  fresh.ID,
 			Date:       date,
 			Status:     status,
 			ReportedAt: now,
-			Source:     activeModels.StudentStatusSourcePlanned,
+			Source:     absencerecords.StudentStatusSourcePlanned,
 			Note:       notePtr,
 		}); err != nil {
 			return false, err
@@ -368,9 +368,9 @@ func isNewReportableAbsence(student *StudentRecord, status string, dates []timez
 		return false
 	}
 	switch status {
-	case activeModels.StudentStatusDaySick:
+	case absencerecords.StudentStatusDaySick:
 		return student.Sick == nil || !*student.Sick
-	case activeModels.StudentStatusDayExcused:
+	case absencerecords.StudentStatusDayExcused:
 		return student.Excused == nil || !*student.Excused
 	default:
 		return false
@@ -378,8 +378,8 @@ func isNewReportableAbsence(student *StudentRecord, status string, dates []timez
 }
 
 func (s *StudentStatusDayService) clearOtherStatusDaysForDates(ctx context.Context, studentID int64, status string, dates []timezone.Date, now time.Time) error {
-	for _, otherStatus := range activeModels.StudentStatusDayStatusesExcept(status) {
-		if err := s.repo.MarkClearedForDates(ctx, studentID, otherStatus, dates, now, activeModels.StudentStatusSourceManual); err != nil {
+	for _, otherStatus := range absencerecords.StudentStatusDayStatusesExcept(status) {
+		if err := s.repo.MarkClearedForDates(ctx, studentID, otherStatus, dates, now, absencerecords.StudentStatusSourceManual); err != nil {
 			return err
 		}
 	}
@@ -393,17 +393,17 @@ func ApplyLiveStatusForToday(student *StudentRecord, status string, now time.Tim
 	trueVal := true
 	falseVal := false
 	switch status {
-	case activeModels.StudentStatusDaySick:
+	case absencerecords.StudentStatusDaySick:
 		student.Sick = &trueVal
 		student.SickSince = &now
 		student.Excused = &falseVal
 		student.ExcusedSince = nil
-	case activeModels.StudentStatusDayExcused:
+	case absencerecords.StudentStatusDayExcused:
 		student.Excused = &trueVal
 		student.ExcusedSince = &now
 		student.Sick = &falseVal
 		student.SickSince = nil
-	case activeModels.StudentStatusDayClassTrip:
+	case absencerecords.StudentStatusDayClassTrip:
 		student.Sick = &falseVal
 		student.SickSince = nil
 		student.Excused = &falseVal
@@ -415,13 +415,13 @@ func ApplyLiveStatusForToday(student *StudentRecord, status string, now time.Tim
 func ClearLiveStatusForToday(student *StudentRecord, status string) {
 	falseVal := false
 	switch status {
-	case activeModels.StudentStatusDaySick:
+	case absencerecords.StudentStatusDaySick:
 		student.Sick = &falseVal
 		student.SickSince = nil
-	case activeModels.StudentStatusDayExcused:
+	case absencerecords.StudentStatusDayExcused:
 		student.Excused = &falseVal
 		student.ExcusedSince = nil
-	case activeModels.StudentStatusDayClassTrip:
+	case absencerecords.StudentStatusDayClassTrip:
 		student.Sick = &falseVal
 		student.SickSince = nil
 		student.Excused = &falseVal

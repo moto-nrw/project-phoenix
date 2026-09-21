@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -19,21 +20,21 @@ import (
 )
 
 type plannedStatusFault struct {
-	activeModels.StudentStatusDayRepository
+	activeService.StudentStatusDayRepository
 	readErr, writeErr     error
 	upsertErr, historyErr error
 	upserts, clears       int
 	writes                int
 }
 
-func (r *plannedStatusFault) FindActiveByStudentAndDateRange(ctx context.Context, id int64, from, until timezone.Date) ([]*activeModels.StudentStatusDay, error) {
+func (r *plannedStatusFault) FindActiveByStudentAndDateRange(ctx context.Context, id int64, from, until timezone.Date) ([]*absencerecords.StudentStatusDay, error) {
 	if r.readErr != nil {
 		return nil, r.readErr
 	}
 	return r.StudentStatusDayRepository.FindActiveByStudentAndDateRange(ctx, id, from, until)
 }
 
-func (r *plannedStatusFault) FindActiveByStudentIDsAndDate(ctx context.Context, ids []int64, day timezone.Date) ([]*activeModels.StudentStatusDay, error) {
+func (r *plannedStatusFault) FindActiveByStudentIDsAndDate(ctx context.Context, ids []int64, day timezone.Date) ([]*absencerecords.StudentStatusDay, error) {
 	if r.readErr != nil {
 		return nil, r.readErr
 	}
@@ -165,7 +166,7 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 		student.Sick, student.SickSince = &sick, &since
 	}
 	require.NoError(t, repos.Student.Update(ctx, student))
-	status := &activeModels.StudentStatusDay{StudentID: student.ID, Date: timezone.TodayDate(), Status: activeModels.StudentStatusDaySick, ReportedAt: time.Now(), Source: activeModels.StudentStatusSourcePlanned}
+	status := &absencerecords.StudentStatusDay{StudentID: student.ID, Date: timezone.TodayDate(), Status: absencerecords.StudentStatusDaySick, ReportedAt: time.Now(), Source: absencerecords.StudentStatusSourcePlanned}
 	if kind == "planned" {
 		require.NoError(t, repos.StudentStatusDay.UpsertReported(ctx, status))
 	}
@@ -292,7 +293,7 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 	assert.Nil(t, flagSince)
 }
 
-func (r *plannedStatusFault) UpsertReported(ctx context.Context, row *activeModels.StudentStatusDay) error {
+func (r *plannedStatusFault) UpsertReported(ctx context.Context, row *absencerecords.StudentStatusDay) error {
 	if err := r.StudentStatusDayRepository.UpsertReported(ctx, row); err != nil {
 		return err
 	}

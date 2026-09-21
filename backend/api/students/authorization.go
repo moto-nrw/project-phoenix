@@ -10,8 +10,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -52,7 +52,7 @@ func (rs *Resource) canManageStudentAbsence(ctx context.Context, userPermissions
 // excused statuses. Parent review and class trips retain their separate gates.
 func (rs *Resource) canManageStudentStatus(ctx context.Context, userPermissions []string, student *users.Student, status string) (bool, error) {
 	allowed, err := rs.canManageStudentAbsence(ctx, userPermissions, student)
-	if !allowed || err != nil || (status != activeModel.StudentStatusDaySick && status != activeModel.StudentStatusDayExcused) {
+	if !allowed || err != nil || (status != absencerecords.StudentStatusDaySick && status != absencerecords.StudentStatusDayExcused) {
 		return allowed, err
 	}
 	if authorize.HasAdminWildcard(userPermissions) {
@@ -91,7 +91,7 @@ func (rs *Resource) checkStudentAbsenceWriteAccess(r *http.Request, student *use
 }
 
 func (rs *Resource) checkStudentSickExcusedWriteAccess(r *http.Request, student *users.Student) bool {
-	ok, _ := rs.canManageStudentStatus(r.Context(), jwt.PermissionsFromCtx(r.Context()), student, activeModel.StudentStatusDaySick)
+	ok, _ := rs.canManageStudentStatus(r.Context(), jwt.PermissionsFromCtx(r.Context()), student, absencerecords.StudentStatusDaySick)
 	return ok
 }
 

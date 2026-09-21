@@ -11,8 +11,8 @@ import (
 	baseModels "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -62,7 +62,7 @@ func TestBuildClassDayReportProjection(t *testing.T) {
 			},
 		},
 	}
-	statuses := map[int64]string{3: activeModels.StudentStatusDaySick}
+	statuses := map[int64]string{3: absencerecords.StudentStatusDaySick}
 
 	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr 2026/27", rows, classDayFacts{
 		statuses:   statuses,
@@ -94,7 +94,7 @@ func TestBuildClassDayReportProjection(t *testing.T) {
 	// A reported sick day wins over the enrollment: the student is absent,
 	// not staying, even though the weekday has an offering.
 	assert.False(t, report.Rows[2].StaysToday)
-	assert.Equal(t, activeModels.StudentStatusDaySick, report.Rows[2].Status)
+	assert.Equal(t, absencerecords.StudentStatusDaySick, report.Rows[2].Status)
 
 	assert.Equal(t, ClassDayTotals{Students: 3, Staying: 1, Leaving: 1, Absent: 1}, report.Totals)
 }
@@ -152,11 +152,11 @@ func (r *fakeClassDayPhaseRepo) Phase(_ context.Context, id int64) (*capability.
 
 // fakeClassDayStatusRepo serves fixed status-day rows.
 type fakeClassDayStatusRepo struct {
-	activeModels.StudentStatusDayRepository
-	entries []*activeModels.StudentStatusDay
+	StudentStatusDayReader
+	entries []*absencerecords.StudentStatusDay
 }
 
-func (r *fakeClassDayStatusRepo) FindActiveByStudentIDsAndDate(_ context.Context, _ []int64, _ timezone.Date) ([]*activeModels.StudentStatusDay, error) {
+func (r *fakeClassDayStatusRepo) FindActiveByStudentIDsAndDate(_ context.Context, _ []int64, _ timezone.Date) ([]*absencerecords.StudentStatusDay, error) {
 	return r.entries, nil
 }
 
@@ -247,8 +247,8 @@ func TestClassDayWithoutPhaseListsFullClass(t *testing.T) {
 		&fakeClassRosterChildRepo{},
 	)
 	svc.Phases = &fakeClassDayPhaseRepo{}
-	svc.StudentStatusDayRepo = &fakeClassDayStatusRepo{entries: []*activeModels.StudentStatusDay{
-		{StudentID: 2, Status: activeModels.StudentStatusDayExcused},
+	svc.StudentStatusDayRepo = &fakeClassDayStatusRepo{entries: []*absencerecords.StudentStatusDay{
+		{StudentID: 2, Status: absencerecords.StudentStatusDayExcused},
 	}}
 	wireClassDayDeps(svc)
 
@@ -259,7 +259,7 @@ func TestClassDayWithoutPhaseListsFullClass(t *testing.T) {
 	assert.Equal(t, "", report.PhaseName)
 	assert.False(t, report.Rows[0].Registered)
 	assert.Equal(t, "Anders", report.Rows[0].LastName)
-	assert.Equal(t, activeModels.StudentStatusDayExcused, report.Rows[1].Status)
+	assert.Equal(t, absencerecords.StudentStatusDayExcused, report.Rows[1].Status)
 	// Without a covering phase the stays/leaves split is unknowable: the
 	// flag says so and the counters stay zero instead of claiming everyone
 	// goes home.
@@ -411,18 +411,18 @@ func TestClassRosterOfferingDatePinsSelection(t *testing.T) {
 func TestClassDayStatusPrecedenceSickWins(t *testing.T) {
 	t.Parallel()
 
-	svc := &reportService{ReportServiceConfig: ReportServiceConfig{StudentStatusDayRepo: &fakeClassDayStatusRepo{entries: []*activeModels.StudentStatusDay{
-		{StudentID: 1, Status: activeModels.StudentStatusDayExcused},
-		{StudentID: 1, Status: activeModels.StudentStatusDaySick},
-		{StudentID: 2, Status: activeModels.StudentStatusDayClassTrip},
-		{StudentID: 2, Status: activeModels.StudentStatusDayExcused},
+	svc := &reportService{ReportServiceConfig: ReportServiceConfig{StudentStatusDayRepo: &fakeClassDayStatusRepo{entries: []*absencerecords.StudentStatusDay{
+		{StudentID: 1, Status: absencerecords.StudentStatusDayExcused},
+		{StudentID: 1, Status: absencerecords.StudentStatusDaySick},
+		{StudentID: 2, Status: absencerecords.StudentStatusDayClassTrip},
+		{StudentID: 2, Status: absencerecords.StudentStatusDayExcused},
 	}}}}
 
 	statuses, _, err := svc.classDayStatuses(context.Background(), []int64{1, 2}, timezone.NewDate(2026, 8, 5))
 
 	require.NoError(t, err)
-	assert.Equal(t, activeModels.StudentStatusDaySick, statuses[1])
-	assert.Equal(t, activeModels.StudentStatusDayClassTrip, statuses[2])
+	assert.Equal(t, absencerecords.StudentStatusDaySick, statuses[1])
+	assert.Equal(t, absencerecords.StudentStatusDayClassTrip, statuses[2])
 }
 
 func TestClassDayStatusUnknownValueStillCounts(t *testing.T) {
@@ -432,17 +432,17 @@ func TestClassDayStatusUnknownValueStillCounts(t *testing.T) {
 	// not know yet still means "reported for the day" and must survive —
 	// silently dropping it would put a reported-absent child under "bleibt
 	// in der Betreuung". Known statuses keep precedence over unknown ones.
-	svc := &reportService{ReportServiceConfig: ReportServiceConfig{StudentStatusDayRepo: &fakeClassDayStatusRepo{entries: []*activeModels.StudentStatusDay{
+	svc := &reportService{ReportServiceConfig: ReportServiceConfig{StudentStatusDayRepo: &fakeClassDayStatusRepo{entries: []*absencerecords.StudentStatusDay{
 		{StudentID: 1, Status: "quarantine"},
 		{StudentID: 2, Status: "quarantine"},
-		{StudentID: 2, Status: activeModels.StudentStatusDayExcused},
+		{StudentID: 2, Status: absencerecords.StudentStatusDayExcused},
 	}}}}
 
 	statuses, _, err := svc.classDayStatuses(context.Background(), []int64{1, 2}, timezone.NewDate(2026, 8, 5))
 
 	require.NoError(t, err)
 	assert.Equal(t, "quarantine", statuses[1])
-	assert.Equal(t, activeModels.StudentStatusDayExcused, statuses[2])
+	assert.Equal(t, absencerecords.StudentStatusDayExcused, statuses[2])
 }
 
 func TestClassDayDepartureRendersSingleDay(t *testing.T) {
@@ -730,7 +730,7 @@ func TestBuildClassDayReportReportedAtFollowsStatus(t *testing.T) {
 	rows := []ClassRosterRow{{StudentID: 1, Registered: true, OfferingsByDay: map[string][]string{"wed": {"Ganztag"}}}}
 
 	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr", rows, classDayFacts{
-		statuses:         map[int64]string{1: activeModels.StudentStatusDaySick},
+		statuses:         map[int64]string{1: absencerecords.StudentStatusDaySick},
 		statusReportedAt: map[int64]time.Time{1: statusStamp},
 		pickupChanged:    map[int64]bool{1: true},
 		pickupChangedAt:  map[int64]time.Time{1: pickupStamp},
@@ -766,14 +766,14 @@ func TestClassDayStatusesReportTime(t *testing.T) {
 
 	sickAt := time.Date(2026, 8, 5, 11, 24, 0, 0, time.UTC)
 	excusedAt := time.Date(2026, 8, 1, 9, 0, 0, 0, time.UTC)
-	svc := &reportService{ReportServiceConfig: ReportServiceConfig{StudentStatusDayRepo: &fakeClassDayStatusRepo{entries: []*activeModels.StudentStatusDay{
-		{StudentID: 1, Status: activeModels.StudentStatusDayExcused, ReportedAt: excusedAt},
-		{StudentID: 1, Status: activeModels.StudentStatusDaySick, ReportedAt: sickAt},
+	svc := &reportService{ReportServiceConfig: ReportServiceConfig{StudentStatusDayRepo: &fakeClassDayStatusRepo{entries: []*absencerecords.StudentStatusDay{
+		{StudentID: 1, Status: absencerecords.StudentStatusDayExcused, ReportedAt: excusedAt},
+		{StudentID: 1, Status: absencerecords.StudentStatusDaySick, ReportedAt: sickAt},
 	}}}}
 
 	statuses, stamps, err := svc.classDayStatuses(context.Background(), []int64{1}, timezone.NewDate(2026, 8, 5))
 
 	require.NoError(t, err)
-	assert.Equal(t, activeModels.StudentStatusDaySick, statuses[1])
+	assert.Equal(t, absencerecords.StudentStatusDaySick, statuses[1])
 	assert.Equal(t, sickAt, stamps[1])
 }

@@ -100,7 +100,7 @@ type ServiceDependencies struct {
 	SupervisorRepo    active.GroupSupervisorRepository
 	SchoolPresence    StudentPresence
 	StudentDisplay    StudentDisplayReader
-	StudentStatusRepo active.StudentStatusDayRepository
+	StudentStatusRepo StudentStatusDayRepository
 
 	// Cross-tenant query repository (optional - nil-safe)
 	CrossTenantRepo CrossTenantRepo

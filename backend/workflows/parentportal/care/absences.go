@@ -15,6 +15,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -24,7 +25,7 @@ import (
 // its fields is populated: StatusDays for a direct write, PendingRequest when
 // the selected absence type requires office approval (#1845, #2447, #2449).
 type SickNoteResult struct {
-	StatusDays     []*activeModels.StudentStatusDay
+	StatusDays     []*absencerecords.StudentStatusDay
 	PendingRequest *careplan.ExcusedAbsenceRequest
 }
 
@@ -41,7 +42,7 @@ func (s *Service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 	if len(dates) == 0 {
 		return nil, ErrNoDates
 	}
-	if status != activeModels.StudentStatusDaySick && status != activeModels.StudentStatusDayExcused {
+	if status != absencerecords.StudentStatusDaySick && status != absencerecords.StudentStatusDayExcused {
 		return nil, ErrInvalidStatus
 	}
 
@@ -63,7 +64,7 @@ func (s *Service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 	}
 
 	approvalKey := configModels.KeyParentSickRequiresApproval
-	if status == activeModels.StudentStatusDayExcused {
+	if status == absencerecords.StudentStatusDayExcused {
 		approvalKey = configModels.KeyParentExcusedRequiresApproval
 	}
 	requiresApproval, err := s.Settings.ResolveBoolForTenant(ctx, child.TenantID, approvalKey)
@@ -87,7 +88,7 @@ func (s *Service) requireAbsenceReportsEnabled(ctx context.Context, tenantID int
 		return ErrSickNoteDisabled
 	}
 	reportKey := configModels.KeyParentSickReportsEnabled
-	if status == activeModels.StudentStatusDayExcused {
+	if status == absencerecords.StudentStatusDayExcused {
 		reportKey = configModels.KeyParentExcusedReportsEnabled
 	}
 	enabled, err = s.Settings.ResolveBoolForTenant(ctx, tenantID, reportKey)
@@ -137,7 +138,7 @@ func (s *Service) reportAbsence(ctx context.Context, child *Child, report absenc
 	if report.note != "" {
 		notePtr = &report.note
 	}
-	var result []*activeModels.StudentStatusDay
+	var result []*absencerecords.StudentStatusDay
 	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		rows, err := s.writeAbsence(txCtx, child.TenantID, report, notePtr)
 		result = rows
@@ -158,7 +159,7 @@ func (s *Service) reportAbsence(ctx context.Context, child *Child, report absenc
 	return &SickNoteResult{StatusDays: result}, nil
 }
 
-func (s *Service) writeAbsence(ctx context.Context, tenantID int64, report absenceReport, note *string) ([]*activeModels.StudentStatusDay, error) {
+func (s *Service) writeAbsence(ctx context.Context, tenantID int64, report absenceReport, note *string) ([]*absencerecords.StudentStatusDay, error) {
 	now := time.Now()
 	today := s.todayDate()
 	// Serialize every parent status write with staff writes on the same
@@ -210,7 +211,7 @@ func (s *Service) writeAbsence(ctx context.Context, tenantID int64, report absen
 
 // afterAbsenceCommit posts the chat pill and wakes the live views once the
 // absence has committed.
-func (s *Service) afterAbsenceCommit(ctx context.Context, tenantID int64, report absenceReport, rows []*activeModels.StudentStatusDay) {
+func (s *Service) afterAbsenceCommit(ctx context.Context, tenantID int64, report absenceReport, rows []*absencerecords.StudentStatusDay) {
 	pillBody := SickNoteEventBody(report.status, report.dates)
 	pillRefID := firstStatusID(rows)
 	tenant.RegisterAfterCommit(ctx, func() {
@@ -225,10 +226,10 @@ func (s *Service) afterAbsenceCommit(ctx context.Context, tenantID int64, report
 
 // statusDaysFromCarePlan returns Care Plan's status days in the portal's
 // response shape.
-func statusDaysFromCarePlan(days []careplan.StudentStatusDay) []*activeModels.StudentStatusDay {
-	rows := make([]*activeModels.StudentStatusDay, 0, len(days))
+func statusDaysFromCarePlan(days []careplan.StudentStatusDay) []*absencerecords.StudentStatusDay {
+	rows := make([]*absencerecords.StudentStatusDay, 0, len(days))
 	for _, day := range days {
-		row := &activeModels.StudentStatusDay{
+		row := &absencerecords.StudentStatusDay{
 			StudentID: day.StudentID, Date: activeModels.Date(day.Date), Status: day.Status,
 			ReportedAt: day.ReportedAt, ClearedAt: day.ClearedAt, Source: day.Source,
 			GuardianAccountID: day.GuardianAccountID, Note: day.Note,
@@ -241,9 +242,9 @@ func statusDaysFromCarePlan(days []careplan.StudentStatusDay) []*activeModels.St
 
 func isNewParentReportableAbsence(student *usersModels.Student, status string) bool {
 	switch status {
-	case activeModels.StudentStatusDaySick:
+	case absencerecords.StudentStatusDaySick:
 		return student.Sick == nil || !*student.Sick
-	case activeModels.StudentStatusDayExcused:
+	case absencerecords.StudentStatusDayExcused:
 		return student.Excused == nil || !*student.Excused
 	default:
 		return false
@@ -316,12 +317,12 @@ func applyLiveStatusForParentToday(student *usersModels.Student, status string, 
 	trueVal := true
 	falseVal := false
 	switch status {
-	case activeModels.StudentStatusDaySick:
+	case absencerecords.StudentStatusDaySick:
 		student.Sick = &trueVal
 		student.SickSince = &now
 		student.Excused = &falseVal
 		student.ExcusedSince = nil
-	case activeModels.StudentStatusDayExcused:
+	case absencerecords.StudentStatusDayExcused:
 		student.Sick = &falseVal
 		student.SickSince = nil
 	}
@@ -335,7 +336,7 @@ func studentLiveAbsence(student *usersModels.Student) StudentLiveAbsence {
 	}
 }
 
-func firstStatusID(rows []*activeModels.StudentStatusDay) *int64 {
+func firstStatusID(rows []*absencerecords.StudentStatusDay) *int64 {
 	for _, row := range rows {
 		if row != nil && row.ID > 0 {
 			id := row.ID

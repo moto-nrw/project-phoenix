@@ -13,7 +13,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 )
 
 // StudentStatusDayCancelled is the class-day-only marker for a pickup
@@ -288,9 +288,9 @@ func (s *reportService) classDayStatuses(ctx context.Context, studentIDs []int64
 	// Betreuung" — the exact failure this view exists to prevent. Known
 	// statuses keep precedence over an unknown one.
 	rank := map[string]int{
-		activeModels.StudentStatusDaySick:      6,
-		activeModels.StudentStatusDayClassTrip: 4,
-		activeModels.StudentStatusDayExcused:   2,
+		absencerecords.StudentStatusDaySick:      6,
+		absencerecords.StudentStatusDayClassTrip: 4,
+		absencerecords.StudentStatusDayExcused:   2,
 	}
 	statusRank := func(status string) int {
 		if status == "" {

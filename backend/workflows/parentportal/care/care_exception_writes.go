@@ -14,8 +14,8 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -323,7 +323,7 @@ func (s *Service) broadcastStudentUpdated(tenantID, studentID int64) {
 	if s.StudentUpdates == nil || tenantID <= 0 {
 		return
 	}
-	if err := s.StudentUpdates.StudentUpdated(tenantID, activeModels.StudentStatusSourceParent); err != nil {
+	if err := s.StudentUpdates.StudentUpdated(tenantID, absencerecords.StudentStatusSourceParent); err != nil {
 		s.Logger.Warn("parent: failed to broadcast student update",
 			slog.Int64("tenant_id", tenantID),
 			slog.Int64("student_id", studentID),

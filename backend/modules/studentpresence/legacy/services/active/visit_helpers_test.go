@@ -9,9 +9,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -421,19 +421,19 @@ func TestCreateVisit_ClearsPlannedStatusForToday(t *testing.T) {
 	require.NoError(t, err)
 
 	today := timezone.DateFromTime(now)
-	require.NoError(t, repoFactory.StudentStatusDay.UpsertReported(ctx, &activeModels.StudentStatusDay{
+	require.NoError(t, repoFactory.StudentStatusDay.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 		StudentID:  student.ID,
 		Date:       today,
-		Status:     activeModels.StudentStatusDaySick,
+		Status:     absencerecords.StudentStatusDaySick,
 		ReportedAt: now,
-		Source:     activeModels.StudentStatusSourcePlanned,
+		Source:     absencerecords.StudentStatusSourcePlanned,
 	}))
-	require.NoError(t, repoFactory.StudentStatusDay.UpsertReported(ctx, &activeModels.StudentStatusDay{
+	require.NoError(t, repoFactory.StudentStatusDay.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 		StudentID:  student.ID,
 		Date:       today,
-		Status:     activeModels.StudentStatusDayExcused,
+		Status:     absencerecords.StudentStatusDayExcused,
 		ReportedAt: now,
-		Source:     activeModels.StudentStatusSourcePlanned,
+		Source:     absencerecords.StudentStatusSourcePlanned,
 	}))
 
 	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
@@ -492,12 +492,12 @@ func TestCreateVisit_ClearsParentStatusForToday(t *testing.T) {
 	// clear does not cover.
 	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	today := timezone.DateFromTime(now)
-	require.NoError(t, repoFactory.StudentStatusDay.UpsertReported(ctx, &activeModels.StudentStatusDay{
+	require.NoError(t, repoFactory.StudentStatusDay.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 		StudentID:  student.ID,
 		Date:       today,
-		Status:     activeModels.StudentStatusDaySick,
+		Status:     absencerecords.StudentStatusDaySick,
 		ReportedAt: now,
-		Source:     activeModels.StudentStatusSourceParent,
+		Source:     absencerecords.StudentStatusSourceParent,
 	}))
 
 	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)

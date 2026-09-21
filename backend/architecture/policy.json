@@ -1676,6 +1676,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/careplan/absencerecords",
+      "owner": "care-plan",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/studentpresence/legacy/services/active",
       "owner": "student-presence",
       "role": "adapter",
@@ -2951,6 +2958,13 @@
     },
     {
       "path": "modules/careplan/careplantest",
+      "owner": "care-plan",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/absencerecordstest",
       "owner": "care-plan",
       "role": "test-support",
       "internal_test_role": "module-internal-test",
@@ -5638,17 +5652,6 @@
       "target_role": "compose"
     },
     {
-      "id": "care-plan.contracttest.student-presence.domain",
-      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "e2e-test",
-      "target_owner": "student-presence",
-      "target_role": "domain"
-    },
-    {
       "id": "care-plan.contracttest.timetable-activities.public",
       "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
       "scopes": [
@@ -7083,17 +7086,6 @@
       "source_role": "adapter",
       "target_owner": "student-presence",
       "target_role": "public"
-    },
-    {
-      "id": "group-live-view.adapter.student-presence-domain",
-      "description": "The live-group compatibility adapter groups the retained status-day rows before the owner resolves their precedence (#2702).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "group-live-view",
-      "source_role": "adapter",
-      "target_owner": "student-presence",
-      "target_role": "domain"
     },
     {
       "id": "group-live-view.adapter.people-directory-application",
@@ -13189,6 +13181,18 @@
       "target_role": "public"
     },
     {
+      "id": "delivery-platform.application.care-plan-absence-records",
+      "description": "The absence notification producer names the Care Plan status-day values of modules/careplan/absencerecords (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "application",
+      "target_owner": "care-plan",
+      "target_role": "contract",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
       "id": "school-membership.port-domain",
       "description": "School Membership ports express persistence operations using their own domain values.",
       "scopes": [
@@ -15828,17 +15832,6 @@
       "target_role": "application"
     },
     {
-      "id": "parent-portal.compose.student-presence.domain",
-      "description": "Wire the guardian portal workflow (#3420): pass status day and excused request rows (models/active) to the flows. Compatibility binding of the retained read models the portal flows still consume; it falls together with the parent-portal.application compatibility bindings when the flows read through owner queries.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "compose",
-      "target_owner": "student-presence",
-      "target_role": "domain"
-    },
-    {
       "id": "parent-portal.compose.settings-platform.application",
       "description": "Wire the guardian portal workflow (#3420): pass the school settings to the flows. Compatibility binding of the retained read models the portal flows still consume; it falls together with the parent-portal.application compatibility bindings when the flows read through owner queries.",
       "scopes": [
@@ -16144,17 +16137,6 @@
       "source_role": "workflow-decision-test",
       "target_owner": "student-presence",
       "target_role": "compose"
-    },
-    {
-      "id": "parent-portal.decision-test.student-presence.domain",
-      "description": "Portal behaviour tests (#3420) build the real composition, fixtures and owner rows they assert on.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "workflow-decision-test",
-      "target_owner": "student-presence",
-      "target_role": "domain"
     },
     {
       "id": "parent-portal.decision-test.student-presence.adapter",
@@ -17494,17 +17476,6 @@
       "target_role": "domain"
     },
     {
-      "id": "class-day-view.integration-test.student-presence-domain",
-      "description": "Class-day integration tests name the retained status-day statuses (#2701).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "class-day-view",
-      "source_role": "workflow-integration-test",
-      "target_owner": "student-presence",
-      "target_role": "domain"
-    },
-    {
       "id": "class-day-view.integration-test.timetable-domain",
       "description": "Class-day integration tests seed retained activity instances and roster rows (#2701).",
       "scopes": [
@@ -18337,17 +18308,6 @@
       "source_owner": "inbound-statistics",
       "source_role": "adapter-test",
       "target_owner": "legacy-shared",
-      "target_role": "domain"
-    },
-    {
-      "id": "inbound-statistics.adapter-test.student-presence-domain",
-      "description": "Statistics handler tests seed retained attendance and visit rows (#2703).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-statistics",
-      "source_role": "adapter-test",
-      "target_owner": "student-presence",
       "target_role": "domain"
     },
     {
@@ -21128,18 +21088,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
     },
     {
-      "id": "inbound-parent.adapter-test.student-presence-domain",
-      "description": "The parent route tests still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "adapter-test",
-      "target_owner": "student-presence",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
       "id": "inbound-timetable.adapter-test.student-presence-domain",
       "description": "The timetable route tests still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -21209,18 +21157,6 @@
       "source_role": "adapter-test",
       "target_owner": "student-presence",
       "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "enrollment.module-internal-test.student-presence-domain",
-      "description": "The retained enrollment service tests still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "module-internal-test",
-      "target_owner": "student-presence",
-      "target_role": "domain",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
     },
     {
@@ -21306,18 +21242,6 @@
       "target_owner": "student-presence",
       "target_role": "adapter",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "inbound-parent.http.student-presence-domain",
-      "description": "The parent routes still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "http",
-      "target_owner": "student-presence",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
     },
     {
       "id": "inbound-parent.http.orm-sql",
@@ -21643,6 +21567,18 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
     },
     {
+      "id": "inbound-parent.http.care-plan-absence-records",
+      "description": "The parent routes return the child's status days as the Care Plan absence records of modules/careplan/absencerecords (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "http",
+      "target_owner": "care-plan",
+      "target_role": "contract",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
       "id": "root-composition.to.inbound-parent-http",
       "description": "The root API composition mounts the guardian portal route adapter (#3229). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -21889,18 +21825,6 @@
         "production"
       ],
       "source_owner": "school-structure",
-      "source_role": "application",
-      "target_owner": "student-presence",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "enrollment.application.student-presence-domain",
-      "description": "The retained enrollment services still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "enrollment",
       "source_role": "application",
       "target_owner": "student-presence",
       "target_role": "domain",
@@ -23333,6 +23257,18 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
+      "id": "people-directory.application.care-plan-absence-records",
+      "description": "The parent request coordinator classifies the excused-request sentinels of modules/careplan/absencerecords (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "application",
+      "target_owner": "care-plan",
+      "target_role": "contract",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
       "id": "school-structure.module-behavior-test.inbound-timetable-adapter",
       "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by services/education. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -23355,6 +23291,30 @@
       "target_owner": "inbound-timetable",
       "target_role": "adapter",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
+    },
+    {
+      "id": "student-presence.adapter.care-plan-absence-records",
+      "description": "The retained presence services read and write status days as the Care Plan absence records of modules/careplan/absencerecords through their own repository port (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "adapter",
+      "target_owner": "care-plan",
+      "target_role": "contract",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "student-presence.e2e-test.care-plan-absence-records",
+      "description": "The retained presence service and repository tests arrange and assert status days as Care Plan absence records (#3422).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "e2e-test",
+      "target_owner": "care-plan",
+      "target_role": "contract",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
     },
     {
       "id": "timetable-activities.workflow-integration-test.inbound-timetable-adapter",
@@ -23621,6 +23581,18 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
+      "id": "test-support.fixtures.care-plan-absence-rows",
+      "description": "The shared fixture catalog inserts and re-exports the Care Plan absence-table fixture rows of modules/careplan/absencerecordstest (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "care-plan",
+      "target_role": "test-support",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
       "id": "calendar-view.adapter.inbound-timetable-adapter",
       "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/supervisiondashboard/legacy. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -23667,6 +23639,18 @@
       "target_owner": "inbound-timetable",
       "target_role": "adapter",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
+    },
+    {
+      "id": "group-live-view.adapter.care-plan-absence-records",
+      "description": "The live-group adapter groups the Care Plan status-day records of modules/careplan/absencerecords before the owner resolves their precedence (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "care-plan",
+      "target_role": "contract",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
     },
     {
       "id": "inbound-staff-shifts.adapter.inbound-timetable-adapter",
@@ -24135,18 +24119,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
-      "id": "inbound-timetable.e2e-test.student-presence-domain",
-      "description": "The retained timetable repository tests in modules/timetable/legacy/timetablesqltest still import modules/studentpresence/legacy/models/active as database/repositories/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "e2e-test",
-      "target_owner": "student-presence",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
       "id": "inbound-timetable.e2e-test.timetable-activities-compose",
       "description": "The retained timetable repository tests in modules/timetable/legacy/timetablesqltest still import modules/timetable/compose as database/repositories/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -24229,6 +24201,18 @@
       "target_owner": "inbound-timetable",
       "target_role": "test-support",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
+    },
+    {
+      "id": "scheduler-runtime.application.care-plan-absence-records",
+      "description": "The end-of-day status-flag task archives flags with the Care Plan status-day values of modules/careplan/absencerecords (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "scheduler-runtime",
+      "source_role": "application",
+      "target_owner": "care-plan",
+      "target_role": "contract",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
     },
     {
       "id": "inbound-timetable.test-support.transaction-runtime-postgres",
@@ -24606,6 +24590,30 @@
       "target_role": "compose"
     },
     {
+      "id": "enrollment.application.care-plan-absence-records",
+      "description": "The class day view reads the scheduled day statuses as Care Plan absence records through its own port (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "application",
+      "target_owner": "care-plan",
+      "target_role": "contract",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "enrollment.module-internal-test.care-plan-absence-records",
+      "description": "The class day tests fake the status-day port with Care Plan absence records (#3422).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "module-internal-test",
+      "target_owner": "care-plan",
+      "target_role": "contract",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
       "id": "care-schedule-cutover.inbound-timetable.adapter-test.timetable-activities.compose",
       "description": "Construct native class-arrival projections in the retained timetable HTTP fixture (#3351, ADR 0030).",
       "scopes": [
@@ -24615,6 +24623,30 @@
       "source_role": "adapter-test",
       "target_owner": "timetable-activities",
       "target_role": "compose"
+    },
+    {
+      "id": "inbound-timetable.module-behavior-test.care-plan-absence-records",
+      "description": "The retained timetable planning tests arrange status days as Care Plan absence records (#3422).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "target_owner": "care-plan",
+      "target_role": "contract",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "inbound-timetable.e2e-test.care-plan-absence-records",
+      "description": "The retained timetable repository tests arrange status days as Care Plan absence records (#3422).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "e2e-test",
+      "target_owner": "care-plan",
+      "target_role": "contract",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
     },
     {
       "id": "inbound-operator.http.care-plan-public",
@@ -24692,6 +24724,42 @@
       "source_role": "e2e-test",
       "target_owner": "student-presence",
       "target_role": "adapter"
+    },
+    {
+      "id": "care-plan.contract.calendar-date",
+      "description": "The absence records in modules/careplan/absencerecords carry the DATE columns of active.student_status_days and active.excused_absence_requests as the canonical calendar-date type (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "contract",
+      "target_owner": "legacy-shared",
+      "target_role": "domain",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "care-plan.contract.excused-request-vocabulary",
+      "description": "The absence records reuse the persisted status-day and request-status values of the excused-request contract instead of redeclaring them (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "contract",
+      "target_owner": "care-plan",
+      "target_role": "contract",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "care-plan.test-support.calendar-date",
+      "description": "The absence-table fixture rows in modules/careplan/absencerecordstest map the DATE column with the canonical calendar-date type (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "test-support",
+      "target_owner": "legacy-shared",
+      "target_role": "domain",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
     }
   ],
   "relocations": [

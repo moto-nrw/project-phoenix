@@ -165,8 +165,8 @@ type Factory struct {
 	ActiveGroup           activeModels.GroupRepository
 	GroupSupervisor       activeModels.GroupSupervisorRepository
 	CrossTenant           CrossTenantQuery
-	StudentStatusDay      activeModels.StudentStatusDayOverviewRepository
-	ExcusedAbsenceRequest activeModels.ExcusedAbsenceRequestRepository
+	StudentStatusDay      *StudentStatusDayRepository
+	ExcusedAbsenceRequest *ExcusedAbsenceRequestRepository
 	WorkSession           activeModels.WorkSessionRepository
 	WorkSessionBreak      activeModels.WorkSessionBreakRepository
 	StaffAbsence          activeModels.StaffAbsenceRepository

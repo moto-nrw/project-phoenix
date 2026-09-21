@@ -9,19 +9,19 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type failingPlannedStatusRead struct {
-	activeModels.StudentStatusDayRepository
+	StudentStatusDayRepository
 	err                   error
 	clearErr              error
 	upsertErr, historyErr error
 }
 
-func (r *failingPlannedStatusRead) UpsertReported(context.Context, *activeModels.StudentStatusDay) error {
+func (r *failingPlannedStatusRead) UpsertReported(context.Context, *absencerecords.StudentStatusDay) error {
 	return r.upsertErr
 }
 
@@ -64,11 +64,11 @@ func (r *failingPlannedStatusRead) MarkClearedByID(context.Context, int64, time.
 	return r.clearErr
 }
 
-func (r *failingPlannedStatusRead) FindActiveByStudentAndDateRange(context.Context, int64, timezone.Date, timezone.Date) ([]*activeModels.StudentStatusDay, error) {
+func (r *failingPlannedStatusRead) FindActiveByStudentAndDateRange(context.Context, int64, timezone.Date, timezone.Date) ([]*absencerecords.StudentStatusDay, error) {
 	return nil, r.err
 }
 
-func (r *failingPlannedStatusRead) FindActiveByStudentIDsAndDate(context.Context, []int64, timezone.Date) ([]*activeModels.StudentStatusDay, error) {
+func (r *failingPlannedStatusRead) FindActiveByStudentIDsAndDate(context.Context, []int64, timezone.Date) ([]*absencerecords.StudentStatusDay, error) {
 	return nil, r.err
 }
 
@@ -91,7 +91,7 @@ func TestPlannedStatusClearFailuresPropagate(t *testing.T) {
 				students.updateErr = injected
 			}
 			svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, StudentStatusRepo: statuses, StudentRepo: students}}
-			rows := []*activeModels.StudentStatusDay{{StudentID: 42, Status: activeModels.StudentStatusDaySick, Source: activeModels.StudentStatusSourcePlanned}}
+			rows := []*absencerecords.StudentStatusDay{{StudentID: 42, Status: absencerecords.StudentStatusDaySick, Source: absencerecords.StudentStatusSourcePlanned}}
 			require.ErrorIs(t, svc.clearPlannedStatusRows(context.Background(), 42, nil, rows, time.Now()), injected)
 			if stage != "student write" {
 				assert.Zero(t, students.updateCalls)

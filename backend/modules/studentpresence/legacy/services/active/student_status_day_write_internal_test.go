@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -48,31 +48,31 @@ func TestIsNewReportableAbsence(t *testing.T) {
 
 	assert.True(t, isNewReportableAbsence(
 		&StudentRecord{Sick: &falseValue},
-		activeModels.StudentStatusDaySick,
+		absencerecords.StudentStatusDaySick,
 		[]timezone.Date{today},
 		today,
 	))
 	assert.False(t, isNewReportableAbsence(
 		&StudentRecord{Sick: &trueValue},
-		activeModels.StudentStatusDaySick,
+		absencerecords.StudentStatusDaySick,
 		[]timezone.Date{today},
 		today,
 	), "re-saving the current status must not notify again")
 	assert.True(t, isNewReportableAbsence(
 		&StudentRecord{Sick: &trueValue, Excused: &falseValue},
-		activeModels.StudentStatusDayExcused,
+		absencerecords.StudentStatusDayExcused,
 		[]timezone.Date{today},
 		today,
 	), "changing the reportable absence type must notify")
 	assert.False(t, isNewReportableAbsence(
 		&StudentRecord{},
-		activeModels.StudentStatusDayClassTrip,
+		absencerecords.StudentStatusDayClassTrip,
 		[]timezone.Date{today},
 		today,
 	))
 	assert.False(t, isNewReportableAbsence(
 		&StudentRecord{},
-		activeModels.StudentStatusDaySick,
+		absencerecords.StudentStatusDaySick,
 		[]timezone.Date{yesterday},
 		today,
 	))

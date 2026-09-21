@@ -19,9 +19,9 @@ import (
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
@@ -295,7 +295,7 @@ type dayLogData struct {
 	studentsByGroup     map[int64][]*usersModel.Student
 	persons             map[int64]*usersModel.Person
 	attendanceByStudent map[int64][]*studentpresence.Attendance
-	statusByStudent     map[int64][]*active.StudentStatusDay
+	statusByStudent     map[int64][]*absencerecords.StudentStatusDay
 	careDays            map[int64]careplan.CareDayStatus
 	arrivalTimes        map[int64]*careplan.EffectiveArrivalTime
 	clock               dayLogClock
@@ -318,7 +318,7 @@ func (rs *Resource) loadDayLogData(ctx context.Context, groups []*educationModel
 	data := &dayLogData{
 		studentsByGroup:     make(map[int64][]*usersModel.Student, len(groups)),
 		attendanceByStudent: map[int64][]*studentpresence.Attendance{},
-		statusByStudent:     map[int64][]*active.StudentStatusDay{},
+		statusByStudent:     map[int64][]*absencerecords.StudentStatusDay{},
 		careDays:            map[int64]careplan.CareDayStatus{},
 		arrivalTimes:        map[int64]*careplan.EffectiveArrivalTime{},
 		clock:               clock,
@@ -493,7 +493,7 @@ func buildDayLogStudent(student *usersModel.Student, data *dayLogData) dayLogStu
 // wins (present), then the status-day precedence (sick > class trip >
 // excused), then a cancelled care day (reported absence), then a non-booked
 // day, and only the unexplained rest is absent.
-func classifyDayLogStudent(row *dayLogStudent, attendance []*studentpresence.Attendance, statuses []*active.StudentStatusDay, careDay careplan.CareDayStatus) {
+func classifyDayLogStudent(row *dayLogStudent, attendance []*studentpresence.Attendance, statuses []*absencerecords.StudentStatusDay, careDay careplan.CareDayStatus) {
 	eff := activeService.ResolveEffectiveStatus(statuses)
 
 	if len(attendance) > 0 {
@@ -520,18 +520,18 @@ func classifyDayLogStudent(row *dayLogStudent, attendance []*studentpresence.Att
 	}
 }
 
-func applyDayLogSignOff(row *dayLogStudent, eff activeService.EffectiveStatus, statuses []*active.StudentStatusDay) bool {
+func applyDayLogSignOff(row *dayLogStudent, eff activeService.EffectiveStatus, statuses []*absencerecords.StudentStatusDay) bool {
 	var status string
 	var since *time.Time
 	switch {
 	case eff.Sick:
-		status, since = active.StudentStatusDaySick, eff.SickSince
+		status, since = absencerecords.StudentStatusDaySick, eff.SickSince
 		row.Status = dayLogStatusSick
 	case eff.ClassTrip:
-		status, since = active.StudentStatusDayClassTrip, eff.ClassTripSince
+		status, since = absencerecords.StudentStatusDayClassTrip, eff.ClassTripSince
 		row.Status = dayLogStatusClassTrip
 	case eff.Excused:
-		status, since = active.StudentStatusDayExcused, eff.ExcusedSince
+		status, since = absencerecords.StudentStatusDayExcused, eff.ExcusedSince
 		row.Status = dayLogStatusExcused
 	default:
 		return false
@@ -543,8 +543,8 @@ func applyDayLogSignOff(row *dayLogStudent, eff activeService.EffectiveStatus, s
 	return true
 }
 
-func latestDayLogRowOfStatus(statuses []*active.StudentStatusDay, status string) *active.StudentStatusDay {
-	var winner *active.StudentStatusDay
+func latestDayLogRowOfStatus(statuses []*absencerecords.StudentStatusDay, status string) *absencerecords.StudentStatusDay {
+	var winner *absencerecords.StudentStatusDay
 	for _, row := range statuses {
 		if row.Status != status {
 			continue

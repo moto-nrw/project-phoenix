@@ -8,7 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,12 +25,12 @@ func TestStudentStatusDayRepository_UpsertAndFind(t *testing.T) {
 
 	date := timezone.NewDate(2026, 8, 24).AddDays(3)
 	reportedAt := time.Now().Add(-time.Hour)
-	entry := &active.StudentStatusDay{
+	entry := &absencerecords.StudentStatusDay{
 		StudentID:  student.ID,
 		Date:       date,
-		Status:     active.StudentStatusDaySick,
+		Status:     absencerecords.StudentStatusDaySick,
 		ReportedAt: reportedAt,
-		Source:     active.StudentStatusSourcePlanned,
+		Source:     absencerecords.StudentStatusSourcePlanned,
 	}
 	require.NoError(t, repo.UpsertReported(ctx, entry))
 
@@ -38,18 +38,18 @@ func TestStudentStatusDayRepository_UpsertAndFind(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, student.ID, rows[0].StudentID)
-	assert.Equal(t, active.StudentStatusDaySick, rows[0].Status)
+	assert.Equal(t, absencerecords.StudentStatusDaySick, rows[0].Status)
 	assert.True(t, rows[0].Date == date)
-	assert.Equal(t, active.StudentStatusSourcePlanned, rows[0].Source)
+	assert.Equal(t, absencerecords.StudentStatusSourcePlanned, rows[0].Source)
 
 	entry.ReportedAt = reportedAt.Add(time.Hour)
-	entry.Source = active.StudentStatusSourceManual
+	entry.Source = absencerecords.StudentStatusSourceManual
 	require.NoError(t, repo.UpsertReported(ctx, entry))
 
 	rows, err = repo.FindByStudentAndDateRange(ctx, student.ID, date, date)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
-	assert.Equal(t, active.StudentStatusSourceManual, rows[0].Source)
+	assert.Equal(t, absencerecords.StudentStatusSourceManual, rows[0].Source)
 	assert.True(t, rows[0].ClearedAt == nil)
 
 	byID, err := repo.FindActiveByID(ctx, rows[0].ID)
@@ -65,7 +65,7 @@ func TestStudentStatusDayRepository_UpsertAndFind(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, empty)
 
-	require.NoError(t, repo.MarkCleared(ctx, student.ID, active.StudentStatusDaySick, date, time.Now(), active.StudentStatusSourceNextCheckin))
+	require.NoError(t, repo.MarkCleared(ctx, student.ID, absencerecords.StudentStatusDaySick, date, time.Now(), absencerecords.StudentStatusSourceNextCheckin))
 
 	activeRows, err := repo.FindActiveByStudentAndDateRange(ctx, student.ID, date, date)
 	require.NoError(t, err)
@@ -75,7 +75,7 @@ func TestStudentStatusDayRepository_UpsertAndFind(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, allRows, 1)
 	assert.NotNil(t, allRows[0].ClearedAt)
-	assert.Equal(t, active.StudentStatusSourceNextCheckin, allRows[0].Source)
+	assert.Equal(t, absencerecords.StudentStatusSourceNextCheckin, allRows[0].Source)
 }
 
 func TestStudentStatusDayRepository_ListOverviewPaginatesPersonOrder(t *testing.T) {
@@ -88,9 +88,9 @@ func TestStudentStatusDayRepository_ListOverviewPaginatesPersonOrder(t *testing.
 	last := testpkg.CreateTestStudent(t, db, "Zoe", "Zimmer", "OV1")
 	first := testpkg.CreateTestStudent(t, db, "Anna", "Adam", "OV2")
 	for _, studentID := range []int64{last.ID, first.ID} {
-		require.NoError(t, repo.UpsertReported(ctx, &active.StudentStatusDay{
-			StudentID: studentID, Date: date, Status: active.StudentStatusDaySick,
-			ReportedAt: time.Now(), Source: active.StudentStatusSourceManual,
+		require.NoError(t, repo.UpsertReported(ctx, &absencerecords.StudentStatusDay{
+			StudentID: studentID, Date: date, Status: absencerecords.StudentStatusDaySick,
+			ReportedAt: time.Now(), Source: absencerecords.StudentStatusSourceManual,
 		}))
 	}
 
@@ -125,12 +125,12 @@ func TestStudentStatusDayRepository_ClearByIDAndDates(t *testing.T) {
 	firstDate := timezone.DateFromTime(now).AddDays(4)
 	secondDate := timezone.DateFromTime(now).AddDays(5)
 	for _, date := range []timezone.Date{firstDate, secondDate} {
-		require.NoError(t, repo.UpsertReported(ctx, &active.StudentStatusDay{
+		require.NoError(t, repo.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 			StudentID:  student.ID,
 			Date:       date,
-			Status:     active.StudentStatusDayExcused,
+			Status:     absencerecords.StudentStatusDayExcused,
 			ReportedAt: now,
-			Source:     active.StudentStatusSourcePlanned,
+			Source:     absencerecords.StudentStatusSourcePlanned,
 		}))
 	}
 
@@ -145,9 +145,9 @@ func TestStudentStatusDayRepository_ClearByIDAndDates(t *testing.T) {
 		}
 	}
 	require.NotZero(t, firstRowID)
-	require.NoError(t, repo.MarkClearedByID(ctx, firstRowID, now, active.StudentStatusSourceManual))
-	require.NoError(t, repo.MarkClearedForDates(ctx, student.ID, active.StudentStatusDayExcused, []timezone.Date{secondDate, secondDate}, now, active.StudentStatusSourceManual))
-	require.NoError(t, repo.MarkClearedForDates(ctx, student.ID, active.StudentStatusDayExcused, nil, now, active.StudentStatusSourceManual))
+	require.NoError(t, repo.MarkClearedByID(ctx, firstRowID, now, absencerecords.StudentStatusSourceManual))
+	require.NoError(t, repo.MarkClearedForDates(ctx, student.ID, absencerecords.StudentStatusDayExcused, []timezone.Date{secondDate, secondDate}, now, absencerecords.StudentStatusSourceManual))
+	require.NoError(t, repo.MarkClearedForDates(ctx, student.ID, absencerecords.StudentStatusDayExcused, nil, now, absencerecords.StudentStatusSourceManual))
 
 	activeRows, err := repo.FindActiveByStudentAndDateRange(ctx, student.ID, firstDate, secondDate)
 	require.NoError(t, err)
@@ -158,7 +158,7 @@ func TestStudentStatusDayRepository_ClearByIDAndDates(t *testing.T) {
 	require.Len(t, allRows, 2)
 	for _, row := range allRows {
 		assert.NotNil(t, row.ClearedAt)
-		assert.Equal(t, active.StudentStatusSourceManual, row.Source)
+		assert.Equal(t, absencerecords.StudentStatusSourceManual, row.Source)
 	}
 }
 
@@ -171,13 +171,13 @@ func TestStudentStatusDayRepository_TenantScope(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "StatusTenant", "Student", "ST1")
 
 	date := timezone.NewDate(2026, 8, 24).AddDays(6)
-	require.NoError(t, repo.UpsertReported(testpkg.Ctx(t), &active.StudentStatusDay{
-		TenantModel: modelBase.TenantModel{TenantID: testpkg.Tenant(t)},
-		StudentID:   student.ID,
-		Date:        date,
-		Status:      active.StudentStatusDaySick,
-		ReportedAt:  time.Now(),
-		Source:      active.StudentStatusSourcePlanned,
+	require.NoError(t, repo.UpsertReported(testpkg.Ctx(t), &absencerecords.StudentStatusDay{
+		TenantID:   testpkg.Tenant(t),
+		StudentID:  student.ID,
+		Date:       date,
+		Status:     absencerecords.StudentStatusDaySick,
+		ReportedAt: time.Now(),
+		Source:     absencerecords.StudentStatusSourcePlanned,
 	}))
 
 	rows, err := repo.FindActiveByStudentAndDateRange(testpkg.TenantContext(2), student.ID, date, date)
@@ -220,42 +220,42 @@ func TestStudentStatusDayRepository_CountEffectiveDashboardAbsences(t *testing.T
 		require.NoError(t, err)
 	}
 	report := func(ctx context.Context, studentID int64, status string) {
-		require.NoError(t, repo.UpsertReported(ctx, &active.StudentStatusDay{
+		require.NoError(t, repo.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 			StudentID:  studentID,
 			Date:       today,
 			Status:     status,
 			ReportedAt: now,
-			Source:     active.StudentStatusSourcePlanned,
+			Source:     absencerecords.StudentStatusSourcePlanned,
 		}))
 	}
 
 	setFlag(create("FlagSick", "Dashboard"), "sick")
-	report(ctxA, create("PlannedSick", "Dashboard"), active.StudentStatusDaySick)
-	report(ctxA, create("PlannedExcused", "Dashboard"), active.StudentStatusDayExcused)
+	report(ctxA, create("PlannedSick", "Dashboard"), absencerecords.StudentStatusDaySick)
+	report(ctxA, create("PlannedExcused", "Dashboard"), absencerecords.StudentStatusDayExcused)
 	setFlag(create("FlagExcused", "Dashboard"), "excused")
 
 	overlap := create("Overlap", "Dashboard")
 	setFlag(overlap, "excused")
-	report(ctxA, overlap, active.StudentStatusDayExcused)
+	report(ctxA, overlap, absencerecords.StudentStatusDayExcused)
 
-	report(ctxA, create("ClassTrip", "Dashboard"), active.StudentStatusDayClassTrip)
+	report(ctxA, create("ClassTrip", "Dashboard"), absencerecords.StudentStatusDayClassTrip)
 
 	sickWins := create("SickWins", "Dashboard")
-	report(ctxA, sickWins, active.StudentStatusDaySick)
-	report(ctxA, sickWins, active.StudentStatusDayExcused)
-	report(ctxA, sickWins, active.StudentStatusDayClassTrip)
+	report(ctxA, sickWins, absencerecords.StudentStatusDaySick)
+	report(ctxA, sickWins, absencerecords.StudentStatusDayExcused)
+	report(ctxA, sickWins, absencerecords.StudentStatusDayClassTrip)
 
 	cleared := create("Cleared", "Dashboard")
-	report(ctxA, cleared, active.StudentStatusDayExcused)
-	require.NoError(t, repo.MarkCleared(ctxA, cleared, active.StudentStatusDayExcused, today, now, active.StudentStatusSourceManual))
+	report(ctxA, cleared, absencerecords.StudentStatusDayExcused)
+	require.NoError(t, repo.MarkCleared(ctxA, cleared, absencerecords.StudentStatusDayExcused, today, now, absencerecords.StudentStatusSourceManual))
 
 	inactive := create("Inactive", "Dashboard")
-	report(ctxA, inactive, active.StudentStatusDayExcused)
+	report(ctxA, inactive, absencerecords.StudentStatusDayExcused)
 	testpkg.SetStudentStatus(t, db, inactive, "inactive")
 
 	otherTenantStudent := testpkg.CreateTestStudentForTenant(t, db, tenantB, "OtherTenant", "Dashboard", "DB1")
 	studentIDs = append(studentIDs, otherTenantStudent.ID)
-	report(ctxB, otherTenantStudent.ID, active.StudentStatusDayExcused)
+	report(ctxB, otherTenantStudent.ID, absencerecords.StudentStatusDayExcused)
 
 	counts, err := repo.CountEffectiveDashboardAbsences(ctxA, today)
 	require.NoError(t, err)
@@ -301,22 +301,22 @@ func TestStudentStatusDayRepository_NoteOnReReport(t *testing.T) {
 	reason := "Fieber"
 
 	// 1. Report sick with a reason.
-	require.NoError(t, repo.UpsertReported(ctx, &active.StudentStatusDay{
+	require.NoError(t, repo.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 		StudentID:  student.ID,
 		Date:       date,
-		Status:     active.StudentStatusDaySick,
+		Status:     absencerecords.StudentStatusDaySick,
 		ReportedAt: time.Now(),
-		Source:     active.StudentStatusSourceParent,
+		Source:     absencerecords.StudentStatusSourceParent,
 		Note:       &reason,
 	}))
 
 	// 2. Active re-report without a reason — note must be preserved.
-	require.NoError(t, repo.UpsertReported(ctx, &active.StudentStatusDay{
+	require.NoError(t, repo.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 		StudentID:  student.ID,
 		Date:       date,
-		Status:     active.StudentStatusDaySick,
+		Status:     absencerecords.StudentStatusDaySick,
 		ReportedAt: time.Now(),
-		Source:     active.StudentStatusSourceParent,
+		Source:     absencerecords.StudentStatusSourceParent,
 	}))
 	rows, err := repo.FindActiveByStudentAndDateRange(ctx, student.ID, date, date)
 	require.NoError(t, err)
@@ -325,13 +325,13 @@ func TestStudentStatusDayRepository_NoteOnReReport(t *testing.T) {
 	assert.Equal(t, reason, *rows[0].Note)
 
 	// 3. Clear the day, then re-report sick with NO reason.
-	require.NoError(t, repo.MarkCleared(ctx, student.ID, active.StudentStatusDaySick, date, time.Now(), active.StudentStatusSourceNextCheckin))
-	require.NoError(t, repo.UpsertReported(ctx, &active.StudentStatusDay{
+	require.NoError(t, repo.MarkCleared(ctx, student.ID, absencerecords.StudentStatusDaySick, date, time.Now(), absencerecords.StudentStatusSourceNextCheckin))
+	require.NoError(t, repo.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 		StudentID:  student.ID,
 		Date:       date,
-		Status:     active.StudentStatusDaySick,
+		Status:     absencerecords.StudentStatusDaySick,
 		ReportedAt: time.Now(),
-		Source:     active.StudentStatusSourceParent,
+		Source:     absencerecords.StudentStatusSourceParent,
 	}))
 
 	rows, err = repo.FindActiveByStudentAndDateRange(ctx, student.ID, date, date)
@@ -362,12 +362,12 @@ func TestStudentStatusDayRepository_DateBoundaryRoundtrip(t *testing.T) {
 	d := timezone.DateFromTime(boundaryInstant)
 	require.Equal(t, timezone.NewDate(2026, 3, 29), d)
 
-	entry := &active.StudentStatusDay{
+	entry := &absencerecords.StudentStatusDay{
 		StudentID:  student.ID,
 		Date:       d,
-		Status:     active.StudentStatusDayClassTrip,
+		Status:     absencerecords.StudentStatusDayClassTrip,
 		ReportedAt: boundaryInstant,
-		Source:     active.StudentStatusSourcePlanned,
+		Source:     absencerecords.StudentStatusSourcePlanned,
 	}
 	require.NoError(t, repo.UpsertReported(ctx, entry))
 
@@ -376,7 +376,7 @@ func TestStudentStatusDayRepository_DateBoundaryRoundtrip(t *testing.T) {
 	var stored string
 	require.NoError(t, db.NewRaw(
 		"SELECT to_char(date, 'YYYY-MM-DD') FROM active.student_status_days WHERE student_id = ? AND status = ?",
-		student.ID, active.StudentStatusDayClassTrip,
+		student.ID, absencerecords.StudentStatusDayClassTrip,
 	).Scan(ctx, &stored))
 	assert.Equal(t, "2026-03-29", stored)
 
@@ -392,26 +392,26 @@ func TestStudentStatusDayRepository_DateBoundaryRoundtrip(t *testing.T) {
 
 	// Re-upsert at the same date must hit the conflict path, not insert a
 	// second row for a shifted day.
-	entry2 := &active.StudentStatusDay{
+	entry2 := &absencerecords.StudentStatusDay{
 		StudentID:  student.ID,
 		Date:       d,
-		Status:     active.StudentStatusDayClassTrip,
+		Status:     absencerecords.StudentStatusDayClassTrip,
 		ReportedAt: boundaryInstant.Add(time.Hour),
-		Source:     active.StudentStatusSourceManual,
+		Source:     absencerecords.StudentStatusSourceManual,
 	}
 	require.NoError(t, repo.UpsertReported(ctx, entry2))
 	rows, err = repo.FindActiveByStudentAndDateRange(ctx, student.ID, d, d)
 	require.NoError(t, err)
 	require.Len(t, rows, 1, "second upsert must update, not duplicate")
-	assert.Equal(t, active.StudentStatusSourceManual, rows[0].Source)
+	assert.Equal(t, absencerecords.StudentStatusSourceManual, rows[0].Source)
 
 	// The zero Date is rejected loudly instead of silently storing a
 	// sentinel day.
-	zeroEntry := &active.StudentStatusDay{
+	zeroEntry := &absencerecords.StudentStatusDay{
 		StudentID:  student.ID,
-		Status:     active.StudentStatusDaySick,
+		Status:     absencerecords.StudentStatusDaySick,
 		ReportedAt: boundaryInstant,
-		Source:     active.StudentStatusSourcePlanned,
+		Source:     absencerecords.StudentStatusSourcePlanned,
 	}
 	require.Error(t, repo.UpsertReported(ctx, zeroEntry))
 }

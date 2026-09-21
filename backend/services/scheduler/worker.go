@@ -9,7 +9,6 @@ import (
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	pwaSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -61,7 +60,7 @@ type WorkerDependencies struct {
 	InstanceRoomRepo          facilitiesModel.RoomRepository
 	InstanceStudentRepo       scheduleModel.InstanceStudentRepository
 	TimetableBridge           TimetableBridgeCompleter
-	StudentStatusDayRepo      activeModel.StudentStatusDayRepository
+	StudentStatusDayRepo      StudentStatusFlagArchiver
 	OverdueBroadcaster        realtime.Broadcaster
 	StudentLifecycleRepo      StudentLifecycleRepository
 	StudentLifecycleAudit     StudentLifecycleAuditor

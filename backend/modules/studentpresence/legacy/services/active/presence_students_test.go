@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -51,11 +51,11 @@ func TestStatusDayStudents_MissingAuthorizeFailsClosed(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	unguarded := services.StatusDayStudentsFromRepository(repoFactory.Student, nil)
-	_, err := unguarded.LockForStatusWrite(ctx, student.ID, activeModels.StudentStatusDaySick)
+	_, err := unguarded.LockForStatusWrite(ctx, student.ID, absencerecords.StudentStatusDaySick)
 	require.Error(t, err, "a status-day adapter without an authorization callback must refuse the write")
 
 	guarded := services.StatusDayStudentsFromRepository(repoFactory.Student, services.AllowAllStatusDayWrites)
-	record, err := guarded.LockForStatusWrite(ctx, student.ID, activeModels.StudentStatusDaySick)
+	record, err := guarded.LockForStatusWrite(ctx, student.ID, absencerecords.StudentStatusDaySick)
 	require.NoError(t, err)
 	assert.Equal(t, student.ID, record.ID)
 }

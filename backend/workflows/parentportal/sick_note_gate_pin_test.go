@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -28,14 +28,14 @@ func TestSickNoteStaysImmediateWhenApprovalDisabled(t *testing.T) {
 
 	day := timezone.NewDate(2026, 8, 24)
 	res, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Fieber", activeModels.StudentStatusDaySick, nil)
+		[]timezone.Date{day}, "Fieber", absencerecords.StudentStatusDaySick, nil)
 	require.NoError(t, err)
 
 	assert.Nil(t, res.PendingRequest, "no approval gate means no request row")
 	require.Len(t, res.StatusDays, 1, "the sick day is written immediately")
 	assert.Equal(t, day, res.StatusDays[0].Date)
-	assert.Equal(t, activeModels.StudentStatusDaySick, res.StatusDays[0].Status)
-	assert.Equal(t, activeModels.StudentStatusSourceParent, res.StatusDays[0].Source)
+	assert.Equal(t, absencerecords.StudentStatusDaySick, res.StatusDays[0].Status)
+	assert.Equal(t, absencerecords.StudentStatusSourceParent, res.StatusDays[0].Source)
 
 	var pending int
 	require.NoError(t, db.NewSelect().
@@ -56,13 +56,13 @@ func TestSickNoteGatedCreatesRequest(t *testing.T) {
 
 	day := timezone.TodayDate()
 	res, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Fieber", activeModels.StudentStatusDaySick, nil)
+		[]timezone.Date{day}, "Fieber", absencerecords.StudentStatusDaySick, nil)
 	require.NoError(t, err)
 
 	require.NotNil(t, res.PendingRequest, "the gate turns the sick note into a request")
 	assert.Empty(t, res.StatusDays, "nothing is written before the OGS decides")
-	assert.Equal(t, activeModels.StudentStatusDaySick, res.PendingRequest.AbsenceStatus)
-	assert.Equal(t, activeModels.ExcusedRequestStatusPending, res.PendingRequest.Status)
+	assert.Equal(t, absencerecords.StudentStatusDaySick, res.PendingRequest.AbsenceStatus)
+	assert.Equal(t, absencerecords.ExcusedRequestStatusPending, res.PendingRequest.Status)
 	assert.Equal(t, chain.AccountID, res.PendingRequest.SubmittedBy)
 
 	var days int

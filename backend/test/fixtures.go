@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecordstest"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
@@ -2362,7 +2363,7 @@ func CreateTestArrivalSchedule(tb testing.TB, db *bun.DB, studentID int64, weekd
 	if arrivalHHMM != "" {
 		row.ExpectedArrival = parseTimeHHMM(tb, arrivalHHMM)
 	}
-	row.SetTenantID(fixtureTenantID(tb))
+	row.TenantID = fixtureTenantID(tb)
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2392,7 +2393,7 @@ func CreateTestArrivalException(tb testing.TB, db *bun.DB, studentID int64, date
 	if reason != "" {
 		row.Reason = &reason
 	}
-	row.SetTenantID(fixtureTenantID(tb))
+	row.TenantID = fixtureTenantID(tb)
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2415,7 +2416,7 @@ func CreateTestPickupSchedule(tb testing.TB, db *bun.DB, studentID int64, weekda
 		PickupTime: parseTimeHHMM(tb, pickupHHMM),
 		CreatedBy:  staffID,
 	}
-	row.SetTenantID(fixtureTenantID(tb))
+	row.TenantID = fixtureTenantID(tb)
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2445,7 +2446,7 @@ func CreateTestPickupException(tb testing.TB, db *bun.DB, studentID int64, date 
 	if reason != "" {
 		row.Reason = &reason
 	}
-	row.SetTenantID(fixtureTenantID(tb))
+	row.TenantID = fixtureTenantID(tb)
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2594,7 +2595,7 @@ func CreateTestCalendarPeriod(tb testing.TB, db *bun.DB, name string, start, end
 		WeekCycleLength: 1,
 		IsActive:        false,
 	}
-	row.SetTenantID(fixtureTenantID(tb))
+	row.TenantID = fixtureTenantID(tb)
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2628,7 +2629,7 @@ func CreateTestClosingDay(tb testing.TB, db *bun.DB, start, end CalendarDate, re
 	defer cancel()
 
 	row := &schedule.ClosingDay{StartDate: schedule.Date(start.String()), EndDate: schedule.Date(end.String()), Reason: reason}
-	row.SetTenantID(fixtureTenantID(tb))
+	row.TenantID = fixtureTenantID(tb)
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2647,7 +2648,7 @@ func CreateTestDateframe(tb testing.TB, db *bun.DB, name string, start, end time
 	defer cancel()
 
 	row := &schedule.Dateframe{Name: name, StartDate: start, EndDate: end}
-	row.SetTenantID(fixtureTenantID(tb))
+	row.TenantID = fixtureTenantID(tb)
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2725,7 +2726,7 @@ func CreateTestStaffShift(tb testing.TB, db *bun.DB, staffID int64, date Calenda
 		ShiftTypeID: opts.ShiftTypeID,
 		CreatedBy:   staffID,
 	}
-	row.SetTenantID(fixtureTenantID(tb))
+	row.TenantID = fixtureTenantID(tb)
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2781,7 +2782,7 @@ func CreateTestInstanceStudent(tb testing.TB, db *bun.DB, instanceID, studentID 
 		ManualStatusAt:     opt.ManualStatusAt,
 		CheckedInAt:        opt.CheckedInAt,
 	}
-	row.SetTenantID(fixtureTenantID(tb))
+	row.TenantID = fixtureTenantID(tb)
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2791,24 +2792,31 @@ func CreateTestInstanceStudent(tb testing.TB, db *bun.DB, instanceID, studentID 
 	return row
 }
 
+// StudentStatusDayRow and ExcusedAbsenceRequestRow map the Care Plan absence
+// tables for fixtures and for tests that arrange or assert stored rows.
+type (
+	StudentStatusDayRow      = absencerecordstest.StudentStatusDayRow
+	ExcusedAbsenceRequestRow = absencerecordstest.ExcusedAbsenceRequestRow
+)
+
 // CreateTestStudentStatusDay inserts one reported broad day status (sick /
 // excused / class trip) for a student on a date. Callers that pass its ID into
 // InstanceStudentOpts.StudentStatusDayID reproduce the state ApplyStatusDay
 // leaves behind: a slot absence the day status owns. The package clone owns it.
-func CreateTestStudentStatusDay(tb testing.TB, db *bun.DB, studentID int64, date timezone.Date, status string) *active.StudentStatusDay {
+func CreateTestStudentStatusDay(tb testing.TB, db *bun.DB, studentID int64, date timezone.Date, status string) *StudentStatusDayRow {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	row := &active.StudentStatusDay{
+	row := &StudentStatusDayRow{
 		StudentID:  studentID,
 		Date:       date,
 		Status:     status,
 		ReportedAt: time.Now(),
-		Source:     active.StudentStatusSourceManual,
+		Source:     "manual", // absencerecords.StudentStatusSourceManual
 	}
-	row.SetTenantID(fixtureTenantID(tb))
+	row.TenantID = fixtureTenantID(tb)
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2843,7 +2851,7 @@ func CreateTestInstanceStaff(tb testing.TB, db *bun.DB, instanceID, staffID int6
 		IsSubstitute: opts.IsSubstitute,
 		IsAbsent:     opts.IsAbsent,
 	}
-	row.SetTenantID(fixtureTenantID(tb))
+	row.TenantID = fixtureTenantID(tb)
 
 	_, err := db.NewInsert().
 		Model(row).

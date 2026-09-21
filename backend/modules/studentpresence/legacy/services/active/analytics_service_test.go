@@ -7,7 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -69,12 +69,12 @@ func TestGetDashboardAnalytics(t *testing.T) {
 
 		now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		for _, studentID := range []int64{plannedExcusedStudent.ID, legacyOverlapStudent.ID} {
-			require.NoError(t, statusRepo.UpsertReported(ctx, &activeModels.StudentStatusDay{
+			require.NoError(t, statusRepo.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 				StudentID:  studentID,
 				Date:       timezone.NewDate(2026, 8, 24),
-				Status:     activeModels.StudentStatusDayExcused,
+				Status:     absencerecords.StudentStatusDayExcused,
 				ReportedAt: now,
-				Source:     activeModels.StudentStatusSourcePlanned,
+				Source:     absencerecords.StudentStatusSourcePlanned,
 			}))
 		}
 
@@ -122,9 +122,9 @@ func TestGetDashboardAnalytics(t *testing.T) {
 				// binds raw time.Time values as UTC, which is one day behind
 				// Berlin between 00:00 and 02:00 local time.
 				timezone.NewDate(2026, 8, 24),
-				activeModels.StudentStatusDayClassTrip,
+				absencerecords.StudentStatusDayClassTrip,
 				now,
-				activeModels.StudentStatusSourcePlanned,
+				absencerecords.StudentStatusSourcePlanned,
 				now,
 				now,
 			).Exec(ctx)
@@ -154,19 +154,19 @@ func TestGetDashboardAnalytics(t *testing.T) {
 
 		statusRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentStatusDay
 		now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
-		require.NoError(t, statusRepo.UpsertReported(ctxA, &activeModels.StudentStatusDay{
+		require.NoError(t, statusRepo.UpsertReported(ctxA, &absencerecords.StudentStatusDay{
 			StudentID:  studentA.ID,
 			Date:       timezone.DateFromTime(now),
-			Status:     activeModels.StudentStatusDayClassTrip,
+			Status:     absencerecords.StudentStatusDayClassTrip,
 			ReportedAt: now,
-			Source:     activeModels.StudentStatusSourcePlanned,
+			Source:     absencerecords.StudentStatusSourcePlanned,
 		}))
-		require.NoError(t, statusRepo.UpsertReported(ctxB, &activeModels.StudentStatusDay{
+		require.NoError(t, statusRepo.UpsertReported(ctxB, &absencerecords.StudentStatusDay{
 			StudentID:  studentB.ID,
 			Date:       timezone.DateFromTime(now),
-			Status:     activeModels.StudentStatusDayClassTrip,
+			Status:     absencerecords.StudentStatusDayClassTrip,
 			ReportedAt: now,
-			Source:     activeModels.StudentStatusSourcePlanned,
+			Source:     absencerecords.StudentStatusSourcePlanned,
 		}))
 
 		after, err := service.GetDashboardAnalytics(ctxA)

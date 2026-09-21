@@ -14,8 +14,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 )
 
@@ -120,7 +120,7 @@ func (rs *Resource) getStudentStatusDaysOverview(w http.ResponseWriter, r *http.
 
 func parseStatusDayOverviewFilters(r *http.Request, page, pageSize int) (activeService.StatusDayOverviewFilters, error) {
 	status := strings.TrimSpace(r.URL.Query().Get("status"))
-	if status != "" && status != "all" && !slices.Contains(activeModels.StudentStatusDayStatuses(), status) {
+	if status != "" && status != "all" && !slices.Contains(absencerecords.StudentStatusDayStatuses(), status) {
 		return activeService.StatusDayOverviewFilters{}, errors.New("invalid status filter")
 	}
 	if status == "all" {

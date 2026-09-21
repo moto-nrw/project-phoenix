@@ -11,7 +11,7 @@ import (
 
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/services"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -69,7 +69,7 @@ func TestShareTravelsWithTheCreation(t *testing.T) {
 
 	res, err := svc.SubmitSickNote(ctx, family.AccountID, family.StudentID,
 		[]timezone.Date{timezone.TodayDate().AddDays(3)}, "Familienfeier",
-		activeModels.StudentStatusDayExcused, []int64{co.GuardianProfileID})
+		absencerecords.StudentStatusDayExcused, []int64{co.GuardianProfileID})
 	require.NoError(t, err)
 	require.NotNil(t, res.PendingRequest)
 
@@ -98,7 +98,7 @@ func TestForgedRecipientRollsTheRequestBack(t *testing.T) {
 
 	_, err := svc.SubmitSickNote(ctx, family.AccountID, family.StudentID,
 		[]timezone.Date{timezone.TodayDate().AddDays(4)}, "Familienfeier",
-		activeModels.StudentStatusDayExcused, []int64{stranger.GuardianProfileID})
+		absencerecords.StudentStatusDayExcused, []int64{stranger.GuardianProfileID})
 	require.ErrorIs(t, err, parentService.ErrRequestSharingInvalid)
 
 	open, err := svc.ListExcusedRequests(ctx, family.AccountID, family.StudentID)
@@ -118,7 +118,7 @@ func TestEmptyRecipientsWriteNoShareEvent(t *testing.T) {
 
 	res, err := svc.SubmitSickNote(ctx, family.AccountID, family.StudentID,
 		[]timezone.Date{timezone.TodayDate().AddDays(5)}, "Familienfeier",
-		activeModels.StudentStatusDayExcused, nil)
+		absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 	require.NotNil(t, res.PendingRequest)
 
