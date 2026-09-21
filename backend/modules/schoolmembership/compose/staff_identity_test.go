@@ -2,7 +2,6 @@ package compose
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"testing"
 
@@ -15,20 +14,28 @@ import (
 )
 
 // accountPersons stands in for the People Directory behind the consumer-owned
-// port: it answers from the real users.persons fixture rows of the tenant in
-// context, the way the owner's tenant-scoped read does.
-type accountPersons struct{ db *bun.DB }
+// port; the architecture policy keeps this package from importing the owner.
+// It repeats the owner's FindByAccount predicate (live person of the tenant,
+// newest first) on the reader's own tenant transaction.
+type accountPersons struct{}
 
-func (p accountPersons) FindPersonIDByAccount(ctx context.Context, accountID int64) (int64, bool, error) {
-	var personID int64
-	err := p.db.NewRaw(
-		`SELECT id FROM users.persons WHERE account_id = ? AND tenant_id = ?`,
-		accountID, tenant.FromContext(ctx),
-	).Scan(ctx, &personID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return 0, false, nil
+func (accountPersons) FindPersonIDByAccount(ctx context.Context, accountID int64) (int64, bool, error) {
+	ambient, _ := tenant.TransactionFromContext(ctx)
+	transaction, ok := ambient.(bun.IDB)
+	if !ok {
+		return 0, false, errors.New("account persons: transaction is required")
 	}
-	return personID, err == nil, err
+	var personIDs []int64
+	err := transaction.NewRaw(
+		`SELECT id FROM users.persons
+		 WHERE account_id = ? AND tenant_id = ? AND deleted_at IS NULL
+		 ORDER BY updated_at DESC, id ASC LIMIT 1`,
+		accountID, tenant.FromContext(ctx),
+	).Scan(ctx, &personIDs)
+	if err != nil || len(personIDs) == 0 {
+		return 0, false, err
+	}
+	return personIDs[0], true, nil
 }
 
 type failingAccountPersons struct{ err error }
@@ -40,7 +47,7 @@ func (p failingAccountPersons) FindPersonIDByAccount(context.Context, int64) (in
 func buildStaffIdentityReader(t *testing.T, db *bun.DB) (*schoolmembership.StaffIdentityReader, *schoolmembership.Module) {
 	t.Helper()
 	module := buildModule(t, db)
-	return schoolmembership.NewStaffIdentityReader(module, accountPersons{db: db}), module
+	return schoolmembership.NewStaffIdentityReader(module, accountPersons{}), module
 }
 
 func TestStaffIdentityReportsAnAccountWithoutPerson(t *testing.T) {
@@ -173,25 +180,40 @@ func TestStaffIdentityWrongTenantLookupIsNotFound(t *testing.T) {
 	assert.Equal(t, schoolmembership.StaffIdentity{Link: schoolmembership.StaffLinkNotStaff, PersonID: person.ID}, byPerson)
 }
 
+func TestStaffIdentityRefusesAContextWithoutTenant(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	reader, module := buildStaffIdentityReader(t, db)
+	ctx := testpkg.Ctx(t)
+	account := testpkg.CreateTestAccount(t, db, "identity-no-tenant")
+	person := testpkg.CreateTestPersonWithAccountID(t, db, "Nele", "Niemandsland", account.ID)
+	_, err := module.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{PersonID: person.ID}})
+	require.NoError(t, err)
+
+	// The module's other reads fall back to an admin transaction without a
+	// tenant; the identity read must not, or it would answer across schools.
+	noTenant := testpkg.WithPackageTenantRuntime(context.Background())
+
+	byPerson, err := reader.ResolveByPerson(noTenant, person.ID)
+	require.ErrorIs(t, err, tenant.ErrTenantRequired)
+	assert.Equal(t, schoolmembership.StaffIdentity{}, byPerson)
+
+	byAccount, err := reader.ResolveByAccount(noTenant, account.ID)
+	require.ErrorIs(t, err, tenant.ErrTenantRequired)
+	assert.Equal(t, schoolmembership.StaffIdentity{}, byAccount)
+}
+
 func TestStaffIdentityKeepsUnexpectedErrorsVisible(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	module := buildModule(t, db)
 	ctx := testpkg.Ctx(t)
+	account := testpkg.CreateTestAccount(t, db, "identity-directory-down")
 
 	directoryDown := errors.New("people directory unavailable")
 	reader := schoolmembership.NewStaffIdentityReader(module, failingAccountPersons{err: directoryDown})
-	identity, err := reader.ResolveByAccount(ctx, 1)
+	identity, err := reader.ResolveByAccount(ctx, account.ID)
 	require.ErrorIs(t, err, directoryDown)
-	assert.Equal(t, schoolmembership.StaffIdentity{}, identity)
-
-	// A context without tenant runtime cannot open the membership read; that
-	// is a failure, never a clean "not staff".
-	person := testpkg.CreateTestPerson(t, db, "Frieda", "Fehler")
-	reader = schoolmembership.NewStaffIdentityReader(module, accountPersons{db: db})
-	identity, err = reader.ResolveByPerson(context.Background(), person.ID)
-	require.Error(t, err)
-	assert.NotErrorIs(t, err, schoolmembership.ErrStaffNotFound)
 	assert.Equal(t, schoolmembership.StaffIdentity{}, identity)
 
 	_, err = reader.ResolveByAccount(ctx, 0)

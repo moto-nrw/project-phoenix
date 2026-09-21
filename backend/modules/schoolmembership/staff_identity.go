@@ -6,7 +6,7 @@ import (
 )
 
 // StaffLink names how far an account or person reaches into the school's
-// staff. The outcomes are ordered: each one implies every earlier link.
+// staff: StaffLinkStaff and StaffLinkTeacher are staff, the other two are not.
 type StaffLink string
 
 const (
@@ -44,27 +44,22 @@ type AccountPersons interface {
 	FindPersonIDByAccount(ctx context.Context, accountID int64) (personID int64, found bool, err error)
 }
 
-// StaffIdentityMemberships is the part of Query the identity read runs on;
-// *Module satisfies it.
-type StaffIdentityMemberships interface {
-	FindStaffByPerson(context.Context, int64) (Staff, error)
-	FindTeacherByStaff(context.Context, int64) (Teacher, error)
-}
-
 // StaffIdentityReader resolves Account → Person → Staff → Teacher for the
 // tenant of the request. The clean outcomes are reported through
 // StaffIdentity.Link; an error always means the chain could not be read and
-// must never be taken for "not staff". Lookups from another school end as
-// StaffLinkNoPerson or StaffLinkNotStaff, because every step is
-// tenant-scoped. The reader memoizes nothing; that stays with the caller.
+// must never be taken for "not staff". The whole chain runs in one read
+// transaction of the request's tenant; a context without a tenant is an
+// error rather than a lookup across schools, and lookups from another school
+// end as StaffLinkNoPerson or StaffLinkNotStaff. The reader memoizes
+// nothing; that stays with the caller.
 type StaffIdentityReader struct {
-	memberships StaffIdentityMemberships
+	memberships *Module
 	persons     AccountPersons
 }
 
-func NewStaffIdentityReader(memberships StaffIdentityMemberships, persons AccountPersons) *StaffIdentityReader {
+func NewStaffIdentityReader(memberships *Module, persons AccountPersons) *StaffIdentityReader {
 	if memberships == nil || persons == nil {
-		panic("school membership: staff identity needs the membership query and a person directory")
+		panic("school membership: staff identity needs the membership module and a person directory")
 	}
 	return &StaffIdentityReader{memberships: memberships, persons: persons}
 }
@@ -73,17 +68,41 @@ func (r *StaffIdentityReader) ResolveByAccount(ctx context.Context, accountID in
 	if accountID <= 0 {
 		return StaffIdentity{}, invalid("account ID is required")
 	}
-	personID, found, err := r.persons.FindPersonIDByAccount(ctx, accountID)
+	var identity StaffIdentity
+	err := r.memberships.engine.ReadInTenant(ctx, func(ctx context.Context) error {
+		personID, found, err := r.persons.FindPersonIDByAccount(ctx, accountID)
+		if err != nil {
+			return err
+		}
+		if !found {
+			identity = StaffIdentity{Link: StaffLinkNoPerson}
+			return nil
+		}
+		identity, err = r.resolvePerson(ctx, personID)
+		return err
+	})
 	if err != nil {
 		return StaffIdentity{}, err
 	}
-	if !found {
-		return StaffIdentity{Link: StaffLinkNoPerson}, nil
-	}
-	return r.ResolveByPerson(ctx, personID)
+	return identity, nil
 }
 
 func (r *StaffIdentityReader) ResolveByPerson(ctx context.Context, personID int64) (StaffIdentity, error) {
+	if personID <= 0 {
+		return StaffIdentity{}, invalid("person ID is required")
+	}
+	var identity StaffIdentity
+	err := r.memberships.engine.ReadInTenant(ctx, func(ctx context.Context) (err error) {
+		identity, err = r.resolvePerson(ctx, personID)
+		return err
+	})
+	if err != nil {
+		return StaffIdentity{}, err
+	}
+	return identity, nil
+}
+
+func (r *StaffIdentityReader) resolvePerson(ctx context.Context, personID int64) (StaffIdentity, error) {
 	staff, err := r.memberships.FindStaffByPerson(ctx, personID)
 	if errors.Is(err, ErrStaffNotFound) {
 		return StaffIdentity{Link: StaffLinkNotStaff, PersonID: personID}, nil
