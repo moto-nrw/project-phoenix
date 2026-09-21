@@ -83,6 +83,18 @@ func (transaction) RunRead(ctx context.Context, callback func(context.Context) e
 
 type engine struct{ service *application.Service }
 
+// ReadInTenant never takes the admin fallback of RunRead: the identity read
+// answers for one school, so a missing tenant is an error.
+func (engine) ReadInTenant(ctx context.Context, read func(context.Context) error) error {
+	if _, err := tenant.TenantFromContext(ctx); err != nil {
+		return fmt.Errorf("school membership: staff identity: %w", err)
+	}
+	if _, ok := tenant.TransactionFromContext(ctx); ok {
+		return read(ctx)
+	}
+	return tenant.WithinCurrentTenant(ctx, read)
+}
+
 func (e engine) FindStaff(ctx context.Context, id int64, lock string) (schoolmembership.Staff, error) {
 	value, err := e.service.FindStaff(ctx, id, lock)
 	return staffToPublic(value), mapError(err)
