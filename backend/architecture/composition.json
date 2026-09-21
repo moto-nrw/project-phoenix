@@ -689,7 +689,7 @@
       "declaration": "TestFactoryResolvesRoomsThroughTheOwner",
       "target": "database/repositories.NewFactory",
       "lines": [
-        47
+        46
       ],
       "tables": [
         "education.groups",

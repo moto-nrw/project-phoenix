@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 20,
+  "policy_epoch": 21,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -6600,7 +6600,7 @@
       "source_role": "adapter-test",
       "target_owner": "workforce",
       "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3413"
     },
     {
       "id": "enrollment.module-behavior-test.presence-compose",
@@ -6864,7 +6864,7 @@
       "source_role": "module-behavior-test",
       "target_owner": "workforce",
       "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3413"
     },
     {
       "id": "people-directory.module-behavior-test.workforce-public",
@@ -6875,8 +6875,7 @@
       "source_owner": "people-directory",
       "source_role": "module-behavior-test",
       "target_owner": "workforce",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "public"
     },
     {
       "id": "audit.postgres.enrollment-query",
@@ -7788,8 +7787,7 @@
       "source_owner": "test-support",
       "source_role": "test-support",
       "target_owner": "workforce",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "public"
     },
     {
       "id": "reminder-delivery.decision-test.appointments",
@@ -8051,8 +8049,7 @@
       "source_owner": "scheduler-runtime",
       "source_role": "application",
       "target_owner": "workforce",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "public"
     },
     {
       "id": "scheduler-runtime.reminder-test-public",
@@ -8074,8 +8071,7 @@
       "source_owner": "scheduler-runtime",
       "source_role": "module-internal-test",
       "target_owner": "workforce",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "public"
     },
     {
       "id": "adapter-test.domain.contract",
@@ -10343,7 +10339,7 @@
       "source_role": "postgres",
       "target_owner": "workforce",
       "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3413"
     },
     {
       "id": "workforce.postgres.transaction-postgres",
@@ -12465,8 +12461,7 @@
       "source_owner": "delivery-platform",
       "source_role": "application",
       "target_owner": "workforce",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "public"
     },
     {
       "id": "delivery.application.same-owner-public",
@@ -13238,8 +13233,7 @@
       "source_owner": "delivery-platform",
       "source_role": "application",
       "target_owner": "care-plan",
-      "target_role": "contract",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "contract"
     },
     {
       "id": "school-membership.port-domain",
@@ -14983,7 +14977,7 @@
       "source_role": "adapter",
       "target_owner": "workforce",
       "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3413"
     },
     {
       "id": "workforce.adapter.school-structure-domain",
@@ -15114,8 +15108,7 @@
       "source_owner": "workforce",
       "source_role": "adapter-test",
       "target_owner": "legacy-shared",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "domain"
     },
     {
       "id": "workforce.adapter-test.substitutions-http",
@@ -20855,15 +20848,14 @@
     },
     {
       "id": "student-presence.e2e-test.legacy-shared-domain",
-      "description": "The retained Presence behaviour tests pin calendar-day expectations with the retained calendar-date type (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "description": "The Student Presence behaviour and repository suites pin calendar-day expectations with the canonical calendar-date type (#3422).",
       "scopes": [
         "external_test"
       ],
       "source_owner": "student-presence",
       "source_role": "e2e-test",
       "target_owner": "legacy-shared",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "domain"
     },
     {
       "id": "student-presence.e2e-test.workforce-time-records",
@@ -20875,7 +20867,7 @@
       "source_role": "e2e-test",
       "target_owner": "workforce",
       "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3413"
     },
     {
       "id": "student-presence.e2e-test.workforce-public",
@@ -20886,92 +20878,84 @@
       "source_owner": "student-presence",
       "source_role": "e2e-test",
       "target_owner": "workforce",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "public"
     },
     {
       "id": "student-presence.e2e-test.transaction-runtime-domain",
-      "description": "The retained Presence behaviour tests build the shared persistence base model and query options (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "description": "The Student Presence repository suites build the shared persistence base model and query options (#3422).",
       "scopes": [
         "external_test"
       ],
       "source_owner": "student-presence",
       "source_role": "e2e-test",
       "target_owner": "transaction-runtime",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "domain"
     },
     {
       "id": "student-presence.e2e-test.student-presence-public",
-      "description": "The retained Presence behaviour tests seed visits and attendance through the public Student Presence contract (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "description": "The Student Presence behaviour suites seed visits and attendance through the owner's public contract (#3422).",
       "scopes": [
         "external_test"
       ],
       "source_owner": "student-presence",
       "source_role": "e2e-test",
       "target_owner": "student-presence",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "public"
     },
     {
       "id": "student-presence.e2e-test.student-presence-compose",
-      "description": "The retained Presence behaviour tests compose the production Student Presence facade (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "description": "The Student Presence behaviour suites compose the owner's production facade (#3422).",
       "scopes": [
         "external_test"
       ],
       "source_owner": "student-presence",
       "source_role": "e2e-test",
       "target_owner": "student-presence",
-      "target_role": "compose",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "compose"
     },
     {
       "id": "student-presence.e2e-test.audit-platform-domain",
-      "description": "The retained Presence behaviour tests read the audit rows the services write (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "description": "The Student Presence behaviour suites read the audit rows the presence commands write (#3422).",
       "scopes": [
         "external_test"
       ],
       "source_owner": "student-presence",
       "source_role": "e2e-test",
       "target_owner": "audit-platform",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "domain"
     },
     {
       "id": "student-presence.e2e-test.timetable-activities-domain",
-      "description": "The retained Presence behaviour tests seed the schedule rows the attendance sync mirrors into (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "description": "The Student Presence behaviour suites seed the schedule rows the attendance sync mirrors into (#3422).",
       "scopes": [
         "external_test"
       ],
       "source_owner": "student-presence",
       "source_role": "e2e-test",
       "target_owner": "timetable-activities",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "domain"
     },
     {
       "id": "student-presence.e2e-test.people-directory-application",
-      "description": "The retained Presence behaviour tests build the retained person service the staff names resolve through (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "description": "The Student Presence behaviour suites build the person service the staff names resolve through (#3422).",
       "scopes": [
         "external_test"
       ],
       "source_owner": "student-presence",
       "source_role": "e2e-test",
       "target_owner": "people-directory",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "application"
     },
     {
       "id": "student-presence.e2e-test.tenant-runtime-public",
-      "description": "The retained Presence behaviour tests bind the tenant unit of work the commands open transactions through (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "description": "The Student Presence behaviour suites bind the tenant unit of work the commands open transactions through (#3422).",
       "scopes": [
         "external_test"
       ],
       "source_owner": "student-presence",
       "source_role": "e2e-test",
       "target_owner": "tenant-runtime",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "public"
     },
     {
       "id": "inbound-parent.http.orm-sql",
@@ -21305,8 +21289,7 @@
       "source_owner": "inbound-parent",
       "source_role": "http",
       "target_owner": "care-plan",
-      "target_role": "contract",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "contract"
     },
     {
       "id": "root-composition.to.inbound-parent-http",
@@ -22659,8 +22642,7 @@
       "source_owner": "people-directory",
       "source_role": "application",
       "target_owner": "care-plan",
-      "target_role": "contract",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "contract"
     },
     {
       "id": "school-structure.module-behavior-test.inbound-timetable-adapter",
@@ -22676,7 +22658,7 @@
     },
     {
       "id": "student-presence.e2e-test.inbound-timetable-adapter",
-      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/studentpresence/legacy/services/active. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "description": "The Student Presence behaviour suites drive the retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218, #3422).",
       "scopes": [
         "external_test"
       ],
@@ -22695,8 +22677,7 @@
       "source_owner": "student-presence",
       "source_role": "e2e-test",
       "target_owner": "care-plan",
-      "target_role": "contract",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "contract"
     },
     {
       "id": "timetable-activities.workflow-integration-test.inbound-timetable-adapter",
@@ -22947,8 +22928,7 @@
       "source_owner": "test-support",
       "source_role": "test-support",
       "target_owner": "care-plan",
-      "target_role": "test-support",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "test-support"
     },
     {
       "id": "calendar-view.adapter.inbound-timetable-adapter",
@@ -23007,8 +22987,7 @@
       "source_owner": "group-live-view",
       "source_role": "adapter",
       "target_owner": "care-plan",
-      "target_role": "contract",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "contract"
     },
     {
       "id": "inbound-staff-shifts.adapter.inbound-timetable-adapter",
@@ -23545,8 +23524,7 @@
       "source_owner": "scheduler-runtime",
       "source_role": "application",
       "target_owner": "care-plan",
-      "target_role": "contract",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "contract"
     },
     {
       "id": "inbound-timetable.test-support.transaction-runtime-postgres",
@@ -23932,8 +23910,7 @@
       "source_owner": "enrollment",
       "source_role": "application",
       "target_owner": "care-plan",
-      "target_role": "contract",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "contract"
     },
     {
       "id": "enrollment.module-internal-test.care-plan-absence-records",
@@ -23944,8 +23921,7 @@
       "source_owner": "enrollment",
       "source_role": "module-internal-test",
       "target_owner": "care-plan",
-      "target_role": "contract",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "contract"
     },
     {
       "id": "care-schedule-cutover.inbound-timetable.adapter-test.timetable-activities.compose",
@@ -23968,7 +23944,7 @@
       "source_role": "module-behavior-test",
       "target_owner": "care-plan",
       "target_role": "contract",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
       "id": "inbound-timetable.e2e-test.care-plan-absence-records",
@@ -23980,7 +23956,7 @@
       "source_role": "e2e-test",
       "target_owner": "care-plan",
       "target_role": "contract",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
       "id": "inbound-operator.http.care-plan-public",
@@ -24057,8 +24033,7 @@
       "source_owner": "care-plan",
       "source_role": "contract",
       "target_owner": "legacy-shared",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "domain"
     },
     {
       "id": "care-plan.contract.excused-request-vocabulary",
@@ -24069,8 +24044,7 @@
       "source_owner": "care-plan",
       "source_role": "contract",
       "target_owner": "care-plan",
-      "target_role": "contract",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "contract"
     },
     {
       "id": "care-plan.test-support.calendar-date",
@@ -24081,8 +24055,7 @@
       "source_owner": "care-plan",
       "source_role": "test-support",
       "target_owner": "legacy-shared",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "domain"
     },
     {
       "id": "student-presence.e2e-test.student-presence-application",
@@ -24093,8 +24066,7 @@
       "source_owner": "student-presence",
       "source_role": "e2e-test",
       "target_owner": "student-presence",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "application"
     },
     {
       "id": "people-directory.module-behavior-test.student-presence-public",
@@ -24105,8 +24077,7 @@
       "source_owner": "people-directory",
       "source_role": "module-behavior-test",
       "target_owner": "student-presence",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "public"
     },
     {
       "id": "parent-portal.decision-test.student-presence-public",
@@ -24117,8 +24088,7 @@
       "source_owner": "parent-portal",
       "source_role": "workflow-decision-test",
       "target_owner": "student-presence",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "public"
     },
     {
       "id": "student-presence.internal-test.care-plan-absence-records",
@@ -24129,8 +24099,7 @@
       "source_owner": "student-presence",
       "source_role": "module-internal-test",
       "target_owner": "care-plan",
-      "target_role": "contract",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "contract"
     },
     {
       "id": "inbound-common.http.student-presence-public",
@@ -24141,8 +24110,7 @@
       "source_owner": "inbound-common",
       "source_role": "http",
       "target_owner": "student-presence",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "public"
     },
     {
       "id": "inbound-groups.http.student-presence-public",
@@ -24153,8 +24121,7 @@
       "source_owner": "inbound-groups",
       "source_role": "http",
       "target_owner": "student-presence",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "public"
     },
     {
       "id": "inbound-operator.http.student-presence-public",
@@ -24165,8 +24132,7 @@
       "source_owner": "inbound-operator",
       "source_role": "http",
       "target_owner": "student-presence",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "public"
     },
     {
       "id": "root-composition.cli.student-presence-public",
@@ -24177,8 +24143,7 @@
       "source_owner": "root-composition",
       "source_role": "cli",
       "target_owner": "student-presence",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "public"
     },
     {
       "id": "facilities.compose.student-presence-public",
@@ -24189,8 +24154,7 @@
       "source_owner": "facilities",
       "source_role": "compose",
       "target_owner": "student-presence",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "public"
     },
     {
       "id": "facilities.compose.student-presence-compose",
@@ -24201,8 +24165,7 @@
       "source_owner": "facilities",
       "source_role": "compose",
       "target_owner": "student-presence",
-      "target_role": "compose",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "compose"
     },
     {
       "id": "settings-platform.http.student-presence-public",
@@ -24213,20 +24176,18 @@
       "source_owner": "settings-platform",
       "source_role": "http",
       "target_owner": "student-presence",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "public"
     },
     {
       "id": "student-presence.application.transaction-runtime-domain",
-      "description": "The presence application moved from legacy/services/active still uses the models/base list options and not-found helpers until slice 5 (#3422).",
+      "description": "The presence application builds the shared persistence list options and reads its not-found helper (#3422).",
       "scopes": [
         "production"
       ],
       "source_owner": "student-presence",
       "source_role": "application",
       "target_owner": "transaction-runtime",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "domain"
     },
     {
       "id": "student-presence.application.care-plan-absence-records",
@@ -24237,8 +24198,7 @@
       "source_owner": "student-presence",
       "source_role": "application",
       "target_owner": "care-plan",
-      "target_role": "contract",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "contract"
     },
     {
       "id": "student-presence.application.delivery-platform-application",
@@ -24249,8 +24209,7 @@
       "source_owner": "student-presence",
       "source_role": "application",
       "target_owner": "delivery-platform",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "application"
     },
     {
       "id": "student-presence.application.workforce-public",
@@ -24261,8 +24220,7 @@
       "source_owner": "student-presence",
       "source_role": "application",
       "target_owner": "workforce",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "public"
     },
     {
       "id": "student-presence.application.workforce-time-records",
@@ -24274,7 +24232,7 @@
       "source_role": "application",
       "target_owner": "workforce",
       "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3413"
     },
     {
       "id": "student-presence.application.tenant-runtime-public",
@@ -24285,8 +24243,7 @@
       "source_owner": "student-presence",
       "source_role": "application",
       "target_owner": "tenant-runtime",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "public"
     },
     {
       "id": "student-presence.public.care-plan-absence-records",
@@ -24297,8 +24254,7 @@
       "source_owner": "student-presence",
       "source_role": "public",
       "target_owner": "care-plan",
-      "target_role": "contract",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "contract"
     },
     {
       "id": "calendar-view.adapter.student-presence-public",
@@ -24309,8 +24265,7 @@
       "source_owner": "calendar-view",
       "source_role": "adapter",
       "target_owner": "student-presence",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "public"
     },
     {
       "id": "scheduler-runtime.application.student-presence-public",
@@ -24321,8 +24276,7 @@
       "source_owner": "scheduler-runtime",
       "source_role": "application",
       "target_owner": "student-presence",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "public"
     },
     {
       "id": "open-room-move.compose.student-presence-public",
@@ -24333,8 +24287,7 @@
       "source_owner": "open-room-move",
       "source_role": "compose",
       "target_owner": "student-presence",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "public"
     },
     {
       "id": "student-presence.e2e-test.student-presence-port",
@@ -24345,8 +24298,7 @@
       "source_owner": "student-presence",
       "source_role": "e2e-test",
       "target_owner": "student-presence",
-      "target_role": "port",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "port"
     },
     {
       "id": "student-presence.adapter-test.student-presence-port",
@@ -24357,20 +24309,7 @@
       "source_owner": "student-presence",
       "source_role": "adapter-test",
       "target_owner": "student-presence",
-      "target_role": "port",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "legacy-composition.module-behavior-test.student-presence-compose",
-      "description": "The repository-factory tests read the composed session records through the module's composition seam (#3422).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "module-behavior-test",
-      "target_owner": "student-presence",
-      "target_role": "compose",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "port"
     },
     {
       "id": "student-presence.test-support.calendar-date",
@@ -24381,8 +24320,7 @@
       "source_owner": "student-presence",
       "source_role": "test-support",
       "target_owner": "legacy-shared",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "domain"
     },
     {
       "id": "test-support.fixtures.student-presence-session-rows",
@@ -24393,8 +24331,7 @@
       "source_owner": "test-support",
       "source_role": "test-support",
       "target_owner": "student-presence",
-      "target_role": "test-support",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "test-support"
     },
     {
       "id": "test-support.e2e-test.student-presence-session-rows",
@@ -24405,8 +24342,7 @@
       "source_owner": "test-support",
       "source_role": "e2e-test",
       "target_owner": "student-presence",
-      "target_role": "test-support",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "test-support"
     },
     {
       "id": "inbound-timetable.module-behavior-test.student-presence-session-rows",
@@ -24418,7 +24354,7 @@
       "source_role": "module-behavior-test",
       "target_owner": "student-presence",
       "target_role": "test-support",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
       "id": "workforce.adapter.student-presence-public",
@@ -24430,7 +24366,7 @@
       "source_role": "adapter",
       "target_owner": "student-presence",
       "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3413"
     },
     {
       "id": "people-directory.application.student-presence-public",
@@ -24441,8 +24377,7 @@
       "source_owner": "people-directory",
       "source_role": "application",
       "target_owner": "student-presence",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+      "target_role": "public"
     }
   ],
   "relocations": [

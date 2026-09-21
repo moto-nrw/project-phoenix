@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -57,14 +56,13 @@ func TestFactoryResolvesRoomsThroughTheOwner(t *testing.T) {
 	_, err = db.NewUpdate().TableExpr("iot.devices").Set("room_id = ?", room.ID).Where("id = ?", device.ID).Exec(ctx)
 	require.NoError(t, err)
 
-	sessions, _ := presenceCompose.SessionRepositories(factory.ActiveGroup)
 	err = testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
-		groups, err := sessions.FindByIDs(ctx, []int64{activeGroup.ID})
+		rooms, err := testpkg.SessionRooms(ctx, factory.ActiveGroup, []int64{activeGroup.ID})
 		require.NoError(t, err)
-		require.NotNil(t, groups[activeGroup.ID].Room, "active group carries its room")
-		assert.Equal(t, room.Name, groups[activeGroup.ID].Room.Name)
-		assert.Equal(t, room.Building, groups[activeGroup.ID].Room.Building, "the full row, colour and capacity included")
-		assert.Equal(t, room.Capacity, groups[activeGroup.ID].Room.Capacity)
+		require.NotNil(t, rooms[activeGroup.ID], "active group carries its room")
+		assert.Equal(t, room.Name, rooms[activeGroup.ID].Name)
+		assert.Equal(t, room.Building, rooms[activeGroup.ID].Building, "the full row, colour and capacity included")
+		assert.Equal(t, room.Capacity, rooms[activeGroup.ID].Capacity)
 
 		withRoom, err := factory.Group.FindWithRoom(ctx, educationGroup.ID)
 		require.NoError(t, err)

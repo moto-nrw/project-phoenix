@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -23,16 +22,15 @@ func TestSessionStaffPreservesMembershipAndPersonWireFields(t *testing.T) {
 	require.NoError(t, err)
 	want.Person, err = repos.Person.FindByID(ctx, staff.PersonID)
 	require.NoError(t, err)
-	_, supervisors := presenceCompose.SessionRepositories(repos.ActiveGroup)
-	rows, err := supervisors.FindByActiveGroupID(ctx, group.ID, true)
+	projected, err := testpkg.SupervisionRowStaff(ctx, repos.ActiveGroup, group.ID)
 	require.NoError(t, err)
-	require.Len(t, rows, 1)
-	require.NotNil(t, rows[0].Staff)
-	require.NotNil(t, rows[0].Staff.Person)
+	require.Len(t, projected, 1)
+	require.NotNil(t, projected[0])
+	require.NotNil(t, projected[0].Person)
 	wantJSON, err := json.Marshal(want)
 	require.NoError(t, err)
-	gotJSON, err := json.Marshal(rows[0].Staff)
+	gotJSON, err := json.Marshal(projected[0])
 	require.NoError(t, err)
 	require.JSONEq(t, string(wantJSON), string(gotJSON))
-	require.Equal(t, "Jane Smith", rows[0].Staff.Person.GetFullName())
+	require.Equal(t, "Jane Smith", projected[0].Person.GetFullName())
 }

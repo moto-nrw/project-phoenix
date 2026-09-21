@@ -21,6 +21,7 @@ type (
 	DeviceDirectory           = ports.DeviceDirectory
 	DirectoryRoom             = ports.DirectoryRoom
 	RoomDirectory             = ports.RoomDirectory
+	SessionRoom               = ports.SessionRoom
 	SessionActivity           = ports.SessionActivity
 	SessionActivityCategory   = ports.SessionActivityCategory
 	ActivityDirectory         = ports.ActivityDirectory

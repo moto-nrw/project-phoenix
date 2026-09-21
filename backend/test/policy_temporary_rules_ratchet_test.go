@@ -56,8 +56,12 @@ import (
 // handover, which moved the status-day and excused-request rows out of the
 // Presence nest and so dropped eleven stale grants to it, to 290 and 352,
 // and the #3422 Workforce row handover, which left the scheduler's grant to
-// the retained Presence rows stale, to 289 and 351;
-// this prose counter remains as an independent guard.
+// the retained Presence rows stale, to 289 and 351, and the two remaining
+// #3422 slices, which retired the presence services and the session rows and
+// left 23 further grants to the nest stale, to 236 and 295. Dissolving the
+// nest rewrote the nine surviving grants of its own behaviour suites, which
+// describe the module's suites now and promise no conversion, and lowers them
+// to 227 and 286; this prose counter remains as an independent guard.
 //
 // Three shrink-only measurements, all read-only on policy.json:
 //
@@ -107,12 +111,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 236
+	policyTempRulesTotal = 227
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 295
+	policyTempRulesCompatTotal = 286
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -209,8 +213,10 @@ var policyTempRulesFamilies = map[string]int{
 	"settings-platform": 15,
 
 	// #3214, #3207, #3218, #3224 — closed.
-	// #3422 removed 7 that went stale with legacy/services/active.
-	"student-presence": 14,
+	// #3422 removed 7 that went stale with legacy/services/active and rewrote
+	// the 9 of the dissolved nest's behaviour suites, which now describe the
+	// module's own suites and promise no conversion.
+	"student-presence": 5,
 
 	// #3214, #3218, #3229 — closed.
 	"test-support": 2,
