@@ -288,12 +288,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/studentpresence/legacy/services/active/transit_service.go:(*service).moveStudentsToTransitLocked":                 17,
 	"modules/studentpresence/legacy/services/active/visit_helpers.go:(*service).clearPlannedStatusRows":                        21,
 	"modules/studentpresence/legacy/services/active/visit_names.go:(*service).todayVisitNames":                                 23,
-	"modules/studentpresence/legacy/statistics/courses.go:(*service).courseSection":                                            21,
-	"modules/studentpresence/legacy/statistics/service.go:(*service).careDays":                                                 32,
-	"modules/studentpresence/legacy/statistics/service.go:(*service).compute":                                                  22,
-	"modules/studentpresence/legacy/statistics/service.go:buildGroupRows":                                                      16,
-	"modules/studentpresence/legacy/statistics/service.go:buildStudentRows":                                                    21,
-	"modules/studentpresence/legacy/statistics/service.go:visitWindows":                                                        18,
 
 	"modules/supervisiondashboard/supervisiondashboard.go:(*service).loadPresenceSections": 17,
 

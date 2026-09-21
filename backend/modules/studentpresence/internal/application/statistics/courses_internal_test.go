@@ -9,34 +9,36 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
 type courseRepoStub struct {
-	instances     []CourseInstance
-	participation []CourseParticipation
+	instances     []ports.CourseInstance
+	participation []ports.CourseParticipation
 	instanceErr   error
 	participErr   error
 }
 
-func (s courseRepoStub) CourseInstances(context.Context, timezone.Date, timezone.Date, timezone.Date) ([]CourseInstance, error) {
+func (s courseRepoStub) CourseInstances(context.Context, timezone.Date, timezone.Date, timezone.Date) ([]ports.CourseInstance, error) {
 	return s.instances, s.instanceErr
 }
 
-func (s courseRepoStub) CourseParticipation(context.Context, timezone.Date, timezone.Date, timezone.Date) ([]CourseParticipation, error) {
+func (s courseRepoStub) CourseParticipation(context.Context, timezone.Date, timezone.Date, timezone.Date) ([]ports.CourseParticipation, error) {
 	return s.participation, s.participErr
 }
 
-func courseFilters() Filters {
-	return Filters{From: timezone.NewDate(2026, 6, 1), To: timezone.NewDate(2026, 6, 30)}
+func courseFilters() studentpresence.StatisticsFilters {
+	return studentpresence.StatisticsFilters{From: timezone.NewDate(2026, 6, 1), To: timezone.NewDate(2026, 6, 30)}
 }
 
 func courseFixture() courseRepoStub {
 	return courseRepoStub{
-		instances: []CourseInstance{
+		instances: []ports.CourseInstance{
 			{CourseID: 10, Name: "Fußball", CategoryName: "AG", MaxParticipants: 4, HeldInstances: 8, CancelledInstances: 2},
 			{CourseID: 20, Name: "Ärztespiel", CategoryName: "AG", HeldInstances: 5},
 		},
-		participation: []CourseParticipation{
+		participation: []ports.CourseParticipation{
 			{CourseID: 10, StudentID: 1, PresentDays: 6, AbsentDays: 2, OpenDays: 0},
 			{CourseID: 10, StudentID: 2, PresentDays: 8, AbsentDays: 0, OpenDays: 0},
 			{CourseID: 20, StudentID: 1, PresentDays: 3, AbsentDays: 1, OpenDays: 1},
@@ -46,13 +48,13 @@ func courseFixture() courseRepoStub {
 
 // callCourseSection runs the section over the unclamped filter window; the
 // retention clamp is compute()'s job and has its own test.
-func callCourseSection(svc *service, filters Filters, students []StudentRow) ([]CourseRow, []CourseStudentRow, CourseRow, error) {
+func callCourseSection(svc *service, filters studentpresence.StatisticsFilters, students []studentpresence.StatisticsStudentRow) ([]studentpresence.StatisticsCourseRow, []studentpresence.StatisticsCourseStudentRow, studentpresence.StatisticsCourseRow, error) {
 	return svc.courseSection(context.Background(), filters, filters.From, filters.To,
 		timezone.DateFromTime(fixedNow()), students)
 }
 
-func courseStudents() []StudentRow {
-	return []StudentRow{
+func courseStudents() []studentpresence.StatisticsStudentRow {
+	return []studentpresence.StatisticsStudentRow{
 		{StudentID: 1, FirstName: "Emma", LastName: "Bauer", SchoolClass: "1a", GroupName: "Bärengruppe"},
 		{StudentID: 2, FirstName: "Finn", LastName: "Ahrens", SchoolClass: "2b", GroupName: "Bärengruppe"},
 	}
@@ -111,7 +113,7 @@ func TestCourseSection_IgnoresChildrenOutsideThePopulation(t *testing.T) {
 	t.Parallel()
 	fixture := courseFixture()
 	fixture.participation = append(fixture.participation,
-		CourseParticipation{CourseID: 10, StudentID: 999, PresentDays: 8})
+		ports.CourseParticipation{CourseID: 10, StudentID: 999, PresentDays: 8})
 	svc := &service{cfg: Config{Courses: fixture, Now: fixedNow}}
 
 	courses, childRows, totals, err := callCourseSection(svc, courseFilters(), courseStudents())
@@ -162,7 +164,7 @@ func TestCourseSection_GroupFilterDropsForeignCourses(t *testing.T) {
 	t.Parallel()
 	fixture := courseFixture()
 	// Only "Fußball" (10) has rows for the filtered children.
-	fixture.participation = []CourseParticipation{
+	fixture.participation = []ports.CourseParticipation{
 		{CourseID: 10, StudentID: 1, PresentDays: 6, AbsentDays: 2},
 	}
 	svc := &service{cfg: Config{Courses: fixture, Now: fixedNow}}
@@ -207,7 +209,7 @@ func TestCourseSection_WindowBehindRetentionReadsNothing(t *testing.T) {
 // Sections limit what compute() spends time on; empty means everything.
 func TestFiltersWants(t *testing.T) {
 	t.Parallel()
-	assert.True(t, Filters{}.wants(SectionCourses))
-	assert.True(t, Filters{Sections: []Section{SectionCourses}}.wants(SectionCourses))
-	assert.False(t, Filters{Sections: []Section{SectionRooms}}.wants(SectionCourses))
+	assert.True(t, studentpresence.StatisticsFilters{}.Wants(studentpresence.StatisticsSectionCourses))
+	assert.True(t, studentpresence.StatisticsFilters{Sections: []studentpresence.StatisticsSection{studentpresence.StatisticsSectionCourses}}.Wants(studentpresence.StatisticsSectionCourses))
+	assert.False(t, studentpresence.StatisticsFilters{Sections: []studentpresence.StatisticsSection{studentpresence.StatisticsSectionRooms}}.Wants(studentpresence.StatisticsSectionCourses))
 }

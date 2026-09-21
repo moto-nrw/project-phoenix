@@ -647,6 +647,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/studentpresence/internal/application/statistics",
+      "owner": "student-presence",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/studentpresence/internal/ports",
       "owner": "student-presence",
       "role": "port",
@@ -2555,13 +2562,6 @@
       "owner": "class-day-view",
       "role": "test-support",
       "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "modules/studentpresence/legacy/statistics",
-      "owner": "student-presence",
-      "role": "adapter",
-      "internal_test_role": "adapter-test",
       "external_test_role": "module-behavior-test"
     },
     {
@@ -6620,6 +6620,50 @@
       ],
       "source_owner": "student-presence",
       "source_role": "port",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "student-presence.public.calendar-date",
+      "description": "The public Statistik report contract carries its window as the shared calendar-date value (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "public",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "student-presence.application.public",
+      "description": "The Student Presence application implements its own public Statistik report contract (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "student-presence.application.calendar-date",
+      "description": "The Statistik report computes care days and retention cutoffs with the shared calendar-date value (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "application",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "student-presence.internal-test.calendar-date",
+      "description": "Student Presence application tests pin fixed calendar days (#3422).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "module-internal-test",
       "target_owner": "legacy-shared",
       "target_role": "domain"
     },
@@ -18209,6 +18253,17 @@
       "target_role": "http"
     },
     {
+      "id": "inbound-statistics.http.student-presence-public",
+      "description": "Statistics handlers call the Statistik report through the public Student Presence contract (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-statistics",
+      "source_role": "http",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
       "id": "inbound-statistics.security-contract",
       "description": "Statistics handlers name the report permissions (#2703).",
       "scopes": [
@@ -21703,18 +21758,6 @@
       ],
       "source_owner": "group-live-view",
       "source_role": "adapter",
-      "target_owner": "student-presence",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "inbound-statistics.http.student-presence-adapter",
-      "description": "The statistics HTTP adapter still reaches the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-statistics",
-      "source_role": "http",
       "target_owner": "student-presence",
       "target_role": "adapter",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"

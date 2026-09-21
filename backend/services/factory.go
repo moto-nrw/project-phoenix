@@ -59,8 +59,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/statistics"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	supervisiondashboardlegacy "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -252,7 +253,7 @@ type Factory struct {
 	AbsenceOverview     *active.StudentStatusDayOverviewService
 	StudentHistory      active.StudentHistoryService
 	// Statistics is the Statistik report (#2606).
-	Statistics              statistics.Service
+	Statistics              studentpresence.StatisticsReports
 	OGSGroupLive            grouplive.Query
 	SupervisionDashboard    supervisiondashboard.Query
 	TimetableData           *timetableplanning.TimetableDataService
@@ -2994,21 +2995,18 @@ func newFactory(
 		StudentStatusDays:    studentStatusDayService,
 		AbsenceOverview:      studentStatusDayOverviewService,
 		StudentHistory:       active.NewStudentHistoryService(newStudentPresence(db, logger), historyRoomNames(rooms), NewDataAccessAudit(repos.DataAccessLog), NewHistorySlots(repos.InstanceStudent)),
-		Statistics: statistics.NewService(statistics.Config{
-			Statistics:      statisticsRoomUtilization{newStudentPresence(db, logger)},
-			Attendance:      statisticsAttendance{newStudentPresence(db, logger)},
-			StatusDays:      statisticsStatusDays{repos.CarePlan()},
-			Courses:         statisticsReportCourses{timetableCapability},
-			Holidays:        holidayService,
-			ClosingDays:     closingDayService,
-			Periods:         statisticsReportPeriods{calendar},
-			Students:        statisticsReportStudents{repos.Student},
-			Rooms:           statisticsReportRooms{rooms},
-			AccessLog:       statisticsAuditLog{repos.DataAccessLog},
-			Retention:       statisticsRetention{settingsService},
-			PrivacyConsents: statisticsRetentionSettings{newStudentPresence(db, logger)},
-			Logger:          logger.With("service", "statistics"),
-			Now:             now,
+		Statistics: newStatistics(db, logger, presenceCompose.StatisticsDependencies{
+			StatusDays:  statisticsStatusDays{repos.CarePlan()},
+			Courses:     statisticsReportCourses{timetableCapability},
+			Holidays:    holidayService,
+			ClosingDays: closingDayService,
+			Periods:     statisticsReportPeriods{calendar},
+			Students:    statisticsReportStudents{repos.Student},
+			Rooms:       statisticsReportRooms{rooms},
+			AccessLog:   statisticsAuditLog{repos.DataAccessLog},
+			Retention:   statisticsRetention{settingsService},
+			Logger:      logger.With("service", "statistics"),
+			Now:         now,
 		}),
 		OGSGroupLive:            ogsGroupLiveService,
 		SupervisionDashboard:    supervisionDashboardService,

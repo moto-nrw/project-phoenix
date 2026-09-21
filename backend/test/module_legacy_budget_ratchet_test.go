@@ -60,13 +60,15 @@ import (
 // #3427 dissolved modules/careplan/legacy entirely (5,278 LOC, the
 // carelifecycle subtree and the careexitview projection) into native Care
 // Plan, Timetable and the student directory projection; its entry is gone.
+// #3422 dissolved modules/studentpresence/legacy/statistics (1,106 LOC) into
+// the native Student Presence application.
 // Re-measure the same way when a number needs to move — downwards.
 const moduleLegacyBudgetCheck = "legacy LOC budget"
 
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 63883
+const moduleLegacyBudgetTotal = 62777
 
 // moduleLegacyBudgets maps a legacy tree to its production LOC on 2026-09-18.
 // The comment on each entry names the ticket that is supposed to dissolve the
@@ -90,7 +92,7 @@ var moduleLegacyBudgets = map[string]int{
 	// No ticket today.
 	"modules/planexport/legacy": 410,
 	// #3352 covers the api/students consumer only, not the tree.
-	"modules/studentpresence/legacy": 13969,
+	"modules/studentpresence/legacy": 12863,
 	// No ticket today.
 	"modules/supervisiondashboard/legacy": 730,
 	// No ticket today — and the largest tree of the twelve.

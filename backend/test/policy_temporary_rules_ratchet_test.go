@@ -50,8 +50,9 @@ import (
 // 46 user-context permissions to exact debt to 346 and 441, and the #3501
 // dissolution of the user-context package, which took its four Presence
 // rules along, to 342 and 437. The #3427 care-lifecycle cutover deleted the
-// 46 permissions #3350 had added and lowers them to 296 and 359;
-// this prose counter remains as an independent guard.
+// 46 permissions #3350 had added and lowers them to 296 and 359, and the
+// #3422 statistics cutover, which dropped the statistics HTTP grant to the
+// retained Presence adapter, to 295 and 358; this prose counter remains as an independent guard.
 //
 // Three shrink-only measurements, all read-only on policy.json:
 //
@@ -101,12 +102,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 296
+	policyTempRulesTotal = 295
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 359
+	policyTempRulesCompatTotal = 358
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -166,9 +167,6 @@ var policyTempRulesFamilies = map[string]int{
 
 	// #3219, #3218, #2730 — closed.
 	"inbound-staff-shifts": 37,
-
-	// #3214 — closed.
-	"inbound-statistics": 1,
 
 	// #3214, #3218, #3220, #3224 — closed. #3427 removed the 36 that #3350
 	// (PR #3408) had added with the care-lifecycle adapter.
