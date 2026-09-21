@@ -226,7 +226,7 @@ func (rs *Resource) getManualEnrollmentBootstrap(w http.ResponseWriter, r *http.
 	texts := data.LegalTexts
 	items := make([]CareOfferingResponse, 0, len(data.Offerings))
 	for _, o := range data.Offerings {
-		items = append(items, toCareOfferingResponse(o))
+		items = append(items, toPublicCareOfferingResponse(o))
 	}
 	capabilities := enrollmentService.EffectiveFormCapabilities(data.Capabilities, data.Offerings)
 	common.Respond(w, r, http.StatusOK, PublicEnrollmentFormBootstrapResponse{

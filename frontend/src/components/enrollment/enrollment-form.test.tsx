@@ -764,6 +764,117 @@ describe("EnrollmentForm", () => {
     ).not.toBeInTheDocument();
   });
 
+  // #3377: texts the school wrote itself follow the chosen language, per
+  // text, and fall back to German where the school has no translation.
+  function translatedPrefetch() {
+    const [pickupNote, ...otherFields] = schema().fields;
+    const [flexible, ...otherOfferings] = offerings();
+    return {
+      schema: {
+        ...schema(),
+        fields: [
+          {
+            ...pickupNote!,
+            translations: { en: { label: { text: "Pickup note" } } },
+          },
+          ...otherFields,
+        ],
+      },
+      offerings: [
+        {
+          ...flexible!,
+          translations: { en: { name: { text: "Flexible care" } } },
+        },
+        ...otherOfferings,
+      ],
+      careOfferingSelectionMode: "optional" as const,
+      captchaConfig: null,
+      legalTexts: legalTexts([
+        {
+          key: "agb",
+          kind: "terms",
+          title: "AGB / Teilnahmebedingungen",
+          label: "Ich akzeptiere die AGB.",
+          text: "AGB Text",
+          required: true,
+          translations: { en: { label: { text: "I accept the terms." } } },
+        },
+      ]),
+    };
+  }
+
+  it("shows school-written texts in the chosen language and German where none exists", async () => {
+    mockIntlLocale.value = "en";
+
+    renderForm({ localizedCopy: true, prefetchedData: translatedPrefetch() });
+    await waitForLoaded();
+
+    expect(screen.getByText("Pickup note")).toBeInTheDocument();
+    expect(screen.queryByText("Abholhinweis")).not.toBeInTheDocument();
+    expect(screen.getByText("Flexible care")).toBeInTheDocument();
+    expect(screen.getByText("I accept the terms.")).toBeInTheDocument();
+    // No English text stored for this offering.
+    expect(screen.getByText("Fixe Betreuung")).toBeInTheDocument();
+  });
+
+  it("uses German offering names for conditional fields in localized copy", async () => {
+    mockIntlLocale.value = "en";
+    const prefetched = translatedPrefetch();
+    prefetched.schema.fields.push({
+      key: "lunch_note",
+      label: "Hinweis zum Mittagessen",
+      type: "text",
+      required: false,
+      applies_to_child: true,
+      sort_order: 10,
+      visible_when: {
+        source: "care_offering",
+        operator: "includes",
+        value: "Flexible Betreuung",
+      },
+    });
+    prefetched.legalTexts = legalTexts([]);
+
+    renderForm({
+      localizedCopy: true,
+      prefetchedData: prefetched,
+      initialDraft: editDraft([
+        { id: "child-1", first_name: "Lina", last_name: "Muster" },
+      ]),
+    });
+    await waitForLoaded();
+
+    expect(screen.queryByLabelText("Hinweis zum Mittagessen")).toBeNull();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Flexible care/ }));
+    fireEvent.click(dayButton(offeringCard("children_0_offering_11"), "Mon"));
+    expect(screen.getByLabelText("Hinweis zum Mittagessen")).toBeVisible();
+    fireEvent.change(screen.getByLabelText("Hinweis zum Mittagessen"), {
+      target: { value: "Ohne Schweinefleisch" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Submit enrollment" }));
+
+    await waitFor(() => {
+      expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1);
+    });
+    const [, payload] = mockSubmitEnrollment.mock.calls[0] as [
+      string,
+      SubmitEnrollmentPayload,
+    ];
+    expect(payload.children[0]?.custom_data).toMatchObject({
+      lunch_note: "Ohne Schweinefleisch",
+    });
+  });
+
+  it("keeps school-written texts German in a staff preview", async () => {
+    mockIntlLocale.value = "en";
+
+    renderForm({ prefetchedData: translatedPrefetch() });
+    await waitForLoaded();
+
+    expect(screen.getByText("Abholhinweis")).toBeInTheDocument();
+    expect(screen.getByText("Flexible Betreuung")).toBeInTheDocument();
+  });
+
   it("renders only the configured AGB block and submits only its consent", async () => {
     mockFetchPublicLegalTexts.mockResolvedValueOnce(
       legalTexts([

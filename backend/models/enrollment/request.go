@@ -90,6 +90,10 @@ type LegalBlockSnapshot struct {
 	Text     string `json:"text"`
 	Required bool   `json:"required"`
 	Source   string `json:"source,omitempty"`
+	// Translations records the translated wordings (locale → attribute →
+	// text) the form offered next to the German one (#3377). The server does
+	// not learn which language the guardian read.
+	Translations map[string]map[string]string `json:"translations,omitempty"`
 }
 
 // LegalBlocksSnapshotEntry preserves one submission's consent evidence.

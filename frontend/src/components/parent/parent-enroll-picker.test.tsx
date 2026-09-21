@@ -151,6 +151,19 @@ describe("ParentEnrollPicker", () => {
     ).toBeInTheDocument();
   });
 
+  // #3377: the school's translations of a phase name apply per language. The
+  // test locale is German, which has no translation by definition.
+  it("keeps the German phase name when only other languages are translated", async () => {
+    mocks.listEnrollableSchools.mockResolvedValueOnce([
+      phase({ phase_name_translations: { ru: "Учебный год 2026/27" } }),
+    ]);
+
+    render(<ParentEnrollPicker />);
+
+    expect(await screen.findByText("Schuljahr 2026/27")).toBeInTheDocument();
+    expect(screen.queryByText("Учебный год 2026/27")).not.toBeInTheDocument();
+  });
+
   it("shows the empty state when no phases are available", async () => {
     mocks.listEnrollableSchools.mockResolvedValueOnce([]);
 

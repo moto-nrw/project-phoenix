@@ -1,5 +1,6 @@
 import { createLogger } from "~/lib/logger";
 import { readEnrollmentError } from "~/lib/enrollment-error-messages";
+import type { Translations } from "~/lib/enrollment-translations";
 
 const logger = createLogger({ component: "EnrollmentFormSchemaAPI" });
 
@@ -138,6 +139,8 @@ export const RESERVED_TARGETS: Record<
 interface FormFieldOption {
   label: string;
   value: string;
+  /** School-written translations of `label` (#3377). */
+  translations?: Translations;
 }
 
 interface FormFieldValidation {
@@ -190,6 +193,11 @@ export interface FormField {
    * null/undefined = always visible.
    */
   visible_when?: VisibilityCondition | null;
+  /**
+   * School-written translations of `label`, `help_text` and `content`
+   * (#3377). Option labels translate on the option itself.
+   */
+  translations?: Translations;
 }
 
 export type CoreRequirementKey = "guardian_phone";
@@ -214,6 +222,8 @@ export interface FormLegalBlock {
   source?: LegalBlockSource;
   display_mode?: LegalBlockDisplayMode;
   document_url?: string;
+  /** School-written translations of `title`, `label` and `text` (#3377). */
+  translations?: Translations;
 }
 
 export interface FormSchema {
@@ -398,6 +408,8 @@ export interface PublicLegalBlock {
   required: boolean;
   sort_order?: number;
   source?: LegalBlockSource;
+  /** Translations that still match the German text, without source. */
+  translations?: Translations;
 }
 
 /**

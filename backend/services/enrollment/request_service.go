@@ -520,6 +520,9 @@ type LegalBlock struct {
 	Required  bool   `json:"required"`
 	SortOrder int    `json:"sort_order,omitempty"`
 	Source    string `json:"source,omitempty"`
+	// Translations holds only translations that still match the German
+	// text, without their source (#3377).
+	Translations enrollmentCapability.Translations `json:"translations,omitempty"`
 }
 
 // RequestSettingsResolver is the narrow contract the service needs from
@@ -3564,6 +3567,8 @@ func buildTemplateLegalBlocks(configured []enrollmentCapability.FormLegalBlock) 
 			Required:  block.Required,
 			SortOrder: block.SortOrder,
 			Source:    block.Source,
+
+			Translations: block.PublicTranslations(),
 		})
 	}
 	// The editor writes blocks in display order, but API-written templates
@@ -3646,6 +3651,8 @@ func legalBlocksSnapshotEntry(blocks []LegalBlock, flags map[string]any, at time
 			Text:     block.Text,
 			Required: block.Required,
 			Source:   block.Source,
+
+			Translations: block.Translations.Texts(),
 		})
 	}
 	// Freeze the flags independently of subsequent request edits.

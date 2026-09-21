@@ -117,31 +117,76 @@ not composed. They are public, take no cookies, and rely on
 
 | Route | Contract |
 |---|---|
-| `POST /demo/access-requests` | `email`, `school_name`, `person_name`, `contact_opt_in`, optional `src` → `202 {entry_url}`; `422 demo_access_invalid` |
-| `GET /demo/access/status` | token in `Authorization: Bearer` → `{status: preparing\|ready}` |
+| `POST /demo/access-requests` | `email`, `school_name`, `person_name`, `contact_opt_in`, optional `src` → always `202 {link_sent: true}`, never the link itself; `422 demo_access_invalid` |
+| `GET /demo/access/status` | token in `Authorization: Bearer` → `{status: preparing\|ready\|failed}`, plus `school_url` (origin of the demo school) when `ready` |
 | `POST /demo/access/sessions` | `{token}` → `{access_token, refresh_token}` (tenant session); `409 demo_school_preparing` |
 
 Unknown token: `404 demo_access_unknown`; expired: `410 demo_access_expired`.
 The token is opaque, stored as SHA-256 fingerprint in `auth.demo_accesses`
 (owner `identity-access`), valid 14 days, reusable, every use counted. It
-travels in the URL fragment (`{slug}.TENANT_DOMAIN/demo#token=…`), request
-bodies, or the header above, never in a URL a server logs. The frontend
-entry page `[tenant]/(public)/demo` redeems it through `/api/demo/access/*`
-and signs in with the `internalRefresh` credentials path.
+travels in the URL fragment, request bodies, or the header above, never in a
+URL a server logs.
 
-A demo session signs in the administrator of the standing school
-`messe-demo`. `SwitchTenant` refuses any account a demo access signed in
+Every address enters a demo school of its own (#3463). Its first request
+queues an order in `platform.demo_school_states` (owner
+`organization-tenancy`); the school's slug is the OGS name plus a random
+suffix. A demo school, and with it `{slug}.TENANT_DOMAIN`, exists only after
+its seed: the tenant layout resolves the slug and would send a visitor of an
+unknown subdomain away. So the mailed link is always the waiting room on the
+main domain, `FRONTEND_URL/demo#token=…` (`app/demo/page.tsx`). It polls the
+status and, once `ready`, hands the token on to
+`{school_url}/demo#token=…`, where the entry page
+`[tenant]/(public)/demo` redeems it through `/api/demo/access/*` and signs in
+with the `internalRefresh` credentials path. Both pages take their texts
+from `DEMO_ENTRY_LOADING` and `DEMO_ENTRY_PROBLEMS` in `lib/demo-access.ts`. The demo process seeds the school; `docs/operations/standing-demo.md` has the queue,
+the limit of three seeds at a time, the single repetition and the fallback to
+the standing school `messe-demo` (`--demo-standing-school` on `serve` and
+`demo`). The access row remembers its school (`school_slug`), so status and
+redemption never take a slug from the caller.
+
+- `preparing`: queued, being seeded, or seeded without its first tick.
+- `ready`: seeded, first tick done, the school exists and is active. The
+  session signs in the prospect's own caregiver (`visitor_account_id`); a
+  school without one (the standing school) signs in its oldest administrator.
+- `failed`: the seed failed twice. The entry page sends the prospect back to
+  the website; the address no longer counts as active and may ask again.
+
+An address is active while its newest unexpired access enters a school that
+did not fail. A further request of an active address stores an access into
+that same school; only an inactive address queues a new one. The prospect's
+address stays in `auth.demo_accesses`. The order carries
+only the OGS name and the person's name, so the address cannot become an
+account or guardian address in a demo school, where
+`attachExistingAccountByEmail` would hand an existing account of that address
+to the inviting tenant. The serving role reads `name`, `status`, `tenant_id`
+and `visitor_account_id` of an order and inserts new ones; `seed_state` and
+`status` are out of its reach.
+
+Mails (#3465): the entry link leaves by mail only (`demo-access.html`,
+Reply-To `kontakt@moto.nrw`), and the answer is the same for every address,
+so it neither hands a demo to somebody who typed a foreign address nor tells
+who asked before. The mail carries nothing the form submitted. Every request
+stores its own access with the submitted details; earlier links stay valid
+until they expire. An address waits 10 minutes for its next link: within
+that cooldown a request stores and mails nothing. The team is mailed
+(`demo-lead.html`) for an address without an active access and when the
+contact consent changed. The website shows „Wir haben Ihnen den Link
+geschickt" for `link_sent`.
+
+Mail lock: under `APP_ENV=demo`, `email.NewMailer` wraps the one SMTP
+transport in `email.RestrictToDemoMails`. Every template but the two above
+is dropped and reported as sent, whoever the caller is; only
+`mfa-email-code.html` reports `email.ErrNotDeliveredInDemo`, because a
+sign-in waits for that code. A new mail that must leave the demo environment
+needs its template added there. `email.IsDemoEnvironment` decides for the
+routes, the capability and the lock alike.
+
+`SwitchTenant` refuses any account a demo access signed in
 (`403 demo_session`), through a mint guard inside the switch transaction.
-All visitors share that account, so it is exempt from the session cap
-(`capSessionsUnlessDemo`); otherwise the sixth visitor would sign the first
-one out. `TenantGuard` leaves the entry page alone (`isDemoEntryPath`) and
-guards every other tenant route as before.
-
-`ready` means: the school exists and has an active administrator. The server
-role cannot read `platform.demo_school_states` by design (#3461), so `ready`
-can appear while the one-time provisioning of `messe-demo` still seeds data.
-There is no `failed` status yet; the entry page gives up after two minutes.
-#3463 replaces both with a state per demo access.
+Such an account is exempt from the session cap (`capSessionsUnlessDemo`): in
+the standing school all visitors share one account, and the sixth visitor
+would sign the first one out. `TenantGuard` leaves the entry page alone
+(`isDemoEntryPath`) and guards every other tenant route as before.
 
 ### Embedded enrollment
 

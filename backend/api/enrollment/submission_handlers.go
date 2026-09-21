@@ -601,7 +601,7 @@ func (rs *Resource) getEditBootstrap(w http.ResponseWriter, r *http.Request) {
 
 	offerings := make([]CareOfferingResponse, 0, len(draft.OpenOfferings))
 	for _, o := range draft.OpenOfferings {
-		offerings = append(offerings, toCareOfferingResponse(o))
+		offerings = append(offerings, toPublicCareOfferingResponse(o))
 	}
 	common.Respond(w, r, http.StatusOK, EditBootstrapResponse{
 		Phase:                     toPublicPhase(draft.Phase),
