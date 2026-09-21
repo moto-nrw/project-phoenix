@@ -151,7 +151,7 @@ func (e demoAccessEngine) RedeemDemoAccess(ctx context.Context, token, role, ipA
 	}
 	return identityaccess.DemoEntry{
 		AccessToken: entry.AccessToken, RefreshToken: entry.RefreshToken,
-		AccessID: entry.AccessID, Role: string(entry.Role), Source: entry.Source,
+		AccessID: entry.AccessID, Role: string(entry.Role), Source: entry.Source, FixedRole: entry.FixedRole,
 	}, nil
 }
 

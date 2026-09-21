@@ -86,7 +86,9 @@ export type DemoAnalyticsEvent =
 
 // The visitor of the public demo is the demo access (#3467): its ID is the
 // distinct_id, so the team can follow one visit without a name or address.
-function demoProperties(visit: DemoVisit): Properties {
+// An unknown visit (no storage) still counts, as the demo without identity.
+function demoProperties(visit: DemoVisit | null): Properties {
+  if (!visit) return { deployment: "demo" };
   return {
     ...(visit.accessId ? { distinct_id: visit.accessId } : {}),
     deployment: "demo",
@@ -102,7 +104,7 @@ export function registerDemoVisit(visit: DemoVisit): void {
 
 export function trackDemoEvent(
   event: DemoAnalyticsEvent,
-  visit: DemoVisit,
+  visit: DemoVisit | null,
 ): void {
   capturePostHog(event, demoProperties(visit));
 }

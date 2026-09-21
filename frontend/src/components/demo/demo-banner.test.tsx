@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { saveDemoVisit } from "~/lib/demo-access";
@@ -72,6 +73,20 @@ describe("DemoBanner", () => {
 
     expect(screen.queryByRole("region", { name: "Demo" })).toBeNull();
     expect(screen.queryByText("Kostenlos starten")).toBeNull();
+  });
+
+  // The server has no stored visit. A first render that read it would not
+  // match the server's markup, and React would throw the page away.
+  it("renders the same first markup as the server, whatever is stored", () => {
+    const markup = renderToString(
+      <ToastProvider>
+        <DemoBanner />
+      </ToastProvider>,
+    );
+
+    expect(markup).toContain("Kostenlos starten");
+    expect(markup).not.toContain("Betreuungskraft");
+    expect(markup).not.toContain("Rolle");
   });
 
   it("names the demo, the school and the current role", () => {
@@ -178,6 +193,66 @@ describe("DemoBanner", () => {
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(assign).not.toHaveBeenCalled();
+  });
+
+  // Without a stored visit the banner does not know the role: it claims
+  // none, so every role can be chosen.
+  it("asks for a role when it does not know the current one", async () => {
+    localStorage.clear();
+    const user = userEvent.setup();
+    fetchMock.mockReturnValueOnce(
+      json(200, {
+        access_token: "access",
+        refresh_token: "refresh",
+        demo: { access_id: "4711", role: "all" },
+      }),
+    );
+    renderBanner();
+
+    const trigger = screen.getByRole("button", { name: "Rolle wählen" });
+    expect(trigger).toHaveTextContent("Rolle wählen");
+    expect(analytics.registerDemoVisit).not.toHaveBeenCalled();
+    await user.click(trigger);
+    for (const item of screen.getAllByRole("menuitemradio")) {
+      expect(item).toHaveAttribute("aria-checked", "false");
+    }
+    await user.click(
+      screen.getByRole("menuitemradio", { name: "Alle Funktionen" }),
+    );
+
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
+  });
+
+  // The standing demo school is shared: its role cannot change, so the
+  // banner names it without a menu that would do nothing.
+  it("shows a fixed role without a menu", () => {
+    saveDemoVisit({ accessId: "4711", role: "all", fixedRole: true });
+
+    renderBanner();
+
+    expect(screen.getByText("Alle Funktionen")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Rolle/ })).toBeNull();
+    expect(
+      screen.getByRole("link", { name: "Kostenlos starten" }),
+    ).toBeInTheDocument();
+  });
+
+  it("sends the visitor back to the mailed link when the demo cannot tell who it is", async () => {
+    const user = userEvent.setup();
+    fetchMock.mockReturnValueOnce(json(404));
+    renderBanner();
+
+    await user.click(screen.getByRole("button", { name: /Rolle wechseln/ }));
+    await user.click(
+      screen.getByRole("menuitemradio", { name: "OGS-Leitung" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Bitte öffnen Sie die Demo noch einmal über den Link aus Ihrer E-Mail.",
+      ),
+    ).toBeInTheDocument();
+    expect(signIn).not.toHaveBeenCalled();
   });
 
   it("says so when the switch fails and stays in the current role", async () => {

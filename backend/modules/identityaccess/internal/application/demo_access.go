@@ -180,12 +180,8 @@ func (d *DemoAccess) Redeem(ctx context.Context, token string, role domain.DemoR
 		if entry.Status != domain.DemoSchoolReady {
 			return domain.ErrDemoSchoolPreparing
 		}
-		if entry.Shared {
-			role = domain.DemoRoleAll
-		} else if role != "" {
-			if err := d.store.ReplaceDemoAccountRole(txCtx, entry.AccountID, entry.TenantID, role.SchoolRole()); err != nil {
-				return err
-			}
+		if role, err = d.assumeRole(txCtx, entry, role); err != nil {
+			return err
 		}
 		if err := d.schools.MarkDemoSchoolUsed(txCtx, access.SchoolSlug, d.now()); err != nil {
 			return err
@@ -201,8 +197,21 @@ func (d *DemoAccess) Redeem(ctx context.Context, token string, role domain.DemoR
 	}
 	return domain.DemoEntry{
 		AccessToken: accessToken, RefreshToken: refreshToken,
-		AccessID: access.ID, Role: role, Source: access.Source,
+		AccessID: access.ID, Role: role, Source: access.Source, FixedRole: entry.Shared,
 	}, nil
+}
+
+// assumeRole gives the prospect's own caregiver the chosen demo role and
+// returns the role the session will have. The shared administrator keeps
+// all functions; no role keeps the account as it is.
+func (d *DemoAccess) assumeRole(ctx context.Context, entry domain.DemoSchoolEntry, role domain.DemoRole) (domain.DemoRole, error) {
+	if entry.Shared {
+		return domain.DemoRoleAll, nil
+	}
+	if role == "" {
+		return role, nil
+	}
+	return role, d.store.ReplaceDemoAccountRole(ctx, entry.AccountID, entry.TenantID, role.SchoolRole())
 }
 
 // entry resolves the account a demo session signs in.

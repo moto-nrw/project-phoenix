@@ -514,6 +514,21 @@ describe("OverflowMenu", () => {
     expect(pick).not.toHaveBeenCalled();
   });
 
+  it("hands the focus back to the trigger after an entry is chosen by keyboard", () => {
+    const pick = vi.fn();
+    render(<OverflowMenu items={[{ label: "Export", onClick: pick }]} />);
+    const trigger = screen.getByRole("button", { name: /Weitere Aktionen/ });
+
+    fireEvent.click(trigger, { detail: 0 });
+    const item = screen.getByRole("menuitem", { name: "Export" });
+    expect(item).toHaveFocus();
+    fireEvent.keyDown(item, { key: "Enter" });
+
+    expect(pick).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(trigger).toHaveFocus();
+  });
+
   it("leaves the focus on the trigger when the pointer opens the menu", () => {
     render(
       <OverflowMenu items={[{ label: "Export", onClick: () => undefined }]} />,

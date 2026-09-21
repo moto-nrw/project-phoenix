@@ -148,6 +148,9 @@ type demoSessionFacts struct {
 	AccessID string `json:"access_id"`
 	Role     string `json:"role,omitempty"`
 	Source   string `json:"src,omitempty"`
+	// FixedRole: the standing school's session keeps all functions; the
+	// banner shows its role without a switch.
+	FixedRole bool `json:"fixed_role"`
 }
 
 // createSession redeems the token. With a demo role it first switches the
@@ -169,7 +172,7 @@ func (rs *DemoResource) createSession(w http.ResponseWriter, r *http.Request) {
 	}
 	render.JSON(w, r, demoSessionResponse{
 		TokenResponse: TokenResponse{AccessToken: entry.AccessToken, RefreshToken: entry.RefreshToken},
-		Demo:          demoSessionFacts{AccessID: strconv.FormatInt(entry.AccessID, 10), Role: entry.Role, Source: entry.Source},
+		Demo:          demoSessionFacts{AccessID: strconv.FormatInt(entry.AccessID, 10), Role: entry.Role, Source: entry.Source, FixedRole: entry.FixedRole},
 	})
 }
 

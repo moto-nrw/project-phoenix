@@ -1,9 +1,8 @@
 "use client";
 
 import { PortalShell } from "~/components/ui/portal-shell";
-import { DemoBanner } from "~/components/demo/demo-banner";
+import { DemoBanner, useDemoBannerShown } from "~/components/demo/demo-banner";
 import { StaffPreviewBanner } from "~/components/staff-preview/staff-preview-banner";
-import { isDemoBuild } from "~/lib/demo-access";
 import { useShellAuthSafe } from "~/lib/shell-auth-context";
 import { Header } from "./header";
 import { Sidebar } from "./sidebar";
@@ -36,7 +35,8 @@ export function AppShell({ children }: AppShellProps) {
   const previewActive = useShellAuthSafe()?.isPreview === true;
   // Öffentliche Demo (#3467): derselbe feste Streifen oben, mit Rollenmenü
   // und „Kostenlos starten". Während einer Vorschau hat deren Streifen Vorrang.
-  const stripActive = previewActive || isDemoBuild();
+  const demoBannerShown = useDemoBannerShown();
+  const stripActive = previewActive || demoBannerShown;
 
   return (
     <div className={stripActive ? "pt-12" : undefined}>
@@ -55,7 +55,7 @@ export function AppShell({ children }: AppShellProps) {
         topLayer={
           <>
             <StaffPreviewBanner />
-            {previewActive ? null : <DemoBanner />}
+            {demoBannerShown ? <DemoBanner /> : null}
             <div
               data-staff-safe-area-top
               className="relative z-10 h-[env(safe-area-inset-top)] bg-transparent lg:hidden"

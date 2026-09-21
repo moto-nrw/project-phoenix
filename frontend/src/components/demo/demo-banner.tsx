@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { signIn } from "next-auth/react";
 import { CaretDownIcon } from "@phosphor-icons/react";
 import { ButtonLink } from "~/components/ui/button";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -17,9 +16,11 @@ import {
   isDemoBuild,
   readDemoVisit,
   saveDemoVisit,
+  startDemoSession,
   switchDemoRole,
 } from "~/lib/demo-access";
 import { createLogger } from "~/lib/logger";
+import { useShellAuthSafe } from "~/lib/shell-auth-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantSafe } from "~/lib/tenant-context";
 
@@ -27,8 +28,8 @@ const logger = createLogger({ component: "DemoBanner" });
 
 const SWITCH_FAILED =
   "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
-const LINK_EXPIRED =
-  "Ihr Demo-Link gilt nicht mehr. Auf unserer Website bekommen Sie einen neuen.";
+const OPEN_MAILED_LINK =
+  "Bitte öffnen Sie die Demo noch einmal über den Link aus Ihrer E-Mail.";
 
 /**
  * Schmaler Streifen über jeder Seite der öffentlichen Demo (#3467): links
@@ -44,21 +45,45 @@ export function DemoBanner() {
   return <ActiveDemoBanner />;
 }
 
-// Before a visit is known (no storage, a direct visit) the banner shows
-// "Alle Funktionen", which is what the standing demo school signs in as.
-const UNKNOWN_VISIT: DemoVisit = { accessId: "", role: "all" };
+/**
+ * Whether the shell shows the demo banner: in the demo build, in the OGS app
+ * only (the operator portal shares the shell), and not during a staff
+ * preview, whose own strip takes the place.
+ */
+export function isDemoBannerShown(
+  shellAuth: { mode: string; isPreview?: boolean } | null | undefined,
+): boolean {
+  return (
+    isDemoBuild() &&
+    shellAuth?.mode === "teacher" &&
+    shellAuth.isPreview !== true
+  );
+}
+
+export function useDemoBannerShown(): boolean {
+  return isDemoBannerShown(useShellAuthSafe());
+}
+
+const CHOOSE_ROLE = "Rolle wählen";
 
 function ActiveDemoBanner() {
   const schoolName = useTenantSafe()?.tenant?.name;
   const startPath = useTenantAwarePath()("/");
   const toast = useToast();
-  const [visit, setVisit] = useState<DemoVisit>(
-    () => readDemoVisit() ?? UNKNOWN_VISIT,
-  );
+  // Undefined until mounted: the server knows no stored visit, so reading it
+  // during the first render would not match the server's markup. Null without
+  // a stored visit (no storage, a direct visit): the banner then claims no
+  // role and reports no identity it does not know.
+  const [visit, setVisit] = useState<DemoVisit | null | undefined>();
   const [switching, setSwitching] = useState(false);
+
+  useEffect(() => {
+    setVisit(readDemoVisit());
+  }, []);
 
   // An entry or a switch reloads the page; it reports itself here, once.
   useEffect(() => {
+    if (!visit) return;
     const { pending, ...current } = visit;
     registerDemoVisit(current);
     if (pending) {
@@ -69,22 +94,17 @@ function ActiveDemoBanner() {
   }, [visit]);
 
   const chooseRole = async (role: DemoRole) => {
-    if (role === visit.role || switching) return;
+    if (role === visit?.role || switching) return;
     setSwitching(true);
     try {
       const session = await switchDemoRole(role);
       if (!session) {
-        toast.error(LINK_EXPIRED);
+        toast.error(OPEN_MAILED_LINK);
         return;
       }
-      const result = await signIn("credentials", {
-        redirect: false,
-        internalRefresh: true,
-        token: session.access_token,
-        refreshToken: session.refresh_token,
-      });
-      if (result?.error) throw new Error(result.error);
-      saveDemoVisit({ ...session.visit, pending: "demo_role_switched" });
+      if (!(await startDemoSession(session, "demo_role_switched"))) {
+        throw new Error("demo sign-in failed");
+      }
       // Volle Neuladung: Seitenleiste und Startseite folgen den Rechten der
       // neuen Sitzung.
       globalThis.location.assign(startPath);
@@ -98,7 +118,7 @@ function ActiveDemoBanner() {
     }
   };
 
-  const roleLabel = demoRoleLabel(visit.role);
+  const roleLabel = visit ? demoRoleLabel(visit.role) : CHOOSE_ROLE;
 
   return (
     <div
@@ -112,24 +132,31 @@ function ActiveDemoBanner() {
           {schoolName}
         </span>
       ) : null}
-      <OverflowMenu
-        ariaLabel={`Rolle wechseln, jetzt ${roleLabel}`}
-        triggerContent={
-          <span className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-sm font-medium text-gray-900 hover:bg-gray-100">
-            {roleLabel}
-            <CaretDownIcon aria-hidden="true" className="size-4" />
-          </span>
-        }
-        items={[
-          { kind: "header", label: "Demo ansehen als" },
-          ...DEMO_ROLES.map((entry) => ({
-            kind: "radio" as const,
-            label: entry.label,
-            checked: entry.role === visit.role,
-            onClick: () => void chooseRole(entry.role),
-          })),
-        ]}
-      />
+      {visit === undefined ? null : visit?.fixedRole ? (
+        // The standing demo school is shared; its role cannot change.
+        <span className="px-2 text-sm font-medium text-gray-900">
+          {roleLabel}
+        </span>
+      ) : (
+        <OverflowMenu
+          ariaLabel={visit ? `Rolle wechseln, jetzt ${roleLabel}` : roleLabel}
+          triggerContent={
+            <span className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-sm font-medium text-gray-900 hover:bg-gray-100">
+              {roleLabel}
+              <CaretDownIcon aria-hidden="true" className="size-4" />
+            </span>
+          }
+          items={[
+            { kind: "header", label: "Demo ansehen als" },
+            ...DEMO_ROLES.map((entry) => ({
+              kind: "radio" as const,
+              label: entry.label,
+              checked: entry.role === visit?.role,
+              onClick: () => void chooseRole(entry.role),
+            })),
+          ]}
+        />
+      )}
       <ButtonLink
         href={DEMO_START_URL}
         target="_blank"
@@ -137,7 +164,7 @@ function ActiveDemoBanner() {
         variant="success"
         size="compact"
         className="ml-auto shrink-0 text-sm"
-        onClick={() => trackDemoEvent("demo_start_clicked", visit)}
+        onClick={() => trackDemoEvent("demo_start_clicked", visit ?? null)}
       >
         Kostenlos starten
       </ButtonLink>

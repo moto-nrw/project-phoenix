@@ -99,17 +99,17 @@ func (s *Store) RecordDemoAccessUse(ctx context.Context, id, accountID int64, us
 	return nil
 }
 
-// ReplaceDemoAccountRole swaps the system staff roles of the visitor's
-// account in its demo school for role. School-defined roles and the guardian
-// role stay as they are.
+// ReplaceDemoAccountRole makes the system role the only role of the visitor's
+// account in its demo school. A school-defined role would otherwise carry
+// its permissions into every demo role.
 func (s *Store) ReplaceDemoAccountRole(ctx context.Context, accountID, tenantID int64, role string) error {
 	db, err := s.database(ctx)
 	if err != nil {
 		return err
 	}
 	_, err = db.NewRaw(`DELETE FROM auth.account_roles
-		WHERE account_id = ? AND tenant_id = ? AND role_id IN (
-			SELECT id FROM auth.roles WHERE tenant_id IS NULL AND name IN ('admin', 'user', 'guest', 'lehrkraft') AND name <> ?)`,
+		WHERE account_id = ? AND tenant_id = ? AND role_id NOT IN (
+			SELECT id FROM auth.roles WHERE tenant_id IS NULL AND name = ?)`,
 		accountID, tenantID, role).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("identity access postgres: drop demo account role: %w", err)

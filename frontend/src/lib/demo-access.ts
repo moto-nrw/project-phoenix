@@ -2,6 +2,8 @@
 // fragment and leaves the browser only in a POST body, so no server or proxy
 // log records it.
 
+import { signIn } from "next-auth/react";
+
 /** Demo page of the website; the way back for an unknown or expired link. */
 export const DEMO_WEBSITE_URL = "https://moto-ogs.de/demo";
 
@@ -279,7 +281,12 @@ async function postSession(body: {
   if (response.status === 404 || response.status === 410) return null;
   if (!response.ok) throw new Error(`demo redeem failed: ${response.status}`);
   const payload = (await response.json()) as DemoTokenPair & {
-    demo?: { access_id?: string; role?: string; src?: string };
+    demo?: {
+      access_id?: string;
+      role?: string;
+      src?: string;
+      fixed_role?: boolean;
+    };
   };
   return {
     access_token: payload.access_token,
@@ -288,6 +295,7 @@ async function postSession(body: {
       accessId: payload.demo?.access_id ?? "",
       role: isDemoRole(payload.demo?.role) ? payload.demo.role : body.role,
       src: payload.demo?.src,
+      fixedRole: payload.demo?.fixed_role === true ? true : undefined,
     },
   };
 }
@@ -323,7 +331,29 @@ export interface DemoVisit {
   accessId: string;
   role: DemoRole;
   src?: string;
+  /** The standing demo school: its shared role cannot be switched. */
+  fixedRole?: boolean;
   pending?: "demo_entered" | "demo_role_switched";
+}
+
+/**
+ * Signs in with the session's token pair and notes the visit for the banner,
+ * which reports `pending` once the next page has loaded. False when the
+ * sign-in failed.
+ */
+export async function startDemoSession(
+  session: DemoSession,
+  pending: NonNullable<DemoVisit["pending"]>,
+): Promise<boolean> {
+  const result = await signIn("credentials", {
+    redirect: false,
+    internalRefresh: true,
+    token: session.access_token,
+    refreshToken: session.refresh_token,
+  });
+  if (result?.error) return false;
+  saveDemoVisit({ ...session.visit, pending });
+  return true;
 }
 
 const DEMO_VISIT_KEY = "moto-demo-visit";
@@ -348,6 +378,7 @@ export function readDemoVisit(): DemoVisit | null {
       accessId: visit.accessId,
       role: visit.role,
       src: typeof visit.src === "string" ? visit.src : undefined,
+      fixedRole: visit.fixedRole === true ? true : undefined,
       pending:
         visit.pending === "demo_entered" ||
         visit.pending === "demo_role_switched"

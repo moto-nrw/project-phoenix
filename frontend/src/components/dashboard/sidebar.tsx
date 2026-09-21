@@ -30,7 +30,7 @@ import { useOptionalSupervision } from "~/lib/supervision-context";
 import { buildHelpHref, type HelpRole } from "~/lib/help-topics";
 import type { SupervisedRoom } from "~/lib/supervision-derive";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { isDemoBuild } from "~/lib/demo-access";
+import { isDemoBannerShown } from "~/components/demo/demo-banner";
 import {
   hasEffectiveAdminScope,
   hasPermission,
@@ -533,14 +533,10 @@ function asideClasses(collapsed: boolean, className: string): string {
 // dieselbe Höhe mitwandern, sonst schiebt sich die Kopfzeile beim Scrollen
 // über ihre obersten Einträge. Der Streifen der öffentlichen Demo (#3467)
 // hat dieselbe Höhe.
-function stickyClasses(
-  collapsed: boolean,
-  isPreview: boolean | undefined,
-): string {
-  const offset =
-    isPreview || isDemoBuild()
-      ? "top-[105px] h-[calc(100vh-105px)]"
-      : "top-[57px] h-[calc(100vh-57px)]";
+function stickyClasses(collapsed: boolean, stripActive: boolean): string {
+  const offset = stripActive
+    ? "top-[105px] h-[calc(100vh-105px)]"
+    : "top-[57px] h-[calc(100vh-57px)]";
   return `sticky ${offset} flex flex-col ${
     collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED
   } ${SIDEBAR_WIDTH_TRANSITION}`;
@@ -575,6 +571,7 @@ function SidebarContent({
   const tenantPath = useTenantAwarePath();
   const { data: session } = useSession();
   const { mode, isPreview } = useShellAuth();
+  const demoBannerShown = isDemoBannerShown({ mode, isPreview });
   const changeRequestAccess = useChangeRequestAccess();
   // Compare every active state against clean tenant-internal paths. The helper
   // only strips in path-routing mode, avoiding slug/route collisions on tenant
@@ -1466,7 +1463,12 @@ function SidebarContent({
 
     return (
       <aside className={asideClasses(collapsed, className)}>
-        <div className={stickyClasses(collapsed, isPreview)}>
+        <div
+          className={stickyClasses(
+            collapsed,
+            isPreview === true || demoBannerShown,
+          )}
+        >
           <nav
             className={`${collapsed ? "scrollbar-hidden" : ""} flex-1 overflow-y-auto ${SIDEBAR_NAV_PADDING}`}
           >
@@ -1871,7 +1873,12 @@ function SidebarContent({
 
   return (
     <aside className={asideClasses(collapsed, className)}>
-      <div className={stickyClasses(collapsed, isPreview)}>
+      <div
+        className={stickyClasses(
+          collapsed,
+          isPreview === true || demoBannerShown,
+        )}
+      >
         {/* Main navigation, scrollable.
             Der Rollbalken bleibt ausgeklappt sichtbar — er ist dort der
             einzige Hinweis, dass unten noch Einträge folgen. Nur im

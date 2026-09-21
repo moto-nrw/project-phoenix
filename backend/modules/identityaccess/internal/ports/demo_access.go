@@ -16,7 +16,7 @@ type DemoAccessStore interface {
 	FindActiveDemoAccessByEmail(ctx context.Context, email string, now time.Time) (domain.DemoAccess, bool, error)
 	FindDemoAccessByTokenHash(ctx context.Context, tokenHash string) (domain.DemoAccess, bool, error)
 	RecordDemoAccessUse(ctx context.Context, id, accountID int64, usedAt time.Time) error
-	// ReplaceDemoAccountRole makes role the only system staff role of the
+	// ReplaceDemoAccountRole makes the system role the only role of the
 	// visitor's account in its demo school (#3467).
 	ReplaceDemoAccountRole(ctx context.Context, accountID, tenantID int64, role string) error
 	// FindSchoolAdministrator returns the oldest active administrator of the school.

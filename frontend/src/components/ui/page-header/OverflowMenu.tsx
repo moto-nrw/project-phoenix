@@ -367,6 +367,9 @@ export function OverflowMenu({
         event.preventDefault();
         if (item.disabled) return;
         setIsOpen(false);
+        // The focused entry unmounts with the menu; the keyboard continues
+        // from the trigger. An action that opens a dialog takes it from there.
+        triggerRef.current?.focus();
         item.onClick();
       }
     };

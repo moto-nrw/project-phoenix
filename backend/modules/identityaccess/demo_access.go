@@ -100,13 +100,15 @@ type DemoAccessEngine interface {
 // DemoEntry is a redeemed demo access (#3467): the token pair and what the
 // demo banner shows and reports. AccessID identifies the demo access in the
 // product analytics instead of a person; Role is the demo role the session
-// really has, empty when none was chosen.
+// really has, empty when none was chosen. FixedRole marks the standing
+// school, whose shared administrator no switch changes.
 type DemoEntry struct {
 	AccessToken  string
 	RefreshToken string
 	AccessID     int64
 	Role         string
 	Source       string
+	FixedRole    bool
 }
 
 // DemoAccessProgress is what the token's holder may know about its demo

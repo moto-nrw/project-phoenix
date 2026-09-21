@@ -122,6 +122,9 @@ type DemoEntry struct {
 	// chose none and the account kept its role.
 	Role   DemoRole
 	Source string
+	// FixedRole marks the standing school's shared administrator, whose
+	// role no switch changes; the banner then offers none.
+	FixedRole bool
 }
 
 // Normalize trims the prospect's fields and validates them.

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { signIn } from "next-auth/react";
 import { DemoRoleChoice } from "~/components/demo/demo-role-choice";
 import { DemoSetupScreen } from "~/components/demo/demo-setup-screen";
 import { Button, ButtonLink } from "~/components/ui/button";
@@ -18,7 +17,7 @@ import {
   type DemoRole,
   type DemoSetupProgress,
   redeemDemoAccess,
-  saveDemoVisit,
+  startDemoSession,
   takeDemoLinkFromFragment,
   waitForDemoSchool,
 } from "~/lib/demo-access";
@@ -39,15 +38,9 @@ async function enterAs(
 ): Promise<"entered" | "invalid" | "failed"> {
   const session = await redeemDemoAccess(token, role);
   if (!session) return "invalid";
-  const result = await signIn("credentials", {
-    redirect: false,
-    internalRefresh: true,
-    token: session.access_token,
-    refreshToken: session.refresh_token,
-  });
-  if (result?.error) return "failed";
-  saveDemoVisit({ ...session.visit, pending: "demo_entered" });
-  return "entered";
+  return (await startDemoSession(session, "demo_entered"))
+    ? "entered"
+    : "failed";
 }
 
 // Entry page of the public demo (#3462): takes the token from the URL

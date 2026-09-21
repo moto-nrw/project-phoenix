@@ -23,9 +23,10 @@ type demoSession struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	Demo         struct {
-		AccessID string `json:"access_id"`
-		Role     string `json:"role"`
-		Source   string `json:"src"`
+		AccessID  string `json:"access_id"`
+		Role      string `json:"role"`
+		Source    string `json:"src"`
+		FixedRole bool   `json:"fixed_role"`
 	} `json:"demo"`
 }
 
@@ -81,10 +82,18 @@ func TestDemoRoleSwitchChangesTheVisitorsRoleAndIssuesANewSession(t *testing.T) 
 	assert.Equal(t, accessID, lead.Demo.AccessID, "the banner's analytics identify the demo access, not the person")
 	assert.Equal(t, "lead", lead.Demo.Role)
 	assert.Equal(t, "messe", lead.Demo.Source)
+	assert.False(t, lead.Demo.FixedRole, "the visitor's own school lets the banner switch roles")
 	claims := lead.claims(t)
 	assert.EqualValues(t, visitor.ID, claims.ID, "every demo role is the same account")
 	assert.Contains(t, claims.Roles, "admin", "until reduced roles exist, the OGS lead uses the administrator role")
 	assert.Equal(t, []string{"admin"}, env.schoolRoles(t, visitor.ID))
+
+	// A role of the school's own adds permissions a caregiver must not keep.
+	_, err := env.db.NewRaw(`WITH role AS (
+			INSERT INTO auth.roles (name, tenant_id, is_system) VALUES ('Hortleitung', ?, false) RETURNING id)
+		INSERT INTO auth.account_roles (account_id, role_id, tenant_id) SELECT ?, id, ? FROM role`,
+		testpkg.Tenant(t), visitor.ID, testpkg.Tenant(t)).Exec(context.Background())
+	require.NoError(t, err)
 
 	caregiver := env.enterAs(t, token, "caregiver")
 	assert.Equal(t, "caregiver", caregiver.Demo.Role)
@@ -125,6 +134,7 @@ func TestDemoRoleSwitchLeavesTheSharedAdministratorAlone(t *testing.T) {
 
 	session := env.enterAs(t, token, "caregiver")
 	assert.Equal(t, "all", session.Demo.Role, "the answer names the role the session really has")
+	assert.True(t, session.Demo.FixedRole, "the banner offers no switch that would do nothing")
 	assert.EqualValues(t, adminID, session.claims(t).ID)
 	assert.True(t, session.claims(t).IsAdmin)
 	assert.Equal(t, []string{"admin"}, env.schoolRoles(t, adminID))
