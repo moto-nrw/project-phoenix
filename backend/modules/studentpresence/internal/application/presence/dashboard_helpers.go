@@ -60,37 +60,8 @@ func (s *service) fetchDashboardBaseData(ctx context.Context, today timezone.Dat
 		activityGroupsByID:       make(map[int64]*active.SessionActivity),
 	}
 
-	// Get active visits
-	activeVisits, err := s.SchoolPresence.ListVisits(ctx, studentpresence.VisitFilter{OpenOnly: true})
-	if err != nil {
+	if err := s.loadDashboardPresence(ctx, today, data); err != nil {
 		return nil, err
-	}
-	data.activeVisits = activeVisits
-
-	// Build student-visit maps
-	for _, visit := range activeVisits {
-		data.studentsWithActiveVisits[visit.StudentID] = true
-		data.visitsByGroupID[visit.ActiveGroupID] = append(data.visitsByGroupID[visit.ActiveGroupID], visit)
-	}
-
-	// Get today's attendance
-	todaysAttendance, err := s.SchoolPresence.ListAttendance(ctx, studentpresence.AttendanceFilter{FromDate: today.String(), UntilDate: today.String()})
-	if err != nil {
-		return nil, err
-	}
-	data.todaysAttendance = todaysAttendance
-
-	// Build attendance maps
-	for _, record := range todaysAttendance {
-		if record.CheckOutTime == nil {
-			data.studentsWithAttendance[record.StudentID] = true
-			data.studentsPresent[record.StudentID] = true
-		}
-	}
-
-	// Add students with active visits to present set
-	for studentID := range data.studentsWithActiveVisits {
-		data.studentsPresent[studentID] = true
 	}
 
 	// Get all rooms
@@ -114,21 +85,7 @@ func (s *service) fetchDashboardBaseData(ctx context.Context, today timezone.Dat
 	}
 	data.allEducationGroups = allEducationGroups
 
-	// Get activity groups (loaded once, used by name resolution, OGS-group
-	// classification and current activities).
-	// Non-critical: if this fails, dashboard still shows core metrics with
-	// fallback names and an OGS-group count of zero — log it, never swallow it.
-	allActivityGroups, err := s.ActivityGroupRepo.ListSessionActivities(ctx)
-	if err != nil {
-		s.getLogger().Warn("activity groups load failed, dashboard degrades to fallback names",
-			"error", err.Error(),
-		)
-	} else {
-		data.allActivityGroups = allActivityGroups
-		for _, ag := range allActivityGroups {
-			data.activityGroupsByID[ag.ID] = ag
-		}
-	}
+	s.loadDashboardActivityGroups(ctx, data)
 
 	// Get activity categories count
 	activityCategories, err := s.ActivityCatRepo.CountCategories(ctx)
@@ -145,6 +102,62 @@ func (s *service) fetchDashboardBaseData(ctx context.Context, today timezone.Dat
 	data.supervisorsToday = supervisorsCount
 
 	return data, nil
+}
+
+// loadDashboardPresence reads the open visits and today's attendance and
+// derives who is present: open attendance or an open visit.
+func (s *service) loadDashboardPresence(ctx context.Context, today timezone.Date, data *dashboardBaseData) error {
+	// Get active visits
+	activeVisits, err := s.SchoolPresence.ListVisits(ctx, studentpresence.VisitFilter{OpenOnly: true})
+	if err != nil {
+		return err
+	}
+	data.activeVisits = activeVisits
+
+	// Build student-visit maps
+	for _, visit := range activeVisits {
+		data.studentsWithActiveVisits[visit.StudentID] = true
+		data.visitsByGroupID[visit.ActiveGroupID] = append(data.visitsByGroupID[visit.ActiveGroupID], visit)
+	}
+
+	// Get today's attendance
+	todaysAttendance, err := s.SchoolPresence.ListAttendance(ctx, studentpresence.AttendanceFilter{FromDate: today.String(), UntilDate: today.String()})
+	if err != nil {
+		return err
+	}
+	data.todaysAttendance = todaysAttendance
+
+	// Build attendance maps
+	for _, record := range todaysAttendance {
+		if record.CheckOutTime == nil {
+			data.studentsWithAttendance[record.StudentID] = true
+			data.studentsPresent[record.StudentID] = true
+		}
+	}
+
+	// Add students with active visits to present set
+	for studentID := range data.studentsWithActiveVisits {
+		data.studentsPresent[studentID] = true
+	}
+	return nil
+}
+
+// loadDashboardActivityGroups loads the activity groups once; name
+// resolution, OGS-group classification and current activities use them.
+// Non-critical: if this fails, dashboard still shows core metrics with
+// fallback names and an OGS-group count of zero — log it, never swallow it.
+func (s *service) loadDashboardActivityGroups(ctx context.Context, data *dashboardBaseData) {
+	allActivityGroups, err := s.ActivityGroupRepo.ListSessionActivities(ctx)
+	if err != nil {
+		s.getLogger().Warn("activity groups load failed, dashboard degrades to fallback names",
+			"error", err.Error(),
+		)
+		return
+	}
+	data.allActivityGroups = allActivityGroups
+	for _, ag := range allActivityGroups {
+		data.activityGroupsByID[ag.ID] = ag
+	}
 }
 
 // countSupervisorsToday counts unique staff members who had any supervision today.

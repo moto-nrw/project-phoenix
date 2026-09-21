@@ -36,7 +36,7 @@ func TestVisitHistoryPreservesInclusiveEntryRangeAndRoomLookupErrors(t *testing.
 		testpkg.CreateTestVisit(t, db, student.ID, group.ID, entry, &exit)
 	}
 	rooms := &historyRooms{rows: map[int64]string{room.ID: room.Name}}
-	svc := activeService.NewStudentHistoryService(testSchoolPresence(t, db), rooms.names, nil, nil)
+	svc := activeService.NewStudentHistoryService(testSchoolPresence(t, db), rooms.names)
 	rows, err := svc.GetVisitsByStudentAndTimeRange(testpkg.Ctx(t), student.ID, start, end)
 	require.NoError(t, err)
 	require.Len(t, rows, 2, "history selects entry times, including both boundaries")
@@ -51,16 +51,4 @@ func TestVisitHistoryPreservesInclusiveEntryRangeAndRoomLookupErrors(t *testing.
 	rows, err = svc.GetVisitsByStudentAndTimeRange(testpkg.Ctx(t), student.ID, start, end)
 	require.ErrorIs(t, err, rooms.err)
 	assert.Nil(t, rows, "failed enrichment must not return partial room history")
-}
-
-// A nil slot repository (tests without a timetable) must answer the
-// tenant-wide care-plan signal with false instead of panicking.
-func TestStudentHistoryService_HasPlannedSlotsInRange_NilSlotRepo(t *testing.T) {
-	t.Parallel()
-
-	svc := activeService.NewStudentHistoryService(nil, nil, nil, nil)
-
-	has, err := svc.HasPlannedSlotsInRange(context.Background(), timezone.NewDate(2032, 3, 2), timezone.NewDate(2032, 3, 6))
-	require.NoError(t, err)
-	assert.False(t, has, "without a slot repository there is no care-plan signal")
 }

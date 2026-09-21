@@ -6,25 +6,12 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-type attendanceRepoForActiveWrapperTest struct {
-	StudentPresence
-	has     bool
-	err     error
-	gotDate studentpresence.AttendanceFilter
-}
-
-func (r *attendanceRepoForActiveWrapperTest) HasAttendance(_ context.Context, date studentpresence.AttendanceFilter) (bool, error) {
-	r.gotDate = date
-	return r.has, r.err
-}
 
 type roomRepoForActiveWrapperTest struct {
 	AttendanceRooms
@@ -36,30 +23,6 @@ type roomRepoForActiveWrapperTest struct {
 func (r *roomRepoForActiveWrapperTest) FindByIDs(_ context.Context, ids []int64) ([]*SessionRoom, error) {
 	r.gotIDs = append([]int64(nil), ids...)
 	return r.rooms, r.err
-}
-
-func TestRoomProjectionPreservesMissingAndPartialResults(t *testing.T) {
-	t.Parallel()
-	lookupErr := errors.New("room lookup failed")
-	for _, tc := range []struct {
-		name string
-		rows []*SessionRoom
-		err  error
-		want []*activeModels.SessionRoom
-	}{
-		{name: "nil"},
-		{name: "empty", rows: []*SessionRoom{}, want: []*activeModels.SessionRoom{}},
-		{name: "partial error", rows: []*SessionRoom{nil, {ID: 7, Name: "Aula", IsOpenRoom: true}}, err: lookupErr,
-			want: []*activeModels.SessionRoom{nil, {ID: 7, Name: "Aula", IsOpenRoom: true}}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			svc := &service{ServiceDependencies: ServiceDependencies{RoomRepo: &roomRepoForActiveWrapperTest{rooms: tc.rows, err: tc.err}}}
-			got, err := svc.GetRoomsByIDs(context.Background(), []int64{7})
-			require.ErrorIs(t, err, tc.err)
-			assert.Equal(t, tc.want, got)
-		})
-	}
 }
 
 type visitRepoForActiveWrapperTest struct {
@@ -190,41 +153,6 @@ func TestActiveServiceThinDelegates(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-
-	t.Run("has open attendance delegates date and result", func(t *testing.T) {
-		date := timezone.DateFromTime(timezone.NewDate(2026, 8, 24).BerlinMidnight())
-		repo := &attendanceRepoForActiveWrapperTest{has: true}
-		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: repo}}
-
-		hasOpen, err := svc.HasOpenAttendanceOn(ctx, date)
-
-		require.NoError(t, err)
-		assert.True(t, hasOpen)
-		assert.Equal(t, studentpresence.AttendanceFilter{FromDate: date.String(), UntilDate: date.String(), OpenOnly: true}, repo.gotDate)
-	})
-
-	t.Run("has open attendance preserves repository error", func(t *testing.T) {
-		expectedErr := errors.New("attendance lookup failed")
-		repo := &attendanceRepoForActiveWrapperTest{err: expectedErr}
-		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: repo}}
-
-		hasOpen, err := svc.HasOpenAttendanceOn(ctx, timezone.NewDate(2026, 8, 24))
-
-		require.ErrorIs(t, err, expectedErr)
-		assert.False(t, hasOpen)
-	})
-
-	t.Run("get rooms by ids delegates ids and result", func(t *testing.T) {
-		rooms := []*SessionRoom{{Name: "Aula"}}
-		repo := &roomRepoForActiveWrapperTest{rooms: rooms}
-		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, RoomRepo: repo}}
-
-		got, err := svc.GetRoomsByIDs(ctx, []int64{10, 20})
-
-		require.NoError(t, err)
-		assert.Equal(t, []*activeModels.SessionRoom{{Name: "Aula"}}, got)
-		assert.Equal(t, []int64{10, 20}, repo.gotIDs)
-	})
 
 	t.Run("get active group visits with display delegates active group id", func(t *testing.T) {
 		rows := []*VisitWithStudentDisplay{{VisitID: 90, StudentID: 91}}

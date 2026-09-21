@@ -49,7 +49,7 @@ func TestCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 	assert.Equal(t, conflictDate, conflictErr.Conflicts[0].Date)
 	assert.Equal(t, absencerecords.StudentStatusDaySick, conflictErr.Conflicts[0].Status)
 
-	rows, findErr := service.GetActiveByStudentAndDateRange(ctx, student.ID, conflictDate, freshDate)
+	rows, findErr := repoFactory.StudentStatusDay.FindActiveByStudentAndDateRange(ctx, student.ID, conflictDate, freshDate)
 	require.NoError(t, findErr)
 	require.Len(t, rows, 1, "a conflict must reject the entire write")
 	assert.Equal(t, conflictDate, rows[0].Date)
@@ -98,7 +98,7 @@ func TestBulkCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 	assert.Equal(t, absencerecords.StudentStatusDaySick, conflictErr.Conflicts[0].Status)
 
 	for _, studentID := range []int64{withConflict.ID, clear.ID} {
-		rows, findErr := service.GetActiveByStudentAndDateRange(ctx, studentID, conflictDate, freshDate)
+		rows, findErr := repoFactory.StudentStatusDay.FindActiveByStudentAndDateRange(ctx, studentID, conflictDate, freshDate)
 		require.NoError(t, findErr)
 		if studentID == withConflict.ID {
 			require.Len(t, rows, 1, "conflict student must keep the original row only")
@@ -158,7 +158,7 @@ func TestBulkCreateForDates_RejectsUnauthorizedWithoutPartialWrites(t *testing.T
 	require.ErrorIs(t, err, activeService.ErrStudentStatusDayReassigned)
 
 	for _, studentID := range []int64{allowed.ID, denied.ID} {
-		rows, findErr := service.GetActiveByStudentAndDateRange(ctx, studentID, dates[0], dates[0])
+		rows, findErr := repoFactory.StudentStatusDay.FindActiveByStudentAndDateRange(ctx, studentID, dates[0], dates[0])
 		require.NoError(t, findErr)
 		assert.Empty(t, rows, "authorization failure must not leave status days for student %d", studentID)
 	}

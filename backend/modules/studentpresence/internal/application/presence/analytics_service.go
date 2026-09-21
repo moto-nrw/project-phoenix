@@ -28,18 +28,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	analytics.ActivityCategories = baseData.activityCategories
 	analytics.SupervisorsToday = baseData.supervisorsToday
 
-	if statusCounts, err := s.countEffectiveAbsencesForDate(ctx, today); err == nil {
-		analytics.StudentsSick = statusCounts.Sick
-		analytics.StudentsExcused = statusCounts.Excused
-		analytics.StudentsHome = calculateStudentsHome(
-			statusCounts.Total, analytics.StudentsPresent, statusCounts.Sick, statusCounts.Excused,
-		)
-		analytics.HomeCandidateIDs = homeCandidateIDs(statusCounts.UnaccountedIDs, baseData.studentsPresent)
-	} else {
-		s.getLogger().Warn("failed to count effective student absences for dashboard",
-			"error", err.Error(),
-		)
-	}
+	s.applyDashboardAbsences(ctx, analytics, today, baseData.studentsPresent)
 
 	// Phase 3: Build room lookup maps
 	roomData := s.buildRoomLookupMaps(baseData.allRooms)
@@ -68,11 +57,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	}
 
 	// Phase 8: Calculate location-based metrics
-	locationData := s.calculateLocationMetrics(roomData, groupData, baseData.activeVisits, baseData.activeGroups)
-	analytics.StudentsOnPlayground = locationData.studentsOnPlayground
-	analytics.StudentsInRooms = locationData.studentsInIndoorRooms
-	analytics.StudentsInGroupRooms = locationData.studentsInGroupRooms
-	analytics.StudentsInHomeRoom = locationData.studentsInHomeRoom
+	applyLocationMetrics(analytics, s.calculateLocationMetrics(roomData, groupData, baseData.activeVisits, baseData.activeGroups))
 
 	// Phase 9: Build summary lists (using pre-loaded maps for O(1) name lookups)
 	analytics.RecentActivity = buildRecentActivity(baseData.activeGroups, baseData.activityGroupsByID, roomData)
@@ -80,6 +65,31 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	analytics.ActiveGroupsSummary = buildActiveGroupsSummary(baseData.activeGroups, baseData.activityGroupsByID, roomData)
 
 	return analytics, nil
+}
+
+func applyLocationMetrics(analytics *DashboardAnalytics, locationData *locationMetrics) {
+	analytics.StudentsOnPlayground = locationData.studentsOnPlayground
+	analytics.StudentsInRooms = locationData.studentsInIndoorRooms
+	analytics.StudentsInGroupRooms = locationData.studentsInGroupRooms
+	analytics.StudentsInHomeRoom = locationData.studentsInHomeRoom
+}
+
+// applyDashboardAbsences fills the sick, excused and at-home counts. The
+// absences are optional: a failed count is logged and leaves them empty.
+func (s *service) applyDashboardAbsences(ctx context.Context, analytics *DashboardAnalytics, today timezone.Date, studentsPresent map[int64]bool) {
+	statusCounts, err := s.countEffectiveAbsencesForDate(ctx, today)
+	if err != nil {
+		s.getLogger().Warn("failed to count effective student absences for dashboard",
+			"error", err.Error(),
+		)
+		return
+	}
+	analytics.StudentsSick = statusCounts.Sick
+	analytics.StudentsExcused = statusCounts.Excused
+	analytics.StudentsHome = calculateStudentsHome(
+		statusCounts.Total, analytics.StudentsPresent, statusCounts.Sick, statusCounts.Excused,
+	)
+	analytics.HomeCandidateIDs = homeCandidateIDs(statusCounts.UnaccountedIDs, studentsPresent)
 }
 
 func (s *service) countEffectiveAbsencesForDate(ctx context.Context, date timezone.Date) (studentStatusCounts, error) {

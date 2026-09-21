@@ -9,6 +9,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 )
 
+// StatusDayRow is Care Plan's status-day record the port reads and writes.
+type StatusDayRow = absencerecords.StudentStatusDay
+
 // StudentStatusDayRepository is the status-day port of the presence services.
 // Care Plan persists broad day statuses (sick / excused / class trip) and
 // CASCADES them into per-slot attendance: UpsertReported and the MarkCleared*

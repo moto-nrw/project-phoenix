@@ -8,10 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -363,76 +360,16 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
 	}
 
-	resolvedDeviceID, err := s.resolveDeviceIDForAttendance(ctx, deviceID)
+	attendance, inserted, err := s.openAttendance(ctx, studentID, staffID, deviceID, now, today)
 	if err != nil {
-		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: errors.Join(ErrDatabaseOperation, err)}
-	}
-	attendance := studentpresence.Attendance{
-		StudentID:   studentID,
-		Date:        today.String(),
-		CheckInTime: now,
-		CheckedInBy: staffID,
-		DeviceID:    resolvedDeviceID,
-	}
-	attendance.TenantID = tenant.FromContext(ctx)
-
-	attendance, inserted, err := s.SchoolPresence.EnsureAttendance(ctx, attendance)
-	if err != nil {
-		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
+		return nil, err
 	}
 	if !inserted {
-		// Another concurrent "in" already created the open attendance row.
-		// Treat as success — the desired end state (open attendance) holds.
-		// Deliberately silent: the winner of the race already broadcast, and
-		// nothing moved here (mirror of the closed == nil path in
-		// performCheckOut). The re-fetch is scoped to the caller's snapshot
-		// date, not a re-derived "today" (review #2372): a batch crossing
-		// Berlin midnight after its insert conflict would otherwise query the
-		// next day, find no row, and abort an otherwise idempotent batch.
-		rows, fetchErr := s.SchoolPresence.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{studentID}, FromDate: today.String(), UntilDate: today.String()})
-		if fetchErr != nil {
-			return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fetchErr}
-		}
-		if len(rows) == 0 {
-			return nil, &ActiveError{
-				Op:  "ToggleStudentAttendance",
-				Err: fmt.Errorf("attendance row missing after insert conflict for student %d on %s", studentID, today),
-			}
-		}
-		// Rows come back check_in_time ASC — the last one is the open row the
-		// concurrent winner created.
-		existing := rows[len(rows)-1]
-		if err := s.autoClearStudentSickness(ctx, studentID); err != nil {
-			return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: errors.Join(ErrDatabaseOperation, err)}
-		}
-		if err := s.autoClearStudentExcused(ctx, studentID); err != nil {
-			return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: errors.Join(ErrDatabaseOperation, err)}
-		}
-		if err := s.autoClearPlannedStudentStatuses(ctx, studentID); err != nil {
-			return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: errors.Join(ErrDatabaseOperation, err)}
-		}
-		if mode == PresenceModeBinary && s.AttendanceSyncer != nil {
-			if _, err := s.AttendanceSyncer.MirrorCheckInAt(ctx, studentID, existing.CheckInTime); err != nil {
-				return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("sync existing roomless check-in: %w", err)}
-			}
-		}
-		return &AttendanceResult{
-			Action:       "checked_in",
-			AttendanceID: existing.ID,
-			StudentID:    studentID,
-			Timestamp:    existing.CheckInTime,
-			Changed:      false, // the concurrent winner opened the row, not this call
-		}, nil
+		return s.absorbConcurrentCheckIn(ctx, studentID, today, mode)
 	}
 
-	if err := s.autoClearStudentSickness(ctx, studentID); err != nil {
-		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: errors.Join(ErrDatabaseOperation, err)}
-	}
-	if err := s.autoClearStudentExcused(ctx, studentID); err != nil {
-		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: errors.Join(ErrDatabaseOperation, err)}
-	}
-	if err := s.autoClearPlannedStudentStatuses(ctx, studentID); err != nil {
-		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: errors.Join(ErrDatabaseOperation, err)}
+	if err := s.autoClearCheckinStatuses(ctx, studentID, "ToggleStudentAttendance"); err != nil {
+		return nil, err
 	}
 	if mode == PresenceModeBinary && s.AttendanceSyncer != nil {
 		if _, err := s.AttendanceSyncer.MirrorCheckInAt(ctx, studentID, now); err != nil {
@@ -452,6 +389,69 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 		StudentID:    studentID,
 		Timestamp:    now,
 		Changed:      true,
+	}, nil
+}
+
+// openAttendance inserts today's open attendance row; inserted is false when
+// a concurrent check-in already opened it.
+func (s *service) openAttendance(ctx context.Context, studentID, staffID, deviceID int64, now time.Time, today timezone.Date) (studentpresence.Attendance, bool, error) {
+	resolvedDeviceID, err := s.resolveDeviceIDForAttendance(ctx, deviceID)
+	if err != nil {
+		return studentpresence.Attendance{}, false, &ActiveError{Op: "ToggleStudentAttendance", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
+	attendance := studentpresence.Attendance{
+		StudentID:   studentID,
+		Date:        today.String(),
+		CheckInTime: now,
+		CheckedInBy: staffID,
+		DeviceID:    resolvedDeviceID,
+	}
+	attendance.TenantID = tenant.FromContext(ctx)
+
+	attendance, inserted, err := s.SchoolPresence.EnsureAttendance(ctx, attendance)
+	if err != nil {
+		return studentpresence.Attendance{}, false, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
+	}
+	return attendance, inserted, nil
+}
+
+// absorbConcurrentCheckIn answers a check-in whose insert lost against a
+// concurrent "in" that already created the open attendance row. It is treated
+// as success — the desired end state (open attendance) holds. Deliberately
+// silent: the winner of the race already broadcast, and nothing moved here
+// (mirror of the closed == nil path in performCheckOut). The re-fetch is
+// scoped to the caller's snapshot date, not a re-derived "today" (review
+// #2372): a batch crossing Berlin midnight after its insert conflict would
+// otherwise query the next day, find no row, and abort an otherwise
+// idempotent batch.
+func (s *service) absorbConcurrentCheckIn(ctx context.Context, studentID int64, today timezone.Date, mode string) (*AttendanceResult, error) {
+	rows, fetchErr := s.SchoolPresence.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{studentID}, FromDate: today.String(), UntilDate: today.String()})
+	if fetchErr != nil {
+		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fetchErr}
+	}
+	if len(rows) == 0 {
+		return nil, &ActiveError{
+			Op:  "ToggleStudentAttendance",
+			Err: fmt.Errorf("attendance row missing after insert conflict for student %d on %s", studentID, today),
+		}
+	}
+	// Rows come back check_in_time ASC — the last one is the open row the
+	// concurrent winner created.
+	existing := rows[len(rows)-1]
+	if err := s.autoClearCheckinStatuses(ctx, studentID, "ToggleStudentAttendance"); err != nil {
+		return nil, err
+	}
+	if mode == PresenceModeBinary && s.AttendanceSyncer != nil {
+		if _, err := s.AttendanceSyncer.MirrorCheckInAt(ctx, studentID, existing.CheckInTime); err != nil {
+			return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("sync existing roomless check-in: %w", err)}
+		}
+	}
+	return &AttendanceResult{
+		Action:       "checked_in",
+		AttendanceID: existing.ID,
+		StudentID:    studentID,
+		Timestamp:    existing.CheckInTime,
+		Changed:      false, // the concurrent winner opened the row, not this call
 	}, nil
 }
 
@@ -535,29 +535,9 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID, check
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("end open visit during checkout: %w", err)}
 	}
 
-	var snapshot *AttendanceSnapshot
-	if s.AttendanceSyncer != nil {
-		if mode == PresenceModeBinary {
-			// Binary mode has no visit provenance, so close the latest mirrored
-			// open slot. Run this even for idempotent attendance checkout to heal
-			// slot rows left open by older code — but only while the checkout
-			// still targets now's own day: the mirror derives its slot day from
-			// the timestamp, so a batch item closing its snapshot day after a
-			// Berlin-midnight rollover would otherwise close a slot of the NEW
-			// day whose attendance this checkout never touched (review #2372,
-			// same day-scoping as the visit cleanup above).
-			if timezone.DateFromTime(now) == today {
-				if err := s.AttendanceSyncer.MirrorCheckOutAt(ctx, studentID, now); err != nil {
-					return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("sync roomless checkout: %w", err)}
-				}
-			}
-		} else if endedVisit != nil {
-			// Detailed mode has exact source provenance through the ended visit.
-			snapshot, err = s.AttendanceSyncer.MirrorCheckOutForVisit(ctx, presenceVisitSnapshot(endedVisit))
-			if err != nil {
-				return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("sync visit checkout: %w", err)}
-			}
-		}
+	snapshot, err := s.mirrorAttendanceCheckout(ctx, mode, studentID, now, today, endedVisit)
+	if err != nil {
+		return nil, err
 	}
 
 	if len(closedRows) == 0 {
@@ -591,390 +571,35 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID, check
 	}, nil
 }
 
-// registerCheckoutBroadcast queues the SSE fan-out of an attendance checkout
-// that closed a row or healed an orphaned visit. It covers every entry point
-// into performCheckOut: the staff web checkout
-// (POST /active/visits/student/{id}/checkout), the school check-in/out endpoint
-// used by the binary-mode "Kinder an- und abmelden" flow, the kiosk toggle, and
-// the kiosk daily checkout. None of them emitted anything between 976b32f and
-// #2113 — ending the visit moved from service.EndVisit (which broadcasts) to
-// the repository call above (which does not), so other staff tabs kept showing
-// the child as present indefinitely: the room, search and detail views
-// revalidate on neither focus nor interval.
-//
-// Two invariants:
-//
-//  1. The student display data is read HERE, inside the request transaction.
-//     Only the emission is deferred to tenant.RegisterAfterCommit — by the time
-//     hooks run, the tx carried in ctx is closed, so a repository read from
-//     inside the hook would fail, and reading outside the tenant tx would be
-//     blocked by RLS. Deferring matters because TenantTxMiddleware commits at
-//     the end of the request: a client woken before the commit refetches the
-//     pre-checkout state, and nothing corrects it afterwards.
-//  2. Callers pass endedVisit == nil when no room visit was closed, which
-//     selects the roomless event shape. Broadcaster identity rules follow the
-//     existing helpers: the child id rides only the group-scoped topics, never
-//     the tenant-wide invalidation events (#2085).
-func (s *service) registerCheckoutBroadcast(
-	ctx context.Context,
-	studentID int64,
-	endedVisit *studentpresence.Visit,
-	snapshot *AttendanceSnapshot,
-	checkoutType string,
-) {
-	// Siehe registerCheckinBroadcast: die Eltern-Weckung haengt an der
-	// Anwesenheit, nicht am Personal-Broadcaster.
-	s.wakeGuardiansAfterCommit(ctx, studentID)
-
-	if s.Broadcaster == nil {
-		return
+// mirrorAttendanceCheckout mirrors a checkout into slot attendance. It returns
+// the slot snapshot of the ended visit in detailed mode.
+func (s *service) mirrorAttendanceCheckout(ctx context.Context, mode string, studentID int64, now time.Time, today timezone.Date, endedVisit *studentpresence.Visit) (*AttendanceSnapshot, error) {
+	if s.AttendanceSyncer == nil {
+		return nil, nil
 	}
-
-	educationGroupID := s.getEducationGroupForSSE(ctx, studentID)
-
-	tenant.RegisterAfterCommit(ctx, func() {
-		if endedVisit != nil {
-			// Ordinary visit checkouts historically had no source. Only carry the
-			// daily checkout's stable wire value onto the visit-shaped heal path.
-			source := ""
-			if checkoutType == checkoutTypeDaily {
-				source = dailyCheckoutSource
-			}
-			s.emitVisitCheckout(ctx, endedVisit, snapshot, educationGroupID, source)
-			return
-		}
-		s.emitRoomlessCheckout(ctx, studentID, educationGroupID, checkoutSourceLabel(checkoutType))
-	})
-}
-
-// registerCheckinBroadcast queues the SSE fan-out of an attendance check-in
-// that actually opened a row. Mirror of registerCheckoutBroadcast, same two
-// invariants — the display data is read HERE, inside the request transaction,
-// and only the emission is deferred past the commit.
-//
-// Covers the check-in paths that write attendance without a room visit: the
-// school check-in/out endpoint used by the "Kinder an- und abmelden" flow, the
-// binary-mode kiosk scan, and the door kiosk's attendance toggle in either mode.
-// All three were silent, so a colleague's open room, search or detail view kept
-// showing the child as absent — none of them revalidates on focus or interval.
-//
-// Deliberately not gated on presence mode: the detailed-mode ROOM check-in
-// takes the CreateVisit path, which writes its own attendance row and emits
-// broadcastVisitCreated. The two call sets are disjoint, so no request can emit
-// both.
-func (s *service) registerCheckinBroadcast(ctx context.Context, studentID int64, checkinType string) {
-	// Die Sorgeberechtigten werden unabhaengig vom Broadcaster geweckt: ihr
-	// Tagesstatus haengt an der Anwesenheit, nicht an den Personal-Topics.
-	s.wakeGuardiansAfterCommit(ctx, studentID)
-
-	if s.Broadcaster == nil {
-		return
-	}
-
-	educationGroupID := s.getEducationGroupForSSE(ctx, studentID)
-
-	tenant.RegisterAfterCommit(ctx, func() {
-		s.emitRoomlessCheckin(ctx, studentID, educationGroupID, checkinType)
-	})
-}
-
-type deviceSupervisorUnavailableError struct {
-	reason string
-}
-
-func (e *deviceSupervisorUnavailableError) Error() string {
-	return e.reason
-}
-
-// getDeviceSupervisorID retrieves the supervisor staff ID for a device's active group.
-// Expected absence states use a typed error so daily checkout may safely fall
-// back to device attribution without swallowing repository failures.
-func (s *service) getDeviceSupervisorID(ctx context.Context, deviceID int64) (int64, error) {
-	// Find active group for device
-	activeGroup, err := s.GroupRepo.FindActiveByDeviceID(ctx, deviceID)
-	if err != nil {
-		// Handle case where no active group exists for this device
-		if errors.Is(err, ErrNoActiveSession) {
-			return 0, &deviceSupervisorUnavailableError{reason: fmt.Sprintf("no active group assigned to device %d", deviceID)}
-		}
-		return 0, fmt.Errorf("error finding active group for device %d: %w", deviceID, err)
-	}
-
-	if activeGroup == nil {
-		return 0, &deviceSupervisorUnavailableError{reason: fmt.Sprintf("no active group assigned to device %d", deviceID)}
-	}
-
-	// Get supervisors for the active group
-	day := timezone.TodayDate().String()
-	supervisors, err := s.SchoolPresence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{activeGroup.ID}, ActiveOn: &day})
-	if err != nil {
-		return 0, fmt.Errorf("failed to get supervisors for group %d: %w", activeGroup.ID, &ActiveError{Op: "FindSupervisorsByActiveGroupID", Err: ErrDatabaseOperation})
-	}
-
-	if len(supervisors) == 0 {
-		return 0, &deviceSupervisorUnavailableError{reason: fmt.Sprintf("no supervisors assigned to active group %d", activeGroup.ID)}
-	}
-
-	// Use first active supervisor
-	today := timezone.TodayDate()
-	for _, supervisor := range supervisors {
-		start, err := timezone.ParseDate(supervisor.StartDate)
-		if err != nil {
-			return 0, &ActiveError{Op: "FindSupervisorsByActiveGroupID", Err: ErrDatabaseOperation}
-		}
-		if start.After(today) {
-			continue
-		}
-		if supervisor.EndDate == nil {
-			return supervisor.StaffID, nil
-		}
-		end, err := timezone.ParseDate(*supervisor.EndDate)
-		if err != nil {
-			return 0, &ActiveError{Op: "FindSupervisorsByActiveGroupID", Err: ErrDatabaseOperation}
-		}
-		if today.Before(end) {
-			return supervisor.StaffID, nil
-		}
-	}
-
-	return 0, &deviceSupervisorUnavailableError{reason: fmt.Sprintf("no active supervisors found in group %d", activeGroup.ID)}
-}
-
-// emitRoomlessCheckout publishes a checkout that has no room context. Used when
-// no visit ended — a binary-mode tenant (which keeps no visit rows at all) or a
-// kiosk daily checkout, where the visit was already closed when the child left
-// the room.
-func (s *service) emitRoomlessCheckout(
-	ctx context.Context,
-	studentID int64,
-	educationGroupID *int64,
-	source string,
-) {
-	s.emitRoomlessAttendanceChange(ctx, false, studentID, educationGroupID, source)
-}
-
-// emitRoomlessCheckin publishes a check-in that has no room context: attendance
-// opened without the child entering a room. That is every binary-mode check-in
-// (the tenant keeps no visit rows) and the door kiosk's attendance toggle in
-// either mode. The detailed-mode room check-in does NOT come through here — it
-// runs through CreateVisit, which writes its own attendance row and emits
-// broadcastVisitCreated, so the two can never fire for the same request.
-func (s *service) emitRoomlessCheckin(
-	ctx context.Context,
-	studentID int64,
-	educationGroupID *int64,
-	source string,
-) {
-	s.emitRoomlessAttendanceChange(ctx, true, studentID, educationGroupID, source)
-}
-
-// emitRoomlessAttendanceChange publishes an attendance change with no room
-// context: the student's educational (OGS) group topic plus the tenant-wide
-// dashboard refresh. There is no active group to scope to, hence no active-group
-// topic and no active_supervision_changed — no room roster changed.
-//
-// Takes the display data pre-resolved for the same reason as
-// emitVisitCheckout — see its doc comment.
-func (s *service) emitRoomlessAttendanceChange(
-	ctx context.Context,
-	checkIn bool,
-	studentID int64,
-	educationGroupID *int64,
-	source string,
-) {
-	if s.Broadcaster == nil {
-		return
-	}
-
-	eduGroupIDs := eduGroupIDsOf(educationGroupID)
-
-	// Broadcast to educational (OGS) group topic so the "Meine Gruppe" page
-	// updates. The source is always carried, even when empty.
-	realtimeevents.PublishRoomlessAttendanceChange(ctx, s.Broadcaster, s.getLogger(), checkIn, realtimeevents.VisitChange{
-		StudentID:        fmt.Sprintf("%d", studentID),
-		EducationGroupID: educationGroupID,
-		Source:           source,
-	})
-
-	// Notify every client of the tenant so dashboard counts and the search
-	// page refresh — the educational group broadcast only reaches staff in
-	// that group, but the search page is used by all staff. Scoped to the
-	// student's educational group when known (#2057).
-	s.broadcastDashboardCountsChanged(ctx, eduGroupIDs)
-}
-
-// ConfirmDailyCheckout processes the deferred daily-checkout confirmation for an
-// IoT device. Normally the student's visit was already ended by the checkin
-// handler (student is "unterwegs") and this only updates the attendance record
-// when the student confirms "nach Hause". If a visit is still open,
-// CheckOutStudentFromDevice ends it in the same request transaction (issue #895).
-//
-// The student must already have an attendance record for today (status
-// "checked_in" or "checked_out"); otherwise ErrNoAttendanceRecordForCheckout is
-// returned. Attendance is only mutated when destination is "zuhause" and the
-// student is still "checked_in"; a concurrent checkout is treated as an
-// idempotent no-op.
-func (s *service) ConfirmDailyCheckout(ctx context.Context, studentID, deviceID int64, destination string) (*DailyCheckoutResult, error) {
-	var result *DailyCheckoutResult
-	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
-		var err error
-		result, err = s.confirmDailyCheckout(txCtx, studentID, deviceID, destination)
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
-func (s *service) confirmDailyCheckout(ctx context.Context, studentID, deviceID int64, destination string) (*DailyCheckoutResult, error) {
-	s.getLogger().InfoContext(ctx, "confirming daily checkout",
-		slog.Int64("student_id", studentID),
-		slog.String("destination", destination),
-	)
-
-	currentStatus, err := s.GetStudentAttendanceStatus(ctx, studentID)
-	if err != nil {
-		s.getLogger().ErrorContext(ctx, "failed to get attendance status",
-			slog.Int64("student_id", studentID),
-			slog.String("error", err.Error()),
-		)
-		return nil, err
-	}
-
-	if currentStatus.Status != "checked_in" && currentStatus.Status != "checked_out" {
-		s.getLogger().ErrorContext(ctx, "student has no attendance record for today",
-			slog.Int64("student_id", studentID),
-			slog.String("status", currentStatus.Status),
-		)
-		return nil, ErrNoAttendanceRecordForCheckout
-	}
-
-	if destination == "zuhause" {
-		switch currentStatus.Status {
-		case "checked_out":
-			s.getLogger().DebugContext(ctx, "student already checked out, skipping attendance toggle",
-				slog.Int64("student_id", studentID),
-			)
-		case "checked_in":
-			// CheckOutStudentFromDevice broadcasts the student_checkout /
-			// dashboard_counts_changed pair itself, after the request
-			// transaction commits (#2113) — the explicit BroadcastDailyCheckout
-			// that used to sit here fired before the commit and is now a
-			// duplicate.
-			if _, err := s.CheckOutStudentFromDevice(ctx, studentID, deviceID); err != nil {
-				s.getLogger().ErrorContext(ctx, "failed to update attendance for daily checkout",
-					slog.Int64("student_id", studentID),
-					slog.String("error", err.Error()),
-				)
-				return nil, err
+	if mode == PresenceModeBinary {
+		// Binary mode has no visit provenance, so close the latest mirrored
+		// open slot. Run this even for idempotent attendance checkout to heal
+		// slot rows left open by older code — but only while the checkout
+		// still targets now's own day: the mirror derives its slot day from
+		// the timestamp, so a batch item closing its snapshot day after a
+		// Berlin-midnight rollover would otherwise close a slot of the NEW
+		// day whose attendance this checkout never touched (review #2372,
+		// same day-scoping as the visit cleanup in performCheckOut).
+		if timezone.DateFromTime(now) == today {
+			if err := s.AttendanceSyncer.MirrorCheckOutAt(ctx, studentID, now); err != nil {
+				return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("sync roomless checkout: %w", err)}
 			}
 		}
+		return nil, nil
 	}
-
-	action := "checked_out_daily"
-	if destination == "unterwegs" {
-		action = "checked_out"
+	if endedVisit == nil {
+		return nil, nil
 	}
-
-	s.getLogger().InfoContext(ctx, "daily checkout confirmed",
-		slog.Int64("student_id", studentID),
-		slog.String("action", action),
-		slog.String("destination", destination),
-	)
-
-	return &DailyCheckoutResult{Action: action}, nil
-}
-
-// ======== Unclaimed Groups Management (Deviceless Claiming) ========
-
-// GetUnclaimedActiveGroups returns all active groups that have no supervisors
-// This is used for deviceless rooms like Schulhof where teachers claim supervision via frontend
-func (s *service) GetUnclaimedActiveGroups(ctx context.Context) ([]*active.Group, error) {
-	rows, err := s.SchoolPresence.UnclaimedGroups(ctx, s.todayDate().String())
+	// Detailed mode has exact source provenance through the ended visit.
+	snapshot, err := s.AttendanceSyncer.MirrorCheckOutForVisit(ctx, presenceVisitSnapshot(endedVisit))
 	if err != nil {
-		return nil, &ActiveError{Op: "GetUnclaimedActiveGroups", Err: err}
+		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("sync visit checkout: %w", err)}
 	}
-	groups := make([]*active.Group, 0, len(rows))
-	if len(rows) == 0 {
-		return groups, nil
-	}
-	roomIDs, templateIDs := make([]int64, 0, len(rows)), make([]int64, 0, len(rows))
-	for _, row := range rows {
-		roomIDs = append(roomIDs, row.RoomID)
-		if row.GroupID != nil {
-			templateIDs = append(templateIDs, *row.GroupID)
-		}
-	}
-	rooms, err := s.RoomRepo.FindByIDs(ctx, roomIDs)
-	if err != nil {
-		return nil, &ActiveError{Op: "GetUnclaimedActiveGroups", Err: err}
-	}
-	templates, err := s.ActivityGroupRepo.FindByIDs(ctx, templateIDs)
-	if err != nil {
-		return nil, &ActiveError{Op: "GetUnclaimedActiveGroups", Err: err}
-	}
-	roomsByID := make(map[int64]*active.SessionRoom, len(rooms))
-	for _, room := range rooms {
-		roomsByID[room.ID] = room
-	}
-	templatesByID := make(map[int64]*active.SessionActivity, len(templates))
-	for _, template := range templates {
-		// This endpoint historically includes the template without its category relation.
-		copy := *template
-		copy.Category = nil
-		templatesByID[copy.ID] = &copy
-	}
-	for _, row := range rows {
-		group := &active.Group{Model: base.Model{ID: row.ID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}, StartTime: row.StartTime, EndTime: row.EndTime, LastActivity: row.LastActivity, TimeoutMinutes: row.TimeoutMinutes, GroupID: row.GroupID, DeviceID: row.DeviceID, RoomID: row.RoomID}
-		group.SetTenantID(row.TenantID)
-		group.Room = roomsByID[row.RoomID]
-		if group.Room == nil || group.Room.Name != "Schulhof" {
-			continue
-		}
-		if row.GroupID != nil {
-			group.ActualGroup = templatesByID[*row.GroupID]
-		}
-		groups = append(groups, group)
-	}
-	return groups, nil
-}
-
-// ClaimActiveGroup allows a staff member to claim supervision of an active group
-// This is primarily used for deviceless rooms like Schulhof
-func (s *service) ClaimActiveGroup(ctx context.Context, groupID, staffID int64, role string) (*active.GroupSupervisor, error) {
-	if role == "" {
-		role = "supervisor"
-	}
-	var result *active.GroupSupervisor
-	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
-		if err := s.lockStaffForSupervision(txCtx, staffID); err != nil {
-			return err
-		}
-		row, err := s.SchoolPresence.ClaimGroup(txCtx, studentpresence.GroupClaim{GroupID: groupID, StaffID: staffID, Role: role, Date: s.todayDate().String()})
-		switch {
-		case errors.Is(err, studentpresence.ErrAlreadySupervising):
-			return ErrStaffAlreadySupervising
-		case errors.Is(err, studentpresence.ErrGroupNotFound), errors.Is(err, studentpresence.ErrGroupEnded):
-			return err
-		case err != nil:
-			return ErrDatabaseOperation
-		}
-		date, err := timezone.ParseDate(row.StartDate)
-		if err != nil {
-			return err
-		}
-		result = &active.GroupSupervisor{Model: base.Model{ID: row.ID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}, GroupID: row.GroupID, StaffID: row.StaffID, Role: row.Role, StartDate: date}
-		result.SetTenantID(row.TenantID)
-		source := stampSourceApp
-		if s.attendancePrincipal(txCtx).IsIoT {
-			source = stampSourceNFC
-		}
-		s.ensureStaffPresence(txCtx, staffID, source)
-		return nil
-	})
-	if err != nil {
-		return nil, &ActiveError{Op: "ClaimActiveGroup", Err: err}
-	}
-	return result, nil
+	return snapshot, nil
 }

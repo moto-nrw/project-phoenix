@@ -244,6 +244,36 @@ func (s *cleanupService) processStudent(ctx context.Context, student studentpres
 	return deletedCount, err
 }
 
+// staleAttendanceCheckOut returns the record's date and the check-out time
+// that closes it: normally 23:59:59 of the record's date, but check_in_time
+// plus one second when the check-in lies after that (a data integrity issue),
+// so the check-in-before-check-out constraint holds.
+func staleAttendanceCheckOut(record studentpresence.Attendance) (timezone.Date, time.Time, error) {
+	date, err := timezone.ParseDate(record.Date)
+	if err != nil {
+		return "", time.Time{}, fmt.Errorf("invalid attendance date for record %d: %w", record.ID, err)
+	}
+	endOfDay := date.EndOfDay()
+	if record.CheckInTime.After(endOfDay) {
+		return date, record.CheckInTime.Add(time.Second), nil
+	}
+	return date, endOfDay, nil
+}
+
+// closeStaleRecord closes one stale record and reports whether it closed a
+// row. A failure is recorded in the result; the cleanup goes on with the next
+// record.
+func (s *cleanupService) closeStaleRecord(ctx context.Context, record studentpresence.Attendance, checkOutTime time.Time, result *AttendanceCleanupResult) bool {
+	closed, err := s.presence.CloseStaleAttendance(ctx, record.ID, checkOutTime, time.Now())
+	if err != nil {
+		errMsg := fmt.Sprintf("Failed to close attendance record %d: %v", record.ID, err)
+		result.Errors = append(result.Errors, errMsg)
+		result.Success = false
+		return false
+	}
+	return closed != 0
+}
+
 // CleanupStaleAttendance closes attendance records from previous days that lack check-out times
 func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*AttendanceCleanupResult, error) {
 	result := &AttendanceCleanupResult{
@@ -273,33 +303,14 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 
 	// Close each stale record by setting check-out time
 	for _, record := range staleRecords {
-		// Calculate appropriate check-out time:
-		// - Normally use 23:59:59 of the record's date
-		// - But if check_in_time is after that (data integrity issue), use check_in_time + 1 second
-		date, err := timezone.ParseDate(record.Date)
+		date, checkOutTime, err := staleAttendanceCheckOut(record)
 		if err != nil {
 			result.Success = false
 			result.CompletedAt = time.Now()
-			return result, fmt.Errorf("invalid attendance date for record %d: %w", record.ID, err)
-		}
-		endOfDay := date.EndOfDay()
-		checkOutTime := endOfDay
-		if record.CheckInTime.After(endOfDay) {
-			// check_in_time is after end of day - this is a data integrity issue
-			// Use check_in_time + 1 second to satisfy the constraint
-			checkOutTime = record.CheckInTime.Add(time.Second)
+			return result, err
 		}
 
-		// Update the record
-		closed, err := s.presence.CloseStaleAttendance(ctx, record.ID, checkOutTime, time.Now())
-		if err != nil {
-			errMsg := fmt.Sprintf("Failed to close attendance record %d: %v", record.ID, err)
-			result.Errors = append(result.Errors, errMsg)
-			result.Success = false
-			continue
-		}
-
-		if closed == 0 {
+		if !s.closeStaleRecord(ctx, record, checkOutTime, result) {
 			continue
 		}
 		result.RecordsClosed++

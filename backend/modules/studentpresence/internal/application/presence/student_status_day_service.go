@@ -37,31 +37,6 @@ func NewStudentStatusDayServiceWithPartialAbsences(
 	return &StudentStatusDayService{repo: repo, pickupExceptions: pickupExceptions, db: db, now: now, lockExceptionDay: lockExceptionDay}
 }
 
-// GetActiveByStudentIDsAndDate returns the active status rows of many
-// students for one calendar date.
-func (s *StudentStatusDayService) GetActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*absencerecords.StudentStatusDay, error) {
-	return s.repo.FindActiveByStudentIDsAndDate(ctx, studentIDs, date)
-}
-
-// GetSignedOffByStudentIDsAndDate returns the status rows of many students
-// that count as a registered sign-off for one date: active rows plus rows the
-// end-of-day scheduler archived (see the repository doc for why those stay in).
-func (s *StudentStatusDayService) GetSignedOffByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*absencerecords.StudentStatusDay, error) {
-	return s.repo.FindSignedOffByStudentIDsAndDate(ctx, studentIDs, date)
-}
-
-// GetActiveByStudentAndDateRange returns a student's active status rows
-// within the date range.
-func (s *StudentStatusDayService) GetActiveByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*absencerecords.StudentStatusDay, error) {
-	return s.repo.FindActiveByStudentAndDateRange(ctx, studentID, startDate, endDate)
-}
-
-// GetByStudentAndDateRange returns ALL (including cleared) status rows of
-// a student within the date range.
-func (s *StudentStatusDayService) GetByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*absencerecords.StudentStatusDay, error) {
-	return s.repo.FindByStudentAndDateRange(ctx, studentID, startDate, endDate)
-}
-
 // UpsertReported records a reported status day.
 func (s *StudentStatusDayService) UpsertReported(ctx context.Context, entry *absencerecords.StudentStatusDay) error {
 	if entry != nil && s.pickupExceptions != nil {
@@ -83,9 +58,4 @@ func (s *StudentStatusDayService) lockStatusDate(ctx context.Context, studentID 
 		return errors.New("careplanning: exception-day lock is not bound for database")
 	}
 	return s.lockExceptionDay(ctx, studentID, date)
-}
-
-// MarkCleared clears a student's status for one date.
-func (s *StudentStatusDayService) MarkCleared(ctx context.Context, studentID int64, status string, date timezone.Date, clearedAt time.Time, source string) error {
-	return s.repo.MarkCleared(ctx, studentID, status, date, clearedAt, source)
 }

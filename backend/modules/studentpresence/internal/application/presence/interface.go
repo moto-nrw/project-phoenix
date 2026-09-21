@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
@@ -78,16 +77,9 @@ type Service interface {
 
 	// Attendance tracking operations
 	GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*AttendanceStatus, error)
-	// GetRoomsByIDs retrieves rooms by ID (issue #584 lookup; repository
-	// result returned verbatim).
-	GetRoomsByIDs(ctx context.Context, ids []int64) ([]*active.SessionRoom, error)
 	// GetActiveGroupVisitsWithDisplay returns the open visits of an active
 	// group joined with tenant-scoped student display data.
 	GetActiveGroupVisitsWithDisplay(ctx context.Context, activeGroupID int64) ([]*VisitWithStudentDisplay, error)
-	// HasOpenAttendanceOn reports whether any attendance row on the given
-	// calendar date is still open (issue #584 lookup; repository result
-	// returned verbatim). Used by the operator presence-mode switch guard.
-	HasOpenAttendanceOn(ctx context.Context, date timezone.Date) (bool, error)
 	GetStudentsAttendanceStatuses(ctx context.Context, studentIDs []int64) (map[int64]*AttendanceStatus, error)
 	// ToggleStudentAttendance flips state based on the current row — used by
 	// the IoT kiosk where a single device serializes scans. NOT safe under

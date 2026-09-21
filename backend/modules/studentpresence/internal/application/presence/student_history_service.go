@@ -8,10 +8,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
-// StudentHistoryService exposes the reads (and the GDPR access-log write)
-// behind the student attendance-history endpoint (issue #584: handlers must
-// not hold repositories). The handler keeps its assembly, scope checks,
-// and audit-or-refuse decision; attendance rows come from the owner facade.
+// StudentHistoryService exposes the attendance and visit reads behind the
+// student attendance-history endpoint (issue #584: handlers must not hold
+// repositories). The handler keeps its assembly, scope checks, and
+// audit-or-refuse decision; attendance rows come from the owner facade. The
+// composition root adds the slot reads and the GDPR access-log write.
 type StudentHistoryService interface {
 	// GetAttendanceByStudentAndDateRange returns a student's attendance rows
 	// between two dates (inclusive).
@@ -28,17 +29,6 @@ type StudentHistoryService interface {
 	// GetVisitsByStudentAndTimeRange returns a student's visits (active or
 	// ended) entered within the inclusive time range.
 	GetVisitsByStudentAndTimeRange(ctx context.Context, studentID int64, start, end time.Time) ([]*VisitHistoryEntry, error)
-
-	GetSlotAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*HistorySlot, error)
-
-	// HasPlannedSlotsInRange reports whether the tenant has any planned
-	// (non-walk-in) slot assignment on a non-cancelled instance within the
-	// inclusive date range — the tenant-level signal that the care plan is
-	// in use.
-	HasPlannedSlotsInRange(ctx context.Context, startDate, endDate timezone.Date) (bool, error)
-
-	// RecordDataAccess writes a GDPR data-access log entry.
-	RecordDataAccess(ctx context.Context, entry *studentpresence.DataAccessEvent) error
 }
 
 type AttendanceHistoryReader interface {
@@ -56,37 +46,16 @@ type HistorySlotReader interface {
 }
 
 type studentHistoryService struct {
-	presence      AttendanceHistoryReader
-	rooms         HistoryRoomReader
-	accessLogRepo DataAccessAudit
-	slotRepo      HistorySlotReader
+	presence AttendanceHistoryReader
+	rooms    HistoryRoomReader
 }
 
-// NewStudentHistoryService composes owner attendance reads with visit history,
-// data-access logging, and planned slot attendance.
-// slotRepo may be nil (tests without a timetable), in which case slot
-// attendance reads return empty.
-func NewStudentHistoryService(presence AttendanceHistoryReader, rooms HistoryRoomReader, accessLogRepo DataAccessAudit, slotRepo HistorySlotReader) StudentHistoryService {
+// NewStudentHistoryService composes owner attendance reads with visit history.
+func NewStudentHistoryService(presence AttendanceHistoryReader, rooms HistoryRoomReader) StudentHistoryService {
 	return &studentHistoryService{
-		presence:      presence,
-		rooms:         rooms,
-		accessLogRepo: accessLogRepo,
-		slotRepo:      slotRepo,
+		presence: presence,
+		rooms:    rooms,
 	}
-}
-
-func (s *studentHistoryService) GetSlotAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*HistorySlot, error) {
-	if s.slotRepo == nil {
-		return []*HistorySlot{}, nil
-	}
-	return s.slotRepo.Slots(ctx, studentID, startDate, endDate)
-}
-
-func (s *studentHistoryService) HasPlannedSlotsInRange(ctx context.Context, startDate, endDate timezone.Date) (bool, error) {
-	if s.slotRepo == nil {
-		return false, nil
-	}
-	return s.slotRepo.HasPlannedSlots(ctx, startDate, endDate)
 }
 
 func (s *studentHistoryService) GetAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*studentpresence.Attendance, error) {
@@ -134,29 +103,6 @@ func (s *studentHistoryService) GetVisitsByStudentAndTimeRange(ctx context.Conte
 		result = append(result, visit)
 	}
 	return result, nil
-}
-
-func (s *studentHistoryService) RecordDataAccess(ctx context.Context, entry *studentpresence.DataAccessEvent) error {
-	return s.accessLogRepo.Create(ctx, dataAccessEvent(entry))
-}
-
-// dataAccessEvent maps the public evidence onto the audit record; a scoped
-// read keeps its group ids (and date) as the log's metadata.
-func dataAccessEvent(entry *studentpresence.DataAccessEvent) *DataAccessEvent {
-	if entry == nil {
-		return nil
-	}
-	event := &DataAccessEvent{
-		ActorAccountID: entry.ActorAccountID, ActorRole: entry.ActorRole, ResourceType: entry.ResourceType,
-		StudentID: entry.StudentID, RangeStart: entry.RangeStart, RangeEnd: entry.RangeEnd, AccessedAt: entry.AccessedAt,
-	}
-	if scope := entry.Scope; scope != nil {
-		event.Metadata = map[string]interface{}{"group_ids": scope.GroupIDs}
-		if scope.Date != "" {
-			event.Metadata["date"] = scope.Date
-		}
-	}
-	return event
 }
 
 func (s *studentHistoryService) attendanceRows(ctx context.Context, filter studentpresence.AttendanceFilter) ([]*studentpresence.Attendance, error) {

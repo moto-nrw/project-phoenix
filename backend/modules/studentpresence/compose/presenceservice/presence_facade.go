@@ -27,19 +27,31 @@ type presenceEngine interface {
 // presenceFacade publishes the application service through the public
 // facades. Methods whose signatures already use public values are promoted;
 // the session reads and writes below translate the retained session rows.
+// The room lookup and the open-attendance check are the rooms and attendance
+// ports the service is built on, published under the capability's names.
 type presenceFacade struct {
 	presenceEngine
-	engine presence.Service
+	engine     presence.Service
+	rooms      AttendanceRooms
+	attendance presence.StudentPresence
 }
 
 var _ studentpresence.Presence = (*presenceFacade)(nil)
 
-func newPresenceFacade(service presence.Service) *presenceFacade {
+func newPresenceFacade(service presence.Service, deps PresenceDependencies) *presenceFacade {
 	engine, ok := service.(presenceEngine)
 	if !ok {
 		panic(fmt.Sprintf("student presence compose: %T does not provide the presence reads", service))
 	}
-	return &presenceFacade{presenceEngine: engine, engine: service}
+	return &presenceFacade{presenceEngine: engine, engine: service, rooms: deps.RoomRepo, attendance: deps.SchoolPresence}
+}
+
+// Engine returns the application service the facade runs on. Its result type
+// lives in an internal package, so only Student Presence's own code (its
+// behaviour tests) can assert this method; other callers depend on the
+// public facades.
+func (p *presenceFacade) Engine() presence.Service {
+	return p.engine
 }
 
 func (p *presenceFacade) GetActiveGroup(ctx context.Context, id int64) (*studentpresence.SessionDetail, error) {
@@ -65,7 +77,7 @@ func (p *presenceFacade) GetUnclaimedActiveGroups(ctx context.Context) ([]*stude
 }
 
 func (p *presenceFacade) GetRoomsByIDs(ctx context.Context, ids []int64) ([]*studentpresence.SessionRoomSummary, error) {
-	rooms, err := p.presenceEngine.GetRoomsByIDs(ctx, ids)
+	rooms, err := p.rooms.FindByIDs(ctx, ids)
 	if rooms == nil {
 		return nil, err
 	}
@@ -74,6 +86,12 @@ func (p *presenceFacade) GetRoomsByIDs(ctx context.Context, ids []int64) ([]*stu
 		result[i] = sessionRoom(room)
 	}
 	return result, err
+}
+
+// HasOpenAttendanceOn reports whether any attendance row on the given
+// calendar date is still open (check_out_time IS NULL).
+func (p *presenceFacade) HasOpenAttendanceOn(ctx context.Context, date timezone.Date) (bool, error) {
+	return p.attendance.HasAttendance(ctx, studentpresence.AttendanceFilter{FromDate: date.String(), UntilDate: date.String(), OpenOnly: true})
 }
 
 func (p *presenceFacade) StartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*studentpresence.SessionDetail, error) {

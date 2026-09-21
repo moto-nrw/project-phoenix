@@ -27,17 +27,11 @@ func ResolveEffectiveStatus(statusRows []*absencerecords.StudentStatusDay) Effec
 	for _, row := range statusRows {
 		switch row.Status {
 		case absencerecords.StudentStatusDaySick:
-			if sickRow == nil || row.ReportedAt.After(sickRow.ReportedAt) {
-				sickRow = row
-			}
+			sickRow = latestReportedStatusDay(sickRow, row)
 		case absencerecords.StudentStatusDayClassTrip:
-			if classTripRow == nil || row.ReportedAt.After(classTripRow.ReportedAt) {
-				classTripRow = row
-			}
+			classTripRow = latestReportedStatusDay(classTripRow, row)
 		case absencerecords.StudentStatusDayExcused:
-			if excusedRow == nil || row.ReportedAt.After(excusedRow.ReportedAt) {
-				excusedRow = row
-			}
+			excusedRow = latestReportedStatusDay(excusedRow, row)
 		}
 	}
 
@@ -57,6 +51,15 @@ func ResolveEffectiveStatus(statusRows []*absencerecords.StudentStatusDay) Effec
 		eff.ExcusedSince = statusDayReportedPtr(excusedRow.ReportedAt)
 	}
 	return eff
+}
+
+// latestReportedStatusDay keeps the later reported of two rows; the current
+// row wins a tie.
+func latestReportedStatusDay(current, row *absencerecords.StudentStatusDay) *absencerecords.StudentStatusDay {
+	if current == nil || row.ReportedAt.After(current.ReportedAt) {
+		return row
+	}
+	return current
 }
 
 func statusDayReportedPtr(v time.Time) *time.Time {

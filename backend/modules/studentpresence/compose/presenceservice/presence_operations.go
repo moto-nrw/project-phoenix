@@ -16,6 +16,7 @@ import (
 // classification.
 type PresenceOperations struct {
 	active   presence.Service
+	sessions studentpresence.SessionReads
 	atSchool AtSchoolCounter
 	logger   *slog.Logger
 }
@@ -30,14 +31,14 @@ type AtSchoolCounter interface {
 // presence operations contract. A nil atSchool leaves the dashboard's
 // "Zuhause" figure unsplit.
 func NewPresenceOperations(value studentpresence.Presence, atSchool AtSchoolCounter, logger *slog.Logger) (PresenceOperations, error) {
-	service, ok := PresenceEngine(value)
+	service, ok := presenceEngineOf(value)
 	if !ok {
 		return PresenceOperations{}, errors.New("student presence compose: presence operations need a composed presence value")
 	}
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return PresenceOperations{active: service, atSchool: atSchool, logger: logger}, nil
+	return PresenceOperations{active: service, sessions: value, atSchool: atSchool, logger: logger}, nil
 }
 
 func (p PresenceOperations) StartSession(ctx context.Context, group studentpresence.LiveGroup) (studentpresence.LiveGroup, error) {
@@ -273,7 +274,7 @@ func (p PresenceOperations) SessionVisitsWithDisplay(ctx context.Context, groupI
 }
 
 func (p PresenceOperations) SessionRooms(ctx context.Context, ids []int64) ([]studentpresence.SessionRoomSummary, error) {
-	rooms, err := p.active.GetRoomsByIDs(ctx, ids)
+	rooms, err := p.sessions.GetRoomsByIDs(ctx, ids)
 	if err != nil {
 		return nil, err
 	}

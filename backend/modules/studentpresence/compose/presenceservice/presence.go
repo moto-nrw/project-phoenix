@@ -5,7 +5,6 @@ package presenceservice
 
 import (
 	"context"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -68,13 +67,12 @@ func WithGuardianWaker(waker GuardianWaker) PresenceOption {
 
 // NewPresence builds the presence capability from explicit dependencies.
 func NewPresence(deps PresenceDependencies, options ...PresenceOption) studentpresence.Presence {
-	return newPresenceFacade(presence.NewService(deps, options...))
+	return newPresenceFacade(presence.NewService(deps, options...), deps)
 }
 
-// PresenceEngine returns the application service a composed presence value
-// runs on. Only Student Presence's own behaviour tests use it; other callers
-// depend on the public facades.
-func PresenceEngine(value studentpresence.Presence) (presence.Service, bool) {
+// presenceEngineOf returns the application service a composed presence value
+// runs on.
+func presenceEngineOf(value studentpresence.Presence) (presence.Service, bool) {
 	facade, ok := value.(*presenceFacade)
 	if !ok {
 		return nil, false
@@ -88,33 +86,6 @@ func NewPresenceCleanup(presenceRetention PresenceRetention, supervisors activeM
 	return presence.NewCleanupService(presenceRetention, supervisors, deletions, today...)
 }
 
-// NewStudentHistory composes owner attendance reads with visit history,
-// data-access logging and planned slot attendance. slots may be nil.
-func NewStudentHistory(attendance AttendanceHistoryReader, rooms HistoryRoomReader, accessLog DataAccessAudit, slots HistorySlotReader) studentpresence.StudentHistory {
-	return presence.NewStudentHistoryService(attendance, rooms, accessLog, slots)
-}
-
-// NewStatusDays builds the status-day reads and writes over Care Plan's
-// status-day adapter; a full-day status never silently overwrites a
-// time-specific excusal on the same date.
-func NewStatusDays(repo StudentStatusDayRepository, pickupExceptions ManualPartialAbsenceReader, db studentpresence.DatabaseHandle, lockExceptionDay LockExceptionDay, clocks ...func() time.Time) studentpresence.StatusDays {
-	return statusDays{presence.NewStudentStatusDayServiceWithPartialAbsences(repo, pickupExceptions, db, lockExceptionDay, clocks...)}
-}
-
-// statusDays names the status-day delete after the capability.
-type statusDays struct {
-	*presence.StudentStatusDayService
-}
-
-func (s statusDays) DeleteStatusDay(ctx context.Context, wc studentpresence.StatusDayWriteContext, statusDayID, studentID int64) error {
-	return s.DeleteByID(ctx, wc, statusDayID, studentID)
-}
-
-// NewStatusDayOverviews builds the tenant-wide absence overview.
-func NewStatusDayOverviews(repo StudentStatusDayOverviewRepository, people StatusDayOverviewPeople) studentpresence.StatusDayOverviews {
-	return presence.NewStudentStatusDayOverviewService(repo, people)
-}
-
 // GroupSupervisorRowWriter is the supervision write services/education still
 // performs with retained supervisor rows.
 type GroupSupervisorRowWriter interface {
@@ -125,7 +96,7 @@ type GroupSupervisorRowWriter interface {
 // composed presence value until the supervision rows move behind the owner
 // (#3422). It returns nil for any other value.
 func GroupSupervisorRows(value studentpresence.Presence) GroupSupervisorRowWriter {
-	engine, ok := PresenceEngine(value)
+	engine, ok := presenceEngineOf(value)
 	if !ok {
 		return nil
 	}

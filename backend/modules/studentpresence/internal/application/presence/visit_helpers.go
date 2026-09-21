@@ -298,6 +298,22 @@ func (s *service) recordStudentStatusForClear(ctx context.Context, studentID int
 	return nil
 }
 
+// autoClearCheckinStatuses runs every clear a check-in triggers: the sickness
+// and excused flags (per the tenant's clear mode) and the planned status days.
+// A failure is a database failure of op.
+func (s *service) autoClearCheckinStatuses(ctx context.Context, studentID int64, op string) error {
+	if err := s.autoClearStudentSickness(ctx, studentID); err != nil {
+		return &ActiveError{Op: op, Err: errors.Join(ErrDatabaseOperation, err)}
+	}
+	if err := s.autoClearStudentExcused(ctx, studentID); err != nil {
+		return &ActiveError{Op: op, Err: errors.Join(ErrDatabaseOperation, err)}
+	}
+	if err := s.autoClearPlannedStudentStatuses(ctx, studentID); err != nil {
+		return &ActiveError{Op: op, Err: errors.Join(ErrDatabaseOperation, err)}
+	}
+	return nil
+}
+
 func (s *service) autoClearPlannedStudentStatuses(ctx context.Context, studentID int64) error {
 	if s.StudentStatusRepo == nil {
 		return nil
@@ -325,8 +341,19 @@ func (s *service) clearPlannedStatusRows(
 	rows []*absencerecords.StudentStatusDay,
 	now time.Time,
 ) error {
-	hasPlannedSick := false
-	hasPlannedExcused := false
+	hasPlannedSick, hasPlannedExcused, err := s.clearPlannedRows(ctx, rows, now)
+	if err != nil {
+		return err
+	}
+	if !hasPlannedSick && !hasPlannedExcused {
+		return nil
+	}
+	return s.clearLiveFlagsOfPlannedStatus(ctx, studentID, student, hasPlannedSick, hasPlannedExcused)
+}
+
+// clearPlannedRows clears the planned and parent-reported rows and reports
+// whether a sick or an excused (or class-trip) day was among them.
+func (s *service) clearPlannedRows(ctx context.Context, rows []*absencerecords.StudentStatusDay, now time.Time) (hasPlannedSick, hasPlannedExcused bool, err error) {
 	for _, row := range rows {
 		// Both staff-planned and parent-reported sick/excused days are
 		// "scheduled ahead" rows the live-flag path doesn't cover, so the
@@ -337,7 +364,7 @@ func (s *service) clearPlannedStatusRows(
 			continue
 		}
 		if err := s.StudentStatusRepo.MarkClearedByID(ctx, row.ID, now, absencerecords.StudentStatusSourceNextCheckin); err != nil {
-			return fmt.Errorf("clear planned student status: %w", err)
+			return false, false, fmt.Errorf("clear planned student status: %w", err)
 		}
 		if row.Status == absencerecords.StudentStatusDaySick {
 			hasPlannedSick = true
@@ -346,11 +373,12 @@ func (s *service) clearPlannedStatusRows(
 			hasPlannedExcused = true
 		}
 	}
+	return hasPlannedSick, hasPlannedExcused, nil
+}
 
-	if !hasPlannedSick && !hasPlannedExcused {
-		return nil
-	}
-
+// clearLiveFlagsOfPlannedStatus resets the student's live sick or excused flag
+// a cleared planned status day set.
+func (s *service) clearLiveFlagsOfPlannedStatus(ctx context.Context, studentID int64, student *StudentRecord, hasPlannedSick, hasPlannedExcused bool) error {
 	if student == nil {
 		loaded, err := s.StudentRepo.FindByID(ctx, studentID)
 		if err != nil {

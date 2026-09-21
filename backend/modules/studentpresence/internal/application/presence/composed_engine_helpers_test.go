@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	"github.com/stretchr/testify/require"
 )
@@ -14,7 +13,7 @@ import (
 // driving the service with the retained session rows.
 func composedEngine(tb testing.TB, value studentpresence.Presence) presence.Service {
 	tb.Helper()
-	engine, ok := presenceservice.PresenceEngine(value)
+	composed, ok := value.(interface{ Engine() presence.Service })
 	require.True(tb, ok, "the factory presence must be the composed presence service")
-	return engine
+	return composed.Engine()
 }

@@ -115,20 +115,9 @@ func statusDayOverviewOptions(studentIDs []int64, students map[int64]*StudentRec
 func statusDayEnrollmentFilter(studentIDs []int64, students map[int64]*StudentRecord, today timezone.Date) *modelBase.Filter {
 	var eligible *modelBase.Filter
 	for _, id := range studentIDs {
-		student := students[id]
-		if student == nil || (student.EnrolledFrom == nil && student.EnrolledUntil == nil && student.Lifecycle == StudentLifecycleInactive) {
+		studentFilter := studentEnrollmentFilter(id, students[id], today)
+		if studentFilter == nil {
 			continue
-		}
-		studentFilter := modelBase.NewFilter().Equal("student_id", id)
-		if student.EnrolledFrom != nil {
-			from := *student.EnrolledFrom
-			if student.Lifecycle == StudentLifecycleActive && today.Before(from) {
-				from = today
-			}
-			studentFilter.GreaterThanOrEqual("date", from)
-		}
-		if student.EnrolledUntil != nil {
-			studentFilter.LessThanOrEqual("date", *student.EnrolledUntil)
 		}
 		if eligible == nil {
 			eligible = studentFilter
@@ -140,6 +129,27 @@ func statusDayEnrollmentFilter(studentIDs []int64, students map[int64]*StudentRe
 		return modelBase.NewFilter().Equal("student_id", int64(-1))
 	}
 	return eligible
+}
+
+// studentEnrollmentFilter limits one student's rows to their enrollment
+// interval; an active student enrolled from a future date counts from today.
+// It returns nil for an unknown student or an inactive one without an interval.
+func studentEnrollmentFilter(id int64, student *StudentRecord, today timezone.Date) *modelBase.Filter {
+	if student == nil || (student.EnrolledFrom == nil && student.EnrolledUntil == nil && student.Lifecycle == StudentLifecycleInactive) {
+		return nil
+	}
+	studentFilter := modelBase.NewFilter().Equal("student_id", id)
+	if student.EnrolledFrom != nil {
+		from := *student.EnrolledFrom
+		if student.Lifecycle == StudentLifecycleActive && today.Before(from) {
+			from = today
+		}
+		studentFilter.GreaterThanOrEqual("date", from)
+	}
+	if student.EnrolledUntil != nil {
+		studentFilter.LessThanOrEqual("date", *student.EnrolledUntil)
+	}
+	return studentFilter
 }
 
 func filterOverviewStudentIDs(ids []int64, students map[int64]*StudentRecord, persons map[int64]*PersonName, query string) []int64 {
