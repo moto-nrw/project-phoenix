@@ -1,35 +1,37 @@
-package legacy
+package enrollment
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/uptrace/bun"
 )
 
-// NewParentRuntime preserves ambient transaction joining for the legacy
-// parent repositories while keeping transaction-runtime details at this seam.
-func NewParentRuntime(db *bun.DB) parentRepo.Runtime {
-	return parentRepo.RuntimeFunc(func(ctx context.Context) bun.IDB { return base.GetDB(ctx, db) })
+// The enrollment services still work on the enrollment model rows, while the
+// Care Plan module owns care offerings and offering change requests. The
+// repositories below are this consumer's translation onto the owner's
+// Commands and Queries; they hold no persistence of their own.
+
+// recordNotFound builds the not-found shape the retained repository contracts
+// return, so callers keep classifying with errors.Is(err, sql.ErrNoRows) and
+// modelBase.IsNoRows(err) alike.
+func recordNotFound(op string) error {
+	return &modelBase.DatabaseError{Op: op, Err: errors.Join(modelBase.ErrNotFound, sql.ErrNoRows)}
 }
 
-// NewAmbientDatabase resolves the caller's legacy or tenant transaction.
-func NewAmbientDatabase(db *bun.DB) carePlanCompose.AmbientDatabase {
-	if db == nil {
-		panic("care plan legacy: database is required")
+// wrapRecordError wraps err in the retained repository error shape and keeps
+// the chain, so errors.Is on the original sentinel still works.
+func wrapRecordError(op string, err error) error {
+	if err == nil {
+		return nil
 	}
-	return func(ctx context.Context) bun.IDB { return base.GetDB(ctx, db) }
+	return &modelBase.DatabaseError{Op: op, Err: err}
 }
 
 // careOfferingCarePlanRepository preserves the enrollment model contract over
@@ -38,7 +40,8 @@ type careOfferingCarePlanRepository struct{ carePlan careplan.Capability }
 
 var _ enrollmentModels.CareOfferingRepository = careOfferingCarePlanRepository{}
 
-// NewCareOfferingRepository adapts the owner capability to the legacy model contract.
+// NewCareOfferingRepository serves the enrollment model contract over the
+// Care Plan owner capability.
 func NewCareOfferingRepository(capability careplan.Capability) enrollmentModels.CareOfferingRepository {
 	return careOfferingCarePlanRepository{carePlan: capability}
 }
@@ -64,7 +67,7 @@ func (r careOfferingCarePlanRepository) Create(ctx context.Context, offering *en
 func (r careOfferingCarePlanRepository) FindByID(ctx context.Context, id int64) (*enrollmentModels.CareOffering, error) {
 	value, err := r.carePlan.FindCareOffering(ctx, id)
 	if errors.Is(err, careplan.ErrCareOfferingNotFound) {
-		return nil, fmt.Errorf("care offering %d not found: %w", id, usersRepo.NotFoundError("find care offering"))
+		return nil, fmt.Errorf("care offering %d not found: %w", id, recordNotFound("find care offering"))
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to find care offering: %w", err)
@@ -232,15 +235,23 @@ func applyCareOfferingToLegacy(target *enrollmentModels.CareOffering, value care
 
 type offeringChangeCarePlanRepository struct {
 	carePlan careplan.Capability
-	people   peopledirectory.Query
+	students OfferingChangeStudentSearch
 }
 
 var _ enrollmentModels.OfferingChangeRequestRepository = (*offeringChangeCarePlanRepository)(nil)
 
-// NewOfferingChangeRepository adapts the owner capability and person search
-// to the legacy request repository contract.
-func NewOfferingChangeRepository(capability careplan.Capability, people peopledirectory.Query) enrollmentModels.OfferingChangeRequestRepository {
-	return &offeringChangeCarePlanRepository{carePlan: capability, people: people}
+// OfferingChangeStudentSearch is the consumer-owned read the request queue's
+// name search needs: the enrolled students whose name contains the text, in
+// the People Directory's listing order. The composition binds it to a named
+// tenant-safe People Directory read; it is not a join.
+type OfferingChangeStudentSearch interface {
+	SearchEnrolledStudentIDs(ctx context.Context, name string) ([]int64, error)
+}
+
+// NewOfferingChangeRepository serves the request repository contract over the
+// owner capability and the student name search.
+func NewOfferingChangeRepository(capability careplan.Capability, students OfferingChangeStudentSearch) enrollmentModels.OfferingChangeRequestRepository {
+	return &offeringChangeCarePlanRepository{carePlan: capability, students: students}
 }
 
 func (r *offeringChangeCarePlanRepository) Create(ctx context.Context, row *enrollmentModels.OfferingChangeRequest) error {
@@ -249,11 +260,11 @@ func (r *offeringChangeCarePlanRepository) Create(ctx context.Context, row *enro
 	}
 	input, err := offeringChangeToPublic(row)
 	if err != nil {
-		return usersRepo.WrapError("create", err)
+		return wrapRecordError("create", err)
 	}
 	created, err := r.carePlan.CreateOfferingChange(ctx, input)
 	if err != nil {
-		return usersRepo.WrapError("create", err)
+		return wrapRecordError("create", err)
 	}
 	return applyOfferingChangeToLegacy(row, created)
 }
@@ -261,7 +272,7 @@ func (r *offeringChangeCarePlanRepository) Create(ctx context.Context, row *enro
 func (r *offeringChangeCarePlanRepository) FindByID(ctx context.Context, rawID any) (*enrollmentModels.OfferingChangeRequest, error) {
 	id, err := membershipID(rawID)
 	if err != nil {
-		return nil, usersRepo.WrapError("find by id", err)
+		return nil, wrapRecordError("find by id", err)
 	}
 	return r.find(ctx, id, false, "find by id")
 }
@@ -347,7 +358,7 @@ func (r *offeringChangeCarePlanRepository) UpdateDecisionSnapshot(ctx context.Co
 func (r *offeringChangeCarePlanRepository) find(ctx context.Context, id int64, lock bool, op string) (*enrollmentModels.OfferingChangeRequest, error) {
 	value, err := r.carePlan.FindOfferingChange(ctx, id, lock)
 	if errors.Is(err, careplan.ErrOfferingChangeNotFound) {
-		return nil, usersRepo.NotFoundError(op)
+		return nil, recordNotFound(op)
 	}
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: op, Err: err}
@@ -387,14 +398,10 @@ func (r *offeringChangeCarePlanRepository) searchStudentIDs(ctx context.Context,
 	if strings.TrimSpace(filters.Search) == "" {
 		return filters.StudentIDs, nil
 	}
-	if r.people == nil {
+	if r.students == nil {
 		return nil, errors.New("offering change student search requires the People Directory")
 	}
-	personIDs, err := r.searchPersonIDs(ctx, filters.Search)
-	if err != nil {
-		return nil, err
-	}
-	students, err := r.people.ListEnrolledStudents(ctx)
+	matches, err := r.students.SearchEnrolledStudentIDs(ctx, filters.Search)
 	if err != nil {
 		return nil, err
 	}
@@ -403,30 +410,12 @@ func (r *offeringChangeCarePlanRepository) searchStudentIDs(ctx context.Context,
 		allowed[id] = struct{}{}
 	}
 	result := make([]int64, 0)
-	for _, student := range students {
-		_, matches := personIDs[student.PersonID]
-		_, included := allowed[student.ID]
-		if matches && (len(allowed) == 0 || included) {
-			result = append(result, student.ID)
+	for _, id := range matches {
+		if _, included := allowed[id]; len(allowed) == 0 || included {
+			result = append(result, id)
 		}
 	}
 	return result, nil
-}
-
-func (r *offeringChangeCarePlanRepository) searchPersonIDs(ctx context.Context, name string) (map[int64]struct{}, error) {
-	result := map[int64]struct{}{}
-	for page := 1; ; page++ {
-		people, err := r.people.SearchPersons(ctx, peopledirectory.PersonFilter{FullNameContains: name, Page: page, PageSize: 100})
-		if err != nil {
-			return nil, err
-		}
-		for _, person := range people {
-			result[person.ID] = struct{}{}
-		}
-		if len(people) < 100 {
-			return result, nil
-		}
-	}
 }
 
 func (r *offeringChangeCarePlanRepository) pendingError(op string, err error) error {

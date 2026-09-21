@@ -40,9 +40,9 @@ func NewClassDayTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() 
 	careplanCompose.WireCareParticipation(active.CareDay, care.CareLifecycle)
 	report := enrollment.NewReportService(enrollment.ReportServiceConfig{
 		Requests: r.Enrollment(), Children: r.Enrollment(), Guardians: r.Enrollment(),
-		CareOfferingRepo: r.CareOffering, Schemas: r.Enrollment(),
+		CareOfferingRepo: enrollment.NewCareOfferingRepository(r.CarePlan), Schemas: r.Enrollment(),
 		Phases: r.Enrollment(), DataAccessLogRepo: r.DataAccessLog, StudentRepo: r.Student, StudentGuardianRepo: r.StudentGuardian,
-		StudentCompanionRepo: r.StudentCompanion, PersonRepo: r.Person, EducationGroupRepo: r.Group, StudentStatusDayRepo: r.StudentStatusDay,
+		StudentCompanionRepo: repositories.NewStudentCompanionRepository(r.CarePlan), PersonRepo: r.Person, EducationGroupRepo: r.Group, StudentStatusDayRepo: r.StudentStatusDay,
 		ClassListEntries: NewClassListEntryRosterReader(r.Membership), PickupScheduleSvc: active.PickupSchedule, ArrivalScheduleSvc: active.ArrivalSchedule,
 		ClassArrivalExceptions: active.ArrivalSchedule, CareDaySvc: active.CareDay, Settings: active.Settings, CareParticipation: care.CareLifecycle,
 	})

@@ -31,7 +31,7 @@ func setupPhaseTest(t *testing.T) (enrollmentService.PhaseService, *repositories
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
 		Owner:            repoFactory.Enrollment(),
-		CareOfferingRepo: repoFactory.CareOffering,
+		CareOfferingRepo: enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
 		DB:               db,
 		Logger:           slog.Default(),
 	})
@@ -181,7 +181,7 @@ func TestPhaseService_Update_ValidatesCareOfferingsOnlyWhenServiceWindowChanges(
 	validatorCalls := 0
 	guardedService := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
 		Owner:            repoFactory.Enrollment(),
-		CareOfferingRepo: repoFactory.CareOffering,
+		CareOfferingRepo: enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
 		LockTemplateRecurrence: func(context.Context) error {
 			lockCalls++
 			return nil
@@ -259,12 +259,12 @@ func TestPhaseService_Update_ResyncsSourcedTemplatesOnServiceWindowChange(t *tes
 		AutoAddGradeLevels: []int{},
 		SelectionRule:      enrollmentModels.SelectionRuleOptional,
 	}
-	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).Create(ctx, offering))
 
 	resyncer := &recordingSourcedTemplateResyncer{}
 	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
 		Owner:                  repoFactory.Enrollment(),
-		CareOfferingRepo:       repoFactory.CareOffering,
+		CareOfferingRepo:       enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
 		LockTemplateRecurrence: func(context.Context) error { return nil },
 		DB:                     db,
 		Logger:                 slog.Default(),
@@ -309,14 +309,14 @@ func TestPhaseService_Update_RejectsWindowChangeInvalidatingSourcedTemplate(t *t
 		AutoAddGradeLevels: []int{},
 		SelectionRule:      enrollmentModels.SelectionRuleOptional,
 	}
-	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).Create(ctx, offering))
 
 	resyncer := &recordingSourcedTemplateResyncer{
 		err: fmt.Errorf("offering roster resync: template 7: %w", timetableplanning.ErrOfferingSourceInvalid),
 	}
 	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
 		Owner:                  repoFactory.Enrollment(),
-		CareOfferingRepo:       repoFactory.CareOffering,
+		CareOfferingRepo:       enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
 		LockTemplateRecurrence: func(context.Context) error { return nil },
 		DB:                     db,
 		Logger:                 slog.Default(),
@@ -466,7 +466,7 @@ func TestPhaseService_Delete_RemovesPhaseWithOfferings(t *testing.T) {
 		IsActive:       true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).Create(ctx, offering))
 
 	require.NoError(t, svc.Delete(ctx, phase.ID),
 		"phase with care offerings must be deletable")
@@ -474,7 +474,7 @@ func TestPhaseService_Delete_RemovesPhaseWithOfferings(t *testing.T) {
 	_, err = svc.GetByID(ctx, phase.ID)
 	assert.True(t, errors.Is(err, enrollmentService.ErrPhaseNotFound),
 		"phase must be gone after delete")
-	remaining, err := repoFactory.CareOffering.CountByPhaseID(ctx, phase.ID)
+	remaining, err := enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).CountByPhaseID(ctx, phase.ID)
 	require.NoError(t, err)
 	assert.Equal(t, 0, remaining, "care offerings must cascade away with the phase")
 }
@@ -565,7 +565,7 @@ func TestPhaseService_DeleteImpact_ReportsCounts(t *testing.T) {
 		IsActive:       true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).Create(ctx, offering))
 
 	req := &enrollmentModels.Request{
 		PhaseID:           phase.ID,
@@ -654,7 +654,7 @@ func phaseServiceWithCalendarPeriods(t *testing.T) (enrollmentService.PhaseServi
 	_, repoFactory, db, cleanup := setupPhaseTest(t)
 	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
 		Owner:            repoFactory.Enrollment(),
-		CareOfferingRepo: repoFactory.CareOffering,
+		CareOfferingRepo: enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
 		CalendarPeriods: timetableplanning.NewCalendarPeriodServiceWithConfig(timetableplanning.CalendarPeriodServiceConfig{
 			Repo: repoFactory.CalendarPeriod, Logger: slog.Default(),
 		}),

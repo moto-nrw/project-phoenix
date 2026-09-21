@@ -50,7 +50,7 @@ func createPickupTimeOffering(
 		IsActive:       true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, env.repos.CareOffering.Create(testpkg.Ctx(t), offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Create(testpkg.Ctx(t), offering))
 	return offering
 }
 
@@ -201,7 +201,7 @@ func TestOfferingPickupProjection_StaffOverrideSurvivesOfferingEdit(t *testing.T
 	author := testpkg.CreateTestStaff(t, env.db, "Gehzeit", "Manuell")
 	testpkg.CreateTestPickupSchedule(t, env.db, studentID, scheduleModels.WeekdayMonday, author.ID, "15:15")
 	offering.PickupTimes = map[string]string{"mon": "16:00"}
-	require.NoError(t, env.repos.CareOffering.Update(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Update(ctx, offering))
 
 	monday := nextWeekday(decisionTestToday, time.Monday)
 	actual, err := projectedPickupReader(env).GetEffectivePickupTimeForDate(ctx, studentID, monday)
@@ -267,7 +267,7 @@ func TestOfferingPickupProjection_IgnoresInactiveOffering(t *testing.T) {
 		t, env, offering.ID, "gehzeit-inaktiv@example.com", "Inaktiv", 2,
 	)
 	offering.IsActive = false
-	require.NoError(t, env.repos.CareOffering.Update(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Update(ctx, offering))
 
 	pickup, err := projectedPickupReader(env).GetEffectivePickupTimeForDate(
 		ctx, studentID, nextWeekday(decisionTestToday, time.Monday),
@@ -291,7 +291,7 @@ func TestOfferingPickupProjection_IgnoresNonCareOffering(t *testing.T) {
 	)
 	offering.CountsAsCare = false
 	offering.CountsAsCareSet = true
-	require.NoError(t, env.repos.CareOffering.Update(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Update(ctx, offering))
 
 	pickup, err := projectedPickupReader(env).GetEffectivePickupTimeForDate(
 		ctx, studentID, nextWeekday(decisionTestToday, time.Monday),

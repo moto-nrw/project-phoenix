@@ -52,7 +52,6 @@ import (
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	parentAPI "github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
-	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 	requestFeedCompose "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/compose"
 	requestFeedHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/http"
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
@@ -480,7 +479,7 @@ func composeCarePlan(db *bun.DB, persons *peopleModule.Module, slots carePlanCom
 		return nil, err
 	}
 	return carePlanCompose.New(carePlanCompose.Dependencies{
-		DB: db, AmbientDB: carePlanLegacy.NewAmbientDatabase(db),
+		DB: db, AmbientDB: carePlanCompose.TenantAmbientDatabase(db),
 		StatusStudents: statusStudents, StatusSlots: slots,
 		People: carePlanCompose.StudentNameFinderFunc(func(ctx context.Context, ids []int64) ([]carePlanCompose.StudentName, error) {
 			values, err := persons.ListStudentNamesByID(ctx, ids)
@@ -1260,7 +1259,7 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 		func(ctx context.Context) (carePlanCompose.ReviewScope, error) {
 			scope, err := reviewPolicy.Scope(ctx)
 			return carePlanCompose.ReviewScope{SchoolWide: scope.SchoolWide, GroupIDs: scope.GroupIDs}, err
-		}, carePlanLegacy.TodayDate, func(observation requestreviewcompose.CareObservation) {
+		}, carePlanCompose.Today, func(observation requestreviewcompose.CareObservation) {
 			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
 		})
 	if err != nil {
@@ -1275,7 +1274,7 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
 			return api.Services.Settings.ResolveBool(ctx, reviewsettings.BookingsAuthoritative)
 		},
-		Today: carePlanLegacy.TodayDate,
+		Today: carePlanCompose.Today,
 		ObserveCare: func(observation requestreviewcompose.CareObservation) {
 			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
 		},
@@ -1286,7 +1285,7 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("care schedule reviews: %w", err)
 	}
-	careQueue, err := requestreviewcompose.NewCareScheduleQueue(careReviews, carePlanLegacy.TodayDate)
+	careQueue, err := requestreviewcompose.NewCareScheduleQueue(careReviews, carePlanCompose.Today)
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("care schedule review queue: %w", err)
 	}
@@ -1296,7 +1295,7 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 			scope, err := reviewPolicy.Scope(ctx)
 			return carePlanCompose.ReviewScope{SchoolWide: scope.SchoolWide, GroupIDs: scope.GroupIDs}, err
 		},
-		Today: carePlanLegacy.TodayDate,
+		Today: carePlanCompose.Today,
 		ObserveCare: func(observation requestreviewcompose.CareObservation) {
 			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
 		},
@@ -1307,7 +1306,7 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("offering reviews: %w", err)
 	}
-	offeringQueue, err := requestreviewcompose.NewOfferingQueue(offeringReviews, carePlanLegacy.TodayDate)
+	offeringQueue, err := requestreviewcompose.NewOfferingQueue(offeringReviews, carePlanCompose.Today)
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("offering review queue: %w", err)
 	}
@@ -1321,7 +1320,7 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("master data review queue: %w", err)
 	}
-	excusedQueue, err := requestreviewcompose.NewExcusedQueue(api.Services.ExcusedRequests, carePlanLegacy.TodayDate)
+	excusedQueue, err := requestreviewcompose.NewExcusedQueue(api.Services.ExcusedRequests, carePlanCompose.Today)
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("excused review queue: %w", err)
 	}
