@@ -3,10 +3,10 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 21.09.2026 · Ratchet 645 · Composition 649 · Policy-Epoche 15 · 473 Regeln mit
+Stand 21.09.2026 · Ratchet 699 · Composition 649 · Policy-Epoche 18 · 346 Regeln mit
 `convert it to exact debt` · 87.538 LOC unter `modules/*/legacy`
 
-Summenprobe: 253 + 61 + 41 + 43 + 28 + 19 + 200 = 645 = `wc -l backend/architecture/legacy.jsonl`.
+Summenprobe: 252 + 61 + 96 + 43 + 28 + 19 + 200 = 699 = `wc -l backend/architecture/legacy.jsonl`.
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Entscheidungen
@@ -16,9 +16,9 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [x] [#3414](https://github.com/moto-nrw/project-phoenix/issues/3414) Projection-Owner `operator-dashboard-view` bleibt (ADR 0033)
 - [ ] Gehört der Träger-Strang [#2809](https://github.com/moto-nrw/project-phoenix/issues/2809) / [#2821](https://github.com/moto-nrw/project-phoenix/issues/2821) zu #2580?
 
-## Jetzt vergebbar · 253 Keys
+## Jetzt vergebbar · 252 Keys
 
-- [ ] [#2733](https://github.com/moto-nrw/project-phoenix/issues/2733) services/enrollment, repositories/enrollment — 69
+- [ ] [#2733](https://github.com/moto-nrw/project-phoenix/issues/2733) services/enrollment, repositories/enrollment — 68
 - [ ] [#2742](https://github.com/moto-nrw/project-phoenix/issues/2742) services/education, repositories/education, api/groups, api/admin — 63
 - [ ] [#2728](https://github.com/moto-nrw/project-phoenix/issues/2728) services/users — 42
 - [ ] [#2734](https://github.com/moto-nrw/project-phoenix/issues/2734) api/enrollment — 32
@@ -36,7 +36,7 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [ ] [#3427](https://github.com/moto-nrw/project-phoenix/issues/3427) `modules/careplan/legacy/carelifecycle` — 4.902 LOC, neu durch #3350 am 18.09., teilt `careexitview` mit #3432
 - [ ] [#3410](https://github.com/moto-nrw/project-phoenix/issues/3410) `modules/careplan/legacy` Wurzelpaket — 874 LOC, blockiert durch #3351, blockt #2743, #2748, #2750
 
-## Schuld sichtbar machen · 473 Regeln
+## Schuld sichtbar machen · 346 Regeln
 
 - [ ] [#3421](https://github.com/moto-nrw/project-phoenix/issues/3421) `inbound-parent.*` zu exaktem Debt konvertieren — 34 Regeln
 - [ ] [#3416](https://github.com/moto-nrw/project-phoenix/issues/3416) `issue`-Feld an Policy-Regeln und `rules.stale`
@@ -51,12 +51,13 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [ ] [#3356](https://github.com/moto-nrw/project-phoenix/issues/3356) Settings-, Listenexport-, Messaging-, IoT-, Aktivitäts- und Schulstruktur-Kanten
 - [ ] [#2731](https://github.com/moto-nrw/project-phoenix/issues/2731) Carrier — 61
 
-## Identity · 41 Keys
+## Identity · 96 Keys
 
 - [ ] [#3487](https://github.com/moto-nrw/project-phoenix/issues/3487) `legacy/jwt` aus dem `legacy/`-Pfad umbenennen — entschieden in ADR 0031: das Paket bleibt der Session-Adapter, der Umzug läuft zuletzt nach den Carriern und blockt nichts
 - [ ] [#3230](https://github.com/moto-nrw/project-phoenix/issues/3230) `api/auth` → `modules/identityaccess/inbound/auth`
 - [ ] [#3231](https://github.com/moto-nrw/project-phoenix/issues/3231) Identity-Handler aus `api/operator`
 - [ ] [#2736](https://github.com/moto-nrw/project-phoenix/issues/2736) Carrier api/auth, api/operator — 41
+- [ ] [#2725](https://github.com/moto-nrw/project-phoenix/issues/2725) Carrier `modules/identityaccess/legacy/usercontext` — 55, aus 46 Kompatibilitätsregeln konvertiert (keine neue Kante). Auflösung wartet auf Owner-Contracts: Staff-/Teacher-Mitgliedschaft (`school-membership`, an #2753 ausrichten), eigene Gruppen und Vertretungen (`school-structure`), beaufsichtigte und aktive Gruppen (`student-presence`); Front-Tickets noch nicht geschnitten
 
 ## Storage
 
