@@ -57,6 +57,7 @@ func TestBackfillRootFailsFastWithoutDatabaseDependency(t *testing.T) {
 func TestBackfillStaffOwnerCommands(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	testpkg.RestoreStaffStorageBeforeCutover(t, db)
 	ctx := context.Background()
 	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -140,6 +141,7 @@ func decodeBackfillReport[T any](t *testing.T, output string) T {
 func TestBackfillStaffOwnerReportsPartialFailure(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	testpkg.RestoreStaffStorageBeforeCutover(t, db)
 	ctx := t.Context()
 	tenantA := testpkg.Tenant(t)
 	tenantB := testpkg.UniqueTestTenantID(t)

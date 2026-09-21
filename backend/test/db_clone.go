@@ -287,12 +287,20 @@ func initCloneBootstrap(ctx context.Context, db *bun.DB) error {
 			SET tenant_id = EXCLUDED.tenant_id, first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name`); e != nil {
 			return fmt.Errorf("ensure system person fixture (id=1): %w", e)
 		}
+		// Staff lives in the School Membership row and its Workforce
+		// employment profile since the cutover (#2753).
 		if _, e := tx.ExecContext(ctx, `
-			INSERT INTO users.staff (id, tenant_id, person_id)
+			INSERT INTO users.staff_school_memberships (id, tenant_id, person_id)
 			VALUES (1, 1, 1)
 			ON CONFLICT (id) DO UPDATE
 			SET tenant_id = EXCLUDED.tenant_id, person_id = EXCLUDED.person_id`); e != nil {
 			return fmt.Errorf("ensure system staff fixture (id=1): %w", e)
+		}
+		if _, e := tx.ExecContext(ctx, `
+			INSERT INTO users.staff_employment_profiles (membership_id, tenant_id)
+			VALUES (1, 1)
+			ON CONFLICT (membership_id) DO UPDATE SET tenant_id = EXCLUDED.tenant_id`); e != nil {
+			return fmt.Errorf("ensure system staff employment fixture (id=1): %w", e)
 		}
 		return nil
 	}); err != nil {
@@ -303,7 +311,7 @@ func initCloneBootstrap(ctx context.Context, db *bun.DB) error {
 	if _, err := db.ExecContext(ctx, `
 		SELECT setval('facilities.rooms_id_seq', GREATEST((SELECT last_value FROM facilities.rooms_id_seq), (SELECT COALESCE(MAX(id), 1) FROM facilities.rooms))),
 		       setval('users.persons_id_seq', GREATEST((SELECT last_value FROM users.persons_id_seq), (SELECT COALESCE(MAX(id), 1) FROM users.persons))),
-		       setval('users.staff_id_seq', GREATEST((SELECT last_value FROM users.staff_id_seq), (SELECT COALESCE(MAX(id), 1) FROM users.staff)))`); err != nil {
+		       setval('users.staff_school_memberships_id_seq', GREATEST((SELECT last_value FROM users.staff_school_memberships_id_seq), (SELECT COALESCE(MAX(id), 1) FROM users.staff_school_memberships)))`); err != nil {
 		return fmt.Errorf("advance bootstrap sequences: %w", err)
 	}
 
