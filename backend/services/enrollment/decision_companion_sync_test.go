@@ -167,7 +167,7 @@ func linkCompanionPartnerOnTuesday(t *testing.T, env *decisionTestEnv, studentID
 	stored.DepartureCompanionNote = &note
 	require.NoError(t, env.repos.Student.Update(ctx, stored))
 
-	edge, err := usersModels.NewStudentCompanion(studentID, partner.ID, 2)
+	edge, err := repositories.NewStudentCompanionEdge(studentID, partner.ID, 2)
 	require.NoError(t, err)
 	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repositories.NewStudentCompanionRepository(env.repos.CarePlan()), studentID,
 		[]*usersModels.StudentCompanion{edge}))

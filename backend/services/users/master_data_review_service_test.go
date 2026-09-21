@@ -820,7 +820,7 @@ func linkCompanionOnTuesday(t *testing.T, db *bun.DB, repos *repositories.Factor
 		require.NoError(t, repos.Student.Update(ctx, student))
 	}
 
-	edge, err := userModels.NewStudentCompanion(chain.StudentID, partner.ID, 2)
+	edge, err := repositories.NewStudentCompanionEdge(chain.StudentID, partner.ID, 2)
 	require.NoError(t, err)
 	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repositories.NewStudentCompanionRepository(repos.CarePlan()), chain.StudentID, []*userModels.StudentCompanion{edge}))
 	return partner.ID

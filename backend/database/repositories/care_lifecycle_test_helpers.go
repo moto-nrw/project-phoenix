@@ -3,6 +3,7 @@ package repositories
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
@@ -113,7 +114,31 @@ func ReplaceStudentCompanions(ctx context.Context, links usersModels.StudentComp
 		if edge == nil {
 			return errors.New("companion edge cannot be nil")
 		}
-		values = append(values, companionToPublic(edge))
+		values = append(values, careplan.CompanionEdge{
+			ID: edge.ID, TenantID: edge.TenantID, CreatedAt: edge.CreatedAt, UpdatedAt: edge.UpdatedAt,
+			StudentLowID: edge.StudentLowID, StudentHighID: edge.StudentHighID, Weekday: edge.Weekday,
+		})
 	}
 	return usersRepo.WrapError("replace student companions", repository.capability.ReplaceCompanionEdges(ctx, studentID, values))
+}
+
+// NewStudentCompanionEdge builds one stored "walks home with" edge between two
+// children on one weekday, normalized into the low/high order the DB CHECK
+// requires, for suites that stage companion fixtures through
+// ReplaceStudentCompanions. Production edges come from Care Plan's domain.
+func NewStudentCompanionEdge(studentID, companionID int64, weekday int) (*usersModels.StudentCompanion, error) {
+	if studentID <= 0 || companionID <= 0 {
+		return nil, usersModels.ErrCompanionStudentIDRequired
+	}
+	if studentID == companionID {
+		return nil, usersModels.ErrCompanionSelfLink
+	}
+	if _, ok := usersModels.CompanionWeekdayKeys[weekday]; !ok {
+		return nil, fmt.Errorf("%w: got %d", usersModels.ErrCompanionInvalidWeekday, weekday)
+	}
+	low, high := studentID, companionID
+	if low > high {
+		low, high = high, low
+	}
+	return &usersModels.StudentCompanion{StudentLowID: low, StudentHighID: high, Weekday: weekday}, nil
 }

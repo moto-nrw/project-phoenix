@@ -50,7 +50,7 @@ func companionLinks(db *bun.DB) userModels.StudentCompanionRepository {
 // linkCompanions stages one Monday link between two children.
 func linkCompanions(t *testing.T, ctx context.Context, db *bun.DB, subjectID, companionID int64) {
 	t.Helper()
-	edge, err := userModels.NewStudentCompanion(subjectID, companionID, 1)
+	edge, err := repositories.NewStudentCompanionEdge(subjectID, companionID, 1)
 	require.NoError(t, err)
 	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, companionLinks(db), subjectID, []*userModels.StudentCompanion{edge}))
 }
@@ -135,16 +135,21 @@ func personSnapshot(t *testing.T, db *bun.DB, personID int64) (firstName string,
 	return row.FirstName, row.DeletedAt
 }
 
-func storeStudentDocument(t *testing.T, ctx context.Context, repo userModels.StudentDocumentRepository, studentID, accountID int64, category, stored string) *userModels.StudentDocument {
+type storedStudentDocument struct {
+	ID             int64
+	FilenameStored string
+}
+
+// storeStudentDocument writes one document metadata row as a fixture. The row
+// is inserted directly: this package may not import the Care Plan public
+// contract, whose document type the owner's create command takes.
+func storeStudentDocument(t *testing.T, ctx context.Context, db *bun.DB, studentID, accountID int64, category, stored string) storedStudentDocument {
 	t.Helper()
-	doc := &userModels.StudentDocument{StudentID: studentID}
-	doc.Category = category
-	doc.FilenameDisplay = category + ".pdf"
-	doc.FilenameStored = stored
-	doc.SizeBytes = 512
-	doc.ContentType = "application/pdf"
-	doc.UploadedBy = accountID
-	require.NoError(t, repo.Create(ctx, doc))
+	doc := storedStudentDocument{FilenameStored: stored}
+	require.NoError(t, db.NewRaw(`INSERT INTO users.student_documents
+		(tenant_id, student_id, category, filename_display, filename_stored, size_bytes, content_type, uploaded_by)
+		VALUES (?, ?, ?, ?, ?, 512, 'application/pdf', ?) RETURNING id`,
+		testpkg.Tenant(t), studentID, category, category+".pdf", stored, accountID).Scan(ctx, &doc.ID))
 	return doc
 }
 
@@ -599,7 +604,7 @@ func TestStudentDeletionWorkflow_RollsBackAfterEachOwnerCommand(t *testing.T) {
 				Title: "Rollback deletion instance", IsSpontaneous: true,
 			})
 			assignment := testpkg.CreateTestInstanceStudent(t, db, instance.ID, target.ID, "")
-			document := storeStudentDocument(t, ctx, repositories.NewStudentDocumentRepository(f.repos.CarePlan()), target.ID, f.actorID,
+			document := storeStudentDocument(t, ctx, db, target.ID, f.actorID,
 				userModels.StudentDocumentCategorySonstiges, fmt.Sprintf("rollback-%s-%d.pdf", phase, target.ID))
 			completion := testpkg.CreateTestCareWithdrawalCompletion(t, careWithdrawals(db), target.ID, f.actorID, timezone.TodayDate())
 			transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", f.actorID)
@@ -645,7 +650,7 @@ func TestStudentDeletionWorkflow_RollsBackAfterEachOwnerCommand(t *testing.T) {
 			assert.Equal(t, 1, rowCount(t, db, "schedule.instance_students", assignment.ID), "%s: the assignment survives", phase)
 			assert.Equal(t, 1, rowCount(t, db, "users.persons_guardians", legacyLinkID), "%s: the legacy guardian link survives", phase)
 			assert.Equal(t, 1, rowCount(t, db, "users.student_documents", document.ID), "%s: the document row survives", phase)
-			queued, err := repositories.NewStudentDocumentRepository(f.repos.CarePlan()).ListQueuedFileCleanupByOwnerID(ctx, target.ID)
+			queued, err := f.repos.CarePlan().ListCareDocumentCleanups(ctx, &target.ID)
 			require.NoError(t, err)
 			assert.Empty(t, queued, "%s: no cleanup intent may outlive the rollback", phase)
 			pending, err := f.repos.CareWithdrawal.FindByID(ctx, completion.ID)
@@ -693,16 +698,17 @@ func TestStudentDeletionWorkflow_QueuesDocumentCleanupInsideTheTransaction(t *te
 	f := newDeletionFixture(t, db)
 	suffix := time.Now().UnixNano()
 	student := testpkg.CreateTestStudent(t, db, "Dokumente", fmt.Sprintf("Loeschung-%d", suffix), "1a")
-	live := storeStudentDocument(t, ctx, repositories.NewStudentDocumentRepository(f.repos.CarePlan()), student.ID, f.actorID,
+	live := storeStudentDocument(t, ctx, db, student.ID, f.actorID,
 		userModels.StudentDocumentCategoryBetreuungsvertrag, fmt.Sprintf("vertrag-%d.pdf", suffix))
 	// Already soft-deleted, bytes not yet unlinked: still pending cleanup.
-	deleted := storeStudentDocument(t, ctx, repositories.NewStudentDocumentRepository(f.repos.CarePlan()), student.ID, f.actorID,
+	deleted := storeStudentDocument(t, ctx, db, student.ID, f.actorID,
 		userModels.StudentDocumentCategoryAttest, fmt.Sprintf("attest-%d.pdf", suffix))
-	require.NoError(t, repositories.NewStudentDocumentRepository(f.repos.CarePlan()).SoftDelete(ctx, deleted, f.actorID))
+	_, err := f.repos.CarePlan().SoftDeleteCareDocument(ctx, deleted.ID, f.actorID)
+	require.NoError(t, err)
 	// Bytes already gone: nothing left to reclaim, so no intent must appear.
-	settled := storeStudentDocument(t, ctx, repositories.NewStudentDocumentRepository(f.repos.CarePlan()), student.ID, f.actorID,
+	settled := storeStudentDocument(t, ctx, db, student.ID, f.actorID,
 		userModels.StudentDocumentCategorySonstiges, fmt.Sprintf("erledigt-%d.pdf", suffix))
-	require.NoError(t, repositories.NewStudentDocumentRepository(f.repos.CarePlan()).MarkFileDeleted(ctx, settled.ID))
+	require.NoError(t, f.repos.CarePlan().MarkCareDocumentFileDeleted(ctx, settled.ID))
 	workflow := f.workflow(t)
 
 	preview, err := workflow.Preview(ctx, student.ID)
@@ -715,7 +721,7 @@ func TestStudentDeletionWorkflow_QueuesDocumentCleanupInsideTheTransaction(t *te
 	assert.Zero(t, rowCount(t, db, "users.student_documents", live.ID))
 	assert.Zero(t, rowCount(t, db, "users.student_documents", deleted.ID))
 
-	queued, err := repositories.NewStudentDocumentRepository(f.repos.CarePlan()).ListQueuedFileCleanupByOwnerID(ctx, student.ID)
+	queued, err := f.repos.CarePlan().ListCareDocumentCleanups(ctx, &student.ID)
 	require.NoError(t, err)
 	names := make([]string, 0, len(queued))
 	for _, cleanup := range queued {
@@ -728,7 +734,7 @@ func TestStudentDeletionWorkflow_QueuesDocumentCleanupInsideTheTransaction(t *te
 	// again reactivates the row instead of adding a second one.
 	_, err = f.repos.CarePlan().QueueCareDocumentCleanupForDeletedStudent(ctx, student.ID, time.Now())
 	require.NoError(t, err)
-	queued, err = repositories.NewStudentDocumentRepository(f.repos.CarePlan()).ListQueuedFileCleanupByOwnerID(ctx, student.ID)
+	queued, err = f.repos.CarePlan().ListCareDocumentCleanups(ctx, &student.ID)
 	require.NoError(t, err)
 	assert.Len(t, queued, 2)
 }

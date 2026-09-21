@@ -17,7 +17,7 @@ import (
 // newCompanionEdge builds a normalized edge or fails the test.
 func newCompanionEdge(t *testing.T, studentID, companionID int64, weekday int) *users.StudentCompanion {
 	t.Helper()
-	edge, err := users.NewStudentCompanion(studentID, companionID, weekday)
+	edge, err := repositories.NewStudentCompanionEdge(studentID, companionID, weekday)
 	require.NoError(t, err)
 	return edge
 }
