@@ -66,6 +66,19 @@ export interface ArrivalSettings {
   care_days_source: CareDaysSource;
   /** In lesson order; empty when the school maintains no lesson end times. */
   school_periods: SchoolPeriod[];
+  /** "HH:MM", or empty when the school maintains none (#3371). */
+  default_arrival_time: string;
+  /** "HH:MM", or empty when the school maintains none (#3371). */
+  default_pickup_time: string;
+}
+
+/**
+ * The usual clock times a school offers for one-click adoption in the weekly
+ * plan (#3371). Empty strings offer nothing.
+ */
+export interface CareTimePresets {
+  readonly arrival: string;
+  readonly pickup: string;
 }
 
 export interface ArrivalScheduleInput {

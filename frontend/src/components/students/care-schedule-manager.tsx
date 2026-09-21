@@ -36,6 +36,7 @@ import {
   updateArrivalNote,
   updateArrivalSchedules,
   type CareDaysSource,
+  type CareTimePresets,
   type SchoolPeriod,
 } from "~/lib/student-arrival-api";
 import {
@@ -267,6 +268,7 @@ export function CareScheduleManager({
   const [schoolPeriods, setSchoolPeriods] = useState<readonly SchoolPeriod[]>(
     [],
   );
+  const [timePresets, setTimePresets] = useState<CareTimePresets>();
   const [error, setError] = useState<string | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
@@ -441,6 +443,10 @@ export function CareScheduleManager({
       setPickupData(pickup);
       setCareDaysSource(settings.care_days_source);
       setSchoolPeriods(settings.school_periods ?? []);
+      setTimePresets({
+        arrival: settings.default_arrival_time ?? "",
+        pickup: settings.default_pickup_time ?? "",
+      });
       // A newer read succeeded, so any banner or spinner an older attempt is
       // still going to leave behind is already obsolete. Clearing here (rather
       // than only in loadCareData) is what lets the failure path below bail out
@@ -945,6 +951,7 @@ export function CareScheduleManager({
           <CareWeeklyPlanEditForm
             careDaysSource={careDaysSource}
             schoolPeriods={schoolPeriods}
+            timePresets={timePresets}
             weeklyArrival={mergeArrivalSchedulesWithTemplate(
               arrivalData.schedules,
             )}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, StickyNote } from "lucide-react";
+import { ChevronDown, Plus, StickyNote } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { EditActions } from "~/components/ui/edit-actions";
@@ -9,6 +9,7 @@ import { useFormError } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
+import { normalizeTimeInput } from "~/components/ui/time-field";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import {
@@ -25,7 +26,11 @@ import type {
   PickupAdjustmentResolution,
   PickupAdjustmentSelection,
 } from "~/lib/pickup-schedule-api";
-import type { CareDaysSource, SchoolPeriod } from "~/lib/student-arrival-api";
+import type {
+  CareDaysSource,
+  CareTimePresets,
+  SchoolPeriod,
+} from "~/lib/student-arrival-api";
 import { PickupAdjustmentDecision } from "./pickup-adjustment-decision";
 import { SchoolPeriodSelect } from "./school-period-select";
 
@@ -302,6 +307,7 @@ export function useWeeklyPlanDraft(
 // --- the grid ---------------------------------------------------------------
 
 const NO_SCHOOL_PERIODS: readonly SchoolPeriod[] = [];
+const NO_CARE_TIME_PRESETS: CareTimePresets = { arrival: "", pickup: "" };
 
 const GRID_COLUMNS =
   "sm:grid-cols-[minmax(100px,0.7fr)_minmax(140px,1fr)_minmax(140px,1fr)]";
@@ -313,12 +319,15 @@ export function CareWeeklyPlanGrid({
   disabled = false,
   pickupNeedsCareDay = false,
   schoolPeriods = NO_SCHOOL_PERIODS,
+  timePresets = NO_CARE_TIME_PRESETS,
   notesWithoutPickup = false,
 }: {
   readonly draft: WeeklyPlanDraft;
   readonly careDaysSource: CareDaysSource;
   /** Lessons the arrival can be picked by (#3372); none hides the choice. */
   readonly schoolPeriods?: readonly SchoolPeriod[];
+  /** The school's usual times, offered for one click into an empty field. */
+  readonly timePresets?: CareTimePresets;
   /** Times the save would delete; shown as a warning under the grid. */
   readonly removals: readonly string[];
   /** Every field is locked while a save is running. */
@@ -351,15 +360,27 @@ export function CareWeeklyPlanGrid({
             const noteIsForDay =
               notesWithoutPickup &&
               (pickupLocked || !(row?.pickupTime ?? "").trim());
+            // The usual time is offered only where it becomes the child's
+            // time: never over the class time, whose empty field already
+            // means a time (#2414), and never on a day that is no care day,
+            // whose pickup the save drops (#3371).
+            const arrivalPreset =
+              inCare && !row?.arrivalTime && !row?.arrivalClassTime
+                ? timePresets.arrival
+                : "";
+            const pickupPreset =
+              inCare && !pickupLocked && !row?.pickupTime
+                ? timePresets.pickup
+                : "";
             return (
               <div
                 key={day.value}
-                className={`grid gap-3 px-3 py-4 sm:items-center sm:px-4 ${GRID_COLUMNS}`}
+                className={`grid gap-3 px-3 py-4 sm:items-start sm:px-4 ${GRID_COLUMNS}`}
               >
                 <div>
                   <label
                     htmlFor={`weekly-care-${day.value}`}
-                    className="flex min-h-6 cursor-pointer items-center gap-2 text-sm font-semibold text-gray-900 has-[:disabled]:cursor-not-allowed"
+                    className="flex min-h-6 cursor-pointer items-center gap-2 text-sm font-semibold text-gray-900 has-[:disabled]:cursor-not-allowed sm:min-h-10"
                   >
                     <Checkbox
                       id={`weekly-care-${day.value}`}
@@ -399,6 +420,14 @@ export function CareWeeklyPlanGrid({
                       setField(day.value, "arrivalTime", value)
                     }
                   />
+                  <TimePresetButton
+                    time={arrivalPreset}
+                    ariaLabel={`${day.label}: Ankunft ${arrivalPreset} Uhr eintragen`}
+                    disabled={disabled}
+                    onApply={() =>
+                      setField(day.value, "arrivalTime", arrivalPreset)
+                    }
+                  />
                   <div className="mt-1 empty:hidden">
                     <SchoolPeriodSelect
                       id={`weekly-arrival-period-${day.value}`}
@@ -431,13 +460,25 @@ export function CareWeeklyPlanGrid({
                     </div>
                   ) : null}
                 </div>
-                <WeeklyTimeField
-                  id={`weekly-pickup-${day.value}`}
-                  label="Abholung"
-                  value={row?.pickupTime ?? ""}
-                  disabled={pickupLocked}
-                  onChange={(value) => setField(day.value, "pickupTime", value)}
-                />
+                <div>
+                  <WeeklyTimeField
+                    id={`weekly-pickup-${day.value}`}
+                    label="Abholung"
+                    value={row?.pickupTime ?? ""}
+                    disabled={pickupLocked}
+                    onChange={(value) =>
+                      setField(day.value, "pickupTime", value)
+                    }
+                  />
+                  <TimePresetButton
+                    time={pickupPreset}
+                    ariaLabel={`${day.label}: Abholung ${pickupPreset} Uhr eintragen`}
+                    disabled={disabled}
+                    onApply={() =>
+                      setField(day.value, "pickupTime", pickupPreset)
+                    }
+                  />
+                </div>
                 {expandedWeekdays.has(day.value) ? (
                   <div className={`grid gap-3 sm:col-span-3 ${GRID_COLUMNS}`}>
                     <div className="hidden sm:block" />
@@ -496,22 +537,64 @@ function WeeklyTimeField({
   return (
     <div>
       {/* The column header names the field on wide screens; the label is
-          only shown where the rows stack. */}
+          only shown where the rows stack. It stays for screen readers, which
+          do not associate the column header with the field. */}
       <label
         htmlFor={id}
-        className="mb-1 block text-xs font-medium text-gray-500 sm:hidden"
+        className="mb-1 block text-xs font-medium text-gray-500 sm:sr-only"
       >
         {label}
       </label>
+      {/* A text field with the digit mask instead of the native time input
+          (#3371): Safari fills an empty native field with the current time in
+          grey, which reads like a stored value and has to be overwritten hour
+          and minute apart. Here "1600" becomes 16:00 in one go. */}
       <Input
         id={id}
-        type="time"
+        type="text"
+        inputMode="numeric"
+        autoComplete="off"
+        placeholder="HH:MM"
+        maxLength={5}
         controlSize="compact"
+        className="tabular-nums"
         value={value}
         disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) => onChange(normalizeTimeInput(event.target.value))}
       />
     </div>
+  );
+}
+
+/**
+ * Copies the school's usual time into the empty field above it (#3371).
+ * Nothing is stored until the plan is saved. Renders nothing without a time.
+ */
+function TimePresetButton({
+  time,
+  ariaLabel,
+  disabled,
+  onApply,
+}: {
+  readonly time: string;
+  readonly ariaLabel: string;
+  readonly disabled: boolean;
+  readonly onApply: () => void;
+}) {
+  if (!time) return null;
+  return (
+    <Button
+      type="button"
+      variant="surface"
+      size="compact"
+      className="mt-1.5"
+      aria-label={ariaLabel}
+      disabled={disabled}
+      onClick={onApply}
+    >
+      <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+      {time} Uhr eintragen
+    </Button>
   );
 }
 
@@ -555,6 +638,7 @@ function WeeklyNoteField({
 interface CareWeeklyPlanEditFormProps {
   readonly careDaysSource: CareDaysSource;
   readonly schoolPeriods?: readonly SchoolPeriod[];
+  readonly timePresets?: CareTimePresets;
   readonly weeklyArrival: ArrivalScheduleFormEntry[];
   readonly weeklyPickup: PickupScheduleFormData[];
   /** The notes of weekdays without a pickup time (#3369). */
@@ -580,6 +664,7 @@ interface CareWeeklyPlanEditFormProps {
 export function CareWeeklyPlanEditForm({
   careDaysSource,
   schoolPeriods,
+  timePresets,
   weeklyArrival,
   weeklyPickup,
   weeklyNotes = NO_WEEKDAY_NOTES,
@@ -847,6 +932,7 @@ export function CareWeeklyPlanEditForm({
           disabled={isSubmitting}
           pickupNeedsCareDay
           schoolPeriods={schoolPeriods}
+          timePresets={timePresets}
           notesWithoutPickup
         />
         <EditActions onCancel={onCancel} saving={isSubmitting} />

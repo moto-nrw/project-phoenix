@@ -6,7 +6,11 @@ import { Button } from "~/components/ui/button";
 import { useFormError } from "~/components/ui/form-error";
 import { FormModal } from "~/components/ui/form-modal";
 import { useToast } from "~/contexts/ToastContext";
-import type { CareDaysSource, SchoolPeriod } from "~/lib/student-arrival-api";
+import type {
+  CareDaysSource,
+  CareTimePresets,
+  SchoolPeriod,
+} from "~/lib/student-arrival-api";
 import type { ArrivalScheduleFormEntry } from "~/lib/arrival-schedule-helpers";
 import type {
   BulkPickupScheduleFormData,
@@ -25,6 +29,8 @@ interface CareWeeklyPlanModalProps {
   readonly careDaysSource: CareDaysSource;
   /** Lessons the arrival can be picked by; none keeps the selection hidden. */
   readonly schoolPeriods?: readonly SchoolPeriod[];
+  /** The school's usual times, offered for one click into an empty field. */
+  readonly timePresets?: CareTimePresets;
   readonly initialArrivalSchedules: ArrivalScheduleFormEntry[];
   readonly initialPickupSchedules: PickupScheduleFormData[];
   readonly onSubmit: (data: {
@@ -53,6 +59,7 @@ function CareWeeklyPlanModalForm({
   onClose,
   careDaysSource,
   schoolPeriods,
+  timePresets,
   initialArrivalSchedules,
   initialPickupSchedules,
   onSubmit,
@@ -161,6 +168,7 @@ function CareWeeklyPlanModalForm({
           disabled={isSubmitting}
           pickupNeedsCareDay
           schoolPeriods={schoolPeriods}
+          timePresets={timePresets}
         />
       </form>
     </FormModal>
