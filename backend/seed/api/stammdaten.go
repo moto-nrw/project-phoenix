@@ -143,6 +143,9 @@ func (s *FixedSeeder) Seed(ctx context.Context) (*FixedResult, error) {
 	if err := s.seedSchoolPeriods(); err != nil {
 		return nil, fmt.Errorf("failed to seed school periods: %w", err)
 	}
+	if err := s.seedCareTimePresets(); err != nil {
+		return nil, fmt.Errorf("failed to seed care time presets: %w", err)
+	}
 	if err := s.seedClassArrivalTimes(ctx, result); err != nil {
 		return nil, fmt.Errorf("failed to seed class arrival times: %w", err)
 	}
@@ -218,6 +221,24 @@ func (s *FixedSeeder) seedSchoolPeriods() error {
 	}
 	if s.verbose {
 		fmt.Printf("  ✓ %d school periods seeded\n", len(endTimes))
+	}
+	return nil
+}
+
+// seedCareTimePresets maintains the usual arrival and pickup time of the demo
+// school (#3371), so the weekly plan offers them for one-click adoption.
+func (s *FixedSeeder) seedCareTimePresets() error {
+	presets := map[string]string{
+		"care_times.default_arrival": "12:30",
+		"care_times.default_pickup":  "16:00",
+	}
+	for key, value := range presets {
+		if _, err := s.client.Put("/api/settings/values/"+key, map[string]any{"value": value}); err != nil {
+			return fmt.Errorf("seed %s: %w", key, err)
+		}
+	}
+	if s.verbose {
+		fmt.Printf("  ✓ %d care time presets seeded\n", len(presets))
 	}
 	return nil
 }
