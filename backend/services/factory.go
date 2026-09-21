@@ -1654,7 +1654,7 @@ func newFactory(
 			},
 		},
 		operators:  operatorDependencies,
-		demoAccess: strings.EqualFold(strings.TrimSpace(appEnv), "demo"),
+		demoAccess: demoAccessWiringFor(appEnv, dispatcher, defaultFrom, frontendURL, authLogger),
 		operatorLinks: &operatorLinkWiring{
 			dispatcher: dispatcher, defaultFrom: defaultFrom,
 			frontendURL: frontendURL, operatorFrontendURL: operatorFrontendURL,

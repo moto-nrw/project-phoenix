@@ -117,7 +117,7 @@ not composed. They are public, take no cookies, and rely on
 
 | Route | Contract |
 |---|---|
-| `POST /demo/access-requests` | `email`, `school_name`, `person_name`, `contact_opt_in`, optional `src` → `202 {entry_url}`; `422 demo_access_invalid` |
+| `POST /demo/access-requests` | `email`, `school_name`, `person_name`, `contact_opt_in`, optional `src` → `202 {entry_url}`; address with an active access → `202 {link_sent: true}` and no `entry_url`; `422 demo_access_invalid` |
 | `GET /demo/access/status` | token in `Authorization: Bearer` → `{status: preparing\|ready}` |
 | `POST /demo/access/sessions` | `{token}` → `{access_token, refresh_token}` (tenant session); `409 demo_school_preparing` |
 
@@ -128,6 +128,18 @@ travels in the URL fragment (`{slug}.TENANT_DOMAIN/demo#token=…`), request
 bodies, or the header above, never in a URL a server logs. The frontend
 entry page `[tenant]/(public)/demo` redeems it through `/api/demo/access/*`
 and signs in with the `internalRefresh` credentials path.
+
+Mails (#3465): every request mails the entry link (`demo-access.html`,
+Reply-To `kontakt@moto.nrw`); a new access also mails the team
+(`demo-lead.html`). An address with an active access gets no second one: its
+access is renewed for 14 days and the link goes out by mail only. Only the
+fingerprint is stored, so the mailed link replaces the earlier one. The
+website must handle `link_sent` („Wir haben Ihnen den Link geschickt").
+
+Mail lock: under `APP_ENV=demo`, `email.NewMailer` wraps the one SMTP
+transport in `email.RestrictToDemoMails`. Every template but the two above
+is dropped and reported as sent, whoever the caller is. A new mail that must
+leave the demo environment needs its template added there.
 
 A demo session signs in the administrator of the standing school
 `messe-demo`. `SwitchTenant` refuses any account a demo access signed in

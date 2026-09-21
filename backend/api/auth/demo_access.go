@@ -88,17 +88,24 @@ func (rs *DemoResource) requestAccess(w http.ResponseWriter, r *http.Request) {
 		rs.renderError(w, r, identityaccess.ErrDemoAccessInvalid)
 		return
 	}
+	// The fragment keeps the token out of every server and proxy log.
+	entryURLPrefix := rs.entryBase + "/demo#token="
 	issued, err := rs.accesses.RequestDemoAccess(r.Context(), identityaccess.DemoAccessRequest{
 		Email: body.Email, PersonName: body.PersonName, SchoolName: body.SchoolName,
-		Source: body.Source, ContactOptIn: body.ContactOptIn,
+		Source: body.Source, ContactOptIn: body.ContactOptIn, EntryURLPrefix: entryURLPrefix,
 	})
 	if err != nil {
 		rs.renderError(w, r, err)
 		return
 	}
 	render.Status(r, http.StatusAccepted)
-	// The fragment keeps the token out of every server and proxy log.
-	render.JSON(w, r, map[string]string{"entry_url": rs.entryBase + "/demo#token=" + issued.Token})
+	if issued.LinkSent {
+		// A known address gets its link by mail only (#3465): the caller
+		// may not be the person the address belongs to.
+		render.JSON(w, r, map[string]bool{"link_sent": true})
+		return
+	}
+	render.JSON(w, r, map[string]string{"entry_url": entryURLPrefix + issued.Token})
 }
 
 func (rs *DemoResource) accessStatus(w http.ResponseWriter, r *http.Request) {

@@ -28,13 +28,33 @@ type DemoAccessRequest struct {
 	SchoolName   string
 	Source       string
 	ContactOptIn bool
+	// EntryURLPrefix precedes the token in the link the prospect receives.
+	EntryURLPrefix string
 }
 
 // IssuedDemoAccess is a stored demo access with its token. The token exists
-// only here; it cannot be read back.
+// only here; it cannot be read back. LinkSent reports an address that already
+// had an active access: its link went out by mail only and Token is empty.
 type IssuedDemoAccess struct {
-	ID    int64
-	Token string
+	ID       int64
+	Token    string
+	LinkSent bool
+}
+
+// DemoAccessMessage is what the two demo mails (#3465) say about an access.
+type DemoAccessMessage struct {
+	AccessID     int64
+	Email        string
+	PersonName   string
+	SchoolName   string
+	Source       string
+	ContactOptIn bool
+}
+
+// DemoAccessMail sends the demo mails without blocking the request.
+type DemoAccessMail interface {
+	SendDemoAccessLink(ctx context.Context, message DemoAccessMessage, entryURL string)
+	SendDemoLead(ctx context.Context, message DemoAccessMessage)
 }
 
 // DemoAccessEngine is the composed implementation behind DemoAccess.

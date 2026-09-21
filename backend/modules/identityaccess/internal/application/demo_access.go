@@ -18,6 +18,7 @@ type DemoAccess struct {
 	store    ports.DemoAccessStore
 	schools  ports.DemoSchools
 	tokens   ports.DemoAccessTokens
+	mail     ports.DemoAccessMail
 	adminTx  ports.DemoAdminTx
 	now      func() time.Time
 }
@@ -28,40 +29,58 @@ type DemoAccessDependencies struct {
 	Store    ports.DemoAccessStore
 	Schools  ports.DemoSchools
 	Tokens   ports.DemoAccessTokens
+	Mail     ports.DemoAccessMail
 	AdminTx  ports.DemoAdminTx
 }
 
 func NewDemoAccess(deps DemoAccessDependencies) (*DemoAccess, error) {
-	if deps.Sessions == nil || deps.Store == nil || deps.Schools == nil || deps.Tokens == nil || deps.AdminTx == nil {
+	if deps.Sessions == nil || deps.Store == nil || deps.Schools == nil || deps.Tokens == nil || deps.Mail == nil || deps.AdminTx == nil {
 		return nil, fmt.Errorf("identity access demo access: every dependency is required")
 	}
 	return &DemoAccess{
-		sessions: deps.Sessions, store: deps.Store, schools: deps.Schools, tokens: deps.Tokens, adminTx: deps.AdminTx, now: time.Now,
+		sessions: deps.Sessions, store: deps.Store, schools: deps.Schools, tokens: deps.Tokens, mail: deps.Mail, adminTx: deps.AdminTx, now: time.Now,
 	}, nil
 }
 
 // Request stores a new demo access and returns its token. The token is
-// returned once and never stored.
-func (d *DemoAccess) Request(ctx context.Context, access domain.DemoAccess) (int64, string, error) {
+// returned once and never stored. An address that already has an active
+// access gets no second one (#3465): that access is renewed and its link goes
+// out by mail only, so nobody enters a demo with somebody else's address.
+// Only the fingerprint is stored, so the renewed link replaces the earlier one.
+func (d *DemoAccess) Request(ctx context.Context, access domain.DemoAccess, entryURLPrefix string) (id int64, token string, resent bool, err error) {
 	if err := access.Normalize(); err != nil {
-		return 0, "", err
+		return 0, "", false, err
 	}
 	raw, fingerprint, err := d.tokens.NewToken()
 	if err != nil {
-		return 0, "", fmt.Errorf("mint demo access token: %w", err)
+		return 0, "", false, fmt.Errorf("mint demo access token: %w", err)
 	}
 	access.TokenHash = fingerprint
 	access.ExpiresAt = d.now().Add(domain.DemoAccessLifetime)
-	var id int64
 	err = d.adminTx(ctx, func(txCtx context.Context) error {
+		known, found, findErr := d.store.FindActiveDemoAccessByEmail(txCtx, access.Email, d.now())
+		if findErr != nil {
+			return findErr
+		}
+		if found {
+			resent = true
+			known.TokenHash, known.ExpiresAt = access.TokenHash, access.ExpiresAt
+			access = known
+			return d.store.RenewDemoAccess(txCtx, access.ID, access.TokenHash, access.ExpiresAt)
+		}
 		var insertErr error
-		id, insertErr = d.store.InsertDemoAccess(txCtx, access)
+		access.ID, insertErr = d.store.InsertDemoAccess(txCtx, access)
 		return insertErr
 	})
 	if err != nil {
-		return 0, "", fmt.Errorf("store demo access: %w", err)
+		return 0, "", false, fmt.Errorf("store demo access: %w", err)
 	}
-	return id, raw, nil
+	d.mail.SendDemoAccessLink(ctx, access, entryURLPrefix+raw)
+	if resent {
+		return access.ID, "", true, nil
+	}
+	d.mail.SendDemoLead(ctx, access)
+	return access.ID, raw, false, nil
 }
 
 // Ready reports whether the token's demo school can be entered.

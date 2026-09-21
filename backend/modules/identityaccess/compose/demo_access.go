@@ -17,6 +17,7 @@ import (
 // when the Identity & Access module is composed for the demo environment.
 type DemoDependencies struct {
 	Schools     DemoSchools
+	Mail        identityaccess.DemoAccessMail
 	NewToken    func() (raw, fingerprint string, err error)
 	Fingerprint func(raw string) string
 }
@@ -26,7 +27,7 @@ func composeDemoAccess(db *bun.DB, sessions DemoSessions, dependencies *DemoDepe
 		return nil, nil
 	}
 	return NewDemoAccess(DemoAccessDependencies{
-		DB: db, Sessions: sessions, Schools: dependencies.Schools,
+		DB: db, Sessions: sessions, Schools: dependencies.Schools, Mail: dependencies.Mail,
 		NewToken: dependencies.NewToken, Fingerprint: dependencies.Fingerprint,
 	})
 }
@@ -46,6 +47,7 @@ type DemoAccessDependencies struct {
 	DB          *bun.DB
 	Sessions    DemoSessions
 	Schools     DemoSchools
+	Mail        identityaccess.DemoAccessMail
 	NewToken    func() (raw, fingerprint string, err error)
 	Fingerprint func(raw string) string
 }
@@ -54,12 +56,13 @@ type DemoAccessDependencies struct {
 // calls it. Callers supply the unit of work on the request context, as every
 // public route does.
 func NewDemoAccess(deps DemoAccessDependencies) (*identityaccess.DemoAccess, error) {
-	if deps.DB == nil || deps.Sessions == nil || deps.Schools == nil || deps.NewToken == nil || deps.Fingerprint == nil {
+	if deps.DB == nil || deps.Sessions == nil || deps.Schools == nil || deps.Mail == nil || deps.NewToken == nil || deps.Fingerprint == nil {
 		return nil, errors.New("identity access compose: every demo access dependency is required")
 	}
 	flows, err := application.NewDemoAccess(application.DemoAccessDependencies{
 		Sessions: deps.Sessions, Store: newStore(deps.DB), Schools: deps.Schools,
 		Tokens:  demoAccessTokens{mint: deps.NewToken, fingerprint: deps.Fingerprint},
+		Mail:    demoAccessMail{mail: deps.Mail},
 		AdminTx: tenant.WithinAdmin,
 	})
 	if err != nil {
@@ -77,17 +80,35 @@ func (t demoAccessTokens) NewToken() (string, string, error) { return t.mint() }
 
 func (t demoAccessTokens) Fingerprint(raw string) string { return t.fingerprint(raw) }
 
+// demoAccessMail hands the internal access to the root's mail binding.
+type demoAccessMail struct{ mail identityaccess.DemoAccessMail }
+
+func demoAccessMessage(access domain.DemoAccess) identityaccess.DemoAccessMessage {
+	return identityaccess.DemoAccessMessage{
+		AccessID: access.ID, Email: access.Email, PersonName: access.PersonName,
+		SchoolName: access.SchoolName, Source: access.Source, ContactOptIn: access.ContactOptIn,
+	}
+}
+
+func (m demoAccessMail) SendDemoAccessLink(ctx context.Context, access domain.DemoAccess, entryURL string) {
+	m.mail.SendDemoAccessLink(ctx, demoAccessMessage(access), entryURL)
+}
+
+func (m demoAccessMail) SendDemoLead(ctx context.Context, access domain.DemoAccess) {
+	m.mail.SendDemoLead(ctx, demoAccessMessage(access))
+}
+
 type demoAccessEngine struct{ flows *application.DemoAccess }
 
 func (e demoAccessEngine) RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) (identityaccess.IssuedDemoAccess, error) {
-	id, token, err := e.flows.Request(ctx, domain.DemoAccess{
+	id, token, resent, err := e.flows.Request(ctx, domain.DemoAccess{
 		Email: request.Email, PersonName: request.PersonName, SchoolName: request.SchoolName,
 		Source: request.Source, ContactOptIn: request.ContactOptIn,
-	})
+	}, request.EntryURLPrefix)
 	if err != nil {
 		return identityaccess.IssuedDemoAccess{}, demoAccessError(err)
 	}
-	return identityaccess.IssuedDemoAccess{ID: id, Token: token}, nil
+	return identityaccess.IssuedDemoAccess{ID: id, Token: token, LinkSent: resent}, nil
 }
 
 func (e demoAccessEngine) DemoAccessReady(ctx context.Context, token, schoolSlug string) (bool, error) {

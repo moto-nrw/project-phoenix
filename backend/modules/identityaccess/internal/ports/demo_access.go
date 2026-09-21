@@ -11,6 +11,11 @@ import (
 // Every method expects the administrative transaction in ctx.
 type DemoAccessStore interface {
 	InsertDemoAccess(ctx context.Context, access domain.DemoAccess) (int64, error)
+	// FindActiveDemoAccessByEmail returns the newest access of the address
+	// that has not expired at now. It serialises requests of one address.
+	FindActiveDemoAccessByEmail(ctx context.Context, email string, now time.Time) (domain.DemoAccess, bool, error)
+	// RenewDemoAccess replaces the token fingerprint and the expiry.
+	RenewDemoAccess(ctx context.Context, id int64, tokenHash string, expiresAt time.Time) error
 	FindDemoAccessByTokenHash(ctx context.Context, tokenHash string) (domain.DemoAccess, bool, error)
 	RecordDemoAccessUse(ctx context.Context, id, accountID int64, usedAt time.Time) error
 	// FindSchoolAdministrator returns the oldest active administrator of the school.
@@ -21,6 +26,15 @@ type DemoAccessStore interface {
 // Tenancy. A school that does not exist yet, is inactive or deleted is not found.
 type DemoSchools interface {
 	FindDemoSchool(ctx context.Context, slug string) (tenantID int64, found bool, err error)
+}
+
+// DemoAccessMail sends the two mails of the public demo (#3465). Sending is
+// asynchronous; a failed mail never fails the request.
+type DemoAccessMail interface {
+	// SendDemoAccessLink mails the prospect the way back into the demo.
+	SendDemoAccessLink(ctx context.Context, access domain.DemoAccess, entryURL string)
+	// SendDemoLead tells the team about a new demo access.
+	SendDemoLead(ctx context.Context, access domain.DemoAccess)
 }
 
 // DemoAccessTokens mints an opaque token and derives its fingerprint.

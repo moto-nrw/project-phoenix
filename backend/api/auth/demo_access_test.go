@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -30,13 +31,20 @@ type demoEnv struct {
 	db     *bun.DB
 	router chi.Router
 	slug   string
+	// mails are the messages that left the demo environment's mail lock.
+	mails *testpkg.CapturingMailer
 }
 
 // newDemoEnv mounts the demo routes for this test's own school and the auth
-// routes with the demo tenant-switch guard, as the demo root does.
+// routes with the demo tenant-switch guard, as the demo root does. The
+// transport carries the demo environment's mail lock (#3465).
 func newDemoEnv(t *testing.T) demoEnv {
 	t.Helper()
-	db, svc := testutil.SetupAuthModule(t)
+	db := testpkg.SetupTestDB(t)
+	mails := testpkg.NewCapturingMailer()
+	svc, err := services.NewAuthTestModule(db, testpkg.TenantRuntime(t, db),
+		services.WithAuthTestMailer(mails.InDemoEnvironment()))
+	require.NoError(t, err)
 	var slug string
 	require.NoError(t, db.NewRaw(`SELECT slug FROM platform.schools WHERE id = ?`, testpkg.Tenant(t)).Scan(context.Background(), &slug))
 	resource, err := authAPI.NewDemoResource(svc.DemoAccess, slug, demoEntryOrigin+"/")
@@ -45,7 +53,24 @@ func newDemoEnv(t *testing.T) demoEnv {
 	router := testutil.NewTenantRouter(db)
 	router.Mount("/demo", resource.Router())
 	router.Mount("/auth", auth.Router())
-	return demoEnv{db: db, router: router, slug: slug}
+	return demoEnv{db: db, router: router, slug: slug, mails: mails}
+}
+
+// address is this test's own prospect: a known address gets no second demo
+// access, so tests sharing one address would renew each other's link.
+func (e demoEnv) address() string { return "leitung@" + e.slug + ".example" }
+
+func (e demoEnv) requestBody(t *testing.T) map[string]any {
+	t.Helper()
+	// A demo access carries no tenant, so it is shared state the leftover
+	// gate would count; forget it like the reset tests forget their windows.
+	t.Cleanup(func() {
+		_, err := e.db.NewRaw(`DELETE FROM auth.demo_accesses WHERE email = ?`, e.address()).Exec(context.Background())
+		require.NoError(t, err)
+	})
+	return map[string]any{
+		"email": " " + strings.ToUpper(e.address()) + " ", "school_name": "OGS Beispiel", "person_name": "Kim Beispiel", "contact_opt_in": true, "src": "messe",
+	}
 }
 
 // provisionDemoAdmin gives the school the administrator a demo session signs in.
@@ -66,9 +91,7 @@ func (e demoEnv) post(t *testing.T, path string, body any) *httptest.ResponseRec
 
 func (e demoEnv) requestToken(t *testing.T) string {
 	t.Helper()
-	rr := e.post(t, "/demo/access-requests", map[string]any{
-		"email": "Leitung@OGS-Beispiel.de ", "school_name": "OGS Beispiel", "person_name": "Kim Beispiel", "contact_opt_in": true, "src": "messe",
-	})
+	rr := e.post(t, "/demo/access-requests", e.requestBody(t))
 	require.Equal(t, http.StatusAccepted, rr.Code, rr.Body.String())
 	var response struct {
 		EntryURL string `json:"entry_url"`
@@ -76,14 +99,7 @@ func (e demoEnv) requestToken(t *testing.T) string {
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
 	prefix := demoEntryOrigin + "/demo#token="
 	require.True(t, strings.HasPrefix(response.EntryURL, prefix), response.EntryURL)
-	token := strings.TrimPrefix(response.EntryURL, prefix)
-	// A demo access carries no tenant, so it is shared state the leftover
-	// gate would count; forget it like the reset tests forget their windows.
-	t.Cleanup(func() {
-		_, err := e.db.NewRaw(`DELETE FROM auth.demo_accesses WHERE token_hash = ?`, fingerprint(token)).Exec(context.Background())
-		require.NoError(t, err)
-	})
-	return token
+	return strings.TrimPrefix(response.EntryURL, prefix)
 }
 
 func fingerprint(token string) string { return jwt.OpaqueCapabilityFingerprint(token) }
@@ -110,7 +126,7 @@ func TestDemoAccessRequestStoresOnlyTheTokenFingerprint(t *testing.T) {
 			ROUND(EXTRACT(EPOCH FROM expires_at - created_at) / 86400)::int AS valid_days,
 			(SELECT COUNT(*) FROM auth.demo_accesses WHERE token_hash = ?)::int AS raw
 		FROM auth.demo_accesses WHERE token_hash = ?`, token, fingerprint(token)).Scan(context.Background(), &row))
-	assert.Equal(t, "leitung@ogs-beispiel.de", row.Email)
+	assert.Equal(t, env.address(), row.Email, "trimmed and lower-cased")
 	assert.Equal(t, "messe", row.Source)
 	assert.True(t, row.OptIn)
 	assert.Equal(t, 14, row.ValidDays)

@@ -227,8 +227,11 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 	}
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
 		repos: sessionRepos, codec: codec, settings: settings.Settings, audit: command, logger: logger,
-		operators:  operators,
-		demoAccess: true,
+		operators: operators,
+		demoAccess: &demoAccessWiring{
+			dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL,
+			logger: logger, backoff: settingsOverrides.resetBackoff,
+		},
 		mfa: &mfaWiring{
 			repos: r, settings: mfaSettingsService(settings.Settings, settingsOverrides),
 			dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL,
