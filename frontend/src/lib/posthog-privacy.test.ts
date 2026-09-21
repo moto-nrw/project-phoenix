@@ -83,6 +83,23 @@ describe("sanitizePostHogEvent", () => {
     }
   });
 
+  // The parents app of the demo (#3468) reports its role like the others.
+  it("keeps the demo role parent", () => {
+    const result = sanitizePostHogEvent({
+      uuid: "018f47ac-10b5-7c3d-9d3c-0123456789ab",
+      event: "demo_role_switched",
+      properties: {
+        token: "phc_test",
+        distinct_id: "4711",
+        demo_role: "parent",
+        school_name: "OGS Beispiel",
+      },
+    });
+
+    expect(result?.properties).toMatchObject({ demo_role: "parent" });
+    expect(result?.properties).not.toHaveProperty("school_name");
+  });
+
   it("drops a demo source or role that is not a plain label", () => {
     const result = sanitizePostHogEvent({
       uuid: "018f47ac-10b5-7c3d-9d3c-0123456789ab",

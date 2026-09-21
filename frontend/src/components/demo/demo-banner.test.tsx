@@ -18,15 +18,18 @@ const analytics = vi.hoisted(() => ({
 vi.mock("~/lib/analytics", () => analytics);
 
 const tenant = vi.hoisted(() => ({
-  useTenantSafe: vi.fn(() => ({
-    tenantSlug: "ogs-beispiel-a1b2c3",
-    tenant: { name: "OGS Beispiel" },
-    routingMode: "subdomain",
-  })),
+  useTenantSafe: vi.fn<() => unknown>(),
   useTenantSlugSafe: vi.fn(() => "ogs-beispiel-a1b2c3"),
   useTenantRoutingModeSafe: vi.fn(() => "subdomain"),
 }));
 vi.mock("~/lib/tenant-context", () => tenant);
+
+// The app the banner sits in: the OGS app unless a test says otherwise.
+const shell = vi.hoisted(() => ({ mode: "teacher" }));
+vi.mock("~/lib/shell-auth-context", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/shell-auth-context")>()),
+  useShellAuthSafe: () => ({ mode: shell.mode }),
+}));
 
 const fetchMock = vi.fn();
 const assign = vi.fn();
@@ -58,6 +61,12 @@ beforeEach(() => {
   analytics.registerDemoVisit.mockReset();
   vi.stubGlobal("fetch", fetchMock);
   vi.stubGlobal("location", { ...globalThis.location, assign });
+  shell.mode = "teacher";
+  tenant.useTenantSafe.mockReturnValue({
+    tenantSlug: "ogs-beispiel-a1b2c3",
+    tenant: { name: "OGS Beispiel" },
+    routingMode: "subdomain",
+  });
   saveDemoVisit({ accessId: "4711", role: "caregiver", src: "messe" });
 });
 
@@ -156,6 +165,7 @@ describe("DemoBanner", () => {
     expect(items.map((item) => item.textContent)).toEqual([
       "Betreuungskraft",
       "OGS-Leitung",
+      "Elternteil",
       "Alle Funktionen",
     ]);
     expect(items[0]).toHaveAttribute("aria-checked", "true");
@@ -275,5 +285,47 @@ describe("DemoBanner", () => {
     expect(
       screen.getByRole("button", { name: /Rolle wechseln/ }),
     ).toHaveTextContent("Betreuungskraft");
+  });
+
+  // The role parent lives in the parents app on its own host (#3468): the
+  // banner hands over to it instead of switching this session.
+  it("opens the parents app for the role parent", async () => {
+    const user = userEvent.setup();
+    renderBanner();
+
+    await user.click(screen.getByRole("button", { name: /Rolle wechseln/ }));
+    await user.click(screen.getByRole("menuitemradio", { name: "Elternteil" }));
+
+    expect(assign).toHaveBeenCalledWith("/api/demo/access/handoff?role=parent");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(signIn).not.toHaveBeenCalled();
+  });
+
+  it("shows the banner in the parents app and leads back to the OGS app", async () => {
+    shell.mode = "parent";
+    // The parents app knows no school; the entry noted its name.
+    tenant.useTenantSafe.mockReturnValue(null);
+    saveDemoVisit({
+      accessId: "4711",
+      role: "parent",
+      src: "messe",
+      schoolName: "OGS Sonnenschein",
+    });
+    const user = userEvent.setup();
+    renderBanner();
+
+    expect(await screen.findByText("OGS Sonnenschein")).toBeInTheDocument();
+    const trigger = screen.getByRole("button", { name: /Rolle wechseln/ });
+    expect(trigger).toHaveTextContent("Elternteil");
+    await user.click(trigger);
+    await user.click(
+      screen.getByRole("menuitemradio", { name: "OGS-Leitung" }),
+    );
+
+    expect(assign).toHaveBeenCalledWith("/api/demo/access/handoff?role=lead");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(analytics.registerDemoVisit).toHaveBeenCalledWith(
+      expect.objectContaining({ role: "parent" }),
+    );
   });
 });

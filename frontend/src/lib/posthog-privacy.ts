@@ -21,7 +21,7 @@ const allowedEvents = new Set([
 ]);
 
 const safePropertyValues: Readonly<Record<string, ReadonlySet<string>>> = {
-  demo_role: new Set(["caregiver", "lead", "all"]),
+  demo_role: new Set(["caregiver", "lead", "parent", "all"]),
   direction: new Set(["up", "down"]),
   export_type: new Set(["rooms", "emergency", "students"]),
   format: new Set(["pdf", "docx", "xlsx"]),

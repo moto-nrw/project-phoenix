@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -158,4 +159,72 @@ func TestDemoAccessRequestCarriesAPreselectedRoleIntoTheLink(t *testing.T) {
 	body["role"] = "operator"
 	rr := env.post(t, "/demo/access-requests", body)
 	assert.Equal(t, http.StatusUnprocessableEntity, rr.Code, rr.Body.String())
+}
+
+// seedDemoSchoolWithParent is seedDemoSchool plus the parent who carries the
+// visitor's name (#3468), as the demo process names both.
+func seedDemoSchoolWithParent(t *testing.T, db *bun.DB, slug string, schoolID, visitorAccountID, parentAccountID int64) {
+	t.Helper()
+	seedDemoSchool(t, db, slug, schoolID, visitorAccountID)
+	_, err := db.NewRaw(`UPDATE platform.demo_school_states SET visitor_parent_account_id = ? WHERE name = ?`,
+		parentAccountID, slug).Exec(context.Background())
+	require.NoError(t, err)
+}
+
+// The demo role parent (#3468): the same token, redeemed on the parents host,
+// signs the visitor in as the school's parent of the visitor's name. The
+// caregiver keeps its role, and the next switch back is an ordinary entry.
+func TestDemoRoleParentIssuesAParentSessionForTheVisitorsParent(t *testing.T) {
+	t.Parallel()
+	env := newOwnSchoolDemoEnv(t)
+	_, visitor := testpkg.CreateTestStaffWithAccount(t, env.db, "Kim", "Beispiel")
+	testpkg.EnsureAccountTenant(t, env.db, visitor.ID, testpkg.Tenant(t))
+	env.grantRole(t, visitor.ID, "user")
+	parent := testpkg.CreateTestParentGuardianChain(t, env.db)
+	token, slug := env.requestOwnSchool(t, env.address())
+	seedDemoSchoolWithParent(t, env.db, slug, testpkg.Tenant(t), visitor.ID, parent.AccountID)
+
+	session := env.enterAs(t, token, "parent")
+	assert.Equal(t, "parent", session.Demo.Role, "PostHog reports the role parent")
+	assert.False(t, session.Demo.FixedRole)
+	claims := session.claims(t)
+	assert.Equal(t, "parent", claims.Scope, "a parents portal session, not a tenant session")
+	assert.EqualValues(t, parent.AccountID, claims.ID, "the visitor is the parent of the visitor's name")
+	assert.Zero(t, claims.TenantID, "a parent session is bound to no school")
+	assert.Equal(t, []string{"user"}, env.schoolRoles(t, visitor.ID), "the parent role leaves the caregiver's role alone")
+
+	back := env.enterAs(t, token, "lead")
+	assert.EqualValues(t, visitor.ID, back.claims(t).ID, "the way back into the OGS app is the same token")
+	assert.Empty(t, back.claims(t).Scope)
+}
+
+// A demo school the demo process opened before the role parent existed
+// names no parent; the role is refused instead of signing in somebody else.
+func TestDemoRoleParentNeedsTheSchoolsVisitorParent(t *testing.T) {
+	t.Parallel()
+	env := newOwnSchoolDemoEnv(t)
+	_, visitor := testpkg.CreateTestStaffWithAccount(t, env.db, "Kim", "Beispiel")
+	testpkg.EnsureAccountTenant(t, env.db, visitor.ID, testpkg.Tenant(t))
+	env.grantRole(t, visitor.ID, "user")
+	token, slug := env.requestOwnSchool(t, env.address())
+	seedDemoSchool(t, env.db, slug, testpkg.Tenant(t), visitor.ID)
+
+	rr := env.post(t, "/demo/access/sessions", map[string]string{"token": token, "role": "parent"})
+	assert.Equal(t, http.StatusUnprocessableEntity, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), "demo_access_invalid")
+}
+
+// The standing school is shared and has no parent of its own; a parent
+// choice there keeps the administrator, and the answer says so.
+func TestDemoRoleParentInTheStandingSchoolKeepsTheSharedAdministrator(t *testing.T) {
+	t.Parallel()
+	env := newDemoEnv(t)
+	adminID := env.provisionDemoAdmin(t)
+	token := env.requestToken(t)
+
+	session := env.enterAs(t, token, "parent")
+	assert.Equal(t, "all", session.Demo.Role)
+	assert.True(t, session.Demo.FixedRole)
+	assert.EqualValues(t, adminID, session.claims(t).ID)
+	assert.Empty(t, session.claims(t).Scope)
 }

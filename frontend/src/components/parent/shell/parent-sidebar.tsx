@@ -31,7 +31,15 @@ const ICON =
  * hier offen, die auf dem Handy hinter "Mehr" liegen. Unter 1024 px blendet
  * CSS die Spalte bereits beim ersten Paint aus, ohne Hydrationssprung.
  */
-export function ParentSidebar({ badges, gates, childCount }: ParentNavCounts) {
+export function ParentSidebar({
+  badges,
+  gates,
+  childCount,
+  stripActive = false,
+}: ParentNavCounts & {
+  /** The demo banner (#3468) sits above the header; the sidebar moves with it. */
+  readonly stripActive?: boolean;
+}) {
   const t = useTranslations("parentNav");
   const pathname = usePathname();
   const [logoutModalOpen, setLogoutModalOpen] = useState(false);
@@ -99,7 +107,13 @@ export function ParentSidebar({ badges, gates, childCount }: ParentNavCounts) {
   return (
     <>
       <aside className="hidden min-h-screen w-64 shrink-0 border-r border-gray-200/70 bg-white/95 lg:block">
-        <div className="sticky top-[57px] flex h-[calc(100vh-57px)] flex-col">
+        <div
+          className={`sticky flex flex-col ${
+            stripActive
+              ? "top-[105px] h-[calc(100vh-105px)]"
+              : "top-[57px] h-[calc(100vh-57px)]"
+          }`}
+        >
           <nav
             aria-label={t("mainNav")}
             className="flex-1 overflow-y-auto p-3 lg:p-4 xl:p-3"

@@ -16,6 +16,28 @@ func (s *AccountAuthentication) LoginParentWithAudit(ctx context.Context, email,
 	if err != nil {
 		return "", "", err
 	}
+	return s.issueParentTokens(ctx, account, email, ipAddress, userAgent)
+}
+
+// IssueParentTokensForAuthenticatedAccount mints a parent-scope token pair
+// for an account whose identity was proven without a password: the demo
+// access of the public demo signs the visitor in as the demo school's parent
+// (#3468). It skips the credential check but otherwise is the parent login,
+// so the session is indistinguishable from one.
+func (s *AccountAuthentication) IssueParentTokensForAuthenticatedAccount(ctx context.Context, accountID int64, ipAddress, userAgent string) (string, string, error) {
+	account, found, _, err := s.store.FindLoginAccount(ctx, accountID, false)
+	if err != nil || !found {
+		return "", "", failed("issue parent tokens", domain.ErrAccountNotFound)
+	}
+	if !account.Active {
+		return "", "", failed("issue parent tokens", domain.ErrAccountInactive)
+	}
+	return s.issueParentTokens(ctx, account, account.Email, ipAddress, userAgent)
+}
+
+// issueParentTokens refuses an account without a guardian role on an active
+// mapping and mints the parent-scope session.
+func (s *AccountAuthentication) issueParentTokens(ctx context.Context, account domain.LoginAccount, email, ipAddress, userAgent string) (string, string, error) {
 	hasGuardianRole, firstGuardianTenantID, err := s.findGuardianTenantForAccount(ctx, account.ID)
 	if err != nil {
 		return "", "", failed("parent login: enumerate tenants", err)

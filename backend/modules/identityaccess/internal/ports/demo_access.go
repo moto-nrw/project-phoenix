@@ -58,6 +58,9 @@ type DemoAccessTokens interface {
 // authentication of this module satisfies it.
 type DemoSessions interface {
 	IssueTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error)
+	// IssueParentTokensForAuthenticatedAccount mints the parent-scope session
+	// of the demo role parent (#3468).
+	IssueParentTokensForAuthenticatedAccount(ctx context.Context, accountID int64, ipAddress, userAgent string) (string, string, error)
 }
 
 // DemoAdminTx runs fn inside an administrative transaction.

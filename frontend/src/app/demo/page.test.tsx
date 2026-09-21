@@ -169,4 +169,25 @@ describe("DemoWaitingRoomPage", () => {
     ).toBeInTheDocument();
     expect(assign).not.toHaveBeenCalled();
   });
+
+  // The role parent (#3468) goes straight to the parents app, which redeems
+  // the same link on its own host.
+  it("hands a link with the role parent on to the parents app", async () => {
+    vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", "eltern.demo.example");
+    fetchMock.mockReturnValueOnce(
+      json(200, {
+        status: "ready",
+        school_url: "https://ogs-nord-k3m9xp.demo.example",
+      }),
+    );
+
+    open("#token=secret-token&role=parent");
+
+    await waitFor(() =>
+      expect(assign).toHaveBeenCalledWith(
+        `${globalThis.location.protocol}//eltern.demo.example/demo#token=secret-token&role=parent`,
+      ),
+    );
+    vi.unstubAllEnvs();
+  });
 });

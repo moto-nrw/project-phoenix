@@ -109,6 +109,7 @@ describe("DemoEntryPage", () => {
     expect(cards.map((card) => card.textContent)).toEqual([
       expect.stringContaining("Betreuungskraft"),
       expect.stringContaining("OGS-Leitung"),
+      expect.stringContaining("Elternteil"),
       expect.stringContaining("Alle Funktionen"),
     ]);
     fireEvent.click(screen.getByRole("button", { name: /OGS-Leitung/ }));
@@ -180,5 +181,47 @@ describe("DemoEntryPage", () => {
     );
 
     await waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
+  });
+
+  // The role card parent (#3468) opens the parents app with the same link;
+  // this page redeems nothing for it.
+  it("hands the link on to the parents app when the visitor chooses the role parent", async () => {
+    vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", "eltern.demo.example");
+    fetchMock.mockReturnValueOnce(json(200, { status: "ready" }));
+
+    open("#token=secret-token");
+
+    expect(await screen.findByText(DEMO_ROLE_CHOICE_TITLE)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Elternteil/ }));
+
+    await waitFor(() =>
+      expect(assign).toHaveBeenCalledWith(
+        `${globalThis.location.protocol}//eltern.demo.example/demo#token=secret-token&role=parent`,
+      ),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(signIn).not.toHaveBeenCalled();
+    vi.unstubAllEnvs();
+  });
+
+  // The banner of the parents app sends the visitor back here (#3468); the
+  // entry then counts as a role switch.
+  it("reports a switch when the banner of the parents app sent the visitor", async () => {
+    fetchMock
+      .mockReturnValueOnce(json(200, { status: "ready" }))
+      .mockReturnValueOnce(
+        json(200, {
+          access_token: "access",
+          refresh_token: "refresh",
+          demo: { access_id: "4711", role: "lead" },
+        }),
+      );
+
+    open("#token=secret-token&role=lead&switched=1");
+
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
+    expect(
+      JSON.parse(localStorage.getItem("moto-demo-visit") ?? "").pending,
+    ).toBe("demo_role_switched");
   });
 });

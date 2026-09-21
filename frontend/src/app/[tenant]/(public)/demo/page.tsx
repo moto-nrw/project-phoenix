@@ -16,6 +16,8 @@ import {
   type DemoLink,
   type DemoRole,
   type DemoSetupProgress,
+  isParentDemoRole,
+  parentsDemoEntryUrl,
   redeemDemoAccess,
   startDemoSession,
   takeDemoLinkFromFragment,
@@ -30,17 +32,22 @@ type EntryPhase = DemoEntryPhase | "choosing";
 
 /**
  * Redeems the token in the role and signs in with the issued token pair.
- * The banner reports the entry after the start page has loaded (#3467).
+ * The banner reports the entry after the start page has loaded (#3467), or
+ * the switch when the banner of the parents app sent the visitor (#3468).
+ * The role parent is the parents app's: the link goes on to its entry page.
  */
 async function enterAs(
-  token: string,
+  link: DemoLink,
   role: DemoRole,
-): Promise<"entered" | "invalid" | "failed"> {
-  const session = await redeemDemoAccess(token, role);
+): Promise<"entered" | "left" | "invalid" | "failed"> {
+  if (isParentDemoRole(role)) {
+    globalThis.location.assign(parentsDemoEntryUrl(link));
+    return "left";
+  }
+  const session = await redeemDemoAccess(link.token, role);
   if (!session) return "invalid";
-  return (await startDemoSession(session, "demo_entered"))
-    ? "entered"
-    : "failed";
+  const pending = link.switched ? "demo_role_switched" : "demo_entered";
+  return (await startDemoSession(session, pending)) ? "entered" : "failed";
 }
 
 // Entry page of the public demo (#3462): takes the token from the URL
@@ -57,9 +64,9 @@ export default function DemoEntryPage() {
   const [attempt, setAttempt] = useState(0);
   const linkRef = useRef<DemoLink | null | undefined>(undefined);
 
-  const finish = (outcome: EntryPhase | "entered") => {
+  const finish = (outcome: EntryPhase | "entered" | "left") => {
     if (outcome === "entered") globalThis.location.assign("/");
-    else setPhase(outcome);
+    else if (outcome !== "left") setPhase(outcome);
   };
 
   const fail = (error: unknown) => {
@@ -72,7 +79,9 @@ export default function DemoEntryPage() {
   useEffect(() => {
     const run = { cancelled: false };
 
-    async function enter(link: DemoLink): Promise<EntryPhase | "entered"> {
+    async function enter(
+      link: DemoLink,
+    ): Promise<EntryPhase | "entered" | "left"> {
       const waited = await waitForDemoSchool(link.token, run, (progress) => {
         setSetup(progress);
         setPhase("preparing");
@@ -80,7 +89,7 @@ export default function DemoEntryPage() {
       if (waited.phase === "cancelled") return "opening";
       if (waited.phase !== "ready") return waited.phase;
       if (!link.role) return "choosing";
-      return enterAs(link.token, link.role);
+      return enterAs(link, link.role);
     }
 
     // The fragment is read once and removed; a repeated effect run (React
@@ -111,7 +120,7 @@ export default function DemoEntryPage() {
     // A retry after a failed entry skips the cards.
     linkRef.current = { ...link, role };
     setPhase("opening");
-    enterAs(link.token, role).then(finish).catch(fail);
+    enterAs(link, role).then(finish).catch(fail);
   };
 
   if (phase === "opening") return <Loading message={DEMO_ENTRY_OPENING} />;

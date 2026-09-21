@@ -253,7 +253,7 @@ func (d demoSchoolDirectory) DemoSchoolEntry(ctx context.Context, slug string) (
 	}
 	entry := identityaccess.DemoSchoolEntry{Status: identityaccess.DemoSchoolReady, SchoolID: school.ID}
 	if progress != nil {
-		entry.AccountID = progress.VisitorAccountID
+		entry.AccountID, entry.ParentAccountID = progress.VisitorAccountID, progress.VisitorParentAccountID
 	}
 	return entry, nil
 }

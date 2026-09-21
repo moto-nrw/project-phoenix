@@ -76,12 +76,12 @@ func TestDemoSchoolQueueSeedsInOrderRepeatsOnceAndFails(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, none, "further workers find nothing to seed")
 
-	// The first order is seeded and opened with the visitor's account.
+	// The first order is seeded and opened with the visitor's caregiver and parent account.
 	require.NoError(t, schools.RememberDemoSchool(ctx, first, organizationtenancy.DemoSchoolState{SchoolID: schoolID, SeedJSON: []byte(`{"profile":"vollbetrieb"}`)}))
 	require.Error(t, schools.RememberDemoSchool(ctx, first, organizationtenancy.DemoSchoolState{SchoolID: schoolID, SeedJSON: []byte(`{}`)}), "seeded credentials are never overwritten")
-	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, first, 4711))
+	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, first, 4711, 4712))
 	progress := demoSchoolProgress(t, db, first)
-	assert.Equal(t, organizationtenancy.DemoSchoolProgress{Status: organizationtenancy.DemoSchoolReady, SchoolID: schoolID, VisitorAccountID: 4711}, *progress)
+	assert.Equal(t, organizationtenancy.DemoSchoolProgress{Status: organizationtenancy.DemoSchoolReady, SchoolID: schoolID, VisitorAccountID: 4711, VisitorParentAccountID: 4712}, *progress)
 	ready, err := queue.ReadyDemoSchools(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, []string{first}, ready)
@@ -172,7 +172,7 @@ func TestActiveDemoSchoolsAreTheReadyOnesEnteredSince(t *testing.T) {
 		_, err := queue.ClaimDemoSchoolOrder(ctx)
 		require.NoError(t, err)
 		require.NoError(t, schools.RememberDemoSchool(ctx, slug, organizationtenancy.DemoSchoolState{SchoolID: schoolID, SeedJSON: []byte(`{}`)}))
-		require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, 0))
+		require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, 0, 0))
 	}
 	waiting := orderDemoSchool(t, db, "OGS West")
 	enter := func(slug string, at time.Time) {
@@ -222,7 +222,7 @@ func TestDemoSchoolOrdersStopAtTheCapacity(t *testing.T) {
 	first, err := queue.ClaimDemoSchoolOrder(ctx)
 	require.NoError(t, err)
 	require.NoError(t, schools.RememberDemoSchool(ctx, first.Slug, organizationtenancy.DemoSchoolState{SchoolID: schoolID, SeedJSON: []byte(`{}`)}))
-	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, first.Slug, 4711))
+	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, first.Slug, 4711, 0))
 	second, err := queue.ClaimDemoSchoolOrder(ctx)
 	require.NoError(t, err)
 	failed, err := queue.FailDemoSchoolOrder(ctx, second.Slug, 1)

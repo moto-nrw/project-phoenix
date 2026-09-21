@@ -162,6 +162,11 @@ func (d *DemoAccess) Status(ctx context.Context, token string) (access domain.De
 // caregiver, so a switch in the banner is a further redemption: one account,
 // a new session. The shared administrator of the standing school keeps its
 // role; its session has all functions whatever was chosen.
+//
+// The demo role parent (#3468) leaves the caregiver's role alone and mints a
+// parents portal session for the school's parent who carries the visitor's
+// name, on the parents host with the same token. The standing school has no
+// such parent; its session stays the administrator's.
 func (d *DemoAccess) Redeem(ctx context.Context, token string, role domain.DemoRole, ipAddress, userAgent string) (domain.DemoEntry, error) {
 	role, err := domain.ParseDemoRole(string(role))
 	if err != nil {
@@ -191,7 +196,12 @@ func (d *DemoAccess) Redeem(ctx context.Context, token string, role domain.DemoR
 	if err != nil {
 		return domain.DemoEntry{}, err
 	}
-	accessToken, refreshToken, err := d.sessions.IssueTokensForAuthenticatedAccount(ctx, entry.AccountID, entry.TenantID, ipAddress, userAgent)
+	var accessToken, refreshToken string
+	if role == domain.DemoRoleParent {
+		accessToken, refreshToken, err = d.sessions.IssueParentTokensForAuthenticatedAccount(ctx, entry.ParentAccountID, ipAddress, userAgent)
+	} else {
+		accessToken, refreshToken, err = d.sessions.IssueTokensForAuthenticatedAccount(ctx, entry.AccountID, entry.TenantID, ipAddress, userAgent)
+	}
 	if err != nil {
 		return domain.DemoEntry{}, err
 	}
@@ -203,12 +213,19 @@ func (d *DemoAccess) Redeem(ctx context.Context, token string, role domain.DemoR
 
 // assumeRole gives the prospect's own caregiver the chosen demo role and
 // returns the role the session will have. The shared administrator keeps
-// all functions; no role keeps the account as it is.
+// all functions; no role keeps the account as it is. The parent role needs
+// the school's visitor parent and changes no staff role.
 func (d *DemoAccess) assumeRole(ctx context.Context, entry domain.DemoSchoolEntry, role domain.DemoRole) (domain.DemoRole, error) {
 	if entry.Shared {
 		return domain.DemoRoleAll, nil
 	}
 	if role == "" {
+		return role, nil
+	}
+	if role == domain.DemoRoleParent {
+		if entry.ParentAccountID == 0 {
+			return "", domain.ErrDemoAccessInvalid
+		}
 		return role, nil
 	}
 	return role, d.store.ReplaceDemoAccountRole(ctx, entry.AccountID, entry.TenantID, role.SchoolRole())

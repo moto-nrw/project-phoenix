@@ -72,7 +72,9 @@ type DemoSchoolOrder struct {
 type DemoQueueEngine interface {
 	ReleaseDemoSchoolOrders(context.Context) error
 	ClaimDemoSchoolOrder(context.Context) (*DemoSchoolOrder, error)
-	FinishDemoSchoolOrder(ctx context.Context, slug string, visitorAccountID int64) error
+	// FinishDemoSchoolOrder opens the school and names the visitor's
+	// caregiver and parent account; zero names none.
+	FinishDemoSchoolOrder(ctx context.Context, slug string, visitorAccountID, visitorParentAccountID int64) error
 	FailDemoSchoolOrder(ctx context.Context, slug string, maxAttempts int) (failed bool, err error)
 	// ReturnDemoSchoolOrder hands a claimed order back without counting the
 	// attempt, when something other than the order stopped the seed.
@@ -106,6 +108,8 @@ type DemoSchoolProgress struct {
 	Status           string
 	SchoolID         int64
 	VisitorAccountID int64
+	// VisitorParentAccountID is the parent carrying the visitor's name (#3468).
+	VisitorParentAccountID int64
 }
 
 type DemoOrderEngine interface {

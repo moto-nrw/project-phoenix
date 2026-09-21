@@ -72,6 +72,8 @@ type DemoSchoolEntry struct {
 	Status    string
 	SchoolID  int64
 	AccountID int64
+	// ParentAccountID is the parent the demo role parent signs in (#3468).
+	ParentAccountID int64
 }
 
 // DemoAccessMessage is what the two demo mails (#3465) say about an access.
@@ -141,8 +143,9 @@ func (d *DemoAccess) DemoAccessStatus(ctx context.Context, token string) (DemoAc
 	return d.engine.DemoAccessStatus(ctx, token)
 }
 
-// RedeemDemoAccess mints a tenant session in the token's demo school, in the
-// chosen demo role (caregiver, lead or all; empty keeps the account's role).
+// RedeemDemoAccess mints a session in the token's demo school, in the chosen
+// demo role: a tenant session for caregiver, lead or all (empty keeps the
+// account's role), a parents portal session for parent (#3468).
 func (d *DemoAccess) RedeemDemoAccess(ctx context.Context, token, role, ipAddress, userAgent string) (DemoEntry, error) {
 	return d.engine.RedeemDemoAccess(ctx, token, role, ipAddress, userAgent)
 }
