@@ -1,36 +1,30 @@
-// Package care holds the retained Care Plan side of the guardian
-// portal: the child's today status, weekly care plan and its change requests,
-// booked care offerings and their change requests, and course requests
-// (#3227). workflows/parentportal/legacy keeps the public Service contract and
-// delegates these methods here; no HTTP path, status code, error string,
-// authorization check or tenant scoping changed with the move.
+// Package care coordinates the guardian portal's child flows: the today status,
+// the weekly care plan and its requests, booked care offerings and courses,
+// absences and one-day pickup changes, the meal plan, the Stammdaten and their
+// requests, guardian contacts, related accounts, consents and the guardian's
+// own profile (#3227, #3420).
+//
+// The package owns no data. Every flow resolves the guardian's child, checks
+// the relationship's parent_portal.* permission and the school's settings,
+// opens one tenant unit of work from the request context and calls the owners'
+// commands inside it: Care Plan for status days, pickup exceptions and change
+// requests, People Directory for student and guardian rows, Audit Platform for
+// the guardian change trail. Notifications run after the commit.
 package care
 
 import (
 	"context"
 	"errors"
-	"log/slog"
-	"time"
-
-	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-
-	"github.com/uptrace/bun"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
-	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
-// Request types of the parent request-sharing ledger that this package
-// shares and reads. Wire-stable values; workflows/parentportal/legacy re-exports them.
+// Request types of the parent request-sharing ledger. Wire-stable values;
+// the messaging package and the workflow root re-export them.
 const (
+	RequestShareMasterData   = "master_data"
 	RequestShareCareSchedule = "care_schedule"
+	RequestSharePickupChange = "pickup_change"
 	RequestShareOffering     = "offering"
+	RequestShareExcused      = "excused"
 )
 
 // MaxParentNoteLen bounds a single note so a parent can't paste a novel
@@ -64,58 +58,4 @@ type RequestShareVisibility interface {
 type RequestSharer interface {
 	ShareRequestInTx(ctx context.Context, accountID, studentID int64, requestType string, requestID int64, recipientProfileIDs []int64) error
 	LoadRequestShareVisibility(ctx context.Context, studentID int64) (RequestShareVisibility, error)
-}
-
-// Config is the dependency bundle of the retained Care Plan portal services.
-type Config struct {
-	DB     *bun.DB
-	Logger *slog.Logger
-	Now    func() time.Time
-
-	ChildRepo     parentModels.ChildRepository
-	StudentRepo   usersModels.StudentRepository
-	Settings      configService.SettingsService
-	Attendance    AttendanceReader
-	StatusDayRepo activeModels.StudentStatusDayRepository
-
-	ArrivalSchedules careplan.ArrivalScheduleService
-	PickupSchedules  careplan.PickupScheduleService
-	CareRequests     carerequests.Service
-
-	CarePeriods      enrollmentSvc.StudentCarePeriodReader
-	OfferingHistory  enrollmentSvc.OfferingHistoryReader
-	CareOfferingRepo enrollmentModels.CareOfferingRepository
-	OfferingChanges  enrollmentSvc.OfferingChangeRequestService
-
-	RequestSharing RequestSharer
-}
-
-// Service implements the retained Care Plan portal operations.
-type Service struct {
-	Config
-}
-
-// New wires the retained Care Plan portal services. RequestSharing is required.
-func New(cfg Config) *Service {
-	if cfg.RequestSharing == nil {
-		panic("care: request sharing is required")
-	}
-	if cfg.Logger == nil {
-		cfg.Logger = slog.Default()
-	}
-	if cfg.Now == nil {
-		cfg.Now = timezone.Now
-	}
-	return &Service{Config: cfg}
-}
-
-func (s *Service) now() time.Time {
-	if s.Now == nil {
-		return timezone.Now()
-	}
-	return s.Now()
-}
-
-func (s *Service) todayDate() timezone.Date {
-	return timezone.DateFromTime(s.now())
 }

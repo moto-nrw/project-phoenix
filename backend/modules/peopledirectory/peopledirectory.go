@@ -131,6 +131,8 @@ type Command interface {
 	StudentAuditCommand
 	StudentPhotoCommand
 	GuardianCommand
+	GuardianPortalCommand
+	StudentPortalCommand
 	FamilyProtectionCommand
 	CreatePerson(context.Context, CreatePerson) (Person, error)
 	UpdatePerson(context.Context, UpdatePerson) (Person, error)
@@ -169,6 +171,7 @@ type engine interface {
 	StudentAuditCommand
 	StudentPhotoCommand
 	guardianEngine
+	guardianPortalEngine
 	Create(context.Context, CreatePerson) (Person, error)
 	Update(context.Context, UpdatePerson) (Person, error)
 	Delete(context.Context, int64) error

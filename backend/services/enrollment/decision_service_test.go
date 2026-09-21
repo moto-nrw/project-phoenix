@@ -176,7 +176,7 @@ func newDecisionServiceForTestWithPickupExtensions(
 		Guardians:                 repoFactory.Enrollment(),
 		LateInviteRepo:            repoFactory.Enrollment(),
 		ApprovedOfferings:         enrollmentService.NewApprovedOfferingProjection(repoFactory.Enrollment(), offeringStudentTestDirectory{repoFactory.Student}),
-		CareOfferingRepo:          repoFactory.CareOffering,
+		CareOfferingRepo:          enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
 		Phases:                    repoFactory.Enrollment(),
 		Schemas:                   repoFactory.Enrollment(),
 		OfferingAdjustmentRepo:    repoFactory.EnrollmentOfferingAdjustment,
@@ -198,7 +198,7 @@ func newDecisionServiceForTestWithPickupExtensions(
 		ActivityExceptionRepo:     repoFactory.ActivityException,
 		GuardianAccess:            testGuardianAccess(env.db),
 		StudentEnrollment:         testStudentEnrollment(env.db),
-		DepartureCompanions:       repoFactory.StudentCompanion,
+		DepartureCompanions:       repositories.NewStudentCompanionRepository(repoFactory.CarePlan()),
 		DeleteDepartureCompanions: repoFactory.CarePlan().DeleteCompanionEdges,
 		OutboxEnqueuer:            outbox,
 		StudentAudit:              usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(env.db)),
@@ -3323,7 +3323,7 @@ func TestDecisionService_Decide_ApprovedUsesFixedOfferingDaysForActivityEnrollme
 		IsActive:        true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Create(ctx, offering))
 
 	req := enrollmentService.SubmitRequest{
 		TenantID:          testpkg.Tenant(t),
@@ -3433,7 +3433,7 @@ func TestDecisionService_UpdateChildOfferings_RebuildsEverySplitSeriesSegment(t 
 		AvailableDays: []string{"mon"}, IsActive: true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Create(ctx, offering))
 
 	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
 		TenantID: testpkg.Tenant(t), PhaseID: env.sourcePhase.ID,
@@ -3530,7 +3530,7 @@ func TestDecisionService_Decide_ApprovedPreservesLegacyNonTemplateLinkedOffering
 		IsActive:        true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Create(ctx, offering))
 
 	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
 		TenantID:          testpkg.Tenant(t),
@@ -3611,7 +3611,7 @@ func TestDecisionService_Decide_RolloverApprovalMaterializesClonedOffering(t *te
 		IsActive:        true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Create(ctx, offering))
 
 	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
 		TenantID:          testpkg.Tenant(t),
@@ -3661,7 +3661,7 @@ func TestDecisionService_Decide_RolloverApprovalMaterializesClonedOffering(t *te
 	require.NotNil(t, rolled.RolloverSourceChildID)
 	assert.Equal(t, submitted.Children[0].ID, *rolled.RolloverSourceChildID)
 
-	clones, err := env.repos.CareOffering.ListByPhase(ctx, result.Phase.ID)
+	clones, err := enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).ListByPhase(ctx, result.Phase.ID)
 	require.NoError(t, err)
 	require.Len(t, clones, 1)
 	clone := clones[0]
@@ -3756,7 +3756,7 @@ func TestDecisionService_Decide_ApprovedRejectsEmptyDaysForTemplateOffering(t *t
 		IsActive:        true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Create(ctx, offering))
 	// Simulate a legacy row saved before #1885 made available_days
 	// mandatory: clear the days directly, bypassing Validate. Such rows
 	// still exist in production and Decide must keep rejecting them.
@@ -3986,7 +3986,7 @@ func TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure(t *testing.
 		Requests:          repoFactory.Enrollment(),
 		Children:          repoFactory.Enrollment(),
 		ApprovedOfferings: enrollmentService.NewApprovedOfferingProjection(repoFactory.Enrollment(), offeringStudentTestDirectory{repoFactory.Student}),
-		CareOfferingRepo:  catalogFailureRepo{repoFactory.CareOffering},
+		CareOfferingRepo:  catalogFailureRepo{enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan())},
 		Phases:            repoFactory.Enrollment(),
 	})
 
@@ -4357,7 +4357,7 @@ func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterOffer
 	`, manualEnrollment.ID).Exec(ctx)
 	require.NoError(t, err)
 	offering.ActivityGroupID = &newGroup.ID
-	require.NoError(t, env.repos.CareOffering.Update(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Update(ctx, offering))
 
 	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
 		RequestID:      submitted.Request.ID,
@@ -4460,7 +4460,7 @@ func TestDecisionService_UpdateChildOfferings_RemovesLegacyUnsourcedEnrollmentAf
 	require.NoError(t, err)
 
 	offering.ActivityGroupID = &newGroup.ID
-	require.NoError(t, env.repos.CareOffering.Update(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Update(ctx, offering))
 
 	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
 		RequestID:      submitted.Request.ID,
@@ -4674,7 +4674,7 @@ func createAdjustmentCareOfferingWith(t *testing.T, env *decisionTestEnv, name s
 	if mutate != nil {
 		mutate(offering)
 	}
-	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Create(ctx, offering))
 	return offering
 }
 

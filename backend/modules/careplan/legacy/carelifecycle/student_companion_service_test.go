@@ -21,7 +21,7 @@ import (
 // the mock.
 func newCompanionTestService(db *bun.DB) carelifecycle.StudentCompanionService {
 	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	return carelifecycle.NewStudentCompanionService(factory.Student, factory.StudentCompanion, nil)
+	return carelifecycle.NewStudentCompanionService(factory.Student, repositories.NewStudentCompanionRepository(factory.CarePlan()), nil)
 }
 
 // studentPlans is the child repository the departure-plan fixture writes
@@ -208,7 +208,7 @@ func TestStudentService_ReplaceCompanions_ExtensionRecordsCompanionAudit(t *test
 	})
 	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	audit := usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(db))
-	service := carelifecycle.NewStudentCompanionService(factory.Student, factory.StudentCompanion, audit)
+	service := carelifecycle.NewStudentCompanionService(factory.Student, repositories.NewStudentCompanionRepository(factory.CarePlan()), audit)
 
 	subject := testpkg.CreateTestStudent(t, db, "AuditSubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "AuditCompanion", "Companion", "1a")

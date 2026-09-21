@@ -17,7 +17,6 @@ type EnrollmentTestRepositories struct {
 	StudentGuardian     usersModels.StudentGuardianRepository
 	GuardianProfile     usersModels.GuardianProfileRepository
 	GuardianPhoneNumber usersModels.GuardianPhoneNumberRepository
-	StudentCompanion    usersModels.StudentCompanionRepository
 	Membership          schoolmembership.Capability
 	DataAccessLog       auditModels.DataAccessLogRepository
 }
@@ -50,6 +49,6 @@ func NewEnrollmentTestRepositories(db *bun.DB, command auditModels.Command) (Enr
 	return EnrollmentTestRepositories{TimetableTestRepositories: tt,
 		School:          r.School,
 		StudentGuardian: NewStudentGuardianRepository(db), GuardianProfile: NewGuardianProfileRepository(db), GuardianPhoneNumber: usersRepo.NewGuardianPhoneNumberRepository(db),
-		StudentCompanion: r.StudentCompanion, Membership: members.Membership,
+		Membership:    members.Membership,
 		DataAccessLog: dataAccessLogCommand{auditRepo.NewDataAccessLogRepository(newTestAuditRuntime(db)), command}}, nil
 }

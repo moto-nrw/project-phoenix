@@ -7,8 +7,6 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -60,7 +58,7 @@ func (s *Service) ListMessageThreads(ctx context.Context, accountID int64) ([]*u
 	// one) halves the round-trips. The thread query returns rows already globally
 	// ordered (newest-activity first, nulls last).
 	out := make([]*usersModels.InboxThread, 0)
-	txErr := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+	txErr := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		children, err := s.ChildRepo.ListByAccount(adminCtx, accountID)
 		if err != nil {
 			return err
@@ -126,7 +124,7 @@ func (s *Service) ListChildThreads(ctx context.Context, accountID, studentID int
 		return nil, err
 	}
 	out := make([]*usersModels.InboxThread, 0)
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := care.InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		rows, err := s.MessageReadRepo.ListThreadsForGuardianStudent(txCtx, accountID, studentID)
 		if err != nil {
 			return err
@@ -170,7 +168,7 @@ func (s *Service) UnreadMessageCount(ctx context.Context, accountID int64) (int,
 	}
 	// Resolve the guardian's children (cross-tenant) in one admin transaction.
 	var tenantIDs []int64
-	if txErr := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+	if txErr := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		children, err := s.ChildRepo.ListByAccount(adminCtx, accountID)
 		if err != nil {
 			return err
@@ -205,7 +203,7 @@ func (s *Service) UnreadMessageCount(ctx context.Context, accountID int64) (int,
 	}
 
 	total := 0
-	txErr := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+	txErr := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		count, err := s.MessageReadRepo.UnreadMessageCountForGuardianTenants(adminCtx, accountID, enabledTenantIDs)
 		if err != nil {
 			return err
@@ -233,7 +231,7 @@ func (s *Service) GetChildConversation(ctx context.Context, accountID, studentID
 		StudentName: child.StudentName,
 		SchoolName:  child.SchoolName,
 	}
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := care.InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		thread, err := s.MessageThreadRepo.FindByStudentGuardian(txCtx, studentID, accountID)
 		if err != nil {
 			return err
@@ -319,7 +317,7 @@ func (s *Service) PostChildMessage(ctx context.Context, accountID, studentID int
 		StudentName: child.StudentName,
 		SchoolName:  child.SchoolName,
 	}
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := care.InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
 			return err
@@ -418,7 +416,7 @@ func (s *Service) resolveGuardianName(ctx context.Context, tenantID, accountID i
 	if s.GuardianProfileRepo == nil {
 		return name, nil
 	}
-	if txErr := tenant.WithTenantTx(ctx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	if txErr := care.InTenant(ctx, tenantID, func(txCtx context.Context) error {
 		profile, err := s.GuardianProfileRepo.FindByAccountID(txCtx, accountID)
 		if err != nil {
 			return err

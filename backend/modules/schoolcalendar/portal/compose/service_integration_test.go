@@ -66,7 +66,7 @@ func calendarTestConfig(t *testing.T, db *bun.DB) calendarRuntime.CalendarDepend
 			Presence:           presence,
 			SupervisorRepo:     repos.GroupSupervisor,
 			ProfileRepo:        repos.Profile,
-			SubstitutionRepo:   repos.GroupSubstitution,
+			StaffGroups:        repos.StaffGroups,
 		},
 		slog.Default(),
 	)

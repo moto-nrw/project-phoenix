@@ -53,7 +53,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        318
+        317
       ],
       "tables": []
     },
@@ -357,7 +357,7 @@
       "declaration": "TestGroupSubstitutionRepository_Create_Validation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        424
+        377
       ],
       "tables": []
     },
@@ -388,26 +388,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         302
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_substitution_repository_test.go",
-      "declaration": "TestGroupSubstitutionRepository_FindActiveBySubstitute",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        373
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_substitution_repository_test.go",
-      "declaration": "TestGroupSubstitutionRepository_FindActiveBySubstituteWithRelations",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        613
       ],
       "tables": []
     },
@@ -467,7 +447,7 @@
       "declaration": "TestGroupSubstitutionRepository_ListWithRelations",
       "target": "database/repositories.NewFactory",
       "lines": [
-        560
+        513
       ],
       "tables": []
     },
@@ -477,7 +457,7 @@
       "declaration": "TestGroupSubstitutionRepository_List_WithFilters",
       "target": "database/repositories.NewFactory",
       "lines": [
-        475
+        428
       ],
       "tables": []
     },
@@ -497,7 +477,7 @@
       "declaration": "TestGroupSubstitutionRepository_Update_Validation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        456
+        409
       ],
       "tables": []
     },
@@ -1085,16 +1065,6 @@
     {
       "scope": "test",
       "file": "database/repositories/users/guardian_phone_repository_test.go",
-      "declaration": "TestGuardianPhoneNumberRepository_DeleteByGuardianID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        450
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/guardian_phone_repository_test.go",
       "declaration": "TestGuardianPhoneNumberRepository_FindByGuardianID",
       "target": "database/repositories.NewFactory",
       "lines": [
@@ -1118,7 +1088,7 @@
       "declaration": "TestGuardianPhoneNumberRepository_GetNextPriority",
       "target": "database/repositories.NewFactory",
       "lines": [
-        496
+        450
       ],
       "tables": []
     },
@@ -1188,7 +1158,7 @@
       "declaration": "TestGuardianProfileRepository_FindByAccountID_PrefersExplicitPortalLocale",
       "target": "database/repositories.NewFactory",
       "lines": [
-        588
+        542
       ],
       "tables": [
         "users.guardian_profiles"
@@ -1200,7 +1170,7 @@
       "declaration": "TestGuardianProfileRepository_FindByAccountID_ReturnsLinkedProfile",
       "target": "database/repositories.NewFactory",
       "lines": [
-        557
+        511
       ],
       "tables": []
     },
@@ -1282,7 +1252,7 @@
       "declaration": "TestGuardianProfileRepository_LockByIDForUpdate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        637
+        591
       ],
       "tables": []
     },
@@ -1303,16 +1273,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         129
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/guardian_profile_repository_test.go",
-      "declaration": "TestGuardianProfileRepository_UpdatePortalLocaleByAccountID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        510
       ],
       "tables": []
     },
@@ -20948,27 +20908,27 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 179,
+          "line": 178,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 518,
+          "line": 517,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 681,
+          "line": 680,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 924,
+          "line": 923,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1334,
+          "line": 1333,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -20978,7 +20938,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 318,
+          "line": 317,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -20988,22 +20948,22 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 180,
+          "line": 179,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 390,
+          "line": 389,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 434,
+          "line": 433,
           "declaration": "withFileStorageWiring"
         },
         {
           "file": "api/base.go",
-          "line": 678,
+          "line": 677,
           "declaration": "type API"
         },
         {
@@ -21058,7 +21018,7 @@
       "locations": [
         {
           "file": "services/account_authentication_composition.go",
-          "line": 79,
+          "line": 84,
           "declaration": "sessionRepositoriesOf"
         },
         {
@@ -21068,17 +21028,17 @@
         },
         {
           "file": "services/auth_test_helpers.go",
-          "line": 288,
+          "line": 299,
           "declaration": "IdentityAccessForTests"
         },
         {
           "file": "services/factory.go",
-          "line": 464,
+          "line": 465,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 514,
+          "line": 515,
           "declaration": "newFactory"
         },
         {

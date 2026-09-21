@@ -10,9 +10,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -29,7 +29,7 @@ func NewCarePlan(db *bun.DB, students peopledirectory.Capability, slots schedule
 	}
 	studentLock, studentNotFound := CareStudentLock(students)
 	capability, err := carePlanCompose.New(carePlanCompose.Dependencies{
-		DB: db, Observe: func(carePlanCompose.Observation) {}, AmbientDB: carePlanLegacy.NewAmbientDatabase(db),
+		DB: db, Observe: func(carePlanCompose.Observation) {}, AmbientDB: carePlanCompose.TenantAmbientDatabase(db),
 		StatusStudents: statusStudents,
 		StatusSlots:    CarePlanStatusSlots(slots),
 		People: carePlanCompose.StudentNameFinderFunc(func(ctx context.Context, ids []int64) ([]carePlanCompose.StudentName, error) {
@@ -150,11 +150,6 @@ func (f *Factory) bindCarePlanAdapters(capability careplan.Capability) {
 	f.CareScheduleChangeRequest = NewCareScheduleChangeRequestRepository(capability)
 	f.StudentDataChangeRequest = NewStudentDataChangeRequestRepository(capability)
 	f.StudentStatusDay = NewStudentStatusDayRepository(capability)
-	f.CareOffering = carePlanLegacy.NewCareOfferingRepository(capability)
-	f.OfferingChangeRequest = carePlanLegacy.NewOfferingChangeRepository(capability, f.students)
-	companion := carePlanLegacy.NewCompanionRepository(capability)
-	f.StudentCompanion = companion
-	f.StudentDocument = carePlanLegacy.NewCareDocumentRepository(capability)
 	f.bindCarePlanAuditDirectory()
 
 	// The care-exit repositories read f.carePlan through the resolvers they
@@ -460,7 +455,7 @@ func (d careExitCarePlanDirectory) ListCareWithdrawalCompletionKeys(ctx context.
 	result := make([]carelifecycle.CareWithdrawalCompletionKey, 0, len(values))
 	for _, value := range values {
 		result = append(result, carelifecycle.CareWithdrawalCompletionKey{
-			StudentID: value.StudentID, FirstBookinglessDay: carePlanLegacy.ScheduleDate(value.FirstBookinglessDay),
+			StudentID: value.StudentID, FirstBookinglessDay: userModels.CalendarDate(value.FirstBookinglessDay),
 		})
 	}
 	return result, nil

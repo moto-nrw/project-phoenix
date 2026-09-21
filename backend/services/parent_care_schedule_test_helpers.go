@@ -4,11 +4,14 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 	"github.com/uptrace/bun"
 )
 
-func NewParentCareScheduleTestService(db *bun.DB, module StudentTestModule) (parentService.Service, error) {
+func NewParentCareScheduleTestService(db *bun.DB, module StudentTestModule) (*parentService.Portal, error) {
 	repos, err := repositories.NewStudentTestRepositories(db, module.Audit)
 	if err != nil {
 		return nil, err
@@ -17,7 +20,7 @@ func NewParentCareScheduleTestService(db *bun.DB, module StudentTestModule) (par
 	if err != nil {
 		return nil, err
 	}
-	return parentService.NewService(parentService.ServiceConfig{
+	return parentportalcompose.New(parentportalcompose.Dependencies{
 		ChildRepo: parents.ParentChild, StudentRepo: repos.Student, PersonRepo: repos.Person,
 		StudentGuardianRepo: parents.StudentGuardian, GuardianProfileRepo: parents.GuardianProfile,
 		Settings: module.Settings, ArrivalSchedules: module.ArrivalSchedule, PickupSchedules: module.PickupSchedule,
@@ -25,6 +28,13 @@ func NewParentCareScheduleTestService(db *bun.DB, module StudentTestModule) (par
 		FamilyProtectionEvents: repos.FamilyProtection, ParentRequestShares: repos.ParentRequestShare,
 		StatusDayRepo: repos.StudentStatusDay, MessageThreadRepo: repos.ParentMessageThread,
 		MessageRepo: repos.ParentMessage,
-		DB:          db, Logger: slog.Default(),
+		Logger:      slog.Default(),
 	}), nil
+}
+
+// NewParentPortalCareProfiles builds Care Plan's care-profile commands the
+// guardian portal writes the child's health information and live absence
+// flags through, for tests that compose the portal.
+func NewParentPortalCareProfiles(db *bun.DB) (careplan.StudentProfileCommands, error) {
+	return careplanCompose.NewStudentProfiles(db, func(careplanCompose.Observation) {})
 }

@@ -9,32 +9,48 @@ import (
 
 type phaseRow struct {
 	bun.BaseModel             `bun:"table:enrollment.phases,alias:phase"`
-	ID                        int64           `bun:"id,pk,autoincrement"`
-	TenantID                  int64           `bun:"tenant_id,notnull"`
-	CreatedAt                 time.Time       `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt                 time.Time       `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
-	Name                      string          `bun:"name,notnull"`
-	Kind                      string          `bun:"kind,notnull,default:'school_year'"`
-	ServiceStartDate          enrollment.Date `bun:"service_start_date,notnull,type:date"`
-	ServiceEndDate            enrollment.Date `bun:"service_end_date,notnull,type:date"`
-	EnrollmentOpenAt          *time.Time      `bun:"enrollment_open_at"`
-	EnrollmentCloseAt         *time.Time      `bun:"enrollment_close_at"`
-	FormSchemaID              *int64          `bun:"form_schema_id"`
-	CalendarPeriodID          *int64          `bun:"calendar_period_id"`
-	ShowStatusReasonToParent  bool            `bun:"show_status_reason_to_parent,notnull"`
-	CareOverflowMode          string          `bun:"care_overflow_mode,notnull"`
-	CareOfferingSelectionMode string          `bun:"care_offering_selection_mode,notnull"`
-	IsActive                  bool            `bun:"is_active,notnull"`
-	RolloverSourcePhaseID     *int64          `bun:"rollover_source_phase_id"`
-	RolloverMode              *string         `bun:"rollover_mode"`
-	RolloverAutoApprove       bool            `bun:"rollover_auto_approve,notnull"`
-	RolloverDeadline          *time.Time      `bun:"rollover_deadline"`
-	RolloverBumpsGrade        bool            `bun:"rollover_bumps_grade,notnull"`
-	AvailableSchoolClasses    []string        `bun:"available_school_classes,type:jsonb,notnull"`
-	RequireSchoolClass        bool            `bun:"require_school_class,notnull"`
-	Audience                  string          `bun:"audience,notnull,default:'open'"`
-	EligibleSchoolClasses     []string        `bun:"eligible_school_classes,type:jsonb,notnull"`
-	EligibleGradeLevels       []int           `bun:"eligible_grade_levels,type:jsonb,notnull"`
+	ID                        int64                   `bun:"id,pk,autoincrement"`
+	TenantID                  int64                   `bun:"tenant_id,notnull"`
+	CreatedAt                 time.Time               `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt                 time.Time               `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	Name                      string                  `bun:"name,notnull"`
+	Kind                      string                  `bun:"kind,notnull,default:'school_year'"`
+	ServiceStartDate          enrollment.Date         `bun:"service_start_date,notnull,type:date"`
+	ServiceEndDate            enrollment.Date         `bun:"service_end_date,notnull,type:date"`
+	EnrollmentOpenAt          *time.Time              `bun:"enrollment_open_at"`
+	EnrollmentCloseAt         *time.Time              `bun:"enrollment_close_at"`
+	FormSchemaID              *int64                  `bun:"form_schema_id"`
+	CalendarPeriodID          *int64                  `bun:"calendar_period_id"`
+	ShowStatusReasonToParent  bool                    `bun:"show_status_reason_to_parent,notnull"`
+	CareOverflowMode          string                  `bun:"care_overflow_mode,notnull"`
+	CareOfferingSelectionMode string                  `bun:"care_offering_selection_mode,notnull"`
+	IsActive                  bool                    `bun:"is_active,notnull"`
+	RolloverSourcePhaseID     *int64                  `bun:"rollover_source_phase_id"`
+	RolloverMode              *string                 `bun:"rollover_mode"`
+	RolloverAutoApprove       bool                    `bun:"rollover_auto_approve,notnull"`
+	RolloverDeadline          *time.Time              `bun:"rollover_deadline"`
+	RolloverBumpsGrade        bool                    `bun:"rollover_bumps_grade,notnull"`
+	AvailableSchoolClasses    []string                `bun:"available_school_classes,type:jsonb,notnull"`
+	RequireSchoolClass        bool                    `bun:"require_school_class,notnull"`
+	Audience                  string                  `bun:"audience,notnull,default:'open'"`
+	EligibleSchoolClasses     []string                `bun:"eligible_school_classes,type:jsonb,notnull"`
+	EligibleGradeLevels       []int                   `bun:"eligible_grade_levels,type:jsonb,notnull"`
+	Translations              enrollment.Translations `bun:"translations,type:jsonb,notnull"`
+}
+
+// storedTranslations binds '{}' instead of NULL: the column is NOT NULL.
+func storedTranslations(t enrollment.Translations) enrollment.Translations {
+	if t == nil {
+		return enrollment.Translations{}
+	}
+	return t
+}
+
+func loadedTranslations(t enrollment.Translations) enrollment.Translations {
+	if len(t) == 0 {
+		return nil
+	}
+	return t
 }
 
 func (r *phaseRow) value() *enrollment.Phase {
@@ -68,6 +84,7 @@ func (r *phaseRow) value() *enrollment.Phase {
 		Audience:                  r.Audience,
 		EligibleSchoolClasses:     r.EligibleSchoolClasses,
 		EligibleGradeLevels:       r.EligibleGradeLevels,
+		Translations:              loadedTranslations(r.Translations),
 	}
 }
 func phaseRecord(p *enrollment.Phase) *phaseRow {
@@ -98,6 +115,7 @@ func phaseRecord(p *enrollment.Phase) *phaseRow {
 		Audience:                  p.Audience,
 		EligibleSchoolClasses:     p.EligibleSchoolClasses,
 		EligibleGradeLevels:       p.EligibleGradeLevels,
+		Translations:              storedTranslations(p.Translations),
 	}
 }
 func phaseValues(rows []*phaseRow) []*enrollment.Phase {

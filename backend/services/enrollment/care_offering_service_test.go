@@ -70,7 +70,7 @@ func setupCareTest(t *testing.T) (*bun.DB, enrollmentService.CareOfferingService
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	bindTestTimetable(t, repoFactory, db)
 	svc := enrollmentService.NewCareOfferingService(enrollmentService.CareOfferingServiceConfig{
-		Repo:                  repoFactory.CareOffering,
+		Repo:                  enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
 		Bookings:              repoFactory.Enrollment(),
 		ActivityGroupRepo:     repoFactory.ActivityGroup,
 		ActivityScheduleRepo:  repoFactory.ActivitySchedule,
@@ -279,7 +279,7 @@ func TestCareOfferingService_MutationsAcquireTemplateRecurrenceGate(t *testing.T
 	repos := testRepositories(t, db)
 	lockCalls := 0
 	svc := enrollmentService.NewCareOfferingService(enrollmentService.CareOfferingServiceConfig{
-		Repo:                  repos.CareOffering,
+		Repo:                  enrollmentService.NewCareOfferingRepository(repos.CarePlan()),
 		Bookings:              repos.Enrollment(),
 		ActivityGroupRepo:     repos.ActivityGroup,
 		ActivityScheduleRepo:  repos.ActivitySchedule,

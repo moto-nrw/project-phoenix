@@ -500,52 +500,6 @@ func TestGuardianProfileRepository_SearchByText(t *testing.T) {
 // Portal Locale Tests (parent-portal i18n, migration 1.15.123)
 // ============================================================================
 
-// TestGuardianProfileRepository_UpdatePortalLocaleByAccountID covers the new
-// write path that persists the parent's explicit portals-portal language.
-func TestGuardianProfileRepository_UpdatePortalLocaleByAccountID(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianProfile
-	ctx := testpkg.Ctx(t)
-
-	t.Run("persists locale and is reflected by FindByAccountID", func(t *testing.T) {
-		profile := testpkg.CreateTestGuardianProfile(t, db, "portallocale")
-
-		account := testpkg.CreateTestAccount(t, db, "portallocale")
-
-		require.NoError(t, repo.LinkAccount(ctx, profile.ID, account.ID))
-
-		// A profile starts with no portal language chosen.
-		before, err := repo.FindByAccountID(ctx, account.ID)
-		require.NoError(t, err)
-		assert.Nil(t, before.PortalLocale, "a fresh profile must have NULL portal_locale")
-
-		// First explicit choice.
-		require.NoError(t, repo.UpdatePortalLocaleByAccountID(ctx, account.ID, "en"))
-		afterEN, err := repo.FindByAccountID(ctx, account.ID)
-		require.NoError(t, err)
-		require.NotNil(t, afterEN.PortalLocale)
-		assert.Equal(t, "en", *afterEN.PortalLocale)
-
-		// Changing the choice overwrites the prior value.
-		require.NoError(t, repo.UpdatePortalLocaleByAccountID(ctx, account.ID, "ru"))
-		afterRU, err := repo.FindByAccountID(ctx, account.ID)
-		require.NoError(t, err)
-		require.NotNil(t, afterRU.PortalLocale)
-		assert.Equal(t, "ru", *afterRU.PortalLocale, "a later choice must replace the earlier one")
-	})
-
-	t.Run("returns ErrGuardianProfileNotFound when the account has no profile", func(t *testing.T) {
-		// Zero rows matched must fail loud, not silently succeed — otherwise a
-		// "saved" preference that never persisted would masquerade as success.
-		err := repo.UpdatePortalLocaleByAccountID(ctx, int64(999999), "en")
-		require.Error(t, err)
-		assert.ErrorIs(t, err, users.ErrGuardianProfileNotFound)
-	})
-}
-
 // TestGuardianProfileRepository_FindByAccountID_ReturnsLinkedProfile exercises
 // the happy path of the reworked FindByAccountID (deterministic ordering +
 // Limit(1)): a linked account resolves to its profile and carries portal_locale.

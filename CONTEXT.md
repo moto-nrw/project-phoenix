@@ -401,6 +401,19 @@ Ein **Betreuungsangebot** ist eine innerhalb der OGS-Betreuung auswählbare
 Leistung, etwa Mittagessen oder Ferienbetreuung. Eine Änderung der Auswahl ist
 eine Elternanfrage und wird erst nach Bestätigung durch die OGS wirksam.
 
+## Schultext und Übersetzung
+
+Ein **Schultext** ist ein Text der Online-Anmeldung, den die Schule selbst
+schreibt: Name der Anmeldephase, Fragen, Hinweise, Infotexte, Auswahlwerte,
+Zustimmungstexte, Name, Beschreibung und Pflichtauswahl-Gruppe eines
+Betreuungsangebots. Die
+Sprachwahl der Eltern übersetzt ihn nicht von selbst.
+
+Eine **Übersetzung** eines Schultexts pflegt die Schule selbst. Sie ist
+**gültig**, solange der deutsche Text unverändert ist, zu dem sie geschrieben
+wurde. Danach ist sie **zu prüfen**: Eltern lesen den deutschen Text, bis die
+Schule die Übersetzung anpasst oder bestätigt (ADR 0034).
+
 ## Phasenende
 
 Eine **auslaufende Angebotsbuchung** ist eine am Ende des Leistungszeitraums

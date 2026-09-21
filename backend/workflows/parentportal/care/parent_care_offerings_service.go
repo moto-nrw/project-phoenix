@@ -15,8 +15,6 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // CareOfferingSelection is one booked care offering of the current care period.
@@ -106,7 +104,7 @@ func (s *Service) GetChildCareOfferings(ctx context.Context, accountID, studentI
 	var period *enrollmentSvc.StudentCarePeriod
 	var canRequest bool
 	var changesDisabledReason string
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		resolved, loadErr := s.loadChildCareOfferings(txCtx, studentID, today, view)
 		if loadErr != nil {
 			return loadErr
@@ -234,7 +232,7 @@ func (s *Service) GetChildOfferingCatalogAt(
 		return nil, enrollmentSvc.ErrOfferingChangeDisabled
 	}
 	var catalog *enrollmentSvc.OfferingChangeCatalog
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		resolved, resolveErr := s.OfferingChanges.CatalogAt(txCtx, studentID, effectiveFrom)
 		if resolveErr != nil {
 			return resolveErr
@@ -276,7 +274,7 @@ func (s *Service) CreateOfferingChangeRequest(
 	if strings.TrimSpace(note) == "" && s.GuardianReasonRequired(ctx, child.TenantID) {
 		return nil, usersSvc.ErrParentRequestReasonRequired
 	}
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
 			return err
@@ -339,7 +337,7 @@ func (s *Service) EditOfferingChangeRequest(
 	if strings.TrimSpace(note) == "" && s.GuardianReasonRequired(ctx, child.TenantID) {
 		return nil, usersSvc.ErrParentRequestReasonRequired
 	}
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
 			return err

@@ -90,7 +90,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
 	gradetransitioncompose "github.com/moto-nrw/project-phoenix/workflows/gradetransition/compose"
-	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 	reminderPorts "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
@@ -287,7 +288,7 @@ type Factory struct {
 	EnrollmentRejectedCleanup enrollment.RejectedEnrollmentCleaner
 
 	// Parent (cross-tenant guardian portal - PR 9)
-	Parent parentportal.Service
+	Parent *parentportal.Portal
 
 	// Messaging (staff-side parent-OGS inbox / threads)
 	Messaging communication.ParentMessagingCapability
@@ -477,7 +478,7 @@ func NewFactoryWithModules(
 	communicationCapability communication.Capability,
 	observeCommunication func(communicationCompose.Observation),
 	observeCarePlan CarePlanObserver,
-	mealPlan parentportal.MealPlan,
+	mealPlan parentportalcompose.MealPlanProvider,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
 	bindFeedbackSettings FeedbackSettingsBinder,
@@ -526,7 +527,7 @@ func newFactory(
 	communicationCapability communication.Capability,
 	observeCommunication func(communicationCompose.Observation),
 	observeCarePlan CarePlanObserver,
-	mealPlan parentportal.MealPlan,
+	mealPlan parentportalcompose.MealPlanProvider,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
 	bindFeedbackSettings FeedbackSettingsBinder,
@@ -1194,7 +1195,7 @@ func newFactory(
 	// delete services must preflight the same materializability invariant as
 	// template and calendar-period mutations.
 	enrollmentCareOfferingService := enrollment.NewCareOfferingService(enrollment.CareOfferingServiceConfig{
-		Repo:                  repos.CareOffering,
+		Repo:                  enrollment.NewCareOfferingRepository(repos.CarePlan()),
 		Bookings:              repos.Enrollment(),
 		ActivityGroupRepo:     repos.ActivityGroup,
 		ActivityScheduleRepo:  repos.ActivitySchedule,
@@ -1653,8 +1654,9 @@ func newFactory(
 				TenantDomain: tenantDomain, OperatorFrontendURL: operatorFrontendURL,
 			},
 		},
-		operators:  operatorDependencies,
-		demoAccess: strings.EqualFold(strings.TrimSpace(appEnv), "demo"),
+		operators:          operatorDependencies,
+		demoAccess:         demoAccessWiringFor(appEnv, dispatcher, defaultFrom, frontendURL, authLogger),
+		demoStandingSchool: standingDemoSchool(viper.GetBool("demo_standing_school")),
 		operatorLinks: &operatorLinkWiring{
 			dispatcher: dispatcher, defaultFrom: defaultFrom,
 			frontendURL: frontendURL, operatorFrontendURL: operatorFrontendURL,
@@ -1777,6 +1779,10 @@ func newFactory(
 	})
 
 	// Initialize user context service
+	staffGroups, err := repositories.NewUserContextStaffGroups(groups, membership, workTime)
+	if err != nil {
+		return nil, err
+	}
 	userContextService := usercontext.NewUserContextServiceWithRepos(usercontext.UserContextRepositories{
 		AccountRepo:        repositories.NewCurrentAccountAccess(repos.Profile),
 		PersonRepo:         repos.Person,
@@ -1789,8 +1795,7 @@ func newFactory(
 		Presence:           newStudentPresence(db, logger),
 		SupervisorRepo:     repos.GroupSupervisor,
 		ProfileRepo:        repos.Profile,
-		SubstitutionRepo:   repos.GroupSubstitution,
-		ClassTeacherRepo:   repos.ClassTeacher,
+		StaffGroups:        staffGroups,
 		ActiveService:      NewSSEPresence(newStudentPresence(db, logger)),
 		SSESettings:        settingsService,
 	}, usercontextLogger)
@@ -1932,7 +1937,7 @@ func newFactory(
 
 	enrollmentPhaseService := enrollment.NewPhaseService(enrollment.PhaseServiceConfig{
 		Owner:            repos.Enrollment(),
-		CareOfferingRepo: repos.CareOffering,
+		CareOfferingRepo: enrollment.NewCareOfferingRepository(repos.CarePlan()),
 		CalendarPeriods:  calendarPeriodService,
 		LockTemplateRecurrence: func(ctx context.Context) error {
 			return timetableplanning.LockTenantRecurrenceWrites(ctx, db)
@@ -1975,7 +1980,7 @@ func newFactory(
 		Guardians:                 repos.Enrollment(),
 		LateInviteRepo:            repos.Enrollment(),
 		ApprovedOfferings:         enrollment.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: persons}),
-		CareOfferingRepo:          repos.CareOffering,
+		CareOfferingRepo:          enrollment.NewCareOfferingRepository(repos.CarePlan()),
 		Phases:                    repos.Enrollment(),
 		Schemas:                   repos.Enrollment(),
 		DataAccessLogRepo:         repos.DataAccessLog,
@@ -1988,7 +1993,7 @@ func newFactory(
 		StudentGuardianRepo:       repos.StudentGuardian,
 		GuardianFinancialAudit:    repos.GuardianFinancialChange,
 		StudentEnrollment:         persons,
-		DepartureCompanions:       repos.StudentCompanion,
+		DepartureCompanions:       repositories.NewStudentCompanionRepository(repos.CarePlan()),
 		DeleteDepartureCompanions: repos.CarePlan().DeleteCompanionEdges,
 		GuardianProfileRepo:       repos.GuardianProfile,
 		GuardianPhoneRepo:         repos.GuardianPhoneNumber,
@@ -2122,7 +2127,7 @@ func newFactory(
 		Bookings:           enrollmentCareBookingCommands{owner: repos.CarePlan()},
 		Guardians:          repos.Enrollment(),
 		LateInviteRepo:     repos.Enrollment(),
-		CareOfferingRepo:   repos.CareOffering,
+		CareOfferingRepo:   enrollment.NewCareOfferingRepository(repos.CarePlan()),
 		Catalog:            repos.Enrollment(),
 		SchoolRepo:         enrollmentSchoolDirectory{schools: organizations},
 		StudentRepo:        repos.Student,
@@ -2141,13 +2146,13 @@ func newFactory(
 		Requests:               repos.Enrollment(),
 		Children:               repos.Enrollment(),
 		Guardians:              repos.Enrollment(),
-		CareOfferingRepo:       repos.CareOffering,
+		CareOfferingRepo:       enrollment.NewCareOfferingRepository(repos.CarePlan()),
 		Schemas:                repos.Enrollment(),
 		Phases:                 repos.Enrollment(),
 		DataAccessLogRepo:      repos.DataAccessLog,
 		StudentRepo:            repos.Student,
 		StudentGuardianRepo:    repos.StudentGuardian,
-		StudentCompanionRepo:   repos.StudentCompanion,
+		StudentCompanionRepo:   repositories.NewStudentCompanionRepository(repos.CarePlan()),
 		PersonRepo:             repos.Person,
 		EducationGroupRepo:     repos.Group,
 		StudentStatusDayRepo:   repos.StudentStatusDay,
@@ -2179,7 +2184,7 @@ func newFactory(
 	// the companion lock order through this service.
 	companionService := carelifecycle.NewStudentCompanionService(
 		repos.Student,
-		repos.StudentCompanion,
+		repositories.NewStudentCompanionRepository(repos.CarePlan()),
 		studentAuditService,
 	)
 
@@ -2188,7 +2193,7 @@ func newFactory(
 	// answer "does this caller supervise this child", so it is wired after it.
 	studentDocumentService := carelifecycle.NewStudentDocumentService(
 		db,
-		repos.StudentDocument,
+		repositories.NewStudentDocumentRepository(repos.CarePlan()),
 		repos.Student,
 		repos.StudentFieldEdit,
 		repos.DataAccessLog,
@@ -2202,7 +2207,7 @@ func newFactory(
 		Children:             repos.Enrollment(),
 		Guardians:            repos.Enrollment(),
 		LateInviteRepo:       repos.Enrollment(),
-		CareOfferingRepo:     repos.CareOffering,
+		CareOfferingRepo:     enrollment.NewCareOfferingRepository(repos.CarePlan()),
 		Catalog:              repos.Enrollment(),
 		SchoolRepo:           enrollmentSchoolDirectory{schools: organizations},
 		GuardianProfileRepo:  repos.GuardianProfile,
@@ -2293,11 +2298,11 @@ func newFactory(
 		return nil, fmt.Errorf("enrollment decision service does not implement direct offering adjustment")
 	}
 	offeringChangeRequestService := enrollment.NewOfferingChangeRequestServiceWithPolicy(enrollment.OfferingChangeRequestServiceConfig{
-		ChangeRepo:             repos.OfferingChangeRequest,
+		ChangeRepo:             enrollment.NewOfferingChangeRepository(repos.CarePlan(), offeringChangeStudentSearch{people: persons}),
 		Children:               repos.Enrollment(),
 		Requests:               repos.Enrollment(),
 		Phases:                 repos.Enrollment(),
-		CareOfferingRepo:       repos.CareOffering,
+		CareOfferingRepo:       enrollment.NewCareOfferingRepository(repos.CarePlan()),
 		ImpactRepo:             manualPlanningReader{db: db, courseGroups: timetableCapability},
 		StudentRepo:            repos.Student,
 		PersonRepo:             repos.Person,
@@ -2485,10 +2490,16 @@ func newFactory(
 		Logger:                 logger.With("service", "calendar"),
 	})
 
+	// The parent portal writes the child's care profile through Care Plan.
+	parentCareProfiles, err := careplanCompose.NewStudentProfiles(db, func(careplanCompose.Observation) {})
+	if err != nil {
+		return nil, fmt.Errorf("compose parent portal care profiles: %w", err)
+	}
 	// The photo lifecycle exists only after EnableStudentPhotos runs in the
 	// API bootstrap, so the parent service resolves it on use.
 	var factory *Factory
-	parentService := parentportal.NewService(parentportal.ServiceConfig{
+	parentService := parentportalcompose.New(parentportalcompose.Dependencies{
+		CareProfiles:              parentCareProfiles,
 		ChildRepo:                 repos.ParentChild,
 		EnrollablePhaseRepo:       repos.ParentEnrollablePhase,
 		EnrollmentSettings:        settingsService,
@@ -2498,7 +2509,8 @@ func newFactory(
 		StatusDayRepo:             repos.StudentStatusDay,
 		MealPlan:                  mealPlan,
 		StudentRepo:               repos.Student,
-		CareExceptions:            repos.CarePlan(),
+		CarePlan:                  repos.CarePlan(),
+		People:                    persons,
 		PickupAutoExcusal:         pickupAutoExcusal,
 		Settings:                  settingsService,
 		Broadcaster:               realtimeHub,
@@ -2506,7 +2518,7 @@ func newFactory(
 		ChangeRequestRepo:         repos.StudentDataChangeRequest,
 		CareRequestRepo:           repos.CareScheduleChangeRequest,
 		ExcusedRequestRepo:        repos.ExcusedAbsenceRequest,
-		OfferingChangeRequestRepo: repos.OfferingChangeRequest,
+		OfferingChangeRequestRepo: enrollment.NewOfferingChangeRepository(repos.CarePlan(), offeringChangeStudentSearch{people: persons}),
 		FamilyProtectionEvents:    repos.FamilyProtection,
 		ParentRequestShares:       repos.ParentRequestShare,
 		ParentRequestEvents:       parentRequestEvents,
@@ -2518,19 +2530,18 @@ func newFactory(
 			ThreadRepo: repos.ParentMessageThread, MessageRepo: repos.ParentMessage, ReadRepo: repos.ParentMessageRead,
 			Broadcaster: realtimeHub, Logger: logger.With("service", "parent"),
 		}),
-		ParentMessageNotifier:   staffParentMessageNotifier,
-		ArrivalSchedules:        arrivalScheduleService,
-		PickupSchedules:         pickupScheduleService,
-		CareRequests:            careRequestService,
-		ExcusedRequests:         excusedRequestService,
-		Emitter:                 pillEmitter,
-		AnnouncementRepo:        repos.ParentAnnouncement,
-		GuardianInvites:         NewParentGuardianAccess(guardianInvitationService),
-		GuardianInvitations:     newGuardianInvitationReads(func() identityaccess.GuardianInvitations { return identityAccess }),
-		StudentGuardianRepo:     repos.StudentGuardian,
-		GuardianPhoneRepo:       repos.GuardianPhoneNumber,
-		GuardianChangeAuditRepo: repos.GuardianChange,
-		StudentConsents:         studentConsentService,
+		ParentMessageNotifier: staffParentMessageNotifier,
+		ArrivalSchedules:      arrivalScheduleService,
+		PickupSchedules:       pickupScheduleService,
+		CareRequests:          careRequestService,
+		ExcusedRequests:       excusedRequestService,
+		Emitter:               pillEmitter,
+		AnnouncementRepo:      repos.ParentAnnouncement,
+		GuardianInvites:       NewParentGuardianAccess(guardianInvitationService),
+		GuardianInvitations:   newGuardianInvitationReads(func() identityaccess.GuardianInvitations { return identityAccess }),
+		StudentGuardianRepo:   repos.StudentGuardian,
+		GuardianPhoneRepo:     repos.GuardianPhoneNumber,
+		StudentConsents:       studentConsentService,
 		StudentPhotos: func() parentportal.StudentPhotoUnlinker {
 			if factory == nil || factory.StudentPhotos == nil {
 				return nil
@@ -2540,9 +2551,8 @@ func newFactory(
 		AbsenceNotifier:  absenceNotifier,
 		CarePeriods:      repos.Enrollment(),
 		OfferingHistory:  repos.Enrollment(),
-		CareOfferingRepo: repos.CareOffering,
+		CareOfferingRepo: enrollment.NewCareOfferingRepository(repos.CarePlan()),
 		OfferingChanges:  offeringChangeRequestService,
-		DB:               db,
 		Logger:           logger.With("service", "parent"),
 		Now:              now,
 	})
@@ -2847,7 +2857,8 @@ func newFactory(
 	// must not import it just to ask who a request was shared with. The
 	// offering and master-data services take it by setter; the care and
 	// excused requests read it lazily through requestShares.
-	if resolver, ok := parentService.(parentmessaging.ShareVisibilityResolver); ok {
+	var _ parentmessaging.ShareVisibilityResolver = parentService
+	if resolver, ok := any(parentService).(parentmessaging.ShareVisibilityResolver); ok {
 		requestShareVisibility = resolver
 		for _, service := range []any{
 			offeringChangeRequestService,

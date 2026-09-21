@@ -1,11 +1,11 @@
 package repositories
 
 import (
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/uptrace/bun"
@@ -14,7 +14,7 @@ import (
 type CalendarTestRepositories struct {
 	TimetableTestRepositories
 	Profile                    identityaccess.AccountProfiles
-	GroupSubstitution          educationModels.GroupSubstitutionRepository
+	StaffGroups                usercontext.StaffGroupReads
 	GuardianProfile            userModels.GuardianProfileRepository
 	StudentGuardian            userModels.StudentGuardianRepository
 	ParentChild                parentModels.ChildRepository
@@ -45,7 +45,7 @@ func NewCalendarTestRepositories(db *bun.DB) (CalendarTestRepositories, error) {
 	feeds := NewCalendarFeedTestRepositories(db)
 	return CalendarTestRepositories{
 		TimetableTestRepositories: identity.Timetable,
-		Profile:                   identity.Profile, GroupSubstitution: identity.Substitutions,
+		Profile:                   identity.Profile, StaffGroups: identity.StaffGroups,
 		GuardianProfile: parents.GuardianProfile, StudentGuardian: parents.StudentGuardian,
 		ParentChild: parents.ParentChild, StaffCalendarFeedToken: feeds.StaffFeed, ParentCalendarFeed: feeds.ParentFeed,
 		CalendarStaffFeedTombstone: feeds.Tombstone, appointments: appointments, schoolCalendar: calendar,

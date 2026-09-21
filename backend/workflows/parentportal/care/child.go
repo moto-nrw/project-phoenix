@@ -7,8 +7,6 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
@@ -66,7 +64,7 @@ func (s *Service) ResolvePermittedChild(ctx context.Context, accountID, studentI
 	}
 
 	var resolved *Child
-	err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		child, findErr := s.ChildRepo.FindForAccount(adminCtx, accountID, studentID)
 		if findErr != nil {
 			return findErr

@@ -738,11 +738,17 @@ table either: it filters its grouped rows against the owner's completion keys,
 which the former `NOT EXISTS` clause tested on the same grouping key. Both
 #2727 baseline entries for the table are gone.
 
-The Care Plan compatibility adapter (`modules/careplan/legacy`) uses this
-representation. Its remaining imports and repository-composition caller are
-bound to #2743, the root API caller to #2750, and the test-support caller to
-#2748. The conversion in #3032 removes 13 target permissions and records 14
-existing imports; it adds no runtime dependency or composition caller.
+The Care Plan compatibility adapter (`modules/careplan/legacy`, root package)
+used this representation from #3032 until #3410 dissolved it and removed its
+14 exact imports. The care-offering and offering-change repositories are now
+the enrollment services' own translation onto the Care Plan Commands and
+Queries (`services/enrollment/care_plan_offering_records.go`), with the name
+search bound to the People Directory by the services composition. The
+companion and child-document repositories sit with their sibling Care Plan
+adapters in `database/repositories`, as constructors instead of
+`repositories.Factory` fields. The calendar day comes from
+`modules/careplan/compose.Today`, the ambient transaction from
+`compose.TenantAmbientDatabase`.
 `target.svg` has no compatibility-rule edges. `migration.svg` renders these
 exact imports as orange-red `legacy` debt, separate from gray target-valid
 imports and dashed-red new violations, even when they share owner endpoints.
@@ -904,15 +910,20 @@ with unchanged behaviour, paths, status codes, error strings and authorization
 checks; their 49 baseline entries fell with the old packages. The read side
 could not land on the existing `identity-access`/`application` point: it still
 returns the retained `models/*` rows to its consumers, and PR mode rejects
-a new permission on a point that exists at the base SHA. Every
-`inbound-usercontext.adapter.*`, `inbound-usercontext.http.*` and
-`inbound-usercontext.adapter-test.*` rule, every
-`<consumer>.<role>.inbound-usercontext-adapter` rule and the
-`root-composition.compose.inbound-usercontext-http` mount is a compatibility
-permission that exists only because PR mode cannot record debt for a package
-the candidate creates: convert them to exact debt with the rule above once the
-packages exist at a base SHA, and dissolve the adapter into the Identity &
-Access application and public contract under #2725. The adapter role also
+a new permission on a point that exists at the base SHA. The 46 compatibility
+permissions this move needed (the `inbound-usercontext.adapter.*`,
+`inbound-usercontext.http.*` and `inbound-usercontext.adapter-test.*` rules,
+every `<consumer>.<role>.inbound-usercontext-adapter` rule and the
+`root-composition.compose.inbound-usercontext-http` mount) are converted: the
+rules are deleted and their 55 import tuples are exact debt under #2725. The
+baseline grew by those 55 entries without a new import; the edges were hidden
+behind allow-rules before. The `student-presence` domain and adapter rules of
+the same packages stay temporary under #3422. The tuples fall when the adapter
+dissolves into the Identity & Access application and public contract, which
+first needs owner contracts for the staff and teacher membership read
+(`school-membership`), the caller's groups and substitutions
+(`school-structure`) and the supervised and active groups
+(`student-presence`). The adapter role also
 covers the `net/http` status constants the SSE setup error carries through
 the generic `external.http-router.adapter` rule, and the former
 `inbound-usercontext.to.identity-access` target rule is removed until that
@@ -1334,38 +1345,67 @@ from 11 to 12 and uses only candidate-created packages. No table changes
 owner and no existing-owner import guard is expanded. The move resolved six
 recorded `services/parent` internal-test imports, which left `legacy.jsonl`.
 
-The retained parent services (`workflows/parentportal/legacy`,
-`parent-portal`/`adapter`, #3228) are the write, master-data, guardian,
-related-account, consent, profile, enrollment-list, sick-note and meal-plan
-flows that `services/parent` still held after #3227, moved file for file with
-their behaviour tests. `services/parent` and its `care-plan`/`application`
-classification are gone, and with them the transitional
-`care-plan.application.parent-portal` edge and the last 47 `legacy.jsonl`
-entries that named the package (#3227 had already resolved six of its
-internal-test imports). The package keeps the public `Service` contract that
-the guardian portal HTTP composition and the service factory consume. No HTTP path, status code,
-error string, validation rule, authorization check or tenant scoping changed,
-and no table changed owner. The package could not join the existing
-`parent-portal`/`application` point: it still speaks the retained audit,
-identity, base, localization and realtime vocabulary, and PR mode rejects a
-new permission on a point that exists at the base SHA. It uses the
-candidate-created `parent-portal`/`adapter` point with `adapter-test` in both
-test scopes instead. Every `parent-portal.adapter.*` and
-`parent-portal.adapter-test.*` rule and the consumer rules
+The retained parent services that #3228 had moved into
+`workflows/parentportal/legacy` (`parent-portal`/`adapter`) are dissolved
+(#3420). Their coordination moved into `workflows/parentportal/care`, the
+business writes onto owner commands, and the package is gone together with
+the `parent-portal`/`adapter` and `adapter-test` points and their 43
+compatibility rules, plus the three consumer rules
 `inbound-parent.http.parent-portal-adapter`,
 `inbound-parent.adapter-test.parent-portal-adapter` and
-`legacy-composition.compose.parent-portal-adapter` are compatibility
-permissions that exist only because PR mode cannot record debt for a package
-the candidate creates. They cover every future `parent-portal`/`adapter`
-package, so no other package may join that point before the conversion.
-Convert them to exact debt with the rule above under #2735 once the package
-exists at a base SHA, and dissolve the package into the workflow
-as each flow reaches its owner's public capability. The move replaced the
-post-construction absence-notifier and student-photo setters with
-construction-time configuration, because the composition surface guard
-records mutable wiring per package and a relocated setter would count as
-growth. The factory resolves the student-photo lifecycle on use, since the
-API bootstrap builds it after the parent services.
+`legacy-composition.compose.parent-portal-adapter`. None of them became exact
+debt; `legacy.jsonl` is unchanged. The stale
+`parent-portal.application.orm-sql` rule fell as well: no parent-portal
+package imports Bun any more.
+
+Every parent-portal write is now an owner command called inside one tenant
+unit of work that the flow opens from the request context, after the
+relationship's `parent_portal.*` check with the same permission constant as
+before. Care Plan reports guardian absences (`GuardianAbsenceReports`, with
+the manual partial-absence guard) and writes the guardian leg of a day's
+pickup exception together with its derived excusal
+(`GuardianPickupExceptions`), both constructed in `modules/careplan/compose`;
+the Stammdaten requests use its existing request commands, and its care
+profile commands (`StudentProfileCommands.SetStudentLiveStatus`,
+`SetStudentHealthInfo`) write the child's live absence flags and health
+information in `users.student_care_profiles`. People Directory writes the
+guardian profile, phone and relationship rows and the child's photo consent
+(`GuardianPortalCommand`, `StudentPortalCommand`), each tenant-scoped; the
+portal language is written once per school the account has a profile in, so
+no parent-portal write of the child flows runs in an administrative
+transaction any more. Audit Platform appends the guardian change trail
+(`GuardianChangeLog`, `modules/auditlog/compose.NewGuardianChangeLog`) over
+the ambient transaction. The child flows hold consumer-owned read ports and
+owner-command ports only, and no `*bun.DB`: `tenant.WithinTenant` and
+`tenant.WithinAdmin` take the unit of work from the context, which the
+database argument of `tenant.WithTenantTx` never reached.
+
+`workflows/parentportal` (`parent-portal`/`port`) is the workflow's driving
+port: the vocabulary the guardian portal HTTP composition matches and the
+composed `Portal`, which promotes the methods of both flow packages. It is not
+a `public` contract, because that vocabulary still carries retained model
+types that the semantic contract checks reject; a clean public contract needs
+the wire DTOs rewritten. `workflows/parentportal/compose`
+(`parent-portal`/`compose`) binds the owners and the platform (meal plan, live
+events, language catalog) to the flows' ports, and the HTTP composition
+declares its own `PortalService` port. The `parent-portal.compose.*` rules to
+the retained read models (`models/users`, `models/parent`, `models/schedule`,
+`models/enrollment`, `models/active`, `services/config`, `services/enrollment`,
+`services/users`, `services/parentmessaging`) are compatibility bindings that
+fall together with the `parent-portal.application.*` ones when the flows read
+through owner queries. The portal behaviour tests moved with the flows to the
+workflow root (`workflow-decision-test`), because the existing
+`workflow-integration-test` point of `care` and `messaging` admits no new
+permission in PR mode. That test point has no owner-kind rules to lean on,
+so its `parent-portal.decision-test.*` rules name each target; together with
+the compose, port and consumer rules the policy holds more rules than before
+although the 46 compatibility rules of the adapter point are gone.
+
+Still open: `workflows/parentportal/messaging` keeps writing announcement
+read, acknowledgement and poll-response rows through the retained announcement
+repository inside an administrative transaction, as before #3420, and still
+holds Communication's retained repositories. That is Communication's side of
+the portal and needs its own owner commands.
 
 The guardian portal HTTP composition (`modules/careplan/inbound/parent`,
 #3229) replaced `api/parent`, moved file for file with its adapter tests. It
@@ -1375,11 +1415,11 @@ together with the root mount (#2750) and the calendar end-to-end import
 (#2748). No route path, method, status code, error string, authorization check
 or tenant scoping changed. Besides the `care-plan` capability that
 `inbound-parent.to.care-plan` names, the handlers still call the retained
-auth, enrollment and users services, the parent-portal adapter and the shared
+auth, enrollment and users services, the parent-portal workflow port and the shared
 HTTP helpers directly, and match their result types and error values:
 routing those calls through the `modules/careplan` contract would add imports
 to the existing `care-plan`/`public` point, which PR mode rejects. The
-care-schedule diff row is named through the parent-portal adapter
+care-schedule diff row is named through the parent-portal workflow port
 (`CareRequestDiffEntry`), so the production `services/schedule` import fell
 with the move; the adapter tests still build that vocabulary. After the move the package
 is the only `inbound-parent` package, so the point exists only in the

@@ -41,6 +41,7 @@ type FixedSeeder struct {
 	guardianIDs      map[string]int64   // guardian "firstName lastName" -> id
 	staffCredentials []StaffCredentials // created staff credentials for summary
 	accountScope     string             // slug all account emails and usernames carry; empty for the local seed
+	visitorName      string             // prospect of the public demo shown as one caregiver and one parent
 }
 
 // FixedResult contains counts of created entities
@@ -740,11 +741,11 @@ func (s *FixedSeeder) seedGuardians(_ context.Context, result *FixedResult) erro
 
 		// 1. Create guardian profile
 		body := map[string]any{
-			"first_name":               guardian.FirstName,
-			"last_name":                guardian.LastName,
 			"preferred_contact_method": "email",
 			"language_preference":      "de",
 		}
+		body["first_name"], body["last_name"] = visitorDisplayName(s.visitorName, index == visitorGuardianIndex,
+			guardian.FirstName, guardian.LastName, DemoGuardians[visitorGuardianIndex].FirstName, DemoGuardians[visitorGuardianIndex].LastName)
 
 		// Add contact methods
 		if guardian.Email != "" {
@@ -1309,8 +1310,12 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 			"password":         password,
 			"confirm_password": password,
 			"role_id":          roleID,
-			"first_name":       staff.FirstName,
-			"last_name":        staff.LastName,
+		}
+		registerBody["first_name"], registerBody["last_name"] = visitorDisplayName(s.visitorName, i == visitorStaffIndex,
+			staff.FirstName, staff.LastName, DemoStaff[visitorStaffIndex].FirstName, DemoStaff[visitorStaffIndex].LastName)
+		if s.visitorName != "" && i == visitorStaffIndex {
+			// Until the demo roles exist the visitor keeps every function.
+			registerBody["role_id"] = adminRoleID
 		}
 
 		registerResp, err := s.client.Post("/auth/register", registerBody)

@@ -1670,9 +1670,10 @@ describe("ID-based selection coverage: currentRoom useMemo", () => {
       expect(screen.getByText("Solo Student")).toBeInTheDocument();
     });
 
-    // Die Statuszeile nennt die Aufsicht und ihre Kinderzahl (beweist, dass
-    // currentRoom gesetzt ist).
-    expect(screen.getByText(/· 1 Kind$/)).toBeInTheDocument();
+    // Der Titel nennt die Aufsicht, die Statuszeile ihre Kinderzahl (beweist,
+    // dass currentRoom gesetzt ist).
+    expect(screen.getByRole("heading", { name: "Only Room" })).toBeVisible();
+    expect(screen.getByText("1 Kind", { selector: "p" })).toBeVisible();
   });
 
   it("shows the released room and its occupancy in the page header", async () => {

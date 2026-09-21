@@ -63,21 +63,21 @@ const moduleLegacyBudgetCheck = "legacy LOC budget"
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 77940
+const moduleLegacyBudgetTotal = 71136
 
 // moduleLegacyBudgets maps a legacy tree to its production LOC on 2026-09-18.
 // The comment on each entry names the ticket that is supposed to dissolve the
 // tree; "no ticket today" is the measurement, not an omission — those trees
 // have no owner and no plan, which is precisely what this ratchet exposes.
 var moduleLegacyBudgets = map[string]int{
-	// #3351 covers the careschedule subtree only and #3410 the root package;
-	// the remainder of this tree has no ticket today. Grew by 5,284 LOC when
+	// #3351 dissolved the careschedule subtree and #3410 the root package
+	// (874 LOC); the remainder of this tree has no ticket today. Grew by 5,284 LOC when
 	// PR #3408 (#3350) moved the care-exit, companion and care-document code
 	// out of services/users into the new subtree carelifecycle — the tree is
 	// counted recursively from its topmost legacy directory, so carelifecycle
 	// lands in this entry and gets none of its own. No open ticket carries its
 	// dissolution.
-	"modules/careplan/legacy": 6152,
+	"modules/careplan/legacy": 5278,
 	// No ticket today.
 	"modules/devicefleet/compose/legacy": 231,
 	// No ticket today.
@@ -88,7 +88,7 @@ var moduleLegacyBudgets = map[string]int{
 	// added the carelifecycle import to legacy.go.
 	"modules/grouplive/legacy": 585,
 	// #3226 (auth/jwt + repositories move) and #2725 (usercontext read side).
-	"modules/identityaccess/legacy": 3368,
+	"modules/identityaccess/legacy": 3331,
 	// No ticket today.
 	"modules/planexport/legacy": 410,
 	// #3352 covers the api/students consumer only, not the tree.
@@ -98,9 +98,8 @@ var moduleLegacyBudgets = map[string]int{
 	// No ticket today — and the largest tree of the twelve.
 	"modules/timetable/legacy": 24305,
 	// No ticket today — grew from 15,402 LOC at creation to this.
-	"modules/workforce/legacy": 21468,
+	"modules/workforce/legacy": 21456,
 	// No ticket today.
-	"workflows/parentportal/legacy": 5881,
 }
 
 func TestModuleLegacyBudgetRatchet(t *testing.T) {

@@ -137,8 +137,13 @@ def check_demo_runtime(path):
         raise ValueError("demo-runtime: must not receive env files, volumes or published ports")
     if raw.get("network_mode") != "service:server" or not raw.get("read_only"):
         raise ValueError("demo-runtime: must share the server network with a read-only filesystem")
-    if raw.get("command") != ["./main", "demo", "--url", "http://server:8080", "--heartbeat", "/tmp/demo-heartbeat"]:
+    command = ["./main", "demo", "--url", "http://server:8080", "--heartbeat", "/tmp/demo-heartbeat"]
+    # Fallback of #3463: both processes must agree on the standing demo school.
+    fallback = "--demo-standing-school"
+    if raw.get("command") not in (command, command + [fallback]):
         raise ValueError("demo-runtime: must use the guarded command and internal server host")
+    if (fallback in raw["command"]) != (fallback in services["server"].get("command", [])):
+        raise ValueError("demo-runtime: server and sidecar must both select the standing demo school, or neither")
     if raw["image"] != services["server"]["image"]:
         raise ValueError("demo-runtime: must use the serving backend image")
     # A frozen runner must surface as unhealthy, and a crashed one must come back.

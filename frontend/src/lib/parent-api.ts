@@ -91,6 +91,8 @@ export interface EnrollablePhase {
   readonly school_subdomain: string;
   readonly phase_id: string;
   readonly phase_name: string;
+  /** Locale → the school's translation of `phase_name` (#3377). */
+  readonly phase_name_translations?: Readonly<Record<string, string>>;
   readonly phase_kind: "school_year" | "holiday" | "custom";
   readonly service_start_date: string; // YYYY-MM-DD
   readonly service_end_date: string; // YYYY-MM-DD

@@ -55,7 +55,7 @@ func NewIoTDataTestModule(db *bun.DB, unit tenant.UnitOfWork) (IoTDataTestModule
 		return IoTDataTestModule{}, err
 	}
 	offerings := enrollment.NewCareOfferingService(enrollment.CareOfferingServiceConfig{
-		Repo: r.CareOffering, Phases: r.Enrollment(), Bookings: r.Enrollment(), Settings: settings.Settings,
+		Repo: enrollment.NewCareOfferingRepository(r.CarePlan), Phases: r.Enrollment(), Bookings: r.Enrollment(), Settings: settings.Settings,
 		ActivityGroupRepo: r.ActivityGroup, ActivityScheduleRepo: r.ActivitySchedule,
 		CalendarPeriodRepo: r.CalendarPeriod, TimeframeRepo: r.Timeframe, ActivityExceptionRepo: r.ActivityException,
 	}).(enrollment.CareOfferingMaterializationResourceValidator)

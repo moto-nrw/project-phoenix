@@ -45,8 +45,9 @@ import (
 // rule deletions lower these seeds to 483 conversion promises and 581 wider
 // compatibility markers. The #3351 care-schedule cutover and the seven
 // file-storage rules #3461 removed lower them to 395 and 492, and the #3226
-// identity persistence rewrite to 392 and 487; this prose counter remains as
-// an independent guard.
+// identity persistence rewrite to 392 and 487, and the #2725 conversion of the
+// 46 user-context permissions to exact debt to 346 and 441; this prose counter
+// remains as an independent guard.
 //
 // Three shrink-only measurements, all read-only on policy.json:
 //
@@ -96,12 +97,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 392
+	policyTempRulesTotal = 346
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 487
+	policyTempRulesCompatTotal = 409
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -126,18 +127,15 @@ var policyTempRulesCompatMarkers = []string{
 // when the family is empty, and never raise one.
 var policyTempRulesFamilies = map[string]int{
 	// #3214, #3218, #3220, #3224 — all closed.
-	"calendar-view": 6,
+	"calendar-view": 4,
 
 	// #3350 (PR #3408) — closed. New family: the care-exit read projection
 	// modules/careplan/legacy/careexitview. No open ticket carries its
 	// conversion.
 	"care-exit-view": 2,
 
-	// #3220, #3224 — closed.
-	"class-day-view": 1,
-
 	// #2736 (OPEN), #3232, #3224.
-	"communication": 6,
+	"communication": 4,
 
 	// #3218, #3219, #3220 — closed.
 	"document-rendering": 5,
@@ -146,31 +144,25 @@ var policyTempRulesFamilies = map[string]int{
 	"enrollment": 8,
 
 	// #3214, #3224 — closed.
-	"facilities": 2,
+	"facilities": 1,
 
 	// #3214, #3218, #3220, #3224 — closed; #3350 (PR #3408) added one.
-	"group-live-view": 4,
+	"group-live-view": 3,
 
 	// #3364 — closed.
 	"identity-access": 18,
 
-	// #3224 — closed.
-	"inbound-birthdays": 1,
+	// #3214, #3224 — closed.
+	"inbound-common": 3,
 
 	// #3214, #3224 — closed.
-	"inbound-common": 5,
-
-	// #3214, #3224 — closed.
-	"inbound-groups": 3,
+	"inbound-groups": 2,
 
 	// #3214 — closed; #3350 (PR #3408) added one.
 	"inbound-operator": 2,
 
 	// #3229, #3214, #3220 — closed; #2725 (OPEN) for one rule.
 	"inbound-parent": 29,
-
-	// #3224 — closed.
-	"inbound-sse": 1,
 
 	// #3219, #3218, #2730 — closed.
 	"inbound-staff-shifts": 37,
@@ -180,18 +172,18 @@ var policyTempRulesFamilies = map[string]int{
 
 	// #3214, #3218, #3220, #3224 — closed; #3350 (PR #3408) added 36, the
 	// bulk of that PR's 46 new permissions.
-	"inbound-students": 43,
+	"inbound-students": 42,
 
 	// #3218, #3220, #3214, #3224 — closed. The largest family: 90 rules, every
 	// one of them permitted by an issue that is done.
-	"inbound-timetable": 83,
+	"inbound-timetable": 82,
 
 	// #2725 (OPEN) and #3224 (closed) name most rules jointly; #3214 the rest.
 	// The only large family with a live issue behind it.
-	"inbound-usercontext": 31,
+	"inbound-usercontext": 4,
 
 	// #3214, #3218, #3219, #3220, #3224 — closed; #3350 (PR #3408) added one.
-	"legacy-composition": 7,
+	"legacy-composition": 6,
 
 	// #3214 — closed.
 	"open-room-move": 2,
@@ -206,13 +198,10 @@ var policyTempRulesFamilies = map[string]int{
 	"process-device-scan": 2,
 
 	// #3207, #3214, #3217, #3218, #3219, #3220, #3224, #3229 — all closed.
-	"root-composition": 9,
+	"root-composition": 8,
 
 	// #3214, #3218, #3220 — closed.
 	"scheduler-runtime": 7,
-
-	// #3224 — closed.
-	"school-calendar": 1,
 
 	// #3214, #3218 — closed.
 	"school-structure": 2,
@@ -222,13 +211,13 @@ var policyTempRulesFamilies = map[string]int{
 	"settings-platform": 17,
 
 	// #3214, #3207, #3218, #3224 — closed.
-	"student-presence": 28,
+	"student-presence": 27,
 
 	// #3214, #3218, #3229 — closed.
 	"test-support": 4,
 
 	// #3214, #3218, #3220, #3224 — closed.
-	"timetable-activities": 3,
+	"timetable-activities": 2,
 
 	// #3219, #3218 — closed.
 	"workforce": 4,
