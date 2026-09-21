@@ -71,10 +71,14 @@ func lifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitat
 	if err != nil {
 		return nil, err
 	}
+	caregivers, err := caregiverProfilesForTests(db)
+	if err != nil {
+		return nil, err
+	}
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
 		repos: sessionRepositoriesOf(repos, repos.School), codec: codec, audit: audit, logger: logger,
 		lifecycle: &lifecycleWiring{
-			audit: audit,
+			audit: audit, caregivers: caregivers,
 			guardianMail: &guardianInvitationWiring{
 				schools:     repos.School,
 				outbox:      func() platformModels.OutboxEnqueuer { return outbox },

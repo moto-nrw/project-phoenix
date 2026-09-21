@@ -54,6 +54,20 @@ func currentTestFactoryConfig() FactoryConfig {
 	return cfg
 }
 
+// caregiverProfilesForTests binds the Lehrkraft guard to real People
+// Directory and School Membership compositions over db, as the factory does.
+func caregiverProfilesForTests(db *bun.DB) (caregiverProfiles, error) {
+	persons, err := repositories.NewPeopleDirectory(db)
+	if err != nil {
+		return caregiverProfiles{}, err
+	}
+	membership, err := repositories.NewSchoolMembership(db)
+	if err != nil {
+		return caregiverProfiles{}, err
+	}
+	return caregiverProfiles{persons: persons, membership: membership}, nil
+}
+
 func newOwnerCapabilitiesForTests(db *bun.DB) (ownerCapabilities, error) {
 	organizations, err := repositories.NewOrganizationTenancy(db)
 	if err != nil {

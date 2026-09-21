@@ -284,6 +284,7 @@ type Capability interface {
 	StudentEnrollmentCommands
 	Query
 	Command
+	StaffIdentities
 }
 
 type engine interface {

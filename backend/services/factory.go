@@ -1676,6 +1676,7 @@ func newFactory(
 		// at call time; it is composed below.
 		lifecycle: &lifecycleWiring{
 			settings: settingsService, audit: auditCommand,
+			caregivers: caregiverProfiles{persons: persons, membership: membership},
 			guardianMail: &guardianInvitationWiring{
 				settings: settingsService, schools: organizations,
 				outbox:      func() platformModels.OutboxEnqueuer { return outboxEnqueuer{outbox: emailOutboxService} },

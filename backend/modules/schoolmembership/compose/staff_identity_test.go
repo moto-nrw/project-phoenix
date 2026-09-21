@@ -16,7 +16,7 @@ import (
 // accountPersons stands in for the People Directory behind the consumer-owned
 // port; the architecture policy keeps this package from importing the owner.
 // It repeats the owner's FindByAccount predicate (live person of the tenant,
-// newest first) on the reader's own tenant transaction.
+// newest first) on the identity read's own tenant transaction.
 type accountPersons struct{}
 
 func (accountPersons) FindPersonIDByAccount(ctx context.Context, accountID int64) (int64, bool, error) {
@@ -44,163 +44,139 @@ func (p failingAccountPersons) FindPersonIDByAccount(context.Context, int64) (in
 	return 0, false, p.err
 }
 
-func buildStaffIdentityReader(t *testing.T, db *bun.DB) (*schoolmembership.StaffIdentityReader, *schoolmembership.Module) {
+// resolve runs the identity read through the People Directory stand-in.
+func resolve(ctx context.Context, module *schoolmembership.Module, accountID int64) (schoolmembership.StaffIdentity, error) {
+	return module.ResolveStaffIdentityByAccount(ctx, accountID, accountPersons{})
+}
+
+// createLinkedStaff gives a fresh account a person and a staff row, and a
+// teacher profile when asked to.
+func createLinkedStaff(t *testing.T, ctx context.Context, db *bun.DB, module *schoolmembership.Module, email string, teacher bool) (accountID int64, staff schoolmembership.Staff, teacherID int64) {
 	t.Helper()
-	module := buildModule(t, db)
-	return schoolmembership.NewStaffIdentityReader(module, accountPersons{}), module
+	account := testpkg.CreateTestAccount(t, db, email)
+	person := testpkg.CreateTestPersonWithAccountID(t, db, "Sam", "Stamm", account.ID)
+	staff, err := module.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{PersonID: person.ID}})
+	require.NoError(t, err)
+	if teacher {
+		created, err := module.CreateTeacher(ctx, schoolmembership.CreateTeacher{TeacherFields: schoolmembership.TeacherFields{StaffID: staff.ID}})
+		require.NoError(t, err)
+		teacherID = created.ID
+	}
+	return account.ID, staff, teacherID
 }
 
 func TestStaffIdentityReportsAnAccountWithoutPerson(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	reader, _ := buildStaffIdentityReader(t, db)
+	module := buildModule(t, db)
 	account := testpkg.CreateTestAccount(t, db, "identity-no-person")
 
-	identity, err := reader.ResolveByAccount(testpkg.Ctx(t), account.ID)
+	identity, err := resolve(testpkg.Ctx(t), module, account.ID)
 
 	require.NoError(t, err)
 	assert.Equal(t, schoolmembership.StaffIdentity{Link: schoolmembership.StaffLinkNoPerson}, identity)
-	assert.False(t, identity.IsStaff())
 	assert.False(t, identity.IsTeacher())
 }
 
 func TestStaffIdentityReportsAPersonWithoutStaff(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	reader, _ := buildStaffIdentityReader(t, db)
+	module := buildModule(t, db)
 	account := testpkg.CreateTestAccount(t, db, "identity-no-staff")
 	person := testpkg.CreateTestPersonWithAccountID(t, db, "Nora", "Nichtpersonal", account.ID)
 
-	identity, err := reader.ResolveByAccount(testpkg.Ctx(t), account.ID)
+	identity, err := resolve(testpkg.Ctx(t), module, account.ID)
 
 	require.NoError(t, err)
 	assert.Equal(t, schoolmembership.StaffIdentity{
 		Link:     schoolmembership.StaffLinkNotStaff,
 		PersonID: person.ID,
 	}, identity)
-	assert.False(t, identity.IsStaff())
+	assert.False(t, identity.IsTeacher())
 }
 
 func TestStaffIdentityReportsStaffWithoutTeacherRole(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	reader, module := buildStaffIdentityReader(t, db)
+	module := buildModule(t, db)
 	ctx := testpkg.Ctx(t)
-	account := testpkg.CreateTestAccount(t, db, "identity-staff")
-	person := testpkg.CreateTestPersonWithAccountID(t, db, "Stefan", "Personal", account.ID)
-	staff, err := module.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{PersonID: person.ID}})
-	require.NoError(t, err)
+	accountID, staff, _ := createLinkedStaff(t, ctx, db, module, "identity-staff", false)
 
-	identity, err := reader.ResolveByAccount(ctx, account.ID)
+	identity, err := resolve(ctx, module, accountID)
 
 	require.NoError(t, err)
 	assert.Equal(t, schoolmembership.StaffIdentity{
 		Link:     schoolmembership.StaffLinkStaff,
-		PersonID: person.ID,
+		PersonID: staff.PersonID,
 		StaffID:  staff.ID,
 	}, identity)
-	assert.True(t, identity.IsStaff())
 	assert.False(t, identity.IsTeacher())
 }
 
 func TestStaffIdentityReportsATeacher(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	reader, module := buildStaffIdentityReader(t, db)
+	module := buildModule(t, db)
 	ctx := testpkg.Ctx(t)
-	account := testpkg.CreateTestAccount(t, db, "identity-teacher")
-	person := testpkg.CreateTestPersonWithAccountID(t, db, "Tina", "Lehrkraft", account.ID)
-	staff, err := module.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{PersonID: person.ID}})
-	require.NoError(t, err)
-	teacher, err := module.CreateTeacher(ctx, schoolmembership.CreateTeacher{TeacherFields: schoolmembership.TeacherFields{StaffID: staff.ID}})
-	require.NoError(t, err)
+	accountID, staff, teacherID := createLinkedStaff(t, ctx, db, module, "identity-teacher", true)
 
-	want := schoolmembership.StaffIdentity{
+	identity, err := resolve(ctx, module, accountID)
+
+	require.NoError(t, err)
+	assert.Equal(t, schoolmembership.StaffIdentity{
 		Link:      schoolmembership.StaffLinkTeacher,
-		PersonID:  person.ID,
+		PersonID:  staff.PersonID,
 		StaffID:   staff.ID,
-		TeacherID: teacher.ID,
-	}
-
-	byAccount, err := reader.ResolveByAccount(ctx, account.ID)
-	require.NoError(t, err)
-	assert.Equal(t, want, byAccount)
-	assert.True(t, byAccount.IsStaff())
-	assert.True(t, byAccount.IsTeacher())
-
-	byPerson, err := reader.ResolveByPerson(ctx, person.ID)
-	require.NoError(t, err)
-	assert.Equal(t, want, byPerson)
+		TeacherID: teacherID,
+	}, identity)
+	assert.True(t, identity.IsTeacher())
 }
 
 func TestStaffIdentityIgnoresSoftDeletedMemberships(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	reader, module := buildStaffIdentityReader(t, db)
+	module := buildModule(t, db)
 	ctx := testpkg.Ctx(t)
-	person := testpkg.CreateTestPerson(t, db, "Theo", "Ehemalig")
-	staff, err := module.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{PersonID: person.ID}})
-	require.NoError(t, err)
-	teacher, err := module.CreateTeacher(ctx, schoolmembership.CreateTeacher{TeacherFields: schoolmembership.TeacherFields{StaffID: staff.ID}})
-	require.NoError(t, err)
+	accountID, staff, teacherID := createLinkedStaff(t, ctx, db, module, "identity-offboarded", true)
 
-	require.NoError(t, module.DeleteTeacher(ctx, teacher.ID))
-	identity, err := reader.ResolveByPerson(ctx, person.ID)
+	require.NoError(t, module.DeleteTeacher(ctx, teacherID))
+	identity, err := resolve(ctx, module, accountID)
 	require.NoError(t, err)
 	assert.Equal(t, schoolmembership.StaffLinkStaff, identity.Link)
 	assert.Zero(t, identity.TeacherID)
 
 	require.NoError(t, module.DeleteStaff(ctx, staff.ID))
-	identity, err = reader.ResolveByPerson(ctx, person.ID)
+	identity, err = resolve(ctx, module, accountID)
 	require.NoError(t, err)
-	assert.Equal(t, schoolmembership.StaffIdentity{Link: schoolmembership.StaffLinkNotStaff, PersonID: person.ID}, identity)
+	assert.Equal(t, schoolmembership.StaffIdentity{Link: schoolmembership.StaffLinkNotStaff, PersonID: staff.PersonID}, identity)
 }
 
 func TestStaffIdentityWrongTenantLookupIsNotFound(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	reader, module := buildStaffIdentityReader(t, db)
+	module := buildModule(t, db)
 	ctx := testpkg.Ctx(t)
-	account := testpkg.CreateTestAccount(t, db, "identity-wrong-tenant")
-	person := testpkg.CreateTestPersonWithAccountID(t, db, "Wanda", "Woanders", account.ID)
-	staff, err := module.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{PersonID: person.ID}})
-	require.NoError(t, err)
-	_, err = module.CreateTeacher(ctx, schoolmembership.CreateTeacher{TeacherFields: schoolmembership.TeacherFields{StaffID: staff.ID}})
-	require.NoError(t, err)
+	accountID, _, _ := createLinkedStaff(t, ctx, db, module, "identity-wrong-tenant", true)
 	otherCtx, _ := otherTenantContext(t, db)
 
-	byAccount, err := reader.ResolveByAccount(otherCtx, account.ID)
-	require.NoError(t, err)
-	assert.Equal(t, schoolmembership.StaffIdentity{Link: schoolmembership.StaffLinkNoPerson}, byAccount)
+	identity, err := resolve(otherCtx, module, accountID)
 
-	// Even a caller that already holds the foreign person ID learns nothing
-	// about the other school's staff or teacher rows.
-	byPerson, err := reader.ResolveByPerson(otherCtx, person.ID)
 	require.NoError(t, err)
-	assert.Equal(t, schoolmembership.StaffIdentity{Link: schoolmembership.StaffLinkNotStaff, PersonID: person.ID}, byPerson)
+	assert.Equal(t, schoolmembership.StaffIdentity{Link: schoolmembership.StaffLinkNoPerson}, identity)
 }
 
 func TestStaffIdentityRefusesAContextWithoutTenant(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	reader, module := buildStaffIdentityReader(t, db)
-	ctx := testpkg.Ctx(t)
-	account := testpkg.CreateTestAccount(t, db, "identity-no-tenant")
-	person := testpkg.CreateTestPersonWithAccountID(t, db, "Nele", "Niemandsland", account.ID)
-	_, err := module.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{PersonID: person.ID}})
-	require.NoError(t, err)
+	module := buildModule(t, db)
+	accountID, _, _ := createLinkedStaff(t, testpkg.Ctx(t), db, module, "identity-no-tenant", true)
 
 	// The module's other reads fall back to an admin transaction without a
 	// tenant; the identity read must not, or it would answer across schools.
-	noTenant := testpkg.WithPackageTenantRuntime(context.Background())
+	identity, err := resolve(testpkg.WithPackageTenantRuntime(context.Background()), module, accountID)
 
-	byPerson, err := reader.ResolveByPerson(noTenant, person.ID)
 	require.ErrorIs(t, err, tenant.ErrTenantRequired)
-	assert.Equal(t, schoolmembership.StaffIdentity{}, byPerson)
-
-	byAccount, err := reader.ResolveByAccount(noTenant, account.ID)
-	require.ErrorIs(t, err, tenant.ErrTenantRequired)
-	assert.Equal(t, schoolmembership.StaffIdentity{}, byAccount)
+	assert.Equal(t, schoolmembership.StaffIdentity{}, identity)
 }
 
 func TestStaffIdentityKeepsUnexpectedErrorsVisible(t *testing.T) {
@@ -211,13 +187,12 @@ func TestStaffIdentityKeepsUnexpectedErrorsVisible(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "identity-directory-down")
 
 	directoryDown := errors.New("people directory unavailable")
-	reader := schoolmembership.NewStaffIdentityReader(module, failingAccountPersons{err: directoryDown})
-	identity, err := reader.ResolveByAccount(ctx, account.ID)
+	identity, err := module.ResolveStaffIdentityByAccount(ctx, account.ID, failingAccountPersons{err: directoryDown})
 	require.ErrorIs(t, err, directoryDown)
 	assert.Equal(t, schoolmembership.StaffIdentity{}, identity)
 
-	_, err = reader.ResolveByAccount(ctx, 0)
+	_, err = resolve(ctx, module, 0)
 	require.ErrorIs(t, err, schoolmembership.ErrInvalidMembership)
-	_, err = reader.ResolveByPerson(ctx, 0)
+	_, err = module.ResolveStaffIdentityByAccount(ctx, account.ID, nil)
 	require.ErrorIs(t, err, schoolmembership.ErrInvalidMembership)
 }
