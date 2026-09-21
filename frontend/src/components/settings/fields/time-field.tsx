@@ -118,7 +118,7 @@ export function SettingsTimeField({
           }
         }}
         disabled={disabled}
-        maxLength={5}
+        maxLength={6}
         controlSize="compact"
         className="text-center tabular-nums"
       />

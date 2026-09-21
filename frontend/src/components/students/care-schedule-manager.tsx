@@ -444,8 +444,8 @@ export function CareScheduleManager({
       setCareDaysSource(settings.care_days_source);
       setSchoolPeriods(settings.school_periods ?? []);
       setTimePresets({
-        arrival: settings.default_arrival_time ?? "",
-        pickup: settings.default_pickup_time ?? "",
+        arrival: settings.defaultArrivalTime ?? "",
+        pickup: settings.defaultPickupTime ?? "",
       });
       // A newer read succeeded, so any banner or spinner an older attempt is
       // still going to leave behind is already obsolete. Clearing here (rather

@@ -13,11 +13,24 @@ export function normalizeTimeInput(raw: string, previousValue = ""): string {
     return `${explicitTime[1]!.padStart(2, "0")}:${explicitTime[2]!}`;
   }
 
-  const digits = raw.replace(/\D/g, "").slice(0, 4);
+  const rawDigits = raw.replace(/\D/g, "");
+  // After completing a one-digit hour, a fourth typed digit turns
+  // "01:53" + "0" back into the intended two-digit time "15:30".
+  if (
+    rawDigits.length === 5 &&
+    previousValue === `${rawDigits.slice(0, 2)}:${rawDigits.slice(2, 4)}`
+  ) {
+    return `${rawDigits.slice(1, 3)}:${rawDigits.slice(3)}`;
+  }
+
+  const digits = rawDigits.slice(0, 4);
   if (digits.length <= 2) return digits;
   if (digits.length === 3) {
     // A completed three-digit value is a one-digit hour ("130" → "01:30").
-    // Preserve a two-digit hour while a fourth digit is still being typed.
+    // Only keep a two-digit hour open when the one-digit variant is invalid.
+    if (Number(digits.slice(1)) <= 59) {
+      return `0${digits.slice(0, 1)}:${digits.slice(1)}`;
+    }
     if (
       previousValue === digits.slice(0, 2) &&
       Number(digits.slice(0, 2)) <= 23
@@ -77,7 +90,7 @@ export function TimeField({
         autoComplete="off"
         value={value}
         placeholder={placeholder}
-        maxLength={5}
+        maxLength={6}
         required={required}
         aria-required={required}
         aria-invalid={invalid}

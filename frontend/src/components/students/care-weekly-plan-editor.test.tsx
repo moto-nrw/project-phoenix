@@ -891,18 +891,16 @@ describe("CareWeeklyPlanEditForm", () => {
     expect(pickup).toHaveAttribute("placeholder", "HH:MM");
   });
 
-  it("pads a one-digit hour when typing a clock time", async () => {
+  it("completes a sequential one-digit-hour entry", async () => {
     const { onSubmitWeekly } = renderForm();
 
     const pickup = screen.getByLabelText("Abholung", {
       selector: "#weekly-pickup-1",
     });
-    fireEvent.change(pickup, { target: { value: "930" } });
-
-    expect(pickup).toHaveValue("09:30");
-    fireEvent.change(pickup, { target: { value: "9:30" } });
-    expect(pickup).toHaveValue("09:30");
+    fireEvent.change(pickup, { target: { value: "1" } });
+    fireEvent.change(pickup, { target: { value: "13" } });
     fireEvent.change(pickup, { target: { value: "130" } });
+
     expect(pickup).toHaveValue("01:30");
     save();
 
@@ -915,6 +913,19 @@ describe("CareWeeklyPlanEditForm", () => {
         }),
       );
     });
+  });
+
+  it("pads a one-digit hour when typing a clock time", () => {
+    renderForm();
+
+    const pickup = screen.getByLabelText("Abholung", {
+      selector: "#weekly-pickup-1",
+    });
+    fireEvent.change(pickup, { target: { value: "930" } });
+
+    expect(pickup).toHaveValue("09:30");
+    fireEvent.change(pickup, { target: { value: "9:30" } });
+    expect(pickup).toHaveValue("09:30");
   });
 
   // #3371: the school's usual times go into an empty field with one click;

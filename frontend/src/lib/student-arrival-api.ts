@@ -67,8 +67,15 @@ export interface ArrivalSettings {
   /** In lesson order; empty when the school maintains no lesson end times. */
   school_periods: SchoolPeriod[];
   /** "HH:MM", or empty when the school maintains none (#3371). */
-  default_arrival_time: string;
+  defaultArrivalTime: string;
   /** "HH:MM", or empty when the school maintains none (#3371). */
+  defaultPickupTime: string;
+}
+
+interface ArrivalSettingsResponse {
+  care_days_source: CareDaysSource;
+  school_periods: SchoolPeriod[];
+  default_arrival_time: string;
   default_pickup_time: string;
 }
 
@@ -195,7 +202,13 @@ export async function fetchArrivalSettings(): Promise<ArrivalSettings> {
     headers: await authHeaders(),
     credentials: "include",
   });
-  return parseResponse<ArrivalSettings>(response);
+  const settings = await parseResponse<ArrivalSettingsResponse>(response);
+  return {
+    care_days_source: settings.care_days_source,
+    school_periods: settings.school_periods,
+    defaultArrivalTime: settings.default_arrival_time,
+    defaultPickupTime: settings.default_pickup_time,
+  };
 }
 
 export async function updateArrivalSchedules(

@@ -555,7 +555,7 @@ function WeeklyTimeField({
         inputMode="numeric"
         autoComplete="off"
         placeholder="HH:MM"
-        maxLength={5}
+        maxLength={6}
         controlSize="compact"
         className="tabular-nums"
         value={value}

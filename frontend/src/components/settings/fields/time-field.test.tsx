@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { SettingsTimeField } from "./time-field";
 
 describe("SettingsTimeField", () => {
@@ -105,6 +106,21 @@ describe("SettingsTimeField", () => {
     fireEvent.change(input, { target: { value: "18" } });
     fireEvent.change(input, { target: { value: "183" } });
     expect(input.value).toBe("18:3");
+  });
+
+  it.each([
+    ["100", "01:00"],
+    ["130", "01:30"],
+    ["230", "02:30"],
+    ["1530", "15:30"],
+  ])("completes sequential digits %s as %s", async (digits, expected) => {
+    const user = userEvent.setup();
+    render(<SettingsTimeField value="" onChange={vi.fn()} />);
+
+    const input = screen.getByPlaceholderText("HH:MM");
+    await user.type(input, digits);
+
+    expect(input).toHaveValue(expected);
   });
 
   it("strips non-digit characters", () => {
