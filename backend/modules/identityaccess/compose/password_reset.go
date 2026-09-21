@@ -116,7 +116,9 @@ func (e engine) DeleteStalePasswordResetWindows(ctx context.Context) (int, error
 
 // passwordResetError translates the rate-limit rejection to its public
 // shape and everything else like the authentication flows.
-func passwordResetError(err error) error {
+func passwordResetError(err error) error { return recordMissing(translatePasswordResetError(err)) }
+
+func translatePasswordResetError(err error) error {
 	if err == nil {
 		return nil
 	}

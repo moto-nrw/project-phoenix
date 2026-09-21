@@ -9,7 +9,7 @@ import (
 )
 
 // MFA and passkey request bodies shared verbatim by the tenant
-// (modules/identityaccess/inbound/auth) and operator
+// (modules/identityaccess/inbound/account) and operator
 // (modules/identityaccess/inbound/operator) portals. Both alias these types so
 // their wire formats cannot drift; portal-specific requests (e.g. the
 // tenant-only passkey login-options body) stay in their portal package.
