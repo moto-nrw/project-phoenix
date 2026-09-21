@@ -101,8 +101,13 @@ func (p provisioningIdentity) FindSystemRole(ctx context.Context, name string) (
 	return organizationCompose.ProvisioningRole{}, false, nil
 }
 
+// FindRole reports a missing role as not found rather than as a failure, so
+// provisioning answers 400 for an unknown role_id instead of 500.
 func (p provisioningIdentity) FindRole(ctx context.Context, id int64) (organizationCompose.ProvisioningRole, bool, error) {
 	role, err := p.roles.GetRole(ctx, id)
+	if errors.Is(err, identityaccess.ErrRoleNotFound) {
+		return organizationCompose.ProvisioningRole{}, false, nil
+	}
 	if err != nil {
 		return organizationCompose.ProvisioningRole{}, false, err
 	}
