@@ -79,6 +79,7 @@ type StaffFilter struct {
 	PersonIDs      []int64
 	TenantIDs      []int64
 	IncludeDeleted bool
+	MembershipOnly bool
 }
 
 type Teacher struct {

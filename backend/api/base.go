@@ -279,7 +279,9 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	}
 	// A staff member is School Membership's membership row plus Workforce's
 	// employment profile (#2753); the membership owner composes the two.
-	staffEmployment, err := workforceCompose.NewStaffEmployment(db)
+	staffEmployment, err := workforceCompose.NewStaffEmployment(db, func(observation workforceCompose.Observation) {
+		observability.ObserveWorkforceOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, workforceModule.ErrorCode(observation.Err), observation.Err)
+	})
 	if err != nil {
 		return moduleServices{}, err
 	}

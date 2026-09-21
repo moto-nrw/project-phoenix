@@ -1,8 +1,9 @@
-package repositories_test
+package staffintegration_test
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -14,9 +15,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -31,7 +30,7 @@ import (
 // DTO, which only test fixtures still bind; #2754 removes it with the view.
 func TestStaffCutoverCallerInventory(t *testing.T) {
 	t.Parallel()
-	root := filepath.Join("..", "..")
+	root := filepath.Join("..", "..", "..")
 	files, literals, allowed := 0, 0, 0
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -173,24 +172,6 @@ func TestStaffOwnersWorkWithoutCompatibilityView(t *testing.T) {
 	require.NoError(t, workTime.DeleteWorkTimeModel(ctx, model.ID), "the retired staff member no longer holds the template")
 }
 
-// failingEmployment fails the Workforce half of a staff write, either before
-// or after the owner wrote its row.
-type failingEmployment struct {
-	schoolMembershipCompose.StaffEmployment
-	afterWrite bool
-	failure    error
-}
-
-func (f failingEmployment) SaveStaffEmployment(ctx context.Context, value schoolMembershipCompose.StaffEmploymentProfile) error {
-	if !f.afterWrite {
-		return f.failure
-	}
-	if err := f.StaffEmployment.SaveStaffEmployment(ctx, value); err != nil {
-		return err
-	}
-	return f.failure
-}
-
 func staffOwnerRows(t *testing.T, db *bun.DB, personID int64) (memberships, profiles int) {
 	t.Helper()
 	require.NoError(t, db.NewRaw(`SELECT
@@ -201,49 +182,59 @@ func staffOwnerRows(t *testing.T, db *bun.DB, personID int64) (memberships, prof
 	return memberships, profiles
 }
 
+// refuseEmploymentWrites makes the Workforce half of a staff write fail for one
+// school: BEFORE fires after the membership command wrote its row, AFTER once
+// the employment command wrote its own too.
+func refuseEmploymentWrites(t *testing.T, db *bun.DB, tenantID int64, timing string) func() {
+	t.Helper()
+	ctx := context.Background()
+	_, err := db.ExecContext(ctx, `CREATE OR REPLACE FUNCTION public.refuse_staff_employment() RETURNS trigger
+		LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected owner write failure'; END $$`)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, fmt.Sprintf(`CREATE TRIGGER refuse_staff_employment %s INSERT ON users.staff_employment_profiles
+		FOR EACH ROW WHEN (NEW.tenant_id = %d) EXECUTE FUNCTION public.refuse_staff_employment()`, timing, tenantID))
+	require.NoError(t, err)
+	return func() {
+		_, err := db.ExecContext(ctx, `DROP TRIGGER refuse_staff_employment ON users.staff_employment_profiles`)
+		require.NoError(t, err)
+	}
+}
+
 func TestStaffOwnerWritesRollBackWhenTheCallerCatchesTheFailure(t *testing.T) {
 	t.Parallel()
-	for name, afterWrite := range map[string]bool{"after membership": false, "after employment": true} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			db := testpkg.SetupTestDB(t)
-			ctx := testpkg.Ctx(t)
-			person := testpkg.CreateTestPerson(t, db, "Atomic", "Staff")
-			injected := errors.New("owner write failed")
-			failing, err := schoolMembershipCompose.New(schoolMembershipCompose.Dependencies{
-				DB: db, Observe: func(schoolMembershipCompose.Observation) {},
-				Employment: failingEmployment{
-					StaffEmployment: repositories.MembershipStaffEmployment(repositories.MustNewStaffEmployment(db)),
-					afterWrite:      afterWrite, failure: injected,
-				},
-			})
-			require.NoError(t, err)
+	// One isolated database; the stages run in turn because the injected
+	// trigger is table-wide DDL.
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := testpkg.Ctx(t)
+	membership, err := repositories.NewSchoolMembership(db)
+	require.NoError(t, err)
+	for _, stage := range []struct{ name, timing string }{{"after membership", "BEFORE"}, {"after employment", "AFTER"}} {
+		person := testpkg.CreateTestPerson(t, db, "Atomic", stage.name)
+		allow := refuseEmploymentWrites(t, db, testpkg.Tenant(t), stage.timing)
 
-			// The caller swallows the error and commits its own transaction:
-			// the command-local savepoint must still undo both owners.
-			require.NoError(t, tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
-				_, createErr := failing.CreateStaff(txCtx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{
-					PersonID: person.ID, StaffNotes: "verworfen",
-				}})
-				require.ErrorIs(t, createErr, injected)
-				return nil
-			}))
-			memberships, profiles := staffOwnerRows(t, db, person.ID)
-			assert.Zero(t, memberships, "no membership may outlive the failed staff write")
-			assert.Zero(t, profiles)
-
-			// The retry through the real owners is clean and writes both.
-			membership, err := repositories.NewSchoolMembership(db)
-			require.NoError(t, err)
-			created, err := membership.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{
-				PersonID: person.ID, StaffNotes: "übernommen",
+		// The caller swallows the error and commits its own transaction:
+		// the command-local savepoint must still undo both owners.
+		require.NoError(t, tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+			_, createErr := membership.CreateStaff(txCtx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{
+				PersonID: person.ID, StaffNotes: "verworfen",
 			}})
-			require.NoError(t, err)
-			assert.Equal(t, "übernommen", created.StaffNotes)
-			memberships, profiles = staffOwnerRows(t, db, person.ID)
-			assert.Equal(t, 1, memberships)
-			assert.Equal(t, 1, profiles)
-		})
+			require.ErrorContains(t, createErr, "injected owner write failure", stage.name)
+			return nil
+		}))
+		memberships, profiles := staffOwnerRows(t, db, person.ID)
+		assert.Zero(t, memberships, "%s: no membership may outlive the failed staff write", stage.name)
+		assert.Zero(t, profiles, stage.name)
+
+		// The retry is clean and writes both owners.
+		allow()
+		created, err := membership.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{
+			PersonID: person.ID, StaffNotes: "übernommen",
+		}})
+		require.NoError(t, err, stage.name)
+		assert.Equal(t, "übernommen", created.StaffNotes)
+		memberships, profiles = staffOwnerRows(t, db, person.ID)
+		assert.Equal(t, 1, memberships, stage.name)
+		assert.Equal(t, 1, profiles, stage.name)
 	}
 }
 
@@ -288,11 +279,6 @@ func TestStaffOwnersClassifyAPersonnelNumberConflict(t *testing.T) {
 	require.ErrorIs(t, err, schoolmembership.ErrPersonnelNumberConflict)
 	memberships, _ := staffOwnerRows(t, db, second.ID)
 	assert.Zero(t, memberships, "the refused number takes the membership with it")
-
-	legacy := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Staff
-	staff := &userModels.Staff{PersonID: second.ID, PersonnelNumber: testpkg.StrPtr("PN-7")}
-	require.ErrorIs(t, legacy.Create(ctx, staff), userModels.ErrPersonnelNumberConflict,
-		"the legacy vocabulary still recognizes the duplicate")
 }
 
 func TestStaffOwnersAreTenantIsolated(t *testing.T) {

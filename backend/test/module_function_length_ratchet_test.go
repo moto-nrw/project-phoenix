@@ -327,7 +327,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"workflows/reminderdelivery/internal/application/service.go:(*service).pickupReminders":                                               64,
 	"workflows/reminderdelivery/internal/application/service.go:buildActivityReminders":                                                   61,
 	"workflows/sessionend/internal/application/command.go:(*command).EndSession":                                                          76,
-	"workflows/staffoffboarding/compose/new.go:New":                                                                                       135,
+	"workflows/staffoffboarding/compose/new.go:New":                                                                                       134,
 	"workflows/staffoffboarding/offboarding.go:(*Workflow).snapshot":                                                                      71,
 	"workflows/studentdeletion/compose/new.go:Assemble":                                                                                   133,
 	"workflows/studentdeletion/deletion.go:(*Workflow).loadCounts":                                                                        69,

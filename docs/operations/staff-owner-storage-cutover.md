@@ -102,6 +102,11 @@ raises `23505` with the old constraint name. A retired holder frees the number.
   reads compose the profile in one batched read.
 - Workforce owns the profile through `workforce.StaffEmployments`: notes,
   birthday opt-out, work-time detach, template binding and rotation anchor.
+  Each call is observed under the Workforce operation metrics
+  (`list_staff_employments`, `save_staff_employment`, `append_staff_notes`,
+  ...); the composite staff operations stay observed under School Membership.
+- The identity chain resolves a caller's staff ID from the membership alone,
+  so no request pays for the employment read it does not use.
   Template refreshes read the binding from the profile and ask School
   Membership only which assignees are still live.
 - Schedule resolution (`services.StaffScheduleAssignments`) reads the binding
@@ -143,7 +148,11 @@ Observation queries: [staff-owner-storage-cutover.sql](staff-owner-storage-cutov
 Deploy the previous image. It reads and writes `users.staff` through the view;
 nothing needs to be undone first. Do not run a down migration, do not rename the
 archive back, and do not drop the view, its routing, the personnel-number
-trigger or the counters: #2754 removes them after the rollback window. If the
-view's checksum drifts from the owners, deploy the new image again and fix the
-data in the owner tables; the pre-cutover backfill and its reset refuse to run
-against the view.
+trigger or the counters: #2754 removes them after the rollback window.
+
+If the switch itself refuses (drift, a foreign work-time model, a missing
+checkpoint), nothing changed: keep the previous image, fix the source data and
+re-run `phoenix backfill staff-owner` until `status` exits zero, then release
+again. Once the switch committed, the owner tables are authoritative and the
+pre-cutover backfill and its reset refuse to run against the view; drift seen
+through the view afterwards is corrected in the owner tables.

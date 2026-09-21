@@ -1557,7 +1557,7 @@ func newFactory(
 		StudentRepo:        repos.Student,
 		EducationGroupRepo: repos.Group,
 		RoomRepo:           repos.Room,
-		PersonService:      usersService,
+		PersonService:      timetableOperationPeople{OperationPersonService: usersService, membership: membership},
 		PlanningTrackRepo:  repos.PlanningTrack,
 		Settings:           settingsService,
 		Broadcaster:        realtimeHub,

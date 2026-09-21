@@ -43,7 +43,6 @@ var legacyTimeTimeDateColumns = map[string]string{}
 var unmappedDateColumns = map[string]string{
 	// Expand #2715 creates empty storage with no Go reader or writer. Cutover
 	// must replace this classification with a timezone.Date owner row field.
-	"users.staff_employment_profiles.rotation_anchor_date": "empty Expand storage; no application access before Cutover (#2715)",
 	// People Directory uses explicit joined projections, not a table-bound
 	// model. Its adapter-local studentRow and studentRecordRow use calendar.Date;
 	// adapters/postgres/store_test.go checks the persistence field types.

@@ -69,7 +69,6 @@ var moduleFileSizeAllowlist = map[string]int{
 	"modules/organizationtenancy/inbound/operator/provisioning.go":                   939,
 	"modules/peopledirectory/http/guardian_handlers.go":                              1025,
 	"modules/schoolcalendar/portal/internal/application/service.go":                  2000,
-	"modules/schoolmembership/internal/adapters/postgres/store.go":                   813,
 	"modules/studentpresence/legacy/services/active/active_service.go":               1671,
 	"modules/studentpresence/legacy/services/active/attendance_service.go":           980,
 	"modules/studentpresence/legacy/services/active/session_service.go":              1733,

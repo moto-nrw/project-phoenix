@@ -114,10 +114,15 @@ func (e engine) FindStaffByPerson(ctx context.Context, personID int64) (schoolme
 	return staffToPublic(value), mapError(err)
 }
 
+func (e engine) FindStaffMembershipByPerson(ctx context.Context, personID int64) (schoolmembership.Staff, error) {
+	value, err := e.service.FindStaffMembershipByPerson(ctx, personID)
+	return staffToPublic(value), mapError(err)
+}
+
 func (e engine) ListStaff(ctx context.Context, filter schoolmembership.StaffFilter) ([]schoolmembership.Staff, error) {
 	values, err := e.service.ListStaff(ctx, domain.StaffFilter{
 		IDs: filter.IDs, PersonIDs: filter.PersonIDs,
-		TenantIDs: filter.TenantIDs, IncludeDeleted: filter.IncludeDeleted,
+		TenantIDs: filter.TenantIDs, IncludeDeleted: filter.IncludeDeleted, MembershipOnly: filter.MembershipOnly,
 	})
 	if err != nil {
 		return nil, mapError(err)

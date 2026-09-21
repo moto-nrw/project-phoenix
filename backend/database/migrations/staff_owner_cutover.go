@@ -134,8 +134,11 @@ func reconcileStaffOwnerFinalDelta(ctx context.Context, tx bun.Tx, tenantID int6
 		return err
 	}
 	if !verification.Equal() {
-		return fmt.Errorf("staff owner cutover: tenant %d is not reproducible (%d rows reference another school's work-time model): %s",
-			tenantID, batch.Rejected, verification.Describe())
+		if batch.Rejected > 0 {
+			return fmt.Errorf("staff owner cutover: tenant %d is not reproducible (%d rows reference another school's work-time model): %s",
+				tenantID, batch.Rejected, verification.Describe())
+		}
+		return fmt.Errorf("staff owner cutover: tenant %d is not reproducible: %s", tenantID, verification.Describe())
 	}
 	return persistStaffOwnerCutoverEvidence(ctx, tx, tenantID, verification, batch.Copied, removed)
 }

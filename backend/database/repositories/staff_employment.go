@@ -11,16 +11,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// NewStaffEmployment composes Workforce's owner of the staff employment
-// profile (users.staff_employment_profiles, #2753).
-func NewStaffEmployment(db *bun.DB) (workforce.StaffEmployments, error) {
-	return workforceCompose.NewStaffEmployment(db)
-}
-
-// MustNewStaffEmployment is NewStaffEmployment for composition roots and test
-// graphs that treat a composition failure as a programming error.
+// MustNewStaffEmployment composes Workforce's owner of the staff employment
+// profile (users.staff_employment_profiles, #2753) without observations, for
+// legacy composition and test graphs that treat a composition failure as a
+// programming error. Production roots compose it observed (api/base.go).
 func MustNewStaffEmployment(db *bun.DB) workforce.StaffEmployments {
-	employment, err := NewStaffEmployment(db)
+	employment, err := workforceCompose.NewStaffEmployment(db, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -71,7 +67,7 @@ func membershipEmploymentError(err error) error {
 // live. Workforce never reads users.staff_school_memberships itself.
 func WorkforceLiveStaffIDs(membership schoolmembership.Capability) func(context.Context, []int64) ([]int64, error) {
 	return func(ctx context.Context, ids []int64) ([]int64, error) {
-		members, err := membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: ids})
+		members, err := membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: ids, MembershipOnly: true})
 		if err != nil {
 			return nil, err
 		}

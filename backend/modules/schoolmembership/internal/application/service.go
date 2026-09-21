@@ -62,8 +62,19 @@ func (s *Service) FindStaff(ctx context.Context, id int64, lock string) (result 
 	return result, err
 }
 
-func (s *Service) FindStaffByPerson(ctx context.Context, personID int64) (result domain.Staff, err error) {
-	err = s.runRead(ctx, "find_staff_by_person", func(txCtx context.Context, stats *domain.OperationStats) error {
+func (s *Service) FindStaffByPerson(ctx context.Context, personID int64) (domain.Staff, error) {
+	return s.findStaffByPerson(ctx, "find_staff_by_person", personID, true)
+}
+
+// FindStaffMembershipByPerson reads the membership row alone. The identity
+// chain resolves every request's caller through it and needs only the ID,
+// so it does not pay for the Workforce half.
+func (s *Service) FindStaffMembershipByPerson(ctx context.Context, personID int64) (domain.Staff, error) {
+	return s.findStaffByPerson(ctx, "find_staff_membership_by_person", personID, false)
+}
+
+func (s *Service) findStaffByPerson(ctx context.Context, operation string, personID int64, withEmployment bool) (result domain.Staff, err error) {
+	err = s.runRead(ctx, operation, func(txCtx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
 		result, found, queryStats, err = s.store.FindStaffByPerson(txCtx, personID)
@@ -71,7 +82,7 @@ func (s *Service) FindStaffByPerson(ctx context.Context, personID int64) (result
 		if err == nil && !found {
 			return domain.ErrStaffNotFound
 		}
-		if err != nil {
+		if err != nil || !withEmployment {
 			return err
 		}
 		result, err = s.withEmployment(txCtx, result, stats)
@@ -85,7 +96,7 @@ func (s *Service) ListStaff(ctx context.Context, filter domain.StaffFilter) (res
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListStaff(txCtx, filter)
 		stats.Add(queryStats)
-		if err != nil {
+		if err != nil || filter.MembershipOnly {
 			return err
 		}
 		return s.composeEmployment(txCtx, result, stats)

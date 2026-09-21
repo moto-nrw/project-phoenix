@@ -167,6 +167,10 @@ type StaffFilter struct {
 	// IncludeDeleted also returns soft-deleted rows; history readers use it
 	// to keep resolving offboarded colleagues.
 	IncludeDeleted bool
+	// MembershipOnly skips the Workforce employment half (#2753): the staff
+	// values carry ID, person, tenant and lifecycle only. Callers that read no
+	// employment field set it and save a statement.
+	MembershipOnly bool
 }
 
 // TeacherFilter narrows a teacher listing. The *Contains matches are
@@ -294,6 +298,9 @@ type engine interface {
 	ChangeStudentClass(context.Context, []int64, string, string) (int64, error)
 	FindStaff(ctx context.Context, id int64, lock string) (Staff, error)
 	FindStaffByPerson(context.Context, int64) (Staff, error)
+	// FindStaffMembershipByPerson returns the membership row alone, without
+	// the Workforce employment half: the identity chain needs only the ID.
+	FindStaffMembershipByPerson(context.Context, int64) (Staff, error)
 	ListStaff(context.Context, StaffFilter) ([]Staff, error)
 	CreateStaff(context.Context, CreateStaff) (Staff, error)
 	UpdateStaff(context.Context, UpdateStaff) (Staff, error)

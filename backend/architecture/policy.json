@@ -472,6 +472,13 @@
       "external_test_role": "workflow-integration-test"
     },
     {
+      "path": "database/repositories/staffintegration",
+      "owner": "legacy-composition",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
       "path": "modules/studentdirectoryview",
       "owner": "student-directory-view",
       "role": "postgres",

@@ -169,10 +169,7 @@ func (f *Factory) NewStaffMembershipRuntime(db *bun.DB, logger *slog.Logger, hoo
 	if roles == nil {
 		panic("staff membership runtime: identity role administration is required")
 	}
-	employment, err := repositories.NewStaffEmployment(db)
-	if err != nil {
-		panic(err)
-	}
+	employment := repositories.MustNewStaffEmployment(db)
 	offboarding, err := offboardingcompose.New(offboardingcompose.Dependencies{
 		DB: db, Access: access, Cleanup: hooks.QueueOffboardedDocumentCleanup,
 		Employment:  repositories.MembershipStaffEmployment(employment),

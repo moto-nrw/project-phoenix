@@ -82,6 +82,11 @@ func (e *recordingEngine) FindStaffByPerson(context.Context, int64) (schoolmembe
 	return schoolmembership.Staff{}, nil
 }
 
+func (e *recordingEngine) FindStaffMembershipByPerson(context.Context, int64) (schoolmembership.Staff, error) {
+	e.calls++
+	return schoolmembership.Staff{}, nil
+}
+
 func (e *recordingEngine) ListStaff(_ context.Context, filter schoolmembership.StaffFilter) ([]schoolmembership.Staff, error) {
 	e.calls++
 	e.staffFilter = filter

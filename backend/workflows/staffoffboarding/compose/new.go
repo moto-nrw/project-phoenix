@@ -149,7 +149,7 @@ func New(deps Dependencies) (*staffoffboarding.Workflow, error) {
 		},
 		DB: deps.DB, Observe: func(workforcecompose.Observation) {},
 		LiveStaffIDs: func(ctx context.Context, membershipIDs []int64) ([]int64, error) {
-			rows, err := membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: membershipIDs})
+			rows, err := membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: membershipIDs, MembershipOnly: true})
 			if err != nil {
 				return nil, err
 			}

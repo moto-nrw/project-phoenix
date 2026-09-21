@@ -82,7 +82,7 @@ func TestDataImportCutover_StudentOwnerFailuresRollbackAndReplay(t *testing.T) {
 func TestDataImportCutover_StaffOwnerFailuresRollbackAndReplay(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	tables := []string{"users.persons", "users.staff", "users.teachers", "users.staff_master_data", "users.staff_qualifications", "auth.invitation_tokens"}
+	tables := []string{"users.persons", "users.staff_school_memberships", "users.staff_employment_profiles", "users.teachers", "users.staff_master_data", "users.staff_qualifications", "auth.invitation_tokens"}
 	for _, table := range tables {
 		t.Run(table, func(t *testing.T) {
 			tenantID := testpkg.OwnTenant(t)

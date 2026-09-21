@@ -16,7 +16,7 @@ import (
 
 func buildStaffEmployment(t *testing.T, db *bun.DB) workforce.StaffEmployments {
 	t.Helper()
-	employment, err := NewStaffEmployment(db)
+	employment, err := NewStaffEmployment(db, nil)
 	require.NoError(t, err)
 	return employment
 }
