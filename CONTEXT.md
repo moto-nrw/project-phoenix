@@ -412,7 +412,7 @@ Sprachwahl der Eltern übersetzt ihn nicht von selbst.
 Eine **Übersetzung** eines Schultexts pflegt die Schule selbst. Sie ist
 **gültig**, solange der deutsche Text unverändert ist, zu dem sie geschrieben
 wurde. Danach ist sie **zu prüfen**: Eltern lesen den deutschen Text, bis die
-Schule die Übersetzung anpasst oder bestätigt (ADR 0031).
+Schule die Übersetzung anpasst oder bestätigt (ADR 0034).
 
 ## Phasenende
 
