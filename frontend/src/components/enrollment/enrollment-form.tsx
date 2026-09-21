@@ -828,8 +828,9 @@ export function EnrollmentForm({
     guardianAnswers: customData,
     childAnswers: child.custom,
     gradeLevel: collectGradeLevel ? child.target_grade_level : undefined,
-    // Care-offering conditions match by name (templates aren't phase-bound),
-    // so resolve the child's selected offering ids to names.
+    // Care-offering conditions match the German catalog name (templates aren't
+    // phase-bound). Resolve selected ids against the loaded, canonical catalog,
+    // not the localized display copy, so this stays aligned with the backend.
     offeringNames: new Set(
       Array.from(
         careOfferingsEnabled
@@ -839,9 +840,9 @@ export function EnrollmentForm({
             ).offeringIds
           : [],
       )
-        .map((id) => offerings.find((o) => o.id === id)?.name)
+        .map((id) => loadedOfferings.find((o) => o.id === id)?.name)
         .filter((name): name is string => Boolean(name))
-        .map((name) => name.toLowerCase()),
+        .map((name) => name.trim().toLowerCase()),
     ),
     fieldsByKey,
   });
