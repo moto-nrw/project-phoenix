@@ -130,7 +130,9 @@ func (r *GuardianProfileRepository) FindByIDs(ctx context.Context, ids []int64) 
 // treated as reachable — otherwise staff could target a parent who can never
 // see or answer the invitation.
 //
-// The owner projection retains the caller's transaction/RLS. Its result may
+// The owner projection opens no transaction of its own: its store resolves the
+// caller's ambient transaction from the context and runs on the root connection
+// when there is none. Isolation therefore does not rest on it. Its result may
 // include several schools for one account, so each profile is matched against
 // its own school, never against membership in any school.
 func (r *GuardianProfileRepository) FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*users.GuardianProfile, error) {
