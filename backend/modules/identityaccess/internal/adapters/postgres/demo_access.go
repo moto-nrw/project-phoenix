@@ -41,13 +41,14 @@ func (s *Store) FindActiveDemoAccessByEmail(ctx context.Context, email string, n
 		return domain.DemoAccess{}, false, fmt.Errorf("identity access postgres: lock demo access address: %w", err)
 	}
 	var row struct {
-		ID           int64  `bun:"id"`
-		PersonName   string `bun:"person_name"`
-		SchoolName   string `bun:"school_name"`
-		Source       string `bun:"source"`
-		ContactOptIn bool   `bun:"contact_opt_in"`
+		ID           int64     `bun:"id"`
+		PersonName   string    `bun:"person_name"`
+		SchoolName   string    `bun:"school_name"`
+		Source       string    `bun:"source"`
+		ContactOptIn bool      `bun:"contact_opt_in"`
+		CreatedAt    time.Time `bun:"created_at"`
 	}
-	err = db.NewRaw(`SELECT id, person_name, school_name, source, contact_opt_in FROM auth.demo_accesses
+	err = db.NewRaw(`SELECT id, person_name, school_name, source, contact_opt_in, created_at FROM auth.demo_accesses
 		WHERE email = ? AND expires_at > ? ORDER BY id DESC LIMIT 1`, email, now).Scan(ctx, &row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.DemoAccess{}, false, nil
@@ -57,21 +58,8 @@ func (s *Store) FindActiveDemoAccessByEmail(ctx context.Context, email string, n
 	}
 	return domain.DemoAccess{
 		ID: row.ID, Email: email, PersonName: row.PersonName, SchoolName: row.SchoolName,
-		Source: row.Source, ContactOptIn: row.ContactOptIn,
+		Source: row.Source, ContactOptIn: row.ContactOptIn, CreatedAt: row.CreatedAt,
 	}, true, nil
-}
-
-// RenewDemoAccess replaces the token fingerprint and the expiry.
-func (s *Store) RenewDemoAccess(ctx context.Context, id int64, tokenHash string, expiresAt time.Time) error {
-	db, err := s.database(ctx)
-	if err != nil {
-		return err
-	}
-	_, err = db.NewRaw(`UPDATE auth.demo_accesses SET token_hash = ?, expires_at = ? WHERE id = ?`, tokenHash, expiresAt, id).Exec(ctx)
-	if err != nil {
-		return fmt.Errorf("identity access postgres: renew demo access: %w", err)
-	}
-	return nil
 }
 
 func (s *Store) FindDemoAccessByTokenHash(ctx context.Context, tokenHash string) (domain.DemoAccess, bool, error) {

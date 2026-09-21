@@ -35,7 +35,8 @@ func TestDemoAccessMailRenders(t *testing.T) {
 	assert.Contains(t, text, entryURL+"\r\n")
 	assert.NotContains(t, text, entryURL+" ")
 	for _, part := range []string{html, text} {
-		assert.Contains(t, part, "Hallo Kim Beispiel,")
+		assert.Contains(t, part, "Guten Tag,")
+		assert.NotContains(t, part, "Kim Beispiel", "nothing the public form carried reaches the mail")
 		assert.Contains(t, part, "14 Tage gültig")
 		assert.Contains(t, part, "Fragen? Antworten Sie einfach auf diese Mail.")
 		assert.Contains(t, part, entryURL, "the link must survive without the button")

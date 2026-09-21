@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -56,8 +57,8 @@ func newDemoEnv(t *testing.T) demoEnv {
 	return demoEnv{db: db, router: router, slug: slug, mails: mails}
 }
 
-// address is this test's own prospect: a known address gets no second demo
-// access, so tests sharing one address would renew each other's link.
+// address is this test's own prospect: an address waits between two links,
+// so tests sharing one address would swallow each other's request.
 func (e demoEnv) address() string { return "leitung@" + e.slug + ".example" }
 
 func (e demoEnv) requestBody(t *testing.T) map[string]any {
@@ -89,17 +90,44 @@ func (e demoEnv) post(t *testing.T, path string, body any) *httptest.ResponseRec
 	return testutil.ExecuteRequest(e.router, testutil.NewJSONRequest(t, http.MethodPost, path, body))
 }
 
+// requestToken asks for a demo access and reads the token from the mailed
+// link: the answer never carries it (#3465).
 func (e demoEnv) requestToken(t *testing.T) string {
 	t.Helper()
-	rr := e.post(t, "/demo/access-requests", e.requestBody(t))
+	return e.requestTokenWith(t, e.requestBody(t))
+}
+
+func (e demoEnv) requestTokenWith(t *testing.T, body map[string]any) string {
+	t.Helper()
+	links := len(e.mailedLinks())
+	rr := e.post(t, "/demo/access-requests", body)
 	require.Equal(t, http.StatusAccepted, rr.Code, rr.Body.String())
-	var response struct {
-		EntryURL string `json:"entry_url"`
-	}
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+	require.JSONEq(t, `{"link_sent":true}`, rr.Body.String(), "the answer is the same for every address")
+	require.Eventually(t, func() bool { return len(e.mailedLinks()) == links+1 },
+		2*time.Second, 10*time.Millisecond, "the link mail: %v", e.mails.Templates())
+	entryURL := e.mailedLinks()[links]
 	prefix := demoEntryOrigin + "/demo#token="
-	require.True(t, strings.HasPrefix(response.EntryURL, prefix), response.EntryURL)
-	return strings.TrimPrefix(response.EntryURL, prefix)
+	require.True(t, strings.HasPrefix(entryURL, prefix), entryURL)
+	return strings.TrimPrefix(entryURL, prefix)
+}
+
+// mailedLinks are the entry URLs of the link mails that left so far.
+func (e demoEnv) mailedLinks() []string {
+	var links []string
+	for _, message := range e.mails.Messages() {
+		if content, ok := message.Content.(map[string]any); ok && message.Template == "demo-access.html" {
+			link, _ := content["EntryURL"].(string)
+			links = append(links, link)
+		}
+	}
+	return links
+}
+
+// endCooldown ages this test's accesses past the wait between two links.
+func (e demoEnv) endCooldown(t *testing.T) {
+	t.Helper()
+	_, err := e.db.NewRaw(`UPDATE auth.demo_accesses SET created_at = created_at - INTERVAL '11 minutes' WHERE email = ?`, e.address()).Exec(context.Background())
+	require.NoError(t, err)
 }
 
 func fingerprint(token string) string { return jwt.OpaqueCapabilityFingerprint(token) }

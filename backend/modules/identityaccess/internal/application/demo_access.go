@@ -42,45 +42,44 @@ func NewDemoAccess(deps DemoAccessDependencies) (*DemoAccess, error) {
 	}, nil
 }
 
-// Request stores a new demo access and returns its token. The token is
-// returned once and never stored. An address that already has an active
-// access gets no second one (#3465): that access is renewed and its link goes
-// out by mail only, so nobody enters a demo with somebody else's address.
-// Only the fingerprint is stored, so the renewed link replaces the earlier one.
-func (d *DemoAccess) Request(ctx context.Context, access domain.DemoAccess, entryURLPrefix string) (id int64, token string, resent bool, err error) {
+// Request stores a demo access and mails its link (#3465). The link leaves
+// by mail only, so nobody enters a demo with somebody else's address and the
+// answer tells nothing about the address. Every request stores its own
+// access: earlier links stay valid until they expire, and the prospect's
+// latest details are kept. An address inside its cooldown gets nothing new.
+// The team hears of a first access and of a changed contact consent.
+func (d *DemoAccess) Request(ctx context.Context, access domain.DemoAccess, entryURLPrefix string) error {
 	if err := access.Normalize(); err != nil {
-		return 0, "", false, err
+		return err
 	}
 	raw, fingerprint, err := d.tokens.NewToken()
 	if err != nil {
-		return 0, "", false, fmt.Errorf("mint demo access token: %w", err)
+		return fmt.Errorf("mint demo access token: %w", err)
 	}
 	access.TokenHash = fingerprint
 	access.ExpiresAt = d.now().Add(domain.DemoAccessLifetime)
+	var stored, lead bool
 	err = d.adminTx(ctx, func(txCtx context.Context) error {
 		known, found, findErr := d.store.FindActiveDemoAccessByEmail(txCtx, access.Email, d.now())
-		if findErr != nil {
+		if findErr != nil || (found && known.CoolingDown(d.now())) {
 			return findErr
 		}
-		if found {
-			resent = true
-			known.TokenHash, known.ExpiresAt = access.TokenHash, access.ExpiresAt
-			access = known
-			return d.store.RenewDemoAccess(txCtx, access.ID, access.TokenHash, access.ExpiresAt)
-		}
+		stored, lead = true, !found || known.ContactOptIn != access.ContactOptIn
 		var insertErr error
 		access.ID, insertErr = d.store.InsertDemoAccess(txCtx, access)
 		return insertErr
 	})
 	if err != nil {
-		return 0, "", false, fmt.Errorf("store demo access: %w", err)
+		return fmt.Errorf("store demo access: %w", err)
+	}
+	if !stored {
+		return nil
 	}
 	d.mail.SendDemoAccessLink(ctx, access, entryURLPrefix+raw)
-	if resent {
-		return access.ID, "", true, nil
+	if lead {
+		d.mail.SendDemoLead(ctx, access)
 	}
-	d.mail.SendDemoLead(ctx, access)
-	return access.ID, raw, false, nil
+	return nil
 }
 
 // Ready reports whether the token's demo school can be entered.

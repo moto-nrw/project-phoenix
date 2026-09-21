@@ -100,15 +100,11 @@ func (m demoAccessMail) SendDemoLead(ctx context.Context, access domain.DemoAcce
 
 type demoAccessEngine struct{ flows *application.DemoAccess }
 
-func (e demoAccessEngine) RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) (identityaccess.IssuedDemoAccess, error) {
-	id, token, resent, err := e.flows.Request(ctx, domain.DemoAccess{
+func (e demoAccessEngine) RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) error {
+	return demoAccessError(e.flows.Request(ctx, domain.DemoAccess{
 		Email: request.Email, PersonName: request.PersonName, SchoolName: request.SchoolName,
 		Source: request.Source, ContactOptIn: request.ContactOptIn,
-	}, request.EntryURLPrefix)
-	if err != nil {
-		return identityaccess.IssuedDemoAccess{}, demoAccessError(err)
-	}
-	return identityaccess.IssuedDemoAccess{ID: id, Token: token, LinkSent: resent}, nil
+	}, request.EntryURLPrefix))
 }
 
 func (e demoAccessEngine) DemoAccessReady(ctx context.Context, token, schoolSlug string) (bool, error) {

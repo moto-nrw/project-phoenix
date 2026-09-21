@@ -32,15 +32,6 @@ type DemoAccessRequest struct {
 	EntryURLPrefix string
 }
 
-// IssuedDemoAccess is a stored demo access with its token. The token exists
-// only here; it cannot be read back. LinkSent reports an address that already
-// had an active access: its link went out by mail only and Token is empty.
-type IssuedDemoAccess struct {
-	ID       int64
-	Token    string
-	LinkSent bool
-}
-
 // DemoAccessMessage is what the two demo mails (#3465) say about an access.
 type DemoAccessMessage struct {
 	AccessID     int64
@@ -59,7 +50,7 @@ type DemoAccessMail interface {
 
 // DemoAccessEngine is the composed implementation behind DemoAccess.
 type DemoAccessEngine interface {
-	RequestDemoAccess(ctx context.Context, request DemoAccessRequest) (IssuedDemoAccess, error)
+	RequestDemoAccess(ctx context.Context, request DemoAccessRequest) error
 	DemoAccessReady(ctx context.Context, token, schoolSlug string) (bool, error)
 	RedeemDemoAccess(ctx context.Context, token, schoolSlug, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 }
@@ -75,7 +66,7 @@ func NewDemoAccess(engine DemoAccessEngine) *DemoAccess {
 	return &DemoAccess{engine: engine}
 }
 
-func (d *DemoAccess) RequestDemoAccess(ctx context.Context, request DemoAccessRequest) (IssuedDemoAccess, error) {
+func (d *DemoAccess) RequestDemoAccess(ctx context.Context, request DemoAccessRequest) error {
 	return d.engine.RequestDemoAccess(ctx, request)
 }
 

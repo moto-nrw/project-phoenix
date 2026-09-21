@@ -2,14 +2,11 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // The two mails of the public demo (#3465), bound to the Delivery dispatcher:
@@ -31,7 +28,7 @@ type demoAccessWiring struct {
 
 // demoAccessWiringFor composes the demo access for APP_ENV=demo only.
 func demoAccessWiringFor(appEnv string, dispatcher *email.Dispatcher, defaultFrom email.Email, frontendURL string, logger *slog.Logger) *demoAccessWiring {
-	if !strings.EqualFold(strings.TrimSpace(appEnv), "demo") {
+	if !email.IsDemoEnvironment(appEnv) {
 		return nil
 	}
 	return &demoAccessWiring{dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL, logger: logger}
@@ -56,21 +53,22 @@ func newDemoAccessMail(wiring *demoAccessWiring) demoAccessMail {
 	}
 	return demoAccessMail{
 		dispatcher: wiring.dispatcher, from: wiring.defaultFrom, backoff: backoff, logger: logger,
-		logoURL: fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", strings.TrimRight(wiring.frontendURL, "/")),
+		logoURL: motoLogoURL(wiring.frontendURL),
 	}
 }
 
 func (m demoAccessMail) SendDemoAccessLink(ctx context.Context, access identityaccess.DemoAccessMessage, entryURL string) {
 	m.dispatch(ctx, "demo_access", access.AccessID, email.Message{
-		From:     m.from,
-		To:       email.NewEmail(access.PersonName, access.Email),
+		From: m.from,
+		// Anyone can type a foreign address into the public form, so nothing
+		// the form carried reaches this mail: no name, no school.
+		To:       email.NewEmail("", access.Email),
 		ReplyTo:  demoContact,
 		Subject:  "Ihr Link zur moto-Demo",
 		Template: email.TemplateDemoAccess,
 		Content: map[string]any{
-			"PersonName": access.PersonName,
-			"EntryURL":   entryURL,
-			"LogoURL":    m.logoURL,
+			"EntryURL": entryURL,
+			"LogoURL":  m.logoURL,
 		},
 	})
 }
@@ -101,9 +99,7 @@ func (m demoAccessMail) dispatch(ctx context.Context, kind string, accessID int6
 			slog.Int64("demo_access_id", accessID))
 		return
 	}
-	// Async delivery must outlive the HTTP request without retaining its tx.
-	detached := tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(context.WithoutCancel(ctx)))
-	m.dispatcher.Dispatch(detached, email.DeliveryRequest{
+	m.dispatcher.Dispatch(detachedContext(ctx), email.DeliveryRequest{
 		Message:       message,
 		Metadata:      email.DeliveryMetadata{Type: kind, ReferenceID: accessID, Recipient: message.To.Address},
 		BackoffPolicy: m.backoff,

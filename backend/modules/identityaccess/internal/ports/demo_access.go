@@ -14,8 +14,6 @@ type DemoAccessStore interface {
 	// FindActiveDemoAccessByEmail returns the newest access of the address
 	// that has not expired at now. It serialises requests of one address.
 	FindActiveDemoAccessByEmail(ctx context.Context, email string, now time.Time) (domain.DemoAccess, bool, error)
-	// RenewDemoAccess replaces the token fingerprint and the expiry.
-	RenewDemoAccess(ctx context.Context, id int64, tokenHash string, expiresAt time.Time) error
 	FindDemoAccessByTokenHash(ctx context.Context, tokenHash string) (domain.DemoAccess, bool, error)
 	RecordDemoAccessUse(ctx context.Context, id, accountID int64, usedAt time.Time) error
 	// FindSchoolAdministrator returns the oldest active administrator of the school.
