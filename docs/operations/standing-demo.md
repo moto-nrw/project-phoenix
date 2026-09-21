@@ -12,8 +12,8 @@ school of #3461 stays selectable as the fallback (see below).
    points at the waiting room `FRONTEND_URL/demo`, because `https://<slug>.<TENANT_DOMAIN>`
    answers only once the school exists; the waiting room sends the visitor
    there when the status turns `ready`. The serving backend may
-   only insert an order and read `name`, `status`, `tenant_id` and
-   `visitor_account_id`; `seed_state` with its credentials and `status` stay
+   only insert an order, read `name`, `status`, `tenant_id` and
+   `visitor_account_id`, and stamp `last_used_at`; `seed_state` with its credentials and `status` stay
    out of its reach (column grants, `phoenix_admin` bypasses row security).
 2. The demo process claims orders oldest first. At most **3** seeds run at a
    time (`demoSeedWorkers`); further orders wait. The seed workers share one
@@ -26,8 +26,17 @@ school of #3461 stays selectable as the fallback (see below).
    the administrator role, and the demo access signs in as that account.
 4. After the seed the process runs the school's first tick, which rebuilds
    rooms and attendance at any hour and on any weekday, and only then sets
-   `status = ready`. From then on the school has its own ticker.
-5. A failed order is repeated once. The repetition renames and soft-deletes
+   `status = ready`.
+5. Only schools in use get ticks (#3464). Redeeming the token stamps
+   `last_used_at` on the school's row (the serving role may write that one
+   column), and the process keeps one ticker per ready school entered in the
+   last 30 minutes (`demoInUseWindow`). A new ticker ticks at once, so an
+   entered school moves within about a second; one that falls out of the
+   window stops. A returning visitor redeems the link again and the
+   simulation resumes; the first tick rebuilds attendance when the daily close
+   ended it. Tokens redeemed only once cover a single visit: a visitor who
+   stays longer than the window without entering again sees a still school.
+6. A failed order is repeated once. The repetition renames and soft-deletes
    the school the broken attempt left under the slug (schools are never
    hard-deleted and keep their unique subdomain) and seeds with a fresh
    account scope. Account emails and usernames carry the slug's random
@@ -38,14 +47,25 @@ school of #3461 stays selectable as the fallback (see below).
    the process waits a minute before it tries to sign in again. After the second failure the order is `failed`;
    the entry page tells the prospect to request a new link, and that address
    no longer counts as having an active demo access.
-6. A restart releases the claims of the stopped process. An order whose seed
+7. A restart releases the claims of the stopped process. An order whose seed
    state was already stored is not seeded again; it only gets its first tick.
 
 An address whose newest unexpired demo access enters a school that did not
 fail gets no second school: after the 10-minute cooldown of #3465 a further
 request stores an access into that same school and mails its link.
 
-`--once` empties the queue, ticks every ready school once and exits.
+`--once` empties the queue, ticks every ready school once, in use or not, and exits.
+
+### Capacity
+
+The server queues at most `--demo-max-active-schools` demo schools at once
+(#3466): queued schools and ready ones whose school is not deleted count, a
+failed one does not. Beyond that a new address gets `503
+demo_capacity_reached`; an address with a school still gets its link. The
+value sits on the `server` command in `environments/demo.compose.yml` (300);
+check it against the host size before a fair and change it there with a
+deploy. `serve` refuses to start under `APP_ENV=demo` without it; locally
+pass the flag to `serve`.
 
 ## Fallback: the standing demo school
 

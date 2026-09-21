@@ -176,8 +176,19 @@ func (s *DemoStateStore) ReadyNames(ctx context.Context) ([]string, error) {
 	return names, nil
 }
 
+// ActiveNames lists the ready demo schools entered since the given instant:
+// the only ones the simulation serves (#3464).
+func (s *DemoStateStore) ActiveNames(ctx context.Context, since time.Time) ([]string, error) {
+	var names []string
+	err := s.db.NewRaw(`SELECT name FROM platform.demo_school_states WHERE status = 'ready' AND last_used_at >= ? ORDER BY created_at, name`, since).Scan(ctx, &names)
+	if err != nil {
+		return nil, fmt.Errorf("list demo schools in use: %w", err)
+	}
+	return names, nil
+}
+
 // DemoOrderStore is the serving backend's side of the queue. Its role may
-// only add an order and read its progress, never the seed state.
+// only add an order, read its progress and note its use, never the seed state.
 type DemoOrderStore struct{ database Database }
 
 func NewDemoOrderStore(database Database) *DemoOrderStore {
@@ -191,10 +202,27 @@ type DemoProgress struct {
 	VisitorAccountID int64  `bun:"visitor_account_id"`
 }
 
-func (s *DemoOrderStore) Enqueue(ctx context.Context, name, schoolName, personName string) error {
+// Enqueue queues the order unless maxActive demo schools hold a place: queued
+// ones and ready ones whose school is not deleted. A failed order holds none.
+// The lock makes concurrent orders take turns until the caller's transaction
+// ends, so they cannot pass the count together.
+func (s *DemoOrderStore) Enqueue(ctx context.Context, name, schoolName, personName string, maxActive int) error {
 	db, err := s.database(ctx)
 	if err != nil {
 		return err
+	}
+	if _, err := db.NewRaw(`SELECT pg_advisory_xact_lock(hashtextextended('platform.demo_school_states:capacity', 0))`).Exec(ctx); err != nil {
+		return fmt.Errorf("lock demo school capacity: %w", err)
+	}
+	var active int
+	err = db.NewRaw(`SELECT COUNT(*) FROM platform.demo_school_states AS state
+		LEFT JOIN platform.schools AS school ON school.id = state.tenant_id
+		WHERE state.status = 'preparing' OR (state.status = 'ready' AND school.deleted_at IS NULL)`).Scan(ctx, &active)
+	if err != nil {
+		return fmt.Errorf("count active demo schools: %w", err)
+	}
+	if active >= maxActive {
+		return ErrDemoCapacityReached
 	}
 	_, err = db.NewRaw(`INSERT INTO platform.demo_school_states (name, school_name, person_name) VALUES (?, ?, ?)`,
 		name, schoolName, personName).Exec(ctx)
@@ -224,8 +252,23 @@ func (s *DemoOrderStore) Progress(ctx context.Context, name string) (*DemoProgre
 	return &progress, nil
 }
 
+// MarkUsed notes that a visitor entered the school at usedAt.
+func (s *DemoOrderStore) MarkUsed(ctx context.Context, name string, usedAt time.Time) error {
+	db, err := s.database(ctx)
+	if err != nil {
+		return err
+	}
+	if _, err := db.NewRaw(`UPDATE platform.demo_school_states SET last_used_at = ? WHERE name = ?`, usedAt, name).Exec(ctx); err != nil {
+		return fmt.Errorf("note demo school use: %w", err)
+	}
+	return nil
+}
+
 // ErrDemoOrderExists reports a name that is already queued or seeded.
 var ErrDemoOrderExists = errors.New("demo school order already exists")
+
+// ErrDemoCapacityReached reports that maxActive demo schools hold a place.
+var ErrDemoCapacityReached = errors.New("demo capacity reached")
 
 // Return hands a claimed order back without counting the attempt: what
 // stopped it was not the order's fault.

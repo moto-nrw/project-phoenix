@@ -4,9 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 )
 
 var ErrDemoAlreadyRunning = errors.New("demo process already running")
+
+// ErrDemoCapacityReached reports that the configured number of active demo
+// schools exists, so no further one is queued (#3466).
+var ErrDemoCapacityReached = errors.New("demo capacity reached")
 
 // DemoSchoolState retains the complete synthetic seed contract. It is never
 // exposed through a tenant or operator HTTP endpoint: it includes credentials.
@@ -73,6 +78,9 @@ type DemoQueueEngine interface {
 	// attempt, when something other than the order stopped the seed.
 	ReturnDemoSchoolOrder(ctx context.Context, slug string) error
 	ReadyDemoSchools(context.Context) ([]string, error)
+	// ActiveDemoSchools lists the ready schools a visitor entered since the
+	// instant; the simulation serves only these (#3464).
+	ActiveDemoSchools(ctx context.Context, since time.Time) ([]string, error)
 }
 
 // DemoSchoolQueue hands the demo process its orders. Only the process that
@@ -103,6 +111,7 @@ type DemoSchoolProgress struct {
 type DemoOrderEngine interface {
 	OrderDemoSchool(ctx context.Context, schoolName, personName string) (slug string, err error)
 	DemoSchoolProgress(ctx context.Context, slug string) (*DemoSchoolProgress, error)
+	MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error
 }
 
 // DemoSchoolOrders is the serving backend's side: it queues a demo school
@@ -118,7 +127,8 @@ func NewDemoSchoolOrders(engine DemoOrderEngine) *DemoSchoolOrders {
 }
 
 // OrderDemoSchool queues a school named schoolName and returns its slug: the
-// name as a DNS label plus a random suffix.
+// name as a DNS label plus a random suffix. It reports ErrDemoCapacityReached
+// while the configured number of active demo schools exists.
 func (d *DemoSchoolOrders) OrderDemoSchool(ctx context.Context, schoolName, personName string) (string, error) {
 	if schoolName == "" || personName == "" {
 		return "", fmt.Errorf("demo school and person name are required")
@@ -129,4 +139,10 @@ func (d *DemoSchoolOrders) OrderDemoSchool(ctx context.Context, schoolName, pers
 // DemoSchoolProgress returns nil for a slug nobody ordered.
 func (d *DemoSchoolOrders) DemoSchoolProgress(ctx context.Context, slug string) (*DemoSchoolProgress, error) {
 	return d.engine.DemoSchoolProgress(ctx, slug)
+}
+
+// MarkDemoSchoolUsed notes that a visitor entered the school, which keeps its
+// simulation running (#3464).
+func (d *DemoSchoolOrders) MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error {
+	return d.engine.MarkDemoSchoolUsed(ctx, slug, usedAt)
 }

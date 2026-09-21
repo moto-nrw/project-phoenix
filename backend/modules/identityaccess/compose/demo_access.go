@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
@@ -39,17 +40,28 @@ type DemoSessions = ports.DemoSessions
 // DemoSchools reaches the demo schools through Organisation & Tenancy inside
 // the flow's administrative transaction (#3463). PrepareDemoSchool returns
 // the slug a new access enters: a queued school of its own or the standing
-// school. DemoSchoolEntry reports "preparing" until the school is seeded,
-// exists and is active.
+// school, or identityaccess.ErrDemoCapacityReached when no further school
+// may be queued (#3466). DemoSchoolEntry reports "preparing" until the school
+// is seeded, exists and is active. MarkDemoSchoolUsed notes an entry into the
+// school.
 type DemoSchools interface {
 	PrepareDemoSchool(ctx context.Context, schoolName, personName string) (slug string, err error)
 	DemoSchoolEntry(ctx context.Context, slug string) (identityaccess.DemoSchoolEntry, error)
+	MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error
 }
 
 type demoSchoolsPort struct{ schools DemoSchools }
 
+func (p demoSchoolsPort) MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error {
+	return p.schools.MarkDemoSchoolUsed(ctx, slug, usedAt)
+}
+
 func (p demoSchoolsPort) PrepareDemoSchool(ctx context.Context, schoolName, personName string) (string, error) {
-	return p.schools.PrepareDemoSchool(ctx, schoolName, personName)
+	slug, err := p.schools.PrepareDemoSchool(ctx, schoolName, personName)
+	if errors.Is(err, identityaccess.ErrDemoCapacityReached) {
+		return "", domain.ErrDemoCapacityReached
+	}
+	return slug, err
 }
 
 func (p demoSchoolsPort) DemoSchoolEntry(ctx context.Context, slug string) (domain.DemoSchoolEntry, error) {
@@ -121,12 +133,15 @@ func (e demoAccessEngine) RequestDemoAccess(ctx context.Context, request identit
 	return demoAccessError(e.flows.Request(ctx, domain.DemoAccess{
 		Email: request.Email, PersonName: request.PersonName, SchoolName: request.SchoolName,
 		Source: request.Source, ContactOptIn: request.ContactOptIn,
-	}, request.EntryURLPrefix))
+	}, request.ClientIP, request.EntryURLPrefix))
 }
 
-func (e demoAccessEngine) DemoAccessStatus(ctx context.Context, token string) (string, string, error) {
-	status, schoolSlug, err := e.flows.Status(ctx, token)
-	return status, schoolSlug, demoAccessError(err)
+func (e demoAccessEngine) DemoAccessStatus(ctx context.Context, token string) (identityaccess.DemoAccessProgress, error) {
+	access, status, err := e.flows.Status(ctx, token)
+	if err != nil {
+		return identityaccess.DemoAccessProgress{}, demoAccessError(err)
+	}
+	return identityaccess.DemoAccessProgress{Status: status, SchoolSlug: access.SchoolSlug, SchoolName: access.SchoolName}, nil
 }
 
 func (e demoAccessEngine) RedeemDemoAccess(ctx context.Context, token, ipAddress, userAgent string) (string, string, error) {
@@ -139,11 +154,16 @@ var demoAccessSentinels = []struct{ internal, public error }{
 	{domain.ErrDemoAccessUnknown, identityaccess.ErrDemoAccessUnknown},
 	{domain.ErrDemoAccessExpired, identityaccess.ErrDemoAccessExpired},
 	{domain.ErrDemoSchoolPreparing, identityaccess.ErrDemoSchoolPreparing},
+	{domain.ErrDemoCapacityReached, identityaccess.ErrDemoCapacityReached},
 }
 
 func demoAccessError(err error) error {
 	if err == nil {
 		return nil
+	}
+	var limited *domain.DemoAccessRateLimitedError
+	if errors.As(err, &limited) {
+		return &identityaccess.DemoAccessRateLimitError{RetryAt: limited.RetryAt}
 	}
 	for _, sentinel := range demoAccessSentinels {
 		if errors.Is(err, sentinel.internal) {
