@@ -19,15 +19,21 @@ vi.mock("~/components/ui/form-modal", () => ({
     children,
     footer,
     error,
+    isBackdropDismissDisabled,
   }: {
     isOpen: boolean;
     title: string;
     children: React.ReactNode;
     footer?: React.ReactNode;
     error?: string | { message: string } | null;
+    isBackdropDismissDisabled?: boolean;
   }) =>
     isOpen ? (
-      <div role="dialog" aria-label={title}>
+      <div
+        role="dialog"
+        aria-label={title}
+        data-backdrop-dismiss-disabled={String(!!isBackdropDismissDisabled)}
+      >
         <h2>{title}</h2>
         {error ? (
           <div role="alert">
@@ -57,6 +63,25 @@ function submit(): void {
 describe("CareWeeklyPlanModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("keeps the staged plan on a click next to the dialog (#3370)", () => {
+    render(
+      <CareWeeklyPlanModal
+        isOpen
+        onClose={vi.fn()}
+        careDaysSource="weekly_plan"
+        initialArrivalSchedules={initialArrivalSchedules}
+        initialPickupSchedules={initialPickupSchedules}
+        onSubmit={vi.fn()}
+        successMessage="Betreuungszeiten übernommen"
+      />,
+    );
+
+    // Das Verhalten selbst prüft form-modal.test.tsx.
+    expect(
+      screen.getByRole("dialog", { name: "Wochenplan festlegen" }),
+    ).toHaveAttribute("data-backdrop-dismiss-disabled", "true");
   });
 
   it("loads existing weekly rows and hands over the changed schedules", async () => {

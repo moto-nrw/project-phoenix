@@ -473,7 +473,7 @@ export function StudentCreateModal({
           if (!open) onClose();
         }}
       >
-        <SlideOverContent widthClass="sm:w-[720px]">
+        <SlideOverContent widthClass="sm:w-[720px]" isBackdropDismissDisabled>
           <SlideOverHeader className="flex-row items-start justify-between gap-3">
             <div className="min-w-0">
               <SlideOverTitle>Neues Kind</SlideOverTitle>
