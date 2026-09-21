@@ -55,6 +55,8 @@ type Dependencies struct {
 	// change flows (#3332). They require Sessions and Operators;
 	// compositions without it report ErrOperatorProvisioningUnavailable.
 	OperatorProvisioning *OperatorProvisioningDependencies
+	// Demo composes public demo access only in the demo environment.
+	Demo *DemoDependencies
 }
 
 // New composes the Identity & Access module. Guardian operations run on the
@@ -71,10 +73,6 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("identity access compose: all dependencies are required")
 	}
-	// Every flow attaches the unit of work through the same reference, so
-	// a root that only has its runtime after the module is composed binds
-	// it once and every flow composed above sees it (#3364). The caller's
-	// own attachment stays the fallback until then.
 	runtime := tenant.NewRuntimeRef(nil)
 	if dependencies.Sessions != nil {
 		sessions := *dependencies.Sessions
@@ -133,6 +131,10 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if err != nil {
 		return nil, err
 	}
+	demoAccess, err := composeDemoAccess(dependencies.DB, auth, dependencies.Demo)
+	if err != nil {
+		return nil, err
+	}
 	e := engine{
 		calendarFeeds: newCalendarFeeds(service, store),
 		profiles:      application.NewAccountProfiles(service, store), guardianSchools: application.NewGuardianSchools(service, store),
@@ -144,7 +146,7 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		invitationMaintenance: application.NewSchoolInvitationMaintenance(store, invitationLogger(dependencies.Invitations)),
 	}
 	e.runtime = runtime.Attach
-	return identityaccess.NewModule(e, runtime), nil
+	return identityaccess.NewDemoModule(e, runtime, demoAccess), nil
 }
 
 func newPasskeyRecords(service *application.Service, store *postgres.Store) (*application.OperatorPasskey, *application.AccountPasskey) {

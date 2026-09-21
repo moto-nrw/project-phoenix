@@ -444,7 +444,8 @@ type TenantRuntimeBinding interface {
 
 // Module is the public Identity & Access facade.
 type Module struct {
-	engine Engine
+	engine     Engine
+	demoAccess *DemoAccess
 	// runtime is the binding for the unit of work the module opens its own
 	// transactions under. The root composes the module before it has built
 	// the runtime, so it is bound afterwards through SetTenantRuntime.
