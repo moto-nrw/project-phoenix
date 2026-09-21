@@ -6,7 +6,7 @@ import { SettingsTimeField } from "./time-field";
 describe("SettingsTimeField", () => {
   it("renders with value", () => {
     render(<SettingsTimeField value="18:00" onChange={vi.fn()} />);
-    const input = screen.getByPlaceholderText("HH:MM");
+    const input = screen.getByPlaceholderText("HH:MM") as HTMLInputElement;
     expect(input.value).toBe("18:00");
   });
 
