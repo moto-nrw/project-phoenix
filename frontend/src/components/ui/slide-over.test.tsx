@@ -13,6 +13,9 @@ vi.mock("vaul", async () => {
   const OpenChangeContext = React.createContext<
     ((open: boolean) => void) | undefined
   >(undefined);
+  const InteractOutsideContext = React.createContext<{
+    current: ((event: Event) => void) | undefined;
+  } | null>(null);
 
   return {
     Drawer: {
@@ -24,22 +27,43 @@ vi.mock("vaul", async () => {
         children: React.ReactNode;
         direction?: string;
         onOpenChange?: (open: boolean) => void;
-      }) => (
-        <OpenChangeContext.Provider value={onOpenChange}>
-          <div data-direction={direction}>
-            {/* Vaul schließt selbst bei Escape und Klick auf den Hintergrund und
-              meldet das über onOpenChange. Das echte Vaul lässt sich in jsdom
-              nicht fahren, prüfbar ist aber das, was uns gehört: dass der
-              Rückruf beim Aufrufer ankommt. */}
-            <button
-              type="button"
-              data-testid="vaul-dismiss"
-              onClick={() => onOpenChange?.(false)}
-            />
-            {children}
-          </div>
-        </OpenChangeContext.Provider>
-      ),
+      }) => {
+        const interactOutsideHandler = React.useRef<
+          ((event: Event) => void) | undefined
+        >(undefined);
+        return (
+          <OpenChangeContext.Provider value={onOpenChange}>
+            <InteractOutsideContext.Provider value={interactOutsideHandler}>
+              <div data-direction={direction}>
+                {/* Vaul schließt selbst bei Escape und Klick auf den Hintergrund
+                  und meldet das über onOpenChange. Das echte Vaul lässt sich in
+                  jsdom nicht fahren, prüfbar ist aber das, was uns gehört: dass
+                  der Rückruf beim Aufrufer ankommt. */}
+                <button
+                  type="button"
+                  data-testid="vaul-dismiss"
+                  onClick={() => onOpenChange?.(false)}
+                />
+                {/* Der Hintergrund liegt neben, nicht im Inhalt. Er schließt nur,
+                  wenn der von Content registrierte Radix-Handler das Ereignis
+                  nicht abweist. */}
+                <button
+                  type="button"
+                  data-testid="vaul-outside"
+                  onClick={() => {
+                    const event = new Event("pointerdown", {
+                      cancelable: true,
+                    });
+                    interactOutsideHandler.current?.(event);
+                    if (!event.defaultPrevented) onOpenChange?.(false);
+                  }}
+                />
+                {children}
+              </div>
+            </InteractOutsideContext.Provider>
+          </OpenChangeContext.Provider>
+        );
+      },
       Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
       Overlay: React.forwardRef<
         HTMLDivElement,
@@ -51,20 +75,12 @@ vi.mock("vaul", async () => {
           onInteractOutside?: (event: Event) => void;
         }
       >(({ onInteractOutside, children, ...props }, ref) => {
-        const onOpenChange = React.useContext(OpenChangeContext);
+        const interactOutsideHandler = React.useContext(InteractOutsideContext);
+        if (interactOutsideHandler) {
+          interactOutsideHandler.current = onInteractOutside;
+        }
         return (
           <div ref={ref} {...props}>
-            {/* Radix' Vertrag: ein Klick neben den Inhalt schließt nur, wenn
-                onInteractOutside das Ereignis nicht abgewiesen hat. */}
-            <button
-              type="button"
-              data-testid="vaul-outside"
-              onClick={() => {
-                const event = new Event("pointerdown", { cancelable: true });
-                onInteractOutside?.(event);
-                if (!event.defaultPrevented) onOpenChange?.(false);
-              }}
-            />
             {children}
           </div>
         );
