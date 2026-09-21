@@ -23,8 +23,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -58,7 +58,7 @@ func setupAuthRoute(t *testing.T) *testContext {
 func setupAuthDependenciesRoute(t *testing.T) (*bun.DB, *authAPI.Resource) {
 	t.Helper()
 	db, svc := testutil.SetupAuthModule(t)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, testSchoolDirectory{schools: svc.Schools, db: db, runtime: testpkg.TenantRuntime(t, db)}, svc.AccountAuthentication, db)
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, testSchoolDirectory{schools: svc.Schools, db: db, runtime: testpkg.TenantRuntime(t, db)}, svc.AccountAuthentication, authAPI.TenantUnitOfWork{})
 	resource.SettingsService = svc.Settings
 	return db, resource
 }
@@ -1994,9 +1994,9 @@ func TestLogout(t *testing.T) {
 // TestListTenants tests the public GET /auth/tenants endpoint
 func TestListTenants(t *testing.T) {
 	t.Parallel()
-	db, authRoute := setupAuthDependenciesRoute(t)
+	_, authRoute := setupAuthDependenciesRoute(t)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, authAPI.TenantUnitOfWork{})
 
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())
@@ -2067,7 +2067,7 @@ func setupAuthRouteWithSchoolRepo(t *testing.T) *testContext {
 	t.Helper()
 
 	db, authRoute := setupAuthDependenciesRoute(t)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, authAPI.TenantUnitOfWork{})
 
 	return &testContext{
 		db:       db,
@@ -2288,7 +2288,7 @@ func TestResolveTenant_DeletedSchool_ReturnsNotFound(t *testing.T) {
 		`UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, tenantID)
 	require.NoError(t, err)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, authAPI.TenantUnitOfWork{})
 
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())

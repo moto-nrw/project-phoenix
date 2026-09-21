@@ -16,9 +16,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -67,7 +67,7 @@ func mountDemoEnv(t *testing.T, db *bun.DB, slug string, options ...services.Aut
 	require.NoError(t, err)
 	resource, err := authAPI.NewDemoResource(svc.DemoAccess, demoOrigins)
 	require.NoError(t, err)
-	auth := authAPI.NewResource(svc.Auth, svc.Invitation, testSchoolDirectory{schools: svc.Schools, db: db, runtime: testpkg.TenantRuntime(t, db)}, svc.AccountAuthentication, db)
+	auth := authAPI.NewResource(svc.Auth, svc.Invitation, testSchoolDirectory{schools: svc.Schools, db: db, runtime: testpkg.TenantRuntime(t, db)}, svc.AccountAuthentication, authAPI.TenantUnitOfWork{})
 	router := testutil.NewTenantRouter(db)
 	router.Mount("/demo", resource.Router())
 	router.Mount("/auth", auth.Router())

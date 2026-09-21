@@ -11,11 +11,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 const errGuardianInvitationServiceUnavailable = "guardian invitation service unavailable"
@@ -70,8 +68,8 @@ func (rs *Resource) validateGuardianInvitation(w http.ResponseWriter, r *http.Re
 
 	var result identityaccess.GuardianInvitationPreview
 	var err error
-	if rs.db != nil {
-		err = tenant.WithAdminTx(r.Context(), rs.db, func(txCtx context.Context, _ bun.Tx) error {
+	if rs.transactions != nil {
+		err = rs.transactions.WithinAdmin(r.Context(), func(txCtx context.Context) error {
 			var txErr error
 			result, txErr = rs.GuardianInvitations.ValidateGuardianInvitation(txCtx, token)
 			return txErr
@@ -124,8 +122,8 @@ func (rs *Resource) acceptGuardianInvitation(w http.ResponseWriter, r *http.Requ
 
 	var account identityaccess.Account
 	var err error
-	if rs.db != nil {
-		err = tenant.WithAdminTx(r.Context(), rs.db, func(txCtx context.Context, _ bun.Tx) error {
+	if rs.transactions != nil {
+		err = rs.transactions.WithinAdmin(r.Context(), func(txCtx context.Context) error {
 			var txErr error
 			account, txErr = rs.GuardianInvitations.AcceptGuardianInvitation(txCtx, token, registration)
 			return txErr
