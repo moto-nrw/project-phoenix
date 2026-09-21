@@ -32,7 +32,10 @@ const {
   mockPush: vi.fn(),
   mockMutateStudents: vi.fn(),
   mockUpdateSession: vi.fn(),
-  sessionState: { token: "t" as string | undefined },
+  sessionState: {
+    token: "t" as string | undefined,
+    status: "authenticated" as "authenticated" | "loading",
+  },
 }));
 
 let currentSearch = new URLSearchParams();
@@ -40,7 +43,7 @@ let currentSearch = new URLSearchParams();
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
     data: { user: { id: "3", tenantId: 2, token: sessionState.token } },
-    status: "authenticated",
+    status: sessionState.status,
     update: mockUpdateSession,
   })),
 }));
@@ -224,6 +227,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
   sessionState.token = "t";
+  sessionState.status = "authenticated";
   studentKeys = [];
   studentsResponse = {
     data: { students: [mockStudent] },
@@ -368,6 +372,30 @@ describe("StudentSearchPage: student list that does not finish loading (#3374)",
     fireEvent.click(screen.getByRole("button", { name: "Erneut laden" }));
 
     expect(mockUpdateSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("starts the stall timer only after session initialization", () => {
+    sessionState.status = "loading";
+    studentsResponse = { data: undefined, isLoading: true, error: undefined };
+    const { rerender } = renderOnSearchPage("");
+
+    act(() => {
+      vi.advanceTimersByTime(30_000);
+    });
+    expect(screen.queryByText(STALL_MESSAGE)).toBeNull();
+
+    sessionState.status = "authenticated";
+    rerender(<StudentSearchPage />);
+
+    act(() => {
+      vi.advanceTimersByTime(9_999);
+    });
+    expect(screen.queryByText(STALL_MESSAGE)).toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(screen.getByText(STALL_MESSAGE)).toBeTruthy();
   });
 
   it("shows no hint once the list has loaded", () => {

@@ -1938,16 +1938,20 @@ function SearchPageContent() {
   // requested reload starts over without resetting state from an effect.
   const loadAttemptSignature = `${studentsCacheKey}|${reloadCount}`;
   const [stalledAttempt, setStalledAttempt] = useState<string | null>(null);
+  // useSWRAuth disables its key until the session is resolved, so there is no
+  // student request to measure during initialization. A resolved session
+  // without a token remains covered by the recovery path in reloadStudents.
+  const shouldMeasureLoadStall = showGridSkeleton && !isInitializing;
   useEffect(() => {
-    if (!showGridSkeleton) return;
+    if (!shouldMeasureLoadStall) return;
     const timeout = setTimeout(
       () => setStalledAttempt(loadAttemptSignature),
       LOADING_STALL_MS,
     );
     return () => clearTimeout(timeout);
-  }, [showGridSkeleton, loadAttemptSignature]);
+  }, [shouldMeasureLoadStall, loadAttemptSignature]);
   const loadingStalled =
-    showGridSkeleton && stalledAttempt === loadAttemptSignature;
+    shouldMeasureLoadStall && stalledAttempt === loadAttemptSignature;
 
   const reloadStudents = useCallback(() => {
     // Without a token no student request can start; ask for the session again
