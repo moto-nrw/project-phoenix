@@ -26,7 +26,24 @@ var (
 	ErrDemoSchoolPreparing = errors.New("demo school is being prepared")
 	// ErrDemoSessionTenantLocked reports a tenant switch of a demo session.
 	ErrDemoSessionTenantLocked = errors.New("demo sessions cannot switch tenants")
+	// ErrDemoCapacityReached reports that no further demo school may be
+	// created (#3466).
+	ErrDemoCapacityReached = errors.New("demo capacity reached")
 )
+
+// Limits of the public request (#3466). Visitors of a fair share one WLAN
+// address, so the IP limit is far above the address limit.
+const (
+	DemoRequestWindow        = time.Hour
+	DemoRequestsPerAddress   = 3
+	DemoRequestsPerIPAddress = 60
+)
+
+// DemoAccessRateLimitedError reports a request over a limit and when the
+// caller may ask again.
+type DemoAccessRateLimitedError struct{ RetryAt time.Time }
+
+func (e *DemoAccessRateLimitedError) Error() string { return "too many demo access requests" }
 
 // DemoAccess connects a prospect's address with the demo. Only the SHA-256
 // fingerprint of its token is kept.

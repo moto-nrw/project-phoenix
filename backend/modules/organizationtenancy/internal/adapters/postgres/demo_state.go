@@ -202,10 +202,27 @@ type DemoProgress struct {
 	VisitorAccountID int64  `bun:"visitor_account_id"`
 }
 
-func (s *DemoOrderStore) Enqueue(ctx context.Context, name, schoolName, personName string) error {
+// Enqueue queues the order unless maxActive demo schools hold a place: queued
+// ones and ready ones whose school is not deleted. A failed order holds none.
+// The lock makes concurrent orders take turns until the caller's transaction
+// ends, so they cannot pass the count together.
+func (s *DemoOrderStore) Enqueue(ctx context.Context, name, schoolName, personName string, maxActive int) error {
 	db, err := s.database(ctx)
 	if err != nil {
 		return err
+	}
+	if _, err := db.NewRaw(`SELECT pg_advisory_xact_lock(hashtextextended('platform.demo_school_states:capacity', 0))`).Exec(ctx); err != nil {
+		return fmt.Errorf("lock demo school capacity: %w", err)
+	}
+	var active int
+	err = db.NewRaw(`SELECT COUNT(*) FROM platform.demo_school_states AS state
+		LEFT JOIN platform.schools AS school ON school.id = state.tenant_id
+		WHERE state.status = 'preparing' OR (state.status = 'ready' AND school.deleted_at IS NULL)`).Scan(ctx, &active)
+	if err != nil {
+		return fmt.Errorf("count active demo schools: %w", err)
+	}
+	if active >= maxActive {
+		return ErrDemoCapacityReached
 	}
 	_, err = db.NewRaw(`INSERT INTO platform.demo_school_states (name, school_name, person_name) VALUES (?, ?, ?)`,
 		name, schoolName, personName).Exec(ctx)
@@ -249,6 +266,9 @@ func (s *DemoOrderStore) MarkUsed(ctx context.Context, name string, usedAt time.
 
 // ErrDemoOrderExists reports a name that is already queued or seeded.
 var ErrDemoOrderExists = errors.New("demo school order already exists")
+
+// ErrDemoCapacityReached reports that maxActive demo schools hold a place.
+var ErrDemoCapacityReached = errors.New("demo capacity reached")
 
 // Return hands a claimed order back without counting the attempt: what
 // stopped it was not the order's fault.

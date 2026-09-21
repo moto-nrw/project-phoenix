@@ -2,6 +2,8 @@ package compose
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -20,10 +22,17 @@ func orderDemoSchool(t *testing.T, db *bun.DB, schoolName string) string {
 	var slug string
 	require.NoError(t, testpkg.WithinAdminContext(t, t.Context(), db, func(ctx context.Context) error {
 		var err error
-		slug, err = NewDemoSchoolOrders(strings.NewReader("k3m9xp")).OrderDemoSchool(ctx, schoolName, "Kim Beispiel")
+		slug, err = orderDemoSchoolWithin(ctx, schoolName, testDemoCapacity)
 		return err
 	}))
 	return slug
+}
+
+// testDemoCapacity is far above what the queue tests order.
+const testDemoCapacity = 300
+
+func orderDemoSchoolWithin(ctx context.Context, schoolName string, maxActive int) (string, error) {
+	return NewDemoSchoolOrders(strings.NewReader("k3m9xp"), maxActive).OrderDemoSchool(ctx, schoolName, "Kim Beispiel")
 }
 
 func demoSchoolProgress(t *testing.T, db *bun.DB, slug string) *organizationtenancy.DemoSchoolProgress {
@@ -31,7 +40,7 @@ func demoSchoolProgress(t *testing.T, db *bun.DB, slug string) *organizationtena
 	var progress *organizationtenancy.DemoSchoolProgress
 	require.NoError(t, testpkg.WithinAdminContext(t, t.Context(), db, func(ctx context.Context) error {
 		var err error
-		progress, err = NewDemoSchoolOrders(strings.NewReader("k3m9xp")).DemoSchoolProgress(ctx, slug)
+		progress, err = NewDemoSchoolOrders(strings.NewReader("k3m9xp"), testDemoCapacity).DemoSchoolProgress(ctx, slug)
 		return err
 	}))
 	return progress
@@ -168,7 +177,7 @@ func TestActiveDemoSchoolsAreTheReadyOnesEnteredSince(t *testing.T) {
 	waiting := orderDemoSchool(t, db, "OGS West")
 	enter := func(slug string, at time.Time) {
 		require.NoError(t, testpkg.WithinAdminContext(t, ctx, db, func(ctx context.Context) error {
-			return NewDemoSchoolOrders(strings.NewReader("k3m9xp")).MarkDemoSchoolUsed(ctx, slug, at)
+			return NewDemoSchoolOrders(strings.NewReader("k3m9xp"), testDemoCapacity).MarkDemoSchoolUsed(ctx, slug, at)
 		}))
 	}
 	active := func(since time.Time) []string {
@@ -185,4 +194,72 @@ func TestActiveDemoSchoolsAreTheReadyOnesEnteredSince(t *testing.T) {
 	assert.Empty(t, active(entered.Add(time.Minute)), "an entry before the window keeps nothing alive")
 	enter(used, entered.Add(time.Hour))
 	assert.Equal(t, []string{used}, active(entered.Add(time.Minute)), "a returning visitor brings the school back")
+}
+
+// The capacity (#3466) counts queued schools and ready ones that still exist.
+// A failed order and a deleted school free their place.
+func TestDemoSchoolOrdersStopAtTheCapacity(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	ctx := t.Context()
+	order := func(schoolName string) error {
+		return testpkg.WithinAdminContext(t, ctx, db, func(ctx context.Context) error {
+			_, err := orderDemoSchoolWithin(ctx, schoolName, 2)
+			return err
+		})
+	}
+
+	require.NoError(t, order("OGS Nord"))
+	require.NoError(t, order("OGS Süd"))
+	require.ErrorIs(t, order("OGS West"), organizationtenancy.ErrDemoCapacityReached)
+
+	// The first school is ready, the second fails for good.
+	first, err := queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	require.NoError(t, schools.RememberDemoSchool(ctx, first.Slug, organizationtenancy.DemoSchoolState{SchoolID: schoolID, SeedJSON: []byte(`{}`)}))
+	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, first.Slug, 4711))
+	second, err := queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	failed, err := queue.FailDemoSchoolOrder(ctx, second.Slug, 1)
+	require.NoError(t, err)
+	require.True(t, failed)
+	require.NoError(t, order("OGS West"), "a failed order frees its place")
+	require.ErrorIs(t, order("OGS Ost"), organizationtenancy.ErrDemoCapacityReached, "a ready school holds its place")
+
+	_, err = db.NewRaw(`UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, schoolID).Exec(ctx)
+	require.NoError(t, err)
+	require.NoError(t, order("OGS Ost"), "a deleted school frees its place")
+}
+
+// Concurrent orders take turns, so together they cannot pass the capacity.
+func TestDemoSchoolOrdersHoldTheCapacityUnderConcurrentOrders(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	const capacity, orders = 3, 8
+	results := make(chan error, orders)
+	for i := range orders {
+		go func() {
+			results <- testpkg.WithinAdminContext(t, t.Context(), db, func(ctx context.Context) error {
+				_, err := orderDemoSchoolWithin(ctx, fmt.Sprintf("OGS %d", i), capacity)
+				return err
+			})
+		}()
+	}
+	queued, refused := 0, 0
+	for range orders {
+		err := <-results
+		if errors.Is(err, organizationtenancy.ErrDemoCapacityReached) {
+			refused++
+			continue
+		}
+		require.NoError(t, err)
+		queued++
+	}
+	assert.Equal(t, capacity, queued)
+	assert.Equal(t, orders-capacity, refused)
 }

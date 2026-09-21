@@ -3,6 +3,8 @@ package identityaccess
 import (
 	"context"
 	"errors"
+	"math"
+	"time"
 )
 
 // Demo access (#3462): a prospect of the public demo asks for an access,
@@ -19,7 +21,26 @@ var (
 	// ErrDemoSessionTenantLocked rejects the tenant switch of an account a
 	// demo access signed in; SwitchTenant reports it in its error envelope.
 	ErrDemoSessionTenantLocked = errors.New("demo sessions cannot switch tenants")
+	// ErrDemoAccessRateLimited reports a request over the limit of its
+	// address or its IP address (#3466); DemoAccessRateLimitError carries it.
+	ErrDemoAccessRateLimited = errors.New("too many demo access requests")
+	// ErrDemoCapacityReached reports that no further demo school may be
+	// created while the configured number of demo schools exists (#3466).
+	ErrDemoCapacityReached = errors.New("demo capacity reached")
 )
+
+// DemoAccessRateLimitError reports when the limited caller may ask again.
+type DemoAccessRateLimitError struct{ RetryAt time.Time }
+
+func (e *DemoAccessRateLimitError) Error() string { return ErrDemoAccessRateLimited.Error() }
+
+func (e *DemoAccessRateLimitError) Unwrap() error { return ErrDemoAccessRateLimited }
+
+// RetryAfterSeconds is the wait until the next accepted request, rounded up
+// and at least one second, for the Retry-After header.
+func (e *DemoAccessRateLimitError) RetryAfterSeconds(now time.Time) int {
+	return max(1, int(math.Ceil(e.RetryAt.Sub(now).Seconds())))
+}
 
 // DemoAccessRequest carries what a prospect submits.
 type DemoAccessRequest struct {
@@ -28,6 +49,9 @@ type DemoAccessRequest struct {
 	SchoolName   string
 	Source       string
 	ContactOptIn bool
+	// ClientIP is the address the request came from; the requests of one IP
+	// address are limited (#3466).
+	ClientIP string
 	// EntryURLPrefix precedes the token in the link the prospect receives.
 	EntryURLPrefix string
 }

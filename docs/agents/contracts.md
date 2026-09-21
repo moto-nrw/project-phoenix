@@ -117,7 +117,7 @@ not composed. They are public, take no cookies, and rely on
 
 | Route | Contract |
 |---|---|
-| `POST /demo/access-requests` | `email`, `school_name`, `person_name`, `contact_opt_in`, optional `src` → always `202 {link_sent: true}`, never the link itself; `422 demo_access_invalid` |
+| `POST /demo/access-requests` | `email`, `school_name`, `person_name`, `contact_opt_in`, optional `src` → always `202 {link_sent: true}`, never the link itself; `422 demo_access_invalid`; `429 demo_access_rate_limited` with `Retry-After` (seconds); `503 demo_capacity_reached` |
 | `GET /demo/access/status` | token in `Authorization: Bearer` → `{status: preparing\|ready\|failed, school_name}` (the OGS name the prospect gave, shown while waiting, #3464), plus `school_url` (origin of the demo school) when `ready` |
 | `POST /demo/access/sessions` | `{token}` → `{access_token, refresh_token}` (tenant session); `409 demo_school_preparing` |
 
@@ -176,6 +176,16 @@ that cooldown a request stores and mails nothing. The team is mailed
 (`demo-lead.html`) for an address without an active access and when the
 contact consent changed. The website shows „Wir haben Ihnen den Link
 geschickt" for `link_sent`.
+
+Limits (#3466): per IP address 60 requests and per address 3 requests within
+any hour; over either, `429` with `Retry-After`. Only a valid request counts,
+so invalid requests fill no window; they touch no table either. The IP limit
+is high because fair visitors share one WLAN address. The windows live in the serving process (one demo server; a
+restart forgives them). At most `--demo-max-active-schools` demo schools hold
+a place (queued, or ready and not deleted; a failed one frees it); a request
+that needs a new school beyond that answers `503 demo_capacity_reached`,
+while an active address still gets its link. `serve` refuses to start under
+`APP_ENV=demo` without the flag; `environments/demo.compose.yml` sets 300.
 
 Mail lock: under `APP_ENV=demo`, `email.NewMailer` wraps the one SMTP
 transport in `email.RestrictToDemoMails`. Every template but the two above

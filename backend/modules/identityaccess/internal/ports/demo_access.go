@@ -25,6 +25,8 @@ type DemoAccessStore interface {
 type DemoSchools interface {
 	// PrepareDemoSchool returns the slug of the school a new access enters:
 	// a school of its own that is queued for seeding, or the standing school.
+	// It reports domain.ErrDemoCapacityReached when no further school may
+	// be queued (#3466).
 	PrepareDemoSchool(ctx context.Context, schoolName, personName string) (slug string, err error)
 	// DemoSchoolEntry reports the school's progress. A school that is
 	// unknown, inactive or deleted is still preparing.

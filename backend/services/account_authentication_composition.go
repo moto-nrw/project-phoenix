@@ -129,6 +129,10 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 	if err != nil {
 		return nil, err
 	}
+	demo, err := demoDependencies(wiring.demoAccess, wiring.demoStandingSchool, wiring.repos.schools.schools)
+	if err != nil {
+		return nil, err
+	}
 	// The reset delivery records its outcome through the module it is
 	// composed into, so it reads the module back at call time.
 	var module *identityaccess.Module
@@ -155,7 +159,7 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 			Logger:        wiring.logger,
 		},
 		Operators: wiring.operators,
-		Demo:      demoDependencies(wiring.demoAccess, wiring.demoStandingSchool, wiring.repos.schools.schools),
+		Demo:      demo,
 	})
 	if err != nil {
 		return nil, err
@@ -163,17 +167,20 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 	return module, nil
 }
 
-func demoDependencies(wiring *demoAccessWiring, standingSchool string, schools organizationtenancy.Query) *identityaccessCompose.DemoDependencies {
+func demoDependencies(wiring *demoAccessWiring, standingSchool string, schools organizationtenancy.Query) (*identityaccessCompose.DemoDependencies, error) {
 	if wiring == nil {
-		return nil
+		return nil, nil
+	}
+	if wiring.maxActiveSchools < 1 {
+		return nil, errors.New("the public demo requires serve --demo-max-active-schools above zero")
 	}
 	return &identityaccessCompose.DemoDependencies{
 		Schools: demoSchoolDirectory{
-			schools: schools, orders: organizationCompose.NewDemoSchoolOrders(SecureRandomSource()), standing: standingSchool,
+			schools: schools, orders: organizationCompose.NewDemoSchoolOrders(SecureRandomSource(), wiring.maxActiveSchools), standing: standingSchool,
 		},
 		Mail:     newDemoAccessMail(wiring),
 		NewToken: authjwt.NewOpaqueCapabilityToken, Fingerprint: authjwt.OpaqueCapabilityFingerprint,
-	}
+	}, nil
 }
 
 // StandingDemoSchoolSlug is the shared demo school `go run . demo` provisions.
@@ -198,7 +205,11 @@ func (d demoSchoolDirectory) PrepareDemoSchool(ctx context.Context, schoolName, 
 	if d.standing != "" {
 		return d.standing, nil
 	}
-	return d.orders.OrderDemoSchool(ctx, schoolName, personName)
+	slug, err := d.orders.OrderDemoSchool(ctx, schoolName, personName)
+	if errors.Is(err, organizationtenancy.ErrDemoCapacityReached) {
+		return "", identityaccess.ErrDemoCapacityReached
+	}
+	return slug, err
 }
 
 // MarkDemoSchoolUsed notes an entry. The standing school has no order and is
