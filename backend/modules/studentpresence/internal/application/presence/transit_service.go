@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
 const (
@@ -144,7 +144,7 @@ func (s *service) authorizeTransitTarget(ctx context.Context, auth *StudentMoveA
 	return nil
 }
 
-func newTransitAssignResult(targetGroup *active.Group) *TransitAssignResult {
+func newTransitAssignResult(targetGroup *ports.ActiveGroup) *TransitAssignResult {
 	return &TransitAssignResult{
 		Assigned:      []int64{},
 		Skipped:       []TransitAssignSkipped{},
@@ -155,7 +155,7 @@ func newTransitAssignResult(targetGroup *active.Group) *TransitAssignResult {
 
 // assignStudentsInTransit gives every child that is checked in but in no room
 // a visit in the target session, after checking the room has space for them.
-func (s *service) assignStudentsInTransit(ctx context.Context, targetGroup *active.Group, studentIDs []int64, result *TransitAssignResult) error {
+func (s *service) assignStudentsInTransit(ctx context.Context, targetGroup *ports.ActiveGroup, studentIDs []int64, result *TransitAssignResult) error {
 	openAttendance, currentVisits, err := s.loadMoveState(ctx, studentIDs, opAssignTransit)
 	if err != nil {
 		return err

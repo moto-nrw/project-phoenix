@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
 // CleanupAbandonedSessions cleans up sessions that have been abandoned for longer than the specified duration.
@@ -59,7 +59,7 @@ func (s *service) CleanupAbandonedSessions(ctx context.Context, threshold time.D
 // setting iot.device_online_window_minutes, falling back to
 // defaultDeviceOnlineWindow when the resolver is nil, no override exists, or
 // the lookup fails. Moved off the iot.Device model per issue #586 (Rule 12).
-func (s *service) isDeviceOnline(ctx context.Context, device *active.SessionDevice, now time.Time) bool {
+func (s *service) isDeviceOnline(ctx context.Context, device *ports.SessionDevice, now time.Time) bool {
 	if device == nil || device.LastSeen == nil {
 		return false
 	}
@@ -207,7 +207,7 @@ func (s *service) cleanupOrphanedSupervisors(ctx context.Context, result *DailyS
 	}
 }
 
-func (s *service) closeStaleSupervisor(ctx context.Context, record *active.GroupSupervisor, today timezone.Date) (bool, error) {
+func (s *service) closeStaleSupervisor(ctx context.Context, record *ports.GroupSupervisor, today timezone.Date) (bool, error) {
 	closed := false
 	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
 		if err := s.lockGroupRows(txCtx, record.GroupID); err != nil {

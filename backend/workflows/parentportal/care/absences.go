@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -230,7 +229,7 @@ func statusDaysFromCarePlan(days []careplan.StudentStatusDay) []*absencerecords.
 	rows := make([]*absencerecords.StudentStatusDay, 0, len(days))
 	for _, day := range days {
 		row := &absencerecords.StudentStatusDay{
-			StudentID: day.StudentID, Date: activeModels.Date(day.Date), Status: day.Status,
+			StudentID: day.StudentID, Date: absencerecords.Date(day.Date), Status: day.Status,
 			ReportedAt: day.ReportedAt, ClearedAt: day.ClearedAt, Source: day.Source,
 			GuardianAccountID: day.GuardianAccountID, Note: day.Note,
 		}

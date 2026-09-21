@@ -13,7 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -151,7 +151,7 @@ func TestActiveService_CreateActiveGroup(t *testing.T) {
 
 		now := time.Now()
 		activityID := activity.ID
-		group := &activeModels.Group{
+		group := &ports.ActiveGroup{
 			GroupID:        &activityID,
 			RoomID:         room.ID,
 			StartTime:      now,
@@ -198,7 +198,7 @@ func TestActiveService_UpdateActiveGroup(t *testing.T) {
 		group.TimeoutMinutes = 60
 
 		// ACT
-		err := service.UpdateActiveGroup(ctx, group)
+		err := service.UpdateActiveGroup(ctx, sessionOf(group))
 
 		// ASSERT
 		require.NoError(t, err)
@@ -219,8 +219,8 @@ func TestActiveService_UpdateActiveGroup(t *testing.T) {
 
 	t.Run("returns error for group with zero ID", func(t *testing.T) {
 		// ARRANGE
-		group := &activeModels.Group{}
-		group.ID = 0 // Set ID via embedded base.Model
+		group := &ports.ActiveGroup{}
+		group.ID = 0
 
 		// ACT
 		err := service.UpdateActiveGroup(ctx, group)
@@ -244,7 +244,7 @@ func TestActiveService_UpdateActiveGroup(t *testing.T) {
 		testpkg.CreateTestVisit(t, db, studentB.ID, group.ID, time.Now().Add(-time.Hour), nil)
 
 		group.RoomID = targetRoom.ID
-		err = service.UpdateActiveGroup(ctx, group)
+		err = service.UpdateActiveGroup(ctx, sessionOf(group))
 
 		require.ErrorIs(t, err, active.ErrRoomCapacityExceeded)
 		persisted, findErr := service.GetActiveGroup(ctx, group.ID)
@@ -495,7 +495,7 @@ func TestActiveService_FindDeviceActiveGroupInRoom(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "svc-device-room-match")
 
 		activityID := activity.ID
-		activeGroup := &activeModels.Group{
+		activeGroup := &ports.ActiveGroup{
 			GroupID:        &activityID,
 			RoomID:         room.ID,
 			DeviceID:       &device.ID,

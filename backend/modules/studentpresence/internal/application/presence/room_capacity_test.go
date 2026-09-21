@@ -7,7 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,15 +31,15 @@ func TestEnsureCapacityForStudentMoveDoesNotCountSameRoomTransfers(t *testing.T)
 	visitRepo := &mockVisitRepository{countActiveByRoomIDFunc: func(context.Context, int64) (int, error) {
 		return 1, nil
 	}}
-	groupRepo := &groupRepoForActiveWrapperTest{groups: map[int64]*activeModels.Group{
-		20: {Model: Model{ID: 20}, RoomID: 12},
+	groupRepo := &groupRepoForActiveWrapperTest{groups: map[int64]*ports.ActiveGroup{
+		20: {ID: 20, RoomID: 12},
 	}}
 	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
 		RoomRepo:       roomRepo,
 		SchoolPresence: visitRepo,
 		GroupRepo:      groupRepo,
 	}}
-	targetGroup := &activeModels.Group{Model: Model{ID: 21}, RoomID: 12}
+	targetGroup := &ports.ActiveGroup{ID: 21, RoomID: 12}
 
 	err := svc.ensureCapacityForStudentMove(
 		context.Background(),

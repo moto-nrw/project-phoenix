@@ -46,10 +46,11 @@ func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 	require.NoError(t, err)
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
+	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(repos.ActiveGroup)
 	svc := presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		PrincipalReader:    services.AttendancePrincipal,
-		GroupRepo:          repos.ActiveGroup,
-		SupervisorRepo:     repos.GroupSupervisor,
+		GroupRepo:          sessionGroups,
+		SupervisorRepo:     sessionSupervisors,
 		SchoolPresence:     presence,
 		StudentRepo:        services.PresenceStudents(db, repos.Student),
 		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),

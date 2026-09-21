@@ -689,7 +689,7 @@
       "declaration": "TestFactoryResolvesRoomsThroughTheOwner",
       "target": "database/repositories.NewFactory",
       "lines": [
-        46
+        47
       ],
       "tables": [
         "education.groups",
@@ -2521,7 +2521,7 @@
       "declaration": "TestAdditionalSupervisionAuditFailureRollsBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        224
+        223
       ],
       "tables": []
     },
@@ -2531,7 +2531,7 @@
       "declaration": "TestAdditionalSupervisionAuthorizationMatrix",
       "target": "database/repositories.NewFactory",
       "lines": [
-        140
+        139
       ],
       "tables": [
         "active.groups"
@@ -2543,7 +2543,7 @@
       "declaration": "TestAdditionalSupervisionRejectsConcurrentSessionEnd",
       "target": "database/repositories.NewFactory",
       "lines": [
-        310
+        309
       ],
       "tables": [
         "active.groups"
@@ -2555,7 +2555,7 @@
       "declaration": "TestAdditionalSupervisionSignalsOnlyAfterCommit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        281
+        280
       ],
       "tables": []
     },
@@ -2565,7 +2565,7 @@
       "declaration": "TestAdditionalSupervisionTreatsFutureEndDateAsActive",
       "target": "database/repositories.NewFactory",
       "lines": [
-        250
+        249
       ],
       "tables": [
         "active.group_supervisors"
@@ -2577,7 +2577,7 @@
       "declaration": "TestGroupHandoverAllStaffVisibilityDoesNotGrantActions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        532
+        531
       ],
       "tables": []
     },
@@ -2587,7 +2587,7 @@
       "declaration": "TestGroupHandoverAuditFailureRollsBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        581
+        580
       ],
       "tables": []
     },
@@ -2597,7 +2597,7 @@
       "declaration": "TestGroupHandoverExternalInterface",
       "target": "database/repositories.NewFactory",
       "lines": [
-        369
+        368
       ],
       "tables": [
         "audit.substitution_changes"
@@ -2609,7 +2609,7 @@
       "declaration": "TestGroupHandoverPermissionsAndPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        432
+        431
       ],
       "tables": []
     },
@@ -2619,7 +2619,7 @@
       "declaration": "TestGroupHandoverRechecksOwnershipAfterGroupLock",
       "target": "database/repositories.NewFactory",
       "lines": [
-        659
+        658
       ],
       "tables": []
     },
@@ -2629,7 +2629,7 @@
       "declaration": "TestGroupHandoverSignalsOnlyAfterCommit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        619
+        618
       ],
       "tables": []
     },
@@ -4524,7 +4524,7 @@
       "declaration": "TestTenantIsolation_ActivityCategoryVisibility",
       "target": "database/repositories.NewFactory",
       "lines": [
-        408
+        409
       ],
       "tables": []
     },
@@ -4534,7 +4534,7 @@
       "declaration": "TestTenantIsolation_TimeframeVisibility",
       "target": "database/repositories.NewFactory",
       "lines": [
-        205
+        206
       ],
       "tables": []
     },

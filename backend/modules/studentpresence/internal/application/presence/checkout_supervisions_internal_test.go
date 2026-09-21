@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -35,10 +35,10 @@ func TestDeviceSupervisorReadPreservesFailureClassification(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			group := &activeModel.Group{}
+			group := &ports.ActiveGroup{}
 			group.ID = 7
 			s := &service{
-				GroupRepo: &mockGroupRepository{findActiveByDeviceIDFunc: func(got context.Context, id int64) (*activeModel.Group, error) {
+				GroupRepo: &mockGroupRepository{findActiveByDeviceIDFunc: func(got context.Context, id int64) (*ports.ActiveGroup, error) {
 					assert.Same(t, ctx, got)
 					assert.Equal(t, int64(8), id)
 					return group, nil

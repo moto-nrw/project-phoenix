@@ -107,12 +107,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 252
+	policyTempRulesTotal = 236
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 312
+	policyTempRulesCompatTotal = 295
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -171,7 +171,7 @@ var policyTempRulesFamilies = map[string]int{
 	// #3218, #3220, #3214, #3224 — closed. The largest family: 90 rules, every
 	// one of them permitted by an issue that is done.
 	// #3422 removed 5 that went stale with legacy/services/active.
-	"inbound-timetable": 76,
+	"inbound-timetable": 72,
 
 	// #2725 (OPEN) and #3224 (closed) name most rules jointly; #3214 the rest.
 	// The only large family with a live issue behind it.
@@ -179,14 +179,14 @@ var policyTempRulesFamilies = map[string]int{
 	// #3214, #3218, #3219, #3220, #3224 — closed; #3427 removed the one #3350
 	// (PR #3408) added.
 	// #3422 removed 1 that went stale with legacy/services/active.
-	"legacy-composition": 4,
+	"legacy-composition": 2,
 
 	// #2736 (OPEN) and #3232 (closed) name most rules jointly; #3214 the rest.
 	"organization-tenancy": 14,
 
 	// #3214, #3218 — closed; #3427 removed the one #3350 (PR #3408) added.
 	// #3422 removed 1 that went stale with legacy/services/active.
-	"people-directory": 2,
+	"people-directory": 1,
 
 	// #3214, #3218, #3220 — closed.
 	// #3422 removed 1 that went stale with legacy/services/active.
@@ -201,7 +201,7 @@ var policyTempRulesFamilies = map[string]int{
 	"scheduler-runtime": 3,
 
 	// #3214, #3218 — closed.
-	"school-structure": 2,
+	"school-structure": 1,
 
 	// #2736 (OPEN) and #3232 (closed) name most rules jointly; #3207, #3214 the
 	// rest; #3427 removed the one #3350 (PR #3408) added.
@@ -210,10 +210,10 @@ var policyTempRulesFamilies = map[string]int{
 
 	// #3214, #3207, #3218, #3224 — closed.
 	// #3422 removed 7 that went stale with legacy/services/active.
-	"student-presence": 20,
+	"student-presence": 14,
 
 	// #3214, #3218, #3229 — closed.
-	"test-support": 4,
+	"test-support": 2,
 
 	// #3214, #3218, #3220, #3224 — closed.
 	"timetable-activities": 2,

@@ -6,20 +6,19 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
 // dashboardBaseData holds the raw data fetched for dashboard analytics
 type dashboardBaseData struct {
 	activeVisits             []studentpresence.Visit
 	todaysAttendance         []studentpresence.Attendance
-	allRooms                 []*active.SessionRoom
-	activeGroups             []*active.Group
+	allRooms                 []*ports.SessionRoom
+	activeGroups             []*ports.ActiveGroup
 	allEducationGroups       []*EducationGroupRoom
-	allActivityGroups        []*active.SessionActivity
-	activityGroupsByID       map[int64]*active.SessionActivity
+	allActivityGroups        []*ports.SessionActivity
+	activityGroupsByID       map[int64]*ports.SessionActivity
 	activityCategories       int
 	supervisorsToday         int
 	visitsByGroupID          map[int64][]studentpresence.Visit
@@ -30,7 +29,7 @@ type dashboardBaseData struct {
 
 // dashboardRoomData holds room-related lookup maps
 type dashboardRoomData struct {
-	roomByID          map[int64]*active.SessionRoom
+	roomByID          map[int64]*ports.SessionRoom
 	roomCapacityTotal int
 	occupiedRooms     map[int64]bool
 	roomStudentsMap   map[int64]map[int64]struct{} // roomID -> set of unique student IDs
@@ -57,7 +56,7 @@ func (s *service) fetchDashboardBaseData(ctx context.Context, today timezone.Dat
 		studentsWithAttendance:   make(map[int64]bool),
 		studentsPresent:          make(map[int64]bool),
 		visitsByGroupID:          make(map[int64][]studentpresence.Visit),
-		activityGroupsByID:       make(map[int64]*active.SessionActivity),
+		activityGroupsByID:       make(map[int64]*ports.SessionActivity),
 	}
 
 	if err := s.loadDashboardPresence(ctx, today, data); err != nil {
@@ -171,9 +170,9 @@ func (s *service) countSupervisorsToday(ctx context.Context) (int, error) {
 }
 
 // buildRoomLookupMaps creates room-related lookup structures
-func (s *service) buildRoomLookupMaps(allRooms []*active.SessionRoom) *dashboardRoomData {
+func (s *service) buildRoomLookupMaps(allRooms []*ports.SessionRoom) *dashboardRoomData {
 	data := &dashboardRoomData{
-		roomByID:        make(map[int64]*active.SessionRoom),
+		roomByID:        make(map[int64]*ports.SessionRoom),
 		occupiedRooms:   make(map[int64]bool),
 		roomStudentsMap: make(map[int64]map[int64]struct{}),
 	}
@@ -256,7 +255,7 @@ func buildGroupToRoomLookup(allEducationGroups []*EducationGroupRoom) map[int64]
 // a "gruppe" target list always mirrors its first entry into the scalar
 // EducationGroupID (normalizeDynamicTargets), and Group.validateEducationGroupTarget
 // makes that scalar mandatory for the type.
-func isOGSGroupTemplate(template *active.SessionActivity) bool {
+func isOGSGroupTemplate(template *ports.SessionActivity) bool {
 	return template != nil &&
 		template.Type == "care" &&
 		template.EducationGroupID != nil
@@ -264,7 +263,7 @@ func isOGSGroupTemplate(template *active.SessionActivity) bool {
 
 // processActiveGroups calculates metrics from active groups.
 // Returns total active count, OGS-only count, and unique students in rooms.
-func processActiveGroups(activeGroups []*active.Group, visitsByGroupID map[int64][]studentpresence.Visit, activityGroupsByID map[int64]*active.SessionActivity, roomData *dashboardRoomData) (int, int, map[int64]struct{}) {
+func processActiveGroups(activeGroups []*ports.ActiveGroup, visitsByGroupID map[int64][]studentpresence.Visit, activityGroupsByID map[int64]*ports.SessionActivity, roomData *dashboardRoomData) (int, int, map[int64]struct{}) {
 	ogsGroupsCount := 0
 	uniqueStudentsInRoomsOverall := make(map[int64]struct{})
 
@@ -298,7 +297,7 @@ func processActiveGroups(activeGroups []*active.Group, visitsByGroupID map[int64
 }
 
 // isPlaygroundRoom checks if a room is a playground/outdoor area
-func isPlaygroundRoom(room *active.SessionRoom) bool {
+func isPlaygroundRoom(room *ports.SessionRoom) bool {
 	if room == nil || room.Category == nil {
 		return false
 	}
@@ -310,7 +309,7 @@ func isPlaygroundRoom(room *active.SessionRoom) bool {
 }
 
 // calculateLocationMetrics calculates student location-based metrics
-func (s *service) calculateLocationMetrics(roomData *dashboardRoomData, groupData *dashboardGroupData, activeVisits []studentpresence.Visit, activeGroups []*active.Group) *locationMetrics {
+func (s *service) calculateLocationMetrics(roomData *dashboardRoomData, groupData *dashboardGroupData, activeVisits []studentpresence.Visit, activeGroups []*ports.ActiveGroup) *locationMetrics {
 	metrics := &locationMetrics{}
 
 	// Process each room's student set
@@ -357,7 +356,7 @@ func countStudentsInHomeRoom(studentSet map[int64]struct{}, roomID int64, studen
 }
 
 // countStudentsInIndoorRooms counts unique students in rooms excluding playground areas
-func (s *service) countStudentsInIndoorRooms(activeVisits []studentpresence.Visit, activeGroups []*active.Group, roomData *dashboardRoomData) int {
+func (s *service) countStudentsInIndoorRooms(activeVisits []studentpresence.Visit, activeGroups []*ports.ActiveGroup, roomData *dashboardRoomData) int {
 	// Build group ID to room lookup for O(1) access
 	groupToRoom := buildActiveGroupRoomLookup(activeGroups, roomData)
 
@@ -375,7 +374,7 @@ func (s *service) countStudentsInIndoorRooms(activeVisits []studentpresence.Visi
 }
 
 // buildActiveGroupRoomLookup creates a lookup of active group IDs to non-playground room status
-func buildActiveGroupRoomLookup(activeGroups []*active.Group, roomData *dashboardRoomData) map[int64]bool {
+func buildActiveGroupRoomLookup(activeGroups []*ports.ActiveGroup, roomData *dashboardRoomData) map[int64]bool {
 	lookup := make(map[int64]bool)
 	for _, group := range activeGroups {
 		if !group.IsActive() {
@@ -390,7 +389,7 @@ func buildActiveGroupRoomLookup(activeGroups []*active.Group, roomData *dashboar
 }
 
 // buildRecentActivity builds the recent activity list
-func buildRecentActivity(activeGroups []*active.Group, activityGroupsByID map[int64]*active.SessionActivity, roomData *dashboardRoomData) []RecentActivity {
+func buildRecentActivity(activeGroups []*ports.ActiveGroup, activityGroupsByID map[int64]*ports.SessionActivity, roomData *dashboardRoomData) []RecentActivity {
 	recentActivity := []RecentActivity{}
 
 	for _, group := range activeGroups {
@@ -425,7 +424,7 @@ func buildRecentActivity(activeGroups []*active.Group, activityGroupsByID map[in
 }
 
 // buildCurrentActivities builds the current activities list
-func buildCurrentActivities(allActivityGroups []*active.SessionActivity, activeGroups []*active.Group, roomData *dashboardRoomData) []CurrentActivity {
+func buildCurrentActivities(allActivityGroups []*ports.SessionActivity, activeGroups []*ports.ActiveGroup, roomData *dashboardRoomData) []CurrentActivity {
 	currentActivities := []CurrentActivity{}
 
 	for _, actGroup := range allActivityGroups {
@@ -462,7 +461,7 @@ func buildCurrentActivities(allActivityGroups []*active.SessionActivity, activeG
 // findActiveSessionForActivity checks if an activity has an active session and returns participant count.
 // Spontaneous sessions (TemplateID ok == false) can never match since they
 // have no parent template id to compare against.
-func findActiveSessionForActivity(activityID int64, activeGroups []*active.Group, roomData *dashboardRoomData) (bool, int) {
+func findActiveSessionForActivity(activityID int64, activeGroups []*ports.ActiveGroup, roomData *dashboardRoomData) (bool, int) {
 	for _, group := range activeGroups {
 		templateID, ok := group.TemplateID()
 		if group.IsActive() && ok && templateID == activityID {
@@ -491,7 +490,7 @@ func determineActivityStatus(participants, maxCapacity int) string {
 }
 
 // buildActiveGroupsSummary builds the active groups summary list
-func buildActiveGroupsSummary(activeGroups []*active.Group, activityGroupsByID map[int64]*active.SessionActivity, roomData *dashboardRoomData) []ActiveGroupInfo {
+func buildActiveGroupsSummary(activeGroups []*ports.ActiveGroup, activityGroupsByID map[int64]*ports.SessionActivity, roomData *dashboardRoomData) []ActiveGroupInfo {
 	summary := []ActiveGroupInfo{}
 
 	for _, group := range activeGroups {
@@ -529,7 +528,7 @@ func buildActiveGroupsSummary(activeGroups []*active.Group, activityGroupsByID m
 //
 // groupID is an activities.groups.id — never look it up in an education-keyed
 // map (#2178).
-func resolveGroupName(groupID *int64, activityGroupsByID map[int64]*active.SessionActivity) string {
+func resolveGroupName(groupID *int64, activityGroupsByID map[int64]*ports.SessionActivity) string {
 	if groupID == nil {
 		return "Spontane Aktivität"
 	}
@@ -543,7 +542,7 @@ func resolveGroupName(groupID *int64, activityGroupsByID map[int64]*active.Sessi
 // Both come from the session's activities template: care blocks bound to an
 // education group are typed "ogs_group", everything else "activity".
 // Spontaneous sessions (groupID == nil) are classified as "spontaneous".
-func resolveGroupNameAndType(groupID *int64, activityGroupsByID map[int64]*active.SessionActivity) (string, string) {
+func resolveGroupNameAndType(groupID *int64, activityGroupsByID map[int64]*ports.SessionActivity) (string, string) {
 	if groupID == nil {
 		return "Spontane Aktivität", "spontaneous"
 	}
@@ -558,7 +557,7 @@ func resolveGroupNameAndType(groupID *int64, activityGroupsByID map[int64]*activ
 }
 
 // resolveRoomName gets the display name for a room
-func resolveRoomName(roomID int64, roomByID map[int64]*active.SessionRoom) string {
+func resolveRoomName(roomID int64, roomByID map[int64]*ports.SessionRoom) string {
 	if room, ok := roomByID[roomID]; ok {
 		return room.Name
 	}

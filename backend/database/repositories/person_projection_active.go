@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 )
 
@@ -20,7 +20,7 @@ type visitorProjection struct {
 	persons  peopledirectory.Query
 }
 
-func (r *visitorProjection) FindCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]activeModels.CrossTenantStudent, error) {
+func (r *visitorProjection) FindCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]presenceCompose.CrossTenantStudent, error) {
 	if r.students == nil {
 		return nil, errors.New("visitor projection: people directory is required")
 	}
@@ -28,7 +28,7 @@ func (r *visitorProjection) FindCrossTenantStudents(ctx context.Context, hosting
 	if err != nil {
 		return nil, err
 	}
-	students := []activeModels.CrossTenantStudent{}
+	students := []presenceCompose.CrossTenantStudent{}
 	if len(visitingIDs) == 0 {
 		return students, nil
 	}
@@ -40,7 +40,7 @@ func (r *visitorProjection) FindCrossTenantStudents(ctx context.Context, hosting
 		if visitor.TenantID == hostingTenantID {
 			continue
 		}
-		students = append(students, activeModels.CrossTenantStudent{StudentID: visitor.ID, PersonID: visitor.PersonID, HomeTenantID: visitor.TenantID, GroupID: visitor.GroupID})
+		students = append(students, presenceCompose.CrossTenantStudent{StudentID: visitor.ID, PersonID: visitor.PersonID, HomeTenantID: visitor.TenantID, GroupID: visitor.GroupID})
 	}
 	if len(students) == 0 || r.persons == nil {
 		return students, nil
@@ -72,45 +72,19 @@ func (r *visitorProjection) FindCrossTenantStudents(ctx context.Context, hosting
 
 // personGroupSupervisorRepository attaches Staff.Person to active-group
 // supervisions.
-type personGroupSupervisorRepository struct {
-	activeModels.GroupSupervisorRepository
-	persons peopledirectory.Query
-}
-
-func (r personGroupSupervisorRepository) FindByActiveGroupID(ctx context.Context, activeGroupID int64, activeOnly bool) ([]*activeModels.GroupSupervisor, error) {
-	rows, err := r.GroupSupervisorRepository.FindByActiveGroupID(ctx, activeGroupID, activeOnly)
-	if err != nil {
-		return nil, err
-	}
-	return rows, attachSupervisionPersons(ctx, r.persons, rows)
-}
-
-func (r personGroupSupervisorRepository) FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, activeOnly bool) ([]*activeModels.GroupSupervisor, error) {
-	rows, err := r.GroupSupervisorRepository.FindByActiveGroupIDs(ctx, activeGroupIDs, activeOnly)
-	if err != nil {
-		return nil, err
-	}
-	return rows, attachSupervisionPersons(ctx, r.persons, rows)
-}
-
-func attachSupervisionPersons(ctx context.Context, query peopledirectory.Query, rows []*activeModels.GroupSupervisor) error {
-	ids := make([]int64, 0, len(rows))
-	for _, row := range rows {
-		if row != nil && row.Staff != nil {
-			ids = append(ids, row.Staff.PersonID)
-		}
+func attachSupervisionPersons(ctx context.Context, query peopledirectory.Query, staff map[int64]*presenceCompose.SessionStaff) error {
+	ids := make([]int64, 0, len(staff))
+	for _, member := range staff {
+		ids = append(ids, member.PersonID)
 	}
 	persons, err := personsByID(ctx, query, ids)
 	if err != nil {
 		return err
 	}
-	for _, row := range rows {
-		if row == nil || row.Staff == nil {
-			continue
-		}
-		if person, found := persons[row.Staff.PersonID]; found {
+	for _, member := range staff {
+		if person, found := persons[member.PersonID]; found {
 			value := toLegacyPerson(person)
-			row.Staff.Person = &activeModels.SessionStaffPerson{
+			member.Person = &presenceCompose.SessionStaffPerson{
 				ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 				FirstName: value.FirstName, LastName: value.LastName, Birthday: value.Birthday,
 				TagID: value.TagID, AccountID: value.AccountID,
@@ -120,8 +94,6 @@ func attachSupervisionPersons(ctx context.Context, query peopledirectory.Query, 
 	return nil
 }
 
-// personStaffAbsenceRepository turns the free-text subject search into a
-// person filter and attaches the subject and decider names.
 type personStaffAbsenceRepository struct {
 	timerecords.StaffAbsenceRepository
 	persons peopledirectory.Query

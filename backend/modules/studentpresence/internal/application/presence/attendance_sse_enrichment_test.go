@@ -60,8 +60,8 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
 	svc := active.NewService(active.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
-		GroupRepo:          repos.ActiveGroup,
-		SupervisorRepo:     repos.GroupSupervisor,
+		GroupRepo:          sessionGroups(repos.ActiveGroup),
+		SupervisorRepo:     sessionSupervisors(repos.ActiveGroup),
 		SchoolPresence:     testSchoolPresence(t, db),
 		StudentRepo:        services.PresenceStudents(db, repos.Student),
 		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
@@ -216,8 +216,8 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
 	svc := active.NewService(active.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
-		GroupRepo:          repos.ActiveGroup,
-		SupervisorRepo:     repos.GroupSupervisor,
+		GroupRepo:          sessionGroups(repos.ActiveGroup),
+		SupervisorRepo:     sessionSupervisors(repos.ActiveGroup),
 		SchoolPresence:     testSchoolPresence(t, db),
 		StudentRepo:        services.PresenceStudents(db, repos.Student),
 		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),

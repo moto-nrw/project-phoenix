@@ -8,12 +8,12 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // UpdateActiveGroupSupervisors replaces all supervisors for an active group
-func (s *service) UpdateActiveGroupSupervisors(ctx context.Context, activeGroupID int64, supervisorIDs []int64) (*active.Group, error) {
+func (s *service) UpdateActiveGroupSupervisors(ctx context.Context, activeGroupID int64, supervisorIDs []int64) (*ports.ActiveGroup, error) {
 	if err := s.validateSupervisorIDs(ctx, supervisorIDs); err != nil {
 		return nil, err
 	}
@@ -125,7 +125,7 @@ func (s *service) replaceSupervisorsInTransaction(ctx context.Context, activeGro
 // primarySupervisorIDs excludes non-primary roles from a primary-supervisor
 // replacement. IoT check-ins pass every active supervisor ID, including
 // additional supervisors, which must remain assigned to the session.
-func primarySupervisorIDs(supervisorIDs map[int64]bool, currentSupervisors []*active.GroupSupervisor) map[int64]bool {
+func primarySupervisorIDs(supervisorIDs map[int64]bool, currentSupervisors []*ports.GroupSupervisor) map[int64]bool {
 	primaryIDs := maps.Clone(supervisorIDs)
 	for _, supervisor := range currentSupervisors {
 		if supervisor.Role != "supervisor" {
@@ -136,7 +136,7 @@ func primarySupervisorIDs(supervisorIDs map[int64]bool, currentSupervisors []*ac
 }
 
 // endAllCurrentSupervisors ends the current primary supervisors by setting end_date.
-func (s *service) endAllCurrentSupervisors(ctx context.Context, supervisors []*active.GroupSupervisor) error {
+func (s *service) endAllCurrentSupervisors(ctx context.Context, supervisors []*ports.GroupSupervisor) error {
 	today := timezone.TodayDate()
 	for _, supervisor := range supervisors {
 		if supervisor.Role != "supervisor" {
@@ -151,7 +151,7 @@ func (s *service) endAllCurrentSupervisors(ctx context.Context, supervisors []*a
 }
 
 // upsertSupervisors creates new supervisors or reactivates existing ones
-func (s *service) upsertSupervisors(ctx context.Context, activeGroupID int64, uniqueSupervisors map[int64]bool, currentSupervisors []*active.GroupSupervisor) error {
+func (s *service) upsertSupervisors(ctx context.Context, activeGroupID int64, uniqueSupervisors map[int64]bool, currentSupervisors []*ports.GroupSupervisor) error {
 	now := time.Now()
 
 	for supervisorID := range uniqueSupervisors {
@@ -172,7 +172,7 @@ func (s *service) upsertSupervisors(ctx context.Context, activeGroupID int64, un
 }
 
 // findExistingSupervisor finds a supervisor in the list by staff ID and role
-func (s *service) findExistingSupervisor(supervisors []*active.GroupSupervisor, staffID int64) *active.GroupSupervisor {
+func (s *service) findExistingSupervisor(supervisors []*ports.GroupSupervisor, staffID int64) *ports.GroupSupervisor {
 	for _, existing := range supervisors {
 		if existing.StaffID == staffID && existing.Role == "supervisor" {
 			return existing
@@ -182,7 +182,7 @@ func (s *service) findExistingSupervisor(supervisors []*active.GroupSupervisor, 
 }
 
 // reactivateSupervisor reactivates an ended supervisor
-func (s *service) reactivateSupervisor(ctx context.Context, supervisor *active.GroupSupervisor, now time.Time) error {
+func (s *service) reactivateSupervisor(ctx context.Context, supervisor *ports.GroupSupervisor, now time.Time) error {
 	if supervisor.EndDate == nil {
 		return nil
 	}
@@ -194,7 +194,7 @@ func (s *service) reactivateSupervisor(ctx context.Context, supervisor *active.G
 
 // createNewSupervisor creates a new supervisor record
 func (s *service) createNewSupervisor(ctx context.Context, activeGroupID, supervisorID int64, now time.Time) error {
-	supervisor := &active.GroupSupervisor{
+	supervisor := &ports.GroupSupervisor{
 		StaffID:   supervisorID,
 		GroupID:   activeGroupID,
 		Role:      "supervisor",

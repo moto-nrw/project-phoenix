@@ -20,6 +20,7 @@ import (
 	repoEducation "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -358,13 +359,13 @@ func TestTenantIsolation_ActiveGroupVisibility(t *testing.T) {
 	agA := CreateTestActiveGroupForTenant(t, db, tenantA)
 	agB := CreateTestActiveGroupForTenant(t, db, tenantB)
 
-	repo := repositories.NewSessionCleanupRepositories(db, repositories.NewUnobservedTimetableDependencies(db).Capability).Group
-	presence := repositories.NewPresenceGroupRecords(db)
+	repo := repositories.NewSessionCleanupRepositories(db, repositories.NewUnobservedTimetableDependencies(db).Capability).Sessions
+	presence := PresenceModule(t, db)
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)
 
-	groups, err := presence.QueryGroupRecords(ctx42, repositories.PresenceGroupRecordFilter{})
+	groups, err := presence.QueryLiveGroups(ctx42, studentpresence.LiveGroupFilter{})
 	require.NoError(t, err)
 
 	for _, g := range groups {
@@ -372,14 +373,14 @@ func TestTenantIsolation_ActiveGroupVisibility(t *testing.T) {
 			"cross-tenant leak: tenant B active group visible to tenant A (List)")
 	}
 
-	_, err = repo.FindByID(ctx42, agB.ID)
+	_, err = repo.FindSession(ctx42, agB.ID)
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant A must not see tenant B active group %d", agB.ID)
 
 	// --- Tenant B ---
 	ctx43 := ctxForTenant(tenantB)
 
-	groups, err = presence.QueryGroupRecords(ctx43, repositories.PresenceGroupRecordFilter{})
+	groups, err = presence.QueryLiveGroups(ctx43, studentpresence.LiveGroupFilter{})
 	require.NoError(t, err)
 
 	for _, g := range groups {
@@ -387,7 +388,7 @@ func TestTenantIsolation_ActiveGroupVisibility(t *testing.T) {
 			"cross-tenant leak: tenant A active group visible to tenant B (List)")
 	}
 
-	_, err = repo.FindByID(ctx43, agA.ID)
+	_, err = repo.FindSession(ctx43, agA.ID)
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant B must not see tenant A active group %d", agA.ID)
 }

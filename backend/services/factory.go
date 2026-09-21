@@ -1118,13 +1118,14 @@ func newFactory(
 	})
 
 	// Initialize active service with SSE broadcaster
+	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(repos.ActiveGroup)
 	activeServiceDeps := presenceservice.PresenceDependencies{
 		PrincipalReader:          AttendancePrincipal,
 		SchoolPresence:           newStudentPresence(db, logger),
 		StudentDisplay:           studentDisplayProjection{students: persons, groups: groups},
-		GroupRepo:                repos.ActiveGroup,
+		GroupRepo:                sessionGroups,
 		SessionStartLock:         repos.SessionStartLock,
-		SupervisorRepo:           repos.GroupSupervisor,
+		SupervisorRepo:           sessionSupervisors,
 		StudentStatusRepo:        repos.StudentStatusDay,
 		CrossTenantRepo:          repos.CrossTenant,
 		Schools:                  newActiveSchoolQuery(organizations),
@@ -1802,7 +1803,7 @@ func newFactory(
 		Groups: repos.Group, Substitutions: repos.GroupSubstitution, Persons: newEducationPersonQuery(persons),
 		Teachers: repos.Teacher, Staff: repos.Staff, Actors: substitutionActorResolver{identity: callerContext},
 		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
-		ActiveSupervisorCreator: presenceservice.GroupSupervisorRows(activeService),
+		ActiveSupervisorCreator: activeService,
 		Audit:                   repos.SubstitutionChange, DB: db, Broadcaster: realtimeHub,
 		Logger: logger.With("service", "substitution"),
 		Schedule: newScheduleSubstitutionBridge(shiftplanning.NewSubstitutionAdapter(shiftplanning.SubstitutionAdapterDependencies{
@@ -1852,7 +1853,7 @@ func newFactory(
 	// Initialize cleanup service
 	activeCleanupService := presenceservice.NewPresenceCleanup(
 		newStudentPresence(db, logger),
-		repos.GroupSupervisor,
+		sessionSupervisors,
 		NewDeletionAudit(repos.DataDeletion),
 		today,
 	)

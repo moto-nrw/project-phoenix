@@ -13,7 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -56,15 +56,15 @@ type plannedStudentFault struct {
 }
 
 type checkinAttributionFault struct {
-	activeModels.GroupRepository
+	ports.ActiveGroupRepository
 	readErr error
 }
 
-func (r *checkinAttributionFault) FindActiveByDeviceID(ctx context.Context, id int64) (*activeModels.Group, error) {
+func (r *checkinAttributionFault) FindActiveByDeviceID(ctx context.Context, id int64) (*ports.ActiveGroup, error) {
 	if r.readErr != nil {
 		return nil, r.readErr
 	}
-	return r.GroupRepository.FindActiveByDeviceID(ctx, id)
+	return r.ActiveGroupRepository.FindActiveByDeviceID(ctx, id)
 }
 
 func (r *plannedStudentFault) UpdateLiveStatus(ctx context.Context, student *activeService.StudentRecord) error {
@@ -113,7 +113,7 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 	devices, err := repositories.NewDeviceRepository(db)
 	require.NoError(t, err)
 	deviceFault := activeService.NewCheckinDeviceFault(services.NewSessionDeviceDirectory(devices, nil, nil))
-	groupFault := &checkinAttributionFault{GroupRepository: repos.ActiveGroup}
+	groupFault := &checkinAttributionFault{ActiveGroupRepository: sessionGroups(repos.ActiveGroup)}
 	presence := testSchoolPresence(t, db)
 	statuses := &plannedStatusFault{StudentStatusDayRepository: repos.StudentStatusDay}
 	students := &plannedStudentFault{PresenceStudents: services.PresenceStudents(db, repos.Student)}

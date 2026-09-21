@@ -85,7 +85,7 @@ func TestEndDailySessionsVisitLookupFailure(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify the group is active before cleanup
-	groupRepo := repoFactory.ActiveGroup
+	groupRepo := sessionGroups(repoFactory.ActiveGroup)
 	activeBefore, err := groupRepo.FindByID(ctx, session.ID)
 	require.NoError(t, err)
 	assert.True(t, activeBefore.IsActive(), "Group should be active before cleanup")
@@ -184,7 +184,7 @@ func TestEndDailySessionsConsistency(t *testing.T) {
 	require.NotNil(t, result)
 
 	// Verify both sessions were cleaned up consistently
-	groupRepo := repoFactory.ActiveGroup
+	groupRepo := sessionGroups(repoFactory.ActiveGroup)
 
 	group1After, err := groupRepo.FindByID(ctx, session1.ID)
 	require.NoError(t, err)

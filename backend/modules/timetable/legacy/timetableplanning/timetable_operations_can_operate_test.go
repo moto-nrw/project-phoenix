@@ -14,7 +14,6 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -265,7 +264,7 @@ func TestTimetableOperationsRosterReportsCanOperate(t *testing.T) {
 				deps.settings.scope = configModel.OverviewScopeAllStaff
 				wireAssignedStaff(deps, 704, 804, 904, instanceID)
 				deps.staffRepo.byInstance[instanceID] = nil
-				deps.supervisors.byActiveGroup[activeGroupID] = []*activeModel.GroupSupervisor{{StaffID: 904}}
+				deps.supervisors.byActiveGroup[activeGroupID] = []*studentpresence.StaffedSupervision{{GroupSupervision: studentpresence.GroupSupervision{StaffID: 904}}}
 			},
 			want: true,
 		},

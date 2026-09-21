@@ -17,7 +17,6 @@ import (
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -1152,9 +1151,9 @@ func TestTimetableOperationsCheckInMovesStudentActiveElsewhere(t *testing.T) {
 
 	t.Run("falls back to the activity group name when no instance owns the origin session", func(t *testing.T) {
 		deps := newDeps()
-		originGroup := &activeModel.Group{GroupID: testpkg.Int64Ptr(640), RoomID: 810}
+		originGroup := &studentpresence.LiveGroup{ActivityGroupID: testpkg.Int64Ptr(640), RoomID: 810}
 		originGroup.ID = originActiveGroupID
-		deps.activeGroups.byID = map[int64]*activeModel.Group{originActiveGroupID: originGroup}
+		deps.activeGroups.byID = map[int64]*studentpresence.LiveGroup{originActiveGroupID: originGroup}
 		activityGroup := &activitiesModel.Group{Name: "Fußball AG"}
 		activityGroup.ID = 640
 		deps.activityGroups.byID[640] = activityGroup
@@ -1412,7 +1411,7 @@ func TestTimetableOperationsPermissionBranches(t *testing.T) {
 		wireAssignedStaff(deps, 675, 496, 256, instanceID)
 		deps.staffRepo.byInstance[instanceID] = nil
 		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
-		deps.supervisors.byActiveGroup[activeGroupID] = []*activeModel.GroupSupervisor{{StaffID: 256}}
+		deps.supervisors.byActiveGroup[activeGroupID] = []*studentpresence.StaffedSupervision{{GroupSupervision: studentpresence.GroupSupervision{StaffID: 256}}}
 
 		_, err := deps.service.Complete(context.Background(), 675, false, instanceID)
 
@@ -2073,7 +2072,7 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		arrivalService:  &fakeOpsArrivalService{byStudent: map[int64]*careplan.EffectiveArrivalTime{}},
 		pickupService:   &fakeOpsPickupService{byStudent: map[int64]*careplan.EffectivePickupTime{}},
 		careDayService:  &fakeOpsCareDayService{byStudent: map[int64]careplan.CareDayStatus{}},
-		supervisors:     &fakeOpsSupervisorRepo{byActiveGroup: map[int64][]*activeModel.GroupSupervisor{}},
+		supervisors:     &fakeOpsSupervisorRepo{byActiveGroup: map[int64][]*studentpresence.StaffedSupervision{}},
 		visitRepo: &fakeOpsVisitRepo{
 			byActiveGroup:            map[int64][]*studentpresence.Visit{},
 			currentByStudent:         map[int64]*studentpresence.Visit{},
@@ -2251,13 +2250,13 @@ func (s *fakeOpsInstanceService) Reopen(_ context.Context, instanceID, _ int64, 
 }
 
 type fakeOpsActiveGroupRepo struct {
-	activeModel.GroupRepository
-	byID         map[int64]*activeModel.Group
+	studentpresence.SessionRecords
+	byID         map[int64]*studentpresence.LiveGroup
 	lastActivity map[int64]time.Time
 	updateErr    error
 }
 
-func (r *fakeOpsActiveGroupRepo) FindByID(_ context.Context, id int64) (*activeModel.Group, error) {
+func (r *fakeOpsActiveGroupRepo) FindSession(_ context.Context, id int64) (*studentpresence.LiveGroup, error) {
 	group := r.byID[id]
 	if group == nil {
 		return nil, modelBase.ErrNotFound
@@ -2402,11 +2401,11 @@ func (s *fakeOpsArrivalService) GetBulkEffectiveArrivalTimesForDate(_ context.Co
 }
 
 type fakeOpsSupervisorRepo struct {
-	activeModel.GroupSupervisorRepository
-	byActiveGroup map[int64][]*activeModel.GroupSupervisor
+	studentpresence.SupervisionRecords
+	byActiveGroup map[int64][]*studentpresence.StaffedSupervision
 }
 
-func (r *fakeOpsSupervisorRepo) FindByActiveGroupID(_ context.Context, activeGroupID int64, _ bool) ([]*activeModel.GroupSupervisor, error) {
+func (r *fakeOpsSupervisorRepo) FindByActiveGroupID(_ context.Context, activeGroupID int64, _ bool) ([]*studentpresence.StaffedSupervision, error) {
 	return r.byActiveGroup[activeGroupID], nil
 }
 

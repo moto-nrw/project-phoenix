@@ -259,8 +259,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/studentpresence/internal/application/live_groups.go:(*Service).QueryGroupSupervisions":     26,
 	"modules/studentpresence/internal/application/live_groups.go:(*Service).QueryLiveGroups":            21,
 	"modules/studentpresence/internal/application/school_status.go:(*Service).ListSchoolStatuses":       21,
-	"modules/studentpresence/legacy/repositories/active/device_directory.go:attachDevices":              17,
-	"modules/studentpresence/legacy/repositories/active/group.go:(*GroupRepository).CheckRoomConflict":  16,
 
 	"modules/supervisiondashboard/supervisiondashboard.go:(*service).loadPresenceSections": 17,
 

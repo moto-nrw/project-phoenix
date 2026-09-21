@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -83,10 +84,11 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	})
 	// Instance completion consumes only the active-session end capability.
 	// Retain its real transaction, visit sync, supervision and SSE paths.
+	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(r.ActiveGroup)
 	ender := presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		PrincipalReader: AttendancePrincipal,
 		SchoolPresence:  newStudentPresence(db, logger),
-		GroupRepo:       r.ActiveGroup, SupervisorRepo: r.GroupSupervisor,
+		GroupRepo:       sessionGroups, SupervisorRepo: sessionSupervisors,
 		StudentRepo: PresenceStudents(db, r.Student), RoomRepo: NewAttendanceRooms(r.Room), ActivityGroupRepo: repositories.NewSessionActivities(r.ActivityGroup),
 		EducationGroupRepo: NewAttendanceEducationGroups(r.Group, r.Student), StaffRepo: NewAttendanceStaffDirectory(r.Staff),
 		DB: db, Broadcaster: hub, Logger: logger, Now: now,

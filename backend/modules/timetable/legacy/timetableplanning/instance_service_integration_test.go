@@ -27,7 +27,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -982,14 +981,14 @@ func TestInstance_Start_LeavesIndependentRoomStays(t *testing.T) {
 	require.NoError(t, err)
 
 	now := time.Now()
-	roomSession := &activeModels.Group{
-		StartTime:    now,
-		LastActivity: now,
-		GroupID:      &roomActivity.ID,
-		RoomID:       s.roomID,
+	roomSession := &studentpresence.LiveGroup{
+		StartTime:       now,
+		LastActivity:    now,
+		ActivityGroupID: &roomActivity.ID,
+		RoomID:          s.roomID,
+		TenantID:        testpkg.Tenant(t),
 	}
-	roomSession.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, s.repos.ActiveGroup.Create(s.ctx, roomSession))
+	require.NoError(t, s.repos.ActiveGroup.CreateSession(s.ctx, roomSession))
 
 	device := testpkg.CreateTestDevice(t, s.db, "open-room-instance-start")
 	testpkg.CreateTestAttendance(t, s.db, s.student1, s.staffID, device.ID, now.Add(-time.Hour), nil)
@@ -1000,7 +999,7 @@ func TestInstance_Start_LeavesIndependentRoomStays(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEqual(t, roomSession.ID, started.ActiveGroupID)
 
-	stillOpen, err := s.repos.ActiveGroup.FindByID(s.ctx, roomSession.ID)
+	stillOpen, err := s.repos.ActiveGroup.FindSession(s.ctx, roomSession.ID)
 	require.NoError(t, err)
 	require.NotNil(t, stillOpen)
 	assert.Nil(t, stillOpen.EndTime, "starting the planned block must not end the room stay")

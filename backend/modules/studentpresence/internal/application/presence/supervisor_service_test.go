@@ -9,7 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -47,7 +47,7 @@ func TestActiveService_CreateGroupSupervisor(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Create", "Supervisor")
 
 		now := timezone.NewDate(2026, 8, 24)
-		supervisor := &activeModels.GroupSupervisor{
+		supervisor := &ports.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
 			Role:      "supervisor",
@@ -75,7 +75,7 @@ func TestActiveService_CreateGroupSupervisor(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Invalid", "Group")
 
 		now := timezone.NewDate(2026, 8, 24)
-		supervisor := &activeModels.GroupSupervisor{
+		supervisor := &ports.GroupSupervisor{
 			GroupID:   99999999, // invalid
 			StaffID:   staff.ID,
 			Role:      "supervisor",
@@ -103,7 +103,7 @@ func TestActiveService_CreateGroupSupervisor(t *testing.T) {
 			Exec(ctx)
 		require.NoError(t, err)
 
-		supervisor := &activeModels.GroupSupervisor{
+		supervisor := &ports.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
 			Role:      "supervisor",
@@ -141,7 +141,7 @@ func TestActiveService_UpdateGroupSupervisor(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Update", "Supervisor")
 
 		now := timezone.NewDate(2026, 8, 24)
-		supervisor := &activeModels.GroupSupervisor{
+		supervisor := &ports.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
 			Role:      "supervisor",
@@ -175,7 +175,7 @@ func TestActiveService_UpdateGroupSupervisor(t *testing.T) {
 
 	t.Run("returns error for supervisor with zero ID", func(t *testing.T) {
 		// ARRANGE
-		supervisor := &activeModels.GroupSupervisor{}
+		supervisor := &ports.GroupSupervisor{}
 		supervisor.ID = 0 // Set ID via embedded base.Model
 
 		// ACT
@@ -206,7 +206,7 @@ func TestActiveService_DeleteGroupSupervisor(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Delete", "Supervisor")
 
 		now := timezone.NewDate(2026, 8, 24)
-		supervisor := &activeModels.GroupSupervisor{
+		supervisor := &ports.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
 			Role:      "supervisor",
@@ -263,7 +263,7 @@ func TestPresence_QuerySupervisions(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "List", "Supervisor")
 
 		now := timezone.TodayDate()
-		supervisor := &activeModels.GroupSupervisor{
+		supervisor := &ports.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
 			Role:      "supervisor",
@@ -314,7 +314,7 @@ func TestPresence_QueryActiveStaffSupervisions(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Find", "ByStaff")
 
 		now := timezone.TodayDate()
-		supervisor := &activeModels.GroupSupervisor{
+		supervisor := &ports.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
 			Role:      "supervisor",
@@ -370,7 +370,7 @@ func TestPresence_QueryActiveSessionSupervisions(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Find", "ByGroup")
 
 		now := timezone.TodayDate()
-		supervisor := &activeModels.GroupSupervisor{
+		supervisor := &ports.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
 			Role:      "supervisor",
@@ -428,8 +428,8 @@ func TestPresence_QueryActiveSupervisionsForSessions(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Multi", "Supervisor")
 
 		now := timezone.TodayDate()
-		sup1 := &activeModels.GroupSupervisor{GroupID: group1.ID, StaffID: staff.ID, Role: "supervisor", StartDate: now}
-		sup2 := &activeModels.GroupSupervisor{GroupID: group2.ID, StaffID: staff.ID, Role: "supervisor", StartDate: now}
+		sup1 := &ports.GroupSupervisor{GroupID: group1.ID, StaffID: staff.ID, Role: "supervisor", StartDate: now}
+		sup2 := &ports.GroupSupervisor{GroupID: group2.ID, StaffID: staff.ID, Role: "supervisor", StartDate: now}
 		err := service.CreateGroupSupervisor(ctx, sup1)
 		require.NoError(t, err)
 		err = service.CreateGroupSupervisor(ctx, sup2)
@@ -473,7 +473,7 @@ func TestActiveService_EndSupervision(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "End", "Supervision")
 
 		now := timezone.NewDate(2026, 8, 24)
-		supervisor := &activeModels.GroupSupervisor{
+		supervisor := &ports.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
 			Role:      "supervisor",
@@ -537,7 +537,7 @@ func TestPresence_QueryCurrentStaffGroups(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Active", "Supervisions")
 
 		now := timezone.TodayDate()
-		supervisor := &activeModels.GroupSupervisor{
+		supervisor := &ports.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
 			Role:      "supervisor",

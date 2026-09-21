@@ -29,8 +29,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -47,12 +45,12 @@ type attendanceSyncSetup struct {
 	instRepo    scheduleModels.ActivityInstanceRepository
 	isRepo      scheduleModels.InstanceStudentRepository
 	statusRepo  *repositories.StudentStatusDayRepository
-	groupRepo   activeModels.GroupRepository
+	groupRepo   studentpresence.SessionRecords
 	db          *bun.DB
 	ctx         context.Context
 	roomID      int64
 	activityID  int64
-	activeGroup *activeModels.Group
+	activeGroup *testpkg.ActiveGroupRow
 	instance    *scheduleModels.ActivityInstance
 }
 
@@ -102,7 +100,7 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 		instRepo:    timetablesqltest.NewActivityInstanceRepository(db),
 		isRepo:      instanceStudentRepo,
 		statusRepo:  repoFactory.StudentStatusDay,
-		groupRepo:   presenceCompose.NewLegacyGroupRepository(nil, repositories.NewPresenceGroupRecords(db), nil),
+		groupRepo:   repositories.NewPresenceSessionRecords(db),
 		db:          db,
 		ctx:         ctx,
 		roomID:      room.ID,

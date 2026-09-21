@@ -17,8 +17,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	facilitiesAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/uptrace/bun"
@@ -54,8 +54,8 @@ type TimetableTestRepositories struct {
 	Person                    usersModels.PersonRepository
 	Student                   usersModels.StudentRepository
 	Group                     educationModels.GroupRepository
-	ActiveGroup               activeModels.GroupRepository
-	GroupSupervisor           activeModels.GroupSupervisorRepository
+	ActiveGroup               studentpresence.SessionRecords
+	GroupSupervisor           studentpresence.SupervisionRecords
 	StudentArrivalSchedule    scheduleModels.StudentArrivalScheduleRepository
 	StudentArrivalException   scheduleModels.StudentArrivalExceptionRepository
 	StudentArrivalNote        scheduleModels.StudentArrivalNoteRepository
@@ -101,6 +101,11 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
+	sessions := newPresenceSessionRecords(presenceCompose.SessionRecordDependencies{
+		DB: db, Now: now, Rooms: &activeRoomDirectory{},
+		Activities: NewSessionActivities(timetableActivityGroupRepository{timetable: bookings}),
+		Staff:      &presenceSupervisionStaff{},
+	})
 	repos := &Factory{
 		db: db, Person: members.Person, Staff: members.Staff, Teacher: members.Teacher,
 		Group: members.Group, GroupTeacher: members.GroupTeacher, ClassTeacher: members.ClassTeacher,
@@ -109,8 +114,8 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 		StaffShiftSeriesException: newWorkforceStaffShiftSeriesExceptionRepository(workTime),
 		ShiftType:                 newWorkforceShiftTypeRepository(workTime),
 		InstanceStudent:           timetableInstanceStudentRepository{timetable: bookings},
-		ActiveGroup:               presenceCompose.NewLegacyGroupRepository(nil, NewPresenceGroupRecords(db), NewSessionActivities(timetableActivityGroupRepository{timetable: bookings}), presenceCompose.WithLegacyRoomDirectory(&activeRoomDirectory{})),
-		GroupSupervisor:           presenceCompose.NewLegacyGroupSupervisorRepository(NewPresenceSupervisionRecords(db), now),
+		ActiveGroup:               sessions,
+		GroupSupervisor:           sessions,
 		Room:                      facilitiesAdapter.New(),
 		DeviationEvent:            auditRepo.NewDeviationEventRepository(newTestAuditRuntime(db)),
 		ClassArrivalTime:          educationRepo.NewClassArrivalTimeRepository(db),

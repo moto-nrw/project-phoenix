@@ -8,6 +8,7 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/education"
@@ -49,10 +50,11 @@ func NewGroupsTestModule(db *bun.DB, unit tenant.UnitOfWork) (GroupsTestModule, 
 	if err != nil {
 		return GroupsTestModule{}, err
 	}
+	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(tt.ActiveGroup)
 	presence := presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		PrincipalReader: AttendancePrincipal,
 		YardRoomColor:   yardRoomColorQuery(rooms),
-		StaffNames:      NewAttendanceStaffNames(tt.Staff, persons), GroupRepo: tt.ActiveGroup, SupervisorRepo: tt.GroupSupervisor,
+		StaffNames:      NewAttendanceStaffNames(tt.Staff, persons), GroupRepo: sessionGroups, SupervisorRepo: sessionSupervisors,
 		StudentRepo: PresenceStudents(db, tt.Student), StaffRepo: NewAttendanceStaffDirectory(tt.Staff), RoomRepo: NewAttendanceRooms(tt.Room),
 		EducationGroupRepo: NewAttendanceEducationGroups(tt.Group, tt.Student),
 		ActivityGroupRepo:  repositories.NewSessionActivities(tt.ActivityGroup), DB: db, Logger: slog.Default(),

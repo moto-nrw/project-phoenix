@@ -3,7 +3,7 @@ package presence
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
 // AttendanceRooms supplies room facts and the lock used by capacity checks.
@@ -15,4 +15,4 @@ type AttendanceRooms interface {
 	List(context.Context, map[string]interface{}) ([]*SessionRoom, error)
 }
 
-type SessionRoom = active.SessionRoom
+type SessionRoom = ports.SessionRoom

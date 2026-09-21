@@ -8,7 +8,7 @@ import (
 
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -44,7 +44,7 @@ func (s *service) loadMoveSupervisedGroupIDs(ctx context.Context, staffID int64,
 func (s *service) authorizeStudentMove(
 	ctx context.Context,
 	auth StudentMoveAuthorization,
-	targetGroup *active.Group,
+	targetGroup *ports.ActiveGroup,
 	studentIDs []int64,
 	openAttendance map[int64]studentpresence.Attendance,
 	currentVisits map[int64]*studentpresence.Visit,
@@ -141,7 +141,7 @@ func (s *service) schoolWideAttendanceMoveAllowed(ctx context.Context, staffID i
 // ensureMoveTargetIsSupervised rejects push moves into a room with several
 // running sessions (ambiguous assignment) or into a session nobody supervises
 // right now.
-func (s *service) ensureMoveTargetIsSupervised(ctx context.Context, targetGroup *active.Group, op string) error {
+func (s *service) ensureMoveTargetIsSupervised(ctx context.Context, targetGroup *ports.ActiveGroup, op string) error {
 	groupsInRoom, err := s.GroupRepo.FindActiveByRoomID(ctx, targetGroup.RoomID)
 	if err != nil {
 		return &ActiveError{Op: op, Err: ErrDatabaseOperation}

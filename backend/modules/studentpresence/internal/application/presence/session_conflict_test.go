@@ -96,7 +96,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -315,7 +315,7 @@ func TestConflictInfoStructure(t *testing.T) {
 	// Test that ActivityConflictInfo struct has expected fields
 	conflictInfo := &activeSvc.ActivityConflictInfo{
 		HasConflict:      true,
-		ConflictingGroup: &active.Group{},
+		ConflictingGroup: &ports.ActiveGroup{},
 		ConflictMessage:  "Test conflict",
 		CanOverride:      true,
 	}

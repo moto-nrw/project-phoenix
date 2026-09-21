@@ -5,61 +5,16 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 )
 
 // staffGroupSupervisorRepository attaches the supervising staff member to
 // active-group supervisions. The replaced LEFT JOIN carried no soft-delete
 // filter, so an offboarded colleague keeps resolving here.
-type staffGroupSupervisorRepository struct {
-	activeModels.GroupSupervisorRepository
-	membership staffLookup
-}
-
-func (r staffGroupSupervisorRepository) FindByActiveGroupID(ctx context.Context, activeGroupID int64, activeOnly bool) ([]*activeModels.GroupSupervisor, error) {
-	rows, err := r.GroupSupervisorRepository.FindByActiveGroupID(ctx, activeGroupID, activeOnly)
-	if err != nil {
-		return nil, err
-	}
-	return rows, r.attachStaff(ctx, rows)
-}
-
-func (r staffGroupSupervisorRepository) FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, activeOnly bool) ([]*activeModels.GroupSupervisor, error) {
-	rows, err := r.GroupSupervisorRepository.FindByActiveGroupIDs(ctx, activeGroupIDs, activeOnly)
-	if err != nil {
-		return nil, err
-	}
-	return rows, r.attachStaff(ctx, rows)
-}
-
-func (r staffGroupSupervisorRepository) attachStaff(ctx context.Context, rows []*activeModels.GroupSupervisor) error {
-	ids := make([]int64, 0, len(rows))
-	for _, row := range rows {
-		if row != nil {
-			ids = append(ids, row.StaffID)
-		}
-	}
-	members, err := staffByID(ctx, r.membership, ids, true)
-	if err != nil {
-		return err
-	}
-	// A supervision whose staff row is gone keeps a nil Staff, which is what
-	// the previous LEFT JOIN produced.
-	for _, row := range rows {
-		if row == nil {
-			continue
-		}
-		if member, found := members[row.StaffID]; found {
-			row.Staff = sessionStaff(member)
-		}
-	}
-	return nil
-}
-
-func sessionStaff(member schoolmembership.Staff) *activeModels.SessionStaff {
+func sessionStaff(member schoolmembership.Staff) *presenceCompose.SessionStaff {
 	row := toLegacyStaff(member)
-	return &activeModels.SessionStaff{
+	return &presenceCompose.SessionStaff{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		PersonID: row.PersonID, StaffNotes: row.StaffNotes, EmploymentType: row.EmploymentType,
 		WorkTimeModelID: row.WorkTimeModelID, RotationAnchorDate: row.RotationAnchorDate,

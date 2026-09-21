@@ -47,7 +47,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/uptrace/bun"
@@ -162,8 +162,8 @@ type Factory struct {
 	StudentEnrollment  activitiesModels.StudentEnrollmentRepository
 
 	// Active domain
-	ActiveGroup           activeModels.GroupRepository
-	GroupSupervisor       activeModels.GroupSupervisorRepository
+	ActiveGroup           studentpresence.SessionRecords
+	GroupSupervisor       studentpresence.SupervisionRecords
 	CrossTenant           CrossTenantQuery
 	StudentStatusDay      *StudentStatusDayRepository
 	ExcusedAbsenceRequest *ExcusedAbsenceRequestRepository
@@ -396,7 +396,7 @@ func (f *Factory) BindSchoolStructure(groups schoolstructure.Query) {
 		f.Student = groupStudentRepository{StudentRepository: f.Student, groups: groups}
 	}
 	if f.GroupSupervisor != nil {
-		f.GroupSupervisor = groupSupervisorRepository{GroupSupervisorRepository: f.GroupSupervisor, groups: groups}
+		f.GroupSupervisor = groupSupervisorRepository{SupervisionRecords: f.GroupSupervisor, groups: groups}
 	}
 	if f.CrossTenant != nil {
 		f.CrossTenant = groupCrossTenantRepository{CrossTenantQuery: f.CrossTenant, groups: groups}
@@ -456,7 +456,11 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		now = clocks[0]
 	}
 	deviceFleet := mustNewDeviceFleet(db)
-	groupSupervisor := presenceCompose.NewLegacyGroupSupervisorRepository(NewPresenceSupervisionRecords(db), now)
+	sessionRecords := newPresenceSessionRecords(presenceCompose.SessionRecordDependencies{
+		DB: db, Now: now, Devices: activeDeviceDirectory{devices: deviceFleet}, Rooms: &activeRoomDirectory{},
+		Activities: NewSessionActivities(timetableActivityGroupRepository{timetable: timetableCapability}),
+		Staff:      &presenceSupervisionStaff{},
+	})
 	enrollmentModule := enrollmentCompose.New()
 	parentAnnouncement := NewParentAnnouncementRepository(db, enrollmentModule, now)
 	auditRepositoryRuntime := func(ctx context.Context) (bun.IDB, int64) {
@@ -562,8 +566,8 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		StudentEnrollment:  nil, // bound to Timetable below
 
 		// Active repositories
-		ActiveGroup:           presenceCompose.NewLegacyGroupRepository(activeDeviceDirectory{devices: deviceFleet}, NewPresenceGroupRecords(db), NewSessionActivities(timetableActivityGroupRepository{timetable: timetableCapability}), presenceCompose.WithLegacyRoomDirectory(&activeRoomDirectory{})),
-		GroupSupervisor:       groupSupervisor,
+		ActiveGroup:           sessionRecords,
+		GroupSupervisor:       sessionRecords,
 		CrossTenant:           &visitorProjection{visits: presenceCapability},
 		StudentStatusDay:      nil, // bound to Care Plan below
 		ExcusedAbsenceRequest: nil, // bound to Care Plan below

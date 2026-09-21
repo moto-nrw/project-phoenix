@@ -4,12 +4,10 @@
 package presenceservice
 
 import (
-	"context"
-
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -27,7 +25,7 @@ type (
 	AttendanceStaff                    = presence.AttendanceStaff
 	AttendanceStaffNames               = presence.AttendanceStaffNames
 	AttendanceRooms                    = presence.AttendanceRooms
-	SessionRoom                        = activeModels.SessionRoom
+	SessionRoom                        = ports.SessionRoom
 	AttendanceActivityCategories       = presence.AttendanceActivityCategories
 	AttendanceEducationGroups          = presence.AttendanceEducationGroups
 	EducationGroupRoom                 = presence.EducationGroupRoom
@@ -82,23 +80,6 @@ func presenceEngineOf(value studentpresence.Presence) (presence.Service, bool) {
 
 // NewPresenceCleanup builds the data-retention cleanup; the optional clock
 // fixes the calendar day stale records are compared against.
-func NewPresenceCleanup(presenceRetention PresenceRetention, supervisors activeModels.GroupSupervisorRepository, deletions DeletionAudit, today ...func() timezone.Date) studentpresence.PresenceCleanup {
+func NewPresenceCleanup(presenceRetention PresenceRetention, supervisors ports.GroupSupervisorRepository, deletions DeletionAudit, today ...func() timezone.Date) studentpresence.PresenceCleanup {
 	return presence.NewCleanupService(presenceRetention, supervisors, deletions, today...)
-}
-
-// GroupSupervisorRowWriter is the supervision write services/education still
-// performs with retained supervisor rows.
-type GroupSupervisorRowWriter interface {
-	CreateGroupSupervisor(context.Context, *activeModels.GroupSupervisor) error
-}
-
-// GroupSupervisorRows bridges the retained supervisor-row writer of a
-// composed presence value until the supervision rows move behind the owner
-// (#3422). It returns nil for any other value.
-func GroupSupervisorRows(value studentpresence.Presence) GroupSupervisorRowWriter {
-	engine, ok := presenceEngineOf(value)
-	if !ok {
-		return nil
-	}
-	return engine
 }

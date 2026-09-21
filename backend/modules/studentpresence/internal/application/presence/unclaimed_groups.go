@@ -5,22 +5,20 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
 // ======== Unclaimed Groups Management (Deviceless Claiming) ========
 
 // GetUnclaimedActiveGroups returns all active groups that have no supervisors
 // This is used for deviceless rooms like Schulhof where teachers claim supervision via frontend
-func (s *service) GetUnclaimedActiveGroups(ctx context.Context) ([]*active.Group, error) {
+func (s *service) GetUnclaimedActiveGroups(ctx context.Context) ([]*ports.ActiveGroup, error) {
 	rows, err := s.SchoolPresence.UnclaimedGroups(ctx, s.todayDate().String())
 	if err != nil {
 		return nil, &ActiveError{Op: "GetUnclaimedActiveGroups", Err: err}
 	}
-	groups := make([]*active.Group, 0, len(rows))
+	groups := make([]*ports.ActiveGroup, 0, len(rows))
 	if len(rows) == 0 {
 		return groups, nil
 	}
@@ -39,11 +37,11 @@ func (s *service) GetUnclaimedActiveGroups(ctx context.Context) ([]*active.Group
 	if err != nil {
 		return nil, &ActiveError{Op: "GetUnclaimedActiveGroups", Err: err}
 	}
-	roomsByID := make(map[int64]*active.SessionRoom, len(rooms))
+	roomsByID := make(map[int64]*ports.SessionRoom, len(rooms))
 	for _, room := range rooms {
 		roomsByID[room.ID] = room
 	}
-	templatesByID := make(map[int64]*active.SessionActivity, len(templates))
+	templatesByID := make(map[int64]*ports.SessionActivity, len(templates))
 	for _, template := range templates {
 		// This endpoint historically includes the template without its category relation.
 		copy := *template
@@ -51,7 +49,7 @@ func (s *service) GetUnclaimedActiveGroups(ctx context.Context) ([]*active.Group
 		templatesByID[copy.ID] = &copy
 	}
 	for _, row := range rows {
-		group := &active.Group{Model: base.Model{ID: row.ID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}, StartTime: row.StartTime, EndTime: row.EndTime, LastActivity: row.LastActivity, TimeoutMinutes: row.TimeoutMinutes, GroupID: row.GroupID, DeviceID: row.DeviceID, RoomID: row.RoomID}
+		group := &ports.ActiveGroup{ID: row.ID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, StartTime: row.StartTime, EndTime: row.EndTime, LastActivity: row.LastActivity, TimeoutMinutes: row.TimeoutMinutes, GroupID: row.GroupID, DeviceID: row.DeviceID, RoomID: row.RoomID}
 		group.SetTenantID(row.TenantID)
 		group.Room = roomsByID[row.RoomID]
 		if group.Room == nil || group.Room.Name != "Schulhof" {
@@ -67,11 +65,11 @@ func (s *service) GetUnclaimedActiveGroups(ctx context.Context) ([]*active.Group
 
 // ClaimActiveGroup allows a staff member to claim supervision of an active group
 // This is primarily used for deviceless rooms like Schulhof
-func (s *service) ClaimActiveGroup(ctx context.Context, groupID, staffID int64, role string) (*active.GroupSupervisor, error) {
+func (s *service) ClaimActiveGroup(ctx context.Context, groupID, staffID int64, role string) (*ports.GroupSupervisor, error) {
 	if role == "" {
 		role = "supervisor"
 	}
-	var result *active.GroupSupervisor
+	var result *ports.GroupSupervisor
 	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
 		if err := s.lockStaffForSupervision(txCtx, staffID); err != nil {
 			return err
@@ -89,7 +87,7 @@ func (s *service) ClaimActiveGroup(ctx context.Context, groupID, staffID int64, 
 		if err != nil {
 			return err
 		}
-		result = &active.GroupSupervisor{Model: base.Model{ID: row.ID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}, GroupID: row.GroupID, StaffID: row.StaffID, Role: row.Role, StartDate: date}
+		result = &ports.GroupSupervisor{ID: row.ID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, GroupID: row.GroupID, StaffID: row.StaffID, Role: row.Role, StartDate: date}
 		result.SetTenantID(row.TenantID)
 		source := stampSourceApp
 		if s.attendancePrincipal(txCtx).IsIoT {

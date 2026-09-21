@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
 // GetCrossTenantStudents returns students visiting from other tenants.
-func (s *service) GetCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]active.CrossTenantStudent, error) {
+func (s *service) GetCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]ports.CrossTenantStudent, error) {
 	if s.CrossTenantRepo == nil {
-		return []active.CrossTenantStudent{}, nil
+		return []ports.CrossTenantStudent{}, nil
 	}
 
 	students, err := s.CrossTenantRepo.FindCrossTenantStudents(ctx, hostingTenantID)
@@ -34,7 +34,7 @@ func (s *service) GetCrossTenantStudents(ctx context.Context, hostingTenantID in
 }
 
 // attachHomeSchools names each visiting student's home school by its slug.
-func (s *service) attachHomeSchools(ctx context.Context, students []active.CrossTenantStudent) error {
+func (s *service) attachHomeSchools(ctx context.Context, students []ports.CrossTenantStudent) error {
 	if s.Schools == nil {
 		return &ActiveError{Op: "GetCrossTenantStudents", Err: errors.New("school query is required")}
 	}

@@ -8,7 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -302,7 +302,7 @@ func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 				return existingVisit, nil
 			},
 		}, GroupRepo: &mockGroupRepository{
-			findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
+			findByIDFunc: func(context.Context, interface{}) (*ports.ActiveGroup, error) {
 				return nil, ErrNotFound
 			},
 		}},
@@ -321,7 +321,7 @@ func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 				return existingVisit, nil
 			},
 		}, GroupRepo: &mockGroupRepository{
-			findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
+			findByIDFunc: func(context.Context, interface{}) (*ports.ActiveGroup, error) {
 				return nil, lookupErr
 			},
 		}},
@@ -339,7 +339,7 @@ func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 				return existingVisit, nil
 			},
 		}, GroupRepo: &mockGroupRepository{
-			findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
+			findByIDFunc: func(context.Context, interface{}) (*ports.ActiveGroup, error) {
 				return nil, nil
 			},
 		}},
@@ -358,9 +358,9 @@ func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 				return existingVisit, nil
 			},
 		}, GroupRepo: &mockGroupRepository{
-			findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
-				return &activeModels.Group{
-					Model:   Model{ID: updatedVisit.ActiveGroupID},
+			findByIDFunc: func(context.Context, interface{}) (*ports.ActiveGroup, error) {
+				return &ports.ActiveGroup{
+					ID:      updatedVisit.ActiveGroupID,
 					EndTime: &endTime,
 				}, nil
 			},
@@ -390,7 +390,7 @@ func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 				return nil
 			},
 		}, GroupRepo: &mockGroupRepository{
-			findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
+			findByIDFunc: func(context.Context, interface{}) (*ports.ActiveGroup, error) {
 				t.Fatal("target group should not be loaded when active group is unchanged")
 				return nil, nil
 			},
@@ -458,8 +458,8 @@ func TestUpdateVisitMoveSynchronizesSourceAndTargetWithoutBroadcaster(t *testing
 			updateFunc: func(context.Context, *studentpresence.Visit) error { return nil },
 		},
 		GroupRepo: &mockGroupRepository{
-			findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
-				return &activeModels.Group{Model: Model{ID: updatedVisit.ActiveGroupID}}, nil
+			findByIDFunc: func(context.Context, interface{}) (*ports.ActiveGroup, error) {
+				return &ports.ActiveGroup{ID: updatedVisit.ActiveGroupID}, nil
 			},
 		},
 		AttendanceSyncer: syncer,

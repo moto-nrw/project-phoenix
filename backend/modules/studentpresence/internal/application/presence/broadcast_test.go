@@ -50,9 +50,9 @@ func newServiceWithPresenceSync(t *testing.T, db *testpkg.DB, presence active.St
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
 	deps := active.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
-		GroupRepo:          repos.ActiveGroup,
+		GroupRepo:          sessionGroups(repos.ActiveGroup),
 		SessionStartLock:   repos.SessionStartLock,
-		SupervisorRepo:     repos.GroupSupervisor,
+		SupervisorRepo:     sessionSupervisors(repos.ActiveGroup),
 		SchoolPresence:     presence,
 		AttendanceSyncer:   syncer,
 		StudentRepo:        services.PresenceStudents(db, repos.Student),
@@ -220,8 +220,8 @@ func TestBroadcast_UpdateVisitMoveSendsMovementEvents(t *testing.T) {
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := active.NewService(active.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
-		GroupRepo:          repos.ActiveGroup,
-		SupervisorRepo:     repos.GroupSupervisor,
+		GroupRepo:          sessionGroups(repos.ActiveGroup),
+		SupervisorRepo:     sessionSupervisors(repos.ActiveGroup),
 		SchoolPresence:     testSchoolPresence(t, db),
 		StudentRepo:        services.PresenceStudents(db, repos.Student),
 		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),

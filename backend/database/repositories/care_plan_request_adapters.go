@@ -12,7 +12,6 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
 // ExcusedAbsenceRequestRepository serves the retained excused-absence request
@@ -106,7 +105,7 @@ func (r ExcusedAbsenceRequestRepository) FindByIDForUpdate(ctx context.Context, 
 	return excusedRequestFromPublic(value), nil
 }
 
-func (r ExcusedAbsenceRequestRepository) UpdatePending(ctx context.Context, id int64, dates []activeModels.Date, note, status string) error {
+func (r ExcusedAbsenceRequestRepository) UpdatePending(ctx context.Context, id int64, dates []absencerecords.Date, note, status string) error {
 	publicDates := make([]careplan.Date, len(dates))
 	for i := range dates {
 		publicDates[i] = careplan.Date(dates[i])
@@ -390,9 +389,9 @@ func careScheduleRequestFromLegacy(row *scheduleModels.CareScheduleChangeRequest
 }
 
 func excusedRequestFromPublic(value careplan.ExcusedAbsenceRequest) *absencerecords.ExcusedAbsenceRequest {
-	dates := make([]activeModels.Date, len(value.Dates))
+	dates := make([]absencerecords.Date, len(value.Dates))
 	for i := range value.Dates {
-		dates[i] = activeModels.Date(value.Dates[i])
+		dates[i] = absencerecords.Date(value.Dates[i])
 	}
 	row := &absencerecords.ExcusedAbsenceRequest{StudentID: value.StudentID, SubmittedBy: value.SubmittedBy, Dates: dates, Note: value.Note, AbsenceStatus: value.AbsenceStatus, Status: value.Status, DecisionReason: value.DecisionReason, ReviewedBy: value.ReviewedBy, ReviewedAt: value.ReviewedAt, AppliedAt: value.AppliedAt}
 	row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt

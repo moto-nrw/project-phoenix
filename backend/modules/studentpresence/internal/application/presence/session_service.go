@@ -8,7 +8,7 @@ import (
 
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -121,7 +121,7 @@ type activityEndSSEData struct {
 // queries when there is a broadcaster to deliver the event to. Without the
 // name repositories (the shape unit tests build) the event carries empty
 // names, as broadcastActivityEndEvent always did on a failed lookup.
-func (s *service) collectActivityEndSSE(ctx context.Context, group *active.Group) (activityEndSSEData, error) {
+func (s *service) collectActivityEndSSE(ctx context.Context, group *ports.ActiveGroup) (activityEndSSEData, error) {
 	if s.Broadcaster == nil || s.RoomRepo == nil || s.ActivityGroupRepo == nil {
 		return activityEndSSEData{RoomID: group.RoomID}, nil
 	}
@@ -137,7 +137,7 @@ func (s *service) collectActivityEndSSE(ctx context.Context, group *active.Group
 	return activityEndSSEData{RoomID: group.RoomID, ActivityName: activityName, RoomName: roomName}, nil
 }
 
-func (s *service) endActivitySessionLocked(ctx context.Context, group *active.Group) (sessionEndSSEData, error) {
+func (s *service) endActivitySessionLocked(ctx context.Context, group *ports.ActiveGroup) (sessionEndSSEData, error) {
 	activeGroupID := group.ID
 	// Collect active visits before mutating them for the SSE payloads.
 	visitsToNotify, err := s.collectActiveVisitsForSSE(ctx, activeGroupID)
@@ -203,7 +203,7 @@ func (s *service) queueActivitySessionEndBroadcasts(ctx context.Context, activeG
 }
 
 // GetDeviceCurrentSession gets the current active session for a device
-func (s *service) GetDeviceCurrentSession(ctx context.Context, deviceID int64) (*active.Group, error) {
+func (s *service) GetDeviceCurrentSession(ctx context.Context, deviceID int64) (*ports.ActiveGroup, error) {
 	session, err := s.GroupRepo.FindActiveByDeviceIDWithNames(ctx, deviceID)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetDeviceCurrentSession", Err: err}
@@ -249,7 +249,7 @@ func (s *service) UpdateSessionActivity(ctx context.Context, activeGroupID int64
 
 // sessionActivityMissError explains why no running session was touched: the
 // session is gone or has ended. It returns nil for a session that still runs.
-func sessionActivityMissError(session *active.Group, findErr error) error {
+func sessionActivityMissError(session *ports.ActiveGroup, findErr error) error {
 	if findErr != nil {
 		if isFindByIDNoRows(findErr) {
 			return &ActiveError{Op: "UpdateSessionActivity", Err: ErrActiveGroupNotFound}
@@ -266,7 +266,7 @@ func sessionActivityMissError(session *active.Group, findErr error) error {
 }
 
 func isUpdateLastActivitySessionMiss(err error) bool {
-	if errors.Is(err, studentpresence.ErrGroupNotOpen) {
+	if errors.Is(err, ports.ErrGroupNotOpen) {
 		return true
 	}
 	var dbErr *modelBase.DatabaseError

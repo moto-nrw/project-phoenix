@@ -8,7 +8,6 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
 // StudentStatusDayRepository serves the retained status-day rows over the Care
@@ -18,7 +17,7 @@ import (
 type StudentStatusDayRepository struct{ capability careplan.Capability }
 
 func statusDayFromPublic(value careplan.StudentStatusDay) *absencerecords.StudentStatusDay {
-	row := &absencerecords.StudentStatusDay{StudentID: value.StudentID, Date: activeModels.Date(value.Date), Status: value.Status, ReportedAt: value.ReportedAt, ClearedAt: value.ClearedAt, Source: value.Source, GuardianAccountID: value.GuardianAccountID, Note: value.Note}
+	row := &absencerecords.StudentStatusDay{StudentID: value.StudentID, Date: absencerecords.Date(value.Date), Status: value.Status, ReportedAt: value.ReportedAt, ClearedAt: value.ClearedAt, Source: value.Source, GuardianAccountID: value.GuardianAccountID, Note: value.Note}
 	row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
 	return row
 }
@@ -42,11 +41,11 @@ func (r StudentStatusDayRepository) UpsertReported(ctx context.Context, row *abs
 	return err
 }
 
-func (r StudentStatusDayRepository) ArchiveAndClearStatusFlag(ctx context.Context, flagColumn, sinceColumn, status string, date activeModels.Date, fallback time.Time, source string) (int64, error) {
+func (r StudentStatusDayRepository) ArchiveAndClearStatusFlag(ctx context.Context, flagColumn, sinceColumn, status string, date absencerecords.Date, fallback time.Time, source string) (int64, error) {
 	return r.capability.ArchiveStudentStatusFlags(ctx, careplan.StatusFlagArchive{FlagColumn: flagColumn, SinceColumn: sinceColumn, Status: status, Date: careplan.Date(date), ReportedFallback: fallback, Source: source})
 }
 
-func (r StudentStatusDayRepository) CountEffectiveDashboardAbsences(ctx context.Context, date activeModels.Date) (*absencerecords.StudentStatusCounts, error) {
+func (r StudentStatusDayRepository) CountEffectiveDashboardAbsences(ctx context.Context, date absencerecords.Date) (*absencerecords.StudentStatusCounts, error) {
 	value, err := r.capability.CountEffectiveStudentAbsences(ctx, careplan.Date(date))
 	if err != nil {
 		return nil, err
@@ -54,7 +53,7 @@ func (r StudentStatusDayRepository) CountEffectiveDashboardAbsences(ctx context.
 	return &absencerecords.StudentStatusCounts{Sick: value.Sick, Excused: value.Excused, Total: value.Total, UnaccountedIDs: value.UnaccountedIDs}, nil
 }
 
-func (r StudentStatusDayRepository) MarkCleared(ctx context.Context, studentID int64, status string, date activeModels.Date, at time.Time, source string) error {
+func (r StudentStatusDayRepository) MarkCleared(ctx context.Context, studentID int64, status string, date absencerecords.Date, at time.Time, source string) error {
 	return r.capability.ClearStudentStatusDays(ctx, studentID, status, []careplan.Date{careplan.Date(date)}, at, source)
 }
 
@@ -62,7 +61,7 @@ func (r StudentStatusDayRepository) MarkClearedByID(ctx context.Context, id int6
 	return r.capability.ClearStudentStatusDayByID(ctx, id, at, source)
 }
 
-func (r StudentStatusDayRepository) MarkClearedForDates(ctx context.Context, studentID int64, status string, dates []activeModels.Date, at time.Time, source string) error {
+func (r StudentStatusDayRepository) MarkClearedForDates(ctx context.Context, studentID int64, status string, dates []absencerecords.Date, at time.Time, source string) error {
 	publicDates := make([]careplan.Date, len(dates))
 	for i := range dates {
 		publicDates[i] = careplan.Date(dates[i])
@@ -81,25 +80,25 @@ func (r StudentStatusDayRepository) FindActiveByID(ctx context.Context, id int64
 	return statusDayFromPublic(value), nil
 }
 
-func (r StudentStatusDayRepository) FindActiveByStudentAndDateRange(ctx context.Context, studentID int64, from, to activeModels.Date) ([]*absencerecords.StudentStatusDay, error) {
+func (r StudentStatusDayRepository) FindActiveByStudentAndDateRange(ctx context.Context, studentID int64, from, to absencerecords.Date) ([]*absencerecords.StudentStatusDay, error) {
 	return r.list(ctx, careplan.StudentStatusDayFilter{StudentIDs: []int64{studentID}, From: careplan.Date(from), To: careplan.Date(to), ActiveOnly: true})
 }
 
-func (r StudentStatusDayRepository) FindActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date activeModels.Date) ([]*absencerecords.StudentStatusDay, error) {
+func (r StudentStatusDayRepository) FindActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date absencerecords.Date) ([]*absencerecords.StudentStatusDay, error) {
 	if len(studentIDs) == 0 {
 		return []*absencerecords.StudentStatusDay{}, nil
 	}
 	return r.list(ctx, careplan.StudentStatusDayFilter{StudentIDs: studentIDs, Date: careplan.Date(date), ActiveOnly: true})
 }
 
-func (r StudentStatusDayRepository) FindSignedOffByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date activeModels.Date) ([]*absencerecords.StudentStatusDay, error) {
+func (r StudentStatusDayRepository) FindSignedOffByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date absencerecords.Date) ([]*absencerecords.StudentStatusDay, error) {
 	if len(studentIDs) == 0 {
 		return []*absencerecords.StudentStatusDay{}, nil
 	}
 	return r.list(ctx, careplan.StudentStatusDayFilter{StudentIDs: studentIDs, Date: careplan.Date(date), IncludeEndOfDay: true})
 }
 
-func (r StudentStatusDayRepository) FindByStudentAndDateRange(ctx context.Context, studentID int64, from, to activeModels.Date) ([]*absencerecords.StudentStatusDay, error) {
+func (r StudentStatusDayRepository) FindByStudentAndDateRange(ctx context.Context, studentID int64, from, to absencerecords.Date) ([]*absencerecords.StudentStatusDay, error) {
 	return r.list(ctx, careplan.StudentStatusDayFilter{StudentIDs: []int64{studentID}, From: careplan.Date(from), To: careplan.Date(to)})
 }
 

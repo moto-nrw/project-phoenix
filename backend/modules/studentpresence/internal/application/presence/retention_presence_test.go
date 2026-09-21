@@ -69,7 +69,7 @@ func testRetentionRollback(t *testing.T, stage string) {
 		fault.afterAppend = injected
 	}
 	repos := repositories.NewRetentionCleanupRepositories(db, fault)
-	svc := activeService.NewCleanupService(deleteFault, repos.Supervisor, services.NewDeletionAudit(repos.Deletion))
+	svc := activeService.NewCleanupService(deleteFault, sessionSupervisors(repos.Sessions), services.NewDeletionAudit(repos.Deletion))
 	consent := testpkg.CreateTestPrivacyConsent(t, db, "retention-rollback")
 	group := testpkg.CreateTestActiveGroupForTenant(t, db, testpkg.Tenant(t))
 	entry := time.Now().AddDate(0, 0, -45)

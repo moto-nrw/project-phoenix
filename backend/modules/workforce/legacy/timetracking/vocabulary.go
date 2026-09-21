@@ -3,7 +3,7 @@ package timetracking
 import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 )
@@ -41,19 +41,19 @@ var (
 type (
 	AbsenceRequestFilter             = timerecords.AbsenceRequestFilter
 	AbsenceRequestRow                = timerecords.AbsenceRequestRow
-	Group                            = activeModels.Group
-	GroupSupervisor                  = activeModels.GroupSupervisor
-	GroupRepository                  = activeModels.GroupRepository
-	GroupSupervisorRepository        = activeModels.GroupSupervisorRepository
+	Group                            = studentpresence.LiveGroup
+	GroupSupervisor                  = studentpresence.GroupSupervision
+	GroupRepository                  = studentpresence.SessionRecords
+	GroupSupervisorRepository        = studentpresence.SupervisionRecords
 	StaffAbsence                     = timerecords.StaffAbsence
 	StaffAbsenceAudit                = timerecords.StaffAbsenceAudit
 	StaffAbsenceType                 = timerecords.StaffAbsenceType
 	StaffBalanceAdjustment           = timerecords.StaffBalanceAdjustment
 	StaffBalanceAdjustmentRepository = timerecords.StaffBalanceAdjustmentRepository
-	StaffRoomSupervision             = activeModels.StaffRoomSupervision
+	StaffRoomSupervision             = studentpresence.StaffRoomSupervision
 	StaffVacationOpening             = timerecords.StaffVacationOpening
 	StaffVacationQuota               = timerecords.StaffVacationQuota
-	SupervisionBlocker               = activeModels.SupervisionBlocker
+	SupervisionBlocker               = studentpresence.SupervisionBlocker
 	WorkSession                      = timerecords.WorkSession
 	WorkSessionBreak                 = timerecords.WorkSessionBreak
 )

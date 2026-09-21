@@ -27,7 +27,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/users/userstest"
@@ -1052,7 +1051,7 @@ type fakeOperationsService struct {
 }
 
 type fakeOperationActiveGroupRepo struct {
-	activeModels.GroupRepository
+	studentpresence.SessionRecords
 	hasRoomConflict bool
 	err             error
 }
@@ -1088,7 +1087,7 @@ type stubOpInstanceStudentRepo struct {
 	schedule.InstanceStudentRepository
 }
 type stubOpSupervisorRepo struct {
-	activeModels.GroupSupervisorRepository
+	studentpresence.SupervisionRecords
 }
 type stubOpPresence struct {
 	timetableplanning.StudentVisitReader
@@ -1262,7 +1261,7 @@ func (s *fakeOperationSettingsService) ResolveString(_ context.Context, key stri
 	return s.stringValue, nil
 }
 
-func (r *fakeOperationActiveGroupRepo) CheckRoomConflict(_ context.Context, _ int64, _ int64) (bool, *activeModels.Group, error) {
+func (r *fakeOperationActiveGroupRepo) CheckRoomConflict(_ context.Context, _ int64, _ int64) (bool, *studentpresence.LiveGroup, error) {
 	if r.err != nil {
 		return false, nil, r.err
 	}

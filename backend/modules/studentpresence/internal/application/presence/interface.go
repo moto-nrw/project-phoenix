@@ -6,17 +6,17 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
 // Service defines operations for managing active groups and visits
 type Service interface {
 	// Active Group operations
-	GetActiveGroup(ctx context.Context, id int64) (*active.Group, error)
-	CreateActiveGroup(ctx context.Context, group *active.Group) error
-	UpdateActiveGroup(ctx context.Context, group *active.Group) error
+	GetActiveGroup(ctx context.Context, id int64) (*ports.ActiveGroup, error)
+	CreateActiveGroup(ctx context.Context, group *ports.ActiveGroup) error
+	UpdateActiveGroup(ctx context.Context, group *ports.ActiveGroup) error
 	DeleteActiveGroup(ctx context.Context, id int64) error
-	FindDeviceActiveGroupInRoom(ctx context.Context, roomID int64, deviceID int64) (*active.Group, error)
+	FindDeviceActiveGroupInRoom(ctx context.Context, roomID int64, deviceID int64) (*ports.ActiveGroup, error)
 	EndActiveGroupSession(ctx context.Context, id int64) error
 
 	// Visit operations
@@ -39,8 +39,8 @@ type Service interface {
 	MoveStudentsToTransitAuthorized(ctx context.Context, studentIDs []int64, auth StudentMoveAuthorization) (*StudentMoveResult, error)
 
 	// Group Supervisor operations
-	CreateGroupSupervisor(ctx context.Context, supervisor *active.GroupSupervisor) error
-	UpdateGroupSupervisor(ctx context.Context, supervisor *active.GroupSupervisor) error
+	CreateGroupSupervisor(ctx context.Context, supervisor *ports.GroupSupervisor) error
+	UpdateGroupSupervisor(ctx context.Context, supervisor *ports.GroupSupervisor) error
 	DeleteGroupSupervisor(ctx context.Context, id int64) error
 	EndSupervision(ctx context.Context, id int64) error
 
@@ -52,14 +52,14 @@ type Service interface {
 	CreateCombinedGroupWithGroups(ctx context.Context, group *studentpresence.CombinedGroup, groupIDs []int64) error
 
 	// Activity Session Management with Conflict Detection
-	StartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error)
+	StartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*ports.ActiveGroup, error)
 	CheckActivityConflict(ctx context.Context, activityID, deviceID int64) (*ActivityConflictInfo, error)
 	EndActivitySession(ctx context.Context, activeGroupID int64) error
-	ForceStartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error)
-	GetDeviceCurrentSession(ctx context.Context, deviceID int64) (*active.Group, error)
+	ForceStartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*ports.ActiveGroup, error)
+	GetDeviceCurrentSession(ctx context.Context, deviceID int64) (*ports.ActiveGroup, error)
 
 	// Dynamic Supervisor Management
-	UpdateActiveGroupSupervisors(ctx context.Context, activeGroupID int64, supervisorIDs []int64) (*active.Group, error)
+	UpdateActiveGroupSupervisors(ctx context.Context, activeGroupID int64, supervisorIDs []int64) (*ports.ActiveGroup, error)
 
 	// Session timeout operations
 	ProcessSessionTimeout(ctx context.Context, deviceID int64) (*TimeoutResult, error)
@@ -73,7 +73,7 @@ type Service interface {
 
 	// Analytics and statistics
 	GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytics, error)
-	GetActiveGroupsByIDs(ctx context.Context, groupIDs []int64) (map[int64]*active.Group, error)
+	GetActiveGroupsByIDs(ctx context.Context, groupIDs []int64) (map[int64]*ports.ActiveGroup, error)
 
 	// Attendance tracking operations
 	GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*AttendanceStatus, error)
@@ -119,11 +119,11 @@ type Service interface {
 	ConfirmDailyCheckout(ctx context.Context, studentID, deviceID int64, destination string) (*DailyCheckoutResult, error)
 
 	// Unclaimed groups management (deviceless claiming)
-	GetUnclaimedActiveGroups(ctx context.Context) ([]*active.Group, error)
-	ClaimActiveGroup(ctx context.Context, groupID, staffID int64, role string) (*active.GroupSupervisor, error)
+	GetUnclaimedActiveGroups(ctx context.Context) ([]*ports.ActiveGroup, error)
+	ClaimActiveGroup(ctx context.Context, groupID, staffID int64, role string) (*ports.GroupSupervisor, error)
 
 	// Cross-tenant student visibility (Ferienbetreuung / holiday care)
-	GetCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]active.CrossTenantStudent, error)
+	GetCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]ports.CrossTenantStudent, error)
 
 	// Tracking indicators — returns per-student match results for the given labels.
 	// Each student gets a []bool aligned with the labels slice.
@@ -229,11 +229,11 @@ type ActiveGroupInfo struct {
 
 // ActivityConflictInfo represents information about a detected activity conflict
 type ActivityConflictInfo struct {
-	HasConflict       bool          `json:"has_conflict"`
-	ConflictingGroup  *active.Group `json:"conflicting_group,omitempty"`
-	ConflictingDevice *string       `json:"conflicting_device,omitempty"`
-	ConflictMessage   string        `json:"conflict_message"`
-	CanOverride       bool          `json:"can_override"`
+	HasConflict       bool               `json:"has_conflict"`
+	ConflictingGroup  *ports.ActiveGroup `json:"conflicting_group,omitempty"`
+	ConflictingDevice *string            `json:"conflicting_device,omitempty"`
+	ConflictMessage   string             `json:"conflict_message"`
+	CanOverride       bool               `json:"can_override"`
 }
 
 // CleanupService is the owner's public retention cleanup facade.

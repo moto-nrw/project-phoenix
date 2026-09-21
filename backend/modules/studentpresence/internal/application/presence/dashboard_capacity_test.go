@@ -3,17 +3,17 @@ package presence
 import (
 	"testing"
 
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCurrentActivityCapacityPreservesUnlimitedSemantics(t *testing.T) {
 	t.Parallel()
 	for _, capacity := range []int{-1, 0, 12} {
-		template := &activeModels.SessionActivity{ID: 1, MaxParticipants: capacity}
+		template := &ports.SessionActivity{ID: 1, MaxParticipants: capacity}
 		rows := buildCurrentActivities(
-			[]*activeModels.SessionActivity{template},
-			[]*activeModels.Group{{GroupID: &template.ID, RoomID: 2}},
+			[]*ports.SessionActivity{template},
+			[]*ports.ActiveGroup{{GroupID: &template.ID, RoomID: 2}},
 			&dashboardRoomData{roomStudentsMap: map[int64]map[int64]struct{}{}},
 		)
 		require.Len(t, rows, 1)

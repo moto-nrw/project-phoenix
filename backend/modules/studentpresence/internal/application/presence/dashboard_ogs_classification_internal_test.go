@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,17 +27,17 @@ const (
 	collidingEducationRef int64 = 7  // the education group the care template serves
 )
 
-func templateFixtures() map[int64]*activeModels.SessionActivity {
+func templateFixtures() map[int64]*ports.SessionActivity {
 	educationRef := collidingEducationRef
 
-	collidingActivity := &activeModels.SessionActivity{
+	collidingActivity := &ports.SessionActivity{
 		Name:            "Fußball",
 		Type:            "activity",
 		TargetGroupType: "none",
 	}
 	collidingActivity.ID = collidingID
 
-	careGroup := &activeModels.SessionActivity{
+	careGroup := &ports.SessionActivity{
 		Name:             "Gruppenzeit Bären",
 		Type:             "care",
 		TargetGroupType:  "gruppe",
@@ -45,14 +45,14 @@ func templateFixtures() map[int64]*activeModels.SessionActivity {
 	}
 	careGroup.ID = careTemplateID
 
-	careWithoutGroup := &activeModels.SessionActivity{
+	careWithoutGroup := &ports.SessionActivity{
 		Name:            "Mittagessen 1. Schicht",
 		Type:            "care",
 		TargetGroupType: "none",
 	}
 	careWithoutGroup.ID = careWithoutGroupID
 
-	activityWithTarget := &activeModels.SessionActivity{
+	activityWithTarget := &ports.SessionActivity{
 		Name:             "Basteln für die Bären",
 		Type:             "activity",
 		TargetGroupType:  "gruppe",
@@ -60,7 +60,7 @@ func templateFixtures() map[int64]*activeModels.SessionActivity {
 	}
 	activityWithTarget.ID = activityWithTargetID
 
-	return map[int64]*activeModels.SessionActivity{
+	return map[int64]*ports.SessionActivity{
 		collidingID:          collidingActivity,
 		careTemplateID:       careGroup,
 		careWithoutGroupID:   careWithoutGroup,
@@ -68,19 +68,19 @@ func templateFixtures() map[int64]*activeModels.SessionActivity {
 	}
 }
 
-func activeSession(id int64, templateID *int64, roomID int64) *activeModels.Group {
-	session := &activeModels.Group{
+func activeSession(id int64, templateID *int64, roomID int64) *ports.ActiveGroup {
+	session := &ports.ActiveGroup{
 		StartTime: time.Now().Add(-10 * time.Minute),
 		GroupID:   templateID,
 		RoomID:    roomID,
 	}
-	session.Model = Model{ID: id}
+	session.ID = id
 	return session
 }
 
 func emptyRoomData() *dashboardRoomData {
 	return &dashboardRoomData{
-		roomByID:        map[int64]*activeModels.SessionRoom{},
+		roomByID:        map[int64]*ports.SessionRoom{},
 		occupiedRooms:   map[int64]bool{},
 		roomStudentsMap: map[int64]map[int64]struct{}{},
 	}
@@ -93,7 +93,7 @@ func TestIsOGSGroupTemplate(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		template *activeModels.SessionActivity
+		template *ports.SessionActivity
 		want     bool
 	}{
 		{"care block bound to an education group", templates[careTemplateID], true},
@@ -120,7 +120,7 @@ func TestProcessActiveGroupsCountsOnlyEducationBoundCareSessions(t *testing.T) {
 	targeted := activityWithTargetID
 	unknown := unknownTemplateID
 
-	sessions := []*activeModels.Group{
+	sessions := []*ports.ActiveGroup{
 		activeSession(1001, &colliding, 501), // must NOT count despite the id collision
 		activeSession(1002, &care, 502),      // the only real Betreuungsgruppe
 		activeSession(1003, &careOpen, 503),
@@ -142,12 +142,12 @@ func TestProcessActiveGroupsWithoutTemplatesCountsNoOGSGroups(t *testing.T) {
 	t.Parallel()
 
 	colliding := collidingID
-	sessions := []*activeModels.Group{activeSession(1001, &colliding, 501)}
+	sessions := []*ports.ActiveGroup{activeSession(1001, &colliding, 501)}
 
 	_, ogsCount, _ := processActiveGroups(
 		sessions,
 		map[int64][]studentpresence.Visit{},
-		map[int64]*activeModels.SessionActivity{},
+		map[int64]*ports.SessionActivity{},
 		emptyRoomData(),
 	)
 
@@ -195,7 +195,7 @@ func TestBuildActiveGroupsSummaryLabelsCollidingSessionAsActivity(t *testing.T) 
 	colliding := collidingID
 	care := careTemplateID
 
-	sessions := []*activeModels.Group{
+	sessions := []*ports.ActiveGroup{
 		activeSession(1001, &colliding, 501),
 		activeSession(1002, &care, 502),
 	}

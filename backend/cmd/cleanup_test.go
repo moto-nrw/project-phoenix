@@ -68,10 +68,11 @@ func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
+	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(repoFactory.ActiveGroup)
 	sessionService := presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		SchoolPresence: presence,
-		GroupRepo:      repoFactory.ActiveGroup,
-		SupervisorRepo: repoFactory.GroupSupervisor,
+		GroupRepo:      sessionGroups,
+		SupervisorRepo: sessionSupervisors,
 		DeviceRepo: cleanupTestDevices{
 			findDeviceID: func(ctx context.Context) (int64, error) {
 				device, err := repoFactory.Device.FindByDeviceID(ctx, "WEB-MANUAL-001")

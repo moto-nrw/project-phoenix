@@ -11,12 +11,12 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // ForceStartActivitySessionWithSupervisors starts an activity session with multiple supervisors and override capability
-func (s *service) ForceStartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error) {
+func (s *service) ForceStartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*ports.ActiveGroup, error) {
 	s.getLogger().DebugContext(ctx, "force start with multiple supervisors called",
 		slog.Any("supervisor_ids", supervisorIDs),
 		slog.Int("supervisor_count", len(supervisorIDs)),
@@ -28,7 +28,7 @@ func (s *service) ForceStartActivitySessionWithSupervisors(ctx context.Context, 
 		return nil, err
 	}
 
-	var newGroup *active.Group
+	var newGroup *ports.ActiveGroup
 	err := s.forceStartActivitySessionTx(ctx, activityID, deviceID, supervisorIDs, roomID, &newGroup)
 	if err != nil {
 		return nil, err
@@ -39,7 +39,7 @@ func (s *service) ForceStartActivitySessionWithSupervisors(ctx context.Context, 
 
 const opForceStartSession = "ForceStartActivitySessionWithSupervisors"
 
-func (s *service) forceStartActivitySessionTx(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64, newGroup **active.Group) error {
+func (s *service) forceStartActivitySessionTx(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64, newGroup **ports.ActiveGroup) error {
 	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 		lockedStaff, finalRoomID, err := s.lockForceStart(txCtx, activityID, deviceID, supervisorIDs, roomID)
 		if err != nil {
@@ -350,7 +350,7 @@ func (s *service) transferActiveSupervisorsBetweenGroups(ctx context.Context, ol
 			continue
 		}
 
-		transferredSupervisor := &active.GroupSupervisor{
+		transferredSupervisor := &ports.GroupSupervisor{
 			StaffID:   supervisor.StaffID,
 			GroupID:   newGroupID,
 			Role:      normalizeTransferredSupervisorRole(supervisor.Role),

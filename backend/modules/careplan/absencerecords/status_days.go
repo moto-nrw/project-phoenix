@@ -48,6 +48,10 @@ const (
 	StudentStatusSourceParent = excusedrequests.StudentStatusSourceParent
 )
 
+// Date is the calendar date the absence records carry, so the adapters that
+// exchange them name it without the calendar package.
+type Date = timezone.Date
+
 // StudentStatusDay is one row of active.student_status_days.
 type StudentStatusDay struct {
 	ID         int64         `json:"id"`

@@ -21,7 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -128,13 +127,13 @@ type TimetableOperationsDependencies struct {
 	InstanceStaffRepo  scheduleModel.InstanceStaffRepository
 	InstanceStudents   scheduleModel.InstanceStudentRepository
 	InstanceService    InstanceService
-	ActiveGroupRepo    activeModel.GroupRepository
+	ActiveGroupRepo    studentpresence.SessionRecords
 	ActivityGroupRepo  activitiesModel.GroupRepository
 	ActiveService      OperationActiveService
 	ArrivalService     OperationArrivalService
 	PickupService      OperationPickupService
 	CareDayService     careplan.CareDayQuery
-	SupervisorRepo     activeModel.GroupSupervisorRepository
+	SupervisorRepo     studentpresence.SupervisionRecords
 	Presence           StudentVisitReader
 	StudentRepo        usersModel.StudentRepository
 	EducationGroupRepo educationModel.GroupRepository
@@ -871,12 +870,12 @@ func (s *timetableOperationsService) resolveActiveGroupLabel(ctx context.Context
 	if inst, err := s.deps.InstanceRepo.FindByActiveGroupID(ctx, activeGroupID); err == nil && inst != nil {
 		return inst.Title
 	}
-	group, err := s.deps.ActiveGroupRepo.FindByID(ctx, activeGroupID)
+	group, err := s.deps.ActiveGroupRepo.FindSession(ctx, activeGroupID)
 	if err != nil || group == nil {
 		return ""
 	}
-	if group.GroupID != nil {
-		if activityGroup, err := s.deps.ActivityGroupRepo.FindByID(ctx, *group.GroupID); err == nil && activityGroup != nil {
+	if group.ActivityGroupID != nil {
+		if activityGroup, err := s.deps.ActivityGroupRepo.FindByID(ctx, *group.ActivityGroupID); err == nil && activityGroup != nil {
 			return activityGroup.Name
 		}
 	}

@@ -7,12 +7,12 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Active Group operations
-func (s *service) GetActiveGroup(ctx context.Context, id int64) (*active.Group, error) {
+func (s *service) GetActiveGroup(ctx context.Context, id int64) (*ports.ActiveGroup, error) {
 	group, err := s.GroupRepo.FindByID(ctx, id)
 	if err != nil {
 		if base.IsNoRows(err) {
@@ -35,9 +35,9 @@ func (s *service) GetActiveGroup(ctx context.Context, id int64) (*active.Group, 
 	return group, nil
 }
 
-func (s *service) GetActiveGroupsByIDs(ctx context.Context, groupIDs []int64) (map[int64]*active.Group, error) {
+func (s *service) GetActiveGroupsByIDs(ctx context.Context, groupIDs []int64) (map[int64]*ports.ActiveGroup, error) {
 	if len(groupIDs) == 0 {
-		return map[int64]*active.Group{}, nil
+		return map[int64]*ports.ActiveGroup{}, nil
 	}
 
 	groups, err := s.GroupRepo.FindByIDs(ctx, groupIDs)
@@ -46,13 +46,13 @@ func (s *service) GetActiveGroupsByIDs(ctx context.Context, groupIDs []int64) (m
 	}
 
 	if groups == nil {
-		groups = make(map[int64]*active.Group)
+		groups = make(map[int64]*ports.ActiveGroup)
 	}
 
 	return groups, nil
 }
 
-func (s *service) CreateActiveGroup(ctx context.Context, group *active.Group) error {
+func (s *service) CreateActiveGroup(ctx context.Context, group *ports.ActiveGroup) error {
 	if group == nil || group.Validate() != nil {
 		return &ActiveError{Op: "CreateActiveGroup", Err: ErrInvalidData}
 	}
@@ -61,7 +61,7 @@ func (s *service) CreateActiveGroup(ctx context.Context, group *active.Group) er
 	})
 }
 
-func (s *service) createActiveGroupLocked(ctx context.Context, group *active.Group) error {
+func (s *service) createActiveGroupLocked(ctx context.Context, group *ports.ActiveGroup) error {
 	// Check for room conflicts if room is assigned
 	if group.RoomID > 0 {
 		if err := s.SchoolPresence.LockRoomSessionWrites(ctx, group.RoomID); err != nil {
@@ -84,7 +84,7 @@ func (s *service) createActiveGroupLocked(ctx context.Context, group *active.Gro
 	return nil
 }
 
-func (s *service) UpdateActiveGroup(ctx context.Context, group *active.Group) error {
+func (s *service) UpdateActiveGroup(ctx context.Context, group *ports.ActiveGroup) error {
 	if group == nil || group.Validate() != nil {
 		return &ActiveError{Op: "UpdateActiveGroup", Err: ErrInvalidData}
 	}
@@ -93,7 +93,7 @@ func (s *service) UpdateActiveGroup(ctx context.Context, group *active.Group) er
 	})
 }
 
-func (s *service) updateActiveGroupLocked(ctx context.Context, group *active.Group) error {
+func (s *service) updateActiveGroupLocked(ctx context.Context, group *ports.ActiveGroup) error {
 	if group.RoomID > 0 {
 		if err := s.SchoolPresence.LockRoomSessionWrites(ctx, group.RoomID); err != nil {
 			return &ActiveError{Op: "UpdateActiveGroup", Err: ErrDatabaseOperation}
@@ -126,7 +126,7 @@ func (s *service) updateActiveGroupLocked(ctx context.Context, group *active.Gro
 
 // checkActiveGroupRoomChange rejects a room another session occupies and,
 // when the session changes rooms, a room without space for its children.
-func (s *service) checkActiveGroupRoomChange(ctx context.Context, existing, group *active.Group) error {
+func (s *service) checkActiveGroupRoomChange(ctx context.Context, existing, group *ports.ActiveGroup) error {
 	hasConflict, _, err := s.GroupRepo.CheckRoomConflict(ctx, group.RoomID, group.ID)
 	if err != nil {
 		return &ActiveError{Op: "UpdateActiveGroup", Err: fmt.Errorf("check room conflict: %w", err)}
@@ -188,12 +188,12 @@ func (s *service) DeleteActiveGroup(ctx context.Context, id int64) error {
 // room session coexists with activity sessions by design. The room's session
 // write lock serializes concurrent first moves, so the room never gets a
 // second room session; the lock is held until the caller's transaction ends.
-func (s *service) EnsureOpenRoomSession(ctx context.Context, roomID, activityID int64) (*active.Group, error) {
+func (s *service) EnsureOpenRoomSession(ctx context.Context, roomID, activityID int64) (*ports.ActiveGroup, error) {
 	const op = "EnsureOpenRoomSession"
 	if roomID <= 0 || activityID <= 0 {
 		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
 	}
-	var session *active.Group
+	var session *ports.ActiveGroup
 	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
 		if err := s.SchoolPresence.LockRoomSessionWrites(txCtx, roomID); err != nil {
 			return &ActiveError{Op: op, Err: ErrDatabaseOperation}
@@ -207,7 +207,7 @@ func (s *service) EnsureOpenRoomSession(ctx context.Context, roomID, activityID 
 			return nil
 		}
 		now := time.Now()
-		created := &active.Group{StartTime: now, LastActivity: now, GroupID: &activityID, RoomID: roomID}
+		created := &ports.ActiveGroup{StartTime: now, LastActivity: now, GroupID: &activityID, RoomID: roomID}
 		created.SetTenantID(tenant.FromContext(txCtx))
 		if err := s.GroupRepo.Create(txCtx, created); err != nil {
 			return &ActiveError{Op: op, Err: fmt.Errorf("create room session: %w", err)}
@@ -224,8 +224,8 @@ func (s *service) EnsureOpenRoomSession(ctx context.Context, roomID, activityID 
 // openSessionForActivity returns the open session of activityID in the given
 // groups. A device-owned row (kiosk) wins over a device-less stay so phone
 // moves join the running Schulhof journey.
-func openSessionForActivity(groups []*active.Group, activityID int64) *active.Group {
-	var deviceLess *active.Group
+func openSessionForActivity(groups []*ports.ActiveGroup, activityID int64) *ports.ActiveGroup {
+	var deviceLess *ports.ActiveGroup
 	for _, group := range groups {
 		if group == nil {
 			continue
@@ -247,7 +247,7 @@ func openSessionForActivity(groups []*active.Group, activityID int64) *active.Gr
 // joinableOpenSession is the session a kiosk start may attach to: a running
 // kiosk copy of the activity, or an independent room stay. Device-less
 // planner and app sessions of the same activity are not joinable.
-func joinableOpenSession(groups []*active.Group, activityID int64, activityIsSystem bool) *active.Group {
+func joinableOpenSession(groups []*ports.ActiveGroup, activityID int64, activityIsSystem bool) *ports.ActiveGroup {
 	existing := openSessionForActivity(groups, activityID)
 	if existing == nil || existing.DeviceID != nil || existing.IsIndependentRoomSession(activityIsSystem) {
 		return existing
@@ -266,7 +266,7 @@ func (s *service) systemActivity(ctx context.Context, activityID int64) (bool, e
 	return activity != nil && activity.IsSystem, nil
 }
 
-func (s *service) FindDeviceActiveGroupInRoom(ctx context.Context, roomID int64, deviceID int64) (*active.Group, error) {
+func (s *service) FindDeviceActiveGroupInRoom(ctx context.Context, roomID int64, deviceID int64) (*ports.ActiveGroup, error) {
 	group, err := s.GroupRepo.FindActiveByRoomIDAndDeviceID(ctx, roomID, deviceID)
 	if err != nil {
 		return nil, &ActiveError{Op: "FindDeviceActiveGroupInRoom", Err: fmt.Errorf("find by room and device: %w", err)}

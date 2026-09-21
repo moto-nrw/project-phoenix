@@ -12,7 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -101,7 +101,7 @@ func TestCreateGroupSupervisor_AutoOpensWorkSession(t *testing.T) {
 
 	ctx := testpkg.Ctx(t)
 
-	supervisor := &active.GroupSupervisor{
+	supervisor := &ports.GroupSupervisor{
 		StaffID:   staff.ID,
 		GroupID:   activeGroup.ID,
 		Role:      "Supervisor",

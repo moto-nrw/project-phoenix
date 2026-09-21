@@ -14,15 +14,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
 // Compile-time assertions for base.Entity interface compliance
 var (
-	// active package
-	_ base.Entity = (*active.Group)(nil)
-	_ base.Entity = (*active.GroupSupervisor)(nil)
-
 	// activities package
 
 	// education package

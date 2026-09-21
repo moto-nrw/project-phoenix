@@ -5,12 +5,12 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Group Supervisor operations
-func (s *service) CreateGroupSupervisor(ctx context.Context, supervisor *active.GroupSupervisor) error {
+func (s *service) CreateGroupSupervisor(ctx context.Context, supervisor *ports.GroupSupervisor) error {
 	if supervisor == nil || supervisor.Validate() != nil {
 		return &ActiveError{Op: "CreateGroupSupervisor", Err: ErrInvalidData}
 	}
@@ -19,7 +19,7 @@ func (s *service) CreateGroupSupervisor(ctx context.Context, supervisor *active.
 	})
 }
 
-func (s *service) createGroupSupervisor(ctx context.Context, supervisor *active.GroupSupervisor) error {
+func (s *service) createGroupSupervisor(ctx context.Context, supervisor *ports.GroupSupervisor) error {
 	if err := s.lockStaffForSupervision(ctx, supervisor.StaffID); err != nil {
 		return &ActiveError{Op: "CreateGroupSupervisor", Err: err}
 	}
@@ -64,7 +64,7 @@ func (s *service) createGroupSupervisor(ctx context.Context, supervisor *active.
 	return nil
 }
 
-func (s *service) UpdateGroupSupervisor(ctx context.Context, supervisor *active.GroupSupervisor) error {
+func (s *service) UpdateGroupSupervisor(ctx context.Context, supervisor *ports.GroupSupervisor) error {
 	if supervisor == nil || supervisor.Validate() != nil {
 		return &ActiveError{Op: "UpdateGroupSupervisor", Err: ErrInvalidData}
 	}
@@ -80,7 +80,7 @@ func (s *service) UpdateGroupSupervisor(ctx context.Context, supervisor *active.
 // updateGroupSupervisorLocked locks the staff member of a running supervision
 // and both sessions, then updates the supervision if it still belongs to the
 // session it was read from.
-func (s *service) updateGroupSupervisorLocked(ctx context.Context, original, supervisor *active.GroupSupervisor) error {
+func (s *service) updateGroupSupervisorLocked(ctx context.Context, original, supervisor *ports.GroupSupervisor) error {
 	if supervisor.EndDate == nil || supervisor.EndDate.After(s.todayDate()) {
 		if err := s.lockStaffForSupervision(ctx, supervisor.StaffID); err != nil {
 			return &ActiveError{Op: "UpdateGroupSupervisor", Err: err}
@@ -101,7 +101,7 @@ func (s *service) updateGroupSupervisorLocked(ctx context.Context, original, sup
 
 // supervisionForWrite reads the supervision a write changes; a failed read
 // counts as not found.
-func (s *service) supervisionForWrite(ctx context.Context, id int64, op string) (*active.GroupSupervisor, error) {
+func (s *service) supervisionForWrite(ctx context.Context, id int64, op string) (*ports.GroupSupervisor, error) {
 	supervision, err := s.SupervisorRepo.FindByID(ctx, id)
 	if err != nil || supervision == nil {
 		return nil, &ActiveError{Op: op, Err: ErrGroupSupervisorNotFound}

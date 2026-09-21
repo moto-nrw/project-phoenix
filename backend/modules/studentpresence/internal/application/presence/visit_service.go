@@ -7,7 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -255,7 +255,7 @@ func (s *service) prepareVisitTransfer(
 
 // lockVisitTransferTarget locks the running session a visit is reopened in or
 // moved to.
-func (s *service) lockVisitTransferTarget(ctx context.Context, groupID int64) (*active.Group, error) {
+func (s *service) lockVisitTransferTarget(ctx context.Context, groupID int64) (*ports.ActiveGroup, error) {
 	targetGroup, err := s.GroupRepo.FindByIDForUpdate(ctx, groupID)
 	if err != nil {
 		if base.IsNoRows(err) {
@@ -271,7 +271,7 @@ func (s *service) lockVisitTransferTarget(ctx context.Context, groupID int64) (*
 
 // ensureVisitTransferCapacity checks the target room has space when a visit
 // is reopened, or moved while still open into another room.
-func (s *service) ensureVisitTransferCapacity(ctx context.Context, existing, updated *studentpresence.Visit, targetGroup *active.Group, isReopening bool) error {
+func (s *service) ensureVisitTransferCapacity(ctx context.Context, existing, updated *studentpresence.Visit, targetGroup *ports.ActiveGroup, isReopening bool) error {
 	if isReopening {
 		return s.ensureRoomCapacity(ctx, targetGroup.RoomID, 1)
 	}

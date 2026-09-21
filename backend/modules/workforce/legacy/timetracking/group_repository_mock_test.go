@@ -8,6 +8,7 @@ import (
 // mockGroupRepository is the retained active-group double the work-session
 // tests drive for supervision lookups.
 type mockGroupRepository struct {
+	GroupRepository
 	createFunc                      func(ctx context.Context, entity *Group) error
 	findByIDFunc                    func(ctx context.Context, id interface{}) (*Group, error)
 	findByIDForUpdateFunc           func(ctx context.Context, id int64) (*Group, error)
@@ -31,7 +32,7 @@ func (m *mockGroupRepository) FindByID(ctx context.Context, id int64) (*Group, e
 		return m.findByIDFunc(ctx, id)
 	}
 	return &Group{
-		Model: Model{ID: 1},
+		ID: 1,
 	}, nil
 }
 
@@ -43,7 +44,7 @@ func (m *mockGroupRepository) FindByIDForUpdate(ctx context.Context, id int64) (
 		return m.FindByID(ctx, id)
 	}
 	return &Group{
-		Model: Model{ID: id},
+		ID: id,
 	}, nil
 }
 
@@ -101,10 +102,6 @@ func (m *mockGroupRepository) FindActiveByDeviceIDWithRelations(ctx context.Cont
 	return nil, nil
 }
 
-func (m *mockGroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*Group, error) {
-	return nil, nil
-}
-
 func (m *mockGroupRepository) CheckRoomConflict(ctx context.Context, roomID int64, excludeGroupID int64) (bool, *Group, error) {
 	if m.checkRoomConflictFunc != nil {
 		return m.checkRoomConflictFunc(ctx, roomID, excludeGroupID)
@@ -144,15 +141,11 @@ func (m *mockGroupRepository) FindActiveGroups(ctx context.Context) ([]*Group, e
 	}
 	var open []*Group
 	for _, group := range groups {
-		if group.IsActive() {
+		if group.IsOpen() {
 			open = append(open, group)
 		}
 	}
 	return open, nil
-}
-
-func (m *mockGroupRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64]*Group, error) {
-	return nil, nil
 }
 
 func (m *mockGroupRepository) GetOccupiedRoomIDs(ctx context.Context, roomIDs []int64) (map[int64]bool, error) {

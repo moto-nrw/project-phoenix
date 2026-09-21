@@ -7,7 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	grouplivelegacy "github.com/moto-nrw/project-phoenix/modules/grouplive/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	supervisiondashboardlegacy "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/legacy"
 )
 
@@ -50,11 +49,7 @@ func (c supervisionCaller) CurrentStaffID(ctx context.Context) (*int64, error) {
 // GetMySupervisedGroups returns the room sessions the caller supervises with
 // their display relations.
 func (c supervisionCaller) GetMySupervisedGroups(ctx context.Context) ([]*studentpresence.SessionDetail, error) {
-	groups, err := c.CallerRows.GetMySupervisedGroups(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return presenceservice.SessionDetails(groups), nil
+	return c.CallerRows.GetMySupervisedGroups(ctx)
 }
 
 // FullStudentAccess reports whether the caller sees unredacted student data.

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -50,7 +50,7 @@ func (r *visitRepoForActiveWrapperTest) ListStudentDisplayFacts(context.Context,
 }
 
 type crossTenantRepoForActiveWrapperTest struct {
-	students           []activeModels.CrossTenantStudent
+	students           []ports.CrossTenantStudent
 	err                error
 	gotHostingTenantID int64
 }
@@ -92,7 +92,7 @@ func TestVisitDisplayOmitsUnknownStudentsAndPropagatesDirectoryFailure(t *testin
 	assert.Nil(t, rows)
 }
 
-func (r *crossTenantRepoForActiveWrapperTest) FindCrossTenantStudents(_ context.Context, hostingTenantID int64) ([]activeModels.CrossTenantStudent, error) {
+func (r *crossTenantRepoForActiveWrapperTest) FindCrossTenantStudents(_ context.Context, hostingTenantID int64) ([]ports.CrossTenantStudent, error) {
 	r.gotHostingTenantID = hostingTenantID
 	return r.students, r.err
 }
@@ -121,9 +121,9 @@ func (r *staffRepoForActiveWrapperTest) LockStaffExists(_ context.Context, id in
 }
 
 type groupRepoForActiveWrapperTest struct {
-	activeModels.GroupRepository
-	group       *activeModels.Group
-	groups      map[int64]*activeModels.Group
+	ports.ActiveGroupRepository
+	group       *ports.ActiveGroup
+	groups      map[int64]*ports.ActiveGroup
 	err         error
 	gotID       interface{}
 	gotIDs      []int64
@@ -131,12 +131,12 @@ type groupRepoForActiveWrapperTest struct {
 	onRowLocked func()
 }
 
-func (r *groupRepoForActiveWrapperTest) FindByID(_ context.Context, id int64) (*activeModels.Group, error) {
+func (r *groupRepoForActiveWrapperTest) FindByID(_ context.Context, id int64) (*ports.ActiveGroup, error) {
 	r.gotID = id
 	return r.group, r.err
 }
 
-func (r *groupRepoForActiveWrapperTest) FindByIDForUpdate(_ context.Context, id int64) (*activeModels.Group, error) {
+func (r *groupRepoForActiveWrapperTest) FindByIDForUpdate(_ context.Context, id int64) (*ports.ActiveGroup, error) {
 	r.lockedID = id
 	if r.onRowLocked != nil {
 		r.onRowLocked()
@@ -144,7 +144,7 @@ func (r *groupRepoForActiveWrapperTest) FindByIDForUpdate(_ context.Context, id 
 	return r.group, r.err
 }
 
-func (r *groupRepoForActiveWrapperTest) FindByIDs(_ context.Context, ids []int64) (map[int64]*activeModels.Group, error) {
+func (r *groupRepoForActiveWrapperTest) FindByIDs(_ context.Context, ids []int64) (map[int64]*ports.ActiveGroup, error) {
 	r.gotIDs = append([]int64(nil), ids...)
 	return r.groups, r.err
 }
@@ -212,7 +212,7 @@ func TestGetActiveGroup_Branches(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("success", func(t *testing.T) {
-		group := &activeModels.Group{Model: Model{ID: 42}}
+		group := &ports.ActiveGroup{ID: 42}
 		repo := &groupRepoForActiveWrapperTest{group: group}
 		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, GroupRepo: repo}}
 
@@ -380,7 +380,7 @@ func TestGetCrossTenantStudents_Branches(t *testing.T) {
 	})
 
 	t.Run("returns repository rows", func(t *testing.T) {
-		rows := []activeModels.CrossTenantStudent{{StudentID: 20, HomeTenantID: 30}}
+		rows := []ports.CrossTenantStudent{{StudentID: 20, HomeTenantID: 30}}
 		repo := &crossTenantRepoForActiveWrapperTest{students: rows}
 		schools := &schoolQueryForActiveWrapperTest{schools: []School{{ID: 30, Slug: "home"}}}
 		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, CrossTenantRepo: repo, Schools: schools}}

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
 // Active-session lifecycle policy (Rule 12: Models Hold Data, Not Decisions).
@@ -27,7 +27,7 @@ const DefaultSessionInactivityTimeout = 30 * time.Minute
 // session. A per-session TimeoutMinutes (> 0) always wins; otherwise the value
 // is resolved from the tenant's KeySessionInactivityTimeoutMin override, then
 // the registry default, then the hardcoded DefaultSessionInactivityTimeout.
-func (s *service) ResolveSessionTimeout(ctx context.Context, group *active.Group) time.Duration {
+func (s *service) ResolveSessionTimeout(ctx context.Context, group *ports.ActiveGroup) time.Duration {
 	if group != nil && group.TimeoutMinutes > 0 {
 		return time.Duration(group.TimeoutMinutes) * time.Minute
 	}
@@ -60,13 +60,13 @@ func (s *service) resolveDefaultSessionTimeout(ctx context.Context) time.Duratio
 
 // SessionInactivityDuration reports how long the group session has been inactive
 // relative to the supplied clock. The model no longer reads the wall clock.
-func SessionInactivityDuration(group *active.Group, now time.Time) time.Duration {
+func SessionInactivityDuration(group *ports.ActiveGroup, now time.Time) time.Duration {
 	return now.Sub(group.LastActivity)
 }
 
 // IsSessionTimedOut decides whether an active group session has exceeded its
 // inactivity timeout as of now. Ended sessions never count as timed out.
-func (s *service) IsSessionTimedOut(ctx context.Context, group *active.Group, now time.Time) bool {
+func (s *service) IsSessionTimedOut(ctx context.Context, group *ports.ActiveGroup, now time.Time) bool {
 	if group == nil || !group.IsActive() {
 		return false
 	}
@@ -75,13 +75,13 @@ func (s *service) IsSessionTimedOut(ctx context.Context, group *active.Group, no
 
 // SessionTimeUntilTimeout returns how long remains before the session times out
 // (negative when it has already timed out), as of now.
-func (s *service) SessionTimeUntilTimeout(ctx context.Context, group *active.Group, now time.Time) time.Duration {
+func (s *service) SessionTimeUntilTimeout(ctx context.Context, group *ports.ActiveGroup, now time.Time) time.Duration {
 	return s.ResolveSessionTimeout(ctx, group) - SessionInactivityDuration(group, now)
 }
 
 // IsSupervisorActive decides whether a supervision assignment has started and
 // has not ended as of now. A nil EndDate means open-ended after its StartDate.
-func IsSupervisorActive(supervisor *active.GroupSupervisor, now time.Time) bool {
+func IsSupervisorActive(supervisor *ports.GroupSupervisor, now time.Time) bool {
 	today := timezone.DateFromTime(now)
 	return !supervisor.StartDate.After(today) &&
 		(supervisor.EndDate == nil || today.Before(*supervisor.EndDate))

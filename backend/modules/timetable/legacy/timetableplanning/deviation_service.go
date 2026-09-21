@@ -17,7 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -259,14 +259,14 @@ func (s *instanceService) ApplySubstitute(
 			if _, err := s.deps.SupervisorRepo.EndByActiveGroupAndStaffID(ctx, *op.Instance.ActiveGroupID, op.OrigRow.StaffID); err != nil {
 				return err
 			}
-			newSup := &activeModel.GroupSupervisor{
+			newSup := &studentpresence.GroupSupervision{
 				StaffID:   subID,
 				GroupID:   *op.Instance.ActiveGroupID,
 				Role:      "supervisor",
-				StartDate: timezone.DateFromTime(now),
+				StartDate: timezone.DateFromTime(now).String(),
 			}
-			newSup.SetTenantID(tenant.FromContext(ctx))
-			if err := s.deps.SupervisorRepo.Create(ctx, newSup); err != nil {
+			newSup.TenantID = tenant.FromContext(ctx)
+			if err := s.deps.SupervisorRepo.CreateSupervision(ctx, newSup); err != nil {
 				return err
 			}
 			activeTouched[*op.Instance.ActiveGroupID] = op.Instance

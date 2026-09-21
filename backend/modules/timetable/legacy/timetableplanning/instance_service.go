@@ -41,7 +41,6 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -528,16 +527,16 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 			return nil, err
 		}
 	}
-	newGroup := &activeModel.Group{
-		StartTime:      now,
-		LastActivity:   now,
-		TimeoutMinutes: 30,
-		GroupID:        instance.ActivityGroupID,
-		DeviceID:       nil,
-		RoomID:         instance.RoomID,
+	newGroup := &studentpresence.LiveGroup{
+		StartTime:       now,
+		LastActivity:    now,
+		TimeoutMinutes:  30,
+		ActivityGroupID: instance.ActivityGroupID,
+		DeviceID:        nil,
+		RoomID:          instance.RoomID,
 	}
-	newGroup.SetTenantID(tenant.FromContext(ctx))
-	if err := s.deps.ActiveGroupRepo.Create(ctx, newGroup); err != nil {
+	newGroup.TenantID = tenant.FromContext(ctx)
+	if err := s.deps.ActiveGroupRepo.CreateSession(ctx, newGroup); err != nil {
 		return nil, &ScheduleError{Op: "start instance: create active.group", Err: err}
 	}
 
@@ -557,14 +556,14 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 			continue
 		}
 		activeStaffRows = append(activeStaffRows, row)
-		sup := &activeModel.GroupSupervisor{
+		sup := &studentpresence.GroupSupervision{
 			StaffID:   row.StaffID,
 			GroupID:   newGroup.ID,
 			Role:      "supervisor",
-			StartDate: timezone.DateFromTime(now),
+			StartDate: timezone.DateFromTime(now).String(),
 		}
-		sup.SetTenantID(tenant.FromContext(ctx))
-		if err := s.deps.SupervisorRepo.Create(ctx, sup); err != nil {
+		sup.TenantID = tenant.FromContext(ctx)
+		if err := s.deps.SupervisorRepo.CreateSupervision(ctx, sup); err != nil {
 			return nil, &ScheduleError{Op: "start instance: create supervisor", Err: err}
 		}
 	}
@@ -625,7 +624,7 @@ func (s *instanceService) absorbUnsupervisedOpenGroups(ctx context.Context, inst
 	// locker takes exactly one row lock per transaction, so no wait cycle can
 	// form regardless of order — but a deterministic order keeps this loop
 	// deadlock-free even if a second multi-row locker appears later.
-	slices.SortFunc(openGroups, func(a, b *activeModel.Group) int {
+	slices.SortFunc(openGroups, func(a, b *studentpresence.LiveGroup) int {
 		return cmp.Compare(a.ID, b.ID)
 	})
 
@@ -707,7 +706,7 @@ func (s *instanceService) absorbUnsupervisedOpenGroups(ctx context.Context, inst
 	return nil
 }
 
-func (s *instanceService) systemActivitiesByID(ctx context.Context, groups []*activeModel.Group) (map[int64]bool, error) {
+func (s *instanceService) systemActivitiesByID(ctx context.Context, groups []*studentpresence.LiveGroup) (map[int64]bool, error) {
 	ids := make([]int64, 0, len(groups))
 	seen := make(map[int64]struct{}, len(groups))
 	for _, group := range groups {
@@ -1274,7 +1273,7 @@ func (s *instanceService) validateReopenSupervisorsUnchanged(ctx context.Context
 	if err != nil {
 		return &ScheduleError{Op: "reopen instance: load supervisors", Err: err}
 	}
-	byID := make(map[int64]*activeModel.GroupSupervisor, len(rows))
+	byID := make(map[int64]*studentpresence.StaffedSupervision, len(rows))
 	staffIDs := make([]int64, 0, len(rows))
 	seenStaff := make(map[int64]bool, len(rows))
 	for _, row := range rows {
@@ -3039,7 +3038,7 @@ func (s *instanceService) broadcastInstanceEvent(
 	ctx context.Context,
 	eventType realtime.EventType,
 	instance *scheduleModel.ActivityInstance,
-	activeGroup *activeModel.Group,
+	activeGroup *studentpresence.LiveGroup,
 	staffRows []*scheduleModel.InstanceStaff,
 ) {
 	if s.deps.Broadcaster == nil || instance == nil {

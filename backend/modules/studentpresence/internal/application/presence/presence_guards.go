@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -73,7 +73,7 @@ func (s *service) validateActiveGroupOpenForUpdate(ctx context.Context, groupID 
 	return err
 }
 
-func (s *service) lockActiveGroupOpenForUpdate(ctx context.Context, groupID int64) (*active.Group, error) {
+func (s *service) lockActiveGroupOpenForUpdate(ctx context.Context, groupID int64) (*ports.ActiveGroup, error) {
 	group, err := s.GroupRepo.FindByIDForUpdate(ctx, groupID)
 	if err != nil {
 		return nil, err

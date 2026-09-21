@@ -60,19 +60,21 @@ import (
 // #3427 dissolved modules/careplan/legacy entirely (5,278 LOC, the
 // carelifecycle subtree and the careexitview projection) into native Care
 // Plan, Timetable and the student directory projection; its entry is gone.
-// #3422 dissolved modules/studentpresence/legacy/statistics (1,106 LOC) into
-// the native Student Presence application, then handed the Care Plan
+// #3422 dissolved the Student Presence legacy nest: first its statistics
+// package (1,106 LOC) into the native application, then it handed the Care Plan
 // status-day and excused-request rows (208 LOC net) to modules/careplan, and
 // moved legacy/services/active (10,445 LOC) into the native presence
 // application behind the public facades; the consumer switches shrank the
-// grouplive, supervisiondashboard and timetable trees.
+// grouplive, supervisiondashboard and timetable trees. The last slice folded
+// legacy/repositories/active and the remaining session rows into the module's
+// ports and Postgres adapter, so the tree is gone and its entry with it.
 // Re-measure the same way when a number needs to move — downwards.
 const moduleLegacyBudgetCheck = "legacy LOC budget"
 
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 51310
+const moduleLegacyBudgetTotal = 49904
 
 // moduleLegacyBudgets maps a legacy tree to its production LOC on 2026-09-18.
 // The comment on each entry names the ticket that is supposed to dissolve the
@@ -95,12 +97,10 @@ var moduleLegacyBudgets = map[string]int{
 	"modules/identityaccess/legacy": 1363,
 	// No ticket today.
 	"modules/planexport/legacy": 410,
-	// #3352 covers the api/students consumer only, not the tree.
-	"modules/studentpresence/legacy": 1403,
 	// No ticket today.
 	"modules/supervisiondashboard/legacy": 729,
 	// No ticket today — and the largest tree of the twelve.
-	"modules/timetable/legacy": 24302,
+	"modules/timetable/legacy": 24299,
 	// No ticket today — grew from 15,402 LOC at creation to this.
 	"modules/workforce/legacy": 21454,
 	// No ticket today.

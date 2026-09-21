@@ -15,6 +15,7 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	supervisiondashboardlegacy "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/legacy"
@@ -145,12 +146,13 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
+	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(r.ActiveGroup)
 	presenceDeps := presenceservice.PresenceDependencies{
 		PrincipalReader: AttendancePrincipal,
 		StudentDisplay:  studentDisplayProjection{students: students, groups: displayGroups},
 		SchoolPresence:  newStudentPresence(db, logger),
 		YardRoomColor:   yardRoomColorQuery(rooms),
-		GroupRepo:       r.ActiveGroup, SessionStartLock: r.SessionStartLock, SupervisorRepo: r.GroupSupervisor,
+		GroupRepo:       sessionGroups, SessionStartLock: r.SessionStartLock, SupervisorRepo: sessionSupervisors,
 		StudentStatusRepo: r.StudentStatusDay, CrossTenantRepo: r.CrossTenant, Schools: newActiveSchoolQuery(organizations),
 		StudentRepo: PresenceStudents(db, r.Student), StaffRepo: NewAttendanceStaffDirectory(r.Staff), RoomRepo: NewAttendanceRooms(r.Room),
 		ActivityGroupRepo: repositories.NewSessionActivities(r.ActivityGroup), ActivityCatRepo: NewAttendanceActivityCategories(r.ActivityCategory), EducationGroupRepo: NewAttendanceEducationGroups(r.Group, r.Student), DeviceRepo: NewSessionDeviceDirectory(devices, settings.Settings, logger),

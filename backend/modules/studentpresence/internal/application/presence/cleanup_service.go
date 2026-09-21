@@ -7,7 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -29,7 +29,7 @@ type PresenceRetention interface {
 // cleanupService implements the CleanupService interface
 type cleanupService struct {
 	presence         PresenceRetention
-	supervisorRepo   active.GroupSupervisorRepository
+	supervisorRepo   ports.GroupSupervisorRepository
 	dataDeletionRepo DeletionAudit
 	txHandler        *tenant.TransactionRunner
 	batchSize        int
@@ -46,7 +46,7 @@ func (s *cleanupService) todayDate() timezone.Date {
 // NewCleanupService creates a new cleanup service instance
 func NewCleanupService(
 	presence PresenceRetention,
-	supervisorRepo active.GroupSupervisorRepository,
+	supervisorRepo ports.GroupSupervisorRepository,
 	dataDeletionRepo DeletionAudit,
 	today ...func() timezone.Date,
 ) CleanupService {

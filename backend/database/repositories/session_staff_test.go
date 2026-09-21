@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -22,7 +23,8 @@ func TestSessionStaffPreservesMembershipAndPersonWireFields(t *testing.T) {
 	require.NoError(t, err)
 	want.Person, err = repos.Person.FindByID(ctx, staff.PersonID)
 	require.NoError(t, err)
-	rows, err := repos.GroupSupervisor.FindByActiveGroupID(ctx, group.ID, true)
+	_, supervisors := presenceCompose.SessionRepositories(repos.ActiveGroup)
+	rows, err := supervisors.FindByActiveGroupID(ctx, group.ID, true)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	require.NotNil(t, rows[0].Staff)

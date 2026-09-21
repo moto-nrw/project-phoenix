@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -46,10 +46,10 @@ type trackingGroups struct {
 	source *trackingPresenceSource
 }
 
-func (r trackingGroups) FindByIDs(context.Context, []int64) ([]*active.SessionActivity, error) {
-	rows := make([]*active.SessionActivity, 0, len(r.source.rows))
+func (r trackingGroups) FindByIDs(context.Context, []int64) ([]*ports.SessionActivity, error) {
+	rows := make([]*ports.SessionActivity, 0, len(r.source.rows))
 	for index, row := range r.source.rows {
-		rows = append(rows, &active.SessionActivity{ID: int64(index + 1), Name: row.ActivityGroupName})
+		rows = append(rows, &ports.SessionActivity{ID: int64(index + 1), Name: row.ActivityGroupName})
 	}
 	return rows, nil
 }

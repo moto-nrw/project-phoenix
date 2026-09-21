@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // AutoStartService starts due planned timetable instances when a tenant opts
@@ -49,7 +49,7 @@ type AutoStartDependencies struct {
 	InstanceStudents  scheduleModel.InstanceStudentRepository
 	InstanceService   InstanceService
 	RoomRepo          facilitiesModel.RoomRepository
-	ActiveGroupRepo   activeModel.GroupRepository
+	ActiveGroupRepo   studentpresence.SessionRecords
 	Presence          ConflictPresence
 	ConflictDetector  AutoStartConflictDetector
 	Logger            *slog.Logger

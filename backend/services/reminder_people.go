@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 )
 
@@ -106,7 +105,7 @@ func (r reminderSupervisionReader) GetActiveGroupsByIDs(ctx context.Context, ids
 
 type reminderBulkSupervisionReader struct {
 	source interface {
-		ListActiveSupervisedRooms(context.Context) ([]active.StaffRoomSupervision, error)
+		ListActiveSupervisedRooms(context.Context) ([]studentpresence.StaffRoomSupervision, error)
 	}
 }
 

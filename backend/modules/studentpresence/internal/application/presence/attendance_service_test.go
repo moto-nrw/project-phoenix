@@ -27,7 +27,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -473,7 +473,7 @@ func TestGetUnclaimedActiveGroups(t *testing.T) {
 		// We just verify it doesn't error and returns a slice (not nil)
 		// Note: An empty slice is valid and different from nil
 		if groups == nil {
-			groups = []*active.Group{} // Normalize nil to empty slice for comparison
+			groups = []*ports.ActiveGroup{} // Normalize nil to empty slice for comparison
 		}
 		assert.NotNil(t, groups)
 	})

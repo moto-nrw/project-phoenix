@@ -10,23 +10,22 @@ import (
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type absorbGroupRepo struct {
-	activeModel.GroupRepository
-	openGroups   []*activeModel.Group
-	lockedGroups map[int64]*activeModel.Group
+	studentpresence.SessionRecords
+	openGroups   []*studentpresence.LiveGroup
+	lockedGroups map[int64]*studentpresence.LiveGroup
 	lockedIDs    []int64
 }
 
-func (r *absorbGroupRepo) FindActiveByRoomID(_ context.Context, _ int64) ([]*activeModel.Group, error) {
+func (r *absorbGroupRepo) FindActiveByRoomID(_ context.Context, _ int64) ([]*studentpresence.LiveGroup, error) {
 	return r.openGroups, nil
 }
 
-func (r *absorbGroupRepo) FindByIDForUpdate(_ context.Context, id int64) (*activeModel.Group, error) {
+func (r *absorbGroupRepo) FindByIDForUpdate(_ context.Context, id int64) (*studentpresence.LiveGroup, error) {
 	r.lockedIDs = append(r.lockedIDs, id)
 	if group := r.lockedGroups[id]; group != nil {
 		return group, nil
@@ -43,13 +42,13 @@ func TestInstanceStart_DoesNotAbsorbGroupMovedAfterCandidateLookup(t *testing.T)
 	t.Parallel()
 
 	now := time.Now()
-	candidate := &activeModel.Group{StartTime: now, RoomID: 42}
+	candidate := &studentpresence.LiveGroup{StartTime: now, RoomID: 42}
 	candidate.ID = 11
 	locked := *candidate
 	locked.RoomID = 99
 	groupRepo := &absorbGroupRepo{
-		openGroups:   []*activeModel.Group{candidate},
-		lockedGroups: map[int64]*activeModel.Group{candidate.ID: &locked},
+		openGroups:   []*studentpresence.LiveGroup{candidate},
+		lockedGroups: map[int64]*studentpresence.LiveGroup{candidate.ID: &locked},
 	}
 	visitRepo := &absorbVisitRepo{}
 	svc := &instanceService{deps: InstanceServiceDependencies{
@@ -70,11 +69,11 @@ func TestInstanceStart_DoesNotAbsorbGroupMovedAfterCandidateLookup(t *testing.T)
 }
 
 type absorbSupervisorRepo struct {
-	activeModel.GroupSupervisorRepository
-	byGroup map[int64][]*activeModel.GroupSupervisor
+	studentpresence.SupervisionRecords
+	byGroup map[int64][]*studentpresence.StaffedSupervision
 }
 
-func (r *absorbSupervisorRepo) FindByActiveGroupID(_ context.Context, groupID int64, _ bool) ([]*activeModel.GroupSupervisor, error) {
+func (r *absorbSupervisorRepo) FindByActiveGroupID(_ context.Context, groupID int64, _ bool) ([]*studentpresence.StaffedSupervision, error) {
 	return r.byGroup[groupID], nil
 }
 
@@ -197,23 +196,23 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 	)
 
 	now := time.Now()
-	newGroup := &activeModel.Group{StartTime: now, RoomID: 42}
+	newGroup := &studentpresence.LiveGroup{StartTime: now, RoomID: 42}
 	newGroup.ID = newGroupID
-	unsupervised := &activeModel.Group{StartTime: now, RoomID: 42}
+	unsupervised := &studentpresence.LiveGroup{StartTime: now, RoomID: 42}
 	unsupervised.ID = 11
-	supervised := &activeModel.Group{StartTime: now, RoomID: 42}
+	supervised := &studentpresence.LiveGroup{StartTime: now, RoomID: 42}
 	supervised.ID = 12
-	bridged := &activeModel.Group{StartTime: now, RoomID: 42}
+	bridged := &studentpresence.LiveGroup{StartTime: now, RoomID: 42}
 	bridged.ID = 13
-	staleFallback := &activeModel.Group{StartTime: now.AddDate(0, 0, -1), RoomID: 42}
+	staleFallback := &studentpresence.LiveGroup{StartTime: now.AddDate(0, 0, -1), RoomID: 42}
 	staleFallback.ID = 14
 	systemActivityID := int64(88)
-	independent := &activeModel.Group{StartTime: now, RoomID: 42, GroupID: &systemActivityID}
+	independent := &studentpresence.LiveGroup{StartTime: now, RoomID: 42, ActivityGroupID: &systemActivityID}
 	independent.ID = 15
 
-	groupRepo := &absorbGroupRepo{openGroups: []*activeModel.Group{newGroup, unsupervised, supervised, bridged, staleFallback, independent}}
-	supervisorRepo := &absorbSupervisorRepo{byGroup: map[int64][]*activeModel.GroupSupervisor{
-		12: {{StaffID: 7, GroupID: 12}},
+	groupRepo := &absorbGroupRepo{openGroups: []*studentpresence.LiveGroup{newGroup, unsupervised, supervised, bridged, staleFallback, independent}}
+	supervisorRepo := &absorbSupervisorRepo{byGroup: map[int64][]*studentpresence.StaffedSupervision{
+		12: {{GroupSupervision: studentpresence.GroupSupervision{StaffID: 7, GroupID: 12}}},
 	}}
 	entryTime := now.Add(-15 * time.Minute)
 	visitRepo := &absorbVisitRepo{visits: []studentpresence.Visit{

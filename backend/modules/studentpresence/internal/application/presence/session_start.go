@@ -11,14 +11,14 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Activity Session Management with Conflict Detection
 
 // broadcastActivityStartEvent broadcasts SSE event for activity start
-func (s *service) broadcastActivityStartEvent(ctx context.Context, group *active.Group, supervisorIDs []int64) {
+func (s *service) broadcastActivityStartEvent(ctx context.Context, group *ports.ActiveGroup, supervisorIDs []int64) {
 	if s.Broadcaster == nil || group == nil {
 		return
 	}
@@ -76,13 +76,13 @@ func (s *service) validateSupervisorIDs(ctx context.Context, supervisorIDs []int
 }
 
 // StartActivitySessionWithSupervisors starts an activity session with multiple supervisors
-func (s *service) StartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error) {
+func (s *service) StartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*ports.ActiveGroup, error) {
 	if err := s.validateSupervisorIDs(ctx, supervisorIDs); err != nil {
 		return nil, err
 	}
 
-	var newGroup *active.Group
-	err := s.executeSessionStart(ctx, activityID, deviceID, roomID, "StartActivitySessionWithSupervisors", supervisorIDs, func(ctx context.Context, finalRoomID int64) (*active.Group, error) {
+	var newGroup *ports.ActiveGroup
+	err := s.executeSessionStart(ctx, activityID, deviceID, roomID, "StartActivitySessionWithSupervisors", supervisorIDs, func(ctx context.Context, finalRoomID int64) (*ports.ActiveGroup, error) {
 		group, err := s.createSessionWithMultipleSupervisors(ctx, activityID, deviceID, supervisorIDs, finalRoomID)
 		newGroup = group
 		return group, err
@@ -100,7 +100,7 @@ func (s *service) StartActivitySessionWithSupervisors(ctx context.Context, activ
 // Uses PostgreSQL advisory locks to prevent race conditions when multiple requests try to start the same activity concurrently.
 // Wraps all operations in a transaction (via TxHandler.RunInTx) so the advisory lock is always available.
 // If a transaction already exists in context (e.g. from handler-level WithTenantTx), it is reused.
-func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID int64, roomID *int64, operation string, supervisorIDs []int64, createSession func(context.Context, int64) (*active.Group, error)) error {
+func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID int64, roomID *int64, operation string, supervisorIDs []int64, createSession func(context.Context, int64) (*ports.ActiveGroup, error)) error {
 	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 		if err := s.acquireActivitySessionLock(txCtx, activityID, operation); err != nil {
 			return err
@@ -199,7 +199,7 @@ func (s *service) acquireActivitySessionLock(ctx context.Context, activityID int
 }
 
 // createSessionWithMultipleSupervisors creates a new session with multiple supervisors and transfers visits
-func (s *service) createSessionWithMultipleSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID int64) (*active.Group, error) {
+func (s *service) createSessionWithMultipleSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID int64) (*ports.ActiveGroup, error) {
 	newGroup, transferredCount, err := s.createSessionBase(ctx, activityID, deviceID, roomID)
 	if err != nil {
 		return nil, err
@@ -242,7 +242,7 @@ func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, grou
 }
 
 func (s *service) assignSupervisorNonCritical(ctx context.Context, groupID, staffID int64, startDate time.Time) {
-	supervisor := &active.GroupSupervisor{
+	supervisor := &ports.GroupSupervisor{
 		StaffID: staffID, GroupID: groupID, Role: "supervisor",
 		StartDate: timezone.DateFromTime(startDate),
 	}
@@ -302,7 +302,7 @@ func (s *service) ensureNFCAutoCheckIn(ctx context.Context, groupID, staffID int
 // A kiosk start reuses an independent room stay of this activity so the phone
 // move and the Schulhof kiosk share one session. Device-less planner/app
 // sessions of the same activity are not joinable.
-func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, roomID int64) (*active.Group, int, error) {
+func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, roomID int64) (*ports.ActiveGroup, int, error) {
 	groups, err := s.GroupRepo.FindActiveByRoomID(ctx, roomID)
 	if err != nil {
 		return nil, 0, err
@@ -325,7 +325,7 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 	}
 
 	now := time.Now()
-	newGroup := &active.Group{
+	newGroup := &ports.ActiveGroup{
 		StartTime:      now,
 		LastActivity:   now,
 		TimeoutMinutes: 30,
@@ -341,7 +341,7 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 	return s.finishSessionStart(ctx, newGroup, deviceID, roomID)
 }
 
-func (s *service) finishSessionStart(ctx context.Context, group *active.Group, deviceID, roomID int64) (*active.Group, int, error) {
+func (s *service) finishSessionStart(ctx context.Context, group *ports.ActiveGroup, deviceID, roomID int64) (*ports.ActiveGroup, int, error) {
 	if deviceID > 0 {
 		s.updateDeviceLocation(ctx, deviceID, roomID)
 	}
@@ -359,7 +359,7 @@ func (s *service) finishSessionStart(ctx context.Context, group *active.Group, d
 	return group, int(transferredCount), nil
 }
 
-func activityRunningElsewhere(sessions []*active.Group, roomID, deviceID int64, activityIsSystem bool) bool {
+func activityRunningElsewhere(sessions []*ports.ActiveGroup, roomID, deviceID int64, activityIsSystem bool) bool {
 	for _, session := range sessions {
 		if session == nil {
 			continue
@@ -376,7 +376,7 @@ func activityRunningElsewhere(sessions []*active.Group, roomID, deviceID int64, 
 // activityConflictDestination is the room the kiosk preflight compares
 // against: the activity's planned room when set, otherwise the single room
 // the running copies already occupy. A split across rooms stays a conflict.
-func activityConflictDestination(sessions []*active.Group, plannedRoomID int64) int64 {
+func activityConflictDestination(sessions []*ports.ActiveGroup, plannedRoomID int64) int64 {
 	if plannedRoomID > 0 {
 		return plannedRoomID
 	}

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -26,7 +27,7 @@ func TestSessionCleanupRootResolvesRoomsThroughOwner(t *testing.T) {
 	group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 	err := testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
-		groups, err := repos.Group.FindByIDs(ctx, []int64{group.ID})
+		groups, err := repos.Sessions.FindByIDs(ctx, []int64{group.ID})
 		require.NoError(t, err)
 		require.NotNil(t, groups[group.ID].Room)
 		assert.Equal(t, room.Name, groups[group.ID].Room.Name)
@@ -56,8 +57,9 @@ func TestFactoryResolvesRoomsThroughTheOwner(t *testing.T) {
 	_, err = db.NewUpdate().TableExpr("iot.devices").Set("room_id = ?", room.ID).Where("id = ?", device.ID).Exec(ctx)
 	require.NoError(t, err)
 
+	sessions, _ := presenceCompose.SessionRepositories(factory.ActiveGroup)
 	err = testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
-		groups, err := factory.ActiveGroup.FindByIDs(ctx, []int64{activeGroup.ID})
+		groups, err := sessions.FindByIDs(ctx, []int64{activeGroup.ID})
 		require.NoError(t, err)
 		require.NotNil(t, groups[activeGroup.ID].Room, "active group carries its room")
 		assert.Equal(t, room.Name, groups[activeGroup.ID].Room.Name)

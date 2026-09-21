@@ -7,7 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
 // LockExceptionDay serializes status-day writes against Care Plan's
@@ -18,7 +18,7 @@ type LockExceptionDay = func(context.Context, int64, string) error
 // the retained Service interface.
 type presenceEngine interface {
 	presence.Service
-	EnsureOpenRoomSession(ctx context.Context, roomID, activityID int64) (*activeModels.Group, error)
+	EnsureOpenRoomSession(ctx context.Context, roomID, activityID int64) (*ports.ActiveGroup, error)
 	MoveStudentsToOpenRoomSessionAuthorized(ctx context.Context, studentIDs []int64, roomSessionID int64, auth presence.StudentMoveAuthorization) (*presence.StudentMoveResult, error)
 	GetActiveGroupVisitsWithDisplayForGroups(ctx context.Context, groupIDs []int64) ([]*presence.VisitWithStudentDisplay, error)
 	ResolveSchulhofRoomColor(ctx context.Context) *string
@@ -73,7 +73,14 @@ func (p *presenceFacade) GetActiveGroupsByIDs(ctx context.Context, groupIDs []in
 
 func (p *presenceFacade) GetUnclaimedActiveGroups(ctx context.Context) ([]*studentpresence.SessionDetail, error) {
 	groups, err := p.presenceEngine.GetUnclaimedActiveGroups(ctx)
-	return SessionDetails(groups), err
+	if groups == nil {
+		return nil, err
+	}
+	result := make([]*studentpresence.SessionDetail, len(groups))
+	for i, group := range groups {
+		result[i] = sessionDetail(group)
+	}
+	return result, err
 }
 
 func (p *presenceFacade) GetRoomsByIDs(ctx context.Context, ids []int64) ([]*studentpresence.SessionRoomSummary, error) {
@@ -171,7 +178,7 @@ func (p *presenceFacade) CreateGroupSupervisor(ctx context.Context, supervision 
 	return nil
 }
 
-func liveGroup(group *activeModels.Group) studentpresence.LiveGroup {
+func liveGroup(group *ports.ActiveGroup) studentpresence.LiveGroup {
 	return studentpresence.LiveGroup{
 		ID: group.ID, TenantID: group.TenantID, CreatedAt: group.CreatedAt, UpdatedAt: group.UpdatedAt,
 		StartTime: group.StartTime, LastActivity: group.LastActivity, EndTime: group.EndTime,
@@ -179,8 +186,8 @@ func liveGroup(group *activeModels.Group) studentpresence.LiveGroup {
 	}
 }
 
-func groupRow(group studentpresence.LiveGroup) *activeModels.Group {
-	row := &activeModels.Group{
+func groupRow(group studentpresence.LiveGroup) *ports.ActiveGroup {
+	row := &ports.ActiveGroup{
 		StartTime:      group.StartTime,
 		EndTime:        group.EndTime,
 		LastActivity:   group.LastActivity,
@@ -194,21 +201,7 @@ func groupRow(group studentpresence.LiveGroup) *activeModels.Group {
 	return row
 }
 
-// SessionDetails projects retained session rows onto the public session
-// detail. It bridges the caller-context session read that still loads the
-// rows itself until the session repository moves behind the owner (#3422).
-func SessionDetails(groups []*activeModels.Group) []*studentpresence.SessionDetail {
-	if groups == nil {
-		return nil
-	}
-	result := make([]*studentpresence.SessionDetail, len(groups))
-	for i, group := range groups {
-		result[i] = sessionDetail(group)
-	}
-	return result
-}
-
-func sessionDetail(group *activeModels.Group) *studentpresence.SessionDetail {
+func sessionDetail(group *ports.ActiveGroup) *studentpresence.SessionDetail {
 	if group == nil {
 		return nil
 	}
@@ -235,14 +228,14 @@ func sessionDetail(group *activeModels.Group) *studentpresence.SessionDetail {
 	return detail
 }
 
-func sessionRoom(room *activeModels.SessionRoom) *studentpresence.SessionRoomSummary {
+func sessionRoom(room *ports.SessionRoom) *studentpresence.SessionRoomSummary {
 	if room == nil {
 		return nil
 	}
 	return &studentpresence.SessionRoomSummary{ID: room.ID, Name: room.Name, Building: room.Building, Category: room.Category, Color: room.Color}
 }
 
-func groupSupervision(row *activeModels.GroupSupervisor) studentpresence.GroupSupervision {
+func groupSupervision(row *ports.GroupSupervisor) studentpresence.GroupSupervision {
 	result := studentpresence.GroupSupervision{
 		ID: row.ID, TenantID: row.TenantID, GroupID: row.GroupID, StaffID: row.StaffID,
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, Role: row.Role, StartDate: row.StartDate.String(),
@@ -254,12 +247,12 @@ func groupSupervision(row *activeModels.GroupSupervisor) studentpresence.GroupSu
 	return result
 }
 
-func supervisorRow(row studentpresence.GroupSupervision) (*activeModels.GroupSupervisor, error) {
+func supervisorRow(row studentpresence.GroupSupervision) (*ports.GroupSupervisor, error) {
 	start, err := timezone.ParseDate(row.StartDate)
 	if err != nil {
 		return nil, &studentpresence.OperationError{Op: "ParseSupervisionDate", Err: studentpresence.ErrInvalidData}
 	}
-	supervisor := &activeModels.GroupSupervisor{StaffID: row.StaffID, GroupID: row.GroupID, Role: row.Role, StartDate: start}
+	supervisor := &ports.GroupSupervisor{StaffID: row.StaffID, GroupID: row.GroupID, Role: row.Role, StartDate: start}
 	supervisor.ID, supervisor.CreatedAt, supervisor.UpdatedAt = row.ID, row.CreatedAt, row.UpdatedAt
 	supervisor.SetTenantID(row.TenantID)
 	if row.EndDate != nil {

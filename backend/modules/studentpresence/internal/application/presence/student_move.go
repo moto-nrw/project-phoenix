@@ -8,7 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -50,7 +50,7 @@ func (s *service) moveStudentsToActiveGroup(ctx context.Context, studentIDs []in
 // studentIDs are the children still to move; stale are requested children
 // whose visit ended while the move waited for its locks.
 type studentMovePlan struct {
-	target         *active.Group
+	target         *ports.ActiveGroup
 	requestedIDs   []int64
 	studentIDs     []int64
 	stale          map[int64]struct{}
@@ -304,7 +304,7 @@ func (s *service) endVisitForMove(ctx context.Context, visitID int64) error {
 
 func (s *service) ensureCapacityForStudentMove(
 	ctx context.Context,
-	targetGroup *active.Group,
+	targetGroup *ports.ActiveGroup,
 	studentIDs []int64,
 	openAttendance map[int64]studentpresence.Attendance,
 	currentVisits map[int64]*studentpresence.Visit,
@@ -349,8 +349,8 @@ func moveSourceGroupIDs(currentVisits map[int64]*studentpresence.Visit, targetGr
 // person to the target room: a child without a visit, or one whose current
 // session is in another (or an unknown) room.
 func studentEntersTargetRoom(
-	targetGroup *active.Group,
-	groups map[int64]*active.Group,
+	targetGroup *ports.ActiveGroup,
+	groups map[int64]*ports.ActiveGroup,
 	openAttendance map[int64]studentpresence.Attendance,
 	currentVisits map[int64]*studentpresence.Visit,
 	studentID int64,
@@ -483,8 +483,8 @@ func studentHasOpenAttendance(attendances map[int64]studentpresence.Attendance, 
 // lockMoveGroups locks the target and every source session in ascending ID
 // order. This prevents opposing room moves from waiting on each other's group
 // row locks.
-func (s *service) lockMoveGroups(ctx context.Context, studentIDs []int64, currentVisits map[int64]*studentpresence.Visit, targetGroupID int64, op string) (*active.Group, error) {
-	var targetGroup *active.Group
+func (s *service) lockMoveGroups(ctx context.Context, studentIDs []int64, currentVisits map[int64]*studentpresence.Visit, targetGroupID int64, op string) (*ports.ActiveGroup, error) {
+	var targetGroup *ports.ActiveGroup
 	for _, id := range moveGroupLockOrder(studentIDs, currentVisits, targetGroupID) {
 		group, err := s.GroupRepo.FindByIDForUpdate(ctx, id)
 		if err != nil {
@@ -543,7 +543,7 @@ func (s *service) lockMoveTargetRoom(ctx context.Context, activeGroupID int64, o
 	return group.RoomID, nil
 }
 
-func (s *service) lockActiveGroupForMove(ctx context.Context, activeGroupID int64, op string) (*active.Group, error) {
+func (s *service) lockActiveGroupForMove(ctx context.Context, activeGroupID int64, op string) (*ports.ActiveGroup, error) {
 	group, err := s.GroupRepo.FindByIDForUpdate(ctx, activeGroupID)
 	if err != nil {
 		return nil, &ActiveError{Op: op, Err: ErrDatabaseOperation}

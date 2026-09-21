@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -415,7 +414,7 @@ func TestActiveService_MoveStudentsToActiveGroup_EndedTargetFails(t *testing.T) 
 	student := testpkg.CreateTestStudent(t, db, "Move", "Blocked", "MET1")
 	endTime := time.Now()
 	targetGroup.EndTime = &endTime
-	require.NoError(t, service.UpdateActiveGroup(ctx, targetGroup))
+	require.NoError(t, service.UpdateActiveGroup(ctx, sessionOf(targetGroup)))
 
 	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{student.ID}, targetGroup.ID, activeSvcBypassAuth)
 
@@ -886,7 +885,7 @@ func TestActiveService_AssignTransitStudentsToActiveGroup_EndedTargetFails(t *te
 	student := testpkg.CreateTestStudent(t, db, "Transit", "Blocked", "TES1")
 	endTime := time.Now()
 	targetGroup.EndTime = &endTime
-	require.NoError(t, service.UpdateActiveGroup(ctx, targetGroup))
+	require.NoError(t, service.UpdateActiveGroup(ctx, sessionOf(targetGroup)))
 
 	result, err := service.AssignTransitStudentsToActiveGroup(ctx, []int64{student.ID}, targetGroup.ID)
 
@@ -902,8 +901,8 @@ type moveAuthFixture struct {
 	staff       int64
 	colleague   int64
 	studentID   int64
-	sourceGroup *activeModel.Group
-	targetGroup *activeModel.Group
+	sourceGroup *testpkg.ActiveGroupRow
+	targetGroup *testpkg.ActiveGroupRow
 }
 
 func newMoveAuthFixture(t *testing.T, db *testpkg.DB, tag string) moveAuthFixture {
@@ -1008,7 +1007,7 @@ func TestActiveService_MoveStudentsToActiveGroupAuthorized_RejectsPushIntoTarget
 	testpkg.CreateTestGroupSupervisor(t, db, fx.staff, fx.sourceGroup.ID, "supervisor")
 	targetSupervision := testpkg.CreateTestGroupSupervisor(t, db, fx.colleague, fx.targetGroup.ID, "supervisor")
 	targetSupervision.StartDate = timezone.TodayDate().AddDays(1)
-	require.NoError(t, service.UpdateGroupSupervisor(ctx, targetSupervision))
+	require.NoError(t, service.UpdateGroupSupervisor(ctx, supervisorOf(targetSupervision)))
 
 	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{fx.studentID}, fx.targetGroup.ID, activeSvc.StudentMoveAuthorization{StaffID: fx.staff})
 

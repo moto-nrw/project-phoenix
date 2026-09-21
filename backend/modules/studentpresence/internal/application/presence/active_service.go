@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -39,7 +39,7 @@ const (
 
 // CrossTenantRepo defines the interface for cross-tenant student queries.
 type CrossTenantRepo interface {
-	FindCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]active.CrossTenantStudent, error)
+	FindCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]ports.CrossTenantStudent, error)
 }
 
 type SchoolQuery interface {
@@ -89,11 +89,11 @@ type TimetableBridgeCompleter interface {
 type ServiceDependencies struct {
 	PrincipalReader func(context.Context) RequestPrincipal
 	// Active domain repositories
-	GroupRepo        active.GroupRepository
+	GroupRepo        ports.ActiveGroupRepository
 	SessionStartLock interface {
 		LockSessionStart(context.Context, int64) error
 	}
-	SupervisorRepo    active.GroupSupervisorRepository
+	SupervisorRepo    ports.GroupSupervisorRepository
 	SchoolPresence    StudentPresence
 	StudentDisplay    StudentDisplayReader
 	StudentStatusRepo StudentStatusDayRepository

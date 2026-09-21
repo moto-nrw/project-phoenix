@@ -9,7 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,7 +18,7 @@ import (
 // openRoomPresence is the narrow surface the open-room move workflow binds to
 // (#3066). Asserting it here proves the retained service really provides it.
 type openRoomPresence interface {
-	EnsureOpenRoomSession(ctx context.Context, roomID, activityID int64) (*activeModels.Group, error)
+	EnsureOpenRoomSession(ctx context.Context, roomID, activityID int64) (*ports.ActiveGroup, error)
 	MoveStudentsToOpenRoomSessionAuthorized(ctx context.Context, studentIDs []int64, roomSessionID int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error)
 }
 
@@ -156,7 +156,7 @@ func TestKioskStartConflictsWithAPlannerSessionInTheSameRoom(t *testing.T) {
 	_, err = svc.StartActivitySessionWithSupervisors(ctx, football.ID, device.ID, []int64{staff.ID}, &gym.ID)
 	require.ErrorIs(t, err, activeSvc.ErrSessionConflict)
 
-	var still activeModels.Group
+	var still testpkg.ActiveGroupRow
 	require.NoError(t, db.NewSelect().
 		Model(&still).
 		ModelTableExpr(`active.groups AS "group"`).
