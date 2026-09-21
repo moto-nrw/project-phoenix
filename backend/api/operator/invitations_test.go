@@ -18,8 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/models/platform"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 )
 
 // invitationMockService implements OperatorAccess —
@@ -27,12 +26,12 @@ import (
 // eight invitation-management methods the handler actually calls.
 type invitationMockService struct {
 	inviteOperatorFn             func(ctx context.Context, email string, displayName *string, createdByID int64, clientIP net.IP) error
-	validateOperatorInvitationFn func(ctx context.Context, token string) (*platform.OperatorInvitationToken, error)
-	acceptOperatorInvitationFn   func(ctx context.Context, token, displayName, password string, clientIP net.IP) (*platform.Operator, error)
-	listPendingInvitationsFn     func(ctx context.Context) ([]*platform.OperatorInvitationToken, error)
+	validateOperatorInvitationFn func(ctx context.Context, token string) (*identityaccess.OperatorInvitation, error)
+	acceptOperatorInvitationFn   func(ctx context.Context, token, displayName, password string, clientIP net.IP) (*identityaccess.Operator, error)
+	listPendingInvitationsFn     func(ctx context.Context) ([]*identityaccess.OperatorInvitation, error)
 	revokeOperatorInvitationFn   func(ctx context.Context, invitationID int64, actorID int64, clientIP net.IP) error
 	resendOperatorInvitationFn   func(ctx context.Context, invitationID int64, actorID int64, clientIP net.IP) error
-	listOperatorsFn              func(ctx context.Context) ([]*platform.Operator, error)
+	listOperatorsFn              func(ctx context.Context) ([]*identityaccess.Operator, error)
 	cleanupExpiredInvitationsFn  func(ctx context.Context) (int, error)
 }
 
@@ -102,14 +101,7 @@ func (m *invitationMockService) ListPendingOperatorInvitations(ctx context.Conte
 			if row == nil {
 				continue
 			}
-			invitations = append(invitations, identityaccess.OperatorInvitation{
-				ID: row.ID, Email: row.Email, Token: row.Token, ExpiresAt: row.ExpiresAt,
-				UsedAt: row.UsedAt, CreatedBy: row.CreatedBy, DisplayName: row.DisplayName,
-				Delivery: identityaccess.TokenDelivery{
-					SentAt: row.EmailSentAt, Error: row.EmailError, RetryCount: row.EmailRetryCount,
-				},
-				CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
-			})
+			invitations = append(invitations, *row)
 		}
 		return invitations, nil
 	}
@@ -145,14 +137,14 @@ func (m *invitationMockService) CleanupOperatorEmailChanges(ctx context.Context)
 	return 0, nil
 }
 
-func identityOperator(row *platform.Operator) identityaccess.Operator {
+func identityOperator(row *identityaccess.Operator) identityaccess.Operator {
 	return identityaccess.Operator{
 		ID: row.ID, Email: row.Email, DisplayName: row.DisplayName, Active: row.Active,
 		LastLogin: row.LastLogin, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
 }
 
-func identityOperators(rows []*platform.Operator) []identityaccess.Operator {
+func identityOperators(rows []*identityaccess.Operator) []identityaccess.Operator {
 	operators := make([]identityaccess.Operator, 0, len(rows))
 	for _, row := range rows {
 		if row == nil {
@@ -173,8 +165,8 @@ func invitationReqWithClaims(method, path string, body []byte, operatorID int) *
 	} else {
 		req = httptest.NewRequest(method, path, nil)
 	}
-	claims := jwt.AppClaims{ID: operatorID, Scope: "platform"}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := testutil.Claims{ID: operatorID, Scope: "platform"}
+	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
 	return req.WithContext(ctx)
 }
 
@@ -367,25 +359,25 @@ func TestListInvitations_Success(t *testing.T) {
 
 	now := time.Now()
 	mockService := &invitationMockService{
-		listPendingInvitationsFn: func(_ context.Context) ([]*platform.OperatorInvitationToken, error) {
-			token := &platform.OperatorInvitationToken{
+		listPendingInvitationsFn: func(_ context.Context) ([]*identityaccess.OperatorInvitation, error) {
+			token := &identityaccess.OperatorInvitation{
 				Email:     "pending@example.com",
 				CreatedBy: 42,
 				ExpiresAt: now.Add(48 * time.Hour),
 			}
 			token.ID = 100
 			token.CreatedAt = now
-			return []*platform.OperatorInvitationToken{token}, nil
+			return []*identityaccess.OperatorInvitation{token}, nil
 		},
-		listOperatorsFn: func(_ context.Context) ([]*platform.Operator, error) {
-			op := &platform.Operator{
+		listOperatorsFn: func(_ context.Context) ([]*identityaccess.Operator, error) {
+			op := &identityaccess.Operator{
 				Email:       "admin@example.com",
 				DisplayName: "Admin Op",
 				Active:      true,
 			}
 			op.ID = 42
 			op.CreatedAt = now
-			return []*platform.Operator{op}, nil
+			return []*identityaccess.Operator{op}, nil
 		},
 	}
 
@@ -417,11 +409,11 @@ func TestListInvitations_EmptyLists(t *testing.T) {
 	t.Parallel()
 
 	mockService := &invitationMockService{
-		listPendingInvitationsFn: func(_ context.Context) ([]*platform.OperatorInvitationToken, error) {
-			return []*platform.OperatorInvitationToken{}, nil
+		listPendingInvitationsFn: func(_ context.Context) ([]*identityaccess.OperatorInvitation, error) {
+			return []*identityaccess.OperatorInvitation{}, nil
 		},
-		listOperatorsFn: func(_ context.Context) ([]*platform.Operator, error) {
-			return []*platform.Operator{}, nil
+		listOperatorsFn: func(_ context.Context) ([]*identityaccess.Operator, error) {
+			return []*identityaccess.Operator{}, nil
 		},
 	}
 
@@ -438,7 +430,7 @@ func TestListInvitations_PendingListError(t *testing.T) {
 	t.Parallel()
 
 	mockService := &invitationMockService{
-		listPendingInvitationsFn: func(_ context.Context) ([]*platform.OperatorInvitationToken, error) {
+		listPendingInvitationsFn: func(_ context.Context) ([]*identityaccess.OperatorInvitation, error) {
 			return nil, errors.New("db error")
 		},
 	}
@@ -456,10 +448,10 @@ func TestListInvitations_OperatorsListError(t *testing.T) {
 	t.Parallel()
 
 	mockService := &invitationMockService{
-		listPendingInvitationsFn: func(_ context.Context) ([]*platform.OperatorInvitationToken, error) {
-			return []*platform.OperatorInvitationToken{}, nil
+		listPendingInvitationsFn: func(_ context.Context) ([]*identityaccess.OperatorInvitation, error) {
+			return []*identityaccess.OperatorInvitation{}, nil
 		},
-		listOperatorsFn: func(_ context.Context) ([]*platform.Operator, error) {
+		listOperatorsFn: func(_ context.Context) ([]*identityaccess.Operator, error) {
 			return nil, errors.New("db error")
 		},
 	}
@@ -635,9 +627,9 @@ func TestValidateInvitation_Success(t *testing.T) {
 
 	displayName := "New Op"
 	mockService := &invitationMockService{
-		validateOperatorInvitationFn: func(_ context.Context, token string) (*platform.OperatorInvitationToken, error) {
+		validateOperatorInvitationFn: func(_ context.Context, token string) (*identityaccess.OperatorInvitation, error) {
 			assert.Equal(t, "550e8400-e29b-41d4-a716-446655440000", token)
-			return &platform.OperatorInvitationToken{
+			return &identityaccess.OperatorInvitation{
 				Email:       "new@example.com",
 				DisplayName: &displayName,
 				ExpiresAt:   time.Now().Add(48 * time.Hour),
@@ -701,7 +693,7 @@ func TestValidateInvitation_TokenNotFound(t *testing.T) {
 	t.Parallel()
 
 	mockService := &invitationMockService{
-		validateOperatorInvitationFn: func(_ context.Context, _ string) (*platform.OperatorInvitationToken, error) {
+		validateOperatorInvitationFn: func(_ context.Context, _ string) (*identityaccess.OperatorInvitation, error) {
 			return nil, identityoperator.ErrOperatorInvitationNotFound
 		},
 	}
@@ -742,11 +734,11 @@ func TestAcceptInvitation_Success(t *testing.T) {
 	t.Parallel()
 
 	mockService := &invitationMockService{
-		acceptOperatorInvitationFn: func(_ context.Context, token, displayName, password string, _ net.IP) (*platform.Operator, error) {
+		acceptOperatorInvitationFn: func(_ context.Context, token, displayName, password string, _ net.IP) (*identityaccess.Operator, error) {
 			assert.Equal(t, "550e8400-e29b-41d4-a716-446655440000", token)
 			assert.Equal(t, "New Operator", displayName)
 			assert.Equal(t, "SecureP@ss1", password)
-			op := &platform.Operator{
+			op := &identityaccess.Operator{
 				Email:       "new@example.com",
 				DisplayName: "New Operator",
 			}
@@ -891,7 +883,7 @@ func TestAcceptInvitation_TokenNotFound(t *testing.T) {
 	t.Parallel()
 
 	mockService := &invitationMockService{
-		acceptOperatorInvitationFn: func(_ context.Context, _, _, _ string, _ net.IP) (*platform.Operator, error) {
+		acceptOperatorInvitationFn: func(_ context.Context, _, _, _ string, _ net.IP) (*identityaccess.Operator, error) {
 			return nil, identityoperator.ErrOperatorInvitationNotFound
 		},
 	}
@@ -918,7 +910,7 @@ func TestAcceptInvitation_EmailAlreadyExists(t *testing.T) {
 	t.Parallel()
 
 	mockService := &invitationMockService{
-		acceptOperatorInvitationFn: func(_ context.Context, _, _, _ string, _ net.IP) (*platform.Operator, error) {
+		acceptOperatorInvitationFn: func(_ context.Context, _, _, _ string, _ net.IP) (*identityaccess.Operator, error) {
 			return nil, identityoperator.ErrOperatorEmailExists
 		},
 	}
@@ -945,7 +937,7 @@ func TestAcceptInvitation_InvalidData(t *testing.T) {
 	t.Parallel()
 
 	mockService := &invitationMockService{
-		acceptOperatorInvitationFn: func(_ context.Context, _, _, _ string, _ net.IP) (*platform.Operator, error) {
+		acceptOperatorInvitationFn: func(_ context.Context, _, _, _ string, _ net.IP) (*identityaccess.Operator, error) {
 			return nil, &identityoperator.InvalidInputError{Err: errors.New("password too weak")}
 		},
 	}
@@ -970,7 +962,7 @@ func TestAcceptInvitation_ServiceError(t *testing.T) {
 	t.Parallel()
 
 	mockService := &invitationMockService{
-		acceptOperatorInvitationFn: func(_ context.Context, _, _, _ string, _ net.IP) (*platform.Operator, error) {
+		acceptOperatorInvitationFn: func(_ context.Context, _, _, _ string, _ net.IP) (*identityaccess.Operator, error) {
 			return nil, errors.New("unexpected error")
 		},
 	}

@@ -33,8 +33,8 @@
   "runtime_evidence": {
     "source": "Local run on the PR branch after merging development at 78055dc479. The change relocates an HTTP adapter and replaces three imports without touching a statement, so the evidence is the unchanged route, behaviour and query-budget suites plus the architecture check, not a benchmark rerun.",
     "sources": [
-      "backend/modules/identityaccess/inbound/auth/api.go",
-      "backend/modules/identityaccess/inbound/auth/tenant_handlers.go",
+      "backend/modules/identityaccess/inbound/account/api.go",
+      "backend/modules/identityaccess/inbound/account/tenant_handlers.go",
       "backend/api/testdata/middleware_table.golden",
       "backend/test/query_budgets.go",
       "https://github.com/moto-nrw/project-phoenix/pull/3507"
