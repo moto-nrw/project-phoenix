@@ -877,6 +877,171 @@ describe("CareWeeklyPlanEditForm", () => {
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 
+  // #3371: a text field with a digit mask replaces the native time input, so
+  // "1600" is one entry instead of hour and minute overwritten apart.
+  it("turns typed digits into a clock time", () => {
+    renderForm();
+
+    const pickup = screen.getByLabelText("Abholung", {
+      selector: "#weekly-pickup-1",
+    });
+    fireEvent.change(pickup, { target: { value: "1600" } });
+
+    expect(pickup).toHaveValue("16:00");
+    expect(pickup).toHaveAttribute("placeholder", "HH:MM");
+  });
+
+  it("completes a sequential one-digit-hour entry", async () => {
+    const { onSubmitWeekly } = renderForm();
+
+    const pickup = screen.getByLabelText("Abholung", {
+      selector: "#weekly-pickup-1",
+    });
+    fireEvent.change(pickup, { target: { value: "1" } });
+    fireEvent.change(pickup, { target: { value: "13" } });
+    fireEvent.change(pickup, { target: { value: "130" } });
+
+    expect(pickup).toHaveValue("01:30");
+    save();
+
+    await waitFor(() => {
+      expect(onSubmitWeekly).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pickupSchedules: expect.arrayContaining([
+            expect.objectContaining({ weekday: 1, pickupTime: "01:30" }),
+          ]),
+        }),
+      );
+    });
+  });
+
+  it("keeps a completed time when another digit is typed", () => {
+    renderForm();
+
+    const pickup = screen.getByLabelText("Abholung", {
+      selector: "#weekly-pickup-1",
+    });
+    fireEvent.change(pickup, { target: { value: "12:34" } });
+    fireEvent.change(pickup, { target: { value: "12:345" } });
+
+    expect(pickup).toHaveValue("12:34");
+  });
+
+  it("does not continue a one-digit-hour entry after leaving the field", () => {
+    renderForm();
+
+    const pickup = screen.getByLabelText("Abholung", {
+      selector: "#weekly-pickup-1",
+    });
+    fireEvent.change(pickup, { target: { value: "1" } });
+    fireEvent.change(pickup, { target: { value: "13" } });
+    fireEvent.change(pickup, { target: { value: "130" } });
+    expect(pickup).toHaveValue("01:30");
+
+    fireEvent.blur(pickup);
+    fireEvent.change(pickup, { target: { value: "01:305" } });
+
+    expect(pickup).toHaveValue("01:30");
+  });
+
+  it("pads a one-digit hour when typing a clock time", () => {
+    renderForm();
+
+    const pickup = screen.getByLabelText("Abholung", {
+      selector: "#weekly-pickup-1",
+    });
+    fireEvent.change(pickup, { target: { value: "930" } });
+
+    expect(pickup).toHaveValue("09:30");
+    fireEvent.change(pickup, { target: { value: "9:30" } });
+    expect(pickup).toHaveValue("09:30");
+  });
+
+  // #3371: the school's usual times go into an empty field with one click;
+  // what is saved is the plain clock time.
+  it("fills an empty field with the school's usual time on one click", async () => {
+    const { onSubmitWeekly } = renderForm({
+      timePresets: { arrival: "12:30", pickup: "16:00" },
+    });
+
+    fireEvent.click(screen.getByLabelText("Mittwoch"));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Mittwoch: Ankunft 12:30 Uhr eintragen",
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Mittwoch: Abholung 16:00 Uhr eintragen",
+      }),
+    );
+
+    expect(
+      screen.getByLabelText("Ankunft", { selector: "#weekly-arrival-3" }),
+    ).toHaveValue("12:30");
+    expect(
+      screen.getByLabelText("Abholung", { selector: "#weekly-pickup-3" }),
+    ).toHaveValue("16:00");
+    // A filled field offers nothing more.
+    expect(
+      screen.queryByRole("button", { name: /^Mittwoch: .* eintragen$/ }),
+    ).not.toBeInTheDocument();
+
+    save();
+    await waitFor(() => expect(onSubmitWeekly).toHaveBeenCalled());
+    expect(onSubmitWeekly.mock.calls[0]?.[0]).toMatchObject({
+      arrivalSchedules: expect.arrayContaining([
+        expect.objectContaining({ weekday: 3, expected_arrival: "12:30" }),
+      ]),
+      pickupSchedules: expect.arrayContaining([
+        expect.objectContaining({ weekday: 3, pickupTime: "16:00" }),
+      ]),
+    });
+  });
+
+  it("offers the usual time only where it would become the child's time", () => {
+    renderForm({
+      timePresets: { arrival: "12:30", pickup: "16:00" },
+      weeklyArrival: [
+        ...weeklyArrival.slice(0, 3),
+        // The class time applies while the own time is empty.
+        {
+          weekday: 4,
+          inCare: true,
+          expected_arrival: "",
+          classTime: "11:45",
+          notes: null,
+        },
+        ...weeklyArrival.slice(4),
+      ],
+    });
+
+    // Donnerstag: the class time stays; the empty pickup takes the preset.
+    expect(
+      screen.queryByRole("button", {
+        name: "Donnerstag: Ankunft 12:30 Uhr eintragen",
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "Donnerstag: Abholung 16:00 Uhr eintragen",
+      }),
+    ).toBeInTheDocument();
+    // Freitag is no care day; Montag has its own times.
+    expect(
+      screen.queryByRole("button", { name: /^(Freitag|Montag): / }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers no usual time while the school maintains none", () => {
+    renderForm();
+    fireEvent.click(screen.getByLabelText("Mittwoch"));
+
+    expect(
+      screen.queryByRole("button", { name: /Uhr eintragen$/ }),
+    ).not.toBeInTheDocument();
+  });
+
   // Business rule changed with #2414: an arrival note hangs on the care day,
   // not on a time — the time may legitimately come from the class.
   it("rejects a weekly arrival note without a care day", async () => {

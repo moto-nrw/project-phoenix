@@ -17,6 +17,7 @@ import (
 
 // Keys of the tenant settings other owners read.
 const (
+	KeyAttendanceEditScope                = configModel.KeyAttendanceEditScope
 	KeyAttendanceLogEnabled               = configModel.KeyAttendanceLogEnabled
 	KeyAttendanceNFCEnabled               = configModel.KeyAttendanceNFCEnabled
 	KeyAttendanceWebEnabled               = configModel.KeyAttendanceWebEnabled
@@ -40,6 +41,9 @@ const (
 
 // Values of the enumerated settings above.
 const (
+	AttendanceEditScopeOwn      = configModel.AttendanceEditScopeOwn
+	AttendanceEditScopeAllStaff = configModel.AttendanceEditScopeAllStaff
+
 	GroupModeFixedGroups = configModel.GroupModeFixedGroups
 	GroupModeOpenCare    = configModel.GroupModeOpenCare
 

@@ -333,7 +333,7 @@ const ROW_ACTION_BASELINE = new Map(
     ],
     "src/components/students/companion-picker.tsx": ["entfernen@274"],
     "src/components/students/student-create-modal.tsx": [
-      "Erziehungsberechtigte/n entfernen@700",
+      "Erziehungsberechtigte/n entfernen@708",
     ],
     "src/components/timetable/substitution-slide-over.tsx": [
       "Rückgängig Entfernen@765",

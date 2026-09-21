@@ -121,6 +121,7 @@ func newTenantResolveResponse(school *TenantSchool, resolved tenantShellSettings
 		AttendanceLogEnabled:       resolved.attendanceLogEnabled,
 		GroupMode:                  resolved.groupMode,
 		OperationalOverviewScope:   resolved.overviewScope,
+		AttendanceEditScope:        resolved.attendanceEditScope,
 		ParentRequestReasonPolicy:  resolved.reasonPolicy,
 		ShowTimetableCounts:        resolved.showTimetableCounts,
 		TimetableEnabled:           resolved.timetableEnabled,
@@ -136,6 +137,7 @@ func defaultTenantShellSettings() tenantShellSettings {
 		careOfferingsEnabled:   true,
 		groupMode:              settings.GroupModeFixedGroups,
 		overviewScope:          settings.OverviewScopeOwn,
+		attendanceEditScope:    settings.AttendanceEditScopeOwn,
 		reasonPolicy:           settings.ReasonPolicyBoth,
 		showTimetableCounts:    true,
 		timetableEnabled:       true,
@@ -161,6 +163,7 @@ func tenantShellSettingKeys() []string {
 		settings.KeyEnrollmentWaitlistEnabled,
 		settings.KeyGroupMode,
 		settings.KeyOperationalOverviewScope,
+		settings.KeyAttendanceEditScope,
 		settings.KeyParentRequestReasonPolicy,
 		settings.KeyParentNotesEnabled,
 		settings.KeyEmergencyListHealthInfo,
@@ -216,6 +219,7 @@ func (rs *Resource) resolveTenantShellSettingsOneByOne(ctx context.Context, tena
 	resolved.emergencyHealthInfo = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyEmergencyListHealthInfo, false, slog.LevelWarn)
 	resolved.groupMode = rs.resolveTenantGroupMode(ctx, tenantID)
 	resolved.overviewScope = rs.resolveTenantOverviewScope(ctx, tenantID)
+	resolved.attendanceEditScope = rs.resolveTenantAttendanceEditScope(ctx, tenantID)
 	resolved.reasonPolicy = rs.resolveTenantReasonPolicy(ctx, tenantID)
 
 	// Messaging compose visibility intentionally fails open so it stays in
@@ -284,6 +288,9 @@ func resolveTenantShellSnapshot(
 	resolved.overviewScope = normalizeOverviewScope(
 		resolveString(settings.KeyOperationalOverviewScope, settings.OverviewScopeOwn, slog.LevelError),
 	)
+	resolved.attendanceEditScope = normalizeAttendanceEditScope(
+		resolveString(settings.KeyAttendanceEditScope, settings.AttendanceEditScopeOwn, slog.LevelError),
+	)
 	resolved.reasonPolicy = normalizeReasonPolicy(
 		resolveString(settings.KeyParentRequestReasonPolicy, settings.ReasonPolicyBoth, slog.LevelError),
 	)
@@ -350,6 +357,24 @@ func (rs *Resource) resolveTenantOverviewScope(ctx context.Context, tenantID int
 		return settings.OverviewScopeOwn
 	}
 	return normalizeOverviewScope(value)
+}
+
+func (rs *Resource) resolveTenantAttendanceEditScope(ctx context.Context, tenantID int64) string {
+	value, err := rs.SettingsService.ResolveStringForTenant(ctx, tenantID, settings.KeyAttendanceEditScope)
+	if err != nil {
+		logTenantResolveSettingFailure(ctx, tenantID, settings.KeyAttendanceEditScope, err, slog.LevelError)
+		return settings.AttendanceEditScopeOwn
+	}
+	return normalizeAttendanceEditScope(value)
+}
+
+// normalizeAttendanceEditScope keeps an unknown wire value from widening the
+// client: anything unrecognised is "own".
+func normalizeAttendanceEditScope(value string) string {
+	if value == settings.AttendanceEditScopeAllStaff {
+		return value
+	}
+	return settings.AttendanceEditScopeOwn
 }
 
 func (rs *Resource) resolveTenantReasonPolicy(ctx context.Context, tenantID int64) string {

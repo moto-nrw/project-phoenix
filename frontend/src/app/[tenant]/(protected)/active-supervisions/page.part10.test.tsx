@@ -1137,8 +1137,8 @@ describe("open-room tab onTabChange callback", () => {
           roomId: "sporthalle",
           name: "Sporthalle",
           isUserSupervising: true,
-          activeGroupIds: ["active-fussball", "active-tanzen"],
-          studentCount: 2,
+          activeGroupIds: ["active-fussball", "active-tanzen", "active-raum"],
+          studentCount: 3,
           students: [
             {
               studentId: "student-fussball",
@@ -1156,6 +1156,16 @@ describe("open-room tab onTabChange callback", () => {
               activeGroupId: "active-tanzen",
               activityName: "Tanzen",
               checkInTime: "2026-09-09T10:05:00.000Z",
+              isActive: true,
+            },
+            // An independent stay in the room's own session (#3066).
+            {
+              studentId: "student-raum",
+              studentName: "Ida Eigen",
+              schoolClass: "4a",
+              activeGroupId: "active-raum",
+              independent: true,
+              checkInTime: "2026-09-09T10:10:00.000Z",
               isActive: true,
             },
           ],
@@ -1200,6 +1210,9 @@ describe("open-room tab onTabChange callback", () => {
     expect(screen.getByText("Theo Tanz")).toBeInTheDocument();
     expect(screen.getByText("Angebot: Fußball")).toBeInTheDocument();
     expect(screen.getByText("Angebot: Tanzen")).toBeInTheDocument();
+    expect(screen.getByText("Ida Eigen")).toBeInTheDocument();
+    expect(screen.getByText("Ohne Angebot")).toBeInTheDocument();
+    expect(screen.getAllByText(/^Angebot:/)).toHaveLength(2);
     expect(screen.queryByTestId("timetable-roster")).not.toBeInTheDocument();
   });
 
