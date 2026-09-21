@@ -9,8 +9,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
@@ -20,7 +18,8 @@ import (
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
@@ -68,11 +67,11 @@ type OperationActiveService interface {
 }
 
 type OperationArrivalService interface {
-	GetBulkEffectiveArrivalTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careschedule.EffectiveArrivalTime, error)
+	GetBulkEffectiveArrivalTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careplan.EffectiveArrivalTime, error)
 }
 
 type OperationPickupService interface {
-	GetBulkEffectivePickupTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careschedule.EffectivePickupTime, error)
+	GetBulkEffectivePickupTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careplan.EffectivePickupTime, error)
 }
 
 type TimetableOperationsService interface {
@@ -135,7 +134,7 @@ type TimetableOperationsDependencies struct {
 	ActiveService      OperationActiveService
 	ArrivalService     OperationArrivalService
 	PickupService      OperationPickupService
-	CareDayService     careschedule.CareDayService
+	CareDayService     careplan.CareDayQuery
 	SupervisorRepo     activeModel.GroupSupervisorRepository
 	Presence           StudentVisitReader
 	StudentRepo        usersModel.StudentRepository
@@ -284,7 +283,7 @@ type OperationRosterRow struct {
 	// sets those rows apart and leaves them out of the expected count. The rows
 	// stay in the payload so a child who turns up anyway can still be checked
 	// in with one tap.
-	CareDayStatus careschedule.CareDayStatus `json:"care_day_status"`
+	CareDayStatus careplan.CareDayStatus `json:"care_day_status"`
 }
 
 // OperationParallelPresence identifies the other running instance a roster
@@ -1326,7 +1325,7 @@ func rosterExcludedAlumni(inst *scheduleModel.ActivityInstance, students map[int
 // the caller already resolved. PlannedNow resolves once for every instance of
 // the day; passing nil makes this method resolve for itself.
 func (s *timetableOperationsService) buildRosterWithCareDay(
-	ctx context.Context, instanceID int64, careDay map[int64]careschedule.CareDayStatus,
+	ctx context.Context, instanceID int64, careDay map[int64]careplan.CareDayStatus,
 ) (*OperationRoster, error) {
 	inst, err := s.loadInstance(ctx, instanceID)
 	if err != nil {
@@ -1478,9 +1477,9 @@ func (s *timetableOperationsService) rosterPickupTimes(
 	ctx context.Context,
 	inst *scheduleModel.ActivityInstance,
 	studentIDs []int64,
-) (map[int64]*careschedule.EffectivePickupTime, bool) {
+) (map[int64]*careplan.EffectivePickupTime, bool) {
 	if len(studentIDs) == 0 {
-		return map[int64]*careschedule.EffectivePickupTime{}, true
+		return map[int64]*careplan.EffectivePickupTime{}, true
 	}
 	pickups, err := s.deps.PickupService.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, timezone.Date(inst.Date))
 	if err != nil {
@@ -1490,12 +1489,12 @@ func (s *timetableOperationsService) rosterPickupTimes(
 			slog.String("error", err.Error()),
 			slog.Int64("instance_id", inst.ID),
 		)
-		return map[int64]*careschedule.EffectivePickupTime{}, false
+		return map[int64]*careplan.EffectivePickupTime{}, false
 	}
 	return pickups, true
 }
 
-func formatRosterPickupTime(effective *careschedule.EffectivePickupTime) *string {
+func formatRosterPickupTime(effective *careplan.EffectivePickupTime) *string {
 	if effective == nil || effective.PickupTime == nil {
 		return nil
 	}
@@ -1555,7 +1554,7 @@ func (s *timetableOperationsService) parallelPresenceByStudent(ctx context.Conte
 	return out, nil
 }
 
-func (s *timetableOperationsService) mapRosterRow(inst *scheduleModel.ActivityInstance, studentID int64, planned *scheduleModel.InstanceStudent, visit *studentpresence.Visit, students map[int64]*usersModel.Student, persons map[int64]*usersModel.Person, groups map[int64]*educationModel.Group, warnings []OperationRosterWarning, careDay map[int64]careschedule.CareDayStatus) OperationRosterRow {
+func (s *timetableOperationsService) mapRosterRow(inst *scheduleModel.ActivityInstance, studentID int64, planned *scheduleModel.InstanceStudent, visit *studentpresence.Visit, students map[int64]*usersModel.Student, persons map[int64]*usersModel.Person, groups map[int64]*educationModel.Group, warnings []OperationRosterWarning, careDay map[int64]careplan.CareDayStatus) OperationRosterRow {
 	row := OperationRosterRow{
 		StudentID:        studentID,
 		Planned:          planned != nil && !planned.IsUnplanned,
@@ -1594,17 +1593,16 @@ func rosterCareDayStatus(
 	studentID int64,
 	planned *scheduleModel.InstanceStudent,
 	visit *studentpresence.Visit,
-	careDay map[int64]careschedule.CareDayStatus,
-) careschedule.CareDayStatus {
+	careDay map[int64]careplan.CareDayStatus,
+) careplan.CareDayStatus {
 	if visit != nil || (planned != nil && planned.Status == scheduleModel.AttendanceStatusPresent) {
-		return careschedule.CareDayScheduled
+		return careplan.CareDayScheduled
 	}
 	if planned == nil {
-		return careschedule.CareDayUnknown
+		return careplan.CareDayUnknown
 	}
-	return careschedule.AttendanceRowCareDay(
-		inst != nil && inst.Status == scheduleModel.InstanceStatusCompleted,
-		planned,
+	return careplan.AttendanceRowCareDay(
+		inst != nil && inst.Status == scheduleModel.InstanceStatusCompleted, careDayAttendance(planned),
 		careDay[studentID],
 	)
 }
@@ -1750,7 +1748,7 @@ func rosterMismatchExpectedGroupIDs(group *rosterTemplateGroup) map[int64]struct
 	return expected
 }
 
-func appendArrivalWarnings(warnings map[int64][]OperationRosterWarning, arrivals map[int64]*careschedule.EffectiveArrivalTime, inst *scheduleModel.ActivityInstance) {
+func appendArrivalWarnings(warnings map[int64][]OperationRosterWarning, arrivals map[int64]*careplan.EffectiveArrivalTime, inst *scheduleModel.ActivityInstance) {
 	slotStart := inst.StartTime.Format("15:04")
 	slotStartClock := timezone.NormalizeWallClock(inst.StartTime)
 	for studentID, arrival := range arrivals {
@@ -1963,7 +1961,7 @@ func instanceEndAt(inst *scheduleModel.ActivityInstance, loc *time.Location) tim
 	return time.Date(inst.Date.Year(), inst.Date.Month(), inst.Date.Day(), inst.EndTime.Hour(), inst.EndTime.Minute(), inst.EndTime.Second(), 0, loc)
 }
 
-func mapPlannedInstance(inst *scheduleModel.ActivityInstance, staffRows []*scheduleModel.InstanceStaff, studentRows []*scheduleModel.InstanceStudent, now time.Time, currentStaffID int64, roomName *string, careDay map[int64]careschedule.CareDayStatus) OperationPlannedInstance {
+func mapPlannedInstance(inst *scheduleModel.ActivityInstance, staffRows []*scheduleModel.InstanceStaff, studentRows []*scheduleModel.InstanceStudent, now time.Time, currentStaffID int64, roomName *string, careDay map[int64]careplan.CareDayStatus) OperationPlannedInstance {
 	assigned := make([]int64, 0, len(staffRows))
 	isAssigned := false
 	isPrimary := false
@@ -1983,7 +1981,7 @@ func mapPlannedInstance(inst *scheduleModel.ActivityInstance, staffRows []*sched
 	expected, present, notScheduled := 0, 0, 0
 	completed := inst.Status == scheduleModel.InstanceStatusCompleted
 	for _, row := range studentRows {
-		verdict := careschedule.AttendanceRowCareDay(completed, row, careDay[row.StudentID])
+		verdict := careplan.AttendanceRowCareDay(completed, careDayAttendance(row), careDay[row.StudentID])
 		switch row.Status {
 		case scheduleModel.AttendanceStatusExpected:
 			// An assignment alone does not make a child expected today: the
@@ -2004,7 +2002,7 @@ func mapPlannedInstance(inst *scheduleModel.ActivityInstance, staffRows []*sched
 			// reports "0 nicht eingeplant" while the roster shows one.
 			// AttendanceRowCareDay hands out this verdict for no other absent
 			// row, so a manual absence stays uncounted.
-			if verdict == careschedule.CareDayNotScheduled {
+			if verdict == careplan.CareDayNotScheduled {
 				notScheduled++
 			}
 		}

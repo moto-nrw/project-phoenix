@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 )
 
@@ -32,39 +33,15 @@ func (p reviewPickupPayload) terms() (careplan.Date, time.Time, error) {
 }
 
 func requestedCareSummary(raw json.RawMessage) []careplan.CareRequestDiffEntry {
-	var pickup reviewPickupPayload
-	if json.Unmarshal(raw, &pickup) == nil {
-		if date, clock, err := pickup.terms(); err == nil {
-			return []careplan.CareRequestDiffEntry{{Label: date.Format("02.01.2006") + " · Abholzeit", New: clock.Format("15:04"), CareKind: "pickup"}}
-		}
-	}
-	var weekly careplan.CareWeeklyChange
-	if json.Unmarshal(raw, &weekly) != nil {
-		return nil
-	}
-	return careplan.WeeklyCareSummary(weekly.Weekdays)
+	return carerequests.RequestedSummary(raw)
 }
 
 func careReviewSnapshot(raw json.RawMessage) []careplan.CareRequestDiffEntry {
-	var snapshot struct {
-		Diff []struct {
-			Label    string   `json:"label"`
-			Old      string   `json:"old"`
-			New      string   `json:"new"`
-			Weekday  int      `json:"weekday"`
-			CareKind string   `json:"care_kind"`
-			OldModes []string `json:"old_modes"`
-			NewMode  string   `json:"new_mode"`
-		} `json:"diff"`
-	}
+	var snapshot *carerequests.DecisionSnapshot
 	if json.Unmarshal(raw, &snapshot) != nil {
 		return nil
 	}
-	var result []careplan.CareRequestDiffEntry
-	for _, entry := range snapshot.Diff {
-		result = append(result, careplan.CareRequestDiffEntry{Label: entry.Label, Old: entry.Old, New: entry.New, Weekday: entry.Weekday, CareKind: entry.CareKind, OldModes: entry.OldModes, NewMode: entry.NewMode})
-	}
-	return result
+	return snapshot.Entries()
 }
 
 func (s *ScheduleReviews) pickupDiff(ctx context.Context, row *careplan.CareScheduleChangeRequest, student ports.ReviewStudent, item *careplan.CareScheduleReviewItem) ([]careplan.CareRequestDiffEntry, error) {
@@ -91,6 +68,7 @@ func (s *ScheduleReviews) pickupDiff(ctx context.Context, row *careplan.CareSche
 			)
 		} else {
 			item.AffectedBlocks, item.ImpactAvailable = blocks, true
+			item.ImpactToken = s.deps.Fingerprint(carerequests.PickupImpactContent(blocks))
 		}
 	}
 	old := payload.PreviousPickupTime

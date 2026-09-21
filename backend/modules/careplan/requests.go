@@ -15,9 +15,9 @@ var (
 	ErrExcusedRequestNotFound        = excusedrequests.ErrExcusedRequestNotFound
 	ErrExcusedRequestNotPending      = excusedrequests.ErrExcusedRequestNotPending
 	ErrExcusedRequestNotDecided      = excusedrequests.ErrExcusedRequestNotDecided
-	ErrCareScheduleRequestNotFound   = errors.New("care schedule change request not found")
-	ErrCareScheduleRequestNotPending = errors.New("care schedule change request is not pending")
-	ErrCareScheduleRequestNotDecided = errors.New("care schedule change request is not decided")
+	ErrCareScheduleRequestNotFound   = carerequests.ErrNotFound
+	ErrCareScheduleRequestNotPending = carerequests.ErrNotPending
+	ErrCareScheduleRequestNotDecided = carerequests.ErrNotDecided
 	ErrStudentDataRequestNotFound    = errors.New("student data change request not found")
 	ErrStudentDataRequestNotPending  = errors.New("student data change request is not pending")
 	ErrStudentDataRequestNotDecided  = errors.New("student data change request is not decided")

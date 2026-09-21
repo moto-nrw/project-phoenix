@@ -7,9 +7,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
@@ -57,46 +55,24 @@ func (rs *Resource) decideCareScheduleChangeRequest(w http.ResponseWriter, r *ht
 		renderError(w, r, careRequestDecisionErrorRenderer(err))
 		return
 	}
-	common.Respond(w, r, http.StatusOK, careDecisionResponse(item), "Decision applied")
+	common.Respond(w, r, http.StatusOK, requestreviewcompose.ToCareRequestResponse(item), "Decision applied")
 }
 
-func nativeCareDiffs(entries []careschedule.RequestDiffEntry) []carerequests.DiffEntry {
-	result := make([]carerequests.DiffEntry, 0, len(entries))
-	for _, entry := range entries {
-		result = append(result, carerequests.DiffEntry{Label: entry.Label, Old: entry.Old, New: entry.New, Weekday: entry.Weekday, CareKind: entry.CareKind, OldModes: entry.OldModes, NewMode: entry.NewMode})
-	}
-	return result
-}
-
-func careDecisionResponse(item *careschedule.CareRequestReviewItem) requestreview.CareRequestResponse {
-	r := item.Request
-	blocks := make([]carerequests.Block, 0, len(item.AffectedBlocks))
-	for _, block := range item.AffectedBlocks {
-		blocks = append(blocks, carerequests.Block{ID: block.ID, Title: block.Title, StartTime: block.StartTime, EndTime: block.EndTime})
-	}
-	response := requestreviewcompose.ToCareRequestResponse(&carerequests.ReviewItem{
-		Request:   &carerequests.Request{ID: r.ID, StudentID: r.StudentID, Status: r.Status, RequestKind: r.RequestKind, DecisionReason: r.DecisionReason, CreatedAt: r.CreatedAt, ReviewedAt: r.ReviewedAt},
-		FirstName: item.FirstName, LastName: item.LastName, Diff: nativeCareDiffs(item.Diff), Reason: item.Reason, AffectedBlocks: blocks, ImpactAvailable: item.ImpactAvailable,
-	})
-	response.ImpactToken = item.ImpactToken
-	return response
-}
-
-func decodeCareRequestDecision(w http.ResponseWriter, r *http.Request) (careschedule.CareRequestDecideInput, bool) {
+func decodeCareRequestDecision(w http.ResponseWriter, r *http.Request) (carerequests.DecideInput, bool) {
 	requestID, ok := common.ParsePositiveInt64IDWithError(w, r, "requestId", "invalid request id")
 	if !ok {
-		return careschedule.CareRequestDecideInput{}, false
+		return carerequests.DecideInput{}, false
 	}
 	var body DecideCareRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		renderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
-		return careschedule.CareRequestDecideInput{}, false
+		return carerequests.DecideInput{}, false
 	}
 	if body.Approve == nil {
 		renderError(w, r, common.ErrorInvalidRequest(errors.New("approve is required")))
-		return careschedule.CareRequestDecideInput{}, false
+		return carerequests.DecideInput{}, false
 	}
-	return careschedule.CareRequestDecideInput{
+	return carerequests.DecideInput{
 		RequestID: requestID, Approve: *body.Approve, Reason: body.Reason,
 		ExpectedImpactToken: body.ImpactToken, RequireImpactToken: true,
 		ExpectedVersion: body.ExpectedVersion,
@@ -104,15 +80,15 @@ func decodeCareRequestDecision(w http.ResponseWriter, r *http.Request) (caresche
 }
 
 var careRequestDecisionErrorRenderer = common.RulesRenderer(parentRequestRules(
-	common.ErrorRule{Target: scheduleModels.ErrCareRequestNotFound, Render: common.ErrorNotFound},
-	common.ErrorRule{Target: scheduleModels.ErrCareRequestNotPending, Render: conflictWithCode("change_request_not_pending")},
-	common.ErrorRule{Target: careschedule.ErrCareRequestGuardianAccessRevoked, Render: conflictWithCode("guardian_access_revoked")},
-	common.ErrorRule{Target: careschedule.ErrCareRequestForbidden, Render: common.ErrorForbidden},
-	common.ErrorRule{Target: careschedule.ErrPickupChangeConflict, Render: conflictWithCode("pickup_change_conflict")},
-	common.ErrorRule{Target: careschedule.ErrPickupChangeAlreadyCompleted, Render: conflictWithCode("pickup_change_completed")},
-	common.ErrorRule{Target: careschedule.ErrPickupChangeExpired, Render: conflictWithCode("pickup_change_expired")},
-	common.ErrorRule{Target: careschedule.ErrPickupChangeImpactChanged, Render: conflictWithCode("pickup_change_impact_changed")},
-	common.ErrorRule{Target: careschedule.ErrCareDayManagedByBooking, Render: conflictWithCode("care_day_managed_by_booking")},
+	common.ErrorRule{Target: carerequests.ErrNotFound, Render: common.ErrorNotFound},
+	common.ErrorRule{Target: carerequests.ErrNotPending, Render: conflictWithCode("change_request_not_pending")},
+	common.ErrorRule{Target: carerequests.ErrGuardianAccessRevoked, Render: conflictWithCode("guardian_access_revoked")},
+	common.ErrorRule{Target: carerequests.ErrCareRequestForbidden, Render: common.ErrorForbidden},
+	common.ErrorRule{Target: carerequests.ErrPickupChangeConflict, Render: conflictWithCode("pickup_change_conflict")},
+	common.ErrorRule{Target: carerequests.ErrPickupChangeAlreadyCompleted, Render: conflictWithCode("pickup_change_completed")},
+	common.ErrorRule{Target: carerequests.ErrPickupChangeExpired, Render: conflictWithCode("pickup_change_expired")},
+	common.ErrorRule{Target: carerequests.ErrPickupChangeImpactChanged, Render: conflictWithCode("pickup_change_impact_changed")},
+	common.ErrorRule{Target: carerequests.ErrCareDayManagedByBooking, Render: conflictWithCode("care_day_managed_by_booking")},
 	common.ErrorRule{Match: isInvalidCareRequestDecision, Render: common.ErrorInvalidRequest},
 ), careRequestDecisionFallback)
 
@@ -128,8 +104,8 @@ func careRequestDecisionFallback(err error) render.Renderer {
 }
 
 func isInvalidCareRequestDecision(err error) bool {
-	return errors.Is(err, careschedule.ErrCareRequestRejectReasonRequired) ||
-		errors.Is(err, careschedule.ErrCareRequestRejectReasonTooLong) ||
-		errors.Is(err, careschedule.ErrInvalidCareRequestPayload) ||
-		errors.Is(err, careschedule.ErrPickupChangeImpactRequired)
+	return errors.Is(err, carerequests.ErrRejectReasonRequired) ||
+		errors.Is(err, carerequests.ErrRejectReasonTooLong) ||
+		errors.Is(err, carerequests.ErrInvalidPayload) ||
+		errors.Is(err, carerequests.ErrPickupChangeImpactRequired)
 }

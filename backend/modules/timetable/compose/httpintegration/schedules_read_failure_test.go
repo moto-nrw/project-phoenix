@@ -9,7 +9,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -22,7 +23,7 @@ type failedScheduleRead struct {
 }
 
 func (s failedScheduleRead) GetDateframe(context.Context, int64) (*schedule.Dateframe, error) {
-	return nil, &careschedule.ScheduleError{Op: "get dateframe", Err: s.err}
+	return nil, &careplan.ScheduleError{Op: "get dateframe", Err: s.err}
 }
 
 func TestSchedulesReadFailureIsNotNotFound(t *testing.T) {
@@ -36,7 +37,7 @@ func TestSchedulesReadFailureIsNotNotFound(t *testing.T) {
 		message string
 	}{
 		{"failed read", context.Canceled, http.StatusInternalServerError, "context canceled"},
-		{"missing row", careschedule.ErrDateframeNotFound, http.StatusNotFound, "dateframe not found"},
+		{"missing row", timetableModule.ErrDateframeNotFound, http.StatusNotFound, "dateframe not found"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			resource := schedulesAPI.NewSchedulesResource(failedScheduleRead{Service: services.Schedule, err: tc.err}, db)

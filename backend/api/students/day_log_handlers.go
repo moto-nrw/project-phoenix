@@ -18,7 +18,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -312,8 +312,8 @@ type dayLogData struct {
 	persons             map[int64]*usersModel.Person
 	attendanceByStudent map[int64][]*studentpresence.Attendance
 	statusByStudent     map[int64][]*active.StudentStatusDay
-	careDays            map[int64]careschedule.CareDayStatus
-	arrivalTimes        map[int64]*careschedule.EffectiveArrivalTime
+	careDays            map[int64]careplan.CareDayStatus
+	arrivalTimes        map[int64]*careplan.EffectiveArrivalTime
 	clock               dayLogClock
 }
 
@@ -335,8 +335,8 @@ func (rs *Resource) loadDayLogData(ctx context.Context, groups []*educationModel
 		studentsByGroup:     make(map[int64][]*usersModel.Student, len(groups)),
 		attendanceByStudent: map[int64][]*studentpresence.Attendance{},
 		statusByStudent:     map[int64][]*active.StudentStatusDay{},
-		careDays:            map[int64]careschedule.CareDayStatus{},
-		arrivalTimes:        map[int64]*careschedule.EffectiveArrivalTime{},
+		careDays:            map[int64]careplan.CareDayStatus{},
+		arrivalTimes:        map[int64]*careplan.EffectiveArrivalTime{},
 		clock:               clock,
 	}
 	studentIDs, personIDs := indexDayLogStudents(data, students)
@@ -467,9 +467,9 @@ func dayLogEnrollmentNotStarted(student *usersModel.Student, row dayLogStudent, 
 // dayLogArrivalIsStillPending keeps a scheduled child out of today's live
 // absence verdict until their effective planned arrival is due. Retrospective
 // days always have a complete day and therefore never use this exception.
-func dayLogArrivalIsStillPending(row dayLogStudent, careDay careschedule.CareDayStatus, arrival *careschedule.EffectiveArrivalTime, date timezone.Date, clock dayLogClock) bool {
+func dayLogArrivalIsStillPending(row dayLogStudent, careDay careplan.CareDayStatus, arrival *careplan.EffectiveArrivalTime, date timezone.Date, clock dayLogClock) bool {
 	if row.Status != dayLogStatusAbsent ||
-		careDay != careschedule.CareDayScheduled ||
+		careDay != careplan.CareDayScheduled ||
 		arrival == nil ||
 		arrival.ArrivalTime == nil ||
 		!clock.isToday(date) {
@@ -509,7 +509,7 @@ func buildDayLogStudent(student *usersModel.Student, data *dayLogData) dayLogStu
 // wins (present), then the status-day precedence (sick > class trip >
 // excused), then a cancelled care day (reported absence), then a non-booked
 // day, and only the unexplained rest is absent.
-func classifyDayLogStudent(row *dayLogStudent, attendance []*studentpresence.Attendance, statuses []*active.StudentStatusDay, careDay careschedule.CareDayStatus) {
+func classifyDayLogStudent(row *dayLogStudent, attendance []*studentpresence.Attendance, statuses []*active.StudentStatusDay, careDay careplan.CareDayStatus) {
 	eff := activeService.ResolveEffectiveStatus(statuses)
 
 	if len(attendance) > 0 {
@@ -526,10 +526,10 @@ func classifyDayLogStudent(row *dayLogStudent, attendance []*studentpresence.Att
 	}
 
 	switch careDay {
-	case careschedule.CareDayCancelled:
+	case careplan.CareDayCancelled:
 		row.Status = dayLogStatusExcused
 		row.Source = dayLogSourceCancelledCareDay
-	case careschedule.CareDayNotScheduled:
+	case careplan.CareDayNotScheduled:
 		row.Status = dayLogStatusNotScheduled
 	default:
 		row.Status = dayLogStatusAbsent

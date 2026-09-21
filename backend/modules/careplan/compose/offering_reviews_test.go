@@ -148,6 +148,13 @@ func TestOfferingNativeReviewScopeCursorDatesDiffAndCount(t *testing.T) {
 	require.Equal(t, "Frozen course", history[0].Diff[0].Label)
 	require.True(t, history[0].Diff[0].IsCourse)
 	require.NoError(t, module.DecideOfferingChange(ctx, careplan.DecideOfferingChange{ID: hidden.ID, Status: "withdrawn"}))
+	// Pin the page order: snapshot writes use the database clock, while decisions use the application clock.
+	require.NoError(t, tenant.WithinTenant(ctx, mustTenantID(t, testpkg.Tenant(t)), func(txCtx context.Context) error {
+		_, err := transactionDB(t, txCtx).NewRaw(`UPDATE enrollment.offering_change_requests
+			SET updated_at = CASE WHEN id = ? THEN TIMESTAMPTZ '2030-08-21 12:00:00+00' ELSE TIMESTAMPTZ '2030-08-20 12:00:00+00' END
+			WHERE id IN (?, ?)`, hidden.ID, hidden.ID, visible.ID).Exec(txCtx)
+		return err
+	}))
 	history, cursor, err = query.ListHistory(ctx, careplan.RequestQueueFilter{Limit: 1})
 	require.NoError(t, err)
 	require.Empty(t, history)

@@ -34,10 +34,21 @@ func NewStudentDataRequestQueries(db *bun.DB, observe func(Observation)) (carepl
 
 type requestQueueQueries struct {
 	store interface {
+		FindCareScheduleRequest(context.Context, int64, bool) (careplan.CareScheduleChangeRequest, bool, RequestStoreStats, error)
 		ListStudentDataRequests(context.Context, careplan.StudentDataRequestFilter) ([]careplan.StudentDataChangeRequest, RequestStoreStats, error)
 		ListCareScheduleRequests(context.Context, careplan.CareScheduleRequestFilter) ([]careplan.CareScheduleChangeRequest, RequestStoreStats, error)
 	}
 	observe func(Observation)
+}
+
+func (q requestQueueQueries) FindCareScheduleRequest(ctx context.Context, id int64, lock bool) (careplan.CareScheduleChangeRequest, error) {
+	started := time.Now()
+	row, found, stats, err := q.store.FindCareScheduleRequest(ctx, id, lock)
+	if err == nil && !found {
+		err = careplan.ErrCareScheduleRequestNotFound
+	}
+	q.observe(Observation{Operation: "find_care_schedule_request", Duration: time.Since(started), Stats: stats, Err: err})
+	return row, err
 }
 
 func (q requestQueueQueries) ListStudentDataRequests(ctx context.Context, filter careplan.StudentDataRequestFilter) ([]careplan.StudentDataChangeRequest, error) {

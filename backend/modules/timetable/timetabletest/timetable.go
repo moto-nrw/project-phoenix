@@ -104,11 +104,8 @@ func newModule(tb TB, db *bun.DB, students timetableCompose.StudentDirectory, ro
 		CarePlan:            unusedCarePlanQueries{},
 		Students:            students,
 		Rooms:               roomDirectory,
-		CareDays: timetable.NewCareDayLocker(
-			func(context.Context, int64, string) error { return nil },
-			func(context.Context, int64, string) error { return nil },
-		),
-		Observe: func(timetableCompose.Observation) {},
+		CareDays:            noopCareDays{},
+		Observe:             func(timetableCompose.Observation) {},
 	})
 	if err != nil {
 		tb.Fatalf("compose test Timetable & Activities: %v", err)
@@ -121,3 +118,9 @@ func testRooms() timetable.RoomDirectory {
 		return []timetable.RoomRef{}, nil
 	})
 }
+
+// noopCareDays stubs the foreign care-day lock for this owner-only harness.
+type noopCareDays struct{}
+
+func (noopCareDays) LockStudentAndExceptionDay(context.Context, int64, string) error { return nil }
+func (noopCareDays) LockExceptionDay(context.Context, int64, string) error           { return nil }

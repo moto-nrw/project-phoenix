@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
@@ -17,8 +19,6 @@ import (
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule/carescheduletest"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 )
@@ -45,6 +45,14 @@ func testTimetableDataWithOfferingCallbacks(
 	clocks ...func() time.Time,
 ) *timetableplanning.TimetableDataService {
 	boundRepos := mustTimetableTestRepositories(db, clocks...)
+	people, err := repositories.NewPeopleDirectory(db)
+	if err != nil {
+		panic(err)
+	}
+	carePlan, err := repositories.NewCarePlan(db, people, boundRepos.InstanceStudent)
+	if err != nil {
+		panic(err)
+	}
 	approvedOfferings, err := testutil.NewApprovedOfferingProjection(db, boundRepos.Enrollment())
 	if err != nil {
 		panic(err)
@@ -62,34 +70,29 @@ func testTimetableDataWithOfferingCallbacks(
 	if err != nil {
 		panic(err)
 	}
+	classArrivalQueries, err := arrivalTimetable.NewClassArrivalQueries(db, func(arrivalTimetable.Observation) {})
+	if err != nil {
+		panic(err)
+	}
+	arrivalBaselines, err := newArrivalBaselinesFixture(carePlan, people, classArrivalQueries, approvedOfferings, func(context.Context) (bool, error) { return false, nil })
+	if err != nil {
+		panic(err)
+	}
 	deps := timetableplanning.TimetableDataDependencies{
-		InstanceStudentRepo:   boundRepos.InstanceStudent,
-		ActivityInstanceRepo:  activityInstanceRepo,
-		ActivityExceptionRepo: timetablesqltest.NewActivityExceptionRepository(db),
-		ActivityScheduleRepo:  boundRepos.ActivitySchedule,
-		InstanceStaffRepo:     timetablesqltest.NewInstanceStaffRepository(db),
-		StaffShiftRepo:        boundRepos.StaffShift,
-		StaffRepo:             boundRepos.Staff,
-		CalendarPeriodRepo:    boundRepos.CalendarPeriod,
-		ActiveGroupRepo:       boundRepos.ActiveGroup,
-		SupervisorRepo:        supervisorRepo,
-		ArrivalScheduleRepo:   boundRepos.StudentArrivalSchedule,
-		ArrivalBaselines: careschedule.NewArrivalBaselineService(
-			boundRepos.StudentArrivalSchedule,
-			repositories.NewStudentRepository(db),
-			educationRepo.NewClassArrivalTimeRepository(db),
-			boundRepos.ClassArrivalException,
-			approvedOfferings,
-			boundRepos.CareOffering,
-			nil,
-		),
-		ArrivalExceptionRepo: boundRepos.StudentArrivalException,
-		PickupScheduleRepo:   boundRepos.StudentPickupSchedule,
-		PickupBaselines: carescheduletest.NewPickupBaselineService(
-			boundRepos.StudentPickupSchedule,
-			approvedOfferings,
-			boundRepos.CareOffering,
-		),
+		InstanceStudentRepo:        boundRepos.InstanceStudent,
+		ActivityInstanceRepo:       activityInstanceRepo,
+		ActivityExceptionRepo:      timetablesqltest.NewActivityExceptionRepository(db),
+		ActivityScheduleRepo:       boundRepos.ActivitySchedule,
+		InstanceStaffRepo:          timetablesqltest.NewInstanceStaffRepository(db),
+		StaffShiftRepo:             boundRepos.StaffShift,
+		StaffRepo:                  boundRepos.Staff,
+		CalendarPeriodRepo:         boundRepos.CalendarPeriod,
+		ActiveGroupRepo:            boundRepos.ActiveGroup,
+		SupervisorRepo:             supervisorRepo,
+		ArrivalBaselines:           arrivalBaselines,
+		ArrivalExceptionRepo:       boundRepos.StudentArrivalException,
+		PickupScheduleRepo:         boundRepos.StudentPickupSchedule,
+		PickupBaselines:            newPickupBaselineService(carePlan, approvedOfferings),
 		PickupExceptionRepo:        boundRepos.StudentPickupException,
 		Presence:                   presence,
 		RoomRepo:                   boundRepos.Room,

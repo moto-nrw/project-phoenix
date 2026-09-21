@@ -6,6 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -14,8 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule/carescheduletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
 )
@@ -28,18 +31,16 @@ import (
 func buildCareServiceWithAutoExcusal(t *testing.T) (careTestService, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	timetableDeps := repositories.NewUnobservedTimetableDependencies(db)
+	repos := repositories.NewFactory(db, timetableDeps)
 	svc := parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:            repos.ParentChild,
-		StatusDayRepo:        repos.StudentStatusDay,
-		StudentRepo:          repos.Student,
-		PickupExceptionRepo:  repos.StudentPickupException,
-		ArrivalExceptionRepo: repos.StudentArrivalException,
-		PickupAutoExcusal: careschedule.NewPickupAutoExcusalSyncer(
-			repos.StudentPickupException,
-			carescheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, approvedOfferingProjection(t), repos.CareOffering),
-			repos.InstanceStudent,
-			db,
+		ChildRepo:      repos.ParentChild,
+		StatusDayRepo:  repos.StudentStatusDay,
+		StudentRepo:    repos.Student,
+		CareExceptions: repos.CarePlan(),
+		PickupAutoExcusal: newPickupExcusal(t, db, repos.CarePlan(),
+			newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)),
+			timetableDeps.Capability, false,
 		),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{configModels.KeyParentPickupChangeEnabled: true},
@@ -145,4 +146,38 @@ func TestDeleteCareException_ReleasesAutoExcusedBlocks(t *testing.T) {
 		testpkg.TenantContext(chain.TenantID), chain.StudentID, scheduleModels.Date(date))
 	require.NoError(t, err)
 	assert.Nil(t, exception, "withdrawing the override removes the guardian row")
+}
+
+// newPickupExcusal uses the same configured Timetable instance as the fixture's
+// repositories, including its Care Plan reads and student-before-day locks.
+func newPickupExcusal(t *testing.T, db *bun.DB, records compose.PickupExcusalRecords, baselines careplan.PickupBaselineReader, tt timetable.Capability, extensions bool) careplan.PickupAutoExcusal {
+	t.Helper()
+	adapter := pickupExcusalTimetable{tt}
+	deps := compose.PickupExcusalDependencies{DB: db, Records: records, Baselines: baselines, Blocks: tt, Preview: adapter}
+	if extensions {
+		deps.Extensions = adapter
+	}
+	service, err := compose.NewPickupAutoExcusal(deps)
+	require.NoError(t, err)
+	return service
+}
+
+type pickupExcusalTimetable struct{ timetable.Capability }
+
+func (a pickupExcusalTimetable) FindPartialAbsenceBlocks(ctx context.Context, id int64, date timezone.Date, clock time.Time) ([]carerequests.Block, error) {
+	rows, err := a.ListPartialAbsenceBlocks(ctx, id, date.String(), clock)
+	if err != nil {
+		return nil, err
+	}
+	blocks := make([]carerequests.Block, 0, len(rows))
+	for _, row := range rows {
+		blocks = append(blocks, carerequests.Block{ID: row.ID, Title: row.Title, StartTime: row.StartTime, EndTime: row.EndTime})
+	}
+	return blocks, nil
+}
+func (a pickupExcusalTimetable) RecordPickupDayExtension(ctx context.Context, input compose.PickupDayExtension) error {
+	return a.Capability.RecordPickupDayExtension(ctx, timetable.PickupDayExtension(input))
+}
+func (a pickupExcusalTimetable) RecordPickupWeekdayExtension(ctx context.Context, input compose.PickupWeekdayExtension) error {
+	return a.Capability.RecordPickupWeekdayExtension(ctx, timetable.PickupWeekdayExtension(input))
 }

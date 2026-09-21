@@ -5,18 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-
 	"log/slog"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -28,13 +24,16 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule/carescheduletest"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // Decision service integration tests. These hit the real test DB
@@ -165,20 +164,10 @@ func newDecisionServiceForTestWithPickupExtensions(
 			DB:                    env.db, Logger: slog.Default(),
 		})
 	}
-	pickupBaselines := carescheduletest.NewPickupBaselineService(
-		repoFactory.StudentPickupSchedule,
-		approvedOfferingTestProjection(repoFactory),
-		repoFactory.CareOffering,
-	)
-	var pickupAutoExcusal *careschedule.PickupAutoExcusalSyncer
+	pickupBaselines := newPickupBaselineService(repoFactory.CarePlan(), approvedOfferingTestProjection(repoFactory))
+	var pickupAutoExcusal careplan.PickupAutoExcusal
 	if t != nil {
-		pickupAutoExcusal = careschedule.NewPickupAutoExcusalSyncer(
-			repoFactory.StudentPickupException,
-			pickupBaselines,
-			repoFactory.InstanceStudent,
-			env.db,
-			careschedule.WithPickupExtensions(timetabletest.New(t, env.db)),
-		)
+		pickupAutoExcusal = newPickupExcusal(t, env.db, repoFactory.CarePlan(), pickupBaselines, env.timetable, true)
 	}
 	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
 		Bookings:                  requestTestBookingCommands(),
@@ -232,7 +221,7 @@ func newDecisionServiceForTestWithPickupExtensions(
 	})
 }
 
-func snapshotPickupWeekdayChanges(syncer *careschedule.PickupAutoExcusalSyncer) func(context.Context, int64, timezone.Date) (map[int]string, error) {
+func snapshotPickupWeekdayChanges(syncer careplan.PickupAutoExcusal) func(context.Context, int64, timezone.Date) (map[int]string, error) {
 	if syncer == nil {
 		return nil
 	}
@@ -241,12 +230,12 @@ func snapshotPickupWeekdayChanges(syncer *careschedule.PickupAutoExcusalSyncer) 
 	}
 }
 
-func recordPickupWeekdayChanges(syncer *careschedule.PickupAutoExcusalSyncer) func(context.Context, int64, timezone.Date, map[int]string) error {
+func recordPickupWeekdayChanges(syncer careplan.PickupAutoExcusal) func(context.Context, int64, timezone.Date, map[int]string) error {
 	if syncer == nil {
 		return nil
 	}
 	return func(ctx context.Context, studentID int64, date timezone.Date, before map[int]string) error {
-		return syncer.RecordWeeklyPickupChanges(ctx, studentID, date, careschedule.WeeklyPickupSnapshot(before))
+		return syncer.RecordWeeklyPickupChanges(ctx, studentID, date, careplan.WeeklyPickupSnapshot(before))
 	}
 }
 
@@ -4705,4 +4694,38 @@ func (d offeringStudentTestDirectory) ListOfferingStudents(ctx context.Context, 
 
 func approvedOfferingTestProjection(repos *repositories.Factory) *enrollmentService.ApprovedOfferingProjection {
 	return enrollmentService.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudentTestDirectory{repos.Student})
+}
+
+// newPickupExcusal uses the same configured Timetable instance as the fixture's
+// repositories, including its Care Plan reads and student-before-day locks.
+func newPickupExcusal(t *testing.T, db *bun.DB, records compose.PickupExcusalRecords, baselines careplan.PickupBaselineReader, tt timetable.Capability, extensions bool) careplan.PickupAutoExcusal {
+	t.Helper()
+	adapter := pickupExcusalTimetable{tt}
+	deps := compose.PickupExcusalDependencies{DB: db, Records: records, Baselines: baselines, Blocks: tt, Preview: adapter}
+	if extensions {
+		deps.Extensions = adapter
+	}
+	service, err := compose.NewPickupAutoExcusal(deps)
+	require.NoError(t, err)
+	return service
+}
+
+type pickupExcusalTimetable struct{ timetable.Capability }
+
+func (a pickupExcusalTimetable) FindPartialAbsenceBlocks(ctx context.Context, id int64, date timezone.Date, clock time.Time) ([]carerequests.Block, error) {
+	rows, err := a.ListPartialAbsenceBlocks(ctx, id, date.String(), clock)
+	if err != nil {
+		return nil, err
+	}
+	blocks := make([]carerequests.Block, 0, len(rows))
+	for _, row := range rows {
+		blocks = append(blocks, carerequests.Block{ID: row.ID, Title: row.Title, StartTime: row.StartTime, EndTime: row.EndTime})
+	}
+	return blocks, nil
+}
+func (a pickupExcusalTimetable) RecordPickupDayExtension(ctx context.Context, input compose.PickupDayExtension) error {
+	return a.Capability.RecordPickupDayExtension(ctx, timetable.PickupDayExtension(input))
+}
+func (a pickupExcusalTimetable) RecordPickupWeekdayExtension(ctx context.Context, input compose.PickupWeekdayExtension) error {
+	return a.Capability.RecordPickupWeekdayExtension(ctx, timetable.PickupWeekdayExtension(input))
 }

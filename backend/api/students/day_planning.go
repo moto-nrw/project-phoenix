@@ -10,8 +10,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 )
@@ -21,19 +21,19 @@ const (
 	DayPlanningStatusComesToday     = "comes_today"
 	DayPlanningStatusNotComingToday = "not_coming_today"
 
-	// Reason codes are owned by the schedule service (the day-planning
+	// Reason codes are owned by Care Plan (the day-planning
 	// precedence lives there); these aliases keep the wire strings and the
 	// export label switches in one place in this package.
-	dayPlanningReasonSick             = careschedule.DayPlanningReasonSick
-	dayPlanningReasonExcused          = careschedule.DayPlanningReasonExcused
-	dayPlanningReasonClassTrip        = careschedule.DayPlanningReasonClassTrip
-	dayPlanningReasonArrivalException = careschedule.DayPlanningReasonArrivalException
-	dayPlanningReasonPickupException  = careschedule.DayPlanningReasonPickupException
-	dayPlanningReasonArrivalSchedule  = careschedule.DayPlanningReasonArrivalSchedule
-	dayPlanningReasonPickupSchedule   = careschedule.DayPlanningReasonPickupSchedule
-	dayPlanningReasonTimetable        = careschedule.DayPlanningReasonTimetable
-	dayPlanningReasonUnplanned        = careschedule.DayPlanningReasonUnplanned
-	dayPlanningReasonNoPlan           = careschedule.DayPlanningReasonNoPlan
+	dayPlanningReasonSick             = careplan.DayPlanningReasonSick
+	dayPlanningReasonExcused          = careplan.DayPlanningReasonExcused
+	dayPlanningReasonClassTrip        = careplan.DayPlanningReasonClassTrip
+	dayPlanningReasonArrivalException = careplan.DayPlanningReasonArrivalException
+	dayPlanningReasonPickupException  = careplan.DayPlanningReasonPickupException
+	dayPlanningReasonArrivalSchedule  = careplan.DayPlanningReasonArrivalSchedule
+	dayPlanningReasonPickupSchedule   = careplan.DayPlanningReasonPickupSchedule
+	dayPlanningReasonTimetable        = careplan.DayPlanningReasonTimetable
+	dayPlanningReasonUnplanned        = careplan.DayPlanningReasonUnplanned
+	dayPlanningReasonNoPlan           = careplan.DayPlanningReasonNoPlan
 )
 
 // maxPlanningDate returns the last supported planning day: the Sunday closing
@@ -170,8 +170,8 @@ func liveFilterError(active []string, date timezone.Date, isToday bool) error {
 // student ID and cover every full-access student of the pre-pagination
 // response set; both may be nil when no full-access student exists.
 type dayPlanningTimes struct {
-	arrivals map[int64]*careschedule.EffectiveArrivalTime
-	pickups  map[int64]*careschedule.EffectivePickupTime
+	arrivals map[int64]*careplan.EffectiveArrivalTime
+	pickups  map[int64]*careplan.EffectivePickupTime
 }
 
 func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []StudentResponse, planningDate timezone.Date, isToday bool, attendances map[int64]*activeService.AttendanceStatus) (dayPlanningTimes, error) {
@@ -293,7 +293,7 @@ func (rs *Resource) enrichCurrentLocationWithDayPlanning(ctx context.Context, re
 // restricted rows carry no plan and keep "Abwesend".
 func applyAtSchoolLocation(
 	responses []StudentResponse,
-	pickups map[int64]*careschedule.EffectivePickupTime,
+	pickups map[int64]*careplan.EffectivePickupTime,
 	attendances map[int64]*activeService.AttendanceStatus,
 	careDayEnd string,
 	now time.Time,
@@ -307,8 +307,8 @@ func applyAtSchoolLocation(
 		if pickup := pickups[response.ID]; pickup != nil {
 			pickupTime = pickup.PickupTime
 		}
-		if !careschedule.IsAtSchoolBeforeCheckIn(careschedule.AtSchoolInputs{
-			Decision: careschedule.DayPlanningDecision{
+		if !careplan.IsAtSchoolBeforeCheckIn(careplan.AtSchoolInputs{
+			Decision: careplan.DayPlanningDecision{
 				ComesToday: response.DayPlanningStatus == DayPlanningStatusComesToday,
 				Reason:     response.DayPlanningReason,
 			},
@@ -353,16 +353,16 @@ func (rs *Resource) applyPendingExcusedNotes(ctx context.Context, responses []St
 	return nil
 }
 
-func (rs *Resource) loadDayPlanningArrivals(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careschedule.EffectiveArrivalTime, error) {
+func (rs *Resource) loadDayPlanningArrivals(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careplan.EffectiveArrivalTime, error) {
 	if rs.ArrivalScheduleService == nil {
-		return map[int64]*careschedule.EffectiveArrivalTime{}, nil
+		return map[int64]*careplan.EffectiveArrivalTime{}, nil
 	}
 	return rs.ArrivalScheduleService.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, date)
 }
 
-func (rs *Resource) loadDayPlanningPickups(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careschedule.EffectivePickupTime, error) {
+func (rs *Resource) loadDayPlanningPickups(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careplan.EffectivePickupTime, error) {
 	if rs.PickupScheduleService == nil {
-		return map[int64]*careschedule.EffectivePickupTime{}, nil
+		return map[int64]*careplan.EffectivePickupTime{}, nil
 	}
 	return rs.PickupScheduleService.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, date)
 }
@@ -452,8 +452,8 @@ func (rs *Resource) loadPendingExcusedForDayPlanning(ctx context.Context, date t
 
 func applyDayPlanning(
 	responses []StudentResponse,
-	arrivals map[int64]*careschedule.EffectiveArrivalTime,
-	pickups map[int64]*careschedule.EffectivePickupTime,
+	arrivals map[int64]*careplan.EffectiveArrivalTime,
+	pickups map[int64]*careplan.EffectivePickupTime,
 	attendances map[int64]*activeService.AttendanceStatus,
 	timetableIDs map[int64]struct{},
 	isToday bool,
@@ -477,14 +477,14 @@ func applyDayPlanning(
 // (#1939) — and labels avoid "heute" wording.
 func resolveDayPlanningForDate(
 	student StudentResponse,
-	arrival *careschedule.EffectiveArrivalTime,
-	pickup *careschedule.EffectivePickupTime,
+	arrival *careplan.EffectiveArrivalTime,
+	pickup *careplan.EffectivePickupTime,
 	attendance *activeService.AttendanceStatus,
 	timetableIDs map[int64]struct{},
 	isToday bool,
 ) (string, string, string) {
 	_, hasTimetable := timetableIDs[student.ID]
-	decision := careschedule.ResolveDayPlanning(careschedule.DayPlanningInputs{
+	decision := careplan.ResolveDayPlanning(careplan.DayPlanningInputs{
 		HasActualAttendance: isToday && hasActualAttendanceToday(attendance),
 		Sick:                student.Sick,
 		ClassTrip:           student.ClassTrip,
@@ -504,7 +504,7 @@ func resolveDayPlanningForDate(
 // dayPlanningLabel renders the German UI label for a resolved day-planning
 // decision. The exception reasons carry two labels each: a planned-time variant
 // (ComesToday) and a no-time absence variant that surfaces the exception note.
-func dayPlanningLabel(decision careschedule.DayPlanningDecision, isToday bool) string {
+func dayPlanningLabel(decision careplan.DayPlanningDecision, isToday bool) string {
 	switch decision.Reason {
 	case dayPlanningReasonUnplanned:
 		return "ungeplant anwesend"

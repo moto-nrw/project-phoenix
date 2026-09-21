@@ -1,0 +1,94 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#3020",
+    "#3350"
+  ],
+  "owner_and_capability": "Care Plan — native arrival baseline projection, replacing the dissolved legacy care schedule service (#3351, ADR 0030)",
+  "affected_packages": [
+    "services/enrollment",
+    "modules/careplan",
+    "modules/careplan/compose"
+  ],
+  "affected_tables": [
+    "schedule.student_arrival_schedules"
+  ],
+  "exact_ratchet_keys": [
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/services/config"
+  ],
+  "atomic_cutover": "The enrollment arrival-projection tests built the legacy careschedule.ArrivalBaselineService and fed it enrollment.bookings_authoritative through a services/config settings mock. The legacy service is deleted in this PR; the same tests now build Care Plan's native arrival baselines through its compose role and pass the flag as a plain func(context.Context) (bool, error). No production caller changes with this key and no second provider remains.",
+  "tests": [
+    "services/enrollment external test suite, including the booking-mode arrival projection tests in offering_arrival_projection_test.go and timetable_arrival_projection_test.go, with the flag on and off.",
+    "scripts/backend-architecture.sh check with the key absent from legacy.jsonl."
+  ],
+  "runtime_evidence": {
+    "source": "Local run on the PR branch at commit 54495195ba; this key is a test-scope import edge, so the evidence is the affected test suite and the architecture check, not a runtime benchmark.",
+    "sources": [
+      "backend/services/enrollment/offering_arrival_projection_test.go",
+      "backend/services/enrollment/timetable_arrival_projection_test.go",
+      "https://github.com/moto-nrw/project-phoenix/pull/3485"
+    ],
+    "workload": "go test ./services/enrollment/ -count=1 through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",
+    "thresholds": "The suite passes unchanged in assertion strength, and the architecture check reports no new violation and no stale baseline entry.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "The retired key is an external-test import. No production write path changes with it."
+    },
+    "query_count": {
+      "state": "not_applicable",
+      "reason": "The retired key is an external-test import. No production query path changes with it."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "The retired key is an external-test import and has no request path to time."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "The retired key is an external-test import and has no request path to time."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "go test ./services/enrollment/ -count=1 passed in 7.2 s with no failing or skipped-by-error test."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "Test fixture wiring only; the production connection pool is not involved."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "Test fixture wiring only; no production lock path changes with this key."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "Test fixture wiring only; no production transaction changes with this key."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The arrival baseline projection has no worker path."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "The arrival baseline projection has no worker path."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "The arrival baseline projection has no worker path."
+    },
+    "failure": {
+      "state": "not_applicable",
+      "reason": "The key covers how a test supplies a boolean flag. It has no failure mode of its own; the projection's error handling is covered by the Care Plan suites."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data or schema change belongs to this key. Reverting the PR restores the legacy service together with the test import."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed locally with the key absent: 676 legacy violations remain, composition surface 667 -> 667."
+    }
+  },
+  "rollback_and_cleanup": "Revert the PR; the legacy care schedule service, its test helper and this baseline entry return together. No data cleanup.",
+  "exit_criterion": "No test in services/enrollment imports services/config and the listed key is absent from legacy.jsonl."
+}

@@ -77,9 +77,6 @@ type StudentRepository interface {
 	// FindByGroupIDs retrieves students by multiple group IDs
 	FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*Student, error)
 
-	// FindBySchoolClass retrieves students by their school class
-	FindBySchoolClass(ctx context.Context, schoolClass string) ([]*Student, error)
-
 	// ExistsEnrolledByNameAndBirthday reports whether an already-enrolled
 	// student (active OR pending — a child approved before its service
 	// start date is created pending until activation) with the given

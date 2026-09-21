@@ -33,6 +33,9 @@ func LockExceptionDay(ctx context.Context, db bun.IDB, tenantID, studentID int64
 	if db == nil {
 		return errors.New("care plan postgres: ambient database is required")
 	}
+	if tenantID <= 0 {
+		return errors.New("care plan postgres: tenant id is required")
+	}
 	key := fmt.Sprintf("care-exception-day:%d:%d:%s", tenantID, studentID, date)
 	_, err := db.NewRaw(`SELECT pg_advisory_xact_lock(hashtext(?))`, key).Exec(ctx)
 	return err

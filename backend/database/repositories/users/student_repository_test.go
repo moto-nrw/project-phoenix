@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -400,12 +401,12 @@ func TestStudentRepository_RemoveFromGroup(t *testing.T) {
 // Query Tests
 // ============================================================================
 
-func TestStudentRepository_FindBySchoolClass(t *testing.T) {
+func TestStudentClassReadUsesNativeDirectory(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+	repo := repositories.MustNewPeopleDirectory(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds students by school class (case-insensitive)", func(t *testing.T) {
@@ -415,7 +416,7 @@ func TestStudentRepository_FindBySchoolClass(t *testing.T) {
 		testpkg.CreateTestStudent(t, db, "Class2", "Test", uniqueClass)  // Same class
 		testpkg.CreateTestStudent(t, db, "Class3", "Test", "OtherClass") // Different class
 
-		students, err := repo.FindBySchoolClass(ctx, uniqueClass)
+		students, err := repo.ListStudentRecordsByClass(ctx, []string{uniqueClass}, peopledirectory.StudentScopeEnrolled)
 		require.NoError(t, err)
 		assert.Len(t, students, 2)
 	})
@@ -430,7 +431,7 @@ func TestStudentRepository_FindBySchoolClass(t *testing.T) {
 			Exec(ctx)
 		require.NoError(t, err)
 
-		students, err := repo.FindBySchoolClass(ctx, uniqueClass)
+		students, err := repo.ListStudentRecordsByClass(ctx, []string{uniqueClass}, peopledirectory.StudentScopeEnrolled)
 
 		require.NoError(t, err)
 		require.Len(t, students, 1)
@@ -438,7 +439,7 @@ func TestStudentRepository_FindBySchoolClass(t *testing.T) {
 	})
 
 	t.Run("returns empty slice for non-existent class", func(t *testing.T) {
-		students, err := repo.FindBySchoolClass(ctx, "NonExistent99XYZ")
+		students, err := repo.ListStudentRecordsByClass(ctx, []string{"NonExistent99XYZ"}, peopledirectory.StudentScopeEnrolled)
 		require.NoError(t, err)
 		assert.Empty(t, students)
 	})
