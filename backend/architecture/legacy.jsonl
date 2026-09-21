@@ -320,7 +320,6 @@
 {"scope":"production","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/operator","target":"github.com/moto-nrw/project-phoenix/realtime","issue":"https://github.com/moto-nrw/project-phoenix/issues/2736"}
 {"scope":"production","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/operator","target":"github.com/moto-nrw/project-phoenix/services/config","issue":"https://github.com/moto-nrw/project-phoenix/issues/2736"}
 {"scope":"production","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/operator","target":"github.com/moto-nrw/project-phoenix/services/users","issue":"https://github.com/moto-nrw/project-phoenix/issues/2736"}
-{"scope":"production","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/operator","target":"github.com/moto-nrw/project-phoenix/tenant","issue":"https://github.com/moto-nrw/project-phoenix/issues/2736"}
 {"scope":"production","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/operator","target":"github.com/uptrace/bun","issue":"https://github.com/moto-nrw/project-phoenix/issues/2736"}
 {"scope":"production","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/students","target":"cmp","issue":"https://github.com/moto-nrw/project-phoenix/issues/2731"}
 {"scope":"production","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/students","target":"database/sql","issue":"https://github.com/moto-nrw/project-phoenix/issues/2731"}

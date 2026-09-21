@@ -7,8 +7,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 )
 
 // The operator second factor reports the operator not-found outcome for an
@@ -20,7 +18,7 @@ func TestMapOperatorMFAErrorUnclassifiedOutcomeWireContract(t *testing.T) {
 	t.Parallel()
 
 	for name, err := range map[string]error{
-		"operator not found": identityoperator.ErrOperatorNotFound,
+		"operator not found": ErrOperatorNotFound,
 		"unknown failure":    errors.New("boom"),
 	} {
 		t.Run(name, func(t *testing.T) {
