@@ -5,9 +5,11 @@ import { box, compileGlobalsCss, render, tenantPage } from "./harness";
 // (Kinder, Mitarbeitende, Räume) und `MasterDetailLayout` (Gruppen,
 // Aktivitäten, Rollen …). Am Computer bekommen sie ihre Höhe von
 // `useFillHeight` und scrollen in der Karte; die Wachs-Regel aus globals.css
-// darf sie nicht aufblähen. Das Markup bildet die Computeransicht der
-// Komponenten nach; dass die Komponenten es so rendern, prüfen ihre
-// Unit-Tests. Auf dem Telefon scrollt die ganze Seite, dort gilt die Regel.
+// darf sie nicht aufblähen. Diese Datei prüft CSS-Geometrie mit nachgebautem
+// Markup, nicht die Breakpoint-Auswahl der Komponenten: Playwright importiert
+// kein JSX aus `src`. Die Unit-Tests der beiden Komponenten prüfen dafür
+// `useIsMobile` mit beiden Rückgabewerten. Auf dem Telefon scrollt die ganze
+// Seite, dort gilt die Regel.
 
 const FRAME_HEIGHT = 500;
 const ROW_COUNT = 60;
@@ -56,7 +58,7 @@ function masterDetail(cardClass: string): string {
     </div>`);
 }
 
-/** `DatabaseListLayout` auf dem Telefon. */
+/** CSS-Fixture der mobilen `DatabaseListLayout`-Ausgabe. */
 function mobileListLayout(): string {
   return tenantPage(`
     <div class="flex w-full flex-col">
@@ -66,7 +68,7 @@ function mobileListLayout(): string {
     </div>`);
 }
 
-/** `MasterDetailLayout` auf dem Telefon; Details liegen im Drawer. */
+/** CSS-Fixture der mobilen `MasterDetailLayout`-Ausgabe; Details liegen im Drawer. */
 function mobileMasterDetail(): string {
   return tenantPage(`
     <div class="flex w-full flex-col">
@@ -159,7 +161,7 @@ test("without the exit master-detail stacks list and object and bloats them", as
   expect(await overflowOf(page, "detail")).toBe(0);
 });
 
-test("the single-column collection grows with its list on a phone", async ({
+test("the single-column mobile fixture grows with its list", async ({
   page,
 }) => {
   await render(page, compiledCss, mobileListLayout());
@@ -167,7 +169,9 @@ test("the single-column collection grows with its list on a phone", async ({
   await expectPageScrollInsteadOfList(page, "list");
 });
 
-test("master-detail grows with its list on a phone", async ({ page }) => {
+test("the master-detail mobile fixture grows with its list", async ({
+  page,
+}) => {
   await render(page, compiledCss, mobileMasterDetail());
 
   await expectPageScrollInsteadOfList(page, "list");
