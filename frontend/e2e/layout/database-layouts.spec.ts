@@ -56,10 +56,42 @@ function masterDetail(cardClass: string): string {
     </div>`);
 }
 
+/** `DatabaseListLayout` auf dem Telefon. */
+function mobileListLayout(): string {
+  return tenantPage(`
+    <div class="flex w-full flex-col">
+      <div data-testid="card" class="moto-content-surface min-h-0 flex-1 overflow-hidden rounded-2xl border shadow-sm">
+        <div class="flex h-full flex-col">${scrollList("list", "Kind")}</div>
+      </div>
+    </div>`);
+}
+
+/** `MasterDetailLayout` auf dem Telefon; Details liegen im Drawer. */
+function mobileMasterDetail(): string {
+  return tenantPage(`
+    <div class="flex w-full flex-col">
+      <div data-testid="card" class="moto-content-surface min-h-0 flex-1 overflow-hidden rounded-2xl border shadow-sm">
+        <div data-testid="list-container" class="h-full overflow-auto">${scrollList("list", "Gruppe")}</div>
+      </div>
+    </div>`);
+}
+
 async function overflowOf(page: Page, testId: string): Promise<number> {
   return page
     .getByTestId(testId)
     .evaluate((el) => el.scrollHeight - el.clientHeight);
+}
+
+async function expectPageScrollInsteadOfList(
+  page: Page,
+  listTestId: string,
+): Promise<void> {
+  expect(await overflowOf(page, listTestId)).toBe(0);
+  expect(
+    await page.evaluate(
+      () => document.scrollingElement!.scrollHeight > window.innerHeight,
+    ),
+  ).toBe(true);
 }
 
 test("the single-column collection keeps its height and scrolls inside the card", async ({
@@ -125,4 +157,19 @@ test("without the exit master-detail stacks list and object and bloats them", as
   const detail = await box(page, "detail-card");
   expect(detail.y).toBeGreaterThan(list.y);
   expect(await overflowOf(page, "detail")).toBe(0);
+});
+
+test("the single-column collection grows with its list on a phone", async ({
+  page,
+}) => {
+  await render(page, compiledCss, mobileListLayout());
+
+  await expectPageScrollInsteadOfList(page, "list");
+});
+
+test("master-detail grows with its list on a phone", async ({ page }) => {
+  await render(page, compiledCss, mobileMasterDetail());
+
+  await expectPageScrollInsteadOfList(page, "list");
+  expect(await overflowOf(page, "list-container")).toBe(0);
 });
