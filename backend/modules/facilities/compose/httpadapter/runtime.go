@@ -149,10 +149,10 @@ func historyConfig(settings configService.SettingsService, logger *slog.Logger) 
 }
 
 // CallerStaff resolves the caller's staff member through the Identity &
-// Access caller context. found is false, without an error, for a caller who
-// is no staff member.
+// Access caller context. found is false, without an error, for a person who
+// is no staff member; an account without a person is an error.
 type CallerStaff interface {
-	CurrentStaffID(ctx context.Context) (staffID int64, found bool, err error)
+	CurrentStaffIDOfPerson(ctx context.Context) (staffID int64, found bool, err error)
 }
 
 func historyAllowed(users CallerStaff) func(context.Context) (bool, error) {
@@ -160,7 +160,7 @@ func historyAllowed(users CallerStaff) func(context.Context) (bool, error) {
 		if apiCommon.HasAdminWildcard(projectJWT.PermissionsFromCtx(ctx)) {
 			return true, nil
 		}
-		_, found, err := users.CurrentStaffID(ctx)
+		_, found, err := users.CurrentStaffIDOfPerson(ctx)
 		if err != nil {
 			return false, err
 		}

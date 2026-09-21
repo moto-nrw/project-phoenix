@@ -197,7 +197,7 @@ func (p slotListParticipation) ParticipatingStudentIDsByDate(
 	return result, nil
 }
 
-func (u slotListUserContext) CurrentStaffID(context.Context) (int64, bool, error) {
+func (u slotListUserContext) CurrentStaffIDOfPerson(context.Context) (int64, bool, error) {
 	if u.currentStaff == nil {
 		return 0, false, nil
 	}
@@ -205,7 +205,7 @@ func (u slotListUserContext) CurrentStaffID(context.Context) (int64, bool, error
 }
 
 func (u slotListUserContext) HasCurrentStaff(ctx context.Context) (bool, error) {
-	_, found, err := u.CurrentStaffID(ctx)
+	_, found, err := u.CurrentStaffIDOfPerson(ctx)
 	return err == nil && found, err
 }
 

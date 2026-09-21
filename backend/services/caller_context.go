@@ -55,6 +55,7 @@ func newCallerContext(wiring callerContextWiring) (identityaccess.CallerContext,
 	}
 	deps := identityCompose.CallerContextDependencies{
 		Caller:     CallerFromClaims,
+		Memo:       requestIdentityMemo,
 		Accounts:   wiring.Accounts,
 		People:     callerPeople{persons: wiring.Persons},
 		Membership: callerMembership{membership: wiring.Membership},
@@ -80,6 +81,15 @@ func newCallerRows(wiring callerContextWiring, sources repositories.CallerRowSou
 		return nil, fmt.Errorf("compose caller context: %w", err)
 	}
 	return repositories.NewCallerRows(caller, sources), nil
+}
+
+// requestIdentityMemo resolves the request identity memo the request
+// middleware attached (#2099).
+func requestIdentityMemo(ctx context.Context) identityCompose.CallerMemo {
+	if cache := authjwt.RequestIdentityCacheFrom(ctx); cache != nil {
+		return cache
+	}
+	return nil
 }
 
 // CallerFromClaims resolves the principal the authenticator verified.

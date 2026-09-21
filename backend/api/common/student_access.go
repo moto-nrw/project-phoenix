@@ -57,12 +57,6 @@ func DetermineStudentAccess(r *http.Request, source StudentAccessSource) *Studen
 // staff lookup: admin status comes from the JWT permissions, and the staff
 // record is looked up only for non-admin callers.
 func DetermineStudentAccessWithStaffLookup(r *http.Request, lookup func(context.Context) (bool, error)) *StudentAccessContext {
-	ctx := r.Context()
-	access := &StudentAccessContext{IsAdmin: authorize.HasAdminWildcard(jwt.PermissionsFromCtx(ctx))}
-	if access.IsAdmin {
-		return access
-	}
-	found, err := lookup(ctx)
-	access.IsStaff = err == nil && found
-	return access
+	admin, staff := authorize.StudentDataAccess(r.Context(), jwt.PermissionsFromCtx(r.Context()), lookup)
+	return &StudentAccessContext{IsAdmin: admin, IsStaff: staff}
 }

@@ -1792,7 +1792,7 @@ func newFactory(
 		Logger:               usercontextLogger,
 	}, repositories.CallerRowSources{
 		Groups: repos.Group, Staff: repos.Staff, Teachers: repos.Teacher, Students: repos.Student,
-		Activities: repos.ActivityGroup, Sessions: repos.ActiveGroup,
+		Activities: repos.ActivityGroup, Sessions: repos.ActiveGroup, Logger: usercontextLogger,
 	})
 	if err != nil {
 		return nil, err

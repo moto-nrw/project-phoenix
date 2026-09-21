@@ -966,8 +966,11 @@ forbidden the public package declare their own port; the legacy composition
 serves them `database/repositories.CallerRows`, which resolves the reach
 through the caller context and loads only the retained rows a consumer still
 renders. The `inbound-usercontext` owner and its four `student-presence`
-rules are gone, and the identity memo is attached router-wide only, because
-`api/common` may not import Identity & Access.
+rules are gone. The request identity memo slot lives in the session adapter
+(`legacy/jwt`), the one Identity & Access package `api/common` and the
+legacy composition already reach, so `api/common` keeps attaching it
+router-wide and group-wide as before and the root binds it as the caller
+context's memo; the memo's contents stay in the application.
 
 The settings test support (`services/config/settingstest`, `settings-platform`/
 `test-support`) scripts the payroll and work-schedule settings that presence

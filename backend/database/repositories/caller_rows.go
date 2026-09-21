@@ -25,9 +25,11 @@ type CallerRows struct {
 	students   userModels.StudentRepository
 	activities activitiesModels.GroupRepository
 	sessions   activeModels.GroupRepository
+	logger     *slog.Logger
 }
 
-// CallerRowSources names the retained repositories the rows load from.
+// CallerRowSources names the retained repositories the rows load from. A
+// nil Logger logs through slog.Default.
 type CallerRowSources struct {
 	Groups     educationModels.GroupRepository
 	Staff      userModels.StaffRepository
@@ -35,13 +37,22 @@ type CallerRowSources struct {
 	Students   userModels.StudentRepository
 	Activities activitiesModels.GroupRepository
 	Sessions   activeModels.GroupRepository
+	Logger     *slog.Logger
 }
 
 func NewCallerRows(caller identityaccess.CallerContext, sources CallerRowSources) *CallerRows {
 	return &CallerRows{
 		caller: caller, groups: sources.Groups, staff: sources.Staff, teachers: sources.Teachers,
 		students: sources.Students, activities: sources.Activities, sessions: sources.Sessions,
+		logger: sources.Logger,
 	}
+}
+
+func (r *CallerRows) getLogger() *slog.Logger {
+	if r.logger == nil {
+		return slog.Default()
+	}
+	return r.logger
 }
 
 // ActivityGroupRepository is the retained activity group repository the
@@ -58,6 +69,20 @@ func (r *CallerRows) Caller() identityaccess.CallerContext { return r.caller }
 func (r *CallerRows) CurrentStaffID(ctx context.Context) (int64, bool, error) {
 	staffID, err := r.caller.StaffID(ctx)
 	if errors.Is(err, identityaccess.ErrCallerNotLinkedToStaff) || errors.Is(err, identityaccess.ErrCallerNotLinkedToPerson) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	return staffID, true, nil
+}
+
+// CurrentStaffIDOfPerson returns the caller's staff member for callers whose
+// account has a person. found is false, without an error, only for a person
+// who is no staff member; an account without a person is an error.
+func (r *CallerRows) CurrentStaffIDOfPerson(ctx context.Context) (int64, bool, error) {
+	staffID, err := r.caller.StaffID(ctx)
+	if errors.Is(err, identityaccess.ErrCallerNotLinkedToStaff) {
 		return 0, false, nil
 	}
 	if err != nil {
@@ -276,14 +301,14 @@ func (r *CallerRows) NavigationRow(ctx context.Context, navigation identityacces
 	row := &callerNavigationRow{UnavailableSections: navigation.UnavailableSections}
 	groups, err := r.educationalGroupRows(ctx, navigation.Groups)
 	if err != nil {
-		slog.Default().Warn("navigation context groups unavailable", slog.String("error", err.Error()))
+		r.getLogger().Warn("navigation context groups unavailable", slog.String("error", err.Error()))
 		groups = []*callerGroupRow{}
 		row.UnavailableSections = append(row.UnavailableSections, "educational_groups")
 	}
 	row.EducationalGroups = groups
 	sessions, err := r.sessionsByID(ctx, navigation.SupervisedSessionIDs)
 	if err != nil {
-		slog.Default().Warn("navigation context supervision unavailable", slog.String("error", err.Error()))
+		r.getLogger().Warn("navigation context supervision unavailable", slog.String("error", err.Error()))
 		sessions = []*activeModels.Group{}
 		row.UnavailableSections = append(row.UnavailableSections, "supervised_groups")
 	}

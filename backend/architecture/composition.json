@@ -21028,17 +21028,17 @@
         },
         {
           "file": "services/auth_test_helpers.go",
-          "line": 299,
+          "line": 300,
           "declaration": "IdentityAccessForTests"
         },
         {
           "file": "services/factory.go",
-          "line": 465,
+          "line": 460,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 515,
+          "line": 510,
           "declaration": "newFactory"
         },
         {

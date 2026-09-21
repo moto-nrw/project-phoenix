@@ -3,6 +3,7 @@ package compose
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"testing"
 
@@ -146,8 +147,14 @@ func TestCallerEngineMapsTheSessionSentinels(t *testing.T) {
 	ctx := context.Background()
 	seams := engineSeams{authenticated: true, people: engineTestPeople{found: true}, membership: engineTestMembership{staff: true}}
 
+	// A missing session stays a failed session read (500 on /api/me), as it
+	// was before the caller context: never ErrCallerGroupNotFound (404).
 	_, err := seams.compose(t).GroupVisits(ctx, 55)
-	requireCallerError(t, err, "get group visits", identityaccess.ErrCallerGroupNotFound)
+	var callerErr *identityaccess.CallerError
+	require.ErrorAs(t, err, &callerErr)
+	assert.Equal(t, "get group visits", callerErr.Op)
+	assert.NotErrorIs(t, err, identityaccess.ErrCallerGroupNotFound)
+	assert.Equal(t, "usercontext.get group visits: find by id: record not found", err.Error())
 
 	seams.sessions.exists = true
 	_, err = seams.compose(t).GroupStudentIDs(ctx, 55)
@@ -224,4 +231,21 @@ func TestMapCallerErrorCoversEveryPublicSentinel(t *testing.T) {
 	require.NoError(t, mapCallerError(nil))
 	other := errors.New("SSE active service is not configured")
 	assert.Same(t, other, mapCallerError(other))
+}
+
+// A use case's context around a caller-context error keeps its text on the
+// way out (the review policy's "resolve ...: " prefixes), and errors.Is/As
+// still reach the public error inside it.
+func TestMapCallerErrorKeepsTheTextOfAWrappingContext(t *testing.T) {
+	t.Parallel()
+
+	for _, pair := range callerSentinels {
+		wrapped := fmt.Errorf("resolve absence reviewer staff: %w", pair[0])
+		mapped := mapCallerError(wrapped)
+		assert.Equal(t, wrapped.Error(), mapped.Error())
+		require.ErrorIs(t, mapped, pair[1])
+	}
+
+	wrapped := mapCallerError(fmt.Errorf("resolve request review groups: %w", errors.New("inner")))
+	assert.Equal(t, "resolve request review groups: inner", wrapped.Error(), "nothing to translate leaves the error as it is")
 }

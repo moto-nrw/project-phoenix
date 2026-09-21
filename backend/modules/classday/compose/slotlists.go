@@ -56,11 +56,11 @@ type SettingsReader interface {
 	LockSlotListCutoffPairShared(ctx context.Context) error
 }
 
-// StaffReader resolves the caller's staff member. found is false, without an
-// error, for a caller whose account has no person or whose person is no
-// staff member.
+// StaffReader resolves the caller's staff member for the read-access
+// verdict. found is false, without an error, for a person who is no staff
+// member; an account without a person is an error.
 type StaffReader interface {
-	CurrentStaffID(ctx context.Context) (staffID int64, found bool, err error)
+	CurrentStaffIDOfPerson(ctx context.Context) (staffID int64, found bool, err error)
 }
 
 // SlotListDependencies wires the slot lists. The owner facades are the
@@ -227,7 +227,7 @@ func (b accessBinding) CanReadStudents(ctx context.Context) (bool, error) {
 	if b.staff == nil {
 		return false, nil
 	}
-	_, found, err := b.staff.CurrentStaffID(ctx)
+	_, found, err := b.staff.CurrentStaffIDOfPerson(ctx)
 	if err != nil {
 		return false, fmt.Errorf("resolve current staff: %w", err)
 	}

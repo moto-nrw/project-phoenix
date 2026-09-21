@@ -71,11 +71,13 @@ type CallerOverview interface {
 
 // CallerContextDependencies binds the caller context at the composition
 // root. Caller resolves the verified principal of the request; the tenant
-// of the request context is added here. LiveTopics and Overview are
-// optional: without LiveTopics no subscription resolves, without Overview
-// the school-wide subscription scope is never granted.
+// of the request context is added here. Memo resolves the request's memo
+// slot; it returns nil for a context without one. LiveTopics and Overview
+// are optional: without LiveTopics no subscription resolves, without
+// Overview the school-wide subscription scope is never granted.
 type CallerContextDependencies struct {
 	Caller     func(context.Context) identityaccess.Caller
+	Memo       func(context.Context) CallerMemo
 	Accounts   identityaccess.AccountProfiles
 	People     CallerPeople
 	Membership CallerMembership
@@ -115,7 +117,7 @@ func NewCallerContext(deps CallerContextDependencies) (identityaccess.CallerCont
 			caller.TenantID = tenant.FromContext(ctx)
 			return caller
 		},
-		Memo:       requestMemo,
+		Memo:       requestMemo(deps.Memo),
 		Accounts:   callerAccounts{deps.Accounts},
 		People:     callerPeople{deps.People},
 		Membership: deps.Membership,
@@ -186,12 +188,26 @@ func (e reviewEngine) ReviewAccessLevel(ctx context.Context, permissions []strin
 	return level, mapCallerError(err)
 }
 
-// requestMemo binds the application memo to the request cache in context.
-func requestMemo(ctx context.Context) ports.CallerMemo {
-	if cache := identityaccess.RequestIdentityCacheFrom(ctx); cache != nil {
-		return cache
+// CallerMemo is the request-scoped slot the caller context memoizes the
+// identity chain in (#2099): Entry returns the value kept for (tenant,
+// account), creating it on first use, and Evict drops it.
+type CallerMemo interface {
+	Entry(tenantID, accountID int64, create func() any) any
+	Evict(tenantID, accountID int64)
+}
+
+// requestMemo binds the application memo to the slot the root resolves
+// from the request context; a request without one is not memoized.
+func requestMemo(memo func(context.Context) CallerMemo) func(context.Context) ports.CallerMemo {
+	return func(ctx context.Context) ports.CallerMemo {
+		if memo == nil {
+			return nil
+		}
+		if slot := memo(ctx); slot != nil {
+			return slot
+		}
+		return nil
 	}
-	return nil
 }
 
 type callerAccounts struct {
@@ -257,30 +273,58 @@ func (o callerOverview) HasOperationalOverview(ctx context.Context, staff ports.
 
 // mapCallerError turns the application's caller-context errors into the
 // public ones, keeping the failed operation and the wrapped cause.
+// A context a use case wraps around such an error keeps its text, and
+// errors.Is/As reach the public error inside it.
 func mapCallerError(err error) error {
-	var callerErr *domain.CallerError
-	var partial *domain.CallerGroupsPartialError
-	var setup *domain.SSESetupError
-	switch {
-	case err == nil:
+	if err == nil {
 		return nil
-	case errors.As(err, &callerErr):
-		return &identityaccess.CallerError{Op: callerErr.Op, Err: mapCallerError(callerErr.Err)}
-	case errors.As(err, &partial):
+	}
+	if mapped, ok := mapCallerErrorValue(err); ok {
+		return mapped
+	}
+	inner := errors.Unwrap(err)
+	if inner == nil {
+		return err
+	}
+	mappedInner := mapCallerError(inner)
+	if mappedInner == inner {
+		return err
+	}
+	return &mappedCallerError{text: err.Error(), cause: mappedInner}
+}
+
+// mapCallerErrorValue translates one of the application's caller-context
+// errors itself, not an error wrapping one.
+func mapCallerErrorValue(err error) (error, bool) {
+	switch e := err.(type) {
+	case *domain.CallerError:
+		return &identityaccess.CallerError{Op: e.Op, Err: mapCallerError(e.Err)}, true
+	case *domain.CallerGroupsPartialError:
 		return &identityaccess.CallerGroupsPartialError{
-			Op: partial.Op, SuccessCount: partial.SuccessCount, FailureCount: partial.FailureCount,
-			FailedIDs: partial.FailedIDs, LastErr: partial.LastErr,
-		}
-	case errors.As(err, &setup):
-		return &identityaccess.SSESetupError{Message: setup.Message, Status: setup.Status}
+			Op: e.Op, SuccessCount: e.SuccessCount, FailureCount: e.FailureCount,
+			FailedIDs: e.FailedIDs, LastErr: e.LastErr,
+		}, true
+	case *domain.SSESetupError:
+		return &identityaccess.SSESetupError{Message: e.Message, Status: e.Status}, true
 	}
 	for _, pair := range callerSentinels {
-		if errors.Is(err, pair[0]) {
-			return pair[1]
+		if err == pair[0] {
+			return pair[1], true
 		}
 	}
-	return err
+	return nil, false
 }
+
+// mappedCallerError keeps the text of a wrapped caller-context error while
+// its cause is the public error.
+type mappedCallerError struct {
+	text  string
+	cause error
+}
+
+func (e *mappedCallerError) Error() string { return e.text }
+
+func (e *mappedCallerError) Unwrap() error { return e.cause }
 
 var callerSentinels = [][2]error{
 	{domain.ErrCallerNotAuthenticated, identityaccess.ErrCallerNotAuthenticated},

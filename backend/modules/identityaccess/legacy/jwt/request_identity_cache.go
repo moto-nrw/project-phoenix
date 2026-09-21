@@ -1,4 +1,4 @@
-package identityaccess
+package jwt
 
 import (
 	"context"
@@ -12,13 +12,13 @@ type requestIdentityKey struct {
 	accountID int64
 }
 
-// RequestIdentityCache is the request-scoped memo of the caller-context
-// identity chain (#2099). Entries are keyed by (tenant, account), so a cache
-// attached to a context that touches several tenants never serves one
-// tenant's identity to another. What an entry memoizes, and when, is the
-// caller context's contract (CallerIdentities); the cache only keys and
-// guards the entries. There is deliberately no process-wide cache and no
-// TTL: the cache dies with the request context.
+// RequestIdentityCache is the request-scoped slot the Identity & Access
+// caller context memoizes the caller's identity chain in (#2099). Entries are
+// keyed by (tenant, account), so a cache attached to a context that touches
+// several tenants never serves one tenant's identity to another. What an
+// entry holds, and when, is the caller context's contract; the cache only
+// keys and guards the entries. There is deliberately no process-wide cache
+// and no TTL: the cache dies with the request context.
 type RequestIdentityCache struct {
 	mu      sync.Mutex
 	entries map[requestIdentityKey]any

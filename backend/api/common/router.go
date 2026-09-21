@@ -55,12 +55,12 @@ func ProtectedTenantRoutes(r chi.Router, fn func(r chi.Router, withTx Middleware
 		gr.Use(ReadOnlyPreviewMiddleware)
 		gr.Use(TenantScopeMiddleware)
 		gr.Use(SecurityPrincipalMiddleware)
-		// Request-scoped settings memo cache (issue #2065). Unlike withTx it
-		// IS applied group-wide: it opens no transaction and does no DB work,
-		// so running it on requests that later 403 costs one map allocation.
-		// The identity memo (#2099) is attached router-wide by the serving
-		// root, which owns the Identity & Access binding.
+		// Request-scoped settings memo cache (issue #2065) and identity memo
+		// cache (issue #2099). Unlike withTx these ARE applied group-wide:
+		// they open no transaction and do no DB work, so running them on
+		// requests that later 403 costs one map allocation each.
 		gr.Use(RequestSettingsCacheMiddleware)
+		gr.Use(RequestIdentityCacheMiddleware)
 		fn(gr, TenantTxMiddleware)
 	})
 }
@@ -97,6 +97,7 @@ func ProtectedSchoolGroup(r chi.Router, db *bun.DB, fn func(r chi.Router, withTx
 		gr.Use(SchoolScopeMiddleware)
 		gr.Use(SecurityPrincipalMiddleware)
 		gr.Use(RequestSettingsCacheMiddleware)
+		gr.Use(RequestIdentityCacheMiddleware)
 		fn(gr, TenantTxMiddleware)
 	})
 }

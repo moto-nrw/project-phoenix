@@ -21,7 +21,9 @@ type DayReportReader interface {
 // resolves the caller with.
 type CallerReader interface {
 	GetMySchoolClasses(ctx context.Context) ([]string, error)
-	StaffReader
+	// CurrentStaffID resolves the caller's staff member; found is false,
+	// without an error, for a caller who is no staff member.
+	CurrentStaffID(ctx context.Context) (staffID int64, found bool, err error)
 }
 
 // ClassDayDependencies wires the school-portal capability. ArrivalExceptions

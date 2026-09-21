@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"testing"
 	"time"
 
@@ -20,7 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	presenceAPI "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -83,11 +81,7 @@ func setupActiveRoute(t *testing.T) *testContext {
 // production — which is the wrong number to hold a budget against.
 func mountActiveRouter(tc *testContext) testutil.Router {
 	r := testutil.NewRouter()
-	r.Use(func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			next.ServeHTTP(w, req.WithContext(identityaccess.WithRequestIdentityCache(req.Context())))
-		})
-	})
+	r.Use(common.RequestIdentityCacheMiddleware)
 	r.Mount("/active", tc.resource.Router())
 	return r
 }

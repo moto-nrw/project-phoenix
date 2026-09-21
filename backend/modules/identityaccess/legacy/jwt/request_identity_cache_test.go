@@ -1,4 +1,4 @@
-package identityaccess
+package jwt
 
 import (
 	"context"

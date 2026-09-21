@@ -2,12 +2,16 @@ package application
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"maps"
 	"slices"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
+
+// errSessionNotFound reports a room session the session read did not find.
+var errSessionNotFound = errors.New("find by id: record not found")
 
 const (
 	opGetMyGroups         = "get my groups"
@@ -310,7 +314,9 @@ func (c *CallerContext) checkSessionAccess(ctx context.Context, sessionID int64)
 		return err
 	}
 	if !exists {
-		return domain.ErrCallerGroupNotFound
+		// A missing session was always a lookup failure of the session read,
+		// never ErrCallerGroupNotFound; /api/me keeps answering it with 500.
+		return errSessionNotFound
 	}
 	active, err := c.MyActiveSessionIDs(ctx)
 	if err != nil {

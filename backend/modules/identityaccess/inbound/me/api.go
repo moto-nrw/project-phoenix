@@ -74,15 +74,6 @@ func (res *Resource) Router() chi.Router {
 	return res.router
 }
 
-// RequestIdentityCacheMiddleware attaches the request-scoped identity memo
-// (#2099) to every request context. It does no database work, so it is safe
-// to run before authorization and to stack: the attachment is idempotent.
-func RequestIdentityCacheMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		next.ServeHTTP(w, r.WithContext(identityaccess.WithRequestIdentityCache(r.Context())))
-	})
-}
-
 func (res *Resource) respond(w http.ResponseWriter, r *http.Request, data any, err error, message string) {
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))

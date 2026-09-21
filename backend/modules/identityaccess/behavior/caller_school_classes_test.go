@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -45,7 +45,7 @@ func TestCallerRows_GetMySchoolClasses(t *testing.T) {
 
 		_ = testpkg.CreateTestClassTeacher(t, db, staff.ID, "1a")
 
-		ctx := identityaccess.WithRequestIdentityCache(callerCtx(t, account.ID))
+		ctx := jwt.WithRequestIdentityCache(callerCtx(t, account.ID))
 
 		first, err := rows.GetMySchoolClasses(ctx)
 		require.NoError(t, err)
