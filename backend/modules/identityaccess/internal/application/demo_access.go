@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -21,6 +22,9 @@ type DemoAccess struct {
 	mail     ports.DemoAccessMail
 	adminTx  ports.DemoAdminTx
 	now      func() time.Time
+	// perIP and perAddress limit the public request (#3466).
+	perIP      *demoRequestWindow
+	perAddress *demoRequestWindow
 }
 
 // DemoAccessDependencies are the ports the flows consume.
@@ -39,6 +43,7 @@ func NewDemoAccess(deps DemoAccessDependencies) (*DemoAccess, error) {
 	}
 	return &DemoAccess{
 		sessions: deps.Sessions, store: deps.Store, schools: deps.Schools, tokens: deps.Tokens, mail: deps.Mail, adminTx: deps.AdminTx, now: time.Now,
+		perIP: newDemoRequestWindow(domain.DemoRequestsPerIPAddress), perAddress: newDemoRequestWindow(domain.DemoRequestsPerAddress),
 	}, nil
 }
 
@@ -50,10 +55,34 @@ func NewDemoAccess(deps DemoAccessDependencies) (*DemoAccess, error) {
 // The team hears of a first access and of a changed contact consent. An
 // address whose school did not fail gets no second school (#3463): the new
 // link leads into the school it already has.
-func (d *DemoAccess) Request(ctx context.Context, access domain.DemoAccess, entryURLPrefix string) error {
+//
+// Only a valid request counts against its IP address and its address, so
+// typing errors of fair visitors behind one WLAN address fill no window; an
+// invalid request touches no table (#3466). A new school beyond the
+// configured number is refused by PrepareDemoSchool; such a request gives
+// its places in both windows back, so retries at the capacity do not end in
+// a rate limit once a place is free again.
+func (d *DemoAccess) Request(ctx context.Context, access domain.DemoAccess, clientIP, entryURLPrefix string) error {
 	if err := access.Normalize(); err != nil {
 		return err
 	}
+	at := d.now()
+	if err := d.perIP.admit(clientIP, at); err != nil {
+		return err
+	}
+	if err := d.perAddress.admit(access.Email, at); err != nil {
+		d.perIP.withdraw(clientIP, at)
+		return err
+	}
+	err := d.request(ctx, access, entryURLPrefix)
+	if errors.Is(err, domain.ErrDemoCapacityReached) {
+		d.perIP.withdraw(clientIP, at)
+		d.perAddress.withdraw(access.Email, at)
+	}
+	return err
+}
+
+func (d *DemoAccess) request(ctx context.Context, access domain.DemoAccess, entryURLPrefix string) error {
 	raw, fingerprint, err := d.tokens.NewToken()
 	if err != nil {
 		return fmt.Errorf("mint demo access token: %w", err)

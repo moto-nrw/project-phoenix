@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -102,7 +104,8 @@ func (rs *DemoResource) requestAccess(w http.ResponseWriter, r *http.Request) {
 	// token out of every server and proxy log.
 	err := rs.accesses.RequestDemoAccess(r.Context(), identityaccess.DemoAccessRequest{
 		Email: body.Email, PersonName: body.PersonName, SchoolName: body.SchoolName,
-		Source: body.Source, ContactOptIn: body.ContactOptIn, EntryURLPrefix: rs.origins.Waiting + "/demo#token=",
+		Source: body.Source, ContactOptIn: body.ContactOptIn, ClientIP: getClientIP(r),
+		EntryURLPrefix: rs.origins.Waiting + "/demo#token=",
 	})
 	if err != nil {
 		rs.renderError(w, r, err)
@@ -159,8 +162,14 @@ var demoAccessErrorRules = []common.ErrorRule{
 	{Target: identityaccess.ErrDemoAccessUnknown, Render: demoError(http.StatusNotFound, "demo_access_unknown")},
 	{Target: identityaccess.ErrDemoAccessExpired, Render: demoError(http.StatusGone, "demo_access_expired")},
 	{Target: identityaccess.ErrDemoSchoolPreparing, Render: demoError(http.StatusConflict, "demo_school_preparing")},
+	{Target: identityaccess.ErrDemoAccessRateLimited, Render: demoError(http.StatusTooManyRequests, "demo_access_rate_limited")},
+	{Target: identityaccess.ErrDemoCapacityReached, Render: demoError(http.StatusServiceUnavailable, "demo_capacity_reached")},
 }
 
 func (rs *DemoResource) renderError(w http.ResponseWriter, r *http.Request, err error) {
+	var limited *identityaccess.DemoAccessRateLimitError
+	if errors.As(err, &limited) {
+		w.Header().Set("Retry-After", strconv.Itoa(limited.RetryAfterSeconds(time.Now())))
+	}
 	common.RenderError(w, r, common.RenderWithRules(err, demoAccessErrorRules, common.ErrorInternalServer))
 }

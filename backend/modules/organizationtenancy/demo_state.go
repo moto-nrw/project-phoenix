@@ -8,6 +8,10 @@ import (
 
 var ErrDemoAlreadyRunning = errors.New("demo process already running")
 
+// ErrDemoCapacityReached reports that the configured number of active demo
+// schools exists, so no further one is queued (#3466).
+var ErrDemoCapacityReached = errors.New("demo capacity reached")
+
 // DemoSchoolState retains the complete synthetic seed contract. It is never
 // exposed through a tenant or operator HTTP endpoint: it includes credentials.
 type DemoSchoolState struct {
@@ -118,7 +122,8 @@ func NewDemoSchoolOrders(engine DemoOrderEngine) *DemoSchoolOrders {
 }
 
 // OrderDemoSchool queues a school named schoolName and returns its slug: the
-// name as a DNS label plus a random suffix.
+// name as a DNS label plus a random suffix. It reports ErrDemoCapacityReached
+// while the configured number of active demo schools exists.
 func (d *DemoSchoolOrders) OrderDemoSchool(ctx context.Context, schoolName, personName string) (string, error) {
 	if schoolName == "" || personName == "" {
 		return "", fmt.Errorf("demo school and person name are required")

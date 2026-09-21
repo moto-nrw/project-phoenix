@@ -47,6 +47,17 @@ request stores an access into that same school and mails its link.
 
 `--once` empties the queue, ticks every ready school once and exits.
 
+### Capacity
+
+The server queues at most `--demo-max-active-schools` demo schools at once
+(#3466): queued schools and ready ones whose school is not deleted count, a
+failed one does not. Beyond that a new address gets `503
+demo_capacity_reached`; an address with a school still gets its link. The
+value sits on the `server` command in `environments/demo.compose.yml` (300);
+check it against the host size before a fair and change it there with a
+deploy. `serve` refuses to start under `APP_ENV=demo` without it; locally
+pass the flag to `serve`.
+
 ## Fallback: the standing demo school
 
 Append `--demo-standing-school` to the `command` of **both** `server` and

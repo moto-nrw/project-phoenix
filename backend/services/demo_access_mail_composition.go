@@ -24,14 +24,16 @@ type demoAccessWiring struct {
 	logger      *slog.Logger
 	// backoff spaces the send retries; nil uses the production spacing.
 	backoff []time.Duration
+	// maxActiveSchools caps the demo schools that may exist at once (#3466).
+	maxActiveSchools int
 }
 
 // demoAccessWiringFor composes the demo access for APP_ENV=demo only.
-func demoAccessWiringFor(appEnv string, dispatcher *email.Dispatcher, defaultFrom email.Email, frontendURL string, logger *slog.Logger) *demoAccessWiring {
+func demoAccessWiringFor(appEnv string, dispatcher *email.Dispatcher, defaultFrom email.Email, frontendURL string, maxActiveSchools int, logger *slog.Logger) *demoAccessWiring {
 	if !email.IsDemoEnvironment(appEnv) {
 		return nil
 	}
-	return &demoAccessWiring{dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL, logger: logger}
+	return &demoAccessWiring{dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL, maxActiveSchools: maxActiveSchools, logger: logger}
 }
 
 type demoAccessMail struct {
