@@ -31,8 +31,10 @@ type StaffGroupQuery interface {
 	ListGroupsByTeacher(ctx context.Context, teacherID int64) ([]Group, error)
 	// ListSubstitutedGroups returns one entry per group the staff member
 	// substitutes for on the calendar day, sorted by name. The day is a
-	// timezone.Date in its YYYY-MM-DD form (day.String()). A group whose
-	// substitution outlived the group itself is absent.
+	// timezone.Date in its YYYY-MM-DD form (day.String()); the public
+	// contract cannot reference the shared-kernel type (#3499). A caller
+	// merging these with its teacher groups applies ViaSubstitution to a
+	// teacher group it also substitutes for, like GetSubstitutedGroupIDs.
 	ListSubstitutedGroups(ctx context.Context, staffID int64, day string) ([]SubstitutedGroup, error)
 	// ListSchoolClassesByStaff returns the school classes assigned to the
 	// staff member via education.class_teachers (#1772) as display strings

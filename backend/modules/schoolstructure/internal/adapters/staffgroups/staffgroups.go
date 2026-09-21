@@ -41,10 +41,8 @@ type Reader struct {
 
 var _ schoolstructure.StaffGroupQuery = (*Reader)(nil)
 
+// New expects non-nil dependencies; compose.NewStaffGroups checks them.
 func New(groups Groups, assignments TeachingAssignments, substitutions GroupSubstitutions) *Reader {
-	if groups == nil || assignments == nil || substitutions == nil {
-		panic("school structure staff groups: all dependencies are required")
-	}
 	return &Reader{groups: groups, assignments: assignments, substitutions: substitutions}
 }
 

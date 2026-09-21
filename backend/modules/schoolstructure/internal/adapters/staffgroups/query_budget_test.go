@@ -1,6 +1,7 @@
 package staffgroups_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -15,7 +16,6 @@ func TestStaffGroupReadsQueryBudget(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	query := buildStaffGroups(t, db)
-	ctx := testpkg.Ctx(t)
 	counter := testpkg.CaptureQueries(t, db)
 	teacher := testpkg.CreateTestTeacher(t, db, "Budget", "Teacher")
 	substitute := testpkg.CreateTestStaff(t, db, "Budget", "Substitute")
@@ -31,18 +31,23 @@ func TestStaffGroupReadsQueryBudget(t *testing.T) {
 			count++
 		}
 	}
-	read := func() int {
-		counter.Reset()
-		groups, err := query.ListGroupsByTeacher(ctx, teacher.ID)
-		require.NoError(t, err)
-		require.Len(t, groups, count)
-		substitutions, err := query.ListSubstitutedGroups(ctx, substitute.ID, substitutionDay.String())
-		require.NoError(t, err)
-		require.Len(t, substitutions, count)
-		classes, err := query.ListSchoolClassesByStaff(ctx, substitute.ID)
-		require.NoError(t, err)
-		require.Len(t, classes, count)
-		return counter.Total()
+	// The reads run on the caller's ambient tenant transaction, as they do
+	// in production; the count therefore covers only the reads themselves.
+	read := func() (total int) {
+		inTenant(t, db, testpkg.Tenant(t), func(ctx context.Context) {
+			counter.Reset()
+			groups, err := query.ListGroupsByTeacher(ctx, teacher.ID)
+			require.NoError(t, err)
+			require.Len(t, groups, count)
+			substitutions, err := query.ListSubstitutedGroups(ctx, substitute.ID, substitutionDay.String())
+			require.NoError(t, err)
+			require.Len(t, substitutions, count)
+			classes, err := query.ListSchoolClassesByStaff(ctx, substitute.ID)
+			require.NoError(t, err)
+			require.Len(t, classes, count)
+			total = counter.Total()
+		})
+		return total
 	}
 
 	add(1)
