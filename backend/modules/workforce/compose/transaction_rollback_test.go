@@ -2,8 +2,6 @@ package compose
 
 import (
 	"context"
-	"errors"
-	"sync/atomic"
 	"testing"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -15,37 +13,33 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// failingAnchorRebase composes the module with a School Membership stand-in
-// that fails on the anchor rebase. That call sits between the two
-// authoritative writes of a template update — the entries have been replaced
-// and the running schedule versions closed, but the new versions are not
-// inserted yet — so it is the sharpest point to prove the whole unit of work
-// rolls back.
-func failingAnchorRebase(t *testing.T, db *bun.DB, failure error) workforce.Capability {
+// refuseAnchorRebase raises on the Workforce anchor write. That call sits
+// between the two authoritative writes of a template update — the entries have
+// been replaced and the running schedule versions closed, but the new versions
+// are not inserted yet — so it is the sharpest point to prove the whole unit of
+// work rolls back. The function and trigger exist only in this test's isolated
+// database clone.
+func refuseAnchorRebase(t *testing.T, db *bun.DB) func() {
 	t.Helper()
-	runtime := testpkg.ConfigRuntime(db)
-	// The refresh asks School Membership for the live assignees once to close
-	// their schedules and once more when it stamps the anchor (#2753); the
-	// second answer fails.
-	var calls atomic.Int32
-	capability, err := New(Dependencies{LockStaffAssignment: runtime.LockStaffAssignment,
-		DB: db,
-		LiveStaffIDs: func(ctx context.Context, ids []int64) ([]int64, error) {
-			if calls.Add(1) > 1 {
-				return nil, failure
-			}
-			return runtime.LiveStaffIDs(ctx, ids)
-		},
-		Observe: func(Observation) {},
-	})
+	ctx := context.Background()
+	_, err := db.ExecContext(ctx, `CREATE OR REPLACE FUNCTION public.refuse_anchor_rebase() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected anchor rebase failure'; END $$`)
 	require.NoError(t, err)
-	return capability
+	_, err = db.ExecContext(ctx, `CREATE TRIGGER refuse_anchor_rebase BEFORE UPDATE OF rotation_anchor_date ON users.staff_employment_profiles FOR EACH ROW EXECUTE FUNCTION public.refuse_anchor_rebase()`)
+	require.NoError(t, err)
+	remove := func() {
+		t.Helper()
+		_, err := db.ExecContext(ctx, `DROP TRIGGER IF EXISTS refuse_anchor_rebase ON users.staff_employment_profiles`)
+		require.NoError(t, err)
+	}
+	t.Cleanup(remove)
+	return remove
 }
 
 func TestWorkTimeModelUpdate_RollsBackEveryWriteAndRetriesCleanly(t *testing.T) {
 	t.Parallel()
 
-	db := testpkg.SetupTestDB(t)
+	// The injected failure is a trigger, so the test takes its own clone.
+	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Rollback", "Template")
@@ -89,9 +83,11 @@ func TestWorkTimeModelUpdate_RollsBackEveryWriteAndRetriesCleanly(t *testing.T) 
 		},
 	}
 
-	failure := errors.New("school membership unavailable")
-	_, err = failingAnchorRebase(t, db, failure).UpdateWorkTimeModel(ctx, revision)
-	require.ErrorIs(t, err, failure)
+	removeFailure := refuseAnchorRebase(t, db)
+	_, err = capability.UpdateWorkTimeModel(ctx, revision)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "injected anchor rebase failure")
+	removeFailure()
 
 	// Nothing the failed call wrote may survive: not the template entry, not
 	// the closed schedule version.

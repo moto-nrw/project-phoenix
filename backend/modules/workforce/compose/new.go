@@ -171,12 +171,11 @@ func (a assignments) AssignedStaffIDs(ctx context.Context, workTimeModelID int64
 	return a.live(ctx, ids)
 }
 
-func (a assignments) RebaseAnchor(ctx context.Context, workTimeModelID int64, anchorDate string) ([]int64, error) {
-	ids, err := a.AssignedStaffIDs(ctx, workTimeModelID)
-	if err != nil || len(ids) == 0 {
-		return ids, err
+func (a assignments) RebaseAnchor(ctx context.Context, staffIDs []int64, anchorDate string) error {
+	if len(staffIDs) == 0 {
+		return nil
 	}
-	return ids, a.store.RebaseStaffRotationAnchor(ctx, ids, anchorDate)
+	return a.store.RebaseStaffRotationAnchor(ctx, staffIDs, anchorDate)
 }
 
 type engine struct{ service *application.Service }
