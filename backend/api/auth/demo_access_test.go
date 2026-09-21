@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -18,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -30,13 +32,20 @@ type demoEnv struct {
 	db     *bun.DB
 	router chi.Router
 	slug   string
+	// mails are the messages that left the demo environment's mail lock.
+	mails *testpkg.CapturingMailer
 }
 
 // newDemoEnv mounts the demo routes for this test's own school and the auth
-// routes with the demo tenant-switch guard, as the demo root does.
+// routes with the demo tenant-switch guard, as the demo root does. The
+// transport carries the demo environment's mail lock (#3465).
 func newDemoEnv(t *testing.T) demoEnv {
 	t.Helper()
-	db, svc := testutil.SetupAuthModule(t)
+	db := testpkg.SetupTestDB(t)
+	mails := testpkg.NewCapturingMailer()
+	svc, err := services.NewAuthTestModule(db, testpkg.TenantRuntime(t, db),
+		services.WithAuthTestMailer(mails.InDemoEnvironment()))
+	require.NoError(t, err)
 	var slug string
 	require.NoError(t, db.NewRaw(`SELECT slug FROM platform.schools WHERE id = ?`, testpkg.Tenant(t)).Scan(context.Background(), &slug))
 	resource, err := authAPI.NewDemoResource(svc.DemoAccess, slug, demoEntryOrigin+"/")
@@ -45,7 +54,24 @@ func newDemoEnv(t *testing.T) demoEnv {
 	router := testutil.NewTenantRouter(db)
 	router.Mount("/demo", resource.Router())
 	router.Mount("/auth", auth.Router())
-	return demoEnv{db: db, router: router, slug: slug}
+	return demoEnv{db: db, router: router, slug: slug, mails: mails}
+}
+
+// address is this test's own prospect: an address waits between two links,
+// so tests sharing one address would swallow each other's request.
+func (e demoEnv) address() string { return "leitung@" + e.slug + ".example" }
+
+func (e demoEnv) requestBody(t *testing.T) map[string]any {
+	t.Helper()
+	// A demo access carries no tenant, so it is shared state the leftover
+	// gate would count; forget it like the reset tests forget their windows.
+	t.Cleanup(func() {
+		_, err := e.db.NewRaw(`DELETE FROM auth.demo_accesses WHERE email = ?`, e.address()).Exec(context.Background())
+		require.NoError(t, err)
+	})
+	return map[string]any{
+		"email": " " + strings.ToUpper(e.address()) + " ", "school_name": "OGS Beispiel", "person_name": "Kim Beispiel", "contact_opt_in": true, "src": "messe",
+	}
 }
 
 // provisionDemoAdmin gives the school the administrator a demo session signs in.
@@ -64,26 +90,44 @@ func (e demoEnv) post(t *testing.T, path string, body any) *httptest.ResponseRec
 	return testutil.ExecuteRequest(e.router, testutil.NewJSONRequest(t, http.MethodPost, path, body))
 }
 
+// requestToken asks for a demo access and reads the token from the mailed
+// link: the answer never carries it (#3465).
 func (e demoEnv) requestToken(t *testing.T) string {
 	t.Helper()
-	rr := e.post(t, "/demo/access-requests", map[string]any{
-		"email": "Leitung@OGS-Beispiel.de ", "school_name": "OGS Beispiel", "person_name": "Kim Beispiel", "contact_opt_in": true, "src": "messe",
-	})
+	return e.requestTokenWith(t, e.requestBody(t))
+}
+
+func (e demoEnv) requestTokenWith(t *testing.T, body map[string]any) string {
+	t.Helper()
+	links := len(e.mailedLinks())
+	rr := e.post(t, "/demo/access-requests", body)
 	require.Equal(t, http.StatusAccepted, rr.Code, rr.Body.String())
-	var response struct {
-		EntryURL string `json:"entry_url"`
-	}
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+	require.JSONEq(t, `{"link_sent":true}`, rr.Body.String(), "the answer is the same for every address")
+	require.Eventually(t, func() bool { return len(e.mailedLinks()) == links+1 },
+		2*time.Second, 10*time.Millisecond, "the link mail: %v", e.mails.Templates())
+	entryURL := e.mailedLinks()[links]
 	prefix := demoEntryOrigin + "/demo#token="
-	require.True(t, strings.HasPrefix(response.EntryURL, prefix), response.EntryURL)
-	token := strings.TrimPrefix(response.EntryURL, prefix)
-	// A demo access carries no tenant, so it is shared state the leftover
-	// gate would count; forget it like the reset tests forget their windows.
-	t.Cleanup(func() {
-		_, err := e.db.NewRaw(`DELETE FROM auth.demo_accesses WHERE token_hash = ?`, fingerprint(token)).Exec(context.Background())
-		require.NoError(t, err)
-	})
-	return token
+	require.True(t, strings.HasPrefix(entryURL, prefix), entryURL)
+	return strings.TrimPrefix(entryURL, prefix)
+}
+
+// mailedLinks are the entry URLs of the link mails that left so far.
+func (e demoEnv) mailedLinks() []string {
+	var links []string
+	for _, message := range e.mails.Messages() {
+		if content, ok := message.Content.(map[string]any); ok && message.Template == "demo-access.html" {
+			link, _ := content["EntryURL"].(string)
+			links = append(links, link)
+		}
+	}
+	return links
+}
+
+// endCooldown ages this test's accesses past the wait between two links.
+func (e demoEnv) endCooldown(t *testing.T) {
+	t.Helper()
+	_, err := e.db.NewRaw(`UPDATE auth.demo_accesses SET created_at = created_at - INTERVAL '11 minutes' WHERE email = ?`, e.address()).Exec(context.Background())
+	require.NoError(t, err)
 }
 
 func fingerprint(token string) string { return jwt.OpaqueCapabilityFingerprint(token) }
@@ -110,7 +154,7 @@ func TestDemoAccessRequestStoresOnlyTheTokenFingerprint(t *testing.T) {
 			ROUND(EXTRACT(EPOCH FROM expires_at - created_at) / 86400)::int AS valid_days,
 			(SELECT COUNT(*) FROM auth.demo_accesses WHERE token_hash = ?)::int AS raw
 		FROM auth.demo_accesses WHERE token_hash = ?`, token, fingerprint(token)).Scan(context.Background(), &row))
-	assert.Equal(t, "leitung@ogs-beispiel.de", row.Email)
+	assert.Equal(t, env.address(), row.Email, "trimmed and lower-cased")
 	assert.Equal(t, "messe", row.Source)
 	assert.True(t, row.OptIn)
 	assert.Equal(t, 14, row.ValidDays)

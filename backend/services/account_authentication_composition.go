@@ -60,7 +60,7 @@ type accountAuthenticationWiring struct {
 	// operator link reports it as unavailable.
 	operatorLinks *operatorLinkWiring
 	// demoAccess composes the public demo flow only for APP_ENV=demo.
-	demoAccess bool
+	demoAccess *demoAccessWiring
 }
 
 // sessionRepositories are the retained repositories the session seams read:
@@ -158,12 +158,13 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 	return module, nil
 }
 
-func demoDependencies(enabled bool, schools organizationtenancy.Query) *identityaccessCompose.DemoDependencies {
-	if !enabled {
+func demoDependencies(wiring *demoAccessWiring, schools organizationtenancy.Query) *identityaccessCompose.DemoDependencies {
+	if wiring == nil {
 		return nil
 	}
 	return &identityaccessCompose.DemoDependencies{
 		Schools:  demoSchoolDirectory{schools: schools},
+		Mail:     newDemoAccessMail(wiring),
 		NewToken: authjwt.NewOpaqueCapabilityToken, Fingerprint: authjwt.OpaqueCapabilityFingerprint,
 	}
 }

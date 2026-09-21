@@ -30,6 +30,13 @@ func NewCapturingMailer() *CapturingMailer {
 	}
 }
 
+// InDemoEnvironment puts the mail lock of APP_ENV=demo (#3465) in front of
+// the capture, as the production transport carries it: the capture then
+// holds only what would leave the demo environment.
+func (m *CapturingMailer) InDemoEnvironment() email.Mailer {
+	return email.RestrictToDemoMails(m, "demo", nil)
+}
+
 // Send implements email.Mailer by capturing the message.
 func (m *CapturingMailer) Send(msg email.Message) error {
 	m.mu.Lock()
@@ -86,6 +93,16 @@ func (m *CapturingMailer) Templates() []string {
 		out[i] = msg.Template
 	}
 	return out
+}
+
+// MessageWithTemplate returns the first captured message of the template.
+func (m *CapturingMailer) MessageWithTemplate(template string) (email.Message, bool) {
+	for _, msg := range m.Messages() {
+		if msg.Template == template {
+			return msg, true
+		}
+	}
+	return email.Message{}, false
 }
 
 // Clear removes all captured messages.

@@ -28,18 +28,29 @@ type DemoAccessRequest struct {
 	SchoolName   string
 	Source       string
 	ContactOptIn bool
+	// EntryURLPrefix precedes the token in the link the prospect receives.
+	EntryURLPrefix string
 }
 
-// IssuedDemoAccess is a stored demo access with its token. The token exists
-// only here; it cannot be read back.
-type IssuedDemoAccess struct {
-	ID    int64
-	Token string
+// DemoAccessMessage is what the two demo mails (#3465) say about an access.
+type DemoAccessMessage struct {
+	AccessID     int64
+	Email        string
+	PersonName   string
+	SchoolName   string
+	Source       string
+	ContactOptIn bool
+}
+
+// DemoAccessMail sends the demo mails without blocking the request.
+type DemoAccessMail interface {
+	SendDemoAccessLink(ctx context.Context, message DemoAccessMessage, entryURL string)
+	SendDemoLead(ctx context.Context, message DemoAccessMessage)
 }
 
 // DemoAccessEngine is the composed implementation behind DemoAccess.
 type DemoAccessEngine interface {
-	RequestDemoAccess(ctx context.Context, request DemoAccessRequest) (IssuedDemoAccess, error)
+	RequestDemoAccess(ctx context.Context, request DemoAccessRequest) error
 	DemoAccessReady(ctx context.Context, token, schoolSlug string) (bool, error)
 	RedeemDemoAccess(ctx context.Context, token, schoolSlug, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 }
@@ -55,7 +66,7 @@ func NewDemoAccess(engine DemoAccessEngine) *DemoAccess {
 	return &DemoAccess{engine: engine}
 }
 
-func (d *DemoAccess) RequestDemoAccess(ctx context.Context, request DemoAccessRequest) (IssuedDemoAccess, error) {
+func (d *DemoAccess) RequestDemoAccess(ctx context.Context, request DemoAccessRequest) error {
 	return d.engine.RequestDemoAccess(ctx, request)
 }
 
