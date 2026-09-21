@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/jwtauth/v5"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/stretchr/testify/require"
@@ -167,5 +168,46 @@ func TestNativeSessionCodecTokenBoundaries(t *testing.T) {
 		require.Error(t, err)
 		_, err = native.ParseChallengeToken(token)
 		require.Error(t, err)
+	}
+}
+
+// TestNativeSessionCodecRejectsOtherHMACAlgorithms pins the signature algorithm:
+// a token signed with the deployment key but HS384 or HS512 is rejected on every
+// parse path, as the legacy decoder rejects it.
+func TestNativeSessionCodecRejectsOtherHMACAlgorithms(t *testing.T) {
+	t.Parallel()
+	const key = "session-codec-algorithm-test-key-only"
+	legacy, err := NewTokenAuthWithDurations(key, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+	native, err := identityCompose.NewSessionTokenCodec(legacy.JwtAuth, time.Hour, 24*time.Hour)
+	require.NoError(t, err)
+	exp := time.Now().Add(time.Hour).Unix()
+	for _, algorithm := range []string{"HS256", "HS384", "HS512"} {
+		t.Run(algorithm, func(t *testing.T) {
+			sameKey := jwtauth.New(algorithm, []byte(key), nil)
+			_, access, err := sameKey.Encode(map[string]any{"id": 42, "sub": "codec@test.local", "roles": []string{}, "exp": exp})
+			require.NoError(t, err)
+			_, refresh, err := sameKey.Encode(map[string]any{"id": 42, "token": "refresh", "exp": exp})
+			require.NoError(t, err)
+			_, challenge, err := sameKey.Encode(map[string]any{"account_id": 42, "tenant_id": 73, "scope": "tenant", "challenge_id": 91, "mfa_pending": true, "exp": exp})
+			require.NoError(t, err)
+
+			// HS256 is the control: the same wire claims are accepted, so the
+			// rejections below are caused by the algorithm alone.
+			check := require.Error
+			if algorithm == "HS256" {
+				check = require.NoError
+			}
+			_, err = legacy.JwtAuth.Decode(access)
+			check(t, err)
+			_, err = native.ParseAccessToken(access)
+			check(t, err)
+			_, err = native.ParseAccessTokenAllowExpired(access)
+			check(t, err)
+			_, err = native.ParseRefreshToken(refresh)
+			check(t, err)
+			_, err = native.ParseChallengeToken(challenge)
+			check(t, err)
+		})
 	}
 }
