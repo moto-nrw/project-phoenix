@@ -200,6 +200,8 @@ describe("student-arrival-api", () => {
               { period: 1, end_time: "08:45" },
               { period: 2, end_time: "09:35" },
             ],
+            default_arrival_time: "12:30",
+            default_pickup_time: "16:00",
           },
         }),
       );
@@ -219,6 +221,8 @@ describe("student-arrival-api", () => {
           { period: 1, end_time: "08:45" },
           { period: 2, end_time: "09:35" },
         ],
+        default_arrival_time: "12:30",
+        default_pickup_time: "16:00",
       });
     });
   });

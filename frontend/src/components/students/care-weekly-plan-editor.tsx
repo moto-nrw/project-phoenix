@@ -560,7 +560,9 @@ function WeeklyTimeField({
         className="tabular-nums"
         value={value}
         disabled={disabled}
-        onChange={(event) => onChange(normalizeTimeInput(event.target.value))}
+        onChange={(event) =>
+          onChange(normalizeTimeInput(event.target.value, value))
+        }
       />
     </div>
   );

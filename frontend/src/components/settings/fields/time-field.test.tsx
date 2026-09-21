@@ -101,6 +101,8 @@ describe("SettingsTimeField", () => {
   it("auto-inserts colon when typing digits", () => {
     render(<SettingsTimeField value="12:00" onChange={vi.fn()} />);
     const input = screen.getByPlaceholderText("HH:MM") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "1" } });
+    fireEvent.change(input, { target: { value: "18" } });
     fireEvent.change(input, { target: { value: "183" } });
     expect(input.value).toBe("18:3");
   });

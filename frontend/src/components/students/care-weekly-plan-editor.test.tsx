@@ -902,13 +902,15 @@ describe("CareWeeklyPlanEditForm", () => {
     expect(pickup).toHaveValue("09:30");
     fireEvent.change(pickup, { target: { value: "9:30" } });
     expect(pickup).toHaveValue("09:30");
+    fireEvent.change(pickup, { target: { value: "130" } });
+    expect(pickup).toHaveValue("01:30");
     save();
 
     await waitFor(() => {
       expect(onSubmitWeekly).toHaveBeenCalledWith(
         expect.objectContaining({
           pickupSchedules: expect.arrayContaining([
-            expect.objectContaining({ weekday: 1, pickupTime: "09:30" }),
+            expect.objectContaining({ weekday: 1, pickupTime: "01:30" }),
           ]),
         }),
       );

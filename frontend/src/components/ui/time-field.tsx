@@ -7,7 +7,7 @@ import { useId } from "react";
  * Geteilt mit dem Uhrzeitfeld der Einstellungen (`SettingsTimeField`), damit
  * es die Maske nicht ein zweites Mal gibt (#3117).
  */
-export function normalizeTimeInput(raw: string): string {
+export function normalizeTimeInput(raw: string, previousValue = ""): string {
   const explicitTime = raw.match(/^(\d{1,2}):(\d{0,2})$/);
   if (explicitTime) {
     return `${explicitTime[1]!.padStart(2, "0")}:${explicitTime[2]!}`;
@@ -16,9 +16,12 @@ export function normalizeTimeInput(raw: string): string {
   const digits = raw.replace(/\D/g, "").slice(0, 4);
   if (digits.length <= 2) return digits;
   if (digits.length === 3) {
-    // Keep typing a two-digit hour naturally ("123" → "12:3"), but
-    // interpret a pasted or completed one-digit hour ("930" → "09:30").
-    if (Number(digits.slice(0, 2)) <= 23) {
+    // A completed three-digit value is a one-digit hour ("130" → "01:30").
+    // Preserve a two-digit hour while a fourth digit is still being typed.
+    if (
+      previousValue === digits.slice(0, 2) &&
+      Number(digits.slice(0, 2)) <= 23
+    ) {
       return `${digits.slice(0, 2)}:${digits.slice(2)}`;
     }
     return `0${digits.slice(0, 1)}:${digits.slice(1)}`;
@@ -79,7 +82,9 @@ export function TimeField({
         aria-required={required}
         aria-invalid={invalid}
         aria-describedby={[describedBy, hintId].filter(Boolean).join(" ")}
-        onChange={(event) => onChange(normalizeTimeInput(event.target.value))}
+        onChange={(event) =>
+          onChange(normalizeTimeInput(event.target.value, value))
+        }
         className={`h-10 w-full rounded-lg border px-3 text-base text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
           invalid
             ? "border-parent-red focus-visible:border-parent-red"
