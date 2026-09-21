@@ -1,0 +1,122 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#3020",
+    "#3351"
+  ],
+  "owner_and_capability": "Care Plan — careplan.Capability Commands and Queries for care offerings, offering change requests, companion edges and child documents, consumed without the dissolved modules/careplan/legacy root package (#3410)",
+  "affected_packages": [
+    "modules/careplan/legacy",
+    "modules/careplan/compose",
+    "modules/careplan/careplantest",
+    "database/repositories",
+    "services/enrollment",
+    "services",
+    "models/users",
+    "api"
+  ],
+  "affected_tables": [
+    "users.student_companions",
+    "users.student_documents",
+    "users.student_document_file_cleanup",
+    "enrollment.care_offerings",
+    "enrollment.care_offering_auto_triggers",
+    "enrollment.offering_change_requests"
+  ],
+  "exact_ratchet_keys": [
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api|github.com/moto-nrw/project-phoenix/modules/careplan/legacy",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories|github.com/moto-nrw/project-phoenix/models/enrollment",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories|github.com/moto-nrw/project-phoenix/modules/careplan/legacy",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/careplan/careplantest|github.com/moto-nrw/project-phoenix/modules/careplan/legacy",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/careplan/legacy|database/sql",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/careplan/legacy|github.com/moto-nrw/project-phoenix/database/repositories/base",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/careplan/legacy|github.com/moto-nrw/project-phoenix/database/repositories/parent",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/careplan/legacy|github.com/moto-nrw/project-phoenix/database/repositories/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/careplan/legacy|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/careplan/legacy|github.com/moto-nrw/project-phoenix/models/base",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/careplan/legacy|github.com/moto-nrw/project-phoenix/models/enrollment",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/careplan/legacy|github.com/moto-nrw/project-phoenix/modules/careplan",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/careplan/legacy|github.com/moto-nrw/project-phoenix/modules/careplan/compose",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/careplan/legacy|github.com/moto-nrw/project-phoenix/modules/peopledirectory",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/careplan/legacy|github.com/uptrace/bun"
+  ],
+  "atomic_cutover": "The root package modules/careplan/legacy is deleted in one PR together with every import of it. The care-offering and offering-change repositories become the enrollment services' own translation onto careplan.Capability, with the queue's name search as a consumer-owned port bound to the People Directory by the services composition. The companion and child-document repositories become constructors next to the sibling Care Plan adapters in database/repositories. Four repositories.Factory fields are removed, so database/repositories no longer imports models/enrollment. The calendar day comes from compose.Today and the ambient transaction from compose.TenantAmbientDatabase. Every repository still delegates to the same careplan.Capability methods; no statement and no second provider is added.",
+  "tests": [
+    "scripts/test-changed.sh origin/development without --fast: the full backend suite, including the companion, care-document, care-offering and offering-change behaviour tests, the parent-portal and request-queue route tests and the query-budget tests.",
+    "services/enrollment/care_offering_repository_test.go, the repository contract test moved together with its adapter.",
+    "modules/careplan/compose/ambient_database_test.go for the ambient transaction resolver, including the panic on a transaction it cannot join.",
+    "scripts/backend-architecture.sh check with the listed keys absent from legacy.jsonl."
+  ],
+  "runtime_evidence": {
+    "source": "Local run on the PR branch at commit 316554535f. The change relocates a translation layer without touching a statement, so the evidence is the unchanged behaviour and query-budget suites plus the architecture check, not a benchmark rerun.",
+    "sources": [
+      "backend/services/enrollment/care_plan_offering_records.go",
+      "backend/database/repositories/care_plan_student_record_adapters.go",
+      "backend/modules/careplan/compose/ambient_database_test.go",
+      "backend/test/query_budgets.go",
+      "https://github.com/moto-nrw/project-phoenix/pull/3496"
+    ],
+    "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",
+    "thresholds": "The suite passes with unchanged assertions and an unchanged query-budget register, and the architecture check reports no new violation and no stale baseline entry.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "No write statement changes. The repositories call the same careplan.Capability Commands as before; only their package moved."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "The query-budget tests passed with test/query_budgets.go unchanged, so no budgeted scenario gained a statement."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "The request paths execute the same capability calls and statements. The relocated translation is in-memory field copying and was not timed."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "The request paths execute the same capability calls and statements. The relocated translation is in-memory field copying and was not timed."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "scripts/test-changed.sh origin/development exited 0 with no failing test and no panic; golangci-lint reported 0 issues."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection is acquired differently. The ambient resolver returns the caller's transaction or the shared pool exactly as base.GetDB did."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "The exception-day lock runs on the same ambient transaction as before; no lock statement or lock order changes."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No transaction boundary or lock order changes with the relocated repositories."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The relocated repositories have no worker path of their own."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "The relocated repositories have no worker path of their own."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "The relocated repositories have no worker path of their own."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The not-found and wrapped error shapes are unchanged and covered by the repository contract tests; the ambient resolver panics on a transaction it cannot join, pinned by ambient_database_test.go."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data or schema change. Reverting the PR restores the package, its callers and the baseline entries together."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed locally with the keys absent: 629 legacy violations remain, composition surface 649 -> 641."
+    }
+  },
+  "rollback_and_cleanup": "Revert the PR; the root package, the four Factory fields, the policy classification and the fifteen baseline entries return together. No data cleanup.",
+  "exit_criterion": "No .go file remains at depth 1 of backend/modules/careplan/legacy, no file imports github.com/moto-nrw/project-phoenix/modules/careplan/legacy, and the listed keys are absent from legacy.jsonl."
+}
