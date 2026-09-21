@@ -44,7 +44,7 @@ func TestStudentRepository_Update_RefusesWhenFarEndLocked(t *testing.T) {
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon", "tue")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon", "tue")
-	require.NoError(t, factory.StudentCompanion.ReplaceForStudent(ctx, subject.ID, []*users.StudentCompanion{
+	require.NoError(t, repositories.NewStudentCompanionRepository(factory.CarePlan()).ReplaceForStudent(ctx, subject.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, subject.ID, companion.ID, 1),
 		newCompanionEdge(t, subject.ID, companion.ID, 2),
 	}))
@@ -68,7 +68,7 @@ func TestStudentRepository_Update_RefusesWhenFarEndLocked(t *testing.T) {
 
 	// Nothing was written: both edges survive and the plan is untouched, so the
 	// retry the user is asked for starts from the same state.
-	edges, err := factory.StudentCompanion.ListForStudent(ctx, subject.ID)
+	edges, err := repositories.NewStudentCompanionRepository(factory.CarePlan()).ListForStudent(ctx, subject.ID)
 	require.NoError(t, err)
 	assert.Len(t, edges, 2)
 
@@ -94,7 +94,7 @@ func TestStudentRepository_Update_UnaffectedWhenNoEdgeIsDropped(t *testing.T) {
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon")
-	require.NoError(t, factory.StudentCompanion.ReplaceForStudent(ctx, subject.ID, []*users.StudentCompanion{
+	require.NoError(t, repositories.NewStudentCompanionRepository(factory.CarePlan()).ReplaceForStudent(ctx, subject.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, subject.ID, companion.ID, 1),
 	}))
 
@@ -110,7 +110,7 @@ func TestStudentRepository_Update_UnaffectedWhenNoEdgeIsDropped(t *testing.T) {
 
 	require.NoError(t, factory.Student.Update(ctx, loaded))
 
-	edges, err := factory.StudentCompanion.ListForStudent(ctx, subject.ID)
+	edges, err := repositories.NewStudentCompanionRepository(factory.CarePlan()).ListForStudent(ctx, subject.ID)
 	require.NoError(t, err)
 	assert.Len(t, edges, 1)
 }
