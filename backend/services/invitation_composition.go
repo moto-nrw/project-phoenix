@@ -73,7 +73,7 @@ func invitationDependencies(wiring *invitationWiring, owners identityaccessCompo
 		backoff = invitationEmailBackoff
 	}
 	return &identityaccessCompose.SchoolInvitationDependencies{
-		Grants: invitationGrantPolicy{},
+		Grants: RoleGrantPolicy{},
 		Owners: owners,
 		Delivery: invitationDelivery{
 			dispatcher: wiring.dispatcher, from: wiring.defaultFrom, staffURL: wiring.staffURL, schoolURL: wiring.schoolURL,
@@ -85,11 +85,13 @@ func invitationDependencies(wiring *invitationWiring, owners identityaccessCompo
 	}
 }
 
-// invitationGrantPolicy is the Security Runtime decision whether the
-// inviting account may hand out the role.
-type invitationGrantPolicy struct{}
+// RoleGrantPolicy is the Security Runtime decision whether an account may
+// hand out the role: the inviting account of a school invitation, and the
+// admin who creates or links an account (#2736).
+type RoleGrantPolicy struct{}
 
-func (invitationGrantPolicy) CanGrantRole(role identityaccess.RoleFacts, actorPermissions, rolePermissions []string) bool {
+// CanGrantRole reports whether actorPermissions suffice to grant the role.
+func (RoleGrantPolicy) CanGrantRole(role identityaccess.RoleFacts, actorPermissions, rolePermissions []string) bool {
 	return securityruntime.CanGrantRole(securityruntime.GrantedRole{
 		Name: role.Name, BaseRole: role.BaseRole, IsSystem: role.IsSystem,
 		TenantBound: role.TenantID != nil, Permissions: rolePermissions,

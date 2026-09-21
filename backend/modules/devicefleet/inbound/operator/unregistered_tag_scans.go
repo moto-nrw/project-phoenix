@@ -54,10 +54,8 @@ type Directory interface {
 type Surface struct {
 	InvalidRequest func(err error) render.Renderer
 	Internal       func(message string) render.Renderer
-	// ResolveFallback renders a failed resolution.
-	ResolveFallback func(err error) render.Renderer
-	RenderError     func(w http.ResponseWriter, r *http.Request, renderer render.Renderer)
-	Respond         func(w http.ResponseWriter, r *http.Request, status int, data any, message string)
+	RenderError    func(w http.ResponseWriter, r *http.Request, renderer render.Renderer)
+	Respond        func(w http.ResponseWriter, r *http.Request, status int, data any, message string)
 	// OperatorID returns the authenticated operator, or zero.
 	OperatorID func(ctx context.Context) int64
 }
@@ -165,7 +163,7 @@ func (rs *Resource) ResolveUnregisteredTagScan(w http.ResponseWriter, r *http.Re
 	}
 	scan, err := rs.resolve(r.Context(), scanID, rs.surface.OperatorID(r.Context()), note)
 	if err != nil {
-		rs.surface.RenderError(w, r, rs.surface.ResolveFallback(err))
+		rs.surface.RenderError(w, r, rs.resolveError(err))
 		return
 	}
 	rs.surface.Respond(w, r, http.StatusOK, scan, "Unregistered RFID scan resolved successfully")
@@ -358,4 +356,43 @@ func parseInt64Param(value, message string) (int64, error) {
 		return 0, errors.New(message)
 	}
 	return id, nil
+}
+
+// resolveFailedMessage is all a failed resolution says beyond a client
+// error: persistence failures never echo adapter or Postgres text.
+const resolveFailedMessage = "Failed to resolve unregistered RFID scan"
+
+// resolveError renders a failed resolution (#2736). Unknown or already
+// handled scans, a missing operator, and invalid IDs stay 400 with their
+// text; everything else is internal.
+func (rs *Resource) resolveError(err error) render.Renderer {
+	// A retained repository error (StoreFailure) is internal even when it
+	// wraps a refusal text, as the operator surface decided before.
+	if _, failed := errors.AsType[interface {
+		error
+		StoreFailure() bool
+	}](err); failed {
+		return rs.surface.Internal(resolveFailedMessage)
+	}
+	if resolveIsClientError(err) {
+		return rs.surface.InvalidRequest(err)
+	}
+	return rs.surface.Internal(resolveFailedMessage)
+}
+
+// resolveIsClientError reports whether err, or an error it wraps, is one of
+// the refusals of the Device Fleet resolution.
+func resolveIsClientError(err error) bool {
+	for err != nil {
+		switch err.Error() {
+		case "operator ID is required",
+			"scan ID is required",
+			"unregistered tag scan not found",
+			"unregistered tag scan already resolved",
+			"invalid unregistered tag scan":
+			return true
+		}
+		err = errors.Unwrap(err)
+	}
+	return false
 }

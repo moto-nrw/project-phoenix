@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 )
 
 // newStubTenantMFAService returns an MFAServiceMock pre-seeded
@@ -59,7 +59,7 @@ func reqWithSchoolAccount(t *testing.T, method, schoolID, accountID string, body
 	rctx.URLParams.Add("accountId", accountID)
 	ctx := context.WithValue(r.Context(), chi.RouteCtxKey, rctx)
 	if operatorID > 0 {
-		ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: operatorID})
+		ctx = testutil.WithAuthenticatedContext(ctx, testutil.Claims{ID: operatorID}, nil)
 	}
 	return r.WithContext(ctx)
 }

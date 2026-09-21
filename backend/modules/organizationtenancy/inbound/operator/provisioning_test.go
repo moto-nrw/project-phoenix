@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/stretchr/testify/require"
 )
@@ -97,10 +96,12 @@ func TestProvisioningErrorRendererMapsAuthErrorWithNilErr(t *testing.T) {
 func TestProvisioningErrorRendererMapsAuthErrorDefault(t *testing.T) {
 	t.Parallel()
 
-	// An AuthError with a DatabaseError inner error should hit the default branch
+	// An AuthError whose inner error is a store failure (a
+	// models/base.DatabaseError, which the composition tags through
+	// MarkIdentityStoreFailure) should hit the default branch
 	renderer := ProvisioningErrorRenderer(&organizationtenancy.ProvisioningIdentityError{
 		Op:  "create invitation",
-		Err: &modelBase.DatabaseError{Op: "insert", Err: errors.New("db fail")},
+		Err: organizationtenancy.MarkIdentityStoreFailure(&storeFailureError{text: "database error during insert: db fail"}),
 	})
 
 	resp, ok := renderer.(*common.OperatorErrResponse)
@@ -134,3 +135,9 @@ func TestProvisioningErrorRendererMapsProvisioningConflictErrors(t *testing.T) {
 	require.Equal(t, 409, resp.HTTPStatusCode)
 	require.Equal(t, "school subdomain already exists", resp.ErrorText)
 }
+
+// storeFailureError behaves like the retained repositories' database error.
+type storeFailureError struct{ text string }
+
+func (e *storeFailureError) Error() string      { return e.text }
+func (e *storeFailureError) StoreFailure() bool { return true }
