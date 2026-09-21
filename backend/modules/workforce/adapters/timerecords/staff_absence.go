@@ -1,4 +1,4 @@
-package active
+package timerecords
 
 import (
 	"errors"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
 // Absence duration constants.
@@ -15,49 +16,23 @@ const (
 	minAbsenceDays = 1
 )
 
-// AbsenceType constants
-const (
-	AbsenceTypeSick     = "sick"
-	AbsenceTypeVacation = "vacation"
-	AbsenceTypeTraining = "training"
-	AbsenceTypeOther    = "other"
-	// AbsenceTypeCompTime is Freizeitausgleich (#1420 5b): the day keeps its
-	// Soll but is deliberately NOT credited, so approving it reduces the
-	// Stundenkonto by the day's contractual target.
-	AbsenceTypeCompTime = "comp_time"
-)
-
-// AbsenceStatus constants. `reported` = admin-direct entry (skips approval),
-// `requested` = vacation request pending approval, `question` = Rückfrage from
-// the Leitung awaiting the staff member's amended resubmit, `approved`/
-// `declined` = post-decision terminal states, `canceled` = MA withdrew before
-// decision.
-const (
-	AbsenceStatusReported  = "reported"
-	AbsenceStatusRequested = "requested"
-	AbsenceStatusQuestion  = "question"
-	AbsenceStatusApproved  = "approved"
-	AbsenceStatusDeclined  = "declined"
-	AbsenceStatusCanceled  = "canceled"
-)
-
 // ValidAbsenceTypes lists all valid absence types
 var ValidAbsenceTypes = []string{
-	AbsenceTypeSick,
-	AbsenceTypeVacation,
-	AbsenceTypeTraining,
-	AbsenceTypeOther,
-	AbsenceTypeCompTime,
+	workforce.AbsenceTypeSick,
+	workforce.AbsenceTypeVacation,
+	workforce.AbsenceTypeTraining,
+	workforce.AbsenceTypeOther,
+	workforce.AbsenceTypeCompTime,
 }
 
 // ValidAbsenceStatuses lists all valid absence statuses
 var ValidAbsenceStatuses = []string{
-	AbsenceStatusReported,
-	AbsenceStatusRequested,
-	AbsenceStatusQuestion,
-	AbsenceStatusApproved,
-	AbsenceStatusDeclined,
-	AbsenceStatusCanceled,
+	workforce.AbsenceStatusReported,
+	workforce.AbsenceStatusRequested,
+	workforce.AbsenceStatusQuestion,
+	workforce.AbsenceStatusApproved,
+	workforce.AbsenceStatusDeclined,
+	workforce.AbsenceStatusCanceled,
 }
 
 // StaffAbsence represents a staff absence record (sick, vacation, etc.)
@@ -68,7 +43,7 @@ type StaffAbsence struct {
 	AbsenceType string `bun:"absence_type,notnull" json:"absence_type"`
 	// AbsenceTypeID optionally names this absence with a school-defined
 	// Abwesenheitsart (#2403). It never changes the arithmetic: the row still
-	// carries the canonical AbsenceType (always AbsenceTypeOther while a custom
+	// carries the canonical AbsenceType (always workforce.AbsenceTypeOther while a custom
 	// art is attached, enforced by chk_sa_custom_type_is_other) and every
 	// calculation keeps reading that column. NULL = one of the five standard
 	// types.

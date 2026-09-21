@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 )
 
@@ -24,7 +24,7 @@ func AbsenceTypes(catalog workforce.AbsenceTypeQuery) timetracking.AbsenceTypeRe
 	return absenceTypeReader{catalog: catalog}
 }
 
-func (r absenceTypeReader) GetAbsenceType(ctx context.Context, id int64) (*activeModels.StaffAbsenceType, error) {
+func (r absenceTypeReader) GetAbsenceType(ctx context.Context, id int64) (*timerecords.StaffAbsenceType, error) {
 	if id <= 0 {
 		return nil, mapNativeAbsenceTypeError(workforce.ErrAbsenceTypeNotFound)
 	}
@@ -38,7 +38,7 @@ func (r absenceTypeReader) GetAbsenceType(ctx context.Context, id int64) (*activ
 	return legacyAbsenceType(value), nil
 }
 
-func (r absenceTypeReader) ResolveForAbsence(ctx context.Context, id int64) (*activeModels.StaffAbsenceType, error) {
+func (r absenceTypeReader) ResolveForAbsence(ctx context.Context, id int64) (*timerecords.StaffAbsenceType, error) {
 	if id <= 0 {
 		return nil, mapNativeAbsenceTypeError(workforce.ErrAbsenceTypeNotFound)
 	}
@@ -90,8 +90,8 @@ func legacyAllowancePreviews(values []workforce.AbsenceTypeAllowanceSummary, err
 	return result, mapNativeAbsenceTypeError(err)
 }
 
-func legacyAbsenceType(value workforce.StaffAbsenceType) *activeModels.StaffAbsenceType {
-	result := &activeModels.StaffAbsenceType{
+func legacyAbsenceType(value workforce.StaffAbsenceType) *timerecords.StaffAbsenceType {
+	result := &timerecords.StaffAbsenceType{
 		Name: value.Name, BaseType: value.BaseType, IsActive: value.IsActive,
 		AllowanceEnabled: value.AllowanceEnabled,
 	}

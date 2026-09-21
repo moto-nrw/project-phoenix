@@ -10,7 +10,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -113,9 +114,9 @@ func previousWorkingDay(d timezone.Date) timezone.Date {
 // fixture — the vacation request flow is not under test here.
 func (f *vacationOpeningFixture) addVacationAbsence(t *testing.T, status string, start, end timezone.Date) {
 	t.Helper()
-	absence := &activeModels.StaffAbsence{
+	absence := &timerecords.StaffAbsence{
 		StaffID:     f.staff,
-		AbsenceType: activeModels.AbsenceTypeVacation,
+		AbsenceType: workforce.AbsenceTypeVacation,
 		Status:      status,
 		DateStart:   start,
 		DateEnd:     end,
@@ -125,7 +126,7 @@ func (f *vacationOpeningFixture) addVacationAbsence(t *testing.T, status string,
 	require.NoError(t, f.repos.StaffAbsence.Create(f.ctx, absence))
 }
 
-func (f *vacationOpeningFixture) set(remainingDays float64) (*activeModels.StaffVacationOpening, error) {
+func (f *vacationOpeningFixture) set(remainingDays float64) (*timerecords.StaffVacationOpening, error) {
 	return f.svc.SetVacationOpening(f.ctx, f.staff, f.admin, timetracking.SetVacationOpeningRequest{
 		EffectiveDate: f.cutoff,
 		RemainingDays: remainingDays,
@@ -224,7 +225,7 @@ func TestSetVacationOpening_RejectsVacationAbsencesBeforeCutoff(t *testing.T) {
 	// Must be a working day: a Saturday absence spends no quota and the guard
 	// would not trip, letting the case pass vacuously on some weekdays.
 	before := previousWorkingDay(f.cutoff.AddDays(-1))
-	f.addVacationAbsence(t, activeModels.AbsenceStatusApproved, before, before)
+	f.addVacationAbsence(t, workforce.AbsenceStatusApproved, before, before)
 
 	_, err := f.set(12)
 	require.ErrorIs(t, err, timetracking.ErrVacationOpeningAbsencesBeforeCutoff)
@@ -244,7 +245,7 @@ func TestSetVacationOpening_AllowsVacationBeginningOnWeekendBeforeCutoff(t *test
 
 	// The absence begins on Saturday but only consumes quota on the Monday
 	// Stichtag, which belongs to the moto-era calculation.
-	f.addVacationAbsence(t, activeModels.AbsenceStatusApproved, f.cutoff.AddDays(-2), f.cutoff)
+	f.addVacationAbsence(t, workforce.AbsenceStatusApproved, f.cutoff.AddDays(-2), f.cutoff)
 
 	opening, err := f.set(12)
 	require.NoError(t, err)
@@ -259,15 +260,15 @@ func TestSetVacationOpening_IgnoresDeclinedAndLaterAbsences(t *testing.T) {
 	f := newVacationOpeningFixture(t)
 
 	before := f.cutoff.AddDays(-1)
-	f.addVacationAbsence(t, activeModels.AbsenceStatusDeclined, before, before)
-	f.addVacationAbsence(t, activeModels.AbsenceStatusCanceled, before, before)
+	f.addVacationAbsence(t, workforce.AbsenceStatusDeclined, before, before)
+	f.addVacationAbsence(t, workforce.AbsenceStatusCanceled, before, before)
 	// Starting ON the Stichtag is already inside the moto era.
-	f.addVacationAbsence(t, activeModels.AbsenceStatusApproved, f.cutoff, f.cutoff)
+	f.addVacationAbsence(t, workforce.AbsenceStatusApproved, f.cutoff, f.cutoff)
 	// A sick day before the Stichtag never touches the vacation quota.
-	sick := &activeModels.StaffAbsence{
+	sick := &timerecords.StaffAbsence{
 		StaffID:     f.staff,
-		AbsenceType: activeModels.AbsenceTypeSick,
-		Status:      activeModels.AbsenceStatusApproved,
+		AbsenceType: workforce.AbsenceTypeSick,
+		Status:      workforce.AbsenceStatusApproved,
 		DateStart:   before,
 		DateEnd:     before,
 		CreatedBy:   f.staff,
@@ -379,7 +380,7 @@ func TestDeleteVacationOpening_WritesTombstoneAndRestoresSummary(t *testing.T) {
 	assert.Equal(t, f.admin, tombstones[0].DeletedBy)
 	assert.Equal(t, f.tenantID, tombstones[0].TenantID)
 
-	var payload activeModels.StaffVacationOpening
+	var payload timerecords.StaffVacationOpening
 	require.NoError(t, json.Unmarshal(tombstones[0].Payload, &payload),
 		"the tombstone payload must be the deleted row verbatim")
 	assert.InDelta(t, 17.5, payload.TakenBeforeDays, 0.001)

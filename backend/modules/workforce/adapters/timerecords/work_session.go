@@ -1,4 +1,4 @@
-package active
+package timerecords
 
 import (
 	"errors"
@@ -6,33 +6,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
-
-// WorkSessionStatus constants
-const (
-	WorkSessionStatusPresent    = "present"
-	WorkSessionStatusHomeOffice = "home_office"
-)
-
-// WorkSessionSource records which channel produced the row (Issue #1368).
-// New writes are restricted to App/NFC by WorkSessionService.CheckIn;
-// 'unknown' exists only for rows that pre-date migration 1.15.54 and is
-// rejected as a write value but accepted as a read value so legacy rows
-// survive partial-update flows (break edits, notes patches). The DB CHECK
-// constraint chk_work_sessions_source enforces the same set on disk.
-const (
-	WorkSessionSourceApp     = "app"     // POST /api/time-tracking/check-in (App / Web)
-	WorkSessionSourceNFC     = "nfc"     // Auto-stamp from a kiosk-driven scan
-	WorkSessionSourceUnknown = "unknown" // Pre-migration legacy rows; never written by new code
-)
-
-// MaxOpenWorkSessionDuration is the live safety limit for a block that is
-// still open. Past it a running block stops counting as work in progress:
-// the balance stops crediting it (modules/workforce/legacy/timetracking.BalanceSessionEnd) and the
-// presence lookup stops reporting its owner as present
-// (repositories/active.GetTodayPresenceMap). Both read this one constant so a
-// forgotten checkout drops out of both at the same moment (#2402).
-const MaxOpenWorkSessionDuration = 12 * time.Hour
 
 type WorkSession struct {
 	base.Model `bun:"schema:active,table:work_sessions"`
@@ -58,7 +33,7 @@ func (ws *WorkSession) Validate() error {
 	if ws.CheckInTime.IsZero() {
 		return errors.New("check-in time is required")
 	}
-	if ws.Status != WorkSessionStatusPresent && ws.Status != WorkSessionStatusHomeOffice {
+	if ws.Status != workforce.WorkSessionStatusPresent && ws.Status != workforce.WorkSessionStatusHomeOffice {
 		return errors.New("status must be 'present' or 'home_office'")
 	}
 	// Source is intentionally not re-validated here — write paths gate it at

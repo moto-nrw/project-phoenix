@@ -40,7 +40,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	reminders "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 )
@@ -417,7 +417,7 @@ func (s *Scheduler) resolveOnDutyStaff(ctx context.Context) (map[int64]struct{},
 		// Matched positively against the two real statuses: the map also carries
 		// a synthetic "checked out" value, and an unknown future status must not
 		// silently count as working.
-		if status == activeModel.WorkSessionStatusPresent || status == activeModel.WorkSessionStatusHomeOffice {
+		if status == workforce.WorkSessionStatusPresent || status == workforce.WorkSessionStatusHomeOffice {
 			onDuty[staffID] = struct{}{}
 		}
 	}

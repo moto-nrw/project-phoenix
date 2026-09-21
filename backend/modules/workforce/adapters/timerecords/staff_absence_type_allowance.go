@@ -1,4 +1,4 @@
-package active
+package timerecords
 
 import (
 	"github.com/moto-nrw/project-phoenix/models/base"

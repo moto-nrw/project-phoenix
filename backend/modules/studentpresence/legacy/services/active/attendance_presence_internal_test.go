@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/tenant"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +19,7 @@ func TestEnsureStaffPresenceKeepsCheckInFailureBestEffort(t *testing.T) {
 
 	called := false
 	workSessions := &workSessionServiceForSessionUnitTest{
-		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
+		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*timerecords.WorkSession, error) {
 			called = true
 			return nil, errors.New("check-in failed")
 		},
@@ -29,7 +29,7 @@ func TestEnsureStaffPresenceKeepsCheckInFailureBestEffort(t *testing.T) {
 		Logger:             slog.New(slog.DiscardHandler),
 	}}
 
-	svc.ensureStaffPresence(context.Background(), 42, activeModels.WorkSessionSourceApp)
+	svc.ensureStaffPresence(context.Background(), 42, stampSourceApp)
 
 	assert.True(t, called)
 }
@@ -39,7 +39,7 @@ func TestEnsureStaffPresenceAcceptsClosedSessionSkip(t *testing.T) {
 
 	called := false
 	workSessions := &workSessionServiceForSessionUnitTest{
-		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
+		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*timerecords.WorkSession, error) {
 			called = true
 			return nil, nil
 		},
@@ -49,7 +49,7 @@ func TestEnsureStaffPresenceAcceptsClosedSessionSkip(t *testing.T) {
 		Logger:             slog.New(slog.DiscardHandler),
 	}}
 
-	svc.ensureStaffPresence(context.Background(), 42, activeModels.WorkSessionSourceApp)
+	svc.ensureStaffPresence(context.Background(), 42, stampSourceApp)
 
 	assert.True(t, called)
 }
@@ -59,7 +59,7 @@ func TestEnsureStaffPresenceForAttendanceResultSkipsIdempotentCheckout(t *testin
 
 	called := false
 	workSessions := &workSessionServiceForSessionUnitTest{
-		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
+		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*timerecords.WorkSession, error) {
 			called = true
 			return nil, nil
 		},
@@ -81,7 +81,7 @@ func TestEnsureStaffPresenceForAttendanceResultStampsMutatingCheckout(t *testing
 
 	called := false
 	workSessions := &workSessionServiceForSessionUnitTest{
-		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
+		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*timerecords.WorkSession, error) {
 			called = true
 			return nil, nil
 		},
@@ -118,7 +118,7 @@ func TestEnsureStaffPresenceRollsBackFailedCheckInToSavepoint(t *testing.T) {
 	mock.ExpectRollback()
 
 	workSessions := &workSessionServiceForSessionUnitTest{
-		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
+		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*timerecords.WorkSession, error) {
 			return nil, errors.New("check-in failed")
 		},
 	}
@@ -127,7 +127,7 @@ func TestEnsureStaffPresenceRollsBackFailedCheckInToSavepoint(t *testing.T) {
 		Logger:             slog.New(slog.DiscardHandler),
 	}}
 
-	svc.ensureStaffPresence(txCtx, 42, activeModels.WorkSessionSourceApp)
+	svc.ensureStaffPresence(txCtx, 42, stampSourceApp)
 
 	require.NoError(t, tx.Rollback())
 	require.NoError(t, mock.ExpectationsWereMet())

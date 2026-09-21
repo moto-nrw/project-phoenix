@@ -1,4 +1,4 @@
-package active
+package timerecords
 
 import (
 	"errors"
@@ -7,10 +7,12 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
-// BalanceAdjustmentType constants (#1420). Each row is a Stundenkonto
-// correction transaction, never a normal time entry:
+// ValidBalanceAdjustmentTypes lists all valid balance adjustment types
+// (#1420). Each row is a Stundenkonto correction transaction, never a normal
+// time entry:
 //   - payout:    plus hours paid out (future DATEV Lohnart "Überstunden-Auszahlung")
 //   - comp_time: a lump-sum Freizeitausgleich grant not tied to a workday
 //     (the day-based variant is the comp_time ABSENCE type, which reduces
@@ -19,19 +21,11 @@ import (
 //   - opening:   go-live opening balance (#2132); delta = target − closing
 //     balance as of the Stichtag. The only type whose resulting balance may
 //     be negative — migrated accounts start where the old system left them.
-const (
-	BalanceAdjustmentTypePayout   = "payout"
-	BalanceAdjustmentTypeCompTime = "comp_time"
-	BalanceAdjustmentTypeReset    = "reset"
-	BalanceAdjustmentTypeOpening  = "opening"
-)
-
-// ValidBalanceAdjustmentTypes lists all valid balance adjustment types.
 var ValidBalanceAdjustmentTypes = []string{
-	BalanceAdjustmentTypePayout,
-	BalanceAdjustmentTypeCompTime,
-	BalanceAdjustmentTypeReset,
-	BalanceAdjustmentTypeOpening,
+	workforce.BalanceAdjustmentTypePayout,
+	workforce.BalanceAdjustmentTypeCompTime,
+	workforce.BalanceAdjustmentTypeReset,
+	workforce.BalanceAdjustmentTypeOpening,
 }
 
 // StaffBalanceAdjustment is one Stundenkonto correction transaction (#1420).

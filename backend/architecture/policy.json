@@ -2334,6 +2334,13 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "modules/workforce/adapters/timerecords",
+      "owner": "workforce",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "modules/workforce/legacy/shiftplanning",
       "owner": "inbound-staff-shifts",
       "role": "adapter",
@@ -6583,6 +6590,18 @@
       "target_role": "compose"
     },
     {
+      "id": "student-presence.adapter-test.workforce-time-records",
+      "description": "The retained Presence in-package tests fake the time-clock port, which returns the retained work-session row (#3422).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "adapter-test",
+      "target_owner": "workforce",
+      "target_role": "adapter",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
       "id": "enrollment.module-behavior-test.presence-compose",
       "description": "Existing integration fixtures construct the owner facade for migrated visit records.",
       "scopes": [
@@ -6833,6 +6852,30 @@
       "source_role": "module-behavior-test",
       "target_owner": "enrollment",
       "target_role": "test-support"
+    },
+    {
+      "id": "people-directory.module-behavior-test.workforce-time-records",
+      "description": "The retained staff offboarding behaviour tests seed the retained staff-absence rows (#3422).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "module-behavior-test",
+      "target_owner": "workforce",
+      "target_role": "adapter",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "people-directory.module-behavior-test.workforce-public",
+      "description": "The retained staff offboarding behaviour tests name the canonical absence values they seed (#3422).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "module-behavior-test",
+      "target_owner": "workforce",
+      "target_role": "public",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
     },
     {
       "id": "audit.postgres.enrollment-query",
@@ -7758,6 +7801,18 @@
       "target_role": "public"
     },
     {
+      "id": "test-support.test-support.workforce-public",
+      "description": "The shared staff-absence fixtures seed the canonical absence type and status values (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "workforce",
+      "target_role": "public",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
       "id": "reminder-delivery.decision-test.appointments",
       "description": "Reminder delivery consumes the Appointments owner query and claim contract.",
       "scopes": [
@@ -8009,6 +8064,18 @@
       "target_role": "public"
     },
     {
+      "id": "scheduler-runtime.application.workforce-public",
+      "description": "The reminder scheduler reads the canonical work-session statuses of the presence map (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "scheduler-runtime",
+      "source_role": "application",
+      "target_owner": "workforce",
+      "target_role": "public",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
       "id": "scheduler-runtime.reminder-test-public",
       "description": "Scheduler contract tests supply reminder query results.",
       "scopes": [
@@ -8018,6 +8085,18 @@
       "source_role": "module-internal-test",
       "target_owner": "reminder-delivery",
       "target_role": "public"
+    },
+    {
+      "id": "scheduler-runtime.module-internal-test.workforce-public",
+      "description": "The reminder scheduler tests fake the presence map with the canonical work-session statuses (#3422).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "scheduler-runtime",
+      "source_role": "module-internal-test",
+      "target_owner": "workforce",
+      "target_role": "public",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
     },
     {
       "id": "adapter-test.domain.contract",
@@ -10265,17 +10344,6 @@
       "target_role": "postgres"
     },
     {
-      "id": "workforce.postgres.student-presence-domain",
-      "description": "The candidate workforce allowance adapter implements the existing absence model contracts during the active-domain migration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "postgres",
-      "target_owner": "student-presence",
-      "target_role": "domain"
-    },
-    {
       "id": "workforce.postgres.transaction-domain",
       "description": "The candidate workforce allowance adapter embeds the shared tenant-aware persistence models.",
       "scopes": [
@@ -10285,6 +10353,18 @@
       "source_role": "postgres",
       "target_owner": "transaction-runtime",
       "target_role": "domain"
+    },
+    {
+      "id": "workforce.postgres.time-records",
+      "description": "The retained allowance read-back repository in database/repositories/workforce reads the retained allowance rows back and implements their contracts from modules/workforce/adapters/timerecords (#3422). It falls with the RLS isolation helper.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "postgres",
+      "target_owner": "workforce",
+      "target_role": "adapter",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
     },
     {
       "id": "workforce.postgres.transaction-postgres",
@@ -12398,6 +12478,18 @@
       "target_role": "adapter"
     },
     {
+      "id": "delivery-platform.application.workforce-public",
+      "description": "The staff recipient resolver reads the canonical work-session statuses of the presence map (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "application",
+      "target_owner": "workforce",
+      "target_role": "public",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
       "id": "delivery.application.same-owner-public",
       "description": "Delivery applications publish realtime events through the owned public facade.",
       "scopes": [
@@ -12828,17 +12920,6 @@
       "target_role": "domain"
     },
     {
-      "id": "delivery-cutover.010",
-      "description": "Allows one dependency introduced by the Delivery package cutover.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "application",
-      "target_owner": "student-presence",
-      "target_role": "domain"
-    },
-    {
       "id": "delivery-cutover.013",
       "description": "Allows one dependency introduced by the Delivery package cutover.",
       "scopes": [
@@ -12936,17 +13017,6 @@
       "source_owner": "delivery-platform",
       "source_role": "workflow-integration-test",
       "target_owner": "settings-platform",
-      "target_role": "domain"
-    },
-    {
-      "id": "delivery-cutover.026",
-      "description": "Allows one dependency introduced by the Delivery package cutover.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "workflow-integration-test",
-      "target_owner": "student-presence",
       "target_role": "domain"
     },
     {
@@ -14925,6 +14995,18 @@
       "target_role": "public"
     },
     {
+      "id": "workforce.adapter.time-records",
+      "description": "The retained time-tracking services and the Workforce compatibility adapters speak the retained time records and their repository contracts in modules/workforce/adapters/timerecords, which left models/active (#3422). It falls with the last retained time-tracking service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter",
+      "target_owner": "workforce",
+      "target_role": "adapter",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
       "id": "workforce.adapter.student-presence-domain",
       "description": "The Workforce compatibility adapter serves the retained models/active staff absence contracts while their consumers migrate (#2688).",
       "scopes": [
@@ -15056,6 +15138,18 @@
       "target_role": "compose"
     },
     {
+      "id": "workforce.adapter-test.time-records-calendar-dates",
+      "description": "The time-record row validation tests build calendar dates with the canonical calendar-date type (#3422).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
       "id": "workforce.adapter-test.substitutions-http",
       "description": "Workforce HTTP composition tests render the substitutions failure contract.",
       "scopes": [
@@ -15097,17 +15191,6 @@
       "source_owner": "workforce",
       "source_role": "adapter-test",
       "target_owner": "legacy-shared",
-      "target_role": "domain"
-    },
-    {
-      "id": "workforce.adapter-test.student-presence-domain",
-      "description": "The retained time-tracking behaviour tests seed and assert the retained models/active work-session and absence rows (#3213).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "adapter-test",
-      "target_owner": "student-presence",
       "target_role": "domain"
     },
     {
@@ -20944,6 +21027,30 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
     },
     {
+      "id": "student-presence.e2e-test.workforce-time-records",
+      "description": "The retained Presence behaviour tests seed and read the retained work-session and staff-absence rows (#3422).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "e2e-test",
+      "target_owner": "workforce",
+      "target_role": "adapter",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "student-presence.e2e-test.workforce-public",
+      "description": "The retained Presence behaviour tests name the canonical work-session and absence values they assert on (#3422).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "e2e-test",
+      "target_owner": "workforce",
+      "target_role": "public",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
       "id": "student-presence.e2e-test.transaction-runtime-domain",
       "description": "The retained Presence behaviour tests build the shared persistence base model and query options (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -21747,6 +21854,30 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
     },
     {
+      "id": "student-presence.adapter.workforce-time-records",
+      "description": "The presence port to the Workforce time clock returns the retained work-session row the retained time-tracking service opens (#3422). It falls when the port stops returning the row.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "adapter",
+      "target_owner": "workforce",
+      "target_role": "adapter",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
+      "id": "student-presence.adapter.workforce-public",
+      "description": "The presence port to the Workforce time clock names the canonical work-session stamp channels (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "adapter",
+      "target_owner": "workforce",
+      "target_role": "public",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
+    },
+    {
       "id": "student-presence.adapter.transaction-runtime-domain",
       "description": "The retained Presence services page and classify repository errors through the shared persistence base (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -21825,18 +21956,6 @@
         "production"
       ],
       "source_owner": "school-structure",
-      "source_role": "application",
-      "target_owner": "student-presence",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "scheduler-runtime.application.student-presence-domain",
-      "description": "The scheduler still reaches the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "scheduler-runtime",
       "source_role": "application",
       "target_owner": "student-presence",
       "target_role": "domain",

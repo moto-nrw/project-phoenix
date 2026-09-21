@@ -18,6 +18,7 @@ import (
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/uptrace/bun"
 )
@@ -120,8 +121,8 @@ func NewTimetableCleanupRepositories(db *bun.DB, command auditModels.Command, ti
 }
 
 type TimeTrackingCleanupRepositories struct {
-	Session  activeModels.WorkSessionRepository
-	Absence  activeModels.StaffAbsenceRepository
+	Session  timerecords.WorkSessionRepository
+	Absence  timerecords.StaffAbsenceRepository
 	Deletion auditModels.DataDeletionRepository
 }
 

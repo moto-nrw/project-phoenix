@@ -147,9 +147,9 @@ func (s *service) toggleStudentAttendance(ctx context.Context, studentID, staffI
 // presence auto-stamp: kiosk-driven requests stamp as nfc, web requests as app.
 func (s *service) attendanceStampSource(ctx context.Context) string {
 	if s.attendancePrincipal(ctx).IsIoT {
-		return active.WorkSessionSourceNFC
+		return stampSourceNFC
 	}
-	return active.WorkSessionSourceApp
+	return stampSourceApp
 }
 
 func (s *service) ensureStaffPresenceForAttendanceResult(
@@ -966,9 +966,9 @@ func (s *service) ClaimActiveGroup(ctx context.Context, groupID, staffID int64, 
 		}
 		result = &active.GroupSupervisor{Model: base.Model{ID: row.ID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}, GroupID: row.GroupID, StaffID: row.StaffID, Role: row.Role, StartDate: date}
 		result.SetTenantID(row.TenantID)
-		source := active.WorkSessionSourceApp
+		source := stampSourceApp
 		if s.attendancePrincipal(txCtx).IsIoT {
-			source = active.WorkSessionSourceNFC
+			source = stampSourceNFC
 		}
 		s.ensureStaffPresence(txCtx, staffID, source)
 		return nil

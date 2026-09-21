@@ -1470,9 +1470,9 @@ func (s *service) createGroupSupervisor(ctx context.Context, supervisor *active.
 	// "Anwesend" (issue #1439). Kiosk-driven session starts already do this
 	// in assignMultipleSupervisorsNonCritical; this covers the web app path.
 	if supervisor.StartDate == s.todayDate() {
-		source := active.WorkSessionSourceApp
+		source := stampSourceApp
 		if s.attendancePrincipal(ctx).IsIoT {
-			source = active.WorkSessionSourceNFC
+			source = stampSourceNFC
 		}
 		s.ensureStaffPresence(ctx, supervisor.StaffID, source)
 	}

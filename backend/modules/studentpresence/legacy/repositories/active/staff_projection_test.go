@@ -8,6 +8,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -64,12 +66,12 @@ func TestActiveSupervisionsCarryTheirStaffMember(t *testing.T) {
 func createAbsence(tb testing.TB, ctx context.Context, factory *repositories.Factory, staffID int64, approvedBy *int64) {
 	tb.Helper()
 	today := timezone.TodayDate()
-	absence := &activeModels.StaffAbsence{
+	absence := &timerecords.StaffAbsence{
 		StaffID:     staffID,
-		AbsenceType: activeModels.AbsenceTypeVacation,
+		AbsenceType: workforce.AbsenceTypeVacation,
 		DateStart:   today,
 		DateEnd:     today,
-		Status:      activeModels.AbsenceStatusRequested,
+		Status:      workforce.AbsenceStatusRequested,
 		ApprovedBy:  approvedBy,
 		CreatedBy:   staffID,
 		RequestedAt: time.Now(),
@@ -90,7 +92,7 @@ func TestAbsenceRequestsCarryTheirSubjectAndDeciderPerson(t *testing.T) {
 	createAbsence(t, ctx, factory, subject.ID, &deciderID)
 	createAbsence(t, ctx, factory, other.ID, nil)
 
-	filter := activeModels.AbsenceRequestFilter{Statuses: []string{activeModels.AbsenceStatusRequested}}
+	filter := timerecords.AbsenceRequestFilter{Statuses: []string{workforce.AbsenceStatusRequested}}
 	rows, err := factory.StaffAbsence.ListRequests(ctx, filter)
 	require.NoError(t, err)
 	require.Len(t, rows, 2)

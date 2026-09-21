@@ -54,7 +54,9 @@ import (
 // #3422 statistics cutover, which dropped the statistics HTTP grant to the
 // retained Presence adapter, to 295 and 358, and the #3422 Care Plan row
 // handover, which moved the status-day and excused-request rows out of the
-// Presence nest and so dropped eleven stale grants to it, to 290 and 352;
+// Presence nest and so dropped eleven stale grants to it, to 290 and 352,
+// and the #3422 Workforce row handover, which left the scheduler's grant to
+// the retained Presence rows stale, to 289 and 351;
 // this prose counter remains as an independent guard.
 //
 // Three shrink-only measurements, all read-only on policy.json:
@@ -105,12 +107,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 290
+	policyTempRulesTotal = 289
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 352
+	policyTempRulesCompatTotal = 351
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -202,7 +204,7 @@ var policyTempRulesFamilies = map[string]int{
 	"root-composition": 8,
 
 	// #3214, #3218, #3220 — closed.
-	"scheduler-runtime": 7,
+	"scheduler-runtime": 6,
 
 	// #3214, #3218 — closed.
 	"school-structure": 2,

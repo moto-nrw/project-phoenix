@@ -1,10 +1,11 @@
-package active
+package timerecords
 
 import (
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -12,7 +13,7 @@ import (
 func validBalanceAdjustment() *StaffBalanceAdjustment {
 	return &StaffBalanceAdjustment{
 		StaffID:       42,
-		Type:          BalanceAdjustmentTypePayout,
+		Type:          workforce.BalanceAdjustmentTypePayout,
 		MinutesDelta:  -120,
 		EffectiveDate: timezone.NewDate(2026, time.March, 1),
 		DecidedBy:     43,
@@ -29,7 +30,7 @@ func TestStaffBalanceAdjustmentValidate_AcceptsEveryType(t *testing.T) {
 		assert.NoError(t, adjustment.Validate(), "type %q must be accepted", adjustmentType)
 	}
 	// The go-live takeover (#2132) is one of them.
-	assert.Contains(t, ValidBalanceAdjustmentTypes, BalanceAdjustmentTypeOpening)
+	assert.Contains(t, ValidBalanceAdjustmentTypes, workforce.BalanceAdjustmentTypeOpening)
 }
 
 func TestStaffBalanceAdjustmentValidate_Rejects(t *testing.T) {

@@ -259,7 +259,7 @@ func (s *service) ensureNFCAutoCheckInNonCritical(ctx context.Context, groupID, 
 }
 
 func (s *service) ensureNFCAutoCheckIn(ctx context.Context, groupID, staffID int64) error {
-	session, err := s.WorkSessionService.EnsureCheckedIn(ctx, staffID, active.WorkSessionSourceNFC)
+	session, err := s.WorkSessionService.EnsureCheckedIn(ctx, staffID, stampSourceNFC)
 	var plannedStart PlannedStartNotReachedError
 	if errors.As(err, &plannedStart) {
 		plannedStartTime, currentTime := plannedStart.PlannedStartNotReached()
@@ -880,9 +880,9 @@ func (s *service) UpdateActiveGroupSupervisors(ctx context.Context, activeGroupI
 	// Supervisor takeover/handover means these staff members are on site —
 	// auto-open their work sessions so they show as "Anwesend" (issue #1439).
 	// Same best-effort semantics as the session-start auto-stamp.
-	source := active.WorkSessionSourceApp
+	source := stampSourceApp
 	if s.attendancePrincipal(ctx).IsIoT {
-		source = active.WorkSessionSourceNFC
+		source = stampSourceNFC
 	}
 	for staffID := range uniqueSupervisors {
 		s.ensureStaffPresence(ctx, staffID, source)

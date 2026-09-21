@@ -1,4 +1,4 @@
-package active
+package timerecords
 
 import (
 	"errors"
@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
 const maxAbsenceTypeNameLength = 100
@@ -19,12 +20,13 @@ const maxAbsenceTypeNameLength = 100
 // entry inherits — it is written into staff_absences.absence_type and drives
 // Sollzeit, Stundenkonto, Urlaubskontingent, Monatskarte and every export
 // exactly as before. Name is only ever rendered. In this first version every
-// custom entry inherits AbsenceTypeOther, so a freely typed name can never
-// silently move a day into the vacation quota or credit hours it should not.
+// custom entry inherits workforce.AbsenceTypeOther, so a freely typed name can
+// never silently move a day into the vacation quota or credit hours it should
+// not.
 //
 // The five standard types (Urlaub, Krank, Fortbildung, Sonstige,
-// Freizeitausgleich) are deliberately NOT rows: they are the constants in this
-// package. Every school therefore has them by construction — nothing to seed,
+// Freizeitausgleich) are deliberately NOT rows: they are the constants of the
+// public workforce package. Every school therefore has them by construction — nothing to seed,
 // nothing that can be missing for one tenant, no duplicate rows, and no way to
 // delete or rename one by accident. Only the school's own additions live here.
 type StaffAbsenceType struct {
@@ -32,8 +34,8 @@ type StaffAbsenceType struct {
 	base.TenantModel
 	Name string `bun:"name,notnull" json:"name"`
 	// BaseType is the canonical absence type this entry is a named subtype of.
-	// v1 always stores AbsenceTypeOther; the column exists so a later version
-	// can give a custom art its own arithmetic without a second migration of
+	// v1 always stores workforce.AbsenceTypeOther; the column exists so a later
+	// version can give a custom art its own arithmetic without a second migration of
 	// every existing row.
 	BaseType string `bun:"base_type,notnull" json:"base_type"`
 	// No bun `default:true` tag on purpose: bun writes DEFAULT (not the value)
@@ -58,7 +60,7 @@ func (t *StaffAbsenceType) Validate() error {
 		return errors.New("zu langer Name der Abwesenheitsart (höchstens 100 Zeichen)")
 	}
 	if t.BaseType == "" {
-		t.BaseType = AbsenceTypeOther
+		t.BaseType = workforce.AbsenceTypeOther
 	}
 	if !slices.Contains(ValidAbsenceTypes, t.BaseType) {
 		return errors.New("ungültiger Grundtyp der Abwesenheit")

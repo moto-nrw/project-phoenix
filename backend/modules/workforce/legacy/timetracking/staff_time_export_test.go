@@ -8,11 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -79,16 +80,16 @@ func TestMonthExportRows_MatchMonthSummary(t *testing.T) {
 	f.addSchedule(t, f.staff[1], 240)
 	yesterday := f.today.AddDays(-1)
 	if monthOfDate(yesterday) == monthOfDate(f.today) {
-		f.addAbsence(t, f.staff[1], activeModels.AbsenceTypeSick, activeModels.AbsenceStatusReported, yesterday, yesterday)
+		f.addAbsence(t, f.staff[1], workforce.AbsenceTypeSick, workforce.AbsenceStatusReported, yesterday, yesterday)
 	}
 	for _, adj := range []struct {
 		typ   string
 		delta int
 	}{
-		{activeModels.BalanceAdjustmentTypePayout, -30},
-		{activeModels.BalanceAdjustmentTypeCompTime, -60},
+		{workforce.BalanceAdjustmentTypePayout, -30},
+		{workforce.BalanceAdjustmentTypeCompTime, -60},
 	} {
-		adjustment := &activeModels.StaffBalanceAdjustment{
+		adjustment := &timerecords.StaffBalanceAdjustment{
 			StaffID:       f.staff[2],
 			Type:          adj.typ,
 			MinutesDelta:  adj.delta,
@@ -132,11 +133,11 @@ func TestMonthExportRows_MatchMonthSummary(t *testing.T) {
 		var payout, compTime, reset int
 		for _, adjustment := range summary.Adjustments {
 			switch adjustment.Type {
-			case activeModels.BalanceAdjustmentTypePayout:
+			case workforce.BalanceAdjustmentTypePayout:
 				payout += adjustment.MinutesDelta
-			case activeModels.BalanceAdjustmentTypeCompTime:
+			case workforce.BalanceAdjustmentTypeCompTime:
 				compTime += adjustment.MinutesDelta
-			case activeModels.BalanceAdjustmentTypeReset:
+			case workforce.BalanceAdjustmentTypeReset:
 				reset += adjustment.MinutesDelta
 			}
 		}

@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/services/users"
@@ -135,7 +135,7 @@ func WorkSessionCapability(sessions timetracking.WorkSessionService, people user
 	return workSessionCapability{sessions: sessions, people: people}
 }
 
-func publicWorkSession(entity *activeModels.WorkSession) *workforce.WorkSession {
+func publicWorkSession(entity *timerecords.WorkSession) *workforce.WorkSession {
 	if entity == nil {
 		return nil
 	}
@@ -147,7 +147,7 @@ func publicWorkSession(entity *activeModels.WorkSession) *workforce.WorkSession 
 	}
 }
 
-func publicWorkSessionBreak(entity *activeModels.WorkSessionBreak) *workforce.WorkSessionBreak {
+func publicWorkSessionBreak(entity *timerecords.WorkSessionBreak) *workforce.WorkSessionBreak {
 	if entity == nil {
 		return nil
 	}
@@ -157,7 +157,7 @@ func publicWorkSessionBreak(entity *activeModels.WorkSessionBreak) *workforce.Wo
 	}
 }
 
-func publicWorkSessionBreaks(entities []*activeModels.WorkSessionBreak) []*workforce.WorkSessionBreak {
+func publicWorkSessionBreaks(entities []*timerecords.WorkSessionBreak) []*workforce.WorkSessionBreak {
 	if entities == nil {
 		return nil
 	}
@@ -396,7 +396,7 @@ func StaffAbsenceCapability(absences timetracking.StaffAbsenceService) workforce
 	return staffAbsenceCapability{absences: absences}
 }
 
-func publicStaffAbsence(entity *activeModels.StaffAbsence) *workforce.StaffAbsence {
+func publicStaffAbsence(entity *timerecords.StaffAbsence) *workforce.StaffAbsence {
 	if entity == nil {
 		return nil
 	}
@@ -429,7 +429,7 @@ func publicAbsenceResponses(values []*timetracking.StaffAbsenceResponse) []*work
 	return result
 }
 
-func publicVacationOpening(entity *activeModels.StaffVacationOpening) *workforce.StaffVacationOpening {
+func publicVacationOpening(entity *timerecords.StaffVacationOpening) *workforce.StaffVacationOpening {
 	if entity == nil {
 		return nil
 	}
@@ -753,7 +753,7 @@ func BalanceAdjustmentCapability(ledger timetracking.StaffBalanceAdjustmentServi
 	return balanceAdjustmentCapability{ledger: ledger}
 }
 
-func publicBalanceAdjustment(entity *activeModels.StaffBalanceAdjustment) *workforce.StaffBalanceAdjustment {
+func publicBalanceAdjustment(entity *timerecords.StaffBalanceAdjustment) *workforce.StaffBalanceAdjustment {
 	if entity == nil {
 		return nil
 	}
@@ -764,7 +764,7 @@ func publicBalanceAdjustment(entity *activeModels.StaffBalanceAdjustment) *workf
 	}
 }
 
-func (c balanceAdjustmentCapability) adjustment(entity *activeModels.StaffBalanceAdjustment, err error) (*workforce.StaffBalanceAdjustment, error) {
+func (c balanceAdjustmentCapability) adjustment(entity *timerecords.StaffBalanceAdjustment, err error) (*workforce.StaffBalanceAdjustment, error) {
 	if err != nil {
 		return nil, mapTimeTrackingFailure(err)
 	}

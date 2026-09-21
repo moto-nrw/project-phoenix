@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -38,14 +39,14 @@ func (d *deviceRepoForSessionUnitTest) UpdateRoomID(ctx context.Context, id int6
 }
 
 type workSessionServiceForSessionUnitTest struct {
-	ensureCheckedInFunc func(ctx context.Context, staffID int64, source string) (*activeModels.WorkSession, error)
+	ensureCheckedInFunc func(ctx context.Context, staffID int64, source string) (*timerecords.WorkSession, error)
 }
 
-func (w *workSessionServiceForSessionUnitTest) EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*activeModels.WorkSession, error) {
+func (w *workSessionServiceForSessionUnitTest) EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*timerecords.WorkSession, error) {
 	if w.ensureCheckedInFunc != nil {
 		return w.ensureCheckedInFunc(ctx, staffID, source)
 	}
-	return &activeModels.WorkSession{}, nil
+	return &timerecords.WorkSession{}, nil
 }
 
 // plannedStartNotReachedForSessionUnitTest stands in for the time clock's
@@ -666,9 +667,9 @@ func TestAssignMultipleSupervisorsNonCritical_WorkSessionBestEffortBranches(t *t
 			return nil
 		},
 	}, WorkSessionService: &workSessionServiceForSessionUnitTest{
-		ensureCheckedInFunc: func(_ context.Context, staffID int64, source string) (*activeModels.WorkSession, error) {
+		ensureCheckedInFunc: func(_ context.Context, staffID int64, source string) (*timerecords.WorkSession, error) {
 			checked[staffID] = true
-			assert.Equal(t, activeModels.WorkSessionSourceNFC, source)
+			assert.Equal(t, stampSourceNFC, source)
 			if err := checkInResults[staffID]; err != nil {
 				return nil, err
 			}

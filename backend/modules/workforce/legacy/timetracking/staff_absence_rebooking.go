@@ -10,7 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 )
 
 // ErrAbsenceRebookingBlocked marks a rebooking the Leitung has to resolve
@@ -75,8 +75,8 @@ type VacationRebookingYear struct {
 }
 
 type rebookedAbsence struct {
-	before activeModels.StaffAbsence
-	after  *activeModels.StaffAbsence
+	before StaffAbsence
+	after  *StaffAbsence
 }
 
 // RebookAbsences changes the type of stored absences (#3258). The rows keep
@@ -94,10 +94,10 @@ func (s *staffAbsenceService) RebookAbsences(ctx context.Context, req RebookAbse
 	if err != nil {
 		return nil, err
 	}
-	if !slices.Contains(activeModels.ValidAbsenceTypes, baseType) {
+	if !slices.Contains(timerecords.ValidAbsenceTypes, baseType) {
 		return nil, fmt.Errorf("invalid absence type")
 	}
-	if baseType == activeModels.AbsenceTypeSick {
+	if baseType == AbsenceTypeSick {
 		return nil, rebookingBlocked("In eine Krankmeldung lässt sich nicht umbuchen. Löschen Sie den Eintrag und tragen Sie die Krankmeldung neu ein.")
 	}
 	if err := s.lockStaffAbsenceWrites(ctx, req.StaffID); err != nil {
@@ -204,9 +204,9 @@ func (s *staffAbsenceService) loadRebookedAbsences(ctx context.Context, staffID 
 		}
 		day := absence.DateStart.Format("02.01.2006")
 		switch {
-		case absence.AbsenceType == activeModels.AbsenceTypeSick:
+		case absence.AbsenceType == AbsenceTypeSick:
 			return nil, rebookingBlocked("Die Krankmeldung vom %s lässt sich nicht umbuchen. Löschen Sie sie und tragen Sie die richtige Art neu ein.", day)
-		case absence.Status != activeModels.AbsenceStatusReported:
+		case absence.Status != AbsenceStatusReported:
 			return nil, rebookingBlocked("Der Eintrag vom %s ist ein Antrag. Anträge lassen sich nicht umbuchen.", day)
 		case absence.AbsenceType == baseType && sameAbsenceTypeID(absence.AbsenceTypeID, typeID):
 			return nil, rebookingBlocked("Der Eintrag vom %s hat diese Art schon.", day)
@@ -216,7 +216,7 @@ func (s *staffAbsenceService) loadRebookedAbsences(ctx context.Context, staffID 
 		after := *absence
 		after.AbsenceType, after.AbsenceTypeID = baseType, typeID
 		after.WorkingDays = nil
-		if baseType == activeModels.AbsenceTypeVacation {
+		if baseType == AbsenceTypeVacation {
 			after.StartHalfDay, after.EndHalfDay = effectiveBoundaryHalfDays(&after)
 			workingDays := countWorkingDays(after.DateStart, after.DateEnd, after.StartHalfDay, after.EndHalfDay)
 			after.WorkingDays = &workingDays
@@ -229,7 +229,7 @@ func (s *staffAbsenceService) loadRebookedAbsences(ctx context.Context, staffID 
 // loadRebookingAbsences returns every row that can affect the changed days.
 // The staff lock is already held, so this is the stable input for both the
 // overlap check and the balance preview.
-func (s *staffAbsenceService) loadRebookingAbsences(ctx context.Context, staffID int64, entries []rebookedAbsence) ([]*activeModels.StaffAbsence, error) {
+func (s *staffAbsenceService) loadRebookingAbsences(ctx context.Context, staffID int64, entries []rebookedAbsence) ([]*StaffAbsence, error) {
 	start, end := rebookedDateRange(entries)
 	absences, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, start, end)
 	if err != nil {
@@ -246,11 +246,11 @@ func (s *staffAbsenceService) validateRebookedAbsence(ctx context.Context, entry
 	}
 	// Only vacation keeps half days at the edges of a longer range; every
 	// other type knows a half day on single-day entries only.
-	if after.AbsenceType != activeModels.AbsenceTypeVacation && !after.HalfDay && (after.StartHalfDay || after.EndHalfDay) {
+	if after.AbsenceType != AbsenceTypeVacation && !after.HalfDay && (after.StartHalfDay || after.EndHalfDay) {
 		return rebookingBlocked("Der Urlaub ab %s hat einen halben Tag am Rand. Löschen Sie ihn und tragen Sie die Tage mit der richtigen Art neu ein.", day)
 	}
 	switch after.AbsenceType {
-	case activeModels.AbsenceTypeCompTime:
+	case AbsenceTypeCompTime:
 		if err := validateSingleDayHalfDayAbsence(after.AbsenceType, after.HalfDay, after.DateStart, after.DateEnd); err != nil {
 			return err
 		}
@@ -261,7 +261,7 @@ func (s *staffAbsenceService) validateRebookedAbsence(ctx context.Context, entry
 		if err != nil {
 			return err
 		}
-	case activeModels.AbsenceTypeVacation:
+	case AbsenceTypeVacation:
 		if after.WorkingDays == nil || *after.WorkingDays <= 0 {
 			return rebookingBlocked("Der Eintrag vom %s hat keinen Arbeitstag. Urlaub braucht mindestens einen.", day)
 		}
@@ -279,7 +279,7 @@ func (s *staffAbsenceService) validateRebookedAbsence(ctx context.Context, entry
 // validateRebookedAbsenceOverlaps keeps rebooking aligned with creation:
 // blocking absences never share a day. Rebooking keeps rows separate, so it
 // cannot use creation's merge path for equal types either.
-func validateRebookedAbsenceOverlaps(absences []*activeModels.StaffAbsence, entries []rebookedAbsence) error {
+func validateRebookedAbsenceOverlaps(absences []*StaffAbsence, entries []rebookedAbsence) error {
 	for _, entry := range entries {
 		for _, absence := range absences {
 			if absence.ID == entry.after.ID || !blocksAbsenceRange(absence.Status) {
@@ -326,7 +326,7 @@ func germanMonth(key monthKey) string {
 // rebookingBalanceDelta is the Stundenkonto change once all changed days have
 // passed. It prices the complete affected absence set before and after the
 // replacement, so the preview uses the Monatskarte's lowest-ID overlap rule.
-func (s *staffAbsenceService) rebookingBalanceDelta(ctx context.Context, absences []*activeModels.StaffAbsence, entries []rebookedAbsence) (int, error) {
+func (s *staffAbsenceService) rebookingBalanceDelta(ctx context.Context, absences []*StaffAbsence, entries []rebookedAbsence) (int, error) {
 	if !rebookingChangesCompTime(entries) {
 		return 0, nil
 	}
@@ -358,20 +358,20 @@ func (s *staffAbsenceService) rebookingBalanceDelta(ctx context.Context, absence
 
 func rebookingChangesCompTime(entries []rebookedAbsence) bool {
 	for _, entry := range entries {
-		if (entry.before.AbsenceType == activeModels.AbsenceTypeCompTime) != (entry.after.AbsenceType == activeModels.AbsenceTypeCompTime) {
+		if (entry.before.AbsenceType == AbsenceTypeCompTime) != (entry.after.AbsenceType == AbsenceTypeCompTime) {
 			return true
 		}
 	}
 	return false
 }
 
-func rebookingBalanceAbsences(absences []*activeModels.StaffAbsence, entries []rebookedAbsence) ([]*activeModels.StaffAbsence, []*activeModels.StaffAbsence) {
-	replacements := make(map[int64]*activeModels.StaffAbsence, len(entries))
+func rebookingBalanceAbsences(absences []*StaffAbsence, entries []rebookedAbsence) ([]*StaffAbsence, []*StaffAbsence) {
+	replacements := make(map[int64]*StaffAbsence, len(entries))
 	for _, entry := range entries {
 		replacements[entry.after.ID] = entry.after
 	}
 	before := slices.Clone(absences)
-	after := make([]*activeModels.StaffAbsence, 0, len(absences))
+	after := make([]*StaffAbsence, 0, len(absences))
 	for _, absence := range absences {
 		if replacement, ok := replacements[absence.ID]; ok {
 			after = append(after, replacement)
@@ -382,11 +382,11 @@ func rebookingBalanceAbsences(absences []*activeModels.StaffAbsence, entries []r
 	return before, after
 }
 
-func creditedAbsenceMinutes(absences []*activeModels.StaffAbsence, start, end timezone.Date, targets map[timezone.Date]int) int {
+func creditedAbsenceMinutes(absences []*StaffAbsence, start, end timezone.Date, targets map[timezone.Date]int) int {
 	total := 0
 	walkCreditedAbsenceDays(absences, start, end,
 		func(d timezone.Date) int { return targets[d] },
-		func(_ timezone.Date, _ *activeModels.StaffAbsence, minutes int, _ float64) { total += minutes })
+		func(_ timezone.Date, _ *StaffAbsence, minutes int, _ float64) { total += minutes })
 	return total
 }
 
@@ -408,9 +408,9 @@ func rebookedDateRange(entries []rebookedAbsence) (timezone.Date, timezone.Date)
 // only for years the rebooking makes worse, like the other allowances.
 func (s *staffAbsenceService) previewVacationRebooking(ctx context.Context, staffID int64, entries []rebookedAbsence) ([]VacationRebookingYear, bool, error) {
 	var years []int
-	replaced := make(map[int64]*activeModels.StaffAbsence, len(entries))
+	replaced := make(map[int64]*StaffAbsence, len(entries))
 	for _, entry := range entries {
-		if entry.before.AbsenceType != activeModels.AbsenceTypeVacation && entry.after.AbsenceType != activeModels.AbsenceTypeVacation {
+		if entry.before.AbsenceType != AbsenceTypeVacation && entry.after.AbsenceType != AbsenceTypeVacation {
 			continue
 		}
 		replaced[entry.after.ID] = entry.after
@@ -428,7 +428,7 @@ func (s *staffAbsenceService) previewVacationRebooking(ctx context.Context, staf
 		if err != nil {
 			return nil, false, err
 		}
-		changed := make([]*activeModels.StaffAbsence, 0, len(in.absences))
+		changed := make([]*StaffAbsence, 0, len(in.absences))
 		for _, absence := range in.absences {
 			if next, ok := replaced[absence.ID]; ok {
 				changed = append(changed, next)
@@ -461,13 +461,13 @@ func (s *staffAbsenceService) writeRebookedAbsences(ctx context.Context, actorAc
 			return fmt.Errorf("failed to rebook absence: %w", err)
 		}
 		status := after.Status
-		if err := s.auditRepo.Create(ctx, &activeModels.StaffAbsenceAudit{
+		if err := s.auditRepo.Create(ctx, &StaffAbsenceAudit{
 			AbsenceID:  after.ID,
 			FromStatus: &status,
 			ToStatus:   status,
 			ActorID:    actorAccountID,
 			Note:       reason,
-			TypeChange: &activeModels.StaffAbsenceTypeChange{
+			TypeChange: &timerecords.StaffAbsenceTypeChange{
 				FromType: entry.before.AbsenceType, FromTypeID: entry.before.AbsenceTypeID,
 				ToType: after.AbsenceType, ToTypeID: after.AbsenceTypeID,
 			},
@@ -491,12 +491,12 @@ func rebookedResponses(entries []rebookedAbsence) []*StaffAbsenceResponse {
 	return responses
 }
 
-func effectiveStartHalf(a *activeModels.StaffAbsence) bool {
+func effectiveStartHalf(a *StaffAbsence) bool {
 	start, _ := effectiveBoundaryHalfDays(a)
 	return start
 }
 
-func effectiveEndHalf(a *activeModels.StaffAbsence) bool {
+func effectiveEndHalf(a *StaffAbsence) bool {
 	_, end := effectiveBoundaryHalfDays(a)
 	return end
 }

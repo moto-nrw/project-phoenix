@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	workforceCapability "github.com/moto-nrw/project-phoenix/modules/workforce"
-
 	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	"github.com/moto-nrw/project-phoenix/database/repositories/config"
 	"github.com/moto-nrw/project-phoenix/database/repositories/education"
@@ -31,6 +29,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	workforceCapability "github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 
@@ -167,14 +167,14 @@ type Factory struct {
 	CrossTenant           CrossTenantQuery
 	StudentStatusDay      *StudentStatusDayRepository
 	ExcusedAbsenceRequest *ExcusedAbsenceRequestRepository
-	WorkSession           activeModels.WorkSessionRepository
-	WorkSessionBreak      activeModels.WorkSessionBreakRepository
-	StaffAbsence          activeModels.StaffAbsenceRepository
-	StaffAbsenceAudit     activeModels.StaffAbsenceAuditRepository
+	WorkSession           timerecords.WorkSessionRepository
+	WorkSessionBreak      timerecords.WorkSessionBreakRepository
+	StaffAbsence          timerecords.StaffAbsenceRepository
+	StaffAbsenceAudit     timerecords.StaffAbsenceAuditRepository
 	StaffAbsenceType      workforceCapability.AbsenceTypeQuery
-	StaffVacationQuota    activeModels.StaffVacationQuotaRepository
-	StaffVacationOpening  activeModels.StaffVacationOpeningRepository
-	StaffBalanceAdjust    activeModels.StaffBalanceAdjustmentRepository
+	StaffVacationQuota    timerecords.StaffVacationQuotaRepository
+	StaffVacationOpening  timerecords.StaffVacationOpeningRepository
+	StaffBalanceAdjust    timerecords.StaffBalanceAdjustmentRepository
 	StaffMonthSnapshot    workforceCapability.MonthSnapshots
 
 	SessionStartLock interface {

@@ -1,8 +1,10 @@
-package active
+package timerecords
 
 import (
 	"strings"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
 func TestStaffAbsenceTypeValidateTrimsName(t *testing.T) {
@@ -24,8 +26,8 @@ func TestStaffAbsenceTypeValidateDefaultsBaseTypeToOther(t *testing.T) {
 	if err := at.Validate(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if at.BaseType != AbsenceTypeOther {
-		t.Errorf("expected base type %q, got %q", AbsenceTypeOther, at.BaseType)
+	if at.BaseType != workforce.AbsenceTypeOther {
+		t.Errorf("expected base type %q, got %q", workforce.AbsenceTypeOther, at.BaseType)
 	}
 }
 

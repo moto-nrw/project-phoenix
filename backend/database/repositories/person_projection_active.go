@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 )
 
 // visitorProjection composes open visits and home-school identity through
@@ -122,11 +123,11 @@ func attachSupervisionPersons(ctx context.Context, query peopledirectory.Query, 
 // personStaffAbsenceRepository turns the free-text subject search into a
 // person filter and attaches the subject and decider names.
 type personStaffAbsenceRepository struct {
-	activeModels.StaffAbsenceRepository
+	timerecords.StaffAbsenceRepository
 	persons peopledirectory.Query
 }
 
-func (r personStaffAbsenceRepository) ListRequests(ctx context.Context, filter activeModels.AbsenceRequestFilter) ([]*activeModels.AbsenceRequestRow, error) {
+func (r personStaffAbsenceRepository) ListRequests(ctx context.Context, filter timerecords.AbsenceRequestFilter) ([]*timerecords.AbsenceRequestRow, error) {
 	if search := strings.TrimSpace(filter.Search); search != "" && filter.SubjectPersonIDs == nil {
 		matches, err := r.persons.SearchPersons(ctx, peopledirectory.PersonFilter{FullNameContains: search})
 		if err != nil {

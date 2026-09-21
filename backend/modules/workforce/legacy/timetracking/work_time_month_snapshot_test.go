@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -27,7 +28,7 @@ type snapshotFixture struct {
 	tenantID  int64
 	staff     int64
 	admin     int64
-	session   *activeModels.WorkSession
+	session   *timerecords.WorkSession
 	schedule  *testpkg.StaffWorkScheduleFixture
 	repos     *repositories.Factory
 	db        *testpkg.DB
@@ -96,11 +97,11 @@ func newSnapshotFixture(t *testing.T) *snapshotFixture {
 
 	checkIn := time.Date(snapshotYear, time.August, snapshotSessionDay, 8, 0, 0, 0, time.UTC)
 	checkOut := checkIn.Add(8 * time.Hour)
-	session := &activeModels.WorkSession{
+	session := &timerecords.WorkSession{
 		StaffID:     staff.ID,
 		Date:        timezone.NewDate(snapshotYear, time.August, snapshotSessionDay),
-		Status:      activeModels.WorkSessionStatusPresent,
-		Source:      activeModels.WorkSessionSourceApp,
+		Status:      workforce.WorkSessionStatusPresent,
+		Source:      workforce.WorkSessionSourceApp,
 		CheckInTime: checkIn, CheckOutTime: &checkOut,
 		CreatedBy: staff.ID,
 	}
@@ -340,7 +341,7 @@ func TestMonthClose_RejectsAdjustmentInClosedMonth(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = f.adjustSvc.CreateAdjustment(f.ctx, f.staff, f.admin, timetracking.CreateBalanceAdjustmentRequest{
-		Type:          activeModels.BalanceAdjustmentTypePayout,
+		Type:          workforce.BalanceAdjustmentTypePayout,
 		MinutesDelta:  -60,
 		EffectiveDate: timezone.NewDate(snapshotYear, time.August, 20),
 		Note:          "Auszahlung im abgeschlossenen Monat",
@@ -361,7 +362,7 @@ func TestMonthClose_RejectedAdjustmentCarriesClosedMonthSentinel(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = f.adjustSvc.CreateAdjustment(f.ctx, f.staff, f.admin, timetracking.CreateBalanceAdjustmentRequest{
-		Type:          activeModels.BalanceAdjustmentTypePayout,
+		Type:          workforce.BalanceAdjustmentTypePayout,
 		MinutesDelta:  -60,
 		EffectiveDate: timezone.NewDate(snapshotYear, time.August, 20),
 		Note:          "Auszahlung im abgeschlossenen Monat",

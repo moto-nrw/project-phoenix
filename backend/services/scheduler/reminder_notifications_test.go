@@ -13,7 +13,7 @@ import (
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 
 	// Populates the settings registry, so the tick test can assert against the
 	// registered default instead of a literal copy of it.
@@ -197,8 +197,8 @@ func buildReminderSched(results map[int64]*reminders.Result, consent map[string]
 		}},
 		admins: &fakeAdminAccounts{ids: []int64{adminAccountID}},
 		duty: &fakeDuty{presence: map[int64]string{
-			caregiverStaffID: activeModel.WorkSessionStatusPresent,
-			adminStaffID:     activeModel.WorkSessionStatusPresent,
+			caregiverStaffID: workforce.WorkSessionStatusPresent,
+			adminStaffID:     workforce.WorkSessionStatusPresent,
 		}},
 		notifier: &captureBatchNotifier{},
 	}
@@ -454,7 +454,7 @@ func TestPersonalRemindersOnDutyGate(t *testing.T) {
 	t.Run("only stamped-in people are addressed", func(t *testing.T) {
 		setup := buildReminderSched(results, consent)
 		setup.duty.presence = map[int64]string{
-			caregiverStaffID: activeModel.WorkSessionStatusPresent,
+			caregiverStaffID: workforce.WorkSessionStatusPresent,
 			adminStaffID:     "checked_out",
 		}
 
@@ -467,7 +467,7 @@ func TestPersonalRemindersOnDutyGate(t *testing.T) {
 	t.Run("home office counts as on duty", func(t *testing.T) {
 		setup := buildReminderSched(results, consent)
 		setup.duty.presence = map[int64]string{
-			caregiverStaffID: activeModel.WorkSessionStatusHomeOffice,
+			caregiverStaffID: workforce.WorkSessionStatusHomeOffice,
 		}
 
 		setup.sched.runReminderNotificationsForTenant(context.Background(), testTenant, time.Now())

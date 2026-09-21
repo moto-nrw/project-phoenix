@@ -14,7 +14,7 @@ import (
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -195,8 +195,8 @@ func newAbsenceWorld() (notifications.AbsenceNotifier, *absenceWorld) {
 		admins:   &fakeAdminReader{ids: []int64{absenceAdmin}},
 		settings: &fakeOnDutySetting{enabled: true},
 		duty: &fakeDutyReader{presence: map[int64]string{
-			absenceStaffA:     activeModel.WorkSessionStatusPresent,
-			absenceAdminStaff: activeModel.WorkSessionStatusPresent,
+			absenceStaffA:     workforce.WorkSessionStatusPresent,
+			absenceAdminStaff: workforce.WorkSessionStatusPresent,
 		}},
 	}
 	recipients := notifications.NewStaffRecipientResolver(
@@ -244,7 +244,7 @@ func TestAbsenceNotifierPartitionsCountsByRecipientScope(t *testing.T) {
 	w.groups.staffByGroup[absenceGroupB] = []int64{absenceStaffB}
 	w.staff.accounts[absenceStaffB] = absenceAccountB
 	w.consent.allowed[absenceAccountB] = struct{}{}
-	w.duty.presence[absenceStaffB] = activeModel.WorkSessionStatusPresent
+	w.duty.presence[absenceStaffB] = workforce.WorkSessionStatusPresent
 
 	require.NoError(t, producer.NotifyAbsenceReported(
 		context.Background(),
@@ -478,7 +478,7 @@ func TestAbsenceNotifierRespectsOnDutySetting(t *testing.T) {
 
 	t.Run("home office counts as on duty", func(t *testing.T) {
 		producer, w := newAbsenceWorld()
-		w.duty.presence[absenceStaffA] = activeModel.WorkSessionStatusHomeOffice
+		w.duty.presence[absenceStaffA] = workforce.WorkSessionStatusHomeOffice
 		w.duty.presence[absenceAdminStaff] = "checked_out"
 
 		require.NoError(t, producer.NotifyAbsenceReported(context.Background(), sickToday(absenceStudentA)))

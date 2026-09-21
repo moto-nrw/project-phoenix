@@ -1,10 +1,11 @@
-package active
+package timerecords
 
 import (
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,10 +16,10 @@ func TestStaffAbsence_Validate(t *testing.T) {
 	validAbsence := func() *StaffAbsence {
 		return &StaffAbsence{
 			StaffID:     1,
-			AbsenceType: AbsenceTypeSick,
+			AbsenceType: workforce.AbsenceTypeSick,
 			DateStart:   timezone.NewDate(2024, 3, 1),
 			DateEnd:     timezone.NewDate(2024, 3, 3),
-			Status:      AbsenceStatusReported,
+			Status:      workforce.AbsenceStatusReported,
 			CreatedBy:   1,
 		}
 	}
@@ -162,16 +163,16 @@ func TestStaffAbsence_Getters(t *testing.T) {
 func TestAbsenceTypeConstants(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "sick", AbsenceTypeSick)
-	assert.Equal(t, "vacation", AbsenceTypeVacation)
-	assert.Equal(t, "training", AbsenceTypeTraining)
-	assert.Equal(t, "other", AbsenceTypeOther)
+	assert.Equal(t, "sick", workforce.AbsenceTypeSick)
+	assert.Equal(t, "vacation", workforce.AbsenceTypeVacation)
+	assert.Equal(t, "training", workforce.AbsenceTypeTraining)
+	assert.Equal(t, "other", workforce.AbsenceTypeOther)
 }
 
 func TestAbsenceStatusConstants(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "reported", AbsenceStatusReported)
-	assert.Equal(t, "approved", AbsenceStatusApproved)
-	assert.Equal(t, "declined", AbsenceStatusDeclined)
+	assert.Equal(t, "reported", workforce.AbsenceStatusReported)
+	assert.Equal(t, "approved", workforce.AbsenceStatusApproved)
+	assert.Equal(t, "declined", workforce.AbsenceStatusDeclined)
 }

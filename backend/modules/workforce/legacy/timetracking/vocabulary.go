@@ -4,6 +4,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 )
 
 // The retained vocabulary these services still speak. The package names the
@@ -34,49 +36,52 @@ var (
 	SortDesc    = base.SortDesc
 )
 
-// Retained models/active rows and repository contracts.
+// Retained rows and repository contracts: the Workforce time records and the
+// Student Presence supervision rows.
 type (
-	AbsenceRequestFilter             = activeModels.AbsenceRequestFilter
-	AbsenceRequestRow                = activeModels.AbsenceRequestRow
+	AbsenceRequestFilter             = timerecords.AbsenceRequestFilter
+	AbsenceRequestRow                = timerecords.AbsenceRequestRow
 	Group                            = activeModels.Group
 	GroupSupervisor                  = activeModels.GroupSupervisor
-	StaffAbsence                     = activeModels.StaffAbsence
-	StaffAbsenceAudit                = activeModels.StaffAbsenceAudit
-	StaffAbsenceType                 = activeModels.StaffAbsenceType
-	StaffBalanceAdjustment           = activeModels.StaffBalanceAdjustment
-	StaffBalanceAdjustmentRepository = activeModels.StaffBalanceAdjustmentRepository
+	GroupRepository                  = activeModels.GroupRepository
+	GroupSupervisorRepository        = activeModels.GroupSupervisorRepository
+	StaffAbsence                     = timerecords.StaffAbsence
+	StaffAbsenceAudit                = timerecords.StaffAbsenceAudit
+	StaffAbsenceType                 = timerecords.StaffAbsenceType
+	StaffBalanceAdjustment           = timerecords.StaffBalanceAdjustment
+	StaffBalanceAdjustmentRepository = timerecords.StaffBalanceAdjustmentRepository
 	StaffRoomSupervision             = activeModels.StaffRoomSupervision
-	StaffVacationOpening             = activeModels.StaffVacationOpening
-	StaffVacationQuota               = activeModels.StaffVacationQuota
+	StaffVacationOpening             = timerecords.StaffVacationOpening
+	StaffVacationQuota               = timerecords.StaffVacationQuota
 	SupervisionBlocker               = activeModels.SupervisionBlocker
-	WorkSession                      = activeModels.WorkSession
-	WorkSessionBreak                 = activeModels.WorkSessionBreak
+	WorkSession                      = timerecords.WorkSession
+	WorkSessionBreak                 = timerecords.WorkSessionBreak
 )
 
-// Retained models/active enumerations.
+// Canonical Workforce enumerations.
 const (
-	AbsenceStatusApproved  = activeModels.AbsenceStatusApproved
-	AbsenceStatusCanceled  = activeModels.AbsenceStatusCanceled
-	AbsenceStatusDeclined  = activeModels.AbsenceStatusDeclined
-	AbsenceStatusQuestion  = activeModels.AbsenceStatusQuestion
-	AbsenceStatusReported  = activeModels.AbsenceStatusReported
-	AbsenceStatusRequested = activeModels.AbsenceStatusRequested
+	AbsenceStatusApproved  = workforce.AbsenceStatusApproved
+	AbsenceStatusCanceled  = workforce.AbsenceStatusCanceled
+	AbsenceStatusDeclined  = workforce.AbsenceStatusDeclined
+	AbsenceStatusQuestion  = workforce.AbsenceStatusQuestion
+	AbsenceStatusReported  = workforce.AbsenceStatusReported
+	AbsenceStatusRequested = workforce.AbsenceStatusRequested
 
-	AbsenceTypeCompTime = activeModels.AbsenceTypeCompTime
-	AbsenceTypeOther    = activeModels.AbsenceTypeOther
-	AbsenceTypeSick     = activeModels.AbsenceTypeSick
-	AbsenceTypeTraining = activeModels.AbsenceTypeTraining
-	AbsenceTypeVacation = activeModels.AbsenceTypeVacation
+	AbsenceTypeCompTime = workforce.AbsenceTypeCompTime
+	AbsenceTypeOther    = workforce.AbsenceTypeOther
+	AbsenceTypeSick     = workforce.AbsenceTypeSick
+	AbsenceTypeTraining = workforce.AbsenceTypeTraining
+	AbsenceTypeVacation = workforce.AbsenceTypeVacation
 
-	BalanceAdjustmentTypeCompTime = activeModels.BalanceAdjustmentTypeCompTime
-	BalanceAdjustmentTypeOpening  = activeModels.BalanceAdjustmentTypeOpening
-	BalanceAdjustmentTypePayout   = activeModels.BalanceAdjustmentTypePayout
-	BalanceAdjustmentTypeReset    = activeModels.BalanceAdjustmentTypeReset
+	BalanceAdjustmentTypeCompTime = workforce.BalanceAdjustmentTypeCompTime
+	BalanceAdjustmentTypeOpening  = workforce.BalanceAdjustmentTypeOpening
+	BalanceAdjustmentTypePayout   = workforce.BalanceAdjustmentTypePayout
+	BalanceAdjustmentTypeReset    = workforce.BalanceAdjustmentTypeReset
 
-	WorkSessionSourceApp     = activeModels.WorkSessionSourceApp
-	WorkSessionSourceNFC     = activeModels.WorkSessionSourceNFC
-	WorkSessionSourceUnknown = activeModels.WorkSessionSourceUnknown
+	WorkSessionSourceApp     = workforce.WorkSessionSourceApp
+	WorkSessionSourceNFC     = workforce.WorkSessionSourceNFC
+	WorkSessionSourceUnknown = workforce.WorkSessionSourceUnknown
 
-	WorkSessionStatusHomeOffice = activeModels.WorkSessionStatusHomeOffice
-	WorkSessionStatusPresent    = activeModels.WorkSessionStatusPresent
+	WorkSessionStatusHomeOffice = workforce.WorkSessionStatusHomeOffice
+	WorkSessionStatusPresent    = workforce.WorkSessionStatusPresent
 )

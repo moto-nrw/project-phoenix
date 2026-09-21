@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -17,9 +19,9 @@ import (
 )
 
 // todayWorkSession loads today's work session row for the staff member, or nil.
-func todayWorkSession(t *testing.T, db *testpkg.DB, staffID int64) *active.WorkSession {
+func todayWorkSession(t *testing.T, db *testpkg.DB, staffID int64) *timerecords.WorkSession {
 	t.Helper()
-	session := new(active.WorkSession)
+	session := new(timerecords.WorkSession)
 	err := db.NewSelect().
 		Model(session).
 		ModelTableExpr(`active.work_sessions AS "work_session"`).
@@ -54,8 +56,8 @@ func TestToggleStudentAttendance_IoTAutoOpensWorkSession(t *testing.T) {
 
 	session := todayWorkSession(t, db, staff.ID)
 	require.NotNil(t, session, "kiosk toggle must auto-open the staff work session")
-	assert.Equal(t, active.WorkSessionStatusPresent, session.Status)
-	assert.Equal(t, active.WorkSessionSourceNFC, session.Source)
+	assert.Equal(t, workforce.WorkSessionStatusPresent, session.Status)
+	assert.Equal(t, workforce.WorkSessionSourceNFC, session.Source)
 }
 
 // TestToggleStudentAttendance_WebOpensWorkSessionWithAppSource verifies that
@@ -80,7 +82,7 @@ func TestToggleStudentAttendance_WebOpensWorkSessionWithAppSource(t *testing.T) 
 
 	session := todayWorkSession(t, db, staff.ID)
 	require.NotNil(t, session, "web toggle must auto-open the staff work session")
-	assert.Equal(t, active.WorkSessionSourceApp, session.Source)
+	assert.Equal(t, workforce.WorkSessionSourceApp, session.Source)
 }
 
 // TestCreateGroupSupervisor_AutoOpensWorkSession verifies that assigning a
@@ -109,5 +111,5 @@ func TestCreateGroupSupervisor_AutoOpensWorkSession(t *testing.T) {
 
 	session := todayWorkSession(t, db, staff.ID)
 	require.NotNil(t, session, "web supervision takeover must auto-open the staff work session")
-	assert.Equal(t, active.WorkSessionSourceApp, session.Source)
+	assert.Equal(t, workforce.WorkSessionSourceApp, session.Source)
 }

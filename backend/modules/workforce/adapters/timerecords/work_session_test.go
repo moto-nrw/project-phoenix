@@ -1,4 +1,4 @@
-package active
+package timerecords
 
 import (
 	"testing"
@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
 func TestWorkSession_Validate(t *testing.T) {
@@ -16,7 +18,7 @@ func TestWorkSession_Validate(t *testing.T) {
 		return &WorkSession{
 			StaffID:     1,
 			CheckInTime: now,
-			Status:      WorkSessionStatusPresent,
+			Status:      workforce.WorkSessionStatusPresent,
 			CreatedBy:   1,
 		}
 	}
@@ -28,7 +30,7 @@ func TestWorkSession_Validate(t *testing.T) {
 
 	t.Run("valid home_office session", func(t *testing.T) {
 		ws := validSession()
-		ws.Status = WorkSessionStatusHomeOffice
+		ws.Status = workforce.WorkSessionStatusHomeOffice
 		assert.NoError(t, ws.Validate())
 	})
 
