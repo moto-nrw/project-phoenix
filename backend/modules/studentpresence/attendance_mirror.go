@@ -6,12 +6,13 @@ import (
 )
 
 // AttendanceSnapshot is the minimal view of a schedule.instance_students row
-// that the active service needs to enrich SSE events. The pointer shape
+// that the presence application needs to enrich SSE events. The pointer shape
 // matches realtime.EventData so broadcast helpers can copy fields directly.
 //
-// Declared in the active package (and not, say, timetableplanning) so there
-// is no cyclic-import risk — the schedule package already depends on active
-// for its bridge semantics, but active must not import schedule.
+// Declared on the Student Presence contract (and not, say, in
+// timetableplanning) so there is no cyclic-import risk — the timetable side
+// already depends on presence for its bridge semantics, but presence must not
+// import it.
 type AttendanceSnapshot struct {
 	Status      string
 	Substatus   *string
@@ -20,8 +21,8 @@ type AttendanceSnapshot struct {
 	IsUnplanned bool
 }
 
-// AttendanceSyncer is the optional dependency active.service calls on visit
-// write / visit end to (a) mirror status changes into schedule.instance_students
+// AttendanceSyncer is the optional dependency the presence application calls
+// on visit write / visit end to (a) mirror status changes into schedule.instance_students
 // and (b) resolve the current attendance row so SSE events carry the three
 // WP-B10 fields.
 //
