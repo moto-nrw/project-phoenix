@@ -13,7 +13,6 @@ import (
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/go-ozzo/ozzo-validation/is"
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/email"
@@ -149,13 +148,13 @@ func (rs *Resource) buildInvitationRequest(r *http.Request, req *CreateInvitatio
 }
 
 // runCreateInvitation invokes the invitation capability inside the tenant tx
-// when a DB is wired, or directly otherwise.
+// when transactions are wired, or directly otherwise.
 func (rs *Resource) runCreateInvitation(ctx context.Context, invitationReq identityaccess.SchoolInvitationRequest) (identityaccess.SchoolInvitation, error) {
-	if rs.db == nil {
+	if rs.transactions == nil {
 		return rs.Invitations.CreateSchoolInvitation(ctx, invitationReq)
 	}
 	var invitation identityaccess.SchoolInvitation
-	err := tenant.WithTenantTx(ctx, rs.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+	err := rs.transactions.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 		inv, txErr := rs.Invitations.CreateSchoolInvitation(txCtx, invitationReq)
 		invitation = inv
 		return txErr
@@ -222,8 +221,8 @@ func (rs *Resource) validateInvitation(w http.ResponseWriter, r *http.Request) {
 	// Public route — no JWT/tenant context. Use WithAdminTx (BYPASSRLS) to read invitation_tokens.
 	var preview identityaccess.InvitationPreview
 	var err error
-	if rs.db != nil {
-		err = tenant.WithAdminTx(r.Context(), rs.db, func(txCtx context.Context, _ bun.Tx) error {
+	if rs.transactions != nil {
+		err = rs.transactions.WithinAdmin(r.Context(), func(txCtx context.Context) error {
 			var txErr error
 			preview, txErr = rs.Invitations.ValidateSchoolInvitation(txCtx, token)
 			return txErr
@@ -333,8 +332,8 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 	// inner transaction reuses the admin tx from context.
 	var account identityaccess.Account
 	var err error
-	if rs.db != nil {
-		err = tenant.WithAdminTx(r.Context(), rs.db, func(txCtx context.Context, _ bun.Tx) error {
+	if rs.transactions != nil {
+		err = rs.transactions.WithinAdmin(r.Context(), func(txCtx context.Context) error {
 			var txErr error
 			account, txErr = rs.Invitations.AcceptSchoolInvitation(txCtx, token, registration)
 			return txErr
@@ -356,7 +355,7 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 		AccountID: account.ID,
 		Email:     account.Email,
 	}
-	if rs.SchoolService != nil && rs.db != nil {
+	if rs.SchoolService != nil && rs.transactions != nil {
 		if subdomain := rs.lookupTenantSubdomainForInvitation(r.Context(), token); subdomain != "" {
 			resp.TenantSubdomain = subdomain
 		}
@@ -380,8 +379,8 @@ func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Reques
 	var invitations []identityaccess.SchoolInvitation
 	ctx := r.Context()
 	var err error
-	if rs.db != nil {
-		err = tenant.WithTenantTx(ctx, rs.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+	if rs.transactions != nil {
+		err = rs.transactions.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 			inv, txErr := rs.Invitations.ListPendingSchoolInvitations(txCtx)
 			invitations = inv
 			return txErr
@@ -436,7 +435,7 @@ func (rs *Resource) resendInvitation(w http.ResponseWriter, r *http.Request) {
 
 // resendInvitationHandler is the shared body of the staff and guardian
 // invitation resend endpoints: parse id, run the resend inside the tenant
-// tx (when a DB is wired), map expired/known errors, log, respond.
+// tx (when transactions are wired), map expired/known errors, log, respond.
 // The response strings are passed verbatim per endpoint. Callers must
 // nil-check their service before delegating (svcCall is a bound method).
 func (rs *Resource) resendInvitationHandler(w http.ResponseWriter, r *http.Request, svcCall func(ctx context.Context, invitationID, actorID int64) error, logMsg, message, respondMsg string) {
@@ -450,8 +449,8 @@ func (rs *Resource) resendInvitationHandler(w http.ResponseWriter, r *http.Reque
 	claims := jwt.ClaimsFromCtx(r.Context())
 
 	ctx := r.Context()
-	if rs.db != nil {
-		err = tenant.WithTenantTx(ctx, rs.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+	if rs.transactions != nil {
+		err = rs.transactions.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 			return svcCall(txCtx, invitationID, int64(claims.ID))
 		})
 	} else {
@@ -492,8 +491,8 @@ func (rs *Resource) revokeInvitation(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	var revokeErr error
-	if rs.db != nil {
-		revokeErr = tenant.WithTenantTx(ctx, rs.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+	if rs.transactions != nil {
+		revokeErr = rs.transactions.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 			return rs.Invitations.RevokeSchoolInvitation(txCtx, invitationID, int64(claims.ID))
 		})
 	} else {

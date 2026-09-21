@@ -27,7 +27,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/analytics"
 	absencetypesAPI "github.com/moto-nrw/project-phoenix/api/absence-types"
 	adminAPI "github.com/moto-nrw/project-phoenix/api/admin"
-	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
@@ -80,6 +79,7 @@ import (
 	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	filestoreAPI "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
+	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth"
 	identityOperatorAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 	usercontextAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/usercontext"
 	projectJWT "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
@@ -1342,11 +1342,11 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		Settings:    api.Services.Settings,
 		FallbackPIN: os.Getenv("OGS_DEVICE_PIN"),
 	})
-	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, authSchools, api.Services.AccountAuthentication(), db)
+	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, authSchools, api.Services.AccountAuthentication(), authAPI.TenantUnitOfWork{})
 	api.Auth.CaregiverCapabilityService = api.Services.CaregiverCapability
 	api.Auth.SettingsService = api.Services.Settings
-	api.Auth.SetMFAService(api.Services.MFA)
-	api.Auth.SetPasskeyService(api.Services.Passkey)
+	api.Auth.MFAService = api.Services.MFA
+	api.Auth.PasskeyService = api.Services.Passkey
 	api.Rooms = roomsHTTPAdapter.NewResource(api.rooms, roomsHTTPAdapter.Dependencies{
 		Facilities: api.Services.Facilities, Settings: api.Services.Settings,
 		UserContext: api.Services.UserContext, Active: api.Services.Active,
@@ -1846,11 +1846,13 @@ func (a *API) registerPublicRoutes(requestFeed *requestFeedHTTP.Resource) {
 // operator, parent) and applies the auth rate limiters when present.
 func (a *API) registerPortalRoutes(limiters authRateLimiters) {
 	// Auth routes mounted at root level to match frontend expectations
-	// Rate limiting is applied per-route inside Auth.Router() (only login, register, password-reset)
+	// RouterWithAuthRateLimiter applies the limiter only to the public login,
+	// password-reset, MFA and passkey-login routes.
+	var authRateLimiter func(http.Handler) http.Handler
 	if limiters.auth != nil {
-		a.Auth.SetAuthRateLimiter(limiters.auth.Middleware())
+		authRateLimiter = limiters.auth.Middleware()
 	}
-	a.Router.Mount("/auth", a.Auth.Router())
+	a.Router.Mount("/auth", a.Auth.RouterWithAuthRateLimiter(authRateLimiter))
 
 	// Mount operator dashboard routes at root level (separate from tenant API)
 	// Apply the same auth rate limiter to operator login for brute-force protection

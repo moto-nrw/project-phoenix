@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 18,
+  "policy_epoch": 19,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -760,7 +760,7 @@
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "api/auth",
+      "path": "modules/identityaccess/inbound/auth",
       "owner": "inbound-auth",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -25246,6 +25246,11 @@
     }
   ],
   "relocations": [
+    {
+      "from": "api/auth",
+      "to": "modules/identityaccess/inbound/auth",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3230"
+    },
     {
       "from": "auth/jwt",
       "to": "modules/identityaccess/legacy/jwt",

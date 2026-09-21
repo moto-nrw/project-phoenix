@@ -3,6 +3,7 @@
 package auth
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -558,5 +559,55 @@ func TestUpdateRoleRequest_Bind_BaseRoleValidation(t *testing.T) {
 		err := req.Bind(nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "base_role must be one of")
+	})
+}
+
+// parentAccountRouteStub satisfies the two method values the parent-account
+// routes bind while the router builds; none of them is called here.
+type parentAccountRouteStub struct{ AccountLifecycle }
+
+func (parentAccountRouteStub) ActivateParentAccount(context.Context, int64) error   { return nil }
+func (parentAccountRouteStub) DeactivateParentAccount(context.Context, int64) error { return nil }
+
+// TestRouterWithAuthRateLimiter pins which routes the production composition
+// throttles: the public credential and second-factor exchanges, and nothing
+// else. The route golden builds the router without a limiter, so this is the
+// only check on the limiter's placement.
+func TestRouterWithAuthRateLimiter(t *testing.T) {
+	t.Parallel()
+
+	throttled := func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusTooManyRequests)
+		})
+	}
+	router := NewResource(parentAccountRouteStub{}, nil, nil, nil, nil).RouterWithAuthRateLimiter(throttled)
+
+	for _, path := range []string{
+		"/login",
+		"/password-reset",
+		"/password-reset/confirm",
+		"/mfa/verify",
+		"/mfa/resend",
+		"/passkeys/login/options",
+		"/passkeys/login/verify",
+	} {
+		t.Run("throttled POST "+path, func(t *testing.T) {
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, path, nil))
+			assert.Equal(t, http.StatusTooManyRequests, rr.Code)
+		})
+	}
+
+	t.Run("unthrottled GET /tenant/resolve", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/tenant/resolve", nil))
+		assert.Equal(t, http.StatusBadRequest, rr.Code, "missing slug is rejected by the handler, not the limiter")
+	})
+
+	t.Run("unthrottled POST /register", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/register", nil))
+		assert.Equal(t, http.StatusUnauthorized, rr.Code, "register sits behind the access-token group, not the limiter")
 	})
 }
