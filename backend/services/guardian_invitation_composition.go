@@ -17,7 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/config"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
+	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // Identity & Access owns the guardian invitation lifecycle (#2722). This

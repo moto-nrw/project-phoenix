@@ -1,9 +1,9 @@
-// Package messaging holds the retained communication side of the guardian
-// portal: announcements and their attachments, the request-sharing ledger,
-// the parent-OGS conversation and the self-service chat pills (#3227).
-// workflows/parentportal/legacy keeps the public Service contract and delegates
-// these methods here; no HTTP path, status code, error string, authorization
-// check or tenant scoping changed with the move.
+// Package messaging holds the communication side of the guardian portal:
+// announcements and their attachments, the request-sharing ledger, the
+// parent-OGS conversation and the self-service chat pills (#3227). The child
+// flows in workflows/parentportal/care reach the pills and the ledger through
+// their ports; workflows/parentportal composes both flow packages into one
+// portal (#3420).
 package messaging
 
 import (
@@ -11,16 +11,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -57,19 +51,18 @@ type ConversationCore interface {
 
 // Config is the dependency bundle of the retained messaging portal services.
 type Config struct {
-	DB     *bun.DB
 	Logger *slog.Logger
 	Now    func() time.Time
 
 	Children ChildResolver
 
-	ChildRepo             parentModels.ChildRepository
-	EnrollmentRequestRepo parentModels.EnrollmentRequestRepository
+	ChildRepo             care.ChildReads
+	EnrollmentRequestRepo care.EnrollmentRequestReads
 	Settings              configService.SettingsService
 
-	StudentRepo         usersModels.StudentRepository
-	StudentGuardianRepo usersModels.StudentGuardianRepository
-	GuardianProfileRepo usersModels.GuardianProfileRepository
+	StudentRepo         care.StudentReads
+	StudentGuardianRepo care.StudentGuardianReads
+	GuardianProfileRepo GuardianProfileReads
 
 	AnnouncementRepo usersModels.ParentAnnouncementRepository
 
@@ -80,11 +73,11 @@ type Config struct {
 	ParentMessageNotifier notificationsSvc.StaffParentMessageNotifier
 	Emitter               *parentmessaging.Emitter
 
-	ChangeRequestRepo         usersModels.StudentDataChangeRequestRepository
-	CareRequestRepo           scheduleModels.CareScheduleChangeRequestRepository
-	ExcusedRequestRepo        activeModels.ExcusedAbsenceRequestRepository
-	OfferingChangeRequestRepo enrollmentModels.OfferingChangeRequestRepository
-	FamilyProtectionEvents    usersModels.FamilyProtectionEventRepository
+	ChangeRequestRepo         care.DataRequestReads
+	CareRequestRepo           CareRequestReads
+	ExcusedRequestRepo        ExcusedRequestReads
+	OfferingChangeRequestRepo OfferingChangeRequestReads
+	FamilyProtectionEvents    FamilyProtectionReads
 	ParentRequestShares       usersModels.ParentRequestShareEventRepository
 	ParentRequestEvents       usersSvc.ParentRequestEventRecorder
 }

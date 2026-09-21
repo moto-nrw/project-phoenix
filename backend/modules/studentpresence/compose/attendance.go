@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -11,7 +12,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
-type engine struct{ *application.Service }
+type engine struct {
+	*application.Service
+	now func() time.Time
+}
 
 func attendanceToPublic(row *ports.Attendance) studentpresence.Attendance {
 	if row == nil {

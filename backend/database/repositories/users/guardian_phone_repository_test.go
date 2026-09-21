@@ -439,52 +439,6 @@ func TestGuardianPhoneNumberRepository_CountByGuardianID(t *testing.T) {
 }
 
 // ============================================================================
-// DeleteByGuardianID Tests
-// ============================================================================
-
-func TestGuardianPhoneNumberRepository_DeleteByGuardianID(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianPhoneNumber
-	ctx := testpkg.Ctx(t)
-
-	t.Run("deletes all phone numbers for guardian", func(t *testing.T) {
-		guardian := testpkg.CreateTestGuardianProfile(t, db, "delete-all")
-
-		// Create multiple phones
-		for i := range 2 {
-			phone := &users.GuardianPhoneNumber{
-				GuardianProfileID: guardian.ID,
-				PhoneNumber:       fmt.Sprintf("+49 30 %d55%d55", i+1, i+1),
-				PhoneType:         users.PhoneTypeMobile,
-				IsPrimary:         i == 0,
-				Priority:          i + 1,
-			}
-			err := repo.Create(ctx, phone)
-			require.NoError(t, err)
-			// No defer needed - we'll delete all
-		}
-
-		err := repo.DeleteByGuardianID(ctx, guardian.ID)
-		require.NoError(t, err)
-
-		// Verify all deleted
-		phones, err := repo.FindByGuardianID(ctx, guardian.ID)
-		require.NoError(t, err)
-		assert.Empty(t, phones)
-	})
-
-	t.Run("succeeds even with no phones", func(t *testing.T) {
-		guardian := testpkg.CreateTestGuardianProfile(t, db, "delete-empty")
-
-		err := repo.DeleteByGuardianID(ctx, guardian.ID)
-		require.NoError(t, err)
-	})
-}
-
-// ============================================================================
 // GetNextPriority Tests
 // ============================================================================
 

@@ -64,7 +64,6 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier notificat
 		MessageReadRepo:       repos.ParentMessageRead,
 		Conversations:         communicationtest.NewParentConversationCore(repos.ParentMessageThread, repos.ParentMessage, repos.ParentMessageRead, bc, slog.Default()),
 		ParentMessageNotifier: notifier,
-		DB:                    db,
 		Logger:                slog.Default(),
 	})
 	return svc, bc, db, repos

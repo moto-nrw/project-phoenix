@@ -1,5 +1,6 @@
 import { createLogger } from "~/lib/logger";
 import { readEnrollmentError } from "~/lib/enrollment-error-messages";
+import type { Translations } from "~/lib/enrollment-translations";
 
 const logger = createLogger({ component: "EnrollmentPhaseAPI" });
 
@@ -29,6 +30,8 @@ export interface Phase {
   care_overflow_mode: PhaseCareOverflowMode;
   care_offering_selection_mode: PhaseCareOfferingSelectionMode;
   is_active: boolean;
+  /** School-written translations of `name` (#3377). */
+  translations?: Translations;
   // Rollover columns — populated only on phases created by the
   // "verlängern" flow. NULL/false on fresh phases.
   rollover_source_phase_id?: string | null;
@@ -98,6 +101,8 @@ export interface PhaseInput {
   audience?: PhaseAudience;
   eligible_school_classes?: string[];
   eligible_grade_levels?: number[];
+  /** Omitted keeps the stored translations; `{}` clears them. */
+  translations?: Translations;
 }
 
 interface BackendEnvelope<T> {
@@ -162,6 +167,8 @@ export function phaseToInput(p: Phase): PhaseInput {
     // explicit [] would read as "clear the restriction". Leaving it undefined
     // omits the key, which the backend re-hydrates from the stored phase.
     eligible_grade_levels: p.eligible_grade_levels,
+    // Same rule: undefined keeps the stored translations (#3377).
+    translations: p.translations,
   };
 }
 

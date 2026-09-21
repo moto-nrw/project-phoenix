@@ -32,6 +32,7 @@ import {
   type CareOfferingBookingStats,
   fetchCareOfferingBookingStats,
 } from "~/lib/care-offering-booking-stats";
+import { TranslationsSection } from "~/components/enrollment/translations-section";
 import { Alert } from "~/components/ui/alert";
 import { useFormError } from "~/components/ui/form-error";
 import { Button, ButtonLink } from "~/components/ui/button";
@@ -197,6 +198,7 @@ function offeringToInput(offering: CareOffering): CareOfferingInput {
     selection_group: offering.selection_group ?? "",
     selection_rule: offering.selection_rule ?? "optional",
     pickup_times: { ...(offering.pickup_times ?? {}) },
+    translations: offering.translations ?? {},
   };
 }
 
@@ -2458,6 +2460,35 @@ function CareOfferingForm({
       <CareOfferingCommercialFields draft={draft} onChange={update} />
 
       <CareOfferingDisplayFields draft={draft} onChange={update} />
+
+      <TranslationsSection
+        targets={[
+          {
+            id: "name",
+            caption: "Name des Angebots",
+            german: draft.name,
+            attr: "name",
+            translations: draft.translations,
+          },
+          {
+            id: "description",
+            caption: "Beschreibung",
+            german: draft.description ?? "",
+            attr: "description",
+            translations: draft.translations,
+            multiline: true,
+          },
+          {
+            id: "selection_group",
+            caption: "Gruppe der Pflichtauswahl",
+            german: draft.selection_group ?? "",
+            attr: "selection_group",
+            translations: draft.translations,
+          },
+        ].filter((target) => target.german.trim() !== "")}
+        onChange={(_target, translations) => update({ translations })}
+        disabled={saving}
+      />
 
       <CareOfferingFormActions
         saving={saving}

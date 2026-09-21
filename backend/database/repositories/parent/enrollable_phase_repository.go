@@ -222,17 +222,18 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 			continue
 		}
 		out = append(out, &parentModels.EnrollablePhase{
-			SchoolID:          rr.TenantID,
-			PhaseID:           rr.ID,
-			PhaseName:         rr.Name,
-			PhaseKind:         rr.Kind,
-			ServiceStartDate:  careplan.Date(rr.ServiceStartDate),
-			ServiceEndDate:    careplan.Date(rr.ServiceEndDate),
-			EnrollmentOpenAt:  rr.EnrollmentOpenAt,
-			EnrollmentCloseAt: rr.EnrollmentCloseAt,
-			AlreadyLinked:     alreadyLinked,
-			Audience:          rr.Audience,
-			HasFamilyLink:     guard.hasFamilyLink,
+			SchoolID:              rr.TenantID,
+			PhaseID:               rr.ID,
+			PhaseName:             rr.Name,
+			PhaseNameTranslations: rr.PublicNameTranslations(),
+			PhaseKind:             rr.Kind,
+			ServiceStartDate:      careplan.Date(rr.ServiceStartDate),
+			ServiceEndDate:        careplan.Date(rr.ServiceEndDate),
+			EnrollmentOpenAt:      rr.EnrollmentOpenAt,
+			EnrollmentCloseAt:     rr.EnrollmentCloseAt,
+			AlreadyLinked:         alreadyLinked,
+			Audience:              rr.Audience,
+			HasFamilyLink:         guard.hasFamilyLink,
 
 			EnrolledSubmitPersonIDs: r.enrolledSubmitPersonIDs(students, rr.TenantID, guard.submitStudentIDs),
 		})

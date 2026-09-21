@@ -6,6 +6,7 @@ import type {
   PublicLegalTexts,
 } from "~/lib/enrollment-form-schema-api";
 import type { CareOfferingAvailabilityRule } from "~/lib/care-offering-api";
+import type { Translations } from "~/lib/enrollment-translations";
 
 const logger = createLogger({ component: "EnrollmentSubmissionAPI" });
 
@@ -36,6 +37,8 @@ export interface PublicCareOffering {
    */
   selection_group?: string | null;
   selection_rule?: "optional" | "exactly_one" | "at_least_one" | "at_most_one";
+  /** Translations of `name` and `description` that still match (#3377). */
+  translations?: Translations;
 }
 
 interface SubmitOfferingDays {
@@ -404,6 +407,8 @@ export interface PublicPhase {
    * the whole form only to be rejected with grade_not_eligible.
    */
   eligible_grade_levels?: number[];
+  /** Translations of `name` that still match the German name (#3377). */
+  translations?: Translations;
 }
 
 /**

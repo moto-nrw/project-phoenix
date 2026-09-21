@@ -81,3 +81,15 @@ func (p studentProfiles) SetStudentLiveStatus(ctx context.Context, input carepla
 	})
 	return changed, err
 }
+
+func (p studentProfiles) SetStudentHealthInfo(ctx context.Context, studentID int64, healthInfo *string) (changed int64, err error) {
+	if studentID <= 0 {
+		return 0, errors.New("care plan: student ID is required")
+	}
+	err = p.run(ctx, "set_student_health_info", func(txCtx context.Context) (domain.OperationStats, error) {
+		var stats domain.OperationStats
+		changed, stats, err = p.store.SetStudentHealthInfo(txCtx, studentID, healthInfo)
+		return stats, err
+	})
+	return changed, err
+}

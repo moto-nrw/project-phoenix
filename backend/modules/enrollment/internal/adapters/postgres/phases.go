@@ -154,6 +154,7 @@ func (r *Store) UpdatePhase(ctx context.Context, phase *enrollment.Phase) error 
 		Set("audience = ?", phase.Audience).
 		Set("eligible_school_classes = ?", phase.EligibleSchoolClasses).
 		Set("eligible_grade_levels = ?", phase.EligibleGradeLevels).
+		Set("translations = ?", storedTranslations(phase.Translations)).
 		Set("updated_at = NOW()").
 		Where(`"phase".id = ?`, phase.ID).
 		Exec(ctx)

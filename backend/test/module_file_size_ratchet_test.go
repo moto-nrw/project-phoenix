@@ -66,7 +66,7 @@ var moduleFileSizeAllowlist = map[string]int{
 	"modules/communication/internal/adapters/parentaudience/projection.go":           950,
 	"modules/communication/internal/adapters/parentpostgres/parent_announcements.go": 950,
 	"modules/communication/internal/staffannouncements/service.go":                   1256,
-	"modules/enrollment/form_schema.go":                                              1018,
+	"modules/enrollment/form_schema.go":                                              1015,
 	"modules/grouplive/grouplive.go":                                                 815,
 	"modules/identityaccess/compose/account_lifecycle.go":                            890,
 	"modules/identityaccess/legacy/usercontext/usercontext_service.go":               962,
@@ -99,9 +99,6 @@ var moduleFileSizeAllowlist = map[string]int{
 	"modules/workforce/legacy/timetracking/work_time_month_service.go":               1846,
 	"modules/workforce/legacy/worksession_repositories.go":                           1158,
 	"modules/workforce/timetracking.go":                                              824,
-	"workflows/parentportal/legacy/parent_guardian_service.go":                       1312,
-	"workflows/parentportal/legacy/parent_service.go":                                918,
-	"workflows/parentportal/legacy/parent_write_service.go":                          1746,
 	"workflows/reminderdelivery/internal/application/service.go":                     864,
 	"workflows/studentdeletion/deletion.go":                                          811,
 }
