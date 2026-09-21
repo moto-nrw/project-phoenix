@@ -75,6 +75,13 @@ interface ModalProps {
    * Aufrufer bleiben unveraendert.
    */
   readonly mobileSheet?: boolean;
+  /**
+   * Fokus beim Öffnen auf den Titel statt auf das erste Bedienelement (das X).
+   * Für Dialoge, die sich ohne Klick selbst öffnen: dort zeigte der Browser um
+   * das X einen Tastatur-Fokusrahmen. Screenreader lesen den Titel vor, Tab
+   * führt weiter zu den Aktionen (#3368).
+   */
+  readonly focusTitleOnOpen?: boolean;
 }
 
 export function Modal(props: ModalProps) {
@@ -97,8 +104,10 @@ function MobileSheetModal({
   closeLabel = "Modal schließen",
   isDismissDisabled = false,
   isBackdropDismissDisabled = false,
+  focusTitleOnOpen = false,
 }: ModalProps) {
   const { openModal, closeModal } = useModal();
+  const titleRef = React.useRef<HTMLHeadingElement>(null);
   const onCloseRef = useLatest(onClose);
   const onDismissStartRef = useLatest(onDismissStart);
 
@@ -129,10 +138,22 @@ function MobileSheetModal({
       <DrawerContent
         data-mobile-sheet="true"
         className="z-[9999] max-h-[calc(100dvh-env(safe-area-inset-top)-1rem)] overflow-hidden bg-white"
+        onOpenAutoFocus={
+          focusTitleOnOpen
+            ? (event: Event) => {
+                event.preventDefault();
+                titleRef.current?.focus();
+              }
+            : undefined
+        }
       >
         <DrawerHeader className="flex shrink-0 flex-row items-center justify-between border-b border-gray-100 px-4 pt-3 pb-4 text-left">
           <div className="min-w-0">
-            <DrawerTitle className="text-lg leading-tight font-semibold text-gray-900">
+            <DrawerTitle
+              ref={titleRef}
+              tabIndex={focusTitleOnOpen ? -1 : undefined}
+              className="text-lg leading-tight font-semibold text-gray-900 outline-none"
+            >
               {title}
             </DrawerTitle>
             <DrawerDescription className="sr-only">{title}</DrawerDescription>
@@ -193,10 +214,12 @@ function DialogModal({
   isDismissDisabled = false,
   isBackdropDismissDisabled = false,
   mobileSheet = false,
+  focusTitleOnOpen = false,
 }: ModalProps) {
   // Stable id so the dialog can reference its heading via aria-labelledby,
   // giving the dialog an accessible name (role="dialog" alone has none).
   const titleId = React.useId();
+  const titleRef = React.useRef<HTMLHeadingElement>(null);
   const [isAnimating, setIsAnimating] = React.useState(false);
   const [isExiting, setIsExiting] = React.useState(false);
   const { openModal, closeModal } = useModal();
@@ -322,7 +345,19 @@ function DialogModal({
     // trap). Without this, taps on inputs inside this modal are stolen back
     // by the drawer because the modal is portaled to document.body and counts
     // as "outside" the drawer's scope.
-    <FocusScope asChild loop trapped>
+    <FocusScope
+      asChild
+      loop
+      trapped
+      onMountAutoFocus={
+        focusTitleOnOpen && title
+          ? (event) => {
+              event.preventDefault();
+              titleRef.current?.focus();
+            }
+          : undefined
+      }
+    >
       <div
         data-modal-focus-scope="true"
         className={`fixed inset-0 z-[9999] flex justify-center ${
@@ -386,9 +421,13 @@ function DialogModal({
           {/* Header with close button - only show border if title exists */}
           {title ? (
             <div className="flex shrink-0 items-start gap-4 border-b border-gray-100 p-4 sm:p-6">
+              {/* py-2 hebt die 28-px-Zeile auf die 44 px des X: eine Zeile
+                  steht mittig neben dem X, lange Titel brechen darunter um. */}
               <h3
                 id={titleId}
-                className="min-w-0 flex-1 text-lg font-semibold wrap-anywhere text-gray-900 sm:text-xl"
+                ref={titleRef}
+                tabIndex={focusTitleOnOpen ? -1 : undefined}
+                className="min-w-0 flex-1 py-2 text-lg font-semibold wrap-anywhere text-gray-900 outline-none sm:text-xl"
               >
                 {title}
               </h3>

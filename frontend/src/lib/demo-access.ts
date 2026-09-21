@@ -14,13 +14,46 @@ export type DemoEntryPhase =
 
 // The waiting room on the main domain and the entry page of the demo school
 // (#3463) say the same thing in the same words.
-export const DEMO_ENTRY_LOADING: Record<
-  Extract<DemoEntryPhase, "opening" | "preparing">,
-  string
-> = {
-  opening: "Demo wird geöffnet …",
-  preparing: "Ihre Demo wird vorbereitet. Einen Moment bitte.",
-};
+export const DEMO_ENTRY_OPENING = "Demo wird geöffnet …";
+
+/** Heading of the setup screen; without a name it speaks of "Ihre Demo". */
+export function demoSetupTitle(schoolName?: string): string {
+  return `Wir richten ${schoolName?.trim() ? schoolName.trim() : "Ihre Demo"} für Sie ein`;
+}
+
+// What a seed does, in the visitor's words (#3464). The status only says
+// "preparing", so the lines follow the usual duration of a seed: one line per
+// three polls, the last one waits for "ready".
+export const DEMO_SETUP_STEPS = [
+  "Schule anlegen",
+  "Kinder und Gruppen eintragen",
+  "OGS-Tag starten",
+] as const;
+
+export const DEMO_SETUP_HINT = "Das dauert meist weniger als eine Minute.";
+
+/** What a screen reader hears after each setup line. */
+export const DEMO_SETUP_LINE_STATE = {
+  done: "erledigt",
+  running: "läuft",
+  next: "folgt",
+} as const;
+
+/** The action of the `failed` phase: the page waits once more. */
+export const DEMO_ENTRY_RETRY = "Noch einmal versuchen";
+
+/** The action of every other problem: only a new request helps. */
+export const DEMO_ENTRY_NEW_LINK = "Neuen Link anfordern";
+
+const POLLS_PER_SETUP_STEP = 3;
+
+/** Index of the setup line that runs after the given number of polls. */
+export function demoSetupStep(polls: number): number {
+  return Math.min(
+    Math.floor(polls / POLLS_PER_SETUP_STEP),
+    DEMO_SETUP_STEPS.length - 1,
+  );
+}
 
 export const DEMO_ENTRY_PROBLEMS: Record<
   Exclude<DemoEntryPhase, "opening" | "preparing">,
@@ -33,8 +66,7 @@ export const DEMO_ENTRY_PROBLEMS: Record<
   },
   failed: {
     title: "Das hat leider nicht geklappt",
-    description:
-      "Es liegt nicht an Ihnen. Bitte öffnen Sie den Link noch einmal. Oder fordern Sie einen neuen an.",
+    description: "Es liegt nicht an Ihnen. Bitte versuchen Sie es noch einmal.",
   },
   unavailable: {
     title: "Das hat leider nicht geklappt",
@@ -90,6 +122,8 @@ interface DemoAccessProgress {
   status: DemoAccessStatus;
   /** Origin of the demo school; present once the status is `ready`. */
   schoolUrl?: string;
+  /** The OGS name the prospect gave (#3464). */
+  schoolName?: string;
 }
 
 /** Unknown and expired links are `invalid`; anything else unexpected throws. */
@@ -104,11 +138,15 @@ async function fetchDemoAccessProgress(
   const body = (await response.json()) as {
     status?: string;
     school_url?: string;
+    school_name?: string;
   };
   if (body.status === "ready") {
     return { status: "ready", schoolUrl: body.school_url };
   }
-  return { status: body.status === "failed" ? "failed" : "preparing" };
+  return {
+    status: body.status === "failed" ? "failed" : "preparing",
+    schoolName: body.school_name,
+  };
 }
 
 const POLL_INTERVAL_MS = 2000;
@@ -119,6 +157,13 @@ export type DemoWaitOutcome =
   | { phase: "ready"; schoolUrl?: string }
   | { phase: "invalid" | "failed" | "unavailable" | "cancelled" };
 
+/** What the setup screen shows while the school is prepared (#3464). */
+export interface DemoSetupProgress {
+  schoolName?: string;
+  /** Index into DEMO_SETUP_STEPS of the line that runs now. */
+  step: number;
+}
+
 /**
  * Polls until the demo school can be entered (#3463). `failed` is a wait that
  * ran out; `unavailable` is a school that could not be set up at all.
@@ -126,7 +171,7 @@ export type DemoWaitOutcome =
 export async function waitForDemoSchool(
   token: string,
   run: { cancelled: boolean },
-  onPreparing: () => void,
+  onPreparing: (progress: DemoSetupProgress) => void,
 ): Promise<DemoWaitOutcome> {
   for (let attempt = 0; !run.cancelled; attempt++) {
     const progress = await fetchDemoAccessProgress(token);
@@ -137,7 +182,10 @@ export async function waitForDemoSchool(
       return { phase: "ready", schoolUrl: progress.schoolUrl };
     }
     if (attempt >= MAX_POLLS) return { phase: "failed" };
-    onPreparing();
+    onPreparing({
+      schoolName: progress.schoolName,
+      step: demoSetupStep(attempt),
+    });
     await new Promise<void>((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
   }
   return { phase: "cancelled" };

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/postgres"
@@ -49,12 +50,17 @@ func (e demoQueueEngine) ReadyDemoSchools(ctx context.Context) ([]string, error)
 	return e.store.ReadyNames(ctx)
 }
 
+func (e demoQueueEngine) ActiveDemoSchools(ctx context.Context, since time.Time) ([]string, error) {
+	return e.store.ActiveNames(ctx, since)
+}
+
 // NewDemoSchoolOrders composes the serving backend's side. Every call needs
 // the caller's administrative transaction in ctx. random is the root's secure
-// source; it makes the slug suffix unguessable.
-func NewDemoSchoolOrders(random io.Reader) *organizationtenancy.DemoSchoolOrders {
-	if random == nil {
-		panic("demo school orders require a random source")
+// source; it makes the slug suffix unguessable. maxActive is the number of
+// active demo schools beyond which no order is queued (#3466).
+func NewDemoSchoolOrders(random io.Reader, maxActive int) *organizationtenancy.DemoSchoolOrders {
+	if random == nil || maxActive < 1 {
+		panic("demo school orders require a random source and a positive capacity")
 	}
 	store := postgres.NewDemoOrderStore(func(ctx context.Context) (bun.IDB, error) {
 		transaction, ok := tenant.TransactionFromContext(ctx)
@@ -67,12 +73,13 @@ func NewDemoSchoolOrders(random io.Reader) *organizationtenancy.DemoSchoolOrders
 		}
 		return tx, nil
 	})
-	return organizationtenancy.NewDemoSchoolOrders(demoOrderEngine{store: store, random: random})
+	return organizationtenancy.NewDemoSchoolOrders(demoOrderEngine{store: store, random: random, maxActive: maxActive})
 }
 
 type demoOrderEngine struct {
-	store  *postgres.DemoOrderStore
-	random io.Reader
+	store     *postgres.DemoOrderStore
+	random    io.Reader
+	maxActive int
 }
 
 const demoSlugAlphabet = "abcdefghijkmnpqrstuvwxyz23456789"
@@ -86,7 +93,11 @@ func (e demoOrderEngine) OrderDemoSchool(ctx context.Context, schoolName, person
 		suffix[i] = demoSlugAlphabet[int(b)%len(demoSlugAlphabet)]
 	}
 	slug := organizationtenancy.DemoSchoolSlug(schoolName, string(suffix))
-	if err := e.store.Enqueue(ctx, slug, schoolName, personName); err != nil {
+	err := e.store.Enqueue(ctx, slug, schoolName, personName, e.maxActive)
+	if errors.Is(err, postgres.ErrDemoCapacityReached) {
+		return "", organizationtenancy.ErrDemoCapacityReached
+	}
+	if err != nil {
 		return "", err
 	}
 	return slug, nil
@@ -100,6 +111,10 @@ func (e demoOrderEngine) DemoSchoolProgress(ctx context.Context, slug string) (*
 	return &organizationtenancy.DemoSchoolProgress{
 		Status: progress.Status, SchoolID: progress.TenantID, VisitorAccountID: progress.VisitorAccountID,
 	}, nil
+}
+
+func (e demoOrderEngine) MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error {
+	return e.store.MarkUsed(ctx, slug, usedAt)
 }
 
 func (e demoQueueEngine) ReturnDemoSchoolOrder(ctx context.Context, slug string) error {
