@@ -19,6 +19,57 @@ import (
 // bindings and the token package through the test boundary, so the adapter
 // tests import neither the root composition nor the legacy token package.
 
+// The two helpers below drive the parents portal for the demo role parent
+// (#3468): the adapter test proves what the issued parent session may reach,
+// without naming the root composition or the portal's own packages. They
+// answer plain values, so nothing of the portal crosses this boundary.
+
+// parentPickupRequestSetting is models/config.KeyParentCarePickupRequestEnabled.
+// Test support may not import the settings owner's domain (the architecture
+// policy keeps test-support off it), so the key is spelled out here; a rename
+// there fails the test that drives it, next to this line.
+const parentPickupRequestSetting = "operations.parent_care_pickup_request_enabled"
+
+// EnableParentPickupTimeRequests switches on the school setting a pickup-time
+// request needs, so a test can drive the request.
+func EnableParentPickupTimeRequests(t *testing.T, db *bun.DB, tenantID int64) {
+	t.Helper()
+	_, err := db.NewRaw(`INSERT INTO config.setting_values (tenant_id, setting_key, value)
+		VALUES (?, ?, 'true'::jsonb) ON CONFLICT (tenant_id, setting_key) DO UPDATE SET value = EXCLUDED.value`,
+		tenantID, parentPickupRequestSetting).Exec(context.Background())
+	require.NoError(t, err)
+}
+
+// ParentPortalChildIDs are the students the account sees in the parents
+// portal: exactly the children its guardian relationships permit.
+func ParentPortalChildIDs(t *testing.T, ctx context.Context, db *bun.DB, module services.StudentTestModule, accountID int64) []int64 {
+	t.Helper()
+	portal, err := services.NewParentCareScheduleTestService(db, module)
+	require.NoError(t, err)
+	children, err := portal.ListChildrenForAccount(ctx, accountID)
+	require.NoError(t, err)
+	ids := make([]int64, 0, len(children))
+	for _, child := range children {
+		ids = append(ids, child.StudentID)
+	}
+	return ids
+}
+
+// SubmitParentCareScheduleRequest asks for a new pickup time as the account
+// and returns the pending request. The error is the portal's own: a child the
+// account may not reach is refused here.
+func SubmitParentCareScheduleRequest(t *testing.T, ctx context.Context, db *bun.DB, module services.StudentTestModule, accountID, studentID int64, payload map[string]any) (requestID int64, err error) {
+	t.Helper()
+	portal, composeErr := services.NewParentCareScheduleTestService(db, module)
+	require.NoError(t, composeErr)
+	view, err := portal.CreateCareScheduleRequest(ctx, accountID, studentID, payload)
+	if err != nil {
+		return 0, err
+	}
+	require.NotNil(t, view.PendingRequest)
+	return view.PendingRequest.ID, nil
+}
+
 // AccountRouteRuntime is the tenant runtime the account routes run in.
 type AccountRouteRuntime interface {
 	WithinCurrentTenant(ctx context.Context, fn func(context.Context) error) error

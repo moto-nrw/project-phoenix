@@ -8,8 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -23,8 +21,6 @@ func TestDemoParentHasFullRightsForExactlyTheOwnChild(t *testing.T) {
 	t.Parallel()
 	env := newOwnSchoolDemoEnv(t)
 	_, module := testutil.SetupStudentModule(t)
-	portal, err := services.NewParentCareScheduleTestService(env.db, module)
-	require.NoError(t, err)
 	_, visitor := testpkg.CreateTestStaffWithAccount(t, env.db, "Kim", "Beispiel")
 	testpkg.EnsureAccountTenant(t, env.db, visitor.ID, testpkg.Tenant(t))
 	env.grantRole(t, visitor.ID, "user")
@@ -38,29 +34,24 @@ func TestDemoParentHasFullRightsForExactlyTheOwnChild(t *testing.T) {
 	parent := int64(claims.ID)
 	ctx := tenant.WithUnitOfWork(context.Background(), testpkg.TenantRuntime(t, env.db))
 
-	children, err := portal.ListChildrenForAccount(ctx, parent)
-	require.NoError(t, err)
+	children := testutil.ParentPortalChildIDs(t, ctx, env.db, module, parent)
 	require.Len(t, children, 1, "the visitor sees exactly the one child")
-	assert.Equal(t, own.StudentID, children[0].StudentID)
+	assert.Equal(t, own.StudentID, children[0])
 
 	// A new pickup time is a request the school decides on.
-	_, err = env.db.NewRaw(`INSERT INTO config.setting_values (tenant_id, setting_key, value)
-		VALUES (?, ?, 'true'::jsonb) ON CONFLICT (tenant_id, setting_key) DO UPDATE SET value = EXCLUDED.value`,
-		testpkg.Tenant(t), configModels.KeyParentCarePickupRequestEnabled).Exec(context.Background())
-	require.NoError(t, err)
+	testutil.EnableParentPickupTimeRequests(t, env.db, testpkg.Tenant(t))
 	pickupChange := map[string]any{"weekdays": []any{map[string]any{
 		"weekday": 2, "scheduled": true, "pickup": "15:30", "mode": "pickup",
 	}}}
-	_, err = portal.CreateCareScheduleRequest(ctx, parent, foreign.StudentID, pickupChange)
+	_, err := testutil.SubmitParentCareScheduleRequest(t, ctx, env.db, module, parent, foreign.StudentID, pickupChange)
 	require.Error(t, err, "no request for a foreign child")
 
-	view, err := portal.CreateCareScheduleRequest(ctx, parent, own.StudentID, pickupChange)
+	requestID, err := testutil.SubmitParentCareScheduleRequest(t, ctx, env.db, module, parent, own.StudentID, pickupChange)
 	require.NoError(t, err, "the visitor may ask for a new pickup time")
-	require.NotNil(t, view.PendingRequest)
 
 	// The request waits for the OGS, where the visitor finds it as the lead.
 	var status string
 	require.NoError(t, env.db.NewRaw(`SELECT status FROM schedule.care_schedule_change_requests WHERE id = ? AND student_id = ? AND tenant_id = ?`,
-		view.PendingRequest.ID, own.StudentID, testpkg.Tenant(t)).Scan(context.Background(), &status))
+		requestID, own.StudentID, testpkg.Tenant(t)).Scan(context.Background(), &status))
 	assert.Equal(t, "pending", status)
 }
