@@ -12,7 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // CareOfferingsResponse is the parent-facing view of a child's booked care

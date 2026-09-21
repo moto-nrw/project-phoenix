@@ -125,17 +125,19 @@ var validPhaseAudiences = map[string]bool{
 //   - the old tenant-wide setting `enrollment.care_overflow_mode` now
 //     lives on phases.care_overflow_mode (default 'waitlist')
 type Phase struct {
-	ID                int64      `json:"id"`
-	TenantID          int64      `json:"tenant_id"`
-	CreatedAt         time.Time  `json:"created_at"`
-	UpdatedAt         time.Time  `json:"updated_at"`
-	Name              string     `json:"name"`
-	Kind              string     `json:"kind"`
-	ServiceStartDate  Date       `json:"service_start_date"`
-	ServiceEndDate    Date       `json:"service_end_date"`
-	EnrollmentOpenAt  *time.Time `json:"enrollment_open_at,omitempty"`
-	EnrollmentCloseAt *time.Time `json:"enrollment_close_at,omitempty"`
-	FormSchemaID      *int64     `json:"form_schema_id,omitempty"`
+	ID        int64     `json:"id"`
+	TenantID  int64     `json:"tenant_id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Name      string    `json:"name"`
+	// Translations carries the school-written translations of Name (#3377).
+	Translations      Translations `json:"translations,omitempty"`
+	Kind              string       `json:"kind"`
+	ServiceStartDate  Date         `json:"service_start_date"`
+	ServiceEndDate    Date         `json:"service_end_date"`
+	EnrollmentOpenAt  *time.Time   `json:"enrollment_open_at,omitempty"`
+	EnrollmentCloseAt *time.Time   `json:"enrollment_close_at,omitempty"`
+	FormSchemaID      *int64       `json:"form_schema_id,omitempty"`
 	// CalendarPeriodID links the phase to a shared planning period
 	// (schedule.calendar_periods, migration 1.15.167). NULL for phases
 	// that predate the planning calendar or don't map to one. The
@@ -242,14 +244,12 @@ func (p *Phase) Validate() error {
 	if !validPhaseCareOfferingSelectionModes[p.CareOfferingSelectionMode] {
 		return fmt.Errorf("care_offering_selection_mode must be optional/at_least_one/exactly_one, got %q", p.CareOfferingSelectionMode)
 	}
-	if p.RolloverMode != nil && !validPhaseRolloverModes[*p.RolloverMode] {
-		return fmt.Errorf("rollover_mode must be opt_in/opt_out, got %q", *p.RolloverMode)
+	if err := p.validateRollover(); err != nil {
+		return err
 	}
-	// Both rollover_source_phase_id and rollover_mode must be set
-	// together — a rollover phase needs both, a fresh phase needs
-	// neither. Half-set is a programmer bug.
-	if (p.RolloverSourcePhaseID == nil) != (p.RolloverMode == nil) {
-		return errors.New("rollover_source_phase_id and rollover_mode must be set together or both omitted")
+	var err error
+	if p.Translations, err = p.Translations.Normalize(TranslationAttrName); err != nil {
+		return err
 	}
 	// available_school_classes is NOT NULL jsonb; a nil slice would bind
 	// NULL and violate the constraint. Coalesce so every create/update
@@ -346,6 +346,19 @@ func (p *Phase) Validate() error {
 				return fmt.Errorf("eligible_school_classes entry %q belongs to grade %s, which is not in eligible_grade_levels; a child cannot satisfy both restrictions at once", c, prefix)
 			}
 		}
+	}
+	return nil
+}
+
+func (p *Phase) validateRollover() error {
+	if p.RolloverMode != nil && !validPhaseRolloverModes[*p.RolloverMode] {
+		return fmt.Errorf("rollover_mode must be opt_in/opt_out, got %q", *p.RolloverMode)
+	}
+	// Both rollover_source_phase_id and rollover_mode must be set
+	// together — a rollover phase needs both, a fresh phase needs
+	// neither. Half-set is a programmer bug.
+	if (p.RolloverSourcePhaseID == nil) != (p.RolloverMode == nil) {
+		return errors.New("rollover_source_phase_id and rollover_mode must be set together or both omitted")
 	}
 	return nil
 }

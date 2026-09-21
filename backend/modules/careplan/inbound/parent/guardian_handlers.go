@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // childGuardianResponse is the parent-facing projection of one guardian of a

@@ -714,7 +714,7 @@ func (s *requestStore) CreateStudentDataRequest(ctx context.Context, value carep
 		if isUniqueViolation(err) {
 			stats.Conflicts = 1
 		}
-		return careplan.StudentDataChangeRequest{}, stats, requestDBError("create student data change request", err)
+		return careplan.StudentDataChangeRequest{}, stats, studentDataRequestCreateError(err)
 	}
 	return studentDataRequestToPublic(row), stats, nil
 }

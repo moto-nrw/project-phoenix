@@ -35,25 +35,9 @@ func activeStaffGroupIDs(ctx context.Context, presence interface {
 	if err != nil {
 		return nil, &activeService.ActiveError{Op: "GetStaffActiveSupervisions", Err: activeService.ErrDatabaseOperation}
 	}
+	// ActiveOn is the owner's rule: started on or before the day, not ended by it.
 	ids := make([]int64, 0, len(rows))
-	today := timezone.TodayDate()
 	for _, row := range rows {
-		start, err := timezone.ParseDate(row.StartDate)
-		if err != nil {
-			return nil, &activeService.ActiveError{Op: "GetStaffActiveSupervisions", Err: activeService.ErrDatabaseOperation}
-		}
-		if start.After(today) {
-			continue
-		}
-		if row.EndDate != nil {
-			end, err := timezone.ParseDate(*row.EndDate)
-			if err != nil {
-				return nil, &activeService.ActiveError{Op: "GetStaffActiveSupervisions", Err: activeService.ErrDatabaseOperation}
-			}
-			if !today.Before(end) {
-				continue
-			}
-		}
 		ids = append(ids, row.GroupID)
 	}
 	return ids, nil

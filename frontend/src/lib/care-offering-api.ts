@@ -1,5 +1,6 @@
 import { createLogger } from "~/lib/logger";
 import { readEnrollmentError } from "~/lib/enrollment-error-messages";
+import type { Translations } from "~/lib/enrollment-translations";
 
 const logger = createLogger({ component: "CareOfferingAPI" });
 
@@ -57,6 +58,8 @@ export interface CareOffering {
   selection_rule?: CareSelectionRule;
   /** Buchungsgebundene Gehzeit pro Wochentag ({"mon":"14:30"}). */
   pickup_times?: Record<string, string> | null;
+  /** Von der Schule gepflegte Übersetzungen von Name und Beschreibung (#3377). */
+  translations?: Translations;
   created_at: string;
   updated_at: string;
 }
@@ -85,6 +88,8 @@ export interface CareOfferingInput {
   selection_rule?: CareSelectionRule;
   /** Für aktive Angebote, die als Betreuung zählen, je Betreuungstag erforderlich. */
   pickup_times?: Record<string, string> | null;
+  /** Vollständiges Übersetzungsdokument; `{}` löscht alle Übersetzungen. */
+  translations?: Translations;
 }
 
 interface BackendEnvelope<T> {
