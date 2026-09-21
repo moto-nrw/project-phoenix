@@ -12,8 +12,10 @@ import {
   DEMO_ENTRY_RETRY,
   DEMO_WEBSITE_URL,
   type DemoEntryPhase,
+  type DemoLink,
   type DemoSetupProgress,
-  takeDemoTokenFromFragment,
+  demoLinkFragment,
+  takeDemoLinkFromFragment,
   waitForDemoSchool,
 } from "~/lib/demo-access";
 import { createLogger } from "~/lib/logger";
@@ -31,19 +33,19 @@ export default function DemoWaitingRoomPage() {
   const [setup, setSetup] = useState<DemoSetupProgress>({ step: 0 });
   // Every try waits anew; "Noch einmal versuchen" starts the next one.
   const [attempt, setAttempt] = useState(0);
-  const tokenRef = useRef<string | null>(null);
+  const linkRef = useRef<DemoLink | null>(null);
 
   useEffect(() => {
     const run = { cancelled: false };
     // The fragment is read once and removed; a repeated effect run (React
-    // strict mode, another try) must find the token again.
-    tokenRef.current ??= takeDemoTokenFromFragment();
-    const token = tokenRef.current;
-    if (!token) {
+    // strict mode, another try) must find the link again.
+    linkRef.current ??= takeDemoLinkFromFragment();
+    const link = linkRef.current;
+    if (!link) {
       setPhase("invalid");
       return;
     }
-    waitForDemoSchool(token, run, (progress) => {
+    waitForDemoSchool(link.token, run, (progress) => {
       setSetup(progress);
       setPhase("preparing");
     })
@@ -56,8 +58,10 @@ export default function DemoWaitingRoomPage() {
         if (!waited.schoolUrl?.startsWith("http")) {
           throw new Error("ready demo school without an address");
         }
+        // A preselected role (#3467) travels on, so the school's entry page
+        // skips its role cards.
         globalThis.location.assign(
-          `${waited.schoolUrl}/demo#token=${encodeURIComponent(token)}`,
+          `${waited.schoolUrl}/demo${demoLinkFragment(link)}`,
         );
       })
       .catch((error: unknown) => {

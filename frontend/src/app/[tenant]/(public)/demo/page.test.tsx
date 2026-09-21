@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { DEMO_ROLE_CHOICE_TITLE } from "~/lib/demo-access";
 import DemoEntryPage from "./page";
 
 const signIn = vi.fn();
@@ -25,6 +26,7 @@ function open(hash: string) {
 }
 
 beforeEach(() => {
+  localStorage.clear();
   signIn.mockReset().mockResolvedValue({ error: undefined });
   fetchMock.mockReset();
   assign.mockReset();
@@ -41,14 +43,18 @@ beforeEach(() => {
 });
 
 describe("DemoEntryPage", () => {
-  it("redeems the fragment token by POST, signs in and opens the start page", async () => {
+  it("redeems the fragment token by POST in the preselected role, signs in and opens the start page", async () => {
     fetchMock
       .mockReturnValueOnce(json(200, { status: "ready" }))
       .mockReturnValueOnce(
-        json(200, { access_token: "access", refresh_token: "refresh" }),
+        json(200, {
+          access_token: "access",
+          refresh_token: "refresh",
+          demo: { access_id: "4711", role: "caregiver", src: "messe" },
+        }),
       );
 
-    open("#token=secret-token");
+    open("#token=secret-token&role=caregiver");
 
     await waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
     expect(signIn).toHaveBeenCalledWith("credentials", {
@@ -60,13 +66,58 @@ describe("DemoEntryPage", () => {
     for (const [url, init] of fetchMock.mock.calls as [string, RequestInit][]) {
       expect(url).not.toContain("secret-token");
       expect(init.method).toBe("POST");
-      expect(init.body).toBe(JSON.stringify({ token: "secret-token" }));
     }
-    expect(fetchMock.mock.calls.map(([url]) => url as string)).toEqual([
-      "/api/demo/access/status",
-      "/api/demo/access/sessions",
+    expect(
+      fetchMock.mock.calls.map(([url, init]) => [
+        url as string,
+        (init as RequestInit).body,
+      ]),
+    ).toEqual([
+      ["/api/demo/access/status", JSON.stringify({ token: "secret-token" })],
+      [
+        "/api/demo/access/sessions",
+        JSON.stringify({ token: "secret-token", role: "caregiver" }),
+      ],
     ]);
     expect(document.URL).not.toContain("secret-token");
+    expect(screen.queryByText(DEMO_ROLE_CHOICE_TITLE)).toBeNull();
+    // The banner reports the entry once the start page has loaded.
+    expect(JSON.parse(localStorage.getItem("moto-demo-visit") ?? "")).toEqual({
+      accessId: "4711",
+      role: "caregiver",
+      src: "messe",
+      pending: "demo_entered",
+    });
+  });
+
+  it("asks for a role when the link brings none", async () => {
+    fetchMock
+      .mockReturnValueOnce(json(200, { status: "ready" }))
+      .mockReturnValueOnce(
+        json(200, {
+          access_token: "access",
+          refresh_token: "refresh",
+          demo: { access_id: "4711", role: "lead" },
+        }),
+      );
+
+    open("#token=secret-token");
+
+    expect(await screen.findByText(DEMO_ROLE_CHOICE_TITLE)).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const cards = screen.getAllByRole("button");
+    expect(cards.map((card) => card.textContent)).toEqual([
+      expect.stringContaining("Betreuungskraft"),
+      expect.stringContaining("OGS-Leitung"),
+      expect.stringContaining("Alle Funktionen"),
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: /OGS-Leitung/ }));
+
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
+    const [, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(init.body).toBe(
+      JSON.stringify({ token: "secret-token", role: "lead" }),
+    );
   });
 
   it.each([404, 410])(
@@ -112,7 +163,7 @@ describe("DemoEntryPage", () => {
   it("says so when the demo cannot be opened right now", async () => {
     fetchMock.mockReturnValueOnce(json(500));
 
-    open("#token=secret-token");
+    open("#token=secret-token&role=all");
 
     expect(
       await screen.findByText("Das hat leider nicht geklappt"),

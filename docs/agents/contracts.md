@@ -117,9 +117,18 @@ not composed. They are public, take no cookies, and rely on
 
 | Route | Contract |
 |---|---|
-| `POST /demo/access-requests` | `email`, `school_name`, `person_name`, `contact_opt_in`, optional `src` → always `202 {link_sent: true}`, never the link itself; `422 demo_access_invalid`; `429 demo_access_rate_limited` with `Retry-After` (seconds); `503 demo_capacity_reached` |
+| `POST /demo/access-requests` | `email`, `school_name`, `person_name`, `contact_opt_in`, optional `src` and `role` (a demo role, appended to the mailed link as `&role=`) → always `202 {link_sent: true}`, never the link itself; `422 demo_access_invalid`; `429 demo_access_rate_limited` with `Retry-After` (seconds); `503 demo_capacity_reached` |
 | `GET /demo/access/status` | token in `Authorization: Bearer` → `{status: preparing\|ready\|failed, school_name}` (the OGS name the prospect gave, shown while waiting, #3464), plus `school_url` (origin of the demo school) when `ready` |
-| `POST /demo/access/sessions` | `{token}` → `{access_token, refresh_token}` (tenant session); `409 demo_school_preparing` |
+| `POST /demo/access/sessions` | `{token, role?}` → `{access_token, refresh_token, demo: {access_id, role, src}}` (tenant session); `409 demo_school_preparing`; `422 demo_access_invalid` for an unknown role |
+
+Demo roles (#3467): `caregiver`, `lead`, `all`. A role first becomes the only
+system staff role of the visitor's own caregiver (`user` for `caregiver`,
+`admin` for `lead` and `all` until reduced permission sets exist), then the
+session is minted, so the banner's role switch is the same call as the entry.
+The shared administrator of the standing school keeps its role and answers
+`role: "all"`. The frontend route `/api/demo/access/sessions` keeps the
+redeemed token in the httpOnly cookie `moto-demo-token` (path `/api/demo`,
+14 days); a switch sends only the role.
 
 Unknown token: `404 demo_access_unknown`; expired: `410 demo_access_expired`.
 The token is opaque, stored as SHA-256 fingerprint in `auth.demo_accesses`

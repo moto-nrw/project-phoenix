@@ -30,6 +30,7 @@ import { useOptionalSupervision } from "~/lib/supervision-context";
 import { buildHelpHref, type HelpRole } from "~/lib/help-topics";
 import type { SupervisedRoom } from "~/lib/supervision-derive";
 import { useShellAuth } from "~/lib/shell-auth-context";
+import { isDemoBuild } from "~/lib/demo-access";
 import {
   hasEffectiveAdminScope,
   hasPermission,
@@ -530,14 +531,16 @@ function asideClasses(collapsed: boolean, className: string): string {
 // Mitarbeiter-Vorschau (#2893): der feste Hinweisstreifen (h-12 = 48px)
 // schiebt die Kopfzeile nach unten. Die klebende Seitennavigation muss um
 // dieselbe Höhe mitwandern, sonst schiebt sich die Kopfzeile beim Scrollen
-// über ihre obersten Einträge.
+// über ihre obersten Einträge. Der Streifen der öffentlichen Demo (#3467)
+// hat dieselbe Höhe.
 function stickyClasses(
   collapsed: boolean,
   isPreview: boolean | undefined,
 ): string {
-  const offset = isPreview
-    ? "top-[105px] h-[calc(100vh-105px)]"
-    : "top-[57px] h-[calc(100vh-57px)]";
+  const offset =
+    isPreview || isDemoBuild()
+      ? "top-[105px] h-[calc(100vh-105px)]"
+      : "top-[57px] h-[calc(100vh-57px)]";
   return `sticky ${offset} flex flex-col ${
     collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED
   } ${SIDEBAR_WIDTH_TRANSITION}`;

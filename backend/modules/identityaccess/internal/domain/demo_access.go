@@ -59,6 +59,39 @@ type DemoAccess struct {
 	CreatedAt    time.Time
 	// SchoolSlug is the demo school this access enters (#3463).
 	SchoolSlug string
+	// Role is the demo role a request preselects (#3467). It is not stored:
+	// it rides in the mailed link, and the entry page skips the role cards.
+	Role DemoRole
+}
+
+// DemoRole is what a visitor of the public demo sees the demo school as
+// (#3467). The visitor has one account; a switch changes its role.
+type DemoRole string
+
+const (
+	DemoRoleCaregiver DemoRole = "caregiver"
+	DemoRoleLead      DemoRole = "lead"
+	DemoRoleAll       DemoRole = "all"
+)
+
+// ParseDemoRole accepts the empty role, which chooses none.
+func ParseDemoRole(value string) (DemoRole, error) {
+	switch role := DemoRole(strings.TrimSpace(value)); role {
+	case "", DemoRoleCaregiver, DemoRoleLead, DemoRoleAll:
+		return role, nil
+	default:
+		return "", ErrDemoAccessInvalid
+	}
+}
+
+// SchoolRole is the system role the visitor's account holds in the role.
+// Until the reduced permission sets exist, the caregiver is a standard staff
+// member and the OGS lead an administrator, like "all functions".
+func (r DemoRole) SchoolRole() string {
+	if r == DemoRoleCaregiver {
+		return "user"
+	}
+	return "admin"
 }
 
 // Progress of the demo school behind a demo access (#3463).
@@ -74,6 +107,21 @@ type DemoSchoolEntry struct {
 	Status    string
 	TenantID  int64
 	AccountID int64
+	// Shared marks the administrator every visitor of the standing school
+	// signs in as; no demo role switch may change its role (#3467).
+	Shared bool
+}
+
+// DemoEntry is a redeemed demo access: the session and what the demo
+// banner shows and reports about it (#3467).
+type DemoEntry struct {
+	AccessToken  string
+	RefreshToken string
+	AccessID     int64
+	// Role is the demo role the session really has; empty when the caller
+	// chose none and the account kept its role.
+	Role   DemoRole
+	Source string
 }
 
 // Normalize trims the prospect's fields and validates them.
@@ -85,6 +133,9 @@ func (a *DemoAccess) Normalize() error {
 	parsed, err := mail.ParseAddress(a.Email)
 	if err != nil || parsed.Address != a.Email || len(a.Email) > 254 {
 		return ErrDemoAccessInvalid
+	}
+	if a.Role, err = ParseDemoRole(string(a.Role)); err != nil {
+		return err
 	}
 	if a.PersonName == "" || len(a.PersonName) > 120 || a.SchoolName == "" || len(a.SchoolName) > 120 || len(a.Source) > 60 {
 		return ErrDemoAccessInvalid

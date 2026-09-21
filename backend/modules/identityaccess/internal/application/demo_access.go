@@ -109,7 +109,12 @@ func (d *DemoAccess) request(ctx context.Context, access domain.DemoAccess, entr
 	if !stored {
 		return nil
 	}
-	d.mail.SendDemoAccessLink(ctx, access, entryURLPrefix+raw)
+	entryURL := entryURLPrefix + raw
+	if access.Role != "" {
+		// The fragment carries the preselected role past the waiting room.
+		entryURL += "&role=" + string(access.Role)
+	}
+	d.mail.SendDemoAccessLink(ctx, access, entryURL)
 	if lead {
 		d.mail.SendDemoLead(ctx, access)
 	}
@@ -152,11 +157,21 @@ func (d *DemoAccess) Status(ctx context.Context, token string) (access domain.De
 // (#3464), and mints a session in the token's demo school: for
 // the prospect's own caregiver, or for the administrator of a school without
 // one. The token stays valid afterwards.
-func (d *DemoAccess) Redeem(ctx context.Context, token, ipAddress, userAgent string) (string, string, error) {
+//
+// A chosen demo role (#3467) first becomes the role of the prospect's own
+// caregiver, so a switch in the banner is a further redemption: one account,
+// a new session. The shared administrator of the standing school keeps its
+// role; its session has all functions whatever was chosen.
+func (d *DemoAccess) Redeem(ctx context.Context, token string, role domain.DemoRole, ipAddress, userAgent string) (domain.DemoEntry, error) {
+	role, err := domain.ParseDemoRole(string(role))
+	if err != nil {
+		return domain.DemoEntry{}, err
+	}
 	var entry domain.DemoSchoolEntry
-	err := d.adminTx(ctx, func(txCtx context.Context) error {
-		access, err := d.valid(txCtx, token)
-		if err != nil {
+	var access domain.DemoAccess
+	err = d.adminTx(ctx, func(txCtx context.Context) error {
+		var err error
+		if access, err = d.valid(txCtx, token); err != nil {
 			return err
 		}
 		if entry, err = d.entry(txCtx, access.SchoolSlug); err != nil {
@@ -165,15 +180,29 @@ func (d *DemoAccess) Redeem(ctx context.Context, token, ipAddress, userAgent str
 		if entry.Status != domain.DemoSchoolReady {
 			return domain.ErrDemoSchoolPreparing
 		}
+		if entry.Shared {
+			role = domain.DemoRoleAll
+		} else if role != "" {
+			if err := d.store.ReplaceDemoAccountRole(txCtx, entry.AccountID, entry.TenantID, role.SchoolRole()); err != nil {
+				return err
+			}
+		}
 		if err := d.schools.MarkDemoSchoolUsed(txCtx, access.SchoolSlug, d.now()); err != nil {
 			return err
 		}
 		return d.store.RecordDemoAccessUse(txCtx, access.ID, entry.AccountID, d.now())
 	})
 	if err != nil {
-		return "", "", err
+		return domain.DemoEntry{}, err
 	}
-	return d.sessions.IssueTokensForAuthenticatedAccount(ctx, entry.AccountID, entry.TenantID, ipAddress, userAgent)
+	accessToken, refreshToken, err := d.sessions.IssueTokensForAuthenticatedAccount(ctx, entry.AccountID, entry.TenantID, ipAddress, userAgent)
+	if err != nil {
+		return domain.DemoEntry{}, err
+	}
+	return domain.DemoEntry{
+		AccessToken: accessToken, RefreshToken: refreshToken,
+		AccessID: access.ID, Role: role, Source: access.Source,
+	}, nil
 }
 
 // entry resolves the account a demo session signs in.
@@ -189,7 +218,7 @@ func (d *DemoAccess) entry(ctx context.Context, schoolSlug string) (domain.DemoS
 	if !found {
 		entry.Status = domain.DemoSchoolPreparing
 	}
-	entry.AccountID = accountID
+	entry.AccountID, entry.Shared = accountID, true
 	return entry, nil
 }
 

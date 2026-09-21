@@ -19,6 +19,14 @@ vi.mock("./sidebar", () => ({
   ),
 }));
 
+vi.mock("~/components/demo/demo-banner", async () => {
+  const { isDemoBuild } = await import("~/lib/demo-access");
+  return {
+    DemoBanner: () =>
+      isDemoBuild() ? <div data-testid="demo-banner">Demo</div> : null,
+  };
+});
+
 vi.mock("./mobile-bottom-nav", () => ({
   MobileBottomNav: () => <nav data-testid="mobile-nav">Mobile Nav</nav>,
 }));
@@ -80,5 +88,35 @@ describe("AppShell", () => {
       "md:pb-[calc(7rem+env(safe-area-inset-bottom))]",
     );
     expect(main.className).not.toContain("moto-dotted-background");
+  });
+
+  // The demo banner (#3467) lies fixed above everything, like the staff
+  // preview strip: the shell moves down by its height, so the banner covers
+  // neither the header nor the page, and the bottom bar stays free.
+  it("moves the shell below the demo banner in the demo build only", () => {
+    const { container, unmount } = render(
+      <AppShell>
+        <div>Content</div>
+      </AppShell>,
+    );
+    expect(screen.queryByTestId("demo-banner")).toBeNull();
+    expect(container.firstElementChild?.className ?? "").not.toContain("pt-12");
+    unmount();
+
+    vi.stubEnv("NEXT_PUBLIC_APP_ENV", "demo");
+    try {
+      const demo = render(
+        <AppShell>
+          <div>Content</div>
+        </AppShell>,
+      );
+      expect(screen.getByTestId("demo-banner")).toBeInTheDocument();
+      expect(demo.container.firstElementChild?.className).toContain("pt-12");
+      expect(screen.getByTestId("header").parentElement?.className).toContain(
+        "top-12",
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

@@ -7,6 +7,7 @@ import {
   useState,
   type CSSProperties,
   type KeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
@@ -159,6 +160,7 @@ export function OverflowMenu({
   const [menuStyle, setMenuStyle] = useState<CSSProperties>({});
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const focusOnOpenRef = useRef(false);
   const menuId = useId();
   // Menus normally stay inside a slide-over's focus scope. A scrollable
   // AnchoredPopover instead passes an owner ID, so its menu can escape the
@@ -222,12 +224,14 @@ export function OverflowMenu({
   //   sits near the LEFT edge with not enough room on its left.
   // - If neither side fits, use the side with more room and clamp to the
   //   viewport inset.
-  const handleOpen = () => {
+  const handleOpen = (event: ReactMouseEvent<HTMLButtonElement>) => {
     const trigger = triggerRef.current;
     if (isOpen) {
       setIsOpen(false);
       return;
     }
+    // Enter and Space fire a click without a pointer (detail 0).
+    focusOnOpenRef.current = event.detail === 0;
     if (trigger != null && typeof document !== "undefined") {
       const scope = portalOwnerId
         ? null
@@ -321,6 +325,41 @@ export function OverflowMenu({
     setIsOpen(true);
   };
 
+  // The menu renders at the end of <body>, so Tab from the trigger never
+  // reaches it: opened by keyboard, it takes the focus itself, on the checked
+  // entry if there is one. The arrow keys, Home and End move along it.
+  const menuEntries = () =>
+    Array.from(
+      menuRef.current?.querySelectorAll<HTMLElement>(
+        '[role="menuitem"]:not([disabled]), [role="menuitemradio"]:not([disabled])',
+      ) ?? [],
+    );
+
+  useEffect(() => {
+    if (!isOpen || !portalContainer || !focusOnOpenRef.current) return;
+    focusOnOpenRef.current = false;
+    const entries = menuEntries();
+    (
+      entries.find((entry) => entry.getAttribute("aria-checked") === "true") ??
+      entries[0]
+    )?.focus();
+  }, [isOpen, portalContainer]);
+
+  const onMenuKey = (event: KeyboardEvent<HTMLDivElement>) => {
+    const entries = menuEntries();
+    if (entries.length === 0) return;
+    const current = entries.indexOf(document.activeElement as HTMLElement);
+    const next = {
+      ArrowDown: (current + 1) % entries.length,
+      ArrowUp: (current - 1 + entries.length) % entries.length,
+      Home: 0,
+      End: entries.length - 1,
+    }[event.key];
+    if (next === undefined) return;
+    event.preventDefault();
+    entries[next]?.focus();
+  };
+
   const onItemKey =
     (item: OverflowMenuItem | OverflowMenuRadioItem) =>
     (event: KeyboardEvent<HTMLButtonElement>) => {
@@ -366,6 +405,8 @@ export function OverflowMenu({
               id={menuId}
               role="menu"
               aria-label={ariaLabel}
+              tabIndex={-1}
+              onKeyDown={onMenuKey}
               data-overflow-menu-owner={portalOwnerId}
               style={{
                 ...menuStyle,
