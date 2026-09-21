@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -26,51 +27,82 @@ import (
 // The public demo routes (#3462), driven through the wired router against
 // the real test database, as the password reset tests are.
 
-const demoEntryOrigin = "https://messe-demo.demo.example"
+// demoEntryPrefix is where every entry URL starts: the waiting room on the
+// origin that exists before the demo school does (#3463).
+const demoEntryPrefix = "https://demo.example/demo#token="
+
+// demoSchoolOrigin is the origin of the demo school with the slug.
+func demoSchoolOrigin(schoolSlug string) string { return "https://" + schoolSlug + ".demo.example/" }
+
+var demoOrigins = authAPI.DemoOrigins{Waiting: "https://demo.example/", School: demoSchoolOrigin}
 
 type demoEnv struct {
 	db     *bun.DB
 	router chi.Router
 	slug   string
+	// prospect is this test's own address.
+	prospect string
 	// mails are the messages that left the demo environment's mail lock.
 	mails *testpkg.CapturingMailer
 }
 
-// newDemoEnv mounts the demo routes for this test's own school and the auth
-// routes with the demo tenant-switch guard, as the demo root does. The
-// transport carries the demo environment's mail lock (#3465).
+// newDemoEnv mounts the demo routes with this test's own school as the
+// standing demo school (the fallback of #3463) and the auth routes with the
+// demo tenant-switch guard, as the demo root does.
 func newDemoEnv(t *testing.T) demoEnv {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	mails := testpkg.NewCapturingMailer()
-	svc, err := services.NewAuthTestModule(db, testpkg.TenantRuntime(t, db),
-		services.WithAuthTestMailer(mails.InDemoEnvironment()))
-	require.NoError(t, err)
 	var slug string
 	require.NoError(t, db.NewRaw(`SELECT slug FROM platform.schools WHERE id = ?`, testpkg.Tenant(t)).Scan(context.Background(), &slug))
-	resource, err := authAPI.NewDemoResource(svc.DemoAccess, slug, demoEntryOrigin+"/")
+	return mountDemoEnv(t, db, slug, services.WithStandingDemoSchool(slug))
+}
+
+// mountDemoEnv composes the demo access with the options. The transport
+// carries the demo environment's mail lock (#3465).
+func mountDemoEnv(t *testing.T, db *bun.DB, slug string, options ...services.AuthTestOption) demoEnv {
+	t.Helper()
+	mails := testpkg.NewCapturingMailer()
+	options = append(options, services.WithAuthTestMailer(mails.InDemoEnvironment()))
+	svc, err := services.NewAuthTestModule(db, testpkg.TenantRuntime(t, db), options...)
+	require.NoError(t, err)
+	resource, err := authAPI.NewDemoResource(svc.DemoAccess, demoOrigins)
 	require.NoError(t, err)
 	auth := authAPI.NewResource(svc.Auth, svc.Invitation, testSchoolDirectory{schools: svc.Schools, db: db, runtime: testpkg.TenantRuntime(t, db)}, svc.AccountAuthentication, db)
 	router := testutil.NewTenantRouter(db)
 	router.Mount("/demo", resource.Router())
 	router.Mount("/auth", auth.Router())
-	return demoEnv{db: db, router: router, slug: slug, mails: mails}
+	return demoEnv{db: db, router: router, slug: slug, prospect: demoAddress(t), mails: mails}
 }
 
-// address is this test's own prospect: an address waits between two links,
-// so tests sharing one address would swallow each other's request.
-func (e demoEnv) address() string { return "leitung@" + e.slug + ".example" }
+// demoAddress is this test's own prospect: an address waits between two
+// links and has one school at a time, and the table is shared between tests.
+func demoAddress(t *testing.T) string {
+	t.Helper()
+	return fmt.Sprintf("leitung-%d@ogs-beispiel.de", testpkg.Tenant(t))
+}
+
+func (e demoEnv) address() string { return e.prospect }
 
 func (e demoEnv) requestBody(t *testing.T) map[string]any {
 	t.Helper()
-	// A demo access carries no tenant, so it is shared state the leftover
-	// gate would count; forget it like the reset tests forget their windows.
+	return e.requestBodyFor(t, " "+strings.ToUpper(e.address())+" ")
+}
+
+func (e demoEnv) requestBodyFor(t *testing.T, address string) map[string]any {
+	t.Helper()
+	stored := strings.ToLower(strings.TrimSpace(address))
+	// Demo accesses and orders carry no tenant, so they are shared state the
+	// leftover gate would count; forget them like the reset tests forget
+	// their windows.
 	t.Cleanup(func() {
-		_, err := e.db.NewRaw(`DELETE FROM auth.demo_accesses WHERE email = ?`, e.address()).Exec(context.Background())
+		_, err := e.db.NewRaw(`DELETE FROM platform.demo_school_states WHERE name IN (SELECT school_slug FROM auth.demo_accesses WHERE email = ?)`,
+			stored).Exec(context.Background())
+		require.NoError(t, err)
+		_, err = e.db.NewRaw(`DELETE FROM auth.demo_accesses WHERE email = ?`, stored).Exec(context.Background())
 		require.NoError(t, err)
 	})
 	return map[string]any{
-		"email": " " + strings.ToUpper(e.address()) + " ", "school_name": "OGS Beispiel", "person_name": "Kim Beispiel", "contact_opt_in": true, "src": "messe",
+		"email": address, "school_name": "OGS Beispiel", "person_name": "Kim Beispiel", "contact_opt_in": true, "src": "messe",
 	}
 }
 
@@ -106,9 +138,8 @@ func (e demoEnv) requestTokenWith(t *testing.T, body map[string]any) string {
 	require.Eventually(t, func() bool { return len(e.mailedLinks()) == links+1 },
 		2*time.Second, 10*time.Millisecond, "the link mail: %v", e.mails.Templates())
 	entryURL := e.mailedLinks()[links]
-	prefix := demoEntryOrigin + "/demo#token="
-	require.True(t, strings.HasPrefix(entryURL, prefix), entryURL)
-	return strings.TrimPrefix(entryURL, prefix)
+	require.True(t, strings.HasPrefix(entryURL, demoEntryPrefix), entryURL)
+	return strings.TrimPrefix(entryURL, demoEntryPrefix)
 }
 
 // mailedLinks are the entry URLs of the link mails that left so far.
@@ -154,7 +185,7 @@ func TestDemoAccessRequestStoresOnlyTheTokenFingerprint(t *testing.T) {
 			ROUND(EXTRACT(EPOCH FROM expires_at - created_at) / 86400)::int AS valid_days,
 			(SELECT COUNT(*) FROM auth.demo_accesses WHERE token_hash = ?)::int AS raw
 		FROM auth.demo_accesses WHERE token_hash = ?`, token, fingerprint(token)).Scan(context.Background(), &row))
-	assert.Equal(t, env.address(), row.Email, "trimmed and lower-cased")
+	assert.Equal(t, env.address(), row.Email, "the address is stored trimmed and in lower case")
 	assert.Equal(t, "messe", row.Source)
 	assert.True(t, row.OptIn)
 	assert.Equal(t, 14, row.ValidDays)
@@ -189,7 +220,8 @@ func TestDemoAccessStatusFollowsTheDemoSchool(t *testing.T) {
 	env.provisionDemoAdmin(t)
 	rr = env.status(token)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-	assert.JSONEq(t, `{"status":"ready"}`, rr.Body.String())
+	assert.JSONEq(t, `{"status":"ready","school_url":"https://`+env.slug+`.demo.example"}`, rr.Body.String(),
+		"a ready status names the school's origin, where the entry page redeems the token")
 }
 
 func TestDemoAccessRedeemsRepeatedlyIntoALockedTenantSession(t *testing.T) {
@@ -289,7 +321,7 @@ func TestDemoRoutesExistOnlyInTheDemoEnvironment(t *testing.T) {
 	}
 	for _, appEnv := range []string{"", "development", "test", "staging", "production"} {
 		router := chi.NewRouter()
-		require.NoError(t, authAPI.MountDemoRoutes(router, appEnv, compose, "messe-demo", demoEntryOrigin))
+		require.NoError(t, authAPI.MountDemoRoutes(router, appEnv, compose, demoOrigins))
 		assert.Zero(t, composed, "nothing is composed under APP_ENV=%q", appEnv)
 		for _, route := range routes {
 			rr := httptest.NewRecorder()
@@ -299,7 +331,7 @@ func TestDemoRoutesExistOnlyInTheDemoEnvironment(t *testing.T) {
 	}
 
 	router := chi.NewRouter()
-	require.NoError(t, authAPI.MountDemoRoutes(router, "demo", compose, "messe-demo", demoEntryOrigin))
+	require.NoError(t, authAPI.MountDemoRoutes(router, "demo", compose, demoOrigins))
 	for _, route := range routes {
 		assert.True(t, router.Match(chi.NewRouteContext(), route.method, route.path), "%s %s", route.method, route.path)
 	}

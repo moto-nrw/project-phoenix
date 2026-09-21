@@ -11,17 +11,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDemoEntryBaseIsTheStandingSchoolsOrigin(t *testing.T) {
+// Every demo access enters the school it was issued for (#3463); the
+// standing school stays one of them. The prospect waits on the origin that
+// exists before the school does.
+func TestDemoOriginsAreTheWaitingRoomAndTheDemoSchool(t *testing.T) {
 	t.Parallel()
-	base, err := demoEntryBase("https://demo.moto-app.de", "demo.moto-app.de")
+	origins, err := demoOrigins("https://demo.moto-app.de/", "demo.moto-app.de")
 	require.NoError(t, err)
-	assert.Equal(t, "https://messe-demo.demo.moto-app.de", base)
+	assert.Equal(t, "https://demo.moto-app.de", origins.Waiting)
+	assert.Equal(t, "https://messe-demo.demo.moto-app.de", origins.School("messe-demo"))
+	assert.Equal(t, "https://ogs-nord-k3m9xp.demo.moto-app.de", origins.School("ogs-nord-k3m9xp"))
 
-	base, err = demoEntryBase("http://localhost:3000", "localhost")
+	origins, err = demoOrigins("http://localhost:3000", "localhost")
 	require.NoError(t, err)
-	assert.Equal(t, "http://messe-demo.localhost:3000", base)
+	assert.Equal(t, "http://localhost:3000", origins.Waiting)
+	assert.Equal(t, "http://messe-demo.localhost:3000", origins.School("messe-demo"))
 
-	_, err = demoEntryBase("https://demo.moto-app.de", "")
+	_, err = demoOrigins("https://demo.moto-app.de", "")
 	assert.Error(t, err)
 }
 

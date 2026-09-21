@@ -15,6 +15,7 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/uptrace/bun"
@@ -61,6 +62,10 @@ type accountAuthenticationWiring struct {
 	operatorLinks *operatorLinkWiring
 	// demoAccess composes the public demo flow only for APP_ENV=demo.
 	demoAccess *demoAccessWiring
+	// demoStandingSchool is the slug of the standing demo school every demo
+	// access enters instead of a school of its own: the fallback of #3463.
+	// Empty gives every access its own school.
+	demoStandingSchool string
 }
 
 // sessionRepositories are the retained repositories the session seams read:
@@ -150,7 +155,7 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 			Logger:        wiring.logger,
 		},
 		Operators: wiring.operators,
-		Demo:      demoDependencies(wiring.demoAccess, wiring.repos.schools.schools),
+		Demo:      demoDependencies(wiring.demoAccess, wiring.demoStandingSchool, wiring.repos.schools.schools),
 	})
 	if err != nil {
 		return nil, err
@@ -158,31 +163,79 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 	return module, nil
 }
 
-func demoDependencies(wiring *demoAccessWiring, schools organizationtenancy.Query) *identityaccessCompose.DemoDependencies {
+func demoDependencies(wiring *demoAccessWiring, standingSchool string, schools organizationtenancy.Query) *identityaccessCompose.DemoDependencies {
 	if wiring == nil {
 		return nil
 	}
 	return &identityaccessCompose.DemoDependencies{
-		Schools:  demoSchoolDirectory{schools: schools},
+		Schools: demoSchoolDirectory{
+			schools: schools, orders: organizationCompose.NewDemoSchoolOrders(SecureRandomSource()), standing: standingSchool,
+		},
 		Mail:     newDemoAccessMail(wiring),
 		NewToken: authjwt.NewOpaqueCapabilityToken, Fingerprint: authjwt.OpaqueCapabilityFingerprint,
 	}
 }
 
-type demoSchoolDirectory struct{ schools organizationtenancy.Query }
+// StandingDemoSchoolSlug is the shared demo school `go run . demo` provisions.
+// Every demo access enters it while the fallback is selected; accesses issued
+// before #3463 carry it as well.
+const StandingDemoSchoolSlug = "messe-demo"
 
-func (d demoSchoolDirectory) FindDemoSchool(ctx context.Context, slug string) (int64, bool, error) {
-	school, err := d.schools.FindSchoolBySlug(ctx, slug)
+func standingDemoSchool(selected bool) string {
+	if selected {
+		return StandingDemoSchoolSlug
+	}
+	return ""
+}
+
+type demoSchoolDirectory struct {
+	schools  organizationtenancy.Query
+	orders   *organizationtenancy.DemoSchoolOrders
+	standing string
+}
+
+func (d demoSchoolDirectory) PrepareDemoSchool(ctx context.Context, schoolName, personName string) (string, error) {
+	if d.standing != "" {
+		return d.standing, nil
+	}
+	return d.orders.OrderDemoSchool(ctx, schoolName, personName)
+}
+
+func (d demoSchoolDirectory) DemoSchoolEntry(ctx context.Context, slug string) (identityaccess.DemoSchoolEntry, error) {
+	preparing := identityaccess.DemoSchoolEntry{Status: identityaccess.DemoSchoolPreparing}
+	progress, err := d.orders.DemoSchoolProgress(ctx, slug)
+	if err != nil {
+		return preparing, err
+	}
+	// The standing school is provisioned without an order; its school record
+	// alone tells whether it can be entered.
+	if progress == nil && slug != d.standing {
+		return preparing, nil
+	}
+	if progress != nil && progress.Status != organizationtenancy.DemoSchoolReady {
+		return identityaccess.DemoSchoolEntry{Status: progress.Status}, nil
+	}
+	var school organizationtenancy.School
+	if progress != nil {
+		// The order names the school it seeded; the slug is only its address.
+		school, err = d.schools.FindSchool(ctx, progress.SchoolID)
+	} else {
+		school, err = d.schools.FindSchoolBySlug(ctx, slug)
+	}
 	if errors.Is(err, organizationtenancy.ErrSchoolNotFound) {
-		return 0, false, nil
+		return preparing, nil
 	}
 	if err != nil {
-		return 0, false, err
+		return preparing, err
 	}
 	if !school.Active || school.IsDeleted() {
-		return 0, false, nil
+		return preparing, nil
 	}
-	return school.ID, true, nil
+	entry := identityaccess.DemoSchoolEntry{Status: identityaccess.DemoSchoolReady, SchoolID: school.ID}
+	if progress != nil {
+		entry.AccountID = progress.VisitorAccountID
+	}
+	return entry, nil
 }
 
 // AccountAuthentication returns the Identity & Access module the session,

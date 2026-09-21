@@ -18,8 +18,8 @@ import (
 // routes (#3462).
 type DemoAccesses interface {
 	RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) error
-	DemoAccessReady(ctx context.Context, token, schoolSlug string) (bool, error)
-	RedeemDemoAccess(ctx context.Context, token, schoolSlug, ipAddress, userAgent string) (string, string, error)
+	DemoAccessStatus(ctx context.Context, token string) (status, schoolSlug string, err error)
+	RedeemDemoAccess(ctx context.Context, token, ipAddress, userAgent string) (string, string, error)
 }
 
 // ComposedDemoAccess keeps a capability that was not composed a nil
@@ -35,23 +35,31 @@ func ComposedDemoAccess(capability *identityaccess.DemoAccess) DemoAccesses {
 // environment only. The token travels in request bodies and the
 // Authorization header, never in a URL, so no access log records it.
 type DemoResource struct {
-	accesses   DemoAccesses
-	schoolSlug string
-	// entryBase is the demo school's frontend origin, without a trailing slash.
-	entryBase string
+	accesses DemoAccesses
+	origins  DemoOrigins
 }
 
-func NewDemoResource(accesses DemoAccesses, schoolSlug, entryBase string) (*DemoResource, error) {
-	if accesses == nil || schoolSlug == "" || entryBase == "" {
-		return nil, errors.New("demo routes require the capability, the school slug and the entry origin")
+// DemoOrigins are the frontend origins of the public demo (#3463). A demo
+// school, and with it its subdomain, exists only after its seed. So the
+// prospect first waits at Waiting, an origin that always exists, and moves to
+// School(slug) once the status is ready.
+type DemoOrigins struct {
+	Waiting string
+	School  func(schoolSlug string) string
+}
+
+func NewDemoResource(accesses DemoAccesses, origins DemoOrigins) (*DemoResource, error) {
+	if accesses == nil || origins.Waiting == "" || origins.School == nil {
+		return nil, errors.New("demo routes require the capability and the entry origins")
 	}
-	return &DemoResource{accesses: accesses, schoolSlug: schoolSlug, entryBase: strings.TrimRight(entryBase, "/")}, nil
+	origins.Waiting = strings.TrimRight(origins.Waiting, "/")
+	return &DemoResource{accesses: accesses, origins: origins}, nil
 }
 
 // MountDemoRoutes adds the public demo routes under /demo when appEnv is
 // "demo". Everywhere else it does nothing and never calls compose: the
 // routes, and the capability behind them, do not exist there.
-func MountDemoRoutes(router chi.Router, appEnv string, compose func() (DemoAccesses, error), schoolSlug, entryBase string) error {
+func MountDemoRoutes(router chi.Router, appEnv string, compose func() (DemoAccesses, error), origins DemoOrigins) error {
 	if !email.IsDemoEnvironment(appEnv) {
 		return nil
 	}
@@ -59,7 +67,7 @@ func MountDemoRoutes(router chi.Router, appEnv string, compose func() (DemoAcces
 	if err != nil {
 		return err
 	}
-	resource, err := NewDemoResource(accesses, schoolSlug, entryBase)
+	resource, err := NewDemoResource(accesses, origins)
 	if err != nil {
 		return err
 	}
@@ -89,10 +97,12 @@ func (rs *DemoResource) requestAccess(w http.ResponseWriter, r *http.Request) {
 		rs.renderError(w, r, identityaccess.ErrDemoAccessInvalid)
 		return
 	}
-	// The fragment keeps the token out of every server and proxy log.
+	// The link leads to the waiting room on the main domain: the school's
+	// subdomain exists only after its seed (#3463). The fragment keeps the
+	// token out of every server and proxy log.
 	err := rs.accesses.RequestDemoAccess(r.Context(), identityaccess.DemoAccessRequest{
 		Email: body.Email, PersonName: body.PersonName, SchoolName: body.SchoolName,
-		Source: body.Source, ContactOptIn: body.ContactOptIn, EntryURLPrefix: rs.entryBase + "/demo#token=",
+		Source: body.Source, ContactOptIn: body.ContactOptIn, EntryURLPrefix: rs.origins.Waiting + "/demo#token=",
 	})
 	if err != nil {
 		rs.renderError(w, r, err)
@@ -107,16 +117,17 @@ func (rs *DemoResource) requestAccess(w http.ResponseWriter, r *http.Request) {
 
 func (rs *DemoResource) accessStatus(w http.ResponseWriter, r *http.Request) {
 	token, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-	ready, err := rs.accesses.DemoAccessReady(r.Context(), strings.TrimSpace(token), rs.schoolSlug)
+	status, schoolSlug, err := rs.accesses.DemoAccessStatus(r.Context(), strings.TrimSpace(token))
 	if err != nil {
 		rs.renderError(w, r, err)
 		return
 	}
-	status := "preparing"
-	if ready {
-		status = "ready"
+	response := map[string]string{"status": status}
+	if status == identityaccess.DemoSchoolReady {
+		// Only now the school's subdomain resolves.
+		response["school_url"] = strings.TrimRight(rs.origins.School(schoolSlug), "/")
 	}
-	render.JSON(w, r, map[string]string{"status": status})
+	render.JSON(w, r, response)
 }
 
 func (rs *DemoResource) createSession(w http.ResponseWriter, r *http.Request) {
@@ -127,7 +138,7 @@ func (rs *DemoResource) createSession(w http.ResponseWriter, r *http.Request) {
 		rs.renderError(w, r, identityaccess.ErrDemoAccessUnknown)
 		return
 	}
-	accessToken, refreshToken, err := rs.accesses.RedeemDemoAccess(r.Context(), body.Token, rs.schoolSlug, getClientIP(r), r.UserAgent())
+	accessToken, refreshToken, err := rs.accesses.RedeemDemoAccess(r.Context(), body.Token, getClientIP(r), r.UserAgent())
 	if err != nil {
 		rs.renderError(w, r, err)
 		return
