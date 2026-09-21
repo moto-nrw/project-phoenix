@@ -365,53 +365,6 @@ func TestGroupSubstitutionRepository_FindOverlapping(t *testing.T) {
 	})
 }
 
-func TestGroupSubstitutionRepository_FindActiveBySubstitute(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
-	ctx := testpkg.Ctx(t)
-
-	t.Run("finds active substitutions by substitute staff and date", func(t *testing.T) {
-		group := testpkg.CreateTestEducationGroup(t, db, "SubActiveSubstitute")
-		substitute := testpkg.CreateTestStaff(t, db, "ActiveSubstitute", "Staff")
-
-		today := timezone.TodayDate()
-		startDate := today.AddDays(-1)
-		endDate := today.AddDays(7)
-		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
-
-		subs, err := repo.FindActiveBySubstitute(ctx, substitute.ID, today)
-		require.NoError(t, err)
-		assert.NotEmpty(t, subs)
-
-		var found bool
-		for _, s := range subs {
-			if s.ID == sub.ID {
-				found = true
-				break
-			}
-		}
-		assert.True(t, found)
-	})
-
-	t.Run("returns empty for non-active date", func(t *testing.T) {
-		group := testpkg.CreateTestEducationGroup(t, db, "SubInactive")
-		substitute := testpkg.CreateTestStaff(t, db, "InactiveSubstitute", "Staff")
-
-		// Create substitution for last week (expired)
-		today := timezone.TodayDate()
-		startDate := today.AddDays(-14)
-		endDate := today.AddDays(-7)
-		testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
-
-		subs, err := repo.FindActiveBySubstitute(ctx, substitute.ID, today)
-		require.NoError(t, err)
-		assert.Empty(t, subs)
-	})
-}
-
 // ============================================================================
 // Validation Tests
 // ============================================================================
@@ -602,33 +555,5 @@ func TestGroupSubstitutionRepository_ListWithRelations(t *testing.T) {
 		subs, err := repo.ListWithRelations(ctx, options)
 		require.NoError(t, err)
 		assert.Empty(t, subs)
-	})
-}
-
-func TestGroupSubstitutionRepository_FindActiveBySubstituteWithRelations(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
-	ctx := testpkg.Ctx(t)
-
-	t.Run("finds active substitutions by substitute with relations", func(t *testing.T) {
-		group := testpkg.CreateTestEducationGroup(t, db, "SubActiveSubRel")
-		substitute := testpkg.CreateTestStaff(t, db, "ActiveSubRel", "Person")
-
-		today := timezone.TodayDate()
-		startDate := today.AddDays(-1)
-		endDate := today.AddDays(7)
-		testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
-
-		subs, err := repo.FindActiveBySubstituteWithRelations(ctx, substitute.ID, today)
-		require.NoError(t, err)
-		assert.NotEmpty(t, subs)
-
-		// Verify relations are loaded
-		found := subs[0]
-		assert.NotNil(t, found.Group)
-		assert.NotNil(t, found.SubstituteStaff)
 	})
 }
