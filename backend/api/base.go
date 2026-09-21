@@ -888,21 +888,26 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL 
 	// Setup CORS, security logging, and rate limiting
 	setupCORSIfEnabled(api.Router, enableCORS)
 	securityLogger := setupSecurityLogging(api.Router)
-	setupRateLimiting(api.Router, securityLogger)
+	sessionAuth, err := newSessionTokenAuth()
+	if err != nil {
+		return nil, err
+	}
+	setupRateLimiting(api.Router, securityLogger, sessionAuth)
+	// One verifier serves every route: it only parses the presented token, and
+	// each protected group still rejects through the Authenticator and its
+	// scope gate. A group mounted without it fails closed.
+	api.Router.Use(sessionAuth.Verifier())
 
-	requestFeedResource, err := initializeAPIResourcesWithRequestFeed(api, repoFactory, modules, db, logger, frontendURL)
+	requestFeedResource, err := initializeAPIResourcesWithRequestFeed(api, repoFactory, modules, db, logger, frontendURL, sessionAuth)
 	if err != nil {
 		return nil, err
 	}
 	api.WorkTimeModels = worktimemodelsHTTPAdapter.NewResource(modules.workforce, db, services.StaffTimeTrackingNotifier(api.Services.RealtimeHub))
 	api.MealPlan = newMealPlanResource(modules.mealPlan, db, newMealPlanExportRenderer())
 	api.Feedback = newFeedbackResource(modules.feedback, db)
-	api.Users = newUsersResource(modules.persons, repoFactory.Account.FindEmailsByAccountIDs, func(ctx context.Context, tagID string) (bool, error) {
-		cards, err := repoFactory.RFIDCard.List(ctx, map[string]any{"id": tagID})
-		if err != nil {
-			return false, err
-		}
-		return len(cards) > 0, nil
+	api.Users = newUsersResource(modules.persons, api.Services.Auth.ListAccountEmails, func(ctx context.Context, tagID string) (bool, error) {
+		_, _, found, err := repoFactory.RFIDCard.LookupRFIDCard(ctx, tagID)
+		return found, err
 	}, db)
 
 	// Register routes with rate limiting
@@ -915,8 +920,8 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL 
 	return api, nil
 }
 
-func initializeAPIResourcesWithRequestFeed(api *API, repoFactory *repositories.Factory, modules moduleServices, db *bun.DB, logger *slog.Logger, frontendURL string) (*requestFeedHTTP.Resource, error) {
-	if err := initializeAPIResources(api, repoFactory, modules, db, logger); err != nil {
+func initializeAPIResourcesWithRequestFeed(api *API, repoFactory *repositories.Factory, modules moduleServices, db *bun.DB, logger *slog.Logger, frontendURL string, sessionAuth *projectJWT.TokenAuth) (*requestFeedHTTP.Resource, error) {
+	if err := initializeAPIResources(api, repoFactory, modules, db, logger, sessionAuth); err != nil {
 		return nil, err
 	}
 	requestFeed, err := requestFeedCompose.New(requestFeedCompose.Dependencies{
@@ -1100,7 +1105,7 @@ func setupSecurityLogging(router chi.Router) *customMiddleware.SecurityLogger {
 }
 
 // setupRateLimiting configures rate limiting middleware if enabled
-func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.SecurityLogger) {
+func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.SecurityLogger, tokenAuth *projectJWT.TokenAuth) {
 	if os.Getenv("RATE_LIMIT_ENABLED") != "true" {
 		return
 	}
@@ -1118,9 +1123,7 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 		}
 	})
 	generalRateLimiter.SetRejectObserver(observability.RecordRateLimitRejection)
-	if tokenAuth, err := projectJWT.NewTokenAuth(); err == nil {
-		generalRateLimiter.SetKeyFunc(identityRateLimitKey(tokenAuth))
-	}
+	generalRateLimiter.SetKeyFunc(identityRateLimitKey(tokenAuth))
 	if securityLogger != nil {
 		generalRateLimiter.SetLogger(securityLogger)
 	}
@@ -1319,27 +1322,11 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 	}, careReviews, nil
 }
 
-// activeSchoolMemberships lists the schools an account is actively mapped to.
-func activeSchoolMemberships(repoFactory *repositories.Factory) accountSchoolMemberships {
-	accountTenants := repoFactory.AccountTenant
-	return func(ctx context.Context, accountID int64) ([]int64, error) {
-		memberships, err := accountTenants.FindActiveByAccountID(ctx, accountID)
-		if err != nil {
-			return nil, err
-		}
-		ids := make([]int64, 0, len(memberships))
-		for _, membership := range memberships {
-			ids = append(ids, membership.TenantID)
-		}
-		return ids, nil
-	}
-}
-
-func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules moduleServices, db *bun.DB, logger *slog.Logger) error {
+func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules moduleServices, db *bun.DB, logger *slog.Logger, sessionAuth *projectJWT.TokenAuth) error {
 	workforce := modules.workforce
 	// One device authentication composition serves every kiosk route group,
 	// so the IoT and students resources share its last-seen debouncer.
-	authSchools := authSchoolDirectory{schools: api.Services.Schools, memberships: activeSchoolMemberships(repoFactory)}
+	authSchools := authSchoolDirectory{schools: api.Services.Schools, memberships: api.Services.Auth.ListActiveAccountSchoolIDs}
 	deviceAuth := deviceauth.New(deviceauth.Dependencies{
 		Devices:     api.Services.IoT.Fleet(),
 		Schools:     deviceSchoolDirectory{schools: api.Services.Schools},
@@ -1638,7 +1625,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		// the corresponding checkout toggle flips on).
 		SettingValueSet:  api.Services.SettingsSideEffects.Dispatch,
 		TenantMFAService: api.Services.MFA,
-		TokenAuth:        nil, // Created internally by operator API
+		TokenAuth:        sessionAuth,
 		DB:               db,
 	})
 	api.Parent = parentAPI.NewResource(parentAPI.ResourceConfig{
@@ -1656,12 +1643,12 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	})
 	api.Platform = platformAPI.NewResource(platformAPI.ResourceConfig{
 		AnnouncementsService: api.Services.Announcement,
-		Runtime:              newPlatformRuntime(projectJWT.MustNewTokenAuth()),
+		Runtime:              newPlatformRuntime(),
 	})
 	return nil
 }
 
-func newPlatformRuntime(tokenAuth *projectJWT.TokenAuth) platformAPI.Runtime {
+func newPlatformRuntime() platformAPI.Runtime {
 	return platformAPI.Runtime{
 		// TenantMiddleware supplies the scope guard: parent- and school-scope
 		// tokens are rejected with 401 (#2207) — before it, this group was the
@@ -1670,10 +1657,9 @@ func newPlatformRuntime(tokenAuth *projectJWT.TokenAuth) platformAPI.Runtime {
 		// unchanged.
 		Protected: func(router chi.Router, register func(chi.Router)) {
 			router.Group(func(r chi.Router) {
-				r.Use(tokenAuth.Verifier())
 				r.Use(projectJWT.Authenticator)
 				r.Use(apiCommon.ReadOnlyPreviewMiddleware)
-				r.Use(projectJWT.TenantMiddleware)
+				r.Use(apiCommon.TenantScopeMiddleware)
 				r.Use(apiCommon.SecurityPrincipalMiddleware)
 				register(r)
 			})
@@ -2096,4 +2082,17 @@ func (a *API) servePublicCalendarFeed(w http.ResponseWriter, r *http.Request) {
 // composition layer so both production and route tests receive a real renderer.
 func newMealPlanExportRenderer() services.SimpleListRenderer {
 	return services.NewSimpleListRenderer()
+}
+
+// newSessionTokenAuth resolves the signing configuration once for the API root.
+func newSessionTokenAuth() (*projectJWT.TokenAuth, error) {
+	tokenAuth, err := projectJWT.NewTokenAuthWithDurations(
+		viper.GetString("auth_jwt_secret"),
+		viper.GetDuration("auth_jwt_expiry"),
+		viper.GetDuration("auth_jwt_refresh_expiry"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("invalid auth JWT configuration: %w", err)
+	}
+	return tokenAuth, nil
 }

@@ -44,8 +44,9 @@ import (
 // above records the original seed, not the current evaluator. Its 167 stale
 // rule deletions lower these seeds to 483 conversion promises and 581 wider
 // compatibility markers. The #3351 care-schedule cutover and the seven
-// file-storage rules #3461 removed lower them to 395 and 492; this prose
-// counter remains as an independent guard.
+// file-storage rules #3461 removed lower them to 395 and 492, and the #3226
+// identity persistence rewrite to 392 and 487; this prose counter remains as
+// an independent guard.
 //
 // Three shrink-only measurements, all read-only on policy.json:
 //
@@ -95,12 +96,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 395
+	policyTempRulesTotal = 392
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 492
+	policyTempRulesCompatTotal = 487
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -151,7 +152,7 @@ var policyTempRulesFamilies = map[string]int{
 	"group-live-view": 4,
 
 	// #3364 — closed.
-	"identity-access": 19,
+	"identity-access": 18,
 
 	// #3224 — closed.
 	"inbound-birthdays": 1,
@@ -187,7 +188,7 @@ var policyTempRulesFamilies = map[string]int{
 
 	// #2725 (OPEN) and #3224 (closed) name most rules jointly; #3214 the rest.
 	// The only large family with a live issue behind it.
-	"inbound-usercontext": 33,
+	"inbound-usercontext": 31,
 
 	// #3214, #3218, #3219, #3220, #3224 — closed; #3350 (PR #3408) added one.
 	"legacy-composition": 7,

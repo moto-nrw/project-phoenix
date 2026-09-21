@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	authModel "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -29,7 +28,8 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	identity, err := repositories.NewIdentityAccessForTests(db)
+	require.NoError(t, err)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	t.Cleanup(func() {
 		_, err := db.NewDelete().
@@ -48,7 +48,7 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 			return reminderEnabled[tenant.FromContext(settingsCtx)], nil
 		},
 	}
-	svc := notifications.NewPreferenceService(services.NewNotificationConsentTestStore(db), settings, db, repos.AccountTenant)
+	svc := notifications.NewPreferenceService(services.NewNotificationConsentTestStore(db), settings, db, identity)
 	testpkg.SetTenantRuntime(t, svc, db)
 
 	t.Run("starts empty", func(t *testing.T) {
@@ -99,11 +99,10 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 		require.NoError(t, db.NewSelect().
 			TableExpr("auth.roles").
 			ColumnExpr("id").
-			Where("name = ?", authModel.BaseRoleGuardian).
+			Where("name = ?", "guardian").
 			Scan(ctx, &guardianRoleID))
-		role := &authModel.AccountRole{AccountID: chain.AccountID, RoleID: guardianRoleID}
-		role.SetTenantID(secondTenantID)
-		_, err := db.NewInsert().Model(role).ModelTableExpr("auth.account_roles").Exec(ctx)
+		_, err := db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+			chain.AccountID, guardianRoleID, secondTenantID).Exec(ctx)
 		require.NoError(t, err)
 
 		overview, err := svc.GetForParent(ctx, chain.AccountID)

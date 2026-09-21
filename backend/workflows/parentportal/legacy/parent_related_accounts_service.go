@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -132,14 +131,14 @@ type GuardianInvitationRecord struct {
 	StudentID         *int64
 	ExpiresAt         time.Time
 	AcceptedAt        *time.Time
-	ApprovalStatus    string
+	Rejected          bool
 }
 
 // Open reports whether the invitation still gives the contact a way in: not
 // spent, not expired, and not refused by staff.
 func (r GuardianInvitationRecord) Open(now time.Time) bool {
 	return r.AcceptedAt == nil && r.ExpiresAt.After(now) &&
-		r.ApprovalStatus != authModels.GuardianInvitationApprovalRejected
+		!r.Rejected
 }
 
 // GuardianInvitationReads is the consumer-owned port over the Identity &

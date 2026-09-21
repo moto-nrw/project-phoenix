@@ -21,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	grouplivelegacy "github.com/moto-nrw/project-phoenix/modules/grouplive/legacy"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -320,7 +321,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	masterDataReviewService := users.NewMasterDataReviewServiceWithAuditAndPolicy(
+	masterDataReviewService := users.NewMasterDataReviewServiceWithAuditAndPolicy(authjwt.PermissionsFromCtx,
 		repos.StudentDataChangeRequest,
 		repos.Student,
 		repos.Person,
@@ -333,7 +334,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		realtimeHub,
 	)
 	excusedCoordinatorPort := excusedRequestCoordinatorPort{requests: excusedRequestService}
-	parentRequestCoordinator := users.NewParentRequestCoordinator(
+	parentRequestCoordinator := users.NewParentRequestCoordinator(authjwt.PermissionsFromCtx,
 		masterDataReviewService.(users.MasterDataBulkReviewPort),
 		excusedCoordinatorPort,
 	)

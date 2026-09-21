@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -52,7 +53,7 @@ func TestStudentAuditCompositionRecordsSystemStatusChange(t *testing.T) {
 	t.Parallel()
 
 	capability := &stubStudentAuditCapability{}
-	service := userService.NewStudentAuditService(repositories.NewStudentAuditFor(capability))
+	service := userService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAuditFor(capability))
 
 	err := service.RecordSystemStatusChange(
 		context.Background(),
@@ -107,7 +108,7 @@ func TestStudentAuditCompositionResolvesActorName(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			capability := &stubStudentAuditCapability{}
-			service := userService.NewStudentAuditService(repositories.NewStudentAuditFor(capability))
+			service := userService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAuditFor(capability))
 			ctx := context.WithValue(context.Background(), jwt.CtxClaims, tc.claims)
 
 			err := service.RecordChangesForActor(
@@ -131,7 +132,7 @@ func TestStudentAuditCompositionIgnoresMissingSnapshots(t *testing.T) {
 	t.Parallel()
 
 	capability := &stubStudentAuditCapability{}
-	service := userService.NewStudentAuditService(repositories.NewStudentAuditFor(capability))
+	service := userService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAuditFor(capability))
 
 	require.NoError(t, service.RecordChanges(context.Background(), nil, &userModels.Student{}, 1, "Wer"))
 	require.NoError(t, service.RecordChanges(context.Background(), &userModels.Student{}, nil, 1, "Wer"))

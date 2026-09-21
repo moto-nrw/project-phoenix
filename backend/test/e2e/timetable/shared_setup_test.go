@@ -145,7 +145,7 @@ func (s *scenario) do(method, path string, body any, claims timetableTestClaims)
 	req.Header.Set("Authorization", "Bearer "+token)
 
 	rr := httptest.NewRecorder()
-	s.router.ServeHTTP(rr, req)
+	testpkg.SessionVerifier(s.router).ServeHTTP(rr, req)
 	return rr
 }
 

@@ -47,6 +47,13 @@ func newAccountAdministration(
 
 var errAccountAdministrationUnavailable = identityaccess.ErrAccountAdministrationUnavailable
 
+func (e engine) AnonymizeAccountForDeletion(ctx context.Context, accountID int64, email string) error {
+	if e.administration == nil {
+		return errAccountAdministrationUnavailable
+	}
+	return administrationError(e.administration.AnonymizeAccountForDeletion(e.attach(ctx), accountID, email))
+}
+
 func (e engine) FindOwnAccount(ctx context.Context, accountID int64) (identityaccess.ManagedAccount, error) {
 	if e.administration == nil {
 		return identityaccess.ManagedAccount{}, errAccountAdministrationUnavailable

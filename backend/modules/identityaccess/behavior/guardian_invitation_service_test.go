@@ -18,7 +18,6 @@ import (
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -188,6 +187,34 @@ func TestGuardianInvitationService_Create_RejectsProfileWithoutEmail(t *testing.
 	require.Error(t, err, "Create must reject a profile with no email")
 }
 
+func TestGuardianInvitationService_Create_RejectsInvalidIdentifiers(t *testing.T) {
+	t.Parallel()
+
+	env := setupGuardianInvitationTest(t)
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "invalid-invitation-identifiers")
+	creatorID := env.inviterAccountID(t)
+	for _, tc := range []struct {
+		name      string
+		profileID int64
+		creatorID int64
+		message   string
+	}{
+		{"zero profile", 0, creatorID, "guardian profile ID is required"},
+		{"negative profile", -1, creatorID, "guardian profile ID is required"},
+		{"zero creator", profile.ID, 0, "created_by is required"},
+		{"negative creator", profile.ID, -1, "created_by is required"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := env.service.CreateGuardianInvitation(testpkg.Ctx(t), identityaccess.GuardianInvitationRequest{
+				GuardianProfileID: tc.profileID,
+				CreatedBy:         tc.creatorID,
+			})
+			require.ErrorContains(t, err, tc.message)
+		})
+	}
+	assert.Empty(t, testpkg.GuardianInvitationsByProfile(t, env.db, profile.ID), "invalid identifiers must not create an invitation")
+}
+
 func TestGuardianInvitationService_Validate_ReturnsPublicInfo(t *testing.T) {
 	t.Parallel()
 
@@ -303,21 +330,17 @@ func TestGuardianInvitationService_Accept_HappyPath(t *testing.T) {
 	assert.True(t, updatedProfile.HasAccount, "guardian_profile.has_account should flip true")
 
 	// Account-tenant mapping must exist + be active.
-	exists, err := env.repos.AccountTenant.ExistsByAccountAndTenant(context.Background(), account.ID, testpkg.Tenant(t))
+	exists, err := testpkg.ActiveAccountTenantExists(context.Background(), env.db, account.ID, testpkg.Tenant(t))
 	require.NoError(t, err)
 	assert.True(t, exists, "account_tenant mapping should be created on accept")
 
 	// Account must have the guardian role assigned.
-	roles, err := env.repos.Role.FindByAccountID(testpkg.Ctx(t), account.ID)
-	require.NoError(t, err)
-	require.NotEmpty(t, roles, "account should have at least one role")
-	hasGuardian := false
-	for _, r := range roles {
-		if r.Name == "guardian" {
-			hasGuardian = true
-		}
-	}
-	assert.True(t, hasGuardian, "guardian role should be assigned")
+	var roleNames []string
+	require.NoError(t, env.db.NewRaw(`SELECT r.name FROM auth.roles r
+		JOIN auth.account_roles ar ON ar.role_id = r.id
+		WHERE ar.account_id = ? AND ar.tenant_id = ?`, account.ID, testpkg.Tenant(t)).Scan(testpkg.Ctx(t), &roleNames))
+	require.NotEmpty(t, roleNames, "account should have at least one role")
+	assert.Contains(t, roleNames, "guardian", "guardian role should be assigned")
 }
 
 // A guardian invitation belongs to one school: another school's staff can
@@ -373,20 +396,20 @@ func TestGuardianInvitationService_PublicTokenRejectsUnapprovedStatuses(t *testi
 
 	creatorID := env.inviterAccountID(t)
 	statuses := []string{
-		authModels.GuardianInvitationApprovalPending,
-		authModels.GuardianInvitationApprovalRejected,
+		identityaccess.GuardianInvitationApprovalPending,
+		identityaccess.GuardianInvitationApprovalRejected,
 	}
 	for _, status := range statuses {
 		t.Run(status, func(t *testing.T) {
 			profile := testpkg.CreateTestGuardianProfile(t, env.db, "unapproved-token-"+status)
-			invitation := &authModels.GuardianInvitation{
+			invitation := &testpkg.GuardianInvitation{
 				Token:             "unapproved-token-" + status + "-" + time.Now().Format("150405.000000000"),
 				GuardianProfileID: profile.ID,
 				CreatedBy:         creatorID,
 				ExpiresAt:         time.Now().Add(time.Hour),
 				ApprovalStatus:    status,
 			}
-			invitation.SetTenantID(testpkg.Tenant(t))
+			invitation.TenantID = testpkg.Tenant(t)
 			testpkg.InsertTestGuardianInvitation(t, env.db, invitation)
 			defer env.cleanupInvitation(t, invitation.ID, profile.ID)
 
@@ -436,7 +459,7 @@ func TestGuardianInvitationService_Accept_ReusesExistingAccountWithoutPasswordCh
 	require.NotNil(t, acceptedAccount)
 	assert.Equal(t, account.ID, acceptedAccount.ID)
 
-	stored, err := env.repos.Account.FindByEmail(context.Background(), *profile.Email)
+	stored, err := testpkg.ReadAccountState(context.Background(), env.db, account.ID)
 	require.NoError(t, err)
 	require.NotNil(t, stored.PasswordHash)
 	assert.Equal(t, existingHash, *stored.PasswordHash)
@@ -452,12 +475,12 @@ func TestGuardianInvitationService_Accept_ReactivatesExistingTenantMapping(t *te
 	creatorID := env.inviterAccountID(t)
 	account := testpkg.CreateTestAccountWithPassword(t, env.db, *profile.Email, "Existing!2026")
 	deactivatedAt := time.Now().Add(-time.Hour)
-	require.NoError(t, env.repos.AccountTenant.Create(context.Background(), &authModels.AccountTenant{
-		AccountID:     account.ID,
-		TenantID:      testpkg.Tenant(t),
-		Status:        authModels.AccountTenantStatusInactive,
-		DeactivatedAt: &deactivatedAt,
-	}))
+	_, err := env.db.NewRaw(`UPDATE auth.account_tenants SET status = 'inactive', deactivated_at = ?
+		WHERE account_id = ? AND tenant_id = ?`, deactivatedAt, account.ID, testpkg.Tenant(t)).Exec(context.Background())
+	require.NoError(t, err)
+	active, err := testpkg.ActiveAccountTenantExists(context.Background(), env.db, account.ID, testpkg.Tenant(t))
+	require.NoError(t, err)
+	require.False(t, active, "reactivation must start from an inactive mapping")
 	t.Cleanup(func() {
 		_, _ = env.db.NewDelete().TableExpr("auth.account_roles").Where("account_id = ?", account.ID).Exec(context.Background())
 		_, _ = env.db.NewDelete().TableExpr("auth.account_tenants").Where("account_id = ?", account.ID).Exec(context.Background())
@@ -478,7 +501,7 @@ func TestGuardianInvitationService_Accept_ReactivatesExistingTenantMapping(t *te
 	})
 	require.NoError(t, err)
 
-	var mapping authModels.AccountTenant
+	var mapping testpkg.AccountTenantFixture
 	err = env.db.NewSelect().
 		Model(&mapping).
 		ModelTableExpr(`auth.account_tenants AS "account_tenant"`).
@@ -486,7 +509,7 @@ func TestGuardianInvitationService_Accept_ReactivatesExistingTenantMapping(t *te
 		Where(`"account_tenant".tenant_id = ?`, testpkg.Tenant(t)).
 		Scan(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, authModels.AccountTenantStatusActive, mapping.Status)
+	assert.Equal(t, "active", mapping.Status)
 	assert.Nil(t, mapping.DeactivatedAt)
 	assert.NotNil(t, mapping.ActivatedAt)
 }

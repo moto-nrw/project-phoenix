@@ -210,8 +210,7 @@ func TestPersonService_Create(t *testing.T) {
 		err := service.Create(ctx, person)
 
 		// ASSERT
-		require.Error(t, err)
-		// Error indicates account not found or validation failed
+		require.ErrorIs(t, err, users.ErrAccountNotFound)
 	})
 }
 

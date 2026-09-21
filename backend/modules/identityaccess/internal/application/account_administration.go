@@ -89,6 +89,18 @@ func (a *AccountAdministration) FindOwnAccount(ctx context.Context, accountID in
 	return account, nil
 }
 
+func (a *AccountAdministration) AnonymizeAccountForDeletion(ctx context.Context, accountID int64, email string) error {
+	err := a.auth.sessions.run(ctx, a.auth.sessions.tx.RunPlatform, "anonymize_account_for_deletion", func(txCtx context.Context, stats *domain.OperationStats) error {
+		queryStats, queryErr := a.store.AnonymizeAccountForDeletion(txCtx, accountID, email)
+		stats.Add(queryStats)
+		return queryErr
+	})
+	if err != nil {
+		return failed("anonymize account for deletion", err)
+	}
+	return nil
+}
+
 // FindManageableAccount reads one account within the caller's visibility.
 // An account outside it is reported as missing, so the read tells nobody
 // that an account they may not administer exists.

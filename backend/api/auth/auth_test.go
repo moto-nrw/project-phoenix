@@ -25,7 +25,6 @@ import (
 
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	authModel "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -218,12 +217,8 @@ func loginAsAdmin(t *testing.T, db *bun.DB, router chi.Router) (token string, va
 
 	// 2. Get or create "admin" role and assign it
 	adminRole := testpkg.GetOrCreateTestRole(t, db, "admin")
-	accountRole := &authModel.AccountRole{
-		AccountID: adminAccount.ID,
-		RoleID:    adminRole.ID,
-	}
-	accountRole.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(accountRole).ModelTableExpr("auth.account_roles").Exec(ctx)
+	_, err := db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+		adminAccount.ID, adminRole.ID, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err, "Failed to assign admin role")
 
 	// 3. Get or create a "user" role to use as valid role_id in test payloads
@@ -450,7 +445,7 @@ func TestRegisterRejectsGuardianRole(t *testing.T) {
 	t.Parallel()
 	db, router := setupPublicRouterWithDB(t)
 
-	guardianRole := testpkg.CreateTestSystemRole(t, db, authModel.BaseRoleGuardian)
+	guardianRole := testpkg.CreateTestSystemRole(t, db, "guardian")
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().TableExpr("auth.roles").Where("id = ?", guardianRole.ID).Exec(context.Background())
 	})
@@ -515,12 +510,8 @@ func TestRegisterRequiresAdminAuth(t *testing.T) {
 		userAccount := testpkg.CreateTestAccountWithPassword(t, db, userEmail, userPassword)
 		testpkg.EnsureAccountTenant(t, db, userAccount.ID, testpkg.Tenant(t))
 
-		userAccountRole := &authModel.AccountRole{
-			AccountID: userAccount.ID,
-			RoleID:    noPermsRole.ID,
-		}
-		userAccountRole.SetTenantID(testpkg.Tenant(t))
-		_, err := db.NewInsert().Model(userAccountRole).ModelTableExpr("auth.account_roles").Exec(ctx)
+		_, err := db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+			userAccount.ID, noPermsRole.ID, testpkg.Tenant(t)).Exec(ctx)
 		require.NoError(t, err)
 
 		t.Cleanup(func() {
@@ -1057,7 +1048,7 @@ func TestRoleManagement_BaseRole(t *testing.T) {
 
 	t.Run("update system role is rejected", func(t *testing.T) {
 		// System roles cannot be updated at all — the service returns 403
-		var systemRole authModel.Role
+		var systemRole testpkg.RoleFixture
 		err := tc.db.NewSelect().
 			Model(&systemRole).
 			ModelTableExpr(`auth.roles AS "role"`).
@@ -1485,7 +1476,7 @@ func TestAccountRoleAssignment(t *testing.T) {
 	t.Run("rejects direct assignment of guardian roles", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("guardian-assignment%d", time.Now().UnixNano()))
 		guardianRole := testpkg.CreateTestRole(t, tc.db, "guardian-assignment")
-		guardianBaseRole := authModel.BaseRoleGuardian
+		guardianBaseRole := "guardian"
 		guardianRole.BaseRole = &guardianBaseRole
 		_, err := tc.db.NewUpdate().
 			Model(guardianRole).

@@ -114,7 +114,7 @@ func TestVerifyCodeForAccount_RefusesForeignPortalChallenge(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	svc, repos, db := newTestMFAService(t)
+	svc, _, db := newTestMFAService(t)
 
 	account := testpkg.CreateTestAccount(t, db, "mfa-portal-binding")
 	accountID := account.ID
@@ -130,7 +130,7 @@ func TestVerifyCodeForAccount_RefusesForeignPortalChallenge(t *testing.T) {
 	_, err := svc.StartMFAChallenge(ctx, accountID, tenantID, identityaccess.MFAChallengeScopeSchool, net.ParseIP("203.0.113.7"))
 	require.NoError(t, err)
 
-	stored, err := repos.MFAEmailChallenge.FindActiveByAccountIDInScope(ctx, accountID, tenantID, identityaccess.MFAChallengeScopeSchool)
+	stored, _, err := nativeMFARecords(t, db).FindActiveChallengeInScope(ctx, accountID, tenantID, identityaccess.MFAChallengeScopeSchool)
 	require.NoError(t, err)
 	require.NotNil(t, stored, "the school challenge must be visible to the school scope")
 	assert.Equal(t, identityaccess.MFAChallengeScopeSchool, stored.Scope)
@@ -138,7 +138,7 @@ func TestVerifyCodeForAccount_RefusesForeignPortalChallenge(t *testing.T) {
 
 	// The tenant surface must not see it at all — not even to compare a code
 	// against, so a correct school code cannot be spent here.
-	_, err = repos.MFAEmailChallenge.FindActiveByAccountIDInScope(ctx, accountID, tenantID, identityaccess.MFAChallengeScopeTenant)
+	_, _, err = nativeMFARecords(t, db).FindActiveChallengeInScope(ctx, accountID, tenantID, identityaccess.MFAChallengeScopeTenant)
 	assert.Error(t, err, "a school-scope code must be invisible to the tenant portal's lookup")
 
 	err = svc.VerifyMFACodeForAccount(ctx, accountID, tenantID, "000000", identityaccess.MFAChallengeScopeTenant)
@@ -147,7 +147,7 @@ func TestVerifyCodeForAccount_RefusesForeignPortalChallenge(t *testing.T) {
 
 	// The school challenge is still unconsumed — the foreign-portal attempt
 	// must not have burned it either.
-	stillActive, err := repos.MFAEmailChallenge.FindActiveByAccountIDInScope(ctx, accountID, tenantID, identityaccess.MFAChallengeScopeSchool)
+	stillActive, _, err := nativeMFARecords(t, db).FindActiveChallengeInScope(ctx, accountID, tenantID, identityaccess.MFAChallengeScopeSchool)
 	require.NoError(t, err)
 	require.NotNil(t, stillActive)
 	assert.Equal(t, stored.ID, stillActive.ID)

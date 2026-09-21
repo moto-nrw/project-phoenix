@@ -14,7 +14,6 @@ import (
 	repoUsers "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	staffmessaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffmessages"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
@@ -276,7 +275,7 @@ func TestInactiveMemberIsNotAddressable(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	_, err := db.NewUpdate().
 		Table("auth.account_tenants").
-		Set("status = ?", authModels.AccountTenantStatusInactive).
+		Set("status = ?", "inactive").
 		Where("account_id = ? AND tenant_id = ?", ben, testpkg.Tenant(t)).
 		Exec(ctx)
 	require.NoError(t, err)

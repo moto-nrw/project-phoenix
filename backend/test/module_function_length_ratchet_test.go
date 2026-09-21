@@ -70,7 +70,7 @@ const moduleFuncLenThreshold = 60
 // delete entries, never add one and never raise a number.
 var moduleFuncLenAllowlist = map[string]int{
 	"modules/appointments/recurrence.go:boundedRecurrenceDates":                                          117,
-	"modules/careplan/inbound/parent/api.go:(*Resource).RouterWithAuthRateLimiter":                       215,
+	"modules/careplan/inbound/parent/api.go:(*Resource).RouterWithAuthRateLimiter":                       212,
 	"modules/careplan/inbound/parent/child_write_handlers.go:(*Resource).submitSickNote":                 67,
 	"modules/careplan/inbound/parent/child_write_handlers.go:renderParentWriteError":                     162,
 	"modules/careplan/inbound/parent/enrollment_handlers.go:(*Resource).getEnrollmentBootstrap":          87,
@@ -143,7 +143,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/exporttransfer/internal/adapters/sftp/client.go:(*Client).Prepare":                                                           75,
 	"modules/exporttransfer/internal/application/service.go:(*Service).Transfer":                                                          75,
 	"modules/filestorage/internal/application/cleanup.go:(*Service).sweep":                                                                70,
-	"modules/identityaccess/compose/new.go:New":                                                                                           97,
+	"modules/identityaccess/compose/new.go:New":                                                                                           79,
 	"modules/identityaccess/internal/application/account_mfa_admin.go:(*AccountMFAFlows).OperatorSetGlobalMFAOverride":                    70,
 	"modules/identityaccess/internal/application/account_mfa_admin.go:(*AccountMFAFlows).setTenantOverride":                               73,
 	"modules/identityaccess/internal/application/account_mfa_flow.go:(*AccountMFAFlows).StartChallenge":                                   81,
@@ -193,7 +193,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/schoolcalendar/portal/internal/application/service.go:(*service).resolveTargets":                                             170,
 	"modules/schoolcalendar/portal/internal/application/service.go:(*service).updateStaffAppointment":                                     102,
 	"modules/schoolmembership/internal/application/offboarding.go:(*Service).retirementSnapshot":                                          64,
-	"modules/schoolportal/api.go:(*Resource).RouterWithAuthRateLimiter":                                                                   90,
+	"modules/schoolportal/api.go:(*Resource).RouterWithAuthRateLimiter":                                                                   86,
 	"modules/schoolportal/auth_handlers.go:(*Resource).login":                                                                             64,
 	"modules/schoolstructure/internal/adapters/postgres/transition_store.go:(*Store).ListTransitions":                                     64,
 	"modules/schoolstructure/internal/application/transition.go:(*Service).UpdateTransition":                                              63,

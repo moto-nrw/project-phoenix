@@ -68,6 +68,22 @@ func checkRouteTableGolden(t *testing.T, apiInstance *API) {
 	sort.Strings(routes)
 	sort.Strings(middlewareRoutes)
 
+	// The root mounts the only session verifier. An Authenticator without a
+	// verifier before it rejects every token, and the shared test executors
+	// mount their own verifier, so only this walk of the production router
+	// notices a missing root mount. Regenerating the golden cannot hide it.
+	for _, chain := range middlewareRoutes {
+		authenticator := strings.Index(chain, "legacy/jwt.Authenticat")
+		if authenticator < 0 {
+			authenticator = strings.Index(chain, "legacy/jwt.MFAEnrollmentAuthenticat")
+		}
+		if authenticator < 0 {
+			continue
+		}
+		verifier := strings.Index(chain, "jwtauth/v5.Verif")
+		require.Truef(t, verifier >= 0 && verifier < authenticator, "authenticated route without a preceding session verifier: %s", chain)
+	}
+
 	compareGolden(t, filepath.Join("testdata", "route_table.golden"), strings.Join(routes, "\n")+"\n",
 		"the route table changed — if intentional, regenerate with -update-goldens and call the change out in the PR description")
 	compareGolden(t, filepath.Join("testdata", "middleware_table.golden"), strings.Join(middlewareRoutes, "\n")+"\n",

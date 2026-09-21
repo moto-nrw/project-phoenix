@@ -2,7 +2,6 @@ package parent
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/uptrace/bun"
 )
@@ -22,12 +21,4 @@ func requireRuntime(runtime Runtime) Runtime {
 		panic("parent repository: runtime is required")
 	}
 	return runtime
-}
-
-func runtimeDB(ctx context.Context, runtime Runtime) bun.IDB {
-	db := requireRuntime(runtime).DB(ctx)
-	if db == nil {
-		panic(fmt.Sprintf("parent repository: runtime returned no database for %T", runtime))
-	}
-	return db
 }

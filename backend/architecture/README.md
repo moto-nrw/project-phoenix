@@ -1090,12 +1090,12 @@ and permission CRUD, account role assignment with the school identity it
 owes, direct account grants, role-permission selections and the default
 staff permission. `auth.roles`, `auth.permissions`, `auth.role_permissions`,
 `auth.account_roles`, `auth.account_permissions` and the account and
-membership locks the mutations serialize on are still read and written
-through the retained `modules/identityaccess/legacy/authpostgres` repositories:
-`database/repositories/identity_roles.go` serves the module's
-`compose.RoleDirectory` seam over them, without changing a statement or the
-lock order. #3226 moved those stores into the module; the seam still binds
-them from the legacy factory until #2743 retires it. The school-role
+membership locks the mutations serialize on use module-owned persistence in
+`internal/adapters/postgres`. Account visibility reuses the module's account
+administration, preserving tenant and organization checks and the lock order.
+#3226 removed the root role adapter and `compose.RoleDirectory` seam; other
+legacy consumers still need migration before the old repositories can be
+deleted. The school-role
 assignment policy (`ValidateAssignableSchoolRole` and the Lehrkraft and
 guardian-tier classification) is a public function of the module; the
 operator school access binds it inside the module, and the retained

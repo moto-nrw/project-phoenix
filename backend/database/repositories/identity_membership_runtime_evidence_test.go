@@ -24,6 +24,8 @@ func TestIdentityMembershipRuntimeEvidence(t *testing.T) {
 	db := testpkg.SetupIsolatedTestDB(t)
 	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
+	identity, err := repositories.NewIdentityAccessForTests(db)
+	require.NoError(t, err)
 	staff, err := repositories.NewStaffMessagingTestRepositories(db)
 	require.NoError(t, err)
 
@@ -145,13 +147,9 @@ func TestIdentityMembershipRuntimeEvidence(t *testing.T) {
 		// the operator counts are the operatordashboard projection, measured
 		// by its own tests.
 		measure("schools_of_account", iteration, true, func(txCtx context.Context) (int, error) {
-			memberships, err := factory.AccountTenant.FindActiveByAccountID(txCtx, chain.AccountID)
+			ids, err := identity.ListActiveAccountSchoolIDs(txCtx, chain.AccountID)
 			if err != nil {
 				return 0, err
-			}
-			ids := make([]int64, 0, len(memberships))
-			for _, membership := range memberships {
-				ids = append(ids, membership.TenantID)
 			}
 			schools, err := factory.School.ListSchoolsByID(txCtx, ids)
 			return len(schools), err

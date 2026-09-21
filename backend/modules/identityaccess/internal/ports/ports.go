@@ -26,6 +26,7 @@ type Store interface {
 	FindRFIDCard(ctx context.Context, tag string, tenantID int64) (string, bool, domain.OperationStats, error)
 	FindAccount(ctx context.Context, id int64) (domain.Account, bool, domain.OperationStats, error)
 	FindAccountByEmail(ctx context.Context, email string) (domain.Account, bool, domain.OperationStats, error)
+	InsertAccount(ctx context.Context, email, passwordHash string) (domain.LoginAccount, domain.OperationStats, error)
 	// FindAccountsByEmails resolves the normalized addresses in one query.
 	FindAccountsByEmails(ctx context.Context, emails []string) (map[string]domain.Account, domain.OperationStats, error)
 	// EnsureActiveTenantMapping inserts the account's mapping for the tenant or
@@ -294,9 +295,9 @@ type SchoolDirectory interface {
 	// LockSchoolShared reads the school under a FOR SHARE lock inside the
 	// caller's transaction.
 	LockSchoolShared(ctx context.Context, id int64) (domain.School, bool, error)
-	// ListActiveSchoolsOfAccount returns the live, active schools the
-	// account is actively mapped to.
-	ListActiveSchoolsOfAccount(ctx context.Context, accountID int64) ([]domain.School, error)
+	// ListActiveSchoolsByID returns the live, active schools among the supplied IDs.
+	// Identity has already selected the account's active memberships.
+	ListActiveSchoolsByID(ctx context.Context, schoolIDs []int64) ([]domain.School, error)
 }
 
 // PersonDirectory is the consumer-owned port over the People Directory name

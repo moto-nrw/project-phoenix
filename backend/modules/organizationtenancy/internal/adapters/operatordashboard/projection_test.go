@@ -38,23 +38,31 @@ func ambientTransaction(ctx context.Context) (bun.IDB, error) {
 	return tx, nil
 }
 
-// activeMemberships spells the Identity & Access active-membership statement
-// (AccountTenantRepository.ActiveMemberships, #2721) the root binds; this
-// test scope may not import that owner's adapter.
-func activeMemberships(ctx context.Context) *bun.SelectQuery {
+// fixtureAccountCounts binds the aggregate port to fixture memberships without
+// importing another owner's composition. Native aggregate behavior is covered
+// in Identity; these tests exercise the dashboard's school-group selection.
+func fixtureAccountCounts(ctx context.Context, groups map[int64][]int64) (map[int64]int, error) {
 	db, err := ambientTransaction(ctx)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	return db.NewSelect().
-		TableExpr(`auth.account_tenants AS "account_tenant"`).
-		ColumnExpr(`"account_tenant".account_id`).
-		ColumnExpr(`"account_tenant".tenant_id`).
-		Where(`"account_tenant".status = ?`, "active")
+	counts := make(map[int64]int, len(groups))
+	for key, schoolIDs := range groups {
+		counts[key] = 0
+		if len(schoolIDs) == 0 {
+			continue
+		}
+		var count int
+		if err := db.NewRaw("SELECT COUNT(DISTINCT account_id) FROM auth.account_tenants WHERE status = 'active' AND tenant_id IN (?)", bun.List(schoolIDs)).Scan(ctx, &count); err != nil {
+			return nil, err
+		}
+		counts[key] = count
+	}
+	return counts, nil
 }
 
 func newProjection() *operatordashboard.Projection {
-	return operatordashboard.New(ambientTransaction, activeMemberships)
+	return operatordashboard.New(ambientTransaction, fixtureAccountCounts)
 }
 
 // TestAccountCountsFailClosedWithoutMembershipQuery pins that the account
@@ -68,13 +76,31 @@ func TestAccountCountsFailClosedWithoutMembershipQuery(t *testing.T) {
 
 	withinAdmin(t, db, func(ctx context.Context) error {
 		_, err := projection.Counts(ctx)
-		require.ErrorContains(t, err, "active membership query is not bound")
+		require.ErrorContains(t, err, "active account counts are not bound")
 		_, err = projection.OrganizationSummaries(ctx)
-		require.ErrorContains(t, err, "active membership query is not bound")
+		require.ErrorContains(t, err, "active account counts are not bound")
 		_, err = projection.SchoolSummaries(ctx, nil)
-		require.ErrorContains(t, err, "active membership query is not bound")
+		require.ErrorContains(t, err, "active account counts are not bound")
 		_, err = projection.SchoolSummaries(ctx, &organizationID)
-		require.ErrorContains(t, err, "active membership query is not bound")
+		require.ErrorContains(t, err, "active account counts are not bound")
+		return nil
+	})
+
+	failure := errors.New("identity counts unavailable")
+	failing := operatordashboard.New(ambientTransaction, func(context.Context, map[int64][]int64) (map[int64]int, error) {
+		return nil, failure
+	})
+	withinAdmin(t, db, func(ctx context.Context) error {
+		_, err := failing.Counts(ctx)
+		require.ErrorIs(t, err, failure)
+		organizations, err := failing.OrganizationSummaries(ctx)
+		require.ErrorIs(t, err, failure)
+		require.Nil(t, organizations)
+		for _, filter := range []*int64{nil, &organizationID} {
+			schools, readErr := failing.SchoolSummaries(ctx, filter)
+			require.ErrorIs(t, readErr, failure)
+			require.Nil(t, schools)
+		}
 		return nil
 	})
 }

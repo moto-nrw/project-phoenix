@@ -19,10 +19,9 @@ import (
 
 type Observation = ports.Observation
 
-// GuardianMembershipQuery is an Identity & Access owner query for an account
-// or (account_id, tenant_id) projection. It stays a constructor argument so
-// the People Directory contract does not depend on another module's adapter.
-type GuardianMembershipQuery func(context.Context) *bun.SelectQuery
+// GuardianMembershipQuery maps requested accounts to portal-capable schools.
+// The result is reachability evidence, not child-level authorization.
+type GuardianMembershipQuery func(context.Context, []int64) (map[int64][]int64, error)
 
 type Dependencies struct {
 	StudentOwners              StudentOwners
@@ -61,15 +60,15 @@ type Dependencies struct {
 // Graphs that need the parents-app reachability capability use
 // NewWithGuardianMemberships so those owner queries stay at the composition seam.
 func New(dependencies Dependencies) (*peopledirectory.Module, error) {
-	return NewWithGuardianMemberships(dependencies, nil, nil, nil)
+	return NewWithGuardianMemberships(dependencies, nil)
 }
 
 // NewWithGuardianMemberships composes People Directory with the Identity &
-// Access owner queries that identify active accounts, guardian roles, and
-// active school memberships. They are constructor arguments rather than
-// Dependencies fields: only the guardian reachability read needs them, while
+// Access projection that identifies active accounts, guardian roles, and
+// active school memberships. It is a constructor argument rather than a
+// Dependencies field: only the guardian reachability read needs it, while
 // all other People Directory graphs stay independent of Identity & Access.
-func NewWithGuardianMemberships(dependencies Dependencies, memberships, activeAccounts, guardianRoles GuardianMembershipQuery) (*peopledirectory.Module, error) {
+func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianMembershipQuery) (*peopledirectory.Module, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("people directory compose: all dependencies are required")
 	}
@@ -95,7 +94,7 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships, activeAc
 	}
 	owners := studentOwners{owners: dependencies.StudentOwners}
 	students := application.NewStudents(postgres.NewStudentStore(database, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery), companions, owners, transaction{}, observe)
-	guardians := application.NewGuardians(postgres.NewGuardianStore(database, postgres.MembershipQuery(memberships), postgres.MembershipQuery(activeAccounts), postgres.MembershipQuery(guardianRoles)), transaction{}, observe)
+	guardians := application.NewGuardians(postgres.NewGuardianStore(database, postgres.PortalMembershipQuery(memberships)), transaction{}, observe)
 	var auditLog ports.StudentFieldAuditLog
 	if dependencies.StudentFieldAudit != nil {
 		auditLog = studentFieldAuditLog{log: dependencies.StudentFieldAudit}

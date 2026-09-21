@@ -9,7 +9,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/jwtauth/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	displayHTTP "github.com/moto-nrw/project-phoenix/api/display"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
@@ -50,12 +49,10 @@ func runtime(settings configService.SettingsService) displayHTTP.Runtime {
 // protectedRoutes mounts the JWT-authenticated admin group and hands the
 // tenant-transaction middleware to the routes that need it.
 func protectedRoutes(r chi.Router, register func(chi.Router, displayHTTP.Middleware)) {
-	tokenAuth := projectJWT.MustNewTokenAuth()
 	r.Group(func(r chi.Router) {
-		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(projectJWT.Authenticator)
 		r.Use(apiCommon.ReadOnlyPreviewMiddleware)
-		r.Use(projectJWT.TenantMiddleware)
+		r.Use(apiCommon.TenantScopeMiddleware)
 		r.Use(apiCommon.SecurityPrincipalMiddleware)
 		register(r, apiCommon.TenantTxMiddleware)
 	})

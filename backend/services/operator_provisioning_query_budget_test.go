@@ -11,8 +11,8 @@ import (
 
 // TestOperatorDeviceRowsQueryBudget pins the statement count of the operator
 // device listing (#2676, #3253). iot.devices belongs to the Device Fleet
-// owner, so the listing is assembled from the dashboard projection's school
-// and organization summaries plus one owner read, inside the administrative
+// owner, so the listing is assembled from the school and organization
+// directories plus one owner read, inside the administrative
 // transaction: flat in the number of devices. The listing uses a fixed
 // online window, so a settings read would show up here as well.
 func TestOperatorDeviceRowsQueryBudget(t *testing.T) {

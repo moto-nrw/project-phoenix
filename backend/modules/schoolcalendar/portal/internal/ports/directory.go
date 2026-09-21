@@ -33,6 +33,13 @@ type StudentGuardian struct {
 	GuardianProfileID, StudentID int64
 	PortalAccess                 bool
 }
+
+// GuardianContact carries an active profile and one child relationship.
+// A nil Relationship represents a profile that has no linked children.
+type GuardianContact struct {
+	Profile      GuardianProfile
+	Relationship *StudentGuardian
+}
 type ChildSummary struct {
 	StudentID, GuardianProfileID, TenantID int64
 	SchoolName                             string
@@ -94,13 +101,12 @@ type StudentDirectory interface {
 	FindAllWithGroups(context.Context) ([]*Student, error)
 }
 type GuardianDirectory interface {
+	ListPortalContacts(context.Context, []int64, []int64) ([]GuardianContact, error)
 	SearchByText(context.Context, string, int) ([]*GuardianProfile, error)
 	FindActivePortalProfilesByIDs(context.Context, []int64) (map[int64]*GuardianProfile, error)
 	FindByIDs(context.Context, []int64) (map[int64]*GuardianProfile, error)
 }
 type GuardianRelationships interface {
-	FindByGuardianProfileIDs(context.Context, []int64) ([]*StudentGuardian, error)
-	FindByStudentIDs(context.Context, []int64) ([]*StudentGuardian, error)
 	FindByGuardianProfileID(context.Context, int64) ([]*StudentGuardian, error)
 }
 type Children interface {

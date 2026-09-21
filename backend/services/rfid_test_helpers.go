@@ -22,11 +22,15 @@ func NewRFIDTestModule(db *bun.DB) (RFIDTestModule, error) {
 	if err != nil {
 		return RFIDTestModule{}, err
 	}
+	accounts, err := repositories.NewIdentityAccessForTests(db)
+	if err != nil {
+		return RFIDTestModule{}, err
+	}
 	people := users.NewPersonService(users.PersonServiceDependencies{
 		PersonDirectory:  repositories.NewPersonDirectory(repositories.MustNewPeopleDirectory(db)),
 		StudentDirectory: repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)),
 		PersonRepo:       r.Membership.Person, StaffRepo: r.Membership.Staff, TeacherRepo: r.Membership.Teacher,
-		AccountRepo: r.Membership.Account, StudentRepo: r.Student, RFIDRepo: r.RFID,
+		AccountExists: repositories.AccountExists(accounts), StudentRepo: r.Student, RFIDRepo: r.RFID,
 		DB: db, Logger: slog.Default(),
 	})
 	return RFIDTestModule{Users: people, FeedbackStudents: devicescanCompose.NewFeedbackStudents(people), TagAssignments: devicescanCompose.NewTagAssignments(people, nil)}, nil

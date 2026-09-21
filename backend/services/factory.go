@@ -826,7 +826,7 @@ func newFactory(
 		StudentDirectory:     repositories.NewStudentDirectory(persons),
 		PersonRepo:           repos.Person,
 		RFIDRepo:             repos.RFIDCard,
-		AccountRepo:          repos.Account,
+		AccountExists:        repositories.AccountExists(repos.Profile),
 		StudentRepo:          repos.Student,
 		StaffRepo:            repos.Staff,
 		TeacherRepo:          repos.Teacher,
@@ -881,10 +881,6 @@ func newFactory(
 		GuardianPhoneNumberRepo: repos.GuardianPhoneNumber,
 		StudentGuardianRepo:     repos.StudentGuardian,
 		GuardianInvitations:     newGuardianInvitationReads(func() identityaccess.GuardianInvitations { return identityAccess }),
-		AccountRepo:             repos.Account,
-		AccountTenantRepo:       repos.AccountTenant,
-		AccountRoleRepo:         repos.AccountRole,
-		RoleRepo:                repos.Role,
 		StudentRepo:             repos.Student,
 		PersonRepo:              repos.Person,
 		GuardianFinancialRepo:   repos.GuardianFinancialData,
@@ -933,7 +929,7 @@ func newFactory(
 		timetracking.WithWorkSessionHolidays(nonWorkingDayService),
 		timetracking.WithWorkSessionAbsenceTypes(staffAbsenceTypeService),
 	)
-	staffClockService := newStaffClockService(usersService, repos.RFIDCard.FindByID, workSessionService)
+	staffClockService := newStaffClockService(usersService, repos.RFIDCard, workSessionService)
 
 	// Monatskarte read model (#1842) — everything computed on read, the
 	// Übertrag is live.
@@ -1599,16 +1595,13 @@ func newFactory(
 		return nil, fmt.Errorf("NEXT_PUBLIC_OPERATOR_HOSTNAME is required")
 	}
 
-	// The MFA challenge JWTs are signed with their own token auth, as the
-	// retained service did, so the session signer's durations stay separate.
-	mfaTokenAuth, err := authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
-	if err != nil {
-		return nil, fmt.Errorf("init mfa token auth: %w", err)
-	}
-
 	sessionTokenAuth, err := authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
 	if err != nil {
 		return nil, fmt.Errorf("invalid auth JWT configuration: %w", err)
+	}
+	sessionCodec, err := signedIdentityTokensOf(sessionTokenAuth)
+	if err != nil {
+		return nil, err
 	}
 
 	// Identity & Access serves tenant, parent and school login, refresh,
@@ -1645,14 +1638,14 @@ func newFactory(
 	// guardian mail reads its outbox at call time.
 	var emailOutboxService *emailoutbox.Service
 	identityAccess, err = newIdentityAccessWithSessions(db, accountAuthenticationWiring{
-		repos:     sessionRepositoriesOf(repos, organizations),
-		tokenAuth: sessionTokenAuth,
-		settings:  settingsService,
-		audit:     auditCommand,
-		logger:    authLogger,
-		observe:   observeIdentityAccess,
+		repos:    sessionRepositoriesOf(repos, organizations),
+		codec:    sessionCodec,
+		settings: settingsService,
+		audit:    auditCommand,
+		logger:   authLogger,
+		observe:  observeIdentityAccess,
 		mfa: &mfaWiring{
-			repos: repos, settings: settingsService, tokenAuth: mfaTokenAuth,
+			repos: repos, settings: settingsService,
 			dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL,
 			jwtSecret: cfg.JWTSecret, logger: authLogger,
 			passkeys: &identityaccessCompose.PasskeyDependencies{
@@ -1674,7 +1667,7 @@ func newFactory(
 		},
 		invitations: &invitationWiring{
 			dispatcher: dispatcher, defaultFrom: defaultFrom, staffURL: frontendURL, schoolURL: schoolURL,
-			mailIdentity: tenantMailIdentity, tokenAuth: sessionTokenAuth, expiry: invitationTokenExpiry,
+			mailIdentity: tenantMailIdentity, expiry: invitationTokenExpiry,
 		},
 		// The lifecycle flows (#3225) read the retained role management back
 		// at call time; it is composed below.
@@ -1767,10 +1760,9 @@ func newFactory(
 	guardianInvitationService := GuardianInvitationCapability(identityAccess)
 
 	caregiverCapabilityService := users.NewCaregiverCapabilityService(users.CaregiverCapabilityServiceDependencies{
-		AccountRepo:            repos.Account,
-		AccountTenantRepo:      repos.AccountTenant,
+		RequestActorScope:      requestActorScope,
+		Identity:               caregiverIdentity{identityAccess},
 		AuthEventRepo:          repos.AuthEvent,
-		RoleRepo:               repos.Role,
 		PersonRepo:             repos.Person,
 		StaffRepo:              repos.Staff,
 		CaregiverBindingLock:   repos.CaregiverBindingLock,
@@ -1785,7 +1777,7 @@ func newFactory(
 
 	// Initialize user context service
 	userContextService := usercontext.NewUserContextServiceWithRepos(usercontext.UserContextRepositories{
-		AccountRepo:        repos.Account,
+		AccountRepo:        repositories.NewCurrentAccountAccess(repos.Profile),
 		PersonRepo:         repos.Person,
 		StaffRepo:          repos.Staff,
 		TeacherRepo:        repos.Teacher,
@@ -1838,13 +1830,16 @@ func newFactory(
 			return len(rows), err
 		},
 		Groups: func(ctx context.Context) (int, error) { rows, err := repos.Group.List(ctx, nil); return len(rows), err },
-		Roles:  func(ctx context.Context) (int, error) { rows, err := repos.Role.List(ctx, nil); return len(rows), err },
+		Roles: func(ctx context.Context) (int, error) {
+			rows, err := identityAccess.ListRoles(ctx, identityaccess.RoleFilter{})
+			return len(rows), err
+		},
 		Devices: func(ctx context.Context) (int, error) {
 			rows, err := repos.Device.List(ctx, nil)
 			return len(rows), err
 		},
 		PermissionCount: func(ctx context.Context) (int, error) {
-			rows, err := repos.Permission.List(ctx, nil)
+			rows, err := identityAccess.ListPermissions(ctx, identityaccess.PermissionFilter{})
 			return len(rows), err
 		},
 	}, databaseLogger)
@@ -1952,7 +1947,7 @@ func newFactory(
 		repos.Enrollment(),
 	))
 
-	studentAuditService := users.NewStudentAuditService(repositories.NewStudentAuditFor(persons))
+	studentAuditService := users.NewStudentAuditService(requestAuditActor, repositories.NewStudentAuditFor(persons))
 	careLifecycleService := carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
 		StudentRepo:    repositories.NewCareStudents(repos.Student, membership),
 		PersonRepo:     repos.Person,
@@ -2366,14 +2361,14 @@ func newFactory(
 		notificationConsent,
 		settingsService,
 		db,
-		repos.AccountTenant,
+		identityAccess,
 	)
 	staffNotificationRecipients := notifications.NewStaffRecipientResolver(
 		notificationPreferencesService,
 		repos.Student,
 		repos.Group,
 		repos.Staff,
-		repos.Account,
+		identityAccess,
 		settingsService,
 		repos.WorkSession,
 	)
@@ -2457,7 +2452,7 @@ func newFactory(
 		CalendarFacts: repositories.CalendarFacts{
 			StaffRepo:            repos.Staff,
 			StudentRepo:          repos.Student,
-			GuardianProfileRepo:  repos.GuardianProfile,
+			GuardianProfileRepo:  repositories.NewCalendarGuardianDirectory(repos.GuardianProfile, persons),
 			StudentGuardianRepo:  repos.StudentGuardian,
 			ChildRepo:            repos.ParentChild,
 			GroupRepo:            repos.Group,
@@ -2467,8 +2462,8 @@ func newFactory(
 			StaffShiftRepo:       repos.StaffShift,
 			ShiftTypeRepo:        repos.ShiftType,
 			SchoolRepo:           organizations,
-			AccountRepo:          repos.Account,
-			StaffFeedRepo:        repos.StaffCalendarFeedToken,
+			AccountRepo:          identityAccess,
+			StaffFeedRepo:        identityAccess,
 			PersonRepo:           repos.Person,
 		},
 		Appointments:           repos.Appointments(),
@@ -2613,7 +2608,7 @@ func newFactory(
 		Membership:   membership,
 		PersonRepo:   repos.Person,
 		StaffRepo:    repos.Staff,
-		Accounts:     repos.Account,
+		Accounts:     identityAccess,
 		ActiveGroups: repos.ActiveGroup,
 		Supervisors:  repos.GroupSupervisor,
 		Categories:   repos.ActivityCategory,
@@ -2623,7 +2618,7 @@ func newFactory(
 		return nil, fmt.Errorf("compose operator provisioning adapters: %w", err)
 	}
 	operatorProvisioningService, err := newOperatorProvisioning(operatorProvisioningSources{
-		repos:          repos,
+		accounts:       repositories.NewOperatorAccountDirectory(identityAccess, persons, membership, organizations),
 		organizations:  organizations,
 		adapters:       provisioningAdapters,
 		sessions:       identityAccess,
@@ -2702,7 +2697,7 @@ func newFactory(
 	pushSubscriptionsService := notifications.NewPushSubscriptionService(
 		db,
 		repos.PushSubscription,
-		repos.AccountTenant,
+		identityAccess,
 		vapidConfig,
 		logger.With("service", "push_subscriptions"),
 	)
@@ -2711,7 +2706,7 @@ func newFactory(
 		db,
 		repos.PWAStandaloneUsage,
 		pwaUsageCounts{provisioning: operatorProvisioningService},
-		repos.AccountTenant,
+		identityAccess,
 		settingsService,
 		logger.With("service", "pwa_usage"),
 	)
@@ -2829,7 +2824,7 @@ func newFactory(
 		InstanceService: instanceService,
 		TimetableData:   timetableDataService,
 	})
-	masterDataReviewService := users.NewMasterDataReviewServiceWithAuditAndPolicy(
+	masterDataReviewService := users.NewMasterDataReviewServiceWithAuditAndPolicy(authjwt.PermissionsFromCtx,
 		repos.StudentDataChangeRequest,
 		repos.Student,
 		repos.Person,
@@ -2866,7 +2861,7 @@ func newFactory(
 	}
 
 	excusedCoordinatorPort := excusedRequestCoordinatorPort{requests: excusedRequestService}
-	parentRequestCoordinator := users.NewParentRequestCoordinator(
+	parentRequestCoordinator := users.NewParentRequestCoordinator(authjwt.PermissionsFromCtx,
 		masterDataReviewService.(users.MasterDataBulkReviewPort),
 		excusedCoordinatorPort,
 	)

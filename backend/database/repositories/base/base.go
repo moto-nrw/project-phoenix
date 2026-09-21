@@ -555,16 +555,6 @@ func RowsAffectedCause(err error) (error, bool) {
 	return nil, false
 }
 
-// UpdateOperationError restores the repository-specific error contract after
-// a typed repository method delegates to UpdateColumns. Execution failures
-// remain DatabaseErrors; row-count failures keep AssertRowsAffected's format.
-func UpdateOperationError(err error, op string) error {
-	if cause, ok := RowsAffectedCause(err); ok {
-		return fmt.Errorf("%s: rows affected: %w", op, cause)
-	}
-	return &modelBase.DatabaseError{Op: op, Err: DatabaseErrorCause(err)}
-}
-
 // TenantWhere returns a WHERE clause fragment and value for tenant filtering.
 // Use this in custom repository methods to add defense-in-depth tenant_id checks.
 func TenantWhere(ctx context.Context, alias string) (string, int64, bool) {

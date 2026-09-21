@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	usermodels "github.com/moto-nrw/project-phoenix/models/users"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -748,14 +747,14 @@ func TestGuardianService_GetStudentGuardians(t *testing.T) {
 
 		// An open invitation: not accepted, not expired, not rejected.
 		inviter := testpkg.CreateTestAccount(t, db, "pending-inviter")
-		invitation := &authModels.GuardianInvitation{
+		invitation := &testpkg.GuardianInvitation{
 			Token:             fmt.Sprintf("pending-token-%d", time.Now().UnixNano()),
 			GuardianProfileID: guardian.ID,
 			CreatedBy:         inviter.ID,
 			ExpiresAt:         time.Now().Add(48 * time.Hour),
-			ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
+			ApprovalStatus:    "not_required",
 		}
-		invitation.SetTenantID(testpkg.Tenant(t))
+		invitation.TenantID = testpkg.Tenant(t)
 		testpkg.InsertTestGuardianInvitation(t, db, invitation)
 
 		// ACT
@@ -1569,14 +1568,14 @@ func TestGuardianService_GetPendingInvitations(t *testing.T) {
 
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "pending-list")
 	inviter := testpkg.CreateTestAccount(t, db, "pending-list-inviter")
-	redeemable := testpkg.InsertTestGuardianInvitation(t, db, &authModels.GuardianInvitation{
+	redeemable := testpkg.InsertTestGuardianInvitation(t, db, &testpkg.GuardianInvitation{
 		Token:             fmt.Sprintf("pending-list-%d", time.Now().UnixNano()),
 		GuardianProfileID: guardian.ID,
 		CreatedBy:         inviter.ID,
 		ExpiresAt:         time.Now().Add(48 * time.Hour),
 	})
 	spent := time.Now().Add(-time.Hour)
-	testpkg.InsertTestGuardianInvitation(t, db, &authModels.GuardianInvitation{
+	testpkg.InsertTestGuardianInvitation(t, db, &testpkg.GuardianInvitation{
 		Token:             fmt.Sprintf("pending-list-accepted-%d", time.Now().UnixNano()),
 		GuardianProfileID: guardian.ID,
 		CreatedBy:         inviter.ID,
@@ -2214,12 +2213,12 @@ func TestGetStudentGuardians_NonOpenInvitationsNotPending(t *testing.T) {
 
 	cases := []struct {
 		name   string
-		mutate func(*authModels.GuardianInvitation)
+		mutate func(*testpkg.GuardianInvitation)
 	}{
-		{"accepted", func(i *authModels.GuardianInvitation) { now := time.Now(); i.AcceptedAt = &now }},
-		{"expired", func(i *authModels.GuardianInvitation) { i.ExpiresAt = time.Now().Add(-time.Hour) }},
-		{"rejected", func(i *authModels.GuardianInvitation) {
-			i.ApprovalStatus = authModels.GuardianInvitationApprovalRejected
+		{"accepted", func(i *testpkg.GuardianInvitation) { now := time.Now(); i.AcceptedAt = &now }},
+		{"expired", func(i *testpkg.GuardianInvitation) { i.ExpiresAt = time.Now().Add(-time.Hour) }},
+		{"rejected", func(i *testpkg.GuardianInvitation) {
+			i.ApprovalStatus = "rejected"
 		}},
 	}
 	for _, c := range cases {
@@ -2236,15 +2235,15 @@ func TestGetStudentGuardians_NonOpenInvitationsNotPending(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			inv := &authModels.GuardianInvitation{
+			inv := &testpkg.GuardianInvitation{
 				Token:             fmt.Sprintf("state-%s-%d", c.name, time.Now().UnixNano()),
 				GuardianProfileID: guardian.ID,
 				CreatedBy:         inviter.ID,
 				ExpiresAt:         time.Now().Add(48 * time.Hour),
-				ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
+				ApprovalStatus:    "not_required",
 			}
 			c.mutate(inv)
-			inv.SetTenantID(testpkg.Tenant(t))
+			inv.TenantID = testpkg.Tenant(t)
 			testpkg.InsertTestGuardianInvitation(t, db, inv)
 
 			res, err := service.GetStudentGuardians(ctx, student.ID)
@@ -2383,16 +2382,16 @@ func TestGetStudentGuardians_AccountHolderPendingUpgradeApproval(t *testing.T) {
 	// Open pending-approval upgrade request anchored to the SIBLING → this
 	// child's row must not read as pending.
 	siblingID := sibling.ID
-	inv := &authModels.GuardianInvitation{
+	inv := &testpkg.GuardianInvitation{
 		Token:             fmt.Sprintf("acct-pending-%d", time.Now().UnixNano()),
 		GuardianProfileID: guardian.ID,
 		CreatedBy:         account.ID,
 		ExpiresAt:         time.Now().Add(48 * time.Hour),
 		StudentID:         &siblingID,
-		ApprovalStatus:    authModels.GuardianInvitationApprovalPending,
+		ApprovalStatus:    "pending",
 		RoleUpgrade:       true,
 	}
-	inv.SetTenantID(testpkg.Tenant(t))
+	inv.TenantID = testpkg.Tenant(t)
 	testpkg.InsertTestGuardianInvitation(t, db, inv)
 
 	res, err := service.GetStudentGuardians(ctx, student.ID)

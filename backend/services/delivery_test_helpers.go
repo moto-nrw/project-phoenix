@@ -38,12 +38,22 @@ type DeliveryTestModule struct {
 	NotificationPreferences notifications.PreferenceService
 }
 
+func NewPushSubscriptionTestService(db *bun.DB, unit tenant.UnitOfWork, vapid notifications.VAPIDConfig) (notifications.PushSubscriptionService, error) {
+	identity, err := repositories.NewIdentityAccessForTests(db)
+	if err != nil {
+		return nil, err
+	}
+	service := notifications.NewPushSubscriptionService(db, deliveryCompose.NewPushSubscriptionRepository(db), identity, vapid, slog.Default())
+	service.(tenantRuntimeSetter).SetTenantRuntime(unit)
+	return service, nil
+}
+
 func NewDeliveryTestModule(db *bun.DB, unit tenant.UnitOfWork) (DeliveryTestModule, error) {
 	settings, err := NewSettingsTestModule(db, unit)
 	if err != nil {
 		return DeliveryTestModule{}, err
 	}
-	members, err := repositories.NewMembershipTestRepositories(db)
+	members, err := repositories.NewIdentityAccessForTests(db)
 	if err != nil {
 		return DeliveryTestModule{}, err
 	}
@@ -80,9 +90,9 @@ func NewDeliveryTestModule(db *bun.DB, unit tenant.UnitOfWork) (DeliveryTestModu
 		notifications.NewSSEChannel(deliveryCompose.NewRealtimeHub(logger), notifications.WithGuardianChildAccess(db, parents.StudentGuardian, logger)),
 		notifications.NewDurableWebPushChannel(db, pushRepo, vapid, durablePushAdapter{module: delivery.Module}, logger))
 	service.(tenantRuntimeSetter).SetTenantRuntime(unit)
-	push := notifications.NewPushSubscriptionService(db, pushRepo, members.AccountTenant, vapid, logger)
+	push := notifications.NewPushSubscriptionService(db, pushRepo, members, vapid, logger)
 	push.(tenantRuntimeSetter).SetTenantRuntime(unit)
-	preferences := notifications.NewPreferenceService(NewNotificationConsentTestStore(db), settings.Settings, db, members.AccountTenant)
+	preferences := notifications.NewPreferenceService(NewNotificationConsentTestStore(db), settings.Settings, db, members)
 	preferences.(tenantRuntimeSetter).SetTenantRuntime(unit)
 	return DeliveryTestModule{Delivery: delivery.Module, EmailOutbox: emailoutbox.NewService(durableEmailAdapter{module: delivery.Module}),
 		Notifications: service, PushSubscriptions: push, NotificationPreferences: preferences}, nil

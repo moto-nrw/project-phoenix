@@ -27,7 +27,7 @@ func TestMasterDataReview_ListHistory(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, testpkg.RequestReviewPolicy{}, nil, slog.Default())
+	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(reviewPermissions, repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, testpkg.RequestReviewPolicy{}, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	_, reviewerAccount := testpkg.CreateTestStaffWithAccount(t, db, "Rieke", "Reviewer")
@@ -122,7 +122,7 @@ func TestMasterDataReview_ListHistoryScopedToWritableChildren(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, testpkg.RequestReviewPolicy{}, nil, slog.Default())
+	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(reviewPermissions, repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, testpkg.RequestReviewPolicy{}, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)

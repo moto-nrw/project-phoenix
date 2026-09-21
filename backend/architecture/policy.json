@@ -1138,13 +1138,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/identityaccess/legacy/authpostgres",
-      "owner": "identity-access",
-      "role": "postgres",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "database/repositories/base",
       "owner": "transaction-runtime",
       "role": "postgres",
@@ -1476,13 +1469,6 @@
     {
       "path": "models/audit",
       "owner": "audit-platform",
-      "role": "domain",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "modules/identityaccess/legacy/authmodels",
-      "owner": "identity-access",
       "role": "domain",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
@@ -9461,17 +9447,6 @@
       "target_role": "postgres"
     },
     {
-      "id": "communication.messages.workflow-identity-domain",
-      "description": "Staff-message compatibility fixtures assign existing account roles.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "communication",
-      "source_role": "workflow-integration-test",
-      "target_owner": "identity-access",
-      "target_role": "domain"
-    },
-    {
       "id": "inbound-operator.to.organization-tenancy",
       "description": "inbound-operator calls exactly one public capability.",
       "scopes": [
@@ -11016,17 +10991,6 @@
       "target_role": "domain"
     },
     {
-      "id": "timetable-activities.http-integration-test.identity-domain",
-      "description": "Timetable HTTP integration tests build retained account rows.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "workflow-integration-test",
-      "target_owner": "identity-access",
-      "target_role": "domain"
-    },
-    {
       "id": "timetable-activities.http-integration-test.people-domain",
       "description": "Timetable HTTP integration tests build retained people rows.",
       "scopes": [
@@ -12350,17 +12314,6 @@
       "target_role": "public"
     },
     {
-      "id": "delivery.adapter-test.identity-domain",
-      "description": "Delivery persistence tests create account and role fixtures for eligibility checks.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "domain"
-    },
-    {
       "id": "delivery.application.same-owner-adapter",
       "description": "Delivery applications delegate localization and provider details to owned adapters.",
       "scopes": [
@@ -12780,17 +12733,6 @@
       "target_role": "application"
     },
     {
-      "id": "delivery-cutover.006",
-      "description": "Allows one dependency introduced by the Delivery package cutover.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "application",
-      "target_owner": "identity-access",
-      "target_role": "domain"
-    },
-    {
       "id": "delivery-cutover.008",
       "description": "Allows one dependency introduced by the Delivery package cutover.",
       "scopes": [
@@ -12855,29 +12797,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "delivery-platform",
       "target_role": "public"
-    },
-    {
-      "id": "delivery-cutover.016",
-      "description": "Allows one dependency introduced by the Delivery package cutover.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "workflow-integration-test",
-      "target_owner": "identity-access",
-      "target_role": "domain"
-    },
-    {
-      "id": "delivery-cutover.017",
-      "description": "Allows one dependency introduced by the Delivery package cutover.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "workflow-integration-test",
-      "target_owner": "identity-access",
-      "target_role": "postgres"
     },
     {
       "id": "delivery-cutover.018",
@@ -15639,17 +15558,6 @@
       "target_role": "domain"
     },
     {
-      "id": "parent-portal.adapter.identity-domain",
-      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the guardian invitation store (models/auth); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "adapter",
-      "target_owner": "identity-access",
-      "target_role": "domain"
-    },
-    {
       "id": "parent-portal.adapter.transaction-domain",
       "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the pointer and unique-violation helpers (models/base); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
       "scopes": [
@@ -15867,17 +15775,6 @@
       "source_role": "adapter-test",
       "target_owner": "identity-access",
       "target_role": "adapter"
-    },
-    {
-      "id": "parent-portal.adapter-test.identity-domain",
-      "description": "The retained parent-portal behaviour tests (workflows/parentportal/legacy) read the guardian invitation rows they script (models/auth); compatibility permission until the package exists at a base SHA (#3228).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "domain"
     },
     {
       "id": "parent-portal.adapter-test.security-application",
@@ -18667,17 +18564,6 @@
       "source_owner": "school-calendar",
       "source_role": "e2e-test",
       "target_owner": "legacy-shared",
-      "target_role": "domain"
-    },
-    {
-      "id": "calendar-portal.external_test.school-calendar.e2e-test.identity-access.domain",
-      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "school-calendar",
-      "source_role": "e2e-test",
-      "target_owner": "identity-access",
       "target_role": "domain"
     },
     {
@@ -22099,18 +21985,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/2725"
     },
     {
-      "id": "inbound-usercontext.adapter-test.identity-access-domain",
-      "description": "The retained user-context tests drive the retained account rows (models/auth) while #2725 dissolves the read side into the Identity & Access application (#3224). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-usercontext",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2725"
-    },
-    {
       "id": "inbound-usercontext.adapter-test.inbound-common-http",
       "description": "The retained user-context tests drive the shared HTTP rendering, middleware and error helpers (api/common) while #2725 dissolves the read side into the Identity & Access application (#3224). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -22244,18 +22118,6 @@
       "source_role": "adapter",
       "target_owner": "identity-access",
       "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2725"
-    },
-    {
-      "id": "inbound-usercontext.adapter.identity-access-domain",
-      "description": "The retained user-context adapter binds the retained account rows (models/auth) while #2725 dissolves the read side into the Identity & Access application (#3224). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-usercontext",
-      "source_role": "adapter",
-      "target_owner": "identity-access",
-      "target_role": "domain",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/2725"
     },
     {
@@ -24757,7 +24619,7 @@
       "source_role": "module-behavior-test",
       "target_owner": "inbound-timetable",
       "target_role": "test-support",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
       "id": "document-rendering.adapter-test.inbound-timetable-test-support",
@@ -24769,7 +24631,7 @@
       "source_role": "adapter-test",
       "target_owner": "inbound-timetable",
       "target_role": "test-support",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
       "id": "scheduler-runtime.module-internal-test.inbound-timetable-test-support",
@@ -24781,7 +24643,7 @@
       "source_role": "module-internal-test",
       "target_owner": "inbound-timetable",
       "target_role": "test-support",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
       "id": "inbound-timetable.test-support.transaction-runtime-postgres",
@@ -24877,18 +24739,6 @@
       "source_role": "e2e-test",
       "target_owner": "identity-access",
       "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3446"
-    },
-    {
-      "id": "identity-access.behaviour.identity-domain",
-      "description": "The Identity & Access behaviour suites in modules/identityaccess/behavior drive the composed module over the retained rows and the service root. Compatibility permission of #3364: the suites moved with the retained ports they used to drive; convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "identity-access",
-      "source_role": "e2e-test",
-      "target_owner": "identity-access",
-      "target_role": "domain",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3446"
     },
     {
@@ -25736,16 +25586,6 @@
     {
       "from": "auth/jwt",
       "to": "modules/identityaccess/legacy/jwt",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3226"
-    },
-    {
-      "from": "database/repositories/auth",
-      "to": "modules/identityaccess/legacy/authpostgres",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3226"
-    },
-    {
-      "from": "models/auth",
-      "to": "modules/identityaccess/legacy/authmodels",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3226"
     }
   ]

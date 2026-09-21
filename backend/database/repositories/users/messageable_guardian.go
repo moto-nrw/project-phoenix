@@ -3,6 +3,7 @@ package users
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -13,18 +14,20 @@ import (
 // MessageableGuardianRepository answers which guardians of a child may receive
 // a parent message. It stays with People Directory because the rows it reads —
 // the relationship and the guardian profile — belong to that owner; the school
-// membership is the Identity & Access owner query it filters through.
+// membership is a bounded Identity & Access fact it filters through.
 // Communication receives the answer, not the join.
 type MessageableGuardianRepository struct {
-	db *bun.DB
-	// activeMemberships is the Identity & Access owner query for the school
-	// mapping; the membership check filters through it (#2721).
-	activeMemberships ActiveMembershipQuery
+	db                *bun.DB
+	activeMemberships SchoolMembershipLookup
 }
 
+// SchoolMembershipLookup returns active school IDs per account, restricted to
+// both supplied sets. Membership alone does not grant relationship permissions.
+type SchoolMembershipLookup func(context.Context, []int64, []int64) (map[int64][]int64, error)
+
 // NewMessageableGuardianRepository wires the recipient lookup with the
-// owner's active-membership query.
-func NewMessageableGuardianRepository(db *bun.DB, activeMemberships ActiveMembershipQuery) *MessageableGuardianRepository {
+// owner's bounded membership lookup.
+func NewMessageableGuardianRepository(db *bun.DB, activeMemberships SchoolMembershipLookup) *MessageableGuardianRepository {
 	return &MessageableGuardianRepository{db: db, activeMemberships: activeMemberships}
 }
 
@@ -43,18 +46,21 @@ func NewMessageableGuardianRepository(db *bun.DB, activeMemberships ActiveMember
 //
 // The account must ALSO hold an ACTIVE membership for this school. A guardian
 // whose mapping is pending or inactive can no longer read its children, so
-// without this join staff could open a thread the recipient cannot see and the
+// without this check staff could open a thread the recipient cannot see and the
 // broadcast would still wake that revoked account if it is logged in for
-// another school. Matching the owner's (account_id, tenant_id) pair against
-// sg.tenant_id keeps the membership check scoped to the same school as the
-// relationship row.
+// another school. Matching each candidate's account and school against the
+// owner's facts keeps this check scoped to the relationship's school.
 func (r *MessageableGuardianRepository) ListGuardiansForStudent(ctx context.Context, studentID int64) ([]*users.MessageableGuardian, error) {
 	if r.activeMemberships == nil {
 		return nil, &modelBase.DatabaseError{Op: "list guardians for student", Err: errors.New("active membership query is required")}
 	}
-	var rows []*users.MessageableGuardian
+	var rows []struct {
+		users.MessageableGuardian
+		SchoolID int64 `bun:"school_id"`
+	}
 	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr("users.students_guardians AS sg").
+		ColumnExpr("sg.tenant_id AS school_id").
 		ColumnExpr("gp.account_id AS account_id").
 		ColumnExpr("btrim(COALESCE(gp.first_name,'') || ' ' || COALESCE(gp.last_name,'')) AS name").
 		ColumnExpr("sg.relationship_type AS relationship_type").
@@ -62,7 +68,6 @@ func (r *MessageableGuardianRepository) ListGuardiansForStudent(ctx context.Cont
 		ColumnExpr("COALESCE(gp.portal_locale, 'de') AS portal_locale").
 		Join("JOIN users.guardian_profiles AS gp ON gp.id = sg.guardian_profile_id").
 		Where("sg.student_id = ?", studentID).
-		Where("(gp.account_id, sg.tenant_id) IN (?)", r.activeMemberships(ctx)).
 		Where("gp.account_id IS NOT NULL").
 		Where("gp.has_account = true").
 		Where(`sg.permissions @> ?::jsonb`, `{"parent_portal.access": true}`).
@@ -73,5 +78,24 @@ func (r *MessageableGuardianRepository) ListGuardiansForStudent(ctx context.Cont
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list guardians for student", Err: base.TranslateNotFound(err)}
 	}
-	return rows, nil
+	if len(rows) == 0 {
+		return []*users.MessageableGuardian{}, nil
+	}
+	accountIDs := make([]int64, 0, len(rows))
+	schoolIDs := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		accountIDs = append(accountIDs, row.AccountID)
+		schoolIDs = append(schoolIDs, row.SchoolID)
+	}
+	memberships, err := r.activeMemberships(ctx, accountIDs, schoolIDs)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list guardians for student", Err: err}
+	}
+	result := make([]*users.MessageableGuardian, 0, len(rows))
+	for _, row := range rows {
+		if slices.Contains(memberships[row.AccountID], row.SchoolID) {
+			result = append(result, &row.MessageableGuardian)
+		}
+	}
+	return result, nil
 }

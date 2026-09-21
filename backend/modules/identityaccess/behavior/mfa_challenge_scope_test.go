@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +38,8 @@ func TestMFAService_ResendChallengeForScope_InvalidToken_ReturnsTokenInvalid(t *
 func TestMFAService_ResendChallengeForScope_ForeignScope_RefusedBeforeSending(t *testing.T) {
 	t.Parallel()
 
-	svc, repos, accID := newExtraMFAService(t)
+	svc, _, accID := newExtraMFAService(t)
+	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	require.NoError(t, svc.EnrollMFA(ctx, accID))
 
@@ -46,7 +48,7 @@ func TestMFAService_ResendChallengeForScope_ForeignScope_RefusedBeforeSending(t 
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
 
-	before, err := repos.MFAEmailChallenge.CountRecentByAccountID(ctx, accID, rateLimitWindowStart())
+	before, err := nativeMFARecords(t, db).CountChallengesSince(ctx, accID, rateLimitWindowStart())
 	require.NoError(t, err)
 
 	// …must not be re-drivable through the school resend endpoint.
@@ -56,7 +58,7 @@ func TestMFAService_ResendChallengeForScope_ForeignScope_RefusedBeforeSending(t 
 	assert.Empty(t, renewed)
 	assert.ErrorIs(t, err, identityaccess.ErrMFAUnsupportedScope)
 
-	after, err := repos.MFAEmailChallenge.CountRecentByAccountID(ctx, accID, rateLimitWindowStart())
+	after, err := nativeMFARecords(t, db).CountChallengesSince(ctx, accID, rateLimitWindowStart())
 	require.NoError(t, err)
 	assert.Equal(t, before, after, "a refused scope must not consume a code from the rate-limit budget")
 }

@@ -1,6 +1,7 @@
 package users_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -489,6 +490,38 @@ func TestPersonRepository_FindWithAccount(t *testing.T) {
 		require.NotNil(t, found.Account, "Account should be loaded")
 		assert.Equal(t, account.ID, found.Account.ID)
 		assert.Contains(t, found.Account.Email, "WithAccount")
+
+		// The directory now attaches metadata, not an auth ORM row. Keep the
+		// wire shape, including optional-field omission and timestamps.
+		previousJSON, err := json.Marshal(account)
+		require.NoError(t, err)
+		metadataJSON, err := json.Marshal(found.Account)
+		require.NoError(t, err)
+		assert.JSONEq(t, string(previousJSON), string(metadataJSON))
+	})
+
+	t.Run("account metadata preserves optional fields without credentials", func(t *testing.T) {
+		person, account := testpkg.CreateTestPersonWithAccount(t, db, "AccountMetadata", "Test")
+		username := fmt.Sprintf("profile-%d", account.ID)
+		lastLogin := time.Now().UTC().Truncate(time.Second)
+		account.Username = &username
+		account.Avatar = "/uploads/avatars/profile.png"
+		account.LastLogin = &lastLogin
+		account.Active = false
+		account.IsPasswordOTP = true
+		err := db.NewUpdate().Model(account).ModelTableExpr(`auth.accounts AS "account"`).
+			Column("username", "avatar", "last_login", "active", "is_password_otp").
+			WherePK().Returning("*").Scan(ctx)
+		require.NoError(t, err)
+
+		found, err := repo.FindWithAccount(ctx, person.ID)
+		require.NoError(t, err)
+		require.NotNil(t, found.Account)
+		previousJSON, err := json.Marshal(account)
+		require.NoError(t, err)
+		metadataJSON, err := json.Marshal(found.Account)
+		require.NoError(t, err)
+		assert.JSONEq(t, string(previousJSON), string(metadataJSON))
 	})
 
 	t.Run("find person without account", func(t *testing.T) {

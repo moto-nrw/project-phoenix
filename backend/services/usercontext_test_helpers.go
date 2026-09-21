@@ -24,7 +24,7 @@ func NewUserContextTestModule(db *bun.DB, unit tenant.UnitOfWork) (UserContextTe
 	}
 	tt := r.Timetable
 	service := usercontext.NewUserContextServiceWithRepos(usercontext.UserContextRepositories{
-		AccountRepo: r.Account, PersonRepo: tt.Person, StaffRepo: tt.Staff, TeacherRepo: tt.Teacher,
+		AccountRepo: repositories.NewCurrentAccountAccess(r.Profile), PersonRepo: tt.Person, StaffRepo: tt.Staff, TeacherRepo: tt.Teacher,
 		StudentRepo: tt.Student, EducationGroupRepo: tt.Group, ActivityGroupRepo: tt.ActivityGroup,
 		ActiveGroupRepo: tt.ActiveGroup, Presence: newStudentPresence(db, slog.Default()), SupervisorRepo: tt.GroupSupervisor,
 		ProfileRepo: r.Profile, SubstitutionRepo: r.Substitutions, ClassTeacherRepo: tt.ClassTeacher,

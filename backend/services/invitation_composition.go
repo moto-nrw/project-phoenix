@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -57,13 +56,12 @@ type invitationWiring struct {
 	// mailIdentity points a reply at the OGS instead of moto (#1936); nil
 	// sends without a Reply-To.
 	mailIdentity email.ReplyToResolver
-	tokenAuth    *authjwt.TokenAuth
 	expiry       time.Duration
 	// backoff spaces the send retries; nil uses the production spacing.
 	backoff []time.Duration
 }
 
-func invitationDependencies(wiring *invitationWiring, invitations func() identityaccess.SchoolInvitations, logger *slog.Logger) *identityaccessCompose.SchoolInvitationDependencies {
+func invitationDependencies(wiring *invitationWiring, owners identityaccessCompose.InvitationOwnerTokens, invitations func() identityaccess.SchoolInvitations, logger *slog.Logger) *identityaccessCompose.SchoolInvitationDependencies {
 	if wiring == nil {
 		return nil
 	}
@@ -76,7 +74,7 @@ func invitationDependencies(wiring *invitationWiring, invitations func() identit
 	}
 	return &identityaccessCompose.SchoolInvitationDependencies{
 		Grants: invitationGrantPolicy{},
-		Owners: invitationOwnerTokens{tokenAuth: wiring.tokenAuth},
+		Owners: owners,
 		Delivery: invitationDelivery{
 			dispatcher: wiring.dispatcher, from: wiring.defaultFrom, staffURL: wiring.staffURL, schoolURL: wiring.schoolURL,
 			identity: wiring.mailIdentity, backoff: backoff, invitations: invitations, logger: logger,
@@ -96,32 +94,6 @@ func (invitationGrantPolicy) CanGrantRole(role identityaccess.RoleFacts, actorPe
 		Name: role.Name, BaseRole: role.BaseRole, IsSystem: role.IsSystem,
 		TenantBound: role.TenantID != nil, Permissions: rolePermissions,
 	}, actorPermissions)
-}
-
-// invitationOwnerTokens verifies that the caller holds a live session of the
-// invited account. A preview, read-only, unfinished-MFA or operator-scope
-// token proves nothing.
-type invitationOwnerTokens struct{ tokenAuth *authjwt.TokenAuth }
-
-func (t invitationOwnerTokens) AccountOfAccessToken(token string) (int64, error) {
-	if t.tokenAuth == nil || token == "" {
-		return 0, nil
-	}
-	claims, err := t.tokenAuth.ParseAccessJWT(token)
-	if err != nil || claims.ID <= 0 || claims.ExpiresAt <= time.Now().Unix() ||
-		claims.ReadOnly || claims.ActingAdminID != 0 || claims.PreviewID != "" {
-		return 0, nil
-	}
-	switch claims.Scope {
-	case "", "tenant", "org", "school":
-		if claims.TenantID <= 0 {
-			return 0, nil
-		}
-	case "parent":
-	default:
-		return 0, nil
-	}
-	return int64(claims.ID), nil
 }
 
 // invitationDelivery mails an invitation and records the outcome through the

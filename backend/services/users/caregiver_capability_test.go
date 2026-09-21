@@ -14,7 +14,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	jwtPkg "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/services"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -48,7 +47,7 @@ func createTestTeacherWithAccountForTenant(
 	tenantID int64,
 	firstName string,
 	lastName string,
-) (*userModels.Teacher, *authModels.Account) {
+) (*userModels.Teacher, *testpkg.AccountFixture) {
 	t.Helper()
 
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -89,7 +88,7 @@ func createTestTeacherWithAccountForTenant(
 func lookupSystemRoleID(t *testing.T, db *bun.DB, name string) int64 {
 	t.Helper()
 
-	var role authModels.Role
+	var role testpkg.RoleFixture
 	err := db.NewSelect().
 		Model(&role).
 		ModelTableExpr(`auth.roles AS "role"`).
@@ -107,7 +106,7 @@ func lookupSystemRoleID(t *testing.T, db *bun.DB, name string) int64 {
 func ensureSystemRoleExists(t *testing.T, db *bun.DB, name string) {
 	t.Helper()
 
-	var role authModels.Role
+	var role testpkg.RoleFixture
 	err := db.NewSelect().
 		Model(&role).
 		ModelTableExpr(`auth.roles AS "role"`).
@@ -123,7 +122,7 @@ func ensureSystemRoleExists(t *testing.T, db *bun.DB, name string) {
 		require.NoError(t, err)
 	}
 
-	role = authModels.Role{
+	role = testpkg.RoleFixture{
 		Name:        name,
 		Description: "Test system role: " + name,
 		IsSystem:    true,
@@ -482,7 +481,7 @@ func TestCaregiverCapability_DisableAllowsCustomTenantRoleToRemain(t *testing.T)
 	assignSystemRoleToAccount(t, db, account.ID, testpkg.Tenant(t), "user")
 
 	tenantID := teacher.GetTenantID()
-	customRole := &authModels.Role{
+	customRole := &testpkg.RoleFixture{
 		Name:        "coordinator",
 		Description: "Tenant-scoped coordinator role",
 		IsSystem:    false,
@@ -866,7 +865,7 @@ func TestCaregiverDirectory_ListAndFindActiveCaregiversIncludingLegacyTeacherRol
 		db,
 		inactiveMembershipAccount.ID,
 		tenantID,
-		authModels.AccountTenantStatusInactive,
+		"inactive",
 	)
 
 	directory, err := usersSvc.CaregiverDirectoryFromPersonService(factory.Users)
@@ -912,7 +911,7 @@ func TestCaregiverDirectory_ExcludesTenantScopedUserRole(t *testing.T) {
 	_, account := createTestTeacherWithAccountForTenant(t, db, tenantID, "Tenant", "UserRole")
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
 
-	customUserRole := &authModels.Role{
+	customUserRole := &testpkg.RoleFixture{
 		Name:        "user",
 		Description: "Tenant-scoped custom user role",
 		IsSystem:    false,

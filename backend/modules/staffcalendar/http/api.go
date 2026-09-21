@@ -37,12 +37,10 @@ func NewResource(service calendarService.FullService, logger *slog.Logger) *Reso
 
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
-	tokenAuth := jwt.MustNewTokenAuth()
 	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(common.ReadOnlyPreviewMiddleware)
-		r.Use(jwt.TenantMiddleware)
+		r.Use(common.TenantScopeMiddleware)
 		r.Use(common.SecurityPrincipalMiddleware)
 		withTx := common.TenantTxMiddleware
 

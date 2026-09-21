@@ -5,10 +5,10 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/jwtauth/v5"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // ParentRouter returns the SSE router for the parents portal. It mirrors the
@@ -18,11 +18,9 @@ import (
 func (rs *Resource) ParentRouter() chi.Router {
 	r := chi.NewRouter()
 
-	tokenAuth := jwt.MustNewTokenAuth()
 	r.Group(func(r chi.Router) {
-		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
-		r.Use(jwt.ParentMiddleware)
+		r.Use(jwt.ParentMiddleware(tenant.ClaimScope{}))
 		r.Get("/events", rs.parentEventsHandler)
 	})
 
