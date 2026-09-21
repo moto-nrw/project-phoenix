@@ -38,7 +38,7 @@ func (e engine) QueryLiveGroups(ctx context.Context, filter studentpresence.Live
 }
 
 func (e engine) ListSupervisedLiveGroups(ctx context.Context, staffID int64) ([]studentpresence.LiveGroup, error) {
-	rows, err := e.Service.ListSupervisedLiveGroups(ctx, staffID, timezone.TodayDate())
+	rows, err := e.Service.ListSupervisedLiveGroups(ctx, staffID, timezone.DateFromTime(e.now()))
 	if err != nil {
 		return nil, err
 	}

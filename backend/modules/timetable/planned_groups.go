@@ -2,6 +2,14 @@ package timetable
 
 import "context"
 
+// PlannedGroupQuery answers which activity groups a staff member is planned to
+// supervise. *Module implements it.
+type PlannedGroupQuery interface {
+	ListPlannedGroupsForStaff(context.Context, int64) ([]Group, error)
+}
+
+var _ PlannedGroupQuery = (*Module)(nil)
+
 // ListPlannedGroupsForStaff returns the activity groups the staff member has
 // any planned supervision for, ordered by ID. The validity window of the
 // planned row is not applied, matching the retained "my activity groups" read.

@@ -16,15 +16,15 @@ func TestSupervisedLiveGroupsApplyTheOwnersSupervisionRule(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	var observation compose.Observation
-	module, err := compose.New(compose.Dependencies{DB: db, Observe: func(o compose.Observation) { observation = o }})
+	// 22:30 UTC is 00:30 on 2026-09-15 in Berlin: the school day, not the UTC day.
+	now := func() time.Time { return time.Date(2026, time.September, 14, 22, 30, 0, 0, time.UTC) }
+	module, err := compose.New(compose.Dependencies{DB: db, Observe: func(o compose.Observation) { observation = o }, Now: now})
 	require.NoError(t, err)
 	tenantID := testpkg.Tenant(t)
 	staff := testpkg.CreateTestStaff(t, db, "Supervised", "Reader")
 	colleague := testpkg.CreateTestStaff(t, db, "Other", "Supervisor")
 
-	today := testpkg.TodayDate()
-	yesterday, tomorrow := today.AddDays(-1).String(), today.AddDays(1).String()
-	todayValue := today.String()
+	yesterday, todayValue, tomorrow := "2026-09-14", "2026-09-15", "2026-09-16"
 	supervise := func(groupID, staffID int64, start string, end *string) {
 		t.Helper()
 		_, recordErr := module.RecordSupervision(ctx, studentpresence.GroupSupervision{
