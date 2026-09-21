@@ -50,3 +50,26 @@ func TestPickupExceptionUpdateReportsNotFoundWhenRowVanishedUnderLock(t *testing
 		})
 	}
 }
+
+// racedExceptions answers like the storage adapter when a concurrent delete
+// removes the row between the unlocked lookup and the locked re-read.
+type racedExceptions struct {
+	ports.EffectiveExceptionRepository[*careplan.PickupException]
+}
+
+func (racedExceptions) FindByID(context.Context, int64) (*careplan.PickupException, error) {
+	return &careplan.PickupException{ID: 41, StudentID: 42, ExceptionDate: "2026-09-21"}, nil
+}
+
+func (racedExceptions) FindByIDForUpdate(context.Context, int64) (*careplan.PickupException, error) {
+	return nil, careplan.ErrStudentScheduleNotFound
+}
+
+func TestPickupExceptionDeleteStaysIdempotentWhenRowVanishedUnderLock(t *testing.T) {
+	t.Parallel()
+	service := NewPickupSchedules(nil, racedExceptions{}, nil, passThroughTransaction{}, nil, nil, nil, nil)
+
+	err := service.DeleteStudentPickupException(context.Background(), 41, 42)
+
+	require.NoError(t, err)
+}

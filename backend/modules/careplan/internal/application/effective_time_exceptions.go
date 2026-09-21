@@ -276,7 +276,10 @@ func (c *effectiveTimeCore[S, E, N, D]) deleteLockedException(txCtx context.Cont
 	fresh, err := c.exceptions.FindByIDForUpdate(txCtx, exceptionID)
 	if err != nil {
 		if c.transactions.IsNotFound(err) {
-			return careplan.ErrCareExceptionNotFound
+			// The caller saw the row before the lock, so a concurrent delete
+			// won the race. The requested end state holds; deleting stays
+			// idempotent like it was before the cutover.
+			return nil
 		}
 		return &careplan.ScheduleError{Op: c.operation("get student %s exception by id"), Err: err}
 	}
