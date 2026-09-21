@@ -1,43 +1,60 @@
 import {
-  ArrowUpRight,
-  BarChart3,
-  BellRing,
-  Building2,
-  CalendarDays,
-  CalendarPlus,
-  ClipboardList,
-  Clock3,
-  Database,
-  Download,
-  Eye,
-  FileText,
-  FolderOpen,
-  GraduationCap,
-  KeyRound,
-  Landmark,
-  ListChecks,
-  LogIn,
-  LogOut,
-  Megaphone,
-  MessageSquareText,
-  Monitor,
-  PlugZap,
-  Repeat,
-  Search,
-  Settings,
-  ShieldAlert,
-  ShieldCheck,
-  SlidersHorizontal,
-  Smartphone,
-  Sparkles,
-  TabletSmartphone,
-  Trash2,
-  UserRoundPlus,
-  UserRoundSearch,
-  Users,
-  UtensilsCrossed,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+  ArrowUpRightIcon as ArrowUpRight,
+  ArrowsClockwiseIcon as Repeat,
+  ArrowsLeftRightIcon as ArrowsLeftRight,
+  BankIcon as Landmark,
+  BellRingingIcon as BellRing,
+  BuildingsIcon as Building2,
+  CalendarCheckIcon as CalendarCheck,
+  CalendarDotsIcon as CalendarDays,
+  CalendarPlusIcon as CalendarPlus,
+  ChartBarIcon as BarChart3,
+  ChatCircleTextIcon as MessageSquareText,
+  ChatsCircleIcon as ChatsCircle,
+  ClipboardTextIcon as ClipboardList,
+  ClockAfternoonIcon as ClockAfternoon,
+  ClockIcon as Clock3,
+  DatabaseIcon as Database,
+  DeviceMobileIcon as Smartphone,
+  DeviceTabletIcon as TabletSmartphone,
+  DevicesIcon as Devices,
+  DoorOpenIcon as DoorOpen,
+  DownloadSimpleIcon as Download,
+  EnvelopeOpenIcon as EnvelopeOpen,
+  EyeIcon as Eye,
+  EyeSlashIcon as EyeSlash,
+  FileTextIcon as FileText,
+  FolderOpenIcon as FolderOpen,
+  ForkKnifeIcon as UtensilsCrossed,
+  GearIcon as Settings,
+  GraduationCapIcon as GraduationCap,
+  KeyIcon as KeyRound,
+  ListChecksIcon as ListChecks,
+  MagnifyingGlassIcon as Search,
+  MapPinIcon as MapPin,
+  MegaphoneIcon as Megaphone,
+  MonitorIcon as Monitor,
+  PasswordIcon as Password,
+  PlugIcon as PlugZap,
+  ScanIcon as Scan,
+  ShieldCheckIcon as ShieldCheck,
+  ShieldWarningIcon as ShieldAlert,
+  SignInIcon as LogIn,
+  SignOutIcon as LogOut,
+  SlidersHorizontalIcon as SlidersHorizontal,
+  SparkleIcon as Sparkles,
+  StudentIcon as Student,
+  SunHorizonIcon as SunHorizon,
+  TableIcon as Table,
+  TimerIcon as Timer,
+  TrashIcon as Trash2,
+  UserCircleIcon as UserCircle,
+  UserFocusIcon as UserRoundSearch,
+  UserPlusIcon as UserRoundPlus,
+  UsersIcon as Users,
+  WatchIcon as Watch,
+} from "@phosphor-icons/react/ssr";
+import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import {
   HELP_TOPICS,
   type HelpRole,
@@ -99,7 +116,7 @@ export interface HelpTopic {
    * und einer davon liefe irgendwann hinterher. `"all"` heisst jede Rolle.
    */
   readonly audience: "all" | HelpRole | readonly HelpRole[];
-  readonly icon: LucideIcon;
+  readonly icon: PhosphorIcon;
   readonly requirements?: readonly string[];
   readonly steps: readonly string[];
   readonly instructionGroups?: readonly {
@@ -157,7 +174,7 @@ function invitationTopic(): HelpTopic {
       "Öffnen Sie Ihre Einladungs-Mail und legen Sie Ihr persönliches Passwort fest.",
     group: "einstieg",
     audience: ["caregiver", "lead"],
-    icon: LogIn,
+    icon: EnvelopeOpen,
     requirements: [
       "Ihre Einladungs-Mail von moto",
       "Zugriff auf das E-Mail-Postfach, an das die Einladung gesendet wurde",
@@ -199,7 +216,7 @@ function loginTopic(
       "Melden Sie sich über die moto-Seite Ihrer OGS mit Ihrem persönlichen Konto an.",
     group: "einstieg",
     audience: ["caregiver", "lead"],
-    icon: LogIn,
+    icon: UserCircle,
     requirements: [
       "Den Link zur moto-Seite Ihrer OGS",
       "Ein moto-Konto. Nehmen Sie vorher Ihre Einladung an.",
@@ -616,7 +633,7 @@ function changeLocationTopic(presenceMode: HelpPresenceMode): HelpTopic {
     summary: "Ändern Sie den Raum eines anwesenden Kindes.",
     group: "kinder",
     audience: "caregiver",
-    icon: Eye,
+    icon: MapPin,
     requirements: [
       "Ihre OGS erfasst die Räume der Kinder.",
       "Das Kind ist anwesend.",
@@ -756,7 +773,7 @@ function dayLogTopic(groupMode: HelpGroupMode): HelpTopic {
     summary: "Prüfen Sie für heute, welche Kinder anwesend oder abwesend sind.",
     group: "kinder",
     audience: ["caregiver", "lead"],
-    icon: CalendarDays,
+    icon: CalendarCheck,
     requirements: ["Ihre OGS hat das `Anwesenheitsprotokoll` eingeschaltet."],
     steps: [],
     instructionGroups: [
@@ -951,7 +968,7 @@ function transferGroupTopic(groupMode: HelpGroupMode): HelpTopic {
         "Bei offener Betreuung gibt es keine feste eigene Gruppe zum Übergeben.",
       group: "gruppen",
       audience: ["caregiver", "lead"],
-      icon: Users,
+      icon: ArrowsLeftRight,
       steps: [
         "Sie müssen keine Gruppe übergeben.",
         "Öffnen Sie `Alle Kinder`, um mit den Kindern der OGS zu arbeiten.",
@@ -969,7 +986,7 @@ function transferGroupTopic(groupMode: HelpGroupMode): HelpTopic {
       summary: "Eine Übergabe ist nur bei festen Gruppen möglich.",
       group: "gruppen",
       audience: ["caregiver", "lead"],
-      icon: Users,
+      icon: ArrowsLeftRight,
       steps: [
         "Prüfen Sie, ob `Meine Gruppen` in der Seitenleiste steht.",
         "Ist der Bereich vorhanden? Öffnen Sie Ihre Gruppe und das Menü mit den drei Punkten.",
@@ -988,7 +1005,7 @@ function transferGroupTopic(groupMode: HelpGroupMode): HelpTopic {
       "Geben Sie einer anderen Betreuungskraft bis zum Tagesende Zugriff auf Ihre Gruppe.",
     group: "gruppen",
     audience: ["caregiver", "lead"],
-    icon: Users,
+    icon: ArrowsLeftRight,
     requirements: ["Sie sind dieser Gruppe fest zugeordnet."],
     steps: [],
     instructionGroups: [
@@ -1093,7 +1110,7 @@ function carePlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Prüfen Sie, welche Betreuung für die Schule geplant ist und wo Sie selbst eingesetzt sind.",
     group: "tagesplanung",
     audience: ["caregiver", "lead"],
-    icon: CalendarDays,
+    icon: Table,
     steps: [
       "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Mein Kalender`.",
       "Wählen Sie den Tab `Betreuungsplan`.",
@@ -1135,7 +1152,7 @@ function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Der Tagesplan zeigt die Betreuungsblöcke des Tages der Reihe nach.",
     group: "tagesplanung",
     audience: "caregiver",
-    icon: CalendarDays,
+    icon: ClockAfternoon,
     requirements: [
       "Ihre OGS hat den Betreuungsplan eingeschaltet.",
       "Sie dürfen den Betreuungsplan sehen.",
@@ -1177,7 +1194,7 @@ function roomsTopic(presenceMode: HelpPresenceMode): HelpTopic {
       summary: "Bei einfacher Anwesenheit ordnet moto Kinder keinen Räumen zu.",
       group: "gruppen",
       audience: ["caregiver", "lead"],
-      icon: Eye,
+      icon: DoorOpen,
       steps: [
         "Öffnen Sie `Alle Kinder`.",
         "Prüfen Sie dort, welche Kinder anwesend oder abwesend sind.",
@@ -1196,7 +1213,7 @@ function roomsTopic(presenceMode: HelpPresenceMode): HelpTopic {
         "Der Bereich ist nur sichtbar, wenn Ihre OGS Aufenthaltsorte erfasst.",
       group: "gruppen",
       audience: ["caregiver", "lead"],
-      icon: Eye,
+      icon: DoorOpen,
       steps: [
         "Prüfen Sie, ob `Räume` in der Seitenleiste steht.",
         "Ist der Bereich vorhanden? Öffnen Sie dort einen Raum und prüfen Sie die Belegung.",
@@ -1216,7 +1233,7 @@ function roomsTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Prüfen Sie, welche Räume frei oder belegt sind und wer sich dort befindet.",
     group: "gruppen",
     audience: ["caregiver", "lead"],
-    icon: Eye,
+    icon: DoorOpen,
     steps: [],
     instructionGroups: [
       {
@@ -1364,7 +1381,7 @@ function manageActivityTopic(
           : "Bei einfacher Anwesenheit gibt es keine Aktivitäten mit eigener Kinderzuordnung.",
       group: "gruppen",
       audience: "caregiver",
-      icon: ListChecks,
+      icon: Sparkles,
       steps: [
         "Nutzen Sie den `Betreuungsplan`, um geplante Angebote anzusehen.",
         // Live geprueft: der Katalog `Aktivitäten` haengt an NFC, der
@@ -1386,7 +1403,7 @@ function manageActivityTopic(
         "Der Bereich erscheint nur bei NFC und detaillierter Anwesenheit.",
       group: "gruppen",
       audience: "caregiver",
-      icon: ListChecks,
+      icon: Sparkles,
       steps: [
         "Prüfen Sie, ob `Aktivitäten` in der Seitenleiste steht.",
         "Ist der Bereich vorhanden? Wählen Sie `Aktivität erstellen`.",
@@ -1406,7 +1423,7 @@ function manageActivityTopic(
       "Legen Sie eine Aktivität für NFC-Tablets an oder ändern Sie eine eigene Aktivität.",
     group: "gruppen",
     audience: "caregiver",
-    icon: ListChecks,
+    icon: Sparkles,
     steps: [
       "Öffnen Sie `Aktivitäten`.",
       "Wählen Sie die Schaltfläche `Aktivität erstellen` mit dem Plus-Symbol.",
@@ -1530,7 +1547,7 @@ function teamChatTopic(): HelpTopic {
       "Schreiben Sie einer Betreuungskraft oder Lehrkraft Ihrer Schule eine Nachricht.",
     group: "team",
     audience: ["caregiver", "lead"],
-    icon: MessageSquareText,
+    icon: ChatsCircle,
     steps: [
       "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Team-Chat`.",
       "Wählen Sie `Neue Nachricht`.",
@@ -1639,7 +1656,7 @@ function trackWorkTimeTopic(): HelpTopic {
       "Stempeln Sie sich zu Arbeitsbeginn ein. Erfassen Sie Pausen und das Arbeitsende.",
     group: "arbeitszeit",
     audience: ["caregiver", "lead"],
-    icon: Clock3,
+    icon: Timer,
     steps: [],
     instructionGroups: [
       {
@@ -1728,7 +1745,7 @@ function vacationTopic(): HelpTopic {
       "Senden Sie einen Urlaubsantrag und verfolgen Sie die Entscheidung.",
     group: "arbeitszeit",
     audience: ["caregiver", "lead"],
-    icon: CalendarDays,
+    icon: SunHorizon,
     steps: [
       "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Zeiterfassung`.",
       "Suchen Sie die Karte `Urlaub`.",
@@ -1789,6 +1806,7 @@ function unavailableNfcTopic(
   id: HelpTopicId,
   title: string,
   question: string,
+  icon: PhosphorIcon,
   related: readonly HelpTopicId[],
   group: HelpTopicGroup = "nfc",
 ): HelpTopic {
@@ -1800,7 +1818,7 @@ function unavailableNfcTopic(
       "Dieser Ablauf ist nicht verfügbar, weil Ihre OGS NFC nicht nutzt.",
     group,
     audience: ["caregiver", "lead"],
-    icon: TabletSmartphone,
+    icon,
     steps: [
       "Nutzen Sie die entsprechenden Funktionen in der moto-App.",
       "Erwarten Sie ein NFC-Tablet? Nur das moto-Team kann NFC einschalten.",
@@ -1814,6 +1832,7 @@ function unknownNfcTopic(
   id: HelpTopicId,
   title: string,
   question: string,
+  icon: PhosphorIcon,
   related: readonly HelpTopicId[],
   group: HelpTopicGroup = "nfc",
 ): HelpTopic {
@@ -1824,7 +1843,7 @@ function unknownNfcTopic(
     summary: "Ob dieser Ablauf verfügbar ist, hängt von Ihrer OGS ab.",
     group,
     audience: ["caregiver", "lead"],
-    icon: TabletSmartphone,
+    icon,
     steps: [
       "Prüfen Sie, ob in Ihrer OGS ein Tablet mit moto steht.",
       "Steht dort keines? Nutzen Sie die entsprechenden Funktionen in der moto-App.",
@@ -1842,6 +1861,7 @@ function tabletLoginTopic(nfcEnabled: boolean | null): HelpTopic {
       HELP_TOPICS.tabletLogin,
       "Mit der PIN am Tablet anmelden",
       "Wie melde ich mich mit meiner PIN am Tablet an?",
+      Password,
       [HELP_TOPICS.login, HELP_TOPICS.nfcProblem],
     );
   }
@@ -1850,6 +1870,7 @@ function tabletLoginTopic(nfcEnabled: boolean | null): HelpTopic {
       HELP_TOPICS.tabletLogin,
       "Mit der PIN am Tablet anmelden",
       "Wie melde ich mich mit meiner PIN am Tablet an?",
+      Password,
       [HELP_TOPICS.login, HELP_TOPICS.nfcProblem],
     );
   }
@@ -1862,7 +1883,7 @@ function tabletLoginTopic(nfcEnabled: boolean | null): HelpTopic {
       "Öffnen Sie mit der Geräte-PIN den geschützten Bereich des Tablets.",
     group: "nfc",
     audience: ["caregiver", "lead"],
-    icon: KeyRound,
+    icon: Password,
     requirements: ["Die vierstellige Geräte-PIN Ihrer OGS"],
     steps: [
       "Wählen Sie auf dem Startbildschirm `Anmelden`.",
@@ -1886,6 +1907,7 @@ function tagAssignmentTopic(nfcEnabled: boolean | null): HelpTopic {
       HELP_TOPICS.tagAssignment,
       "Ein Armband zuweisen oder ändern",
       "Wie weise ich ein Armband zu oder ändere die Zuweisung?",
+      Watch,
       [HELP_TOPICS.studentSearch, HELP_TOPICS.nfcProblem],
     );
   }
@@ -1894,6 +1916,7 @@ function tagAssignmentTopic(nfcEnabled: boolean | null): HelpTopic {
       HELP_TOPICS.tagAssignment,
       "Ein Armband zuweisen oder ändern",
       "Wie weise ich ein Armband zu oder ändere die Zuweisung?",
+      Watch,
       [HELP_TOPICS.studentSearch, HELP_TOPICS.nfcProblem],
     );
   }
@@ -1906,7 +1929,7 @@ function tagAssignmentTopic(nfcEnabled: boolean | null): HelpTopic {
       "Verbinden Sie ein NFC-Armband mit dem richtigen Kind oder Teammitglied.",
     group: "nfc",
     audience: ["caregiver", "lead"],
-    icon: TabletSmartphone,
+    icon: Watch,
     requirements: [
       "Die Person ist in moto angelegt und steht dort nur einmal.",
     ],
@@ -1950,6 +1973,7 @@ function nfcWorkTimeTopic(nfcEnabled: boolean | null): HelpTopic {
       HELP_TOPICS.nfcWorkTime,
       "Die eigene Arbeitszeit mit dem Armband erfassen",
       "Wie erfasse ich meine Arbeitszeit mit dem Armband?",
+      Timer,
       [HELP_TOPICS.trackWorkTime, HELP_TOPICS.nfcProblem],
     );
   }
@@ -1958,6 +1982,7 @@ function nfcWorkTimeTopic(nfcEnabled: boolean | null): HelpTopic {
       HELP_TOPICS.nfcWorkTime,
       "Die eigene Arbeitszeit mit dem Armband erfassen",
       "Wie erfasse ich meine Arbeitszeit mit dem Armband?",
+      Timer,
       [HELP_TOPICS.trackWorkTime, HELP_TOPICS.nfcProblem],
     );
   }
@@ -1969,7 +1994,7 @@ function nfcWorkTimeTopic(nfcEnabled: boolean | null): HelpTopic {
     summary: "Stempeln Sie sich am NFC-Tablet ein, aus oder in eine Pause.",
     group: "nfc",
     audience: ["caregiver", "lead"],
-    icon: Clock3,
+    icon: Timer,
     requirements: ["Ihr persönliches, aktives NFC-Armband"],
     steps: [
       "Öffnen Sie im `Menü` den Bereich `Mitarbeiter-Stempeln`.",
@@ -1999,6 +2024,7 @@ function nfcSupervisionTopic(
       HELP_TOPICS.nfcSupervision,
       "Eine Aufsicht am Tablet starten und beenden",
       "Wie starte oder beende ich eine Aufsicht am Tablet?",
+      TabletSmartphone,
       [HELP_TOPICS.activeSupervision, HELP_TOPICS.nfcProblem],
     );
   }
@@ -2007,6 +2033,7 @@ function nfcSupervisionTopic(
       HELP_TOPICS.nfcSupervision,
       "Eine Aufsicht am Tablet starten und beenden",
       "Wie starte oder beende ich eine Aufsicht am Tablet?",
+      TabletSmartphone,
       [HELP_TOPICS.activeSupervision, HELP_TOPICS.nfcProblem],
     );
   }
@@ -2094,6 +2121,7 @@ function nfcCheckInTopic(
       HELP_TOPICS.nfcCheckIn,
       "Kinder mit dem Armband ein- und auschecken",
       "Wie checken sich Kinder mit dem Armband ein und aus?",
+      Scan,
       [HELP_TOPICS.webAttendance, HELP_TOPICS.nfcProblem],
     );
   }
@@ -2102,6 +2130,7 @@ function nfcCheckInTopic(
       HELP_TOPICS.nfcCheckIn,
       "Kinder mit dem Armband ein- und auschecken",
       "Wie checken sich Kinder mit dem Armband ein und aus?",
+      Scan,
       [HELP_TOPICS.webAttendance, HELP_TOPICS.nfcProblem],
     );
   }
@@ -2119,7 +2148,7 @@ function nfcCheckInTopic(
         "Kinder melden sich mit ihrem Armband an und ab. moto hält fest, ob ein Kind da ist.",
       group: "nfc",
       audience: ["caregiver", "lead"],
-      icon: TabletSmartphone,
+      icon: Scan,
       requirements: [
         "Das Armband ist dem Kind zugewiesen.",
         "Am Tablet ist der Scan-Bildschirm geöffnet.",
@@ -2160,7 +2189,7 @@ function nfcCheckInTopic(
       "Kinder melden sich mit ihrem Armband bei einer Aufsicht an. Danach wählen sie ihr nächstes Ziel.",
     group: "nfc",
     audience: ["caregiver", "lead"],
-    icon: TabletSmartphone,
+    icon: Scan,
     requirements: [
       "Das Armband ist dem Kind zugewiesen.",
       "Am Tablet läuft eine Aufsicht.",
@@ -2258,7 +2287,7 @@ function missingMenuTopic(
       "Ein Bereich kann wegen Ihrer Rolle, einer Einstellung oder der gewählten Arbeitsweise der OGS fehlen.",
     group: "probleme",
     audience: "caregiver",
-    icon: ShieldAlert,
+    icon: EyeSlash,
     steps: [
       "Öffnen Sie auf dem Handy unten `Mehr`. Dort stehen alle Bereiche.",
       "Klappen Sie am Computer in der Seitenleiste die passende Gruppe auf.",
@@ -2355,6 +2384,7 @@ function nfcProblemTopic(nfcEnabled: boolean | null): HelpTopic {
       HELP_TOPICS.nfcProblem,
       "Das NFC-Tablet funktioniert nicht",
       "Was kann ich tun, wenn das NFC-Tablet nicht funktioniert?",
+      TabletSmartphone,
       [HELP_TOPICS.webAttendance, HELP_TOPICS.trackWorkTime],
       "probleme",
     );
@@ -2364,6 +2394,7 @@ function nfcProblemTopic(nfcEnabled: boolean | null): HelpTopic {
       HELP_TOPICS.nfcProblem,
       "Das NFC-Tablet funktioniert nicht",
       "Was kann ich tun, wenn das NFC-Tablet nicht funktioniert?",
+      TabletSmartphone,
       [HELP_TOPICS.webAttendance, HELP_TOPICS.trackWorkTime],
       "probleme",
     );
@@ -2759,7 +2790,7 @@ function createStudentTopic(): HelpTopic {
     summary: "Einzeln über ein Fenster. Viele auf einmal über eine Vorlage.",
     group: "einrichten",
     audience: "lead",
-    icon: UserRoundPlus,
+    icon: Student,
     steps: [],
     instructionGroups: [
       {
@@ -4336,7 +4367,7 @@ function leadCarePlanTopic(): HelpTopic {
     summary: "Der Betreuungsplan legt fest, wer wann welche Kinder betreut.",
     group: "planung",
     audience: "lead",
-    icon: CalendarDays,
+    icon: Table,
     steps: [
       "Klappen Sie in der Seitenleiste `Planung` auf.",
       "Öffnen Sie `Betreuungsplan`.",
@@ -4933,7 +4964,7 @@ function devicesTopic(): HelpTopic {
     summary: "Sie sehen alle Geräte Ihrer OGS und ihren Zustand.",
     group: "nfc",
     audience: "lead",
-    icon: TabletSmartphone,
+    icon: Devices,
     steps: [],
     instructionGroups: [
       {
@@ -5044,7 +5075,7 @@ function leadMissingMenuTopic(): HelpTopic {
     summary: "Meist fehlt der Rolle das Recht für diesen Bereich.",
     group: "probleme",
     audience: "lead",
-    icon: ShieldAlert,
+    icon: EyeSlash,
     steps: [
       "Fragen Sie, welcher Bereich genau fehlt.",
       "Öffnen Sie `Datenverwaltung` und danach `Personal`.",
@@ -6053,7 +6084,7 @@ function parentFeatureMissingTopic(): HelpTopic {
     summary: "Jede OGS schaltet selbst frei, was Eltern sehen und tun dürfen.",
     group: "probleme",
     audience: "parent",
-    icon: ShieldAlert,
+    icon: EyeSlash,
     steps: [
       "Prüfen Sie, ob der Bereich hinter `Mehr` liegt.",
       "Fehlt er auch dort, nutzt Ihre OGS ihn nicht.",
@@ -6656,7 +6687,7 @@ function teacherFeatureMissingTopic(): HelpTopic {
       "Jede OGS schaltet selbst frei, was Lehrkräfte sehen und tun dürfen.",
     group: "probleme",
     audience: "teacher",
-    icon: ShieldAlert,
+    icon: EyeSlash,
     steps: [
       "Prüfen Sie, welcher Bereich genau fehlt.",
       "Schreiben Sie der OGS, wenn Sie ihn brauchen.",
@@ -6767,6 +6798,9 @@ const FIXED_GROUPS_ONLY_TOPIC_IDS: ReadonlySet<HelpTopicId> = new Set([
   HELP_TOPICS.ownGroups,
   HELP_TOPICS.transferGroup,
 ]);
+
+/** So viele Themen zeigt die Startseite einer Rolle als Kacheln. */
+export const HOME_TOPIC_COUNT = 6;
 
 export function getHelpTopics(
   presenceMode: HelpPresenceMode,

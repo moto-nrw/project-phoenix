@@ -9,6 +9,7 @@ import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { cn } from "~/lib/utils";
 import type { HelpGroupMode, HelpPresenceMode, HelpRole } from "./help-content";
+import { HelpWordmark } from "./help-wordmark";
 
 /**
  * Einstieg in die Hilfe: wir fragen, fuer wen die Anleitung ist.
@@ -203,9 +204,7 @@ export function HelpEntry({
           eine fremde Seite wirkt. */}
       <header className="relative border-b border-gray-200 bg-white">
         <div className="mx-auto flex h-20 w-full max-w-3xl items-center gap-3 px-4">
-          <span className="text-xl font-bold tracking-tight text-gray-950">
-            moto Hilfe
-          </span>
+          <HelpWordmark />
         </div>
       </header>
 

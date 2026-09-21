@@ -17,7 +17,12 @@ describe("HelpEntry", () => {
   it("wears the same header as the guide", () => {
     renderEntry();
 
-    expect(screen.getByText("moto Hilfe")).toBeInTheDocument();
+    const brandName = screen.getByText("moto");
+    expect(brandName).toHaveClass("[font-family:var(--font-moto)]");
+    expect(brandName.parentElement).toHaveTextContent("moto Hilfe");
+    expect(
+      document.querySelector('img[src*="moto_transparent"]'),
+    ).not.toBeNull();
   });
 
   it("asks for the role before showing any guide", () => {
