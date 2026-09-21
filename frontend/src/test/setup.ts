@@ -160,6 +160,9 @@ const tenantProviderMock = vi.hoisted(() => ({
   useAttendanceWebEnabled: vi.fn(() => true),
   useOpenCareGroupMode: vi.fn(() => false),
   useOperationalOverviewScope: vi.fn(() => "own"),
+  // Both attendance scopes default to "own" in the registry, so staff may not
+  // move children they do not supervise unless a test opens them (#3066).
+  useSchoolWideAttendanceMoves: vi.fn(() => false),
   useShowTimetableCounts: vi.fn(() => true),
   // Betreuungsplan (timetable.enabled) defaults ON like the registry default
   // (#2383). Tests covering the switched-off branch override this locally.

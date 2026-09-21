@@ -93,6 +93,13 @@ type TenantResolveResponse struct {
 	// It is a hint, never the gate — the server decides each request.
 	// Falls back to "own", the restrictive default, on any resolution error.
 	OperationalOverviewScope string `json:"operational_overview_scope"`
+	// AttendanceEditScope is the tenant's resolved
+	// operations.attendance_edit_scope setting. Shell metadata like the
+	// overview scope: together they tell the client whether staff may move
+	// children they do not supervise (#3066), so it does not offer a move the
+	// server would refuse. A hint, never the gate. Falls back to "own", the
+	// restrictive default, on any resolution error.
+	AttendanceEditScope string `json:"attendance_edit_scope"`
 	// ParentRequestReasonPolicy is the tenant's resolved
 	// operations.parent_request_reason_policy setting (#2267). Shell metadata:
 	// the staff client uses it to know whether an approval needs a written
@@ -133,6 +140,7 @@ type tenantShellSettings struct {
 	attendanceLogEnabled   bool
 	groupMode              string
 	overviewScope          string
+	attendanceEditScope    string
 	reasonPolicy           string
 	showTimetableCounts    bool
 	waitlistEnabled        bool

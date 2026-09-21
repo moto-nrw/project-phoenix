@@ -39,6 +39,7 @@ import {
   useNFCEnabled,
   useOpenCareGroupMode,
   usePresenceMode,
+  useSchoolWideAttendanceMoves,
   useShowTimetableCounts,
   useTenant,
   useTenantRoutingModeSafe,
@@ -586,6 +587,53 @@ describe("usePresenceMode", () => {
     );
     const { result } = renderHook(() => usePresenceMode(), { wrapper });
     expect(result.current).toBe("detailed");
+  });
+});
+
+// Staff may move children they do not supervise only where the school opened
+// both attendance edits and the overview to all staff (#3066).
+describe("useSchoolWideAttendanceMoves", () => {
+  const withTenant =
+    (tenant: TenantInfo | null) =>
+    ({ children }: { children: React.ReactNode }) => (
+      <TenantProvider tenantSlug="demo" tenant={tenant}>
+        {children}
+      </TenantProvider>
+    );
+
+  it("is true when both scopes are open to all staff", () => {
+    const { result } = renderHook(() => useSchoolWideAttendanceMoves(), {
+      wrapper: withTenant({
+        ...mockTenant,
+        attendanceEditScope: "all_staff",
+        operationalOverviewScope: "all_staff",
+      }),
+    });
+    expect(result.current).toBe(true);
+  });
+
+  it.each([
+    ["attendance edits limited", "own", "all_staff"],
+    ["overview limited to admins", "all_staff", "admins"],
+    ["overview limited to own", "all_staff", "own"],
+  ] as const)("is false with %s", (_label, editScope, overviewScope) => {
+    const { result } = renderHook(() => useSchoolWideAttendanceMoves(), {
+      wrapper: withTenant({
+        ...mockTenant,
+        attendanceEditScope: editScope,
+        operationalOverviewScope: overviewScope,
+      }),
+    });
+    expect(result.current).toBe(false);
+  });
+
+  it("is false while the tenant is unresolved or outside a provider", () => {
+    const unresolved = renderHook(() => useSchoolWideAttendanceMoves(), {
+      wrapper: withTenant(null),
+    });
+    expect(unresolved.result.current).toBe(false);
+    const outside = renderHook(() => useSchoolWideAttendanceMoves());
+    expect(outside.result.current).toBe(false);
   });
 });
 

@@ -585,7 +585,7 @@ function changeLocationTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Ihre OGS erfasst die Räume der Kinder.",
       "Das Kind ist anwesend.",
       "Sie beaufsichtigen den aktuellen Raum oder den Zielraum.",
-      "Im Zielraum läuft eine Aufsicht.",
+      "Im Zielraum läuft eine Aufsicht, oder er ist ein offener Raum.",
     ],
     steps: [
       "Öffnen Sie `Räume`.",
@@ -598,6 +598,7 @@ function changeLocationTopic(presenceMode: HelpPresenceMode): HelpTopic {
     notes: ["Sie können mehrere Kinder auswählen und gemeinsam verschieben."],
     differences: [
       "Hat das Kind noch keinen Raum? Wählen Sie auf `Räume` die Karte `Unterwegs`. Wählen Sie dort das Kind und den Zielraum.",
+      "Steht hinter dem Zielraum `(offener Raum)`? Dort braucht es keine Aufsicht. Das Kind nutzt den Raum dann, ohne an einem Angebot teilzunehmen.",
       "Fehlt der Zielraum? Prüfen Sie dort `Aktuelle Aufsicht`.",
       "Beaufsichtigen Sie keinen der beiden Räume? Bitten Sie eine zuständige Aufsicht. Oder fragen Sie Ihre Leitung.",
     ],
@@ -1200,7 +1201,7 @@ function roomsTopic(presenceMode: HelpPresenceMode): HelpTopic {
       {
         title: "Kinder ohne Raum in einen Raum setzen",
         description:
-          "Führen Sie selbst die Aufsicht, stehen nur Ihre Räume zur Wahl. Mit dem Recht für alle Räume steht die ganze Liste da.",
+          "Führen Sie selbst die Aufsicht, stehen nur Ihre Räume zur Wahl. Mit dem Recht für alle Räume steht die ganze Liste da. Dann stehen auch offene Räume in der Liste, mit dem Zusatz `(offener Raum)`. So bleibt ein Kind nach seinem Angebot im Raum, ohne an einem Angebot teilzunehmen.",
         steps: [
           "Wählen Sie oben die Karte `Unterwegs`.",
           "Wählen Sie die gewünschten Kinder aus.",
