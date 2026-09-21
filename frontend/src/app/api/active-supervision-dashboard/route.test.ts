@@ -496,6 +496,88 @@ describe("GET /api/active-supervision-dashboard", () => {
     expect(json.data.openRooms[1]?.sessions).toEqual([]);
   });
 
+  // A released room lists activity children and independent stays together
+  // (#3066). Only the backend's explicit flag marks a stay as independent.
+  it("maps released-room children with their independent-stay flag", async () => {
+    const openRoomStudent = {
+      school_class: "2a",
+      group_name: "OGS A",
+      check_in_time: "2026-09-09T10:00:00.000Z",
+      sick: false,
+      excused: false,
+    };
+    mockApiGet.mockResolvedValueOnce({
+      data: {
+        ...emptyWire,
+        open_rooms: [
+          {
+            room_id: "10",
+            name: "Sporthalle",
+            is_user_supervising: false,
+            active_group_ids: ["21", "23"],
+            student_count: 3,
+            students: [
+              {
+                ...openRoomStudent,
+                student_id: "1",
+                student_name: "Klara Kick",
+                active_group_id: "21",
+                activity_name: "Fußball",
+                independent: false,
+              },
+              {
+                ...openRoomStudent,
+                student_id: "2",
+                student_name: "Ida Eigen",
+                active_group_id: "23",
+                independent: true,
+              },
+              {
+                ...openRoomStudent,
+                student_id: "3",
+                student_name: "Otto Alt",
+                active_group_id: "21",
+                activity_name: "Fußball",
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const response = await GET(
+      createMockRequest("/api/active-supervision-dashboard"),
+      createMockContext(),
+    );
+
+    expect(response.status).toBe(200);
+    const json = await parseJsonResponse<
+      ApiResponse<{
+        openRooms: Array<{
+          students: Array<{
+            studentId: string;
+            activityName?: string;
+            independent: boolean;
+          }>;
+        }>;
+      }>
+    >(response);
+    expect(json.data.openRooms[0]?.students).toEqual([
+      expect.objectContaining({
+        studentId: "1",
+        activityName: "Fußball",
+        independent: false,
+      }),
+      expect.objectContaining({ studentId: "2", independent: true }),
+      expect.objectContaining({
+        studentId: "3",
+        activityName: "Fußball",
+        independent: false,
+      }),
+    ]);
+    expect(json.data.openRooms[0]?.students[1]?.activityName).toBeUndefined();
+  });
+
   it("propagates backend errors instead of degrading to empty sections", async () => {
     mockApiGet.mockRejectedValueOnce(new Error("API error (403): forbidden"));
 
