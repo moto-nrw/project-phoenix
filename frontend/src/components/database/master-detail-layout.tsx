@@ -54,12 +54,13 @@ export function MasterDetailLayout({
     useFillHeight<HTMLDivElement>(bottomOffset);
 
   if (isMobile) {
+    // Auf dem Telefon scrollt die Seite, nicht die Karte: keine feste Höhe,
+    // die Karte wächst mit der Liste (Wachstumsregel in globals.css). Eine
+    // Karte in Bildschirmhöhe läge mit ihrem unteren Rand unter der
+    // Navigationsleiste, und zwei Scrollflächen ineinander sind auf dem
+    // Touchscreen mühsam (#3330).
     return (
-      <div
-        ref={containerRef}
-        style={{ height }}
-        className={cn("flex w-full flex-col", className)}
-      >
+      <div className={cn("flex w-full flex-col", className)}>
         <div className="moto-content-surface min-h-0 flex-1 overflow-hidden rounded-2xl border shadow-sm">
           <div className="h-full overflow-auto">{list}</div>
         </div>
@@ -98,39 +99,27 @@ export function MasterDetailLayout({
     unselectedBehavior === "placeholder" || selectedId !== null;
 
   return (
+    // Beide Flächen tragen `moto-scroll-surface`: die Höhe setzt
+    // `useFillHeight`, Liste und Objektansicht scrollen in ihrer Karte. Ohne
+    // den Ausstieg machte die Wachstumsregel aus globals.css diese Zeile zur
+    // Spalte und gäbe der Objektansicht `flex: 1 0 auto`. Sie schrumpfte
+    // dann nicht mehr und lief über den rechten Rand hinaus (#3330).
     <div
       ref={containerRef}
-      // Die Richtung steht im style, nicht in einer Klasse: die Regel „der
-      // Rumpf füllt die Höhe" in globals.css macht jede Hülle auf dem Weg zur
-      // letzten Kartenfläche zur Flex-SPALTE, und weil sie ungeschichtet ist,
-      // schlägt sie jede Tailwind-Utility. Ohne diese Zeile lagen Liste und
-      // Objektansicht übereinander statt nebeneinander.
-      style={{ height, flexDirection: "row" }}
+      style={{ height }}
       className={cn("flex w-full gap-4", className)}
     >
       <div
         className={cn(
-          "moto-content-surface overflow-hidden rounded-2xl border shadow-sm",
+          "moto-content-surface moto-scroll-surface overflow-hidden rounded-2xl border shadow-sm",
           showDetail ? "shrink-0" : "flex-1",
         )}
-        style={
-          showDetail
-            ? { width: listWidth, flex: "0 0 auto" }
-            : { flex: "1 1 0%" }
-        }
+        style={showDetail ? { width: listWidth } : undefined}
       >
         <div className="flex h-full flex-col">{list}</div>
       </div>
       {showDetail ? (
-        // `flex` ebenfalls im style: die Wachstumsregel aus globals.css gibt
-        // der letzten Kartenfläche `flex: 1 0 auto`, damit sie in einer
-        // Spalte bis zur Unterkante wächst. In dieser Zeile heißt dasselbe
-        // „nicht schrumpfen" — die Objektansicht lief dadurch über den
-        // rechten Rand hinaus.
-        <div
-          className="moto-content-surface min-w-0 flex-1 overflow-hidden rounded-2xl border shadow-sm"
-          style={{ flex: "1 1 0%" }}
-        >
+        <div className="moto-content-surface moto-scroll-surface min-w-0 flex-1 overflow-hidden rounded-2xl border shadow-sm">
           <div className="flex h-full flex-col">{detail}</div>
         </div>
       ) : null}
