@@ -10,9 +10,8 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -55,7 +54,7 @@ type PartialAbsenceResponse struct {
 	UpdatedAt string `json:"updated_at"`
 }
 
-func mapPartialAbsenceToResponse(row *schedule.StudentPickupException) PartialAbsenceResponse {
+func mapPartialAbsenceToResponse(row *careplan.PickupException) PartialAbsenceResponse {
 	response := PartialAbsenceResponse{
 		ID:        row.ID,
 		StudentID: row.StudentID,
@@ -92,7 +91,7 @@ func (rs *Resource) getStudentPartialAbsences(w http.ResponseWriter, r *http.Req
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	rows, err := rs.PartialAbsenceService.List(r.Context(), student.ID, from, to)
+	rows, err := rs.PartialAbsenceService.ListPartialAbsences(r.Context(), student.ID, from, to)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServerWrap("failed to fetch partial absences", err))
 		return
@@ -113,7 +112,7 @@ func (rs *Resource) createStudentPartialAbsence(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
-	row, err := rs.PartialAbsenceService.Create(r.Context(), input)
+	row, err := rs.PartialAbsenceService.CreatePartialAbsence(r.Context(), input)
 	if err != nil {
 		rs.renderPartialAbsenceError(w, r, err)
 		return
@@ -135,7 +134,7 @@ func (rs *Resource) updateStudentPartialAbsence(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
-	row, err := rs.PartialAbsenceService.Update(r.Context(), id, input)
+	row, err := rs.PartialAbsenceService.UpdatePartialAbsence(r.Context(), id, input)
 	if err != nil {
 		rs.renderPartialAbsenceError(w, r, err)
 		return
@@ -157,7 +156,7 @@ func (rs *Resource) deleteStudentPartialAbsence(w http.ResponseWriter, r *http.R
 		renderError(w, r, common.ErrorInternalServer(errors.New("partial absence service not configured")))
 		return
 	}
-	if err := rs.PartialAbsenceService.Delete(r.Context(), id, student.ID); err != nil {
+	if err := rs.PartialAbsenceService.DeletePartialAbsence(r.Context(), id, student.ID); err != nil {
 		rs.renderPartialAbsenceError(w, r, err)
 		return
 	}
@@ -177,24 +176,24 @@ func (rs *Resource) requirePartialAbsenceWriteAccess(w http.ResponseWriter, r *h
 	return student
 }
 
-func (rs *Resource) bindPartialAbsenceInput(w http.ResponseWriter, r *http.Request, studentID int64) (careschedule.PartialAbsenceInput, bool) {
+func (rs *Resource) bindPartialAbsenceInput(w http.ResponseWriter, r *http.Request, studentID int64) (careplan.PartialAbsenceInput, bool) {
 	if rs.PartialAbsenceService == nil {
 		renderError(w, r, common.ErrorInternalServer(errors.New("partial absence service not configured")))
-		return careschedule.PartialAbsenceInput{}, false
+		return careplan.PartialAbsenceInput{}, false
 	}
 	req := &PartialAbsenceRequest{}
 	if err := render.Bind(r, req); err != nil {
 		renderError(w, r, common.ErrorInvalidRequest(err))
-		return careschedule.PartialAbsenceInput{}, false
+		return careplan.PartialAbsenceInput{}, false
 	}
 	staffID, err := rs.getStaffIDFromJWT(r)
 	if err != nil {
 		renderError(w, r, common.ErrorForbidden(err))
-		return careschedule.PartialAbsenceInput{}, false
+		return careplan.PartialAbsenceInput{}, false
 	}
 	date, _ := timezone.ParseDate(req.Date)
 	fromTime, _ := parseTimeOnly(req.FromTime)
-	return careschedule.PartialAbsenceInput{
+	return careplan.PartialAbsenceInput{
 		StudentID: studentID,
 		Date:      date,
 		FromTime:  fromTime,
@@ -204,13 +203,13 @@ func (rs *Resource) bindPartialAbsenceInput(w http.ResponseWriter, r *http.Reque
 }
 
 var partialAbsenceErrorRenderer = common.RulesRenderer([]common.ErrorRule{
-	{Target: careschedule.ErrPartialAbsenceAlreadyExists, Render: common.ErrorConflict},
-	{Target: careschedule.ErrPartialAbsenceFullDayConflict, Render: common.ErrorConflict},
-	{Target: careschedule.ErrPartialAbsencePendingRequestConflict, Render: common.ErrorConflict},
-	{Target: careschedule.ErrPartialAbsencePickupConflict, Render: common.ErrorConflict},
-	{Target: careschedule.ErrPartialAbsenceAutoManaged, Render: common.ErrorConflict},
-	{Target: careschedule.ErrPartialAbsenceNotFound, Render: partialAbsenceNotFound},
-	{Target: careschedule.ErrPartialAbsenceWrongStudent, Render: partialAbsenceNotFound},
+	{Target: careplan.ErrPartialAbsenceAlreadyExists, Render: common.ErrorConflict},
+	{Target: careplan.ErrPartialAbsenceFullDayConflict, Render: common.ErrorConflict},
+	{Target: careplan.ErrPartialAbsencePendingRequestConflict, Render: common.ErrorConflict},
+	{Target: careplan.ErrPartialAbsencePickupConflict, Render: common.ErrorConflict},
+	{Target: careplan.ErrPartialAbsenceAutoManaged, Render: common.ErrorConflict},
+	{Target: careplan.ErrPartialAbsenceNotFound, Render: partialAbsenceNotFound},
+	{Target: careplan.ErrPartialAbsenceWrongStudent, Render: partialAbsenceNotFound},
 	{Target: sql.ErrNoRows, Render: partialAbsenceNotFound},
 }, func(err error) render.Renderer {
 	return common.ErrorInternalServerWrap("failed to write partial absence", err)

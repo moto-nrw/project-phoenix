@@ -19,7 +19,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -477,9 +477,12 @@ func pickupAdjustmentServiceWithCoordinator(
 	if err != nil {
 		panic(err)
 	}
-	baselines := careschedule.NewPickupBaselineServiceWithSettings(
-		repos.StudentPickupSchedule, approvedOfferings, repos.CareOffering, tc.resource.SettingsService,
-	)
+	baselines, err := careplanCompose.NewPickupBaselines(repos.CarePlan, approvedOfferings, func(ctx context.Context) (bool, error) {
+		return tc.resource.SettingsService.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
+	})
+	if err != nil {
+		panic(err)
+	}
 	return enrollmentService.NewPickupAdjustmentService(enrollmentService.PickupAdjustmentServiceConfig{
 		PickupSchedules: tc.resource.PickupScheduleService, ArrivalSchedules: tc.resource.ArrivalScheduleService,
 		PickupScheduleRepo:  repos.StudentPickupSchedule,

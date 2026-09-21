@@ -81,14 +81,14 @@ func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings configService
 	repos, repoErr := repositories.NewParentRouteTestRepositories(db)
 	require.NoError(t, repoErr)
 	svc := parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:           repos.ParentChild,
-		StatusDayRepo:       repos.StudentStatusDay,
-		StudentRepo:         repos.Student,
-		PickupExceptionRepo: repos.StudentPickupException,
-		Settings:            settings,
-		ExcusedRequests:     repos.ExcusedRequests,
-		DB:                  db,
-		Logger:              slog.Default(),
+		ChildRepo:       repos.ParentChild,
+		StatusDayRepo:   repos.StudentStatusDay,
+		StudentRepo:     repos.Student,
+		CareExceptions:  repos.CareExceptions,
+		Settings:        settings,
+		ExcusedRequests: repos.ExcusedRequests,
+		DB:              db,
+		Logger:          slog.Default(),
 	})
 	rs := parent.NewResource(parent.ResourceConfig{Parent: svc, DB: db})
 	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router())

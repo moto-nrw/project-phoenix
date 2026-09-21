@@ -13,13 +13,10 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -27,8 +24,9 @@ import (
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
@@ -1111,13 +1109,13 @@ func (stubOpActiveService) MoveStudentsToActiveGroupAuthorized(_ context.Context
 
 type stubOpArrivalService struct{}
 
-func (stubOpArrivalService) GetBulkEffectiveArrivalTimesForDate(context.Context, []int64, timezone.Date) (map[int64]*careschedule.EffectiveArrivalTime, error) {
+func (stubOpArrivalService) GetBulkEffectiveArrivalTimesForDate(context.Context, []int64, timezone.Date) (map[int64]*careplan.EffectiveArrivalTime, error) {
 	return nil, nil
 }
 
 type stubOpPickupService struct{}
 
-func (stubOpPickupService) GetBulkEffectivePickupTimesForDate(context.Context, []int64, timezone.Date) (map[int64]*careschedule.EffectivePickupTime, error) {
+func (stubOpPickupService) GetBulkEffectivePickupTimesForDate(context.Context, []int64, timezone.Date) (map[int64]*careplan.EffectivePickupTime, error) {
 	return nil, nil
 }
 
@@ -1126,12 +1124,12 @@ func (stubOpPickupService) GetBulkEffectivePickupTimesForDate(context.Context, [
 // before the care-day derivation (#1747) existed.
 type stubOpCareDayService struct{}
 
-func (stubOpCareDayService) ResolveForDate(context.Context, []int64, timezone.Date) (map[int64]careschedule.CareDayStatus, error) {
-	return map[int64]careschedule.CareDayStatus{}, nil
+func (stubOpCareDayService) ResolveForDate(context.Context, []int64, timezone.Date) (map[int64]careplan.CareDayStatus, error) {
+	return map[int64]careplan.CareDayStatus{}, nil
 }
 
-func (stubOpCareDayService) ResolveForRange(context.Context, []int64, timezone.Date, timezone.Date) (map[int64]map[timezone.Date]careschedule.CareDayStatus, error) {
-	return map[int64]map[timezone.Date]careschedule.CareDayStatus{}, nil
+func (stubOpCareDayService) ResolveForRange(context.Context, []int64, timezone.Date, timezone.Date) (map[int64]map[timezone.Date]careplan.CareDayStatus, error) {
+	return map[int64]map[timezone.Date]careplan.CareDayStatus{}, nil
 }
 
 // newRealSpontaneousOpsService wires a production timetableOperationsService so

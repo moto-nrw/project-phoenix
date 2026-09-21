@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
@@ -26,7 +26,7 @@ type (
 	DayState                        = care.DayState
 	// CareRequestDiffEntry is one "current → requested" row of a pending
 	// care-schedule request, as PendingCareRequest.Diff carries it.
-	CareRequestDiffEntry = careschedule.RequestDiffEntry
+	CareRequestDiffEntry = carerequests.DiffEntry
 )
 
 const (
@@ -129,4 +129,8 @@ func (s *service) WithdrawChildCourseRequest(
 	ctx context.Context, accountID, studentID, requestID int64,
 ) (*enrollmentSvc.CourseCatalog, error) {
 	return s.care.WithdrawChildCourseRequest(ctx, accountID, studentID, requestID)
+}
+
+func (s *service) ListPickupChangeRequests(ctx context.Context, accountID, studentID int64) ([]carerequests.Request, error) {
+	return s.care.ListPickupChangeRequests(ctx, accountID, studentID)
 }

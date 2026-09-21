@@ -4,12 +4,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 )
 
 func TestResolvePlanningDate(t *testing.T) {
@@ -149,7 +148,7 @@ func TestResolveDayPlanningForDateNonToday(t *testing.T) {
 	t.Run("explicit_absence_wins_over_planning_signal", func(t *testing.T) {
 		status, reason, _ := resolveDayPlanningForDate(
 			StudentResponse{ID: 90, Sick: true},
-			&careschedule.EffectiveArrivalTime{ArrivalTime: &arrivalTime},
+			&careplan.EffectiveArrivalTime{ArrivalTime: &arrivalTime},
 			nil, nil, map[int64]struct{}{}, false,
 		)
 		assert.Equal(t, DayPlanningStatusNotComingToday, status)
@@ -159,7 +158,7 @@ func TestResolveDayPlanningForDateNonToday(t *testing.T) {
 	t.Run("labels_avoid_heute_wording", func(t *testing.T) {
 		status, reason, label := resolveDayPlanningForDate(
 			StudentResponse{ID: 90},
-			&careschedule.EffectiveArrivalTime{ArrivalTime: &arrivalTime},
+			&careplan.EffectiveArrivalTime{ArrivalTime: &arrivalTime},
 			nil, nil, map[int64]struct{}{}, false,
 		)
 		assert.Equal(t, DayPlanningStatusComesToday, status)

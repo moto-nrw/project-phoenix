@@ -36,15 +36,10 @@ import (
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
-	announcement "github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
@@ -309,43 +304,6 @@ type ReplanWeekResult struct {
 	To               timezone.Date
 	DeletedInstances int
 	Materialization  *MaterializationResult
-}
-
-// InstanceServiceDependencies aggregates wiring. All repo fields are required;
-// Broadcaster is optional (nil → no SSE).
-type InstanceServiceDependencies struct {
-	InstanceRepo       scheduleModel.ActivityInstanceRepository
-	IdempotencyRepo    scheduleModel.InstanceIdempotencyRepository
-	InstanceStaffRepo  scheduleModel.InstanceStaffRepository
-	InstanceStudents   scheduleModel.InstanceStudentRepository
-	ExceptionRepo      scheduleModel.ActivityExceptionRepository
-	ActiveGroupRepo    activeModel.GroupRepository
-	SupervisorRepo     activeModel.GroupSupervisorRepository
-	Presence           InstancePresence
-	RoomRepo           facilitiesModel.RoomRepository
-	ActivityGroupRepo  activitiesModel.GroupRepository
-	StaffRepo          usersModel.StaffRepository
-	StudentRepo        usersModel.StudentRepository
-	CalendarPeriodRepo scheduleModel.CalendarPeriodRepository
-	ActiveService      ActiveSessionEnder
-	Materialization    MaterializationService
-	// CareDayService decides which still-expected children may be stamped
-	// absent when an instance ends (#1747) — required.
-	CareDayService careschedule.CareDayService
-	// DeviationEventRepo appends the Änderungsprotokoll (#1886) — required.
-	DeviationEventRepo auditModel.DeviationEventRepository
-	Broadcaster        realtime.Broadcaster
-	DB                 *bun.DB
-	Logger             *slog.Logger
-	Settings           LifecycleSettings
-	RecoveryRepo       scheduleModel.ActivityRecoveryRepository
-	Now                func() time.Time
-	EnforceTimePolicy  bool
-	// GuardianNotices publishes the cancellation notice to families (#2601).
-	// Optional: nil means a cancellation can never carry a notice. The
-	// composition root passes a late-bound publisher because the announcement
-	// service is built after this one.
-	GuardianNotices announcement.CareCancellationPublisher
 }
 
 type instanceService struct {
@@ -1280,7 +1238,7 @@ func (s *instanceService) validateReopenOccupancy(ctx context.Context, instance 
 		return &ScheduleError{Op: "reopen instance: count room occupancy", Err: err}
 	}
 	if currentOccupancy+len(snapshot.VisitIDs) > *room.Capacity {
-		return careschedule.ErrRoomCapacityExceeded
+		return studentpresence.ErrRoomCapacityExceeded
 	}
 	return nil
 }
@@ -2230,7 +2188,7 @@ func (s *instanceService) lockCareExceptionDaysForStudents(
 	sorted := append([]int64(nil), studentIDs...)
 	slices.Sort(sorted)
 	for _, studentID := range sorted {
-		if err := careschedule.LockCareExceptionDay(ctx, s.deps.DB, studentID, date); err != nil {
+		if err := s.deps.CareDayService.LockStudentAndExceptionDay(ctx, studentID, date.String()); err != nil {
 			return &ScheduleError{Op: "lock care exception day for roster rewrite", Err: err}
 		}
 	}

@@ -12,7 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -140,7 +140,7 @@ func TestConvertInstanceToSeries_PreservesTemplateValidationErrorContract(t *tes
 		wantMessage string
 	}{
 		{name: "inactive calendar period", err: timetableplanning.ErrInstanceOutsideActiveCalendarPeriod, wantMessage: "instance date must lie within an active calendar period"},
-		{name: "archived category", err: careschedule.ErrCategoryNotAssignable, wantMessage: "category is archived or unavailable"},
+		{name: "archived category", err: timetableModule.ErrCategoryNotAssignable, wantMessage: "category is archived or unavailable"},
 		{name: "archived planning track", err: timetableplanning.ErrPlanningTrackArchived, wantMessage: "planning track is archived or unavailable"},
 		{name: "education group", err: &timetableplanning.TemplateEducationGroupError{Err: errors.New("education group is unavailable")}, wantMessage: "education group is unavailable"},
 		{name: "grade limit", err: timetableplanning.ErrTemplateTargetGradeExceedsLimit, wantMessage: "template target grade exceeds tenant limit"},

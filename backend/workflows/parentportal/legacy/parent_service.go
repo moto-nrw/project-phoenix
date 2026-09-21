@@ -15,8 +15,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/localization"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -25,7 +23,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
@@ -37,6 +35,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
+	"github.com/uptrace/bun"
 )
 
 // MealPlan is the narrow provider capability used by the parents workflow.
@@ -150,7 +149,7 @@ type Service interface {
 
 	// EditPickupChangeRequest rewrites the caller's own pending one-day
 	// pickup change (#2267).
-	EditPickupChangeRequest(ctx context.Context, accountID, studentID, requestID int64, date timezone.Date, pickupTime time.Time, reason, expectedVersion string) (*scheduleModels.CareScheduleChangeRequest, error)
+	EditPickupChangeRequest(ctx context.Context, accountID, studentID, requestID int64, date timezone.Date, pickupTime time.Time, reason, expectedVersion string) (*carerequests.Request, error)
 
 	// EditCareScheduleRequest rewrites the caller's own pending weekly-plan
 	// request (#2267).
@@ -197,8 +196,8 @@ type Service interface {
 	// concrete pickup time and stores the parent's explanation with it. Arrival
 	// exceptions remain under staff control.
 	SubmitCareExceptionWithReason(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime *time.Time, reason string) (*CareException, error)
-	SubmitPickupChangeRequest(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime time.Time, reason string, recipientGuardianProfileIDs []int64) (*scheduleModels.CareScheduleChangeRequest, error)
-	ListPickupChangeRequests(ctx context.Context, accountID, studentID int64) ([]*scheduleModels.CareScheduleChangeRequest, error)
+	SubmitPickupChangeRequest(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime time.Time, reason string, recipientGuardianProfileIDs []int64) (*carerequests.Request, error)
+	ListPickupChangeRequests(ctx context.Context, accountID, studentID int64) ([]carerequests.Request, error)
 
 	// ListCareExceptions returns the merged pickup/arrival exceptions for the
 	// child in [from, to], including staff-authored ones (flagged via Source)
@@ -493,21 +492,20 @@ type ServiceConfig struct {
 	Attendance AttendanceReader
 
 	// Per-child write features (sick notes + care exceptions).
-	StatusDayRepo        activeModels.StudentStatusDayRepository
-	StudentRepo          usersModels.StudentRepository
-	PickupExceptionRepo  scheduleModels.StudentPickupExceptionRepository
-	ArrivalExceptionRepo scheduleModels.StudentArrivalExceptionRepository
+	StatusDayRepo  activeModels.StudentStatusDayRepository
+	StudentRepo    usersModels.StudentRepository
+	CareExceptions CareExceptions
 	// PickupAutoExcusal couples pulled-forward day pickup times with the
 	// per-block partial-absence mechanics (#2360). Optional in tests; nil
 	// skips the coupling.
-	PickupAutoExcusal *careschedule.PickupAutoExcusalSyncer
+	PickupAutoExcusal careplan.PickupAutoExcusal
 	Settings          configService.SettingsService
 	Broadcaster       realtime.Broadcaster
 
 	// Weekly care plan read view + change requests (#1803).
-	ArrivalSchedules careschedule.ArrivalScheduleService
-	PickupSchedules  careschedule.PickupScheduleService
-	CareRequests     careschedule.CareScheduleRequestService
+	ArrivalSchedules careplan.ArrivalScheduleService
+	PickupSchedules  careplan.PickupScheduleService
+	CareRequests     carerequests.Service
 	// ExcusedRequests is the legacy-named office-approval store for parent sick
 	// and excused absences. When the matching setting is on, a submission becomes
 	// a pending request here instead of a direct status day.

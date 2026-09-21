@@ -9,7 +9,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 )
 
-func NewCareScheduleQueue(query careplan.CareScheduleReviewQuery, today func() careplan.Date) (requestreview.Queue, error) {
+type CareScheduleQueueQuery interface {
+	ListPending(context.Context, careplan.RequestQueueFilter) ([]*careplan.CareScheduleReviewItem, *careplan.RequestCursor, error)
+	ListHistory(context.Context, careplan.RequestQueueFilter) ([]*careplan.CareScheduleHistoryItem, *careplan.RequestCursor, error)
+}
+
+func NewCareScheduleQueue(query CareScheduleQueueQuery, today func() careplan.Date) (requestreview.Queue, error) {
 	if query == nil || today == nil {
 		return nil, errors.New("care schedule queue: native query and clock are required")
 	}
@@ -17,7 +22,7 @@ func NewCareScheduleQueue(query careplan.CareScheduleReviewQuery, today func() c
 }
 
 type careScheduleQueue struct {
-	query careplan.CareScheduleReviewQuery
+	query CareScheduleQueueQuery
 	today func() careplan.Date
 }
 

@@ -6,8 +6,12 @@ import (
 	"log/slog"
 	"time"
 
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
@@ -37,10 +41,10 @@ type ActiveTestModule struct {
 	IoTDataTestModule
 	Settings             config.SettingsService
 	Schulhof             activeTestYard
-	PickupSchedule       careschedule.PickupScheduleService
-	ArrivalSchedule      careschedule.ArrivalScheduleService
+	PickupSchedule       careplan.PickupScheduleService
+	ArrivalSchedule      careplan.ArrivalScheduleService
 	TimetableOperations  timetableplanning.TimetableOperationsService
-	CareDay              careschedule.CareDayService
+	CareDay              careplan.CareDayQuery
 	Instance             timetableplanning.InstanceService
 	SupervisionDashboard supervisiondashboard.Query
 	// SessionEnd is the kiosk session end workflow over the real owners.
@@ -101,20 +105,38 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	}
 	logger := slog.Default()
 	hub := deliveryCompose.NewRealtimeHub(logger)
-	pickup := careschedule.NewPickupBaselineServiceWithSettings(r.StudentPickupSchedule, approvedOfferings, r.CareOffering, settings.Settings)
-	arrival := careschedule.NewArrivalBaselineService(r.StudentArrivalSchedule, r.Student, r.ClassArrivalTime, r.ClassArrivalException, approvedOfferings, r.CareOffering, settings.Settings)
-	careDay := careschedule.NewCareDayService(careschedule.CareDayDependencies{ArrivalBaselines: arrival, ArrivalSchedules: r.StudentArrivalSchedule,
-		ArrivalExceptions: r.StudentArrivalException, PickupBaselines: pickup, PickupExceptions: r.StudentPickupException})
-	care, err := NewCareLifecycleTestModule(db, unit)
-	if err != nil {
-		return ActiveTestModule{}, err
-	}
-	careschedule.WireCareParticipation(careDay, care.CareLifecycle)
-	bridge := timetableplanning.NewTimetableBridgeService(timetableplanning.TimetableBridgeDependencies{Instances: r.ActivityInstance, InstanceStudents: r.InstanceStudent, CareDays: careDay})
 	students, err := repositories.NewPeopleDirectory(db)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
+	carePlan, err := repositories.NewCarePlan(db, students, r.InstanceStudent)
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
+	pickup, err := careplanCompose.NewPickupBaselines(carePlan, approvedOfferings, func(ctx context.Context) (bool, error) {
+		return settings.Settings.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
+	})
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
+	classArrivalQueries, err := arrivalTimetable.NewClassArrivals(db, func(arrivalTimetable.Observation) {})
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
+	arrival, err := NewArrivalBaselines(carePlan, students, classArrivalQueries, approvedOfferings, func(ctx context.Context) (bool, error) {
+		return settings.Settings.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
+	})
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
+	careDay := careplanCompose.NewCareDays(careplanCompose.CareDayDependencies{ArrivalBaselines: arrival, Records: carePlan,
+		PickupBaselines: pickup})
+	care, err := NewCareLifecycleTestModule(db, unit)
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
+	careplanCompose.WireCareParticipation(careDay, care.CareLifecycle)
+	bridge := timetableplanning.NewTimetableBridgeService(timetableplanning.TimetableBridgeDependencies{Instances: r.ActivityInstance, InstanceStudents: r.InstanceStudent, CareDays: careDay})
 	displayGroups, err := repositories.NewSchoolStructure(db)
 	if err != nil {
 		return ActiveTestModule{}, err
@@ -140,9 +162,24 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	groups.Active = presence
 	groups.Users = data.Users
 	yard := facilities.NewSchulhofService(data.Facilities, facilitiesLegacy.ActivityCatalog(data.Activities), facilitiesLegacy.OpenGroupCatalog(facilitiesGroupSupervisions(newStudentPresence(db, logger)), facilitiesRoomSessions(newStudentPresence(db, logger)), facilitiesGroupVisits(newStudentPresence(db, logger))), logger)
-	autoExcusal := careschedule.NewPickupAutoExcusalSyncer(r.StudentPickupException, pickup, r.InstanceStudent, db)
-	pickups := careschedule.NewPickupScheduleServiceWithBulk(r.StudentPickupSchedule, r.StudentPickupException, r.StudentPickupNote, r.Student, r.Person, autoExcusal, pickup, db, logger)
-	arrivals := careschedule.NewArrivalScheduleServiceWithBaselines(r.StudentArrivalSchedule, r.StudentArrivalException, r.StudentArrivalNote, r.Student, r.Person, arrival, r.ClassArrivalTime, db, logger, careschedule.WithClassArrivalExceptions(r.ClassArrivalException))
+	autoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
+		DB: db, Records: carePlan, Baselines: pickup, Blocks: r.Timetable, Preview: pickupExcusalTimetable{r.Timetable},
+	})
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
+	pickups, err := NewPickupSchedules(db, carePlan, students, pickup, autoExcusal, logger)
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
+	classExceptions, err := NewClassArrivalExceptions(classArrivalQueries, students)
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
+	arrivals, err := NewArrivalSchedules(db, carePlan, students, arrival, ClassArrivalPlans(classArrivalQueries), classExceptions, logger)
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
 	operations := timetableplanning.NewTimetableOperationsService(timetableplanning.TimetableOperationsDependencies{
 		InstanceRepo: r.ActivityInstance, InstanceStaffRepo: r.InstanceStaff, InstanceStudents: r.InstanceStudent, InstanceService: tt.Instance,
 		ActiveGroupRepo: r.ActiveGroup, ActivityGroupRepo: r.ActivityGroup, ActiveService: presence,
@@ -150,7 +187,7 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 		StudentRepo: r.Student, EducationGroupRepo: r.Group, RoomRepo: r.Room, PersonService: data.Users, PlanningTrackRepo: r.PlanningTrack,
 		Settings: settings.Settings, Broadcaster: hub, DB: db, Logger: logger, Now: optionalClock(clocks), RecoveryRepo: repositories.NewActivityRecoveryRepository(db, r.InstanceStudent),
 	})
-	timetableOwner, err := repositories.NewTimetable(db, students, rooms, careschedule.TimetableCareDayLocker(db))
+	timetableOwner, err := repositories.NewTimetable(db, students, rooms, carePlan)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}

@@ -2,32 +2,32 @@ package services
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	grouplivelegacy "github.com/moto-nrw/project-phoenix/modules/grouplive/legacy"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -44,9 +44,9 @@ type StudentTestModule struct {
 	Schools            organizationtenancy.Capability
 	CareLifecycle      carelifecycle.CareLifecycleService
 	StudentAudit       users.StudentAuditService
-	PartialAbsence     careschedule.PartialAbsenceService
+	PartialAbsence     careplan.PartialAbsenceService
 	EnrollmentDecision enrollment.DecisionService
-	CareRequests       careschedule.CareScheduleRequestService
+	CareRequests       carerequests.Service
 	OfferingChanges    enrollment.OfferingChangeRequestService
 	PickupAdjustments  enrollment.PickupAdjustmentService
 	ExcusedRequests    careplan.ExcusedAbsenceRequests
@@ -147,10 +147,20 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	}
 	studentPhotoService := newStudentPhotos(realtimeHub, nil)
 	users.WirePersonCareParticipation(usersService, careParticipationResolver(careLifecycleService))
-	careschedule.WireCareParticipation(careDayService, careLifecycleService)
+	careplanCompose.WireCareParticipation(careDayService, careLifecycleService)
 	approvedOfferings := enrollment.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: persons})
-	pickupBaselines := careschedule.NewPickupBaselineServiceWithSettings(repos.StudentPickupSchedule, approvedOfferings, repos.CareOffering, settingsService)
-	pickupAutoExcusal := careschedule.NewPickupAutoExcusalSyncer(repos.StudentPickupException, pickupBaselines, repos.InstanceStudent, db)
+	pickupBaselines, err := careplanCompose.NewPickupBaselines(repos.CarePlan, approvedOfferings, func(ctx context.Context) (bool, error) {
+		return settingsService.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
+	})
+	if err != nil {
+		return StudentTestModule{}, err
+	}
+	pickupAutoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
+		DB: db, Records: repos.CarePlan, Baselines: pickupBaselines, Blocks: repos.Timetable, Preview: pickupExcusalTimetable{repos.Timetable},
+	})
+	if err != nil {
+		return StudentTestModule{}, err
+	}
 	rosterReconciler := timetableplanning.NewRosterReconciler(repos.ActivityInstance, repos.InstanceStudent, repos.StudentEnrollment, logger, now)
 	pillEmitter := communicationCompose.NewParentEventEmitter(communicationCompose.ParentEventEmitterConfig{
 		DB:          db,
@@ -161,14 +171,10 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		Broadcaster: realtimeHub,
 		Logger:      logger.With("service", "parent-events"),
 	})
-	partialAbsenceService := careschedule.NewPartialAbsenceService(
-		repos.StudentPickupException,
-		repos.StudentStatusDay,
-		repos.ExcusedAbsenceRequest,
-		repos.InstanceStudent,
-		pickupAutoExcusal,
-		db,
-	)
+	partialAbsenceService, err := careplanCompose.NewPartialAbsences(db, repos.CarePlan, repos.Timetable, pickupAutoExcusal)
+	if err != nil {
+		return StudentTestModule{}, err
+	}
 	guardianAccess, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	if err != nil {
 		return StudentTestModule{}, err
@@ -232,8 +238,8 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		},
 		LockPickupStudents: func(ctx context.Context, studentIDs []int64) error {
 			for _, studentID := range studentIDs {
-				if err := careschedule.LockCareStudent(ctx, db, studentID); err != nil {
-					if errors.Is(err, sql.ErrNoRows) {
+				if err := persons.LockStudent(ctx, studentID); err != nil {
+					if errors.Is(err, peopledirectory.ErrStudentNotFound) {
 						continue
 					}
 					return err
@@ -254,15 +260,14 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		configModels.KeyParentAbsenceReviewScope,
 	)
 	parentRequestEvents := users.NewParentRequestEventRecorder(repos.ParentRequestEvent)
-	careRequestService := careschedule.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
-		repos.CareScheduleChangeRequest,
-		repos.Student,
-		repos.Person,
+	careRequestService := NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+		repos.CarePlan,
+		persons,
 		arrivalScheduleService,
 		pickupScheduleService,
-		repos.StudentPickupException,
 		newStudentPresence(db, logger),
 		pickupAutoExcusal,
+		repos.CarePlan,
 		userContextService,
 		pillEmitter,
 		realtimeHub,
@@ -270,7 +275,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		parentRequestEvents,
 		logger.With("service", "care-requests"),
 		studentAuditService,
-		careschedule.WithCareRequestToday(today),
+		WithCareRequestToday(today),
 	)
 	offeringChangeRequestService := enrollment.NewOfferingChangeRequestServiceWithPolicy(enrollment.OfferingChangeRequestServiceConfig{
 		ChangeRepo:             repos.OfferingChangeRequest,
