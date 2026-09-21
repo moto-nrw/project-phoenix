@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ButtonLink } from "~/components/ui/button";
+import { EmptyState } from "~/components/ui/empty-state";
+import { Loading } from "~/components/ui/loading";
 import {
-  DemoEntryMessage,
+  DEMO_ENTRY_LOADING,
+  DEMO_ENTRY_PROBLEMS,
+  DEMO_WEBSITE_URL,
   type DemoEntryPhase,
-} from "~/components/demo/demo-entry-message";
-import {
   takeDemoTokenFromFragment,
   waitForDemoSchool,
 } from "~/lib/demo-access";
@@ -57,5 +60,19 @@ export default function DemoWaitingRoomPage() {
     };
   }, []);
 
-  return <DemoEntryMessage phase={phase} />;
+  if (phase === "opening" || phase === "preparing") {
+    return <Loading message={DEMO_ENTRY_LOADING[phase]} />;
+  }
+  const problem = DEMO_ENTRY_PROBLEMS[phase];
+  return (
+    <main className="flex min-h-dvh items-center justify-center px-4">
+      <EmptyState
+        title={problem.title}
+        description={problem.description}
+        action={
+          <ButtonLink href={DEMO_WEBSITE_URL}>Neuen Link anfordern</ButtonLink>
+        }
+      />
+    </main>
+  );
 }

@@ -6,6 +6,44 @@
 export const DEMO_WEBSITE_URL = "https://moto-ogs.de/demo";
 
 /**
+ * What a visitor of the public demo sees on the way in.
+ * "unavailable": the demo school could not be set up; only a new request helps.
+ */
+export type DemoEntryPhase =
+  "opening" | "preparing" | "invalid" | "failed" | "unavailable";
+
+// The waiting room on the main domain and the entry page of the demo school
+// (#3463) say the same thing in the same words.
+export const DEMO_ENTRY_LOADING: Record<
+  Extract<DemoEntryPhase, "opening" | "preparing">,
+  string
+> = {
+  opening: "Demo wird geöffnet …",
+  preparing: "Ihre Demo wird vorbereitet. Einen Moment bitte.",
+};
+
+export const DEMO_ENTRY_PROBLEMS: Record<
+  Exclude<DemoEntryPhase, "opening" | "preparing">,
+  { title: string; description: string }
+> = {
+  invalid: {
+    title: "Dieser Link funktioniert nicht mehr",
+    description:
+      "Ein Demo-Link gilt 14 Tage. Auf unserer Website bekommen Sie sofort einen neuen.",
+  },
+  failed: {
+    title: "Das hat leider nicht geklappt",
+    description:
+      "Es liegt nicht an Ihnen. Bitte öffnen Sie den Link noch einmal. Oder fordern Sie einen neuen an.",
+  },
+  unavailable: {
+    title: "Das hat leider nicht geklappt",
+    description:
+      "Es liegt nicht an Ihnen. Bitte fordern Sie auf unserer Website einen neuen Link an.",
+  },
+};
+
+/**
  * True for the demo entry page, on a school subdomain (`/demo`) and in path
  * mode (`/{slug}/demo`).
  */

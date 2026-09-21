@@ -137,8 +137,8 @@ main domain, `FRONTEND_URL/demo#token=…` (`app/demo/page.tsx`). It polls the
 status and, once `ready`, hands the token on to
 `{school_url}/demo#token=…`, where the entry page
 `[tenant]/(public)/demo` redeems it through `/api/demo/access/*` and signs in
-with the `internalRefresh` credentials path. Both pages render the same
-`DemoEntryMessage`. The demo process seeds the school; `docs/operations/standing-demo.md` has the queue,
+with the `internalRefresh` credentials path. Both pages take their texts
+from `DEMO_ENTRY_LOADING` and `DEMO_ENTRY_PROBLEMS` in `lib/demo-access.ts`. The demo process seeds the school; `docs/operations/standing-demo.md` has the queue,
 the limit of three seeds at a time, the single repetition and the fallback to
 the standing school `messe-demo` (`--demo-standing-school` on `serve` and
 `demo`). The access row remembers its school (`school_slug`), so status and
