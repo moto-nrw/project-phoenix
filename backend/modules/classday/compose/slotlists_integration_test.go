@@ -13,19 +13,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"testing"
 	"time"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule/carescheduletest"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/classdaytest"
 	"github.com/moto-nrw/project-phoenix/modules/classday/compose"
@@ -270,62 +267,25 @@ func newTestServiceWithCustomAccess(db *bun.DB, rooms roomReader, settings compo
 // newTestServiceWithParticipation composes the projection the way the service
 // factory does: the owner facades serve the tenant-safe reads, the retained
 // schedule services stay behind the compatibility bindings.
-func newTestServiceWithParticipation(db *bun.DB, rooms roomReader, settings compose.SettingsReader, userCtx slotListUserContext, participation careschedule.CareParticipationResolver) classday.SlotLists {
-	scheduleRepos := classdaytest.NewStudentScheduleRepositories(db)
+func newTestServiceWithParticipation(db *bun.DB, rooms roomReader, settings compose.SettingsReader, userCtx slotListUserContext, participation carePlanTest.CareParticipationResolver) classday.SlotLists {
 	people := newTestPeople(db)
+	carePlan := carePlanTest.NewCarePlan(slotListTestTB{}, db)
+	arrivals := carePlanTest.NewArrivalQueries(slotListTestTB{}, db, carePlan)
 	service := compose.NewSlotLists(compose.SlotListDependencies{
-		Timetable: timetabletest.New(slotListTestTB{}, db),
-		Presence:  newSlotListPresence(db),
-		CarePlan:  carePlanTest.NewCarePlan(slotListTestTB{}, db),
-		Students:  people,
-		Persons:   people,
-		Groups:    newTestGroups(db),
-		Rooms:     rooms,
-		CareDays: careschedule.NewCareDayService(careschedule.CareDayDependencies{
-			ArrivalSchedules:  scheduleRepos.ArrivalSchedule,
-			ArrivalExceptions: scheduleRepos.ArrivalException,
-			PickupBaselines: carescheduletest.NewPickupBaselineService(
-				scheduleRepos.PickupSchedule,
-				newApprovedOfferingProjection(db),
-				carePlanTest.CareOfferingRepository(db),
-			),
-			PickupExceptions:  scheduleRepos.PickupException,
-			CareParticipation: participation,
-		}),
-		PickupTimes: careschedule.NewPickupScheduleServiceWithBulk(
-			scheduleRepos.PickupSchedule,
-			scheduleRepos.PickupException,
-			scheduleRepos.PickupNote,
-			usersRepo.NewStudentRepository(db),
-			usersRepo.NewPersonRepository(db),
-			nil,
-			carescheduletest.NewPickupBaselineService(
-				scheduleRepos.PickupSchedule,
-				newApprovedOfferingProjection(db),
-				carePlanTest.CareOfferingRepository(db),
-			),
-			db,
-			slog.Default(),
-		),
-		ArrivalTimes: careschedule.NewArrivalScheduleServiceWithBaselines(
-			scheduleRepos.ArrivalSchedule,
-			scheduleRepos.ArrivalException,
-			scheduleRepos.ArrivalNote,
-			usersRepo.NewStudentRepository(db),
-			usersRepo.NewPersonRepository(db),
-			nil,
-			nil,
-			db,
-			nil,
-		),
-		PickupBaselines: carescheduletest.NewPickupBaselineService(
-			scheduleRepos.PickupSchedule,
-			newApprovedOfferingProjection(db),
-			carePlanTest.CareOfferingRepository(db),
-		),
-		ListExport:  listexport.NewService(),
-		Settings:    settings,
-		UserContext: userCtx,
+		Timetable:       timetabletest.New(slotListTestTB{}, db),
+		Presence:        newSlotListPresence(db),
+		CarePlan:        carePlan,
+		Students:        people,
+		Persons:         people,
+		Groups:          newTestGroups(db),
+		Rooms:           rooms,
+		CareDays:        carePlanTest.NewCareDays(carePlan, carePlanTest.NewStoredPickupBaselines(carePlan, newApprovedOfferingProjection(db)), participation),
+		PickupTimes:     carePlanTest.NewPickupQueries(slotListTestTB{}, db, carePlan, carePlanTest.NewStoredPickupBaselines(carePlan, newApprovedOfferingProjection(db))),
+		ArrivalTimes:    arrivals,
+		PickupBaselines: carePlanTest.NewStoredPickupBaselines(carePlan, newApprovedOfferingProjection(db)),
+		ListExport:      listexport.NewService(),
+		Settings:        settings,
+		UserContext:     userCtx,
 		// Pin the clock to a fixed Wednesday so the pickup suite does not depend
 		// on the weekday CI runs on (see pickupNow).
 		Now: func() time.Time { return pickupNow },
@@ -3059,7 +3019,7 @@ func (slotListTestTB) Helper() {}
 
 func (slotListTestTB) Fatalf(format string, args ...any) { panic(fmt.Sprintf(format, args...)) }
 
-func newApprovedOfferingProjection(db *bun.DB) careschedule.ApprovedBookingReader {
+func newApprovedOfferingProjection(db *bun.DB) careplan.ApprovedBookingReader {
 	projection, err := classdaytest.NewApprovedOfferingProjection(db)
 	if err != nil {
 		panic(err)

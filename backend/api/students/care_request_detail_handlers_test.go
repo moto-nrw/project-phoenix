@@ -14,12 +14,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -82,16 +84,16 @@ func TestCareRequestDetail_OpensPickupChangeBeforeAndAfterDecision(t *testing.T)
 	// A pickup change for a school day within the request window, with a
 	// weekly pickup on that weekday so the request records the previous time.
 	date := timezone.NewDate(2026, 9, 15) // a Tuesday
-	require.NoError(t, tc.resource.PickupScheduleService.UpsertStudentPickupSchedule(tenantCtx, &scheduleModels.StudentPickupSchedule{
+	require.NoError(t, tc.resource.PickupScheduleService.UpsertStudentPickupSchedule(tenantCtx, &careplan.PickupSchedule{
 		StudentID:  chain.StudentID,
 		Weekday:    int(date.Weekday()),
 		PickupTime: timezone.NormalizeWallClock(time.Date(1, 1, 1, 15, 30, 0, 0, time.UTC)),
 		CreatedBy:  staff.ID,
 	}))
-	pending, err := tc.resource.CareRequestService.CreatePickupChangeRequest(
-		tenantCtx, chain.StudentID, chain.AccountID, date,
-		time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC), "Arzttermin",
-	)
+	pending, err := tc.careRequests.CreatePickupChange(tenantCtx, carerequests.PickupChangeCreateInput{
+		StudentID: chain.StudentID, GuardianAccountID: chain.AccountID, Date: date,
+		PickupTime: time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC), Reason: "Arzttermin", ReasonRequired: true,
+	})
 	require.NoError(t, err)
 	expectedLabel := date.Format("02.01.2006") + " · Abholzeit"
 
@@ -146,10 +148,10 @@ func TestCareRequestDetail_RefusesUnauthorizedReaders(t *testing.T) {
 	tenantCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 
 	date := timezone.NewDate(2026, 9, 15)
-	pending, err := tc.resource.CareRequestService.CreatePickupChangeRequest(
-		tenantCtx, chain.StudentID, chain.AccountID, date,
-		time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC), "Arzttermin",
-	)
+	pending, err := tc.careRequests.CreatePickupChange(tenantCtx, carerequests.PickupChangeCreateInput{
+		StudentID: chain.StudentID, GuardianAccountID: chain.AccountID, Date: date,
+		PickupTime: time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC), Reason: "Arzttermin", ReasonRequired: true,
+	})
 	require.NoError(t, err)
 
 	// Reading messages does not grant request details: without users:update

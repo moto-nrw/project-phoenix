@@ -1,0 +1,92 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#3226 expanded prerequisite consumer migrations",
+    "#3349 People Directory audit ownership"
+  ],
+  "owner_and_capability": "People Directory — permission and audit-actor request ports for review and caregiver operations",
+  "affected_packages": [
+    "services/users",
+    "services",
+    "test"
+  ],
+  "affected_tables": [
+    "audit.student_field_edits",
+    "audit.auth_events"
+  ],
+  "exact_ratchet_keys": [
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/users|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+  ],
+  "atomic_cutover": "All production JWT context reads in services/users are replaced by mandatory constructor-bound request ports. Root composition supplies the existing authenticated-context readers; the same request remains the authority. No fallback, new principal source, additional query, provider, schema change or authorization change. This retires the consumer edge, not the legacy JWT provider, which remains part of the unfinished #3226 cutover.",
+  "tests": [
+    "People Directory review, audit-name and caregiver metadata suites; root services; Enrollment; Care Plan lifecycle; parent portal lifecycle. Existing full-name, username fallback, mismatched-actor, actor-ID and raw scope assertions are retained. TestParentRequestCoordinatorDoesNotBypassPermissionPort proves a port denial cannot fall back to legacy admin claims."
+  ],
+  "runtime_evidence": {
+    "source": "docs/runtime-checkpoints/directory-request-context-3226.md",
+    "sources": [
+      "docs/runtime-checkpoints/directory-request-context-3226.md"
+    ],
+    "workload": "Repository toolchain focused tests of services/users, services, services/enrollment, modules/careplan/legacy/carelifecycle and workflows/parentportal/legacy using the hermetic test database. Context-reader migration only; no performance benchmark.",
+    "thresholds": "All existing authorization and audit attribution assertions must pass; no production services/users JWT import may remain; no architecture debt or composition growth.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "This cutover changes only in-memory request readers, not persistence operations or SQL. Audit persistence continues through the same pre-existing owner and repository calls."
+    },
+    "query_count": {
+      "state": "not_applicable",
+      "reason": "The replaced readers only extract context values and format a name; no SQL statement or query boundary changes in this cutover."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No I/O or algorithm changes: a direct context read becomes a constructor-bound function call. This consumer-import retirement makes no endpoint latency claim."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No I/O or algorithm changes: a direct context read becomes a constructor-bound function call. This consumer-import retirement makes no endpoint latency claim."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "All five focused test packages passed; no unexpected test failures."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection acquisition is added or changed by the in-memory request readers."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "No lock acquisition is added or changed by the in-memory request readers."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "The cutover changes no transaction or lock ordering."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "No worker execution path is introduced or modified."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "No worker retry policy is introduced or modified."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "No queue or worker scheduling is introduced or modified."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "Existing audit composition tests reject mismatched actor names; the permission-port regression denies bulk review despite legacy admin claims and marks the ambient transaction for rollback."
+    },
+    "rollback": {
+      "state": "measured",
+      "result": "People Directory's bulk-review tests preserve rollback marking on authorization, stale-version and apply failures; the request-reader migration changes no transactional write."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "Focused root services, People Directory, Enrollment, Care Plan lifecycle and parent portal lifecycle packages all passed with their existing test compositions."
+    }
+  },
+  "rollback_and_cleanup": "Revert the constructor bindings and consumer calls together against unchanged schemas. No data cleanup or deployment sequencing is required.",
+  "exit_criterion": "The exact production services/users-to-legacy-JWT import is absent, the architecture baseline drops that resolved key, and affected behavior tests pass. Legacy JWT removal and other #3226 requirements remain outside this evidence record."
+}

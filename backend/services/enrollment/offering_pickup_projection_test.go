@@ -3,6 +3,9 @@ package enrollment_test
 import (
 	"context"
 
+	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
+	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 
 	"log/slog"
@@ -18,8 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule/carescheduletest"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -53,22 +54,12 @@ func createPickupTimeOffering(
 	return offering
 }
 
-func projectedPickupReader(env *decisionTestEnv) careschedule.PickupScheduleService {
-	return careschedule.NewPickupScheduleServiceWithBulk(
-		env.repos.StudentPickupSchedule,
-		env.repos.StudentPickupException,
-		env.repos.StudentPickupNote,
-		env.repos.Student,
-		env.repos.Person,
-		nil,
-		carescheduletest.NewPickupBaselineService(
-			env.repos.StudentPickupSchedule,
-			approvedOfferingTestProjection(env.repos),
-			env.repos.CareOffering,
-		),
-		env.db,
-		slog.Default(),
-	)
+func projectedPickupReader(env *decisionTestEnv) careplan.PickupScheduleService {
+	result, err := careplanCompose.NewPickupSchedules(env.db, env.repos.CarePlan(), newPickupBaselineService(env.repos.CarePlan(), approvedOfferingTestProjection(env.repos)), nil, nil, slog.Default())
+	if err != nil {
+		panic(err)
+	}
+	return result
 }
 
 func nextWeekday(from timezone.Date, weekday time.Weekday) timezone.Date {
@@ -185,7 +176,7 @@ func TestOfferingPickupProjection_FutureReplacementStartsExactlyOnEffectiveDate(
 		"the weekly editor must receive the offering value for its requested week")
 
 	author := testpkg.CreateTestStaff(t, env.db, "Gehzeit", "Zukunft")
-	require.NoError(t, reader.UpsertBulkStudentPickupSchedulesForDate(ctx, studentID, effectiveFrom, []*scheduleModels.StudentPickupSchedule{{
+	require.NoError(t, reader.UpsertBulkStudentPickupSchedulesForDate(ctx, studentID, effectiveFrom, []*careplan.PickupSchedule{{
 		StudentID: studentID, Weekday: scheduleModels.WeekdayMonday,
 		PickupTime: timezone.NormalizeWallClock(time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC)), CreatedBy: author.ID,
 	}}))
@@ -248,11 +239,7 @@ func TestOfferingPickupResetClearsManualWeekdayExtension(t *testing.T) {
 	var clearedWeekday int
 	resetter := enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
 		PickupScheduleRepo: env.repos.StudentPickupSchedule,
-		PickupBaselines: carescheduletest.NewPickupBaselineService(
-			env.repos.StudentPickupSchedule,
-			approvedOfferingTestProjection(env.repos),
-			env.repos.CareOffering,
-		),
+		PickupBaselines:    newPickupBaselineService(env.repos.CarePlan(), approvedOfferingTestProjection(env.repos)),
 		ClearPickupWeekdayExtension: func(_ context.Context, gotStudentID int64, gotWeekday int) error {
 			clearedStudentID, clearedWeekday = gotStudentID, gotWeekday
 			return nil

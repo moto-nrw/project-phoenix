@@ -99,6 +99,7 @@ type Query interface {
 	StudentConsentQuery
 	GuardianQuery
 	GuardianPortalReachQuery
+	GuardianPortalContacts
 	// FindPerson returns one non-deleted person of the current tenant.
 	FindPerson(context.Context, int64) (Person, error)
 	// FindPersonForMutation locks the row for the caller's transaction.

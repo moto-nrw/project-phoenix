@@ -48,7 +48,7 @@ func TestPWAUsageCleanup_SweepsStaleRows(t *testing.T) {
 		db,
 		repos.PWAStandaloneUsage,
 		nil,
-		repos.AccountTenant,
+		nil, // Cleanup does not resolve guardian schools.
 		&configtest.Mock{
 			ResolveIntFn: func(_ context.Context, key string) (int, error) {
 				if key != configModel.KeyGDPRPWAUsageRetentionDays {

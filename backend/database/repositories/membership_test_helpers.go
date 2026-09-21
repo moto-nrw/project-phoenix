@@ -6,22 +6,18 @@ import (
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
-	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/uptrace/bun"
 )
 
 type MembershipTestRepositories struct {
-	Person        usersModels.PersonRepository
-	Account       authModels.AccountRepository
-	AccountTenant authModels.AccountTenantRepository
-	Staff         usersModels.StaffRepository
-	Teacher       usersModels.TeacherRepository
-	Guest         usersModels.GuestRepository
-	Group         educationModels.GroupRepository
-	GroupTeacher  educationModels.GroupTeacherRepository
-	ClassTeacher  educationModels.ClassTeacherRepository
+	Person       usersModels.PersonRepository
+	Staff        usersModels.StaffRepository
+	Teacher      usersModels.TeacherRepository
+	Guest        usersModels.GuestRepository
+	Group        educationModels.GroupRepository
+	GroupTeacher educationModels.GroupTeacherRepository
+	ClassTeacher educationModels.ClassTeacherRepository
 	// Membership is the owner capability itself; the class-list entries
 	// (#2382) are read and written through it.
 	Membership schoolmembership.Capability
@@ -57,11 +53,9 @@ func NewMembershipTestRepositories(db *bun.DB) (MembershipTestRepositories, erro
 	})
 	repos := &Factory{
 		db: db, Group: group,
-		Person: NewPersonRepository(db), Account: authRepo.NewAccountRepository(db),
-		AccountTenant: authRepo.NewAccountTenantRepository(db),
+		Person: NewPersonRepository(db),
 	}
-	repos.membershipDeps = newStaffMembershipDeps(repos.Person, repos.Account, repos.AccountTenant,
-		authRepo.NewPermissionRepository(db), authRepo.NewRoleRepository(db))
+	repos.membershipDeps = newStaffMembershipDeps(repos.Person, newIdentityAccess(db, nil))
 	repos.membershipDeps.groupTeachers = func() educationModels.GroupTeacherRepository { return repos.GroupTeacher }
 	repos.bindStaffMembershipAdapters(membership)
 	workTime, err := NewWorkforce(db, membership)
@@ -71,8 +65,8 @@ func NewMembershipTestRepositories(db *bun.DB) (MembershipTestRepositories, erro
 	repos.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }}, workTime)
 	repos.BindPeopleDirectory(persons)
 	return MembershipTestRepositories{
-		Person: repos.Person, Account: repos.Account, AccountTenant: repos.AccountTenant,
-		Staff: repos.Staff, Teacher: repos.Teacher, Guest: repos.Guest,
+		Person: repos.Person,
+		Staff:  repos.Staff, Teacher: repos.Teacher, Guest: repos.Guest,
 		Group: repos.Group, GroupTeacher: repos.GroupTeacher, ClassTeacher: repos.ClassTeacher,
 		Membership: membership,
 	}, nil

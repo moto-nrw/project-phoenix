@@ -11,13 +11,6 @@ type Model struct {
 	UpdatedAt time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp" json:"updated_at"`
 }
 
-// StringIDModel represents models that use string as primary key (like RFID cards)
-type StringIDModel struct {
-	ID        string    `bun:"id,pk" json:"id"`
-	CreatedAt time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp" json:"created_at"`
-	UpdatedAt time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp" json:"updated_at"`
-}
-
 // GetID, GetCreatedAt and GetUpdatedAt satisfy the base.Entity interface for
 // every embedder of Model. They live here ONCE (backend-conventions.md Rule 3)
 // so individual entities never redeclare these trivial accessors. Models with
@@ -25,12 +18,6 @@ type StringIDModel struct {
 func (m *Model) GetID() any              { return m.ID }
 func (m *Model) GetCreatedAt() time.Time { return m.CreatedAt }
 func (m *Model) GetUpdatedAt() time.Time { return m.UpdatedAt }
-
-// GetID, GetCreatedAt and GetUpdatedAt satisfy the base.Entity interface for
-// every embedder of StringIDModel (Rule 3, same as Model above).
-func (m *StringIDModel) GetID() any              { return m.ID }
-func (m *StringIDModel) GetCreatedAt() time.Time { return m.CreatedAt }
-func (m *StringIDModel) GetUpdatedAt() time.Time { return m.UpdatedAt }
 
 // Activatable represents models that can be activated or deactivated
 type Activatable struct {

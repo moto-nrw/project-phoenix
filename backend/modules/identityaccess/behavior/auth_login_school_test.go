@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
 	"github.com/moto-nrw/project-phoenix/models/audit"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -856,9 +855,8 @@ func TestLoginSchool_MFARequirementAppearingMidLogin_ChallengesInsteadOfMinting(
 	)
 	service := newGatedAuthService(t, db, &MFAServiceMock{
 		ResolveMFAPolicyFn: func(_ context.Context, policyAccountID, _ int64) (identityaccess.MFAPolicy, error) {
-			assignment := &authModels.AccountRole{AccountID: policyAccountID, RoleID: adminRoleID}
-			assignment.SetTenantID(tenantID)
-			_, err := db.NewInsert().Model(assignment).ModelTableExpr(`auth.account_roles`).Exec(context.Background())
+			_, err := db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+				policyAccountID, adminRoleID, tenantID).Exec(context.Background())
 			require.NoError(t, err)
 			return requiredAdminsPolicy(), nil
 		},

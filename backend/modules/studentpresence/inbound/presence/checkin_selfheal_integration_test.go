@@ -59,7 +59,7 @@ func TestCheckinStudent_SelfHealsOrphanVisit(t *testing.T) {
 		body := presence.CheckinRequest{ActiveGroupID: targetGroup.ID}
 		req := makeCheckinRequest(t, student.ID, body, token)
 
-		router := handler.Router()
+		router := testpkg.SessionVerifier(handler.Router())
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
@@ -119,7 +119,7 @@ func TestCheckinStudent_SelfHealsOrphanVisit(t *testing.T) {
 		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
 		req := makeCheckinRequest(t, student.ID, presence.CheckinRequest{ActiveGroupID: targetGroup.ID}, token)
 		rr := httptest.NewRecorder()
-		handler.Router().ServeHTTP(rr, req)
+		testpkg.SessionVerifier(handler.Router()).ServeHTTP(rr, req)
 
 		require.Equal(t, testutil.StatusConflict, rr.Code, "Response body: %s", rr.Body.String())
 		persisted, err := testPresenceQueries(t, db).FindVisit(testpkg.Ctx(t), orphanVisit.ID)
@@ -151,7 +151,7 @@ func TestCheckinStudent_SelfHealsOrphanVisit(t *testing.T) {
 		body := presence.CheckinRequest{ActiveGroupID: targetGroup.ID}
 		req := makeCheckinRequest(t, student.ID, body, token)
 
-		router := handler.Router()
+		router := testpkg.SessionVerifier(handler.Router())
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
@@ -186,7 +186,7 @@ func TestCheckinStudent_SelfHealsOrphanVisit(t *testing.T) {
 		body := presence.CheckinRequest{ActiveGroupID: targetGroup.ID}
 		req := makeCheckinRequest(t, student.ID, body, token)
 
-		router := handler.Router()
+		router := testpkg.SessionVerifier(handler.Router())
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 

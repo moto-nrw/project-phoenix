@@ -24,8 +24,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
@@ -47,10 +47,10 @@ type Sources struct {
 	UserContext       userContextService.UserContextService
 	Active            activeService.Service
 	Settings          configService.SettingsService
-	Pickups           careschedule.PickupScheduleService
-	Arrivals          careschedule.ArrivalScheduleService
+	Pickups           careplan.BulkPickupTimes
+	Arrivals          careplan.BulkArrivalTimes
 	Instances         timetableplanning.InstanceService
-	CareDays          careschedule.CareDayService
+	CareDays          careplan.CareDayQuery
 	CareParticipation carelifecycle.CareLifecycleService
 	ExcusedRequests   grouplive.PendingExcusedReader
 	StatusDays        *activeService.StudentStatusDayService
@@ -366,10 +366,10 @@ func (p presence) TrackingIndicators(ctx context.Context, studentIDs []int64, la
 }
 
 type planning struct {
-	arrivals  careschedule.ArrivalScheduleService
-	pickups   careschedule.PickupScheduleService
+	arrivals  careplan.BulkArrivalTimes
+	pickups   careplan.BulkPickupTimes
 	instances timetableplanning.InstanceService
-	careDays  careschedule.CareDayService
+	careDays  careplan.CareDayQuery
 }
 
 func (p planning) Arrivals(ctx context.Context, studentIDs []int64, date grouplive.Date) (map[int64]grouplive.Arrival, error) {
@@ -390,7 +390,7 @@ func (p planning) Arrivals(ctx context.Context, studentIDs []int64, date groupli
 	return result, nil
 }
 
-func arrivalRecord(arrival *careschedule.EffectiveArrivalTime) grouplive.Arrival {
+func arrivalRecord(arrival *careplan.EffectiveArrivalTime) grouplive.Arrival {
 	notes := make([]string, 0, len(arrival.DayNotes))
 	for _, note := range arrival.DayNotes {
 		notes = append(notes, note.Content)
@@ -416,7 +416,7 @@ func (p planning) Pickups(ctx context.Context, studentIDs []int64, date groupliv
 	return result, nil
 }
 
-func pickupRecord(pickup *careschedule.EffectivePickupTime) grouplive.Pickup {
+func pickupRecord(pickup *careplan.EffectivePickupTime) grouplive.Pickup {
 	notes := make([]grouplive.DayNote, 0, len(pickup.DayNotes))
 	for _, note := range pickup.DayNotes {
 		notes = append(notes, grouplive.DayNote{ID: note.ID, Content: note.Content})
@@ -459,28 +459,28 @@ func (p planning) TimetablePlannedStudentIDs(ctx context.Context, studentIDs []i
 // precedence so it never disagrees with the student search or the
 // timetable's care-day derivation.
 func (p planning) DecideDay(inputs grouplive.DayInputs) grouplive.DayDecision {
-	decisionInputs := careschedule.DayPlanningInputs{
+	decisionInputs := careplan.DayPlanningInputs{
 		HasActualAttendance: inputs.Present, Sick: inputs.Sick, ClassTrip: inputs.ClassTrip,
 		Excused: inputs.Excused, HasTimetable: inputs.HasTimetable,
 	}
 	if inputs.Arrival != nil {
-		decisionInputs.Arrival = &careschedule.EffectiveArrivalTime{
+		decisionInputs.Arrival = &careplan.EffectiveArrivalTime{
 			ArrivalTime: inputs.Arrival.ArrivalTime, IsException: inputs.Arrival.IsException, Notes: inputs.Arrival.Notes,
 		}
 	}
 	if inputs.Pickup != nil {
-		decisionInputs.Pickup = &careschedule.EffectivePickupTime{
+		decisionInputs.Pickup = &careplan.EffectivePickupTime{
 			PickupTime: inputs.Pickup.PickupTime, IsException: inputs.Pickup.IsException, Notes: inputs.Pickup.Notes,
 		}
 	}
-	decision := careschedule.ResolveDayPlanning(decisionInputs)
+	decision := careplan.ResolveDayPlanning(decisionInputs)
 	return grouplive.DayDecision{ComesToday: decision.ComesToday, Reason: decision.Reason, ExceptionNotes: decision.ExceptionNotes}
 }
 
 // AtSchoolBeforeCheckIn delegates to the day-planning owner's "Schule" rule.
 func (p planning) AtSchoolBeforeCheckIn(inputs grouplive.AtSchoolInputs) bool {
-	return careschedule.IsAtSchoolBeforeCheckIn(careschedule.AtSchoolInputs{
-		Decision: careschedule.DayPlanningDecision{
+	return careplan.IsAtSchoolBeforeCheckIn(careplan.AtSchoolInputs{
+		Decision: careplan.DayPlanningDecision{
 			ComesToday: inputs.Decision.ComesToday, Reason: inputs.Decision.Reason,
 		},
 		CheckedInToday: inputs.CheckedIn,

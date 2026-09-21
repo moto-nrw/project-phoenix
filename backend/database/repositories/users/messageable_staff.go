@@ -39,10 +39,9 @@ type StaffAccountsFunc func(ctx context.Context) ([]int64, error)
 // StaffMessageIdentity are the Identity & Access owner queries the colleague
 // lookup filters through instead of naming auth tables.
 type StaffMessageIdentity struct {
-	// ActiveAccounts selects the ids of globally active platform accounts.
-	ActiveAccounts ActiveAccountQuery
-	// ActiveMemberships selects (account_id, tenant_id) of ACTIVE mappings.
-	ActiveMemberships ActiveMembershipQuery
+	// ActiveSchoolAccounts narrows candidates to globally active accounts with
+	// an active membership at the supplied school, in the ambient transaction.
+	ActiveSchoolAccounts func(context.Context, int64, []int64) ([]int64, error)
 	// RoleClasses classifies the roles accounts hold at a school.
 	RoleClasses SchoolRoleClassQuery
 }
@@ -76,7 +75,7 @@ func (r *MessageableStaffRepository) resolveStaffAccounts(ctx context.Context) (
 // Four facts, because each answers a different question and the account
 // lifecycle has two independent switches:
 //   - the ACTIVE school mapping says "may act at this school". Identity &
-//     Access owns it, so the owner's membership query is joined as "at";
+//     Access owns it, so the owner's bounded account lookup checks it;
 //   - users.persons is NOT enough: it also holds children and guests, who can
 //     carry an account and an active tenant mapping;
 //   - staff membership says "colleague at this school" — the caller passes the
@@ -86,24 +85,25 @@ func (r *MessageableStaffRepository) resolveStaffAccounts(ctx context.Context) (
 //   - auth.accounts.active is the GLOBAL switch. Account management
 //     deactivates an account there WITHOUT touching the school mapping, so a
 //     per-tenant check alone still lets a globally disabled account be
-//     addressed and keep writing; the owner's active-account query covers it.
+//     addressed and keep writing; the same owner lookup checks that switch.
 //
 // It fails closed like resolveStaffAccounts: a graph without the owner
 // queries addresses nobody.
 func (r *MessageableStaffRepository) colleagueQuery(ctx context.Context, query *bun.SelectQuery) (*bun.SelectQuery, error) {
-	if r.identity.ActiveAccounts == nil || r.identity.ActiveMemberships == nil {
-		return nil, &modelBase.DatabaseError{Op: "resolve colleague relation", Err: errors.New("active account and membership queries are required")}
+	if r.identity.ActiveSchoolAccounts == nil {
+		return nil, &modelBase.DatabaseError{Op: "resolve colleague relation", Err: errors.New("active school account lookup is required")}
 	}
 	staffAccountIDs, err := r.resolveStaffAccounts(ctx)
 	if err != nil {
 		return nil, err
 	}
-	query = query.
-		Join(`JOIN (?) AS "at" ON at.account_id = person.account_id AND at.tenant_id = person.tenant_id`, r.identity.ActiveMemberships(ctx)).
-		Where(`person.deleted_at IS NULL`).
-		Where(`at.tenant_id = ?`, tenant.FromContext(ctx)).
-		Where(`at.account_id IN (?)`, r.identity.ActiveAccounts(ctx))
-	return staffAccountFilter(query, staffAccountIDs), nil
+	activeAccountIDs, err := r.identity.ActiveSchoolAccounts(ctx, tenant.FromContext(ctx), staffAccountIDs)
+	if err != nil {
+		return nil, fmt.Errorf("resolve active staff accounts: %w", err)
+	}
+	query = query.Where(`person.deleted_at IS NULL`).
+		Where(`person.tenant_id = ?`, tenant.FromContext(ctx))
+	return staffAccountFilter(query, activeAccountIDs), nil
 }
 
 // staffAccountFilter narrows the colleague relation to the accounts of the
@@ -113,7 +113,7 @@ func staffAccountFilter(query *bun.SelectQuery, staffAccountIDs []int64) *bun.Se
 	if len(staffAccountIDs) == 0 {
 		return query.Where("1 = 0")
 	}
-	return query.Where(`at.account_id IN (?)`, bun.List(staffAccountIDs))
+	return query.Where(`person.account_id IN (?)`, bun.List(staffAccountIDs))
 }
 
 // ListMessageableStaff returns the accounts the viewer may write to: people
@@ -127,9 +127,9 @@ func (r *MessageableStaffRepository) ListMessageableStaff(ctx context.Context, v
 	query, err := r.colleagueQuery(ctx, base.GetDB(ctx, r.db).NewSelect().
 		Model(&rows).
 		ModelTableExpr(`users.persons AS "person"`).
-		ColumnExpr(`at.account_id AS account_id`).
+		ColumnExpr(`person.account_id AS account_id`).
 		ColumnExpr(`COALESCE(NULLIF(btrim(COALESCE(person.first_name, '') || ' ' || COALESCE(person.last_name, '')), ''), 'Unbekannt') AS name`).
-		Where(`at.account_id <> ?`, viewerAccountID).
+		Where(`person.account_id <> ?`, viewerAccountID).
 		OrderExpr(`name ASC`))
 	if err != nil {
 		return nil, err
@@ -160,7 +160,7 @@ func (r *MessageableStaffRepository) IsMessageableStaff(ctx context.Context, acc
 	query, err := r.colleagueQuery(ctx, base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(`users.persons AS "person"`).
 		ColumnExpr(`1`).
-		Where(`at.account_id = ?`, accountID).
+		Where(`person.account_id = ?`, accountID).
 		Limit(1))
 	if err != nil {
 		return false, err

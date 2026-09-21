@@ -7,7 +7,6 @@ import (
 	auditRepositories "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	membershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
@@ -66,9 +65,7 @@ func NewPeopleDirectoryWithPhotosAndObserver(
 		StudentPhotoRuntime:   func() peopleCompose.StudentPhotoRuntime { return *photoRuntime },
 		StudentCompanions:     NewStudentCompanionSeam(companions),
 	},
-		peopleCompose.GuardianMembershipQuery(activeMembershipQuery(db)),
-		peopleCompose.GuardianMembershipQuery(activeAccountQuery(mustAccountRepository(authRepo.NewAccountRepository(db)))),
-		peopleCompose.GuardianMembershipQuery(guardianRoleQuery(db)),
+		newIdentityAccess(db, nil).FindActiveGuardianMemberships,
 	)
 	if err != nil {
 		return nil, nil, err

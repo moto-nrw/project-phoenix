@@ -5,34 +5,13 @@ import (
 	"fmt"
 	"slices"
 
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
-// caregiverChainQuery is the staff/teacher half of the caregiver facts the
-// account listings derive; the auth repository implements it.
+// caregiverChainQuery supplies the School Membership facts used by the
+// operator listing projection.
 type caregiverChainQuery interface {
-	CaregiverChainByPersonIDs(context.Context, []int64) (map[int64]authModels.CaregiverChain, error)
-}
-
-type accountTenantSchoolRowsQuery interface {
-	ListAccountsBySchoolIDs(context.Context, []int64) ([]authModels.OrgAccountInfo, error)
-}
-
-// personAccountTenantRepository attaches person names and the caregiver
-// facts to the account listings. It sits below the school projection, which
-// keeps sorting by the names this layer fills in.
-type personAccountTenantRepository struct {
-	authModels.AccountTenantRepository
-	chains  caregiverChainQuery
-	rows    accountTenantSchoolRowsQuery
-	persons peopledirectory.Query
-}
-
-func newPersonAccountTenantRepository(inner authModels.AccountTenantRepository, persons peopledirectory.Query) authModels.AccountTenantRepository {
-	chains, _ := inner.(caregiverChainQuery)
-	rows, _ := inner.(accountTenantSchoolRowsQuery)
-	return personAccountTenantRepository{AccountTenantRepository: inner, chains: chains, rows: rows, persons: persons}
+	CaregiverChainByPersonIDs(context.Context, []int64) (map[int64]CaregiverChain, error)
 }
 
 type tenantAccountKey struct {
@@ -66,11 +45,15 @@ func personsByAccountAndTenant(ctx context.Context, query peopledirectory.Query,
 type accountEntry struct {
 	TenantID  int64
 	HasPerson bool
-	Info      authModels.TenantAccountInfo
+	Info      TenantAccountInfo
 }
 
-func (r personAccountTenantRepository) ListAccountsByTenantID(ctx context.Context, tenantID int64) ([]authModels.TenantAccountInfo, error) {
-	rows, err := r.AccountTenantRepository.ListAccountsByTenantID(ctx, tenantID)
+func (r operatorAccountDirectory) ListAccountsByTenantID(ctx context.Context, tenantID int64) ([]TenantAccountInfo, error) {
+	schoolRows, err := r.identityRows(ctx, []int64{tenantID})
+	rows := make([]TenantAccountInfo, 0, len(schoolRows))
+	for _, row := range schoolRows {
+		rows = append(rows, row.TenantAccountInfo)
+	}
 	if err != nil || len(rows) == 0 {
 		return rows, err
 	}
@@ -78,7 +61,7 @@ func (r personAccountTenantRepository) ListAccountsByTenantID(ctx context.Contex
 	// place after the accounts; only the account rows take part in the
 	// name order.
 	entries := make([]accountEntry, 0, len(rows))
-	invitations := make([]authModels.TenantAccountInfo, 0)
+	invitations := make([]TenantAccountInfo, 0)
 	for _, row := range rows {
 		if isInvitationRow(row) {
 			invitations = append(invitations, row)
@@ -90,25 +73,21 @@ func (r personAccountTenantRepository) ListAccountsByTenantID(ctx context.Contex
 		return nil, err
 	}
 	slices.SortStableFunc(entries, compareAccountEntries)
-	result := make([]authModels.TenantAccountInfo, 0, len(rows))
+	result := make([]TenantAccountInfo, 0, len(rows))
 	for _, entry := range entries {
 		result = append(result, entry.Info)
 	}
 	return append(result, invitations...), nil
 }
 
-// ListAccountsBySchoolIDs keeps the raw school-set listing reachable for the
-// school projection above it, with the person facts already attached.
-func (r personAccountTenantRepository) ListAccountsBySchoolIDs(ctx context.Context, schoolIDs []int64) ([]authModels.OrgAccountInfo, error) {
-	if r.rows == nil {
-		return nil, fmt.Errorf("account tenant repository does not list accounts by school")
-	}
-	rows, err := r.rows.ListAccountsBySchoolIDs(ctx, schoolIDs)
+// accountsBySchoolIDs enriches the bounded identity rows with person facts.
+func (r operatorAccountDirectory) accountsBySchoolIDs(ctx context.Context, schoolIDs []int64) ([]OrgAccountInfo, error) {
+	rows, err := r.identityRows(ctx, schoolIDs)
 	if err != nil || len(rows) == 0 {
 		return rows, err
 	}
 	entries := make([]accountEntry, 0, len(rows))
-	invitations := make([]authModels.OrgAccountInfo, 0)
+	invitations := make([]OrgAccountInfo, 0)
 	for _, row := range rows {
 		if isInvitationRow(row.TenantAccountInfo) {
 			invitations = append(invitations, row)
@@ -128,22 +107,22 @@ func (r personAccountTenantRepository) ListAccountsBySchoolIDs(ctx context.Conte
 		}
 		return compareAccountEntries(left, right)
 	})
-	result := make([]authModels.OrgAccountInfo, 0, len(rows))
+	result := make([]OrgAccountInfo, 0, len(rows))
 	for _, entry := range entries {
-		result = append(result, authModels.OrgAccountInfo{TenantAccountInfo: entry.Info, SchoolID: entry.TenantID})
+		result = append(result, OrgAccountInfo{TenantAccountInfo: entry.Info, SchoolID: entry.TenantID})
 	}
 	return append(result, invitations...), nil
 }
 
 // isInvitationRow recognises the synthetic rows the repository builds for
 // pending invitations: no account id yet and the fixed "invited" status.
-func isInvitationRow(row authModels.TenantAccountInfo) bool {
+func isInvitationRow(row TenantAccountInfo) bool {
 	return row.AccountID == 0 && row.Status == "invited"
 }
 
 // attachAccountPersons fills names, pedagogic role and the caregiver facts
 // of the entries from the People Directory and the staff/teacher chain.
-func (r personAccountTenantRepository) attachAccountPersons(ctx context.Context, entries []accountEntry) error {
+func (r operatorAccountDirectory) attachAccountPersons(ctx context.Context, entries []accountEntry) error {
 	if len(entries) == 0 {
 		return nil
 	}
@@ -195,9 +174,9 @@ func compareAccountEntries(left, right accountEntry) int {
 	return compareStrings(left.Info.FirstName, right.Info.FirstName)
 }
 
-func (r personAccountTenantRepository) caregiverChains(ctx context.Context, persons map[tenantAccountKey]peopledirectory.Person) (map[int64]authModels.CaregiverChain, error) {
+func (r operatorAccountDirectory) caregiverChains(ctx context.Context, persons map[tenantAccountKey]peopledirectory.Person) (map[int64]CaregiverChain, error) {
 	if len(persons) == 0 {
-		return map[int64]authModels.CaregiverChain{}, nil
+		return map[int64]CaregiverChain{}, nil
 	}
 	if r.chains == nil {
 		return nil, fmt.Errorf("account tenant repository does not resolve caregiver chains")

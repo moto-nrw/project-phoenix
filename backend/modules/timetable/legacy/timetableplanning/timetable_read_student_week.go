@@ -2,10 +2,12 @@ package timetableplanning
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
@@ -20,9 +22,9 @@ type StudentWeekPreload struct {
 	// applicable arrival row can differ from one date to the next: with the
 	// booking mode on, a weekday stops being a care day the moment the
 	// booking ends (#2414, ADR 0005). Same shape as PickupSchedByDate.
-	ArrivalSchedByDate map[string]*scheduleModel.StudentArrivalSchedule
+	ArrivalSchedByDate map[string]*careplan.ArrivalSchedule
 	ArrivalExcByDate   map[string]*scheduleModel.StudentArrivalException
-	PickupSchedByDate  map[string]*scheduleModel.StudentPickupSchedule
+	PickupSchedByDate  map[string]*careplan.PickupSchedule
 	PickupExcByDate    map[string]*scheduleModel.StudentPickupException
 }
 
@@ -38,9 +40,9 @@ func (s *TimetableDataService) PreloadStudentWeek(ctx context.Context, studentID
 		EnrolledByDate:      map[string][]*scheduleModel.ScheduledInstanceRow{},
 		InstancesByDate:     map[string][]*scheduleModel.ActivityInstance{},
 		VisitsByActiveGroup: map[int64][]studentpresence.Visit{},
-		ArrivalSchedByDate:  map[string]*scheduleModel.StudentArrivalSchedule{},
+		ArrivalSchedByDate:  map[string]*careplan.ArrivalSchedule{},
 		ArrivalExcByDate:    map[string]*scheduleModel.StudentArrivalException{},
-		PickupSchedByDate:   map[string]*scheduleModel.StudentPickupSchedule{},
+		PickupSchedByDate:   map[string]*careplan.PickupSchedule{},
 		PickupExcByDate:     map[string]*scheduleModel.StudentPickupException{},
 	}
 
@@ -126,13 +128,14 @@ func (s *TimetableDataService) PreloadStudentWeek(ctx context.Context, studentID
 	return out, nil
 }
 
+// errArrivalBaselineMissing reports a composition without the baseline reader.
+// Partial read-only facades may omit it, so the check runs on first use.
+var errArrivalBaselineMissing = errors.New("load arrival schedules: baseline projection is not configured")
+
 // preloadArrivalSchedules fills the per-date arrival rows through the baseline
 // projection (#2414): the class timetable supplies the time and, with
 // enrollment.bookings_authoritative on, the approved bookings supply the care
 // days — so a stale row on an unbooked weekday plans nothing here either.
-//
-// Without a baseline reader (CLI, partial test facades) the stored rows apply
-// unchanged on every date of the range, which is the pre-#2414 behaviour.
 func (s *TimetableDataService) preloadArrivalSchedules(
 	ctx context.Context,
 	out *StudentWeekPreload,
@@ -140,22 +143,7 @@ func (s *TimetableDataService) preloadArrivalSchedules(
 	from, to timezone.Date,
 ) error {
 	if s.deps.ArrivalBaselines == nil {
-		stored, err := s.deps.ArrivalScheduleRepo.FindByStudentID(ctx, studentID)
-		if err != nil {
-			return fmt.Errorf("load arrival schedules: %w", err)
-		}
-		byWeekday := make(map[int]*scheduleModel.StudentArrivalSchedule, len(stored))
-		for _, row := range stored {
-			if row != nil {
-				byWeekday[row.Weekday] = row
-			}
-		}
-		for date := from; !date.After(to); date = date.AddDays(1) {
-			if row, ok := byWeekday[isoWeekday(date)]; ok {
-				out.ArrivalSchedByDate[timetableDateKey(date)] = row
-			}
-		}
-		return nil
+		return errArrivalBaselineMissing
 	}
 
 	projection, err := s.deps.ArrivalBaselines.Project(ctx, []int64{studentID}, from, to)

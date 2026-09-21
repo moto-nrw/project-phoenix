@@ -7,21 +7,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule/carescheduletest"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // buildPickupChangeService wires the parent service for the pickup-change flow
@@ -34,10 +31,10 @@ func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (parentSer
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:           repos.ParentChild,
-		StatusDayRepo:       repos.StudentStatusDay,
-		StudentRepo:         repos.Student,
-		PickupExceptionRepo: repos.StudentPickupException,
+		ChildRepo:      repos.ParentChild,
+		StatusDayRepo:  repos.StudentStatusDay,
+		StudentRepo:    repos.Student,
+		CareExceptions: repos.CarePlan(),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
 				configModels.KeyParentPickupChangeEnabled: pickupChangeEnabled,
@@ -63,29 +60,27 @@ func buildPickupChangeServiceWithRequests(t *testing.T, configure ...func(*paren
 
 // buildPickupChangeServiceWithRequestOptions is buildPickupChangeServiceWithRequests
 // with construction options for the request service (#3163 pins its clock).
-func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []careschedule.CareRequestOption, configure ...func(*parentService.ServiceConfig)) (parentService.Service, *bun.DB, *repositories.Factory) {
+func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []services.CareRequestOption, configure ...func(*parentService.ServiceConfig)) (parentService.Service, *bun.DB, *repositories.Factory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	timetableDeps := repositories.NewUnobservedTimetableDependencies(db)
+	repos := repositories.NewFactory(db, timetableDeps)
 	sf, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.NoError(t, err)
 
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
-	careRequests := careschedule.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
-		repos.CareScheduleChangeRequest,
-		repos.Student,
-		repos.Person,
+	careRequests := services.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+		repos.CarePlan(),
+		sf.PeopleDirectory,
 		sf.ArrivalSchedule,
 		sf.PickupSchedule,
-		repos.StudentPickupException,
 		presence,
-		careschedule.NewPickupAutoExcusalSyncer(
-			repos.StudentPickupException,
-			carescheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, approvedOfferingProjection(t), repos.CareOffering),
-			repos.InstanceStudent,
-			db,
+		newPickupExcusal(t, db, repos.CarePlan(),
+			newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)),
+			timetableDeps.Capability, false,
 		),
+		repos.CarePlan(),
 		sf.UserContext,
 		nil, // emitter — best-effort, after commit
 		nil, // broadcaster — cache fan-out
@@ -97,12 +92,12 @@ func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []c
 	)
 
 	cfg := parentService.ServiceConfig{
-		ChildRepo:           repos.ParentChild,
-		StatusDayRepo:       repos.StudentStatusDay,
-		StudentRepo:         repos.Student,
-		PickupExceptionRepo: repos.StudentPickupException,
-		Attendance:          parentAttendance(t, db),
-		CareRequests:        careRequests,
+		ChildRepo:      repos.ParentChild,
+		StatusDayRepo:  repos.StudentStatusDay,
+		StudentRepo:    repos.Student,
+		CareExceptions: repos.CarePlan(),
+		Attendance:     parentAttendance(t, db),
+		CareRequests:   careRequests,
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
 				configModels.KeyParentPickupChangeEnabled: true,

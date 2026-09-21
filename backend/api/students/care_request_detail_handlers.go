@@ -8,7 +8,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 )
 
@@ -43,11 +44,11 @@ type CareRequestPickupChangeResponse struct {
 	PreviousPickupTime string `json:"previous_pickup_time,omitempty"`
 }
 
-func toCareRequestDetailResponse(item *careschedule.CareRequestHistoryItem) CareRequestDetailResponse {
+func toCareRequestDetailResponse(item *carerequests.HistoryItem) CareRequestDetailResponse {
 	req := item.Request
 	var diff []CareRequestDiffResponse
 	if len(item.Diff) > 0 {
-		diff = requestreviewcompose.ToCareRequestDiffResponses(nativeCareDiffs(item.Diff))
+		diff = requestreviewcompose.ToCareRequestDiffResponses(item.Diff)
 	}
 	var pickupChange *CareRequestPickupChangeResponse
 	if terms := item.PickupChange; terms != nil {
@@ -69,7 +70,7 @@ func toCareRequestDetailResponse(item *careschedule.CareRequestHistoryItem) Care
 		LastName:       item.LastName,
 		Status:         req.Status,
 		RequestKind:    req.RequestKind,
-		Requested:      requestreviewcompose.ToCareRequestDiffResponses(nativeCareDiffs(item.Requested)),
+		Requested:      requestreviewcompose.ToCareRequestDiffResponses(item.Requested),
 		Diff:           diff,
 		RequestReason:  item.RequestReason,
 		DecisionReason: req.DecisionReason,
@@ -85,7 +86,7 @@ func toCareRequestDetailResponse(item *careschedule.CareRequestHistoryItem) Care
 // for a reader the review policy allows for the child. A row of another
 // school is not found; a child outside the reader's scope is forbidden.
 func (rs *Resource) getCareScheduleChangeRequest(w http.ResponseWriter, r *http.Request) {
-	if rs.CareRequestService == nil {
+	if rs.CareRequestReviews == nil {
 		renderError(w, r, common.ErrorInternalServer(errors.New("care request service not configured")))
 		return
 	}
@@ -93,7 +94,7 @@ func (rs *Resource) getCareScheduleChangeRequest(w http.ResponseWriter, r *http.
 	if !ok {
 		return
 	}
-	item, err := rs.CareRequestService.GetForReview(r.Context(), requestID)
+	item, err := rs.CareRequestReviews.GetForReview(r.Context(), requestID)
 	if err != nil {
 		renderError(w, r, careRequestDetailErrorRenderer(err))
 		return
@@ -102,6 +103,6 @@ func (rs *Resource) getCareScheduleChangeRequest(w http.ResponseWriter, r *http.
 }
 
 var careRequestDetailErrorRenderer = common.RulesRenderer(parentRequestRules(
-	common.ErrorRule{Target: scheduleModels.ErrCareRequestNotFound, Render: common.ErrorNotFound},
-	common.ErrorRule{Target: careschedule.ErrCareRequestForbidden, Render: common.ErrorForbidden},
+	common.ErrorRule{Target: careplan.ErrCareScheduleRequestNotFound, Render: common.ErrorNotFound},
+	common.ErrorRule{Target: carerequests.ErrCareRequestForbidden, Render: common.ErrorForbidden},
 ), common.ErrorInternalServer)

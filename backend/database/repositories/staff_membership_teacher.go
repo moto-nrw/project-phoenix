@@ -402,7 +402,7 @@ func (r teacherMembershipRepository) activeCaregivers(ctx context.Context, accou
 	caregiverAccountsByTenant := make(map[int64]map[int64]bool, len(accountIDsByTenant))
 	activeAccountIDs := make([]int64, 0, len(candidates))
 	for candidateTenantID, accountIDs := range accountIDsByTenant {
-		allowed, err := r.deps.memberships.ListActiveAccountIDsForTenant(ctx, candidateTenantID, accountIDs)
+		allowed, err := r.deps.identity.ListActiveAccountIDsForTenant(ctx, candidateTenantID, accountIDs)
 		if err != nil {
 			return nil, err
 		}
@@ -413,7 +413,7 @@ func (r teacherMembershipRepository) activeCaregivers(ctx context.Context, accou
 		}
 		activeByTenant[candidateTenantID] = active
 
-		withRole, err := r.deps.roles.ListAccountIDsWithSystemRoleNames(ctx, accountIDs, caregiverRoleNames, candidateTenantID)
+		withRole, err := r.deps.identity.ListAccountIDsWithSystemRoleNames(ctx, accountIDs, caregiverRoleNames, candidateTenantID)
 		if err != nil {
 			return nil, err
 		}
@@ -423,7 +423,7 @@ func (r teacherMembershipRepository) activeCaregivers(ctx context.Context, accou
 		}
 		caregiverAccountsByTenant[candidateTenantID] = caregiverAccounts
 	}
-	emails, err := r.deps.accounts.FindEmailsByAccountIDs(ctx, activeAccountIDs)
+	emails, err := r.deps.identity.ListAccountEmails(ctx, activeAccountIDs)
 	if err != nil {
 		return nil, err
 	}

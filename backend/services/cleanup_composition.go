@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 )
 
@@ -93,15 +94,19 @@ func (f *Factory) AuthMaintenanceRuntime() *AuthMaintenance {
 // cleanup repositories and a signer the sweep never uses.
 func NewAuthCleanupService(db *bun.DB, runtime tenant.UnitOfWork, logger *slog.Logger, command AuditCommand) (*AuthMaintenance, error) {
 	repos := repositories.NewAuthCleanupRepositories(db, command)
-	tokenAuth, err := authjwt.NewTokenAuth()
+	tokenAuth, err := configuredTokenAuth()
 	if err != nil {
 		return nil, fmt.Errorf("auth cleanup service: token auth: %w", err)
 	}
+	codec, err := signedIdentityTokensOf(tokenAuth)
+	if err != nil {
+		return nil, err
+	}
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
 		repos: sessionRepositories{
-			schools: newSchoolDirectory(repos.School, nil), persons: repos.Person, authEvents: repos.AuthEvent, pushSubscriptions: repos.PushSubscription,
+			schools: schoolDirectory{schools: repos.School}, persons: repos.Person, authEvents: repos.AuthEvent, pushSubscriptions: repos.PushSubscription,
 		},
-		tokenAuth: tokenAuth, audit: command, logger: logger,
+		codec: codec, audit: command, logger: logger,
 		// The cleanup root only removes spent links and stale windows; it
 		// never issues a link, so it composes the flows without a mailer.
 		resets: &passwordResetWiring{expiry: cleanupResetExpiry},
@@ -172,3 +177,13 @@ type TimeTrackingCleanupService = timetracking.TimeTrackingCleanupService
 type TimeTrackingCleanupResult = timetracking.TimeTrackingCleanupResult
 type TimeTrackingCleanupPreview = timetracking.TimeTrackingCleanupPreview
 type TimeTrackingCleanupStats = timetracking.TimeTrackingCleanupStats
+
+// configuredTokenAuth resolves the signer of roots that receive no resolved
+// configuration: the cleanup CLI and the test compositions.
+func configuredTokenAuth() (*authjwt.TokenAuth, error) {
+	return authjwt.NewTokenAuthWithDurations(
+		viper.GetString("auth_jwt_secret"),
+		viper.GetDuration("auth_jwt_expiry"),
+		viper.GetDuration("auth_jwt_refresh_expiry"),
+	)
+}

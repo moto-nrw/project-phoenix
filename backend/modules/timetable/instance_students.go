@@ -153,26 +153,6 @@ type CareDayLocker interface {
 	LockExceptionDay(context.Context, int64, string) error
 }
 
-type careDayLockerFuncs struct {
-	lockStudentAndDay func(context.Context, int64, string) error
-	lockDay           func(context.Context, int64, string) error
-}
-
-func NewCareDayLocker(lockStudentAndDay, lockDay func(context.Context, int64, string) error) CareDayLocker {
-	if lockStudentAndDay == nil || lockDay == nil {
-		panic("timetable: care-day lock functions are required")
-	}
-	return careDayLockerFuncs{lockStudentAndDay: lockStudentAndDay, lockDay: lockDay}
-}
-
-func (f careDayLockerFuncs) LockStudentAndExceptionDay(ctx context.Context, studentID int64, date string) error {
-	return f.lockStudentAndDay(ctx, studentID, date)
-}
-
-func (f careDayLockerFuncs) LockExceptionDay(ctx context.Context, studentID int64, date string) error {
-	return f.lockDay(ctx, studentID, date)
-}
-
 type AttendanceFieldPatch struct {
 	Status         *string
 	Substatus      *string

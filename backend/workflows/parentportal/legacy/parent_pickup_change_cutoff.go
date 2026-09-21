@@ -6,23 +6,29 @@ import (
 	"strconv"
 
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
 
 type pickupChangePolicy struct {
 	enabled bool
-	cutoff  careschedule.SameDayCutoff
+	cutoff  careplan.SameDayCutoff
 }
 
 // pickupChangeCutoffInTx resolves the cutoff at the guardian write boundary.
 // It deliberately bypasses the request cache so a cutoff changed while this
 // request was waiting on its row locks takes effect for the pending write.
-func (s *service) pickupChangeCutoffInTx(ctx context.Context, tenantID int64) (careschedule.SameDayCutoff, error) {
+func (s *service) pickupChangeCutoffInTx(ctx context.Context, tenantID int64) (careplan.SameDayCutoff, error) {
 	policy, err := s.pickupChangePolicyInTx(ctx, tenantID)
 	if err != nil {
-		return careschedule.SameDayCutoff{}, err
+		return careplan.SameDayCutoff{}, err
 	}
 	return policy.cutoff, nil
+}
+
+// guardianReasonRequired answers whether the submitting family must state a
+// reason (#2267, story 28).
+func (s *service) guardianReasonRequired(ctx context.Context, tenantID int64) bool {
+	return s.care.GuardianReasonRequired(ctx, tenantID)
 }
 
 // pickupChangePolicyInTx re-reads the effective parent pickup-change policy
@@ -48,7 +54,7 @@ func (s *service) pickupChangePolicyInTx(ctx context.Context, tenantID int64) (p
 	if err != nil {
 		return pickupChangePolicy{}, fmt.Errorf("parent: resolve pickup-change cutoff: %w", err)
 	}
-	cutoff, err := careschedule.NewSameDayCutoffAt(clock, s.now)
+	cutoff, err := careplan.NewSameDayCutoffAt(clock, s.now)
 	if err != nil {
 		return pickupChangePolicy{}, fmt.Errorf("parent: %w", err)
 	}

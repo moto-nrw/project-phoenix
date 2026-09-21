@@ -192,6 +192,10 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 	if err != nil {
 		return AuthTestModule{}, err
 	}
+	codec, err := signedIdentityTokensOf(tokenAuth)
+	if err != nil {
+		return AuthTestModule{}, err
+	}
 	// The delivery module is composed after the identity module, so the
 	// guardian mail reads its outbox at call time, as the factory does.
 	var deliveryModule DeliveryTestModule
@@ -221,10 +225,10 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		return AuthTestModule{}, err
 	}
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
-		repos: sessionRepos, tokenAuth: tokenAuth, settings: settings.Settings, audit: command, logger: logger,
+		repos: sessionRepos, codec: codec, settings: settings.Settings, audit: command, logger: logger,
 		operators: operators,
 		mfa: &mfaWiring{
-			repos: r, settings: mfaSettingsService(settings.Settings, settingsOverrides), tokenAuth: tokenAuth,
+			repos: r, settings: mfaSettingsService(settings.Settings, settingsOverrides),
 			dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL,
 			jwtSecret: mfaTestSecret(), logger: logger, backoff: settingsOverrides.mfaBackoff,
 			decorate: settingsOverrides.mfaRecords, capability: settingsOverrides.mfaCapability,
@@ -247,7 +251,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		},
 		invitations: &invitationWiring{
 			dispatcher: dispatcher, defaultFrom: defaultFrom, staffURL: frontendURL, schoolURL: schoolURL,
-			mailIdentity: identity, tokenAuth: tokenAuth, expiry: time.Duration(inviteHours) * time.Hour,
+			mailIdentity: identity, expiry: time.Duration(inviteHours) * time.Hour,
 			backoff: settingsOverrides.resetBackoff,
 		},
 	})
@@ -284,17 +288,21 @@ func IdentityAccessForTests(repos *repositories.Factory, cfg IdentityAccessTestC
 	}
 	signer := cfg.TokenAuth
 	if signer == nil {
-		created, err := authjwt.NewTokenAuth()
+		created, err := configuredTokenAuth()
 		if err != nil {
 			return nil, err
 		}
 		signer = created
 	}
+	codec, err := signedIdentityTokensOf(signer)
+	if err != nil {
+		return nil, err
+	}
 	module, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
-		repos: sessionRepositoriesOf(repos, repos.School), tokenAuth: signer, settings: cfg.Settings,
+		repos: sessionRepositoriesOf(repos, repos.School), codec: codec, settings: cfg.Settings,
 		audit: cfg.Audit, logger: logger,
 		mfa: &mfaWiring{
-			repos: repos, settings: cfg.Settings, tokenAuth: signer,
+			repos: repos, settings: cfg.Settings,
 			dispatcher: cfg.Dispatcher, defaultFrom: cfg.DefaultFrom, frontendURL: cfg.FrontendURL,
 			jwtSecret: mfaTestSecret(), logger: logger,
 		},

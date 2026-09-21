@@ -160,7 +160,7 @@ var modulePassthroughBudgets = map[string]int{
 	// forward one store call per schedule and record operation, plus
 	// withdrawals (12), the care-exit/companion service surface (15) and the
 	// student-deletion and excused-request entry points.
-	"modules/careplan": 106,
+	"modules/careplan": 105,
 	// The caller, report and arrival-exception ports reached straight
 	// through, most of them behind a nil-port guard and a date parse.
 	"modules/classday": 9,

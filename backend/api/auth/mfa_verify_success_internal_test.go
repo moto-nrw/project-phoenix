@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -311,8 +310,3 @@ func TestMFAVerify_IssueTokensUnknownErrorMapsTo500(t *testing.T) {
 
 // Ensure the embedded stub still satisfies identityaccess.AccountMFA.
 var _ identityaccess.AccountMFA = (*trustedDeviceMFAStub)(nil)
-
-// authModels is imported only to keep the stubMFAService field types
-// resolvable; suppress the unused-import warning when the field set
-// shrinks.
-var _ = authModels.MFATrustedDevice{}

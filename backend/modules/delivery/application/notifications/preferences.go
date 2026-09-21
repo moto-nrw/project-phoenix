@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	authModel "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -115,7 +114,7 @@ type preferenceService struct {
 	consent        ConsentStore
 	settings       configService.SettingsService
 	db             *bun.DB
-	accountTenants authModel.AccountTenantRepository
+	accountTenants GuardianSchools
 	tenantRuntime  *tenant.UnitOfWork
 }
 
@@ -136,7 +135,7 @@ func NewPreferenceService(
 	consent ConsentStore,
 	settings configService.SettingsService,
 	db *bun.DB,
-	accountTenants authModel.AccountTenantRepository,
+	accountTenants GuardianSchools,
 ) PreferenceService {
 	return &preferenceService{
 		consent:        consent,
@@ -493,12 +492,12 @@ func (s *preferenceService) forEachGuardianTenant(
 	}
 
 	return tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
-		mappings, err := s.accountTenants.FindActiveGuardianByAccountID(txCtx, accountID)
+		mappings, err := s.accountTenants.ListGuardianSchoolIDs(txCtx, accountID)
 		if err != nil {
 			return fmt.Errorf("resolving guardian tenant mappings: %w", err)
 		}
 		for _, mapping := range mappings {
-			if err := fn(tenant.WithTenantID(txCtx, mapping.TenantID), mapping.TenantID); err != nil {
+			if err := fn(tenant.WithTenantID(txCtx, mapping), mapping); err != nil {
 				return err
 			}
 		}

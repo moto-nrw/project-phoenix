@@ -11,7 +11,6 @@ import (
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	authModel "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	usercontextsvc "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
@@ -22,7 +21,7 @@ type mockAvatarUserContextService struct {
 	getCurrentProfileFunc func(ctx context.Context) (map[string]interface{}, error)
 }
 
-func (m *mockAvatarUserContextService) GetCurrentUser(context.Context) (*authModel.Account, error) {
+func (m *mockAvatarUserContextService) GetCurrentUser(context.Context) (*users.PersonAccount, error) {
 	return nil, errors.New("not implemented")
 }
 

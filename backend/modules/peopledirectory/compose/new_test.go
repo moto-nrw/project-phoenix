@@ -19,33 +19,34 @@ func buildModule(t *testing.T, db *bun.DB, observations ...func(Observation)) *p
 	if len(observations) > 0 {
 		observe = observations[0]
 	}
-	module, err := NewWithGuardianMemberships(Dependencies{DB: db, Observe: observe}, testActiveMemberships(db), testActiveAccounts(db), testGuardianRoles(db))
+	module, err := NewWithGuardianMemberships(Dependencies{DB: db, Observe: observe}, testPortalMemberships(db))
 	require.NoError(t, err)
 	return module
 }
 
-func testActiveMemberships(db *bun.DB) GuardianMembershipQuery {
-	return func(context.Context) *bun.SelectQuery {
-		return db.NewSelect().
-			TableExpr(`auth.account_tenants AS "account_tenant"`).
-			ColumnExpr(`"account_tenant".account_id`).
-			ColumnExpr(`"account_tenant".tenant_id`).
-			Where(`"account_tenant".status = 'active'`)
-	}
-}
-
-func testActiveAccounts(db *bun.DB) GuardianMembershipQuery {
-	return func(context.Context) *bun.SelectQuery {
-		return db.NewSelect().TableExpr(`auth.accounts AS "account"`).ColumnExpr(`"account".id`).Where(`"account".active = true`)
-	}
-}
-
-func testGuardianRoles(db *bun.DB) GuardianMembershipQuery {
-	return func(context.Context) *bun.SelectQuery {
-		return db.NewSelect().TableExpr(`auth.account_roles AS "account_role"`).
-			ColumnExpr(`"account_role".account_id`).ColumnExpr(`"account_role".tenant_id`).
-			Join(`JOIN auth.roles AS "role" ON "role".id = "account_role".role_id`).
-			Where(`LOWER("role".name) = 'guardian'`)
+func testPortalMemberships(db *bun.DB) GuardianMembershipQuery {
+	return func(ctx context.Context, accountIDs []int64) (map[int64][]int64, error) {
+		queryDB := bun.IDB(db)
+		if transaction, ok := tenant.TransactionFromContext(ctx); ok {
+			queryDB = transaction.(bun.Tx)
+		}
+		var rows []struct {
+			AccountID int64 `bun:"account_id"`
+			TenantID  int64 `bun:"tenant_id"`
+		}
+		err := queryDB.NewRaw(`SELECT DISTINCT ar.account_id, ar.tenant_id FROM auth.account_roles ar
+			JOIN auth.roles r ON r.id = ar.role_id
+			JOIN auth.accounts a ON a.id = ar.account_id AND a.active = TRUE
+			JOIN auth.account_tenants at ON at.account_id = ar.account_id AND at.tenant_id = ar.tenant_id AND at.status = 'active'
+			WHERE ar.account_id IN (?) AND LOWER(r.name) = 'guardian'`, bun.List(accountIDs)).Scan(ctx, &rows)
+		if err != nil {
+			return nil, err
+		}
+		result := make(map[int64][]int64)
+		for _, row := range rows {
+			result[row.AccountID] = append(result[row.AccountID], row.TenantID)
+		}
+		return result, nil
 	}
 }
 

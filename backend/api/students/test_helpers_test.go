@@ -22,6 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	reviewidentity "github.com/moto-nrw/project-phoenix/modules/identityaccess/requestreview"
@@ -38,9 +39,10 @@ import (
 
 // testContext holds shared test dependencies.
 type testContext struct {
-	db          *bun.DB
-	resource    *studentsAPI.Resource
-	broadcaster *testpkg.RecordingBroadcaster
+	careRequests carerequests.Submissions
+	db           *bun.DB
+	resource     *studentsAPI.Resource
+	broadcaster  *testpkg.RecordingBroadcaster
 }
 
 func newStudentTestRepositories(db *bun.DB) repositories.StudentTestRepositories {
@@ -219,6 +221,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		// pending-count endpoint can be exercised end to end (#2232).
 		MasterDataReviewService:  svc.MasterDataReview,
 		CareRequestService:       svc.CareRequests,
+		CareRequestReviews:       careReviews,
 		OfferingChangeService:    svc.OfferingChanges,
 		PickupAdjustmentService:  svc.PickupAdjustments,
 		ParentRequestBulkService: svc.ParentRequests,
@@ -235,9 +238,10 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 	})
 
 	return &testContext{
-		db:          db,
-		resource:    resource,
-		broadcaster: broadcaster,
+		careRequests: svc.CareRequests,
+		db:           db,
+		resource:     resource,
+		broadcaster:  broadcaster,
 	}
 }
 

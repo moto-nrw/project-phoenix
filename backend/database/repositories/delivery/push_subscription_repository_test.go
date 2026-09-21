@@ -8,7 +8,6 @@ import (
 
 	deliveryRepo "github.com/moto-nrw/project-phoenix/database/repositories/delivery"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -19,10 +18,10 @@ import (
 func createAccountTenantMapping(t *testing.T, db *bun.DB, accountID, tenantID int64) {
 	t.Helper()
 	now := time.Now()
-	mapping := &authModels.AccountTenant{
+	mapping := &testpkg.AccountTenantFixture{
 		AccountID:   accountID,
 		TenantID:    tenantID,
-		Status:      authModels.AccountTenantStatusActive,
+		Status:      "active",
 		ActivatedAt: &now,
 	}
 	// Upsert: since #2419 CreateTestAccount already maps a fixture account to
@@ -118,12 +117,8 @@ func assignSystemRole(t *testing.T, db *bun.DB, accountID, tenantID int64, roleN
 		Scan(context.Background(), &roleID)
 	require.NoError(t, err)
 
-	roleAssignment := &authModels.AccountRole{AccountID: accountID, RoleID: roleID}
-	roleAssignment.SetTenantID(tenantID)
-	_, err = db.NewInsert().
-		Model(roleAssignment).
-		ModelTableExpr("auth.account_roles").
-		Exec(context.Background())
+	_, err = db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+		accountID, roleID, tenantID).Exec(context.Background())
 	require.NoError(t, err)
 }
 
@@ -172,8 +167,8 @@ func TestPushSubscriptionRepository(t *testing.T) {
 	guardian := testpkg.CreateTestAccount(t, db, fmt.Sprintf("push-parent-%d@example.com", time.Now().UnixNano()))
 	createAccountTenantMapping(t, db, account.ID, testpkg.Tenant(t))
 	createAccountTenantMapping(t, db, guardian.ID, testpkg.Tenant(t))
-	assignSystemRole(t, db, account.ID, testpkg.Tenant(t), authModels.BaseRoleUser)
-	assignSystemRole(t, db, guardian.ID, testpkg.Tenant(t), authModels.BaseRoleGuardian)
+	assignSystemRole(t, db, account.ID, testpkg.Tenant(t), "user")
+	assignSystemRole(t, db, guardian.ID, testpkg.Tenant(t), "guardian")
 	// School-portal delivery additionally requires the lehrkraft system role.
 	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, testpkg.Tenant(t))
 
@@ -335,7 +330,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		assert.Empty(t, subscriptionsForAccount(subs, account.ID), "account without admin role must not appear")
 
 		// Grant the seeded admin role and expect the subscription to appear.
-		assignSystemRole(t, db, account.ID, testpkg.Tenant(t), authModels.BaseRoleAdmin)
+		assignSystemRole(t, db, account.ID, testpkg.Tenant(t), "admin")
 
 		subs, err = repo.FindForTenantAdmins(ctx)
 		require.NoError(t, err)
@@ -343,8 +338,8 @@ func TestPushSubscriptionRepository(t *testing.T) {
 	})
 
 	t.Run("recipient finders exclude inactive tenant mappings", func(t *testing.T) {
-		setAccountTenantStatus(t, db, authModels.AccountTenantStatusInactive, account.ID, guardian.ID)
-		defer setAccountTenantStatus(t, db, authModels.AccountTenantStatusActive, account.ID, guardian.ID)
+		setAccountTenantStatus(t, db, "inactive", account.ID, guardian.ID)
+		defer setAccountTenantStatus(t, db, "active", account.ID, guardian.ID)
 
 		staffSubs, err := repo.FindForTenantStaff(ctx)
 		require.NoError(t, err)
@@ -646,7 +641,7 @@ func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
 		ordinary.ID:    "ordinary",
 	} {
 		createAccountTenantMapping(t, db, accountID, testpkg.Tenant(t))
-		assignSystemRole(t, db, accountID, testpkg.Tenant(t), authModels.BaseRoleUser)
+		assignSystemRole(t, db, accountID, testpkg.Tenant(t), "user")
 		require.NoError(t, repo.Upsert(ctx, newSubscription(t,
 			accountID,
 			deliveryModels.PushPortalStaff,
@@ -666,24 +661,18 @@ func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
 		Where("resource = '*' AND action = '*'").
 		Scan(context.Background(), &fullAccessID))
 
-	directGrant := &authModels.AccountPermission{
-		AccountID:    directAdmin.ID,
-		PermissionID: adminWildcardID,
-		Granted:      true,
-	}
-	directGrant.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(directGrant).ModelTableExpr("auth.account_permissions").Exec(context.Background())
+	_, err := db.ExecContext(context.Background(),
+		"INSERT INTO auth.account_permissions (account_id, permission_id, granted, tenant_id) VALUES (?, ?, TRUE, ?)",
+		directAdmin.ID, adminWildcardID, testpkg.Tenant(t))
 	require.NoError(t, err)
 
 	wildcardRole := testpkg.CreateTestRole(t, db, "Push Full Access")
-	_, err = db.NewInsert().
-		Model(&authModels.RolePermission{RoleID: wildcardRole.ID, PermissionID: fullAccessID}).
-		ModelTableExpr("auth.role_permissions").
-		Exec(context.Background())
+	_, err = db.ExecContext(context.Background(),
+		"INSERT INTO auth.role_permissions (role_id, permission_id) VALUES (?, ?)",
+		wildcardRole.ID, fullAccessID)
 	require.NoError(t, err)
-	roleGrant := &authModels.AccountRole{AccountID: roleAdmin.ID, RoleID: wildcardRole.ID}
-	roleGrant.SetTenantID(testpkg.Tenant(t))
-	_, err = db.NewInsert().Model(roleGrant).ModelTableExpr("auth.account_roles").Exec(context.Background())
+	_, err = db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+		roleAdmin.ID, wildcardRole.ID, testpkg.Tenant(t)).Exec(context.Background())
 	require.NoError(t, err)
 
 	subs, err := repo.FindForTenantAdmins(ctx)

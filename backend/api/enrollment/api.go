@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
 	"github.com/uptrace/bun"
 
@@ -119,12 +118,10 @@ func (rs *Resource) Router() chi.Router {
 	r.Post("/requests/{statusToken}/confirm-renewal", rs.confirmRenewal)
 
 	// Authenticated admin endpoints.
-	tokenAuth := jwt.MustNewTokenAuth()
 	r.Group(func(r chi.Router) {
-		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
 		r.Use(common.ReadOnlyPreviewMiddleware)
-		r.Use(jwt.TenantMiddleware)
+		r.Use(common.TenantScopeMiddleware)
 		r.Use(common.SecurityPrincipalMiddleware)
 
 		r.Route("/schema", func(r chi.Router) {

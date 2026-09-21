@@ -121,12 +121,14 @@ func PackageTenantRuntime() (tenant.UnitOfWork, bool) {
 	return *runtime, true
 }
 
-// TenantRuntimeMiddleware mirrors the runtime middleware installed at the
-// production API root for tests that exercise a domain router in isolation.
+// TenantRuntimeMiddleware mirrors what the production API root installs for
+// every route, the tenant runtime and the session verifier, for tests that
+// exercise a domain router in isolation.
 func TenantRuntimeMiddleware(tb testing.TB, db *bun.DB) func(http.Handler) http.Handler {
 	tb.Helper()
 	runtime := TenantRuntime(tb, db)
 	return func(next http.Handler) http.Handler {
+		next = SessionVerifier(next)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			next.ServeHTTP(w, r.WithContext(tenant.WithUnitOfWork(r.Context(), runtime)))
 		})

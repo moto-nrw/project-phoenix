@@ -24,8 +24,12 @@ func newStaffIdentityForTests(db *bun.DB) (usercontext.UserContextService, repos
 	if err != nil {
 		return nil, members, err
 	}
+	accounts, err := repositories.NewIdentityAccessForTests(db)
+	if err != nil {
+		return nil, members, err
+	}
 	identity := usercontext.NewUserContextServiceWithRepos(usercontext.UserContextRepositories{
-		AccountRepo: members.Account, PersonRepo: members.Person, StaffRepo: members.Staff, TeacherRepo: members.Teacher,
+		AccountRepo: repositories.NewCurrentAccountAccess(accounts), PersonRepo: members.Person, StaffRepo: members.Staff, TeacherRepo: members.Teacher,
 	}, slog.Default())
 	return identity, members, nil
 }

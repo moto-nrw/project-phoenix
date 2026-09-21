@@ -186,7 +186,7 @@ func TestStudentDeletionWorkflow_DeletePreservesSharedInstanceAndAnonymizesPerso
 	var legacyGuardianLinkID int64
 	require.NoError(t, db.NewRaw(`
 		INSERT INTO users.persons_guardians (tenant_id, person_id, guardian_account_id, relationship_type)
-		VALUES (?, ?, ?, 'parent') RETURNING id`, target.TenantID, target.PersonID, legacyGuardianAccount.ID).Scan(ctx, &legacyGuardianLinkID))
+		VALUES (?, ?, ?, 'parent') RETURNING id`, target.TenantID, target.PersonID, legacyGuardianAccount).Scan(ctx, &legacyGuardianLinkID))
 	var removedPhoto string
 	f.deps.PhotoRemoved = func(_ context.Context, _ studentdeletion.Actor, path string) { removedPhoto = path }
 	workflow := f.workflow(t)
@@ -239,7 +239,7 @@ func TestStudentDeletionWorkflow_DeletePreservesSharedInstanceAndAnonymizesPerso
 	assert.NotNil(t, anonymized.DeletedAt)
 	assert.Equal(t, 1, rowCount(t, db, "auth.accounts", childAccount.ID), "credentials are unlinked, never deleted")
 	assert.Equal(t, 1, rowCount(t, db, "auth.accounts", messageGuardianAccount.ID))
-	assert.Equal(t, 1, rowCount(t, db, "auth.accounts_parents", legacyGuardianAccount.ID))
+	assert.Equal(t, 1, rowCount(t, db, "auth.accounts_parents", legacyGuardianAccount))
 
 	var audit struct {
 		StudentID      int64
@@ -606,7 +606,7 @@ func TestStudentDeletionWorkflow_RollsBackAfterEachOwnerCommand(t *testing.T) {
 			legacyGuardian := testpkg.CreateTestParentAccount(t, db, "rollback-legacy-guardian@example.com")
 			var legacyLinkID int64
 			require.NoError(t, db.NewRaw(`INSERT INTO users.persons_guardians (tenant_id, person_id, guardian_account_id, relationship_type)
-				VALUES (?, ?, ?, 'parent') RETURNING id`, target.TenantID, target.PersonID, legacyGuardian.ID).Scan(ctx, &legacyLinkID))
+				VALUES (?, ?, ?, 'parent') RETURNING id`, target.TenantID, target.PersonID, legacyGuardian).Scan(ctx, &legacyLinkID))
 
 			failure := errors.New("injected " + phase + " failure")
 			switch phase {

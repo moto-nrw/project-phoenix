@@ -10,8 +10,6 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
-	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/uptrace/bun"
 )
 
@@ -71,55 +69,22 @@ func (d identityAccountDirectory) AccountEmail(ctx context.Context, accountID in
 // use it so no call site can forget the owner queries.
 func NewGuardianProfileRepository(db *bun.DB) userModels.GuardianProfileRepository {
 	return usersRepo.NewGuardianProfileRepository(db,
-		usersRepo.WithActiveAccounts(activeAccountQuery(mustAccountRepository(authRepo.NewAccountRepository(db)))),
-		usersRepo.WithSchoolAccess(activeMembershipQuery(db), guardianRoleQuery(db)),
+		usersRepo.WithPortalMemberships(newIdentityAccess(db, nil).FindActiveGuardianMemberships),
 	)
-}
-
-// NewStudentGuardianRepository composes the People Directory relationship
-// repository with the Identity & Access active-membership query its
-// permission checks filter through (#2721).
-func NewStudentGuardianRepository(db *bun.DB) userModels.StudentGuardianRepository {
-	return usersRepo.NewStudentGuardianRepository(db, usersRepo.WithStudentGuardianMemberships(activeMembershipQuery(db)))
-}
-
-// NewMessageableGuardianRepository composes the parent-message recipient
-// lookup with the Identity & Access active-membership query (#2721).
-func NewMessageableGuardianRepository(db *bun.DB) *usersRepo.MessageableGuardianRepository {
-	return usersRepo.NewMessageableGuardianRepository(db, activeMembershipQuery(db))
 }
 
 // staffMessageIdentity returns the Identity & Access owner queries the staff
 // messaging reads filter through.
-func staffMessageIdentity(db *bun.DB, accounts authModels.AccountRepository) usersRepo.StaffMessageIdentity {
+func staffMessageIdentity(accounts identityaccess.StaffAccountQueries) usersRepo.StaffMessageIdentity {
 	return usersRepo.StaffMessageIdentity{
-		ActiveAccounts:    activeAccountQuery(mustAccountRepository(accounts)),
-		ActiveMemberships: activeMembershipQuery(db),
-		RoleClasses:       schoolRoleClassQuery(db),
+		ActiveSchoolAccounts: accounts.ListActiveAccountIDsForTenant,
+		RoleClasses:          schoolRoleClassQuery(accounts),
 	}
-}
-
-// activeMembershipQuery returns the owner query "every ACTIVE school
-// mapping" the People Directory, Organisation & Tenancy and parent portal
-// repositories join (#2721).
-func activeMembershipQuery(db *bun.DB) func(context.Context) *bun.SelectQuery {
-	tenants, ok := authRepo.NewAccountTenantRepository(db).(*authRepo.AccountTenantRepository)
-	if !ok {
-		panic("repository factory: account tenant repository must be the Identity & Access Postgres adapter")
-	}
-	return tenants.ActiveMemberships
-}
-
-// guardianRoleQuery returns the owner query "every guardian base role
-// assignment" the portal reachability check joins (#2721).
-func guardianRoleQuery(db *bun.DB) usersRepo.GuardianRoleQuery {
-	return mustAccountRoleRepository(db).GuardianRoleHolders
 }
 
 // schoolRoleClassQuery adapts the owner's role classification to the staff
 // messaging projection (#2721).
-func schoolRoleClassQuery(db *bun.DB) usersRepo.SchoolRoleClassQuery {
-	roles := mustAccountRoleRepository(db)
+func schoolRoleClassQuery(roles identityaccess.StaffAccountQueries) usersRepo.SchoolRoleClassQuery {
 	return func(ctx context.Context, tenantID int64, accountIDs []int64) ([]usersRepo.SchoolRoleClass, error) {
 		rows, err := roles.ClassifySchoolRoles(ctx, tenantID, accountIDs)
 		if err != nil {
@@ -133,47 +98,24 @@ func schoolRoleClassQuery(db *bun.DB) usersRepo.SchoolRoleClassQuery {
 	}
 }
 
-func mustAccountRoleRepository(db *bun.DB) *authRepo.AccountRoleRepository {
-	roles, ok := authRepo.NewAccountRoleRepository(db).(*authRepo.AccountRoleRepository)
-	if !ok {
-		panic("repository factory: account role repository must be the Identity & Access Postgres adapter")
-	}
-	return roles
-}
-
 // NewPersonRepository composes the People Directory person repository with
 // the Identity & Access account lookup FindWithAccount attaches (#2720).
 func NewPersonRepository(db *bun.DB) userModels.PersonRepository {
-	return usersRepo.NewPersonRepository(db, usersRepo.WithAccountLookup(accountLookup(authRepo.NewAccountRepository(db))))
-}
-
-// activeAccountQuery returns the owner query the People Directory
-// repositories join.
-func activeAccountQuery(accounts *authRepo.AccountRepository) usersRepo.ActiveAccountQuery {
-	return func(ctx context.Context) *bun.SelectQuery { return accounts.ActiveAccountIDs(ctx) }
+	return usersRepo.NewPersonRepository(db, usersRepo.WithAccountLookup(accountLookup(newIdentityAccess(db, nil))))
 }
 
 // accountLookup adapts the owner's by-id read to the People Directory
 // lookup: a missing account resolves to nil, as the former LEFT JOIN did.
-func accountLookup(accounts authModels.AccountRepository) usersRepo.AccountLookup {
-	return func(ctx context.Context, accountID int64) (*authModels.Account, error) {
-		account, err := accounts.FindByID(ctx, accountID)
-		if authRepo.IsNotFound(err) {
+func accountLookup(accounts identityaccess.AccountProfiles) usersRepo.AccountLookup {
+	return func(ctx context.Context, accountID int64) (*userModels.PersonAccount, error) {
+		account, err := accounts.FindAccountMetadata(ctx, accountID)
+		if errors.Is(err, identityaccess.ErrAccountNotFound) {
 			return nil, nil
 		}
 		if err != nil {
 			return nil, err
 		}
-		return account, nil
+		result := userModels.PersonAccount(account)
+		return &result, nil
 	}
-}
-
-// mustAccountRepository returns the concrete Identity & Access account
-// repository whose owner queries the People Directory bindings consume.
-func mustAccountRepository(repository authModels.AccountRepository) *authRepo.AccountRepository {
-	accounts, ok := repository.(*authRepo.AccountRepository)
-	if !ok {
-		panic("repository factory: account repository must be the Identity & Access Postgres adapter")
-	}
-	return accounts
 }

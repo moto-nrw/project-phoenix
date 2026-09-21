@@ -173,7 +173,7 @@ func (p calendarIdentityPort) GetCurrentUser(ctx context.Context) (*calendarComp
 	if value == nil {
 		return nil, err
 	}
-	return &calendarCompose.Account{ID: value.ID, Email: value.Email, Active: value.IsActive(), CalendarFeedToken: value.CalendarFeedToken}, err
+	return &calendarCompose.Account{ID: value.ID, Email: value.Email, Active: value.Active}, err
 }
 func (p calendarIdentityPort) MissingUser(err error) bool {
 	return errors.Is(err, usercontext.ErrUserNotAuthenticated) || errors.Is(err, usercontext.ErrUserNotFound)

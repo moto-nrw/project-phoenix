@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -17,17 +16,17 @@ import (
 // InsertTestGuardianInvitation writes the invitation and fills in the
 // identifiers the database assigns. Every field the caller left unset keeps
 // the table's default.
-func InsertTestGuardianInvitation(t *testing.T, db *bun.DB, invitation *authModels.GuardianInvitation) *authModels.GuardianInvitation {
+func InsertTestGuardianInvitation(t *testing.T, db *bun.DB, invitation *GuardianInvitation) *GuardianInvitation {
 	t.Helper()
 	require.NotNil(t, invitation)
 	if invitation.TenantID == 0 {
-		invitation.SetTenantID(Tenant(t))
+		invitation.TenantID = Tenant(t)
 	}
 	if invitation.ExpiresAt.IsZero() {
 		invitation.ExpiresAt = time.Now().Add(48 * time.Hour)
 	}
 	if invitation.ApprovalStatus == "" {
-		invitation.ApprovalStatus = authModels.GuardianInvitationApprovalNotRequired
+		invitation.ApprovalStatus = "not_required"
 	}
 	_, err := db.NewInsert().
 		Model(invitation).
@@ -46,9 +45,9 @@ func InsertTestGuardianInvitation(t *testing.T, db *bun.DB, invitation *authMode
 
 // GuardianInvitationByID reads the stored row so a test can assert what a
 // flow wrote. It reads administratively, so a row of any school is visible.
-func GuardianInvitationByID(t *testing.T, db *bun.DB, id int64) *authModels.GuardianInvitation {
+func GuardianInvitationByID(t *testing.T, db *bun.DB, id int64) *GuardianInvitation {
 	t.Helper()
-	invitation := new(authModels.GuardianInvitation)
+	invitation := new(GuardianInvitation)
 	err := db.NewSelect().
 		Model(invitation).
 		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
@@ -59,9 +58,9 @@ func GuardianInvitationByID(t *testing.T, db *bun.DB, id int64) *authModels.Guar
 }
 
 // GuardianInvitationsByProfile reads the contact's invitations, newest first.
-func GuardianInvitationsByProfile(t *testing.T, db *bun.DB, guardianProfileID int64) []*authModels.GuardianInvitation {
+func GuardianInvitationsByProfile(t *testing.T, db *bun.DB, guardianProfileID int64) []*GuardianInvitation {
 	t.Helper()
-	var invitations []*authModels.GuardianInvitation
+	var invitations []*GuardianInvitation
 	err := db.NewSelect().
 		Model(&invitations).
 		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).

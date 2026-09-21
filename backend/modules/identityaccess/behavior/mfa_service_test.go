@@ -76,7 +76,7 @@ func TestMFAService_StartAndVerifyChallenge(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	svc, repos, db := newTestMFAService(t)
+	svc, _, db := newTestMFAService(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-challenge")
 
@@ -87,7 +87,7 @@ func TestMFAService_StartAndVerifyChallenge(t *testing.T) {
 	require.NotEmpty(t, tokenString)
 
 	// Active challenge row exists.
-	active, err := repos.MFAEmailChallenge.FindActiveByAccountIDInScope(ctx, acc.ID, 0, identityaccess.MFAChallengeScopeTenant)
+	active, _, err := nativeMFARecords(t, db).FindActiveChallengeInScope(ctx, acc.ID, 0, identityaccess.MFAChallengeScopeTenant)
 	require.NoError(t, err)
 	require.NotNil(t, active)
 	assert.Equal(t, acc.ID, active.AccountID)

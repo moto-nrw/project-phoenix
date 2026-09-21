@@ -9,7 +9,6 @@ import (
 
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -18,7 +17,7 @@ import (
 func TestInvitationHTTPRequiresVerifiedOwner(t *testing.T) {
 	t.Parallel()
 	db, module := testutil.SetupInvitationModule(t)
-	repos, service := module.Persistence, module.Invitation
+	service := module.Invitation
 	// Unrelated route registrations capture method values but never call this
 	// account-lifecycle capability.
 	resource := authAPI.NewResource(module.Auth, service, nil, nil, db)
@@ -29,12 +28,12 @@ func TestInvitationHTTPRequiresVerifiedOwner(t *testing.T) {
 	schoolA := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, schoolA)
 	role := testpkg.CreateTestRoleForTenant(t, db, "invited-http-staff", schoolA)
-	invitation := &authModels.InvitationToken{
+	invitation := &testpkg.InvitationTokenFixture{
 		Email: owner.Email, RoleID: role.ID, Token: fmt.Sprintf("http-owner-%d", schoolA),
 		FirstName: testpkg.StrPtr("Invited"), LastName: testpkg.StrPtr("Owner"), ExpiresAt: time.Now().Add(time.Hour),
 	}
-	invitation.SetTenantID(schoolA)
-	require.NoError(t, repos.InvitationToken.Create(testpkg.TenantContext(schoolA), invitation))
+	invitation.TenantID = schoolA
+	testpkg.InsertTestInvitationToken(t, db, invitation)
 	path := "/auth/invitations/" + invitation.Token + "/accept"
 	// Neither a client account ID nor a client email is proof of ownership.
 	body := map[string]any{"account_id": owner.ID, "email": owner.Email, "owner_access_token": "unverified"}
@@ -54,10 +53,10 @@ func TestInvitationHTTPRequiresVerifiedOwner(t *testing.T) {
 			require.Contains(t, rr.Body.String(), "INVITATION_ACCOUNT_MISMATCH")
 		}
 	}
-	stored, err := repos.Account.FindByID(context.Background(), owner.ID)
+	stored, err := testpkg.ReadAccountState(context.Background(), db, owner.ID)
 	require.NoError(t, err)
 	require.Equal(t, owner.PasswordHash, stored.PasswordHash)
-	joined, err := repos.AccountTenant.ExistsByAccountAndTenant(context.Background(), owner.ID, schoolA)
+	joined, err := testpkg.ActiveAccountTenantExists(context.Background(), db, owner.ID, schoolA)
 	require.NoError(t, err)
 	require.False(t, joined)
 	req = testutil.NewJSONRequest(t, http.MethodPost, path, map[string]string{})

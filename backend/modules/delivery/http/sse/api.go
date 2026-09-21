@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/jwtauth/v5"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
@@ -21,13 +20,11 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 
 	// Create JWT auth instance for middleware
-	tokenAuth := jwt.MustNewTokenAuth()
 
 	// SSE endpoint requires authentication
 	r.Group(func(r chi.Router) {
-		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
-		r.Use(jwt.TenantMiddleware)
+		r.Use(jwt.TenantMiddleware(tenant.ClaimScope{}))
 		r.Get("/events", rs.eventsHandler)
 	})
 

@@ -4,15 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
-	"log/slog"
 	"net/http"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/go-chi/jwtauth/v5"
-	"github.com/moto-nrw/project-phoenix/internal/randstr"
-	"github.com/spf13/viper"
 )
 
 // TokenAuth implements JWT authentication flow.
@@ -22,91 +17,15 @@ type TokenAuth struct {
 	JwtRefreshExpiry time.Duration
 }
 
-// NewTokenAuth configures and returns a JWT authentication instance.
-func NewTokenAuth() (*TokenAuth, error) {
-	secret := viper.GetString("auth_jwt_secret")
-
-	// Handle "random" secret setting with persistence
-	if secret == "random" {
-		var err error
-		secret, err = resolveRandomSecret()
-		if err != nil {
-			return nil, err
-		}
+// NewTokenAuthWithDurations creates an instance from explicit configuration.
+// The signing key is required configuration: no root generates or persists one.
+func NewTokenAuthWithDurations(secret string, expiry, refreshExpiry time.Duration) (*TokenAuth, error) {
+	if err := rejectGeneratedSecret(secret); err != nil {
+		return nil, err
 	}
-
-	// Validate secret length/strength
 	if len(secret) < 32 {
 		log.Printf("Warning: JWT secret is too short (%d chars). Recommend at least 32 chars.", len(secret))
 	}
-
-	return NewTokenAuthWithSecret(secret)
-}
-
-// MustNewTokenAuth is like NewTokenAuth but fatals on error.
-// Use this in Router() functions where JWT auth is required at startup.
-func MustNewTokenAuth() *TokenAuth {
-	ta, err := NewTokenAuth()
-	if err != nil {
-		slog.Error("failed to initialize JWT auth", slog.String("error", err.Error()))
-		os.Exit(1)
-	}
-	return ta
-}
-
-// resolveRandomSecret generates or loads a persistent development secret.
-func resolveRandomSecret() (string, error) {
-	// Check environment - don't allow random in production
-	env := viper.GetString("app_env")
-	if env == "production" {
-		return "", errors.New("JWT secret cannot be 'random' in production")
-	}
-
-	// For development, use a persistent secret file
-	baseDir := viper.GetString("app_base_dir")
-	if baseDir == "" {
-		var err error
-		baseDir, err = os.Getwd()
-		if err != nil {
-			baseDir = "."
-		}
-	}
-
-	// Store secret in a file within the project
-	secretFile := filepath.Join(baseDir, ".jwt-dev-secret.key")
-	secretBytes, err := os.ReadFile(secretFile)
-
-	if err == nil && len(secretBytes) >= 32 {
-		log.Printf("Using persistent JWT secret from %s", secretFile)
-		return string(secretBytes), nil
-	}
-
-	// Generate new secret
-	secret, err := randstr.String(32, randstr.Alphanumeric)
-	if err != nil {
-		panic(err)
-	}
-	log.Printf("Generated new JWT secret and saving to %s", secretFile)
-
-	// Save for future use
-	if err := os.WriteFile(secretFile, []byte(secret), 0600); err != nil {
-		log.Printf("Warning: Could not persist JWT secret: %v", err)
-	}
-
-	return secret, nil
-}
-
-// NewTokenAuthWithSecret creates a TokenAuth with a specific secret
-func NewTokenAuthWithSecret(secret string) (*TokenAuth, error) {
-	return NewTokenAuthWithDurations(
-		secret,
-		viper.GetDuration("auth_jwt_expiry"),
-		viper.GetDuration("auth_jwt_refresh_expiry"),
-	)
-}
-
-// NewTokenAuthWithDurations creates an instance from explicit configuration.
-func NewTokenAuthWithDurations(secret string, expiry, refreshExpiry time.Duration) (*TokenAuth, error) {
 	a := &TokenAuth{
 		JwtAuth:          jwtauth.New("HS256", []byte(secret), nil),
 		JwtExpiry:        expiry,
@@ -114,6 +33,14 @@ func NewTokenAuthWithDurations(secret string, expiry, refreshExpiry time.Duratio
 	}
 
 	return a, nil
+}
+
+// rejectGeneratedSecret refuses the retired "random" mode.
+func rejectGeneratedSecret(secret string) error {
+	if secret == "random" {
+		return errors.New("AUTH_JWT_SECRET=random is not allowed; set an explicit secret")
+	}
+	return nil
 }
 
 // Verifier http middleware will verify a jwt string from a http request.

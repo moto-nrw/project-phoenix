@@ -97,12 +97,3 @@ func NormalizeClassArrivalTimes(times map[string]string) (map[string]string, err
 	}
 	return out, nil
 }
-
-// ISOWeekdayToCanonicalDay maps Monday..Friday onto the day codes the weekday
-// maps are keyed by.
-func ISOWeekdayToCanonicalDay(weekday int) (string, bool) {
-	day, ok := isoWeekdayToCanonicalDay[weekday]
-	return day, ok
-}
-
-var isoWeekdayToCanonicalDay = map[int]string{1: "mon", 2: "tue", 3: "wed", 4: "thu", 5: "fri"}
