@@ -95,6 +95,20 @@ describe("DemoEntryPage", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("sends the visitor back to the website when the demo school could not be set up", async () => {
+    fetchMock.mockReturnValueOnce(json(200, { status: "failed" }));
+
+    open("#token=secret-token");
+
+    expect(
+      await screen.findByText(
+        "Es liegt nicht an Ihnen. Bitte fordern Sie auf unserer Website einen neuen Link an.",
+      ),
+    ).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(signIn).not.toHaveBeenCalled();
+  });
+
   it("says so when the demo cannot be opened right now", async () => {
     fetchMock.mockReturnValueOnce(json(500));
 
