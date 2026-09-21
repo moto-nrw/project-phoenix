@@ -19,7 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
-	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -96,7 +95,7 @@ type ResourceConfig struct {
 	PersonService          userService.PersonService
 	PeopleDirectory        peopleModule.Capability
 	EducationService       educationService.Service
-	UserContextService     userContextService.UserContextService
+	UserContextService     CallerContext
 	ActiveService          activeService.Service
 	IoTService             iotSvc.Service
 	PickupScheduleService  careplan.PickupScheduleService

@@ -23,7 +23,6 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
@@ -33,13 +32,30 @@ import (
 	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
 )
 
+// CallerGroup is one of the caller's educational groups.
+type CallerGroup struct {
+	ID     int64
+	Name   string
+	RoomID *int64
+}
+
+// CallerContext is the Identity & Access caller context the adapters read;
+// it answers the projection's CurrentStaffID and FullStudentAccess itself.
+type CallerContext interface {
+	CurrentStaffID(context.Context) (*int64, error)
+	FullStudentAccess(context.Context) (bool, error)
+	HasCurrentStaff(context.Context) (bool, error)
+	GetMySupervisedGroups(context.Context) ([]*activeModels.Group, error)
+	MyGroups(context.Context) ([]CallerGroup, error)
+}
+
 // Sources are the retained owner services the projection's ports adapt.
 type Sources struct {
 	Active       activeService.Service
 	ActiveGroups OpenRoomSessions
 	OpenVisits   activeService.VisitDisplayBatchReader
 	Rooms        supervisiondashboard.RoomDirectory
-	UserContext  userContextService.UserContextService
+	UserContext  CallerContext
 	Education    educationService.Service
 	Schulhof     facilitiesService.SchulhofService
 	Operations   timetableplanning.TimetableOperationsService
@@ -65,7 +81,7 @@ func New(sources Sources) (supervisiondashboard.Query, error) {
 		sources.Now = time.Now
 	}
 	return supervisiondashboard.New(supervisiondashboard.Dependencies{
-		Access:   access{settings: sources.Settings, userContext: sources.UserContext},
+		Access:   access{settings: sources.Settings, CallerContext: sources.UserContext},
 		Sessions: sessions{active: sources.Active, groups: sources.ActiveGroups, userContext: sources.UserContext},
 		Rooms:    sources.Rooms,
 		Yard:     yard{schulhof: sources.Schulhof},
@@ -80,24 +96,8 @@ func New(sources Sources) (supervisiondashboard.Query, error) {
 }
 
 type access struct {
-	settings    configService.SettingsService
-	userContext userContextService.UserContextService
-}
-
-func (a access) CurrentStaffID(ctx context.Context) (*int64, error) {
-	staff, err := a.userContext.GetCurrentStaff(ctx)
-	if err != nil {
-		if errors.Is(err, userContextService.ErrUserNotLinkedToStaff) ||
-			errors.Is(err, userContextService.ErrUserNotLinkedToPerson) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	if staff == nil {
-		return nil, nil
-	}
-	id := staff.ID
-	return &id, nil
+	settings configService.SettingsService
+	CallerContext
 }
 
 // Caller asks the one school-wide overview rule (#2380). The organisational
@@ -107,7 +107,7 @@ func (a access) Caller(ctx context.Context) (supervisiondashboard.Caller, error)
 	principal, principalErr := permissions.PrincipalFromContext(ctx)
 	assignmentBound := principalErr == nil && principal.Scope() == permissions.ScopeSchool
 	admin := principalErr == nil && principal.HasAdminScope()
-	overview, err := authorize.HasOperationalOverview(ctx, a.settings, a.userContext, assignmentBound, admin)
+	overview, err := authorize.HasOperationalOverview(ctx, a.settings, a.CallerContext, assignmentBound, admin)
 	if err != nil {
 		return supervisiondashboard.Caller{}, fmt.Errorf("resolve operational overview scope: %w", err)
 	}
@@ -123,14 +123,10 @@ func (a access) Caller(ctx context.Context) (supervisiondashboard.Caller, error)
 	}, nil
 }
 
-func (a access) FullStudentAccess(ctx context.Context) (bool, error) {
-	return userContextService.ResolveStudentAccess(ctx, a.userContext).HasFullAccess(), nil
-}
-
 type sessions struct {
 	active      activeService.Service
 	groups      OpenRoomSessions
-	userContext userContextService.UserContextService
+	userContext CallerContext
 }
 
 // Running lists every running session with the template activity relation
@@ -305,11 +301,11 @@ func schulhofStatus(status *facilitiesService.SchulhofStatus) *supervisiondashbo
 
 type groups struct {
 	education   educationService.Service
-	userContext userContextService.UserContextService
+	userContext CallerContext
 }
 
 func (g groups) MyGroups(ctx context.Context) ([]supervisiondashboard.EducationalGroup, error) {
-	myGroups, err := g.userContext.GetMyGroups(ctx)
+	myGroups, err := g.userContext.MyGroups(ctx)
 	if err != nil {
 		return nil, err
 	}

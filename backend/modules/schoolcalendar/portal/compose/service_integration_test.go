@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log/slog"
 	"sort"
 	"strconv"
 	"strings"
@@ -23,10 +22,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	usercontextSvc "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	calendarRuntime "github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -51,25 +48,9 @@ func deactivateAccountTenant(t *testing.T, db *bun.DB, accountID, tenantID int64
 func calendarTestConfig(t *testing.T, db *bun.DB) calendarRuntime.CalendarDependencies {
 	t.Helper()
 	repos := calendarTestRepositories(t, db)
-	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	identity, err := calendarRuntime.NewUserContextTestModule(db, testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	userContext := usercontextSvc.NewUserContextServiceWithRepos(
-		usercontextSvc.UserContextRepositories{
-			AccountRepo:        repositories.NewCurrentAccountAccess(repos.Profile),
-			PersonRepo:         repos.Person,
-			StaffRepo:          repos.Staff,
-			TeacherRepo:        repos.Teacher,
-			StudentRepo:        repos.Student,
-			EducationGroupRepo: repos.Group,
-			ActivityGroupRepo:  repos.ActivityGroup,
-			ActiveGroupRepo:    repos.ActiveGroup,
-			Presence:           presence,
-			SupervisorRepo:     repos.GroupSupervisor,
-			ProfileRepo:        repos.Profile,
-			StaffGroups:        repos.StaffGroups,
-		},
-		slog.Default(),
-	)
+	userContext := identity.UserContext.Caller()
 
 	return calendarRuntime.CalendarDependencies{
 		CalendarFacts: repositories.CalendarFacts{

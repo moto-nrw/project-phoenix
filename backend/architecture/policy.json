@@ -307,10 +307,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-usercontext",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-users",
       "kind": "inbound"
     },
@@ -3168,6 +3164,13 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "modules/identityaccess/inbound/me",
+      "owner": "identity-access",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "modules/organizationtenancy/inbound/operator",
       "owner": "organization-tenancy",
       "role": "http",
@@ -3192,20 +3195,6 @@
       "path": "modules/devicefleet/inbound/operator",
       "owner": "device-fleet",
       "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
-    },
-    {
-      "path": "modules/identityaccess/inbound/usercontext",
-      "owner": "inbound-usercontext",
-      "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
-    },
-    {
-      "path": "modules/identityaccess/legacy/usercontext",
-      "owner": "inbound-usercontext",
-      "role": "adapter",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },
@@ -6792,17 +6781,6 @@
       ],
       "source_owner": "school-structure",
       "source_role": "application",
-      "target_owner": "student-presence",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-usercontext.http.student-presence-public",
-      "description": "User-context HTTP maps plain visits into its existing response contract (#2691).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-usercontext",
-      "source_role": "http",
       "target_owner": "student-presence",
       "target_role": "public"
     },
@@ -18161,17 +18139,6 @@
       "target_role": "application"
     },
     {
-      "id": "calendar-view.adapter-test.people-directory-domain",
-      "description": "Adapter tests build the retained staff row (#2703).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter-test",
-      "target_owner": "people-directory",
-      "target_role": "domain"
-    },
-    {
       "id": "inbound-calendar.http-common",
       "description": "Staff calendar handlers reuse common HTTP rendering, the tenant middleware chain and the permission gates (#2703).",
       "scopes": [
@@ -18880,17 +18847,6 @@
       "source_owner": "school-calendar",
       "source_role": "e2e-test",
       "target_owner": "school-calendar",
-      "target_role": "compose"
-    },
-    {
-      "id": "calendar-portal.external_test.school-calendar.e2e-test.student-presence.compose",
-      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "school-calendar",
-      "source_role": "e2e-test",
-      "target_owner": "student-presence",
       "target_role": "compose"
     },
     {
@@ -21182,18 +21138,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
     },
     {
-      "id": "inbound-usercontext.adapter-test.student-presence-domain",
-      "description": "The retained user-context tests still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-usercontext",
-      "source_role": "adapter-test",
-      "target_owner": "student-presence",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
       "id": "root-composition.module-internal-test.student-presence-adapter",
       "description": "The cleanup CLI tests still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -22016,42 +21960,6 @@
       ],
       "source_owner": "open-room-move",
       "source_role": "compose",
-      "target_owner": "student-presence",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "inbound-usercontext.adapter.student-presence-domain",
-      "description": "The retained user-context adapter still reaches the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-usercontext",
-      "source_role": "adapter",
-      "target_owner": "student-presence",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "inbound-usercontext.adapter-test.student-presence-adapter",
-      "description": "The retained user-context tests still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-usercontext",
-      "source_role": "adapter-test",
-      "target_owner": "student-presence",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"
-    },
-    {
-      "id": "inbound-usercontext.adapter.student-presence-adapter",
-      "description": "The retained user-context adapter still reaches the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-usercontext",
-      "source_role": "adapter",
       "target_owner": "student-presence",
       "target_role": "adapter",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3422"

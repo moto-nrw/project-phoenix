@@ -5,12 +5,12 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -22,11 +22,21 @@ func getPermissionsFromRequest(r *http.Request) []string {
 	return jwt.PermissionsFromCtx(r.Context())
 }
 
-func canUpdateStudent(ctx context.Context, userPermissions []string, student *users.Student, ucs userContextService.UserContextService) (bool, error) {
+// CallerContext is the slice of the Identity & Access caller context the
+// student routes read: the verified staff record, the caller's staff member
+// (found is false, without an error, for a caller who is no staff member)
+// and the student access decision.
+type CallerContext interface {
+	HasCurrentStaff(ctx context.Context) (bool, error)
+	CurrentStaffID(ctx context.Context) (staffID int64, found bool, err error)
+	common.StudentAccessSource
+}
+
+func canUpdateStudent(ctx context.Context, userPermissions []string, student *users.Student, ucs CallerContext) (bool, error) {
 	return authorize.CanUpdateStudent(ctx, userPermissions, student, ucs)
 }
 
-func canDeleteStudent(ctx context.Context, userPermissions []string, student *users.Student, ucs userContextService.UserContextService) (bool, error) {
+func canDeleteStudent(ctx context.Context, userPermissions []string, student *users.Student, ucs CallerContext) (bool, error) {
 	return authorize.CanDeleteStudent(ctx, userPermissions, student, ucs)
 }
 

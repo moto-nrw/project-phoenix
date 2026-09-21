@@ -7,10 +7,10 @@ import (
 
 type authorizationStudent interface{ IsAuthorizationStudent() bool }
 
-// StudentAccessUserContext is the narrow subset of the user-context service
-// the student gates need: identify the caller's staff record (if any).
-// Defined here (not imported) to keep this package a sibling of
-// modules/identityaccess/legacy/usercontext without a package cycle.
+// StudentAccessUserContext is the narrow subset of the Identity & Access
+// caller context the student gates need: whether the caller has a verified
+// staff record. Defined here (not imported) so this package stays a
+// dependency of the caller context's consumers, not of Identity & Access.
 type StudentAccessUserContext interface {
 	HasCurrentStaff(ctx context.Context) (bool, error)
 }
@@ -103,6 +103,17 @@ func WritableStudentFilter(ctx context.Context, userPermissions []string, userCt
 // isVerifiedStaff reports whether the caller has a staff record in the current
 // tenant. Guests and guardians authenticate against the same tenant portal, so
 // the gates check this rather than trusting a permission alone.
+// StudentDataAccess decides whether the caller sees unredacted student data
+// (#2329): an admin permission (`admin:*` or `*:*`) or, for everyone else, a
+// verified staff record. The staff lookup runs only for non-admin callers.
+func StudentDataAccess(ctx context.Context, userPermissions []string, hasStaff func(context.Context) (bool, error)) (admin, staff bool) {
+	if HasAdminWildcard(userPermissions) {
+		return true, false
+	}
+	found, err := hasStaff(ctx)
+	return false, err == nil && found
+}
+
 func isVerifiedStaff(ctx context.Context, userCtx StudentAccessUserContext) bool {
 	if userCtx == nil {
 		return false

@@ -18,7 +18,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
@@ -117,7 +116,7 @@ type careScheduleRequestService struct {
 	attendance        PickupChangePresence
 	pickupAutoExcusal careplan.PickupAutoExcusal
 	dayLocker         careplan.CareDayLocker
-	userContext       userContextService.UserContextService
+	userContext       CareRequestStaff
 	emitter           *parentmessaging.Emitter
 	broadcaster       realtime.Broadcaster
 	studentAudit      usersService.StudentChangeRecorder
@@ -165,7 +164,7 @@ func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 	attendance PickupChangePresence,
 	pickupAutoExcusal careplan.PickupAutoExcusal,
 	dayLocker careplan.CareDayLocker,
-	userContext userContextService.UserContextService,
+	userContext CareRequestStaff,
 	emitter *parentmessaging.Emitter,
 	broadcaster realtime.Broadcaster,
 	reviewPolicy RequestReviewPolicy,
@@ -239,7 +238,7 @@ func newCareScheduleRequestService(
 	people RequestPeople,
 	arrival RequestArrivalPlans,
 	pickup RequestPickupPlans,
-	userContext userContextService.UserContextService,
+	userContext CareRequestStaff,
 	emitter *parentmessaging.Emitter,
 	broadcaster realtime.Broadcaster,
 	reviewPolicy RequestReviewPolicy,
@@ -453,18 +452,21 @@ func (s *careScheduleRequestService) applyPickupChangeRequest(ctx context.Contex
 	return id, err
 }
 
-func (s *careScheduleRequestService) resolvePickupChangeStaff(ctx context.Context) (*usersModels.Staff, error) {
-	staff, err := s.userContext.GetCurrentStaff(ctx)
+// CareRequestStaff resolves the staff member deciding a care request. found
+// is false, without an error, for a caller who is no staff member.
+type CareRequestStaff interface {
+	CurrentStaffID(context.Context) (staffID int64, found bool, err error)
+}
+
+func (s *careScheduleRequestService) resolvePickupChangeStaff(ctx context.Context) (int64, error) {
+	staffID, found, err := s.userContext.CurrentStaffID(ctx)
 	if err != nil {
-		if errors.Is(err, userContextService.ErrUserNotLinkedToStaff) || errors.Is(err, userContextService.ErrUserNotLinkedToPerson) {
-			return nil, carerequests.ErrCareRequestForbidden
-		}
-		return nil, fmt.Errorf("schedule: resolve acting staff for pickup request: %w", err)
+		return 0, fmt.Errorf("schedule: resolve acting staff for pickup request: %w", err)
 	}
-	if staff == nil {
-		return nil, carerequests.ErrCareRequestForbidden
+	if !found {
+		return 0, carerequests.ErrCareRequestForbidden
 	}
-	return staff, nil
+	return staffID, nil
 }
 
 // emitRequestPillAfterCommit writes the durable decision intent in the ambient

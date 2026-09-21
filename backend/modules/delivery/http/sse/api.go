@@ -11,7 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -84,32 +83,26 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 // users.staff needs app.current_tenant_id to be set — the SSE router uses
 // jwt.TenantMiddleware (context only), not the DB-level TenantTxMiddleware.
 func (rs *Resource) resolveSSESubscription(ctx context.Context, tenantID int64) (*sseTopics, int64, error) {
-	var sub *usercontext.SSESubscription
+	var staffID int64
+	topics := &sseTopics{}
 	err := tenant.WithTenantTx(ctx, rs.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		resolved, resolveErr := rs.userCtx.ResolveSSESubscription(txCtx)
-		if resolveErr != nil {
-			return resolveErr
-		}
-		sub = resolved
-		return nil
+		var resolveErr error
+		staffID, topics.activeGroupIDs, topics.eduTopics, topics.allTopics, resolveErr = rs.userCtx.ResolveSSETopics(txCtx)
+		return resolveErr
 	})
 	if err != nil {
 		return nil, 0, err
 	}
-	return &sseTopics{
-		activeGroupIDs: sub.ActiveGroupIDs,
-		eduTopics:      sub.EduTopics,
-		allTopics:      sub.AllTopics,
-	}, sub.StaffID, nil
+	return topics, staffID, nil
 }
 
 // writeSSESetupError maps a subscription-resolution error to the SSE HTTP
 // response: the carried status for an *SSESetupError (401/403), 500 otherwise.
 func (rs *Resource) writeSSESetupError(w http.ResponseWriter, ctx context.Context, err error) {
-	var setupErr *usercontext.SSESetupError
+	var setupErr SetupRejection
 	if errors.As(err, &setupErr) {
-		slog.WarnContext(ctx, "SSE setup failed", slog.String("error", setupErr.Message))
-		http.Error(w, setupErr.Message, setupErr.Status)
+		slog.WarnContext(ctx, "SSE setup failed", slog.String("error", setupErr.SetupMessage()))
+		http.Error(w, setupErr.SetupMessage(), setupErr.SetupStatus())
 		return
 	}
 	slog.ErrorContext(ctx, "SSE failed to determine supervised groups", slog.String("error", err.Error()))
