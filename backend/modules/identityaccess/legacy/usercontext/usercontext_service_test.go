@@ -25,6 +25,8 @@ func setupUserContextService(t *testing.T, db *bun.DB) usercontextSvc.UserContex
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
+	staffGroups, err := repositories.NewUserContextStaffGroupsForTests(db)
+	require.NoError(t, err)
 
 	repos := usercontextSvc.UserContextRepositories{
 		AccountRepo:        repositories.NewCurrentAccountAccess(repoFactory.Profile),
@@ -38,8 +40,7 @@ func setupUserContextService(t *testing.T, db *bun.DB) usercontextSvc.UserContex
 		Presence:           presence,
 		SupervisorRepo:     repoFactory.GroupSupervisor,
 		ProfileRepo:        repoFactory.Profile,
-		SubstitutionRepo:   repoFactory.GroupSubstitution,
-		ClassTeacherRepo:   repoFactory.ClassTeacher,
+		StaffGroups:        staffGroups,
 	}
 
 	return usercontextSvc.NewUserContextServiceWithRepos(repos, slog.Default())

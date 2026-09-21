@@ -1779,6 +1779,10 @@ func newFactory(
 	})
 
 	// Initialize user context service
+	staffGroups, err := repositories.NewUserContextStaffGroups(groups, membership, workTime)
+	if err != nil {
+		return nil, err
+	}
 	userContextService := usercontext.NewUserContextServiceWithRepos(usercontext.UserContextRepositories{
 		AccountRepo:        repositories.NewCurrentAccountAccess(repos.Profile),
 		PersonRepo:         repos.Person,
@@ -1791,8 +1795,7 @@ func newFactory(
 		Presence:           newStudentPresence(db, logger),
 		SupervisorRepo:     repos.GroupSupervisor,
 		ProfileRepo:        repos.Profile,
-		SubstitutionRepo:   repos.GroupSubstitution,
-		ClassTeacherRepo:   repos.ClassTeacher,
+		StaffGroups:        staffGroups,
 		ActiveService:      NewSSEPresence(newStudentPresence(db, logger)),
 		SSESettings:        settingsService,
 	}, usercontextLogger)
