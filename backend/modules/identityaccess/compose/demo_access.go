@@ -35,9 +35,26 @@ func composeDemoAccess(db *bun.DB, sessions DemoSessions, dependencies *DemoDepe
 // composed Identity & Access module satisfies it.
 type DemoSessions = ports.DemoSessions
 
-// DemoSchools resolves the demo school by slug through Organisation &
-// Tenancy; found is false until the school exists and is active.
-type DemoSchools = ports.DemoSchools
+// DemoSchools reaches the demo schools through Organisation & Tenancy inside
+// the flow's administrative transaction (#3463). PrepareDemoSchool returns
+// the slug a new access enters: a queued school of its own or the standing
+// school. DemoSchoolEntry reports "preparing" until the school is seeded,
+// exists and is active.
+type DemoSchools interface {
+	PrepareDemoSchool(ctx context.Context, schoolName, personName string) (slug string, err error)
+	DemoSchoolEntry(ctx context.Context, slug string) (identityaccess.DemoSchoolEntry, error)
+}
+
+type demoSchoolsPort struct{ schools DemoSchools }
+
+func (p demoSchoolsPort) PrepareDemoSchool(ctx context.Context, schoolName, personName string) (string, error) {
+	return p.schools.PrepareDemoSchool(ctx, schoolName, personName)
+}
+
+func (p demoSchoolsPort) DemoSchoolEntry(ctx context.Context, slug string) (domain.DemoSchoolEntry, error) {
+	entry, err := p.schools.DemoSchoolEntry(ctx, slug)
+	return domain.DemoSchoolEntry{Status: entry.Status, TenantID: entry.SchoolID, AccountID: entry.AccountID}, err
+}
 
 // DemoAccessDependencies compose the demo access of the public demo (#3462).
 // NewToken and Fingerprint are the opaque capability token of the token
@@ -58,7 +75,7 @@ func NewDemoAccess(deps DemoAccessDependencies) (*identityaccess.DemoAccess, err
 		return nil, errors.New("identity access compose: every demo access dependency is required")
 	}
 	flows, err := application.NewDemoAccess(application.DemoAccessDependencies{
-		Sessions: deps.Sessions, Store: newStore(deps.DB), Schools: deps.Schools,
+		Sessions: deps.Sessions, Store: newStore(deps.DB), Schools: demoSchoolsPort{schools: deps.Schools},
 		Tokens:  demoAccessTokens{mint: deps.NewToken, fingerprint: deps.Fingerprint},
 		AdminTx: tenant.WithinAdmin,
 	})
@@ -80,23 +97,23 @@ func (t demoAccessTokens) Fingerprint(raw string) string { return t.fingerprint(
 type demoAccessEngine struct{ flows *application.DemoAccess }
 
 func (e demoAccessEngine) RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) (identityaccess.IssuedDemoAccess, error) {
-	id, token, err := e.flows.Request(ctx, domain.DemoAccess{
+	issued, err := e.flows.Request(ctx, domain.DemoAccess{
 		Email: request.Email, PersonName: request.PersonName, SchoolName: request.SchoolName,
 		Source: request.Source, ContactOptIn: request.ContactOptIn,
 	})
 	if err != nil {
 		return identityaccess.IssuedDemoAccess{}, demoAccessError(err)
 	}
-	return identityaccess.IssuedDemoAccess{ID: id, Token: token}, nil
+	return identityaccess.IssuedDemoAccess{ID: issued.ID, Token: issued.Token, SchoolSlug: issued.SchoolSlug}, nil
 }
 
-func (e demoAccessEngine) DemoAccessReady(ctx context.Context, token, schoolSlug string) (bool, error) {
-	ready, err := e.flows.Ready(ctx, token, schoolSlug)
-	return ready, demoAccessError(err)
+func (e demoAccessEngine) DemoAccessStatus(ctx context.Context, token string) (string, string, error) {
+	status, schoolSlug, err := e.flows.Status(ctx, token)
+	return status, schoolSlug, demoAccessError(err)
 }
 
-func (e demoAccessEngine) RedeemDemoAccess(ctx context.Context, token, schoolSlug, ipAddress, userAgent string) (string, string, error) {
-	access, refresh, err := e.flows.Redeem(ctx, token, schoolSlug, ipAddress, userAgent)
+func (e demoAccessEngine) RedeemDemoAccess(ctx context.Context, token, ipAddress, userAgent string) (string, string, error) {
+	access, refresh, err := e.flows.Redeem(ctx, token, ipAddress, userAgent)
 	return access, refresh, demoAccessError(err)
 }
 

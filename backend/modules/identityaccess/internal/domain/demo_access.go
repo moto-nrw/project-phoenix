@@ -34,6 +34,30 @@ type DemoAccess struct {
 	ContactOptIn bool
 	TokenHash    string
 	ExpiresAt    time.Time
+	// SchoolSlug is the demo school this access enters (#3463).
+	SchoolSlug string
+}
+
+// Progress of the demo school behind a demo access (#3463).
+const (
+	DemoSchoolPreparing = "preparing"
+	DemoSchoolReady     = "ready"
+	DemoSchoolFailed    = "failed"
+)
+
+// IssuedDemoAccess is a stored demo access with its token and its school.
+type IssuedDemoAccess struct {
+	ID         int64
+	Token      string
+	SchoolSlug string
+}
+
+// DemoSchoolEntry is what a demo access needs to enter its school. AccountID
+// is the prospect's own caregiver; zero signs in the school's administrator.
+type DemoSchoolEntry struct {
+	Status    string
+	TenantID  int64
+	AccountID int64
 }
 
 // Normalize trims the prospect's fields and validates them.

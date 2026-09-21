@@ -20,9 +20,9 @@ func (s *Store) InsertDemoAccess(ctx context.Context, access domain.DemoAccess) 
 		return 0, err
 	}
 	var id int64
-	err = db.NewRaw(`INSERT INTO auth.demo_accesses (email, person_name, school_name, source, contact_opt_in, token_hash, expires_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-		access.Email, access.PersonName, access.SchoolName, access.Source, access.ContactOptIn, access.TokenHash, access.ExpiresAt).Scan(ctx, &id)
+	err = db.NewRaw(`INSERT INTO auth.demo_accesses (email, person_name, school_name, source, contact_opt_in, token_hash, expires_at, school_slug)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+		access.Email, access.PersonName, access.SchoolName, access.Source, access.ContactOptIn, access.TokenHash, access.ExpiresAt, access.SchoolSlug).Scan(ctx, &id)
 	if err != nil {
 		return 0, fmt.Errorf("identity access postgres: insert demo access: %w", err)
 	}
@@ -35,17 +35,42 @@ func (s *Store) FindDemoAccessByTokenHash(ctx context.Context, tokenHash string)
 		return domain.DemoAccess{}, false, err
 	}
 	var row struct {
-		ID        int64     `bun:"id"`
-		ExpiresAt time.Time `bun:"expires_at"`
+		ID         int64     `bun:"id"`
+		ExpiresAt  time.Time `bun:"expires_at"`
+		SchoolSlug string    `bun:"school_slug"`
 	}
-	err = db.NewRaw(`SELECT id, expires_at FROM auth.demo_accesses WHERE token_hash = ?`, tokenHash).Scan(ctx, &row)
+	err = db.NewRaw(`SELECT id, expires_at, school_slug FROM auth.demo_accesses WHERE token_hash = ?`, tokenHash).Scan(ctx, &row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.DemoAccess{}, false, nil
 	}
 	if err != nil {
 		return domain.DemoAccess{}, false, fmt.Errorf("identity access postgres: find demo access: %w", err)
 	}
-	return domain.DemoAccess{ID: row.ID, TokenHash: tokenHash, ExpiresAt: row.ExpiresAt}, true, nil
+	return domain.DemoAccess{ID: row.ID, TokenHash: tokenHash, ExpiresAt: row.ExpiresAt, SchoolSlug: row.SchoolSlug}, true, nil
+}
+
+func (s *Store) LockDemoAccessEmail(ctx context.Context, email string) error {
+	db, err := s.database(ctx)
+	if err != nil {
+		return err
+	}
+	if _, err := db.NewRaw(`SELECT pg_advisory_xact_lock(hashtextextended(?, 3463))`, email).Exec(ctx); err != nil {
+		return fmt.Errorf("identity access postgres: lock demo access email: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) UnexpiredDemoAccessSchools(ctx context.Context, email string, now time.Time) ([]string, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var slugs []string
+	err = db.NewRaw(`SELECT DISTINCT school_slug FROM auth.demo_accesses WHERE email = ? AND expires_at > ?`, email, now).Scan(ctx, &slugs)
+	if err != nil {
+		return nil, fmt.Errorf("identity access postgres: list demo access schools: %w", err)
+	}
+	return slugs, nil
 }
 
 // RecordDemoAccessUse notes one redemption and the account it signed in.

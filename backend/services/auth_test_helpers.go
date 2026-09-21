@@ -86,6 +86,13 @@ type authTestSettings struct {
 	mfaCapability    identityaccess.AccountMFA
 	mfaSettings      config.SettingsService
 	staffCreateErr   error
+	standingDemo     string
+}
+
+// WithStandingDemoSchool composes the demo access with the fallback of #3463:
+// every access enters the school with this slug instead of its own.
+func WithStandingDemoSchool(slug string) AuthTestOption {
+	return func(settings *authTestSettings) { settings.standingDemo = slug }
 }
 
 // WithAuthTestMailer composes the module on the given mailer, so a test can
@@ -228,7 +235,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
 		repos: sessionRepos, codec: codec, settings: settings.Settings, audit: command, logger: logger,
 		operators:  operators,
-		demoAccess: true,
+		demoAccess: true, demoStandingSchool: settingsOverrides.standingDemo,
 		mfa: &mfaWiring{
 			repos: r, settings: mfaSettingsService(settings.Settings, settingsOverrides),
 			dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL,

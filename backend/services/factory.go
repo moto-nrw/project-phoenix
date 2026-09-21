@@ -1654,7 +1654,7 @@ func newFactory(
 			},
 		},
 		operators:  operatorDependencies,
-		demoAccess: strings.EqualFold(strings.TrimSpace(appEnv), "demo"),
+		demoAccess: strings.EqualFold(strings.TrimSpace(appEnv), "demo"), demoStandingSchool: standingDemoSchool(viper.GetBool("demo_standing_school")),
 		operatorLinks: &operatorLinkWiring{
 			dispatcher: dispatcher, defaultFrom: defaultFrom,
 			frontendURL: frontendURL, operatorFrontendURL: operatorFrontendURL,
