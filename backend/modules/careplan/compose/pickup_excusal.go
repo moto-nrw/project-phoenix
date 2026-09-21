@@ -115,6 +115,9 @@ func (s pickupExcusalRecords) list(ctx context.Context, filter careplan.StudentS
 }
 func (s pickupExcusalRecords) Create(ctx context.Context, row *careplan.PickupException) error {
 	row.NormalizeWallClockTimes()
+	if err := row.Validate(); err != nil {
+		return err
+	}
 	result, err := s.CreatePickupException(ctx, *row)
 	if err == nil {
 		*row = result
@@ -123,6 +126,9 @@ func (s pickupExcusalRecords) Create(ctx context.Context, row *careplan.PickupEx
 }
 func (s pickupExcusalRecords) Update(ctx context.Context, row *careplan.PickupException) error {
 	row.NormalizeWallClockTimes()
+	if err := row.Validate(); err != nil {
+		return err
+	}
 	return s.UpdatePickupException(ctx, *row)
 }
 func (s pickupExcusalRecords) Delete(ctx context.Context, id int64) error {

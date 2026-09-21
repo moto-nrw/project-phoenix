@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -167,9 +168,8 @@ func (s *pickupScheduleService) preservePickupNotes(ctx context.Context, student
 	if err != nil {
 		return err
 	}
-	weekdays := [...]string{"", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"}
 	result.OverwrittenStudents = append(result.OverwrittenStudents, careplan.OverwriteWarning{
-		StudentID: student.ID, StudentName: name, Weekday: row.Weekday, WeekdayName: weekdays[row.Weekday],
+		StudentID: student.ID, StudentName: name, Weekday: row.Weekday, WeekdayName: domain.WeekdayName(row.Weekday),
 		PreviousTime: previous.PickupTime.Format("15:04"), NewTime: row.PickupTime.Format("15:04"),
 	})
 	return nil

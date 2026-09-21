@@ -11,6 +11,18 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
+// lockedExceptionByID re-reads an exception under its day lock. A row that a
+// concurrent delete removed in the meantime is a missing exception, not a
+// storage failure.
+func (c *effectiveTimeCore[S, E, N, D]) lockedExceptionByID(ctx context.Context, exceptionID int64) (E, error) {
+	row, err := c.exceptionByID(ctx, exceptionID)
+	if err != nil && c.transactions.IsNotFound(err) {
+		var zero E
+		return zero, careplan.ErrCareExceptionNotFound
+	}
+	return row, err
+}
+
 func (c *effectiveTimeCore[S, E, N, D]) exceptionByID(
 	ctx context.Context,
 	exceptionID int64,
@@ -206,7 +218,7 @@ func (c *effectiveTimeCore[S, E, N, D]) updateException(
 			return err
 		}
 
-		fresh, err := c.exceptionByID(txCtx, exceptionID)
+		fresh, err := c.lockedExceptionByID(txCtx, exceptionID)
 		if err != nil {
 			return err
 		}

@@ -118,9 +118,9 @@ func conflictKeyWeekday(key string) (int, error) {
 }
 
 func staffPickupTime(raw string) (time.Time, error) {
-	parsed, err := time.Parse("15:04", strings.TrimSpace(raw))
+	parsed, err := parseWallClock(strings.TrimSpace(raw))
 	if err != nil {
 		return time.Time{}, carerequests.ErrInvalidPayload
 	}
-	return calendar.NormalizeWallClock(parsed), nil
+	return parsed, nil
 }

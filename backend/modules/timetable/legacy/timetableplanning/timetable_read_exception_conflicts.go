@@ -2,7 +2,6 @@ package timetableplanning
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"maps"
 	"slices"
@@ -264,7 +263,7 @@ func (s *TimetableDataService) fillArrivalSchedules(
 		return nil
 	}
 	if s.deps.ArrivalBaselines == nil {
-		return fmt.Errorf("load arrival schedules: baseline projection is not configured")
+		return errArrivalBaselineMissing
 	}
 
 	studentIDs := make(map[int64]struct{})

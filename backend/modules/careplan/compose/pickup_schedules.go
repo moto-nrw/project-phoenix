@@ -54,17 +54,17 @@ func (t pickupScheduleTransaction) IsNotFound(err error) bool {
 	return errors.Is(err, careplan.ErrStudentScheduleNotFound) || t.excusalTransaction.IsNotFound(err)
 }
 
-func pickupScheduleRecords(r PickupScheduleRecords) effectiveRecords[careplan.PickupSchedule] {
-	return effectiveRecords[careplan.PickupSchedule]{find: unlocked(r.FindPickupSchedule), list: r.ListPickupSchedules,
+func pickupScheduleRecords(r PickupScheduleRecords) effectiveRecords[careplan.PickupSchedule, *careplan.PickupSchedule] {
+	return effectiveRecords[careplan.PickupSchedule, *careplan.PickupSchedule]{find: unlocked(r.FindPickupSchedule), list: r.ListPickupSchedules,
 		create: r.CreatePickupSchedule, upsert: r.UpsertPickupSchedule, remove: r.DeletePickupSchedule, removeByStudent: r.DeletePickupSchedulesByStudent}
 }
 
-func pickupExceptionRecords(r PickupScheduleRecords) exceptionRecords[careplan.PickupException] {
-	return exceptionRecords[careplan.PickupException]{effectiveRecords[careplan.PickupException]{find: r.FindPickupException, list: r.ListPickupExceptions,
+func pickupExceptionRecords(r PickupScheduleRecords) exceptionRecords[careplan.PickupException, *careplan.PickupException] {
+	return exceptionRecords[careplan.PickupException, *careplan.PickupException]{effectiveRecords[careplan.PickupException, *careplan.PickupException]{find: r.FindPickupException, list: r.ListPickupExceptions,
 		create: r.CreatePickupException, update: r.UpdatePickupException, remove: r.DeletePickupException, removeByStudent: r.DeletePickupExceptionsByStudent}}
 }
 
-func pickupNoteRecords(r PickupScheduleRecords) noteRecords[careplan.PickupNote] {
-	return noteRecords[careplan.PickupNote]{effectiveRecords[careplan.PickupNote]{find: unlocked(r.FindPickupNote), list: r.ListPickupNotes,
+func pickupNoteRecords(r PickupScheduleRecords) noteRecords[careplan.PickupNote, *careplan.PickupNote] {
+	return noteRecords[careplan.PickupNote, *careplan.PickupNote]{effectiveRecords[careplan.PickupNote, *careplan.PickupNote]{find: unlocked(r.FindPickupNote), list: r.ListPickupNotes,
 		create: r.CreatePickupNote, update: r.UpdatePickupNote, remove: r.DeletePickupNote, removeByStudent: r.DeletePickupNotesByStudent}}
 }

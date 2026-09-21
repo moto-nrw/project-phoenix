@@ -2,6 +2,7 @@ package timetableplanning
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -127,6 +128,10 @@ func (s *TimetableDataService) PreloadStudentWeek(ctx context.Context, studentID
 	return out, nil
 }
 
+// errArrivalBaselineMissing reports a composition without the baseline reader.
+// Partial read-only facades may omit it, so the check runs on first use.
+var errArrivalBaselineMissing = errors.New("load arrival schedules: baseline projection is not configured")
+
 // preloadArrivalSchedules fills the per-date arrival rows through the baseline
 // projection (#2414): the class timetable supplies the time and, with
 // enrollment.bookings_authoritative on, the approved bookings supply the care
@@ -138,7 +143,7 @@ func (s *TimetableDataService) preloadArrivalSchedules(
 	from, to timezone.Date,
 ) error {
 	if s.deps.ArrivalBaselines == nil {
-		return fmt.Errorf("load arrival schedules: baseline projection is not configured")
+		return errArrivalBaselineMissing
 	}
 
 	projection, err := s.deps.ArrivalBaselines.Project(ctx, []int64{studentID}, from, to)

@@ -65,7 +65,12 @@ func (a *weeklyApprovalAdapter) LockDepartureModes(ctx context.Context, id int64
 	}
 	return result, nil
 }
-func (a *weeklyApprovalAdapter) SaveDepartureModes(ctx context.Context, _ int64, modes map[string][]string) error {
+func (a *weeklyApprovalAdapter) SaveDepartureModes(ctx context.Context, id int64, modes map[string][]string) error {
+	// The write builds on the row LockDepartureModes loaded; without it the
+	// update would persist an empty student record.
+	if a.student.ID == 0 || a.student.ID != id {
+		return fmt.Errorf("schedule: departure modes not locked for student %d", id)
+	}
 	merged := usersModels.AllowedDepartureModes{}
 	for day, values := range modes {
 		merged[day] = nil

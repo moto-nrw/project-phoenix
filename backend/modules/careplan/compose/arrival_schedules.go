@@ -58,17 +58,17 @@ func NewArrivalSchedules(db *bun.DB, records ArrivalScheduleRecords, baselines c
 	return application.NewArrivalSchedules(arrivalScheduleRecords(records), arrivalExceptionRecords(records), arrivalNoteRecords(records), baselines, rules, pickupScheduleTransaction{excusalTransaction{db}}, deps.Students, deps.Classes, deps.ClassExceptions, deps.Logger), nil
 }
 
-func arrivalScheduleRecords(r ArrivalScheduleRecords) effectiveRecords[careplan.ArrivalSchedule] {
-	return effectiveRecords[careplan.ArrivalSchedule]{find: unlocked(r.FindArrivalSchedule), list: r.ListArrivalSchedules,
+func arrivalScheduleRecords(r ArrivalScheduleRecords) effectiveRecords[careplan.ArrivalSchedule, *careplan.ArrivalSchedule] {
+	return effectiveRecords[careplan.ArrivalSchedule, *careplan.ArrivalSchedule]{find: unlocked(r.FindArrivalSchedule), list: r.ListArrivalSchedules,
 		create: r.CreateArrivalSchedule, upsert: r.UpsertArrivalSchedule, remove: r.DeleteArrivalSchedule, removeByStudent: r.DeleteArrivalSchedulesByStudent}
 }
 
-func arrivalExceptionRecords(r ArrivalScheduleRecords) exceptionRecords[careplan.ArrivalException] {
-	return exceptionRecords[careplan.ArrivalException]{effectiveRecords[careplan.ArrivalException]{find: r.FindArrivalException, list: r.ListArrivalExceptions,
+func arrivalExceptionRecords(r ArrivalScheduleRecords) exceptionRecords[careplan.ArrivalException, *careplan.ArrivalException] {
+	return exceptionRecords[careplan.ArrivalException, *careplan.ArrivalException]{effectiveRecords[careplan.ArrivalException, *careplan.ArrivalException]{find: r.FindArrivalException, list: r.ListArrivalExceptions,
 		create: r.CreateArrivalException, update: r.UpdateArrivalException, remove: r.DeleteArrivalException, removeByStudent: r.DeleteArrivalExceptionsByStudent}}
 }
 
-func arrivalNoteRecords(r ArrivalScheduleRecords) noteRecords[careplan.ArrivalNote] {
-	return noteRecords[careplan.ArrivalNote]{effectiveRecords[careplan.ArrivalNote]{find: unlocked(r.FindArrivalNote), list: r.ListArrivalNotes,
+func arrivalNoteRecords(r ArrivalScheduleRecords) noteRecords[careplan.ArrivalNote, *careplan.ArrivalNote] {
+	return noteRecords[careplan.ArrivalNote, *careplan.ArrivalNote]{effectiveRecords[careplan.ArrivalNote, *careplan.ArrivalNote]{find: unlocked(r.FindArrivalNote), list: r.ListArrivalNotes,
 		create: r.CreateArrivalNote, update: r.UpdateArrivalNote, remove: r.DeleteArrivalNote, removeByStudent: r.DeleteArrivalNotesByStudent}}
 }

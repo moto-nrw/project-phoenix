@@ -70,7 +70,9 @@ func (s arrivalPlanStudents) Name(ctx context.Context, student careplanCompose.A
 }
 
 func (s arrivalPlanStudents) LockStudent(ctx context.Context, id int64) error {
-	_, err := s.LockByID(ctx, id, timezone.TodayDate())
+	// A single-student lock reports the directory's own not-found, not the
+	// bulk-selection sentinel LockByID uses.
+	_, err := s.people.FindStudentRecordForMutation(ctx, id)
 	return err
 }
 

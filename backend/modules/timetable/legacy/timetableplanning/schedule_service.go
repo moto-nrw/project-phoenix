@@ -355,12 +355,6 @@ func (s *service) GenerateEvents(ctx context.Context, ruleID int64, startDate, e
 	if err == nil {
 		return events, nil
 	}
-	switch {
-	case errors.Is(err, timetable.ErrRecurrenceRuleNotFound):
-		err = timetable.ErrRecurrenceRuleNotFound
-	case errors.Is(err, timetable.ErrInvalidRecurrenceRange):
-		err = timetable.ErrInvalidRecurrenceRange
-	}
 	return nil, &ScheduleError{Op: opGenerateEvents, Err: err}
 }
 

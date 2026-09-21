@@ -167,7 +167,12 @@ func (s *Service) DeletePickupSchedulesByStudent(ctx context.Context, id int64) 
 	})
 }
 
+// Pickup exception writes validate here because guardian and approval writes
+// reach the store through this capability without passing the effective-time core.
 func (s *Service) CreatePickupException(ctx context.Context, v careplan.PickupException) (result careplan.PickupException, err error) {
+	if err = v.Validate(); err != nil {
+		return result, err
+	}
 	err = s.run("create_pickup_exception", func(stats *domain.OperationStats) error {
 		var q domain.OperationStats
 		result, q, err = s.store.CreatePickupException(ctx, v)
@@ -177,6 +182,9 @@ func (s *Service) CreatePickupException(ctx context.Context, v careplan.PickupEx
 	return
 }
 func (s *Service) UpdatePickupException(ctx context.Context, v careplan.PickupException) error {
+	if err := v.Validate(); err != nil {
+		return err
+	}
 	return s.run("update_pickup_exception", func(stats *domain.OperationStats) error {
 		q, err := s.store.UpdatePickupException(ctx, v)
 		stats.Add(q)

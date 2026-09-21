@@ -8,7 +8,16 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
 
-type requestDiffAdapter struct{ *weeklyApprovalAdapter }
+// requestDiffAdapter reads the current plan for request diffs. It is bound
+// once and shared across requests, so it holds no per-request state.
+type requestDiffAdapter struct{ s *careScheduleRequestService }
+
+func (a requestDiffAdapter) GetStudentArrivalSchedules(ctx context.Context, id int64) ([]*careplan.ArrivalSchedule, error) {
+	return a.s.arrival.GetStudentArrivalSchedules(ctx, id)
+}
+func (a requestDiffAdapter) GetStudentPickupSchedules(ctx context.Context, id int64) ([]*careplan.PickupSchedule, error) {
+	return a.s.pickup.GetStudentPickupSchedules(ctx, id)
+}
 
 func (a requestDiffAdapter) DepartureModesForStudent(ctx context.Context, id int64) (map[string][]string, error) {
 	student, err := a.s.people.FindStudentRecord(ctx, id)

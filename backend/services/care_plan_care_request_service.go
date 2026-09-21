@@ -209,7 +209,7 @@ type requestCapabilities struct {
 func newRequestCapabilities(s *careScheduleRequestService) (requestCapabilities, error) {
 	var c requestCapabilities
 	var err error
-	diffAdapter := requestDiffAdapter{&weeklyApprovalAdapter{s: s}}
+	diffAdapter := requestDiffAdapter{s}
 	if c.diffs, err = compose.NewRequestDiffs(diffAdapter, diffAdapter, diffAdapter, s.logger); err != nil {
 		return c, fmt.Errorf("care request diffs: %w", err)
 	}
@@ -228,7 +228,7 @@ func newRequestCapabilities(s *careScheduleRequestService) (requestCapabilities,
 	if c.decisions, err = compose.NewRequestDecisions(compose.RequestDecisionDependencies{Records: s.requestRecords, People: decisionAdapter, Plans: decisionAdapter, Effects: decisionAdapter, Today: s.todayDate}); err != nil {
 		return c, fmt.Errorf("care request decisions: %w", err)
 	}
-	if c.conflicts, err = compose.NewRequestConflicts(s.requestRecords, requestConflictPlans{s}, c.decisions, timezone.TodayDate); err != nil {
+	if c.conflicts, err = compose.NewRequestConflicts(s.requestRecords, requestConflictPlans{s}, c.decisions, s.todayDate); err != nil {
 		return c, fmt.Errorf("care request conflicts: %w", err)
 	}
 	return c, nil

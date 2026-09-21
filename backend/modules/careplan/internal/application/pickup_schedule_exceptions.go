@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"time"
 
@@ -113,7 +114,7 @@ func (s *pickupScheduleService) resyncAutoExcusal(
 	if !changed {
 		return nil
 	}
-	fresh, err := s.exceptionByID(ctx, exceptionID)
+	fresh, err := s.lockedExceptionByID(ctx, exceptionID)
 	if err != nil {
 		return err
 	}
@@ -150,7 +151,7 @@ func (s *pickupScheduleService) UpdateException(
 		if err := s.lockPickupUpdateDays(txCtx, exceptionID, studentID, date); err != nil {
 			return err
 		}
-		fresh, err := s.exceptionByID(txCtx, exceptionID)
+		fresh, err := s.lockedExceptionByID(txCtx, exceptionID)
 		if err != nil {
 			return err
 		}
@@ -200,7 +201,7 @@ func (s *pickupScheduleService) detachExceptionForStudent(ctx context.Context, i
 	}
 	// Re-read under the lock before restoring the auto-excused blocks.
 	// Detachment must precede deletion so the FK cannot erase provenance.
-	fresh, err := s.exceptionByID(ctx, initial.ID)
+	fresh, err := s.lockedExceptionByID(ctx, initial.ID)
 	if err != nil {
 		return err
 	}
@@ -277,16 +278,25 @@ func (s *pickupScheduleService) detachStudentAutoExceptions(ctx context.Context,
 		return autoRows[i].ExceptionDate.Before(autoRows[j].ExceptionDate)
 	})
 	for _, row := range autoRows {
-		if err := s.tx.LockStudentAndExceptionDay(ctx, studentID, row.ExceptionDate.String()); err != nil {
-			return err
-		}
-		fresh, err := s.exceptionByID(ctx, row.ID)
-		if err != nil {
-			return err
-		}
-		if err := s.autoExcusal.DetachRow(ctx, fresh); err != nil {
+		if err := s.detachAutoException(ctx, studentID, row); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// detachAutoException skips a row a concurrent delete already removed: the
+// bulk delete that follows has nothing left to detach for it.
+func (s *pickupScheduleService) detachAutoException(ctx context.Context, studentID int64, row *careplan.PickupException) error {
+	if err := s.tx.LockStudentAndExceptionDay(ctx, studentID, row.ExceptionDate.String()); err != nil {
+		return err
+	}
+	fresh, err := s.lockedExceptionByID(ctx, row.ID)
+	if errors.Is(err, careplan.ErrCareExceptionNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return s.autoExcusal.DetachRow(ctx, fresh)
 }

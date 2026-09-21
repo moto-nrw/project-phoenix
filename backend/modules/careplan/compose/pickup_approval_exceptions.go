@@ -33,11 +33,17 @@ func (a pickupApprovalExceptions) FindForDate(ctx context.Context, id int64, dat
 }
 
 func (a pickupApprovalExceptions) Create(ctx context.Context, value careplan.PickupException) (int64, error) {
+	if err := value.Validate(); err != nil {
+		return 0, err
+	}
 	row, err := a.records.CreatePickupException(ctx, value)
 	return row.ID, err
 }
 
 func (a pickupApprovalExceptions) Update(ctx context.Context, value careplan.PickupException) error {
+	if err := value.Validate(); err != nil {
+		return err
+	}
 	return a.records.UpdatePickupException(ctx, value)
 }
 

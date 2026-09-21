@@ -71,11 +71,11 @@ func (s *WeeklyApprovals) deleteCareDay(ctx context.Context, weekday int, arriva
 
 func (s *WeeklyApprovals) applyArrivalTimes(ctx context.Context, studentID, staffID int64, changes map[int]string) error {
 	for weekday, hhmm := range changes {
-		clock, err := time.Parse("15:04", hhmm)
+		clock, err := parseWallClock(hhmm)
 		if err != nil {
 			return fmt.Errorf("apply arrival weekday %d: %w", weekday, err)
 		}
-		row := &careplan.ArrivalSchedule{StudentID: studentID, Weekday: weekday, ExpectedArrival: calendar.NormalizeWallClock(clock), CreatedBy: staffID}
+		row := &careplan.ArrivalSchedule{StudentID: studentID, Weekday: weekday, ExpectedArrival: clock, CreatedBy: staffID}
 		if err := s.Arrivals.UpsertStudentArrivalSchedule(ctx, row); err != nil {
 			return fmt.Errorf("apply arrival weekday %d: %w", weekday, err)
 		}
@@ -85,14 +85,23 @@ func (s *WeeklyApprovals) applyArrivalTimes(ctx context.Context, studentID, staf
 
 func (s *WeeklyApprovals) applyPickupTimes(ctx context.Context, studentID, staffID int64, changes map[int]string) error {
 	for weekday, hhmm := range changes {
-		clock, err := time.Parse("15:04", hhmm)
+		clock, err := parseWallClock(hhmm)
 		if err != nil {
 			return fmt.Errorf("apply pickup weekday %d: %w", weekday, err)
 		}
-		row := &careplan.PickupSchedule{StudentID: studentID, Weekday: weekday, PickupTime: calendar.NormalizeWallClock(clock), CreatedBy: staffID}
+		row := &careplan.PickupSchedule{StudentID: studentID, Weekday: weekday, PickupTime: clock, CreatedBy: staffID}
 		if err := s.Pickups.UpsertStudentPickupSchedule(ctx, row); err != nil {
 			return fmt.Errorf("apply pickup weekday %d: %w", weekday, err)
 		}
 	}
 	return nil
+}
+
+// parseWallClock reads an HH:MM value as a wall-clock time for a TIME column.
+func parseWallClock(hhmm string) (time.Time, error) {
+	clock, err := time.Parse("15:04", hhmm)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return calendar.NormalizeWallClock(clock), nil
 }
