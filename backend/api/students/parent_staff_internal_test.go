@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 
@@ -50,7 +49,7 @@ func newStaffNotesResource(db *bun.DB) *Resource {
 			StudentRepo:      rf.Student,
 		}),
 		StudentService:          usersSvc.NewStudentService(repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)), repositories.MustNewPeopleDirectory(db), rf.Student),
-		CompanionService:        carelifecycle.NewStudentCompanionService(rf.Student, repositories.NewStudentCompanionRepository(rf.CarePlan), nil),
+		CompanionService:        repositories.MustNewStudentCompanions(rf.CarePlan, rf.Student, repositories.MustNewPeopleDirectory(db), nil),
 		StudentStatusDayService: activeSvc.NewStudentStatusDayServiceWithPartialAbsences(rf.StudentStatusDay, nil, nil, rf.CarePlan.LockExceptionDay),
 		Logger:                  slog.Default(),
 		DB:                      db,

@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
@@ -104,7 +103,7 @@ func (rs *Resource) getStudentChangeHistory(w http.ResponseWriter, r *http.Reque
 
 	entries := make([]changeHistoryEntry, 0, len(edits))
 	for _, e := range edits {
-		if !canSeeChangeHistoryEntry(e.FieldName, userPermissions) {
+		if !rs.canSeeChangeHistoryEntry(e.FieldName, userPermissions) {
 			continue
 		}
 		entries = append(entries, changeHistoryEntry{
@@ -127,15 +126,18 @@ func (rs *Resource) getStudentChangeHistory(w http.ResponseWriter, r *http.Reque
 // A row whose category cannot be determined (the categoryless form written
 // before the category moved into the field name) is shown only to a caller who
 // may see every category — an unreadable label must not default to visible.
-func canSeeChangeHistoryEntry(fieldName string, userPermissions []string) bool {
+func (rs *Resource) canSeeChangeHistoryEntry(fieldName string, userPermissions []string) bool {
 	if !auditModels.IsStudentDocumentField(fieldName) {
 		return true
 	}
+	if rs.StudentDocumentService == nil {
+		return false
+	}
 	category := auditModels.StudentDocumentCategoryFromField(fieldName)
 	if category == "" {
-		return carelifecycle.CanSeeEveryStudentDocumentCategory(userPermissions)
+		return rs.StudentDocumentService.CanSeeEveryStudentDocumentCategory(userPermissions)
 	}
-	return carelifecycle.CanSeeStudentDocumentCategory(category, userPermissions)
+	return rs.StudentDocumentService.CanSeeStudentDocumentCategory(category, userPermissions)
 }
 
 func derefOrEmpty(p *string) string {

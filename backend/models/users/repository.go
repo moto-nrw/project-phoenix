@@ -99,10 +99,6 @@ type StudentRepository interface {
 	// ListSchoolClasses retrieves all distinct non-empty school classes.
 	ListSchoolClasses(ctx context.Context) ([]string, error)
 
-	// ListIDs retrieves lightweight tenant-scoped candidates. The shared dated
-	// participation evaluator, not a lifecycle status, decides visibility.
-	ListIDs(ctx context.Context) ([]int64, error)
-
 	// FindBirthdaysOn returns the non-graduated children whose birthday falls
 	// on one of the given annually recurring days (#1542). Children without a
 	// stored birth date are omitted, never rendered as an unknown date.
@@ -181,13 +177,6 @@ type StudentRepository interface {
 	// without a "mit wem" detail, and nil when no batch is open. Callers that
 	// opened a batch MUST call this before committing.
 	VerifyCompanionStrandingBatch(ctx context.Context) error
-
-	// FindByIDForUpdateNoWait is FindByIDForUpdate that fails immediately
-	// (PostgreSQL 55P03) instead of waiting when the row is already locked.
-	// Used only where waiting would invert the ascending-id order every
-	// companion writer follows and could therefore deadlock — see the
-	// lock protocol in api/students and StudentRepository.lockCompanionFarEnds.
-	FindByIDForUpdateNoWait(ctx context.Context, id int64) (*Student, error)
 
 	// FindByIDsForUpdate fetches and locks the given student rows in one
 	// SELECT … ORDER BY id FOR UPDATE (the project-wide ascending-id lock
@@ -461,15 +450,10 @@ type StudentCompanionRepository interface {
 	// ListForStudent returns every edge touching the student, all weekdays.
 	ListForStudent(ctx context.Context, studentID int64) ([]*StudentCompanion, error)
 
-	// ListLinksForStudent returns the edges folded per companion, with names.
-	ListLinksForStudent(ctx context.Context, studentID int64) ([]CompanionLink, error)
-
-	// ListLinksForStudents is the bulk form of ListLinksForStudent, for the
-	// offline lists that render the "mit wem" detail of a whole school.
+	// ListLinksForStudents returns the edges folded per companion, with
+	// names, for the offline lists that render the "mit wem" detail of a
+	// whole school.
 	ListLinksForStudents(ctx context.Context, studentIDs []int64) (map[int64][]CompanionLink, error)
-
-	// ReplaceForStudent makes the given edges the student's complete set.
-	ReplaceForStudent(ctx context.Context, studentID int64, edges []*StudentCompanion) error
 
 	// CompanionIDsForWeekday bulk-resolves companions for one weekday.
 	CompanionIDsForWeekday(ctx context.Context, studentIDs []int64, weekday int) (map[int64][]int64, error)

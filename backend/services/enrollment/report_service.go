@@ -22,7 +22,6 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
@@ -329,7 +328,7 @@ type ClassListEntryReader interface {
 // by CareLifecycleService. Keeping the narrow interface here avoids teaching
 // enrollment reports about withdrawal states.
 type CareParticipationResolver interface {
-	ResolveListParticipation(ctx context.Context, studentIDs []int64, on, today timezone.Date, includePending bool) (*carelifecycle.CareParticipationResolution, error)
+	ResolveListParticipation(ctx context.Context, studentIDs []int64, on, today timezone.Date, includePending bool) (*careplan.CareParticipationResolution, error)
 }
 
 type reportService struct {

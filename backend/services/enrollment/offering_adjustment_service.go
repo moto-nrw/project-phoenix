@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -480,7 +481,7 @@ func (s *decisionService) reconcileOfferingAdjustmentWithdrawal(
 	if s.CareWithdrawal == nil {
 		return nil
 	}
-	err := s.CareWithdrawal.ReconcileAuthoritativeBookingChange(ctx, users.CareWithdrawalBookingChange{
+	err := s.CareWithdrawal.ReconcileAuthoritativeBookingChange(ctx, careplan.CareWithdrawalBookingChange{
 		StudentID: *work.child.CreatedStudentID, FirstBookinglessDay: work.selectionDate,
 		WasCompleteWithdrawal: work.isCompleteWithdrawal,
 		SourceAdjustmentID:    entry.ID, SourceRequestChildID: work.child.ID, ConfirmedBy: work.input.ActorAccountID,
@@ -537,8 +538,8 @@ func capOfferingReplacementAtCareEnd(
 func careExitSourceOfferingsFromLinks(
 	links []*RequestChildOffering,
 	offerings map[int64]*enrollmentModels.CareOffering,
-) []users.CareExitSourceOffering {
-	result := make([]users.CareExitSourceOffering, 0, len(links))
+) []careplan.CareExitSourceOffering {
+	result := make([]careplan.CareExitSourceOffering, 0, len(links))
 	for _, link := range links {
 		if link == nil {
 			continue
@@ -551,7 +552,7 @@ func careExitSourceOfferingsFromLinks(
 		if offering.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeFixed && len(days) == 0 {
 			days = offering.AvailableDays
 		}
-		result = append(result, users.CareExitSourceOffering{Name: offering.Name, Days: copyDays(days)})
+		result = append(result, careplan.CareExitSourceOffering{Name: offering.Name, Days: copyDays(days)})
 	}
 	return result
 }

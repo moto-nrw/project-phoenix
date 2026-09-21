@@ -1775,7 +1775,7 @@
     {
       "scope": "test",
       "file": "database/repositories/users/student_companion_repository_test.go",
-      "declaration": "TestStudentCompanionRepository_ListLinksForStudent",
+      "declaration": "TestStudentCompanionRepository_ListLinksFoldsWeekdays",
       "target": "database/repositories.NewFactory",
       "lines": [
         298
@@ -1788,7 +1788,7 @@
       "declaration": "TestStudentCompanionRepository_ListLinksForStudents",
       "target": "database/repositories.NewFactory",
       "lines": [
-        345
+        346
       ],
       "tables": []
     },
@@ -1881,106 +1881,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         505
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/student_document_test.go",
-      "declaration": "TestStudentDocumentRepository_CleanupIntentLifecycle",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        148
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/student_document_test.go",
-      "declaration": "TestStudentDocumentRepository_CleanupSweepIsBounded",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        357
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/student_document_test.go",
-      "declaration": "TestStudentDocumentRepository_CreateAndList",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        48
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/student_document_test.go",
-      "declaration": "TestStudentDocumentRepository_CreateRejectsInvalidRow",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        203
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/student_document_test.go",
-      "declaration": "TestStudentDocumentRepository_FindForOwnerRejectsForeignStudent",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        85
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/student_document_test.go",
-      "declaration": "TestStudentDocumentRepository_FindIncludingDeletedFeedsCleanupRetry",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        224
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/student_document_test.go",
-      "declaration": "TestStudentDocumentRepository_PendingCleanupCoversLiveAndDeletedRows",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        258
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/student_document_test.go",
-      "declaration": "TestStudentDocumentRepository_QueuedCleanupsAreScopedAndSettleable",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        301
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/student_document_test.go",
-      "declaration": "TestStudentDocumentRepository_RequestRetryIsBounded",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        387
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/student_document_test.go",
-      "declaration": "TestStudentDocumentRepository_SoftDeleteHidesRowButKeepsIt",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        109
       ],
       "tables": []
     },
@@ -3080,7 +2980,7 @@
       "declaration": "TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3984
+        3978
       ],
       "tables": []
     },
@@ -4584,14 +4484,14 @@
       "declaration": "careWithdrawals",
       "target": "database/repositories.NewFactory",
       "lines": [
-        60
+        67
       ],
       "tables": []
     },
     {
       "scope": "test",
       "file": "services/users/student_deletion_workflow_test.go",
-      "declaration": "newCompanionTestService",
+      "declaration": "companionLinks",
       "target": "database/repositories.NewFactory",
       "lines": [
         47
@@ -4604,7 +4504,7 @@
       "declaration": "newDeletionFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        81
+        88
       ],
       "tables": []
     },
@@ -4614,7 +4514,7 @@
       "declaration": "studentPlans",
       "target": "database/repositories.NewFactory",
       "lines": [
-        54
+        61
       ],
       "tables": []
     },
@@ -21033,12 +20933,12 @@
         },
         {
           "file": "services/factory.go",
-          "line": 460,
+          "line": 459,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 510,
+          "line": 509,
           "declaration": "newFactory"
         },
         {

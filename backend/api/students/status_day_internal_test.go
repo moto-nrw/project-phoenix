@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
@@ -704,7 +703,7 @@ func newStatusDayTestResource(db *bun.DB, clocks ...func() time.Time) *Resource 
 			StudentRepo:      repoFactory.Student,
 		}),
 		StudentService:          usersSvc.NewStudentService(repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)), repositories.MustNewPeopleDirectory(db), repoFactory.Student),
-		CompanionService:        carelifecycle.NewStudentCompanionService(repoFactory.Student, repositories.NewStudentCompanionRepository(repoFactory.CarePlan), nil),
+		CompanionService:        repositories.MustNewStudentCompanions(repoFactory.CarePlan, repoFactory.Student, repositories.MustNewPeopleDirectory(db), nil),
 		StudentStatusDayService: activeService.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil, repoFactory.CarePlan.LockExceptionDay, clock),
 		Logger:                  slog.Default(),
 		Now:                     clock,

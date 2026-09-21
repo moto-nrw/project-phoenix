@@ -370,40 +370,6 @@ func (s *Store) ListPendingWithdrawalBoundaries(ctx context.Context, studentIDs 
 	return result, stats, nil
 }
 
-// ListWithdrawalCompletionKeys returns the distinct (child, first bookingless
-// day) keys of every task, in any state, that names one of the children.
-func (s *Store) ListWithdrawalCompletionKeys(ctx context.Context, studentIDs []int64) ([]domain.WithdrawalCompletionKey, domain.OperationStats, error) {
-	if len(studentIDs) == 0 {
-		return []domain.WithdrawalCompletionKey{}, domain.OperationStats{}, nil
-	}
-	db, tenantID, err := s.database(ctx)
-	if err != nil {
-		return nil, domain.OperationStats{}, err
-	}
-	var rows []struct {
-		StudentID           int64        `bun:"student_id"`
-		FirstBookinglessDay calendarDate `bun:"first_bookingless_day"`
-	}
-	stats := domain.OperationStats{Queries: 1}
-	started := time.Now()
-	err = db.NewSelect().
-		TableExpr(tableExprWithdrawalCompletions).
-		ColumnExpr(`DISTINCT "care_withdrawal_completion".student_id, "care_withdrawal_completion".first_bookingless_day`).
-		Where(`"care_withdrawal_completion".tenant_id = ?`, tenantID).
-		Where(`"care_withdrawal_completion".student_id IN (?)`, bun.List(studentIDs)).
-		Scan(ctx, &rows)
-	stats.StatementDuration = time.Since(started)
-	if err != nil {
-		return nil, stats, fmt.Errorf("care plan postgres: list care withdrawal completion keys: %w", err)
-	}
-	stats.Rows = int64(len(rows))
-	keys := make([]domain.WithdrawalCompletionKey, 0, len(rows))
-	for _, row := range rows {
-		keys = append(keys, domain.WithdrawalCompletionKey{StudentID: row.StudentID, FirstBookinglessDay: careplan.Date(row.FirstBookinglessDay)})
-	}
-	return keys, stats, nil
-}
-
 // ResolveWithdrawal is a guarded pending-to-resolved transition; exactly one
 // open event wins.
 func (s *Store) ResolveWithdrawal(ctx context.Context, id, actorAccountID int64, at time.Time) (bool, domain.OperationStats, error) {

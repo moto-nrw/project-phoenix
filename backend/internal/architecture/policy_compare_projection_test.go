@@ -195,6 +195,10 @@ func studentProjectionPolicy(t *testing.T) *Policy {
 		t.Fatal(err)
 	}
 	p.PolicyEpoch = 15
+	// #3427 retired the care-exit projection owner from the repository policy.
+	if !slices.ContainsFunc(p.Owners, func(owner Owner) bool { return owner.ID == "care-exit-view" }) {
+		p.Owners = append(p.Owners, Owner{ID: "care-exit-view", Kind: "projection"})
+	}
 	p.Packages = nil
 	p.ReadProjections = nil
 	p.Rules = []Rule{}

@@ -57,36 +57,32 @@ import (
 // care-exit, companion and care-document code out of services/users into the
 // new subtree modules/careplan/legacy/carelifecycle, so the numbers below are
 // the merged state rather than a raised budget.
+// #3427 dissolved modules/careplan/legacy entirely (5,278 LOC, the
+// carelifecycle subtree and the careexitview projection) into native Care
+// Plan, Timetable and the student directory projection; its entry is gone.
 // Re-measure the same way when a number needs to move — downwards.
 const moduleLegacyBudgetCheck = "legacy LOC budget"
 
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 69161
+const moduleLegacyBudgetTotal = 63883
 
 // moduleLegacyBudgets maps a legacy tree to its production LOC on 2026-09-18.
 // The comment on each entry names the ticket that is supposed to dissolve the
 // tree; "no ticket today" is the measurement, not an omission — those trees
 // have no owner and no plan, which is precisely what this ratchet exposes.
 var moduleLegacyBudgets = map[string]int{
-	// #3351 dissolved the careschedule subtree and #3410 the root package
-	// (874 LOC); the remainder of this tree has no ticket today. Grew by 5,284 LOC when
-	// PR #3408 (#3350) moved the care-exit, companion and care-document code
-	// out of services/users into the new subtree carelifecycle — the tree is
-	// counted recursively from its topmost legacy directory, so carelifecycle
-	// lands in this entry and gets none of its own. No open ticket carries its
-	// dissolution.
-	"modules/careplan/legacy": 5277,
 	// No ticket today.
 	"modules/devicefleet/compose/legacy": 231,
 	// No ticket today.
 	"modules/emergencysnapshot/legacy": 319,
 	// No ticket today.
 	"modules/facilities/compose/legacy": 518,
-	// No ticket today. One line more than at the first seed: PR #3408 (#3350)
-	// added the carelifecycle import to legacy.go.
-	"modules/grouplive/legacy": 583,
+	// No ticket today. Two lines under the first seed: #3427 removed the
+	// carelifecycle import PR #3408 (#3350) had added to legacy.go, and #3501
+	// replaced the user-context service with a local CallerContext port.
+	"modules/grouplive/legacy": 582,
 	// #3226 (auth/jwt + repositories move). The usercontext read side (#2725)
 	// dissolved into the Identity & Access caller context with #3501; its
 	// request memo slot stayed in the session adapter (legacy/jwt).

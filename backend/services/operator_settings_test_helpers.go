@@ -3,7 +3,7 @@ package services
 import (
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
@@ -13,7 +13,7 @@ import (
 
 type OperatorSettingsTestModule struct {
 	ActiveTestModule
-	CareLifecycle       carelifecycle.CareLifecycleService
+	CareLifecycle       careplan.CareLifecycle
 	SettingsSideEffects *sideeffects.Registry
 }
 
@@ -29,6 +29,6 @@ func NewOperatorSettingsTestModule(db *bun.DB, unit tenant.UnitOfWork) (Operator
 	registry := sideeffects.NewRegistry()
 	wc := facilities.NewWCService(active.Facilities, facilitiesLegacy.ActivityCatalog(active.Activities), slog.Default())
 	facilitiesLegacy.RegisterSettingsSideEffects(registry, active.Schulhof, wc)
-	carelifecycle.RegisterCareWithdrawalSettingsSideEffects(registry, care.CareLifecycle)
+	registerCareWithdrawalSettingsSideEffects(registry, care.CareLifecycle)
 	return OperatorSettingsTestModule{ActiveTestModule: active, CareLifecycle: care.CareLifecycle, SettingsSideEffects: registry}, nil
 }

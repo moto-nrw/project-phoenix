@@ -65,7 +65,7 @@ func TestStudentRepository_Update_TrimsCompanionEdgesToPlan(t *testing.T) {
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon", "tue")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon", "tue")
-	require.NoError(t, repositories.NewStudentCompanionRepository(factory.CarePlan()).ReplaceForStudent(ctx, subject.ID, []*users.StudentCompanion{
+	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repositories.NewStudentCompanionRepository(factory.CarePlan()), subject.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, subject.ID, companion.ID, 1),
 		newCompanionEdge(t, subject.ID, companion.ID, 2),
 	}))
@@ -109,7 +109,7 @@ func TestStudentRepository_Update_DropsAllEdgesWhenPlanLosesAccompanied(t *testi
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon")
-	require.NoError(t, repositories.NewStudentCompanionRepository(factory.CarePlan()).ReplaceForStudent(ctx, subject.ID, []*users.StudentCompanion{
+	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repositories.NewStudentCompanionRepository(factory.CarePlan()), subject.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, subject.ID, companion.ID, 1),
 	}))
 
@@ -144,7 +144,7 @@ func TestStudentRepository_Update_RefusesStrandingCompanionWeekday(t *testing.T)
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon", "tue")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon", "tue")
-	require.NoError(t, repositories.NewStudentCompanionRepository(factory.CarePlan()).ReplaceForStudent(ctx, subject.ID, []*users.StudentCompanion{
+	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repositories.NewStudentCompanionRepository(factory.CarePlan()), subject.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, subject.ID, companion.ID, 1),
 		newCompanionEdge(t, subject.ID, companion.ID, 2),
 	}))
@@ -187,7 +187,7 @@ func TestStudentRepository_Update_BatchAllowsCoordinatedCompanionRemoval(t *test
 
 	giveAccompaniedPlan(t, db, ctx, first.ID, "mon")
 	giveAccompaniedPlan(t, db, ctx, second.ID, "mon")
-	require.NoError(t, repositories.NewStudentCompanionRepository(factory.CarePlan()).ReplaceForStudent(ctx, first.ID, []*users.StudentCompanion{
+	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repositories.NewStudentCompanionRepository(factory.CarePlan()), first.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, first.ID, second.ID, 1),
 	}))
 	// Neither child has any other "mit wem" detail than the shared edge.
@@ -231,7 +231,7 @@ func TestStudentRepository_Update_BatchStillRefusesStrandingCompanion(t *testing
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon")
-	require.NoError(t, repositories.NewStudentCompanionRepository(factory.CarePlan()).ReplaceForStudent(ctx, subject.ID, []*users.StudentCompanion{
+	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repositories.NewStudentCompanionRepository(factory.CarePlan()), subject.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, subject.ID, companion.ID, 1),
 	}))
 	// The companion keeps its accompanied Monday, answered ONLY by the link.
@@ -268,7 +268,7 @@ func TestStudentRepository_Update_RefusesStrandingCompanion(t *testing.T) {
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon")
-	require.NoError(t, repositories.NewStudentCompanionRepository(factory.CarePlan()).ReplaceForStudent(ctx, subject.ID, []*users.StudentCompanion{
+	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repositories.NewStudentCompanionRepository(factory.CarePlan()), subject.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, subject.ID, companion.ID, 1),
 	}))
 	// The companion's "mit wem" is now answered ONLY by the link.

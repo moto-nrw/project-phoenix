@@ -46,8 +46,9 @@ func (r StudentTagReleaser) ReleaseStudentTagsByIDs(ctx context.Context, student
 	return result, nil
 }
 
-// StudentTagReleaser exposes the bound People Directory's bracelet release
-// to the care lifecycle; it adds no repository to the legacy graph.
-func (f *Factory) StudentTagReleaser() StudentTagReleaser {
-	return NewStudentTagReleaser(f.students)
+// ReleaseStudentTags frees the bracelets of children whose care ended and
+// reports how many it released: the care lifecycle's tag port.
+func (r StudentTagReleaser) ReleaseStudentTags(ctx context.Context, studentIDs []int64) (int, error) {
+	released, err := r.ReleaseStudentTagsByIDs(ctx, studentIDs)
+	return len(released), err
 }

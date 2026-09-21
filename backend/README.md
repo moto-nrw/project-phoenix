@@ -44,7 +44,7 @@ scripts/backend-architecture.sh audit-issues --api-url https://api.github.com
 scripts/backend-architecture.sh explain --scope production --source <package> --target <package>
 scripts/backend-architecture.sh diagram
 scripts/backend-architecture.sh dependencies --focus module:timetable-activities
-scripts/backend-architecture.sh dependencies --focus package:modules/careplan/legacy/carelifecycle
+scripts/backend-architecture.sh dependencies --focus package:modules/careplan
 ```
 
 `check` evaluates the strict target policy in `architecture/policy.json`,
