@@ -93,7 +93,7 @@ func NewMailer(cfg MailerConfig) (Mailer, error) {
 		templates:   templates,
 		logger:      logger,
 	}
-	return s, nil
+	return RestrictToDemoMails(s, appEnv, logger), nil
 }
 
 // buildMessage turns a Message into the go-mail message that goes on the

@@ -10,17 +10,13 @@ import (
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 )
 
-// standingDemoSchoolSlug is the school every demo access enters until a
-// prospect gets a demo school of its own. `go run . demo` provisions it.
-const standingDemoSchoolSlug = "messe-demo"
-
 // mountDemoAccess adds the public demo routes (#3462); they exist under
-// APP_ENV=demo only, and only there the entry origin must resolve.
+// APP_ENV=demo only, and only there the entry origins must resolve.
 func mountDemoAccess(router chi.Router, accesses authAPI.DemoAccesses, appEnv, frontendURL, tenantDomain string) error {
-	entryBase, err := demoEntryBase(frontendURL, tenantDomain)
+	origins, err := demoOrigins(frontendURL, tenantDomain)
 	if err != nil {
-		// Outside the demo environment the origin is never used.
-		entryBase = ""
+		// Outside the demo environment the origins are never used.
+		origins = authAPI.DemoOrigins{}
 	}
 	compose := func() (authAPI.DemoAccesses, error) {
 		if accesses == nil {
@@ -28,20 +24,27 @@ func mountDemoAccess(router chi.Router, accesses authAPI.DemoAccesses, appEnv, f
 		}
 		return accesses, nil
 	}
-	return authAPI.MountDemoRoutes(router, appEnv, compose, standingDemoSchoolSlug, entryBase)
+	return authAPI.MountDemoRoutes(router, appEnv, compose, origins)
 }
 
-// demoEntryBase is the demo school's origin: the scheme of FRONTEND_URL and
-// the school's subdomain under TENANT_DOMAIN.
-func demoEntryBase(frontendURL, tenantDomain string) (string, error) {
+// demoOrigins yields where a prospect waits and where the demo school lives
+// (#3463). The school's origin is the scheme of FRONTEND_URL and the school's
+// subdomain under TENANT_DOMAIN; it resolves only once the school is seeded.
+// Until then the prospect waits at FRONTEND_URL itself.
+func demoOrigins(frontendURL, tenantDomain string) (authAPI.DemoOrigins, error) {
 	parsed, err := url.Parse(frontendURL)
 	tenantDomain = strings.TrimSpace(tenantDomain)
-	if err != nil || parsed.Scheme == "" || tenantDomain == "" {
-		return "", fmt.Errorf("the demo routes require FRONTEND_URL and TENANT_DOMAIN")
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" || tenantDomain == "" {
+		return authAPI.DemoOrigins{}, fmt.Errorf("the demo routes require FRONTEND_URL and TENANT_DOMAIN")
 	}
-	host := standingDemoSchoolSlug + "." + tenantDomain
-	if port := parsed.Port(); port != "" {
-		host = net.JoinHostPort(host, port)
-	}
-	return parsed.Scheme + "://" + host, nil
+	return authAPI.DemoOrigins{
+		Waiting: parsed.Scheme + "://" + parsed.Host,
+		School: func(schoolSlug string) string {
+			host := schoolSlug + "." + tenantDomain
+			if port := parsed.Port(); port != "" {
+				host = net.JoinHostPort(host, port)
+			}
+			return parsed.Scheme + "://" + host
+		},
+	}, nil
 }
