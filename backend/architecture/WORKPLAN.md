@@ -4,7 +4,7 @@ Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes s
 `gh issue list --search "2580 in:body" --state closed`.
 
 Stand 21.09.2026 · Ratchet 681 · Composition 638 · Policy-Epoche 19 · 346 Regeln mit
-`convert it to exact debt` · 86.664 LOC unter `modules/*/legacy`
+`convert it to exact debt` · 80.783 LOC unter `modules/*/legacy`
 
 Summenprobe: 252 + 61 + 93 + 43 + 28 + 19 + 185 = 681 = `wc -l backend/architecture/legacy.jsonl`.
 Geht sie nicht auf, ist eine Zeile hier veraltet.
@@ -26,14 +26,14 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [ ] [#2727](https://github.com/moto-nrw/project-phoenix/issues/2727) database/repositories/users — 15
 - [ ] [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) models/users — 9
 
-## Legacy-Nester auflösen · 86.664 LOC, 0 Keys
+## Legacy-Nester auflösen · 80.783 LOC, 0 Keys
 
 - [ ] [#3424](https://github.com/moto-nrw/project-phoenix/issues/3424) `modules/timetable/legacy/timetableplanning` — 23.300 LOC, blockt #2732
 - [ ] [#3422](https://github.com/moto-nrw/project-phoenix/issues/3422) `modules/studentpresence/legacy` — 13.969 LOC
 - [ ] [#3413](https://github.com/moto-nrw/project-phoenix/issues/3413) `modules/workforce/legacy/timetracking` — 13.511 LOC
-- [ ] [#3420](https://github.com/moto-nrw/project-phoenix/issues/3420) `workflows/parentportal/legacy` — 5.924 LOC, blockiert durch #3351
 - [ ] [#3418](https://github.com/moto-nrw/project-phoenix/issues/3418) `modules/workforce/legacy/shiftplanning` — 5.336 LOC, blockt #2747, #2750
 - [ ] [#3427](https://github.com/moto-nrw/project-phoenix/issues/3427) `modules/careplan/legacy/carelifecycle` — 4.902 LOC, neu durch #3350 am 18.09., teilt `careexitview` mit #3432
+- [x] [#3420](https://github.com/moto-nrw/project-phoenix/issues/3420) `workflows/parentportal/legacy` aufgelöst — 5.881 LOC, 46 Kompatibilitätsregeln weg, Schreibpfade als Owner-Commands (Care Plan, People Directory, Audit Platform); offen: Announcement-Quittungen in `messaging` (Communication)
 - [x] [#3410](https://github.com/moto-nrw/project-phoenix/issues/3410) `modules/careplan/legacy` Wurzelpaket aufgelöst — 874 LOC, 15 Keys weniger (644 → 629)
 
 ## Schuld sichtbar machen · 346 Regeln

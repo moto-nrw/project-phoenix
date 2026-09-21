@@ -15,7 +15,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // ParentProfileResponse carries the explicit parents-portal locale choice.

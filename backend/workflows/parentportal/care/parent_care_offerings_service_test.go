@@ -236,7 +236,6 @@ func careOfferingsService(
 		RequestSharing: unconfiguredRequestSharer{},
 		ChildRepo:      careOfferingsChildRepoStub{child: child},
 		StudentRepo:    careOfferingsStudentRepoStub{},
-		DB:             db,
 		Logger:         slog.Default(),
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)

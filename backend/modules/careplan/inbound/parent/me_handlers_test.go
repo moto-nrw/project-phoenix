@@ -24,10 +24,10 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
-// fakeParentService implements parentService.Service. Only the profile methods
+// fakeParentService implements PortalService. Only the profile methods
 // carry behaviour; the rest satisfy the interface for the handler tests.
 type fakeParentService struct {
 	getProfile    *parentService.Profile
