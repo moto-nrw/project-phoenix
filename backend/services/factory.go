@@ -1667,7 +1667,7 @@ func newFactory(
 			},
 		},
 		operators:  operatorDependencies,
-		demoAccess: appEnv == "demo",
+		demoAccess: strings.EqualFold(strings.TrimSpace(appEnv), "demo"),
 		operatorLinks: &operatorLinkWiring{
 			dispatcher: dispatcher, defaultFrom: defaultFrom,
 			frontendURL: frontendURL, operatorFrontendURL: operatorFrontendURL,

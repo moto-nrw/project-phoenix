@@ -53,3 +53,11 @@ func TestDemoRoutesAnswerTheWebsitesPreflight(t *testing.T) {
 	router.ServeHTTP(rr, req)
 	assert.Empty(t, rr.Header().Get("Access-Control-Allow-Origin"))
 }
+
+// A demo environment whose capability was not composed must not start; any
+// other environment mounts nothing and needs none.
+func TestDemoMountFailsWithoutTheCapability(t *testing.T) {
+	t.Parallel()
+	assert.Error(t, mountDemoAccess(chi.NewRouter(), nil, " Demo ", "https://demo.example", "demo.example"))
+	assert.NoError(t, mountDemoAccess(chi.NewRouter(), nil, "production", "https://demo.example", "demo.example"))
+}

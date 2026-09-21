@@ -21,6 +21,15 @@ type DemoAccesses interface {
 	RedeemDemoAccess(ctx context.Context, token, schoolSlug, ipAddress, userAgent string) (string, string, error)
 }
 
+// ComposedDemoAccess keeps a capability that was not composed a nil
+// interface, so the demo mount fails startup instead of serving it.
+func ComposedDemoAccess(capability *identityaccess.DemoAccess) DemoAccesses {
+	if capability == nil {
+		return nil
+	}
+	return capability
+}
+
 // DemoResource serves the public demo routes. The root mounts it in the demo
 // environment only. The token travels in request bodies and the
 // Authorization header, never in a URL, so no access log records it.
