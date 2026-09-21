@@ -79,7 +79,7 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 		Bookings:         requestTestBookingCommands(),
 		Requests:         repoFactory.Enrollment(),
 		Children:         repoFactory.Enrollment(),
-		CareOfferingRepo: repoFactory.CareOffering,
+		CareOfferingRepo: enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
 		Catalog:          repoFactory.Enrollment(),
 		SchoolRepo:       factorySchools{repos: repoFactory},
 		RateLimitRepo:    repoFactory.Enrollment(),
@@ -92,7 +92,7 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	})
 
 	careOfferingSvc := enrollmentService.NewCareOfferingService(enrollmentService.CareOfferingServiceConfig{
-		Repo:                  repoFactory.CareOffering,
+		Repo:                  enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
 		Bookings:              repoFactory.Enrollment(),
 		ActivityGroupRepo:     repoFactory.ActivityGroup,
 		ActivityScheduleRepo:  repoFactory.ActivitySchedule,

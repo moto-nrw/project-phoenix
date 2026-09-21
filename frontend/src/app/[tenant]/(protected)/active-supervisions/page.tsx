@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense, useMemo, useCallback } from "react";
-import { LogOut, UserPlus } from "lucide-react";
+import { UserPlus } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { redirect } from "next/navigation";
@@ -277,7 +277,6 @@ function MeinRaumPageContent() {
       : [];
   const supervisionSummary = supervisionName
     ? [
-        ...(currentOpenRoom ? [] : [supervisionName]),
         `${supervisionCount} ${supervisionCount === 1 ? "Kind" : "Kinder"}`,
         ...(openRoomSupervisorNames.length > 0
           ? [`Aktuelle Aufsicht: ${openRoomSupervisorNames.join(", ")}`]
@@ -318,17 +317,17 @@ function MeinRaumPageContent() {
       : undefined;
 
   // Die Aufsicht abgeben kann nur, wer den Schulhof gerade beaufsichtigt;
-  // sonst steht an derselben Stelle „Beaufsichtigen".
+  // sonst steht an derselben Stelle „Beaufsichtigen". Beide Knöpfe tragen
+  // dasselbe neutrale Gewicht: neben den Abzeichen dominierte der rote Knopf
+  // den Kopf, und das Abgeben bestätigt ohnehin erst das Modal (#3312).
   const releaseAction =
     isSchulhofOpenRoom && schulhofStatus?.isUserSupervising ? (
       <Button
         type="button"
-        variant="outline_danger"
+        variant="outline"
         size="md"
         onClick={() => schulhof.setShowReleaseModal(true)}
-        className="gap-2"
       >
-        <LogOut className="h-4 w-4" aria-hidden="true" />
         Aufsicht abgeben
       </Button>
     ) : undefined;
@@ -382,6 +381,7 @@ function MeinRaumPageContent() {
       variant="outline"
       size="md"
       onClick={() => setAddSupervisorTarget(additionalSupervisionActiveGroupId)}
+      className="gap-2"
     >
       <UserPlus className="h-4 w-4" aria-hidden="true" />
       Betreuer hinzufügen
@@ -531,10 +531,10 @@ function MeinRaumPageContent() {
 
   return (
     <TenantPage
-      // Bei offenen Räumen ist der Raum das Objekt der Seite. Die
-      // Breadcrumb bleibt „Aktuelle Aufsicht > Raum“, der Seitentitel nennt
-      // deshalb nur noch den Raum statt die Aufsicht ein zweites Mal.
-      title={currentOpenRoom?.name ?? "Aktuelle Aufsicht"}
+      // Der offene Raum oder die eigene Aufsicht ist das Objekt der Seite.
+      // Die Breadcrumb bleibt „Aktuelle Aufsicht > Name“, der Seitentitel
+      // nennt deshalb nur den Namen statt die Aufsicht ein zweites Mal (#3312).
+      title={supervisionName ?? "Aktuelle Aufsicht"}
       stats={supervisionSummary}
       actions={
         hasHeadActions ? (

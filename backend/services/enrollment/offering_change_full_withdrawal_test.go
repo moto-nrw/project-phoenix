@@ -35,7 +35,7 @@ func TestOfferingChangeRequestService_Create_RequiresAndAuditsCompleteWithdrawal
 
 	_, err := svc.Create(offeringChangeAdminContext(t), input)
 	require.ErrorIs(t, err, enrollmentService.ErrCompleteWithdrawalConfirmationRequired)
-	pending, err := env.repos.OfferingChangeRequest.GetPendingForStudent(testpkg.Ctx(t), fx.studentID)
+	pending, err := enrollmentService.NewOfferingChangeRepository(env.repos.CarePlan(), nil).GetPendingForStudent(testpkg.Ctx(t), fx.studentID)
 	require.NoError(t, err)
 	assert.Nil(t, pending, "the first unconfirmed attempt must not store a request")
 
@@ -62,7 +62,7 @@ func TestDirectOfferingAdjustment_PreviewRejectsCompleteWithdrawalWhenBookingsAr
 	env.sourcePhase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionAtLeastOne
 	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.sourcePhase)))
 	fx.oldOffering.IsRequired = true
-	require.NoError(t, env.repos.CareOffering.Update(ctx, fx.oldOffering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Update(ctx, fx.oldOffering))
 
 	_, err := direct.PreviewDirectOfferingAdjustment(ctx, enrollmentService.DirectOfferingAdjustmentInput{
 		StudentID: fx.studentID, EffectiveFrom: fx.switchDate, Selections: []enrollmentService.OfferingChangeSelection{},
@@ -91,7 +91,7 @@ func TestOfferingChangeRequestService_Decide_RequiresStaffWithdrawalConfirmation
 	}
 	err = svc.Decide(ctx, decision)
 	require.ErrorIs(t, err, enrollmentService.ErrCompleteWithdrawalConfirmationRequired)
-	stillPending, err := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
+	stillPending, err := enrollmentService.NewOfferingChangeRepository(env.repos.CarePlan(), nil).FindByID(ctx, row.ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, stillPending.Status)
 	pendingCompletions, _, err := env.repos.CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{
@@ -102,7 +102,7 @@ func TestOfferingChangeRequestService_Decide_RequiresStaffWithdrawalConfirmation
 
 	decision.CompleteWithdrawalConfirmed = true
 	require.NoError(t, svc.Decide(ctx, decision))
-	decided, err := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
+	decided, err := enrollmentService.NewOfferingChangeRepository(env.repos.CarePlan(), nil).FindByID(ctx, row.ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.OfferingChangeStatusApproved, decided.Status)
 	pendingCompletions, _, err = env.repos.CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{
@@ -172,7 +172,7 @@ func TestOfferingChangeRequestService_Decide_ReportsAppliedWithdrawalResult(t *t
 	require.NoError(t, svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
 		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID, ActorRole: "admin",
 	}))
-	decided, err := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
+	decided, err := enrollmentService.NewOfferingChangeRepository(env.repos.CarePlan(), nil).FindByID(ctx, row.ID)
 	require.NoError(t, err)
 	assert.True(t, decided.CompleteWithdrawalConfirmed)
 	assert.False(t, decided.ApprovedCompleteWithdrawal)
@@ -218,13 +218,13 @@ func TestOfferingChangeRequestService_Decide_RequiresConfirmationAfterTargetBeco
 	}
 	err = svc.Decide(ctx, decision)
 	require.ErrorIs(t, err, enrollmentService.ErrCompleteWithdrawalConfirmationRequired)
-	stillPending, err := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
+	stillPending, err := enrollmentService.NewOfferingChangeRepository(env.repos.CarePlan(), nil).FindByID(ctx, row.ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, stillPending.Status)
 
 	decision.CompleteWithdrawalConfirmed = true
 	require.NoError(t, svc.Decide(ctx, decision))
-	decided, err := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
+	decided, err := enrollmentService.NewOfferingChangeRepository(env.repos.CarePlan(), nil).FindByID(ctx, row.ID)
 	require.NoError(t, err)
 	assert.True(t, decided.ApprovedCompleteWithdrawal)
 }
@@ -324,7 +324,7 @@ func TestOfferingChangeRequestService_ListPending_MarksRequiredCareWithdrawal(t 
 	env.sourcePhase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionAtLeastOne
 	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.sourcePhase)))
 	fx.oldOffering.IsRequired = true
-	require.NoError(t, env.repos.CareOffering.Update(ctx, fx.oldOffering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Update(ctx, fx.oldOffering))
 
 	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
 		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,

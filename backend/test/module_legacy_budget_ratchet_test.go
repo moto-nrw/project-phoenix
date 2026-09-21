@@ -63,21 +63,21 @@ const moduleLegacyBudgetCheck = "legacy LOC budget"
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 77940
+const moduleLegacyBudgetTotal = 77066
 
 // moduleLegacyBudgets maps a legacy tree to its production LOC on 2026-09-18.
 // The comment on each entry names the ticket that is supposed to dissolve the
 // tree; "no ticket today" is the measurement, not an omission — those trees
 // have no owner and no plan, which is precisely what this ratchet exposes.
 var moduleLegacyBudgets = map[string]int{
-	// #3351 covers the careschedule subtree only and #3410 the root package;
-	// the remainder of this tree has no ticket today. Grew by 5,284 LOC when
+	// #3351 dissolved the careschedule subtree and #3410 the root package
+	// (874 LOC); the remainder of this tree has no ticket today. Grew by 5,284 LOC when
 	// PR #3408 (#3350) moved the care-exit, companion and care-document code
 	// out of services/users into the new subtree carelifecycle — the tree is
 	// counted recursively from its topmost legacy directory, so carelifecycle
 	// lands in this entry and gets none of its own. No open ticket carries its
 	// dissolution.
-	"modules/careplan/legacy": 6152,
+	"modules/careplan/legacy": 5278,
 	// No ticket today.
 	"modules/devicefleet/compose/legacy": 231,
 	// No ticket today.

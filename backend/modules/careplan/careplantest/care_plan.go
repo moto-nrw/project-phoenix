@@ -3,10 +3,8 @@ package careplantest
 import (
 	"context"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/uptrace/bun"
@@ -64,7 +62,7 @@ func NewCarePlan(tb TB, db *bun.DB) careplan.Capability {
 	tb.Helper()
 	students := newStudentDirectory(tb, db)
 	capability, err := carePlanCompose.New(carePlanCompose.Dependencies{
-		DB: db, Observe: func(carePlanCompose.Observation) {}, AmbientDB: carePlanLegacy.NewAmbientDatabase(db),
+		DB: db, Observe: func(carePlanCompose.Observation) {}, AmbientDB: carePlanCompose.TenantAmbientDatabase(db),
 		StatusStudents: newStatusStudentDirectory(db, students), StatusSlots: emptyStatusSlots{},
 		People:      studentNameFinder(students),
 		StudentLock: students.LockStudent, StudentNotFound: peopledirectory.ErrStudentNotFound,
@@ -73,13 +71,6 @@ func NewCarePlan(tb TB, db *bun.DB) careplan.Capability {
 		tb.Fatalf("compose test Care Plan: %v", err)
 	}
 	return capability
-}
-
-// NewCareOfferingRepository exposes the legacy contract over the owner module
-// for integration tests that have not migrated their service seam yet.
-func NewCareOfferingRepository(tb TB, db *bun.DB) enrollmentModels.CareOfferingRepository {
-	tb.Helper()
-	return carePlanLegacy.NewCareOfferingRepository(NewCarePlan(tb, db))
 }
 
 type statusStudentDirectory struct {

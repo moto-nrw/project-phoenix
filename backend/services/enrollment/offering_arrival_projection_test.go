@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
+
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -97,7 +99,7 @@ func createArrivalOffering(t *testing.T, env *decisionTestEnv, name string, days
 		CountsAsCare:   true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, env.repos.CareOffering.Create(testpkg.Ctx(t), offering))
+	require.NoError(t, enrollmentSvc.NewCareOfferingRepository(env.repos.CarePlan()).Create(testpkg.Ctx(t), offering))
 	return offering
 }
 

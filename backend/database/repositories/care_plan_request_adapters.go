@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"time"
 
+	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
@@ -61,7 +61,7 @@ func (r excusedRequestRepository) FindByID(ctx context.Context, raw any) (*activ
 	return excusedRequestFromPublic(value), nil
 }
 
-func (r excusedRequestRepository) ListWithOptions(ctx context.Context, options *carePlanLegacy.ScheduleQueryOptions) ([]*activeModels.ExcusedAbsenceRequest, error) {
+func (r excusedRequestRepository) ListWithOptions(ctx context.Context, options *userModels.QueryOptions) ([]*activeModels.ExcusedAbsenceRequest, error) {
 	values, err := r.capability.ListExcusedAbsenceRequests(ctx, careplan.ExcusedAbsenceRequestFilter{Options: legacyScheduleQueryOptions(options)})
 	return excusedRequestsToLegacy(values), err
 }
@@ -76,12 +76,12 @@ func (r excusedRequestRepository) ListRecentForStudent(ctx context.Context, stud
 	return excusedRequestsToLegacy(values), err
 }
 
-func (r excusedRequestRepository) ListPendingForTenant(ctx context.Context, filters carePlanLegacy.RequestQueueFilters) ([]*activeModels.ExcusedAbsenceRequest, error) {
+func (r excusedRequestRepository) ListPendingForTenant(ctx context.Context, filters userModels.RequestQueueFilters) ([]*activeModels.ExcusedAbsenceRequest, error) {
 	values, err := r.capability.ListExcusedAbsenceRequests(ctx, careplan.ExcusedAbsenceRequestFilter{Statuses: []string{activeModels.ExcusedRequestStatusPending}, Queue: publicQueueFilter(filters)})
 	return excusedRequestsToLegacy(values), err
 }
 
-func (r excusedRequestRepository) ListDecidedForTenant(ctx context.Context, filters carePlanLegacy.RequestQueueFilters) ([]*activeModels.ExcusedAbsenceRequest, error) {
+func (r excusedRequestRepository) ListDecidedForTenant(ctx context.Context, filters userModels.RequestQueueFilters) ([]*activeModels.ExcusedAbsenceRequest, error) {
 	values, err := r.capability.ListExcusedAbsenceRequests(ctx, careplan.ExcusedAbsenceRequestFilter{Statuses: []string{activeModels.ExcusedRequestStatusApproved, activeModels.ExcusedRequestStatusRejected, activeModels.ExcusedRequestStatusWithdrawn}, Queue: publicQueueFilter(filters)})
 	return excusedRequestsToLegacy(values), err
 }
@@ -102,7 +102,7 @@ func (r excusedRequestRepository) FindByIDForUpdate(ctx context.Context, id int6
 	return excusedRequestFromPublic(value), nil
 }
 
-func (r excusedRequestRepository) UpdatePending(ctx context.Context, id int64, dates []carePlanLegacy.ScheduleDate, note, status string) error {
+func (r excusedRequestRepository) UpdatePending(ctx context.Context, id int64, dates []activeModels.Date, note, status string) error {
 	publicDates := make([]careplan.Date, len(dates))
 	for i := range dates {
 		publicDates[i] = careplan.Date(dates[i])
@@ -157,7 +157,7 @@ func (r careScheduleRequestRepository) FindByID(ctx context.Context, raw any) (*
 	}
 	value, err := r.capability.FindCareScheduleRequest(ctx, id, false)
 	if errors.Is(err, careplan.ErrCareScheduleRequestNotFound) {
-		return nil, carePlanLegacy.NotFoundError("find by id")
+		return nil, usersRepo.NotFoundError("find by id")
 	}
 	if err != nil {
 		return nil, err
@@ -281,7 +281,7 @@ func (r studentDataRequestRepository) FindByID(ctx context.Context, raw any) (*u
 	}
 	value, err := r.capability.FindStudentDataRequest(ctx, id, false)
 	if errors.Is(err, careplan.ErrStudentDataRequestNotFound) {
-		return nil, carePlanLegacy.NotFoundError("find by id")
+		return nil, usersRepo.NotFoundError("find by id")
 	}
 	if err != nil {
 		return nil, err
@@ -297,11 +297,11 @@ func (r studentDataRequestRepository) ListParentVisibleByStudent(ctx context.Con
 	return r.list(ctx, careplan.StudentDataRequestFilter{StudentID: studentID, ParentVisible: true, Limit: limit})
 }
 
-func (r studentDataRequestRepository) ListPendingForTenant(ctx context.Context, filters carePlanLegacy.RequestQueueFilters) ([]*userModels.StudentDataChangeRequest, error) {
+func (r studentDataRequestRepository) ListPendingForTenant(ctx context.Context, filters userModels.RequestQueueFilters) ([]*userModels.StudentDataChangeRequest, error) {
 	return r.list(ctx, careplan.StudentDataRequestFilter{Statuses: []string{userModels.DataChangeStatusPending}, Queue: publicQueueFilter(filters)})
 }
 
-func (r studentDataRequestRepository) ListDecidedForTenant(ctx context.Context, filters carePlanLegacy.RequestQueueFilters) ([]*userModels.StudentDataChangeRequest, error) {
+func (r studentDataRequestRepository) ListDecidedForTenant(ctx context.Context, filters userModels.RequestQueueFilters) ([]*userModels.StudentDataChangeRequest, error) {
 	return r.list(ctx, careplan.StudentDataRequestFilter{Statuses: []string{userModels.DataChangeStatusAutoApplied, userModels.DataChangeStatusApproved, userModels.DataChangeStatusRejected}, Queue: publicQueueFilter(filters)})
 }
 
@@ -362,7 +362,7 @@ func mapStudentDataRequestError(err error) error {
 	}
 }
 
-func publicQueueFilter(value carePlanLegacy.RequestQueueFilters) *careplan.RequestQueueFilter {
+func publicQueueFilter(value userModels.RequestQueueFilters) *careplan.RequestQueueFilter {
 	return &careplan.RequestQueueFilter{UrgentOnly: value.UrgentOnly, UrgentDate: value.UrgentDate, StudentIDs: value.StudentIDs, StudentID: value.StudentID, Search: value.Search, BeforeInstant: value.BeforeInstant, BeforeID: value.BeforeID, Limit: value.Limit}
 }
 
@@ -386,9 +386,9 @@ func careScheduleRequestFromLegacy(row *scheduleModels.CareScheduleChangeRequest
 }
 
 func excusedRequestFromPublic(value careplan.ExcusedAbsenceRequest) *activeModels.ExcusedAbsenceRequest {
-	dates := make([]carePlanLegacy.ScheduleDate, len(value.Dates))
+	dates := make([]activeModels.Date, len(value.Dates))
 	for i := range value.Dates {
-		dates[i] = carePlanLegacy.ScheduleDate(value.Dates[i])
+		dates[i] = activeModels.Date(value.Dates[i])
 	}
 	row := &activeModels.ExcusedAbsenceRequest{StudentID: value.StudentID, SubmittedBy: value.SubmittedBy, Dates: dates, Note: value.Note, AbsenceStatus: value.AbsenceStatus, Status: value.Status, DecisionReason: value.DecisionReason, ReviewedBy: value.ReviewedBy, ReviewedAt: value.ReviewedAt, AppliedAt: value.AppliedAt}
 	row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt

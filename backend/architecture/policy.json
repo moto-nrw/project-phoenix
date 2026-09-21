@@ -2944,13 +2944,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/careplan/legacy",
-      "owner": "care-plan",
-      "role": "adapter",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/careplan/integration",
       "owner": "care-plan",
       "role": "test-support",
@@ -14677,17 +14670,6 @@
       "source_role": "test-support",
       "target_owner": "care-plan",
       "target_role": "compose"
-    },
-    {
-      "id": "care-plan.testsupport.enrollment-domain",
-      "description": "Care Plan test support returns the legacy enrollment fixture contract.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "test-support",
-      "target_owner": "enrollment",
-      "target_role": "domain"
     },
     {
       "id": "care-plan.testsupport.people-public",

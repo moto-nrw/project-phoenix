@@ -738,11 +738,17 @@ table either: it filters its grouped rows against the owner's completion keys,
 which the former `NOT EXISTS` clause tested on the same grouping key. Both
 #2727 baseline entries for the table are gone.
 
-The Care Plan compatibility adapter (`modules/careplan/legacy`) uses this
-representation. Its remaining imports and repository-composition caller are
-bound to #2743, the root API caller to #2750, and the test-support caller to
-#2748. The conversion in #3032 removes 13 target permissions and records 14
-existing imports; it adds no runtime dependency or composition caller.
+The Care Plan compatibility adapter (`modules/careplan/legacy`, root package)
+used this representation from #3032 until #3410 dissolved it and removed its
+14 exact imports. The care-offering and offering-change repositories are now
+the enrollment services' own translation onto the Care Plan Commands and
+Queries (`services/enrollment/care_plan_offering_records.go`), with the name
+search bound to the People Directory by the services composition. The
+companion and child-document repositories sit with their sibling Care Plan
+adapters in `database/repositories`, as constructors instead of
+`repositories.Factory` fields. The calendar day comes from
+`modules/careplan/compose.Today`, the ambient transaction from
+`compose.TenantAmbientDatabase`.
 `target.svg` has no compatibility-rule edges. `migration.svg` renders these
 exact imports as orange-red `legacy` debt, separate from gray target-valid
 imports and dashed-red new violations, even when they share owner endpoints.

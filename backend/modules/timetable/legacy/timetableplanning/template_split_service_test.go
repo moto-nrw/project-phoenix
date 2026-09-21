@@ -20,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
+
 	bookingFixtures "github.com/moto-nrw/project-phoenix/services"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -428,7 +430,7 @@ func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t 
 		s.extraCleanups = append([]func(){func() {
 		}}, s.extraCleanups...)
 		offering.IsActive = false
-		require.NoError(t, repos.CareOffering.Update(s.ctx, offering))
+		require.NoError(t, enrollmentSvc.NewCareOfferingRepository(repos.CarePlan()).Update(s.ctx, offering))
 
 		_, err := s.factory.TemplateSplit.EndFromDate(s.ctx, timetableplanning.TemplateEndInput{
 			TemplateID:    s.template.ID,

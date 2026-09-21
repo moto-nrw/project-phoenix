@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 
+	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
+
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	"github.com/stretchr/testify/assert"
@@ -35,28 +37,7 @@ func setupCareOfferingRepoTest(t *testing.T) (
 	}))
 	t.Cleanup(func() { wipePhases(db, tenantID, phaseName) })
 
-	return db, carePlanTest.NewCareOfferingRepository(t, db), tenantID, phase.ID
-}
-
-func wipeOfferings(db *bun.DB, tenantID, phaseID int64) {
-	_, _ = db.NewDelete().
-		TableExpr("enrollment.care_offerings").
-		Where("tenant_id = ? AND phase_id = ?", tenantID, phaseID).
-		Exec(context.Background())
-}
-
-func makeOffering(phaseID int64, name string) *enrollmentModels.CareOffering {
-	return &enrollmentModels.CareOffering{
-		PhaseID:        phaseID,
-		Name:           name,
-		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
-		AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
-		IsActive:       true,
-	}
-}
-
-func uniqueOfferingName(prefix string) string {
-	return fmt.Sprintf("%s-%d", prefix, testpkg.UniqueSuffix())
+	return db, enrollmentSvc.NewCareOfferingRepository(carePlanTest.NewCarePlan(t, db)), tenantID, phase.ID
 }
 
 // --- Create + Validation ----------------------------------------------

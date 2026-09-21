@@ -38,7 +38,7 @@ func TestPhaseExpiryService_ApprovedRolloverWithInactiveOfferingStaysOpen(t *tes
 		IncludesLunch:   true,
 	}
 	sourceOffering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, env.repos.CareOffering.Create(ctx, sourceOffering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Create(ctx, sourceOffering))
 
 	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
 		TenantID:          testpkg.Tenant(t),
@@ -86,11 +86,11 @@ func TestPhaseExpiryService_ApprovedRolloverWithInactiveOfferingStaysOpen(t *tes
 	)
 	require.NoError(t, err)
 	require.Len(t, rolledChildren, 1)
-	targetOfferings, err := env.repos.CareOffering.ListByPhase(ctx, rollover.Phase.ID)
+	targetOfferings, err := enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).ListByPhase(ctx, rollover.Phase.ID)
 	require.NoError(t, err)
 	require.Len(t, targetOfferings, 1)
 	targetOfferings[0].IsActive = false
-	require.NoError(t, env.repos.CareOffering.Update(ctx, targetOfferings[0]))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Update(ctx, targetOfferings[0]))
 
 	scheduledDecision := newDecisionServiceForTest(env.rolloverTestEnv, nil, nil)
 	targetOutcome, err := scheduledDecision.Decide(ctx, enrollmentService.DecideInput{
@@ -117,7 +117,7 @@ func TestPhaseExpiryService_ApprovedRolloverWithInactiveOfferingStaysOpen(t *tes
 	assert.Equal(t, 1, warnings[0].UnresolvedChildren)
 
 	targetOfferings[0].IsActive = true
-	require.NoError(t, env.repos.CareOffering.Update(ctx, targetOfferings[0]))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Update(ctx, targetOfferings[0]))
 	warnings, err = enrollmentService.NewPhaseExpiryService(enrollmentService.NewPhaseExpiryProjection(env.repos.Enrollment(), expiryDecisionStudents{env.repos.Student}, expiryDecisionOfferings{env.repos.CarePlan()}, env.repos.Enrollment())).
 		ListWarnings(ctx, timezone.NewDate(2027, 7, 3))
 	require.NoError(t, err)

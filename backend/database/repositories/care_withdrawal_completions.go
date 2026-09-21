@@ -11,7 +11,6 @@ import (
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
@@ -219,8 +218,8 @@ func (r careWithdrawalCompletionRepository) ListPendingByStudentIDs(
 // end costs no extra statement.
 func (r careWithdrawalCompletionRepository) ListParticipationBoundaries(
 	ctx context.Context, students map[int64]*userModels.Student, includeBookingBoundaries bool,
-) (map[int64]carePlanLegacy.ScheduleDate, error) {
-	boundaries := make(map[int64]carePlanLegacy.ScheduleDate, len(students))
+) (map[int64]userModels.CalendarDate, error) {
+	boundaries := make(map[int64]userModels.CalendarDate, len(students))
 	if len(students) == 0 {
 		return boundaries, nil
 	}
@@ -234,13 +233,13 @@ func (r careWithdrawalCompletionRepository) ListParticipationBoundaries(
 		return nil, fmt.Errorf("list care participation boundaries: %w", err)
 	}
 	for _, studentID := range studentIDs {
-		var boundary carePlanLegacy.ScheduleDate
+		var boundary userModels.CalendarDate
 		found := false
 		if student := students[studentID]; student != nil && student.EnrolledUntil != nil && !student.EnrolledUntil.IsZero() {
 			boundary, found = student.EnrolledUntil.AddDays(1), true
 		}
 		if day, ok := pending[studentID]; ok {
-			completion := carePlanLegacy.ScheduleDate(day)
+			completion := userModels.CalendarDate(day)
 			if !found || completion.Before(boundary) {
 				boundary = completion
 			}
@@ -297,7 +296,7 @@ func (r careWithdrawalCompletionRepository) MarkDeleted(ctx context.Context, id,
 
 // MarkObsoleteForRebooking atomically applies the no-gap domain predicate.
 func (r careWithdrawalCompletionRepository) MarkObsoleteForRebooking(
-	ctx context.Context, studentID int64, careStartsOn carePlanLegacy.ScheduleDate, at time.Time,
+	ctx context.Context, studentID int64, careStartsOn userModels.CalendarDate, at time.Time,
 ) (bool, error) {
 	carePlan, err := r.owner()
 	if err != nil {
@@ -358,7 +357,7 @@ func withdrawalCompletionToPublic(completion *userModels.CareWithdrawalCompletio
 
 func withdrawalCompletionToLegacy(value careplan.WithdrawalCompletion) (*userModels.CareWithdrawalCompletion, error) {
 	row := &userModels.CareWithdrawalCompletion{
-		StudentID: value.StudentID, FirstBookinglessDay: carePlanLegacy.ScheduleDate(value.FirstBookinglessDay),
+		StudentID: value.StudentID, FirstBookinglessDay: userModels.CalendarDate(value.FirstBookinglessDay),
 		Trigger: value.Trigger, SourceAdjustmentID: value.SourceAdjustmentID,
 		SourceRequestChildID: value.SourceRequestChildID, WithdrawalConfirmedBy: value.WithdrawalConfirmedBy,
 		WithdrawalConfirmedRole: value.WithdrawalConfirmedRole, WithdrawalConfirmedAt: value.WithdrawalConfirmedAt,
