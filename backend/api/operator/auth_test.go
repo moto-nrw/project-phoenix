@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/operator"
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -458,7 +457,7 @@ func TestLoginRequest_Bind(t *testing.T) {
 	t.Parallel()
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", nil)
-	loginReq := &operator.LoginRequest{}
+	loginReq := &identityoperator.LoginRequest{}
 
 	err := loginReq.Bind(req)
 	assert.NoError(t, err)

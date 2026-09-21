@@ -281,7 +281,7 @@ export function createOperatorDeleteHandler<T>(handler: NoBodyHandler<T>) {
  * stays identical.
  *
  * Error-key convention: the operator backend's ErrResponse struct serializes
- * with `json:"message"` (backend/api/operator/middleware.go), so operator API
+ * with `json:"message"` (backend/api/common/operator_errors.go), so operator API
  * errors natively ship as { status, message } — distinct from the main/tenant
  * backend which uses `json:"error"`. This helper keeps the operator-native
  * `message` key intact on both forwarded JSON and the synthetic non-JSON

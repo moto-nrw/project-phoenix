@@ -24,7 +24,7 @@ import (
 // it can be tuned independently without touching the no-test-modifications
 // boundary.
 type completeOperatorMFAAuthStub struct {
-	OperatorAccess
+	identityoperator.OperatorAccess
 	access  string
 	refresh string
 	err     error
@@ -34,7 +34,7 @@ type completeOperatorMFAAuthStub struct {
 	gotUA         string
 }
 
-var _ OperatorAccess = (*completeOperatorMFAAuthStub)(nil)
+var _ identityoperator.OperatorAccess = (*completeOperatorMFAAuthStub)(nil)
 
 func (s *completeOperatorMFAAuthStub) IssueTokensForAuthenticatedOperator(
 	_ context.Context,
@@ -78,7 +78,7 @@ func (s *operatorTrustedDeviceStub) OperatorTrustedDeviceDays() int { return 90 
 
 var _ identityoperator.OperatorMFA = (*operatorTrustedDeviceStub)(nil)
 
-func opVerifyRequest(t *testing.T, body MFAVerifyRequest) *http.Request {
+func opVerifyRequest(t *testing.T, body identityoperator.MFAVerifyRequest) *http.Request {
 	t.Helper()
 	b, err := json.Marshal(body)
 	require.NoError(t, err)
@@ -97,10 +97,10 @@ func TestOperatorMFAVerify_SuccessReturnsTokenPair(t *testing.T) {
 	mfa := &operatorTrustedDeviceStub{
 		verifyResult: 4242,
 	}
-	rs := &MFAResource{authService: auth, mfaService: mfa}
+	rs := identityoperator.NewMFAResource(auth, mfa, nil)
 
 	rr := httptest.NewRecorder()
-	rs.Verify(rr, opVerifyRequest(t, MFAVerifyRequest{
+	rs.Verify(rr, opVerifyRequest(t, identityoperator.MFAVerifyRequest{
 		ChallengeToken: "challenge.tok",
 		Code:           "123456",
 	}))
@@ -123,10 +123,10 @@ func TestOperatorMFAVerify_RememberDeviceIssuesCookie(t *testing.T) {
 		issueCookie:    "op.td.cookie",
 		issueExpiresAt: time.Now().Add(90 * 24 * time.Hour),
 	}
-	rs := &MFAResource{authService: auth, mfaService: mfa}
+	rs := identityoperator.NewMFAResource(auth, mfa, nil)
 
 	rr := httptest.NewRecorder()
-	rs.Verify(rr, opVerifyRequest(t, MFAVerifyRequest{
+	rs.Verify(rr, opVerifyRequest(t, identityoperator.MFAVerifyRequest{
 		ChallengeToken: "challenge.tok",
 		Code:           "123456",
 		RememberDevice: true,
@@ -136,7 +136,7 @@ func TestOperatorMFAVerify_RememberDeviceIssuesCookie(t *testing.T) {
 	cookies := rr.Result().Cookies()
 	require.Len(t, cookies, 1, "remember_device=true must issue exactly one trusted-device cookie")
 	c := cookies[0]
-	assert.Equal(t, trustedDeviceCookieName, c.Name)
+	assert.Equal(t, identityoperator.TrustedDeviceCookieName, c.Name)
 	assert.Equal(t, "op.td.cookie", c.Value)
 	assert.True(t, c.HttpOnly)
 	assert.Equal(t, http.SameSiteLaxMode, c.SameSite)
@@ -157,10 +157,10 @@ func TestOperatorMFAVerify_RememberDeviceFailureDoesNotBreakLogin(t *testing.T) 
 		verifyResult: 1,
 		issueErr:     errors.New("cookie store down"),
 	}
-	rs := &MFAResource{authService: auth, mfaService: mfa}
+	rs := identityoperator.NewMFAResource(auth, mfa, nil)
 
 	rr := httptest.NewRecorder()
-	rs.Verify(rr, opVerifyRequest(t, MFAVerifyRequest{
+	rs.Verify(rr, opVerifyRequest(t, identityoperator.MFAVerifyRequest{
 		ChallengeToken: "challenge.tok",
 		Code:           "123456",
 		RememberDevice: true,
@@ -179,10 +179,10 @@ func TestOperatorMFAVerify_InactiveOperatorReturns403(t *testing.T) {
 	mfa := &operatorTrustedDeviceStub{
 		verifyResult: 1,
 	}
-	rs := &MFAResource{authService: auth, mfaService: mfa}
+	rs := identityoperator.NewMFAResource(auth, mfa, nil)
 
 	rr := httptest.NewRecorder()
-	rs.Verify(rr, opVerifyRequest(t, MFAVerifyRequest{
+	rs.Verify(rr, opVerifyRequest(t, identityoperator.MFAVerifyRequest{
 		ChallengeToken: "challenge.tok",
 		Code:           "123456",
 	}))
@@ -198,10 +198,10 @@ func TestOperatorMFAVerify_NotFoundReturns401(t *testing.T) {
 	mfa := &operatorTrustedDeviceStub{
 		verifyResult: 1,
 	}
-	rs := &MFAResource{authService: auth, mfaService: mfa}
+	rs := identityoperator.NewMFAResource(auth, mfa, nil)
 
 	rr := httptest.NewRecorder()
-	rs.Verify(rr, opVerifyRequest(t, MFAVerifyRequest{
+	rs.Verify(rr, opVerifyRequest(t, identityoperator.MFAVerifyRequest{
 		ChallengeToken: "challenge.tok",
 		Code:           "123456",
 	}))
@@ -216,10 +216,10 @@ func TestOperatorMFAVerify_IssueTokensUnknownErrorMapsTo500(t *testing.T) {
 	mfa := &operatorTrustedDeviceStub{
 		verifyResult: 1,
 	}
-	rs := &MFAResource{authService: auth, mfaService: mfa}
+	rs := identityoperator.NewMFAResource(auth, mfa, nil)
 
 	rr := httptest.NewRecorder()
-	rs.Verify(rr, opVerifyRequest(t, MFAVerifyRequest{
+	rs.Verify(rr, opVerifyRequest(t, identityoperator.MFAVerifyRequest{
 		ChallengeToken: "challenge.tok",
 		Code:           "123456",
 	}))

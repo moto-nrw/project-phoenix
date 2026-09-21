@@ -11,9 +11,10 @@ import (
 
 // Operator error bodies. The operator surface keeps its own wire format
 // (`message` instead of `error`, and a literal "error" status for most
-// outcomes), pinned by api/operator/wire_format_test.go. The operator router
-// and the operator handlers its owner modules serve share these constructors,
-// so the surface keeps one wire format wherever a handler lives (#3232).
+// outcomes), pinned by operator_wire_format_test.go. The operator router in
+// api/operator and the operator handlers its owner modules serve share these
+// constructors, so the surface keeps one wire format wherever a handler lives
+// (#3232, #3231).
 
 // OperatorErrResponse is the operator surface's error body.
 type OperatorErrResponse struct {
