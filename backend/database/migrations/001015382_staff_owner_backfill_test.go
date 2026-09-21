@@ -15,7 +15,7 @@ import (
 
 func TestStaffOwnerVerificationUsesOneUTCSnapshot(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStaffStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	ids := staffOwnerFixture(t, db, tenantID, 1)
@@ -52,7 +52,7 @@ func TestStaffOwnerTerminalFailuresPersistTelemetry(t *testing.T) {
 	for _, code := range []string{"40P01", "40001", "55P03"} {
 		t.Run(code, func(t *testing.T) {
 			ctx := testpkg.OwnCtx(t)
-			db := testpkg.SetupTestDB(t)
+			db := setupStaffStorageBeforeCutover(t)
 			tenantID := testpkg.Tenant(t)
 			staffOwnerFixture(t, db, tenantID, 1)
 			report, err := RunStaffOwnerBackfill(ctx, db, StaffOwnerBackfillOptions{MaxAttempts: 2,
@@ -91,7 +91,7 @@ func TestStaffOwnerTerminalFailuresPersistTelemetry(t *testing.T) {
 
 func TestStaffOwnerRunExcludesOtherWriters(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStaffStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	staffOwnerFixture(t, db, tenantID, 1)
@@ -115,7 +115,7 @@ func TestStaffOwnerRunExcludesOtherWriters(t *testing.T) {
 
 func TestStaffOwnerCancellationFlushesFailedAttempt(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStaffStorageBeforeCutover(t)
 	tenantID := testpkg.Tenant(t)
 	staffOwnerFixture(t, db, tenantID, 1)
 	ctx, cancel := context.WithCancel(testpkg.Ctx(t))
@@ -141,7 +141,7 @@ func TestStaffOwnerCancellationFlushesFailedAttempt(t *testing.T) {
 
 func TestStaffOwnerMeasuresSuccessfulLockWait(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupIsolatedStaffStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	ids := staffOwnerFixture(t, db, tenantID, 1)
@@ -254,7 +254,7 @@ func staffOwnerSecondTenant(t *testing.T, db *testpkg.DB) int64 {
 
 func TestStaffOwnerBackfillCopiesAndVerifiesPerTenant(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStaffStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantA := testpkg.Tenant(t)
 	tenantB := staffOwnerSecondTenant(t, db)
@@ -301,7 +301,7 @@ func staffSourceRows(t *testing.T, db *testpkg.DB, tenantID int64) string {
 
 func TestStaffOwnerBackfillInterruptsAndResumesAtEveryBatchBoundary(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStaffStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	staffOwnerFixture(t, db, tenantID, 5)
@@ -352,7 +352,7 @@ func TestStaffOwnerBackfillInterruptsAndResumesAtEveryBatchBoundary(t *testing.T
 
 func TestStaffOwnerBackfillRerunsCompletedBatchesIdempotently(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStaffStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	staffOwnerFixture(t, db, tenantID, 4)
@@ -384,7 +384,7 @@ func staffTargetRows(t *testing.T, db *testpkg.DB, tenantID int64) string {
 
 func TestStaffOwnerBackfillRetriesInjectedFailures(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStaffStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	otherTenant := staffOwnerSecondTenant(t, db)
@@ -445,7 +445,7 @@ func TestStaffOwnerBackfillRetriesInjectedFailures(t *testing.T) {
 
 func TestStaffOwnerBackfillRereadsChangedRowsAndRemovesOrphans(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStaffStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	ids := staffOwnerFixture(t, db, tenantID, 5)
@@ -479,7 +479,7 @@ func TestStaffOwnerBackfillRereadsChangedRowsAndRemovesOrphans(t *testing.T) {
 
 func TestStaffOwnerBackfillRejectsCrossTenantWorkTimeModel(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStaffStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantA := testpkg.Tenant(t)
 	tenantB := staffOwnerSecondTenant(t, db)
@@ -521,7 +521,7 @@ func TestStaffOwnerBackfillRejectsCrossTenantWorkTimeModel(t *testing.T) {
 
 func TestStaffOwnerBackfillRestartsPassWhenPersonRejoinsMidPass(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStaffStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	first := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Rejoin", "Person")
@@ -566,7 +566,7 @@ func TestStaffOwnerBackfillRestartsPassWhenPersonRejoinsMidPass(t *testing.T) {
 
 func TestStaffOwnerBackfillRetiresBeforeSameBatchRejoin(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStaffStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	// Reserve a real sequence value before the old Staff exists. The new
@@ -596,7 +596,7 @@ func TestStaffOwnerBackfillRetiresBeforeSameBatchRejoin(t *testing.T) {
 
 func TestStaffOwnerBackfillRetiresBeforeCrossBatchRejoin(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStaffStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	var replacementID int64
@@ -625,7 +625,7 @@ func TestStaffOwnerBackfillRetiresBeforeCrossBatchRejoin(t *testing.T) {
 
 func TestStaffOwnerRewindDoesNotRetireRejectedSource(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStaffStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	first := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Invalid", "Retirement")
@@ -656,7 +656,7 @@ func TestStaffOwnerRewindDoesNotRetireRejectedSource(t *testing.T) {
 
 func TestStaffOwnerBackfillRestartsAfterDeletedPersonRejoins(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStaffStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	first := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Deleted", "Rejoin")
@@ -708,7 +708,7 @@ func TestStaffOwnerBackfillRestartsAfterDeletedPersonRejoins(t *testing.T) {
 
 func TestStaffOwnerBackfillTenantIsolation(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStaffStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantA := testpkg.Tenant(t)
 	tenantB := staffOwnerSecondTenant(t, db)
@@ -743,7 +743,7 @@ func TestStaffOwnerBackfillTenantIsolation(t *testing.T) {
 
 func TestStaffOwnerBackfillIndexesAndQueryPlans(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStaffStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	staffOwnerFixture(t, db, tenantID, 3)
@@ -790,7 +790,7 @@ func TestStaffOwnerBackfillIndexesAndQueryPlans(t *testing.T) {
 
 func TestStaffOwnerBackfillResetAndRollback(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStaffStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	staffOwnerFixture(t, db, tenantID, 3)

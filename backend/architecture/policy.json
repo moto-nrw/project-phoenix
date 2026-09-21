@@ -468,6 +468,13 @@
       "external_test_role": "workflow-integration-test"
     },
     {
+      "path": "database/repositories/staffintegration",
+      "owner": "legacy-composition",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
       "path": "modules/studentdirectoryview",
       "owner": "student-directory-view",
       "role": "postgres",
@@ -4156,6 +4163,14 @@
     {
       "name": "users.staff_employment_profiles",
       "write_owner": "workforce"
+    },
+    {
+      "name": "users.staff_compatibility_reads",
+      "write_owner": "migrations"
+    },
+    {
+      "name": "users.staff_compatibility_writes",
+      "write_owner": "migrations"
     },
     {
       "name": "users.staff_document_file_cleanup",

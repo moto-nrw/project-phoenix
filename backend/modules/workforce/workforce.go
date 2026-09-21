@@ -72,11 +72,13 @@ func ErrorCode(err error) string {
 		errors.Is(err, ErrStaffShiftNotFound), errors.Is(err, ErrShiftSeriesNotFound), errors.Is(err, ErrShiftTypeNotFound),
 		errors.Is(err, ErrWorkSessionNotFound), errors.Is(err, ErrWorkSessionBreakNotFound), errors.Is(err, ErrStaffBalanceAdjustmentNotFound),
 		errors.Is(err, ErrStaffVacationOpeningNotFound), errors.Is(err, ErrStaffVacationQuotaNotFound),
-		errors.Is(err, ErrStaffMasterDataNotFound), errors.Is(err, ErrStaffFinancialDataNotFound), errors.Is(err, ErrStaffDocumentNotFound):
+		errors.Is(err, ErrStaffMasterDataNotFound), errors.Is(err, ErrStaffFinancialDataNotFound), errors.Is(err, ErrStaffDocumentNotFound),
+		errors.Is(err, ErrStaffEmploymentNotFound):
 		return "not_found"
 	case errors.Is(err, ErrAbsenceTypeNameTaken), errors.Is(err, ErrAbsenceTypeNameReserved), errors.Is(err, ErrAbsenceTypeInUse),
 		errors.Is(err, ErrAbsenceTypeInactive), errors.Is(err, ErrAbsenceTypeAllowanceExceeded), errors.Is(err, ErrAllowanceBookingOverlap), errors.Is(err, ErrGroupSubstitutionExists),
-		errors.Is(err, ErrStaffShiftDuplicate), errors.Is(err, ErrShiftTypeNameTaken), errors.Is(err, ErrWorkSessionAlreadyOpen):
+		errors.Is(err, ErrStaffShiftDuplicate), errors.Is(err, ErrShiftTypeNameTaken), errors.Is(err, ErrWorkSessionAlreadyOpen),
+		errors.Is(err, ErrPersonnelNumberTaken):
 		return "conflict"
 	default:
 		return "internal_error"

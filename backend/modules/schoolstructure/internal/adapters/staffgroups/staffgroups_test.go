@@ -7,6 +7,7 @@ import (
 	membershipcompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	structurecompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforcecompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -25,12 +26,11 @@ func buildStaffGroups(t *testing.T, db *bun.DB) schoolstructure.StaffGroupQuery 
 	t.Helper()
 	groups, err := structurecompose.New(structurecompose.Dependencies{DB: db, Observe: func(structurecompose.Observation) {}})
 	require.NoError(t, err)
-	membership, err := membershipcompose.New(membershipcompose.Dependencies{DB: db, Observe: func(membershipcompose.Observation) {}})
+	membership, err := membershipcompose.New(membershipcompose.Dependencies{DB: db, Observe: func(membershipcompose.Observation) {}, Employment: staffEmployment(t, db)})
 	require.NoError(t, err)
 	substitutions, err := workforcecompose.New(workforcecompose.Dependencies{
 		DB:                  db,
-		AssignedStaffIDs:    func(context.Context, int64) ([]int64, error) { return nil, nil },
-		RebaseStaffAnchor:   func(context.Context, int64, string) ([]int64, error) { return nil, nil },
+		LiveStaffIDs:        func(context.Context, []int64) ([]int64, error) { return nil, nil },
 		LockStaffAssignment: func(context.Context, int64) error { return nil },
 		Observe:             func(workforcecompose.Observation) {},
 	})
@@ -196,4 +196,32 @@ func TestStaffGroupReadsHideAnotherTenantsRows(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, classes)
 	})
+}
+
+// staffEmployment binds School Membership to the real Workforce employment
+// owner (#2753), as the composition root does.
+func staffEmployment(t *testing.T, db *bun.DB) membershipcompose.StaffEmployment {
+	t.Helper()
+	owner, err := workforcecompose.NewStaffEmployment(db, nil)
+	require.NoError(t, err)
+	return employmentBinding{owner: owner}
+}
+
+type employmentBinding struct{ owner workforce.StaffEmployments }
+
+func (b employmentBinding) StaffEmployments(ctx context.Context, ids []int64) (map[int64]membershipcompose.StaffEmploymentProfile, error) {
+	values, err := b.owner.StaffEmployments(ctx, ids)
+	result := make(map[int64]membershipcompose.StaffEmploymentProfile, len(values))
+	for id, value := range values {
+		result[id] = membershipcompose.StaffEmploymentProfile(value)
+	}
+	return result, err
+}
+
+func (b employmentBinding) SaveStaffEmployment(ctx context.Context, value membershipcompose.StaffEmploymentProfile) error {
+	return b.owner.SaveStaffEmployment(ctx, workforce.StaffEmployment(value))
+}
+
+func (b employmentBinding) ClearStaffWorkTimeModel(ctx context.Context, id int64) error {
+	return b.owner.ClearStaffWorkTimeModel(ctx, id)
 }

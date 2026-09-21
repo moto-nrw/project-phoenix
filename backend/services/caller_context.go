@@ -148,14 +148,10 @@ func (p callerPeople) RenamePerson(ctx context.Context, personID int64, firstNam
 type callerMembership struct{ membership schoolmembership.Capability }
 
 func (m callerMembership) FindStaffByPerson(ctx context.Context, personID int64) (int64, bool, error) {
-	staff, err := m.membership.FindStaffByPerson(ctx, personID)
-	if errors.Is(err, schoolmembership.ErrStaffNotFound) {
-		return 0, false, nil
-	}
-	if err != nil {
-		return 0, false, err
-	}
-	return staff.ID, true, nil
+	// The caller context needs the staff ID only: the membership read alone
+	// skips the Workforce employment half every request would otherwise pay
+	// for (#2753).
+	return m.membership.FindStaffIDByPerson(ctx, personID)
 }
 
 func (m callerMembership) FindTeacherByStaff(ctx context.Context, staffID int64) (int64, bool, error) {

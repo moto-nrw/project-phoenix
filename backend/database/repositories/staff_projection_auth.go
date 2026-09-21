@@ -28,7 +28,7 @@ func (r membershipCaregiverChains) CaregiverChainByPersonIDs(ctx context.Context
 	if len(personIDs) == 0 {
 		return result, nil
 	}
-	members, err := r.membership.ListStaff(ctx, schoolmembership.StaffFilter{PersonIDs: personIDs})
+	members, err := r.membership.ListStaff(ctx, schoolmembership.StaffFilter{PersonIDs: personIDs, MembershipOnly: true})
 	if err != nil {
 		return nil, fmt.Errorf("load staff for caregiver chains: %w", err)
 	}

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
@@ -168,8 +169,10 @@ func (f *Factory) NewStaffMembershipRuntime(db *bun.DB, logger *slog.Logger, hoo
 	if roles == nil {
 		panic("staff membership runtime: identity role administration is required")
 	}
+	employment := repositories.MustNewStaffEmployment(db)
 	offboarding, err := offboardingcompose.New(offboardingcompose.Dependencies{
 		DB: db, Access: access, Cleanup: hooks.QueueOffboardedDocumentCleanup,
+		Employment:  repositories.MembershipStaffEmployment(employment),
 		Broadcaster: f.RealtimeHub, Logger: logger,
 		Authorize: func(ctx context.Context) (staffoffboarding.Actor, error) {
 			name, _ := ctx.Value(staffOffboardingActorNameKey{}).(string)

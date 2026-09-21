@@ -7,6 +7,10 @@ authority: no caller switches, no trigger, view, or dual write exists, and the
 old rows are never modified. The field mapping is unchanged from
 [Expand #2715](staff-owner-storage-expand.md).
 
+[Cutover #2753](staff-owner-storage-cutover.md) (migration `1.15.409`) applies
+the final delta and makes the two targets authoritative; from then on the
+backfill and its reset refuse, because `users.staff` is a view.
+
 ## How the copy works
 
 - One checkpoint row per backfill and school holds the pass number, the

@@ -250,9 +250,9 @@ type SubstitutionStore interface {
 type StaffAssignments interface {
 	// AssignedStaffIDs returns the live staff members assigned to a template.
 	AssignedStaffIDs(ctx context.Context, workTimeModelID int64) ([]int64, error)
-	// RebaseAnchor stamps the template's rotation anchor onto every live
-	// assignee and returns their IDs.
-	RebaseAnchor(ctx context.Context, workTimeModelID int64, anchorDate string) ([]int64, error)
+	// RebaseAnchor stamps the template's rotation anchor onto the given
+	// assignees, which the caller has already resolved.
+	RebaseAnchor(ctx context.Context, staffIDs []int64, anchorDate string) error
 }
 
 // Transaction runs a unit of work on the caller's ambient transaction or, when
