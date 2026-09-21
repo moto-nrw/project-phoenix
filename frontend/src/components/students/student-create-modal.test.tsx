@@ -869,8 +869,8 @@ describe("StudentCreateModal", () => {
     mockFetchArrivalSettings.mockResolvedValueOnce({
       care_days_source: "weekly_plan",
       school_periods: [],
-      default_arrival_time: "12:30",
-      default_pickup_time: "16:00",
+      defaultArrivalTime: "12:30",
+      defaultPickupTime: "16:00",
     });
     render(
       <StudentCreateModal
