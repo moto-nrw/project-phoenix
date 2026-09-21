@@ -462,6 +462,9 @@ function editStudentTopic(): HelpTopic {
     ],
     notes: [
       "Steht unter dem Feld `Ankunft` die Auswahl `Nach Schulstunde`? Wählen Sie zum Beispiel `5. Stunde`. moto trägt die passende Uhrzeit ein.",
+      // #3371: Knopf erscheint nur mit gepflegter Vorgabe unter einem leeren
+      // Feld an einem Betreuungstag (care-weekly-plan-editor.tsx).
+      "Steht unter einem leeren Feld zum Beispiel `16:00 Uhr eintragen`? Ein Klick trägt die übliche Zeit Ihrer Schule ein.",
     ],
     related: [
       HELP_TOPICS.studentSearch,
@@ -582,7 +585,7 @@ function changeLocationTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Ihre OGS erfasst die Räume der Kinder.",
       "Das Kind ist anwesend.",
       "Sie beaufsichtigen den aktuellen Raum oder den Zielraum.",
-      "Im Zielraum läuft eine Aufsicht.",
+      "Im Zielraum läuft eine Aufsicht, oder er ist ein offener Raum.",
     ],
     steps: [
       "Öffnen Sie `Räume`.",
@@ -595,6 +598,7 @@ function changeLocationTopic(presenceMode: HelpPresenceMode): HelpTopic {
     notes: ["Sie können mehrere Kinder auswählen und gemeinsam verschieben."],
     differences: [
       "Hat das Kind noch keinen Raum? Wählen Sie auf `Räume` die Karte `Unterwegs`. Wählen Sie dort das Kind und den Zielraum.",
+      "Steht hinter dem Zielraum `(offener Raum)`? Dort braucht es keine Aufsicht. Das Kind nutzt den Raum dann, ohne an einem Angebot teilzunehmen.",
       "Fehlt der Zielraum? Prüfen Sie dort `Aktuelle Aufsicht`.",
       "Beaufsichtigen Sie keinen der beiden Räume? Bitten Sie eine zuständige Aufsicht. Oder fragen Sie Ihre Leitung.",
     ],
@@ -1197,7 +1201,7 @@ function roomsTopic(presenceMode: HelpPresenceMode): HelpTopic {
       {
         title: "Kinder ohne Raum in einen Raum setzen",
         description:
-          "Führen Sie selbst die Aufsicht, stehen nur Ihre Räume zur Wahl. Mit dem Recht für alle Räume steht die ganze Liste da.",
+          "Führen Sie selbst die Aufsicht, stehen nur Ihre Räume zur Wahl. Mit dem Recht für alle Räume steht die ganze Liste da. Dann stehen auch offene Räume in der Liste, mit dem Zusatz `(offener Raum)`. So bleibt ein Kind nach seinem Angebot im Raum, ohne an einem Angebot teilzunehmen.",
         steps: [
           "Wählen Sie oben die Karte `Unterwegs`.",
           "Wählen Sie die gewünschten Kinder aus.",
@@ -2856,6 +2860,11 @@ function careTimesTopic(): HelpTopic {
       "Dieselbe Auswahl gibt es für eine ganze Klasse: unter `Kinderdaten` im Menü der Klasse bei `Ankunftszeit bearbeiten`.",
       "Die Auswahl erscheint, wenn unter `Einstellungen` bei `Schulstunden` Uhrzeiten stehen. Jede Schule pflegt ihre eigenen Zeiten.",
       "Ändern Sie später eine Schulstunde, bleiben gespeicherte Zeiten unverändert.",
+      // #3371: Textfeld mit Ziffernmaske statt nativem Zeitfeld, Knopf nur
+      // mit gepflegter Vorgabe (care-weekly-plan-editor.tsx).
+      "Tippen Sie nur Ziffern, zum Beispiel 1600 für 16:00 Uhr.",
+      "Steht unter einem leeren Feld zum Beispiel `16:00 Uhr eintragen`? Ein Klick trägt die übliche Zeit Ihrer Schule ein.",
+      "Die üblichen Zeiten stehen unter `Einstellungen` bei `Betreuungszeiten`. Jede Schule pflegt ihre eigenen Zeiten.",
     ],
     differences: [
       // Einstellung `enrollment.bookings_authoritative`, Vorgabe aus. Der

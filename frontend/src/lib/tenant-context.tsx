@@ -305,6 +305,20 @@ export function useOperationalOverviewScope(): OperationalOverviewScope {
   return ctx?.tenant?.operationalOverviewScope ?? "own";
 }
 
+/**
+ * Whether this school lets every staff member move children they do not
+ * supervise (#3066): attendance edits and the operational overview are both
+ * open to all staff, mirroring the backend's school-wide move rule. Only a
+ * hint for what to offer; the server decides every move.
+ */
+export function useSchoolWideAttendanceMoves(): boolean {
+  const ctx = useContext(TenantContext);
+  return (
+    ctx?.tenant?.attendanceEditScope === "all_staff" &&
+    ctx?.tenant?.operationalOverviewScope === "all_staff"
+  );
+}
+
 export function useShowTimetableCounts(): boolean {
   const ctx = useContext(TenantContext);
   return ctx?.tenant?.showTimetableCounts !== false;

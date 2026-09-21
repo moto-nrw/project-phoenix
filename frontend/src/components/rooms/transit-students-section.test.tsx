@@ -9,8 +9,13 @@ import {
   useTenantMutateMatching,
 } from "~/lib/swr";
 import { TransitStudentsSection } from "./transit-students-section";
-import { useAttendanceWebEnabled } from "~/lib/tenant-context";
+import {
+  useAttendanceWebEnabled,
+  useSchoolWideAttendanceMoves,
+} from "~/lib/tenant-context";
 import { useOptionalSupervision } from "~/lib/supervision-context";
+import type { ApiError } from "~/lib/api-error";
+import type { Room } from "~/lib/room-helpers";
 
 /** Default supervision context: no school-wide overview. */
 const EMPTY_SUPERVISION = {
@@ -58,17 +63,25 @@ vi.mock("~/lib/swr", () => ({
   useTenantMutateMatching: vi.fn(),
 }));
 
-vi.mock("~/lib/active-service", () => ({
+vi.mock("~/lib/active-service", async (importOriginal) => ({
+  // The real result summary, so the toast counts what the move reports.
+  summarizeStudentMoveResult: (
+    await importOriginal<typeof import("~/lib/active-service")>()
+  ).summarizeStudentMoveResult,
   activeService: {
     getActiveGroups: vi.fn(),
     getStaffActiveSupervisions: vi.fn(),
     assignTransitStudents: vi.fn(),
+    moveStudentsToOpenRoom: vi.fn(),
   },
 }));
 
 vi.mock("~/lib/api", () => ({
   studentService: {
     getStudents: vi.fn(),
+  },
+  roomService: {
+    getRooms: vi.fn(),
   },
 }));
 
@@ -137,9 +150,16 @@ const mockSupervisions = [
   },
 ];
 
+// Two rooms: the released gym is an open-room target, the craft room is not.
+const mockRooms: Room[] = [
+  { id: "310", name: "Sporthalle", isOccupied: true, isOpenRoom: true },
+  { id: "311", name: "Werkraum", isOccupied: false, isOpenRoom: false },
+];
+
 const mutateStudents = vi.fn();
 const mutateKey = vi.fn();
 const mutateMatching = vi.fn();
+const refreshRooms = vi.fn();
 
 function mockTransitData({
   students = mockStudents,
@@ -154,7 +174,9 @@ function mockTransitData({
   supervisionsLoading = false,
   currentStaff = { id: "20" },
   activeSupervisions = mockSupervisions,
+  rooms = mockRooms,
 }: {
+  rooms?: Room[];
   students?: Student[];
   activeGroups?: ActiveGroup[];
   activeSupervisions?: typeof mockSupervisions;
@@ -206,6 +228,15 @@ function mockTransitData({
       } as never;
     }
 
+    if (key === "transit-target-rooms") {
+      return {
+        data: rooms,
+        error: null,
+        isLoading: false,
+        mutate: refreshRooms,
+      } as never;
+    }
+
     throw new Error(`Unexpected SWR key: ${String(key)}`);
   });
 }
@@ -213,6 +244,7 @@ function mockTransitData({
 describe("TransitStudentsSection", () => {
   beforeEach(() => {
     vi.mocked(useAttendanceWebEnabled).mockReturnValue(true);
+    vi.mocked(useSchoolWideAttendanceMoves).mockReturnValue(false);
     vi.mocked(useOptionalSupervision).mockReturnValue(EMPTY_SUPERVISION);
     vi.clearAllMocks();
     mockSearchParamsToString.mockReturnValue("");
@@ -542,5 +574,198 @@ describe("TransitStudentsSection", () => {
       screen.queryByRole("button", { name: /Kinder unterwegs/ }),
     ).not.toBeInTheDocument();
     expect(screen.getByText("Mila Sommer")).toBeInTheDocument();
+  });
+});
+
+// After an activity ends its children are Unterwegs. Staff who may move
+// children they do not supervise can book them back into a released room as
+// an independent stay (#3066); everyone else keeps the supervised targets.
+describe("TransitStudentsSection booking into a released room", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(useAttendanceWebEnabled).mockReturnValue(true);
+    vi.mocked(useSchoolWideAttendanceMoves).mockReturnValue(true);
+    vi.mocked(useOptionalSupervision).mockReturnValue(EMPTY_SUPERVISION);
+    mockSearchParamsToString.mockReturnValue("");
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          token: "staff-token",
+          roles: ["user"],
+          permissions: ["visits:update"],
+          isAdmin: false,
+        },
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+    mutateStudents.mockResolvedValue(undefined);
+    mutateKey.mockResolvedValue(undefined);
+    mutateMatching.mockResolvedValue(undefined);
+    refreshRooms.mockResolvedValue(undefined);
+    vi.mocked(useTenantMutate).mockReturnValue(mutateKey as never);
+    vi.mocked(useTenantMutateMatching).mockReturnValue(mutateMatching as never);
+    vi.mocked(activeService.moveStudentsToOpenRoom).mockResolvedValue({
+      moved: [11],
+      unchanged: [],
+      skipped: [],
+      active_group_id: 401,
+      room_id: 310,
+    });
+    mockTransitData();
+  });
+
+  it("offers released rooms beside the supervised sessions", () => {
+    render(<TransitStudentsSection />);
+
+    fireEvent.click(screen.getByLabelText("Zielraum"));
+    expect(
+      screen.getByRole("option", { name: "Aula · Gruppe A" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Sporthalle (offener Raum)" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: /Werkraum/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers released rooms to administrators", () => {
+    vi.mocked(useSchoolWideAttendanceMoves).mockReturnValue(false);
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          token: "admin-token",
+          roles: ["admin"],
+          permissions: ["admin:*"],
+          isAdmin: true,
+        },
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<TransitStudentsSection />);
+
+    fireEvent.click(screen.getByLabelText("Zielraum"));
+    expect(
+      screen.getByRole("option", { name: "Sporthalle (offener Raum)" }),
+    ).toBeInTheDocument();
+  });
+
+  // Without the school-wide move right the server refuses the booking, so the
+  // list must not offer it.
+  it("offers no released room without the school-wide move right", () => {
+    vi.mocked(useSchoolWideAttendanceMoves).mockReturnValue(false);
+
+    render(<TransitStudentsSection />);
+
+    fireEvent.click(screen.getByLabelText("Zielraum"));
+    expect(
+      screen.getByRole("option", { name: "Aula · Gruppe A" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: /offener Raum/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("books the selected children into the released room", async () => {
+    render(<TransitStudentsSection />);
+
+    fireEvent.click(screen.getByLabelText("Mila Sommer auswählen"));
+    fireEvent.click(screen.getByLabelText("Zielraum"));
+    fireEvent.click(
+      screen.getByRole("option", { name: "Sporthalle (offener Raum)" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
+
+    await waitFor(() => {
+      expect(activeService.moveStudentsToOpenRoom).toHaveBeenCalledWith(
+        ["11"],
+        "310",
+      );
+    });
+    expect(activeService.assignTransitStudents).not.toHaveBeenCalled();
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      "1 Kind nach Sporthalle gesetzt.",
+    );
+    expect(mutateStudents).toHaveBeenCalledTimes(1);
+    expect(mutateMatching).toHaveBeenCalledTimes(1);
+  });
+
+  it("names the children the server skipped", async () => {
+    vi.mocked(activeService.moveStudentsToOpenRoom).mockResolvedValue({
+      moved: [11],
+      unchanged: [],
+      skipped: [{ student_id: 12, reason: "conflict" }],
+      active_group_id: 401,
+      room_id: 310,
+    });
+    render(<TransitStudentsSection />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Alle auswählen" }));
+    fireEvent.click(screen.getByLabelText("Zielraum"));
+    fireEvent.click(
+      screen.getByRole("option", { name: "Sporthalle (offener Raum)" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "1 Kind nach Sporthalle gesetzt, 1 übersprungen.",
+      );
+    });
+  });
+
+  it("explains a release removed after the list loaded", async () => {
+    const stale = new Error(
+      "Move students to open room failed: 409",
+    ) as ApiError;
+    stale.status = 409;
+    stale.code = "room_not_released";
+    vi.mocked(activeService.moveStudentsToOpenRoom).mockRejectedValue(stale);
+    render(<TransitStudentsSection />);
+
+    fireEvent.click(screen.getByLabelText("Mila Sommer auswählen"));
+    fireEvent.click(screen.getByLabelText("Zielraum"));
+    fireEvent.click(
+      screen.getByRole("option", { name: "Sporthalle (offener Raum)" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
+
+    expect(
+      await screen.findByText(
+        "Dieser Raum ist nicht mehr freigegeben. Bitte wählen Sie einen anderen Raum.",
+      ),
+    ).toBeInTheDocument();
+    expect(refreshRooms).toHaveBeenCalledTimes(1);
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+    expect(mutateStudents).not.toHaveBeenCalled();
+  });
+
+  it("keeps the children unassigned when the booking fails", async () => {
+    vi.mocked(activeService.moveStudentsToOpenRoom).mockRejectedValue(
+      new Error("Move students to open room failed: 500"),
+    );
+    render(<TransitStudentsSection />);
+
+    fireEvent.click(screen.getByLabelText("Mila Sommer auswählen"));
+    fireEvent.click(screen.getByLabelText("Zielraum"));
+    fireEvent.click(
+      screen.getByRole("option", { name: "Sporthalle (offener Raum)" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
+
+    expect(
+      await screen.findByText(
+        "Die ausgewählten Kinder konnten nicht zugewiesen werden.",
+      ),
+    ).toBeInTheDocument();
+    expect(refreshRooms).not.toHaveBeenCalled();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Mila Sommer auswählen")).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
   });
 });
