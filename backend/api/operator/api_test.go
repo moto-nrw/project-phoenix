@@ -96,6 +96,14 @@ func TestRouter(t *testing.T) {
 		require.NotNil(t, router)
 	})
 
+	t.Run("names the missing token auth instead of dereferencing nil", func(t *testing.T) {
+		resource := operator.NewResource(operator.ResourceConfig{})
+		require.PanicsWithValue(t,
+			"operator api: ResourceConfig.TokenAuth is required to mount the operator routes",
+			func() { resource.Router() },
+		)
+	})
+
 	t.Run("router has expected routes", func(t *testing.T) {
 		cfg := operator.ResourceConfig{TokenAuth: operatorTestTokenAuth(t)}
 		resource := operator.NewResource(cfg)

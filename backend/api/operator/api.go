@@ -141,6 +141,11 @@ func NewResource(cfg ResourceConfig) *Resource {
 
 // Router returns a configured router for operator endpoints
 func (rs *Resource) Router() chi.Router {
+	// The root provides the signer; without it the verifier mounts below would
+	// fail with a nil dereference instead of naming the missing configuration.
+	if rs.tokenAuth == nil {
+		panic("operator api: ResourceConfig.TokenAuth is required to mount the operator routes")
+	}
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
