@@ -910,15 +910,20 @@ with unchanged behaviour, paths, status codes, error strings and authorization
 checks; their 49 baseline entries fell with the old packages. The read side
 could not land on the existing `identity-access`/`application` point: it still
 returns the retained `models/*` rows to its consumers, and PR mode rejects
-a new permission on a point that exists at the base SHA. Every
-`inbound-usercontext.adapter.*`, `inbound-usercontext.http.*` and
-`inbound-usercontext.adapter-test.*` rule, every
-`<consumer>.<role>.inbound-usercontext-adapter` rule and the
-`root-composition.compose.inbound-usercontext-http` mount is a compatibility
-permission that exists only because PR mode cannot record debt for a package
-the candidate creates: convert them to exact debt with the rule above once the
-packages exist at a base SHA, and dissolve the adapter into the Identity &
-Access application and public contract under #2725. The adapter role also
+a new permission on a point that exists at the base SHA. The 46 compatibility
+permissions this move needed (the `inbound-usercontext.adapter.*`,
+`inbound-usercontext.http.*` and `inbound-usercontext.adapter-test.*` rules,
+every `<consumer>.<role>.inbound-usercontext-adapter` rule and the
+`root-composition.compose.inbound-usercontext-http` mount) are converted: the
+rules are deleted and their 55 import tuples are exact debt under #2725. The
+baseline grew by those 55 entries without a new import; the edges were hidden
+behind allow-rules before. The `student-presence` domain and adapter rules of
+the same packages stay temporary under #3422. The tuples fall when the adapter
+dissolves into the Identity & Access application and public contract, which
+first needs owner contracts for the staff and teacher membership read
+(`school-membership`), the caller's groups and substitutions
+(`school-structure`) and the supervised and active groups
+(`student-presence`). The adapter role also
 covers the `net/http` status constants the SSE setup error carries through
 the generic `external.http-router.adapter` rule, and the former
 `inbound-usercontext.to.identity-access` target rule is removed until that
