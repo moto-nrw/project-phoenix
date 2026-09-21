@@ -36,6 +36,9 @@ func init() {
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is ./dev.env")
 	RootCmd.PersistentFlags().Bool("db_debug", false, "log sql to console")
 	_ = viper.BindPFlag("db_debug", RootCmd.PersistentFlags().Lookup("db_debug"))
+	// Fallback of the public demo (#3463); serve and demo must agree on it.
+	RootCmd.PersistentFlags().Bool("demo-standing-school", false, "public demo: every demo access enters the standing demo school instead of a school of its own")
+	_ = viper.BindPFlag("demo_standing_school", RootCmd.PersistentFlags().Lookup("demo-standing-school"))
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.

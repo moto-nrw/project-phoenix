@@ -47,7 +47,9 @@ func NewDemoAccess(deps DemoAccessDependencies) (*DemoAccess, error) {
 // answer tells nothing about the address. Every request stores its own
 // access: earlier links stay valid until they expire, and the prospect's
 // latest details are kept. An address inside its cooldown gets nothing new.
-// The team hears of a first access and of a changed contact consent.
+// The team hears of a first access and of a changed contact consent. An
+// address whose school did not fail gets no second school (#3463): the new
+// link leads into the school it already has.
 func (d *DemoAccess) Request(ctx context.Context, access domain.DemoAccess, entryURLPrefix string) error {
 	if err := access.Normalize(); err != nil {
 		return err
@@ -64,10 +66,13 @@ func (d *DemoAccess) Request(ctx context.Context, access domain.DemoAccess, entr
 		if findErr != nil || (found && known.CoolingDown(d.now())) {
 			return findErr
 		}
+		var txErr error
+		if access.SchoolSlug, txErr = d.schoolFor(txCtx, access, known, found); txErr != nil {
+			return txErr
+		}
 		stored, lead = true, !found || known.ContactOptIn != access.ContactOptIn
-		var insertErr error
-		access.ID, insertErr = d.store.InsertDemoAccess(txCtx, access)
-		return insertErr
+		access.ID, txErr = d.store.InsertDemoAccess(txCtx, access)
+		return txErr
 	})
 	if err != nil {
 		return fmt.Errorf("store demo access: %w", err)
@@ -82,54 +87,77 @@ func (d *DemoAccess) Request(ctx context.Context, access domain.DemoAccess, entr
 	return nil
 }
 
-// Ready reports whether the token's demo school can be entered.
-func (d *DemoAccess) Ready(ctx context.Context, token, schoolSlug string) (bool, error) {
-	var ready bool
-	err := d.adminTx(ctx, func(txCtx context.Context) error {
-		if _, err := d.valid(txCtx, token); err != nil {
-			return err
+// schoolFor returns the school a new access enters: the school of the
+// address's newest unexpired access unless that school failed, otherwise a
+// new one.
+func (d *DemoAccess) schoolFor(ctx context.Context, access, known domain.DemoAccess, found bool) (string, error) {
+	if found {
+		entry, err := d.schools.DemoSchoolEntry(ctx, known.SchoolSlug)
+		if err != nil {
+			return "", err
 		}
-		_, _, found, err := d.administrator(txCtx, schoolSlug)
-		ready = found
-		return err
-	})
-	return ready, err
+		if entry.Status != domain.DemoSchoolFailed {
+			return known.SchoolSlug, nil
+		}
+	}
+	return d.schools.PrepareDemoSchool(ctx, access.SchoolName, access.PersonName)
 }
 
-// Redeem notes the use and mints a session for the demo school's
-// administrator. The token stays valid afterwards.
-func (d *DemoAccess) Redeem(ctx context.Context, token, schoolSlug, ipAddress, userAgent string) (string, string, error) {
-	var accountID, tenantID int64
+// Status reports the progress of the token's demo school and its slug, which
+// is the school's address once it is ready. A ready school without an account
+// to sign in is still preparing.
+func (d *DemoAccess) Status(ctx context.Context, token string) (status, schoolSlug string, err error) {
+	err = d.adminTx(ctx, func(txCtx context.Context) error {
+		access, err := d.valid(txCtx, token)
+		if err != nil {
+			return err
+		}
+		entry, err := d.entry(txCtx, access.SchoolSlug)
+		status, schoolSlug = entry.Status, access.SchoolSlug
+		return err
+	})
+	return status, schoolSlug, err
+}
+
+// Redeem notes the use and mints a session in the token's demo school: for
+// the prospect's own caregiver, or for the administrator of a school without
+// one. The token stays valid afterwards.
+func (d *DemoAccess) Redeem(ctx context.Context, token, ipAddress, userAgent string) (string, string, error) {
+	var entry domain.DemoSchoolEntry
 	err := d.adminTx(ctx, func(txCtx context.Context) error {
 		access, err := d.valid(txCtx, token)
 		if err != nil {
 			return err
 		}
-		var found bool
-		accountID, tenantID, found, err = d.administrator(txCtx, schoolSlug)
-		if err != nil {
+		if entry, err = d.entry(txCtx, access.SchoolSlug); err != nil {
 			return err
 		}
-		if !found {
+		if entry.Status != domain.DemoSchoolReady {
 			return domain.ErrDemoSchoolPreparing
 		}
-		return d.store.RecordDemoAccessUse(txCtx, access.ID, accountID, d.now())
+		return d.store.RecordDemoAccessUse(txCtx, access.ID, entry.AccountID, d.now())
 	})
 	if err != nil {
 		return "", "", err
 	}
-	return d.sessions.IssueTokensForAuthenticatedAccount(ctx, accountID, tenantID, ipAddress, userAgent)
+	return d.sessions.IssueTokensForAuthenticatedAccount(ctx, entry.AccountID, entry.TenantID, ipAddress, userAgent)
 }
 
-// administrator is the account a demo session signs in: the school exists
-// and has an administrator once the demo process provisioned it.
-func (d *DemoAccess) administrator(ctx context.Context, schoolSlug string) (accountID, tenantID int64, found bool, err error) {
-	tenantID, found, err = d.schools.FindDemoSchool(ctx, schoolSlug)
-	if err != nil || !found {
-		return 0, 0, false, err
+// entry resolves the account a demo session signs in.
+func (d *DemoAccess) entry(ctx context.Context, schoolSlug string) (domain.DemoSchoolEntry, error) {
+	entry, err := d.schools.DemoSchoolEntry(ctx, schoolSlug)
+	if err != nil || entry.Status != domain.DemoSchoolReady || entry.AccountID != 0 {
+		return entry, err
 	}
-	accountID, found, err = d.store.FindSchoolAdministrator(ctx, tenantID)
-	return accountID, tenantID, found, err
+	accountID, found, err := d.store.FindSchoolAdministrator(ctx, entry.TenantID)
+	if err != nil {
+		return domain.DemoSchoolEntry{}, err
+	}
+	if !found {
+		entry.Status = domain.DemoSchoolPreparing
+	}
+	entry.AccountID = accountID
+	return entry, nil
 }
 
 func (d *DemoAccess) valid(ctx context.Context, token string) (domain.DemoAccess, error) {

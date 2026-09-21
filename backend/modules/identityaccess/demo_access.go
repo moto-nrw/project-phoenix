@@ -32,6 +32,22 @@ type DemoAccessRequest struct {
 	EntryURLPrefix string
 }
 
+// Progress of the demo school behind a demo access.
+const (
+	DemoSchoolPreparing = "preparing"
+	DemoSchoolReady     = "ready"
+	DemoSchoolFailed    = "failed"
+)
+
+// DemoSchoolEntry is what Organisation & Tenancy reports about a demo school.
+// AccountID is the prospect's own caregiver; zero signs in the school's
+// administrator, as in the standing demo school.
+type DemoSchoolEntry struct {
+	Status    string
+	SchoolID  int64
+	AccountID int64
+}
+
 // DemoAccessMessage is what the two demo mails (#3465) say about an access.
 type DemoAccessMessage struct {
 	AccessID     int64
@@ -51,8 +67,8 @@ type DemoAccessMail interface {
 // DemoAccessEngine is the composed implementation behind DemoAccess.
 type DemoAccessEngine interface {
 	RequestDemoAccess(ctx context.Context, request DemoAccessRequest) error
-	DemoAccessReady(ctx context.Context, token, schoolSlug string) (bool, error)
-	RedeemDemoAccess(ctx context.Context, token, schoolSlug, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
+	DemoAccessStatus(ctx context.Context, token string) (status, schoolSlug string, err error)
+	RedeemDemoAccess(ctx context.Context, token, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 }
 
 // DemoAccess is the capability the public demo routes consume, separate from
@@ -70,14 +86,15 @@ func (d *DemoAccess) RequestDemoAccess(ctx context.Context, request DemoAccessRe
 	return d.engine.RequestDemoAccess(ctx, request)
 }
 
-// DemoAccessReady reports whether the school with the slug can be entered.
-func (d *DemoAccess) DemoAccessReady(ctx context.Context, token, schoolSlug string) (bool, error) {
-	return d.engine.DemoAccessReady(ctx, token, schoolSlug)
+// DemoAccessStatus reports the progress of the token's demo school and its
+// slug: the subdomain the prospect enters once the school is ready.
+func (d *DemoAccess) DemoAccessStatus(ctx context.Context, token string) (status, schoolSlug string, err error) {
+	return d.engine.DemoAccessStatus(ctx, token)
 }
 
-// RedeemDemoAccess mints a tenant session in the school with the slug.
-func (d *DemoAccess) RedeemDemoAccess(ctx context.Context, token, schoolSlug, ipAddress, userAgent string) (string, string, error) {
-	return d.engine.RedeemDemoAccess(ctx, token, schoolSlug, ipAddress, userAgent)
+// RedeemDemoAccess mints a tenant session in the token's demo school.
+func (d *DemoAccess) RedeemDemoAccess(ctx context.Context, token, ipAddress, userAgent string) (string, string, error) {
+	return d.engine.RedeemDemoAccess(ctx, token, ipAddress, userAgent)
 }
 
 // NewDemoModule is NewModule with the demo-only capability; access is nil

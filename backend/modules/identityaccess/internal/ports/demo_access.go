@@ -20,10 +20,15 @@ type DemoAccessStore interface {
 	FindSchoolAdministrator(ctx context.Context, tenantID int64) (accountID int64, found bool, err error)
 }
 
-// DemoSchools resolves the demo school through its owner, Organisation &
-// Tenancy. A school that does not exist yet, is inactive or deleted is not found.
+// DemoSchools reaches the demo schools through their owner, Organisation &
+// Tenancy, inside the caller's administrative transaction.
 type DemoSchools interface {
-	FindDemoSchool(ctx context.Context, slug string) (tenantID int64, found bool, err error)
+	// PrepareDemoSchool returns the slug of the school a new access enters:
+	// a school of its own that is queued for seeding, or the standing school.
+	PrepareDemoSchool(ctx context.Context, schoolName, personName string) (slug string, err error)
+	// DemoSchoolEntry reports the school's progress. A school that is
+	// unknown, inactive or deleted is still preparing.
+	DemoSchoolEntry(ctx context.Context, slug string) (domain.DemoSchoolEntry, error)
 }
 
 // DemoAccessMail sends the two mails of the public demo (#3465). Sending is

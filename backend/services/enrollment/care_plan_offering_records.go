@@ -193,7 +193,7 @@ func careOfferingFieldsFromLegacy(offering *enrollmentModels.CareOffering) (care
 		CountsAsCare: offering.CountsAsCare, AutoAddGradeLevels: offering.AutoAddGradeLevels,
 		AvailabilityRule: availabilityRule, SortOrder: offering.SortOrder,
 		SelectionGroup: offering.SelectionGroup, SelectionRule: offering.SelectionRule, PickupTimes: offering.PickupTimes,
-		AutoAddTriggerOfferingIDs: offering.AutoAddTriggerOfferingIDs,
+		AutoAddTriggerOfferingIDs: offering.AutoAddTriggerOfferingIDs, Translations: offering.Translations,
 	}, nil
 }
 
@@ -228,7 +228,7 @@ func applyCareOfferingToLegacy(target *enrollmentModels.CareOffering, value care
 	target.SortOrder = value.SortOrder
 	target.SelectionGroup = value.SelectionGroup
 	target.SelectionRule = value.SelectionRule
-	target.PickupTimes = value.PickupTimes
+	target.PickupTimes, target.Translations = value.PickupTimes, value.Translations
 	target.AutoAddTriggerOfferingIDs = value.AutoAddTriggerOfferingIDs
 	return nil
 }

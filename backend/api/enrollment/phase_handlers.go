@@ -57,9 +57,12 @@ type PhaseResponse struct {
 	EligibleSchoolClasses []string `json:"eligible_school_classes"`
 	// EligibleGradeLevels (migration 1.15.237) restricts the phase to whole
 	// grades — the case a concrete-class list cannot express.
-	EligibleGradeLevels []int  `json:"eligible_grade_levels"`
-	CreatedAt           string `json:"created_at"`
-	UpdatedAt           string `json:"updated_at"`
+	EligibleGradeLevels []int `json:"eligible_grade_levels"`
+	// Translations carries the school-written translations of Name with
+	// their German source, so the editor can tell stale ones apart (#3377).
+	Translations enrollmentOwner.Translations `json:"translations,omitempty"`
+	CreatedAt    string                       `json:"created_at"`
+	UpdatedAt    string                       `json:"updated_at"`
 }
 
 func toPhaseResponse(p *enrollmentOwner.Phase) PhaseResponse {
@@ -121,6 +124,7 @@ func toPhaseResponse(p *enrollmentOwner.Phase) PhaseResponse {
 	if resp.EligibleGradeLevels == nil {
 		resp.EligibleGradeLevels = []int{}
 	}
+	resp.Translations = p.Translations
 	return resp
 }
 
@@ -157,6 +161,9 @@ type PhaseRequest struct {
 	Audience              *string   `json:"audience,omitempty"`
 	EligibleSchoolClasses *[]string `json:"eligible_school_classes,omitempty"`
 	EligibleGradeLevels   *[]int    `json:"eligible_grade_levels,omitempty"`
+	// Translations (#3377) follows the same convention: omitted keeps the
+	// stored translations, an explicit {} clears them.
+	Translations *enrollmentOwner.Translations `json:"translations,omitempty"`
 
 	calendarPeriodIDPresent bool
 }
@@ -233,6 +240,9 @@ func (req *PhaseRequest) toModel(existingID int64) (*enrollmentOwner.Phase, erro
 	} else {
 		p.EligibleGradeLevels = []int{}
 	}
+	if req.Translations != nil {
+		p.Translations = *req.Translations
+	}
 	openAt, err := parseOptionalRFC3339(req.EnrollmentOpenAt, "enrollment_open_at must be RFC3339")
 	if err != nil {
 		return nil, err
@@ -281,6 +291,9 @@ func (req *PhaseRequest) hydrateOmittedFields(model, existing *enrollmentOwner.P
 	}
 	if req.EligibleGradeLevels == nil {
 		model.EligibleGradeLevels = existing.EligibleGradeLevels
+	}
+	if req.Translations == nil {
+		model.Translations = existing.Translations
 	}
 }
 

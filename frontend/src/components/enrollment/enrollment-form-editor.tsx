@@ -48,6 +48,11 @@ import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { BooleanField } from "~/components/settings/fields/boolean-field";
 import {
+  TranslationsSection,
+  type TranslationTarget,
+} from "~/components/enrollment/translations-section";
+import type { Translations } from "~/lib/enrollment-translations";
+import {
   blankField,
   blankInfoField,
   createSchema,
@@ -606,6 +611,38 @@ export function EnrollmentFormEditor({
     );
   };
 
+  // Routes an edit from the translations block back to the object that owns
+  // the text; see schemaTranslationTargets for the id shape.
+  const applySchemaTranslation = (
+    target: TranslationTarget,
+    translations: Translations,
+  ) => {
+    const [owner, first, second] = target.id.split("|");
+    const index = Number(first);
+    if (owner === "legal") {
+      setLegalBlocks((prev) =>
+        prev.map((block, i) =>
+          i === index
+            ? copyStableObjectKey(block, { ...block, translations })
+            : block,
+        ),
+      );
+      return;
+    }
+    const field = fields[index];
+    if (!field) return;
+    if (owner === "field") {
+      updateField(index, { translations });
+      return;
+    }
+    const optionIndex = Number(second);
+    updateField(index, {
+      options: field.options?.map((option, i) =>
+        i === optionIndex ? { ...option, translations } : option,
+      ),
+    });
+  };
+
   const updateCoreRequirement = (
     key: CoreRequirementKey,
     required: boolean,
@@ -1088,6 +1125,12 @@ export function EnrollmentFormEditor({
                   ))}
                 </div>
               ) : null}
+
+              <TranslationsSection
+                targets={schemaTranslationTargets(fields, legalBlocks)}
+                onChange={applySchemaTranslation}
+                disabled={saving}
+              />
 
               <div className="flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-4">
                 <Button
@@ -4436,6 +4479,86 @@ function getTargetOptions(
   return [];
 }
 
+/**
+ * Every text of the template that parents read, in form order. The id names
+ * the owner (`field|3|label`, `option|3|1|label`, `legal|0|title`) so
+ * applySchemaTranslation can route the edit back.
+ */
+function schemaTranslationTargets(
+  fields: FormField[],
+  legalBlocks: FormLegalBlock[],
+): TranslationTarget[] {
+  const targets: TranslationTarget[] = [];
+  const add = (target: TranslationTarget) => {
+    if (target.german.trim() !== "") targets.push(target);
+  };
+  legalBlocks.forEach((block, index) => {
+    if (!block.enabled) return;
+    const { translations } = block;
+    add({
+      id: `legal|${index}|title`,
+      caption: "Zustimmung: Titel",
+      german: block.title,
+      attr: "title",
+      translations,
+    });
+    add({
+      id: `legal|${index}|label`,
+      caption: "Zustimmung: Text neben der Checkbox",
+      german: block.label,
+      attr: "label",
+      translations,
+    });
+    // A PDF block shows a link to the file instead of its text.
+    if (legalBlockDisplayMode(block) !== LEGAL_BLOCK_DISPLAY_MODE_PDF) {
+      add({
+        id: `legal|${index}|text`,
+        caption: "Zustimmung: Rechtstext / Erklärung",
+        german: block.text,
+        attr: "text",
+        translations,
+        multiline: true,
+      });
+    }
+  });
+  fields.forEach((field, index) => {
+    const { translations } = field;
+    const isInfo = field.type === "information";
+    add({
+      id: `field|${index}|label`,
+      caption: isInfo ? "Infotext: Überschrift" : "Frage",
+      german: field.label,
+      attr: "label",
+      translations,
+    });
+    add({
+      id: `field|${index}|content`,
+      caption: "Infotext: Inhalt",
+      german: isInfo ? (field.content ?? "") : "",
+      attr: "content",
+      translations,
+      multiline: true,
+    });
+    add({
+      id: `field|${index}|help_text`,
+      caption: "Hinweis zur Frage",
+      german: isInfo ? "" : (field.help_text ?? ""),
+      attr: "help_text",
+      translations,
+    });
+    field.options?.forEach((option, optionIndex) =>
+      add({
+        id: `option|${index}|${optionIndex}|label`,
+        caption: `Antwort zu „${field.label}“`,
+        german: option.label,
+        attr: "label",
+        translations: option.translations,
+      }),
+    );
+  });
+  return targets;
+}
+
 export function prepareFieldsForSave(fields: FormField[]): FormField[] {
   return fields.map((field, index) => {
     if (field.target) {
@@ -4449,6 +4572,7 @@ export function prepareFieldsForSave(fields: FormField[]): FormField[] {
         help_text: field.help_text?.trim() ?? "",
         required: Boolean(field.required),
         visible_when: field.visible_when ?? undefined,
+        translations: field.translations,
         // Carry the admin-configured fixed pickup times through; the
         // rebuilt base field drops them otherwise. Only the pickup-times
         // field may carry this (arrival stays free-entry, and the backend
@@ -4478,6 +4602,7 @@ export function prepareFieldsForSave(fields: FormField[]): FormField[] {
         sort_order: index,
         applies_to_child: Boolean(field.applies_to_child),
         visible_when: field.visible_when ?? undefined,
+        translations: field.translations,
       };
     }
     return {
@@ -4683,6 +4808,7 @@ function prepareLegalBlocksForSave(blocks: FormLegalBlock[]): FormLegalBlock[] {
       source: block.source ?? "custom",
       display_mode: displayMode,
       document_url: documentURL,
+      translations: block.translations,
     };
   });
 }

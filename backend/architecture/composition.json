@@ -21038,7 +21038,7 @@
       "locations": [
         {
           "file": "services/account_authentication_composition.go",
-          "line": 79,
+          "line": 84,
           "declaration": "sessionRepositoriesOf"
         },
         {
@@ -21048,7 +21048,7 @@
         },
         {
           "file": "services/auth_test_helpers.go",
-          "line": 291,
+          "line": 299,
           "declaration": "IdentityAccessForTests"
         },
         {

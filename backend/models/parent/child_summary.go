@@ -104,15 +104,18 @@ type EnrollablePhase struct {
 	// /auth/tenant/resolve and the parent enrollment endpoints accept. Slug is
 	// only unique per organization and is not a routing key, so links must be
 	// built from this field (#1663).
-	SchoolSubdomain   string        `json:"school_subdomain"`
-	PhaseID           int64         `json:"phase_id"`
-	PhaseName         string        `json:"phase_name"`
-	PhaseKind         string        `json:"phase_kind"`
-	ServiceStartDate  careplan.Date `json:"service_start_date"`
-	ServiceEndDate    careplan.Date `json:"service_end_date"`
-	EnrollmentOpenAt  *time.Time    `json:"enrollment_open_at,omitempty"`
-	EnrollmentCloseAt *time.Time    `json:"enrollment_close_at,omitempty"`
-	AlreadyLinked     bool          `json:"already_linked"`
+	SchoolSubdomain string `json:"school_subdomain"`
+	PhaseID         int64  `json:"phase_id"`
+	PhaseName       string `json:"phase_name"`
+	// PhaseNameTranslations maps locale → the school's translation of
+	// PhaseName, limited to translations that still match it (#3377).
+	PhaseNameTranslations map[string]string `json:"phase_name_translations,omitempty"`
+	PhaseKind             string            `json:"phase_kind"`
+	ServiceStartDate      careplan.Date     `json:"service_start_date"`
+	ServiceEndDate        careplan.Date     `json:"service_end_date"`
+	EnrollmentOpenAt      *time.Time        `json:"enrollment_open_at,omitempty"`
+	EnrollmentCloseAt     *time.Time        `json:"enrollment_close_at,omitempty"`
+	AlreadyLinked         bool              `json:"already_linked"`
 	// Audience mirrors enrollment.phases.audience (#1663) so the picker
 	// can label restricted phases. Phases the account is NOT eligible
 	// for are already filtered out by the repository.
