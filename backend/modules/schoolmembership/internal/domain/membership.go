@@ -44,12 +44,42 @@ type StaffFields struct {
 	BirthdayDisplayOptOut bool
 }
 
+// Employment is the Workforce half of the staff fields: what StaffFields
+// carries besides the person, stored by Workforce under the membership ID.
+func (f StaffFields) Employment(membershipID int64) StaffEmployment {
+	return StaffEmployment{
+		MembershipID: membershipID, StaffNotes: f.StaffNotes, EmploymentType: f.EmploymentType,
+		WorkTimeModelID: f.WorkTimeModelID, PersonnelNumber: f.PersonnelNumber,
+		RotationAnchorDate: f.RotationAnchorDate, BirthdayDisplayOptOut: f.BirthdayDisplayOptOut,
+	}
+}
+
+// StaffEmployment is the Workforce-owned employment profile of a membership
+// (#2753). School Membership composes it into Staff; it never stores it.
+type StaffEmployment struct {
+	MembershipID          int64
+	StaffNotes            string
+	EmploymentType        *string
+	WorkTimeModelID       *int64
+	PersonnelNumber       *string
+	RotationAnchorDate    string
+	BirthdayDisplayOptOut bool
+}
+
+// WithEmployment returns the staff member with the employment fields set.
+func (s Staff) WithEmployment(employment StaffEmployment) Staff {
+	s.StaffNotes, s.EmploymentType = employment.StaffNotes, employment.EmploymentType
+	s.WorkTimeModelID, s.PersonnelNumber = employment.WorkTimeModelID, employment.PersonnelNumber
+	s.RotationAnchorDate, s.BirthdayDisplayOptOut = employment.RotationAnchorDate, employment.BirthdayDisplayOptOut
+	return s
+}
+
 type StaffFilter struct {
-	IDs             []int64
-	PersonIDs       []int64
-	WorkTimeModelID *int64
-	TenantIDs       []int64
-	IncludeDeleted  bool
+	IDs            []int64
+	PersonIDs      []int64
+	TenantIDs      []int64
+	IncludeDeleted bool
+	MembershipOnly bool
 }
 
 type Teacher struct {
@@ -152,13 +182,4 @@ func (s *OperationStats) Add(other OperationStats) {
 	s.Queries += other.Queries
 	s.Rows += other.Rows
 	s.StatementDuration += other.StatementDuration
-}
-
-// AppendNotes joins a new paragraph onto existing staff notes the way the
-// legacy model did: a newline between paragraphs, no leading newline.
-func AppendNotes(existing, notes string) string {
-	if existing == "" {
-		return notes
-	}
-	return existing + "\n" + notes
 }

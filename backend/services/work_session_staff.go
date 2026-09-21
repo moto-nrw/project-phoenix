@@ -9,19 +9,24 @@ import (
 )
 
 type workSessionStaffRecords interface {
-	staffScheduleRecords
 	staffNameRecords
+	FindByID(context.Context, any) (*users.Staff, error)
 	Update(context.Context, *users.Staff) error
 }
 
-type workSessionStaff struct{ source workSessionStaffRecords }
+type workSessionStaff struct {
+	source    workSessionStaffRecords
+	schedules staffScheduleRecords
+}
 
-func WorkSessionStaff(source workSessionStaffRecords) timetracking.WorkSessionStaff {
-	return workSessionStaff{source: source}
+// WorkSessionStaff reads names and writes the schedule binding through the
+// staff records, and reads the binding from Workforce's employment query.
+func WorkSessionStaff(source workSessionStaffRecords, schedules staffScheduleRecords) timetracking.WorkSessionStaff {
+	return workSessionStaff{source: source, schedules: schedules}
 }
 
 func (q workSessionStaff) ScheduleAssignment(ctx context.Context, staffID int64) (*timetracking.StaffScheduleAssignment, error) {
-	return StaffScheduleAssignments(q.source).ScheduleAssignment(ctx, staffID)
+	return StaffScheduleAssignments(q.schedules).ScheduleAssignment(ctx, staffID)
 }
 
 func (q workSessionStaff) StaffNames(ctx context.Context, ids []int64) (map[int64]timetracking.WorkSessionStaffName, error) {

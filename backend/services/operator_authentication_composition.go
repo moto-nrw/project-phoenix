@@ -265,7 +265,7 @@ func (p schoolIdentityProvisioner) ListAccountIdentityFacts(ctx context.Context,
 	for _, person := range personByTenant {
 		personIDs = append(personIDs, person.ID)
 	}
-	members, err := p.membership.ListStaff(ctx, schoolmembership.StaffFilter{PersonIDs: personIDs})
+	members, err := p.membership.ListStaff(ctx, schoolmembership.StaffFilter{PersonIDs: personIDs, MembershipOnly: true})
 	if err != nil {
 		return nil, fmt.Errorf("load staff for account identity facts: %w", err)
 	}

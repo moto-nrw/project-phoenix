@@ -266,7 +266,7 @@ func assertPresenceTargetsEmpty(t *testing.T, db *testpkg.DB) {
 
 func TestPresenceExpandUpDownPreservesOldAuthority(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupIsolatedStaffStorageBeforeCutover(t)
 	f := createPresenceExpandFixture(t, db)
 	assertPresenceTargetsEmpty(t, db)
 	require.NoError(t, runPresenceMigration(t.Context(), db, "001015378", false))

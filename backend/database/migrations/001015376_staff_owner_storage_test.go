@@ -11,7 +11,7 @@ import (
 
 func TestStaffOwnerStorageStartsEmpty(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStaffStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	staff := testpkg.CreateTestStaff(t, db, "Expand", "Compatibility")
 	_, err := db.ExecContext(ctx, `UPDATE users.staff SET staff_notes = 'old-table write' WHERE id = ?`, staff.ID)
@@ -29,7 +29,7 @@ func TestStaffOwnerStorageStartsEmpty(t *testing.T) {
 
 func TestStaffOwnerStorageRollback(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStaffStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	staff := testpkg.CreateTestStaff(t, db, "Before", "Expand")
 	schemaBefore := staffSourceSchema(t, db)
@@ -81,7 +81,7 @@ func insertStaffOwnerMembership(t *testing.T, db *testpkg.DB, tenantID, personID
 
 func TestStaffOwnerStorageTenantIsolation(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStaffStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantA := testpkg.Tenant(t)
 	tenantB := testpkg.UniqueTestTenantID(t)
@@ -123,7 +123,7 @@ func TestStaffOwnerStorageTenantIsolation(t *testing.T) {
 
 func TestStaffOwnerStorageColumnMapping(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStaffStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	// Every source field has exactly one target owner. Profile tenant_id is
 	// duplicated only to enforce the membership FK and RLS boundary.
@@ -161,7 +161,7 @@ func TestStaffOwnerStorageColumnMapping(t *testing.T) {
 
 func TestStaffOwnerStorageConstraints(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStaffStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	person := testpkg.CreateTestPerson(t, db, "Constraints", "Staff")
@@ -203,7 +203,7 @@ func TestStaffOwnerStorageConstraints(t *testing.T) {
 
 func TestStaffOwnerStorageTenantWrites(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStaffStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantA := testpkg.Tenant(t)
 	tenantB := testpkg.UniqueTestTenantID(t)
