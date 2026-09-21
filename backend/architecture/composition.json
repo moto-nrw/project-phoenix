@@ -21083,22 +21083,22 @@
         },
         {
           "file": "services/auth_test_helpers.go",
-          "line": 46,
+          "line": 45,
           "declaration": "type AuthTestModule"
         },
         {
           "file": "services/auth_test_helpers.go",
-          "line": 281,
+          "line": 279,
           "declaration": "IdentityAccessForTests"
         },
         {
           "file": "services/factory.go",
-          "line": 464,
+          "line": 463,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 514,
+          "line": 513,
           "declaration": "newFactory"
         },
         {

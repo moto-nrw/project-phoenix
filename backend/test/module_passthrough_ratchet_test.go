@@ -188,7 +188,7 @@ var modulePassthroughBudgets = map[string]int{
 	// (12), operator.go (10) and operator_mfa.go (9): session/operator
 	// lookups and their ForUpdate twins, MFA and passkey credential and
 	// challenge stores, permission and role administration reads.
-	"modules/identityaccess": 120,
+	"modules/identityaccess": 117,
 	// Menu, participation and week reads forwarded to the store.
 	"modules/mealplan": 8,
 	// The provisioning listings (organisations, accounts, devices, dashboard)
