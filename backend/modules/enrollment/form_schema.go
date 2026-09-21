@@ -63,8 +63,9 @@ var validFormFieldTypes = map[FormFieldType]bool{
 
 // FormFieldOption is a single static option on a select-type field.
 type FormFieldOption struct {
-	Label string `json:"label"`
-	Value string `json:"value"`
+	Label        string       `json:"label"`
+	Value        string       `json:"value"`
+	Translations Translations `json:"translations,omitempty"` // of Label (#3377)
 }
 
 // FormFieldValidation mirrors the settings registry's validation shape so
@@ -215,6 +216,7 @@ type FormField struct {
 	AppliesToCh      bool                 `json:"applies_to_child,omitempty"` // false (default) = guardian-level field; true = per-child field
 	Target           string               `json:"target,omitempty"`           // "" = free custom field; otherwise one of ReservedTargets
 	VisibleWhen      *VisibilityCondition `json:"visible_when,omitempty"`     // nil = always visible; otherwise show only when the condition matches
+	Translations     Translations         `json:"translations,omitempty"`     // of Label, HelpText, Content (#3377); see form_schema_translations.go
 }
 
 const CoreRequirementGuardianPhone = "guardian_phone"
@@ -376,7 +378,7 @@ func (f *FormField) Validate() error {
 		}
 	}
 
-	return nil
+	return f.normalizeTranslations()
 }
 
 // validateInfo enforces the constraints specific to read-only
@@ -795,17 +797,18 @@ var standardLegalBlockKeys = map[string]bool{
 // Standard blocks originate from tenant settings and may be overridden or
 // disabled on the template. Custom blocks are stored only on the template.
 type FormLegalBlock struct {
-	Key         string `json:"key"`
-	Kind        string `json:"kind"`
-	Title       string `json:"title"`
-	Label       string `json:"label"`
-	Text        string `json:"text"`
-	Required    bool   `json:"required"`
-	Enabled     bool   `json:"enabled"`
-	SortOrder   int    `json:"sort_order"`
-	Source      string `json:"source,omitempty"`
-	DisplayMode string `json:"display_mode,omitempty"`
-	DocumentURL string `json:"document_url,omitempty"`
+	Key          string       `json:"key"`
+	Kind         string       `json:"kind"`
+	Title        string       `json:"title"`
+	Label        string       `json:"label"`
+	Text         string       `json:"text"`
+	Required     bool         `json:"required"`
+	Enabled      bool         `json:"enabled"`
+	SortOrder    int          `json:"sort_order"`
+	Source       string       `json:"source,omitempty"`
+	DisplayMode  string       `json:"display_mode,omitempty"`
+	DocumentURL  string       `json:"document_url,omitempty"`
+	Translations Translations `json:"translations,omitempty"` // of Title, Label, Text (#3377)
 }
 
 func (b *FormLegalBlock) Validate() error {
@@ -865,19 +868,13 @@ func (b *FormLegalBlock) Validate() error {
 	if b.Kind == LegalBlockKindConsent && b.Required {
 		return fmt.Errorf("consent legal block %q cannot be required", b.Key)
 	}
-	if b.DisplayMode == "" {
-		b.DisplayMode = LegalBlockDisplayModeText
+	if err := b.validateDisplayMode(); err != nil {
+		return err
 	}
-	if b.DisplayMode != LegalBlockDisplayModeText && b.DisplayMode != LegalBlockDisplayModePDF {
-		return fmt.Errorf("legal block %q has unknown display mode %q", b.Key, b.DisplayMode)
-	}
-	if b.DisplayMode == LegalBlockDisplayModePDF {
-		if b.Key != ConsentKeyAGB || b.Source != LegalBlockSourceStandard {
-			return fmt.Errorf("legal block %q cannot use PDF display mode", b.Key)
-		}
-		if b.Enabled && b.DocumentURL == "" {
-			return fmt.Errorf("enabled legal block %q requires a PDF document", b.Key)
-		}
+	var err error
+	b.Translations, err = b.Translations.Normalize(TranslationAttrTitle, TranslationAttrLabel, TranslationAttrText)
+	if err != nil {
+		return fmt.Errorf("legal block %q: %w", b.Key, err)
 	}
 	return nil
 }

@@ -142,11 +142,11 @@ var moduleComplexityAllowlist = map[string]int{
 
 	"modules/enrollment/delete_schema.go:(*Module).DeleteUnusedSchema":                                       27,
 	"modules/enrollment/form_schema.go:(*FormField).validateQuestion":                                        34,
-	"modules/enrollment/form_schema.go:(*FormLegalBlock).Validate":                                           34,
+	"modules/enrollment/form_schema.go:(*FormLegalBlock).Validate":                                           26,
 	"modules/enrollment/form_schema.go:(*FormSchema).Validate":                                               23,
 	"modules/enrollment/form_schema.go:(*VisibilityCondition).Validate":                                      20,
 	"modules/enrollment/internal/adapters/postgres/change_request_reads.go:(*Store).ChangeRequestsForReview": 17,
-	"modules/enrollment/phase.go:(*Phase).Validate":                                                          42,
+	"modules/enrollment/phase.go:(*Phase).Validate":                                                          41,
 	"modules/enrollment/publish_schema.go:(*Module).PublishSchema":                                           21,
 	"modules/enrollment/selection/automatic_shares.go:AutomaticShares":                                       18,
 	"modules/enrollment/selection/materialize.go:MaterializeAdjustments":                                     44,

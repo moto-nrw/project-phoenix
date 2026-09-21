@@ -764,6 +764,69 @@ describe("EnrollmentForm", () => {
     ).not.toBeInTheDocument();
   });
 
+  // #3377: texts the school wrote itself follow the chosen language, per
+  // text, and fall back to German where the school has no translation.
+  function translatedPrefetch() {
+    const [pickupNote, ...otherFields] = schema().fields;
+    const [flexible, ...otherOfferings] = offerings();
+    return {
+      schema: {
+        ...schema(),
+        fields: [
+          {
+            ...pickupNote!,
+            translations: { en: { label: { text: "Pickup note" } } },
+          },
+          ...otherFields,
+        ],
+      },
+      offerings: [
+        {
+          ...flexible!,
+          translations: { en: { name: { text: "Flexible care" } } },
+        },
+        ...otherOfferings,
+      ],
+      careOfferingSelectionMode: "optional" as const,
+      captchaConfig: null,
+      legalTexts: legalTexts([
+        {
+          key: "agb",
+          kind: "terms",
+          title: "AGB / Teilnahmebedingungen",
+          label: "Ich akzeptiere die AGB.",
+          text: "AGB Text",
+          required: true,
+          translations: { en: { label: { text: "I accept the terms." } } },
+        },
+      ]),
+    };
+  }
+
+  it("shows school-written texts in the chosen language and German where none exists", async () => {
+    mockIntlLocale.value = "en";
+
+    renderForm({ localizedCopy: true, prefetchedData: translatedPrefetch() });
+    await waitForLoaded();
+
+    expect(screen.getByText("Pickup note")).toBeInTheDocument();
+    expect(screen.queryByText("Abholhinweis")).not.toBeInTheDocument();
+    expect(screen.getByText("Flexible care")).toBeInTheDocument();
+    expect(screen.getByText("I accept the terms.")).toBeInTheDocument();
+    // No English text stored for this offering.
+    expect(screen.getByText("Fixe Betreuung")).toBeInTheDocument();
+  });
+
+  it("keeps school-written texts German in a staff preview", async () => {
+    mockIntlLocale.value = "en";
+
+    renderForm({ prefetchedData: translatedPrefetch() });
+    await waitForLoaded();
+
+    expect(screen.getByText("Abholhinweis")).toBeInTheDocument();
+    expect(screen.getByText("Flexible Betreuung")).toBeInTheDocument();
+  });
+
   it("renders only the configured AGB block and submits only its consent", async () => {
     mockFetchPublicLegalTexts.mockResolvedValueOnce(
       legalTexts([

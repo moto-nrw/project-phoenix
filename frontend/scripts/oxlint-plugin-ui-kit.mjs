@@ -469,9 +469,9 @@ src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[1
 src/components/calendar/personal-calendar.tsx|text-[11px]@786 text-[11px]@814 text-[11px]@901 text-[11px]@962 text-[11px]@966 text-[11px]@972 text-[11px]@1018 text-[11px]@1024 text-[10px]@1044 text-[11px]@1097 text-[11px]@1177 text-[11px]@1183 text-[11px]@1188
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@40 text-[10px]@94
 src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@920 text-[11px]@939
-src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1306 text-[11px]@2991 text-[11px]@3183 text-[11px]@3188 text-[11px]@3193 text-[11px]@3347 text-[11px]@3939 text-[10px]@4156 text-[11px]@4168 text-[11px]@4203 text-[10px]@4217 text-[10px]@4261
-src/components/enrollment/enrollment-form.tsx|text-[11px]@2090
-src/components/enrollment/phases-editor.tsx|text-[11px]@668 text-[11px]@673
+src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1349
+src/components/enrollment/enrollment-form.tsx|text-[11px]@2121
+src/components/enrollment/phases-editor.tsx|text-[11px]@669 text-[11px]@674
 src/components/files/files-page.tsx|text-[11px]@158 text-[11px]@275
 src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141
 src/components/guardians/guardian-list.tsx|text-[10px]@373

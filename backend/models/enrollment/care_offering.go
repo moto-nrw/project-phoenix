@@ -2,6 +2,7 @@ package enrollment
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -221,6 +222,10 @@ type CareOffering struct {
 	// AvailableDays; values are wall-clock HH:MM. The schedule service projects
 	// them through each booking's validity window (ADR 0001).
 	PickupTimes map[string]string `json:"pickup_times,omitempty"`
+	// Translations is the stored translation document of Name and
+	// Description (locale → attribute → {text, source}, #3377). The care
+	// offering service validates it; this model only carries the JSON.
+	Translations json.RawMessage `json:"translations,omitempty"`
 
 	// AutoAddTriggerOfferingIDs is loaded from
 	// enrollment.care_offering_auto_triggers. It is not a column on

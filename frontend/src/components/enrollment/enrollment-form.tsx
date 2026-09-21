@@ -36,6 +36,12 @@ import {
   type PublicLegalTexts,
 } from "~/lib/enrollment-form-schema-api";
 import {
+  localizeFormFields,
+  localizeLegalBlocks,
+  localizeOfferings,
+  selectionGroupLabel,
+} from "~/lib/enrollment-translations";
+import {
   buildFieldsByKey,
   isFieldVisible,
   visibleAnswerData,
@@ -276,6 +282,9 @@ export function EnrollmentForm({
 }: Props) {
   const intl = useTranslations("enrollmentForm");
   const activeLocale = useLocale();
+  // School-written texts follow the same opt-in as the form chrome: staff
+  // previews stay German even when a parent locale cookie exists (#3377).
+  const contentLocale = localizedCopy ? activeLocale : DEFAULT_LOCALE;
   const tr = useMemo(
     () => makeEnrollmentFormTranslator(intl, localizedCopy),
     [intl, localizedCopy],
@@ -298,11 +307,25 @@ export function EnrollmentForm({
   const initialRequiredOfferingIDs = initialOfferings
     .filter((o) => o.is_required && careOfferingIsAvailable(o, undefined))
     .map((o) => o.id);
-  const [schema, setSchema] = useState<PublicFormSchema | null>(
+  // The loaded texts stay German in state; what the form renders is derived
+  // per language, so switching the language needs no reload (#3377).
+  const [loadedSchema, setSchema] = useState<PublicFormSchema | null>(
     prefetchedData?.schema ?? null,
   );
-  const [offerings, setOfferings] = useState<PublicCareOffering[]>(
+  const schema = useMemo(
+    () =>
+      loadedSchema && {
+        ...loadedSchema,
+        fields: localizeFormFields(loadedSchema.fields, contentLocale),
+      },
+    [loadedSchema, contentLocale],
+  );
+  const [loadedOfferings, setOfferings] = useState<PublicCareOffering[]>(
     prefetchedData?.offerings ?? [],
+  );
+  const offerings = useMemo(
+    () => localizeOfferings(loadedOfferings, contentLocale),
+    [loadedOfferings, contentLocale],
   );
   const [careOfferingSelectionMode, setCareOfferingSelectionMode] =
     useState<CareOfferingSelectionMode>(
@@ -797,7 +820,10 @@ export function EnrollmentForm({
   const visibleGuardianFields = (schema?.fields ?? []).filter(
     (f) => !f.applies_to_child && isFieldVisible(f, guardianCtx),
   );
-  const legalBlocks = legalTexts?.blocks ?? [];
+  const legalBlocks = useMemo(
+    () => localizeLegalBlocks(legalTexts?.blocks ?? [], contentLocale),
+    [legalTexts, contentLocale],
+  );
   const childConditionCtx = (child: ChildDraft): ConditionContext => ({
     guardianAnswers: customData,
     childAnswers: child.custom,
@@ -1088,6 +1114,7 @@ export function EnrollmentForm({
         materializedCare.offeringIds,
         childOfferings,
         tr,
+        contentLocale,
       );
       if (groupRuleMessage) {
         groupRuleIndexes.push(i);
@@ -2084,7 +2111,11 @@ export function EnrollmentForm({
                               >
                                 <div className="mb-2 flex flex-wrap items-center gap-2 px-1">
                                   <span className="text-xs font-semibold text-gray-800">
-                                    {bucket.group}
+                                    {selectionGroupLabel(
+                                      offerings,
+                                      bucket.group,
+                                      contentLocale,
+                                    )}
                                   </span>
                                   {offeringRuleHint(bucket.rule, tr) && (
                                     <span className="bg-moto-blue/10 text-moto-blue-hover rounded-full px-2 py-0.5 text-[11px] font-medium">
@@ -2617,6 +2648,7 @@ function offeringGroupRuleError(
   selectedOfferingIds: ReadonlySet<string>,
   offerings: PublicCareOffering[],
   tr: TranslationFn,
+  locale: string,
 ): string | null {
   const ruleByGroup = new Map<string, string>();
   for (const o of offerings) {
@@ -2625,12 +2657,13 @@ function offeringGroupRuleError(
     if (group === "" || rule === "optional") continue;
     ruleByGroup.set(group, rule);
   }
-  for (const [group, rule] of ruleByGroup) {
+  for (const [groupKey, rule] of ruleByGroup) {
     const count = offerings.filter(
       (o) =>
-        (o.selection_group?.trim() ?? "") === group &&
+        (o.selection_group?.trim() ?? "") === groupKey &&
         selectedOfferingIds.has(o.id),
     ).length;
+    const group = selectionGroupLabel(offerings, groupKey, locale);
     if (rule === "exactly_one" && count !== 1) {
       return tr("errors.groupExactlyOne", { group });
     }
@@ -3225,6 +3258,9 @@ function previewLegalTexts(schema: PublicFormSchema | null): PublicLegalTexts {
         required: block.required,
         sort_order: block.sort_order,
         source: block.source,
+        // The preview reads the stored document; the resolver compares each
+        // translation's source, so a PDF block's link text stays German.
+        translations: block.translations,
       }))
       .sort((a, b) => a.sort_order - b.sort_order) ?? [];
   return {

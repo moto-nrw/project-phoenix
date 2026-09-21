@@ -3770,6 +3770,18 @@ function enrollmentFormTopic(): HelpTopic {
           "Speichern Sie die Phase.",
         ],
       },
+      {
+        title: "Eigene Texte für Eltern übersetzen",
+        description:
+          "Eltern wählen im Formular oben ihre Sprache. moto übersetzt nur die festen Texte. Ihre eigenen Fragen und Zustimmungen übersetzen Sie selbst.",
+        steps: [
+          "Öffnen Sie Ihre Vorlage und gehen Sie nach unten zu `Übersetzungen für Eltern`.",
+          "Wählen Sie die Sprache, zum Beispiel `Русский`.",
+          "Links steht Ihr deutscher Text. Tragen Sie rechts bei `Übersetzung` den Text in der Sprache ein.",
+          "Wählen Sie unten `Änderungen speichern`.",
+          "Denselben Abschnitt finden Sie beim Bearbeiten einer Anmeldephase und eines Betreuungsangebots.",
+        ],
+      },
     ],
     result:
       "Eltern füllen in dieser Phase das Basisformular und Ihre zusätzlichen Fragen aus.",
@@ -3788,6 +3800,7 @@ function enrollmentFormTopic(): HelpTopic {
       "Die Eltern sehen Ihre Fragen nicht? Dann steht die Phase noch auf `Basisformular`. Wählen Sie dort `Eigene Vorlage wählen`.",
       "In der Phase steht `Noch keine eigenen Formulare vorhanden`? Dann ist die Vorlage noch nicht gespeichert.",
       "Eine Antwort taucht beim Kind nicht auf? Dann war es eine `Freie Zusatzfrage`. Nur `Stammdaten-Vorschläge` schreiben in die Daten des Kindes.",
+      "Eltern lesen einen Text auf Deutsch, obwohl Sie ihn übersetzt haben? Dann haben Sie den deutschen Text danach geändert. Bei der Übersetzung steht `Bitte prüfen`. Passen Sie sie an oder wählen Sie `Passt noch`, und speichern Sie.",
       "Fehlt `Anmeldungen` in der Seitenleiste? Der Bereich ist der Leitung vorbehalten.",
     ],
     related: [
