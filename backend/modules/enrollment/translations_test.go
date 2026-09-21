@@ -61,6 +61,12 @@ func TestTranslationsNormalize(t *testing.T) {
 		_, err := Translations{"en": {TranslationAttrLabel: {Text: long}}}.Normalize(TranslationAttrLabel)
 		require.Error(t, err)
 	})
+
+	t.Run("rejects a translation without its German source", func(t *testing.T) {
+		t.Parallel()
+		_, err := Translations{"en": {TranslationAttrLabel: {Text: "Name"}}}.Normalize(TranslationAttrLabel)
+		require.Error(t, err)
+	})
 }
 
 func TestTranslationsFresh(t *testing.T) {

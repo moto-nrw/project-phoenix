@@ -30,6 +30,8 @@ type mockCareOfferingService struct {
 	getByIDID               int64
 	getByIDResult           *enrollmentModels.CareOffering
 	getByIDErr              error
+	getByIDErrOnCall        int
+	getByIDCalls            int
 	createInput             *enrollmentModels.CareOffering
 	createResult            *enrollmentModels.CareOffering
 	createErr               error
@@ -59,7 +61,11 @@ func (m *mockCareOfferingService) ListActiveByPhase(_ context.Context, phaseID i
 }
 func (m *mockCareOfferingService) GetByID(_ context.Context, id int64) (*enrollmentModels.CareOffering, error) {
 	m.getByIDID = id
-	return m.getByIDResult, m.getByIDErr
+	m.getByIDCalls++
+	if m.getByIDErr != nil && (m.getByIDErrOnCall == 0 || m.getByIDCalls == m.getByIDErrOnCall) {
+		return nil, m.getByIDErr
+	}
+	return m.getByIDResult, nil
 }
 func (m *mockCareOfferingService) Create(_ context.Context, o *enrollmentModels.CareOffering) (*enrollmentModels.CareOffering, error) {
 	m.createInput = o
@@ -371,10 +377,43 @@ func TestUpdateCareOfferingHandler_HappyPathRefetches(t *testing.T) {
 	assert.Equal(t, int64(1234), mock.getByIDID, "refetch must call GetByID after the update")
 }
 
+func TestUpdateCareOfferingHandler_PreservesTranslationsWhenOmitted(t *testing.T) {
+	t.Parallel()
+
+	translations := json.RawMessage(`{"ru":{"name":{"text":"Продлёнка","source":"OGS"}}}`)
+	mock := &mockCareOfferingService{getByIDResult: &enrollmentModels.CareOffering{
+		ID: 1234, Translations: translations,
+	}}
+	router := buildCareOfferingRouter(mock)
+	w := executeCareJSON(t, router, http.MethodPut, "/enrollment/care-offerings/1234",
+		validOfferingBody(5678, "Updated"))
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, mock.updateInput)
+	assert.JSONEq(t, string(translations), string(mock.updateInput.Translations))
+}
+
+func TestUpdateCareOfferingHandler_ForwardsEmptyTranslationsToClearThem(t *testing.T) {
+	t.Parallel()
+
+	mock := &mockCareOfferingService{getByIDResult: makeOfferingModel(1234, 5678, "Updated")}
+	router := buildCareOfferingRouter(mock)
+	body := validOfferingBody(5678, "Updated")
+	body["translations"] = map[string]any{}
+	w := executeCareJSON(t, router, http.MethodPut, "/enrollment/care-offerings/1234", body)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, mock.updateInput)
+	assert.JSONEq(t, `{}`, string(mock.updateInput.Translations))
+}
+
 func TestUpdateCareOfferingHandler_UpdateErrorReturnsGeneric500(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockCareOfferingService{updateErr: errors.New("synthetic boom")}
+	mock := &mockCareOfferingService{
+		getByIDResult: makeOfferingModel(1234, 5678, "X"),
+		updateErr:     errors.New("synthetic boom"),
+	}
 	router := buildCareOfferingRouter(mock)
 	w := executeCareJSON(t, router, http.MethodPut, "/enrollment/care-offerings/1234",
 		validOfferingBody(5678, "X"))
@@ -385,7 +424,10 @@ func TestUpdateCareOfferingHandler_UpdateErrorReturnsGeneric500(t *testing.T) {
 func TestUpdateCareOfferingHandler_TemplatePeriodMismatchReturnsStableCode(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockCareOfferingService{updateErr: enrollmentService.ErrCareOfferingTemplatePeriodMismatch}
+	mock := &mockCareOfferingService{
+		getByIDResult: makeOfferingModel(1234, 5678, "X"),
+		updateErr:     enrollmentService.ErrCareOfferingTemplatePeriodMismatch,
+	}
 	router := buildCareOfferingRouter(mock)
 	w := executeCareJSON(t, router, http.MethodPut, "/enrollment/care-offerings/1234",
 		validOfferingBody(5678, "X"))
@@ -397,7 +439,11 @@ func TestUpdateCareOfferingHandler_TemplatePeriodMismatchReturnsStableCode(t *te
 func TestUpdateCareOfferingHandler_RefetchErrorReturns500(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockCareOfferingService{getByIDErr: errors.New("synthetic refetch boom")}
+	mock := &mockCareOfferingService{
+		getByIDResult:    makeOfferingModel(1234, 5678, "X"),
+		getByIDErr:       errors.New("synthetic refetch boom"),
+		getByIDErrOnCall: 2,
+	}
 	router := buildCareOfferingRouter(mock)
 	w := executeCareJSON(t, router, http.MethodPut, "/enrollment/care-offerings/1234",
 		validOfferingBody(5678, "X"))

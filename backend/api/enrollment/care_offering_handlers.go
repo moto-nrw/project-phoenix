@@ -396,15 +396,27 @@ func (rs *Resource) createCareOffering(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) updateCareOffering(w http.ResponseWriter, r *http.Request) {
+	req := &CareOfferingRequest{}
 	updateWithRefetch(rs, w, r, rs.CareOfferingService == nil, "care offering service not configured",
 		func(r *http.Request, id int64) (*enrollmentModels.CareOffering, error) {
-			req := &CareOfferingRequest{}
 			if err := render.Bind(r, req); err != nil {
 				return nil, err
 			}
 			return req.toModel(id)
 		},
 		func(ctx context.Context, model *enrollmentModels.CareOffering) error {
+			// Older callers do not send translations. Preserve their document;
+			// an explicit {} still reaches normalization and clears it.
+			if req.Translations == nil {
+				existing, err := rs.CareOfferingService.GetByID(ctx, model.ID)
+				if err != nil {
+					return err
+				}
+				if existing == nil {
+					return errors.New("care offering service returned no offering")
+				}
+				model.Translations = existing.Translations
+			}
 			return rs.CareOfferingService.Update(ctx, model)
 		},
 		func(ctx context.Context, id int64) (*enrollmentModels.CareOffering, error) {

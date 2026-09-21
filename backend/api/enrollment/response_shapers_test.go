@@ -295,3 +295,24 @@ func TestToPublicFormSchemaResponse_OmitsRawLegalBlocks(t *testing.T) {
 	assert.NotContains(t, string(raw), "legal_blocks")
 	assert.NotContains(t, string(raw), "disabled draft text")
 }
+
+func TestToPublicFormSchemaResponse_KeepsOnlyFreshFieldTranslations(t *testing.T) {
+	t.Parallel()
+
+	s := &capability.FormSchema{
+		ID:      1234,
+		Version: 2,
+		Fields: []capability.FormField{{
+			Key:   "meal",
+			Label: "Mittagessen",
+			Type:  capability.FormFieldText,
+			Translations: capability.Translations{"ru": {
+				capability.TranslationAttrLabel: {Text: "Еда", Source: "Essen"},
+			}},
+		}},
+	}
+
+	out := toPublicFormSchemaResponse(s)
+	require.Len(t, out.Fields, 1)
+	assert.Nil(t, out.Fields[0].Translations, "stale translations and their sources must not reach public responses")
+}

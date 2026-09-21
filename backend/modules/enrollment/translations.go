@@ -83,6 +83,9 @@ func normalizeLocaleTranslations(locale string, attrs map[string]TranslatedText,
 		if entry.Text == "" {
 			continue
 		}
+		if entry.Source == "" {
+			return nil, fmt.Errorf("translation %s/%s requires a source", locale, attr)
+		}
 		if utf8.RuneCountInString(entry.Text) > translationMaxTextLength {
 			return nil, fmt.Errorf("translation %s/%s must be at most %d characters", locale, attr, translationMaxTextLength)
 		}
