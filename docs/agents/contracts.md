@@ -74,7 +74,7 @@ Backend paths in this section are relative to `backend/`:
 - `TenantMiddleware` rejects both parent and school scopes.
   `TestSchoolScopeRejectedOnAllAPIRoutes` checks school-token rejection under `/api`.
 - MFA can insert a challenge between credentials and session. Inspect
-  `modules/identityaccess/account_mfa.go`, `modules/identityaccess/inbound/auth/mfa_handlers.go`, `api/operator/mfa.go`,
+  `modules/identityaccess/account_mfa.go`, `modules/identityaccess/inbound/auth/mfa_handlers.go`, `modules/identityaccess/inbound/operator/mfa.go`,
   the challenge/enrollment claims in `modules/identityaccess/legacy/jwt/`, and trusted-device settings
   `security.mfa_*`. Include the school frontend's MFA chain when changing its login.
 
@@ -117,8 +117,8 @@ not composed. They are public, take no cookies, and rely on
 
 | Route | Contract |
 |---|---|
-| `POST /demo/access-requests` | `email`, `school_name`, `person_name`, `contact_opt_in`, optional `src` → always `202 {link_sent: true}`, never the link itself; `422 demo_access_invalid` |
-| `GET /demo/access/status` | token in `Authorization: Bearer` → `{status: preparing\|ready\|failed}`, plus `school_url` (origin of the demo school) when `ready` |
+| `POST /demo/access-requests` | `email`, `school_name`, `person_name`, `contact_opt_in`, optional `src` → always `202 {link_sent: true}`, never the link itself; `422 demo_access_invalid`; `429 demo_access_rate_limited` with `Retry-After` (seconds); `503 demo_capacity_reached` |
+| `GET /demo/access/status` | token in `Authorization: Bearer` → `{status: preparing\|ready\|failed, school_name}` (the OGS name the prospect gave, shown while waiting, #3464), plus `school_url` (origin of the demo school) when `ready` |
 | `POST /demo/access/sessions` | `{token}` → `{access_token, refresh_token}` (tenant session); `409 demo_school_preparing` |
 
 Unknown token: `404 demo_access_unknown`; expired: `410 demo_access_expired`.
@@ -138,7 +138,9 @@ status and, once `ready`, hands the token on to
 `{school_url}/demo#token=…`, where the entry page
 `[tenant]/(public)/demo` redeems it through `/api/demo/access/*` and signs in
 with the `internalRefresh` credentials path. Both pages take their texts
-from `DEMO_ENTRY_LOADING` and `DEMO_ENTRY_PROBLEMS` in `lib/demo-access.ts`. The demo process seeds the school; `docs/operations/standing-demo.md` has the queue,
+from `lib/demo-access.ts`; while the school is `preparing` they show
+`DemoSetupScreen` („Wir richten {school_name} für Sie ein" with progress
+lines, #3464), and a wait that went wrong offers „Noch einmal versuchen". The demo process seeds the school; `docs/operations/standing-demo.md` has the queue,
 the limit of three seeds at a time, the single repetition and the fallback to
 the standing school `messe-demo` (`--demo-standing-school` on `serve` and
 `demo`). The access row remembers its school (`school_slug`), so status and
@@ -159,8 +161,10 @@ only the OGS name and the person's name, so the address cannot become an
 account or guardian address in a demo school, where
 `attachExistingAccountByEmail` would hand an existing account of that address
 to the inviting tenant. The serving role reads `name`, `status`, `tenant_id`
-and `visitor_account_id` of an order and inserts new ones; `seed_state` and
-`status` are out of its reach.
+and `visitor_account_id` of an order, inserts new ones, and stamps
+`last_used_at` when a token is redeemed; `seed_state` and `status` are out of
+its reach. The demo process ticks only schools redeemed in the last 30 minutes
+(#3464).
 
 Mails (#3465): the entry link leaves by mail only (`demo-access.html`,
 Reply-To `kontakt@moto.nrw`), and the answer is the same for every address,
@@ -172,6 +176,16 @@ that cooldown a request stores and mails nothing. The team is mailed
 (`demo-lead.html`) for an address without an active access and when the
 contact consent changed. The website shows „Wir haben Ihnen den Link
 geschickt" for `link_sent`.
+
+Limits (#3466): per IP address 60 requests and per address 3 requests within
+any hour; over either, `429` with `Retry-After`. Only a valid request counts,
+so invalid requests fill no window; they touch no table either. The IP limit
+is high because fair visitors share one WLAN address. The windows live in the serving process (one demo server; a
+restart forgives them). At most `--demo-max-active-schools` demo schools hold
+a place (queued, or ready and not deleted; a failed one frees it); a request
+that needs a new school beyond that answers `503 demo_capacity_reached`,
+while an active address still gets its link. `serve` refuses to start under
+`APP_ENV=demo` without the flag; `environments/demo.compose.yml` sets 300.
 
 Mail lock: under `APP_ENV=demo`, `email.NewMailer` wraps the one SMTP
 transport in `email.RestrictToDemoMails`. Every template but the two above

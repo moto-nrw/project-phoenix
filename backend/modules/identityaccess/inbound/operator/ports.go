@@ -7,13 +7,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
-// The operator dashboard in api/operator serves the routes Identity & Access
-// does not own — the invitation management, the profile e-mail change, the
-// second factor, the passkey ceremonies and the school-account MFA admin —
-// and may not name the owner's contract. This file is the seam it consumes
-// instead: the capabilities, the values they carry and the outcomes the
-// surface classifies on, all identical to the owner's so no translation,
-// and therefore no drift, sits between them (#3364).
+// The invitation management, the profile e-mail change, the second factor,
+// the passkey ceremonies and the school-account MFA admin consume the owner
+// through this seam (#3364, moved here from api/operator by #3231): the
+// capabilities, the values they carry and the outcomes the surface
+// classifies on, all identical to the owner's so no translation, and
+// therefore no drift, sits between them.
 
 // The values the operator routes render.
 type (
@@ -78,6 +77,15 @@ type (
 	// screens read and override on behalf of school staff.
 	AccountMFA = identityaccess.AccountMFA
 )
+
+// OperatorAccess is what the invitation, profile and second-factor routes
+// need: the operator directory, the token mint their second factors end in,
+// and the invitation and e-mail change flows.
+type OperatorAccess interface {
+	Operators
+	OperatorSessions
+	OperatorProvisioning
+}
 
 // The admin-override values the operator MFA screens hand to the capability.
 const (

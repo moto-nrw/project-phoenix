@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/operator"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
@@ -203,7 +202,7 @@ func TestCreateInvitation_Success(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 	body, _ := json.Marshal(map[string]string{"email": "new@example.com"})
 	req := invitationReqWithClaims(http.MethodPost, "/invitations", body, 42)
 	rr := httptest.NewRecorder()
@@ -225,7 +224,7 @@ func TestCreateInvitation_WithDisplayName(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 	body, _ := json.Marshal(map[string]string{"email": "new@example.com", "display_name": "New Operator"})
 	req := invitationReqWithClaims(http.MethodPost, "/invitations", body, 42)
 	rr := httptest.NewRecorder()
@@ -241,7 +240,7 @@ func TestCreateInvitation_EmptyEmail(t *testing.T) {
 	t.Parallel()
 
 	mockService := &invitationMockService{}
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 
 	body, _ := json.Marshal(map[string]string{"email": ""})
 	req := invitationReqWithClaims(http.MethodPost, "/invitations", body, 42)
@@ -257,7 +256,7 @@ func TestCreateInvitation_WhitespaceOnlyEmail(t *testing.T) {
 	t.Parallel()
 
 	mockService := &invitationMockService{}
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 
 	body, _ := json.Marshal(map[string]string{"email": "   "})
 	req := invitationReqWithClaims(http.MethodPost, "/invitations", body, 42)
@@ -272,7 +271,7 @@ func TestCreateInvitation_InvalidJSON(t *testing.T) {
 	t.Parallel()
 
 	mockService := &invitationMockService{}
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 
 	req := invitationReqWithClaims(http.MethodPost, "/invitations", []byte("not-json"), 42)
 	rr := httptest.NewRecorder()
@@ -291,7 +290,7 @@ func TestCreateInvitation_EmailAlreadyExists(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 	body, _ := json.Marshal(map[string]string{"email": "existing@example.com"})
 	req := invitationReqWithClaims(http.MethodPost, "/invitations", body, 42)
 	rr := httptest.NewRecorder()
@@ -310,7 +309,7 @@ func TestCreateInvitation_RateLimit(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 	body, _ := json.Marshal(map[string]string{"email": "spam@example.com"})
 	req := invitationReqWithClaims(http.MethodPost, "/invitations", body, 42)
 	rr := httptest.NewRecorder()
@@ -330,7 +329,7 @@ func TestCreateInvitation_ServiceError(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 	body, _ := json.Marshal(map[string]string{"email": "new@example.com"})
 	req := invitationReqWithClaims(http.MethodPost, "/invitations", body, 42)
 	rr := httptest.NewRecorder()
@@ -349,7 +348,7 @@ func TestCreateInvitation_InvalidData(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 	body, _ := json.Marshal(map[string]string{"email": "bad-email"})
 	req := invitationReqWithClaims(http.MethodPost, "/invitations", body, 42)
 	rr := httptest.NewRecorder()
@@ -390,7 +389,7 @@ func TestListInvitations_Success(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 	req := invitationReqWithClaims(http.MethodGet, "/invitations", nil, 42)
 	rr := httptest.NewRecorder()
 
@@ -426,7 +425,7 @@ func TestListInvitations_EmptyLists(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 	req := invitationReqWithClaims(http.MethodGet, "/invitations", nil, 42)
 	rr := httptest.NewRecorder()
 
@@ -444,7 +443,7 @@ func TestListInvitations_PendingListError(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 	req := invitationReqWithClaims(http.MethodGet, "/invitations", nil, 42)
 	rr := httptest.NewRecorder()
 
@@ -465,7 +464,7 @@ func TestListInvitations_OperatorsListError(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 	req := invitationReqWithClaims(http.MethodGet, "/invitations", nil, 42)
 	rr := httptest.NewRecorder()
 
@@ -490,7 +489,7 @@ func TestResendInvitation_Success(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 	req := invitationReqWithClaimsAndID(http.MethodPost, "/invitations/100/resend", nil, 42, "100")
 	rr := httptest.NewRecorder()
 
@@ -504,7 +503,7 @@ func TestResendInvitation_InvalidID(t *testing.T) {
 	t.Parallel()
 
 	mockService := &invitationMockService{}
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 
 	req := invitationReqWithClaimsAndID(http.MethodPost, "/invitations/abc/resend", nil, 42, "abc")
 	rr := httptest.NewRecorder()
@@ -524,7 +523,7 @@ func TestResendInvitation_NotFound(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 	req := invitationReqWithClaimsAndID(http.MethodPost, "/invitations/999/resend", nil, 42, "999")
 	rr := httptest.NewRecorder()
 
@@ -542,7 +541,7 @@ func TestResendInvitation_ServiceError(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 	req := invitationReqWithClaimsAndID(http.MethodPost, "/invitations/100/resend", nil, 42, "100")
 	rr := httptest.NewRecorder()
 
@@ -567,7 +566,7 @@ func TestRevokeInvitation_Success(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 	req := invitationReqWithClaimsAndID(http.MethodDelete, "/invitations/100", nil, 42, "100")
 	rr := httptest.NewRecorder()
 
@@ -581,7 +580,7 @@ func TestRevokeInvitation_InvalidID(t *testing.T) {
 	t.Parallel()
 
 	mockService := &invitationMockService{}
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 
 	req := invitationReqWithClaimsAndID(http.MethodDelete, "/invitations/abc", nil, 42, "abc")
 	rr := httptest.NewRecorder()
@@ -600,7 +599,7 @@ func TestRevokeInvitation_NotFound(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 	req := invitationReqWithClaimsAndID(http.MethodDelete, "/invitations/999", nil, 42, "999")
 	rr := httptest.NewRecorder()
 
@@ -618,7 +617,7 @@ func TestRevokeInvitation_ServiceError(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 	req := invitationReqWithClaimsAndID(http.MethodDelete, "/invitations/100", nil, 42, "100")
 	rr := httptest.NewRecorder()
 
@@ -646,7 +645,7 @@ func TestValidateInvitation_Success(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 	body, _ := json.Marshal(map[string]string{"token": "550e8400-e29b-41d4-a716-446655440000"})
 	req := httptest.NewRequest(http.MethodPost, "/auth/invitations/validate", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -669,7 +668,7 @@ func TestValidateInvitation_EmptyToken(t *testing.T) {
 	t.Parallel()
 
 	mockService := &invitationMockService{}
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 
 	body, _ := json.Marshal(map[string]string{"token": ""})
 	req := httptest.NewRequest(http.MethodPost, "/auth/invitations/validate", bytes.NewReader(body))
@@ -685,7 +684,7 @@ func TestValidateInvitation_InvalidTokenFormat(t *testing.T) {
 	t.Parallel()
 
 	mockService := &invitationMockService{}
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 
 	body, _ := json.Marshal(map[string]string{"token": "not-a-uuid"})
 	req := httptest.NewRequest(http.MethodPost, "/auth/invitations/validate", bytes.NewReader(body))
@@ -707,7 +706,7 @@ func TestValidateInvitation_TokenNotFound(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 	body, _ := json.Marshal(map[string]string{"token": "550e8400-e29b-41d4-a716-446655440000"})
 	req := httptest.NewRequest(http.MethodPost, "/auth/invitations/validate", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -724,7 +723,7 @@ func TestValidateInvitation_InvalidJSON(t *testing.T) {
 	t.Parallel()
 
 	mockService := &invitationMockService{}
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/invitations/validate", bytes.NewReader([]byte("bad")))
 	req.Header.Set("Content-Type", "application/json")
@@ -756,7 +755,7 @@ func TestAcceptInvitation_Success(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 	body, _ := json.Marshal(map[string]string{
 		"token":            "550e8400-e29b-41d4-a716-446655440000",
 		"display_name":     "New Operator",
@@ -784,7 +783,7 @@ func TestAcceptInvitation_EmptyToken(t *testing.T) {
 	t.Parallel()
 
 	mockService := &invitationMockService{}
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 
 	body, _ := json.Marshal(map[string]string{
 		"token":            "",
@@ -805,7 +804,7 @@ func TestAcceptInvitation_InvalidTokenFormat(t *testing.T) {
 	t.Parallel()
 
 	mockService := &invitationMockService{}
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 
 	body, _ := json.Marshal(map[string]string{
 		"token":            "not-uuid",
@@ -826,7 +825,7 @@ func TestAcceptInvitation_EmptyDisplayName(t *testing.T) {
 	t.Parallel()
 
 	mockService := &invitationMockService{}
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 
 	body, _ := json.Marshal(map[string]string{
 		"token":            "550e8400-e29b-41d4-a716-446655440000",
@@ -848,7 +847,7 @@ func TestAcceptInvitation_EmptyPassword(t *testing.T) {
 	t.Parallel()
 
 	mockService := &invitationMockService{}
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 
 	body, _ := json.Marshal(map[string]string{
 		"token":            "550e8400-e29b-41d4-a716-446655440000",
@@ -870,7 +869,7 @@ func TestAcceptInvitation_PasswordMismatch(t *testing.T) {
 	t.Parallel()
 
 	mockService := &invitationMockService{}
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 
 	body, _ := json.Marshal(map[string]string{
 		"token":            "550e8400-e29b-41d4-a716-446655440000",
@@ -897,7 +896,7 @@ func TestAcceptInvitation_TokenNotFound(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 	body, _ := json.Marshal(map[string]string{
 		"token":            "550e8400-e29b-41d4-a716-446655440000",
 		"display_name":     "Name",
@@ -924,7 +923,7 @@ func TestAcceptInvitation_EmailAlreadyExists(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 	body, _ := json.Marshal(map[string]string{
 		"token":            "550e8400-e29b-41d4-a716-446655440000",
 		"display_name":     "Name",
@@ -951,7 +950,7 @@ func TestAcceptInvitation_InvalidData(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 	body, _ := json.Marshal(map[string]string{
 		"token":            "550e8400-e29b-41d4-a716-446655440000",
 		"display_name":     "Name",
@@ -976,7 +975,7 @@ func TestAcceptInvitation_ServiceError(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 	body, _ := json.Marshal(map[string]string{
 		"token":            "550e8400-e29b-41d4-a716-446655440000",
 		"display_name":     "Name",
@@ -996,7 +995,7 @@ func TestAcceptInvitation_InvalidJSON(t *testing.T) {
 	t.Parallel()
 
 	mockService := &invitationMockService{}
-	resource := operator.NewInvitationsResource(mockService)
+	resource := identityoperator.NewInvitationsResource(mockService)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/invitations/accept", bytes.NewReader([]byte("bad")))
 	req.Header.Set("Content-Type", "application/json")
@@ -1014,7 +1013,7 @@ func TestAcceptInvitation_InvalidJSON(t *testing.T) {
 func TestCreateInvitationRequest_Bind_TrimsWhitespace(t *testing.T) {
 	t.Parallel()
 
-	req := &operator.CreateInvitationRequest{Email: "  test@example.com  "}
+	req := &identityoperator.CreateInvitationRequest{Email: "  test@example.com  "}
 	err := req.Bind(httptest.NewRequest(http.MethodPost, "/", nil))
 
 	assert.NoError(t, err)
@@ -1024,7 +1023,7 @@ func TestCreateInvitationRequest_Bind_TrimsWhitespace(t *testing.T) {
 func TestValidateInvitationRequest_Bind_ValidUUID(t *testing.T) {
 	t.Parallel()
 
-	req := &operator.ValidateInvitationRequest{Token: "550e8400-e29b-41d4-a716-446655440000"}
+	req := &identityoperator.ValidateInvitationRequest{Token: "550e8400-e29b-41d4-a716-446655440000"}
 	err := req.Bind(httptest.NewRequest(http.MethodPost, "/", nil))
 
 	assert.NoError(t, err)
@@ -1033,7 +1032,7 @@ func TestValidateInvitationRequest_Bind_ValidUUID(t *testing.T) {
 func TestValidateInvitationRequest_Bind_WhitespaceToken(t *testing.T) {
 	t.Parallel()
 
-	req := &operator.ValidateInvitationRequest{Token: "  550e8400-e29b-41d4-a716-446655440000  "}
+	req := &identityoperator.ValidateInvitationRequest{Token: "  550e8400-e29b-41d4-a716-446655440000  "}
 	err := req.Bind(httptest.NewRequest(http.MethodPost, "/", nil))
 
 	assert.NoError(t, err)
@@ -1043,7 +1042,7 @@ func TestValidateInvitationRequest_Bind_WhitespaceToken(t *testing.T) {
 func TestAcceptInvitationRequest_Bind_Valid(t *testing.T) {
 	t.Parallel()
 
-	req := &operator.AcceptInvitationRequest{
+	req := &identityoperator.AcceptInvitationRequest{
 		Token:           "550e8400-e29b-41d4-a716-446655440000",
 		DisplayName:     "  New Op  ",
 		Password:        "SecureP@ss1",
@@ -1058,7 +1057,7 @@ func TestAcceptInvitationRequest_Bind_Valid(t *testing.T) {
 func TestAcceptInvitationRequest_Bind_WhitespaceDisplayName(t *testing.T) {
 	t.Parallel()
 
-	req := &operator.AcceptInvitationRequest{
+	req := &identityoperator.AcceptInvitationRequest{
 		Token:           "550e8400-e29b-41d4-a716-446655440000",
 		DisplayName:     "   ",
 		Password:        "SecureP@ss1",

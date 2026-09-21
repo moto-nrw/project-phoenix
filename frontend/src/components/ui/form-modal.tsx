@@ -29,6 +29,8 @@ interface FormModalProps {
   // Blocks every dismissal path (close icon, backdrop, Escape): for modals
   // whose in-flight request must not look cancelled while it still commits.
   readonly closeDisabled?: boolean;
+  /** Keep backdrop taps from discarding in-progress form input (#3370). */
+  readonly isBackdropDismissDisabled?: boolean;
   /**
    * Temporarily removes this surface while a child confirmation is shown,
    * without unmounting the child and losing its pending state.
@@ -52,6 +54,7 @@ export function FormModal({
   size = "lg",
   mobilePosition = "bottom",
   closeDisabled = false,
+  isBackdropDismissDisabled = false,
   suspended = false,
   error,
 }: FormModalProps) {
@@ -203,6 +206,7 @@ export function FormModal({
           type="button"
           tabIndex={-1}
           onClick={handleClose}
+          disabled={isBackdropDismissDisabled}
           aria-label="Hintergrund - Klicken zum Schließen"
           // No bg-transparent reset here: Tailwind emits it after bg-black/*
           // and the tint never rendered. The hidden state below is the reset.

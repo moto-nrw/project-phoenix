@@ -133,6 +133,7 @@ function CareWeeklyPlanModalForm({
       footer={footer}
       size="xl"
       mobilePosition="bottom"
+      isBackdropDismissDisabled
       error={error}
     >
       <form

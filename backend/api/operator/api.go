@@ -24,33 +24,33 @@ import (
 // Resource defines the operator API resource
 type Resource struct {
 	identity                *identityoperator.Resource
-	passkeyService          identityoperator.OperatorPasskeys
-	mfaResource             *MFAResource
+	passkeys                *identityoperator.PasskeyResource
+	mfaResource             *identityoperator.MFAResource
 	provisioningResource    *provisioningoperator.ProvisioningResource
-	mfaAdminResource        *SchoolAccountMFAResource
+	mfaAdminResource        *identityoperator.SchoolAccountMFAResource
 	settingsResource        *settingsoperator.SettingsResource
 	announcementsResource   *operatorannouncements.AnnouncementsResource
-	profileResource         *ProfileResource
-	invitationsResource     *InvitationsResource
+	profileResource         *identityoperator.ProfileResource
+	invitationsResource     *identityoperator.InvitationsResource
 	unregisteredTagScans    http.Handler
 	tokenAuth               *jwt.TokenAuth
 	authRateLimiter         func(http.Handler) http.Handler
 	emailConfirmRateLimiter func(http.Handler) http.Handler
 	invitationRateLimiter   func(http.Handler) http.Handler
-	operatorLookup          OperatorLookup
+	operatorLookup          identityoperator.OperatorLookup
 }
 
 // ResourceConfig holds dependencies for the operator resource
 type ResourceConfig struct {
 	AppEnv      string
-	AuthService OperatorAccess
+	AuthService identityoperator.OperatorAccess
 	// Identity serves operator login, refresh, the profile and password
 	// changes and the school access of accounts from Identity & Access
 	// (#3252). Without it those routes are not mounted.
 	Identity                   *identityoperator.Resource
 	PasskeyService             identityoperator.OperatorPasskeys
 	MFAService                 identityoperator.OperatorMFA
-	InvitationService          OperatorAccess
+	InvitationService          identityoperator.OperatorAccess
 	ProvisioningService        organizationtenancy.Provisioning
 	CaregiverCapabilityService usersSvc.CaregiverCapabilityService
 	AnnouncementsService       communication.Capability
@@ -84,6 +84,13 @@ type ResourceConfig struct {
 	DB               *bun.DB
 }
 
+// IdentityResponses hands the operator surface's error bodies to the
+// Identity & Access operator routes. The school access routes fall back to
+// the provisioning error mapping.
+func IdentityResponses() identityoperator.Responses {
+	return identityoperator.OperatorResponses(provisioningoperator.ProvisioningErrorRenderer)
+}
+
 // SetAuthRateLimiter sets the rate limiter middleware for operator auth endpoints.
 func (rs *Resource) SetAuthRateLimiter(mw func(http.Handler) http.Handler) {
 	rs.authRateLimiter = mw
@@ -108,19 +115,19 @@ func NewResource(cfg ResourceConfig) *Resource {
 	tokenAuth := cfg.TokenAuth
 
 	resource := &Resource{
-		identity:       cfg.Identity,
-		passkeyService: cfg.PasskeyService,
-		mfaResource:    NewMFAResource(cfg.AuthService, cfg.MFAService, tokenAuth),
+		identity:    cfg.Identity,
+		passkeys:    identityoperator.NewPasskeyResource(cfg.PasskeyService),
+		mfaResource: identityoperator.NewMFAResource(cfg.AuthService, cfg.MFAService, tokenAuth),
 		provisioningResource: provisioningoperator.NewProvisioningResource(provisioningoperator.ProvisioningConfig{
 			Service:             cfg.ProvisioningService,
 			CaregiverCapability: cfg.CaregiverCapabilityService,
 			DB:                  cfg.DB,
 			AppEnv:              cfg.AppEnv,
 		}),
-		mfaAdminResource:      &SchoolAccountMFAResource{TenantMFAService: cfg.TenantMFAService},
+		mfaAdminResource:      &identityoperator.SchoolAccountMFAResource{TenantMFAService: cfg.TenantMFAService},
 		announcementsResource: operatorannouncements.NewAnnouncementsResource(cfg.AnnouncementsService),
-		profileResource:       NewProfileResource(cfg.AuthService),
-		invitationsResource:   NewInvitationsResource(cfg.InvitationService),
+		profileResource:       identityoperator.NewProfileResource(cfg.AuthService),
+		invitationsResource:   identityoperator.NewInvitationsResource(cfg.InvitationService),
 		unregisteredTagScans:  cfg.UnregisteredTagScans,
 		tokenAuth:             tokenAuth,
 		operatorLookup:        cfg.AuthService,
@@ -188,8 +195,8 @@ func (rs *Resource) mountPublicAuthRoutes(r chi.Router) {
 			// token yet.
 			r.Post("/mfa/verify", rs.mfaResource.Verify)
 			r.Post("/mfa/resend", rs.mfaResource.Resend)
-			r.Post("/passkeys/login/options", rs.PasskeyLoginOptions)
-			r.Post("/passkeys/login/verify", rs.PasskeyLoginVerify)
+			r.Post("/passkeys/login/options", rs.passkeys.PasskeyLoginOptions)
+			r.Post("/passkeys/login/verify", rs.passkeys.PasskeyLoginVerify)
 		})
 		r.Group(func(r chi.Router) {
 			useRateLimiter(r, rs.emailConfirmRateLimiter, rs.authRateLimiter)
@@ -236,9 +243,9 @@ func (rs *Resource) mountProtectedRoutes(r chi.Router) {
 		r.Use(rs.tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(common.ReadOnlyPreviewMiddleware)
-		r.Use(RequiresOperatorScope)
+		r.Use(identityoperator.RequiresOperatorScope)
 		r.Use(common.SecurityPrincipalMiddleware)
-		r.Use(RequiresActiveOperator(rs.operatorLookup))
+		r.Use(identityoperator.RequiresActiveOperator(rs.operatorLookup))
 
 		rs.mountPasskeyRoutes(r)
 		rs.mountProvisioningRoutes(r)
@@ -268,12 +275,12 @@ func (rs *Resource) mountProtectedRoutes(r chi.Router) {
 // form answered both. The proxy sends the slash form, but direct authenticated
 // operator clients hit the no-slash form, so dropping it 404s them.
 func (rs *Resource) mountPasskeyRoutes(r chi.Router) {
-	r.Get("/auth/passkeys", rs.PasskeyList)
-	r.Get("/auth/passkeys/", rs.PasskeyList)
-	r.Post("/auth/passkeys/enrollment/challenge", rs.PasskeyEnrollmentChallenge)
-	r.Post("/auth/passkeys/register/options", rs.PasskeyRegisterOptions)
-	r.Post("/auth/passkeys/register/verify", rs.PasskeyRegisterVerify)
-	r.Delete("/auth/passkeys/{passkeyId}", rs.PasskeyRevoke)
+	r.Get("/auth/passkeys", rs.passkeys.PasskeyList)
+	r.Get("/auth/passkeys/", rs.passkeys.PasskeyList)
+	r.Post("/auth/passkeys/enrollment/challenge", rs.passkeys.PasskeyEnrollmentChallenge)
+	r.Post("/auth/passkeys/register/options", rs.passkeys.PasskeyRegisterOptions)
+	r.Post("/auth/passkeys/register/verify", rs.passkeys.PasskeyRegisterVerify)
+	r.Delete("/auth/passkeys/{passkeyId}", rs.passkeys.PasskeyRevoke)
 }
 
 // mountProvisioningRoutes registers account/role/stat/device/organization

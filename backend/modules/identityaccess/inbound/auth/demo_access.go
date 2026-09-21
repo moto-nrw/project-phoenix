@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -18,7 +20,7 @@ import (
 // routes (#3462).
 type DemoAccesses interface {
 	RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) error
-	DemoAccessStatus(ctx context.Context, token string) (status, schoolSlug string, err error)
+	DemoAccessStatus(ctx context.Context, token string) (identityaccess.DemoAccessProgress, error)
 	RedeemDemoAccess(ctx context.Context, token, ipAddress, userAgent string) (string, string, error)
 }
 
@@ -102,7 +104,8 @@ func (rs *DemoResource) requestAccess(w http.ResponseWriter, r *http.Request) {
 	// token out of every server and proxy log.
 	err := rs.accesses.RequestDemoAccess(r.Context(), identityaccess.DemoAccessRequest{
 		Email: body.Email, PersonName: body.PersonName, SchoolName: body.SchoolName,
-		Source: body.Source, ContactOptIn: body.ContactOptIn, EntryURLPrefix: rs.origins.Waiting + "/demo#token=",
+		Source: body.Source, ContactOptIn: body.ContactOptIn, ClientIP: getClientIP(r),
+		EntryURLPrefix: rs.origins.Waiting + "/demo#token=",
 	})
 	if err != nil {
 		rs.renderError(w, r, err)
@@ -117,15 +120,17 @@ func (rs *DemoResource) requestAccess(w http.ResponseWriter, r *http.Request) {
 
 func (rs *DemoResource) accessStatus(w http.ResponseWriter, r *http.Request) {
 	token, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-	status, schoolSlug, err := rs.accesses.DemoAccessStatus(r.Context(), strings.TrimSpace(token))
+	progress, err := rs.accesses.DemoAccessStatus(r.Context(), strings.TrimSpace(token))
 	if err != nil {
 		rs.renderError(w, r, err)
 		return
 	}
-	response := map[string]string{"status": status}
-	if status == identityaccess.DemoSchoolReady {
+	// The waiting room names the OGS being set up (#3464); only the token's
+	// holder asks, and the name is the one they gave.
+	response := map[string]string{"status": progress.Status, "school_name": progress.SchoolName}
+	if progress.Status == identityaccess.DemoSchoolReady {
 		// Only now the school's subdomain resolves.
-		response["school_url"] = strings.TrimRight(rs.origins.School(schoolSlug), "/")
+		response["school_url"] = strings.TrimRight(rs.origins.School(progress.SchoolSlug), "/")
 	}
 	render.JSON(w, r, response)
 }
@@ -159,8 +164,14 @@ var demoAccessErrorRules = []common.ErrorRule{
 	{Target: identityaccess.ErrDemoAccessUnknown, Render: demoError(http.StatusNotFound, "demo_access_unknown")},
 	{Target: identityaccess.ErrDemoAccessExpired, Render: demoError(http.StatusGone, "demo_access_expired")},
 	{Target: identityaccess.ErrDemoSchoolPreparing, Render: demoError(http.StatusConflict, "demo_school_preparing")},
+	{Target: identityaccess.ErrDemoAccessRateLimited, Render: demoError(http.StatusTooManyRequests, "demo_access_rate_limited")},
+	{Target: identityaccess.ErrDemoCapacityReached, Render: demoError(http.StatusServiceUnavailable, "demo_capacity_reached")},
 }
 
 func (rs *DemoResource) renderError(w http.ResponseWriter, r *http.Request, err error) {
+	var limited *identityaccess.DemoAccessRateLimitError
+	if errors.As(err, &limited) {
+		w.Header().Set("Retry-After", strconv.Itoa(limited.RetryAfterSeconds(time.Now())))
+	}
 	common.RenderError(w, r, common.RenderWithRules(err, demoAccessErrorRules, common.ErrorInternalServer))
 }

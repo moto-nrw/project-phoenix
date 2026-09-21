@@ -3,10 +3,10 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 21.09.2026 · Ratchet 681 · Composition 636 · Policy-Epoche 20 · 300 Regeln mit
+Stand 21.09.2026 · Ratchet 680 · Composition 636 · Policy-Epoche 20 · 300 Regeln mit
 `convert it to exact debt` · 75.505 LOC unter `modules/*/legacy`
 
-Summenprobe: 252 + 61 + 93 + 43 + 28 + 19 + 185 = 681 = `wc -l backend/architecture/legacy.jsonl`.
+Summenprobe: 252 + 61 + 92 + 43 + 28 + 19 + 185 = 680 = `wc -l backend/architecture/legacy.jsonl`.
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Entscheidungen
@@ -51,12 +51,12 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [ ] [#3356](https://github.com/moto-nrw/project-phoenix/issues/3356) Settings-, Listenexport-, Messaging-, IoT-, Aktivitäts- und Schulstruktur-Kanten
 - [ ] [#2731](https://github.com/moto-nrw/project-phoenix/issues/2731) Carrier — 61
 
-## Identity · 93 Keys
+## Identity · 92 Keys
 
 - [ ] [#3487](https://github.com/moto-nrw/project-phoenix/issues/3487) `legacy/jwt` aus dem `legacy/`-Pfad umbenennen — entschieden in ADR 0031: das Paket bleibt der Session-Adapter, der Umzug läuft zuletzt nach den Carriern und blockt nichts
 - [x] [#3230](https://github.com/moto-nrw/project-phoenix/issues/3230) `api/auth` → `modules/identityaccess/inbound/auth` — Relocation (Epoche 19), 3 Keys weniger (684 → 681), 26 bleiben unter dem neuen Pfad bei #2736
-- [ ] [#3231](https://github.com/moto-nrw/project-phoenix/issues/3231) Identity-Handler aus `api/operator`
-- [ ] [#2736](https://github.com/moto-nrw/project-phoenix/issues/2736) Carrier `modules/identityaccess/inbound/auth`, api/operator — 38
+- [x] [#3231](https://github.com/moto-nrw/project-phoenix/issues/3231) Identity-Handler aus `api/operator` → `modules/identityaccess/inbound/operator`, 1 Key weniger (681 → 680). Router, Fremd-Komposition und die Handler-Tests mit `jwt` oder `models/platform` bleiben in `api/operator`: nur `inbound-operator` darf die Owner-Routen mounten, PR-Modus lässt keine neue Erlaubnis zu. Paketlöschung bei #2736 nach #2725
+- [ ] [#2736](https://github.com/moto-nrw/project-phoenix/issues/2736) Carrier `modules/identityaccess/inbound/auth`, api/operator — 37
 - [ ] [#2725](https://github.com/moto-nrw/project-phoenix/issues/2725) Carrier `modules/identityaccess/legacy/usercontext` — 55, aus 46 Kompatibilitätsregeln konvertiert (keine neue Kante). Auflösung wartet auf Owner-Contracts: Staff-/Teacher-Mitgliedschaft (`school-membership`, an #2753 ausrichten), eigene Gruppen und Vertretungen (`school-structure`), beaufsichtigte und aktive Gruppen (`student-presence`). Front-Tickets: #3498, #3499, #3500, danach #3501 (Auflösung)
 
 ## Storage

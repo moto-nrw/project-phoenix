@@ -8,14 +8,13 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
 // OperatorLookup reloads the current platform operator state for protected
 // operator routes.
 type OperatorLookup interface {
-	FindOperator(ctx context.Context, id int64) (identityoperator.Operator, error)
+	FindOperator(ctx context.Context, id int64) (Operator, error)
 }
 
 // RequiresOperatorScope is middleware that checks if the JWT has platform scope
@@ -30,7 +29,7 @@ func RequiresOperatorScope(next http.Handler) http.Handler {
 				slog.String("path", r.URL.Path),
 			)
 			w.WriteHeader(http.StatusForbidden)
-			if err := render.Render(w, r, &ErrResponse{
+			if err := render.Render(w, r, &common.OperatorErrResponse{
 				HTTPStatusCode: http.StatusForbidden,
 				StatusText:     "Forbidden",
 				ErrorText:      "This endpoint requires operator authentication",
@@ -51,7 +50,7 @@ func RequiresActiveOperator(lookup OperatorLookup) func(http.Handler) http.Handl
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			claims := jwt.ClaimsFromCtx(r.Context())
 			if claims.ID <= 0 {
-				common.RenderError(w, r, ErrUnauthorized())
+				common.RenderError(w, r, common.OperatorUnauthorized())
 				return
 			}
 			if lookup == nil {
@@ -59,7 +58,7 @@ func RequiresActiveOperator(lookup OperatorLookup) func(http.Handler) http.Handl
 					slog.String("path", r.URL.Path),
 					slog.Int("operator_id", claims.ID),
 				)
-				common.RenderError(w, r, ErrServiceUnavailable("Operator status temporarily unavailable, please retry"))
+				common.RenderError(w, r, common.OperatorServiceUnavailable("Operator status temporarily unavailable, please retry"))
 				return
 			}
 
@@ -69,7 +68,7 @@ func RequiresActiveOperator(lookup OperatorLookup) func(http.Handler) http.Handl
 				return
 			}
 			if !operator.Active {
-				common.RenderError(w, r, AuthErrorRenderer(identityoperator.ErrOperatorInactive))
+				common.RenderError(w, r, AuthErrorRenderer(ErrOperatorInactive))
 				return
 			}
 
@@ -79,7 +78,7 @@ func RequiresActiveOperator(lookup OperatorLookup) func(http.Handler) http.Handl
 }
 
 func renderOperatorLookupError(w http.ResponseWriter, r *http.Request, operatorID int, err error) {
-	if errors.Is(err, identityoperator.ErrOperatorInactive) || errors.Is(err, identityoperator.ErrOperatorNotFound) {
+	if errors.Is(err, ErrOperatorInactive) || errors.Is(err, ErrOperatorNotFound) {
 		common.RenderError(w, r, AuthErrorRenderer(err))
 		return
 	}
@@ -89,5 +88,5 @@ func renderOperatorLookupError(w http.ResponseWriter, r *http.Request, operatorI
 		slog.Int("operator_id", operatorID),
 		slog.String("error", err.Error()),
 	)
-	common.RenderError(w, r, ErrServiceUnavailable("Operator status temporarily unavailable, please retry"))
+	common.RenderError(w, r, common.OperatorServiceUnavailable("Operator status temporarily unavailable, please retry"))
 }

@@ -8,21 +8,11 @@ import (
 	"github.com/go-chi/render"
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
-// The display name and password changes are Identity & Access routes
-// (#3252) mounted from modules/identityaccess/inbound/operator; the profile
-// read and the e-mail change stay here.
-type (
-	// UpdateProfileRequest represents the profile update request body.
-	UpdateProfileRequest = identityoperator.UpdateProfileRequest
-	// ChangePasswordRequest represents the password change request body.
-	ChangePasswordRequest = identityoperator.ChangePasswordRequest
-)
-
-// ProfileResource handles the retained operator profile endpoints
+// ProfileResource handles the operator profile read and the e-mail change.
+// The display name and password changes are served by Resource.
 type ProfileResource struct {
 	authService OperatorAccess
 }
@@ -93,13 +83,13 @@ func (rs *ProfileResource) InitiateEmailChange(w http.ResponseWriter, r *http.Re
 
 	req := &InitiateEmailChangeRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(err))
+		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 		return
 	}
 
-	if err := rs.authService.InitiateOperatorEmailChange(r.Context(), identityoperator.OperatorEmailChangeRequest{
+	if err := rs.authService.InitiateOperatorEmailChange(r.Context(), OperatorEmailChangeRequest{
 		OperatorID: operatorID, NewEmail: req.NewEmail, CurrentPassword: req.CurrentPassword,
-		IPAddress: clientAddress(r),
+		IPAddress: clientIP(r),
 	}); err != nil {
 		common.RenderError(w, r, ProfileErrorRenderer(err))
 		return
@@ -112,12 +102,12 @@ func (rs *ProfileResource) InitiateEmailChange(w http.ResponseWriter, r *http.Re
 func (rs *ProfileResource) ConfirmEmailChange(w http.ResponseWriter, r *http.Request) {
 	req := &ConfirmEmailChangeRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(err))
+		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 		return
 	}
 
 	// Return value intentionally discarded — no PII on unauthenticated endpoint.
-	_, err := rs.authService.ConfirmOperatorEmailChange(r.Context(), req.Token, clientAddress(r))
+	_, err := rs.authService.ConfirmOperatorEmailChange(r.Context(), req.Token, clientIP(r))
 	if err != nil {
 		common.RenderError(w, r, confirmEmailChangeErrorRenderer(err))
 		return
@@ -132,41 +122,41 @@ func (rs *ProfileResource) ConfirmEmailChange(w http.ResponseWriter, r *http.Req
 // the frontend can offer a retry — the token remains unconsumed on rollback.
 func confirmEmailChangeErrorRenderer(err error) render.Renderer {
 	switch {
-	case errors.Is(err, identityoperator.ErrOperatorEmailChangeNotFound),
-		errors.Is(err, identityoperator.ErrOperatorEmailInUse),
-		errors.Is(err, identityoperator.ErrOperatorInactive):
-		return ErrInvalidRequest(errors.New("dieser Link ist abgelaufen oder ungültig. Bitte starte den Vorgang erneut"))
+	case errors.Is(err, ErrOperatorEmailChangeNotFound),
+		errors.Is(err, ErrOperatorEmailInUse),
+		errors.Is(err, ErrOperatorInactive):
+		return common.OperatorInvalidRequest(errors.New("dieser Link ist abgelaufen oder ungültig. Bitte starte den Vorgang erneut"))
 	default:
-		return ErrInternal("Ein Serverfehler ist aufgetreten")
+		return common.OperatorInternal("Ein Serverfehler ist aufgetreten")
 	}
 }
 
 // ProfileErrorRenderer maps profile-related service errors to HTTP responses
 func ProfileErrorRenderer(err error) render.Renderer {
-	if invalid, ok := identityoperator.InvalidInput(err); ok {
-		return ErrInvalidRequest(invalid)
+	if invalid, ok := InvalidInput(err); ok {
+		return common.OperatorInvalidRequest(invalid)
 	}
 	switch {
-	case errors.Is(err, identityoperator.ErrOperatorPasswordMismatch):
-		return ErrInvalidRequest(errors.New("das aktuelle Passwort ist falsch"))
-	case errors.Is(err, identityoperator.ErrOperatorNotFound):
-		return ErrNotFound("Operator not found")
-	case errors.Is(err, identityoperator.ErrOperatorInactive):
-		return ErrForbidden("Dieser Account ist deaktiviert")
-	case errors.Is(err, identityoperator.ErrOperatorEmailInUse):
+	case errors.Is(err, ErrOperatorPasswordMismatch):
+		return common.OperatorInvalidRequest(errors.New("das aktuelle Passwort ist falsch"))
+	case errors.Is(err, ErrOperatorNotFound):
+		return common.OperatorNotFound("Operator not found")
+	case errors.Is(err, ErrOperatorInactive):
+		return common.OperatorForbidden("Dieser Account ist deaktiviert")
+	case errors.Is(err, ErrOperatorEmailInUse):
 		// Defensive: InitiateEmailChange returns nil for duplicates
 		// (anti-enumeration), and ConfirmEmailChange uses
 		// confirmEmailChangeErrorRenderer. No current caller surfaces this
 		// error, but the mapping exists as a safety net if future profile
 		// endpoints produce it.
-		return ErrConflict("E-Mail-Adresse wird bereits verwendet")
-	case errors.Is(err, identityoperator.ErrOperatorEmailChangeRateLimited):
-		return ErrTooManyRequests("Zu viele Versuche. Bitte warte eine Stunde.")
-	case errors.Is(err, identityoperator.ErrOperatorEmailChangeSameEmail):
-		return ErrInvalidRequest(errors.New("die neue E-Mail ist identisch mit der aktuellen"))
-	case errors.Is(err, identityoperator.ErrOperatorEmailChangeNotFound):
-		return ErrInvalidRequest(errors.New("dieser Link ist abgelaufen oder ungültig"))
+		return common.OperatorConflict("E-Mail-Adresse wird bereits verwendet")
+	case errors.Is(err, ErrOperatorEmailChangeRateLimited):
+		return common.OperatorTooManyRequests("Zu viele Versuche. Bitte warte eine Stunde.")
+	case errors.Is(err, ErrOperatorEmailChangeSameEmail):
+		return common.OperatorInvalidRequest(errors.New("die neue E-Mail ist identisch mit der aktuellen"))
+	case errors.Is(err, ErrOperatorEmailChangeNotFound):
+		return common.OperatorInvalidRequest(errors.New("dieser Link ist abgelaufen oder ungültig"))
 	default:
-		return ErrInternal("An error occurred")
+		return common.OperatorInternal("An error occurred")
 	}
 }

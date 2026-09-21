@@ -1602,8 +1602,8 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		Scans:     api.Services.IoT.Fleet(),
 		Directory: tagScanSchoolDirectory{schools: api.Services.Schools},
 		Surface: tagScanOperatorAPI.Surface{
-			InvalidRequest:  operatorAPI.ErrInvalidRequest,
-			Internal:        operatorAPI.ErrInternal,
+			InvalidRequest:  apiCommon.OperatorInvalidRequest,
+			Internal:        apiCommon.OperatorInternal,
 			ResolveFallback: operatorAPI.UnregisteredTagScanResolveError,
 			RenderError:     apiCommon.RenderError,
 			Respond:         apiCommon.Respond,

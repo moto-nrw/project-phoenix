@@ -1,6 +1,9 @@
-// Package operator_test pins the exact wire format (HTTP status code + raw
-// JSON response bytes) produced by api/operator's hand-rolled ErrResponse
-// renderer and its Err* constructor helpers.
+// This file pins the exact wire format (HTTP status code + raw JSON response
+// bytes) of the operator error body, OperatorErrResponse, and its Operator*
+// constructors. It started in api/operator against that package's Err*
+// helpers, which were thin delegations to these constructors; it moved here
+// when those delegations were removed (#3231). The subtest names keep the
+// old helper names.
 //
 // These are B0 wire-format golden tests for issue #575 (API layer
 // technical-debt / error-response consolidation). The upcoming B1 refactor
@@ -12,7 +15,7 @@
 // HTML-escapes, emits compact JSON, and appends a trailing newline) and
 // asserts the literal body string.
 //
-// Note: operator.ErrResponse diverges from every other package's
+// Note: OperatorErrResponse (formerly operator.ErrResponse) diverges from every other package's
 // ErrResponse in two ways that B1 must reconcile or deliberately preserve:
 //  1. The error-text field is tagged json:"message" here, not json:"error"
 //     like api/active, api/feedback, api/iot/common.
@@ -23,7 +26,7 @@
 //
 // Changing an expectation in this file requires proof that the wire format
 // change is intentional — not just "the refactor made the test fail."
-package operator_test
+package common_test
 
 import (
 	"errors"
@@ -31,7 +34,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/operator"
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -55,55 +58,55 @@ func TestWireFormat_Operator_ErrHelpers(t *testing.T) {
 	}{
 		{
 			name:       "ErrInvalidRequest",
-			renderer:   operator.ErrInvalidRequest(errors.New("bad")),
+			renderer:   common.OperatorInvalidRequest(errors.New("bad")),
 			wantStatus: 400,
 			wantBody:   "{\"status\":\"error\",\"message\":\"bad\"}\n",
 		},
 		{
 			name:       "ErrInvalidCredentials",
-			renderer:   operator.ErrInvalidCredentials(),
+			renderer:   common.OperatorInvalidCredentials(),
 			wantStatus: 401,
 			wantBody:   "{\"status\":\"error\",\"message\":\"Invalid email or password\"}\n",
 		},
 		{
 			name:       "ErrUnauthorized",
-			renderer:   operator.ErrUnauthorized(),
+			renderer:   common.OperatorUnauthorized(),
 			wantStatus: 401,
 			wantBody:   "{\"status\":\"error\",\"message\":\"Unauthorized\"}\n",
 		},
 		{
 			name:       "ErrNotFound",
-			renderer:   operator.ErrNotFound("thing missing"),
+			renderer:   common.OperatorNotFound("thing missing"),
 			wantStatus: 404,
 			wantBody:   "{\"status\":\"error\",\"message\":\"thing missing\"}\n",
 		},
 		{
 			name:       "ErrConflict",
-			renderer:   operator.ErrConflict("duplicate"),
+			renderer:   common.OperatorConflict("duplicate"),
 			wantStatus: 409,
 			wantBody:   "{\"status\":\"error\",\"message\":\"duplicate\"}\n",
 		},
 		{
 			name:       "ErrForbidden",
-			renderer:   operator.ErrForbidden("no access"),
+			renderer:   common.OperatorForbidden("no access"),
 			wantStatus: 403,
 			wantBody:   "{\"status\":\"error\",\"message\":\"no access\"}\n",
 		},
 		{
 			name:       "ErrTooManyRequests",
-			renderer:   operator.ErrTooManyRequests("slow down"),
+			renderer:   common.OperatorTooManyRequests("slow down"),
 			wantStatus: 429,
 			wantBody:   "{\"status\":\"Too Many Requests\",\"message\":\"slow down\"}\n",
 		},
 		{
 			name:       "ErrInternal",
-			renderer:   operator.ErrInternal("oops"),
+			renderer:   common.OperatorInternal("oops"),
 			wantStatus: 500,
 			wantBody:   "{\"status\":\"error\",\"message\":\"oops\"}\n",
 		},
 		{
 			name:       "ErrServiceUnavailable",
-			renderer:   operator.ErrServiceUnavailable("try later"),
+			renderer:   common.OperatorServiceUnavailable("try later"),
 			wantStatus: 503,
 			wantBody:   "{\"status\":\"Service Unavailable\",\"message\":\"try later\"}\n",
 		},

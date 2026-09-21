@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -21,6 +22,9 @@ type DemoAccess struct {
 	mail     ports.DemoAccessMail
 	adminTx  ports.DemoAdminTx
 	now      func() time.Time
+	// perIP and perAddress limit the public request (#3466).
+	perIP      *demoRequestWindow
+	perAddress *demoRequestWindow
 }
 
 // DemoAccessDependencies are the ports the flows consume.
@@ -39,6 +43,7 @@ func NewDemoAccess(deps DemoAccessDependencies) (*DemoAccess, error) {
 	}
 	return &DemoAccess{
 		sessions: deps.Sessions, store: deps.Store, schools: deps.Schools, tokens: deps.Tokens, mail: deps.Mail, adminTx: deps.AdminTx, now: time.Now,
+		perIP: newDemoRequestWindow(domain.DemoRequestsPerIPAddress), perAddress: newDemoRequestWindow(domain.DemoRequestsPerAddress),
 	}, nil
 }
 
@@ -50,10 +55,34 @@ func NewDemoAccess(deps DemoAccessDependencies) (*DemoAccess, error) {
 // The team hears of a first access and of a changed contact consent. An
 // address whose school did not fail gets no second school (#3463): the new
 // link leads into the school it already has.
-func (d *DemoAccess) Request(ctx context.Context, access domain.DemoAccess, entryURLPrefix string) error {
+//
+// Only a valid request counts against its IP address and its address, so
+// typing errors of fair visitors behind one WLAN address fill no window; an
+// invalid request touches no table (#3466). A new school beyond the
+// configured number is refused by PrepareDemoSchool; such a request gives
+// its places in both windows back, so retries at the capacity do not end in
+// a rate limit once a place is free again.
+func (d *DemoAccess) Request(ctx context.Context, access domain.DemoAccess, clientIP, entryURLPrefix string) error {
 	if err := access.Normalize(); err != nil {
 		return err
 	}
+	at := d.now()
+	if err := d.perIP.admit(clientIP, at); err != nil {
+		return err
+	}
+	if err := d.perAddress.admit(access.Email, at); err != nil {
+		d.perIP.withdraw(clientIP, at)
+		return err
+	}
+	err := d.request(ctx, access, entryURLPrefix)
+	if errors.Is(err, domain.ErrDemoCapacityReached) {
+		d.perIP.withdraw(clientIP, at)
+		d.perAddress.withdraw(access.Email, at)
+	}
+	return err
+}
+
+func (d *DemoAccess) request(ctx context.Context, access domain.DemoAccess, entryURLPrefix string) error {
 	raw, fingerprint, err := d.tokens.NewToken()
 	if err != nil {
 		return fmt.Errorf("mint demo access token: %w", err)
@@ -103,23 +132,24 @@ func (d *DemoAccess) schoolFor(ctx context.Context, access, known domain.DemoAcc
 	return d.schools.PrepareDemoSchool(ctx, access.SchoolName, access.PersonName)
 }
 
-// Status reports the progress of the token's demo school and its slug, which
-// is the school's address once it is ready. A ready school without an account
-// to sign in is still preparing.
-func (d *DemoAccess) Status(ctx context.Context, token string) (status, schoolSlug string, err error) {
+// Status reports the progress of the token's demo school and the access
+// itself, whose school slug is the school's address once it is ready. A ready
+// school without an account to sign in is still preparing.
+func (d *DemoAccess) Status(ctx context.Context, token string) (access domain.DemoAccess, status string, err error) {
 	err = d.adminTx(ctx, func(txCtx context.Context) error {
-		access, err := d.valid(txCtx, token)
-		if err != nil {
+		var err error
+		if access, err = d.valid(txCtx, token); err != nil {
 			return err
 		}
 		entry, err := d.entry(txCtx, access.SchoolSlug)
-		status, schoolSlug = entry.Status, access.SchoolSlug
+		status = entry.Status
 		return err
 	})
-	return status, schoolSlug, err
+	return access, status, err
 }
 
-// Redeem notes the use and mints a session in the token's demo school: for
+// Redeem notes the use, which starts or resumes the school's simulation
+// (#3464), and mints a session in the token's demo school: for
 // the prospect's own caregiver, or for the administrator of a school without
 // one. The token stays valid afterwards.
 func (d *DemoAccess) Redeem(ctx context.Context, token, ipAddress, userAgent string) (string, string, error) {
@@ -134,6 +164,9 @@ func (d *DemoAccess) Redeem(ctx context.Context, token, ipAddress, userAgent str
 		}
 		if entry.Status != domain.DemoSchoolReady {
 			return domain.ErrDemoSchoolPreparing
+		}
+		if err := d.schools.MarkDemoSchoolUsed(txCtx, access.SchoolSlug, d.now()); err != nil {
+			return err
 		}
 		return d.store.RecordDemoAccessUse(txCtx, access.ID, entry.AccountID, d.now())
 	})

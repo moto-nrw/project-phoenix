@@ -1654,7 +1654,7 @@ func newFactory(
 			},
 		},
 		operators:          operatorDependencies,
-		demoAccess:         demoAccessWiringFor(appEnv, dispatcher, defaultFrom, frontendURL, authLogger),
+		demoAccess:         demoAccessWiringFor(appEnv, dispatcher, defaultFrom, frontendURL, viper.GetInt("demo_max_active_schools"), authLogger),
 		demoStandingSchool: standingDemoSchool(viper.GetBool("demo_standing_school")),
 		operatorLinks: &operatorLinkWiring{
 			dispatcher: dispatcher, defaultFrom: defaultFrom,
