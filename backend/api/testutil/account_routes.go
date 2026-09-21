@@ -24,22 +24,6 @@ import (
 // without naming the root composition or the portal's own packages. They
 // answer plain values, so nothing of the portal crosses this boundary.
 
-// parentPickupRequestSetting is models/config.KeyParentCarePickupRequestEnabled.
-// Test support may not import the settings owner's domain (the architecture
-// policy keeps test-support off it), so the key is spelled out here; a rename
-// there fails the test that drives it, next to this line.
-const parentPickupRequestSetting = "operations.parent_care_pickup_request_enabled"
-
-// EnableParentPickupTimeRequests switches on the school setting a pickup-time
-// request needs, so a test can drive the request.
-func EnableParentPickupTimeRequests(t *testing.T, db *bun.DB, tenantID int64) {
-	t.Helper()
-	_, err := db.NewRaw(`INSERT INTO config.setting_values (tenant_id, setting_key, value)
-		VALUES (?, ?, 'true'::jsonb) ON CONFLICT (tenant_id, setting_key) DO UPDATE SET value = EXCLUDED.value`,
-		tenantID, parentPickupRequestSetting).Exec(context.Background())
-	require.NoError(t, err)
-}
-
 // ParentPortalChildIDs are the students the account sees in the parents
 // portal: exactly the children its guardian relationships permit.
 func ParentPortalChildIDs(t *testing.T, ctx context.Context, db *bun.DB, module services.StudentTestModule, accountID int64) []int64 {

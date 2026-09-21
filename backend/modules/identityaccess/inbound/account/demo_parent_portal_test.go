@@ -39,7 +39,7 @@ func TestDemoParentHasFullRightsForExactlyTheOwnChild(t *testing.T) {
 	assert.Equal(t, own.StudentID, children[0])
 
 	// A new pickup time is a request the school decides on.
-	testutil.EnableParentPickupTimeRequests(t, env.db, testpkg.Tenant(t))
+	testpkg.EnableParentPickupTimeRequests(t, env.db, testpkg.Tenant(t))
 	pickupChange := map[string]any{"weekdays": []any{map[string]any{
 		"weekday": 2, "scheduled": true, "pickup": "15:30", "mode": "pickup",
 	}}}
