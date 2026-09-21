@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 /**
  * Misst, wie viel Höhe unter dem Element bis zur Unterkante des Bildschirms
@@ -12,11 +12,10 @@ import { useEffect, useRef, useState } from "react";
  * springt die Fläche, wenn ein Register zwischen den Bauarten wechselt.
  */
 export function useFillHeight<T extends HTMLElement>(bottomOffset = 32) {
-  const ref = useRef<T>(null);
+  const [node, setNode] = useState<T | null>(null);
   const [height, setHeight] = useState<string>("100dvh");
 
   useEffect(() => {
-    const node = ref.current;
     if (!node) return;
 
     const measure = () => {
@@ -33,7 +32,7 @@ export function useFillHeight<T extends HTMLElement>(bottomOffset = 32) {
       observer.disconnect();
       window.removeEventListener("resize", measure);
     };
-  }, [bottomOffset]);
+  }, [bottomOffset, node]);
 
-  return { ref, height };
+  return { ref: setNode, height };
 }

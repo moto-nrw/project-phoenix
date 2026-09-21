@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/go-chi/render"
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -329,7 +328,7 @@ func (rs *Resource) createPermission(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var permission identityaccess.Permission
-	err := tenant.WithAdminTx(r.Context(), rs.db, func(ctx context.Context, _ bun.Tx) error {
+	err := tenant.WithinAdmin(r.Context(), func(ctx context.Context) error {
 		var createErr error
 		permission, createErr = rs.Sessions.CreatePermission(ctx, req.Name, req.Description, req.Resource, req.Action)
 		return createErr
@@ -382,7 +381,7 @@ func (rs *Resource) updatePermission(w http.ResponseWriter, r *http.Request) {
 	permission.Resource = req.Resource
 	permission.Action = req.Action
 
-	if err := tenant.WithAdminTx(r.Context(), rs.db, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithinAdmin(r.Context(), func(ctx context.Context) error {
 		return rs.Sessions.UpdatePermission(ctx, permission)
 	}); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -399,7 +398,7 @@ func (rs *Resource) deletePermission(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := tenant.WithAdminTx(r.Context(), rs.db, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithinAdmin(r.Context(), func(ctx context.Context) error {
 		return rs.Sessions.DeletePermission(ctx, int64(id))
 	}); err != nil {
 		if common.IsConstraintViolation(err) {

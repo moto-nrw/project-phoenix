@@ -74,7 +74,7 @@ Backend paths in this section are relative to `backend/`:
 - `TenantMiddleware` rejects both parent and school scopes.
   `TestSchoolScopeRejectedOnAllAPIRoutes` checks school-token rejection under `/api`.
 - MFA can insert a challenge between credentials and session. Inspect
-  `modules/identityaccess/account_mfa.go`, `api/auth/mfa_handlers.go`, `api/operator/mfa.go`,
+  `modules/identityaccess/account_mfa.go`, `modules/identityaccess/inbound/auth/mfa_handlers.go`, `api/operator/mfa.go`,
   the challenge/enrollment claims in `modules/identityaccess/legacy/jwt/`, and trusted-device settings
   `security.mfa_*`. Include the school frontend's MFA chain when changing its login.
 

@@ -458,6 +458,24 @@ repository tests' factory calls left `composition.json` with the move, as with
 #3218 and #3219; they are not fewer callers, and the composition surface count
 is unchanged at 673.
 
+#3230 moves `api/auth` to `modules/identityaccess/inbound/auth` the same way
+(policy epoch 18 to 19), keeping the `inbound-auth` owner and the `http` /
+`adapter-test` roles. Of its 29 baseline keys, 26 keep their #2736 issue under
+the new path. Three fall with the move: the tenant shell reads
+`operations.parent_notes_enabled` through its own fail-open resolver instead
+of `services/parentmessaging`, it holds the `grade_level_max` bounds 1..13
+itself instead of importing `internal/schoolclass`, and the `*bun.DB` handle,
+which only switched the invitation routes' transaction on, became the
+consumer-owned `UnitOfWork` port (`TenantUnitOfWork` in production, nil in
+handler unit tests). The RBAC routes open `tenant.WithinAdmin` directly, as
+before. Moving into `modules/` also puts the package under the Rule 16
+ratchets, so the rate-limiter, MFA and passkey setters gave way to
+`RouterWithAuthRateLimiter` and field assignment at the composition root
+(composition surface 641 to 638), and the router and tenant-resolve handlers
+were split into named steps. Routes, methods, status codes, error bodies and
+middleware chains are unchanged; the middleware golden only renames
+`requirePlatformScope`'s package.
+
 The Workforce compatibility adapter (`modules/workforce/legacy`) and the
 Workforce HTTP composition (`modules/workforce/inbound`) are classified as
 `workforce`/`adapter`. Their imports of the retained `models/active`,

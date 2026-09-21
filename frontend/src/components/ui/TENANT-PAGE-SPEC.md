@@ -101,6 +101,11 @@ lg:flex-col`), sonst wächst nur die Hülle und die Fläche bleibt kurz.
    Gitter und Anklickbares (`TileCard`) wachsen nie. Eine Seite, deren
    letzter Block nicht wächst, verpackt ihn zu tief — nicht mit `min-h-*`
    nachhelfen, die Hülle abbauen.
+   **Ausstieg:** Eine Fläche, deren Höhe eine Hülle festlegt und die innen
+   scrollt, trägt `moto-scroll-surface` (Chats, `MasterDetailLayout` und
+   `DatabaseListLayout` am Computer). Ohne die Klasse wächst sie so hoch wie
+   ihr Inhalt und läuft über die Hülle hinaus (#3328, #3330). Auf dem
+   Telefon scrollt besser die Seite: keine feste Höhe, kein Ausstieg.
 7. **Reiter**: Seitenreiter über `tabs`. `ui/Tabs` bleibt nur für Reiter
    INNERHALB einer Karte (Slide-over: Bearbeiten/Verlauf), `SegmentedControl`
    für jede Wertauswahl — auch Monat/Woche/Tag, A/B-Woche, Exportzeitraum,
