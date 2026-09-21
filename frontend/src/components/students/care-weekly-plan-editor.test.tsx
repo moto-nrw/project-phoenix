@@ -915,6 +915,18 @@ describe("CareWeeklyPlanEditForm", () => {
     });
   });
 
+  it("keeps a completed time when another digit is typed", () => {
+    renderForm();
+
+    const pickup = screen.getByLabelText("Abholung", {
+      selector: "#weekly-pickup-1",
+    });
+    fireEvent.change(pickup, { target: { value: "12:34" } });
+    fireEvent.change(pickup, { target: { value: "12:345" } });
+
+    expect(pickup).toHaveValue("12:34");
+  });
+
   it("pads a one-digit hour when typing a clock time", () => {
     renderForm();
 

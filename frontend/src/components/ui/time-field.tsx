@@ -1,13 +1,17 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useRef } from "react";
 
 /**
  * Nur Ziffern und der Doppelpunkt; auch einstellige Stunden bleiben gültig.
  * Geteilt mit dem Uhrzeitfeld der Einstellungen (`SettingsTimeField`), damit
  * es die Maske nicht ein zweites Mal gibt (#3117).
  */
-export function normalizeTimeInput(raw: string, previousValue = ""): string {
+export function normalizeTimeInput(
+  raw: string,
+  previousValue = "",
+  continueOneDigitHour = false,
+): string {
   const explicitTime = raw.match(/^(\d{1,2}):(\d{0,2})$/);
   if (explicitTime) {
     return `${explicitTime[1]!.padStart(2, "0")}:${explicitTime[2]!}`;
@@ -17,7 +21,9 @@ export function normalizeTimeInput(raw: string, previousValue = ""): string {
   // After completing a one-digit hour, a fourth typed digit turns
   // "01:53" + "0" back into the intended two-digit time "15:30".
   if (
+    continueOneDigitHour &&
     rawDigits.length === 5 &&
+    raw.startsWith(previousValue) &&
     previousValue === `${rawDigits.slice(0, 2)}:${rawDigits.slice(2, 4)}`
   ) {
     return `${rawDigits.slice(1, 3)}:${rawDigits.slice(3)}`;
@@ -40,6 +46,10 @@ export function normalizeTimeInput(raw: string, previousValue = ""): string {
     return `0${digits.slice(0, 1)}:${digits.slice(1)}`;
   }
   return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+}
+
+export function completesOneDigitHour(raw: string): boolean {
+  return /^\d{3}$/.test(raw) && Number(raw.slice(1)) <= 59;
 }
 
 /**
@@ -76,6 +86,7 @@ export function TimeField({
   inputRef?: React.Ref<HTMLInputElement>;
 }>) {
   const hintId = useId();
+  const completedOneDigitHour = useRef<string | null>(null);
 
   return (
     <label className="block">
@@ -95,9 +106,19 @@ export function TimeField({
         aria-required={required}
         aria-invalid={invalid}
         aria-describedby={[describedBy, hintId].filter(Boolean).join(" ")}
-        onChange={(event) =>
-          onChange(normalizeTimeInput(event.target.value, value))
-        }
+        onChange={(event) => {
+          const nextValue = normalizeTimeInput(
+            event.target.value,
+            value,
+            completedOneDigitHour.current === value,
+          );
+          completedOneDigitHour.current = completesOneDigitHour(
+            event.target.value,
+          )
+            ? nextValue
+            : null;
+          onChange(nextValue);
+        }}
         className={`h-10 w-full rounded-lg border px-3 text-base text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
           invalid
             ? "border-parent-red focus-visible:border-parent-red"

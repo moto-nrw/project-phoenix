@@ -123,6 +123,16 @@ describe("SettingsTimeField", () => {
     expect(input).toHaveValue(expected);
   });
 
+  it("keeps a completed time when another digit is typed", async () => {
+    const user = userEvent.setup();
+    render(<SettingsTimeField value="12:34" onChange={vi.fn()} />);
+
+    const input = screen.getByPlaceholderText("HH:MM");
+    await user.type(input, "5");
+
+    expect(input).toHaveValue("12:34");
+  });
+
   it("strips non-digit characters", () => {
     render(<SettingsTimeField value="12:00" onChange={vi.fn()} />);
     const input = screen.getByPlaceholderText("HH:MM") as HTMLInputElement;

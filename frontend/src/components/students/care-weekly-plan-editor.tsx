@@ -9,7 +9,10 @@ import { useFormError } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
-import { normalizeTimeInput } from "~/components/ui/time-field";
+import {
+  completesOneDigitHour,
+  normalizeTimeInput,
+} from "~/components/ui/time-field";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import {
@@ -534,6 +537,8 @@ function WeeklyTimeField({
   readonly disabled: boolean;
   readonly onChange: (value: string) => void;
 }) {
+  const completedOneDigitHour = useRef<string | null>(null);
+
   return (
     <div>
       {/* The column header names the field on wide screens; the label is
@@ -560,9 +565,19 @@ function WeeklyTimeField({
         className="tabular-nums"
         value={value}
         disabled={disabled}
-        onChange={(event) =>
-          onChange(normalizeTimeInput(event.target.value, value))
-        }
+        onChange={(event) => {
+          const nextValue = normalizeTimeInput(
+            event.target.value,
+            value,
+            completedOneDigitHour.current === value,
+          );
+          completedOneDigitHour.current = completesOneDigitHour(
+            event.target.value,
+          )
+            ? nextValue
+            : null;
+          onChange(nextValue);
+        }}
       />
     </div>
   );
