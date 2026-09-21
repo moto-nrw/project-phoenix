@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
+	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth"
 )
 
 // standingDemoSchoolSlug is the school every demo access enters until a

@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
+	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -28,7 +28,7 @@ func TestResolveTenant_HiddenSchoolReturnsHiddenFlag(t *testing.T) {
 		`UPDATE platform.schools SET hidden = true WHERE id = ?`, tenantID)
 	require.NoError(t, err)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, authAPI.TenantUnitOfWork{})
 	resource.SettingsService = authRoute.SettingsService
 
 	router := chi.NewRouter()
