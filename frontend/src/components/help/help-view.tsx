@@ -39,6 +39,7 @@ import {
   type HelpTopicGroup,
 } from "./help-content";
 import { HelpEntry, type HelpEntryAnswers } from "./help-entry";
+import { HELP_ICONS } from "./help-icons";
 import { useHelpSidebarScrollRestoration } from "./help-sidebar-scroll";
 import { useHelpTableOfContents } from "./help-table-of-contents";
 import { HelpWordmark } from "./help-wordmark";
@@ -431,7 +432,7 @@ function GroupOverview({
               className="moto-content-surface group rounded-2xl border p-5 shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
             >
               <MotoDuotoneIcon
-                icon={item.icon}
+                icon={HELP_ICONS[item.icon]}
                 tone="greenDeep"
                 size={28}
                 weight="regular"
@@ -1212,7 +1213,7 @@ function HelpDocumentationShell({
                       className="moto-content-surface group rounded-2xl border p-5 shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                     >
                       <MotoDuotoneIcon
-                        icon={item.icon}
+                        icon={HELP_ICONS[item.icon]}
                         tone="greenDeep"
                         size={28}
                         weight="regular"
