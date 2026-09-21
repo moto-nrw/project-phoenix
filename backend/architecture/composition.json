@@ -1085,16 +1085,6 @@
     {
       "scope": "test",
       "file": "database/repositories/users/guardian_phone_repository_test.go",
-      "declaration": "TestGuardianPhoneNumberRepository_DeleteByGuardianID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        450
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/guardian_phone_repository_test.go",
       "declaration": "TestGuardianPhoneNumberRepository_FindByGuardianID",
       "target": "database/repositories.NewFactory",
       "lines": [
@@ -1118,7 +1108,7 @@
       "declaration": "TestGuardianPhoneNumberRepository_GetNextPriority",
       "target": "database/repositories.NewFactory",
       "lines": [
-        496
+        450
       ],
       "tables": []
     },
@@ -1188,7 +1178,7 @@
       "declaration": "TestGuardianProfileRepository_FindByAccountID_PrefersExplicitPortalLocale",
       "target": "database/repositories.NewFactory",
       "lines": [
-        588
+        542
       ],
       "tables": [
         "users.guardian_profiles"
@@ -1200,7 +1190,7 @@
       "declaration": "TestGuardianProfileRepository_FindByAccountID_ReturnsLinkedProfile",
       "target": "database/repositories.NewFactory",
       "lines": [
-        557
+        511
       ],
       "tables": []
     },
@@ -1282,7 +1272,7 @@
       "declaration": "TestGuardianProfileRepository_LockByIDForUpdate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        637
+        591
       ],
       "tables": []
     },
@@ -1303,16 +1293,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         129
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/guardian_profile_repository_test.go",
-      "declaration": "TestGuardianProfileRepository_UpdatePortalLocaleByAccountID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        510
       ],
       "tables": []
     },
@@ -21073,12 +21053,12 @@
         },
         {
           "file": "services/factory.go",
-          "line": 464,
+          "line": 465,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 514,
+          "line": 515,
           "declaration": "newFactory"
         },
         {

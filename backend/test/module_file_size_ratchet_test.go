@@ -99,9 +99,6 @@ var moduleFileSizeAllowlist = map[string]int{
 	"modules/workforce/legacy/timetracking/work_time_month_service.go":               1846,
 	"modules/workforce/legacy/worksession_repositories.go":                           1158,
 	"modules/workforce/timetracking.go":                                              824,
-	"workflows/parentportal/legacy/parent_guardian_service.go":                       1312,
-	"workflows/parentportal/legacy/parent_service.go":                                918,
-	"workflows/parentportal/legacy/parent_write_service.go":                          1746,
 	"workflows/reminderdelivery/internal/application/service.go":                     864,
 	"workflows/studentdeletion/deletion.go":                                          811,
 }

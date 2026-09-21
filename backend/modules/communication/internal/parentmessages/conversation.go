@@ -9,7 +9,7 @@ import (
 )
 
 // This file holds the small shared core of the parent-OGS conversation used
-// by BOTH the staff side (this package) and the parent side (workflows/parentportal/legacy,
+// by BOTH the staff side (this package) and the parent side (workflows/parentportal/messaging,
 // through its ConversationCore port). The load-bearing rules — append a
 // message and advance the read cursor off the DB-stamped created_at (never
 // the app clock), and the SSE fan-out contract — live in ONE place instead of

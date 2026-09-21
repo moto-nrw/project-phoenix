@@ -102,7 +102,7 @@ const (
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 441
+	policyTempRulesCompatTotal = 409
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the

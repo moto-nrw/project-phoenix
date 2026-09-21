@@ -90,7 +90,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
 	gradetransitioncompose "github.com/moto-nrw/project-phoenix/workflows/gradetransition/compose"
-	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 	reminderPorts "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
@@ -287,7 +288,7 @@ type Factory struct {
 	EnrollmentRejectedCleanup enrollment.RejectedEnrollmentCleaner
 
 	// Parent (cross-tenant guardian portal - PR 9)
-	Parent parentportal.Service
+	Parent *parentportal.Portal
 
 	// Messaging (staff-side parent-OGS inbox / threads)
 	Messaging communication.ParentMessagingCapability
@@ -477,7 +478,7 @@ func NewFactoryWithModules(
 	communicationCapability communication.Capability,
 	observeCommunication func(communicationCompose.Observation),
 	observeCarePlan CarePlanObserver,
-	mealPlan parentportal.MealPlan,
+	mealPlan parentportalcompose.MealPlanProvider,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
 	bindFeedbackSettings FeedbackSettingsBinder,
@@ -526,7 +527,7 @@ func newFactory(
 	communicationCapability communication.Capability,
 	observeCommunication func(communicationCompose.Observation),
 	observeCarePlan CarePlanObserver,
-	mealPlan parentportal.MealPlan,
+	mealPlan parentportalcompose.MealPlanProvider,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
 	bindFeedbackSettings FeedbackSettingsBinder,
@@ -2485,10 +2486,16 @@ func newFactory(
 		Logger:                 logger.With("service", "calendar"),
 	})
 
+	// The parent portal writes the child's care profile through Care Plan.
+	parentCareProfiles, err := careplanCompose.NewStudentProfiles(db, func(careplanCompose.Observation) {})
+	if err != nil {
+		return nil, fmt.Errorf("compose parent portal care profiles: %w", err)
+	}
 	// The photo lifecycle exists only after EnableStudentPhotos runs in the
 	// API bootstrap, so the parent service resolves it on use.
 	var factory *Factory
-	parentService := parentportal.NewService(parentportal.ServiceConfig{
+	parentService := parentportalcompose.New(parentportalcompose.Dependencies{
+		CareProfiles:              parentCareProfiles,
 		ChildRepo:                 repos.ParentChild,
 		EnrollablePhaseRepo:       repos.ParentEnrollablePhase,
 		EnrollmentSettings:        settingsService,
@@ -2498,7 +2505,8 @@ func newFactory(
 		StatusDayRepo:             repos.StudentStatusDay,
 		MealPlan:                  mealPlan,
 		StudentRepo:               repos.Student,
-		CareExceptions:            repos.CarePlan(),
+		CarePlan:                  repos.CarePlan(),
+		People:                    persons,
 		PickupAutoExcusal:         pickupAutoExcusal,
 		Settings:                  settingsService,
 		Broadcaster:               realtimeHub,
@@ -2518,19 +2526,18 @@ func newFactory(
 			ThreadRepo: repos.ParentMessageThread, MessageRepo: repos.ParentMessage, ReadRepo: repos.ParentMessageRead,
 			Broadcaster: realtimeHub, Logger: logger.With("service", "parent"),
 		}),
-		ParentMessageNotifier:   staffParentMessageNotifier,
-		ArrivalSchedules:        arrivalScheduleService,
-		PickupSchedules:         pickupScheduleService,
-		CareRequests:            careRequestService,
-		ExcusedRequests:         excusedRequestService,
-		Emitter:                 pillEmitter,
-		AnnouncementRepo:        repos.ParentAnnouncement,
-		GuardianInvites:         NewParentGuardianAccess(guardianInvitationService),
-		GuardianInvitations:     newGuardianInvitationReads(func() identityaccess.GuardianInvitations { return identityAccess }),
-		StudentGuardianRepo:     repos.StudentGuardian,
-		GuardianPhoneRepo:       repos.GuardianPhoneNumber,
-		GuardianChangeAuditRepo: repos.GuardianChange,
-		StudentConsents:         studentConsentService,
+		ParentMessageNotifier: staffParentMessageNotifier,
+		ArrivalSchedules:      arrivalScheduleService,
+		PickupSchedules:       pickupScheduleService,
+		CareRequests:          careRequestService,
+		ExcusedRequests:       excusedRequestService,
+		Emitter:               pillEmitter,
+		AnnouncementRepo:      repos.ParentAnnouncement,
+		GuardianInvites:       NewParentGuardianAccess(guardianInvitationService),
+		GuardianInvitations:   newGuardianInvitationReads(func() identityaccess.GuardianInvitations { return identityAccess }),
+		StudentGuardianRepo:   repos.StudentGuardian,
+		GuardianPhoneRepo:     repos.GuardianPhoneNumber,
+		StudentConsents:       studentConsentService,
 		StudentPhotos: func() parentportal.StudentPhotoUnlinker {
 			if factory == nil || factory.StudentPhotos == nil {
 				return nil
@@ -2542,7 +2549,6 @@ func newFactory(
 		OfferingHistory:  repos.Enrollment(),
 		CareOfferingRepo: enrollment.NewCareOfferingRepository(repos.CarePlan()),
 		OfferingChanges:  offeringChangeRequestService,
-		DB:               db,
 		Logger:           logger.With("service", "parent"),
 		Now:              now,
 	})
@@ -2847,7 +2853,8 @@ func newFactory(
 	// must not import it just to ask who a request was shared with. The
 	// offering and master-data services take it by setter; the care and
 	// excused requests read it lazily through requestShares.
-	if resolver, ok := parentService.(parentmessaging.ShareVisibilityResolver); ok {
+	var _ parentmessaging.ShareVisibilityResolver = parentService
+	if resolver, ok := any(parentService).(parentmessaging.ShareVisibilityResolver); ok {
 		requestShareVisibility = resolver
 		for _, service := range []any{
 			offeringChangeRequestService,

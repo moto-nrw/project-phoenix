@@ -14,8 +14,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // GetChildCourses returns the school's courses with this child's state.
@@ -44,7 +42,7 @@ func (s *Service) GetChildCourses(
 		}, nil
 	}
 	var catalog *enrollmentSvc.CourseCatalog
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		resolved, resolveErr := s.OfferingChanges.CourseCatalog(txCtx, studentID, accountID)
 		if resolveErr != nil {
 			return resolveErr
@@ -81,7 +79,7 @@ func (s *Service) RequestChildCourse(
 	if s.OfferingChanges == nil {
 		return nil, enrollmentSvc.ErrCourseRequestsDisabled
 	}
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		if err := s.RequireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
@@ -123,7 +121,7 @@ func (s *Service) WithdrawChildCourseRequest(
 	if s.OfferingChanges == nil {
 		return nil, enrollmentSvc.ErrCourseRequestsDisabled
 	}
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		if err := s.RequireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
