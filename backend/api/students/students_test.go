@@ -17,7 +17,7 @@ import (
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -994,12 +994,12 @@ func TestUpdateStudent_SickStatusExtended(t *testing.T) {
 		assert.Equal(t, http.StatusOK, clearRR.Code, "Should clear sick status")
 		assert.Contains(t, clearRR.Body.String(), `"sick":false`)
 
-		var history activeModel.StudentStatusDay
+		var history testpkg.StudentStatusDayRow
 		err := tc.db.NewSelect().
 			Model(&history).
 			ModelTableExpr(`active.student_status_days AS "student_status_day"`).
 			Where(`"student_status_day".student_id = ?`, student.ID).
-			Where(`"student_status_day".status = ?`, activeModel.StudentStatusDaySick).
+			Where(`"student_status_day".status = ?`, absencerecords.StudentStatusDaySick).
 			Scan(context.Background())
 		require.NoError(t, err)
 		assert.NotNil(t, history.ClearedAt)
@@ -1043,12 +1043,12 @@ func TestUpdateStudent_WithExcusedStatus(t *testing.T) {
 		assert.Equal(t, http.StatusOK, clearRR.Code)
 		assert.Contains(t, clearRR.Body.String(), `"excused":false`)
 
-		var history activeModel.StudentStatusDay
+		var history testpkg.StudentStatusDayRow
 		err := tc.db.NewSelect().
 			Model(&history).
 			ModelTableExpr(`active.student_status_days AS "student_status_day"`).
 			Where(`"student_status_day".student_id = ?`, student.ID).
-			Where(`"student_status_day".status = ?`, activeModel.StudentStatusDayExcused).
+			Where(`"student_status_day".status = ?`, absencerecords.StudentStatusDayExcused).
 			Scan(context.Background())
 		require.NoError(t, err)
 		assert.NotNil(t, history.ClearedAt)

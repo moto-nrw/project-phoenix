@@ -7,7 +7,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 )
 
 // The read ports below are the rows the child flows read and lock. They name
@@ -76,7 +76,7 @@ type DataRequestReads interface {
 
 // StatusDayReads reads the child's active status days.
 type StatusDayReads interface {
-	FindActiveByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*activeModels.StudentStatusDay, error)
+	FindActiveByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*absencerecords.StudentStatusDay, error)
 }
 
 // CareOfferingReads reads care offerings by ID.

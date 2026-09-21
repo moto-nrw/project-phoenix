@@ -53,7 +53,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        326
+        325
       ],
       "tables": []
     },
@@ -144,7 +144,7 @@
       "declaration": "setupTestCleanupContextWithServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        67
+        68
       ],
       "tables": []
     },
@@ -2521,7 +2521,7 @@
       "declaration": "TestAdditionalSupervisionAuditFailureRollsBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        224
+        223
       ],
       "tables": []
     },
@@ -2531,7 +2531,7 @@
       "declaration": "TestAdditionalSupervisionAuthorizationMatrix",
       "target": "database/repositories.NewFactory",
       "lines": [
-        140
+        139
       ],
       "tables": [
         "active.groups"
@@ -2543,7 +2543,7 @@
       "declaration": "TestAdditionalSupervisionRejectsConcurrentSessionEnd",
       "target": "database/repositories.NewFactory",
       "lines": [
-        310
+        309
       ],
       "tables": [
         "active.groups"
@@ -2555,7 +2555,7 @@
       "declaration": "TestAdditionalSupervisionSignalsOnlyAfterCommit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        281
+        280
       ],
       "tables": []
     },
@@ -2565,7 +2565,7 @@
       "declaration": "TestAdditionalSupervisionTreatsFutureEndDateAsActive",
       "target": "database/repositories.NewFactory",
       "lines": [
-        250
+        249
       ],
       "tables": [
         "active.group_supervisors"
@@ -2577,7 +2577,7 @@
       "declaration": "TestGroupHandoverAllStaffVisibilityDoesNotGrantActions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        532
+        531
       ],
       "tables": []
     },
@@ -2587,7 +2587,7 @@
       "declaration": "TestGroupHandoverAuditFailureRollsBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        581
+        580
       ],
       "tables": []
     },
@@ -2597,7 +2597,7 @@
       "declaration": "TestGroupHandoverExternalInterface",
       "target": "database/repositories.NewFactory",
       "lines": [
-        369
+        368
       ],
       "tables": [
         "audit.substitution_changes"
@@ -2609,7 +2609,7 @@
       "declaration": "TestGroupHandoverPermissionsAndPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        432
+        431
       ],
       "tables": []
     },
@@ -2619,7 +2619,7 @@
       "declaration": "TestGroupHandoverRechecksOwnershipAfterGroupLock",
       "target": "database/repositories.NewFactory",
       "lines": [
-        659
+        658
       ],
       "tables": []
     },
@@ -2629,7 +2629,7 @@
       "declaration": "TestGroupHandoverSignalsOnlyAfterCommit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        619
+        618
       ],
       "tables": []
     },
@@ -4434,7 +4434,7 @@
       "declaration": "newOffboardingScenario",
       "target": "database/repositories.NewFactory",
       "lines": [
-        61
+        63
       ],
       "tables": []
     },
@@ -4524,7 +4524,7 @@
       "declaration": "TestTenantIsolation_ActivityCategoryVisibility",
       "target": "database/repositories.NewFactory",
       "lines": [
-        408
+        409
       ],
       "tables": []
     },
@@ -4534,7 +4534,7 @@
       "declaration": "TestTenantIsolation_TimeframeVisibility",
       "target": "database/repositories.NewFactory",
       "lines": [
-        205
+        206
       ],
       "tables": []
     },
@@ -20808,27 +20808,27 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 179,
+          "line": 178,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 526,
+          "line": 525,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 689,
+          "line": 688,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 932,
+          "line": 931,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1342,
+          "line": 1341,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -20838,7 +20838,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 326,
+          "line": 325,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -20848,22 +20848,22 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 180,
+          "line": 179,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 398,
+          "line": 397,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 442,
+          "line": 441,
           "declaration": "withFileStorageWiring"
         },
         {
           "file": "api/base.go",
-          "line": 686,
+          "line": 685,
           "declaration": "type API"
         },
         {
@@ -20933,12 +20933,12 @@
         },
         {
           "file": "services/factory.go",
-          "line": 459,
+          "line": 460,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 509,
+          "line": 510,
           "declaration": "newFactory"
         },
         {

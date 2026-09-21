@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"strings"
 
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -85,7 +84,7 @@ func (s *staffAbsenceService) absenceEmailsEnabled(ctx context.Context) bool {
 // Abwesenheitsart wins when the row carries one (#2403) — the mail should read
 // "Regenerationstag", not the generic "Sonstige Abwesenheit" the base type
 // resolves to.
-func absenceEmailTypeLabel(a *activeModels.StaffAbsence) string {
+func absenceEmailTypeLabel(a *StaffAbsence) string {
 	if a.AbsenceTypeLabel != "" {
 		return a.AbsenceTypeLabel
 	}
@@ -95,20 +94,20 @@ func absenceEmailTypeLabel(a *activeModels.StaffAbsence) string {
 // absenceTypeLabelGerman maps the absence type to its German UI label.
 func absenceTypeLabelGerman(absenceType string) string {
 	switch absenceType {
-	case activeModels.AbsenceTypeSick:
+	case AbsenceTypeSick:
 		return "Krankmeldung"
-	case activeModels.AbsenceTypeVacation:
+	case AbsenceTypeVacation:
 		return "Urlaub"
-	case activeModels.AbsenceTypeTraining:
+	case AbsenceTypeTraining:
 		return "Fortbildung"
-	case activeModels.AbsenceTypeCompTime:
+	case AbsenceTypeCompTime:
 		return "Freizeitausgleich"
 	default:
 		return "Sonstige Abwesenheit"
 	}
 }
 
-func formatAbsenceDateRange(a *activeModels.StaffAbsence) string {
+func formatAbsenceDateRange(a *StaffAbsence) string {
 	if a.DateStart == a.DateEnd {
 		return a.DateStart.Format(absenceEmailDateLayout)
 	}
@@ -118,8 +117,8 @@ func formatAbsenceDateRange(a *activeModels.StaffAbsence) string {
 // notifyAbsenceRequested emails every staff member with vacation:approve that
 // a new request arrived (#1419 4d). Called after the request row is created;
 // failures only log — email must never block the workflow.
-func (s *staffAbsenceService) notifyAbsenceRequested(ctx context.Context, absence *activeModels.StaffAbsence) {
-	StampAbsenceTypeLabels(ctx, s.absenceTypes, []*activeModels.StaffAbsence{absence}, s.getLogger())
+func (s *staffAbsenceService) notifyAbsenceRequested(ctx context.Context, absence *StaffAbsence) {
+	StampAbsenceTypeLabels(ctx, s.absenceTypes, []*StaffAbsence{absence}, s.getLogger())
 	if !s.absenceEmailsEnabled(ctx) {
 		return
 	}
@@ -181,18 +180,18 @@ func (s *staffAbsenceService) notifyAbsenceRequested(ctx context.Context, absenc
 
 // notifyAbsenceDecision emails the requesting staff member about an approve /
 // decline / Rückfrage on their request (#1419 4d).
-func (s *staffAbsenceService) notifyAbsenceDecision(ctx context.Context, absence *activeModels.StaffAbsence) {
-	StampAbsenceTypeLabels(ctx, s.absenceTypes, []*activeModels.StaffAbsence{absence}, s.getLogger())
+func (s *staffAbsenceService) notifyAbsenceDecision(ctx context.Context, absence *StaffAbsence) {
+	StampAbsenceTypeLabels(ctx, s.absenceTypes, []*StaffAbsence{absence}, s.getLogger())
 	if !s.absenceEmailsEnabled(ctx) {
 		return
 	}
 	var subject, template, metaType string
 	switch absence.Status {
-	case activeModels.AbsenceStatusApproved:
+	case AbsenceStatusApproved:
 		subject, template, metaType = "Dein Abwesenheitsantrag wurde genehmigt", "absence-request-approved.html", "absence_request_approved"
-	case activeModels.AbsenceStatusDeclined:
+	case AbsenceStatusDeclined:
 		subject, template, metaType = "Dein Abwesenheitsantrag wurde abgelehnt", "absence-request-declined.html", "absence_request_declined"
-	case activeModels.AbsenceStatusQuestion:
+	case AbsenceStatusQuestion:
 		subject, template, metaType = "Rückfrage zu deinem Abwesenheitsantrag", "absence-request-question.html", "absence_request_question"
 	default:
 		return
@@ -229,7 +228,7 @@ func (s *staffAbsenceService) notifyAbsenceDecision(ctx context.Context, absence
 	}, requester.Email)
 }
 
-func (s *staffAbsenceService) absenceEmailLink(ctx context.Context, absence *activeModels.StaffAbsence, targetPath string) (string, bool) {
+func (s *staffAbsenceService) absenceEmailLink(ctx context.Context, absence *StaffAbsence, targetPath string) (string, bool) {
 	tenantID := absence.GetTenantID()
 	if tenantID == 0 {
 		tenantID = tenant.FromContext(ctx)
@@ -301,7 +300,7 @@ func (s *staffAbsenceService) logoURL() string {
 	return fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", s.emailDeps.FrontendURL)
 }
 
-func (s *staffAbsenceService) dispatchAbsenceEmail(ctx context.Context, metaType string, absence *activeModels.StaffAbsence, message AbsenceEmailMessage, recipient string) {
+func (s *staffAbsenceService) dispatchAbsenceEmail(ctx context.Context, metaType string, absence *StaffAbsence, message AbsenceEmailMessage, recipient string) {
 	dispatcher := s.emailDeps.Dispatcher
 	message.Type, message.ReferenceID, message.Recipient = metaType, absence.ID, recipient
 	// The reply address is resolved after commit, on a fresh context that only

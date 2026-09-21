@@ -9,7 +9,7 @@ import (
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
@@ -115,7 +115,7 @@ type PortalService interface {
 	// stay excluded as a staff-only status. Authorization only; not gated by
 	// the setting so previously-reported days stay visible if a school later
 	// disables the feature.
-	ListSickDays(ctx context.Context, accountID, studentID int64, from, to timezone.Date) ([]*activeModels.StudentStatusDay, error)
+	ListSickDays(ctx context.Context, accountID, studentID int64, from, to timezone.Date) ([]*absencerecords.StudentStatusDay, error)
 
 	// ChildFeatures resolves which parent-portal write features are enabled
 	// for the child's tenant, so the UI can hide/disable actions the backend

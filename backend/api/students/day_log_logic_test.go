@@ -11,8 +11,8 @@ import (
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/services/users/userstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,8 +22,8 @@ func dayLogAttendanceRow(checkIn time.Time, checkOut *time.Time) *studentpresenc
 	return &studentpresence.Attendance{StudentID: 1, Date: timezone.TodayDate().String(), CheckInTime: checkIn, CheckOutTime: checkOut}
 }
 
-func dayLogStatusRow(status, source string, reportedAt time.Time) *active.StudentStatusDay {
-	return &active.StudentStatusDay{StudentID: 1, Date: timezone.TodayDate(), Status: status, Source: source, ReportedAt: reportedAt}
+func dayLogStatusRow(status, source string, reportedAt time.Time) *absencerecords.StudentStatusDay {
+	return &absencerecords.StudentStatusDay{StudentID: 1, Date: timezone.TodayDate(), Status: status, Source: source, ReportedAt: reportedAt}
 }
 
 func TestClassifyDayLogStudent_PresentWinsAndCarriesHint(t *testing.T) {
@@ -34,7 +34,7 @@ func TestClassifyDayLogStudent_PresentWinsAndCarriesHint(t *testing.T) {
 	row := dayLogStudent{}
 	classifyDayLogStudent(&row,
 		[]*studentpresence.Attendance{dayLogAttendanceRow(now, &checkOut)},
-		[]*active.StudentStatusDay{dayLogStatusRow(active.StudentStatusDaySick, "parent", now)},
+		[]*absencerecords.StudentStatusDay{dayLogStatusRow(absencerecords.StudentStatusDaySick, "parent", now)},
 		careplan.CareDayScheduled,
 	)
 	assert.Equal(t, dayLogStatusPresent, row.Status)
@@ -48,9 +48,9 @@ func TestClassifyDayLogStudent_SickBeatsExcused(t *testing.T) {
 
 	now := time.Now()
 	row := dayLogStudent{}
-	classifyDayLogStudent(&row, nil, []*active.StudentStatusDay{
-		dayLogStatusRow(active.StudentStatusDayExcused, "manual", now.Add(time.Hour)),
-		dayLogStatusRow(active.StudentStatusDaySick, "parent", now),
+	classifyDayLogStudent(&row, nil, []*absencerecords.StudentStatusDay{
+		dayLogStatusRow(absencerecords.StudentStatusDayExcused, "manual", now.Add(time.Hour)),
+		dayLogStatusRow(absencerecords.StudentStatusDaySick, "parent", now),
 	}, "")
 	assert.Equal(t, dayLogStatusSick, row.Status)
 	assert.Equal(t, "parent", row.Source)
@@ -117,7 +117,7 @@ func TestDayLogClock_KeepsRequestDayAcrossMidnightRollover(t *testing.T) {
 	}}
 	rs.CareDayService = stub
 	data := &dayLogData{
-		statusByStudent: map[int64][]*active.StudentStatusDay{},
+		statusByStudent: map[int64][]*absencerecords.StudentStatusDay{},
 		careDays:        map[int64]careplan.CareDayStatus{},
 		arrivalTimes:    map[int64]*careplan.EffectiveArrivalTime{},
 	}
@@ -159,7 +159,7 @@ func TestBuildDayLogResponse_OmitsStudentBeforeScheduledArrival(t *testing.T) {
 		studentsByGroup:     map[int64][]*usersModel.Student{group.ID: {student}},
 		persons:             map[int64]*usersModel.Person{},
 		attendanceByStudent: map[int64][]*studentpresence.Attendance{},
-		statusByStudent:     map[int64][]*active.StudentStatusDay{},
+		statusByStudent:     map[int64][]*absencerecords.StudentStatusDay{},
 		careDays:            map[int64]careplan.CareDayStatus{student.ID: careplan.CareDayScheduled},
 		arrivalTimes:        map[int64]*careplan.EffectiveArrivalTime{student.ID: {ArrivalTime: &arrival}},
 		clock:               dayLogClock{now: now, today: date},
@@ -197,7 +197,7 @@ func TestBuildDayLogResponse_SkipsDerivedVerdictBeforeEnrollmentStart(t *testing
 		attendanceByStudent: map[int64][]*studentpresence.Attendance{
 			checkedIn.ID: {{StudentID: checkedIn.ID, Date: date.String(), CheckInTime: now}},
 		},
-		statusByStudent: map[int64][]*active.StudentStatusDay{},
+		statusByStudent: map[int64][]*absencerecords.StudentStatusDay{},
 		careDays: map[int64]careplan.CareDayStatus{
 			notYetStarted.ID: careplan.CareDayNotScheduled,
 		},
@@ -253,7 +253,7 @@ func TestLoadDayLogSignOffs_UsesCarePlanOnlyForToday(t *testing.T) {
 	}}
 	rs := &Resource{ResourceConfig: ResourceConfig{CareDayService: stub}}
 	pastData := &dayLogData{
-		statusByStudent: map[int64][]*active.StudentStatusDay{},
+		statusByStudent: map[int64][]*absencerecords.StudentStatusDay{},
 		careDays:        map[int64]careplan.CareDayStatus{},
 		arrivalTimes:    map[int64]*careplan.EffectiveArrivalTime{},
 	}
@@ -265,7 +265,7 @@ func TestLoadDayLogSignOffs_UsesCarePlanOnlyForToday(t *testing.T) {
 	assert.Empty(t, pastData.careDays)
 
 	todayData := &dayLogData{
-		statusByStudent: map[int64][]*active.StudentStatusDay{},
+		statusByStudent: map[int64][]*absencerecords.StudentStatusDay{},
 		careDays:        map[int64]careplan.CareDayStatus{},
 		arrivalTimes:    map[int64]*careplan.EffectiveArrivalTime{},
 	}

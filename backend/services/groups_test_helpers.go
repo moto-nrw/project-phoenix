@@ -7,7 +7,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/users"
@@ -17,7 +19,7 @@ import (
 
 type GroupsTestModule struct {
 	Education   education.Service
-	Active      active.Service
+	Active      studentpresence.Presence
 	Users       users.PersonService
 	UserContext *repositories.CallerRows
 }
@@ -48,10 +50,11 @@ func NewGroupsTestModule(db *bun.DB, unit tenant.UnitOfWork) (GroupsTestModule, 
 	if err != nil {
 		return GroupsTestModule{}, err
 	}
-	presence := active.NewService(active.ServiceDependencies{
+	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(tt.ActiveGroup)
+	presence := presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		PrincipalReader: AttendancePrincipal,
 		YardRoomColor:   yardRoomColorQuery(rooms),
-		StaffNames:      NewAttendanceStaffNames(tt.Staff, persons), GroupRepo: tt.ActiveGroup, SupervisorRepo: tt.GroupSupervisor,
+		StaffNames:      NewAttendanceStaffNames(tt.Staff, persons), GroupRepo: sessionGroups, SupervisorRepo: sessionSupervisors,
 		StudentRepo: PresenceStudents(db, tt.Student), StaffRepo: NewAttendanceStaffDirectory(tt.Staff), RoomRepo: NewAttendanceRooms(tt.Room),
 		EducationGroupRepo: NewAttendanceEducationGroups(tt.Group, tt.Student),
 		ActivityGroupRepo:  repositories.NewSessionActivities(tt.ActivityGroup), DB: db, Logger: slog.Default(),

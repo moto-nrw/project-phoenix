@@ -5,60 +5,16 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 )
 
 // staffGroupSupervisorRepository attaches the supervising staff member to
 // active-group supervisions. The replaced LEFT JOIN carried no soft-delete
 // filter, so an offboarded colleague keeps resolving here.
-type staffGroupSupervisorRepository struct {
-	activeModels.GroupSupervisorRepository
-	membership staffLookup
-}
-
-func (r staffGroupSupervisorRepository) FindByActiveGroupID(ctx context.Context, activeGroupID int64, activeOnly bool) ([]*activeModels.GroupSupervisor, error) {
-	rows, err := r.GroupSupervisorRepository.FindByActiveGroupID(ctx, activeGroupID, activeOnly)
-	if err != nil {
-		return nil, err
-	}
-	return rows, r.attachStaff(ctx, rows)
-}
-
-func (r staffGroupSupervisorRepository) FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, activeOnly bool) ([]*activeModels.GroupSupervisor, error) {
-	rows, err := r.GroupSupervisorRepository.FindByActiveGroupIDs(ctx, activeGroupIDs, activeOnly)
-	if err != nil {
-		return nil, err
-	}
-	return rows, r.attachStaff(ctx, rows)
-}
-
-func (r staffGroupSupervisorRepository) attachStaff(ctx context.Context, rows []*activeModels.GroupSupervisor) error {
-	ids := make([]int64, 0, len(rows))
-	for _, row := range rows {
-		if row != nil {
-			ids = append(ids, row.StaffID)
-		}
-	}
-	members, err := staffByID(ctx, r.membership, ids, true)
-	if err != nil {
-		return err
-	}
-	// A supervision whose staff row is gone keeps a nil Staff, which is what
-	// the previous LEFT JOIN produced.
-	for _, row := range rows {
-		if row == nil {
-			continue
-		}
-		if member, found := members[row.StaffID]; found {
-			row.Staff = sessionStaff(member)
-		}
-	}
-	return nil
-}
-
-func sessionStaff(member schoolmembership.Staff) *activeModels.SessionStaff {
+func sessionStaff(member schoolmembership.Staff) *presenceCompose.SessionStaff {
 	row := toLegacyStaff(member)
-	return &activeModels.SessionStaff{
+	return &presenceCompose.SessionStaff{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		PersonID: row.PersonID, StaffNotes: row.StaffNotes, EmploymentType: row.EmploymentType,
 		WorkTimeModelID: row.WorkTimeModelID, RotationAnchorDate: row.RotationAnchorDate,
@@ -69,7 +25,7 @@ func sessionStaff(member schoolmembership.Staff) *activeModels.SessionStaff {
 // absenceRequestRowsQuery is the staff-ID-shaped listing the concrete
 // repository exposes; subjectStaffIDs nil means "no subject filter".
 type absenceRequestRowsQuery interface {
-	ListRequestRows(ctx context.Context, filter activeModels.AbsenceRequestFilter, subjectStaffIDs []int64) ([]*activeModels.AbsenceRequestRow, error)
+	ListRequestRows(ctx context.Context, filter timerecords.AbsenceRequestFilter, subjectStaffIDs []int64) ([]*timerecords.AbsenceRequestRow, error)
 }
 
 // staffAbsenceRepository translates between the person-shaped absence
@@ -79,17 +35,17 @@ type absenceRequestRowsQuery interface {
 // included so a request stays readable after its subject is offboarded —
 // the replaced joins were LEFT joins without a deleted filter.
 type staffAbsenceRepository struct {
-	activeModels.StaffAbsenceRepository
+	timerecords.StaffAbsenceRepository
 	rows       absenceRequestRowsQuery
 	membership staffLookup
 }
 
-func newStaffAbsenceRepository(inner activeModels.StaffAbsenceRepository, membership staffLookup) activeModels.StaffAbsenceRepository {
+func newStaffAbsenceRepository(inner timerecords.StaffAbsenceRepository, membership staffLookup) timerecords.StaffAbsenceRepository {
 	rows, _ := inner.(absenceRequestRowsQuery)
 	return staffAbsenceRepository{StaffAbsenceRepository: inner, rows: rows, membership: membership}
 }
 
-func (r staffAbsenceRepository) ListRequests(ctx context.Context, filter activeModels.AbsenceRequestFilter) ([]*activeModels.AbsenceRequestRow, error) {
+func (r staffAbsenceRepository) ListRequests(ctx context.Context, filter timerecords.AbsenceRequestFilter) ([]*timerecords.AbsenceRequestRow, error) {
 	if r.rows == nil {
 		return nil, fmt.Errorf("staff absence repository does not list request rows")
 	}
@@ -98,7 +54,7 @@ func (r staffAbsenceRepository) ListRequests(ctx context.Context, filter activeM
 		// An explicitly empty person set matches nobody; never fall through
 		// to the unfiltered listing.
 		if len(filter.SubjectPersonIDs) == 0 {
-			return []*activeModels.AbsenceRequestRow{}, nil
+			return []*timerecords.AbsenceRequestRow{}, nil
 		}
 		members, err := r.membership.ListStaff(ctx, schoolmembership.StaffFilter{
 			PersonIDs: filter.SubjectPersonIDs, IncludeDeleted: true,
@@ -107,7 +63,7 @@ func (r staffAbsenceRepository) ListRequests(ctx context.Context, filter activeM
 			return nil, fmt.Errorf("load staff for absence subjects: %w", err)
 		}
 		if len(members) == 0 {
-			return []*activeModels.AbsenceRequestRow{}, nil
+			return []*timerecords.AbsenceRequestRow{}, nil
 		}
 		subjectStaffIDs = make([]int64, 0, len(members))
 		for _, member := range members {

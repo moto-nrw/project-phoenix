@@ -13,7 +13,7 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -129,12 +129,12 @@ func TestOperationalOverviewNeverCrossesTenants(t *testing.T) {
 	groupA := CreateTestActiveGroupForTenant(t, db, tenantA)
 	groupB := CreateTestActiveGroupForTenant(t, db, tenantB)
 
-	presence := repositories.NewPresenceGroupRecords(db)
+	presence := PresenceModule(t, db)
 
 	assertSeesOnlyOwn := func(tb testing.TB, ownTenant, ownGroup, foreignGroup int64) {
 		tb.Helper()
 		err := WithTenantTx(t, context.Background(), db, ownTenant, func(txCtx context.Context, _ bun.Tx) error {
-			groups, err := presence.QueryGroupRecords(txCtx, repositories.PresenceGroupRecordFilter{})
+			groups, err := presence.QueryLiveGroups(txCtx, studentpresence.LiveGroupFilter{})
 			require.NoError(tb, err)
 
 			ids := make(map[int64]bool, len(groups))

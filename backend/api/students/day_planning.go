@@ -13,7 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 const (
@@ -174,7 +174,7 @@ type dayPlanningTimes struct {
 	pickups  map[int64]*careplan.EffectivePickupTime
 }
 
-func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []StudentResponse, planningDate timezone.Date, isToday bool, attendances map[int64]*activeService.AttendanceStatus) (dayPlanningTimes, error) {
+func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []StudentResponse, planningDate timezone.Date, isToday bool, attendances map[int64]*studentpresence.DailyAttendanceStatus) (dayPlanningTimes, error) {
 	// The parent's pending note runs FIRST and outside the full-access branch
 	// below: it is the review queue's signal, not part of the day plan, and its
 	// audience is whoever may decide the request. In a school without fixed
@@ -272,7 +272,7 @@ func (rs *Resource) enrichCurrentLocationWithDayPlanning(ctx context.Context, re
 	if err := rs.applyStatusDaysForDate(ctx, responses, now); err != nil {
 		return err
 	}
-	attendances := map[int64]*activeService.AttendanceStatus{}
+	attendances := map[int64]*studentpresence.DailyAttendanceStatus{}
 	if response.HasFullAccess {
 		attendance, err := rs.ActiveService.GetStudentAttendanceStatus(ctx, response.ID)
 		if err != nil {
@@ -294,7 +294,7 @@ func (rs *Resource) enrichCurrentLocationWithDayPlanning(ctx context.Context, re
 func applyAtSchoolLocation(
 	responses []StudentResponse,
 	pickups map[int64]*careplan.EffectivePickupTime,
-	attendances map[int64]*activeService.AttendanceStatus,
+	attendances map[int64]*studentpresence.DailyAttendanceStatus,
 	careDayEnd string,
 	now time.Time,
 ) {
@@ -454,7 +454,7 @@ func applyDayPlanning(
 	responses []StudentResponse,
 	arrivals map[int64]*careplan.EffectiveArrivalTime,
 	pickups map[int64]*careplan.EffectivePickupTime,
-	attendances map[int64]*activeService.AttendanceStatus,
+	attendances map[int64]*studentpresence.DailyAttendanceStatus,
 	timetableIDs map[int64]struct{},
 	isToday bool,
 ) {
@@ -479,7 +479,7 @@ func resolveDayPlanningForDate(
 	student StudentResponse,
 	arrival *careplan.EffectiveArrivalTime,
 	pickup *careplan.EffectivePickupTime,
-	attendance *activeService.AttendanceStatus,
+	attendance *studentpresence.DailyAttendanceStatus,
 	timetableIDs map[int64]struct{},
 	isToday bool,
 ) (string, string, string) {
@@ -573,13 +573,13 @@ func resetLiveLocationFields(responses []StudentResponse) {
 	}
 }
 
-func hasActualAttendanceToday(attendance *activeService.AttendanceStatus) bool {
+func hasActualAttendanceToday(attendance *studentpresence.DailyAttendanceStatus) bool {
 	return attendance.IsCurrentlyPresent()
 }
 
-func attendanceMapFromSnapshot(snapshot *common.StudentDataSnapshot) map[int64]*activeService.AttendanceStatus {
+func attendanceMapFromSnapshot(snapshot *common.StudentDataSnapshot) map[int64]*studentpresence.DailyAttendanceStatus {
 	if snapshot == nil || snapshot.LocationSnapshot == nil || snapshot.LocationSnapshot.Attendances == nil {
-		return map[int64]*activeService.AttendanceStatus{}
+		return map[int64]*studentpresence.DailyAttendanceStatus{}
 	}
 	return snapshot.LocationSnapshot.Attendances
 }

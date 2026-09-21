@@ -5,7 +5,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,13 +20,13 @@ func TestWorkSessionHistoryQueryBudget(t *testing.T) {
 			day := snapshotSessionDay + i + 1
 			checkIn := time.Date(snapshotYear, time.August, day, 8, 0, 0, 0, time.UTC)
 			checkOut := checkIn.Add(8 * time.Hour)
-			session := &activeModels.WorkSession{StaffID: f.staff, Date: timezone.NewDate(snapshotYear, time.August, day),
-				Status: activeModels.WorkSessionStatusPresent, Source: activeModels.WorkSessionSourceApp,
+			session := &timerecords.WorkSession{StaffID: f.staff, Date: timezone.NewDate(snapshotYear, time.August, day),
+				Status: workforce.WorkSessionStatusPresent, Source: workforce.WorkSessionSourceApp,
 				CheckInTime: checkIn, CheckOutTime: &checkOut, CreatedBy: f.staff}
 			session.SetTenantID(f.tenantID)
 			require.NoError(t, f.repos.WorkSession.Create(f.ctx, session))
 			ended := checkIn.Add(30 * time.Minute)
-			brk := &activeModels.WorkSessionBreak{SessionID: session.ID, StartedAt: checkIn, EndedAt: &ended, DurationMinutes: 30}
+			brk := &timerecords.WorkSessionBreak{SessionID: session.ID, StartedAt: checkIn, EndedAt: &ended, DurationMinutes: 30}
 			brk.SetTenantID(f.tenantID)
 			require.NoError(t, f.repos.WorkSessionBreak.Create(f.ctx, brk))
 		}

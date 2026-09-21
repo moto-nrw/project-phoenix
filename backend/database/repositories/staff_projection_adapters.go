@@ -41,8 +41,8 @@ func (f *Factory) bindStaffProjections(membership staffLookup, workTime workforc
 	if membership == nil {
 		panic("repository factory: school membership query is required")
 	}
-	if f.GroupSupervisor != nil {
-		f.GroupSupervisor = staffGroupSupervisorRepository{GroupSupervisorRepository: f.GroupSupervisor, membership: membership}
+	if staff := f.supervisionStaffOf(); staff != nil {
+		staff.membership = membership
 	}
 	if f.StaffAbsence != nil {
 		f.StaffAbsence = newStaffAbsenceRepository(f.StaffAbsence, membership)

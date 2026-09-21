@@ -17,7 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/sessionrecordstest"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -415,19 +415,19 @@ func TestMoveStaffBetweenBlocks_ActiveBlocksSyncSupervisionAndAllowRoundTrip(t *
 	require.NoError(t, err)
 
 	createMoveStaffRow(t, s, s.source.ID, s.staffID, nil)
-	sup := &activeModels.GroupSupervisor{
+	sup := &sessionrecordstest.GroupSupervisorRow{
 		StaffID:   s.staffID,
 		GroupID:   sourceGroup.ID,
 		Role:      "supervisor",
 		StartDate: timezone.TodayDate(),
 	}
-	sup.SetTenantID(s.tenantID)
+	sup.TenantID = s.tenantID
 	_, err = s.db.NewInsert().Model(sup).ModelTableExpr(`active.group_supervisors`).Exec(s.ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		var supIDs []int64
 		_ = s.db.NewSelect().
-			Model((*activeModels.GroupSupervisor)(nil)).
+			Model((*sessionrecordstest.GroupSupervisorRow)(nil)).
 			ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 			Column("id").
 			Where("tenant_id = ?", s.tenantID).
@@ -441,7 +441,7 @@ func TestMoveStaffBetweenBlocks_ActiveBlocksSyncSupervisionAndAllowRoundTrip(t *
 	require.NoError(t, err)
 	assert.Len(t, result.ActiveTouched, 2, "both live groups need an SSE refetch")
 
-	var endedSup activeModels.GroupSupervisor
+	var endedSup sessionrecordstest.GroupSupervisorRow
 	require.NoError(t, s.db.NewSelect().
 		Model(&endedSup).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
@@ -449,7 +449,7 @@ func TestMoveStaffBetweenBlocks_ActiveBlocksSyncSupervisionAndAllowRoundTrip(t *
 		Scan(s.ctx))
 	assert.NotNil(t, endedSup.EndDate, "source supervision ended")
 
-	var targetSups []*activeModels.GroupSupervisor
+	var targetSups []*sessionrecordstest.GroupSupervisorRow
 	require.NoError(t, s.db.NewSelect().
 		Model(&targetSups).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
@@ -470,7 +470,7 @@ func TestMoveStaffBetweenBlocks_ActiveBlocksSyncSupervisionAndAllowRoundTrip(t *
 	assert.Equal(t, timetableplanning.MoveStaffActionMoved, reverse.Action)
 	assert.Len(t, reverse.ActiveTouched, 2)
 
-	var sourceSups []*activeModels.GroupSupervisor
+	var sourceSups []*sessionrecordstest.GroupSupervisorRow
 	require.NoError(t, s.db.NewSelect().
 		Model(&sourceSups).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
@@ -510,19 +510,19 @@ func TestMoveStaffBetweenBlocks_ExistingOpenSupervisionIsReused(t *testing.T) {
 		Exec(s.ctx)
 	require.NoError(t, err)
 
-	existing := &activeModels.GroupSupervisor{
+	existing := &sessionrecordstest.GroupSupervisorRow{
 		StaffID:   s.otherID,
 		GroupID:   targetGroup.ID,
 		Role:      "supervisor",
 		StartDate: timezone.TodayDate(),
 	}
-	existing.SetTenantID(s.tenantID)
+	existing.TenantID = s.tenantID
 	_, err = s.db.NewInsert().Model(existing).ModelTableExpr(`active.group_supervisors`).Exec(s.ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		var supIDs []int64
 		_ = s.db.NewSelect().
-			Model((*activeModels.GroupSupervisor)(nil)).
+			Model((*sessionrecordstest.GroupSupervisorRow)(nil)).
 			ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 			Column("id").
 			Where("tenant_id = ?", s.tenantID).
@@ -536,7 +536,7 @@ func TestMoveStaffBetweenBlocks_ExistingOpenSupervisionIsReused(t *testing.T) {
 	assert.Equal(t, timetableplanning.MoveStaffActionAssigned, result.Action)
 	assert.Len(t, result.ActiveTouched, 1)
 
-	var sups []*activeModels.GroupSupervisor
+	var sups []*sessionrecordstest.GroupSupervisorRow
 	require.NoError(t, s.db.NewSelect().
 		Model(&sups).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).

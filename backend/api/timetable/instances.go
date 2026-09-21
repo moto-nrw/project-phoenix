@@ -24,7 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
@@ -324,9 +324,9 @@ var instanceLifecycleErrorRules = []common.ErrorRule{
 	{
 		Match: func(err error) bool {
 			return errors.Is(err, timetableplanning.ErrTimetableOperationConflict) ||
-				errors.Is(err, activeSvc.ErrStudentAlreadyActive) ||
-				errors.Is(err, activeSvc.ErrRoomConflict) ||
-				errors.Is(err, activeSvc.ErrRoomCapacityExceeded)
+				errors.Is(err, studentpresence.ErrStudentAlreadyActive) ||
+				errors.Is(err, studentpresence.ErrRoomConflict) ||
+				errors.Is(err, studentpresence.ErrRoomCapacityExceeded)
 		},
 		Render: common.ErrorConflict,
 	},

@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"testing"
 
-	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 
 	"github.com/go-chi/chi/v5"
@@ -50,7 +50,7 @@ func newStaffNotesResource(db *bun.DB) *Resource {
 		}),
 		StudentService:          usersSvc.NewStudentService(repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)), repositories.MustNewPeopleDirectory(db), rf.Student),
 		CompanionService:        repositories.MustNewStudentCompanions(rf.CarePlan, rf.Student, repositories.MustNewPeopleDirectory(db), nil),
-		StudentStatusDayService: activeSvc.NewStudentStatusDayServiceWithPartialAbsences(rf.StudentStatusDay, nil, nil, rf.CarePlan.LockExceptionDay),
+		StudentStatusDayService: presenceservice.NewStatusDays(rf.StudentStatusDay, nil, nil, rf.CarePlan.LockExceptionDay),
 		Logger:                  slog.Default(),
 		DB:                      db,
 	})

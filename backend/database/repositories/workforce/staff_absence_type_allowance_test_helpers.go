@@ -5,7 +5,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/uptrace/bun"
 )
 
@@ -19,30 +19,30 @@ const (
 )
 
 type StaffAbsenceTypeAllowanceRepository struct {
-	*base.Repository[*active.StaffAbsenceTypeAllowance]
+	*base.Repository[*timerecords.StaffAbsenceTypeAllowance]
 	db *bun.DB
 }
 
-func NewStaffAbsenceTypeAllowanceRepository(db *bun.DB) active.StaffAbsenceTypeAllowanceRepository {
-	repo := base.NewRepository[*active.StaffAbsenceTypeAllowance](db, tableStaffAbsenceTypeAllowances, "StaffAbsenceTypeAllowance")
+func NewStaffAbsenceTypeAllowanceRepository(db *bun.DB) timerecords.StaffAbsenceTypeAllowanceRepository {
+	repo := base.NewRepository[*timerecords.StaffAbsenceTypeAllowance](db, tableStaffAbsenceTypeAllowances, "StaffAbsenceTypeAllowance")
 	repo.TenantScoped = true
 	return &StaffAbsenceTypeAllowanceRepository{Repository: repo, db: db}
 }
 
-func (r *StaffAbsenceTypeAllowanceRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.StaffAbsenceTypeAllowance, error) {
+func (r *StaffAbsenceTypeAllowanceRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*timerecords.StaffAbsenceTypeAllowance, error) {
 	return r.ListWithOptions(ctx, options)
 }
 
 type StaffAbsenceTypeAllowanceChangeRepository struct {
-	*base.Repository[*active.StaffAbsenceTypeAllowanceChange]
+	*base.Repository[*timerecords.StaffAbsenceTypeAllowanceChange]
 }
 
-func NewStaffAbsenceTypeAllowanceChangeRepository(db *bun.DB) active.StaffAbsenceTypeAllowanceChangeRepository {
-	repo := base.NewRepository[*active.StaffAbsenceTypeAllowanceChange](db, tableStaffAbsenceTypeAllowanceChange, "StaffAbsenceTypeAllowanceChange")
+func NewStaffAbsenceTypeAllowanceChangeRepository(db *bun.DB) timerecords.StaffAbsenceTypeAllowanceChangeRepository {
+	repo := base.NewRepository[*timerecords.StaffAbsenceTypeAllowanceChange](db, tableStaffAbsenceTypeAllowanceChange, "StaffAbsenceTypeAllowanceChange")
 	repo.TenantScoped = true
 	return &StaffAbsenceTypeAllowanceChangeRepository{Repository: repo}
 }
 
-func (r *StaffAbsenceTypeAllowanceChangeRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.StaffAbsenceTypeAllowanceChange, error) {
+func (r *StaffAbsenceTypeAllowanceChangeRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*timerecords.StaffAbsenceTypeAllowanceChange, error) {
 	return r.ListWithOptions(ctx, options)
 }

@@ -921,10 +921,47 @@ calendar dates through the row vocabulary (`models/active/vocabulary.go`) and
 the retained services' in-package tests build the shared persistence base
 through the package's own aliases (`vocabulary.go`), because the
 `student-presence`/`postgres` and `student-presence`/`adapter-test` seams
-already existed and can admit no new permission. The package goes when the
-retained services dissolve into the Student Presence application and domain
-layers; `modules/workforce/legacy/timetracking` keeps importing the retained
-rows until then.
+already existed and can admit no new permission. #3422 dissolved all four
+packages; `modules/workforce/legacy/timetracking` now names the public Student
+Presence session records and the Workforce rows of
+`modules/workforce/adapters/timerecords`.
+
+#3422 dissolves the nest in slices. `legacy/statistics` became
+`internal/application/statistics`; the Workforce and Care Plan rows left
+`legacy/models/active`; and `legacy/services/active` moved into
+`modules/studentpresence/internal/application/presence`
+(`student-presence`/`application`, `adapter-test` in the package, `e2e-test`
+for the behaviour tests). Consumers call it through the small public facades
+in `modules/studentpresence/presence.go` (`SessionReads`, `KioskSessions`,
+`SessionCommands`, `VisitReads`, `AttendanceCommands`, the status-day,
+history and cleanup facades, and the wiring composite `Presence`), built by
+`modules/studentpresence/compose/presenceservice`. That compose package is
+separate from `modules/studentpresence/compose` because the shared `test`
+fixtures import the latter, and the application's in-package tests import
+`test`.
+
+The nest is gone. `legacy/models/active` and `legacy/repositories/active`
+followed: the session and supervision working types are plain values in
+`modules/studentpresence/internal/ports` and the repository bodies sit in
+`internal/adapters/postgres` over two record ports the native
+`internal/application.Service` satisfies, so reads and writes keep the
+validation, transaction and observation path they took through the module
+before. Callers outside the engine use the public `SessionRecords` and
+`SupervisionRecords` facades; the composition root binds them through
+`compose.NewSessionRecords` and hands the internal repositories to the
+presence application with `compose.SessionRepositories`. The only BUN mapping
+of the two session tables that remains is the fixture package
+`modules/studentpresence/sessionrecordstest` (`student-presence`/`test-support`),
+which keeps `TestDateColumnTypes` mapping `active.group_supervisors`. No Go
+file imports the nest, `policy.json` classifies no package under it, and no
+rule names `student-presence`/`adapter` or `student-presence`/`domain`: 96
+such rules when the ticket was written, 79 at the merge base, 0 now, none of
+them converted to debt. `legacy.jsonl` is unchanged at 624 entries; the nest
+never had one, which is what the ticket set out to repair. The consumers'
+replacement permissions are the 57 rules of the one-time, epoch-gated
+exception in [ADR 0036](../../docs/adr/0036-student-presence-cutover-replaces-legacy-permissions.md)
+(policy epoch 20 to 21), and the `legacy` budget entry for
+`modules/studentpresence/legacy` is deleted rather than lowered.
 
 The import HTTP composition (`modules/dataimport/inbound`, with its runtime
 binding in `modules/dataimport/inbound/compose`) keeps the `inbound-import`
@@ -2108,6 +2145,25 @@ contract role, and its tests may construct the replacement through Care Plan's
 compose role. Care Plan's contract suite may keep, in `external_test` scope,
 the reach the retired adapter's own behavior suites had, except the retired
 owner. The ADR lists the seven rules epoch 20 adds under it.
+
+The Student Presence nest has the third and widest such path
+([ADR 0036](../../docs/adr/0036-student-presence-cutover-replaces-legacy-permissions.md),
+#3422). In a reviewed epoch that classifies no package under
+`modules/studentpresence/legacy` and whose base classifies all four retired
+packages exactly, a consumer may replace its existing, same-scope access to
+one of them with Student Presence's `public` role, Care Plan's `contract`
+role or Workforce's `public` and row-holding `adapter` role, and its tests may
+instead construct the replacement through Student Presence's `compose` role.
+Care Plan's `test-support` role is reachable from a `test-support` source
+only; `facilities`/`compose` is the single pinned production point allowed to
+name `student-presence`/`compose`, for the attendance-room port whose filter
+map keeps it off the public contract. The roles that received the retired code
+keep exactly that code's reach in the same scope, the nest's own suites keep
+theirs on the role the candidate gives their new package, the two row packages
+inherit only the canonical calendar-date value, and two pinned production
+bindings carry the handed-back rows into the contracts that name them. The ADR
+lists the 57 rules epoch 21 adds under it. Everything else — other owners,
+other roles, other scopes, production composition access — stays forbidden.
 
 The three existing student read projections have one fixed replacement path
 ([ADR 0025](../../docs/adr/0025-replace-student-read-projection-grants.md),

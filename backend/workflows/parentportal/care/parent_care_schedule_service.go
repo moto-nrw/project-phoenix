@@ -18,8 +18,8 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
 var (
@@ -349,9 +349,9 @@ func (s *Service) hasActiveAbsenceToday(ctx context.Context, studentID int64, to
 	}
 	for _, r := range rows {
 		switch r.Status {
-		case activeModels.StudentStatusDaySick,
-			activeModels.StudentStatusDayExcused,
-			activeModels.StudentStatusDayClassTrip:
+		case absencerecords.StudentStatusDaySick,
+			absencerecords.StudentStatusDayExcused,
+			absencerecords.StudentStatusDayClassTrip:
 			return true, nil
 		}
 	}

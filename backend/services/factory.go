@@ -59,8 +59,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/statistics"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	supervisiondashboardlegacy "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -139,8 +140,8 @@ type Factory struct {
 	// school-portal WebAuthn ceremonies (#3331).
 	MFA                  identityaccess.AccountMFA
 	Passkey              identityaccess.AccountPasskeyFlows
-	Active               active.Service
-	ActiveCleanup        active.CleanupService
+	Active               studentpresence.Presence
+	ActiveCleanup        studentpresence.PresenceCleanup
 	WorkSession          timetracking.WorkSessionService
 	WorkTimeMonth        timetracking.WorkTimeMonthService
 	Holidays             timetableplanning.HolidayService
@@ -248,11 +249,11 @@ type Factory struct {
 	// and decide parent requests. The API layer reads it to explain an empty
 	// queue; the four request services enforce it per child.
 	RequestReviewPolicy *ParentRequestReviewPolicy
-	StudentStatusDays   *active.StudentStatusDayService
-	AbsenceOverview     *active.StudentStatusDayOverviewService
-	StudentHistory      active.StudentHistoryService
+	StudentStatusDays   studentpresence.StatusDays
+	AbsenceOverview     studentpresence.StatusDayOverviews
+	StudentHistory      studentpresence.StudentHistory
 	// Statistics is the Statistik report (#2606).
-	Statistics              statistics.Service
+	Statistics              studentpresence.StatisticsReports
 	OGSGroupLive            grouplive.Query
 	SupervisionDashboard    supervisiondashboard.Query
 	TimetableData           *timetableplanning.TimetableDataService
@@ -1055,9 +1056,9 @@ func newFactory(
 	)
 
 	// Initialize attendance sync service (WP-B10). Implements
-	// active.AttendanceSyncer - called from CreateVisit / EndVisit to mirror
+	// studentpresence.AttendanceSyncer - called from CreateVisit / EndVisit to mirror
 	// into schedule.instance_students and enrich SSE events. No circular
-	// dependency because it only depends on repos, not on active.Service.
+	// dependency because it only depends on repos, not on studentpresence.Presence.
 	attendanceSyncService := timetableplanning.NewAttendanceSyncService(
 		repos.ActivityInstance,
 		repos.InstanceStudent,
@@ -1117,13 +1118,14 @@ func newFactory(
 	})
 
 	// Initialize active service with SSE broadcaster
-	activeServiceDeps := active.ServiceDependencies{
+	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(repos.ActiveGroup)
+	activeServiceDeps := presenceservice.PresenceDependencies{
 		PrincipalReader:          AttendancePrincipal,
 		SchoolPresence:           newStudentPresence(db, logger),
 		StudentDisplay:           studentDisplayProjection{students: persons, groups: groups},
-		GroupRepo:                repos.ActiveGroup,
+		GroupRepo:                sessionGroups,
 		SessionStartLock:         repos.SessionStartLock,
-		SupervisorRepo:           repos.GroupSupervisor,
+		SupervisorRepo:           sessionSupervisors,
 		StudentStatusRepo:        repos.StudentStatusDay,
 		CrossTenantRepo:          repos.CrossTenant,
 		Schools:                  newActiveSchoolQuery(organizations),
@@ -1156,17 +1158,17 @@ func newFactory(
 		Broadcaster: realtimeHub,
 		Logger:      logger.With("service", "parent-events"),
 	})
-	activeService := active.NewService(activeServiceDeps,
+	activeService := presenceservice.NewPresence(activeServiceDeps,
 		// The settings resolver lets auto-clear of sick / excused flags respect
 		// the tenant's operations.sick_clear_mode and
 		// operations.excused_clear_mode settings.
-		active.WithSettings(PresenceSettings(settingsService)),
+		presenceservice.WithPresenceSettings(PresenceSettings(settingsService)),
 		// Session commands that run without a request transaction (scheduler
 		// timeouts, daily session end) open their own tenant transaction.
-		active.WithTenantRuntime(tenantRuntime),
+		presenceservice.WithPresenceTenantRuntime(tenantRuntime),
 		// Anwesenheitswechsel wecken die Sorgeberechtigten, damit der
 		// Tagesstatus in der Eltern-App (#2252) live nachlaedt.
-		active.WithGuardianWaker(pillEmitter),
+		presenceservice.WithGuardianWaker(pillEmitter),
 	)
 
 	// Initialize activities service
@@ -1849,9 +1851,9 @@ func newFactory(
 	}, databaseLogger)
 
 	// Initialize cleanup service
-	activeCleanupService := active.NewCleanupService(
+	activeCleanupService := presenceservice.NewPresenceCleanup(
 		newStudentPresence(db, logger),
-		repos.GroupSupervisor,
+		sessionSupervisors,
 		NewDeletionAudit(repos.DataDeletion),
 		today,
 	)
@@ -2731,14 +2733,14 @@ func newFactory(
 		BulkInstanceStaff: reminderTimetableReader{source: timetableCapability},
 	})
 
-	studentStatusDayService := active.NewStudentStatusDayServiceWithPartialAbsences(
+	studentStatusDayService := presenceservice.NewStatusDays(
 		repos.StudentStatusDay,
 		NewManualPartialAbsenceDates(repos.CarePlan()),
 		db,
 		repos.CarePlan().LockExceptionDay,
 		now,
 	)
-	studentStatusDayOverviewService := active.NewStudentStatusDayOverviewService(repos.StudentStatusDay, StatusDayOverviewPeople(usersService))
+	studentStatusDayOverviewService := presenceservice.NewStatusDayOverviews(repos.StudentStatusDay, StatusDayOverviewPeople(usersService))
 	ogsGroupLiveService, err := grouplivelegacy.New(grouplivelegacy.Sources{
 		Presence:          newStudentPresence(db, logger),
 		People:            usersService,
@@ -2764,7 +2766,7 @@ func newFactory(
 	supervisionDashboardService, err := supervisiondashboardlegacy.New(supervisiondashboardlegacy.Sources{
 		Active:       activeService,
 		ActiveGroups: openRoomSessionPresence{newStudentPresence(db, logger), timetableCapability},
-		OpenVisits:   active.NewVisitDisplayBatchReader(activeServiceDeps),
+		OpenVisits:   activeService,
 		Rooms:        openRoomDirectory{rooms: rooms},
 		UserContext:  supervisionCaller{userContextService},
 		Education:    educationService,
@@ -2993,22 +2995,19 @@ func newFactory(
 		RequestReviewPolicy:  requestReviewPolicy,
 		StudentStatusDays:    studentStatusDayService,
 		AbsenceOverview:      studentStatusDayOverviewService,
-		StudentHistory:       active.NewStudentHistoryService(newStudentPresence(db, logger), historyRoomNames(rooms), NewDataAccessAudit(repos.DataAccessLog), NewHistorySlots(repos.InstanceStudent)),
-		Statistics: statistics.NewService(statistics.Config{
-			Statistics:      statisticsRoomUtilization{newStudentPresence(db, logger)},
-			Attendance:      statisticsAttendance{newStudentPresence(db, logger)},
-			StatusDays:      statisticsStatusDays{repos.CarePlan()},
-			Courses:         statisticsReportCourses{timetableCapability},
-			Holidays:        holidayService,
-			ClosingDays:     closingDayService,
-			Periods:         statisticsReportPeriods{calendar},
-			Students:        statisticsReportStudents{repos.Student},
-			Rooms:           statisticsReportRooms{rooms},
-			AccessLog:       statisticsAuditLog{repos.DataAccessLog},
-			Retention:       statisticsRetention{settingsService},
-			PrivacyConsents: statisticsRetentionSettings{newStudentPresence(db, logger)},
-			Logger:          logger.With("service", "statistics"),
-			Now:             now,
+		StudentHistory:       presenceservice.NewStudentHistory(newStudentPresence(db, logger), historyRoomNames(rooms), NewDataAccessAudit(repos.DataAccessLog), NewHistorySlots(repos.InstanceStudent)),
+		Statistics: newStatistics(db, logger, presenceCompose.StatisticsDependencies{
+			StatusDays:  statisticsStatusDays{repos.CarePlan()},
+			Courses:     statisticsReportCourses{timetableCapability},
+			Holidays:    holidayService,
+			ClosingDays: closingDayService,
+			Periods:     statisticsReportPeriods{calendar},
+			Students:    statisticsReportStudents{repos.Student},
+			Rooms:       statisticsReportRooms{rooms},
+			AccessLog:   statisticsAuditLog{repos.DataAccessLog},
+			Retention:   statisticsRetention{settingsService},
+			Logger:      logger.With("service", "statistics"),
+			Now:         now,
 		}),
 		OGSGroupLive:            ogsGroupLiveService,
 		SupervisionDashboard:    supervisionDashboardService,

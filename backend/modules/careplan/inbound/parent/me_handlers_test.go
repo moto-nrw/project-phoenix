@@ -20,8 +20,8 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -147,7 +147,7 @@ func (f *fakeParentService) GrantPhotoConsent(_ context.Context, accountID, stud
 func (f *fakeParentService) SubmitSickNote(context.Context, int64, int64, []timezone.Date, string, string, []int64) (*parentService.SickNoteResult, error) {
 	return &parentService.SickNoteResult{}, nil
 }
-func (f *fakeParentService) ListSickDays(context.Context, int64, int64, timezone.Date, timezone.Date) ([]*activeModels.StudentStatusDay, error) {
+func (f *fakeParentService) ListSickDays(context.Context, int64, int64, timezone.Date, timezone.Date) ([]*absencerecords.StudentStatusDay, error) {
 	return nil, nil
 }
 func (f *fakeParentService) ListExcusedRequests(context.Context, int64, int64) ([]*careplan.ExcusedAbsenceRequest, error) {

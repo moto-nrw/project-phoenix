@@ -10,7 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -87,8 +87,8 @@ func TestGetStudentsDayLog_AdminSeesStatuses(t *testing.T) {
 	testpkg.CreateTestAttendanceForDate(t, tc.db, present.ID, staff.ID, device.ID, timezone.NewDate(2026, 8, 24), checkIn, &checkOut)
 
 	today := timezone.NewDate(2026, 8, 24)
-	testpkg.CreateTestStudentStatusDay(t, tc.db, sick.ID, today, active.StudentStatusDaySick)
-	testpkg.CreateTestStudentStatusDay(t, tc.db, excused.ID, today, active.StudentStatusDayExcused)
+	testpkg.CreateTestStudentStatusDay(t, tc.db, sick.ID, today, absencerecords.StudentStatusDaySick)
+	testpkg.CreateTestStudentStatusDay(t, tc.db, excused.ID, today, absencerecords.StudentStatusDayExcused)
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/day-log?group_id=%d", group.ID), nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})

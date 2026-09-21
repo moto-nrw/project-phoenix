@@ -547,14 +547,13 @@ func (m *wsMockStaffAbsenceRepository) ListRequests(_ context.Context, _ Absence
 // ============================================================================
 
 type wsMockGroupSupervisorRepository struct {
+	GroupSupervisorRepository
 	createFunc                          func(ctx context.Context, entity *GroupSupervisor) error
 	findByIDFunc                        func(ctx context.Context, id any) (*GroupSupervisor, error)
 	updateFunc                          func(ctx context.Context, entity *GroupSupervisor) error
 	deleteFunc                          func(ctx context.Context, id any) error
 	findByStaffIDFunc                   func(ctx context.Context, staffID int64) ([]*GroupSupervisor, error)
 	findActiveByStaffIDFunc             func(ctx context.Context, staffID int64) ([]*GroupSupervisor, error)
-	findByActiveGroupIDFunc             func(ctx context.Context, activeGroupID int64, activeOnly bool) ([]*GroupSupervisor, error)
-	findByActiveGroupIDsFunc            func(ctx context.Context, activeGroupIDs []int64, activeOnly bool) ([]*GroupSupervisor, error)
 	endSupervisionFunc                  func(ctx context.Context, id int64) error
 	getStaffIDsWithSupervisionTodayFunc func(ctx context.Context) ([]int64, error)
 	endAllActiveByStaffIDFunc           func(ctx context.Context, staffID int64) (int, error)
@@ -610,24 +609,6 @@ func (m *wsMockGroupSupervisorRepository) ListActiveSupervisedRooms(ctx context.
 	return nil, nil
 }
 
-func (m *wsMockGroupSupervisorRepository) FindByActiveGroupID(ctx context.Context, activeGroupID int64, activeOnly bool) ([]*GroupSupervisor, error) {
-	if m.findByActiveGroupIDFunc != nil {
-		return m.findByActiveGroupIDFunc(ctx, activeGroupID, activeOnly)
-	}
-	return nil, nil
-}
-
-func (m *wsMockGroupSupervisorRepository) FindByActiveGroupIDForUpdate(ctx context.Context, activeGroupID int64) ([]*GroupSupervisor, error) {
-	return m.FindByActiveGroupID(ctx, activeGroupID, true)
-}
-
-func (m *wsMockGroupSupervisorRepository) FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, activeOnly bool) ([]*GroupSupervisor, error) {
-	if m.findByActiveGroupIDsFunc != nil {
-		return m.findByActiveGroupIDsFunc(ctx, activeGroupIDs, activeOnly)
-	}
-	return nil, nil
-}
-
 func (m *wsMockGroupSupervisorRepository) EndSupervision(ctx context.Context, id int64) error {
 	if m.endSupervisionFunc != nil {
 		return m.endSupervisionFunc(ctx, id)
@@ -665,7 +646,7 @@ func TestCheckoutSupervisionCleanupLocksGroupsInOrder(t *testing.T) {
 		supervisorRepo: supervisors,
 		groupRepo: &mockGroupRepository{findByIDForUpdateFunc: func(_ context.Context, id int64) (*Group, error) {
 			locked = append(locked, id)
-			return &Group{Model: Model{ID: id}}, nil
+			return &Group{ID: id}, nil
 		}},
 	}
 

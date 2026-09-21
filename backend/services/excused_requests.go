@@ -9,10 +9,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/services/users"
@@ -246,11 +246,11 @@ func mapExcusedRequestError(err error) error {
 	case err == nil:
 		return nil
 	case errors.Is(err, careplan.ErrExcusedRequestNotFound):
-		return activeModels.ErrExcusedRequestNotFound
+		return absencerecords.ErrExcusedRequestNotFound
 	case errors.Is(err, careplan.ErrExcusedRequestNotPending):
-		return activeModels.ErrExcusedRequestNotPending
+		return absencerecords.ErrExcusedRequestNotPending
 	case errors.Is(err, careplan.ErrExcusedRequestNotDecided):
-		return activeModels.ErrExcusedRequestNotDecided
+		return absencerecords.ErrExcusedRequestNotDecided
 	case errors.Is(err, careplan.ErrParentRequestStale):
 		return users.ErrParentRequestStale
 	case errors.Is(err, careplan.ErrParentRequestDecisionRace):

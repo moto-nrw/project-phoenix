@@ -15,7 +15,8 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	supervisiondashboardlegacy "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
@@ -62,7 +63,7 @@ func (m ActiveTestModule) AttendanceStaff() attendanceRouteStaff {
 
 // PresenceOperations binds the retained active service behind the presence
 // operations contract the active routes consume.
-func (m ActiveTestModule) PresenceOperations() presenceOperations {
+func (m ActiveTestModule) PresenceOperations() presenceservice.PresenceOperations {
 	return NewPresenceOperations(m.Active, nil, slog.Default())
 }
 
@@ -145,12 +146,13 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	presenceDeps := active.ServiceDependencies{
+	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(r.ActiveGroup)
+	presenceDeps := presenceservice.PresenceDependencies{
 		PrincipalReader: AttendancePrincipal,
 		StudentDisplay:  studentDisplayProjection{students: students, groups: displayGroups},
 		SchoolPresence:  newStudentPresence(db, logger),
 		YardRoomColor:   yardRoomColorQuery(rooms),
-		GroupRepo:       r.ActiveGroup, SessionStartLock: r.SessionStartLock, SupervisorRepo: r.GroupSupervisor,
+		GroupRepo:       sessionGroups, SessionStartLock: r.SessionStartLock, SupervisorRepo: sessionSupervisors,
 		StudentStatusRepo: r.StudentStatusDay, CrossTenantRepo: r.CrossTenant, Schools: newActiveSchoolQuery(organizations),
 		StudentRepo: PresenceStudents(db, r.Student), StaffRepo: NewAttendanceStaffDirectory(r.Staff), RoomRepo: NewAttendanceRooms(r.Room),
 		ActivityGroupRepo: repositories.NewSessionActivities(r.ActivityGroup), ActivityCatRepo: NewAttendanceActivityCategories(r.ActivityCategory), EducationGroupRepo: NewAttendanceEducationGroups(r.Group, r.Student), DeviceRepo: NewSessionDeviceDirectory(devices, settings.Settings, logger),
@@ -158,7 +160,7 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 		AttendanceSyncer:         timetableplanning.NewAttendanceSyncService(r.ActivityInstance, r.InstanceStudent, logger),
 		TimetableBridgeCompleter: bridge, Logger: logger, Now: optionalClock(clocks),
 	}
-	presence := active.NewService(presenceDeps, active.WithSettings(PresenceSettings(settings.Settings)))
+	presence := presenceservice.NewPresence(presenceDeps, presenceservice.WithPresenceSettings(PresenceSettings(settings.Settings)))
 	groups.Active = presence
 	groups.Users = data.Users
 	yard := facilities.NewSchulhofService(data.Facilities, facilitiesLegacy.ActivityCatalog(data.Activities), facilitiesLegacy.OpenGroupCatalog(facilitiesGroupSupervisions(newStudentPresence(db, logger)), facilitiesRoomSessions(newStudentPresence(db, logger)), facilitiesGroupVisits(newStudentPresence(db, logger))), logger)
@@ -196,7 +198,7 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 		return ActiveTestModule{}, err
 	}
 	dashboard, err := supervisiondashboardlegacy.New(supervisiondashboardlegacy.Sources{Active: presence, ActiveGroups: openRoomSessionPresence{newStudentPresence(db, logger), timetableOwner},
-		OpenVisits: active.NewVisitDisplayBatchReader(presenceDeps), Rooms: openRoomDirectory{rooms: rooms}, UserContext: supervisionCaller{groups.UserContext}, Education: groups.Education,
+		OpenVisits: presence, Rooms: openRoomDirectory{rooms: rooms}, UserContext: supervisionCaller{groups.UserContext}, Education: groups.Education,
 		Schulhof: yard, Operations: operations, Settings: settings.Settings, Pickups: pickups, Arrivals: arrivals, Now: optionalClock(clocks)})
 	if err != nil {
 		return ActiveTestModule{}, fmt.Errorf("compose supervision dashboard projection: %w", err)

@@ -7,18 +7,18 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type failedSnapshotAttendance struct {
-	activeService.Service
+	studentpresence.Presence
 	reads int
 }
 
-func (s *failedSnapshotAttendance) GetStudentsAttendanceStatuses(context.Context, []int64) (map[int64]*activeService.AttendanceStatus, error) {
+func (s *failedSnapshotAttendance) GetStudentsAttendanceStatuses(context.Context, []int64) (map[int64]*studentpresence.DailyAttendanceStatus, error) {
 	s.reads++
 	return nil, errors.New("snapshot attendance read unavailable")
 }
@@ -28,7 +28,7 @@ func TestStudentListAndExportRejectFailedPresenceSnapshot(t *testing.T) {
 	tc := setupStudentsRoute(t)
 	testpkg.CreateTestStudent(t, tc.db, "Snapshot", "Unavailable", "3a")
 	account := testpkg.CreateTestAccount(t, tc.db, "snapshot-reader")
-	fault := &failedSnapshotAttendance{Service: tc.resource.ActiveService}
+	fault := &failedSnapshotAttendance{Presence: tc.resource.ActiveService}
 	tc.resource.ActiveService = fault
 	for _, route := range []string{"list", "export"} {
 		t.Run(route, func(t *testing.T) {

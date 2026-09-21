@@ -14,8 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -145,15 +144,15 @@ func TestApplyDeviations_ActiveInstance_EndsAndCreatesSupervisor(t *testing.T) {
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 
-	activeGroupRepo := presenceCompose.NewLegacyGroupRepository(nil, repositories.NewPresenceGroupRecords(s.db), nil)
+	sessions := repositories.NewPresenceSessionRecords(s.db)
 	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
-	ag := &activeModel.Group{
+	ag := &studentpresence.LiveGroup{
 		StartTime:      now,
 		LastActivity:   now,
 		TimeoutMinutes: 30,
 		RoomID:         s.roomID,
 	}
-	require.NoError(t, activeGroupRepo.Create(s.ctx, ag))
+	require.NoError(t, sessions.CreateSession(s.ctx, ag))
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "14:00", EndHHMM: "15:00", Title: "Active-Inst",
@@ -163,25 +162,23 @@ func TestApplyDeviations_ActiveInstance_EndsAndCreatesSupervisor(t *testing.T) {
 
 	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{})
 
-	supervisorRepo := presenceCompose.NewLegacyGroupSupervisorRepository(repositories.NewPresenceSupervisionRecords(s.db))
-	absentSup := &activeModel.GroupSupervisor{
+	absentSup := &studentpresence.GroupSupervision{
 		StaffID:   s.staffA,
 		GroupID:   ag.ID,
 		Role:      "supervisor",
-		StartDate: timezone.DateFromTime(now),
+		StartDate: timezone.DateFromTime(now).String(),
 	}
-	require.NoError(t, supervisorRepo.Create(s.ctx, absentSup))
+	require.NoError(t, sessions.CreateSupervision(s.ctx, absentSup))
 
 	w := doDev(t, router, inst.ID, map[string]any{
 		"substitutions": []map[string]any{{"absent_staff_id": s.staffA, "substitute_staff_id": s.staffY}},
 	})
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 
-	absentSupAfter, err := supervisorRepo.FindByID(s.ctx, absentSup.ID)
-	require.NoError(t, err)
+	absentSupAfter := testpkg.GroupSupervisorRowByID(t, s.db, absentSup.ID)
 	assert.NotNil(t, absentSupAfter.EndDate, "absent supervisor must be ended")
 
-	subSups, err := supervisorRepo.FindActiveByStaffID(s.ctx, s.staffY)
+	subSups, err := sessions.FindActiveByStaffID(s.ctx, s.staffY)
 	require.NoError(t, err)
 	found := false
 	for _, sup := range subSups {

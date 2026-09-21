@@ -123,7 +123,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
-	openRoomMoveCompose "github.com/moto-nrw/project-phoenix/workflows/openroommove/compose"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 )
 
@@ -1495,11 +1494,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.Schedules = timetableHTTPAdapter.NewSchedulesResource(api.Services.Schedule, db)
 	homeLayouts := requireHomeLayoutOperations(api.Services.Settings)
 	api.Settings = newSettingsResource(api.Services.TenantSettings, homeLayouts, repoFactory.Enrollment().SchemaReferencesLegalDocument, db)
-	openRoomPresence, ok := api.Services.Active.(openRoomMoveCompose.RetainedPresence)
-	if !ok {
-		return errors.New("open room move: the active service does not provide the room session operations")
-	}
-	openRoomMove, err := newOpenRoomMove(modules, openRoomPresence, logger)
+	openRoomMove, err := newOpenRoomMove(modules, api.Services.Active, logger)
 	if err != nil {
 		return err
 	}

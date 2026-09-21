@@ -4,10 +4,10 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 )
 
-func historyRoomNames(rooms facilities.Query) active.HistoryRoomReader {
+func historyRoomNames(rooms facilities.Query) presenceservice.HistoryRoomReader {
 	return func(ctx context.Context, ids []int64) (map[int64]string, error) {
 		rows, err := rooms.ListRoomsByID(ctx, ids)
 		if err != nil {

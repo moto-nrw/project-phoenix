@@ -5,7 +5,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/config"
 )
@@ -35,7 +35,7 @@ func (f *Factory) OpenAttendanceChecker() config.OpenAttendanceChecker {
 	return openAttendanceChecker{service: f.Active}
 }
 
-type openAttendanceChecker struct{ service active.Service }
+type openAttendanceChecker struct{ service studentpresence.Presence }
 
 func (c openAttendanceChecker) HasOpenAttendanceOn(ctx context.Context, day configModel.CalendarDate) (bool, error) {
 	if c.service == nil {

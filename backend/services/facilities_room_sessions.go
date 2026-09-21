@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 )
 
@@ -22,7 +21,7 @@ func facilitiesGroupSupervisions(presence interface {
 		day := today.String()
 		rows, err := presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: groupIDs, ActiveOn: &day})
 		if err != nil {
-			return nil, &activeService.ActiveError{Op: "FindSupervisorsByActiveGroupIDs", Err: activeService.ErrDatabaseOperation}
+			return nil, &studentpresence.OperationError{Op: "FindSupervisorsByActiveGroupIDs", Err: studentpresence.ErrDatabaseOperation}
 		}
 		for _, row := range rows {
 			result = append(result, facilities.OpenGroupSupervisor{ID: row.ID, GroupID: row.GroupID, StaffID: row.StaffID, Ended: facilitiesSupervisionEnded(row.EndDate, today.String())})
@@ -54,7 +53,7 @@ func facilitiesGroupVisits(presence interface {
 	return func(ctx context.Context, groupID int64) ([]facilities.OpenGroupVisit, error) {
 		visits, err := presence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{groupID}})
 		if err != nil {
-			return nil, &activeService.ActiveError{Op: "FindVisitsByActiveGroupID", Err: activeService.ErrDatabaseOperation}
+			return nil, &studentpresence.OperationError{Op: "FindVisitsByActiveGroupID", Err: studentpresence.ErrDatabaseOperation}
 		}
 		result := make([]facilities.OpenGroupVisit, 0, len(visits))
 		for _, visit := range visits {
@@ -70,7 +69,7 @@ func facilitiesRoomSessions(presence interface {
 	return func(ctx context.Context, roomID int64) ([]facilities.OpenGroup, error) {
 		groups, err := presence.QueryLiveGroups(ctx, studentpresence.LiveGroupFilter{RoomID: &roomID, OpenOnly: true})
 		if err != nil {
-			return nil, &activeService.ActiveError{Op: "FindActiveGroupsByRoomID", Err: fmt.Errorf("find by room: %w", err)}
+			return nil, &studentpresence.OperationError{Op: "FindActiveGroupsByRoomID", Err: fmt.Errorf("find by room: %w", err)}
 		}
 		today := timezone.TodayDate()
 		result := make([]facilities.OpenGroup, 0, len(groups))

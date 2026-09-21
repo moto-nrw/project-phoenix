@@ -11,8 +11,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -164,13 +164,13 @@ func TestAutoEnd_IsTenantIsolated(t *testing.T) {
 	foreignRoom := &facilitiesModels.Room{Name: "Foreign tenant room"}
 	foreignRoom.SetTenantID(foreign.TenantID)
 	require.NoError(t, s.repos.Room.Create(foreignCtx, foreignRoom))
-	foreignGroup := &activeModels.Group{
+	foreignGroup := &studentpresence.LiveGroup{
 		StartTime:    autoEndNow.Add(-time.Hour),
 		LastActivity: autoEndNow.Add(-time.Minute),
 		RoomID:       foreignRoom.ID,
+		TenantID:     foreign.TenantID,
 	}
-	foreignGroup.SetTenantID(foreign.TenantID)
-	require.NoError(t, s.repos.ActiveGroup.Create(foreignCtx, foreignGroup))
+	require.NoError(t, s.repos.ActiveGroup.CreateSession(foreignCtx, foreignGroup))
 
 	foreignInstance := &scheduleModels.ActivityInstance{
 		Date:          scheduleModels.DateFromTime(autoEndNow),

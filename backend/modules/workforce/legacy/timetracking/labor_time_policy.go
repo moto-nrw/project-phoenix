@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
 // German labor-law (ArbZG) thresholds applied to staff work sessions. These are
@@ -43,7 +42,7 @@ type LaborTimeEvaluation struct {
 
 // EvaluateLaborTime applies the same work/break calculations used by session
 // history to a single session. A running break is included up to now.
-func EvaluateLaborTime(ws *activeModels.WorkSession, breaks []*activeModels.WorkSessionBreak, now time.Time) LaborTimeEvaluation {
+func EvaluateLaborTime(ws *WorkSession, breaks []*WorkSessionBreak, now time.Time) LaborTimeEvaluation {
 	net := netMinutesWithBreaks(ws, breaks, now)
 	taken := totalBreakMinutes(ws, breaks, now)
 	required := 0
@@ -64,7 +63,7 @@ func EvaluateLaborTime(ws *activeModels.WorkSession, breaks []*activeModels.Work
 // supplied blocks. Net and break minutes are summed per block; qualifying gaps
 // between blocks count toward break compliance without becoming stamped break
 // minutes. Blocks must be passed in check-in order.
-func EvaluateWorkSessionsLaborTime(sessions []*activeModels.WorkSession, breaksBySession map[int64][]*activeModels.WorkSessionBreak, now time.Time) LaborTimeEvaluation {
+func EvaluateWorkSessionsLaborTime(sessions []*WorkSession, breaksBySession map[int64][]*WorkSessionBreak, now time.Time) LaborTimeEvaluation {
 	var net, taken, qualifyingBreaks, qualifyingGaps int
 	var prevEnd *time.Time
 	for _, ws := range sessions {
@@ -108,7 +107,7 @@ func EvaluateWorkSessionsLaborTime(sessions []*activeModels.WorkSession, breaksB
 	}
 }
 
-func qualifyingBreakMinutes(breaks []*activeModels.WorkSessionBreak, start, end time.Time, fallback int) int {
+func qualifyingBreakMinutes(breaks []*WorkSessionBreak, start, end time.Time, fallback int) int {
 	if len(breaks) == 0 {
 		// Legacy rows store only an aggregate. Their individual intervals are
 		// unavailable, so retain the established interpretation rather than
@@ -136,7 +135,7 @@ func qualifyingBreakMinutes(breaks []*activeModels.WorkSessionBreak, start, end 
 
 // grossMinutes is the wall-clock span of a session. For an open session (no
 // check-out) it measures against now.
-func grossMinutes(ws *activeModels.WorkSession, now time.Time) int {
+func grossMinutes(ws *WorkSession, now time.Time) int {
 	end := now
 	if ws.CheckOutTime != nil {
 		end = *ws.CheckOutTime
@@ -150,7 +149,7 @@ func grossMinutes(ws *activeModels.WorkSession, now time.Time) int {
 // minute of a running break as worked time and every reader has to correct for
 // it against its own clock. The math lives here once so the Monatskarte and
 // /history can't drift apart (#1842).
-func runningBreakElapsedMinutes(brk *activeModels.WorkSessionBreak, now time.Time) int {
+func runningBreakElapsedMinutes(brk *WorkSessionBreak, now time.Time) int {
 	if brk == nil || !brk.IsActive() {
 		return 0
 	}
@@ -170,7 +169,7 @@ func runningBreakElapsedMinutes(brk *activeModels.WorkSessionBreak, now time.Tim
 //
 // A checked-out session cannot have a running break (checkout ends it), so its
 // cache is already complete.
-func totalBreakMinutes(ws *activeModels.WorkSession, breaks []*activeModels.WorkSessionBreak, now time.Time) int {
+func totalBreakMinutes(ws *WorkSession, breaks []*WorkSessionBreak, now time.Time) int {
 	total := ws.BreakMinutes
 	if ws.CheckOutTime != nil {
 		return total
@@ -186,7 +185,7 @@ func totalBreakMinutes(ws *activeModels.WorkSession, breaks []*activeModels.Work
 // Monatskarte: netMinutes alone keeps climbing while a staff member is on
 // break, so Ist and Saldo would contradict the card, which deducts the running
 // break server-side. Floored at 0.
-func netMinutesWithBreaks(ws *activeModels.WorkSession, breaks []*activeModels.WorkSessionBreak, now time.Time) int {
+func netMinutesWithBreaks(ws *WorkSession, breaks []*WorkSessionBreak, now time.Time) int {
 	net := grossMinutes(ws, now) - totalBreakMinutes(ws, breaks, now)
 	if net < 0 {
 		return 0
@@ -203,7 +202,7 @@ func netMinutesWithBreaks(ws *activeModels.WorkSession, breaks []*activeModels.W
 // total of a legacy row (see below) is consumed in session order. Filtering
 // the walk instead would carry that whole cache into the first included day
 // and understate it there (#2402).
-func netMinutesByDate(session *activeModels.WorkSession, breaks []*activeModels.WorkSessionBreak, end time.Time, from, to timezone.Date) map[timezone.Date]int {
+func netMinutesByDate(session *WorkSession, breaks []*WorkSessionBreak, end time.Time, from, to timezone.Date) map[timezone.Date]int {
 	minutesByDate := make(map[timezone.Date]int)
 	cachedBreakMinutes := session.BreakMinutes
 	if !end.After(session.CheckInTime) {
@@ -256,7 +255,7 @@ func netMinutesByDate(session *activeModels.WorkSession, breaks []*activeModels.
 // threshold (10 hours). It measures the same net time that is reported to the
 // reader (netMinutesWithBreaks), so the flag cannot contradict the displayed
 // value while a break is running.
-func isOvertime(ws *activeModels.WorkSession, breaks []*activeModels.WorkSessionBreak, now time.Time) bool {
+func isOvertime(ws *WorkSession, breaks []*WorkSessionBreak, now time.Time) bool {
 	return netMinutesWithBreaks(ws, breaks, now) > overtimeThresholdMinutes
 }
 
@@ -268,6 +267,6 @@ func isOvertime(ws *activeModels.WorkSession, breaks []*activeModels.WorkSession
 // part of a running break. Judging the requirement against the ended-breaks
 // cache alone would flag a staff member as non-compliant *while* they are
 // taking the very break that makes them compliant.
-func isBreakCompliant(ws *activeModels.WorkSession, breaks []*activeModels.WorkSessionBreak, now time.Time) bool {
+func isBreakCompliant(ws *WorkSession, breaks []*WorkSessionBreak, now time.Time) bool {
 	return EvaluateLaborTime(ws, breaks, now).IsBreakCompliant
 }

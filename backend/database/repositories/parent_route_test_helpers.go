@@ -9,7 +9,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/uptrace/bun"
 )
 
@@ -25,9 +24,9 @@ type ParentRouteTestRepositories struct {
 	Person                usersModels.PersonRepository
 	GuardianProfile       usersModels.GuardianProfileRepository
 	StudentGuardian       usersModels.StudentGuardianRepository
-	StudentStatusDay      activeModels.StudentStatusDayOverviewRepository
+	StudentStatusDay      *StudentStatusDayRepository
 	CareExceptions        careplan.Capability
-	ExcusedAbsenceRequest activeModels.ExcusedAbsenceRequestRepository
+	ExcusedAbsenceRequest *ExcusedAbsenceRequestRepository
 	// ExcusedRequests is the Care Plan excused-absence workflow over the same
 	// graph, scoped school-wide because parent routes never decide requests.
 	ExcusedRequests careplan.ExcusedAbsenceRequests

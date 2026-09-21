@@ -4,7 +4,7 @@ import (
 	"context"
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 )
 
@@ -17,14 +17,14 @@ type dataAccessAudit struct {
 // NewDataAccessAudit connects attendance access evidence to the audit writer.
 func NewDataAccessAudit(writer interface {
 	Create(context.Context, *auditModels.DataAccessLog) error
-}) active.DataAccessAudit {
+}) presenceservice.DataAccessAudit {
 	if writer == nil {
 		return nil
 	}
 	return dataAccessAudit{writer: writer}
 }
 
-func (a dataAccessAudit) Create(ctx context.Context, event *active.DataAccessEvent) error {
+func (a dataAccessAudit) Create(ctx context.Context, event *presenceservice.DataAccessEvent) error {
 	if event == nil {
 		return a.writer.Create(ctx, nil)
 	}

@@ -23,7 +23,7 @@ import (
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
@@ -60,12 +60,12 @@ type StudentTestModule struct {
 }
 
 // ManualPartialAbsences binds the owner projection without constructing another service graph.
-func (m StudentTestModule) ManualPartialAbsences(source careplan.Capability) active.ManualPartialAbsenceReader {
+func (m StudentTestModule) ManualPartialAbsences(source careplan.Capability) presenceservice.ManualPartialAbsenceReader {
 	return NewManualPartialAbsenceDates(source)
 }
 
 // DataAccessAudit supplies the access-evidence writer from this module's audit command.
-func (m StudentTestModule) DataAccessAudit() active.DataAccessAudit {
+func (m StudentTestModule) DataAccessAudit() presenceservice.DataAccessAudit {
 	return NewDataAccessAudit(studentAccessAuditWriter{m.Audit})
 }
 
@@ -360,7 +360,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		},
 		Now: now,
 	})
-	studentStatusDayService := active.NewStudentStatusDayServiceWithPartialAbsences(
+	studentStatusDayService := presenceservice.NewStatusDays(
 		repos.StudentStatusDay,
 		NewManualPartialAbsenceDates(repos.CarePlan),
 		db,
@@ -400,11 +400,11 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 
 // StatusDayOverviewPeople serves the absence overview's people reads from the
 // module's users service.
-func (m StudentTestModule) StatusDayOverviewPeople() active.StatusDayOverviewPeople {
+func (m StudentTestModule) StatusDayOverviewPeople() presenceservice.StatusDayOverviewPeople {
 	return StatusDayOverviewPeople(m.Users)
 }
 
 // HistorySlots supplies the same owner projection to narrow student route fixtures.
-func (m StudentTestModule) HistorySlots(records timetableCompose.AttendanceHistoryRecords) active.HistorySlotReader {
+func (m StudentTestModule) HistorySlots(records timetableCompose.AttendanceHistoryRecords) presenceservice.HistorySlotReader {
 	return NewHistorySlots(records)
 }

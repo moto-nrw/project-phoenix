@@ -5,7 +5,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 )
 
 type studentDisplayProjection struct {
@@ -13,7 +13,7 @@ type studentDisplayProjection struct {
 	groups   schoolstructure.Query
 }
 
-func (q studentDisplayProjection) ListStudentDisplayFacts(ctx context.Context, ids []int64) ([]active.StudentDisplayFacts, error) {
+func (q studentDisplayProjection) ListStudentDisplayFacts(ctx context.Context, ids []int64) ([]presenceservice.StudentDisplayFacts, error) {
 	students, err := q.students.ListStudentsByID(ctx, ids)
 	if err != nil {
 		return nil, err
@@ -42,14 +42,14 @@ func (q studentDisplayProjection) ListStudentDisplayFacts(ctx context.Context, i
 	for _, group := range groups {
 		groupNames[group.ID] = group.Name
 	}
-	result := make([]active.StudentDisplayFacts, 0, len(students))
+	result := make([]presenceservice.StudentDisplayFacts, 0, len(students))
 	for _, student := range students {
 		person := personsByID[student.PersonID]
 		groupName := ""
 		if student.GroupID != nil {
 			groupName = groupNames[*student.GroupID]
 		}
-		result = append(result, active.StudentDisplayFacts{
+		result = append(result, presenceservice.StudentDisplayFacts{
 			FirstName: person.FirstName, LastName: person.LastName, OGSGroupName: groupName,
 			ID: student.ID, PersonID: student.PersonID, SchoolClass: student.SchoolClass, GroupID: student.GroupID,
 			Sick: student.Sick, SickSince: student.SickSince, Excused: student.Excused, ExcusedSince: student.ExcusedSince, PhotoPath: student.PhotoPath,

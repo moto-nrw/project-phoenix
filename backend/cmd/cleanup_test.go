@@ -13,8 +13,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -67,10 +68,11 @@ func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
-	sessionService := active.NewService(active.ServiceDependencies{
+	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(repoFactory.ActiveGroup)
+	sessionService := presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		SchoolPresence: presence,
-		GroupRepo:      repoFactory.ActiveGroup,
-		SupervisorRepo: repoFactory.GroupSupervisor,
+		GroupRepo:      sessionGroups,
+		SupervisorRepo: sessionSupervisors,
 		DeviceRepo: cleanupTestDevices{
 			findDeviceID: func(ctx context.Context) (int64, error) {
 				device, err := repoFactory.Device.FindByDeviceID(ctx, "WEB-MANUAL-001")
@@ -87,7 +89,7 @@ func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 		TimetableBridgeCompleter: repoFactory.ActivityInstance,
 		DB:                       db,
 		Logger:                   slog.Default(),
-	}, active.WithSettings(detailedPresenceSettings{}))
+	}, presenceservice.WithPresenceSettings(detailedPresenceSettings{}))
 	cleanupSvc := buildRetentionCleanupService(&cleanupContext{DB: db, Audit: repositories.NewTestAuditStore(db)})
 	schools, err := repositories.NewOrganizationTenancy(db)
 	require.NoError(t, err)
@@ -138,13 +140,13 @@ func TestLogVisitCleanupResult_NoErrors(t *testing.T) {
 	var logBuf bytes.Buffer
 	logger := log.New(&logBuf, "", 0)
 
-	result := &active.CleanupResult{
+	result := &studentpresence.CleanupResult{
 		StartedAt:         time.Now(),
 		CompletedAt:       time.Now().Add(time.Second),
 		StudentsProcessed: 10,
 		RecordsDeleted:    50,
 		Success:           true,
-		Errors:            []active.CleanupError{},
+		Errors:            []studentpresence.CleanupError{},
 	}
 
 	logVisitCleanupResult(logger, result, false)
@@ -161,13 +163,13 @@ func TestLogVisitCleanupResult_WithErrors_NotVerbose(t *testing.T) {
 	var logBuf bytes.Buffer
 	logger := log.New(&logBuf, "", 0)
 
-	result := &active.CleanupResult{
+	result := &studentpresence.CleanupResult{
 		StartedAt:         time.Now(),
 		CompletedAt:       time.Now().Add(time.Second),
 		StudentsProcessed: 5,
 		RecordsDeleted:    10,
 		Success:           false,
-		Errors: []active.CleanupError{
+		Errors: []studentpresence.CleanupError{
 			{StudentID: 1, Error: "error 1", Timestamp: time.Now()},
 			{StudentID: 2, Error: "error 2", Timestamp: time.Now()},
 		},
@@ -186,13 +188,13 @@ func TestLogVisitCleanupResult_WithErrors_Verbose(t *testing.T) {
 	var logBuf bytes.Buffer
 	logger := log.New(&logBuf, "", 0)
 
-	result := &active.CleanupResult{
+	result := &studentpresence.CleanupResult{
 		StartedAt:         time.Now(),
 		CompletedAt:       time.Now().Add(time.Second),
 		StudentsProcessed: 5,
 		RecordsDeleted:    10,
 		Success:           false,
-		Errors: []active.CleanupError{
+		Errors: []studentpresence.CleanupError{
 			{StudentID: 1, Error: "error 1", Timestamp: time.Now()},
 			{StudentID: 2, Error: "error 2", Timestamp: time.Now()},
 		},
@@ -208,13 +210,13 @@ func TestLogVisitCleanupResult_WithErrors_Verbose(t *testing.T) {
 
 func TestPrintVisitCleanupSummary_Success(t *testing.T) {
 	t.Parallel()
-	result := &active.CleanupResult{
+	result := &studentpresence.CleanupResult{
 		StartedAt:         time.Now(),
 		CompletedAt:       time.Now().Add(2 * time.Second),
 		StudentsProcessed: 15,
 		RecordsDeleted:    75,
 		Success:           true,
-		Errors:            []active.CleanupError{},
+		Errors:            []studentpresence.CleanupError{},
 	}
 
 	output := render(func(w io.Writer) {
@@ -231,13 +233,13 @@ func TestPrintVisitCleanupSummary_Success(t *testing.T) {
 
 func TestPrintVisitCleanupSummary_WithErrors(t *testing.T) {
 	t.Parallel()
-	result := &active.CleanupResult{
+	result := &studentpresence.CleanupResult{
 		StartedAt:         time.Now(),
 		CompletedAt:       time.Now().Add(time.Second),
 		StudentsProcessed: 5,
 		RecordsDeleted:    10,
 		Success:           false,
-		Errors: []active.CleanupError{
+		Errors: []studentpresence.CleanupError{
 			{StudentID: 1, Error: "error 1", Timestamp: time.Now()},
 		},
 	}
@@ -253,7 +255,7 @@ func TestPrintVisitCleanupSummary_WithErrors(t *testing.T) {
 func TestPrintPreviewHeader_WithOldestVisit(t *testing.T) {
 	t.Parallel()
 	oldestVisit := time.Now().Add(-48 * time.Hour)
-	preview := &active.CleanupPreview{
+	preview := &studentpresence.CleanupPreview{
 		StudentVisitCounts: map[int64]int{1: 5, 2: 10},
 		TotalVisits:        15,
 		OldestVisit:        &oldestVisit,
@@ -272,7 +274,7 @@ func TestPrintPreviewHeader_WithOldestVisit(t *testing.T) {
 
 func TestPrintPreviewHeader_NoOldestVisit(t *testing.T) {
 	t.Parallel()
-	preview := &active.CleanupPreview{
+	preview := &studentpresence.CleanupPreview{
 		StudentVisitCounts: map[int64]int{1: 5},
 		TotalVisits:        5,
 		OldestVisit:        nil,
@@ -291,7 +293,7 @@ func TestPrintPreviewHeader_NoOldestVisit(t *testing.T) {
 func TestPrintRetentionStats_WithOldestExpiredVisit(t *testing.T) {
 	t.Parallel()
 	oldestExpired := time.Now().Add(-30 * 24 * time.Hour)
-	stats := &active.RetentionStats{
+	stats := &studentpresence.RetentionStats{
 		TotalExpiredVisits: 100,
 		StudentsAffected:   10,
 		OldestExpiredVisit: &oldestExpired,
@@ -310,7 +312,7 @@ func TestPrintRetentionStats_WithOldestExpiredVisit(t *testing.T) {
 
 func TestPrintRetentionStats_NoOldestExpiredVisit(t *testing.T) {
 	t.Parallel()
-	stats := &active.RetentionStats{
+	stats := &studentpresence.RetentionStats{
 		TotalExpiredVisits: 50,
 		StudentsAffected:   5,
 		OldestExpiredVisit: nil,
@@ -329,7 +331,7 @@ func TestPrintRetentionStats_NoOldestExpiredVisit(t *testing.T) {
 func TestPrintAttendancePreviewHeader_WithOldestRecord(t *testing.T) {
 	t.Parallel()
 	oldestRecord := timezone.TodayDate().AddDays(-1)
-	preview := &active.AttendanceCleanupPreview{
+	preview := &studentpresence.AttendanceCleanupPreview{
 		TotalRecords:   20,
 		StudentRecords: map[int64]int{1: 10, 2: 10},
 		OldestRecord:   &oldestRecord,
@@ -348,7 +350,7 @@ func TestPrintAttendancePreviewHeader_WithOldestRecord(t *testing.T) {
 
 func TestPrintAttendancePreviewHeader_NoOldestRecord(t *testing.T) {
 	t.Parallel()
-	preview := &active.AttendanceCleanupPreview{
+	preview := &studentpresence.AttendanceCleanupPreview{
 		TotalRecords:   10,
 		StudentRecords: map[int64]int{1: 10},
 		OldestRecord:   nil,
@@ -367,7 +369,7 @@ func TestPrintAttendancePreviewHeader_NoOldestRecord(t *testing.T) {
 func TestPrintAttendanceCleanupSummary_Success_WithOldestRecordDate(t *testing.T) {
 	t.Parallel()
 	oldestDate := timezone.TodayDate().AddDays(-2)
-	result := &active.AttendanceCleanupResult{
+	result := &studentpresence.AttendanceCleanupResult{
 		StartedAt:        time.Now(),
 		CompletedAt:      time.Now().Add(time.Second),
 		RecordsClosed:    15,
@@ -392,7 +394,7 @@ func TestPrintAttendanceCleanupSummary_Success_WithOldestRecordDate(t *testing.T
 
 func TestPrintAttendanceCleanupSummary_Success_NoOldestRecordDate(t *testing.T) {
 	t.Parallel()
-	result := &active.AttendanceCleanupResult{
+	result := &studentpresence.AttendanceCleanupResult{
 		StartedAt:        time.Now(),
 		CompletedAt:      time.Now().Add(time.Second),
 		RecordsClosed:    10,
@@ -414,7 +416,7 @@ func TestPrintAttendanceCleanupSummary_Success_NoOldestRecordDate(t *testing.T) 
 
 func TestPrintAttendanceCleanupSummary_WithErrors(t *testing.T) {
 	t.Parallel()
-	result := &active.AttendanceCleanupResult{
+	result := &studentpresence.AttendanceCleanupResult{
 		StartedAt:        time.Now(),
 		CompletedAt:      time.Now().Add(time.Second),
 		RecordsClosed:    5,
@@ -493,7 +495,7 @@ func TestPrintAbandonedSessionSummary(t *testing.T) {
 
 func TestPrintDailySessionSummary_Success(t *testing.T) {
 	t.Parallel()
-	result := &active.DailySessionCleanupResult{
+	result := &studentpresence.DailySessionCleanupResult{
 		SessionsEnded:    10,
 		VisitsEnded:      50,
 		SupervisorsEnded: 5,
@@ -516,7 +518,7 @@ func TestPrintDailySessionSummary_Success(t *testing.T) {
 
 func TestPrintDailySessionSummary_WithErrors(t *testing.T) {
 	t.Parallel()
-	result := &active.DailySessionCleanupResult{
+	result := &studentpresence.DailySessionCleanupResult{
 		SessionsEnded:    5,
 		VisitsEnded:      20,
 		SupervisorsEnded: 2,
@@ -536,7 +538,7 @@ func TestPrintDailySessionSummary_WithErrors(t *testing.T) {
 func TestPrintSupervisorPreviewHeader_WithOldestRecord(t *testing.T) {
 	t.Parallel()
 	oldestRecord := timezone.TodayDate().AddDays(-1)
-	preview := &active.SupervisorCleanupPreview{
+	preview := &studentpresence.SupervisorCleanupPreview{
 		TotalRecords: 15,
 		StaffRecords: map[int64]int{1: 10, 2: 5},
 		OldestRecord: &oldestRecord,
@@ -555,7 +557,7 @@ func TestPrintSupervisorPreviewHeader_WithOldestRecord(t *testing.T) {
 
 func TestPrintSupervisorPreviewHeader_NoOldestRecord(t *testing.T) {
 	t.Parallel()
-	preview := &active.SupervisorCleanupPreview{
+	preview := &studentpresence.SupervisorCleanupPreview{
 		TotalRecords: 10,
 		StaffRecords: map[int64]int{1: 10},
 		OldestRecord: nil,
@@ -574,7 +576,7 @@ func TestPrintSupervisorPreviewHeader_NoOldestRecord(t *testing.T) {
 func TestPrintSupervisorCleanupSummary_Success_WithOldestRecordDate(t *testing.T) {
 	t.Parallel()
 	oldestDate := timezone.TodayDate().AddDays(-2)
-	result := &active.SupervisorCleanupResult{
+	result := &studentpresence.SupervisorCleanupResult{
 		StartedAt:        time.Now(),
 		CompletedAt:      time.Now().Add(time.Second),
 		RecordsClosed:    20,
@@ -599,7 +601,7 @@ func TestPrintSupervisorCleanupSummary_Success_WithOldestRecordDate(t *testing.T
 
 func TestPrintSupervisorCleanupSummary_Success_NoOldestRecordDate(t *testing.T) {
 	t.Parallel()
-	result := &active.SupervisorCleanupResult{
+	result := &studentpresence.SupervisorCleanupResult{
 		StartedAt:        time.Now(),
 		CompletedAt:      time.Now().Add(time.Second),
 		RecordsClosed:    10,
@@ -621,7 +623,7 @@ func TestPrintSupervisorCleanupSummary_Success_NoOldestRecordDate(t *testing.T) 
 
 func TestPrintSupervisorCleanupSummary_WithErrors(t *testing.T) {
 	t.Parallel()
-	result := &active.SupervisorCleanupResult{
+	result := &studentpresence.SupervisorCleanupResult{
 		StartedAt:        time.Now(),
 		CompletedAt:      time.Now().Add(time.Second),
 		RecordsClosed:    5,
@@ -1048,7 +1050,7 @@ func TestCleanupSupervisorsCmd_Flags(t *testing.T) {
 type detailedPresenceSettings struct{}
 
 func (detailedPresenceSettings) PresenceMode(context.Context) (string, error) {
-	return active.PresenceModeDetailed, nil
+	return studentpresence.PresenceModeDetailed, nil
 }
 func (detailedPresenceSettings) SickClearMode(context.Context) (string, error)    { return "", nil }
 func (detailedPresenceSettings) ExcusedClearMode(context.Context) (string, error) { return "", nil }

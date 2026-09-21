@@ -12,8 +12,9 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -194,8 +195,8 @@ func newAbsenceWorld() (notifications.AbsenceNotifier, *absenceWorld) {
 		admins:   &fakeAdminReader{ids: []int64{absenceAdmin}},
 		settings: &fakeOnDutySetting{enabled: true},
 		duty: &fakeDutyReader{presence: map[int64]string{
-			absenceStaffA:     activeModel.WorkSessionStatusPresent,
-			absenceAdminStaff: activeModel.WorkSessionStatusPresent,
+			absenceStaffA:     workforce.WorkSessionStatusPresent,
+			absenceAdminStaff: workforce.WorkSessionStatusPresent,
 		}},
 	}
 	recipients := notifications.NewStaffRecipientResolver(
@@ -208,7 +209,7 @@ func sickToday(studentIDs ...int64) notifications.AbsenceReport {
 	return notifications.AbsenceReport{
 		TenantID:   absenceTenant,
 		StudentIDs: studentIDs,
-		Status:     activeModel.StudentStatusDaySick,
+		Status:     absencerecords.StudentStatusDaySick,
 		Dates:      []timezone.Date{timezone.TodayDate()},
 		FromParent: true,
 	}
@@ -243,7 +244,7 @@ func TestAbsenceNotifierPartitionsCountsByRecipientScope(t *testing.T) {
 	w.groups.staffByGroup[absenceGroupB] = []int64{absenceStaffB}
 	w.staff.accounts[absenceStaffB] = absenceAccountB
 	w.consent.allowed[absenceAccountB] = struct{}{}
-	w.duty.presence[absenceStaffB] = activeModel.WorkSessionStatusPresent
+	w.duty.presence[absenceStaffB] = workforce.WorkSessionStatusPresent
 
 	require.NoError(t, producer.NotifyAbsenceReported(
 		context.Background(),
@@ -288,7 +289,7 @@ func TestAbsenceNotifierWording(t *testing.T) {
 			name: "an excuse reads differently",
 			report: func() notifications.AbsenceReport {
 				r := sickToday(absenceStudentA)
-				r.Status = activeModel.StudentStatusDayExcused
+				r.Status = absencerecords.StudentStatusDayExcused
 				return r
 			},
 			wantBody: "Für ein Kind aus Ihrer Gruppe wurde heute eine Entschuldigung eingetragen.",
@@ -306,7 +307,7 @@ func TestAbsenceNotifierWording(t *testing.T) {
 			name: "three excused children use plural wording",
 			report: func() notifications.AbsenceReport {
 				r := sickToday(71, 72, 73)
-				r.Status = activeModel.StudentStatusDayExcused
+				r.Status = absencerecords.StudentStatusDayExcused
 				return r
 			},
 			wantBody: "3 Kinder wurden für heute entschuldigt.",
@@ -358,7 +359,7 @@ func TestAbsenceNotifierSilentCases(t *testing.T) {
 			name: "a class trip is not news",
 			report: func() notifications.AbsenceReport {
 				r := sickToday(absenceStudentA)
-				r.Status = activeModel.StudentStatusDayClassTrip
+				r.Status = absencerecords.StudentStatusDayClassTrip
 				return r
 			}(),
 			why: "only sick and excused are reported",
@@ -477,7 +478,7 @@ func TestAbsenceNotifierRespectsOnDutySetting(t *testing.T) {
 
 	t.Run("home office counts as on duty", func(t *testing.T) {
 		producer, w := newAbsenceWorld()
-		w.duty.presence[absenceStaffA] = activeModel.WorkSessionStatusHomeOffice
+		w.duty.presence[absenceStaffA] = workforce.WorkSessionStatusHomeOffice
 		w.duty.presence[absenceAdminStaff] = "checked_out"
 
 		require.NoError(t, producer.NotifyAbsenceReported(context.Background(), sickToday(absenceStudentA)))

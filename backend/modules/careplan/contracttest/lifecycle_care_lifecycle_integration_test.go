@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/services"
 
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
@@ -29,8 +30,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -38,17 +39,18 @@ import (
 
 // newActiveService wires the presence service the way the server does, minus
 // the broadcaster (these tests assert on data, not on SSE).
-func newActiveService(t *testing.T, db *bun.DB) activeService.Service {
+func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 	t.Helper()
 	// RFID tag release runs through the People Directory composition (#2661).
 	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
-	svc := activeService.NewService(activeService.ServiceDependencies{
+	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(repos.ActiveGroup)
+	svc := presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		PrincipalReader:    services.AttendancePrincipal,
-		GroupRepo:          repos.ActiveGroup,
-		SupervisorRepo:     repos.GroupSupervisor,
+		GroupRepo:          sessionGroups,
+		SupervisorRepo:     sessionSupervisors,
 		SchoolPresence:     presence,
 		StudentRepo:        services.PresenceStudents(db, repos.Student),
 		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
@@ -68,7 +70,7 @@ func newActiveService(t *testing.T, db *bun.DB) activeService.Service {
 		})),
 		DB:     db,
 		Logger: slog.Default(),
-	}, activeService.WithSettings(services.PresenceSettings(&configtest.Mock{ResolveStringFn: func(context.Context, string) (string, error) {
+	}, presenceservice.WithPresenceSettings(services.PresenceSettings(&configtest.Mock{ResolveStringFn: func(context.Context, string) (string, error) {
 		return "binary", nil
 	}})))
 	return svc
@@ -165,7 +167,7 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 
 	t.Run("web and kiosk check-in are refused", func(t *testing.T) {
 		_, err := presence.ToggleStudentAttendance(ctx, student.ID, staff.ID, device.ID, true)
-		require.ErrorIs(t, err, activeService.ErrStudentCareEnded)
+		require.ErrorIs(t, err, studentpresence.ErrStudentCareEnded)
 	})
 
 	t.Run("the child is gone from the group roster reads", func(t *testing.T) {
@@ -249,15 +251,15 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 	require.NoError(t, repos.StudentEnrollment.Create(ctx, booking))
 
 	// A parent request nobody has decided yet.
-	request := &activeModels.ExcusedAbsenceRequest{
+	request := &testpkg.ExcusedAbsenceRequestRow{
 		StudentID:     studentID,
 		SubmittedBy:   chain.AccountID,
 		Dates:         []timezone.Date{today.AddDays(3)},
 		Note:          "Arzttermin",
 		AbsenceStatus: "excused",
-		Status:        activeModels.ExcusedRequestStatusPending,
+		Status:        absencerecords.ExcusedRequestStatusPending,
 	}
-	request.SetTenantID(testpkg.Tenant(t))
+	request.TenantID = testpkg.Tenant(t)
 	_, err = db.NewInsert().
 		Model(request).
 		ModelTableExpr("active.excused_absence_requests").
@@ -313,7 +315,7 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 	})
 
 	t.Run("the open request survives until the exit takes effect", func(t *testing.T) {
-		assert.Equal(t, activeModels.ExcusedRequestStatusPending,
+		assert.Equal(t, absencerecords.ExcusedRequestStatusPending,
 			reloadRequestStatus(t, db, request.ID),
 			"a request about a day the child is still in care stays decidable")
 	})
@@ -324,7 +326,7 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("the open request is closed with its own outcome", func(t *testing.T) {
-		assert.Equal(t, activeModels.ExcusedRequestStatusCareEnded,
+		assert.Equal(t, absencerecords.ExcusedRequestStatusCareEnded,
 			reloadRequestStatus(t, db, request.ID),
 			"neither approved nor rejected — the care simply ended")
 	})

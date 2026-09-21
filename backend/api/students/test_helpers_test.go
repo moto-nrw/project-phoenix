@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -195,7 +195,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		ArrivalScheduleService: svc.ArrivalSchedule,
 		SchoolService:          exportSchools{schools: svc.Schools},
 		SettingsService:        svc.Settings,
-		StudentHistoryService: activeSvc.NewStudentHistoryService(presence, func(ctx context.Context, ids []int64) (map[int64]string, error) {
+		StudentHistoryService: presenceservice.NewStudentHistory(presence, func(ctx context.Context, ids []int64) (map[int64]string, error) {
 			rooms, err := repoFactory.Room.FindByIDs(ctx, ids)
 			if err != nil {
 				return nil, err
@@ -210,8 +210,8 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		InstanceService:         svc.Instance,
 		CareDayService:          svc.CareDay,
 		CareLifecycleService:    svc.CareLifecycle,
-		StudentStatusDayService: activeSvc.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, svc.ManualPartialAbsences(repoFactory.CarePlan), db, repoFactory.CarePlan.LockExceptionDay),
-		AbsenceOverview:         activeSvc.NewStudentStatusDayOverviewService(repoFactory.StudentStatusDay, svc.StatusDayOverviewPeople()),
+		StudentStatusDayService: presenceservice.NewStatusDays(repoFactory.StudentStatusDay, svc.ManualPartialAbsences(repoFactory.CarePlan), db, repoFactory.CarePlan.LockExceptionDay),
+		AbsenceOverview:         presenceservice.NewStatusDayOverviews(repoFactory.StudentStatusDay, svc.StatusDayOverviewPeople()),
 		ExcusedRequestService:   svc.ExcusedRequests,
 		StudentAuditService:     svc.StudentAudit,
 		PrivacyConsents:         presence,

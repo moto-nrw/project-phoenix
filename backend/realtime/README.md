@@ -169,7 +169,7 @@ Trigger a check-in via the IoT API endpoint (e.g., using curl or the frontend UI
 Services broadcast events after data changes:
 
 ```go
-// In modules/studentpresence/legacy/services/active/active_service.go
+// In modules/studentpresence/internal/application/presence/active_service.go
 func (s *service) CreateVisit(ctx context.Context, studentID, roomID int64) (*Visit, error) {
     // ... create visit logic ...
 
@@ -364,7 +364,7 @@ Events contain only display-level data already visible to supervisors:
 - `backend/realtime/hub_test.go` - Hub tests
 - `backend/realtime/events.go` - Event types
 - `backend/api/sse/api.go` - HTTP endpoint
-- `backend/modules/studentpresence/legacy/services/active/active_service.go` - Event broadcasting
+- `backend/modules/studentpresence/internal/application/presence/active_service.go` - Event broadcasting
 
 ### Frontend
 - `frontend/src/lib/hooks/use-sse.ts` - React hook

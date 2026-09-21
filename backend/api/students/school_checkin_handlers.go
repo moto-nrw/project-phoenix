@@ -14,7 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // schoolCheckinRequest is the payload for POST /api/students/{id}/school-checkin.
@@ -41,8 +41,8 @@ type schoolCheckinResponse struct {
 // Wire-level action values — aliases of the service constants so handler and
 // service can never drift apart.
 const (
-	schoolCheckinActionIn  = activeService.SchoolCheckinActionIn
-	schoolCheckinActionOut = activeService.SchoolCheckinActionOut
+	schoolCheckinActionIn  = studentpresence.SchoolCheckinActionIn
+	schoolCheckinActionOut = studentpresence.SchoolCheckinActionOut
 )
 
 // schoolCheckinHandler marks a student as checked-in or checked-out of the
@@ -93,7 +93,7 @@ func (rs *Resource) schoolCheckinHandler(w http.ResponseWriter, r *http.Request)
 		// ensureStudentCheckinAllowed guard on a stale request or graduation
 		// race — is treated like an unknown/absent student (404), matching the
 		// IoT and timetable mappers rather than surfacing a 500 (#405).
-		if errors.Is(changeErr, activeService.ErrStudentGraduated) || errors.Is(changeErr, activeService.ErrStudentCareEnded) {
+		if errors.Is(changeErr, studentpresence.ErrStudentGraduated) || errors.Is(changeErr, studentpresence.ErrStudentCareEnded) {
 			common.RenderError(w, r, common.ErrorNotFound(changeErr))
 			return
 		}
@@ -243,7 +243,7 @@ func (rs *Resource) schoolCheckinBatchHandler(w http.ResponseWriter, r *http.Req
 // the wire shape: string ids, the machine-readable "not_found" code ("the
 // frontend resolves the student's name from its own list, so no PII travels
 // here"), and the resolved German presence label per successful entry.
-func buildSchoolCheckinBatchResponse(action string, batch *activeService.SchoolCheckinBatchResult) *schoolCheckinBatchResponse {
+func buildSchoolCheckinBatchResponse(action string, batch *studentpresence.SchoolCheckinBatchResult) *schoolCheckinBatchResponse {
 	resp := &schoolCheckinBatchResponse{
 		Action:    action,
 		Results:   make([]schoolCheckinBatchResult, 0, len(batch.Results)),
@@ -310,9 +310,9 @@ func (rs *Resource) applySchoolCheckinAction(
 	student *users.Student,
 	staffID int64,
 	action string,
-	current *activeService.AttendanceStatus,
+	current *studentpresence.DailyAttendanceStatus,
 ) (*schoolCheckinResponse, error) {
-	if activeService.IsSchoolCheckinNoop(action, current.Status) {
+	if studentpresence.IsSchoolCheckinNoop(action, current.Status) {
 		return buildSchoolCheckinResponse(student.ID, current, false), nil
 	}
 
@@ -322,14 +322,14 @@ func (rs *Resource) applySchoolCheckinAction(
 	// absent student: the second sees the first's commit and flips). The
 	// CheckIn/CheckOut methods are race-safe individually (ON CONFLICT for
 	// in, state-checked UPDATE for out) so the action contract is preserved.
-	var result *activeService.AttendanceResult
+	var result *studentpresence.AttendanceResult
 	var err error
 	switch action {
 	case schoolCheckinActionIn:
 		result, err = rs.ActiveService.CheckInStudent(ctx, student.ID, staffID, 0, true)
 	case schoolCheckinActionOut:
 		// CheckOutStudent also ends any open room visit in the same request
-		// transaction (issue #895 — see modules/studentpresence/legacy/services/active.performCheckOut), so
+		// transaction (issue #895 — see modules/studentpresence/internal/application/presence.performCheckOut), so
 		// detailed-mode supervisor views never show "still in Room X" after
 		// a web checkout. No separate EndVisit call is needed here.
 		result, err = rs.ActiveService.CheckOutStudent(ctx, student.ID, staffID, true)
@@ -352,7 +352,7 @@ func (rs *Resource) applySchoolCheckinAction(
 // buildSchoolCheckinResponse formats an AttendanceStatus into the HTTP response
 // shape, including the resolved presence label so the client can render
 // PresenceBadge without a follow-up snapshot fetch.
-func buildSchoolCheckinResponse(studentID int64, status *activeService.AttendanceStatus, changed bool) *schoolCheckinResponse {
+func buildSchoolCheckinResponse(studentID int64, status *studentpresence.DailyAttendanceStatus, changed bool) *schoolCheckinResponse {
 	resp := &schoolCheckinResponse{
 		StudentID:    studentID,
 		Status:       status.Status,

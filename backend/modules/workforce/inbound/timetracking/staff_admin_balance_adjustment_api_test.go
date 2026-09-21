@@ -19,7 +19,7 @@ import (
 )
 
 // insertWorkSession writes one closed active.work_sessions row (the wire
-// values of status/source mirror models/active/work_session.go) and returns
+// values of status/source mirror modules/workforce/worksession.go) and returns
 // its ID. Written directly because the public check-in capability stamps the
 // current clock, and these fixtures need an exact past window.
 func insertWorkSession(t *testing.T, tc *testContext, staffID int64, day string, checkIn, checkOut time.Time) {

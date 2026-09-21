@@ -14,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -38,7 +38,7 @@ const (
 // rather than stored in the struct (per Go best practices).
 type cleanupContext struct {
 	DB                         *bun.DB
-	CleanupService             active.CleanupService
+	CleanupService             studentpresence.PresenceCleanup
 	AuthCleanupService         authCleanupService
 	InvitationCleanupService   invitationCleanupService
 	SessionCleanupService      sessionCleanupService
@@ -64,10 +64,10 @@ type invitationCleanupService interface {
 
 type sessionCleanupService interface {
 	CleanupAbandonedSessions(context.Context, time.Duration) (int, error)
-	EndDailySessions(context.Context) (*active.DailySessionCleanupResult, error)
+	EndDailySessions(context.Context) (*studentpresence.DailySessionCleanupResult, error)
 }
 
-type retentionCleanupService = active.CleanupService
+type retentionCleanupService = studentpresence.PresenceCleanup
 type timetableCleanupService = timetableplanning.TimetableCleanupService
 type timeTrackingCleanupService = services.TimeTrackingCleanupService
 
@@ -76,7 +76,7 @@ type cleanupRoot struct {
 	authCleanup         func(*cleanupContext) authCleanupService
 	invitationCleanup   func(*cleanupContext) invitationCleanupService
 	sessionCleanup      func(*cleanupContext) sessionCleanupService
-	retentionCleanup    func(*cleanupContext) active.CleanupService
+	retentionCleanup    func(*cleanupContext) studentpresence.PresenceCleanup
 	timetableCleanup    func(*cleanupContext) timetableplanning.TimetableCleanupService
 	timeTrackingCleanup func(*cleanupContext) services.TimeTrackingCleanupService
 }
@@ -288,7 +288,7 @@ func newCleanupContextWithCleanupService() (*cleanupContext, error) {
 	return ctx, nil
 }
 
-func buildRetentionCleanupService(ctx *cleanupContext) active.CleanupService {
+func buildRetentionCleanupService(ctx *cleanupContext) studentpresence.PresenceCleanup {
 	return services.NewRetentionCleanupService(ctx.DB, slog.Default().With("service", "retention-cleanup-cli"), ctx.Audit)
 
 }

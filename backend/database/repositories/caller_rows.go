@@ -9,7 +9,7 @@ import (
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // CallerRows serves the Identity & Access caller context (#3501) to the
@@ -24,8 +24,14 @@ type CallerRows struct {
 	teachers   userModels.TeacherRepository
 	students   userModels.StudentRepository
 	activities activitiesModels.GroupRepository
-	sessions   activeModels.GroupRepository
+	sessions   CallerSessions
 	logger     *slog.Logger
+}
+
+// CallerSessions is the Student Presence session read the caller rows render.
+type CallerSessions interface {
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*studentpresence.SessionDetail, error)
+	SessionRows(ctx context.Context, ids []int64) (any, error)
 }
 
 // CallerRowSources names the retained repositories the rows load from. A
@@ -36,7 +42,7 @@ type CallerRowSources struct {
 	Teachers   userModels.TeacherRepository
 	Students   userModels.StudentRepository
 	Activities activitiesModels.GroupRepository
-	Sessions   activeModels.GroupRepository
+	Sessions   CallerSessions
 	Logger     *slog.Logger
 }
 
@@ -155,12 +161,25 @@ func (r *CallerRows) GetMyGroups(ctx context.Context) ([]*educationModels.Group,
 }
 
 // GetMySupervisedGroups returns the room sessions the caller supervises.
-func (r *CallerRows) GetMySupervisedGroups(ctx context.Context) ([]*activeModels.Group, error) {
+func (r *CallerRows) GetMySupervisedGroups(ctx context.Context) ([]*studentpresence.SessionDetail, error) {
 	ids, err := r.caller.MySupervisedSessionIDs(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return r.sessionsByID(ctx, ids)
+	result := make([]*studentpresence.SessionDetail, 0, len(ids))
+	if len(ids) == 0 {
+		return result, nil
+	}
+	byID, err := r.sessions.FindByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range ids {
+		if session := byID[id]; session != nil {
+			result = append(result, session)
+		}
+	}
+	return result, nil
 }
 
 func (r *CallerRows) groupsByID(ctx context.Context, ids []int64) ([]*educationModels.Group, error) {
@@ -175,23 +194,6 @@ func (r *CallerRows) groupsByID(ctx context.Context, ids []int64) ([]*educationM
 	for _, id := range ids {
 		if group := byID[id]; group != nil {
 			result = append(result, group)
-		}
-	}
-	return result, nil
-}
-
-func (r *CallerRows) sessionsByID(ctx context.Context, ids []int64) ([]*activeModels.Group, error) {
-	result := make([]*activeModels.Group, 0, len(ids))
-	if len(ids) == 0 {
-		return result, nil
-	}
-	byID, err := r.sessions.FindByIDs(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	for _, id := range ids {
-		if session := byID[id]; session != nil {
-			result = append(result, session)
 		}
 	}
 	return result, nil
@@ -263,7 +265,7 @@ func (r *CallerRows) ActivityGroupRows(ctx context.Context, ids []int64) (any, e
 // SessionRows returns the room sessions the /api/me/groups/active and
 // /api/me/groups/supervised routes render.
 func (r *CallerRows) SessionRows(ctx context.Context, ids []int64) (any, error) {
-	return r.sessionsByID(ctx, ids)
+	return r.sessions.SessionRows(ctx, ids)
 }
 
 // StudentRows returns the students the /api/me/groups/{id}/students route
@@ -287,11 +289,11 @@ func (r *CallerRows) StudentRows(ctx context.Context, ids []int64) (any, error) 
 
 // callerNavigationRow is the /api/me/navigation wire shape.
 type callerNavigationRow struct {
-	EducationalGroups   []*callerGroupRow     `json:"educational_groups"`
-	SupervisedGroups    []*activeModels.Group `json:"supervised_groups"`
-	CurrentStaff        *userModels.Staff     `json:"current_staff"`
-	Incomplete          bool                  `json:"incomplete"`
-	UnavailableSections []string              `json:"unavailable_sections"`
+	EducationalGroups   []*callerGroupRow `json:"educational_groups"`
+	SupervisedGroups    any               `json:"supervised_groups"`
+	CurrentStaff        *userModels.Staff `json:"current_staff"`
+	Incomplete          bool              `json:"incomplete"`
+	UnavailableSections []string          `json:"unavailable_sections"`
 }
 
 // NavigationRow loads the rows of the caller's navigation context. A group
@@ -306,10 +308,10 @@ func (r *CallerRows) NavigationRow(ctx context.Context, navigation identityacces
 		row.UnavailableSections = append(row.UnavailableSections, "educational_groups")
 	}
 	row.EducationalGroups = groups
-	sessions, err := r.sessionsByID(ctx, navigation.SupervisedSessionIDs)
+	sessions, err := r.sessions.SessionRows(ctx, navigation.SupervisedSessionIDs)
 	if err != nil {
 		r.getLogger().Warn("navigation context supervision unavailable", slog.String("error", err.Error()))
-		sessions = []*activeModels.Group{}
+		sessions = []any{}
 		row.UnavailableSections = append(row.UnavailableSections, "supervised_groups")
 	}
 	row.SupervisedGroups = sessions

@@ -15,7 +15,7 @@ import (
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	roomsHTTP "github.com/moto-nrw/project-phoenix/modules/facilities/http/rooms"
 	projectJWT "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
@@ -30,7 +30,7 @@ type Dependencies struct {
 	Facilities  facilitiesService.Service
 	Settings    configService.SettingsService
 	UserContext CallerStaff
-	Active      activeService.Service
+	Active      studentpresence.Presence
 	Users       usersService.PersonService
 	Education   educationService.Service
 	ListExport  *listexport.RendererService

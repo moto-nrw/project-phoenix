@@ -9,7 +9,8 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 )
 
 // presenceStudentSource is the slice of the student repository the presence
@@ -26,7 +27,7 @@ type presenceStudents struct {
 }
 
 // PresenceStudents reads Directory records and writes only Care Plan's live flags.
-func PresenceStudents(db *bun.DB, source presenceStudentSource) active.PresenceStudents {
+func PresenceStudents(db *bun.DB, source presenceStudentSource) presenceservice.PresenceStudents {
 	care, err := careCompose.NewStudentProfiles(db, func(careCompose.Observation) {})
 	if err != nil {
 		panic(err)
@@ -34,7 +35,7 @@ func PresenceStudents(db *bun.DB, source presenceStudentSource) active.PresenceS
 	return presenceStudents{source: source, care: care}
 }
 
-func (p presenceStudents) FindByID(ctx context.Context, id int64) (*active.StudentRecord, error) {
+func (p presenceStudents) FindByID(ctx context.Context, id int64) (*studentpresence.StudentRecord, error) {
 	row, err := p.source.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -42,7 +43,7 @@ func (p presenceStudents) FindByID(ctx context.Context, id int64) (*active.Stude
 	return studentRecord(row), nil
 }
 
-func (p presenceStudents) FindByIDForUpdate(ctx context.Context, id int64) (*active.StudentRecord, error) {
+func (p presenceStudents) FindByIDForUpdate(ctx context.Context, id int64) (*studentpresence.StudentRecord, error) {
 	row, err := p.source.FindByIDForUpdate(ctx, id)
 	if err != nil {
 		return nil, err
@@ -50,19 +51,19 @@ func (p presenceStudents) FindByIDForUpdate(ctx context.Context, id int64) (*act
 	return studentRecord(row), nil
 }
 
-func (p presenceStudents) FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*active.StudentRecord, error) {
+func (p presenceStudents) FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*studentpresence.StudentRecord, error) {
 	rows, err := p.source.FindByIDsForUpdate(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	records := make(map[int64]*active.StudentRecord, len(rows))
+	records := make(map[int64]*studentpresence.StudentRecord, len(rows))
 	for id, row := range rows {
 		records[id] = studentRecord(row)
 	}
 	return records, nil
 }
 
-func (p presenceStudents) UpdateLiveStatus(ctx context.Context, record *active.StudentRecord) error {
+func (p presenceStudents) UpdateLiveStatus(ctx context.Context, record *studentpresence.StudentRecord) error {
 	if record == nil {
 		return nil
 	}
@@ -87,26 +88,26 @@ func (p presenceStudents) UpdateLiveStatus(ctx context.Context, record *active.S
 // presence flows branch on. Every other status, today only "pending", is
 // StudentLifecycleOther and is treated as not-yet-active, which is what the
 // enrollment filter and the check-in guards already did for it.
-func studentLifecycle(status users.StudentStatus) active.StudentLifecycle {
+func studentLifecycle(status users.StudentStatus) studentpresence.StudentLifecycle {
 	switch status {
 	case users.StudentStatusActive:
-		return active.StudentLifecycleActive
+		return studentpresence.StudentLifecycleActive
 	case users.StudentStatusInactive:
-		return active.StudentLifecycleInactive
+		return studentpresence.StudentLifecycleInactive
 	case users.StudentStatusAlumnus:
-		return active.StudentLifecycleAlumnus
+		return studentpresence.StudentLifecycleAlumnus
 	case users.StudentStatusPending:
-		return active.StudentLifecycleOther
+		return studentpresence.StudentLifecycleOther
 	default:
-		return active.StudentLifecycleOther
+		return studentpresence.StudentLifecycleOther
 	}
 }
 
-func studentRecord(row *users.Student) *active.StudentRecord {
+func studentRecord(row *users.Student) *studentpresence.StudentRecord {
 	if row == nil {
 		return nil
 	}
-	return &active.StudentRecord{
+	return &studentpresence.StudentRecord{
 		ID:            row.ID,
 		TenantID:      row.TenantID,
 		PersonID:      row.PersonID,
@@ -133,16 +134,16 @@ type statusDayOverviewPeople struct{ source statusDayOverviewSource }
 
 // StatusDayOverviewPeople serves the absence overview's people reads from the
 // users service.
-func StatusDayOverviewPeople(source statusDayOverviewSource) active.StatusDayOverviewPeople {
+func StatusDayOverviewPeople(source statusDayOverviewSource) presenceservice.StatusDayOverviewPeople {
 	return statusDayOverviewPeople{source: source}
 }
 
-func (p statusDayOverviewPeople) GetStudentsByGroupIDs(ctx context.Context, groupIDs []int64) ([]*active.StudentRecord, error) {
+func (p statusDayOverviewPeople) GetStudentsByGroupIDs(ctx context.Context, groupIDs []int64) ([]*studentpresence.StudentRecord, error) {
 	rows, err := p.source.GetStudentsByGroupIDs(ctx, groupIDs)
 	if err != nil {
 		return nil, err
 	}
-	records := make([]*active.StudentRecord, 0, len(rows))
+	records := make([]*studentpresence.StudentRecord, 0, len(rows))
 	for _, row := range rows {
 		if row == nil {
 			continue
@@ -152,17 +153,17 @@ func (p statusDayOverviewPeople) GetStudentsByGroupIDs(ctx context.Context, grou
 	return records, nil
 }
 
-func (p statusDayOverviewPeople) GetByIDs(ctx context.Context, ids []int64) (map[int64]*active.PersonName, error) {
+func (p statusDayOverviewPeople) GetByIDs(ctx context.Context, ids []int64) (map[int64]*studentpresence.PersonName, error) {
 	rows, err := p.source.GetByIDs(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	names := make(map[int64]*active.PersonName, len(rows))
+	names := make(map[int64]*studentpresence.PersonName, len(rows))
 	for id, row := range rows {
 		if row == nil {
 			continue
 		}
-		names[id] = &active.PersonName{ID: row.ID, FirstName: row.FirstName, LastName: row.LastName}
+		names[id] = &studentpresence.PersonName{ID: row.ID, FirstName: row.FirstName, LastName: row.LastName}
 	}
 	return names, nil
 }

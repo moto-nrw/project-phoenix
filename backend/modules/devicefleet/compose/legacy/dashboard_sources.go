@@ -13,12 +13,12 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // DashboardDependencies are the legacy readers the dashboard aggregate needs.
 type DashboardDependencies struct {
-	ActiveGroups   activeModels.GroupRepository
+	ActiveGroups   studentpresence.SessionRecords
 	Templates      activitiesModels.GroupRepository
 	Instances      scheduleModels.ActivityInstanceRepository
 	PickupSchedule careplan.BulkPickupTimes
@@ -44,7 +44,7 @@ func (s dashboardSources) ListActiveSessions(ctx context.Context) ([]compose.Act
 		if group == nil {
 			continue
 		}
-		session := compose.ActiveSession{ID: group.ID, RoomID: group.RoomID, Running: group.IsActive()}
+		session := compose.ActiveSession{ID: group.ID, RoomID: group.RoomID, Running: group.IsOpen()}
 		if templateID, ok := group.TemplateID(); ok {
 			session.TemplateID = &templateID
 		}

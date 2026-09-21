@@ -8,7 +8,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/uptrace/bun"
 )
 
@@ -19,7 +18,7 @@ type StudentTestRepositories struct {
 	ParentRequestShare usersModels.ParentRequestShareEventRepository
 	EnrollmentTestRepositories
 	CareScheduleChangeRequest    scheduleModels.CareScheduleChangeRequestRepository
-	ExcusedAbsenceRequest        activeModels.ExcusedAbsenceRequestRepository
+	ExcusedAbsenceRequest        *ExcusedAbsenceRequestRepository
 	ParentRequestEvent           usersModels.ParentRequestEventRepository
 	StudentDataChangeRequest     usersModels.StudentDataChangeRequestRepository
 	FamilyProtection             usersModels.FamilyProtectionEventRepository

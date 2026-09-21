@@ -14,7 +14,7 @@ import (
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -40,7 +40,7 @@ type StaffLockStore interface {
 }
 
 type ActiveSupervisorCreator interface {
-	CreateGroupSupervisor(context.Context, *activeModels.GroupSupervisor) error
+	CreateGroupSupervisor(context.Context, *studentpresence.GroupSupervision) error
 }
 
 type SubstitutionDependencies struct {
@@ -58,8 +58,8 @@ type SubstitutionDependencies struct {
 	Now                     func() time.Time
 	CanSeeAll               func(ctx context.Context, assignmentBound, admin, hasStaff bool) (bool, error)
 	Schedule                ScheduleSubstitutionAdapter
-	ActiveGroups            activeModels.GroupRepository
-	ActiveSupervisors       activeModels.GroupSupervisorRepository
+	ActiveGroups            studentpresence.SessionRecords
+	ActiveSupervisors       studentpresence.SupervisionRecords
 	ActiveSupervisorCreator ActiveSupervisorCreator
 }
 

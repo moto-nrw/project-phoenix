@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -106,7 +105,7 @@ type fakeStatusFlagSettings struct {
 	overrides map[string]string
 }
 
-func statusDayRepository(t *testing.T, db *bun.DB) activeModels.StudentStatusDayOverviewRepository {
+func statusDayRepository(t *testing.T, db *bun.DB) *repositories.StudentStatusDayRepository {
 	t.Helper()
 	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)

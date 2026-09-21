@@ -13,7 +13,9 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
@@ -133,21 +135,23 @@ func NewInvitationCleanupService(db *bun.DB, logger *slog.Logger) (identityacces
 	return module, nil
 }
 
-func NewSessionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger) active.Service {
+func NewSessionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger) studentpresence.Presence {
 	repos := repositories.NewSessionCleanupRepositories(db, timetableCapability)
+	groups, supervisors := presenceCompose.SessionRepositories(repos.Sessions)
 	settings := NewCleanupSettingsService(db, runtime, schools, logger)
-	return active.NewService(active.ServiceDependencies{
+	return presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		PrincipalReader: AttendancePrincipal,
 		SchoolPresence:  newStudentPresence(db, logger),
-		GroupRepo:       repos.Group, SupervisorRepo: repos.Supervisor,
+		GroupRepo:       groups, SupervisorRepo: supervisors,
 		DeviceRepo: NewSessionDeviceDirectory(repos.Device, settings, logger), TimetableBridgeCompleter: repos.TimetableBridge, DB: db, Logger: logger,
-	}, active.WithTenantRuntime(runtime), active.WithSettings(PresenceSettings(settings)))
+	}, presenceservice.WithPresenceTenantRuntime(runtime), presenceservice.WithPresenceSettings(PresenceSettings(settings)))
 }
 
-func NewRetentionCleanupService(db *bun.DB, logger *slog.Logger, command AuditCommand) active.CleanupService {
+func NewRetentionCleanupService(db *bun.DB, logger *slog.Logger, command AuditCommand) studentpresence.PresenceCleanup {
 	repos := repositories.NewRetentionCleanupRepositories(db, command)
-	return active.NewCleanupService(
-		newStudentPresence(db, logger), repos.Supervisor, NewDeletionAudit(repos.Deletion),
+	_, supervisors := presenceCompose.SessionRepositories(repos.Sessions)
+	return presenceservice.NewPresenceCleanup(
+		newStudentPresence(db, logger), supervisors, NewDeletionAudit(repos.Deletion),
 	)
 }
 

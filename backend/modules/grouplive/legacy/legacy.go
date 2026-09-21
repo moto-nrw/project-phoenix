@@ -25,11 +25,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
@@ -51,7 +50,7 @@ type Sources struct {
 	Education         educationService.Service
 	Substitutions     educationService.SubstitutionModule
 	UserContext       CallerContext
-	Active            activeService.Service
+	Active            studentpresence.Presence
 	Settings          configService.SettingsService
 	Pickups           careplan.BulkPickupTimes
 	Arrivals          careplan.BulkArrivalTimes
@@ -59,7 +58,7 @@ type Sources struct {
 	CareDays          careplan.CareDayQuery
 	CareParticipation careplan.CareParticipation
 	ExcusedRequests   grouplive.PendingExcusedReader
-	StatusDays        *activeService.StudentStatusDayService
+	StatusDays        studentpresence.StatusDays
 	Logger            *slog.Logger
 	Now               func() time.Time
 }
@@ -230,8 +229,8 @@ func (r roster) CareParticipants(ctx context.Context, studentIDs []int64, date g
 
 type presence struct {
 	presence   studentpresence.Query
-	active     activeService.Service
-	statusDays *activeService.StudentStatusDayService
+	active     studentpresence.Presence
+	statusDays studentpresence.StatusDays
 }
 
 func (p presence) Snapshot(ctx context.Context, studentIDs []int64, date grouplive.Date) (grouplive.PresenceSnapshot, error) {
@@ -243,7 +242,7 @@ func (p presence) Snapshot(ctx context.Context, studentIDs []int64, date groupli
 	if err != nil {
 		return nil, err
 	}
-	snapshot := activeService.NewStudentLocationSnapshot(mode)
+	snapshot := studentpresence.NewStudentLocationSnapshot(mode)
 	ids := slices.Compact(slices.Sorted(slices.Values(studentIDs)))
 	if len(ids) == 0 {
 		return locationSnapshot{snapshot: snapshot}, nil
@@ -256,13 +255,13 @@ func (p presence) Snapshot(ctx context.Context, studentIDs []int64, date groupli
 		return nil, err
 	}
 	for _, attendance := range attendances {
-		snapshot.Attendances[attendance.StudentID] = &activeService.AttendanceStatus{
+		snapshot.Attendances[attendance.StudentID] = &studentpresence.DailyAttendanceStatus{
 			StudentID: attendance.StudentID, Date: day, Status: attendance.Status,
 			CheckInTime: attendance.CheckInTime, CheckOutTime: attendance.CheckOutTime, YardSince: attendance.YardSince,
 		}
 	}
-	if mode == activeService.PresenceModeBinary {
-		snapshot.YardRoomColor = activeService.ResolveYardRoomColor(ctx, p.active)
+	if mode == studentpresence.PresenceModeBinary {
+		snapshot.YardRoomColor = studentpresence.ResolveYardRoomColor(ctx, p.active)
 		return locationSnapshot{snapshot: snapshot}, nil
 	}
 	if err := p.loadVisits(ctx, snapshot, ids); err != nil {
@@ -271,7 +270,7 @@ func (p presence) Snapshot(ctx context.Context, studentIDs []int64, date groupli
 	return locationSnapshot{snapshot: snapshot}, nil
 }
 
-func (p presence) loadVisits(ctx context.Context, snapshot *activeService.StudentLocationSnapshot, studentIDs []int64) error {
+func (p presence) loadVisits(ctx context.Context, snapshot *studentpresence.StudentLocationSnapshot, studentIDs []int64) error {
 	visits, err := p.presence.ListVisits(ctx, studentpresence.VisitFilter{StudentIDs: studentIDs, OpenOnly: true, StudentOrder: true, NewestFirst: true})
 	if err != nil {
 		return err
@@ -302,7 +301,7 @@ func (p presence) loadVisits(ctx context.Context, snapshot *activeService.Studen
 }
 
 type locationSnapshot struct {
-	snapshot *activeService.StudentLocationSnapshot
+	snapshot *studentpresence.StudentLocationSnapshot
 }
 
 func (s locationSnapshot) Location(studentID int64, fullAccess bool) grouplive.Location {
@@ -343,13 +342,13 @@ func (p presence) EffectiveStatuses(ctx context.Context, studentIDs []int64, dat
 	if err != nil {
 		return nil, err
 	}
-	byStudent := make(map[int64][]*activeModels.StudentStatusDay)
+	byStudent := make(map[int64][]*absencerecords.StudentStatusDay)
 	for _, row := range rows {
 		byStudent[row.StudentID] = append(byStudent[row.StudentID], row)
 	}
 	result := make(map[int64]grouplive.EffectiveStatus, len(byStudent))
 	for studentID, statusRows := range byStudent {
-		status := activeService.ResolveEffectiveStatus(statusRows)
+		status := studentpresence.ResolveEffectiveStatus(statusRows)
 		result[studentID] = grouplive.EffectiveStatus{
 			Sick: status.Sick, ClassTrip: status.ClassTrip, Excused: status.Excused,
 			SickSince: status.SickSince, ClassTripSince: status.ClassTripSince, ExcusedSince: status.ExcusedSince,
