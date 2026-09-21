@@ -1,11 +1,12 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Care Lifecycle retirement may replace its legacy permissions
 
-Proposed for #3427. It needs the architecture owner's approval before the
-policy epoch that uses it merges.
+Accepted for #3427 in the implementing change, following the precedent of
+ADR 0030. The pull request review is where it can still be rejected; the
+exception activates only in the policy epoch that review merges.
 
 ## Context
 
@@ -88,6 +89,20 @@ suites never had, and the retired owner refused), and incomplete retirement
 (same epoch, retained adapter or subpackage, reclassified base, foreign module
 path). `scripts/backend-architecture.sh check` runs the strictness comparison
 against the merge base and stays green with the baseline unchanged.
+
+## Readings of the ticket this cutover settles
+
+- Child documents stay Care Plan records. #3427 item 4 places document
+  metadata with File Storage (ADR 0010), but the same ticket also rules out any
+  write-owner change and any DDL. The binding constraint wins: File Storage
+  keeps moving the bytes through its coordinator, whose store port composition
+  now binds straight to Care Plan's records, and the category authority stays
+  with Care Plan. Moving `users.student_documents` to File Storage is a
+  separate ownership change.
+- "Policy ownership unchanged" is read as data-object ownership, which does
+  not change. The `care-exit-view` projection owner holds no data; its reads
+  moved into `student-directory-view`, which grants exactly the same four
+  tables, so keeping an empty owner would leave a stale classification.
 
 ## Consequences
 

@@ -1758,7 +1758,7 @@
       "declaration": "TestStudentCompanionRepository_CompanionIDsForWeekday",
       "target": "database/repositories.NewFactory",
       "lines": [
-        193
+        192
       ],
       "tables": []
     },
@@ -1768,7 +1768,7 @@
       "declaration": "TestStudentCompanionRepository_CompanionIDsForWeekdayTransitive",
       "target": "database/repositories.NewFactory",
       "lines": [
-        254
+        253
       ],
       "tables": []
     },
@@ -1778,7 +1778,7 @@
       "declaration": "TestStudentCompanionRepository_ListLinksFoldsWeekdays",
       "target": "database/repositories.NewFactory",
       "lines": [
-        299
+        298
       ],
       "tables": []
     },
@@ -1788,7 +1788,7 @@
       "declaration": "TestStudentCompanionRepository_ListLinksForStudents",
       "target": "database/repositories.NewFactory",
       "lines": [
-        347
+        346
       ],
       "tables": []
     },
@@ -1798,7 +1798,7 @@
       "declaration": "TestStudentCompanionRepository_ReplaceForStudent_EmptyClears",
       "target": "database/repositories.NewFactory",
       "lines": [
-        117
+        116
       ],
       "tables": []
     },
@@ -1808,7 +1808,7 @@
       "declaration": "TestStudentCompanionRepository_ReplaceForStudent_IsSymmetric",
       "target": "database/repositories.NewFactory",
       "lines": [
-        51
+        50
       ],
       "tables": []
     },
@@ -1818,7 +1818,7 @@
       "declaration": "TestStudentCompanionRepository_ReplaceForStudent_LeavesUnrelatedEdges",
       "target": "database/repositories.NewFactory",
       "lines": [
-        148
+        147
       ],
       "tables": []
     },
@@ -1828,7 +1828,7 @@
       "declaration": "TestStudentCompanionRepository_ReplaceForStudent_MultipleWeekdays",
       "target": "database/repositories.NewFactory",
       "lines": [
-        86
+        85
       ],
       "tables": []
     },
