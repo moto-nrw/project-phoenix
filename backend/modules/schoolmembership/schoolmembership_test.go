@@ -678,3 +678,8 @@ func (e *recordingEngine) ResolveClassListEntry(_ context.Context, input schoolm
 func (e *recordingEngine) BindClassListEntryAdministration(schoolmembership.ClassListEntryStudents, schoolmembership.ClassListEntryTrail) {
 	e.calls++
 }
+
+func (e *recordingEngine) ReadInTenant(ctx context.Context, read func(context.Context) error) error {
+	e.calls++
+	return read(ctx)
+}

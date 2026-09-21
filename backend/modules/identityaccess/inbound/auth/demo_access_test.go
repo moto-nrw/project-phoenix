@@ -214,13 +214,13 @@ func TestDemoAccessStatusFollowsTheDemoSchool(t *testing.T) {
 
 	rr := env.status(token)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-	assert.JSONEq(t, `{"status":"preparing"}`, rr.Body.String())
+	assert.JSONEq(t, `{"status":"preparing","school_name":"OGS Beispiel"}`, rr.Body.String())
 	assert.Equal(t, http.StatusConflict, env.post(t, "/demo/access/sessions", map[string]string{"token": token}).Code)
 
 	env.provisionDemoAdmin(t)
 	rr = env.status(token)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-	assert.JSONEq(t, `{"status":"ready","school_url":"https://`+env.slug+`.demo.example"}`, rr.Body.String(),
+	assert.JSONEq(t, `{"status":"ready","school_name":"OGS Beispiel","school_url":"https://`+env.slug+`.demo.example"}`, rr.Body.String(),
 		"a ready status names the school's origin, where the entry page redeems the token")
 }
 

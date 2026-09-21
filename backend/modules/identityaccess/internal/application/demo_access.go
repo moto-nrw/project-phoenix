@@ -103,23 +103,24 @@ func (d *DemoAccess) schoolFor(ctx context.Context, access, known domain.DemoAcc
 	return d.schools.PrepareDemoSchool(ctx, access.SchoolName, access.PersonName)
 }
 
-// Status reports the progress of the token's demo school and its slug, which
-// is the school's address once it is ready. A ready school without an account
-// to sign in is still preparing.
-func (d *DemoAccess) Status(ctx context.Context, token string) (status, schoolSlug string, err error) {
+// Status reports the progress of the token's demo school and the access
+// itself, whose school slug is the school's address once it is ready. A ready
+// school without an account to sign in is still preparing.
+func (d *DemoAccess) Status(ctx context.Context, token string) (access domain.DemoAccess, status string, err error) {
 	err = d.adminTx(ctx, func(txCtx context.Context) error {
-		access, err := d.valid(txCtx, token)
-		if err != nil {
+		var err error
+		if access, err = d.valid(txCtx, token); err != nil {
 			return err
 		}
 		entry, err := d.entry(txCtx, access.SchoolSlug)
-		status, schoolSlug = entry.Status, access.SchoolSlug
+		status = entry.Status
 		return err
 	})
-	return status, schoolSlug, err
+	return access, status, err
 }
 
-// Redeem notes the use and mints a session in the token's demo school: for
+// Redeem notes the use, which starts or resumes the school's simulation
+// (#3464), and mints a session in the token's demo school: for
 // the prospect's own caregiver, or for the administrator of a school without
 // one. The token stays valid afterwards.
 func (d *DemoAccess) Redeem(ctx context.Context, token, ipAddress, userAgent string) (string, string, error) {
@@ -134,6 +135,9 @@ func (d *DemoAccess) Redeem(ctx context.Context, token, ipAddress, userAgent str
 		}
 		if entry.Status != domain.DemoSchoolReady {
 			return domain.ErrDemoSchoolPreparing
+		}
+		if err := d.schools.MarkDemoSchoolUsed(txCtx, access.SchoolSlug, d.now()); err != nil {
+			return err
 		}
 		return d.store.RecordDemoAccessUse(txCtx, access.ID, entry.AccountID, d.now())
 	})

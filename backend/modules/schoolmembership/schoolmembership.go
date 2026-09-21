@@ -284,6 +284,7 @@ type Capability interface {
 	StudentEnrollmentCommands
 	Query
 	Command
+	StaffIdentities
 }
 
 type engine interface {
@@ -334,6 +335,9 @@ type engine interface {
 	RemoveClassListEntry(context.Context, RemoveClassListEntry) error
 	ResolveClassListEntry(context.Context, ResolveClassListEntry) error
 	BindClassListEntryAdministration(ClassListEntryStudents, ClassListEntryTrail)
+	// ReadInTenant runs read inside one read transaction of the context's
+	// tenant and fails when the context carries none.
+	ReadInTenant(ctx context.Context, read func(context.Context) error) error
 }
 
 type teachingAssignmentEngine interface {

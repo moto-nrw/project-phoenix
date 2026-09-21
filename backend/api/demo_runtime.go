@@ -91,9 +91,15 @@ func (d *DemoRuntime) FailDemoSchoolOrder(ctx context.Context, slug string, maxA
 	return d.queue.FailDemoSchoolOrder(ctx, slug, maxAttempts)
 }
 
-// ReadyDemoSchools lists the demo schools the simulation keeps alive.
+// ReadyDemoSchools lists every demo school that can be entered.
 func (d *DemoRuntime) ReadyDemoSchools(ctx context.Context) ([]string, error) {
 	return d.queue.ReadyDemoSchools(ctx)
+}
+
+// ActiveDemoSchools lists the ready demo schools a visitor entered since the
+// instant; only these get simulation ticks (#3464).
+func (d *DemoRuntime) ActiveDemoSchools(ctx context.Context, since time.Time) ([]string, error) {
+	return d.queue.ActiveDemoSchools(ctx, since)
 }
 
 func (d *DemoRuntime) LoadDemoSchool(ctx context.Context, name string) (*DemoSchoolRecord, error) {

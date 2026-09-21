@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -142,4 +143,46 @@ func TestDemoSchoolOrdersCannotReadOrForgeSeedState(t *testing.T) {
 		})
 		assert.Error(t, err, statement)
 	}
+}
+
+// The simulation serves only demo schools a visitor entered in the last
+// minutes (#3464). The serving backend notes an entry with its restricted role.
+func TestActiveDemoSchoolsAreTheReadyOnesEnteredSince(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	firstID, _ := testpkg.CreateTestTenant(t, db)
+	secondID, _ := testpkg.CreateTestTenant(t, db)
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	ctx := t.Context()
+
+	used, idle := orderDemoSchool(t, db, "OGS Nord"), orderDemoSchool(t, db, "OGS Süd")
+	for slug, schoolID := range map[string]int64{used: firstID, idle: secondID} {
+		_, err := queue.ClaimDemoSchoolOrder(ctx)
+		require.NoError(t, err)
+		require.NoError(t, schools.RememberDemoSchool(ctx, slug, organizationtenancy.DemoSchoolState{SchoolID: schoolID, SeedJSON: []byte(`{}`)}))
+		require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, 0))
+	}
+	waiting := orderDemoSchool(t, db, "OGS West")
+	enter := func(slug string, at time.Time) {
+		require.NoError(t, testpkg.WithinAdminContext(t, ctx, db, func(ctx context.Context) error {
+			return NewDemoSchoolOrders(strings.NewReader("k3m9xp")).MarkDemoSchoolUsed(ctx, slug, at)
+		}))
+	}
+	active := func(since time.Time) []string {
+		slugs, err := queue.ActiveDemoSchools(ctx, since)
+		require.NoError(t, err)
+		return slugs
+	}
+	entered := time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)
+
+	assert.Empty(t, active(entered.Add(-time.Hour)), "a ready school nobody entered gets no ticks")
+	enter(used, entered)
+	enter(waiting, entered)
+	assert.Equal(t, []string{used}, active(entered.Add(-time.Minute)), "only a ready school that was entered gets ticks")
+	assert.Empty(t, active(entered.Add(time.Minute)), "an entry before the window keeps nothing alive")
+	enter(used, entered.Add(time.Hour))
+	assert.Equal(t, []string{used}, active(entered.Add(time.Minute)), "a returning visitor brings the school back")
 }
