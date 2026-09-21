@@ -266,6 +266,13 @@ func (f *Factory) AccountAuthentication() *identityaccess.Module {
 	return f.Auth
 }
 
+// AccountRouteTenantRuntime is the tenant runtime the account routes of
+// Identity & Access run in (#2736). The root may not name the module's
+// composition, so it takes the runtime from here.
+func AccountRouteTenantRuntime() identityaccessCompose.TenantUnitOfWork {
+	return identityaccessCompose.TenantUnitOfWork{}
+}
+
 // --- retained owner seams -------------------------------------------------
 
 type schoolDirectory struct {

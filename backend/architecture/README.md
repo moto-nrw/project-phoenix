@@ -1220,11 +1220,11 @@ Every other `organization-tenancy.http.*`,
 `communication.adapter-test.*` rule is a compatibility permission for the
 retained services, rows, token claims, calendar date, tenant runtime and
 ORM the handlers still speak, including the `internal/timezone` edge the
-ticket names: convert them to exact debt with the rule above under #2736
-once the packages exist at a base SHA. The operator settings hook is now
-construction-time configuration (`SettingsConfig.OnValueSet`,
-`ResourceConfig.SettingValueSet`) instead of a setter, because the
-composition surface guard records mutable wiring per package.
+ticket names. #2736 removed those imports instead of converting them (see
+below). The operator settings hook is construction-time configuration
+instead of a setter, because the composition surface guard records mutable
+wiring per package; since #2736 it is `OperatorDependencies.OnValueSet` of
+`modules/settings/compose`.
 
 The review of unregistered RFID scans could not join a candidate-only
 point: `device-fleet`/`http` already exists (`api/iot/devices`,
@@ -1265,8 +1265,58 @@ the retained rows. The school-scoped
 MFA admin writes now take their tenant context in
 `modules/identityaccess/compose` (`identity-access.compose.tenant-runtime`)
 instead of the HTTP adapter, which removes the
-`production|api/operator|tenant` debt. Deleting `api/operator` and the
-remaining `inbound-operator` debt stays with #2736, after #2725.
+`production|api/operator|tenant` debt.
+
+#2736 closed the carrier of `api/auth` and `api/operator`: all 37 keys it
+still held, the root's `api -> modules/identityaccess/inbound/auth` key
+and every rule that named #2736 are gone (624 -> 586). No route path, status
+code, error body or authorization check changed.
+
+- The account routes left the `inbound-auth` point. PR mode rejects an
+  owner change of an existing package, so the files moved file for file to
+  the new package `modules/identityaccess/inbound/account`, classified
+  `identity-access`/`http` like `inbound/me` and `inbound/operator`; the
+  `inbound-auth` owner, its one rule and the #3230 relocation record are
+  deleted. The session adapter, `api/common` and the refresh rotation are
+  target dependencies of that point (ADR 0031). The rest became
+  consumer-owned ports the root binds: `Caregivers` (People Directory's
+  caregiver capability as rendered JSON with behaviour-classified errors,
+  `services/users.CaregiverCapabilityViews`), `RoleGrants` (Security
+  Runtime's grant decision, `services.RoleGrantPolicy`), the extended
+  `UnitOfWork` (`modules/identityaccess/compose.TenantUnitOfWork`, handed
+  out by `services.AccountRouteTenantRuntime`), the demo switch as a bool,
+  and the tenant shell's reads through the Settings Platform contract. The
+  driver's no-rows error became `identityaccess.ErrRecordMissing`, marked
+  in the module's composition with the store's text kept.
+- Settings Platform gained its public contract `modules/settings` (the
+  setting keys other owners read, `TenantReader`, and
+  `OperatorSchoolSettings`) and the composition `modules/settings/compose`,
+  both new points with rules anchored to them. The operator school settings
+  routes call only that capability; the tenant transaction, the side-effect
+  hook, the presence-mode guard and the booking-authority preview live in the
+  composition. The root binds the broadcast and the open-attendance check
+  from `services`, so `settings-platform.http.delivery-public`, the
+  settings → delivery edge ADR 0032 names, is deleted without a
+  replacement.
+- The Organisation & Tenancy provisioning routes take the caregiver
+  capability as the same kind of port, run the seed-token gate through
+  `api/common`, and classify a failed identity store by the new
+  `organizationtenancy.ErrIdentityStoreFailed`, which `services` sets on
+  errors carrying `StoreFailure()` (`models/base.DatabaseError`).
+- `api/operator` is now the operator router only. The session chains are
+  Identity & Access's (`identityoperator.Sessions`), and the review of
+  unregistered RFID scans maps its own refusals in Device Fleet.
+- The `inbound-common` and `token-claims` rules of the Organisation &
+  Tenancy, Settings Platform and Communication HTTP points and their adapter
+  tests are target rules now, as they are for the eleven other owner HTTP
+  points (ADR 0031). Every other #3232 compatibility permission of those
+  points is deleted.
+- Tests reach claims, the test module wiring and raw setting rows through
+  `api/testutil` and `test`, which already held those imports. One
+  assertion could not follow: no test role that may import `auth/rotation`
+  may drive the operator refresh route, so the forwarding of the
+  `X-Refresh-Recovery-Proof` header is no longer asserted
+  (`api/operator/auth_test.go`, marked as a coverage gap).
 
 The session end workflow (`workflows/sessionend`, owner `session-end`, kind
 `workflow`, #2697) is a cross-module write workflow of #2580. Its

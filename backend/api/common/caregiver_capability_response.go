@@ -4,20 +4,23 @@ import (
 	"net/http"
 
 	"github.com/go-chi/render"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
+// CaregiverCapabilityBlockedResponse names the People Directory blockers
+// that keep an account's caregiver capability from being removed. The codes
+// are People Directory's wire values; the HTTP adapters pass them through as
+// strings so they need not import the owner's rows (#2736).
 type CaregiverCapabilityBlockedResponse struct {
-	HTTPStatusCode int                                         `json:"-"`
-	Status         string                                      `json:"status"`
-	ErrorText      string                                      `json:"error"`
-	Blockers       []userModels.CaregiverCapabilityBlockerCode `json:"blockers"`
+	HTTPStatusCode int      `json:"-"`
+	Status         string   `json:"status"`
+	ErrorText      string   `json:"error"`
+	Blockers       []string `json:"blockers"`
 }
 
 func NewCaregiverCapabilityBlockedResponse(
 	httpStatusCode int,
 	errorText string,
-	blockers []userModels.CaregiverCapabilityBlockerCode,
+	blockers []string,
 ) *CaregiverCapabilityBlockedResponse {
 	status := "error"
 	if httpStatusCode == 0 {

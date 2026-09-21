@@ -28,6 +28,12 @@ type demoAccessWiring struct {
 	maxActiveSchools int
 }
 
+// IsDemoEnvironment reports whether appEnv names the public demo, the only
+// environment that mounts the demo routes (#2736).
+func IsDemoEnvironment(appEnv string) bool {
+	return email.IsDemoEnvironment(appEnv)
+}
+
 // demoAccessWiringFor composes the demo access for APP_ENV=demo only.
 func demoAccessWiringFor(appEnv string, dispatcher *email.Dispatcher, defaultFrom email.Email, frontendURL string, maxActiveSchools int, logger *slog.Logger) *demoAccessWiring {
 	if !email.IsDemoEnvironment(appEnv) {

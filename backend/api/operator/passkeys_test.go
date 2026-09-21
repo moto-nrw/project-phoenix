@@ -14,7 +14,7 @@ import (
 	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -121,13 +121,10 @@ func TestOperatorPasskeyLoginHandlers(t *testing.T) {
 func TestOperatorPasskeyLoginRoutesArePublic(t *testing.T) {
 	t.Parallel()
 
-	tokenAuth, err := jwt.NewTokenAuthWithDurations("operator-passkey-test-secret-32-chars", 15*time.Minute, time.Hour)
-	require.NoError(t, err)
-
 	svc := &operatorPasskeyServiceStub{}
 	router := NewResource(ResourceConfig{
 		PasskeyService: svc,
-		TokenAuth:      tokenAuth,
+		Sessions:       identityoperator.NewSessions(testutil.TestTokenAuth(t), nil),
 	}).Router()
 
 	req := operatorPasskeyJSONRequest("/auth/passkeys/login/options", `{}`)
@@ -150,12 +147,9 @@ func TestOperatorPasskeyLoginRoutesArePublic(t *testing.T) {
 func TestOperatorPasskeyListRouteAcceptsBothSlashForms(t *testing.T) {
 	t.Parallel()
 
-	tokenAuth, err := jwt.NewTokenAuthWithDurations("operator-passkey-test-secret-32-chars", 15*time.Minute, time.Hour)
-	require.NoError(t, err)
-
 	router := NewResource(ResourceConfig{
 		PasskeyService: &operatorPasskeyServiceStub{},
-		TokenAuth:      tokenAuth,
+		Sessions:       identityoperator.NewSessions(testutil.TestTokenAuth(t), nil),
 	}).Router()
 
 	for _, path := range []string{"/auth/passkeys", "/auth/passkeys/"} {
@@ -173,7 +167,7 @@ func TestOperatorPasskeyAuthenticatedHandlers(t *testing.T) {
 
 	svc := &operatorPasskeyServiceStub{}
 	rs := identityoperator.NewPasskeyResource(svc)
-	claims := jwt.AppClaims{ID: 21, Scope: "platform"}
+	claims := testutil.Claims{ID: 21, Scope: "platform"}
 
 	w := httptest.NewRecorder()
 	rs.PasskeyEnrollmentChallenge(w, withOperatorPasskeyClaims(operatorPasskeyJSONRequest("/auth/passkeys/enrollment/challenge", `{}`), claims))
@@ -235,7 +229,7 @@ func TestOperatorPasskeyStoreFailuresAreNotClientErrors(t *testing.T) {
 	t.Parallel()
 
 	storeDown := errors.New("database error during consume operator passkey session: connection reset")
-	claims := jwt.AppClaims{ID: 41}
+	claims := testutil.Claims{ID: 41}
 	loginVerify := func(rs *identityoperator.PasskeyResource, w http.ResponseWriter) {
 		rs.PasskeyLoginVerify(w, operatorPasskeyJSONRequest("/auth/passkeys/login/verify", `{"session_id":"s","response":{"id":"a"}}`))
 	}
@@ -278,8 +272,8 @@ func operatorPasskeyJSONRequest(path, body string) *http.Request {
 	return req
 }
 
-func withOperatorPasskeyClaims(req *http.Request, claims jwt.AppClaims) *http.Request {
-	return req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, claims))
+func withOperatorPasskeyClaims(req *http.Request, claims testutil.Claims) *http.Request {
+	return req.WithContext(testutil.WithAuthenticatedContext(req.Context(), claims, nil))
 }
 
 func withOperatorPasskeyRouteParam(req *http.Request, key, value string) *http.Request {

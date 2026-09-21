@@ -278,7 +278,7 @@ func setupCaregiverCompositionModule(api *API) *caregiverComposition {
 	return &caregiverComposition{
 		authWired:        api.Auth != nil,
 		operatorWired:    api.Operator != nil,
-		sharedCapability: api.Services.CaregiverCapability == api.Auth.CaregiverCapabilityService,
+		sharedCapability: api.Auth.CaregiverCapabilityService == any(api.Services.CaregiverCapabilityViews(api.db)),
 	}
 }
 

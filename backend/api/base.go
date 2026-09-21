@@ -79,7 +79,7 @@ import (
 	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	filestoreAPI "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
-	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth"
+	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
 	meAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/me"
 	identityOperatorAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 	projectJWT "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
@@ -103,6 +103,7 @@ import (
 	schoolPortal "github.com/moto-nrw/project-phoenix/modules/schoolportal"
 	schoolStructureModule "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
 	calendarAPI "github.com/moto-nrw/project-phoenix/modules/staffcalendar/http"
 	statisticsAPI "github.com/moto-nrw/project-phoenix/modules/statistics/http"
@@ -1342,9 +1343,10 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		Settings:    api.Services.Settings,
 		FallbackPIN: os.Getenv("OGS_DEVICE_PIN"),
 	})
-	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, authSchools, api.Services.AccountAuthentication(), authAPI.TenantUnitOfWork{})
-	api.Auth.CaregiverCapabilityService = api.Services.CaregiverCapability
+	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, authSchools, api.Services.AccountAuthentication(), services.AccountRouteTenantRuntime())
+	api.Auth.CaregiverCapabilityService = api.Services.CaregiverCapabilityViews(db)
 	api.Auth.SettingsService = api.Services.Settings
+	api.Auth.RoleGrants = services.RoleGrantPolicy{}
 	api.Auth.MFAService = api.Services.MFA
 	api.Auth.PasskeyService = api.Services.Passkey
 	api.Rooms = roomsHTTPAdapter.NewResource(api.rooms, roomsHTTPAdapter.Dependencies{
@@ -1602,39 +1604,41 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		Scans:     api.Services.IoT.Fleet(),
 		Directory: tagScanSchoolDirectory{schools: api.Services.Schools},
 		Surface: tagScanOperatorAPI.Surface{
-			InvalidRequest:  apiCommon.OperatorInvalidRequest,
-			Internal:        apiCommon.OperatorInternal,
-			ResolveFallback: operatorAPI.UnregisteredTagScanResolveError,
-			RenderError:     apiCommon.RenderError,
-			Respond:         apiCommon.Respond,
+			InvalidRequest: apiCommon.OperatorInvalidRequest,
+			Internal:       apiCommon.OperatorInternal,
+			RenderError:    apiCommon.RenderError,
+			Respond:        apiCommon.Respond,
 			OperatorID: func(ctx context.Context) int64 {
 				return int64(projectJWT.ClaimsFromCtx(ctx).ID)
 			},
 		},
 	})
-	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
-		AppEnv:                     viper.GetString("app_env"),
-		AuthService:                api.Services.OperatorAuth,
-		Identity:                   identityOperatorAPI.NewResource(api.Services.AccountAuthentication(), operatorAPI.IdentityResponses()),
-		PasskeyService:             api.Services.OperatorPasskey,
-		MFAService:                 api.Services.OperatorMFA,
-		InvitationService:          api.Services.OperatorInvitation,
-		ProvisioningService:        api.Services.OperatorProvisioning,
-		CaregiverCapabilityService: api.Services.CaregiverCapability,
-		AnnouncementsService:       api.Services.Announcement,
-		UnregisteredTagScans:       tagScanReview.Router(),
-		SettingsService:            api.Services.Settings,
-		Broadcaster:                api.Services.RealtimeHub,
-		SchoolService:              api.Services.Schools,
-		ActiveService:              api.Services.Active,
-		CareLifecycle:              api.Services.CareLifecycle,
+	schoolSettings := settingsCompose.NewOperatorSchoolSettings(settingsCompose.OperatorDependencies{
+		Settings:       api.Services.Settings,
+		DB:             db,
+		Notify:         api.Services.SettingsChangedNotifier(),
+		OpenAttendance: api.Services.OpenAttendanceChecker(),
+		CareLifecycle:  api.Services.CareLifecycle,
 		// Mirror the tenant-side OnValueSet hook so operator writes also
 		// trigger side effects (e.g. auto-creating the Schulhof/WC rooms when
 		// the corresponding checkout toggle flips on).
-		SettingValueSet:  api.Services.SettingsSideEffects.Dispatch,
-		TenantMFAService: api.Services.MFA,
-		TokenAuth:        sessionAuth,
-		DB:               db,
+		OnValueSet: api.Services.SettingsSideEffects.Dispatch,
+	})
+	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
+		AppEnv:               viper.GetString("app_env"),
+		AuthService:          api.Services.OperatorAuth,
+		Identity:             identityOperatorAPI.NewResource(api.Services.AccountAuthentication(), operatorAPI.IdentityResponses()),
+		PasskeyService:       api.Services.OperatorPasskey,
+		MFAService:           api.Services.OperatorMFA,
+		InvitationService:    api.Services.OperatorInvitation,
+		ProvisioningService:  api.Services.OperatorProvisioning,
+		Caregivers:           api.Services.CaregiverCapabilityViews(db),
+		AnnouncementsService: api.Services.Announcement,
+		UnregisteredTagScans: tagScanReview.Router(),
+		SchoolSettings:       schoolSettings,
+		SchoolService:        api.Services.Schools,
+		TenantMFAService:     api.Services.MFA,
+		Sessions:             identityOperatorAPI.NewSessions(sessionAuth, api.Services.OperatorAuth),
 	})
 	api.Parent = parentAPI.NewResource(parentAPI.ResourceConfig{
 		Auth:                  parentPortalLogin(api.Services.ParentPortalLogin()),

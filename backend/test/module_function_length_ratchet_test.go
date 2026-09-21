@@ -167,7 +167,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/identityaccess/internal/application/staff_preview.go:(*AccountLifecycle).StartStaffPreview":                                  133,
 	"modules/mealplan/internal/adapters/postgres/store.go:(*Store).FindDailyParticipation":                                                83,
 	"modules/mealplan/internal/adapters/postgres/store.go:(*Store).FindParticipation":                                                     66,
-	"modules/organizationtenancy/inbound/operator/provisioning.go:ProvisioningErrorRenderer":                                              92,
+	"modules/organizationtenancy/inbound/operator/provisioning.go:ProvisioningErrorRenderer":                                              91,
 	"modules/peopledirectory/enrollment_departure.go:normalizeEnrollmentDeparture":                                                        67,
 	"modules/peopledirectory/internal/application/student_photo.go:(*StudentPhotoService).CommitPhoto":                                    62,
 	"modules/peopledirectory/internal/application/student_write.go:(*StudentService).UpdateStudent":                                       66,

@@ -351,7 +351,9 @@ var roleSentinels = []struct {
 // operation envelope keeps its text, a role sentinel gains its public twin,
 // and everything else falls through to the lifecycle mapping (the school
 // identity and session sentinels an assignment shares).
-func roleError(err error) error {
+func roleError(err error) error { return recordMissing(translateRoleError(err)) }
+
+func translateRoleError(err error) error {
 	if err == nil {
 		return nil
 	}

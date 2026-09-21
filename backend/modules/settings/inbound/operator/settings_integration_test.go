@@ -13,13 +13,10 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsoperator "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,15 +38,26 @@ func operatorTestClaims() jwt.AppClaims {
 	}
 }
 
+// bookingsAuthoritativeKey is the registry key of booking-led care.
+const bookingsAuthoritativeKey = "enrollment.bookings_authoritative"
+
+// operatorSettingsHook is the side-effect hook the operator capability runs
+// on each write.
+type operatorSettingsHook func(ctx context.Context, tenantID int64, key string, value any) (func(), error)
+
 // operatorSettingsTestContext holds dependencies for operator settings tests.
 type operatorSettingsTestContext struct {
-	db       *bun.DB
-	settings configSvc.SettingsService
-	resource *settingsoperator.SettingsResource
-	router   chi.Router
+	db *bun.DB
+	// enableBookingsAuthoritative writes the tenant setting directly through
+	// the settings service, without the operator's hook and guard.
+	enableBookingsAuthoritative func(ctx context.Context) error
+	careWithdrawals             testpkg.CareWithdrawalWriter
+	careLifecycle               careplan.CareLifecycle
+	resource                    *settingsoperator.SettingsResource
+	router                      chi.Router
 	// onValueSet is the side-effect hook the resource runs on each write.
 	// A test replaces it before the request whose hook call it observes.
-	onValueSet configSvc.OperatorValueSetHook
+	onValueSet operatorSettingsHook
 }
 
 // runValueSetHook is the hook the resource is built with; it runs the
@@ -66,23 +74,23 @@ func setupOperatorSettingsRoute(t *testing.T) *operatorSettingsTestContext {
 
 	db, svc := testutil.SetupOperatorSettingsModule(t)
 	tc := &operatorSettingsTestContext{
-		db:         db,
-		settings:   svc.Settings,
-		onValueSet: svc.SettingsSideEffects.Dispatch,
+		db: db,
+		enableBookingsAuthoritative: func(ctx context.Context) error {
+			return svc.Settings.SetValue(ctx, bookingsAuthoritativeKey, true, nil, nil)
+		},
+		careWithdrawals: svc.CareWithdrawals,
+		careLifecycle:   svc.CareLifecycle,
+		onValueSet:      svc.SettingsSideEffects.Dispatch,
 	}
 	// Pass nil schoolRepo: the integration tests cover the mutation contract
 	// (set/reset/permissions/hooks). Slug-resolution wiring is exercised end
 	// to end via the platform-level integration suite.
 	resource := settingsoperator.NewSettingsResource(settingsoperator.SettingsConfig{
-		Settings:      svc.Settings,
-		DB:            db,
-		Active:        svc.Active,
-		CareLifecycle: svc.CareLifecycle,
-		OnValueSet:    tc.runValueSetHook,
+		Settings: svc.OperatorSchoolSettings(tc.runValueSetHook),
 	})
 
-	// Operator routes do not use TenantTxMiddleware — handlers call
-	// tenant.WithTenantTx internally using the school ID from the URL path.
+	// Operator routes do not use TenantTxMiddleware — the operator settings
+	// capability opens the tenant transaction of the school ID from the URL path.
 	router := chi.NewRouter()
 	router.Get("/schools/{id}/settings/schema", resource.GetSchoolSettingsSchema)
 	router.Get("/schools/{id}/settings/booking-authority-impact", resource.GetBookingAuthorityImpact)
@@ -193,7 +201,7 @@ func TestOperatorSetSchoolSettingValue_Success(t *testing.T) {
 
 	overrides, err := ctx.db.NewSelect().TableExpr("config.setting_values").
 		Where("tenant_id = ?", testpkg.Tenant(t)).
-		Where("setting_key = ?", configModel.KeyEnrollmentBookingsAuthoritative).
+		Where("setting_key = ?", bookingsAuthoritativeKey).
 		Count(context.Background())
 	require.NoError(t, err)
 	assert.Zero(t, overrides, "the blocked write must roll the setting override back")
@@ -270,27 +278,20 @@ func TestOperatorResetSchoolSettingValue_Success(t *testing.T) {
 	t.Parallel()
 	ctx := setupOperatorSettingsRoute(t)
 	tenantCtx := testpkg.Ctx(t)
-	require.NoError(t, ctx.settings.SetValue(
-		tenantCtx, configModel.KeyEnrollmentBookingsAuthoritative, true, nil, nil,
-	))
+	require.NoError(t, ctx.enableBookingsAuthoritative(tenantCtx))
 	student := testpkg.CreateTestStudent(t, ctx.db, "Reset", "Buchungsmodus", "2c")
 	studentID := student.ID
-	careRepos, err := repositories.NewCareLifecycleTestRepositories(ctx.db, repositories.NewTestAuditStore(ctx.db))
+	testpkg.CreateTestBookingExpiredCareWithdrawal(t, ctx.careWithdrawals, studentID)
+	pendingFilter := careplan.CareWithdrawalFilter{StudentID: studentID, Page: 1, PageSize: 1}
+	_, pending, err := ctx.careLifecycle.ListPendingWithdrawals(tenantCtx, pendingFilter)
 	require.NoError(t, err)
-	repo := careRepos.CareWithdrawal
-	require.NoError(t, repo.UpsertPending(tenantCtx, &userModels.CareWithdrawalCompletion{
-		StudentID: &studentID, FirstBookinglessDay: timezone.TodayDate(),
-		Trigger:                 userModels.CareWithdrawalTriggerBookingExpired,
-		WithdrawalConfirmedRole: "system", WithdrawalConfirmedAt: time.Now(),
-	}))
+	require.Equal(t, 1, pending, "the booking-expired task must be pending before the reset")
 
 	req := newOperatorRequest(t, http.MethodDelete, schoolPath(t, "/settings/values/enrollment.bookings_authoritative"), nil)
 	rr := testutil.ExecuteRequest(ctx.router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusNoContent)
 
-	_, pending, err := repo.ListPending(tenantCtx, userModels.CareWithdrawalCompletionFilter{
-		StudentID: studentID, Page: 1, PageSize: 1,
-	})
+	_, pending, err = ctx.careLifecycle.ListPendingWithdrawals(tenantCtx, pendingFilter)
 	require.NoError(t, err)
 	assert.Zero(t, pending)
 }
@@ -511,87 +512,27 @@ func TestOperatorResetSchoolSettingValue_NonPhotoKeyDoesNotInvokeOnValueSet(t *t
 // Presence-mode switch guard (must-fix #1 from review round 2)
 // =============================================================================
 
-func presenceModeAttendanceCleanup(t *testing.T, db *bun.DB, tenantID int64) {
-	t.Helper()
-	_, err := db.ExecContext(context.Background(),
-		`DELETE FROM active.attendance WHERE date = ? AND tenant_id = ?`,
-		timezone.TodayDate(),
-		tenantID,
-	)
-	require.NoError(t, err)
-}
-
-func resetPresenceMode(t *testing.T, db *bun.DB, tenantID int64) {
-	t.Helper()
-	_, err := db.ExecContext(context.Background(),
-		`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = ?`,
-		tenantID,
-		configModel.KeyPresenceMode,
-	)
-	require.NoError(t, err)
-}
-
-func createPresenceModeAttendanceForTenant(
-	t *testing.T,
-	db *bun.DB,
-	tenantID int64,
-	studentID int64,
-	staffID int64,
-	deviceID int64,
-	checkInTime time.Time,
-	checkOutTime *time.Time,
-) {
-	t.Helper()
-
-	_, err := db.ExecContext(
-		context.Background(),
-		`INSERT INTO active.attendance (
-			tenant_id,
-			student_id,
-			date,
-			check_in_time,
-			check_out_time,
-			checked_in_by,
-			device_id,
-			created_at,
-			updated_at
-		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-		tenantID,
-		studentID,
-		timezone.TodayDate(),
-		checkInTime,
-		checkOutTime,
-		staffID,
-		deviceID,
-	)
-	require.NoError(t, err)
-}
+// presenceModeBinary is the binary presence mode the guard protects against
+// while attendance of the day is still open.
+const presenceModeBinary = "binary"
 
 func presenceModePath(tenantID int64, suffix string) string {
-	return fmt.Sprintf("/schools/%d/settings/values/%s%s", tenantID, configModel.KeyPresenceMode, suffix)
+	return fmt.Sprintf("/schools/%d/settings/values/%s%s", tenantID, settings.KeyPresenceMode, suffix)
 }
 
 func TestOperatorSetSchoolSettingValue_PresenceMode_BlockedByOpenAttendance(t *testing.T) {
 	t.Parallel()
 	ctx := setupOperatorSettingsRoute(t)
 
-	tenantID := testpkg.UniqueTestTenantID(t)
-	testpkg.EnsureTestTenant(t, ctx.db, tenantID)
-	presenceModeAttendanceCleanup(t, ctx.db, tenantID)
-	resetPresenceMode(t, ctx.db, tenantID)
-	defer presenceModeAttendanceCleanup(t, ctx.db, tenantID)
-	defer resetPresenceMode(t, ctx.db, tenantID)
-
-	student := testpkg.CreateTestStudentForTenant(t, ctx.db, tenantID, "Guard", "Block", "9a")
-	staff := testpkg.CreateTestStaffForTenant(t, ctx.db, tenantID, "Guard", "Staff")
-	device := testpkg.CreateTestDeviceForTenant(t, ctx.db, tenantID, "guard-device-001")
+	tenantID := testpkg.Tenant(t)
+	student := testpkg.CreateTestStudent(t, ctx.db, "Guard", "Block", "9a")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Guard", "Staff")
+	device := testpkg.CreateTestDevice(t, ctx.db, "guard-device-001")
 
 	checkInTime := time.Now().Add(-1 * time.Hour)
-	createPresenceModeAttendanceForTenant(t, ctx.db, tenantID, student.ID, staff.ID, device.ID, checkInTime, nil)
-	defer presenceModeAttendanceCleanup(t, ctx.db, tenantID)
+	testpkg.CreateTestAttendance(t, ctx.db, student.ID, staff.ID, device.ID, checkInTime, nil)
 
-	body := map[string]interface{}{"value": configModel.PresenceModeBinary}
+	body := map[string]interface{}{"value": presenceModeBinary}
 	req := newOperatorRequest(t, http.MethodPut, presenceModePath(tenantID, ""), body)
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
@@ -603,22 +544,15 @@ func TestOperatorSetSchoolSettingValue_PresenceMode_ForceBypassesOpenAttendance(
 	t.Parallel()
 	ctx := setupOperatorSettingsRoute(t)
 
-	tenantID := testpkg.UniqueTestTenantID(t)
-	testpkg.EnsureTestTenant(t, ctx.db, tenantID)
-	presenceModeAttendanceCleanup(t, ctx.db, tenantID)
-	resetPresenceMode(t, ctx.db, tenantID)
-	defer presenceModeAttendanceCleanup(t, ctx.db, tenantID)
-	defer resetPresenceMode(t, ctx.db, tenantID)
-
-	student := testpkg.CreateTestStudentForTenant(t, ctx.db, tenantID, "Guard", "Force", "9b")
-	staff := testpkg.CreateTestStaffForTenant(t, ctx.db, tenantID, "Guard", "Staff2")
-	device := testpkg.CreateTestDeviceForTenant(t, ctx.db, tenantID, "guard-device-002")
+	tenantID := testpkg.Tenant(t)
+	student := testpkg.CreateTestStudent(t, ctx.db, "Guard", "Force", "9b")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Guard", "Staff2")
+	device := testpkg.CreateTestDevice(t, ctx.db, "guard-device-002")
 
 	checkInTime := time.Now().Add(-1 * time.Hour)
-	createPresenceModeAttendanceForTenant(t, ctx.db, tenantID, student.ID, staff.ID, device.ID, checkInTime, nil)
-	defer presenceModeAttendanceCleanup(t, ctx.db, tenantID)
+	testpkg.CreateTestAttendance(t, ctx.db, student.ID, staff.ID, device.ID, checkInTime, nil)
 
-	body := map[string]interface{}{"value": configModel.PresenceModeBinary}
+	body := map[string]interface{}{"value": presenceModeBinary}
 	req := newOperatorRequest(t, http.MethodPut, presenceModePath(tenantID, "?force=true"), body)
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
@@ -629,14 +563,8 @@ func TestOperatorSetSchoolSettingValue_PresenceMode_PassesWithNoOpenAttendance(t
 	t.Parallel()
 	ctx := setupOperatorSettingsRoute(t)
 
-	tenantID := testpkg.UniqueTestTenantID(t)
-	testpkg.EnsureTestTenant(t, ctx.db, tenantID)
-	presenceModeAttendanceCleanup(t, ctx.db, tenantID)
-	resetPresenceMode(t, ctx.db, tenantID)
-	defer resetPresenceMode(t, ctx.db, tenantID)
-
-	body := map[string]interface{}{"value": configModel.PresenceModeBinary}
-	req := newOperatorRequest(t, http.MethodPut, presenceModePath(tenantID, ""), body)
+	body := map[string]interface{}{"value": presenceModeBinary}
+	req := newOperatorRequest(t, http.MethodPut, presenceModePath(testpkg.Tenant(t), ""), body)
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
