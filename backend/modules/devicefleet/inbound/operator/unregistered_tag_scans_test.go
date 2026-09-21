@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -19,8 +20,8 @@ import (
 
 // The review routes answer in the operator surface's format; these cases pin
 // what the handlers hand to that surface and how they narrow and label the
-// Device Fleet scans. The operator bodies themselves are pinned in
-// api/operator.
+// Device Fleet scans, and how a failed resolution maps onto the surface's
+// client and internal errors.
 
 type fakeScans struct {
 	listFilter    devicefleet.UnregisteredTagScanFilter
@@ -91,9 +92,8 @@ func (r *testRenderer) Render(_ http.ResponseWriter, req *http.Request) error {
 }
 
 type testSurface struct {
-	resolveFallbackErr error
-	adminRuns          int
-	operatorID         int64
+	adminRuns  int
+	operatorID int64
 }
 
 func (s *testSurface) surface() operator.Surface {
@@ -103,10 +103,6 @@ func (s *testSurface) surface() operator.Surface {
 		},
 		Internal: func(message string) render.Renderer {
 			return &testRenderer{status: http.StatusInternalServerError, kind: "internal", message: message}
-		},
-		ResolveFallback: func(err error) render.Renderer {
-			s.resolveFallbackErr = err
-			return &testRenderer{status: http.StatusConflict, kind: "fallback", message: err.Error()}
 		},
 		RenderError: func(w http.ResponseWriter, r *http.Request, renderer render.Renderer) {
 			rendered := renderer.(*testRenderer)
@@ -372,7 +368,7 @@ func TestResolveUnregisteredTagScanBlankNoteIsNoNote(t *testing.T) {
 	require.Nil(t, scans.resolveInput.Note)
 }
 
-func TestResolveUnregisteredTagScanWithoutOperatorUsesFallback(t *testing.T) {
+func TestResolveUnregisteredTagScanWithoutOperatorIsBadRequest(t *testing.T) {
 	t.Parallel()
 
 	scans := &fakeScans{}
@@ -380,27 +376,70 @@ func TestResolveUnregisteredTagScanWithoutOperatorUsesFallback(t *testing.T) {
 
 	rr := serve(t, newReview(scans, &fakeDirectory{}, surface), http.MethodPost, "/123/resolve", `{}`)
 
-	require.Equal(t, http.StatusConflict, rr.Code)
-	require.EqualError(t, surface.resolveFallbackErr, "operator ID is required")
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+	require.Equal(t, errorBody{Kind: "invalid", Message: "operator ID is required"}, decode[errorBody](t, rr))
 	require.Zero(t, scans.resolveInput.ID)
 	require.Zero(t, surface.adminRuns)
 }
 
-func TestResolveUnregisteredTagScanPassesOwnerErrorsToFallback(t *testing.T) {
+// wrappedDriverError stands for a failure of the Device Fleet adapter: it
+// wraps the raw driver text, which must never reach the operator.
+type wrappedDriverError struct {
+	op  string
+	err error
+}
+
+func (e *wrappedDriverError) Error() string { return e.op + ": " + e.err.Error() }
+func (e *wrappedDriverError) Unwrap() error { return e.err }
+
+// storeFailureError stands for a retained repository error (StoreFailure),
+// which stays internal even when it wraps a refusal text.
+type storeFailureError struct{ err error }
+
+func (e *storeFailureError) Error() string      { return "database error during resolve: " + e.err.Error() }
+func (e *storeFailureError) Unwrap() error      { return e.err }
+func (e *storeFailureError) StoreFailure() bool { return true }
+
+func TestResolveUnregisteredTagScanPersistenceFailuresAreInternal(t *testing.T) {
 	t.Parallel()
 
-	for name, wantErr := range map[string]error{
-		"resolved":  devicefleet.ErrUnregisteredTagScanResolved,
-		"not found": devicefleet.ErrUnregisteredTagScanNotFound,
-		"raw":       errors.New("resolve failed"),
+	rawErr := errors.New("pq: permission denied for audit.unregistered_tag_scans")
+	for name, resolveErr := range map[string]error{
+		"adapter error with unwrap":       &wrappedDriverError{op: "resolve unregistered tag scan", err: rawErr},
+		"fmt wrapped adapter error":       fmt.Errorf("devicefleet postgres: resolve unregistered tag scan: %w", rawErr),
+		"raw":                             errors.New("resolve failed"),
+		"store failure with refusal text": &storeFailureError{err: errors.New("unregistered tag scan not found")},
 	} {
-		surface := &testSurface{operatorID: 42}
-		scans := &fakeScans{resolveErr: wantErr}
+		rr := serve(t, newReview(&fakeScans{resolveErr: resolveErr}, &fakeDirectory{}, &testSurface{operatorID: 42}), http.MethodPost, "/123/resolve", `{}`)
 
-		rr := serve(t, newReview(scans, &fakeDirectory{}, surface), http.MethodPost, "/123/resolve", `{}`)
+		require.Equal(t, http.StatusInternalServerError, rr.Code, name)
+		require.Equal(t, errorBody{Kind: "internal", Message: "Failed to resolve unregistered RFID scan"}, decode[errorBody](t, rr), name)
+		require.NotContains(t, rr.Body.String(), rawErr.Error(), name)
+		require.NotContains(t, rr.Body.String(), "devicefleet postgres:", name)
+	}
+}
 
-		require.Equal(t, http.StatusConflict, rr.Code, name)
-		require.ErrorIs(t, surface.resolveFallbackErr, wantErr, name)
+func TestResolveUnregisteredTagScanKeepsOwnerRefusalsAsBadRequest(t *testing.T) {
+	t.Parallel()
+
+	for _, resolveErr := range []error{
+		errors.New("operator ID is required"),
+		errors.New("scan ID is required"),
+		errors.New("unregistered tag scan not found"),
+		errors.New("unregistered tag scan already resolved"),
+		errors.New("invalid unregistered tag scan"),
+		devicefleet.ErrUnregisteredTagScanNotFound,
+		devicefleet.ErrUnregisteredTagScanResolved,
+		devicefleet.ErrInvalidUnregisteredTagScan,
+		fmt.Errorf("resolve: %w", devicefleet.ErrUnregisteredTagScanResolved),
+	} {
+		scans := &fakeScans{resolveErr: resolveErr}
+
+		rr := serve(t, newReview(scans, &fakeDirectory{}, &testSurface{operatorID: 42}), http.MethodPost, "/123/resolve", `{}`)
+
+		require.Equal(t, http.StatusBadRequest, rr.Code, resolveErr.Error())
+		require.Equal(t, errorBody{Kind: "invalid", Message: resolveErr.Error()}, decode[errorBody](t, rr), resolveErr.Error())
+		require.Equal(t, int64(123), scans.resolveInput.ID, resolveErr.Error())
 	}
 }
 

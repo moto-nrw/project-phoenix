@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 )
 
 // stubOperatorMFAServiceExtra implements OperatorMFAService with
@@ -114,7 +114,7 @@ func opJSONReq(t *testing.T, method, path string, body any) *http.Request {
 }
 
 func opWithClaims(r *http.Request, operatorID int) *http.Request {
-	ctx := context.WithValue(r.Context(), jwt.CtxClaims, jwt.AppClaims{ID: operatorID})
+	ctx := testutil.WithAuthenticatedContext(r.Context(), testutil.Claims{ID: operatorID}, nil)
 	return r.WithContext(ctx)
 }
 
@@ -123,9 +123,9 @@ func opWithClaims(r *http.Request, operatorID int) *http.Request {
 // by the enroll-handler tests because those handlers now require an
 // enrollment-scoped claim (Item #1 of the #1430 review).
 func opWithEnrollmentClaims(r *http.Request, operatorID int64) *http.Request {
-	ctx := context.WithValue(r.Context(), jwt.CtxEnrollmentClaims, jwt.MFAEnrollmentClaims{
+	ctx := testutil.WithEnrollmentClaims(r.Context(), testutil.MFAEnrollmentClaims{
 		AccountID:            operatorID,
-		Scope:                jwt.MFAEnrollmentScopePlatform,
+		Scope:                testutil.MFAEnrollmentScopePlatform,
 		MFAEnrollmentPending: true,
 	})
 	return r.WithContext(ctx)

@@ -3,10 +3,10 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 21.09.2026 · Ratchet 624 · Composition 634 · Policy-Epoche 21 · 227 Regeln mit
+Stand 22.09.2026 · Ratchet 586 · Composition 633 · Policy-Epoche 21 · 195 Regeln mit
 `convert it to exact debt` · 59.504 LOC unter `modules/*/legacy`
 
-Summenprobe: 251 + 61 + 37 + 43 + 28 + 19 + 185 = 624 = `wc -l backend/architecture/legacy.jsonl`.
+Summenprobe: 251 + 61 + 43 + 28 + 19 + 184 = 586 = `wc -l backend/architecture/legacy.jsonl`.
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Entscheidungen
@@ -29,14 +29,14 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 ## Legacy-Nester auflösen · 59.504 LOC, 0 Keys
 
 - [ ] [#3424](https://github.com/moto-nrw/project-phoenix/issues/3424) `modules/timetable/legacy/timetableplanning` — 23.300 LOC, blockt #2732
-- [x] [#3422](https://github.com/moto-nrw/project-phoenix/issues/3422) `modules/studentpresence/legacy` aufgelöst — 13.969 LOC, Budget-Eintrag gelöscht (Legacy-Summe 51.310 → 49.904), 79 `student-presence`-`adapter`/`domain`-Regeln weg statt konvertiert, 0 Keys (624 unverändert), Komplexitäts-Ratchet −35 Einträge, Policy-Epoche 20 → 21; Ausnahme für die 57 Ersatzregeln per ADR 0036; offen: Passthrough-Budget `modules/studentpresence` 64 → 76
+- [x] [#3422](https://github.com/moto-nrw/project-phoenix/issues/3422) `modules/studentpresence/legacy` aufgelöst — 13.969 LOC, Budget-Eintrag gelöscht (Legacy-Summe 51.310 → 49.904), 79 `student-presence`-`adapter`/`domain`-Regeln weg statt konvertiert, 0 Keys (Ratchet unverändert), Komplexitäts-Ratchet −35 Einträge, Policy-Epoche 20 → 21; Ausnahme für die 57 Ersatzregeln per ADR 0036; offen: Passthrough-Budget `modules/studentpresence` 64 → 76
 - [ ] [#3413](https://github.com/moto-nrw/project-phoenix/issues/3413) `modules/workforce/legacy/timetracking` — 13.511 LOC
 - [ ] [#3418](https://github.com/moto-nrw/project-phoenix/issues/3418) `modules/workforce/legacy/shiftplanning` — 5.336 LOC, blockt #2747, #2750
 - [x] [#3427](https://github.com/moto-nrw/project-phoenix/issues/3427) `modules/careplan/legacy` aufgelöst (`carelifecycle` und `careexitview`) — 5.278 LOC, 46 Kompatibilitätsregeln weg, 1 Key weniger (625 → 624); Ausnahme für Operator-Setting und verschobene Suiten per ADR 0035
 - [x] [#3420](https://github.com/moto-nrw/project-phoenix/issues/3420) `workflows/parentportal/legacy` aufgelöst — 5.881 LOC, 46 Kompatibilitätsregeln weg, Schreibpfade als Owner-Commands (Care Plan, People Directory, Audit Platform); offen: Announcement-Quittungen in `messaging` (Communication)
 - [x] [#3410](https://github.com/moto-nrw/project-phoenix/issues/3410) `modules/careplan/legacy` Wurzelpaket aufgelöst — 874 LOC, 15 Keys weniger (644 → 629)
 
-## Schuld sichtbar machen · 227 Regeln
+## Schuld sichtbar machen · 195 Regeln
 
 - [ ] [#3421](https://github.com/moto-nrw/project-phoenix/issues/3421) `inbound-parent.*` zu exaktem Debt konvertieren — 34 Regeln
 - [ ] [#3416](https://github.com/moto-nrw/project-phoenix/issues/3416) `issue`-Feld an Policy-Regeln und `rules.stale`
@@ -51,12 +51,12 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [ ] [#3356](https://github.com/moto-nrw/project-phoenix/issues/3356) Settings-, Listenexport-, Messaging-, IoT-, Aktivitäts- und Schulstruktur-Kanten
 - [ ] [#2731](https://github.com/moto-nrw/project-phoenix/issues/2731) Carrier — 61
 
-## Identity · 37 Keys
+## Identity · 0 Keys
 
 - [ ] [#3487](https://github.com/moto-nrw/project-phoenix/issues/3487) `legacy/jwt` aus dem `legacy/`-Pfad umbenennen — entschieden in ADR 0031: das Paket bleibt der Session-Adapter, der Umzug läuft zuletzt nach den Carriern und blockt nichts
 - [x] [#3230](https://github.com/moto-nrw/project-phoenix/issues/3230) `api/auth` → `modules/identityaccess/inbound/auth` — Relocation (Epoche 19), 3 Keys weniger (684 → 681), 26 bleiben unter dem neuen Pfad bei #2736
 - [x] [#3231](https://github.com/moto-nrw/project-phoenix/issues/3231) Identity-Handler aus `api/operator` → `modules/identityaccess/inbound/operator`, 1 Key weniger (681 → 680). Router, Fremd-Komposition und die Handler-Tests mit `jwt` oder `models/platform` bleiben in `api/operator`: nur `inbound-operator` darf die Owner-Routen mounten, PR-Modus lässt keine neue Erlaubnis zu. Paketlöschung bei #2736 nach #2725
-- [ ] [#2736](https://github.com/moto-nrw/project-phoenix/issues/2736) Carrier `modules/identityaccess/inbound/auth`, api/operator — 37
+- [x] [#2736](https://github.com/moto-nrw/project-phoenix/issues/2736) Carrier geschlossen — alle 37 Keys und alle Regeln mit #2736 weg (624 → 586): Account-Routen nach `modules/identityaccess/inbound/account` (`identity-access`/`http`), Settings Platform mit Public-Vertrag `modules/settings` und `modules/settings/compose`, `api/operator` nur noch Router; offen: Weitergabe des Recovery-Proof-Headers der Operator-Refresh-Route ohne Test
 - [x] [#3501](https://github.com/moto-nrw/project-phoenix/issues/3501) `modules/identityaccess/legacy/usercontext` in den Caller-Context von Identity & Access aufgelöst — alle 55 Keys von #2725 weg (680 → 625), `/api/me` in `modules/identityaccess/inbound/me`; offen: Timetable-Read der geplanten Aufsichten, Personen-Read und -Schreiben über People Directory
 
 ## Storage
@@ -67,7 +67,7 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [ ] [#2755](https://github.com/moto-nrw/project-phoenix/issues/2755) Backfill `users.students_guardians`
 - [ ] [#2756](https://github.com/moto-nrw/project-phoenix/issues/2756) Cutover `users.students_guardians`
 - [ ] [#2757](https://github.com/moto-nrw/project-phoenix/issues/2757) Contract `users.students_guardians`
-- [ ] [#2753](https://github.com/moto-nrw/project-phoenix/issues/2753) Cutover `users.staff`
+- [x] [#2753](https://github.com/moto-nrw/project-phoenix/issues/2753) Cutover `users.staff` — Migration 1.15.409 und Caller-Switch in einem Release: School Membership schreibt die Mitgliedschaft, Workforce das Beschäftigungsprofil (`StaffEmployments`); Kompatibilitäts-View, Archiv und Zähler bleiben für #2754
 - [ ] [#2754](https://github.com/moto-nrw/project-phoenix/issues/2754) Contract `users.staff`
 - [ ] [#2762](https://github.com/moto-nrw/project-phoenix/issues/2762) Cutover Activity Instances und Participants
 - [ ] [#2763](https://github.com/moto-nrw/project-phoenix/issues/2763) Contract Activity Instances und Participants
@@ -94,9 +94,9 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 - [ ] [#2706](https://github.com/moto-nrw/project-phoenix/issues/2706) Dokument-Rendering — 19, blockiert durch #2727, #2729, #2731
 
-## Endkette · 185 Keys
+## Endkette · 184 Keys
 
-- [ ] [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) root api, cmd, main composition — 68
+- [ ] [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) root api, cmd, main composition — 67
 - [ ] [#2748](https://github.com/moto-nrw/project-phoenix/issues/2748) shared test und E2E composition — 63
 - [ ] [#2743](https://github.com/moto-nrw/project-phoenix/issues/2743) repository Factory — 18
 - [ ] [#2747](https://github.com/moto-nrw/project-phoenix/issues/2747) service Factory — 32

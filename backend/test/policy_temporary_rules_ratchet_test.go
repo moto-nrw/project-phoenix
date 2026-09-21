@@ -50,18 +50,20 @@ import (
 // 46 user-context permissions to exact debt to 346 and 441, and the #3501
 // dissolution of the user-context package, which took its four Presence
 // rules along, to 342 and 437. The #3427 care-lifecycle cutover deleted the
-// 46 permissions #3350 had added and lowers them to 296 and 359, and the
-// #3422 statistics cutover, which dropped the statistics HTTP grant to the
-// retained Presence adapter, to 295 and 358, and the #3422 Care Plan row
-// handover, which moved the status-day and excused-request rows out of the
-// Presence nest and so dropped eleven stale grants to it, to 290 and 352,
-// and the #3422 Workforce row handover, which left the scheduler's grant to
-// the retained Presence rows stale, to 289 and 351, and the two remaining
-// #3422 slices, which retired the presence services and the session rows and
-// left 23 further grants to the nest stale, to 236 and 295. Dissolving the
-// nest rewrote the nine surviving grants of its own behaviour suites, which
-// describe the module's suites now and promise no conversion, and lowers them
-// to 227 and 286; this prose counter remains as an independent guard.
+// 46 permissions #3350 had added and lowers them to 296 and 359. #2736
+// removed the #3232 operator permissions of Organisation & Tenancy, Settings
+// Platform and Communication and the two retained Presence and Care Plan
+// edges of the operator router, lowering them to 262 and 325. The #3422
+// statistics cutover dropped the statistics HTTP grant to the retained
+// Presence adapter, the #3422 Care Plan row handover moved the status-day and
+// excused-request rows out of the Presence nest and so dropped eleven stale
+// grants to it, the #3422 Workforce row handover left the scheduler's grant
+// to the retained Presence rows stale, and the two remaining #3422 slices
+// retired the presence services and the session rows and left 23 further
+// grants to the nest stale. Dissolving the nest also rewrote the nine
+// surviving grants of its own behaviour suites, which describe the module's
+// suites now and promise no conversion. Together with #2736 that lowers them
+// to 195 and 254; this prose counter remains as an independent guard.
 //
 // Three shrink-only measurements, all read-only on policy.json:
 //
@@ -111,12 +113,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 227
+	policyTempRulesTotal = 195
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 286
+	policyTempRulesCompatTotal = 254
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -143,9 +145,6 @@ var policyTempRulesFamilies = map[string]int{
 	// #3214, #3218, #3220, #3224 — all closed.
 	// #3422 removed 2 that went stale with legacy/services/active.
 	"calendar-view": 2,
-
-	// #2736 (OPEN), #3232, #3224.
-	"communication": 4,
 
 	// #3218, #3219, #3220 — closed.
 	"document-rendering": 5,
@@ -185,9 +184,6 @@ var policyTempRulesFamilies = map[string]int{
 	// #3422 removed 1 that went stale with legacy/services/active.
 	"legacy-composition": 2,
 
-	// #2736 (OPEN) and #3232 (closed) name most rules jointly; #3214 the rest.
-	"organization-tenancy": 14,
-
 	// #3214, #3218 — closed; #3427 removed the one #3350 (PR #3408) added.
 	// #3422 removed 1 that went stale with legacy/services/active.
 	"people-directory": 1,
@@ -207,10 +203,9 @@ var policyTempRulesFamilies = map[string]int{
 	// #3214, #3218 — closed.
 	"school-structure": 1,
 
-	// #2736 (OPEN) and #3232 (closed) name most rules jointly; #3207, #3214 the
-	// rest; #3427 removed the one #3350 (PR #3408) added.
-	// #3422 removed 1 that went stale with legacy/services/active.
-	"settings-platform": 15,
+	// #3448 for the one test-support rule; #2736 removed the #3232 rules and
+	// #3427 the one #3350 (PR #3408) added.
+	"settings-platform": 1,
 
 	// #3214, #3207, #3218, #3224 — closed.
 	// #3422 removed 7 that went stale with legacy/services/active and rewrote

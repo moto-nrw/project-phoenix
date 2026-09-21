@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"slices"
 	"time"
 
@@ -271,6 +272,33 @@ const staffOwnerMismatch = `
 	       min(s.updated_at) FILTER (WHERE to_jsonb(s) IS DISTINCT FROM to_jsonb(t))
 	FROM (` + staffOwnerSourceProjection + `) AS s
 	FULL JOIN (` + staffOwnerTargetProjection + `) AS t ON t.id = s.id`
+
+// copyStaffOwnerTenant runs the batch copy over every row of one school in a
+// single statement. Cutover uses it for the final delta under its write lock.
+func copyStaffOwnerTenant(ctx context.Context, tx bun.Tx, tenantID int64) (staffOwnerBatch, error) {
+	var batch staffOwnerBatch
+	err := tx.NewRaw(staffOwnerCopyBatch, tenantID, 0, math.MaxInt32, 0).
+		Scan(ctx, &batch.Scanned, &batch.LastID, &batch.Rejected, &batch.Copied)
+	return batch, err
+}
+
+// verifyStaffOwnerTenant holds the two shapes of one school against each
+// other with the backfill's own projections, so Cutover applies one
+// definition of equality rather than a second one that could drift from it.
+func verifyStaffOwnerTenant(ctx context.Context, tx bun.Tx, tenantID int64) (StaffOwnerVerification, error) {
+	var v StaffOwnerVerification
+	if err := tx.NewRaw(staffOwnerSourceChecksum, tenantID).Scan(ctx, &v.SourceCount, &v.SourceChecksum); err != nil {
+		return v, fmt.Errorf("staff owner cutover: tenant %d source checksum: %w", tenantID, err)
+	}
+	if err := tx.NewRaw(staffOwnerTargetChecksum, tenantID).Scan(ctx, &v.TargetCount, &v.TargetChecksum); err != nil {
+		return v, fmt.Errorf("staff owner cutover: tenant %d target checksum: %w", tenantID, err)
+	}
+	var oldest *time.Time
+	if err := tx.NewRaw(staffOwnerMismatch, tenantID, tenantID).Scan(ctx, &v.MismatchCount, &oldest); err != nil {
+		return v, fmt.Errorf("staff owner cutover: tenant %d mismatches: %w", tenantID, err)
+	}
+	return v, nil
+}
 
 // RunStaffOwnerBackfill copies users.staff into users.staff_school_memberships
 // and users.staff_employment_profiles for every school, in deterministic

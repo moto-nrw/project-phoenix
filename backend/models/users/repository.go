@@ -220,12 +220,6 @@ type StaffRepository interface {
 	// staff aren't invited as recipients.
 	FindReachableCalendarStaffIDs(ctx context.Context, ids []int64) (map[int64]bool, error)
 
-	// ClearWorkTimeModel sets work_time_model_id to NULL. Used by staff
-	// offboarding: soft-deleted staff must not keep the reference, or the
-	// RESTRICT FK blocks work-time-model deletion while the live-staff
-	// pre-check reports zero assignments.
-	ClearWorkTimeModel(ctx context.Context, id int64) error
-
 	// FindWithPerson retrieves a staff member with their associated person data
 	FindWithPerson(ctx context.Context, id int64) (*Staff, error)
 

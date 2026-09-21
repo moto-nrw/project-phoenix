@@ -3,6 +3,7 @@ package timetableplanning_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -197,4 +198,53 @@ func TestAutoEnd_IsTenantIsolated(t *testing.T) {
 	untouched, err := s.repos.ActivityInstance.FindByID(foreignCtx, foreignInstance.ID)
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.InstanceStatusActive, untouched.Status)
+}
+
+// TestAutoEnd_LeavesIndependentRoomStays pins the #3066 lifecycle for the
+// automatic end: completing a due activity ends only its own session. A child
+// who stays in the same released room without the activity (the room's own
+// device-less session under a system activity) keeps that stay.
+func TestAutoEnd_LeavesIndependentRoomStays(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	instance := seedInstance(t, s, true, true)
+	started, err := s.svc.Start(s.ctx, instance.ID, s.staffID)
+	require.NoError(t, err)
+	participant := testpkg.CreateTestVisit(t, s.db, s.student1, started.ActiveGroupID, autoEndNow.Add(-time.Hour), nil)
+
+	roomActivity := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("AE-Offener-Raum-%d", time.Now().UnixNano()))
+	_, err = s.db.NewUpdate().
+		Table("activities.groups").
+		Set("is_system = TRUE").
+		Where("id = ?", roomActivity.ID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+	roomSession := testpkg.CreateTestActiveGroup(t, s.db, roomActivity.ID, s.roomID)
+	independent := testpkg.CreateTestVisit(t, s.db, s.student2, roomSession.ID, autoEndNow.Add(-30*time.Minute), nil)
+
+	autoEnd := timetableplanning.NewAutoEndService(s.repos.ActivityInstance, s.svc)
+	var result *timetableplanning.AutoEndResult
+	err = testpkg.WithTenantTx(t, context.Background(), s.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		var runErr error
+		result, runErr = autoEnd.RunForTenant(txCtx, autoEndNow, 15*time.Minute)
+		return runErr
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, 1, result.Completed)
+
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: s.db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
+	endedVisit, err := presence.FindVisit(s.ctx, participant.ID)
+	require.NoError(t, err)
+	assert.NotNil(t, endedVisit.ExitTime, "the activity's child leaves with the activity")
+
+	keptVisit, err := presence.FindVisit(s.ctx, independent.ID)
+	require.NoError(t, err)
+	assert.Nil(t, keptVisit.ExitTime, "the independent stay in the same room continues")
+
+	keptSession, err := s.factory.Active.GetActiveGroup(s.ctx, roomSession.ID)
+	require.NoError(t, err)
+	assert.Nil(t, keptSession.EndTime, "the room's own session is not the activity's session")
 }

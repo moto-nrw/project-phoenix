@@ -380,3 +380,60 @@ func markActivitySystem(t *testing.T, db *bun.DB, activityID int64) {
 		Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 }
+
+// TestOpenRoomRebookingAfterActivityEnd: once an activity ends its children
+// are Unterwegs. Staff with the school-wide move right can book them back into
+// the released room as an independent stay (#3066); without that right the
+// booking is refused and the child stays Unterwegs.
+func TestOpenRoomRebookingAfterActivityEnd(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		scope   string
+		allowed bool
+	}{
+		{name: "school-wide staff", scope: "all_staff", allowed: true},
+		{name: "staff limited to own supervisions", scope: "own"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testpkg.OwnCtx(t)
+			db := testpkg.SetupTestDB(t)
+			svc, openRoom := openRoomService(t, db)
+			activeSvc.ConfigureForTest(svc, activeSvc.WithSettings(presenceSettingsStub{
+				attendanceEditScope:      tc.scope,
+				operationalOverviewScope: "all_staff",
+				presenceMode:             activeSvc.PresenceModeDetailed,
+			}))
+			presence := testSchoolPresence(t, db)
+
+			gym := testpkg.CreateTestRoom(t, db, "Turnhalle Wiederbuchung")
+			football := testpkg.CreateTestActivityGroup(t, db, "Fußball Wiederbuchung")
+			footballSession := testpkg.CreateTestActiveGroup(t, db, football.ID, gym.ID)
+			staff := testpkg.CreateTestStaff(t, db, "Wieder", "Buchung")
+			device := testpkg.CreateTestDevice(t, db, "open-room-rebooking")
+			child := presentChild(t, db, "Wiederbuchung", staff.ID, device.ID, footballSession.ID)
+
+			require.NoError(t, svc.EndActivitySession(ctx, footballSession.ID))
+			require.Empty(t, openVisitSessions(t, presence, []int64{child}), "the child is Unterwegs after the activity")
+			assertStillAttending(t, presence, []int64{child})
+
+			roomActivity := testpkg.CreateTestActivityGroup(t, db, "Raumaufenthalt Wiederbuchung")
+			roomSession, err := openRoom.EnsureOpenRoomSession(ctx, gym.ID, roomActivity.ID)
+			require.NoError(t, err)
+
+			result, err := openRoom.MoveStudentsToOpenRoomSessionAuthorized(ctx, []int64{child}, roomSession.ID,
+				activeSvc.StudentMoveAuthorization{StaffID: staff.ID, SchoolWideAttendanceEligible: true})
+			if !tc.allowed {
+				require.ErrorIs(t, err, activeSvc.ErrStudentMoveForbidden)
+				assert.Empty(t, openVisitSessions(t, presence, []int64{child}), "a refused booking leaves the child Unterwegs")
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, []int64{child}, result.Moved)
+			assert.Equal(t, roomSession.ID, openVisitSessions(t, presence, []int64{child})[child],
+				"the child stays in the gym on its own, not in the ended activity")
+			assertStillAttending(t, presence, []int64{child})
+		})
+	}
+}

@@ -21,6 +21,10 @@ type arrivalSettingsResponse struct {
 	// order. Empty when the school maintains none; the forms then offer no
 	// lesson choice.
 	SchoolPeriods []schoolPeriodResponse `json:"school_periods"`
+	// DefaultArrivalTime and DefaultPickupTime are the usual clock times the
+	// weekly plan offers for one-click adoption (#3371). Empty offers nothing.
+	DefaultArrivalTime string `json:"default_arrival_time"`
+	DefaultPickupTime  string `json:"default_pickup_time"`
 }
 
 func (rs *Resource) getArrivalSettings(w http.ResponseWriter, r *http.Request) {
@@ -29,7 +33,11 @@ func (rs *Resource) getArrivalSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	keys := []string{configModel.KeyEnrollmentBookingsAuthoritative}
+	keys := []string{
+		configModel.KeyEnrollmentBookingsAuthoritative,
+		configModel.KeyCareDefaultArrivalTime,
+		configModel.KeyCareDefaultPickupTime,
+	}
 	for period := 1; period <= configModel.SchoolPeriodCount; period++ {
 		keys = append(keys, configModel.SchoolPeriodEndKey(period))
 	}
@@ -56,12 +64,24 @@ func (rs *Resource) getArrivalSettings(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	presets := make(map[string]string, 2)
+	for _, key := range []string{configModel.KeyCareDefaultArrivalTime, configModel.KeyCareDefaultPickupTime} {
+		value, resolveErr := rs.SettingsService.ResolveString(ctx, key)
+		if resolveErr != nil {
+			renderError(w, r, common.ErrorInternalServer(fmt.Errorf("resolve %s: %w", key, resolveErr)))
+			return
+		}
+		presets[key] = strings.TrimSpace(value)
+	}
+
 	careDaysSource := "weekly_plan"
 	if bookingsAuthoritative {
 		careDaysSource = "bookings"
 	}
 	common.Respond(w, r, http.StatusOK, arrivalSettingsResponse{
-		CareDaysSource: careDaysSource,
-		SchoolPeriods:  periods,
+		CareDaysSource:     careDaysSource,
+		SchoolPeriods:      periods,
+		DefaultArrivalTime: presets[configModel.KeyCareDefaultArrivalTime],
+		DefaultPickupTime:  presets[configModel.KeyCareDefaultPickupTime],
 	}, "Arrival settings retrieved successfully")
 }

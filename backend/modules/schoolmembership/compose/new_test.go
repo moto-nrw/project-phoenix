@@ -30,7 +30,7 @@ func buildModule(t *testing.T, db *bun.DB, observations ...func(Observation)) *s
 	if len(observations) > 0 {
 		observe = observations[0]
 	}
-	module, err := New(Dependencies{DB: db, Observe: observe})
+	module, err := New(Dependencies{DB: db, Observe: observe, Employment: testEmployment})
 	require.NoError(t, err)
 	return module
 }
@@ -149,11 +149,6 @@ func TestModuleFiltersStaffListings(t *testing.T) {
 	require.Len(t, byPerson, 1)
 	assert.Equal(t, unassigned.ID, byPerson[0].ID)
 
-	byModel, err := module.ListStaff(ctx, schoolmembership.StaffFilter{WorkTimeModelID: &modelID})
-	require.NoError(t, err)
-	require.Len(t, byModel, 1)
-	assert.Equal(t, assigned.ID, byModel[0].ID)
-
 	empty, err := module.ListStaff(ctx, schoolmembership.StaffFilter{IDs: []int64{}})
 	require.NoError(t, err)
 	assert.Empty(t, empty, "an empty but present ID filter matches nothing rather than everything")
@@ -186,109 +181,18 @@ func TestModuleLocksStaffInsideTheCallersTransaction(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestModuleAppendsNotesAndTogglesTheBirthdayOptOut(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	module := buildModule(t, db)
-	ctx := testpkg.Ctx(t)
-	staff := createStaff(t, ctx, db, module, "Note", "Taker", schoolmembership.StaffFields{})
-
-	first, err := module.AppendStaffNotes(ctx, staff.ID, "Erster Absatz")
-	require.NoError(t, err)
-	assert.Equal(t, "Erster Absatz", first.StaffNotes)
-
-	second, err := module.AppendStaffNotes(ctx, staff.ID, "Zweiter Absatz")
-	require.NoError(t, err)
-	assert.Equal(t, "Erster Absatz\nZweiter Absatz", second.StaffNotes)
-
-	stored, err := module.FindStaff(ctx, staff.ID)
-	require.NoError(t, err)
-	assert.Equal(t, "Erster Absatz\nZweiter Absatz", stored.StaffNotes)
-
-	require.NoError(t, module.SetBirthdayDisplayOptOut(ctx, staff.ID, true))
-	stored, err = module.FindStaff(ctx, staff.ID)
-	require.NoError(t, err)
-	assert.True(t, stored.BirthdayDisplayOptOut)
-
-	require.NoError(t, module.SetBirthdayDisplayOptOut(ctx, staff.ID, false))
-	stored, err = module.FindStaff(ctx, staff.ID)
-	require.NoError(t, err)
-	assert.False(t, stored.BirthdayDisplayOptOut)
-
-	_, err = module.AppendStaffNotes(ctx, 9_223_372_036_854_775_000, "Ins Leere")
-	require.ErrorIs(t, err, schoolmembership.ErrStaffNotFound)
-}
-
-func TestModuleClearsTheWorkTimeModelOfASoftDeletedStaffMember(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	module := buildModule(t, db)
-	ctx := testpkg.Ctx(t)
-	modelID := createWorkTimeModel(t, db, testpkg.Tenant(t), "Vollzeit 40h")
-	staff := createStaff(t, ctx, db, module, "Offboarded", "Colleague", schoolmembership.StaffFields{WorkTimeModelID: &modelID})
-
-	require.NoError(t, module.DeleteStaff(ctx, staff.ID))
-	require.NoError(t, module.ClearWorkTimeModel(ctx, staff.ID),
-		"offboarding detaches the template after the tombstone")
-
-	retained, err := module.ListStaff(ctx, schoolmembership.StaffFilter{IDs: []int64{staff.ID}, IncludeDeleted: true})
-	require.NoError(t, err)
-	require.Len(t, retained, 1)
-	assert.Nil(t, retained[0].WorkTimeModelID)
-	assert.True(t, retained[0].IsDeleted())
-
-	require.ErrorIs(t, module.ClearWorkTimeModel(ctx, 9_223_372_036_854_775_000), schoolmembership.ErrStaffNotFound)
-}
-
-func TestModuleRebasesTheWorkTimeModelAnchorOfLiveStaffOnly(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	module := buildModule(t, db)
-	ctx := testpkg.Ctx(t)
-	modelID := createWorkTimeModel(t, db, testpkg.Tenant(t), "Rotation A/B")
-
-	first := createStaff(t, ctx, db, module, "First", "Assigned", schoolmembership.StaffFields{WorkTimeModelID: &modelID})
-	second := createStaff(t, ctx, db, module, "Second", "Assigned", schoolmembership.StaffFields{WorkTimeModelID: &modelID})
-	offboarded := createStaff(t, ctx, db, module, "Offboarded", "Assigned", schoolmembership.StaffFields{WorkTimeModelID: &modelID})
-	unassigned := createStaff(t, ctx, db, module, "Not", "Assigned", schoolmembership.StaffFields{})
-	require.NoError(t, module.DeleteStaff(ctx, offboarded.ID))
-
-	rebased, err := module.RebaseWorkTimeModelAnchor(ctx, modelID, rebasedAnchor)
-	require.NoError(t, err)
-	assert.Equal(t, []int64{first.ID, second.ID}, rebased, "only live assignees, in ascending ID order")
-
-	stamped, err := module.FindStaff(ctx, second.ID)
-	require.NoError(t, err)
-	assert.Equal(t, rebasedAnchor, stamped.RotationAnchorDate)
-
-	untouched, err := module.FindStaff(ctx, unassigned.ID)
-	require.NoError(t, err)
-	assert.Empty(t, untouched.RotationAnchorDate)
-
-	none, err := module.RebaseWorkTimeModelAnchor(ctx, createWorkTimeModel(t, db, testpkg.Tenant(t), "Ohne Zuordnung"), rebasedAnchor)
-	require.NoError(t, err)
-	assert.Empty(t, none)
-}
-
 func TestModuleReportsMembershipConflicts(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	module := buildModule(t, db)
 	ctx := testpkg.Ctx(t)
 
-	staff := createStaff(t, ctx, db, module, "Conflict", "Holder", schoolmembership.StaffFields{
-		PersonnelNumber: testpkg.StrPtr("P-2000"),
-	})
+	// The personnel-number conflict is Workforce's now (#2753); the composed
+	// owners are tested in database/repositories.
+	staff := createStaff(t, ctx, db, module, "Conflict", "Holder", schoolmembership.StaffFields{})
 
 	_, err := module.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{PersonID: staff.PersonID}})
 	require.ErrorIs(t, err, schoolmembership.ErrStaffPersonConflict)
-
-	secondPerson := testpkg.CreateTestPerson(t, db, "Second", "Number")
-	_, err = module.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{
-		PersonID: secondPerson.ID, PersonnelNumber: testpkg.StrPtr("P-2000"),
-	}})
-	require.ErrorIs(t, err, schoolmembership.ErrPersonnelNumberConflict)
-
 	_, err = module.CreateTeacher(ctx, schoolmembership.CreateTeacher{TeacherFields: schoolmembership.TeacherFields{StaffID: staff.ID}})
 	require.NoError(t, err)
 	_, err = module.CreateTeacher(ctx, schoolmembership.CreateTeacher{TeacherFields: schoolmembership.TeacherFields{StaffID: staff.ID}})
@@ -572,8 +476,6 @@ func TestModuleTenantIsolationHidesAnotherTenantsMemberships(t *testing.T) {
 	require.ErrorIs(t, module.DeleteStaff(otherCtx, staff.ID), schoolmembership.ErrStaffNotFound)
 	require.ErrorIs(t, module.DeleteTeacher(otherCtx, teacher.ID), schoolmembership.ErrTeacherNotFound)
 	require.ErrorIs(t, module.DeleteGuest(otherCtx, guest.ID), schoolmembership.ErrGuestNotFound)
-	require.ErrorIs(t, module.ClearWorkTimeModel(otherCtx, staff.ID), schoolmembership.ErrStaffNotFound)
-	require.ErrorIs(t, module.SetBirthdayDisplayOptOut(otherCtx, staff.ID, true), schoolmembership.ErrStaffNotFound)
 
 	// Everything the other tenant tried left the owner's rows untouched.
 	stillThere, err := module.FindStaff(ctx, staff.ID)

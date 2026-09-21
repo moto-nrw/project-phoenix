@@ -54,6 +54,24 @@ type AccountPersons interface {
 // StaffLinkNotStaff. Nothing is memoized; that stays with the caller.
 type StaffIdentities interface {
 	ResolveStaffIdentityByAccount(ctx context.Context, accountID int64, persons AccountPersons) (StaffIdentity, error)
+	// FindStaffIDByPerson returns the live staff ID of a person from the
+	// membership row alone, without the Workforce employment half (#2753);
+	// found is false when the person has no live membership.
+	FindStaffIDByPerson(ctx context.Context, personID int64) (staffID int64, found bool, err error)
+}
+
+func (m *Module) FindStaffIDByPerson(ctx context.Context, personID int64) (int64, bool, error) {
+	if personID <= 0 {
+		return 0, false, invalid("person ID is required")
+	}
+	staff, err := m.engine.FindStaffMembershipByPerson(ctx, personID)
+	if errors.Is(err, ErrStaffNotFound) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	return staff.ID, true, nil
 }
 
 func (m *Module) ResolveStaffIdentityByAccount(ctx context.Context, accountID int64, persons AccountPersons) (StaffIdentity, error) {
@@ -83,7 +101,10 @@ func (m *Module) ResolveStaffIdentityByAccount(ctx context.Context, accountID in
 }
 
 func (m *Module) resolveStaffIdentity(ctx context.Context, personID int64) (StaffIdentity, error) {
-	staff, err := m.FindStaffByPerson(ctx, personID)
+	if personID <= 0 {
+		return StaffIdentity{}, invalid("person ID is required")
+	}
+	staff, err := m.engine.FindStaffMembershipByPerson(ctx, personID)
 	if errors.Is(err, ErrStaffNotFound) {
 		return StaffIdentity{Link: StaffLinkNotStaff, PersonID: personID}, nil
 	}

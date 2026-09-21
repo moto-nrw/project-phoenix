@@ -6,7 +6,6 @@
 package operator
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -15,14 +14,8 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/seedtoken"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 const (
@@ -33,8 +26,7 @@ const (
 // ProvisioningResource handles operator tenant provisioning endpoints.
 type ProvisioningResource struct {
 	service                    organizationtenancy.Provisioning
-	CaregiverCapabilityService usersSvc.CaregiverCapabilityService
-	db                         *bun.DB
+	CaregiverCapabilityService SchoolAccountCaregivers
 	appEnv                     string
 }
 
@@ -43,10 +35,7 @@ type ProvisioningConfig struct {
 	Service organizationtenancy.Provisioning
 	// CaregiverCapability serves the caregiver capability routes of school
 	// accounts. Without it those routes answer 500.
-	CaregiverCapability usersSvc.CaregiverCapabilityService
-	// DB opens the administrative transaction the caregiver capability
-	// routes run in.
-	DB *bun.DB
+	CaregiverCapability SchoolAccountCaregivers
 	// AppEnv decides whether a seeding client may read invitation tokens.
 	AppEnv string
 }
@@ -56,7 +45,6 @@ func NewProvisioningResource(cfg ProvisioningConfig) *ProvisioningResource {
 	return &ProvisioningResource{
 		service:                    cfg.Service,
 		CaregiverCapabilityService: cfg.CaregiverCapability,
-		db:                         cfg.DB,
 		appEnv:                     cfg.AppEnv,
 	}
 }
@@ -521,13 +509,7 @@ func (rs *ProvisioningResource) GetSchoolAccountCaregiverCapability(w http.Respo
 		return
 	}
 
-	var state *userModels.CaregiverCapabilityState
-	err := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
-		tenantCtx := tenant.WithTenantID(adminCtx, schoolID)
-		var getErr error
-		state, getErr = rs.CaregiverCapabilityService.GetCaregiverCapability(tenantCtx, accountID)
-		return getErr
-	})
+	state, err := rs.CaregiverCapabilityService.GetSchoolAccountCaregiverCapability(r.Context(), schoolID, accountID)
 	if err != nil {
 		common.RenderError(w, r, caregiverCapabilityProvisioningErrorRenderer(err))
 		return
@@ -557,21 +539,14 @@ func (rs *ProvisioningResource) EnableSchoolAccountCaregiverCapability(w http.Re
 		return
 	}
 
-	var state *userModels.CaregiverCapabilityState
-	err := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
-		tenantCtx := tenant.WithTenantID(adminCtx, schoolID)
-		var enableErr error
-		state, enableErr = rs.CaregiverCapabilityService.EnableCaregiverCapability(
-			tenantCtx,
-			accountID,
-			userModels.EnableCaregiverCapabilityInput{
-				FirstName: req.FirstName,
-				LastName:  req.LastName,
-				Position:  req.Position,
-			},
-		)
-		return enableErr
-	})
+	state, err := rs.CaregiverCapabilityService.EnableSchoolAccountCaregiverCapability(
+		r.Context(),
+		schoolID,
+		accountID,
+		req.FirstName,
+		req.LastName,
+		req.Position,
+	)
 	if err != nil {
 		common.RenderError(w, r, caregiverCapabilityProvisioningErrorRenderer(err))
 		return
@@ -595,13 +570,7 @@ func (rs *ProvisioningResource) DisableSchoolAccountCaregiverCapability(w http.R
 		return
 	}
 
-	var state *userModels.CaregiverCapabilityState
-	err := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
-		tenantCtx := tenant.WithTenantID(adminCtx, schoolID)
-		var disableErr error
-		state, disableErr = rs.CaregiverCapabilityService.DisableCaregiverCapability(tenantCtx, accountID)
-		return disableErr
-	})
+	state, err := rs.CaregiverCapabilityService.DisableSchoolAccountCaregiverCapability(r.Context(), schoolID, accountID)
 	if err != nil {
 		common.RenderError(w, r, caregiverCapabilityProvisioningErrorRenderer(err))
 		return
@@ -648,7 +617,6 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 	var identityErr *organizationtenancy.ProvisioningIdentityError
 
 	if errors.As(err, &identityErr) && identityErr.Err != nil {
-		var dbErr *modelBase.DatabaseError
 		switch {
 		case errors.Is(identityErr.Err, organizationtenancy.ErrAccountEmailExists):
 			return common.OperatorConflict(organizationtenancy.ErrAccountEmailExists.Error())
@@ -657,7 +625,7 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 		case errors.Is(identityErr.Err, organizationtenancy.ErrInvitationNameRequired),
 			errors.Is(identityErr.Err, organizationtenancy.ErrPasswordMismatch),
 			errors.Is(identityErr.Err, organizationtenancy.ErrPasswordTooWeak),
-			identityErr.Op == organizationtenancy.OpCreateInvitation && !errors.As(identityErr.Err, &dbErr):
+			identityErr.Op == organizationtenancy.OpCreateInvitation && !errors.Is(identityErr.Err, organizationtenancy.ErrIdentityStoreFailed):
 			return common.OperatorInvalidRequest(identityErr.Err)
 		default:
 			return common.OperatorInternal(internalErrorMessage)
@@ -718,31 +686,23 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 }
 
 func caregiverCapabilityProvisioningErrorRenderer(err error) render.Renderer {
-	var blockedErr *usersSvc.CaregiverCapabilityBlockedError
-	var accountTenantErr *usersSvc.AccountNotAssignedToTenantError
-
-	switch {
-	case errors.As(err, &blockedErr):
+	if blocked, ok := errors.AsType[caregiverCapabilityBlocked](err); ok {
 		return common.NewCaregiverCapabilityBlockedResponse(
 			http.StatusConflict,
-			blockedErr.Error(),
-			blockedErr.Reasons,
+			blocked.Error(),
+			blocked.CaregiverCapabilityBlockers(),
 		)
-	case errors.Is(err, organizationtenancy.ErrAccountNotFound),
-		errors.Is(err, usersSvc.ErrAccountNotFound),
-		errors.As(err, &accountTenantErr):
-		return common.OperatorNotFound("Account not found")
-	default:
-		var invalidProvisioningData *organizationtenancy.InvalidProvisioningDataError
-		if errors.As(err, &invalidProvisioningData) {
-			return common.OperatorInvalidRequest(invalidProvisioningData.Err)
-		}
-		var validationErr *usersSvc.ValidationError
-		if errors.As(err, &validationErr) {
-			return common.OperatorInvalidRequest(validationErr.Err)
-		}
-		return ProvisioningErrorRenderer(err)
 	}
+	if _, missing := errors.AsType[caregiverAccountMissing](err); missing || errors.Is(err, organizationtenancy.ErrAccountNotFound) {
+		return common.OperatorNotFound("Account not found")
+	}
+	if invalidProvisioningData, ok := errors.AsType[*organizationtenancy.InvalidProvisioningDataError](err); ok {
+		return common.OperatorInvalidRequest(invalidProvisioningData.Err)
+	}
+	if invalid, ok := errors.AsType[caregiverRequestInvalid](err); ok {
+		return common.OperatorInvalidRequest(errors.Unwrap(invalid.CaregiverRequestInvalid()))
+	}
+	return ProvisioningErrorRenderer(err)
 }
 
 func operatorInvitationCreatedByValue(createdBy *int64) int64 {
@@ -935,5 +895,5 @@ func (rs *ProvisioningResource) SoftDeletePerson(w http.ResponseWriter, r *http.
 }
 
 func shouldExposeSeedInvitationToken(r *http.Request, appEnv string) bool {
-	return seedtoken.ShouldExposeInvitationToken(r.Header.Get(seedtoken.Header), r.Host, appEnv)
+	return common.ShouldExposeSeedInvitationToken(r, appEnv)
 }

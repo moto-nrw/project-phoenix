@@ -1,0 +1,612 @@
+// Package auth internal tests for pure helper functions.
+// These tests verify logic that doesn't require database access.
+package account
+
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// =============================================================================
+// getClientIP Tests
+// =============================================================================
+
+func TestGetClientIP_IgnoresRawXRealIP(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("X-Real-IP", "192.168.1.100")
+	req.RemoteAddr = "192.0.2.50:1234"
+
+	ip := getClientIP(req)
+
+	assert.Equal(t, "192.0.2.50", ip)
+}
+
+func TestGetClientIP_XForwardedFor_Single(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("X-Forwarded-For", "10.0.0.50")
+
+	ip := getClientIPThroughXFFMiddleware(req)
+
+	assert.Equal(t, "10.0.0.50", ip)
+}
+
+func TestGetClientIP_XForwardedFor_Multiple(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("X-Forwarded-For", "10.0.0.1, 10.0.0.2, 10.0.0.3")
+
+	ip := getClientIPThroughXFFMiddleware(req)
+
+	assert.Equal(t, "10.0.0.3", ip)
+}
+
+func TestGetClientIP_XForwardedFor_WithSpaces(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("X-Forwarded-For", "  10.0.0.1  ,  10.0.0.2  ")
+
+	ip := getClientIPThroughXFFMiddleware(req)
+
+	assert.Equal(t, "10.0.0.2", ip)
+}
+
+func TestGetClientIP_RemoteAddr_WithPort(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.RemoteAddr = "192.168.1.1:12345"
+
+	ip := getClientIP(req)
+
+	assert.Equal(t, "192.168.1.1", ip)
+}
+
+func TestGetClientIP_RemoteAddr_IPv6(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.RemoteAddr = "[::1]:8080"
+
+	ip := getClientIP(req)
+
+	assert.Equal(t, "::1", ip)
+}
+
+func TestGetClientIP_RemoteAddr_NoPort(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.RemoteAddr = "192.168.1.1"
+
+	ip := getClientIP(req)
+
+	// If SplitHostPort fails, returns the full RemoteAddr
+	assert.Equal(t, "192.168.1.1", ip)
+}
+
+func TestGetClientIP_XForwardedForBeatsRawXRealIP(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("X-Real-IP", "1.1.1.1")
+	req.Header.Set("X-Forwarded-For", "2.2.2.2")
+	req.RemoteAddr = "3.3.3.3:1234"
+
+	ip := getClientIPThroughXFFMiddleware(req)
+
+	assert.Equal(t, "2.2.2.2", ip)
+}
+
+func TestGetClientIP_XForwardedFor_TakesPrecedence_OverRemoteAddr(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("X-Forwarded-For", "2.2.2.2")
+	req.RemoteAddr = "3.3.3.3:1234"
+
+	ip := getClientIPThroughXFFMiddleware(req)
+
+	assert.Equal(t, "2.2.2.2", ip)
+}
+
+func getClientIPThroughXFFMiddleware(req *http.Request) string {
+	var ip string
+	router := chi.NewRouter()
+	router.Use(chimiddleware.ClientIPFromXFF())
+	router.Get("/test", func(w http.ResponseWriter, r *http.Request) {
+		ip = getClientIP(r)
+		w.WriteHeader(http.StatusNoContent)
+	})
+	router.ServeHTTP(httptest.NewRecorder(), req)
+	return ip
+}
+
+// =============================================================================
+// Request/Response Type Tests
+// =============================================================================
+
+func TestLoginRequest_Fields(t *testing.T) {
+	t.Parallel()
+
+	req := LoginRequest{
+		Email:    "test@example.com",
+		Password: "password123",
+	}
+
+	assert.Equal(t, "test@example.com", req.Email)
+	assert.Equal(t, "password123", req.Password)
+}
+
+func TestTokenResponse_Fields(t *testing.T) {
+	t.Parallel()
+
+	resp := TokenResponse{
+		AccessToken:  "access_token_value",
+		RefreshToken: "refresh_token_value",
+	}
+
+	assert.Equal(t, "access_token_value", resp.AccessToken)
+	assert.Equal(t, "refresh_token_value", resp.RefreshToken)
+}
+
+func TestRegisterRequest_Fields(t *testing.T) {
+	t.Parallel()
+
+	roleID := int64(5)
+	req := RegisterRequest{
+		Email:           "test@example.com",
+		Username:        "testuser",
+		Password:        "password123",
+		ConfirmPassword: "password123",
+		RoleID:          &roleID,
+	}
+
+	assert.Equal(t, "test@example.com", req.Email)
+	assert.Equal(t, "testuser", req.Username)
+	assert.Equal(t, "password123", req.Password)
+	assert.Equal(t, "password123", req.ConfirmPassword)
+	assert.Equal(t, int64(5), *req.RoleID)
+}
+
+func TestChangePasswordRequest_Fields(t *testing.T) {
+	t.Parallel()
+
+	req := ChangePasswordRequest{
+		CurrentPassword: "old_password",
+		NewPassword:     "new_password",
+		ConfirmPassword: "new_password",
+	}
+
+	assert.Equal(t, "old_password", req.CurrentPassword)
+	assert.Equal(t, "new_password", req.NewPassword)
+	assert.Equal(t, "new_password", req.ConfirmPassword)
+}
+
+func TestCreateRoleRequest_Fields(t *testing.T) {
+	t.Parallel()
+
+	baseRole := "user"
+	req := CreateRoleRequest{
+		Name:        "admin",
+		Description: "Administrator role",
+		BaseRole:    &baseRole,
+	}
+
+	assert.Equal(t, "admin", req.Name)
+	assert.Equal(t, "Administrator role", req.Description)
+	assert.Equal(t, "user", *req.BaseRole)
+}
+
+func TestUpdateRoleRequest_Fields(t *testing.T) {
+	t.Parallel()
+
+	baseRole := "admin"
+	req := UpdateRoleRequest{
+		Name:        "updated_role",
+		Description: "Updated description",
+		BaseRole:    &baseRole,
+	}
+
+	assert.Equal(t, "updated_role", req.Name)
+	assert.Equal(t, "Updated description", req.Description)
+	assert.Equal(t, "admin", *req.BaseRole)
+}
+
+func TestCreatePermissionRequest_Fields(t *testing.T) {
+	t.Parallel()
+
+	req := CreatePermissionRequest{
+		Name:        "read_users",
+		Description: "Read users permission",
+		Resource:    "users",
+		Action:      "read",
+	}
+
+	assert.Equal(t, "read_users", req.Name)
+	assert.Equal(t, "Read users permission", req.Description)
+	assert.Equal(t, "users", req.Resource)
+	assert.Equal(t, "read", req.Action)
+}
+
+func TestUpdatePermissionRequest_Fields(t *testing.T) {
+	t.Parallel()
+
+	req := UpdatePermissionRequest{
+		Name:        "updated_permission",
+		Description: "Updated description",
+		Resource:    "groups",
+		Action:      "write",
+	}
+
+	assert.Equal(t, "updated_permission", req.Name)
+	assert.Equal(t, "Updated description", req.Description)
+	assert.Equal(t, "groups", req.Resource)
+	assert.Equal(t, "write", req.Action)
+}
+
+func TestPasswordResetRequest_Fields(t *testing.T) {
+	t.Parallel()
+
+	req := PasswordResetRequest{
+		Email: "reset@example.com",
+	}
+
+	assert.Equal(t, "reset@example.com", req.Email)
+}
+
+func TestAccountResponse_Fields(t *testing.T) {
+	t.Parallel()
+
+	resp := AccountResponse{
+		ID:          1,
+		Email:       "test@example.com",
+		Username:    "testuser",
+		Active:      true,
+		Roles:       []string{"admin", "user"},
+		Permissions: []string{"read_users", "write_users"},
+	}
+
+	assert.Equal(t, int64(1), resp.ID)
+	assert.Equal(t, "test@example.com", resp.Email)
+	assert.Equal(t, "testuser", resp.Username)
+	assert.True(t, resp.Active)
+	assert.Len(t, resp.Roles, 2)
+	assert.Len(t, resp.Permissions, 2)
+}
+
+func TestRoleResponse_Fields(t *testing.T) {
+	t.Parallel()
+
+	resp := RoleResponse{
+		ID:          1,
+		Name:        "admin",
+		Description: "Administrator",
+		CreatedAt:   "2024-01-01T00:00:00Z",
+		UpdatedAt:   "2024-01-01T00:00:00Z",
+		Permissions: []string{"read_users"},
+	}
+
+	assert.Equal(t, int64(1), resp.ID)
+	assert.Equal(t, "admin", resp.Name)
+	assert.Equal(t, "Administrator", resp.Description)
+	assert.NotEmpty(t, resp.CreatedAt)
+	assert.NotEmpty(t, resp.UpdatedAt)
+}
+
+func TestPermissionResponse_Fields(t *testing.T) {
+	t.Parallel()
+
+	resp := PermissionResponse{
+		ID:          1,
+		Name:        "read_users",
+		Description: "Read users",
+		Resource:    "users",
+		Action:      "read",
+		CreatedAt:   "2024-01-01T00:00:00Z",
+		UpdatedAt:   "2024-01-01T00:00:00Z",
+	}
+
+	assert.Equal(t, int64(1), resp.ID)
+	assert.Equal(t, "read_users", resp.Name)
+	assert.Equal(t, "Read users", resp.Description)
+	assert.Equal(t, "users", resp.Resource)
+	assert.Equal(t, "read", resp.Action)
+}
+
+func TestUpdateAccountRequest_Fields(t *testing.T) {
+	t.Parallel()
+
+	req := UpdateAccountRequest{
+		Email:    "new@example.com",
+		Username: "newuser",
+	}
+
+	assert.Equal(t, "new@example.com", req.Email)
+	assert.Equal(t, "newuser", req.Username)
+}
+
+// =============================================================================
+// Resource Tests
+// =============================================================================
+
+func TestNewResource_ReturnsResource(t *testing.T) {
+	t.Parallel()
+
+	// Create resource with nil services (just testing initialization)
+	resource := NewResource(nil, nil, nil, nil, nil)
+
+	assert.NotNil(t, resource)
+}
+
+// =============================================================================
+// normalizeBaseRole Tests
+// =============================================================================
+
+func TestNormalizeBaseRole(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil input returns nil", func(t *testing.T) {
+		assert.Nil(t, trimPtrToNil(nil))
+	})
+
+	t.Run("empty string returns nil", func(t *testing.T) {
+		empty := ""
+		assert.Nil(t, trimPtrToNil(&empty))
+	})
+
+	t.Run("whitespace-only returns nil", func(t *testing.T) {
+		spaces := "   "
+		assert.Nil(t, trimPtrToNil(&spaces))
+	})
+
+	t.Run("trims whitespace", func(t *testing.T) {
+		padded := "  admin  "
+		result := trimPtrToNil(&padded)
+		require.NotNil(t, result)
+		assert.Equal(t, "admin", *result)
+	})
+
+	t.Run("passes through clean value", func(t *testing.T) {
+		clean := "guardian"
+		result := trimPtrToNil(&clean)
+		require.NotNil(t, result)
+		assert.Equal(t, "guardian", *result)
+	})
+}
+
+// =============================================================================
+// validateBaseRole / validateBaseRoleValue Tests
+// =============================================================================
+
+func TestValidateBaseRole(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil is rejected", func(t *testing.T) {
+		err := validateBaseRole(nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "base_role is required")
+	})
+
+	t.Run("valid values accepted", func(t *testing.T) {
+		for _, role := range []string{"admin", "user", "guardian"} {
+			r := role
+			assert.NoError(t, validateBaseRole(&r), "expected %q to be valid", role)
+		}
+	})
+
+	t.Run("invalid value rejected", func(t *testing.T) {
+		bad := "superadmin"
+		err := validateBaseRole(&bad)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "base_role must be one of")
+	})
+
+	t.Run("case sensitive", func(t *testing.T) {
+		upper := "Admin"
+		err := validateBaseRole(&upper)
+		require.Error(t, err, "base_role validation must be case-sensitive")
+	})
+}
+
+func TestValidateBaseRoleValue(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty string rejected", func(t *testing.T) {
+		assert.Error(t, validateBaseRoleValue(""))
+	})
+
+	t.Run("unknown role rejected", func(t *testing.T) {
+		assert.Error(t, validateBaseRoleValue("staff"))
+	})
+
+	t.Run("all valid roles accepted", func(t *testing.T) {
+		for _, role := range identityaccess.ValidBaseRoles() {
+			assert.NoError(t, validateBaseRoleValue(role))
+		}
+	})
+}
+
+// =============================================================================
+// toRoleResponse Tests
+// =============================================================================
+
+func TestToRoleResponse(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
+	baseRole := "admin"
+
+	t.Run("maps all fields including base_role", func(t *testing.T) {
+		role := identityaccess.Role{
+			ID: 42, CreatedAt: now, UpdatedAt: now,
+			Name:        "custom-admin",
+			Description: "A custom admin role",
+			IsSystem:    false,
+			BaseRole:    &baseRole,
+		}
+
+		resp := toRoleResponse(role)
+
+		assert.Equal(t, int64(42), resp.ID)
+		assert.Equal(t, "custom-admin", resp.Name)
+		assert.Equal(t, "A custom admin role", resp.Description)
+		assert.False(t, resp.IsSystem)
+		require.NotNil(t, resp.BaseRole)
+		assert.Equal(t, "admin", *resp.BaseRole)
+		assert.Equal(t, "2026-01-15T10:30:00Z", resp.CreatedAt)
+		assert.Equal(t, "2026-01-15T10:30:00Z", resp.UpdatedAt)
+		assert.Nil(t, resp.Permissions, "Permissions not set by toRoleResponse")
+	})
+
+	t.Run("nil base_role preserved", func(t *testing.T) {
+		role := identityaccess.Role{
+			ID: 1, CreatedAt: now, UpdatedAt: now,
+			Name:     "legacy-role",
+			BaseRole: nil,
+		}
+
+		resp := toRoleResponse(role)
+		assert.Nil(t, resp.BaseRole)
+	})
+
+	t.Run("system role flag preserved", func(t *testing.T) {
+		role := identityaccess.Role{
+			ID: 1, CreatedAt: now, UpdatedAt: now,
+			Name:     "admin",
+			IsSystem: true,
+			BaseRole: nil,
+		}
+
+		resp := toRoleResponse(role)
+		assert.True(t, resp.IsSystem)
+		assert.Nil(t, resp.BaseRole)
+	})
+}
+
+// =============================================================================
+// CreateRoleRequest.Bind / UpdateRoleRequest.Bind Tests
+// =============================================================================
+
+func TestCreateRoleRequest_Bind_BaseRoleValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("missing base_role rejected", func(t *testing.T) {
+		req := &CreateRoleRequest{Name: "test", Description: "desc"}
+		err := req.Bind(nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "base_role is required")
+	})
+
+	t.Run("invalid base_role rejected", func(t *testing.T) {
+		bad := "manager"
+		req := &CreateRoleRequest{Name: "test", Description: "desc", BaseRole: &bad}
+		err := req.Bind(nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "base_role must be one of")
+	})
+
+	t.Run("valid base_role accepted", func(t *testing.T) {
+		valid := "guardian"
+		req := &CreateRoleRequest{Name: "test", Description: "desc", BaseRole: &valid}
+		err := req.Bind(nil)
+		assert.NoError(t, err)
+	})
+
+	t.Run("whitespace base_role normalized then rejected as nil", func(t *testing.T) {
+		spaces := "   "
+		req := &CreateRoleRequest{Name: "test", Description: "desc", BaseRole: &spaces}
+		err := req.Bind(nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "base_role is required")
+	})
+}
+
+func TestUpdateRoleRequest_Bind_BaseRoleValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil base_role accepted on update", func(t *testing.T) {
+		req := &UpdateRoleRequest{Name: "test", Description: "desc"}
+		err := req.Bind(nil)
+		assert.NoError(t, err)
+	})
+
+	t.Run("valid base_role accepted on update", func(t *testing.T) {
+		valid := "admin"
+		req := &UpdateRoleRequest{Name: "test", Description: "desc", BaseRole: &valid}
+		err := req.Bind(nil)
+		assert.NoError(t, err)
+	})
+
+	t.Run("invalid base_role rejected on update", func(t *testing.T) {
+		bad := "owner"
+		req := &UpdateRoleRequest{Name: "test", Description: "desc", BaseRole: &bad}
+		err := req.Bind(nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "base_role must be one of")
+	})
+}
+
+// parentAccountRouteStub satisfies the two method values the parent-account
+// routes bind while the router builds; none of them is called here.
+type parentAccountRouteStub struct{ AccountLifecycle }
+
+func (parentAccountRouteStub) ActivateParentAccount(context.Context, int64) error   { return nil }
+func (parentAccountRouteStub) DeactivateParentAccount(context.Context, int64) error { return nil }
+
+// TestRouterWithAuthRateLimiter pins which routes the production composition
+// throttles: the public credential and second-factor exchanges, and nothing
+// else. The route golden builds the router without a limiter, so this is the
+// only check on the limiter's placement.
+func TestRouterWithAuthRateLimiter(t *testing.T) {
+	t.Parallel()
+
+	throttled := func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusTooManyRequests)
+		})
+	}
+	router := NewResource(parentAccountRouteStub{}, nil, nil, nil, nil).RouterWithAuthRateLimiter(throttled)
+
+	for _, path := range []string{
+		"/login",
+		"/password-reset",
+		"/password-reset/confirm",
+		"/mfa/verify",
+		"/mfa/resend",
+		"/passkeys/login/options",
+		"/passkeys/login/verify",
+	} {
+		t.Run("throttled POST "+path, func(t *testing.T) {
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, path, nil))
+			assert.Equal(t, http.StatusTooManyRequests, rr.Code)
+		})
+	}
+
+	t.Run("unthrottled GET /tenant/resolve", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/tenant/resolve", nil))
+		assert.Equal(t, http.StatusBadRequest, rr.Code, "missing slug is rejected by the handler, not the limiter")
+	})
+
+	t.Run("unthrottled POST /register", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/register", nil))
+		assert.Equal(t, http.StatusUnauthorized, rr.Code, "register sits behind the access-token group, not the limiter")
+	})
+}

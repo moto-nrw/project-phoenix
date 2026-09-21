@@ -204,7 +204,7 @@ func (p provisioningPeople) ListPersons(ctx context.Context, tenantIDs []int64) 
 		return nil, err
 	}
 	staff := make(map[int64]bool, len(personIDs))
-	members, err := p.membership.ListStaff(ctx, schoolmembership.StaffFilter{PersonIDs: personIDs})
+	members, err := p.membership.ListStaff(ctx, schoolmembership.StaffFilter{PersonIDs: personIDs, MembershipOnly: true})
 	if err != nil {
 		return nil, fmt.Errorf("load operator staff membership: %w", err)
 	}

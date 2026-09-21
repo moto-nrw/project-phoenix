@@ -15,15 +15,14 @@ import (
 )
 
 // Unique indexes the writes can trip; the names are pinned by the migrations
-// that created them.
+// that created them. Migration 1.15.409 gave the membership's live-person index
+// the name users.staff carried.
 const (
-	staffPersonIndex          = "idx_staff_tenant_person"
-	staffPersonConstraint     = "staff_person_id_key"
-	staffPersonnelNumberIndex = "uq_staff_tenant_personnel_number"
-	teacherStaffIndex         = "idx_teachers_tenant_staff"
-	teacherStaffConstraint    = "teachers_staff_id_key"
-	guestStaffIndex           = "idx_guests_tenant_staff"
-	guestStaffConstraint      = "guests_staff_id_key"
+	staffPersonIndex       = "idx_staff_tenant_person"
+	teacherStaffIndex      = "idx_teachers_tenant_staff"
+	teacherStaffConstraint = "teachers_staff_id_key"
+	guestStaffIndex        = "idx_guests_tenant_staff"
+	guestStaffConstraint   = "guests_staff_id_key"
 )
 
 // Database resolves the connection and the tenant of the current request.
@@ -39,20 +38,17 @@ func New(database Database) *Store {
 	return &Store{database: database}
 }
 
+// staffRow is a staff membership (#2753). The employment half of a staff
+// member is Workforce's users.staff_employment_profiles; the application
+// service composes it through the StaffEmployment port.
 type staffRow struct {
-	bun.BaseModel         `bun:"table:staff,alias:staff"`
-	ID                    int64          `bun:"id,pk,autoincrement"`
-	CreatedAt             time.Time      `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt             time.Time      `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
-	TenantID              int64          `bun:"tenant_id,notnull"`
-	PersonID              int64          `bun:"person_id,notnull"`
-	StaffNotes            string         `bun:"staff_notes"`
-	EmploymentType        *string        `bun:"employment_type"`
-	WorkTimeModelID       *int64         `bun:"work_time_model_id"`
-	PersonnelNumber       *string        `bun:"personnel_number"`
-	RotationAnchorDate    *calendar.Date `bun:"rotation_anchor_date,type:date"`
-	BirthdayDisplayOptOut bool           `bun:"birthday_display_opt_out,notnull"`
-	DeletedAt             *time.Time     `bun:"deleted_at"`
+	bun.BaseModel `bun:"table:staff_school_memberships,alias:staff"`
+	ID            int64      `bun:"id,pk,autoincrement"`
+	CreatedAt     time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt     time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	TenantID      int64      `bun:"tenant_id,notnull"`
+	PersonID      int64      `bun:"person_id,notnull"`
+	DeletedAt     *time.Time `bun:"deleted_at"`
 }
 
 type teacherRow struct {
@@ -146,9 +142,6 @@ func (s *Store) ListStaff(ctx context.Context, filter domain.StaffFilter) ([]dom
 		}
 		query = query.Where(`"staff".person_id IN (?)`, bun.List(filter.PersonIDs))
 	}
-	if filter.WorkTimeModelID != nil {
-		query = query.Where(`"staff".work_time_model_id = ?`, *filter.WorkTimeModelID)
-	}
 	if filter.TenantIDs != nil {
 		if len(filter.TenantIDs) == 0 {
 			return []domain.Staff{}, domain.OperationStats{}, nil
@@ -167,11 +160,7 @@ func (s *Store) ListStaff(ctx context.Context, filter domain.StaffFilter) ([]dom
 	return result, stats, nil
 }
 
-func (s *Store) CreateStaff(ctx context.Context, fields domain.StaffFields) (domain.Staff, domain.OperationStats, error) {
-	anchor, err := optionalDate(fields.RotationAnchorDate, "rotation anchor date")
-	if err != nil {
-		return domain.Staff{}, domain.OperationStats{}, err
-	}
+func (s *Store) CreateStaff(ctx context.Context, personID int64) (domain.Staff, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return domain.Staff{}, domain.OperationStats{}, err
@@ -179,15 +168,10 @@ func (s *Store) CreateStaff(ctx context.Context, fields domain.StaffFields) (dom
 	if tenantID <= 0 {
 		return domain.Staff{}, domain.OperationStats{}, errors.New("school membership postgres: tenant is required to create a staff member")
 	}
-	row := staffRow{
-		TenantID: tenantID, PersonID: fields.PersonID, StaffNotes: fields.StaffNotes,
-		EmploymentType: fields.EmploymentType, WorkTimeModelID: fields.WorkTimeModelID,
-		PersonnelNumber: fields.PersonnelNumber, RotationAnchorDate: anchor,
-		BirthdayDisplayOptOut: fields.BirthdayDisplayOptOut,
-	}
+	row := staffRow{TenantID: tenantID, PersonID: personID}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	err = db.NewInsert().Model(&row).ModelTableExpr(`users.staff`).Returning("*").Scan(ctx)
+	err = db.NewInsert().Model(&row).ModelTableExpr(`users.staff_school_memberships`).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return domain.Staff{}, stats, wrapStaffWriteError("create", err)
@@ -196,24 +180,15 @@ func (s *Store) CreateStaff(ctx context.Context, fields domain.StaffFields) (dom
 	return staffToDomain(row), stats, nil
 }
 
-func (s *Store) UpdateStaff(ctx context.Context, id int64, fields domain.StaffFields) (domain.Staff, domain.OperationStats, error) {
-	anchor, err := optionalDate(fields.RotationAnchorDate, "rotation anchor date")
-	if err != nil {
-		return domain.Staff{}, domain.OperationStats{}, err
-	}
+func (s *Store) UpdateStaff(ctx context.Context, id, personID int64) (domain.Staff, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return domain.Staff{}, domain.OperationStats{}, err
 	}
-	row := staffRow{
-		ID: id, PersonID: fields.PersonID, StaffNotes: fields.StaffNotes,
-		EmploymentType: fields.EmploymentType, WorkTimeModelID: fields.WorkTimeModelID,
-		PersonnelNumber: fields.PersonnelNumber, RotationAnchorDate: anchor,
-		BirthdayDisplayOptOut: fields.BirthdayDisplayOptOut,
-	}
+	row := staffRow{ID: id, PersonID: personID}
 	query := withTenant(db.NewUpdate().Model(&row).
-		ModelTableExpr(`users.staff AS "staff"`).
-		Column("person_id", "staff_notes", "employment_type", "work_time_model_id", "personnel_number", "rotation_anchor_date", "birthday_display_opt_out").
+		ModelTableExpr(`users.staff_school_memberships AS "staff"`).
+		Column("person_id").
 		Set(`updated_at = NOW()`).
 		Where(`"staff".id = ?`, id).
 		Where(`"staff".deleted_at IS NULL`), "staff", tenantID)
@@ -237,81 +212,12 @@ func (s *Store) SoftDeleteStaff(ctx context.Context, id int64) (domain.Operation
 		return domain.OperationStats{}, err
 	}
 	query := withTenant(db.NewUpdate().Model((*staffRow)(nil)).
-		ModelTableExpr(`users.staff AS "staff"`).
+		ModelTableExpr(`users.staff_school_memberships AS "staff"`).
 		Set(`deleted_at = NOW()`).
 		Set(`updated_at = NOW()`).
 		Where(`"staff".id = ?`, id).
 		Where(`"staff".deleted_at IS NULL`), "staff", tenantID)
 	return execOne(ctx, query, "soft delete staff", domain.ErrStaffNotFound)
-}
-
-func (s *Store) ClearWorkTimeModel(ctx context.Context, id int64) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
-	if err != nil {
-		return domain.OperationStats{}, err
-	}
-	query := withTenant(db.NewUpdate().Model((*staffRow)(nil)).
-		ModelTableExpr(`users.staff AS "staff"`).
-		Set(`work_time_model_id = NULL`).
-		Where(`"staff".id = ?`, id), "staff", tenantID)
-	return execOne(ctx, query, "clear work time model", domain.ErrStaffNotFound)
-}
-
-func (s *Store) SetStaffNotes(ctx context.Context, id int64, notes string) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
-	if err != nil {
-		return domain.OperationStats{}, err
-	}
-	query := withTenant(db.NewUpdate().Model((*staffRow)(nil)).
-		ModelTableExpr(`users.staff AS "staff"`).
-		Set(`staff_notes = ?`, notes).
-		Set(`updated_at = NOW()`).
-		Where(`"staff".id = ?`, id).
-		Where(`"staff".deleted_at IS NULL`), "staff", tenantID)
-	return execOne(ctx, query, "set staff notes", domain.ErrStaffNotFound)
-}
-
-func (s *Store) SetBirthdayDisplayOptOut(ctx context.Context, id int64, optOut bool) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
-	if err != nil {
-		return domain.OperationStats{}, err
-	}
-	query := withTenant(db.NewUpdate().Model((*staffRow)(nil)).
-		ModelTableExpr(`users.staff AS "staff"`).
-		Set(`birthday_display_opt_out = ?`, optOut).
-		Set(`updated_at = CURRENT_TIMESTAMP`).
-		Where(`"staff".id = ?`, id).
-		Where(`"staff".deleted_at IS NULL`), "staff", tenantID)
-	return execOne(ctx, query, "set staff birthday display opt-out", domain.ErrStaffNotFound)
-}
-
-// RebaseWorkTimeModelAnchor stamps the anchor onto every live staff member
-// of the template and returns their IDs in ascending order.
-func (s *Store) RebaseWorkTimeModelAnchor(ctx context.Context, workTimeModelID int64, anchorDate string) ([]int64, domain.OperationStats, error) {
-	anchor, err := optionalDate(anchorDate, "rotation anchor date")
-	if err != nil {
-		return nil, domain.OperationStats{}, err
-	}
-	db, tenantID, err := s.database(ctx)
-	if err != nil {
-		return nil, domain.OperationStats{}, err
-	}
-	var ids []int64
-	query := withTenant(db.NewUpdate().Model((*staffRow)(nil)).
-		ModelTableExpr(`users.staff AS "staff"`).
-		Set(`rotation_anchor_date = ?`, anchor).
-		Where(`"staff".work_time_model_id = ?`, workTimeModelID).
-		Where(`"staff".deleted_at IS NULL`), "staff", tenantID)
-	stats := domain.OperationStats{Queries: 1}
-	started := time.Now()
-	err = query.Returning(`"staff".id`).Scan(ctx, &ids)
-	stats.StatementDuration = time.Since(started)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return nil, stats, fmt.Errorf("school membership postgres: rebase work time model anchor: %w", err)
-	}
-	stats.Rows = int64(len(ids))
-	sortInt64(ids)
-	return ids, stats, nil
 }
 
 // --- teachers ---
@@ -638,7 +544,7 @@ func (s *Store) DeleteGuest(ctx context.Context, id int64) (domain.OperationStat
 // --- helpers ---
 
 func staffSelect(db bun.IDB, model any) *bun.SelectQuery {
-	return db.NewSelect().Model(model).ModelTableExpr(`users.staff AS "staff"`)
+	return db.NewSelect().Model(model).ModelTableExpr(`users.staff_school_memberships AS "staff"`)
 }
 
 func teacherSelect(db bun.IDB, model any) *bun.SelectQuery {
@@ -720,10 +626,7 @@ func guestRowFrom(id int64, fields domain.GuestFields) (guestRow, error) {
 func staffToDomain(row staffRow) domain.Staff {
 	return domain.Staff{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
-		PersonID: row.PersonID, StaffNotes: row.StaffNotes, EmploymentType: row.EmploymentType,
-		WorkTimeModelID: row.WorkTimeModelID, PersonnelNumber: row.PersonnelNumber,
-		RotationAnchorDate: dateString(row.RotationAnchorDate), BirthdayDisplayOptOut: row.BirthdayDisplayOptOut,
-		DeletedAt: row.DeletedAt,
+		PersonID: row.PersonID, DeletedAt: row.DeletedAt,
 	}
 }
 
@@ -766,20 +669,9 @@ func escapeLike(value string) string {
 	return strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(value)
 }
 
-func sortInt64(values []int64) {
-	for i := 1; i < len(values); i++ {
-		for j := i; j > 0 && values[j-1] > values[j]; j-- {
-			values[j-1], values[j] = values[j], values[j-1]
-		}
-	}
-}
-
 func wrapStaffWriteError(operation string, err error) error {
-	switch {
-	case isUniqueViolationOn(err, staffPersonIndex, staffPersonConstraint):
+	if isUniqueViolationOn(err, staffPersonIndex) {
 		return domain.ErrStaffPersonConflict
-	case isUniqueViolationOn(err, staffPersonnelNumberIndex):
-		return domain.ErrPersonnelNumberConflict
 	}
 	return fmt.Errorf("school membership postgres: %s staff: %w", operation, err)
 }

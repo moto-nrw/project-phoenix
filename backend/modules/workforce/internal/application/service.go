@@ -186,9 +186,10 @@ func (s *Service) refreshAssignedSchedules(ctx context.Context, model domain.Wor
 		return err
 	}
 
-	// The staff rows belong to School Membership: the anchor is stamped
-	// through that capability, never by a foreign join.
-	if _, err := s.assignments.RebaseAnchor(ctx, model.ID, model.RotationAnchorDate); err != nil {
+	// The anchor lives on the Workforce employment profile (#2753) and is
+	// stamped onto the assignees resolved above, so the liveness question
+	// goes to School Membership exactly once per refresh.
+	if err := s.assignments.RebaseAnchor(ctx, staffIDs, model.RotationAnchorDate); err != nil {
 		return err
 	}
 

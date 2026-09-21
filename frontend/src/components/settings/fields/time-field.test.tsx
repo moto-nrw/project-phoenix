@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { SettingsTimeField } from "./time-field";
 
 describe("SettingsTimeField", () => {
@@ -101,8 +102,51 @@ describe("SettingsTimeField", () => {
   it("auto-inserts colon when typing digits", () => {
     render(<SettingsTimeField value="12:00" onChange={vi.fn()} />);
     const input = screen.getByPlaceholderText("HH:MM") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "1" } });
+    fireEvent.change(input, { target: { value: "18" } });
     fireEvent.change(input, { target: { value: "183" } });
     expect(input.value).toBe("18:3");
+  });
+
+  it.each([
+    ["100", "01:00"],
+    ["130", "01:30"],
+    ["230", "02:30"],
+    ["1530", "15:30"],
+  ])("completes sequential digits %s as %s", async (digits, expected) => {
+    const user = userEvent.setup();
+    render(<SettingsTimeField value="" onChange={vi.fn()} />);
+
+    const input = screen.getByPlaceholderText("HH:MM");
+    await user.type(input, digits);
+
+    expect(input).toHaveValue(expected);
+  });
+
+  it("keeps a completed time when another digit is typed", async () => {
+    const user = userEvent.setup();
+    render(<SettingsTimeField value="12:34" onChange={vi.fn()} />);
+
+    const input = screen.getByPlaceholderText("HH:MM");
+    await user.type(input, "5");
+
+    expect(input).toHaveValue("12:34");
+  });
+
+  it("does not continue a one-digit-hour entry after leaving the field", async () => {
+    const user = userEvent.setup();
+    render(<SettingsTimeField value="" onChange={vi.fn()} />);
+
+    const input = screen.getByPlaceholderText("HH:MM") as HTMLInputElement;
+    await user.type(input, "130");
+    expect(input).toHaveValue("01:30");
+
+    fireEvent.blur(input);
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+    await user.type(input, "5");
+
+    expect(input).toHaveValue("01:30");
   });
 
   it("strips non-digit characters", () => {

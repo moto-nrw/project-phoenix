@@ -147,10 +147,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-auth",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-birthdays",
       "kind": "inbound"
     },
@@ -472,6 +468,13 @@
       "external_test_role": "workflow-integration-test"
     },
     {
+      "path": "database/repositories/staffintegration",
+      "owner": "legacy-composition",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
       "path": "modules/studentdirectoryview",
       "owner": "student-directory-view",
       "role": "postgres",
@@ -780,8 +783,8 @@
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "modules/identityaccess/inbound/auth",
-      "owner": "inbound-auth",
+      "path": "modules/identityaccess/inbound/account",
+      "owner": "identity-access",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -3188,6 +3191,20 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "modules/settings",
+      "owner": "settings-platform",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/settings/compose",
+      "owner": "settings-platform",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/communication/http/operatorannouncements",
       "owner": "communication",
       "role": "http",
@@ -4167,6 +4184,14 @@
     {
       "name": "users.staff_employment_profiles",
       "write_owner": "workforce"
+    },
+    {
+      "name": "users.staff_compatibility_reads",
+      "write_owner": "migrations"
+    },
+    {
+      "name": "users.staff_compatibility_writes",
+      "write_owner": "migrations"
     },
     {
       "name": "users.staff_document_file_cleanup",
@@ -9034,17 +9059,6 @@
       "source_owner": "inbound-announcement",
       "source_role": "http",
       "target_owner": "communication",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-auth.to.identity-access",
-      "description": "inbound-auth calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-auth",
-      "source_role": "http",
-      "target_owner": "identity-access",
       "target_role": "public"
     },
     {
@@ -21895,230 +21909,69 @@
     },
     {
       "id": "organization-tenancy.http.inbound-common",
-      "description": "The operator provisioning routes use the shared HTTP helpers and the operator error bodies (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
+      "description": "The operator provisioning routes use the shared HTTP helpers and the operator error bodies (#3232). Owner HTTP adapters and their tests use the shared inbound helpers and the session token adapter as a target dependency (ADR 0031, #2736).",
       "scopes": [
         "production"
       ],
       "source_owner": "organization-tenancy",
       "source_role": "http",
       "target_owner": "inbound-common",
-      "target_role": "http",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
+      "target_role": "http"
     },
     {
       "id": "organization-tenancy.http.token-claims",
-      "description": "The operator provisioning routes read the verified operator claims (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
+      "description": "The operator provisioning routes read the verified operator claims (#3232). Owner HTTP adapters and their tests use the shared inbound helpers and the session token adapter as a target dependency (ADR 0031, #2736).",
       "scopes": [
         "production"
       ],
       "source_owner": "organization-tenancy",
       "source_role": "http",
       "target_owner": "identity-access",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
-    },
-    {
-      "id": "organization-tenancy.http.seed-token",
-      "description": "The school admin invitation route exposes the invitation token to a seeding client (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "organization-tenancy",
-      "source_role": "http",
-      "target_owner": "security-runtime",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
-    },
-    {
-      "id": "organization-tenancy.http.transaction-domain",
-      "description": "The provisioning error mapping recognizes the retained database error (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "organization-tenancy",
-      "source_role": "http",
-      "target_owner": "transaction-runtime",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
-    },
-    {
-      "id": "organization-tenancy.http.people-domain",
-      "description": "The caregiver capability routes speak the retained caregiver capability rows (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "organization-tenancy",
-      "source_role": "http",
-      "target_owner": "people-directory",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
-    },
-    {
-      "id": "organization-tenancy.http.people-application",
-      "description": "The caregiver capability routes call the retained caregiver capability service and map its errors (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "organization-tenancy",
-      "source_role": "http",
-      "target_owner": "people-directory",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
-    },
-    {
-      "id": "organization-tenancy.http.tenant-runtime",
-      "description": "The caregiver capability routes run in an administrative transaction scoped to the school from the path (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "organization-tenancy",
-      "source_role": "http",
-      "target_owner": "tenant-runtime",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
-    },
-    {
-      "id": "organization-tenancy.http.orm-sql",
-      "description": "The caregiver capability routes open the administrative transaction on the Bun database (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "organization-tenancy",
-      "source_role": "http",
-      "target_class": "orm-sql",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
+      "target_role": "adapter"
     },
     {
       "id": "organization-tenancy.adapter-test.inbound-common",
-      "description": "The provisioning route tests assert the operator error bodies and request IDs (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
+      "description": "The provisioning route tests assert the operator error bodies and request IDs (#3232). Owner HTTP adapters and their tests use the shared inbound helpers and the session token adapter as a target dependency (ADR 0031, #2736).",
       "scopes": [
         "internal_test"
       ],
       "source_owner": "organization-tenancy",
       "source_role": "adapter-test",
       "target_owner": "inbound-common",
-      "target_role": "http",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
+      "target_role": "http"
     },
     {
       "id": "organization-tenancy.adapter-test.token-claims",
-      "description": "The provisioning route tests authenticate the operator through its claims (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
+      "description": "The provisioning route tests authenticate the operator through its claims (#3232). Owner HTTP adapters and their tests use the shared inbound helpers and the session token adapter as a target dependency (ADR 0031, #2736).",
       "scopes": [
         "internal_test"
       ],
       "source_owner": "organization-tenancy",
       "source_role": "adapter-test",
       "target_owner": "identity-access",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
-    },
-    {
-      "id": "organization-tenancy.adapter-test.seed-token",
-      "description": "The provisioning route tests pin the seeding client's invitation token exposure (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "organization-tenancy",
-      "source_role": "adapter-test",
-      "target_owner": "security-runtime",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
-    },
-    {
-      "id": "organization-tenancy.adapter-test.transaction-domain",
-      "description": "The provisioning error mapping tests build the retained database error (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "organization-tenancy",
-      "source_role": "adapter-test",
-      "target_owner": "transaction-runtime",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
-    },
-    {
-      "id": "organization-tenancy.adapter-test.people-domain",
-      "description": "The caregiver capability route tests build the retained caregiver capability rows (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "organization-tenancy",
-      "source_role": "adapter-test",
-      "target_owner": "people-directory",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
-    },
-    {
-      "id": "organization-tenancy.adapter-test.people-application",
-      "description": "The caregiver capability route tests fake the retained caregiver capability service and its errors (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "organization-tenancy",
-      "source_role": "adapter-test",
-      "target_owner": "people-directory",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
+      "target_role": "adapter"
     },
     {
       "id": "settings-platform.http.inbound-common",
-      "description": "The operator school settings routes use the shared HTTP helpers and the operator error bodies (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
+      "description": "The operator school settings routes use the shared HTTP helpers and the operator error bodies (#3232). Owner HTTP adapters and their tests use the shared inbound helpers and the session token adapter as a target dependency (ADR 0031, #2736).",
       "scopes": [
         "production"
       ],
       "source_owner": "settings-platform",
       "source_role": "http",
       "target_owner": "inbound-common",
-      "target_role": "http",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
+      "target_role": "http"
     },
     {
       "id": "settings-platform.http.token-claims",
-      "description": "The operator school settings routes attribute a change to the verified operator (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
+      "description": "The operator school settings routes attribute a change to the verified operator (#3232). Owner HTTP adapters and their tests use the shared inbound helpers and the session token adapter as a target dependency (ADR 0031, #2736).",
       "scopes": [
         "production"
       ],
       "source_owner": "settings-platform",
       "source_role": "http",
       "target_owner": "identity-access",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
-    },
-    {
-      "id": "settings-platform.http.calendar-date",
-      "description": "The operator school settings routes date the presence-mode guard and the booking authority review with the retained calendar date (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "settings-platform",
-      "source_role": "http",
-      "target_owner": "legacy-shared",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
-    },
-    {
-      "id": "settings-platform.http.domain",
-      "description": "The operator school settings routes name the registry keys and calendar dates of the retained settings rows (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "settings-platform",
-      "source_role": "http",
-      "target_owner": "settings-platform",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
-    },
-    {
-      "id": "settings-platform.http.application",
-      "description": "The operator school settings routes call the retained settings service and its operator write orchestration (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "settings-platform",
-      "source_role": "http",
-      "target_owner": "settings-platform",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
+      "target_role": "adapter"
     },
     {
       "id": "settings-platform.http.organization-public",
@@ -22132,113 +21985,15 @@
       "target_role": "public"
     },
     {
-      "id": "settings-platform.http.delivery-public",
-      "description": "The operator school settings routes broadcast the tenant settings change through the Delivery producer (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "settings-platform",
-      "source_role": "http",
-      "target_owner": "delivery-platform",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
-    },
-    {
-      "id": "settings-platform.http.tenant-runtime",
-      "description": "The operator school settings routes run in the tenant transaction of the school from the path (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "settings-platform",
-      "source_role": "http",
-      "target_owner": "tenant-runtime",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
-    },
-    {
-      "id": "settings-platform.http.orm-sql",
-      "description": "The operator school settings routes open the tenant transaction on the Bun database (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "settings-platform",
-      "source_role": "http",
-      "target_class": "orm-sql",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
-    },
-    {
-      "id": "settings-platform.adapter-test.domain",
-      "description": "The operator school settings tests name the registry keys of the retained settings rows (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "settings-platform",
-      "source_role": "adapter-test",
-      "target_owner": "settings-platform",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
-    },
-    {
-      "id": "settings-platform.adapter-test.application",
-      "description": "The operator school settings tests drive the retained settings service and its errors (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "settings-platform",
-      "source_role": "adapter-test",
-      "target_owner": "settings-platform",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
-    },
-    {
       "id": "settings-platform.adapter-test.token-claims",
-      "description": "The operator school settings tests authenticate the operator through its claims (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
+      "description": "The operator school settings tests authenticate the operator through its claims (#3232). Owner HTTP adapters and their tests use the shared inbound helpers and the session token adapter as a target dependency (ADR 0031, #2736).",
       "scopes": [
         "external_test"
       ],
       "source_owner": "settings-platform",
       "source_role": "adapter-test",
       "target_owner": "identity-access",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
-    },
-    {
-      "id": "settings-platform.adapter-test.legacy-composition",
-      "description": "The school slug test composes the Organisation & Tenancy owner through the legacy repository root (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "settings-platform",
-      "source_role": "adapter-test",
-      "target_owner": "legacy-composition",
-      "target_role": "compose",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
-    },
-    {
-      "id": "settings-platform.adapter-test.calendar-date",
-      "description": "The presence-mode guard tests seed today's attendance with the retained calendar date (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "settings-platform",
-      "source_role": "adapter-test",
-      "target_owner": "legacy-shared",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
-    },
-    {
-      "id": "settings-platform.adapter-test.people-domain",
-      "description": "The booking authority tests seed the retained people rows (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "settings-platform",
-      "source_role": "adapter-test",
-      "target_owner": "people-directory",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
+      "target_role": "adapter"
     },
     {
       "id": "communication.http.public",
@@ -22253,51 +22008,47 @@
     },
     {
       "id": "communication.http.inbound-common",
-      "description": "The operator announcement routes use the shared HTTP helpers and the operator error bodies (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
+      "description": "The operator announcement routes use the shared HTTP helpers and the operator error bodies (#3232). Owner HTTP adapters and their tests use the shared inbound helpers and the session token adapter as a target dependency (ADR 0031, #2736).",
       "scopes": [
         "production"
       ],
       "source_owner": "communication",
       "source_role": "http",
       "target_owner": "inbound-common",
-      "target_role": "http",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
+      "target_role": "http"
     },
     {
       "id": "communication.http.token-claims",
-      "description": "The operator announcement routes attribute a change to the verified operator (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
+      "description": "The operator announcement routes attribute a change to the verified operator (#3232). Owner HTTP adapters and their tests use the shared inbound helpers and the session token adapter as a target dependency (ADR 0031, #2736).",
       "scopes": [
         "production"
       ],
       "source_owner": "communication",
       "source_role": "http",
       "target_owner": "identity-access",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
+      "target_role": "adapter"
     },
     {
       "id": "communication.adapter-test.inbound-common",
-      "description": "The operator announcement tests assert the operator error bodies (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
+      "description": "The operator announcement tests assert the operator error bodies (#3232). Owner HTTP adapters and their tests use the shared inbound helpers and the session token adapter as a target dependency (ADR 0031, #2736).",
       "scopes": [
         "external_test"
       ],
       "source_owner": "communication",
       "source_role": "adapter-test",
       "target_owner": "inbound-common",
-      "target_role": "http",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
+      "target_role": "http"
     },
     {
       "id": "communication.adapter-test.token-claims",
-      "description": "The operator announcement tests authenticate the operator through its claims (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
+      "description": "The operator announcement tests authenticate the operator through its claims (#3232). Owner HTTP adapters and their tests use the shared inbound helpers and the session token adapter as a target dependency (ADR 0031, #2736).",
       "scopes": [
         "external_test"
       ],
       "source_owner": "communication",
       "source_role": "adapter-test",
       "target_owner": "identity-access",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2736"
+      "target_role": "adapter"
     },
     {
       "id": "root-composition.to.identity-access-http",
@@ -23959,17 +23710,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
-      "id": "inbound-operator.http.care-plan-public",
-      "description": "The operator booking-authority setting previews and applies its impact through Care Plan's public booking-authority contract instead of the retired care-lifecycle adapter (#3427, ADR 0035).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-operator",
-      "source_role": "http",
-      "target_owner": "care-plan",
-      "target_role": "public"
-    },
-    {
       "id": "settings-platform.http.care-plan-public",
       "description": "The operator booking-authority setting previews and applies its impact through Care Plan's public booking-authority contract instead of the retired care-lifecycle adapter (#3427, ADR 0035).",
       "scopes": [
@@ -24023,6 +23763,170 @@
       "source_role": "e2e-test",
       "target_owner": "people-directory",
       "target_role": "application"
+    },
+    {
+      "id": "settings-platform.public.domain",
+      "description": "The Settings Platform public contract names the setting keys and values other owners read (#2736).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "public",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "settings-platform.public.care-plan-public",
+      "description": "The operator school settings contract returns the Care Plan booking authority impact (#2736).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "public",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "settings-platform.compose.application",
+      "description": "Settings Platform composition constructs the operator settings orchestration of its application layer (#2736).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "settings-platform.compose.domain",
+      "description": "Settings Platform composition maps its calendar date values (#2736).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "settings-platform.compose.public",
+      "description": "Settings Platform composition returns its public operator settings capability (#2736).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "settings-platform.compose.tenant-runtime",
+      "description": "Settings Platform composition opens a school's tenant transaction through the shared runtime (#2736).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "settings-platform.compose.orm-sql",
+      "description": "Settings Platform composition supplies the concrete Bun database dependency (#2736).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "settings-platform.compose.calendar-date",
+      "description": "Settings Platform composition reads today's calendar date (#2736).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "compose",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "settings-platform.compose.care-plan-public",
+      "description": "Settings Platform composition previews the Care Plan booking authority impact (#2736).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "settings-platform.http.public",
+      "description": "The operator school settings routes call the public Settings Platform capability (#2736).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "http",
+      "target_owner": "settings-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "identity-access.http.settings-public",
+      "description": "The tenant shell of the account routes reads the tenant settings through the public Settings Platform contract (#2736).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "http",
+      "target_owner": "settings-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-operator.http.settings-public",
+      "description": "The operator router hands the public Settings Platform capability to the school settings routes it mounts (#2736).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-operator",
+      "source_role": "http",
+      "target_owner": "settings-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.to.settings-platform-compose",
+      "description": "The serving root constructs the operator school settings of Settings Platform (#2736).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "compose"
+    },
+    {
+      "id": "legacy-composition.compose.settings-public",
+      "description": "The retained operator settings test module hands out the public Settings Platform operator capability (#2736).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.compose.settings-compose",
+      "description": "The retained operator settings test module builds the operator capability through the Settings Platform composition, as the serving root does (#2736).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "compose"
     },
     {
       "id": "care-plan.contract.calendar-date",
@@ -24124,17 +24028,6 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-operator.http.student-presence-public",
-      "description": "api/operator hands the presence capability to the operator settings guard (#3422).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-operator",
-      "source_role": "http",
-      "target_owner": "student-presence",
-      "target_role": "public"
-    },
-    {
       "id": "root-composition.cli.student-presence-public",
       "description": "cmd cleanup renders the public retention cleanup and session maintenance reports (#3422).",
       "scopes": [
@@ -24166,17 +24059,6 @@
       "source_role": "compose",
       "target_owner": "student-presence",
       "target_role": "compose"
-    },
-    {
-      "id": "settings-platform.http.student-presence-public",
-      "description": "The operator settings route asks the public attendance reads whether attendance is still open (#3422).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "settings-platform",
-      "source_role": "http",
-      "target_owner": "student-presence",
-      "target_role": "public"
     },
     {
       "id": "student-presence.application.transaction-runtime-domain",
@@ -24381,11 +24263,6 @@
     }
   ],
   "relocations": [
-    {
-      "from": "api/auth",
-      "to": "modules/identityaccess/inbound/auth",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3230"
-    },
     {
       "from": "auth/jwt",
       "to": "modules/identityaccess/legacy/jwt",

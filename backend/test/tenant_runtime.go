@@ -198,50 +198,31 @@ func (r SettingsRuntimeAdapter) LockStaffAssignment(ctx context.Context, staffID
 		return fmt.Errorf("staff assignment requires a tenant transaction")
 	}
 	var id int64
-	return r.DB(ctx).NewSelect().TableExpr("users.staff").Column("id").
+	return r.DB(ctx).NewSelect().TableExpr("users.staff_school_memberships").Column("id").
 		Where("tenant_id = ?", r.TenantID(ctx)).Where("id = ?", staffID).
 		Where("deleted_at IS NULL").For("UPDATE").Scan(ctx, &id)
 }
 
-// AssignedStaffIDs and RebaseAssignedStaffAnchor stand in for the School
-// Membership capability the production settings runtime delegates to
-// (#2667). The test package cannot compose that module (its own tests import
-// this package), so it mirrors the owner's two statements directly. Keep
-// them in step with modules/schoolmembership if the owner's semantics move.
-func (r SettingsRuntimeAdapter) AssignedStaffIDs(ctx context.Context, workTimeModelID int64) ([]int64, error) {
+// LiveStaffIDs stands in for the School Membership liveness query the
+// production roots bind Workforce to (#2753). The test package cannot compose
+// that module (its own tests import this package), so it mirrors the owner's
+// one statement directly. Keep it in step with modules/schoolmembership if the
+// owner's semantics move.
+func (r SettingsRuntimeAdapter) LiveStaffIDs(ctx context.Context, membershipIDs []int64) ([]int64, error) {
 	ids := []int64{}
+	if len(membershipIDs) == 0 {
+		return ids, nil
+	}
 	query := r.DB(ctx).NewSelect().
-		TableExpr(`users.staff AS "staff"`).
+		TableExpr(`users.staff_school_memberships AS "staff"`).
 		ColumnExpr(`"staff".id`).
-		Where(`"staff".work_time_model_id = ?`, workTimeModelID).
+		Where(`"staff".id IN (?)`, bun.List(membershipIDs)).
 		Where(`"staff".deleted_at IS NULL`).
 		OrderExpr(`"staff".id ASC`)
 	if tenantID := r.TenantID(ctx); tenantID > 0 {
 		query = query.Where(`"staff".tenant_id = ?`, tenantID)
 	}
 	if err := query.Scan(ctx, &ids); err != nil {
-		return nil, err
-	}
-	return ids, nil
-}
-
-func (r SettingsRuntimeAdapter) RebaseAssignedStaffAnchor(ctx context.Context, workTimeModelID int64, anchorDate string) ([]int64, error) {
-	ids, err := r.AssignedStaffIDs(ctx, workTimeModelID)
-	if err != nil || len(ids) == 0 {
-		return ids, err
-	}
-	var anchor any
-	if anchorDate != "" {
-		anchor = anchorDate
-	}
-	query := r.DB(ctx).NewUpdate().
-		TableExpr(`users.staff`).
-		Set("rotation_anchor_date = ?", anchor).
-		Where("id IN (?)", bun.List(ids))
-	if tenantID := r.TenantID(ctx); tenantID > 0 {
-		query = query.Where("tenant_id = ?", tenantID)
-	}
-	if _, err := query.Exec(ctx); err != nil {
 		return nil, err
 	}
 	return ids, nil

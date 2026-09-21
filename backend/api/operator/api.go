@@ -1,3 +1,9 @@
+// Package operator is the operator router: it mounts the operator routes of
+// Identity & Access, Organisation & Tenancy, Settings Platform,
+// Communication and Device Fleet behind the operator session chains and rate
+// limiters, so the operator surface keeps one wire format (#2736). The
+// handlers, the session middleware and every service live with their
+// owners; the router only composes them.
 package operator
 
 import (
@@ -5,20 +11,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/communication/http/operatorannouncements"
 	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	provisioningoperator "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsoperator "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/uptrace/bun"
 )
 
 // Resource defines the operator API resource
@@ -33,11 +32,10 @@ type Resource struct {
 	profileResource         *identityoperator.ProfileResource
 	invitationsResource     *identityoperator.InvitationsResource
 	unregisteredTagScans    http.Handler
-	tokenAuth               *jwt.TokenAuth
+	sessions                identityoperator.Sessions
 	authRateLimiter         func(http.Handler) http.Handler
 	emailConfirmRateLimiter func(http.Handler) http.Handler
 	invitationRateLimiter   func(http.Handler) http.Handler
-	operatorLookup          identityoperator.OperatorLookup
 }
 
 // ResourceConfig holds dependencies for the operator resource
@@ -47,41 +45,34 @@ type ResourceConfig struct {
 	// Identity serves operator login, refresh, the profile and password
 	// changes and the school access of accounts from Identity & Access
 	// (#3252). Without it those routes are not mounted.
-	Identity                   *identityoperator.Resource
-	PasskeyService             identityoperator.OperatorPasskeys
-	MFAService                 identityoperator.OperatorMFA
-	InvitationService          identityoperator.OperatorAccess
-	ProvisioningService        organizationtenancy.Provisioning
-	CaregiverCapabilityService usersSvc.CaregiverCapabilityService
-	AnnouncementsService       communication.Capability
+	Identity            *identityoperator.Resource
+	PasskeyService      identityoperator.OperatorPasskeys
+	MFAService          identityoperator.OperatorMFA
+	InvitationService   identityoperator.OperatorAccess
+	ProvisioningService organizationtenancy.Provisioning
+	// Caregivers serves People Directory's caregiver capability of school
+	// accounts (#2736). Without it those routes answer 500.
+	Caregivers           provisioningoperator.SchoolAccountCaregivers
+	AnnouncementsService communication.Capability
 	// UnregisteredTagScans serves the Device Fleet review of unregistered
 	// RFID scans (#3232). Without it those routes are not mounted.
 	UnregisteredTagScans http.Handler
-	SettingsService      configSvc.SettingsService
-	// Broadcaster is optional. When supplied, the inner SettingsResource emits
-	// a tenant_settings_changed SSE event after every successful Set/Reset so
-	// open tenant tabs invalidate their settings caches across origins.
-	Broadcaster realtime.Broadcaster
-	// SchoolRepo lets the SettingsResource emit `school_slug` in set/reset
+	// SchoolSettings is Settings Platform's management of one school's
+	// settings (#2736): the transaction, the side effects and the
+	// cross-origin settings broadcast live behind it. Without it the school
+	// settings routes are not mounted.
+	SchoolSettings settings.OperatorSchoolSettings
+	// SchoolService lets the SettingsResource emit `school_slug` in set/reset
 	// responses so the frontend operator proxy can bust the slug-keyed
 	// `tenant-${slug}` cache after tenant-resolve-affecting toggles.
 	SchoolService settingsoperator.SchoolLookup
-	ActiveService studentpresence.Presence
-	CareLifecycle careplan.BookingAuthority
-	// SettingValueSet runs the settings side effects of an operator write
-	// (e.g. auto-provisioning system rooms when checkout toggles flip on).
-	// It runs in the tenant transaction; the optional postCommit closure it
-	// returns runs only on a successful commit, so non-transactional side
-	// effects (file unlinks, external API calls) never outlive a rolled-back
-	// write.
-	SettingValueSet configSvc.OperatorValueSetHook
 	// TenantMFAService is the tenant-side MFA service (auth package).
 	// The operator dashboard reuses it to read + write per-account MFA
 	// state on behalf of school staff. Distinct from MFAService above,
 	// which is the operator's own MFA service (operator login flow).
 	TenantMFAService identityoperator.AccountMFA
-	TokenAuth        *jwt.TokenAuth
-	DB               *bun.DB
+	// Sessions are Identity & Access's operator session chains. Required.
+	Sessions identityoperator.Sessions
 }
 
 // IdentityResponses hands the operator surface's error bodies to the
@@ -112,16 +103,13 @@ func (rs *Resource) SetInvitationRateLimiter(mw func(http.Handler) http.Handler)
 
 // NewResource creates a new operator resource
 func NewResource(cfg ResourceConfig) *Resource {
-	tokenAuth := cfg.TokenAuth
-
 	resource := &Resource{
 		identity:    cfg.Identity,
 		passkeys:    identityoperator.NewPasskeyResource(cfg.PasskeyService),
-		mfaResource: identityoperator.NewMFAResource(cfg.AuthService, cfg.MFAService, tokenAuth),
+		mfaResource: identityoperator.NewMFAResource(cfg.AuthService, cfg.MFAService, cfg.Sessions.TokenAuth()),
 		provisioningResource: provisioningoperator.NewProvisioningResource(provisioningoperator.ProvisioningConfig{
 			Service:             cfg.ProvisioningService,
-			CaregiverCapability: cfg.CaregiverCapabilityService,
-			DB:                  cfg.DB,
+			CaregiverCapability: cfg.Caregivers,
 			AppEnv:              cfg.AppEnv,
 		}),
 		mfaAdminResource:      &identityoperator.SchoolAccountMFAResource{TenantMFAService: cfg.TenantMFAService},
@@ -129,18 +117,12 @@ func NewResource(cfg ResourceConfig) *Resource {
 		profileResource:       identityoperator.NewProfileResource(cfg.AuthService),
 		invitationsResource:   identityoperator.NewInvitationsResource(cfg.InvitationService),
 		unregisteredTagScans:  cfg.UnregisteredTagScans,
-		tokenAuth:             tokenAuth,
-		operatorLookup:        cfg.AuthService,
+		sessions:              cfg.Sessions,
 	}
-	if cfg.SettingsService != nil {
+	if cfg.SchoolSettings != nil {
 		resource.settingsResource = settingsoperator.NewSettingsResource(settingsoperator.SettingsConfig{
-			Settings:      cfg.SettingsService,
-			DB:            cfg.DB,
-			Broadcaster:   cfg.Broadcaster,
-			Schools:       cfg.SchoolService,
-			Active:        cfg.ActiveService,
-			CareLifecycle: cfg.CareLifecycle,
-			OnValueSet:    cfg.SettingValueSet,
+			Settings: cfg.SchoolSettings,
+			Schools:  cfg.SchoolService,
 		})
 	}
 	return resource
@@ -148,10 +130,11 @@ func NewResource(cfg ResourceConfig) *Resource {
 
 // Router returns a configured router for operator endpoints
 func (rs *Resource) Router() chi.Router {
-	// The root provides the signer; without it the verifier mounts below would
-	// fail with a nil dereference instead of naming the missing configuration.
-	if rs.tokenAuth == nil {
-		panic("operator api: ResourceConfig.TokenAuth is required to mount the operator routes")
+	// The root provides the session chains; without the signer the verifier
+	// mounts below would fail with a nil dereference instead of naming the
+	// missing configuration.
+	if !rs.sessions.Configured() {
+		panic("operator api: ResourceConfig.Sessions is required to mount the operator routes")
 	}
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -214,8 +197,7 @@ func (rs *Resource) mountPublicAuthRoutes(r chi.Router) {
 // JWT, no scope check).
 func (rs *Resource) mountRefreshRoute(r chi.Router) {
 	r.Group(func(r chi.Router) {
-		r.Use(rs.tokenAuth.Verifier())
-		r.Use(jwt.AuthenticateRefreshJWT)
+		r.Use(rs.sessions.Refresh()...)
 		if rs.identity != nil {
 			r.Post("/auth/refresh", rs.identity.RefreshToken)
 		}
@@ -230,8 +212,7 @@ func (rs *Resource) mountRefreshRoute(r chi.Router) {
 // full operator access token.
 func (rs *Resource) mountMFAEnrollmentRoutes(r chi.Router) {
 	r.Group(func(r chi.Router) {
-		r.Use(rs.tokenAuth.Verifier())
-		r.Use(jwt.MFAEnrollmentAuthenticator)
+		r.Use(rs.sessions.MFAEnrollment()...)
 		r.Post("/auth/mfa/enroll/start", rs.mfaResource.EnrollStart)
 		r.Post("/auth/mfa/enroll/confirm", rs.mfaResource.EnrollConfirm)
 	})
@@ -240,12 +221,7 @@ func (rs *Resource) mountMFAEnrollmentRoutes(r chi.Router) {
 // mountProtectedRoutes registers every route behind the operator auth chain.
 func (rs *Resource) mountProtectedRoutes(r chi.Router) {
 	r.Group(func(r chi.Router) {
-		r.Use(rs.tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
-		r.Use(common.ReadOnlyPreviewMiddleware)
-		r.Use(identityoperator.RequiresOperatorScope)
-		r.Use(common.SecurityPrincipalMiddleware)
-		r.Use(identityoperator.RequiresActiveOperator(rs.operatorLookup))
+		r.Use(rs.sessions.Operator()...)
 
 		rs.mountPasskeyRoutes(r)
 		rs.mountProvisioningRoutes(r)

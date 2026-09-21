@@ -194,7 +194,6 @@ func (m *shiftMockStaffRepo) ListAllWithPerson(context.Context) ([]*usersModels.
 	return nil, nil
 }
 func (m *shiftMockStaffRepo) UpdateNotes(context.Context, int64, string) error { return nil }
-func (m *shiftMockStaffRepo) ClearWorkTimeModel(context.Context, int64) error  { return nil }
 func (m *shiftMockStaffRepo) FindWithPerson(context.Context, int64) (*usersModels.Staff, error) {
 	return nil, errors.New("not implemented")
 }

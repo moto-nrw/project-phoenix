@@ -220,7 +220,7 @@ var modulePassthroughBudgets = map[string]int{
 	"modules/schoolcalendar": 15,
 	// Membership service reads (17), teaching assignments (11) and the
 	// class-list-entry surface (5).
-	"modules/schoolmembership": 33,
+	"modules/schoolmembership": 28,
 	// School-year transition (9) plus the transition history and service reads.
 	"modules/schoolstructure": 13,
 	// Attendance, visit, supervision, group-mapping and room reads/writes

@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
-	"github.com/moto-nrw/project-phoenix/services"
-
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
+	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,7 +41,7 @@ func (f *overviewFixture) newWorkSessionService() timetracking.WorkSessionServic
 	// reading export rows.
 	return timetracking.NewWorkSessionService(
 		f.repos.WorkSession, f.repos.WorkSessionBreak, services.NewWorkSessionAudit(f.repos.WorkSessionEdit),
-		f.repos.StaffAbsence, f.repos.GroupSupervisor, f.repos.ActiveGroup, services.WorkSessionStaff(f.repos.Staff),
+		f.repos.StaffAbsence, f.repos.GroupSupervisor, f.repos.ActiveGroup, services.WorkSessionStaff(f.repos.Staff, repositories.MustNewStaffEmployment(f.db)),
 		services.NewWorkSessionSchedules(f.repos.StaffWorkSchedule), services.NewWorkSessionTimeModels(f.repos.WorkTimeModel),
 		nil,
 		nil,
@@ -161,7 +161,7 @@ func TestMonthExportRows_ClosedMonthCarriesFrozenValue(t *testing.T) {
 		accountStart: timezone.NewDate(closedMonth.Year(), closedMonth.Month(), 1).String(),
 	}
 	monthSvc := timetracking.NewWorkTimeMonthService(
-		f.repos.WorkSession, f.repos.WorkSessionBreak, f.repos.StaffAbsence, services.StaffScheduleAssignments(f.repos.Staff),
+		f.repos.WorkSession, f.repos.WorkSessionBreak, f.repos.StaffAbsence, services.StaffScheduleAssignments(repositories.MustNewStaffEmployment(f.db)),
 		services.NewWorkScheduleTargets(f.repos.StaffWorkSchedule), services.NewWorkTimeTargetModels(f.repos.WorkTimeModel), services.NewTimeTrackingShifts(f.repos.StaffShift),
 		settings, nil,
 		timetracking.WithMonthAdjustments(f.repos.StaffBalanceAdjust),

@@ -1,0 +1,165 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2725",
+    "#3226",
+    "#3230",
+    "#3231",
+    "#3232",
+    "#3251",
+    "#3252",
+    "#3253"
+  ],
+  "owner_and_capability": "Legacy composition — contract step for the account routes (modules/identityaccess/inbound/auth, now modules/identityaccess/inbound/account as identity-access/http) and the operator router api/operator, with the Settings Platform public contract modules/settings (TenantReader, OperatorSchoolSettings) and its composition modules/settings/compose (#2736)",
+  "affected_packages": [
+    "modules/identityaccess/inbound/auth",
+    "modules/identityaccess/inbound/account",
+    "modules/identityaccess",
+    "modules/identityaccess/compose",
+    "modules/identityaccess/inbound/operator",
+    "api/operator",
+    "modules/settings",
+    "modules/settings/compose",
+    "modules/settings/inbound/operator",
+    "modules/organizationtenancy",
+    "modules/organizationtenancy/inbound/operator",
+    "modules/devicefleet/inbound/operator",
+    "api",
+    "api/common",
+    "api/testutil",
+    "services",
+    "services/users",
+    "models/base",
+    "test"
+  ],
+  "affected_tables": [
+    "config.setting_values",
+    "config.setting_audit",
+    "users.staff",
+    "users.teachers",
+    "auth.roles",
+    "auth.password_reset_tokens"
+  ],
+  "exact_ratchet_keys": [
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/operator|github.com/moto-nrw/project-phoenix/auth/rotation",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/operator|github.com/moto-nrw/project-phoenix/models/base",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/operator|github.com/moto-nrw/project-phoenix/models/platform",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/operator|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth|github.com/moto-nrw/project-phoenix/api/common",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth|github.com/moto-nrw/project-phoenix/database",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth|github.com/moto-nrw/project-phoenix/database/repositories/config",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth|github.com/moto-nrw/project-phoenix/models/config",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth|github.com/moto-nrw/project-phoenix/services",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth|github.com/moto-nrw/project-phoenix/services/config",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/operator|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth|github.com/moto-nrw/project-phoenix/api/common",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth|github.com/moto-nrw/project-phoenix/email",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth|github.com/moto-nrw/project-phoenix/internal/strutil",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth|github.com/moto-nrw/project-phoenix/models/users",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth|github.com/moto-nrw/project-phoenix/services/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/operator|github.com/moto-nrw/project-phoenix/api/common",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/operator|github.com/moto-nrw/project-phoenix/models/base",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/operator|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/operator|github.com/moto-nrw/project-phoenix/realtime",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/operator|github.com/moto-nrw/project-phoenix/services/config",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/operator|github.com/moto-nrw/project-phoenix/services/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/operator|github.com/uptrace/bun",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth|database/sql",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth|github.com/moto-nrw/project-phoenix/api/common",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth|github.com/moto-nrw/project-phoenix/auth/authorize",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth|github.com/moto-nrw/project-phoenix/auth/rotation",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth|github.com/moto-nrw/project-phoenix/email",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth|github.com/moto-nrw/project-phoenix/internal/strutil",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth|github.com/moto-nrw/project-phoenix/models/config",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth|github.com/moto-nrw/project-phoenix/models/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth|github.com/moto-nrw/project-phoenix/services/config",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth|github.com/moto-nrw/project-phoenix/services/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth|github.com/moto-nrw/project-phoenix/tenant"
+  ],
+  "atomic_cutover": "One PR removes every baseline entry and every policy rule that names #2736. The account routes move file for file from modules/identityaccess/inbound/auth to modules/identityaccess/inbound/account (identity-access/http), and the inbound-auth owner, its rule and the #3230 relocation record are deleted. Their remaining foreign imports become consumer-owned ports bound at the root (caregiver capability, role grants, tenant unit of work, demo switch, Settings Platform tenant reads). The operator school settings routes call the new public OperatorSchoolSettings capability of modules/settings, built by modules/settings/compose. The provisioning routes take the caregiver capability as a port and classify store failures through organizationtenancy.MarkIdentityStoreFailure. api/operator keeps only the router, with Identity & Access session chains, and Device Fleet maps its own resolution refusals. Routes, methods, status codes, error bodies and middleware chains are unchanged; the middleware golden only renames the package of the account routes.",
+  "tests": [
+    "scripts/test-changed.sh origin/development without --fast.",
+    "api TestFullProductionRouterGolden: route table and middleware golden (only the package name of the account routes changes).",
+    "modules/identityaccess/inbound/account, api/operator, modules/organizationtenancy/inbound/operator, modules/settings/inbound/operator, modules/settings/compose and modules/devicefleet/inbound/operator suites, ported to the api/testutil and test conduits.",
+    "services/users caregiver_capability_views_test.go and modules/organizationtenancy provisioning_identity_errors_test.go for the moved error classification.",
+    "test ratchets (module file size, function length, HTTP ORM, temporary policy rules) lowered, never raised.",
+    "scripts/backend-architecture.sh check with the listed keys absent from legacy.jsonl."
+  ],
+  "runtime_evidence": {
+    "source": "Local run on the PR branch. The change moves adapters and composition behind owner contracts without new queries, so the evidence is the unchanged behaviour suites, the router goldens and the architecture check, not a benchmark rerun.",
+    "sources": [
+      "backend/modules/identityaccess/inbound/account/api.go",
+      "backend/modules/settings/settings.go",
+      "backend/modules/settings/compose/operator.go",
+      "backend/api/operator/api.go",
+      "backend/services/users/caregiver_capability_views.go",
+      "backend/api/testdata/middleware_table.golden"
+    ],
+    "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",
+    "thresholds": "The suite passes with unchanged assertion strength except the one recorded coverage gap, the middleware chains are unchanged, and the architecture check reports no new violation and no stale baseline entry.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "No write statement changes; the operator settings writes and caregiver toggles run the same service calls in the same transactions."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "The tenant-resolve query budget test passes with test/query_budgets.go unchanged."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "The request paths call the same services; the added adapters are in-memory translation and were not timed."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "The request paths call the same services; the added adapters are in-memory translation and were not timed."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "scripts/test-changed.sh origin/development passed; golangci-lint reported 0 issues."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection is acquired differently; the operator settings and caregiver calls open the same tenant and administrative transactions as before."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "No lock statement or lock order changes."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No transaction boundary or lock order changes."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The affected routes have no worker path."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "The affected routes have no worker path."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "The affected routes have no worker path."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "Status codes and error texts of the caregiver, provisioning, settings, RBAC, password reset and tag-scan resolution paths are covered by the ported handler tests. Coverage gap: the forwarding of the X-Refresh-Recovery-Proof header by the operator refresh route is no longer asserted (api/operator/auth_test.go)."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data or schema change. Reverting the PR restores the packages, the policy classification and rules and the 38 baseline entries together."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed locally with the keys absent: 586 legacy violations remain (624 -> 586), composition surface unchanged at 636."
+    }
+  },
+  "rollback_and_cleanup": "Revert the PR; modules/identityaccess/inbound/auth, the inbound-auth owner, the #3232 compatibility permissions and the 38 baseline entries return together. No data cleanup.",
+  "exit_criterion": "No baseline entry and no policy rule names #2736, api/operator imports only owner packages, modules/identityaccess/inbound/auth is gone, and scripts/backend-architecture.sh check passes."
+}

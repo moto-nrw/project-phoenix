@@ -11,12 +11,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
 type operatorLookupStub struct {
-	getOperatorFn func(context.Context, int64) (*platformModels.Operator, error)
+	getOperatorFn func(context.Context, int64) (*identityaccess.Operator, error)
 }
 
 func (s operatorLookupStub) FindOperator(ctx context.Context, id int64) (identityoperator.Operator, error) {
@@ -50,11 +50,11 @@ func TestRequiresOperatorScope_ValidOperatorToken(t *testing.T) {
 
 	// Create request with operator scope claims
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	claims := jwt.AppClaims{
+	claims := testutil.Claims{
 		ID:    1,
 		Scope: "platform",
 	}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 
 	rr := httptest.NewRecorder()
@@ -77,11 +77,11 @@ func TestRequiresOperatorScope_TenantToken(t *testing.T) {
 
 	// Create request with tenant scope claims
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	claims := jwt.AppClaims{
+	claims := testutil.Claims{
 		ID:    1,
 		Scope: "tenant",
 	}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 
 	rr := httptest.NewRecorder()
@@ -116,9 +116,9 @@ func TestRequiresActiveOperator_ActiveOperator(t *testing.T) {
 
 	nextCalled := false
 	handler := identityoperator.RequiresActiveOperator(operatorLookupStub{
-		getOperatorFn: func(_ context.Context, id int64) (*platformModels.Operator, error) {
+		getOperatorFn: func(_ context.Context, id int64) (*identityaccess.Operator, error) {
 			assert.Equal(t, int64(42), id)
-			op := &platformModels.Operator{Active: true}
+			op := &identityaccess.Operator{Active: true}
 			op.ID = id
 			return op, nil
 		},
@@ -158,8 +158,8 @@ func TestRequiresActiveOperator_InactiveOperator(t *testing.T) {
 
 	nextCalled := false
 	handler := identityoperator.RequiresActiveOperator(operatorLookupStub{
-		getOperatorFn: func(_ context.Context, id int64) (*platformModels.Operator, error) {
-			op := &platformModels.Operator{Active: false}
+		getOperatorFn: func(_ context.Context, id int64) (*identityaccess.Operator, error) {
+			op := &identityaccess.Operator{Active: false}
 			op.ID = id
 			return op, nil
 		},
@@ -182,7 +182,7 @@ func TestRequiresActiveOperator_NilOperatorFailsClosed(t *testing.T) {
 
 	nextCalled := false
 	handler := identityoperator.RequiresActiveOperator(operatorLookupStub{
-		getOperatorFn: func(context.Context, int64) (*platformModels.Operator, error) {
+		getOperatorFn: func(context.Context, int64) (*identityaccess.Operator, error) {
 			return nil, nil
 		},
 	})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -204,7 +204,7 @@ func TestRequiresActiveOperator_OperatorNotFound(t *testing.T) {
 
 	nextCalled := false
 	handler := identityoperator.RequiresActiveOperator(operatorLookupStub{
-		getOperatorFn: func(context.Context, int64) (*platformModels.Operator, error) {
+		getOperatorFn: func(context.Context, int64) (*identityaccess.Operator, error) {
 			return nil, identityoperator.ErrOperatorNotFound
 		},
 	})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -225,7 +225,7 @@ func TestRequiresActiveOperator_LookupErrorFailsClosed(t *testing.T) {
 
 	nextCalled := false
 	handler := identityoperator.RequiresActiveOperator(operatorLookupStub{
-		getOperatorFn: func(context.Context, int64) (*platformModels.Operator, error) {
+		getOperatorFn: func(context.Context, int64) (*identityaccess.Operator, error) {
 			return nil, errors.New("database unavailable")
 		},
 	})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -246,7 +246,7 @@ func TestRequiresActiveOperator_MissingOperatorID(t *testing.T) {
 
 	nextCalled := false
 	handler := identityoperator.RequiresActiveOperator(operatorLookupStub{
-		getOperatorFn: func(context.Context, int64) (*platformModels.Operator, error) {
+		getOperatorFn: func(context.Context, int64) (*identityaccess.Operator, error) {
 			t.Fatal("operator lookup should not run without an authenticated operator id")
 			return nil, nil
 		},
@@ -265,7 +265,7 @@ func TestRequiresActiveOperator_MissingOperatorID(t *testing.T) {
 
 func requestWithOperatorClaims(operatorID int) *http.Request {
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	claims := jwt.AppClaims{ID: operatorID, Scope: "platform"}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := testutil.Claims{ID: operatorID, Scope: "platform"}
+	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
 	return req.WithContext(ctx)
 }
