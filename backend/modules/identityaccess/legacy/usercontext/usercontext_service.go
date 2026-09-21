@@ -45,8 +45,7 @@ type UserContextRepositories struct {
 	Presence           VisitReader
 	SupervisorRepo     active.GroupSupervisorRepository
 	ProfileRepo        AccountProfiles
-	SubstitutionRepo   education.GroupSubstitutionRepository
-	ClassTeacherRepo   education.ClassTeacherRepository
+	StaffGroups        StaffGroupReads
 
 	// SSE subscription dependencies (optional — nil-safe). Injected so the
 	// SSE handler can delegate staff-resolution + topic-building to this
@@ -68,8 +67,7 @@ type userContextService struct {
 	presence           VisitReader
 	supervisorRepo     active.GroupSupervisorRepository
 	profileRepo        AccountProfiles
-	substitutionRepo   education.GroupSubstitutionRepository
-	classTeacherRepo   education.ClassTeacherRepository
+	staffGroups        StaffGroupReads
 	sseActiveSvc       SSEPresence
 	sseSettings        SSESettingsResolver
 	logger             *slog.Logger
@@ -94,8 +92,7 @@ func NewUserContextServiceWithRepos(repos UserContextRepositories, logger *slog.
 		presence:           repos.Presence,
 		supervisorRepo:     repos.SupervisorRepo,
 		profileRepo:        repos.ProfileRepo,
-		substitutionRepo:   repos.SubstitutionRepo,
-		classTeacherRepo:   repos.ClassTeacherRepo,
+		staffGroups:        repos.StaffGroups,
 		sseActiveSvc:       repos.ActiveService,
 		sseSettings:        repos.SSESettings,
 		logger:             logger,
@@ -379,30 +376,32 @@ func (s *userContextService) addTeacherGroups(ctx context.Context, teacherID int
 	return nil
 }
 
+// StaffGroupReads is the School Structure read of a staff member's
+// substituted groups and school classes (schoolstructure.StaffGroupQuery,
+// #3499), bound at composition.
+type StaffGroupReads interface {
+	// SubstitutedGroupIDs maps each group substituted on the day (YYYY-MM-DD)
+	// to whether an active substitution leaves its regular staff slot
+	// unassigned.
+	SubstitutedGroupIDs(ctx context.Context, staffID int64, day string) (map[int64]bool, error)
+	SchoolClasses(ctx context.Context, staffID int64) ([]string, error)
+}
+
 // addSubstitutionGroups adds groups where the staff is an active substitute
 func (s *userContextService) addSubstitutionGroups(ctx context.Context, staffID int64, groupMap map[int64]*education.Group) *PartialError {
-	today := timezone.TodayDate()
-
-	substitutions, err := s.substitutionRepo.FindActiveBySubstituteWithRelations(ctx, staffID, today)
+	substituted, err := s.staffGroups.SubstitutedGroupIDs(ctx, staffID, timezone.TodayDate().String())
 	if err != nil {
 		return &PartialError{Op: "get my groups (substitutions)", LastErr: err, FailureCount: 1}
 	}
-
-	var partialErr *PartialError
-	for _, sub := range substitutions {
-		group, err := s.resolveSubstitutionGroup(ctx, sub)
-		if err != nil {
-			partialErr = s.recordSubstitutionFailure(partialErr, sub.GroupID, err)
-			continue
-		}
-		if group != nil {
-			groupMap[group.ID] = group
-			if partialErr != nil {
-				partialErr.SuccessCount++
-			}
-		}
+	ids := slices.Collect(maps.Keys(substituted))
+	groups, err := s.educationGroupRepo.FindByIDs(ctx, ids)
+	if err != nil {
+		return &PartialError{Op: "get my groups (load substitution groups)", FailedIDs: ids, FailureCount: len(ids), LastErr: err}
 	}
-	return partialErr
+	for _, group := range groups {
+		groupMap[group.ID] = group
+	}
+	return nil
 }
 
 // GetSubstitutedGroupIDs returns the set of education group IDs the current
@@ -431,48 +430,19 @@ func (s *userContextService) GetSubstitutedGroupIDs(ctx context.Context) (map[in
 		return nil, &UserContextError{Op: "get substituted group IDs", Err: err}
 	}
 
-	today := timezone.TodayDate()
-	activeSubs, err := s.substitutionRepo.FindActiveBySubstitute(ctx, staff.ID, today)
+	substituted, err := s.staffGroups.SubstitutedGroupIDs(ctx, staff.ID, timezone.TodayDate().String())
 	if err != nil {
 		return nil, &UserContextError{Op: "get substituted group IDs", Err: err}
 	}
-
-	for _, sub := range activeSubs {
-		if sub.RegularStaffID == nil {
-			result[sub.GroupID] = true
+	for groupID, unassigned := range substituted {
+		if unassigned {
+			result[groupID] = true
 		}
 	}
 	if memo {
 		cache.storeSubstituted(key, result)
 	}
 	return result, nil
-}
-
-// resolveSubstitutionGroup gets the group from substitution, with fallback lookup
-func (s *userContextService) resolveSubstitutionGroup(ctx context.Context, sub *education.GroupSubstitution) (*education.Group, error) {
-	if sub.Group != nil {
-		return sub.Group, nil
-	}
-	return s.educationGroupRepo.FindByID(ctx, sub.GroupID)
-}
-
-// recordSubstitutionFailure records a failure to load a substitution group
-func (s *userContextService) recordSubstitutionFailure(partialErr *PartialError, groupID int64, err error) *PartialError {
-	s.getLogger().Warn("failed to load group for substitution",
-		slog.Int64("group_id", groupID),
-		slog.String("error", err.Error()),
-	)
-
-	if partialErr == nil {
-		partialErr = &PartialError{
-			Op:        "get my groups (load substitution groups)",
-			FailedIDs: make([]int64, 0),
-		}
-	}
-	partialErr.FailedIDs = append(partialErr.FailedIDs, groupID)
-	partialErr.FailureCount++
-	partialErr.LastErr = err
-	return partialErr
 }
 
 // handlePartialError handles partial error reporting for GetMyGroups

@@ -1676,6 +1676,7 @@ func newFactory(
 		// at call time; it is composed below.
 		lifecycle: &lifecycleWiring{
 			settings: settingsService, audit: auditCommand,
+			caregivers: caregiverProfiles{persons: persons, membership: membership},
 			guardianMail: &guardianInvitationWiring{
 				settings: settingsService, schools: organizations,
 				outbox:      func() platformModels.OutboxEnqueuer { return outboxEnqueuer{outbox: emailOutboxService} },
@@ -1779,6 +1780,10 @@ func newFactory(
 	})
 
 	// Initialize user context service
+	staffGroups, err := repositories.NewUserContextStaffGroups(groups, membership, workTime)
+	if err != nil {
+		return nil, err
+	}
 	userContextService := usercontext.NewUserContextServiceWithRepos(usercontext.UserContextRepositories{
 		AccountRepo:        repositories.NewCurrentAccountAccess(repos.Profile),
 		PersonRepo:         repos.Person,
@@ -1791,8 +1796,7 @@ func newFactory(
 		Presence:           newStudentPresence(db, logger),
 		SupervisorRepo:     repos.GroupSupervisor,
 		ProfileRepo:        repos.Profile,
-		SubstitutionRepo:   repos.GroupSubstitution,
-		ClassTeacherRepo:   repos.ClassTeacher,
+		StaffGroups:        staffGroups,
 		ActiveService:      NewSSEPresence(newStudentPresence(db, logger)),
 		SSESettings:        settingsService,
 	}, usercontextLogger)

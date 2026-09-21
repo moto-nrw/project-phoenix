@@ -357,7 +357,7 @@
       "declaration": "TestGroupSubstitutionRepository_Create_Validation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        424
+        377
       ],
       "tables": []
     },
@@ -388,26 +388,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         302
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_substitution_repository_test.go",
-      "declaration": "TestGroupSubstitutionRepository_FindActiveBySubstitute",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        373
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_substitution_repository_test.go",
-      "declaration": "TestGroupSubstitutionRepository_FindActiveBySubstituteWithRelations",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        613
       ],
       "tables": []
     },
@@ -467,7 +447,7 @@
       "declaration": "TestGroupSubstitutionRepository_ListWithRelations",
       "target": "database/repositories.NewFactory",
       "lines": [
-        560
+        513
       ],
       "tables": []
     },
@@ -477,7 +457,7 @@
       "declaration": "TestGroupSubstitutionRepository_List_WithFilters",
       "target": "database/repositories.NewFactory",
       "lines": [
-        475
+        428
       ],
       "tables": []
     },
@@ -497,7 +477,7 @@
       "declaration": "TestGroupSubstitutionRepository_Update_Validation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        456
+        409
       ],
       "tables": []
     },

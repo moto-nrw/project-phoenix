@@ -12,15 +12,21 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 )
 
 const tenantResolveSettingFailureMessage = "tenant resolve setting failed"
+
+// Bounds of enrollment.grade_level_max, the same range the settings registry
+// validates on write. The read side re-checks them so a corrupt override
+// fails the tenant shell instead of reaching the public form.
+const (
+	minGradeLevel = 1
+	maxGradeLevel = 13
+)
 
 func resolveTenantGradeLevelMax(
 	ctx context.Context,
@@ -34,12 +40,12 @@ func resolveTenantGradeLevelMax(
 	if err != nil {
 		return 0, fmt.Errorf("resolve grade_level_max: %w", err)
 	}
-	if value < schoolclass.MinGradeLevel || value > schoolclass.MaxGradeLevel {
+	if value < minGradeLevel || value > maxGradeLevel {
 		return 0, fmt.Errorf(
 			"grade_level_max %d outside %d..%d",
 			value,
-			schoolclass.MinGradeLevel,
-			schoolclass.MaxGradeLevel,
+			minGradeLevel,
+			maxGradeLevel,
 		)
 	}
 	return value, nil
@@ -57,12 +63,6 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 	if err != nil || school == nil || school.Deleted || !school.Active {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("tenant not found")))
 		return
-	}
-
-	// Parse settings JSON; fall back to empty object on invalid data
-	settings := json.RawMessage(school.Settings)
-	if !json.Valid(settings) {
-		settings = json.RawMessage(`{}`)
 	}
 
 	// Shell settings resolve first: their batch includes grade_level_max, so
@@ -90,7 +90,17 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := &TenantResolveResponse{
+	common.Respond(w, r, http.StatusOK, newTenantResolveResponse(school, resolved, gradeLevelMax), "Tenant resolved successfully")
+}
+
+func newTenantResolveResponse(school *TenantSchool, resolved tenantShellSettings, gradeLevelMax int) *TenantResolveResponse {
+	// Parse settings JSON; fall back to empty object on invalid data
+	settings := json.RawMessage(school.Settings)
+	if !json.Valid(settings) {
+		settings = json.RawMessage(`{}`)
+	}
+
+	return &TenantResolveResponse{
 		TenantID:                   school.ID,
 		Slug:                       school.Slug,
 		Name:                       school.Name,
@@ -118,12 +128,10 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		WaitlistEnabled:            resolved.waitlistEnabled,
 		EmergencyHealthInfoEnabled: resolved.emergencyHealthInfo,
 	}
-
-	common.Respond(w, r, http.StatusOK, resp, "Tenant resolved successfully")
 }
 
-func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int64) (tenantShellSettings, error) {
-	resolved := tenantShellSettings{
+func defaultTenantShellSettings() tenantShellSettings {
+	return tenantShellSettings{
 		presenceMode:           configModel.PresenceModeDetailed,
 		parentMessagingEnabled: true,
 		careOfferingsEnabled:   true,
@@ -135,11 +143,12 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 		waitlistEnabled:        true,
 		emergencyHealthInfo:    false,
 	}
-	if rs.SettingsService == nil {
-		return resolved, nil
-	}
+}
 
-	keys := []string{
+// tenantShellSettingKeys lists every setting the tenant shell reads, for the
+// one batched resolve.
+func tenantShellSettingKeys() []string {
+	return []string{
 		configModel.KeyPresenceMode,
 		configModel.KeyStudentPhotosEnabled,
 		configModel.KeyAttendanceNFCEnabled,
@@ -162,10 +171,18 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 		// opening a second tenant transaction (issue #2065).
 		configModel.KeyEnrollmentGradeLevelMax,
 	}
+}
+
+func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int64) (tenantShellSettings, error) {
+	resolved := defaultTenantShellSettings()
+	if rs.SettingsService == nil {
+		return resolved, nil
+	}
+
 	if batch, ok := rs.SettingsService.(interface {
 		ResolveManyForTenant(context.Context, int64, []string) (*configSvc.SettingsSnapshot, error)
 	}); ok {
-		snapshot, err := batch.ResolveManyForTenant(ctx, tenantID, keys)
+		snapshot, err := batch.ResolveManyForTenant(ctx, tenantID, tenantShellSettingKeys())
 		if err != nil {
 			logTenantResolveSettingFailure(ctx, tenantID, "tenant_shell", err, slog.LevelError)
 			return resolved, fmt.Errorf("resolve tenant shell settings: %w", err)
@@ -174,7 +191,12 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 			return resolveTenantShellSnapshot(ctx, tenantID, snapshot, resolved)
 		}
 	}
+	return rs.resolveTenantShellSettingsOneByOne(ctx, tenantID, resolved)
+}
 
+// resolveTenantShellSettingsOneByOne is the fallback for a settings service
+// without a batched resolve: each key is resolved on its own.
+func (rs *Resource) resolveTenantShellSettingsOneByOne(ctx context.Context, tenantID int64, resolved tenantShellSettings) (tenantShellSettings, error) {
 	resolved.presenceMode = configSvc.ResolvePresenceModeForTenant(ctx, rs.SettingsService, tenantID, nil)
 	if value, err := rs.SettingsService.ResolveStringForTenant(ctx, tenantID, configModel.KeyStudentPhotosEnabled); err == nil {
 		resolved.studentPhotosEnabled = value == "true"
@@ -199,7 +221,7 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 
 	// Messaging compose visibility intentionally fails open so it stays in
 	// lockstep with the unread badge, inbox row pills, and reply path.
-	resolved.parentMessagingEnabled = parentmessaging.MessagingEnabledForTenant(ctx, rs.SettingsService, tenantID, nil)
+	resolved.parentMessagingEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyParentNotesEnabled, true, slog.LevelWarn)
 	// The internal Team-Chat (#2598) must resolve cleanly: false is a real
 	// switch-off, while resolver errors must not masquerade as policy.
 	staffMessagingEnabled, err := rs.resolveRequiredTenantShellBool(ctx, tenantID, configModel.KeyStaffMessagingEnabled)
