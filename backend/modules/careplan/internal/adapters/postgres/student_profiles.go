@@ -103,6 +103,28 @@ func (s *Store) SetStudentLiveStatus(ctx context.Context, input domain.StudentLi
 	return stats.Rows, stats, err
 }
 
+// SetStudentHealthInfo resolves the membership the same way
+// SetStudentLiveStatus does, so a foreign student ID matches no care row.
+func (s *Store) SetStudentHealthInfo(ctx context.Context, studentID int64, healthInfo *string) (int64, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return 0, domain.OperationStats{}, err
+	}
+	members := studentdirectoryview.Query(db, tenantID).
+		ColumnExpr("student.membership_id").Where("student.id = ?", studentID)
+	query := db.NewUpdate().TableExpr("users.student_care_profiles AS care").
+		Set("health_info = ?", healthInfo).Set("updated_at = NOW()").
+		Where("care.tenant_id = ?", tenantID).Where("care.membership_id IN (?)", members)
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	result, err := query.Exec(ctx)
+	stats.StatementDuration = time.Since(started)
+	if err == nil {
+		stats.Rows, err = result.RowsAffected()
+	}
+	return stats.Rows, stats, err
+}
+
 type encodedStudentDeparture struct {
 	modes, days, bus, pickup string
 	note                     *string

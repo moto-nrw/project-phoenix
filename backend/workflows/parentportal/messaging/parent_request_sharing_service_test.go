@@ -38,7 +38,7 @@ func TestRequestSharingRejectsUnlinkedRecipientAndNonOwner(t *testing.T) {
 		StudentGuardianRepo: repos.StudentGuardian, StudentRepo: repos.Student,
 		ChangeRequestRepo:      repos.StudentDataChangeRequest,
 		FamilyProtectionEvents: repos.FamilyProtection, ParentRequestShares: repos.ParentRequestShare,
-		DB: db, Logger: slog.Default(),
+		Logger: slog.Default(),
 	})
 	sharing := messaging.RequestSharingService(svc)
 

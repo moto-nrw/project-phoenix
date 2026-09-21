@@ -25,4 +25,20 @@ type GuardianStore interface {
 	// ListAccountLinksByStudents returns the links of the children whose
 	// guardian holds a portal account.
 	ListAccountLinksByStudents(context.Context, []int64) ([]domain.GuardianLink, domain.OperationStats, error)
+	GuardianPortalWrites
+}
+
+// GuardianPortalWrites are the row writes of the parents-portal workflow.
+// Every method writes in the tenant of the caller's transaction and refuses
+// without one; a false or zero result means the tenant has no such row.
+type GuardianPortalWrites interface {
+	InsertContact(context.Context, domain.GuardianContact) (int64, domain.OperationStats, error)
+	UpdateContact(context.Context, int64, domain.GuardianContact) (bool, domain.OperationStats, error)
+	DeletePhones(ctx context.Context, guardianID int64) (domain.OperationStats, error)
+	InsertPhone(ctx context.Context, guardianID int64, phone domain.GuardianPhoneRecord) (int64, domain.OperationStats, error)
+	UpdatePhoneNumber(ctx context.Context, phoneID int64, number string) (bool, domain.OperationStats, error)
+	DeletePhone(ctx context.Context, phoneID int64) (bool, domain.OperationStats, error)
+	InsertLinkIfAbsent(context.Context, domain.GuardianLinkRecord) (int64, domain.OperationStats, error)
+	PatchLinkPickup(context.Context, domain.GuardianLinkPickupPatch) (int64, domain.OperationStats, error)
+	SetPortalLocale(ctx context.Context, accountID int64, locale string) (int64, domain.OperationStats, error)
 }

@@ -33,7 +33,6 @@ func buildTodayStatusService(t *testing.T) (*care.Service, *bun.DB) {
 		Attendance:     parentAttendance(t, db),
 		StatusDayRepo:  repos.StudentStatusDay,
 		StudentRepo:    repos.Student,
-		DB:             db,
 		Logger:         slog.Default(),
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 13, 0, 0, 0, time.UTC)
@@ -60,7 +59,6 @@ func buildTodayStatusServiceWithSchedule(t *testing.T) (*care.Service, *bun.DB) 
 		StudentRepo:      repos.Student,
 		ArrivalSchedules: arrivals,
 		PickupSchedules:  pickups,
-		DB:               db,
 		Logger:           slog.Default(),
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 13, 0, 0, 0, time.UTC)

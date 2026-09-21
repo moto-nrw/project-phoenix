@@ -7,11 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 func (s *Service) ListPickupChangeRequests(ctx context.Context, accountID, studentID int64) ([]carerequests.Request, error) {
@@ -23,7 +20,7 @@ func (s *Service) ListPickupChangeRequests(ctx context.Context, accountID, stude
 		return nil, errors.New("parent: pickup change request service not configured")
 	}
 	var rows []carerequests.Request
-	err = tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		var listErr error
 		rows, listErr = s.CareRequests.ListPickupChangeRequests(txCtx, studentID, time.Now().AddDate(0, -2, 0))
 		if listErr != nil {

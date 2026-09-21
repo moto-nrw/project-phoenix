@@ -40,7 +40,6 @@ func buildAnnouncementService(t *testing.T, newsEnabled bool) (*messaging.Servic
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{configModels.KeyParentNewsEnabled: newsEnabled},
 		},
-		DB:     db,
 		Logger: slog.Default(),
 	})
 	return svc, db, repos

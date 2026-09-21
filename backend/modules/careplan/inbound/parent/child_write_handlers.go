@@ -15,7 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 const (

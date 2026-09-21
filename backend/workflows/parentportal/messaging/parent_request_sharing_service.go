@@ -12,17 +12,15 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
-	"github.com/uptrace/bun"
 )
 
 const (
-	RequestShareMasterData   = "master_data"
+	RequestShareMasterData   = care.RequestShareMasterData
 	RequestShareCareSchedule = care.RequestShareCareSchedule
-	RequestSharePickupChange = "pickup_change"
+	RequestSharePickupChange = care.RequestSharePickupChange
 	RequestShareOffering     = care.RequestShareOffering
-	RequestShareExcused      = "excused"
+	RequestShareExcused      = care.RequestShareExcused
 )
 
 var (
@@ -61,7 +59,7 @@ func (s *Service) GetRequestSharingOptions(
 		return nil, err
 	}
 	var state *RequestSharingState
-	err = tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = care.InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		protected, _, loadErr := s.currentFamilyProtection(txCtx, studentID)
 		if loadErr != nil {
 			return loadErr
@@ -106,7 +104,7 @@ func (s *Service) changeRequestSharing(
 		return nil, err
 	}
 	var state *RequestSharingState
-	err = tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = care.InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		var changeErr error
 		state, changeErr = s.changeRequestSharingInTx(txCtx, accountID, studentID, requestType, requestID, recipientProfileIDs, write)
 		return changeErr
@@ -381,7 +379,7 @@ func (s *Service) ListRequestEvents(
 		return nil, errors.New("parent: request event ledger is not configured")
 	}
 	var out []ParentRequestEventView
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := care.InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		if err := s.requireOwnedShareableRequest(txCtx, accountID, studentID, requestType, requestID); err != nil {
 			return err
 		}

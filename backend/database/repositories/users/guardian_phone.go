@@ -256,21 +256,6 @@ func (r *GuardianPhoneNumberRepository) CountByGuardianID(ctx context.Context, g
 	return count, nil
 }
 
-// DeleteByGuardianID removes all phone numbers for a guardian
-func (r *GuardianPhoneNumberRepository) DeleteByGuardianID(ctx context.Context, guardianProfileID int64) error {
-	_, err := repoBase.GetDB(ctx, r.db).NewDelete().
-		Model((*users.GuardianPhoneNumber)(nil)).
-		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
-		Where(`"guardian_phone_number".guardian_profile_id = ?`, guardianProfileID).
-		Exec(ctx)
-
-	if err != nil {
-		return fmt.Errorf("failed to delete guardian phone numbers: %w", err)
-	}
-
-	return nil
-}
-
 // GetNextPriority returns the next priority value for a guardian's phone numbers
 func (r *GuardianPhoneNumberRepository) GetNextPriority(ctx context.Context, guardianProfileID int64) (int, error) {
 	var maxPriority int

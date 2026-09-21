@@ -20,8 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 var (
@@ -108,7 +106,7 @@ func (s *Service) GetChildCareSchedule(ctx context.Context, accountID, studentID
 		return nil, err
 	}
 	view := &ChildCareSchedule{}
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		if err := s.buildCareScheduleView(txCtx, view, accountID, studentID); err != nil {
 			return err
 		}
@@ -167,7 +165,7 @@ func (s *Service) CreateCareScheduleRequest(ctx context.Context, accountID, stud
 		return nil, ErrCareRequestFieldDisabled
 	}
 	view := &ChildCareSchedule{CanRequest: capabilities.Any(), RequestCapabilities: capabilities}
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
 			return err
@@ -392,7 +390,7 @@ func (s *Service) EditCareScheduleRequest(
 		return nil, ErrInvalidCareRequestPayload
 	}
 	view := &ChildCareSchedule{CanRequest: capabilities.Any(), RequestCapabilities: capabilities}
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
 			return err
@@ -433,3 +431,10 @@ func MapCareRequestError(err error, op string) error {
 		return fmt.Errorf("parent: %s: %w", op, err)
 	}
 }
+
+// CareRequestDiffEntry is one "current → requested" row of a pending
+// care-schedule request, as PendingCareRequest.Diff carries it.
+type CareRequestDiffEntry = carerequests.DiffEntry
+
+// PickupChangeRequest is a guardian's one-day pickup change request.
+type PickupChangeRequest = carerequests.Request
