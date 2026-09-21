@@ -37,6 +37,25 @@ func (e engine) QueryLiveGroups(ctx context.Context, filter studentpresence.Live
 	return result, nil
 }
 
+func (e engine) ListSupervisedLiveGroups(ctx context.Context, staffID int64) ([]studentpresence.LiveGroup, error) {
+	rows, err := e.Service.ListSupervisedLiveGroups(ctx, staffID, timezone.TodayDate())
+	if err != nil {
+		return nil, err
+	}
+	result := make([]studentpresence.LiveGroup, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, liveGroupToPublic(row))
+	}
+	return result, nil
+}
+
+func (e engine) ListOpenLiveGroupsForActivities(ctx context.Context, ids []int64) ([]studentpresence.LiveGroup, error) {
+	if ids == nil {
+		ids = []int64{}
+	}
+	return e.QueryLiveGroups(ctx, studentpresence.LiveGroupFilter{ActivityGroupIDs: ids, OpenOnly: true})
+}
+
 func (e engine) OccupiedActivityGroupIDs(ctx context.Context, ids []int64) ([]int64, error) {
 	return e.Service.OccupiedActivityGroupIDs(ctx, ids)
 }
