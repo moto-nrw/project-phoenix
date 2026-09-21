@@ -217,3 +217,29 @@ func TestDemoRoleParentInTheStandingSchoolKeepsTheSharedAdministrator(t *testing
 	assert.EqualValues(t, adminID, session.claims(t).ID)
 	assert.Empty(t, session.claims(t).Scope)
 }
+
+// Switching between the apps mints a parent session each time, and a demo
+// school that is handed on names the same parent again. The session cap of a
+// single account must therefore not end an earlier parent session (#3462).
+func TestDemoRoleParentKeepsEarlierParentSessions(t *testing.T) {
+	t.Parallel()
+	env := newOwnSchoolDemoEnv(t)
+	_, visitor := testpkg.CreateTestStaffWithAccount(t, env.db, "Kim", "Beispiel")
+	testpkg.EnsureAccountTenant(t, env.db, visitor.ID, testpkg.Tenant(t))
+	env.grantRole(t, visitor.ID, "user")
+	parent := testpkg.CreateTestParentGuardianChain(t, env.db)
+	token, slug := env.requestOwnSchool(t, env.address())
+	seedDemoSchoolWithParent(t, env.db, slug, testpkg.Tenant(t), visitor.ID, parent.AccountID)
+
+	const entries = 7
+	for entry := range entries {
+		session := env.enterAs(t, token, "parent")
+		require.Equal(t, "parent", session.Demo.Role, "entry %d", entry+1)
+	}
+
+	var live int
+	require.NoError(t, env.db.NewRaw(`SELECT COUNT(*) FROM auth.tokens
+		WHERE account_id = ? AND portal_scope = 'parent' AND rotated_at IS NULL AND expiry > NOW()`,
+		parent.AccountID).Scan(context.Background(), &live))
+	assert.Equal(t, entries, live, "no parent session of the demo is evicted by the cap")
+}

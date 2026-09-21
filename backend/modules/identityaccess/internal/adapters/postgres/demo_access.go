@@ -85,14 +85,20 @@ func (s *Store) FindDemoAccessByTokenHash(ctx context.Context, tokenHash string)
 	return domain.DemoAccess{ID: row.ID, TokenHash: tokenHash, ExpiresAt: row.ExpiresAt, SchoolSlug: row.SchoolSlug, SchoolName: row.SchoolName, Source: row.Source}, true, nil
 }
 
-// RecordDemoAccessUse notes one redemption and the account it signed in.
-func (s *Store) RecordDemoAccessUse(ctx context.Context, id, accountID int64, usedAt time.Time) error {
+// RecordDemoAccessUse notes one redemption, the account it signed in and the
+// school's parent the role parent signs in (#3468). A redemption without such
+// a parent keeps the one noted before: an earlier parent session of the same
+// access stays exempt from the session cap.
+func (s *Store) RecordDemoAccessUse(ctx context.Context, id, accountID, parentAccountID int64, usedAt time.Time) error {
 	db, err := s.database(ctx)
 	if err != nil {
 		return err
 	}
-	_, err = db.NewRaw(`UPDATE auth.demo_accesses SET use_count = use_count + 1, last_used_at = ?, account_id = ? WHERE id = ?`,
-		usedAt, accountID, id).Exec(ctx)
+	_, err = db.NewRaw(`UPDATE auth.demo_accesses
+		SET use_count = use_count + 1, last_used_at = ?, account_id = ?,
+			parent_account_id = COALESCE(NULLIF(?, 0::BIGINT), parent_account_id)
+		WHERE id = ?`,
+		usedAt, accountID, parentAccountID, id).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("identity access postgres: record demo access use: %w", err)
 	}
@@ -148,14 +154,16 @@ func (s *Store) FindSchoolAdministrator(ctx context.Context, tenantID int64) (in
 	return accountID, true, nil
 }
 
-// DemoAccountExists reports whether a demo access ever signed the account in.
+// DemoAccountExists reports whether a demo access ever signed the account in,
+// as the visitor's caregiver or as the school's parent of the role parent.
 func (s *Store) DemoAccountExists(ctx context.Context, accountID int64) (bool, error) {
 	db, err := s.database(ctx)
 	if err != nil {
 		return false, err
 	}
 	var exists bool
-	err = db.NewRaw(`SELECT EXISTS (SELECT 1 FROM auth.demo_accesses WHERE account_id = ?)`, accountID).Scan(ctx, &exists)
+	err = db.NewRaw(`SELECT EXISTS (SELECT 1 FROM auth.demo_accesses WHERE account_id = ? OR parent_account_id = ?)`,
+		accountID, accountID).Scan(ctx, &exists)
 	if err != nil {
 		return false, fmt.Errorf("identity access postgres: check demo account: %w", err)
 	}

@@ -191,9 +191,10 @@ func (d *DemoAccess) Redeem(ctx context.Context, token string, role domain.DemoR
 		if err := d.schools.MarkDemoSchoolUsed(txCtx, access.SchoolSlug, d.now()); err != nil {
 			return err
 		}
-		// The access keeps naming the caregiver, also for the role parent:
-		// the tenant lock and the session cap key on that account (#3462).
-		return d.store.RecordDemoAccessUse(txCtx, access.ID, entry.AccountID, d.now())
+		// The access keeps naming the caregiver, also for the role parent;
+		// the parent it signs in is noted next to it, so the tenant lock and
+		// the session cap of the demo hold for that account too (#3462).
+		return d.store.RecordDemoAccessUse(txCtx, access.ID, entry.AccountID, signedInParent(entry, role), d.now())
 	})
 	if err != nil {
 		return domain.DemoEntry{}, err
@@ -211,6 +212,15 @@ func (d *DemoAccess) Redeem(ctx context.Context, token string, role domain.DemoR
 		AccessToken: accessToken, RefreshToken: refreshToken,
 		AccessID: access.ID, Role: role, Source: access.Source, FixedRole: entry.Shared,
 	}, nil
+}
+
+// signedInParent names the account a redemption signs in besides the
+// caregiver: the school's visitor parent, and only for the role parent.
+func signedInParent(entry domain.DemoSchoolEntry, role domain.DemoRole) int64 {
+	if role != domain.DemoRoleParent {
+		return 0
+	}
+	return entry.ParentAccountID
 }
 
 // assumeRole gives the prospect's own caregiver the chosen demo role and

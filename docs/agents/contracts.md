@@ -228,7 +228,10 @@ routes, the capability and the lock alike.
 (`403 demo_session`), through a mint guard inside the switch transaction.
 Such an account is exempt from the session cap (`capSessionsUnlessDemo`): in
 the standing school all visitors share one account, and the sixth visitor
-would sign the first one out. `TenantGuard` leaves the entry page alone
+would sign the first one out. The role parent signs in another account than
+the caregiver, so the redemption notes it in
+`auth.demo_accesses.parent_account_id`; switching between the apps therefore
+ends no parent session either. `TenantGuard` leaves the entry page alone
 (`isDemoEntryPath`) and guards every other tenant route as before.
 
 ### Embedded enrollment
