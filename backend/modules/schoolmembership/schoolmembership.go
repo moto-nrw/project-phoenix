@@ -1,8 +1,13 @@
 // Package schoolmembership is the public School Membership capability. It
-// owns users.staff, users.teachers, users.guests, users.class_list_entries,
-// education.class_teachers and education.group_teacher. Every read or write
-// of those rows by another owner goes through Query or Command instead of a
-// foreign SQL join.
+// owns users.staff_school_memberships, users.teachers, users.guests,
+// users.class_list_entries, education.class_teachers and
+// education.group_teacher. Every read or write of those rows by another owner
+// goes through Query or Command instead of a foreign SQL join.
+//
+// A Staff value also carries the employment profile Workforce owns on
+// users.staff_employment_profiles (#2753). The module composes it through a
+// consumer-owned port and writes it only as part of CreateStaff and
+// UpdateStaff; the employment-only commands belong to Workforce.
 //
 // The capability stops at the membership rows themselves. Person names live
 // with the People Directory, login accounts and roles with Identity Access;
@@ -152,9 +157,8 @@ type UpdateGuest struct {
 // StaffFilter narrows a staff listing. Every field is optional; an empty
 // filter lists every live staff member visible in the caller's transaction.
 type StaffFilter struct {
-	IDs             []int64
-	PersonIDs       []int64
-	WorkTimeModelID *int64
+	IDs       []int64
+	PersonIDs []int64
 	// TenantIDs bounds the listing to the given schools. A cross-tenant
 	// reader (admin transaction) that knows its schools up front passes them
 	// here, so the query stays bounded to those schools instead of scanning
@@ -231,16 +235,6 @@ type Command interface {
 	UpdateStaff(context.Context, UpdateStaff) (Staff, error)
 	// DeleteStaff soft-deletes the staff row (deleted_at), keeping it.
 	DeleteStaff(context.Context, int64) error
-	// ClearWorkTimeModel detaches the staff member from their work-time
-	// template. Offboarding uses it so the retained row does not block
-	// template deletion.
-	ClearWorkTimeModel(context.Context, int64) error
-	// AppendStaffNotes adds a paragraph to the private staff notes.
-	AppendStaffNotes(context.Context, int64, string) (Staff, error)
-	SetBirthdayDisplayOptOut(context.Context, int64, bool) error
-	// RebaseWorkTimeModelAnchor stamps the template's rotation anchor onto
-	// every live staff member assigned to it and returns their IDs.
-	RebaseWorkTimeModelAnchor(ctx context.Context, workTimeModelID int64, anchorDate string) ([]int64, error)
 
 	CreateTeacher(context.Context, CreateTeacher) (Teacher, error)
 	UpdateTeacher(context.Context, UpdateTeacher) (Teacher, error)
@@ -304,10 +298,6 @@ type engine interface {
 	CreateStaff(context.Context, CreateStaff) (Staff, error)
 	UpdateStaff(context.Context, UpdateStaff) (Staff, error)
 	DeleteStaff(context.Context, int64) error
-	ClearWorkTimeModel(context.Context, int64) error
-	AppendStaffNotes(context.Context, int64, string) (Staff, error)
-	SetBirthdayDisplayOptOut(context.Context, int64, bool) error
-	RebaseWorkTimeModelAnchor(context.Context, int64, string) ([]int64, error)
 
 	FindTeacher(context.Context, int64) (Teacher, error)
 	FindTeacherByStaff(context.Context, int64) (Teacher, error)
@@ -404,9 +394,6 @@ func (m *Module) ListStaff(ctx context.Context, filter StaffFilter) ([]Staff, er
 	filter.IDs = uniquePositive(filter.IDs)
 	filter.PersonIDs = uniquePositive(filter.PersonIDs)
 	filter.TenantIDs = uniquePositive(filter.TenantIDs)
-	if filter.WorkTimeModelID != nil && *filter.WorkTimeModelID <= 0 {
-		return nil, invalid("work time model ID must be positive")
-	}
 	return m.engine.ListStaff(ctx, filter)
 }
 
@@ -432,37 +419,6 @@ func (m *Module) DeleteStaff(ctx context.Context, id int64) error {
 		return invalid("staff ID is required")
 	}
 	return m.engine.DeleteStaff(ctx, id)
-}
-
-func (m *Module) ClearWorkTimeModel(ctx context.Context, id int64) error {
-	if id <= 0 {
-		return invalid("staff ID is required")
-	}
-	return m.engine.ClearWorkTimeModel(ctx, id)
-}
-
-func (m *Module) AppendStaffNotes(ctx context.Context, id int64, notes string) (Staff, error) {
-	if id <= 0 {
-		return Staff{}, invalid("staff ID is required")
-	}
-	return m.engine.AppendStaffNotes(ctx, id, notes)
-}
-
-func (m *Module) SetBirthdayDisplayOptOut(ctx context.Context, id int64, optOut bool) error {
-	if id <= 0 {
-		return invalid("staff ID is required")
-	}
-	return m.engine.SetBirthdayDisplayOptOut(ctx, id, optOut)
-}
-
-func (m *Module) RebaseWorkTimeModelAnchor(ctx context.Context, workTimeModelID int64, anchorDate string) ([]int64, error) {
-	if workTimeModelID <= 0 {
-		return nil, invalid("work time model ID is required")
-	}
-	if err := validateDate(anchorDate, "rotation anchor date"); err != nil {
-		return nil, err
-	}
-	return m.engine.RebaseWorkTimeModelAnchor(ctx, workTimeModelID, anchorDate)
 }
 
 // --- teachers ---

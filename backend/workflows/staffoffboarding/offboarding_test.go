@@ -42,7 +42,7 @@ func newFixture(t *testing.T) fixture {
 	staff := testpkg.CreateTestStaff(t, db, "Lifecycle", "Subject")
 	actor := testpkg.CreateTestStaff(t, db, "Lifecycle", "Actor")
 	account := testpkg.CreateTestAccount(t, db, "offboarding-actor@example.org")
-	memberDeps := membershipcompose.Dependencies{DB: db, Observe: func(membershipcompose.Observation) {}}
+	memberDeps := membershipcompose.Dependencies{DB: db, Observe: func(membershipcompose.Observation) {}, Employment: staffEmployment(t, db)}
 	membership, err := membershipcompose.New(memberDeps)
 	require.NoError(t, err)
 	retirement, err := membershipcompose.NewOffboarding(memberDeps)
@@ -55,7 +55,7 @@ func newFixture(t *testing.T) fixture {
 	workforceDeps := workforcecompose.Dependencies{LockStaffAssignment: func(ctx context.Context, id int64) error {
 		_, err := membership.FindStaffForMutation(ctx, id)
 		return err
-	}, DB: db, AssignedStaffIDs: runtime.AssignedStaffIDs, RebaseStaffAnchor: runtime.RebaseAssignedStaffAnchor, Observe: func(workforcecompose.Observation) {}}
+	}, DB: db, LiveStaffIDs: runtime.LiveStaffIDs, Observe: func(workforcecompose.Observation) {}}
 	work, err := workforcecompose.New(workforceDeps)
 	require.NoError(t, err)
 	workOffboarding, err := workforcecompose.NewOffboarding(workforceDeps, func(context.Context, workforce.StaffAbsence, int64) error {

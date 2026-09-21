@@ -36,7 +36,7 @@ func NewParentMessagingTestRepositories(db *bun.DB) (ParentMessagingTestReposito
 	if err != nil {
 		return ParentMessagingTestRepositories{}, err
 	}
-	deps := newStaffMembershipDeps(NewPersonRepository(db), newIdentityAccess(db, nil))
+	deps := newStaffMembershipDeps(NewPersonRepository(db), newIdentityAccess(db, nil), MustNewStaffEmployment(db))
 	groupTeachers := newGroupTeacherRepository(membership, educationRepo.NewGroupRepository(db))
 	deps.groupTeachers = func() educationModels.GroupTeacherRepository { return groupTeachers }
 	return ParentMessagingTestRepositories{

@@ -30,7 +30,7 @@ func NewSettingsTestModule(db *bun.DB, unit tenant.UnitOfWork) (SettingsTestModu
 	if err != nil {
 		return SettingsTestModule{}, err
 	}
-	runtime := newSettingsRuntime(db, &unit).WithSchoolMembership(membership)
+	runtime := newSettingsRuntime(db, &unit)
 	repos := repositories.NewSettingsTestRepositories(db, runtime)
 	homeLayouts := config.NewHomeLayoutService(repositories.NewHomeLayoutRepository(runtime), runtime, slog.Default())
 	settings := config.NewSettingsServiceWithHomeLayouts(

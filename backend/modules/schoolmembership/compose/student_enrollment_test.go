@@ -77,7 +77,7 @@ func TestStudentMembershipClassChangeRollsBackWithCaller(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Membership", "Rollback", "1a")
-	membership, err := New(Dependencies{DB: db, Observe: func(Observation) {}})
+	membership, err := New(Dependencies{DB: db, Observe: func(Observation) {}, Employment: testEmployment})
 	require.NoError(t, err)
 	failure := errors.New("later owner failed")
 	err = tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
@@ -100,7 +100,7 @@ func TestStudentMembershipAlumniNeedExplicitReactivation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Alumni", "Guard", "4a")
-	membership, err := New(Dependencies{DB: db, Observe: func(Observation) {}})
+	membership, err := New(Dependencies{DB: db, Observe: func(Observation) {}, Employment: testEmployment})
 	require.NoError(t, err)
 	changed, err := membership.Graduate(ctx, []int64{student.ID})
 	require.NoError(t, err)

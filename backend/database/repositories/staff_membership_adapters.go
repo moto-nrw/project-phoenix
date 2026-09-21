@@ -9,6 +9,8 @@ import (
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // The adapters in this file serve the legacy users.StaffRepository,
@@ -31,12 +33,15 @@ type staffIdentityQuery interface {
 type staffMembershipDeps struct {
 	persons  userModels.PersonRepository
 	identity staffIdentityQuery
+	// employment is Workforce's owner of the employment-only staff writes
+	// (#2753): notes, birthday opt-out and the work-time detach.
+	employment workforce.StaffEmploymentCommand
 	// groupTeachers is lazy because School Membership may be rebound after construction.
 	groupTeachers func() educationModels.GroupTeacherRepository
 }
 
-func newStaffMembershipDeps(persons userModels.PersonRepository, identity staffIdentityQuery) *staffMembershipDeps {
-	return &staffMembershipDeps{persons: persons, identity: identity}
+func newStaffMembershipDeps(persons userModels.PersonRepository, identity staffIdentityQuery, employment workforce.StaffEmploymentCommand) *staffMembershipDeps {
+	return &staffMembershipDeps{persons: persons, identity: identity, employment: employment}
 }
 
 // staffMembershipRepository serves users.StaffRepository.
@@ -209,12 +214,6 @@ func (r staffMembershipRepository) List(ctx context.Context, filters map[string]
 				return nil, usersRepo.WrapError("list staff", err)
 			}
 			filter.PersonIDs = append(filter.PersonIDs, id)
-		case "work_time_model_id":
-			id, err := membershipID(value)
-			if err != nil {
-				return nil, usersRepo.WrapError("list staff", err)
-			}
-			filter.WorkTimeModelID = &id
 		default:
 			return nil, usersRepo.WrapError("list staff", fmt.Errorf("unsupported staff filter %q", field))
 		}
@@ -642,15 +641,40 @@ func (r staffMembershipRepository) ListBirthdaysForExport(ctx context.Context) (
 	return r.staffBirthdays(ctx, nil, false, "list staff birthdays for export")
 }
 
+// The employment-only writes go to their Workforce owner. The opt-out and the
+// notes apply to live staff members only, as before the split, so both check
+// the membership in the same unit of work first.
+
 func (r staffMembershipRepository) SetBirthdayDisplayOptOut(ctx context.Context, staffID int64, optOut bool) error {
-	return membershipError("set staff birthday display opt-out", r.membership.SetBirthdayDisplayOptOut(ctx, staffID, optOut))
+	return membershipError("set staff birthday display opt-out", r.withLiveStaff(ctx, staffID, func(ctx context.Context) error {
+		return membershipEmploymentError(r.deps.employment.SetStaffBirthdayDisplayOptOut(ctx, staffID, optOut))
+	}))
 }
 
+// ClearWorkTimeModel also reaches offboarded staff: offboarding runs it after
+// the tombstone so the retained row stops referencing the template.
 func (r staffMembershipRepository) ClearWorkTimeModel(ctx context.Context, id int64) error {
-	return membershipError("clear work time model", r.membership.ClearWorkTimeModel(ctx, id))
+	return membershipError("clear work time model", membershipEmploymentError(r.deps.employment.ClearStaffWorkTimeModel(ctx, id)))
 }
 
 func (r staffMembershipRepository) AddNotes(ctx context.Context, id int64, notes string) error {
-	_, err := r.membership.AppendStaffNotes(ctx, id, notes)
-	return membershipError("add notes", err)
+	return membershipError("add notes", r.withLiveStaff(ctx, id, func(ctx context.Context) error {
+		_, err := r.deps.employment.AppendStaffNotes(ctx, id, notes)
+		return membershipEmploymentError(err)
+	}))
+}
+
+// withLiveStaff locks the live membership and runs write in the same tenant
+// transaction, joining the caller's when there is one.
+func (r staffMembershipRepository) withLiveStaff(ctx context.Context, staffID int64, write func(context.Context) error) error {
+	run := func(ctx context.Context) error {
+		if _, err := r.membership.FindStaffForMutation(ctx, staffID); err != nil {
+			return err
+		}
+		return write(ctx)
+	}
+	if _, ok := tenant.TransactionFromContext(ctx); ok {
+		return run(ctx)
+	}
+	return tenant.WithinCurrentTenant(ctx, run)
 }

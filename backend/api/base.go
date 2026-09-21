@@ -277,11 +277,18 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	if err != nil {
 		return moduleServices{}, err
 	}
+	// A staff member is School Membership's membership row plus Workforce's
+	// employment profile (#2753); the membership owner composes the two.
+	staffEmployment, err := workforceCompose.NewStaffEmployment(db)
+	if err != nil {
+		return moduleServices{}, err
+	}
 	membership, err := schoolMembershipCompose.New(schoolMembershipCompose.Dependencies{
 		DB: db,
 		Observe: func(observation schoolMembershipCompose.Observation) {
 			observability.ObserveSchoolMembershipOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, schoolMembershipModule.ErrorCode(observation.Err), observation.Err)
 		},
+		Employment: repositories.MembershipStaffEmployment(staffEmployment),
 	})
 	if err != nil {
 		return moduleServices{}, err
@@ -304,9 +311,8 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 			_, err := membership.FindStaffForMutation(ctx, staffID)
 			return err
 		},
-		DB:                db,
-		AssignedStaffIDs:  repositories.WorkforceAssignedStaffIDs(membership),
-		RebaseStaffAnchor: membership.RebaseWorkTimeModelAnchor,
+		DB:           db,
+		LiveStaffIDs: repositories.WorkforceLiveStaffIDs(membership),
 		Observe: func(observation workforceCompose.Observation) {
 			observability.ObserveWorkforceOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, workforceModule.ErrorCode(observation.Err), observation.Err)
 		},

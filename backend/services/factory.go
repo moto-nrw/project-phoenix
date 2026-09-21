@@ -546,7 +546,7 @@ func newFactory(
 	repos.BindSchoolStructure(groups)
 	repos.BindFacilities(rooms)
 	repos.Student = overlappingRosterGroupNames{StudentRepository: repos.Student, groups: groups}
-	settingsRuntime := newSettingsRuntime(db, nil).WithSchoolMembership(membership)
+	settingsRuntime := newSettingsRuntime(db, nil)
 	repos.SetConfigRuntime(settingsRuntime)
 
 	mailer, err := email.NewMailer(email.MailerConfig{
@@ -916,7 +916,7 @@ func newFactory(
 	var shiftPlanSyncer shiftplanning.ShiftPlanSyncer
 
 	// Initialize work session service (before active service - needed for NFC auto-check-in)
-	workSessionService := timetracking.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, NewWorkSessionAudit(repos.WorkSessionEdit), repos.StaffAbsence, repos.GroupSupervisor, repos.ActiveGroup, WorkSessionStaff(repos.Staff), NewWorkSessionSchedules(repos.StaffWorkSchedule), NewWorkSessionTimeModels(repos.WorkTimeModel), PresenceSettings(settingsService), activeLogger, db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook,
+	workSessionService := timetracking.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, NewWorkSessionAudit(repos.WorkSessionEdit), repos.StaffAbsence, repos.GroupSupervisor, repos.ActiveGroup, WorkSessionStaff(repos.Staff, repositories.MustNewStaffEmployment(db)), NewWorkSessionSchedules(repos.StaffWorkSchedule), NewWorkSessionTimeModels(repos.WorkTimeModel), PresenceSettings(settingsService), activeLogger, db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook,
 		// Planned-shift lookups for the auto-checkout job (#1798).
 		timetracking.WithWorkSessionShifts(NewTimeTrackingShifts(repos.StaffShift)),
 		timetracking.WithWorkSessionEvents(timeTrackingEvents),
@@ -932,7 +932,7 @@ func newFactory(
 		repos.WorkSession,
 		repos.WorkSessionBreak,
 		repos.StaffAbsence,
-		StaffScheduleAssignments(repos.Staff),
+		StaffScheduleAssignments(repositories.MustNewStaffEmployment(db)),
 		NewWorkScheduleTargets(repos.StaffWorkSchedule),
 		NewWorkTimeTargetModels(repos.WorkTimeModel),
 		NewTimeTrackingShifts(repos.StaffShift),

@@ -13,9 +13,10 @@ import (
 // observation per call and turns "no row" outcomes into the stable domain
 // errors.
 type Service struct {
-	store   ports.Store
-	tx      ports.Transaction
-	observe ports.Observer
+	store      ports.Store
+	employment ports.StaffEmployment
+	tx         ports.Transaction
+	observe    ports.Observer
 
 	// The audited class-list administration (#2382) reaches two owners the
 	// composition root only builds after this service exists, so they are
@@ -24,14 +25,19 @@ type Service struct {
 	classListAdmin classListAdministration
 }
 
-func New(store ports.Store, tx ports.Transaction, observe ports.Observer) *Service {
-	if store == nil || tx == nil || observe == nil {
+func New(store ports.Store, employment ports.StaffEmployment, tx ports.Transaction, observe ports.Observer) *Service {
+	if store == nil || employment == nil || tx == nil || observe == nil {
 		panic("school membership application: all dependencies are required")
 	}
-	return &Service{store: store, tx: tx, observe: observe}
+	return &Service{store: store, employment: employment, tx: tx, observe: observe}
 }
 
 // --- staff ---
+//
+// A staff member is the membership row this module stores plus the
+// employment profile Workforce stores under the same ID (#2753). Reads compose
+// the two in the caller's transaction; CreateStaff and UpdateStaff are the one
+// unit of work that writes both, inside a savepoint.
 
 func (s *Service) FindStaff(ctx context.Context, id int64, lock string) (result domain.Staff, err error) {
 	run := s.runRead
@@ -47,6 +53,10 @@ func (s *Service) FindStaff(ctx context.Context, id int64, lock string) (result 
 			result = domain.Staff{}
 			return domain.ErrStaffNotFound
 		}
+		if err != nil {
+			return err
+		}
+		result, err = s.withEmployment(txCtx, result, stats)
 		return err
 	})
 	return result, err
@@ -61,6 +71,10 @@ func (s *Service) FindStaffByPerson(ctx context.Context, personID int64) (result
 		if err == nil && !found {
 			return domain.ErrStaffNotFound
 		}
+		if err != nil {
+			return err
+		}
+		result, err = s.withEmployment(txCtx, result, stats)
 		return err
 	})
 	return result, err
@@ -71,29 +85,40 @@ func (s *Service) ListStaff(ctx context.Context, filter domain.StaffFilter) (res
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListStaff(txCtx, filter)
 		stats.Add(queryStats)
-		return err
+		if err != nil {
+			return err
+		}
+		return s.composeEmployment(txCtx, result, stats)
 	})
 	return result, err
 }
 
 func (s *Service) CreateStaff(ctx context.Context, fields domain.StaffFields) (result domain.Staff, err error) {
-	err = s.runWrite(ctx, "create_staff", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = s.runStaffWrite(ctx, "create_staff", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var createStats domain.OperationStats
-		result, createStats, err = s.store.CreateStaff(txCtx, fields)
+		result, createStats, err = s.store.CreateStaff(txCtx, fields.PersonID)
 		stats.Add(createStats)
+		if err != nil {
+			return err
+		}
+		result, err = s.saveEmployment(txCtx, result, fields, stats)
 		return err
 	})
 	return result, err
 }
 
 func (s *Service) UpdateStaff(ctx context.Context, id int64, fields domain.StaffFields) (result domain.Staff, err error) {
-	err = s.runWrite(ctx, "update_staff", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = s.runStaffWrite(ctx, "update_staff", func(txCtx context.Context, stats *domain.OperationStats) error {
 		if err := s.requireStaffLocked(txCtx, id, stats); err != nil {
 			return err
 		}
 		var updateStats domain.OperationStats
-		result, updateStats, err = s.store.UpdateStaff(txCtx, id, fields)
+		result, updateStats, err = s.store.UpdateStaff(txCtx, id, fields.PersonID)
 		stats.Add(updateStats)
+		if err != nil {
+			return err
+		}
+		result, err = s.saveEmployment(txCtx, result, fields, stats)
 		return err
 	})
 	return result, err
@@ -110,57 +135,53 @@ func (s *Service) DeleteStaff(ctx context.Context, id int64) error {
 	})
 }
 
-// ClearWorkTimeModel also reaches soft-deleted rows: offboarding runs it
-// after the tombstone so the retained row stops referencing the template.
-func (s *Service) ClearWorkTimeModel(ctx context.Context, id int64) error {
-	return s.runWrite(ctx, "clear_work_time_model", func(txCtx context.Context, stats *domain.OperationStats) error {
-		clearStats, err := s.store.ClearWorkTimeModel(txCtx, id)
-		stats.Add(clearStats)
-		return err
+// runStaffWrite is the unit of work of a staff write that reaches both
+// owners: a failed Workforce write rolls the membership write back even when
+// an ambient caller catches the error and commits its own transaction.
+func (s *Service) runStaffWrite(ctx context.Context, operation string, fn func(context.Context, *domain.OperationStats) error) error {
+	return s.runWrite(ctx, operation, func(txCtx context.Context, stats *domain.OperationStats) error {
+		return s.tx.RunSavepoint(txCtx, func(spCtx context.Context) error { return fn(spCtx, stats) })
 	})
 }
 
-func (s *Service) AppendStaffNotes(ctx context.Context, id int64, notes string) (result domain.Staff, err error) {
-	err = s.runWrite(ctx, "append_staff_notes", func(txCtx context.Context, stats *domain.OperationStats) error {
-		staff, found, queryStats, err := s.store.FindStaff(txCtx, id, "UPDATE", false)
-		stats.Add(queryStats)
-		if err != nil {
-			return err
-		}
-		if !found {
-			return domain.ErrStaffNotFound
-		}
-		setStats, err := s.store.SetStaffNotes(txCtx, id, domain.AppendNotes(staff.StaffNotes, notes))
-		stats.Add(setStats)
-		if err != nil {
-			return err
-		}
-		staff.StaffNotes = domain.AppendNotes(staff.StaffNotes, notes)
-		result = staff
-		return nil
-	})
-	return result, err
-}
-
-func (s *Service) SetBirthdayDisplayOptOut(ctx context.Context, id int64, optOut bool) error {
-	return s.runWrite(ctx, "set_birthday_display_opt_out", func(txCtx context.Context, stats *domain.OperationStats) error {
-		setStats, err := s.store.SetBirthdayDisplayOptOut(txCtx, id, optOut)
-		stats.Add(setStats)
-		return err
-	})
-}
-
-func (s *Service) RebaseWorkTimeModelAnchor(ctx context.Context, workTimeModelID int64, anchorDate string) (result []int64, err error) {
-	err = s.runWrite(ctx, "rebase_work_time_model_anchor", func(txCtx context.Context, stats *domain.OperationStats) error {
-		var writeStats domain.OperationStats
-		result, writeStats, err = s.store.RebaseWorkTimeModelAnchor(txCtx, workTimeModelID, anchorDate)
-		stats.Add(writeStats)
-		return err
-	})
-	if result == nil {
-		result = []int64{}
+func (s *Service) saveEmployment(ctx context.Context, staff domain.Staff, fields domain.StaffFields, stats *domain.OperationStats) (domain.Staff, error) {
+	employment := fields.Employment(staff.ID)
+	stats.Queries++
+	if err := s.employment.SaveStaffEmployment(ctx, employment); err != nil {
+		return domain.Staff{}, err
 	}
-	return result, err
+	return staff.WithEmployment(employment), nil
+}
+
+func (s *Service) withEmployment(ctx context.Context, staff domain.Staff, stats *domain.OperationStats) (domain.Staff, error) {
+	members := []domain.Staff{staff}
+	if err := s.composeEmployment(ctx, members, stats); err != nil {
+		return domain.Staff{}, err
+	}
+	return members[0], nil
+}
+
+// composeEmployment fills the Workforce half of every listed staff member in
+// one read. A membership without a profile keeps empty employment fields.
+func (s *Service) composeEmployment(ctx context.Context, members []domain.Staff, stats *domain.OperationStats) error {
+	if len(members) == 0 {
+		return nil
+	}
+	ids := make([]int64, 0, len(members))
+	for _, member := range members {
+		ids = append(ids, member.ID)
+	}
+	stats.Queries++
+	profiles, err := s.employment.StaffEmployments(ctx, ids)
+	if err != nil {
+		return err
+	}
+	for i, member := range members {
+		if profile, ok := profiles[member.ID]; ok {
+			members[i] = member.WithEmployment(profile)
+		}
+	}
+	return nil
 }
 
 // --- teachers ---

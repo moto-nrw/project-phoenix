@@ -25,12 +25,11 @@ func buildStaffGroups(t *testing.T, db *bun.DB) schoolstructure.StaffGroupQuery 
 	t.Helper()
 	groups, err := structurecompose.New(structurecompose.Dependencies{DB: db, Observe: func(structurecompose.Observation) {}})
 	require.NoError(t, err)
-	membership, err := membershipcompose.New(membershipcompose.Dependencies{DB: db, Observe: func(membershipcompose.Observation) {}})
+	membership, err := membershipcompose.New(membershipcompose.Dependencies{DB: db, Observe: func(membershipcompose.Observation) {}, Employment: staffEmployment(t, db)})
 	require.NoError(t, err)
 	substitutions, err := workforcecompose.New(workforcecompose.Dependencies{
 		DB:                  db,
-		AssignedStaffIDs:    func(context.Context, int64) ([]int64, error) { return nil, nil },
-		RebaseStaffAnchor:   func(context.Context, int64, string) ([]int64, error) { return nil, nil },
+		LiveStaffIDs:        func(context.Context, []int64) ([]int64, error) { return nil, nil },
 		LockStaffAssignment: func(context.Context, int64) error { return nil },
 		Observe:             func(workforcecompose.Observation) {},
 	})

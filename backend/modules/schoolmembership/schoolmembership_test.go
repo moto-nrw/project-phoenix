@@ -32,13 +32,10 @@ type recordingEngine struct {
 	toClass       string
 	studentStatus string
 
-	staffLock     string
-	createdStaff  schoolmembership.CreateStaff
-	updatedStaff  schoolmembership.UpdateStaff
-	staffFilter   schoolmembership.StaffFilter
-	appendedNotes string
-	optOut        bool
-	anchorDate    string
+	staffLock    string
+	createdStaff schoolmembership.CreateStaff
+	updatedStaff schoolmembership.UpdateStaff
+	staffFilter  schoolmembership.StaffFilter
 
 	createdTeacher schoolmembership.CreateTeacher
 	updatedTeacher schoolmembership.UpdateTeacher
@@ -104,26 +101,6 @@ func (e *recordingEngine) UpdateStaff(_ context.Context, input schoolmembership.
 }
 
 func (e *recordingEngine) DeleteStaff(context.Context, int64) error { e.calls++; return nil }
-
-func (e *recordingEngine) ClearWorkTimeModel(context.Context, int64) error { e.calls++; return nil }
-
-func (e *recordingEngine) AppendStaffNotes(_ context.Context, _ int64, notes string) (schoolmembership.Staff, error) {
-	e.calls++
-	e.appendedNotes = notes
-	return schoolmembership.Staff{StaffNotes: notes}, nil
-}
-
-func (e *recordingEngine) SetBirthdayDisplayOptOut(_ context.Context, _ int64, optOut bool) error {
-	e.calls++
-	e.optOut = optOut
-	return nil
-}
-
-func (e *recordingEngine) RebaseWorkTimeModelAnchor(_ context.Context, _ int64, anchorDate string) ([]int64, error) {
-	e.calls++
-	e.anchorDate = anchorDate
-	return nil, nil
-}
 
 func (e *recordingEngine) FindTeacher(context.Context, int64) (schoolmembership.Teacher, error) {
 	e.calls++
@@ -292,17 +269,7 @@ func TestCommandsRequirePositiveIDs(t *testing.T) {
 	requireInvalid(t, engine, module.DeleteStaff(ctx, 0), "staff ID is required")
 
 	module, engine = newModule()
-	requireInvalid(t, engine, module.ClearWorkTimeModel(ctx, 0), "staff ID is required")
-
-	module, engine = newModule()
-	_, err := module.AppendStaffNotes(ctx, 0, "note")
-	requireInvalid(t, engine, err, "staff ID is required")
-
-	module, engine = newModule()
-	requireInvalid(t, engine, module.SetBirthdayDisplayOptOut(ctx, 0, true), "staff ID is required")
-
-	module, engine = newModule()
-	_, err = module.UpdateStaff(ctx, schoolmembership.UpdateStaff{StaffFields: schoolmembership.StaffFields{PersonID: 7}})
+	_, err := module.UpdateStaff(ctx, schoolmembership.UpdateStaff{StaffFields: schoolmembership.StaffFields{PersonID: 7}})
 	requireInvalid(t, engine, err, "staff ID is required")
 
 	module, engine = newModule()
@@ -408,32 +375,6 @@ func TestListStaffDeduplicatesIDsAndKeepsTheEmptySliceApartFromNil(t *testing.T)
 	}
 	if engine.staffFilter.IDs == nil || len(engine.staffFilter.IDs) != 0 {
 		t.Fatalf("a filter that keeps no ID must stay empty-but-set: %v", engine.staffFilter.IDs)
-	}
-
-	module, engine = newModule()
-	zero := int64(0)
-	_, err := module.ListStaff(ctx, schoolmembership.StaffFilter{WorkTimeModelID: &zero})
-	requireInvalid(t, engine, err, "work time model ID must be positive")
-}
-
-func TestRebaseWorkTimeModelAnchorValidatesItsArguments(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
-	module, engine := newModule()
-	_, err := module.RebaseWorkTimeModelAnchor(ctx, 0, "2026-03-01")
-	requireInvalid(t, engine, err, "work time model ID is required")
-
-	module, engine = newModule()
-	_, err = module.RebaseWorkTimeModelAnchor(ctx, 4, "2026-13-01")
-	requireInvalid(t, engine, err, "rotation anchor date must be a calendar date in YYYY-MM-DD format")
-
-	module, engine = newModule()
-	if _, err := module.RebaseWorkTimeModelAnchor(ctx, 4, "2026-03-01"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if engine.anchorDate != "2026-03-01" {
-		t.Fatalf("anchor date was not passed through: %q", engine.anchorDate)
 	}
 }
 
@@ -573,20 +514,6 @@ func TestListGuestsTrimsFiltersAndValidatesTheActiveOnDate(t *testing.T) {
 	module, engine = newModule()
 	_, err := module.ListGuests(ctx, schoolmembership.GuestFilter{ActiveOn: "15.03.2026"})
 	requireInvalid(t, engine, err, "active-on date must be a calendar date in YYYY-MM-DD format")
-}
-
-func TestNotesAndOptOutReachTheEngineUnchanged(t *testing.T) {
-	t.Parallel()
-	module, engine := newModule()
-	ctx := context.Background()
-
-	staff, err := module.AppendStaffNotes(ctx, 7, "Zweiter Absatz")
-	if err != nil || staff.StaffNotes != "Zweiter Absatz" || engine.appendedNotes != "Zweiter Absatz" {
-		t.Fatalf("notes were altered on the way in: %q err=%v", engine.appendedNotes, err)
-	}
-	if err := module.SetBirthdayDisplayOptOut(ctx, 7, true); err != nil || !engine.optOut {
-		t.Fatalf("opt-out flag was not passed through: %v err=%v", engine.optOut, err)
-	}
 }
 
 func TestErrorCodeIsStable(t *testing.T) {

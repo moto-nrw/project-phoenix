@@ -42,10 +42,12 @@ func (s *Service) RetireStaff(ctx context.Context, staffID int64, revision strin
 			return deleteErr
 		}
 		result.ClassAssignments = deleteStats.Rows
+		// The retained membership must stop referencing the template. The
+		// template binding is Workforce's, so the retirement asks its owner
+		// inside the same unit of work.
 		if staff.WorkTimeModelID != nil {
-			clearStats, clearErr := s.store.ClearWorkTimeModel(txCtx, staffID)
-			stats.Add(clearStats)
-			if clearErr != nil {
+			stats.Queries++
+			if clearErr := s.employment.ClearStaffWorkTimeModel(txCtx, staffID); clearErr != nil {
 				return clearErr
 			}
 		}
@@ -83,6 +85,11 @@ func (s *Service) retirementSnapshot(ctx context.Context, staffID int64, stats *
 		return snapshot, domain.RetirementPreview{}, err
 	}
 	if found {
+		// The work-time binding decides whether retirement clears it and is
+		// part of the revision, so the snapshot carries the whole staff member.
+		if staff, err = s.withEmployment(ctx, staff, stats); err != nil {
+			return snapshot, domain.RetirementPreview{}, err
+		}
 		snapshot.Staff = staff
 		teacher, teacherFound, teacherStats, err := s.store.FindTeacherByStaff(ctx, staffID)
 		stats.Add(teacherStats)

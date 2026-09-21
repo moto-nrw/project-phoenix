@@ -3,6 +3,7 @@ package compose
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -23,11 +24,17 @@ import (
 func failingAnchorRebase(t *testing.T, db *bun.DB, failure error) workforce.Capability {
 	t.Helper()
 	runtime := testpkg.ConfigRuntime(db)
+	// The refresh asks School Membership for the live assignees once to close
+	// their schedules and once more when it stamps the anchor (#2753); the
+	// second answer fails.
+	var calls atomic.Int32
 	capability, err := New(Dependencies{LockStaffAssignment: runtime.LockStaffAssignment,
-		DB:               db,
-		AssignedStaffIDs: runtime.AssignedStaffIDs,
-		RebaseStaffAnchor: func(context.Context, int64, string) ([]int64, error) {
-			return nil, failure
+		DB: db,
+		LiveStaffIDs: func(ctx context.Context, ids []int64) ([]int64, error) {
+			if calls.Add(1) > 1 {
+				return nil, failure
+			}
+			return runtime.LiveStaffIDs(ctx, ids)
 		},
 		Observe: func(Observation) {},
 	})
