@@ -14,7 +14,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -202,9 +201,10 @@ func TestOffboardStaff_CleanupIntentFailureRestoresAccessAndAllOwnerWrites(t *te
 	require.NoError(t, err)
 	require.NotNil(t, person.AccountID)
 	require.Equal(t, account.ID, *person.AccountID)
-	roles, err := sc.repos.Role.FindByAccountID(sc.ctx, account.ID)
-	require.NoError(t, err)
-	require.NotEmpty(t, roles)
+	var roleCount int
+	require.NoError(t, sc.db.NewSelect().TableExpr("auth.account_roles").ColumnExpr("count(*)").
+		Where("account_id = ?", account.ID).Where("tenant_id = ?", testpkg.Tenant(t)).Scan(sc.ctx, &roleCount))
+	require.Positive(t, roleCount, "rolled-back offboarding must preserve school role assignments")
 	active, err := sc.authSvc.VerifyAccountTenantMembership(sc.ctx, account.ID, testpkg.Tenant(t))
 	require.NoError(t, err)
 	require.True(t, active)
@@ -360,15 +360,8 @@ func TestOffboardingRuntimeEvidence(t *testing.T) {
 // assignTenantRole links the account to a role inside the fixture tenant.
 func assignTenantRole(t *testing.T, db *bun.DB, accountID int64, roleID int64) {
 	t.Helper()
-	accountRole := &authModels.AccountRole{
-		AccountID: accountID,
-		RoleID:    roleID,
-	}
-	accountRole.SetTenantID(testpkg.Tenant(t))
-	err := db.NewInsert().
-		Model(accountRole).
-		ModelTableExpr(`auth.account_roles`).
-		Scan(testpkg.Ctx(t))
+	_, err := db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+		accountID, roleID, testpkg.Tenant(t)).Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 }
 
@@ -444,7 +437,7 @@ func TestOffboardStaff_RevokesAccountAccess(t *testing.T) {
 
 	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
 
-	exists, err := sc.repos.AccountTenant.ExistsByAccountAndTenant(sc.ctx, account.ID, testpkg.Tenant(t))
+	exists, err := testpkg.ActiveAccountTenantExists(sc.ctx, sc.db, account.ID, testpkg.Tenant(t))
 	require.NoError(t, err)
 	assert.False(t, exists, "account-tenant mapping must be inactive after offboarding")
 
@@ -517,11 +510,11 @@ func TestOffboardStaff_MultiTenantAccountKeepsOtherSchool(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, active, "account with another active school mapping must stay active")
 
-	existsA, err := sc.repos.AccountTenant.ExistsByAccountAndTenant(sc.ctx, account.ID, testpkg.Tenant(t))
+	existsA, err := testpkg.ActiveAccountTenantExists(sc.ctx, sc.db, account.ID, testpkg.Tenant(t))
 	require.NoError(t, err)
 	assert.False(t, existsA, "offboarded school mapping must be inactive")
 
-	existsB, err := sc.repos.AccountTenant.ExistsByAccountAndTenant(sc.ctx, account.ID, otherTenant)
+	existsB, err := testpkg.ActiveAccountTenantExists(sc.ctx, sc.db, account.ID, otherTenant)
 	require.NoError(t, err)
 	assert.True(t, existsB, "other school mapping must stay active")
 
@@ -602,7 +595,7 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 	require.NoError(t, err, "a dormant account is restored by its invitation")
 	require.Equal(t, account.ID, reactivated.ID, "the invitee keeps the account the address belongs to")
 
-	exists, err := sc.repos.AccountTenant.ExistsByAccountAndTenant(sc.ctx, account.ID, testpkg.Tenant(t))
+	exists, err := testpkg.ActiveAccountTenantExists(sc.ctx, sc.db, account.ID, testpkg.Tenant(t))
 	require.NoError(t, err)
 	assert.True(t, exists, "the accepted invitation restores the tenant mapping")
 
@@ -615,7 +608,7 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 		Scan(context.Background(), &staffCount)
 	require.NoError(t, err)
 	assert.Equal(t, 1, staffCount, "the restored Betreuer has a live staff record again")
-	stored, err := sc.repos.Account.FindByID(context.Background(), account.ID)
+	stored, err := testpkg.ReadAccountState(context.Background(), sc.db, account.ID)
 	require.NoError(t, err)
 	assert.True(t, stored.Active)
 	assert.NotEqual(t, account.PasswordHash, stored.PasswordHash, "the invitee's new credential replaced the old one")
@@ -867,7 +860,10 @@ func TestOffboardStaff_ClearsDirectPermissions(t *testing.T) {
 	testpkg.MapAccountToTenant(t, sc.db, account.ID, testpkg.Tenant(t))
 	perm := testpkg.CreateTestPermission(t, sc.db,
 		fmt.Sprintf("offb-perm-%d", time.Now().UnixNano()), "students", "read")
-	require.NoError(t, sc.repos.AccountPermission.GrantPermission(sc.ctx, account.ID, perm.ID))
+	_, grantErr := sc.db.ExecContext(sc.ctx,
+		"INSERT INTO auth.account_permissions (account_id, permission_id, granted, tenant_id) VALUES (?, ?, TRUE, ?)",
+		account.ID, perm.ID, testpkg.Tenant(t))
+	require.NoError(t, grantErr)
 
 	t.Cleanup(func() {
 		ctx := context.Background()
@@ -919,7 +915,7 @@ func TestOffboardStaff_PreservesGuardianAccess(t *testing.T) {
 	assert.Zero(t, countRole(staffRole.ID), "staff role must be removed")
 	assert.Equal(t, 1, countRole(guardianRole.ID), "guardian role must be kept")
 
-	exists, err := sc.repos.AccountTenant.ExistsByAccountAndTenant(sc.ctx, account.ID, testpkg.Tenant(t))
+	exists, err := testpkg.ActiveAccountTenantExists(sc.ctx, sc.db, account.ID, testpkg.Tenant(t))
 	require.NoError(t, err)
 	assert.True(t, exists, "tenant mapping must stay active for the guardian")
 

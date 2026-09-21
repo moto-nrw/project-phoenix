@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
@@ -48,7 +48,7 @@ type Rosters = ports.Rosters
 // PickupReader is the slice of the retained pickup schedule service the
 // scans read.
 type PickupReader interface {
-	GetEffectivePickupTimeForDate(ctx context.Context, studentID int64, date timezone.Date) (*careschedule.EffectivePickupTime, error)
+	GetEffectivePickupTimeForDate(ctx context.Context, studentID int64, date timezone.Date) (*careplan.EffectivePickupTime, error)
 }
 
 // Dependencies are the collaborators of the device-scan workflow. Fleet,

@@ -5,8 +5,6 @@ import (
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
-	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/uptrace/bun"
@@ -14,11 +12,8 @@ import (
 
 type EnrollmentTestRepositories struct {
 	TimetableTestRepositories
-	School              organizationtenancy.Capability
-	Account             authModels.AccountRepository
-	AccountTenant       authModels.AccountTenantRepository
-	AccountRole         authModels.AccountRoleRepository
-	Role                authModels.RoleRepository
+	School organizationtenancy.Capability
+
 	StudentGuardian     usersModels.StudentGuardianRepository
 	GuardianProfile     usersModels.GuardianProfileRepository
 	GuardianPhoneNumber usersModels.GuardianPhoneNumberRepository
@@ -48,15 +43,12 @@ func NewEnrollmentTestRepositories(db *bun.DB, command auditModels.Command) (Enr
 	if err != nil {
 		return EnrollmentTestRepositories{}, err
 	}
-	r := &Factory{db: db,
-		Account: members.Account, AccountTenant: members.AccountTenant,
-	}
+	r := &Factory{db: db}
 	r.BindPeopleDirectory(people)
 	r.bindCarePlanAdapters(care)
 	r.BindOrganizationTenancy(organizations)
 	return EnrollmentTestRepositories{TimetableTestRepositories: tt,
-		School: r.School, Account: r.Account, AccountTenant: r.AccountTenant,
-		AccountRole: authRepo.NewAccountRoleRepository(db), Role: authRepo.NewRoleRepository(db),
+		School:          r.School,
 		StudentGuardian: NewStudentGuardianRepository(db), GuardianProfile: NewGuardianProfileRepository(db), GuardianPhoneNumber: usersRepo.NewGuardianPhoneNumberRepository(db),
 		StudentCompanion: r.StudentCompanion, Membership: members.Membership,
 		DataAccessLog: dataAccessLogCommand{auditRepo.NewDataAccessLogRepository(newTestAuditRuntime(db)), command}}, nil

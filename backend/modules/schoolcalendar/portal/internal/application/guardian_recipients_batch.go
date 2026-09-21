@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"errors"
 
 	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports"
@@ -36,21 +35,22 @@ func (s *service) loadGuardianRecipientReadSet(ctx context.Context, appointmentI
 	if len(guardianIDs) == 0 {
 		return readSet, nil
 	}
-	readSet.profiles, err = s.cfg.GuardianProfileRepo.FindActivePortalProfilesByIDs(ctx, guardianIDs)
+	contacts, err := s.cfg.GuardianProfileRepo.ListPortalContacts(ctx, guardianIDs, nil)
 	if err != nil {
 		return nil, err
-	}
-	if s.cfg.StudentGuardianRepo == nil {
-		return nil, errors.New("calendar: guardian permission repositories are required")
 	}
 	studentLinks, err := s.cfg.Appointments.FindAppointmentRecipientStudents(ctx, recipientIDs)
 	if err != nil {
 		return nil, err
 	}
-	studentIDs := indexRecipientStudents(readSet.studentsByRecipient, studentLinks)
-	guardianLinks, err := s.cfg.StudentGuardianRepo.FindByStudentIDs(ctx, studentIDs)
-	if err != nil {
-		return nil, err
+	indexRecipientStudents(readSet.studentsByRecipient, studentLinks)
+	guardianLinks := make([]*ports.StudentGuardian, 0, len(contacts))
+	for _, contact := range contacts {
+		profile := contact.Profile
+		readSet.profiles[profile.ID] = &profile
+		if contact.Relationship != nil {
+			guardianLinks = append(guardianLinks, contact.Relationship)
+		}
 	}
 	readSet.allowed = guardianPermissionSet(guardianLinks)
 	return readSet, nil
@@ -75,14 +75,10 @@ func indexGuardianRecipientRows(recipients []*appointmentcap.AppointmentRecipien
 	return readSet, guardianIDs, recipientIDs
 }
 
-func indexRecipientStudents(byRecipient map[int64][]int64, links []*appointmentcap.AppointmentRecipientStudent) []int64 {
-	studentIDs := make([]int64, 0, len(links))
-	seen := make(map[int64]bool)
+func indexRecipientStudents(byRecipient map[int64][]int64, links []*appointmentcap.AppointmentRecipientStudent) {
 	for _, link := range links {
 		byRecipient[link.RecipientID] = append(byRecipient[link.RecipientID], link.StudentID)
-		appendDistinctID(&studentIDs, seen, link.StudentID)
 	}
-	return studentIDs
 }
 
 func guardianPermissionSet(links []*ports.StudentGuardian) map[[2]int64]bool {

@@ -12,13 +12,15 @@ import (
 	"log/slog"
 	"time"
 
+	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -76,9 +78,9 @@ type Config struct {
 	Attendance    AttendanceReader
 	StatusDayRepo activeModels.StudentStatusDayRepository
 
-	ArrivalSchedules careschedule.ArrivalScheduleService
-	PickupSchedules  careschedule.PickupScheduleService
-	CareRequests     careschedule.CareScheduleRequestService
+	ArrivalSchedules careplan.ArrivalScheduleService
+	PickupSchedules  careplan.PickupScheduleService
+	CareRequests     carerequests.Service
 
 	CarePeriods      enrollmentSvc.StudentCarePeriodReader
 	OfferingHistory  enrollmentSvc.OfferingHistoryReader

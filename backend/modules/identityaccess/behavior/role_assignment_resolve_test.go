@@ -10,9 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -60,7 +58,7 @@ func TestResolveAssignableSchoolRole(t *testing.T) {
 	})
 
 	t.Run("rejects a custom role derived from guardian", func(t *testing.T) {
-		guardianBase := authModels.BaseRoleGuardian
+		guardianBase := "guardian"
 		derivedRole := testpkg.CreateTestRoleForTenant(t, db, "zugriff-policy-guardian-base", homeTenantID)
 		derivedRole.BaseRole = &guardianBase
 		_, updateErr := db.NewRaw(`UPDATE auth.roles SET base_role = ? WHERE id = ?`, guardianBase, derivedRole.ID).Exec(ctx)
@@ -137,7 +135,8 @@ func createPlatformRole(t *testing.T, db *bun.DB, name string, isSystem bool) in
 	).Scan(context.Background(), &id)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Role.Delete(context.Background(), id))
+		_, err := db.NewRaw("DELETE FROM auth.roles WHERE id = ?", id).Exec(context.Background())
+		require.NoError(t, err)
 	})
 	return id
 }

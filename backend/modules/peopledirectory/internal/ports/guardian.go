@@ -11,6 +11,8 @@ import (
 // tenant in context when one is present; inside an admin transaction they
 // span every tenant.
 type GuardianStore interface {
+	FindPortalMemberships(context.Context, []int64) (map[int64][]int64, error)
+	ListPortalContacts(context.Context, []int64, []int64) ([]domain.GuardianPortalContact, domain.OperationStats, error)
 	// ListLinksByAccount returns every link of the profiles whose account
 	// is accountID, ordered by tenant then student.
 	ListLinksByAccount(context.Context, int64) ([]domain.GuardianLink, domain.OperationStats, error)

@@ -9,8 +9,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -32,7 +32,7 @@ var ErrPickupResetNoOffering = errors.New("für diesen Tag gibt es keine Angebot
 // reset write. The schedule projector implements it without coupling this
 // service package to the schedule service package.
 type OfferingPickupBaselineReader interface {
-	OfferingPickupForDate(ctx context.Context, studentID int64, date timezone.Date) (*scheduleModels.StudentPickupSchedule, error)
+	OfferingPickupForDate(ctx context.Context, studentID int64, date timezone.Date) (*careplan.PickupSchedule, error)
 }
 
 // LockOfferingDerivedWrites establishes the project-wide gate order before a

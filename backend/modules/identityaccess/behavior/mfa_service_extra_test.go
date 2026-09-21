@@ -154,7 +154,7 @@ func TestMFAService_IssueTrustedDevice_PersistsAndReturnsSignedToken(t *testing.
 func TestMFAService_StartChallenge_RateLimitLookupFails_IssuesNoCode(t *testing.T) {
 	t.Parallel()
 
-	svc, repos, db := newTestMFAService(t, withFailingMFARecords(failingMFARecords{
+	svc, _, db := newTestMFAService(t, withFailingMFARecords(failingMFARecords{
 		countChallengesSince: func(context.Context, int64, time.Time) (int, error) {
 			return 0, errors.New("rate-limit count unavailable")
 		},
@@ -171,7 +171,7 @@ func TestMFAService_StartChallenge_RateLimitLookupFails_IssuesNoCode(t *testing.
 		"an unreadable rate-limit count must refuse the code, not wave it through")
 	assert.Empty(t, challengeToken)
 
-	issued, err := repos.MFAEmailChallenge.CountRecentByAccountID(
+	issued, err := nativeMFARecords(t, db).CountChallengesSince(
 		context.Background(), acc.ID, time.Now().Add(-time.Hour),
 	)
 	require.NoError(t, err)

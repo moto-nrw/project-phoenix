@@ -27,7 +27,7 @@ func setupUserContextService(t *testing.T, db *bun.DB) usercontextSvc.UserContex
 	require.NoError(t, err)
 
 	repos := usercontextSvc.UserContextRepositories{
-		AccountRepo:        repoFactory.Account,
+		AccountRepo:        repositories.NewCurrentAccountAccess(repoFactory.Profile),
 		PersonRepo:         repoFactory.Person,
 		StaffRepo:          repoFactory.Staff,
 		TeacherRepo:        repoFactory.Teacher,
@@ -587,7 +587,7 @@ func TestUserContextService_UpdateAvatar(t *testing.T) {
 		require.NotNil(t, result)
 		assert.Equal(t, avatarURL, result["avatar"])
 
-		accountRecord, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account.FindByID(ctx, account.ID)
+		accountRecord, err := testpkg.ReadAccountState(ctx, db, account.ID)
 		require.NoError(t, err)
 		assert.Equal(t, avatarURL, accountRecord.Avatar)
 	})

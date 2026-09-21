@@ -23,10 +23,14 @@ const (
 
 // CreateParentAccount creates a new parent account with a hashed password.
 func (l *AccountLifecycle) CreateParentAccount(ctx context.Context, email, username, password string) (domain.ParentAccount, error) {
-	email = strings.TrimSpace(strings.ToLower(email))
 	username = strings.TrimSpace(username)
 
 	if err := l.passwords.ValidatePasswordStrength(password); err != nil {
+		return domain.ParentAccount{}, failed(opCreateParentAccount, err)
+	}
+	var err error
+	email, err = domain.NormalizeAccountEmail(email)
+	if err != nil {
 		return domain.ParentAccount{}, failed(opCreateParentAccount, err)
 	}
 	if _, found, _, err := l.store.FindParentAccountByEmail(ctx, email); err == nil && found {
@@ -82,6 +86,10 @@ func (l *AccountLifecycle) UpdateParentAccount(ctx context.Context, account doma
 	existing, err := l.findParentAccount(ctx, opUpdateParentAccount, account.ID)
 	if err != nil {
 		return err
+	}
+	account.Email, err = domain.NormalizeAccountEmail(account.Email)
+	if err != nil {
+		return failed(opUpdateParentAccount, err)
 	}
 	if account.PasswordHash == "" {
 		account.PasswordHash = existing.PasswordHash

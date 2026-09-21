@@ -10,7 +10,7 @@ import (
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -26,12 +26,12 @@ func validateAssignableCategory(
 	category, err := repo.FindByIDForShare(ctx, categoryID)
 	if err != nil {
 		if modelBase.IsNoRows(err) {
-			return &ScheduleError{Op: op, Err: careschedule.ErrCategoryNotAssignable}
+			return &ScheduleError{Op: op, Err: timetableModule.ErrCategoryNotAssignable}
 		}
 		return &ScheduleError{Op: op, Err: err}
 	}
 	if category == nil || category.IsArchived() {
-		return &ScheduleError{Op: op, Err: careschedule.ErrCategoryNotAssignable}
+		return &ScheduleError{Op: op, Err: timetableModule.ErrCategoryNotAssignable}
 	}
 	return nil
 }

@@ -10,7 +10,6 @@ import (
 	"github.com/uptrace/bun"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -27,9 +26,8 @@ func assignSystemRole(t *testing.T, db *bun.DB, accountID int64, roleName string
 		Where("name = ?", roleName).Where("is_system = TRUE").
 		Scan(ctx, &roleID), "seeded %s system role must exist", roleName)
 
-	assignment := &authmodels.AccountRole{AccountID: accountID, RoleID: roleID}
-	assignment.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(assignment).ModelTableExpr(`auth.account_roles`).Exec(ctx)
+	_, err := db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+		accountID, roleID, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
 }
 

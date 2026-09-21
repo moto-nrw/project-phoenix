@@ -6,15 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestDayReportFromEnrollmentKeepsTheWireShape is the output golden of the
@@ -81,7 +80,7 @@ func TestArrivalExceptionErrorsKeepTheirMessages(t *testing.T) {
 		assert.Equal(t, legacy.Error(), sentinel.Error())
 	}
 
-	wrapped := &careschedule.ScheduleError{Op: "upsert class arrival exception", Err: careschedule.ErrClassArrivalExceptionPastDate}
+	wrapped := &careplan.ScheduleError{Op: "upsert class arrival exception", Err: careplan.ErrClassArrivalExceptionPastDate}
 	service := compose.NewClassDay(compose.ClassDayDependencies{
 		Reports:           stubReports{},
 		Caller:            stubCaller{},

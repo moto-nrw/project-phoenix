@@ -101,6 +101,11 @@ type GuardianAccessQuery interface {
 // tenant transaction.
 type GuardianAccessCommand interface {
 	GrantGuardianTenantAccess(ctx context.Context, accountID int64) (GuardianTenantAccess, error)
+	// SeedGuardianAccount is for the authorized local-development seeder. It
+	// creates or reuses an account and grants guardian access at the context's
+	// school in the caller's transaction. Existing credentials and activation
+	// stay untouched; passwordHash is an already-hashed development credential.
+	SeedGuardianAccount(ctx context.Context, email, passwordHash string) (int64, bool, error)
 }
 
 // GuardianAccess is the capability enrollment acceptance consumes.
@@ -323,6 +328,14 @@ type AccountSessionAccess interface {
 
 // Engine is the composed implementation behind the public module.
 type Engine interface {
+	StaffCalendarFeeds
+	ParentCalendarFeeds
+	SchoolAccountListings
+	GuardianPortalQuery
+	RFIDCards
+	AccountRoleQueries
+	StaffAccountQueries
+	GuardianSchools
 	GuardianAccess
 	OperatorAccess
 	OperatorMFARecords
@@ -337,6 +350,7 @@ type Engine interface {
 	SchoolInvitations
 	AccountSessionAccess
 	RFIDQuery
+	AccountProfiles
 	SchoolAccountQuery
 	InvitedPersonQuery
 	StudentGuardianInvitationQuery
@@ -441,20 +455,12 @@ type Module struct {
 // NewModule wraps the composed engine and the runtime binding the
 // composition captured for its transactions. Composition supplies both;
 // consumers depend on the interfaces above.
-func NewModule(engine Engine, runtime TenantRuntimeBinding, demoAccess ...*DemoAccess) *Module {
+func NewModule(engine Engine, runtime TenantRuntimeBinding) *Module {
 	if engine == nil {
 		panic("identity access: engine is required")
 	}
-	module := &Module{engine: engine, runtime: runtime}
-	if len(demoAccess) > 0 {
-		module.demoAccess = demoAccess[0]
-	}
-	return module
+	return &Module{engine: engine, runtime: runtime}
 }
-
-// DemoAccess returns the demo-only capability when this module was composed
-// in the demo environment.
-func (m *Module) DemoAccess() *DemoAccess { return m.demoAccess }
 
 // SetTenantRuntime binds the unit of work the module opens its session,
 // lifecycle and operator transactions under. The composition root wires it
@@ -489,6 +495,11 @@ func (m *Module) GrantGuardianTenantAccess(ctx context.Context, accountID int64)
 		return GuardianTenantAccess{}, fmt.Errorf("identity access: grant guardian tenant access: %w", err)
 	}
 	return access, nil
+}
+
+// SeedGuardianAccount returns the account ID and whether it was reused.
+func (m *Module) SeedGuardianAccount(ctx context.Context, email, passwordHash string) (int64, bool, error) {
+	return m.engine.SeedGuardianAccount(ctx, email, passwordHash)
 }
 
 func (m *Module) FindOperator(ctx context.Context, id int64) (Operator, error) {

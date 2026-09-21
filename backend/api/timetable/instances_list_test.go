@@ -18,7 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
@@ -419,14 +419,14 @@ func TestListInstances_CompletedExpectedRowStaysNotScheduled(t *testing.T) {
 	// The per-child rows must carry the same verdict the counts used, or the
 	// planner lists a child under "Erwartet" that its own header count leaves
 	// out — and offers "abmelden" for a day that was never care (#1747 review).
-	careDayByStudent := map[int64]careschedule.CareDayStatus{}
+	careDayByStudent := map[int64]careplan.CareDayStatus{}
 	for _, row := range item.Students {
 		careDayByStudent[row.StudentID] = row.CareDayStatus
 	}
-	assert.Equal(t, careschedule.CareDayNotScheduled, careDayByStudent[student1.ID])
-	assert.Equal(t, careschedule.CareDayUnknown, careDayByStudent[student2.ID],
+	assert.Equal(t, careplan.CareDayNotScheduled, careDayByStudent[student1.ID])
+	assert.Equal(t, careplan.CareDayUnknown, careDayByStudent[student2.ID],
 		"a row with a real attendance status tells its own story")
-	assert.Equal(t, careschedule.CareDayUnknown, careDayByStudent[student3.ID],
+	assert.Equal(t, careplan.CareDayUnknown, careDayByStudent[student3.ID],
 		"an unmarked expected row must not be relabelled as never booked")
 }
 
@@ -436,11 +436,11 @@ type stubListCareDays struct{ notScheduled map[int64]bool }
 
 func (s stubListCareDays) ResolveForDate(
 	_ context.Context, studentIDs []int64, date timezone.Date,
-) (map[int64]careschedule.CareDayStatus, error) {
-	out := map[int64]careschedule.CareDayStatus{}
+) (map[int64]careplan.CareDayStatus, error) {
+	out := map[int64]careplan.CareDayStatus{}
 	for _, id := range studentIDs {
 		if s.notScheduled[id] {
-			out[id] = careschedule.CareDayNotScheduled
+			out[id] = careplan.CareDayNotScheduled
 		}
 	}
 	return out, nil
@@ -448,13 +448,13 @@ func (s stubListCareDays) ResolveForDate(
 
 func (s stubListCareDays) ResolveForRange(
 	_ context.Context, studentIDs []int64, from, to timezone.Date,
-) (map[int64]map[timezone.Date]careschedule.CareDayStatus, error) {
-	out := map[int64]map[timezone.Date]careschedule.CareDayStatus{}
+) (map[int64]map[timezone.Date]careplan.CareDayStatus, error) {
+	out := map[int64]map[timezone.Date]careplan.CareDayStatus{}
 	for _, id := range studentIDs {
-		byDate := map[timezone.Date]careschedule.CareDayStatus{}
+		byDate := map[timezone.Date]careplan.CareDayStatus{}
 		for date := from; !date.After(to); date = date.AddDays(1) {
 			if s.notScheduled[id] {
-				byDate[date] = careschedule.CareDayNotScheduled
+				byDate[date] = careplan.CareDayNotScheduled
 			}
 		}
 		out[id] = byDate
@@ -516,15 +516,15 @@ func TestListInstances_StatusDayAbsenceOnUnbookedDayReadsAsNotScheduled(t *testi
 	assert.Equal(t, 0, item.ExpectedStudentsCount)
 	assert.Equal(t, 0, item.PresentStudentsCount)
 
-	careDayByStudent := map[int64]careschedule.CareDayStatus{}
+	careDayByStudent := map[int64]careplan.CareDayStatus{}
 	for _, row := range item.Students {
 		careDayByStudent[row.StudentID] = row.CareDayStatus
 	}
-	assert.Equal(t, careschedule.CareDayNotScheduled, careDayByStudent[sickUnbooked.ID],
+	assert.Equal(t, careplan.CareDayNotScheduled, careDayByStudent[sickUnbooked.ID],
 		"a status-day absence on a day the plan never booked is a false absence")
-	assert.Equal(t, careschedule.CareDayUnknown, careDayByStudent[manualUnbooked.ID],
+	assert.Equal(t, careplan.CareDayUnknown, careDayByStudent[manualUnbooked.ID],
 		"a manual absence is a human decision and outranks the plan")
-	assert.Equal(t, careschedule.CareDayUnknown, careDayByStudent[sickBooked.ID],
+	assert.Equal(t, careplan.CareDayUnknown, careDayByStudent[sickBooked.ID],
 		"the child was booked, so their absence is real")
 }
 

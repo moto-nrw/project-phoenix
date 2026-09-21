@@ -387,10 +387,6 @@ func (r studentRepositoryWithOwnerWrites) FindByGroupIDs(ctx context.Context, gr
 	return r.reads.FindByGroupIDs(ctx, groupIDs)
 }
 
-func (r studentRepositoryWithOwnerWrites) FindBySchoolClass(ctx context.Context, schoolClass string) ([]*userModels.Student, error) {
-	return r.reads.FindBySchoolClass(ctx, schoolClass)
-}
-
 func (r studentRepositoryWithOwnerWrites) FindPendingDueForActivation(ctx context.Context, asOf userModels.CalendarDate) ([]*userModels.Student, error) {
 	return r.reads.FindPendingDueForActivation(ctx, asOf)
 }

@@ -159,7 +159,7 @@ the shared authorization helpers and the Bun database, and PR mode rejects a
 new permission on a point that exists at the base SHA — the same reason
 #3219's shift-planning services went to `inbound-staff-shifts`/`adapter`. The
 package is therefore `inbound-students`/`adapter`, the consumer-side twin of
-`modules/careplan/legacy/careschedule` (`inbound-schedules`/`adapter`, #3220),
+the former `modules/careplan/legacy/careschedule` (`inbound-schedules`/`adapter`, #3220; dissolved into native Care Plan capabilities by #3351),
 and every `inbound-students.adapter.*` rule and every
 `<consumer>.<role>.inbound-students-adapter` rule is a compatibility
 permission: convert them to exact debt once the package exists at a base SHA,
@@ -550,7 +550,7 @@ effective-time engine (`effective_time_service.go`,
 instantiate), the day-planning resolver the care-day resolver calls, and the
 `ScheduleError` type with its sentinels (the moved package aliases the type,
 so `errors.As` matches either name). The moved package imports
-them (`modules/careplan/legacy/careschedule` since #3220) for these and for
+them (`modules/careplan/legacy/careschedule` from #3220 until #3351 dissolved it) for these and for
 the care-day, care-exception-lock, baseline and effective-time contracts;
 that package never imports it back, so the packages depend in one direction
 only. `germanDateLayout` now
@@ -1099,12 +1099,12 @@ and permission CRUD, account role assignment with the school identity it
 owes, direct account grants, role-permission selections and the default
 staff permission. `auth.roles`, `auth.permissions`, `auth.role_permissions`,
 `auth.account_roles`, `auth.account_permissions` and the account and
-membership locks the mutations serialize on are still read and written
-through the retained `modules/identityaccess/legacy/authpostgres` repositories:
-`database/repositories/identity_roles.go` serves the module's
-`compose.RoleDirectory` seam over them, without changing a statement or the
-lock order. #3226 moved those stores into the module; the seam still binds
-them from the legacy factory until #2743 retires it. The school-role
+membership locks the mutations serialize on use module-owned persistence in
+`internal/adapters/postgres`. Account visibility reuses the module's account
+administration, preserving tenant and organization checks and the lock order.
+#3226 removed the root role adapter and `compose.RoleDirectory` seam; other
+legacy consumers still need migration before the old repositories can be
+deleted. The school-role
 assignment policy (`ValidateAssignableSchoolRole` and the Lehrkraft and
 guardian-tier classification) is a public function of the module; the
 operator school access binds it inside the module, and the retained
@@ -1515,7 +1515,7 @@ same shapes. Every foreign fact enters through consumer-owned ports: the four
 queues, the correction log, the caller's rights, the group names and the
 Familienschutz flag. Its compatibility adapter (`modules/requestreview/legacy`,
 `request-review-view`/`adapter`) binds those ports to the retained
-`services/users`, `modules/careplan/legacy/careschedule`, `services/enrollment` review queues,
+`services/users`, the Care Plan `carerequests` contract (#3351), `services/enrollment` review queues,
 the Care Plan excused-request contract, the retained review policy, people,
 education and Familienschutz services, and derives the per-row facts
 (urgency, past scope, version, conflict keys) with the owners' own rules.
@@ -1894,6 +1894,31 @@ metadata and deleting unused permissions grants no new architectural permission
 and must not unlock the epoch-gated strictness exceptions. Add positive and
 negative fixtures when changing these contracts, and remove every `rules.stale`
 finding before committing a policy change.
+
+The Care Schedule retirement has one scoped permission-replacement path
+([ADR 0030](../../docs/adr/0030-care-schedule-cutover-replaces-legacy-permissions.md),
+#3351). In a reviewed epoch, consumers may replace their existing, same-scope
+access to `inbound-schedules/adapter` with Care Plan's public or contract role.
+Tests with that same prior permission may instead construct the replacement
+through Care Plan's compose role, in their existing test scope only.
+The candidate must remove the legacy package and every `inbound-schedules`
+package. The exception also covers the exact canonical-calendar replacement
+and the four native owner-internal contract bindings described in the ADR.
+Four pinned consumer points may also replace the retired adapter's Timetable
+contracts and Presence capacity-error alias with their actual public owners;
+each requires its own same-scope historical adapter permission. The ADR lists
+these points. Other owners and non-public target roles remain forbidden.
+Two retained arrival-integration fixture points may construct Timetable's
+class projections, only in their historical test scopes, and bind them through
+Care Plan composition themselves. The ADR pins both source points and the
+single `timetable-activities/compose` target. Root composition is not a target:
+its role also covers `database/repositories`, so the repository imports of
+these tests stay tracked debt. No production access is authorized.
+Those bindings apply only to Care Plan's composition, application, and port
+roles in production scope, not to test helpers or new cross-owner access.
+It does not allow new debt, ownership changes, private
+implementation access, or reuse after retirement reaches the comparison base.
+Intermediate states with the legacy service still present remain invalid.
 
 The three existing student read projections have one fixed replacement path
 ([ADR 0025](../../docs/adr/0025-replace-student-read-projection-grants.md),

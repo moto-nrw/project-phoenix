@@ -8,8 +8,6 @@ import (
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
-	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -84,13 +82,12 @@ func (r *recordingPushRepository) DeleteSchoolByEndpointAcrossTenants(_ context.
 }
 
 type accountTenantRepositoryStub struct {
-	authModels.AccountTenantRepository
-	mappings []authModels.AccountTenant
+	mappings []int64
 	err      error
-	find     func(context.Context, int64) ([]authModels.AccountTenant, error)
+	find     func(context.Context, int64) ([]int64, error)
 }
 
-func (r accountTenantRepositoryStub) FindActiveGuardianByAccountID(ctx context.Context, accountID int64) ([]authModels.AccountTenant, error) {
+func (r accountTenantRepositoryStub) ListGuardianSchoolIDs(ctx context.Context, accountID int64) ([]int64, error) {
 	if r.find != nil {
 		return r.find(ctx, accountID)
 	}
@@ -179,7 +176,7 @@ func TestPushSubscriptionServiceParentLifecycle(t *testing.T) {
 	require.Positive(t, tenantID)
 
 	mappings := accountTenantRepositoryStub{
-		mappings: []authModels.AccountTenant{{TenantID: tenantID}},
+		mappings: []int64{tenantID},
 	}
 
 	t.Run("reports mapping lookup errors and missing mappings", func(t *testing.T) {
@@ -246,54 +243,6 @@ func TestPushSubscriptionServiceParentLifecycle(t *testing.T) {
 	})
 }
 
-func TestPushSubscriptionServiceParentFiltersNonGuardianMappings(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	account := testpkg.CreateTestAccount(t, db, "push-parent-mixed-roles")
-	guardianTenantID := testpkg.UniqueTestTenantID(t)
-	staffTenantID := testpkg.UniqueTestTenantID(t)
-	testpkg.EnsureTestTenant(t, db, guardianTenantID)
-	testpkg.EnsureTestTenant(t, db, staffTenantID)
-
-	testpkg.MapAccountToTenant(t, db, account.ID, guardianTenantID)
-	testpkg.MapAccountToTenant(t, db, account.ID, staffTenantID)
-
-	var guardianRoleID, staffRoleID int64
-	require.NoError(t, db.NewSelect().
-		ColumnExpr("id").
-		TableExpr("auth.roles").
-		Where("name = ?", authModels.BaseRoleGuardian).
-		Scan(context.Background(), &guardianRoleID))
-	require.NoError(t, db.NewSelect().
-		ColumnExpr("id").
-		TableExpr("auth.roles").
-		Where("name = ?", authModels.BaseRoleUser).
-		Scan(context.Background(), &staffRoleID))
-
-	_, err := db.ExecContext(context.Background(), `
-		INSERT INTO auth.account_roles (account_id, role_id, tenant_id)
-		VALUES (?, ?, ?), (?, ?, ?)`,
-		account.ID, guardianRoleID, guardianTenantID,
-		account.ID, staffRoleID, staffTenantID)
-	require.NoError(t, err)
-
-	repo := &recordingPushRepository{}
-	service := newMockPushSubscriptionService(t,
-		db,
-		repo,
-		authRepo.NewAccountTenantRepository(db),
-		testVAPID(),
-		nil,
-	)
-
-	require.NoError(t, service.SubscribeParent(context.Background(), account.ID, validPushInput()))
-	require.Len(t, repo.upserted, 1)
-	assert.Equal(t, guardianTenantID, repo.upserted[0].TenantID)
-
-	require.NoError(t, service.UnsubscribeParent(context.Background(), account.ID, validPushInput().Endpoint))
-	assert.Equal(t, []int64{guardianTenantID}, repo.deletedTenants)
-}
-
 func TestPushSubscriptionServiceParentSubscribeIsAtomic(t *testing.T) {
 	t.Parallel()
 	sqlDB, mock, err := sqlmock.New()
@@ -310,11 +259,11 @@ func TestPushSubscriptionServiceParentSubscribeIsAtomic(t *testing.T) {
 	repo := &recordingPushRepository{err: errPushRepository, failAfter: 2}
 	mappingLookupInTx := false
 	mappings := accountTenantRepositoryStub{
-		find: func(ctx context.Context, _ int64) ([]authModels.AccountTenant, error) {
+		find: func(ctx context.Context, _ int64) ([]int64, error) {
 			_, mappingLookupInTx = tenant.TransactionFromContext(ctx)
-			return []authModels.AccountTenant{
-				{TenantID: 41},
-				{TenantID: 42},
+			return []int64{
+				41,
+				42,
 			}, nil
 		},
 	}
@@ -346,11 +295,11 @@ func TestPushSubscriptionServiceParentUnsubscribeIsAtomic(t *testing.T) {
 	repo := &recordingPushRepository{err: errPushRepository, deleteFailAfter: 2}
 	mappingLookupInTx := false
 	mappings := accountTenantRepositoryStub{
-		find: func(ctx context.Context, _ int64) ([]authModels.AccountTenant, error) {
+		find: func(ctx context.Context, _ int64) ([]int64, error) {
 			_, mappingLookupInTx = tenant.TransactionFromContext(ctx)
-			return []authModels.AccountTenant{
-				{TenantID: 41},
-				{TenantID: 42},
+			return []int64{
+				41,
+				42,
 			}, nil
 		},
 	}

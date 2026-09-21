@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
@@ -49,23 +50,18 @@ type guardianLinkRow struct {
 // users.students_guardians; it shares the database runtime with the person
 // store. The application-level guardian flows stay with the owner's
 // legacy service, so this store carries only the reads foreign owners need.
-// MembershipQuery is the Identity & Access owner query that selects the
-// active (account_id, tenant_id) mappings. Keeping it as a query lets the
-// guardian read stay one statement while the Identity owner retains its table.
-type MembershipQuery func(context.Context) *bun.SelectQuery
+type PortalMembershipQuery func(context.Context, []int64) (map[int64][]int64, error)
 
 type GuardianStore struct {
-	database       Database
-	memberships    MembershipQuery
-	activeAccounts MembershipQuery
-	guardianRoles  MembershipQuery
+	database    Database
+	memberships PortalMembershipQuery
 }
 
-func NewGuardianStore(database Database, memberships, activeAccounts, guardianRoles MembershipQuery) *GuardianStore {
+func NewGuardianStore(database Database, memberships PortalMembershipQuery) *GuardianStore {
 	if database == nil {
 		panic("people directory postgres: database runtime is required")
 	}
-	return &GuardianStore{database: database, memberships: memberships, activeAccounts: activeAccounts, guardianRoles: guardianRoles}
+	return &GuardianStore{database: database, memberships: memberships}
 }
 
 // ListLinksByAccount joins the two owned tables once: every link of every
@@ -174,22 +170,28 @@ func (s *GuardianStore) CountLinks(ctx context.Context, guardianIDs []int64) (ma
 // a link may do is decided by the caller from its permissions, exactly as for
 // ListLinksByAccount.
 func (s *GuardianStore) ListAccountLinksByStudents(ctx context.Context, studentIDs []int64) ([]domain.GuardianLink, domain.OperationStats, error) {
-	if s.memberships == nil || s.activeAccounts == nil || s.guardianRoles == nil {
+	if s.memberships == nil {
 		return nil, domain.OperationStats{}, fmt.Errorf("people directory postgres: list account links by students: portal account queries are required")
 	}
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
-	rows := []guardianLinkRow{}
+	rows := []struct {
+		guardianLinkRow
+		AccountID int64 `bun:"portal_account_id"`
+	}{}
 	query := db.NewSelect().Model(&rows).ModelTableExpr(`users.students_guardians AS "student_guardian"`).
+		ColumnExpr(`"student_guardian".id, "student_guardian".tenant_id, "student_guardian".student_id,
+			"student_guardian".guardian_profile_id, "student_guardian".relationship_type, "student_guardian".guardian_role,
+			"student_guardian".is_primary, "student_guardian".is_emergency_contact, "student_guardian".can_pickup,
+			"student_guardian".pickup_notes, "student_guardian".emergency_priority, "student_guardian".is_payer,
+			"student_guardian".permissions`).
+		ColumnExpr(`"guardian_profile".account_id AS portal_account_id`).
 		Join(`JOIN users.guardian_profiles AS "guardian_profile" ON "guardian_profile".id = "student_guardian".guardian_profile_id AND "guardian_profile".tenant_id = "student_guardian".tenant_id`).
 		Where(`"student_guardian".student_id IN (?)`, bun.List(studentIDs)).
 		Where(`"guardian_profile".account_id IS NOT NULL`).
-		Where(`"guardian_profile".has_account = true`).
-		Where(`("guardian_profile".account_id, "student_guardian".tenant_id) IN (?)`, s.memberships(ctx)).
-		Where(`("guardian_profile".account_id, "student_guardian".tenant_id) IN (?)`, s.guardianRoles(ctx)).
-		Where(`"guardian_profile".account_id IN (?)`, s.activeAccounts(ctx))
+		Where(`"guardian_profile".has_account = true`)
 	if tenantID > 0 {
 		query = query.Where(`"student_guardian".tenant_id = ?`, tenantID)
 	}
@@ -202,8 +204,21 @@ func (s *GuardianStore) ListAccountLinksByStudents(ctx context.Context, studentI
 		return nil, stats, fmt.Errorf("people directory postgres: list account links by students: %w", err)
 	}
 	result := make([]domain.GuardianLink, 0, len(rows))
+	if len(rows) == 0 {
+		return result, stats, nil
+	}
+	accountIDs := make([]int64, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, toDomainLink(row))
+		accountIDs = append(accountIDs, row.AccountID)
+	}
+	memberships, err := s.memberships(ctx, accountIDs)
+	if err != nil {
+		return nil, stats, fmt.Errorf("people directory postgres: guardian portal memberships: %w", err)
+	}
+	for _, row := range rows {
+		if slices.Contains(memberships[row.AccountID], row.TenantID) {
+			result = append(result, toDomainLink(row.guardianLinkRow))
+		}
 	}
 	stats.Rows = int64(len(result))
 	return result, stats, nil

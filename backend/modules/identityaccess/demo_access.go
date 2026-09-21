@@ -68,3 +68,15 @@ func (d *DemoAccess) DemoAccessReady(ctx context.Context, token, schoolSlug stri
 func (d *DemoAccess) RedeemDemoAccess(ctx context.Context, token, schoolSlug, ipAddress, userAgent string) (string, string, error) {
 	return d.engine.RedeemDemoAccess(ctx, token, schoolSlug, ipAddress, userAgent)
 }
+
+// NewDemoModule is NewModule with the demo-only capability; access is nil
+// outside the demo environment.
+func NewDemoModule(engine Engine, runtime TenantRuntimeBinding, access *DemoAccess) *Module {
+	module := NewModule(engine, runtime)
+	module.demoAccess = access
+	return module
+}
+
+// DemoAccess returns the demo-only capability when this module was composed
+// in the demo environment.
+func (m *Module) DemoAccess() *DemoAccess { return m.demoAccess }

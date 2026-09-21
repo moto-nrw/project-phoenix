@@ -5,7 +5,7 @@
 // It is a read-only projection because every one of those answers joins
 // Organisation & Tenancy's platform rows with Identity & Access account
 // mappings and roles and with the Observability usage rows. The account
-// counts join the owner's active-membership statement; the PWA buckets still
+// counts use bounded owner aggregates; the PWA buckets still
 // read the mappings and roles directly. It never writes.
 // Every statement is a compile-time constant so the architecture evaluator
 // can read which tables it touches.
@@ -23,12 +23,12 @@ import (
 // Database resolves the caller's ambient administrative transaction.
 type Database func(context.Context) (bun.IDB, error)
 
-// ActiveMemberships returns the Identity & Access owner statement selecting
-// (account_id, tenant_id) of every active school mapping (#2721). The account
-// counts aggregate over it instead of reading the mapping table.
-type ActiveMemberships func(context.Context) *bun.SelectQuery
+// ActiveAccountCounts counts distinct accounts with active mappings within each supplied
+// school group. The caller defines groups and school visibility; Identity owns
+// membership status and account deduplication.
+type ActiveAccountCounts func(context.Context, map[int64][]int64) (map[int64]int, error)
 
-var errActiveMembershipsRequired = errors.New("organization tenancy operator dashboard: active membership query is not bound")
+var errActiveAccountCountsRequired = errors.New("organization tenancy operator dashboard: active account counts are not bound")
 
 // guardianRoleName mirrors the Identity & Access base role that marks a
 // parent account. It is a literal here because a projection reads another
@@ -37,43 +37,46 @@ const guardianRoleName = "guardian"
 
 // Projection answers the operator dashboard reads.
 type Projection struct {
-	database    Database
-	memberships ActiveMemberships
+	database      Database
+	accountCounts ActiveAccountCounts
 }
 
 // New builds the projection over the ambient transaction runtime. Without
-// memberships the account-counting reads fail closed.
-func New(database Database, memberships ActiveMemberships) *Projection {
+// accountCounts the account-counting reads fail closed.
+func New(database Database, accountCounts ActiveAccountCounts) *Projection {
 	if database == nil {
 		panic("organization tenancy operator dashboard: database runtime is required")
 	}
-	return &Projection{database: database, memberships: memberships}
+	return &Projection{database: database, accountCounts: accountCounts}
 }
 
-// accountReads resolves the transaction and the membership statement the
-// account counts aggregate over.
-func (p *Projection) accountReads(ctx context.Context) (bun.IDB, *bun.SelectQuery, error) {
-	if p.memberships == nil {
-		return nil, nil, errActiveMembershipsRequired
+// accountReads fails closed when account facts are not composed.
+func (p *Projection) accountReads(ctx context.Context) (bun.IDB, error) {
+	if p.accountCounts == nil {
+		return nil, errActiveAccountCountsRequired
 	}
-	db, err := p.database(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	return db, p.memberships(ctx), nil
+	return p.database(ctx)
 }
 
-// countsQuery counts an account active in several schools once.
+// schoolGroups resolves the non-deleted schools of each organization. Account
+// aggregation remains inside Identity, so multi-school accounts are not counted
+// twice within an organization or the platform total.
+func schoolGroups(ctx context.Context, db bun.IDB) (map[int64][]int64, error) {
+	var rows []struct{ ID, OrganizationID int64 }
+	if err := db.NewRaw("SELECT id, organization_id FROM platform.schools WHERE deleted_at IS NULL").Scan(ctx, &rows); err != nil {
+		return nil, err
+	}
+	groups := make(map[int64][]int64)
+	for _, row := range rows {
+		groups[row.OrganizationID] = append(groups[row.OrganizationID], row.ID)
+	}
+	return groups, nil
+}
+
 const countsQuery = `
 SELECT
 	(SELECT COUNT(*) FROM platform.organizations WHERE deleted_at IS NULL) AS organizations,
-	(SELECT COUNT(*) FROM platform.schools WHERE deleted_at IS NULL) AS schools,
-	(
-		SELECT COUNT(DISTINCT "at".account_id)
-		FROM (?) AS "at"
-		INNER JOIN platform.schools AS "s" ON "s".id = "at".tenant_id
-		WHERE "s".deleted_at IS NULL
-	) AS accounts
+	(SELECT COUNT(*) FROM platform.schools WHERE deleted_at IS NULL) AS schools
 `
 
 type countsRow struct {
@@ -84,33 +87,37 @@ type countsRow struct {
 
 // Counts returns the platform-wide organisation, school and account counts.
 func (p *Projection) Counts(ctx context.Context) (domain.DashboardCounts, error) {
-	db, memberships, err := p.accountReads(ctx)
+	db, err := p.accountReads(ctx)
 	if err != nil {
 		return domain.DashboardCounts{}, err
 	}
 	var row countsRow
-	if err := db.NewRaw(countsQuery, memberships).Scan(ctx, &row); err != nil {
+	if err := db.NewRaw(countsQuery).Scan(ctx, &row); err != nil {
 		return domain.DashboardCounts{}, err
 	}
+	groups, err := schoolGroups(ctx, db)
+	if err != nil {
+		return domain.DashboardCounts{}, err
+	}
+	var schools []int64
+	for _, ids := range groups {
+		schools = append(schools, ids...)
+	}
+	counts, err := p.accountCounts(ctx, map[int64][]int64{0: schools})
+	if err != nil {
+		return domain.DashboardCounts{}, err
+	}
+	row.Accounts = counts[0]
 	return domain.DashboardCounts{Organizations: row.Organizations, Schools: row.Schools, Accounts: row.Accounts}, nil
 }
 
-// organizationSummariesQuery aggregates the child counts in single-pass CTEs
-// and joins them onto the organisation rows, so each child table is scanned
-// once regardless of the organisation count.
+// organizationSummariesQuery attaches non-deleted school counts to organizations.
+// Identity supplies the corresponding distinct-account counts separately.
 const organizationSummariesQuery = `
 WITH school_agg AS (
 	SELECT "s".organization_id,
 		COUNT(*) AS school_count
 	FROM platform.schools AS "s"
-	WHERE "s".deleted_at IS NULL
-	GROUP BY "s".organization_id
-),
-account_agg AS (
-	SELECT "s".organization_id,
-		COUNT(DISTINCT "at".account_id) AS account_count
-	FROM (?) AS "at"
-	INNER JOIN platform.schools AS "s" ON "s".id = "at".tenant_id
 	WHERE "s".deleted_at IS NULL
 	GROUP BY "s".organization_id
 )
@@ -123,11 +130,9 @@ SELECT
 	"o".updated_at,
 	"o".deleted_at,
 	COALESCE("o".settings, '{}') AS settings,
-	COALESCE("sa".school_count, 0) AS school_count,
-	COALESCE("aa".account_count, 0) AS account_count
+	COALESCE("sa".school_count, 0) AS school_count
 FROM platform.organizations AS "o"
 LEFT JOIN school_agg AS "sa" ON "sa".organization_id = "o".id
-LEFT JOIN account_agg AS "aa" ON "aa".organization_id = "o".id
 ORDER BY "o".name ASC
 `
 
@@ -148,30 +153,33 @@ type organizationSummaryRow struct {
 // with the counts of its non-deleted schools and their active accounts. An
 // account active in several schools of one organisation counts once.
 func (p *Projection) OrganizationSummaries(ctx context.Context) ([]domain.OrganizationSummary, error) {
-	db, memberships, err := p.accountReads(ctx)
+	db, err := p.accountReads(ctx)
 	if err != nil {
 		return nil, err
 	}
 	var rows []organizationSummaryRow
-	if err := db.NewRaw(organizationSummariesQuery, memberships).Scan(ctx, &rows); err != nil {
+	if err := db.NewRaw(organizationSummariesQuery).Scan(ctx, &rows); err != nil {
+		return nil, err
+	}
+	groups, err := schoolGroups(ctx, db)
+	if err != nil {
+		return nil, err
+	}
+	counts, err := p.accountCounts(ctx, groups)
+	if err != nil {
 		return nil, err
 	}
 	result := make([]domain.OrganizationSummary, 0, len(rows))
 	for _, row := range rows {
+		row.AccountCount = counts[row.ID]
 		result = append(result, domain.OrganizationSummary(row))
 	}
 	return result, nil
 }
 
-// schoolSummariesQuery aggregates the account counts in a single-pass CTE
-// for the platform-wide school list.
+// schoolSummariesQuery reads the platform-wide school list. Account counts are
+// supplied by one bounded Identity aggregate for all returned schools.
 const schoolSummariesQuery = `
-WITH account_agg AS (
-	SELECT "at".tenant_id,
-		COUNT(DISTINCT "at".account_id) AS account_count
-	FROM (?) AS "at"
-	GROUP BY "at".tenant_id
-)
 SELECT
 	"s".id,
 	"s".organization_id,
@@ -189,17 +197,13 @@ SELECT
 	COALESCE("s".zip, '') AS zip,
 	COALESCE("s".phone, '') AS phone,
 	COALESCE("s".email, '') AS email,
-	COALESCE("s".settings, '{}') AS settings,
-	COALESCE("aa".account_count, 0) AS account_count
+	COALESCE("s".settings, '{}') AS settings
 FROM platform.schools AS "s"
 INNER JOIN platform.organizations AS "o" ON "o".id = "s".organization_id
-LEFT JOIN account_agg AS "aa" ON "aa".tenant_id = "s".id
 ORDER BY "o".name ASC, "s".name ASC
 `
 
-// organizationSchoolSummariesQuery keeps correlated subqueries because one
-// organisation has few schools: the planner does cheap indexed lookups and
-// the organisation filter avoids scanning every mapping.
+// organizationSchoolSummariesQuery limits school rows to one organization.
 const organizationSchoolSummariesQuery = `
 SELECT
 	"s".id,
@@ -218,12 +222,7 @@ SELECT
 	COALESCE("s".zip, '') AS zip,
 	COALESCE("s".phone, '') AS phone,
 	COALESCE("s".email, '') AS email,
-	COALESCE("s".settings, '{}') AS settings,
-	COALESCE((
-		SELECT COUNT(DISTINCT "at".account_id)
-		FROM (?) AS "at"
-		WHERE "at".tenant_id = "s".id
-	), 0) AS account_count
+	COALESCE("s".settings, '{}') AS settings
 FROM platform.schools AS "s"
 INNER JOIN platform.organizations AS "o" ON "o".id = "s".organization_id
 WHERE "s".organization_id = ?
@@ -255,21 +254,30 @@ type schoolSummaryRow struct {
 // deleted ones included, with the organisation's name and the count of
 // active accounts.
 func (p *Projection) SchoolSummaries(ctx context.Context, organizationID *int64) ([]domain.SchoolSummary, error) {
-	db, memberships, err := p.accountReads(ctx)
+	db, err := p.accountReads(ctx)
 	if err != nil {
 		return nil, err
 	}
 	var rows []schoolSummaryRow
 	if organizationID == nil {
-		err = db.NewRaw(schoolSummariesQuery, memberships).Scan(ctx, &rows)
+		err = db.NewRaw(schoolSummariesQuery).Scan(ctx, &rows)
 	} else {
-		err = db.NewRaw(organizationSchoolSummariesQuery, memberships, *organizationID).Scan(ctx, &rows)
+		err = db.NewRaw(organizationSchoolSummariesQuery, *organizationID).Scan(ctx, &rows)
 	}
+	if err != nil {
+		return nil, err
+	}
+	groups := make(map[int64][]int64, len(rows))
+	for _, row := range rows {
+		groups[row.ID] = []int64{row.ID}
+	}
+	counts, err := p.accountCounts(ctx, groups)
 	if err != nil {
 		return nil, err
 	}
 	result := make([]domain.SchoolSummary, 0, len(rows))
 	for _, row := range rows {
+		row.AccountCount = counts[row.ID]
 		result = append(result, domain.SchoolSummary(row))
 	}
 	return result, nil

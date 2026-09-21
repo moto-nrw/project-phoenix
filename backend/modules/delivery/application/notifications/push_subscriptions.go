@@ -7,7 +7,6 @@ import (
 	"log/slog"
 
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -62,7 +61,7 @@ type PushSubscriptionService interface {
 type pushSubscriptionService struct {
 	db             *bun.DB
 	repo           deliveryModels.PushSubscriptionRepository
-	accountTenants authModels.AccountTenantRepository
+	accountTenants GuardianSchools
 	vapid          VAPIDConfig
 	logger         *slog.Logger
 	tenantRuntime  *tenant.UnitOfWork
@@ -83,7 +82,7 @@ func (s *pushSubscriptionService) withTenantRuntime(ctx context.Context) context
 func NewPushSubscriptionService(
 	db *bun.DB,
 	repo deliveryModels.PushSubscriptionRepository,
-	accountTenants authModels.AccountTenantRepository,
+	accountTenants GuardianSchools,
 	vapid VAPIDConfig,
 	logger *slog.Logger,
 ) PushSubscriptionService {
@@ -186,7 +185,7 @@ func (s *pushSubscriptionService) SubscribeParent(ctx context.Context, accountID
 	// schools. This deliberately excludes pending-enrollment-only schools from
 	// Web Push until guardian access is active there.
 	return tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
-		mappings, err := s.accountTenants.FindActiveGuardianByAccountID(txCtx, accountID)
+		mappings, err := s.accountTenants.ListGuardianSchoolIDs(txCtx, accountID)
 		if err != nil {
 			return fmt.Errorf("resolving guardian tenant mappings: %w", err)
 		}
@@ -203,9 +202,9 @@ func (s *pushSubscriptionService) SubscribeParent(ctx context.Context, accountID
 
 		for _, mapping := range mappings {
 			sub := *prototype
-			sub.TenantID = mapping.TenantID
+			sub.TenantID = mapping
 			if err := s.repo.Upsert(txCtx, &sub); err != nil {
-				return fmt.Errorf("registering push subscription for tenant %d: %w", mapping.TenantID, err)
+				return fmt.Errorf("registering push subscription for tenant %d: %w", mapping, err)
 			}
 		}
 		return nil
@@ -215,14 +214,14 @@ func (s *pushSubscriptionService) SubscribeParent(ctx context.Context, accountID
 func (s *pushSubscriptionService) UnsubscribeParent(ctx context.Context, accountID int64, endpoint string) error {
 	ctx = s.withTenantRuntime(ctx)
 	return tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
-		mappings, err := s.accountTenants.FindActiveGuardianByAccountID(txCtx, accountID)
+		mappings, err := s.accountTenants.ListGuardianSchoolIDs(txCtx, accountID)
 		if err != nil {
 			return fmt.Errorf("resolving guardian tenant mappings: %w", err)
 		}
 		for _, mapping := range mappings {
-			tenantCtx := tenant.WithTenantID(txCtx, mapping.TenantID)
+			tenantCtx := tenant.WithTenantID(txCtx, mapping)
 			if err := s.repo.DeleteParentByAccountEndpoint(tenantCtx, accountID, endpoint); err != nil {
-				return fmt.Errorf("removing push subscription for tenant %d: %w", mapping.TenantID, err)
+				return fmt.Errorf("removing push subscription for tenant %d: %w", mapping, err)
 			}
 		}
 		return nil

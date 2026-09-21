@@ -64,27 +64,28 @@ func (p *Provisioning) ListOrganizationDevices(ctx context.Context, organization
 }
 
 // listDevices assembles the operator device listing from Device Fleet and the
-// dashboard's school rows. Devices of a soft-deleted school or organisation
+// school and organization directory. Devices of a soft-deleted school or organisation
 // are never listed, so global listings do not surface Papierkorb tenants.
 func (p *Provisioning) listDevices(ctx context.Context, filter deviceFilter) ([]organizationtenancy.OperatorDevice, error) {
-	schools, err := p.dashboard.SchoolSummaries(ctx, nil)
+	schools, err := p.organizations.ListSchools(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("load schools for operator device listing: %w", err)
 	}
-	organizations, err := p.dashboard.OrganizationSummaries(ctx)
+	organizations, err := p.organizations.ListOrganizations(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("load organizations for operator device listing: %w", err)
 	}
-	deletedOrganizations := make(map[int64]bool, len(organizations))
+	liveOrganizations := make(map[int64]string, len(organizations))
 	for _, organization := range organizations {
-		if organization.DeletedAt != nil {
-			deletedOrganizations[organization.ID] = true
+		if organization.DeletedAt == nil {
+			liveOrganizations[organization.ID] = organization.Name
 		}
 	}
 	visible := make(map[int64]domain.SchoolSummary, len(schools))
 	tenantIDs := make([]int64, 0, len(schools))
 	for _, school := range schools {
-		if school.DeletedAt != nil || deletedOrganizations[school.OrganizationID] {
+		organizationName, live := liveOrganizations[school.OrganizationID]
+		if school.DeletedAt != nil || !live {
 			continue
 		}
 		if filter.schoolID != nil && school.ID != *filter.schoolID {
@@ -93,7 +94,7 @@ func (p *Provisioning) listDevices(ctx context.Context, filter deviceFilter) ([]
 		if filter.organizationID != nil && school.OrganizationID != *filter.organizationID {
 			continue
 		}
-		visible[school.ID] = school
+		visible[school.ID] = domain.SchoolSummary{ID: school.ID, Name: school.Name, OrganizationID: school.OrganizationID, OrganizationName: organizationName}
 		tenantIDs = append(tenantIDs, school.ID)
 	}
 	if len(tenantIDs) == 0 {

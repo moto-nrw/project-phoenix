@@ -60,7 +60,7 @@ func TestCheckoutStudent_Integration(t *testing.T) {
 		token := testpkg.CreateTestJWT(t, account.ID, checkoutPermissions)
 		req := makeCheckoutRequest(t, student.ID, token)
 
-		router := handler.Router()
+		router := testpkg.SessionVerifier(handler.Router())
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
@@ -98,7 +98,7 @@ func TestCheckoutStudent_Integration(t *testing.T) {
 		_ = testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, checkInTime, nil)
 
 		token := testpkg.CreateTestJWT(t, account.ID, checkoutPermissions)
-		router := handler.Router()
+		router := testpkg.SessionVerifier(handler.Router())
 
 		// First checkout succeeds.
 		rr := httptest.NewRecorder()

@@ -430,6 +430,7 @@ type GuardianProvider interface {
 // provider-backed operation reports through so the guardian capability
 // records the same per-operation evidence as the person and student reads.
 type guardianEngine interface {
+	ListGuardianPortalContacts(context.Context, []int64, []int64) ([]GuardianPortalContact, error)
 	ListGuardianLinksByAccount(context.Context, int64) ([]GuardianLink, error)
 	ListGuardiansByAccounts(context.Context, []int64) ([]Guardian, error)
 	ListGuardiansByIDs(context.Context, []int64) ([]Guardian, error)

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -185,7 +185,7 @@ func TestMatchingPickupOfferings_UsesMaterializedCoBookings(t *testing.T) {
 
 func TestEffectiveProposedPickupPlanUsesOfferingForBlankCareDay(t *testing.T) {
 	t.Parallel()
-	offering := careschedule.PickupWeek{
+	offering := careplan.PickupWeek{
 		1: {PickupTime: pickupTestTime(t, "15:00")},
 	}
 
@@ -198,7 +198,7 @@ func TestEffectiveProposedPickupPlanUsesOfferingForBlankCareDay(t *testing.T) {
 func TestPickupPlanDeviatesWhenCareDayWasRemoved(t *testing.T) {
 	t.Parallel()
 
-	offering := careschedule.PickupWeek{
+	offering := careplan.PickupWeek{
 		1: {PickupTime: pickupTestTime(t, "15:00")},
 		4: {PickupTime: pickupTestTime(t, "15:00")},
 	}
@@ -234,10 +234,10 @@ func TestPickupAdjustmentTokenChangesWithExistingNotes(t *testing.T) {
 
 	firstNote := "Bus"
 	secondNote := "Wird abgeholt"
-	base := careschedule.PickupWeek{
+	base := careplan.PickupWeek{
 		1: {PickupTime: pickupTestTime(t, "15:00"), Notes: &firstNote},
 	}
-	changed := careschedule.PickupWeek{
+	changed := careplan.PickupWeek{
 		1: {PickupTime: pickupTestTime(t, "15:00"), Notes: &secondNote},
 	}
 	input := PickupAdjustmentPreviewInput{StudentID: 7}
@@ -254,7 +254,7 @@ func TestPickupPlanLabelIncludesNotes(t *testing.T) {
 	t.Parallel()
 
 	note := "Fährt mit dem Bus"
-	label := pickupPlanLabel(careschedule.PickupWeek{
+	label := pickupPlanLabel(careplan.PickupWeek{
 		1: {PickupTime: pickupTestTime(t, "15:00"), Notes: &note},
 	})
 

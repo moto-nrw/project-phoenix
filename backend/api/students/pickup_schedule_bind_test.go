@@ -6,12 +6,13 @@ import (
 	"testing"
 	"time"
 
+	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
+
 	"github.com/go-chi/render"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -470,9 +471,9 @@ func TestMapExceptionToResponse(t *testing.T) {
 // Test Helpers
 // =============================================================================
 
-func createTestScheduleModel(studentID int64, weekday int, pickupTime string, notes *string) *schedule.StudentPickupSchedule {
+func createTestScheduleModel(studentID int64, weekday int, pickupTime string, notes *string) *careplan.PickupSchedule {
 	parsedTime, _ := parseTimeOnly(pickupTime)
-	return &schedule.StudentPickupSchedule{
+	return &careplan.PickupSchedule{
 		StudentID:  studentID,
 		Weekday:    weekday,
 		PickupTime: parsedTime,
@@ -481,23 +482,23 @@ func createTestScheduleModel(studentID int64, weekday int, pickupTime string, no
 	}
 }
 
-func createTestExceptionModel(studentID int64, date, pickupTime, reason string) *schedule.StudentPickupException {
+func createTestExceptionModel(studentID int64, date, pickupTime, reason string) *careplan.PickupException {
 	parsedDate, _ := timezone.ParseDate(date)
 	parsedTime, _ := parseTimeOnly(pickupTime)
-	return &schedule.StudentPickupException{
+	return &careplan.PickupException{
 		StudentID:     studentID,
-		ExceptionDate: schedule.Date(parsedDate),
+		ExceptionDate: careplan.Date(parsedDate),
 		PickupTime:    &parsedTime,
 		Reason:        &reason,
 		CreatedBy:     1,
 	}
 }
 
-func createTestExceptionModelAbsent(studentID int64, date, reason string) *schedule.StudentPickupException {
+func createTestExceptionModelAbsent(studentID int64, date, reason string) *careplan.PickupException {
 	parsedDate, _ := timezone.ParseDate(date)
-	return &schedule.StudentPickupException{
+	return &careplan.PickupException{
 		StudentID:     studentID,
-		ExceptionDate: schedule.Date(parsedDate),
+		ExceptionDate: careplan.Date(parsedDate),
 		PickupTime:    nil,
 		Reason:        &reason,
 		CreatedBy:     1,
@@ -718,7 +719,7 @@ func TestMapScheduleToResponse_ResponseFormat(t *testing.T) {
 		studentID := int64(12345)
 		createdBy := int64(67890)
 		schedID := int64(42)
-		sched := &schedule.StudentPickupSchedule{
+		sched := &careplan.PickupSchedule{
 			StudentID:  studentID,
 			Weekday:    1,
 			PickupTime: time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC),
@@ -741,7 +742,7 @@ func TestMapScheduleToResponse_ResponseFormat(t *testing.T) {
 	t.Run("handles invalid weekday gracefully", func(t *testing.T) {
 		studentID := int64(12345)
 		createdBy := int64(67890)
-		sched := &schedule.StudentPickupSchedule{
+		sched := &careplan.PickupSchedule{
 			StudentID:  studentID,
 			Weekday:    99, // Invalid weekday
 			PickupTime: time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC),
@@ -765,9 +766,9 @@ func TestMapExceptionToResponse_ResponseFormat(t *testing.T) {
 		excID := int64(42)
 		pickupTime := time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)
 		reason := "Test"
-		exc := &schedule.StudentPickupException{
+		exc := &careplan.PickupException{
 			StudentID:     studentID,
-			ExceptionDate: schedule.NewDate(2026, 2, 15),
+			ExceptionDate: careplan.Date(schedule.NewDate(2026, 2, 15)),
 			PickupTime:    &pickupTime,
 			Reason:        &reason,
 			CreatedBy:     createdBy,
@@ -1000,8 +1001,8 @@ func TestBuildPickupDataResponse_PreservesExplicitEmptyDate(t *testing.T) {
 	t.Parallel()
 
 	date := timezone.NewDate(2026, 8, 18)
-	response := buildPickupDataResponse(&careschedule.StudentPickupData{
-		EffectiveSchedules: []careschedule.DatedPickupSchedule{{Date: date}},
+	response := buildPickupDataResponse(&careplan.StudentPickupData{
+		EffectiveSchedules: []careplan.DatedPickupSchedule{{Date: date}},
 	})
 
 	require.Len(t, response.EffectiveSchedules, 1)
@@ -1090,9 +1091,9 @@ func TestMapExceptionToResponse_NilPickupTime(t *testing.T) {
 		createdBy := int64(67890)
 		excID := int64(42)
 		reason := "Student is absent"
-		exc := &schedule.StudentPickupException{
+		exc := &careplan.PickupException{
 			StudentID:     studentID,
-			ExceptionDate: schedule.NewDate(2026, 2, 15),
+			ExceptionDate: careplan.Date(schedule.NewDate(2026, 2, 15)),
 			PickupTime:    nil, // Explicitly nil
 			Reason:        &reason,
 			CreatedBy:     createdBy,

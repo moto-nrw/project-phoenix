@@ -503,12 +503,12 @@ func TestModuleResolvesTargetStudentsThroughPeopleDirectory(t *testing.T) {
 	assert.NotContains(t, studentIDs[group.ID], nonMember.ID)
 }
 
-func testCareDays() timetable.CareDayLocker {
-	return timetable.NewCareDayLocker(
-		func(context.Context, int64, string) error { return nil },
-		func(context.Context, int64, string) error { return nil },
-	)
-}
+type noopCareDays struct{}
+
+func (noopCareDays) LockStudentAndExceptionDay(context.Context, int64, string) error { return nil }
+func (noopCareDays) LockExceptionDay(context.Context, int64, string) error           { return nil }
+
+func testCareDays() timetable.CareDayLocker { return noopCareDays{} }
 
 func testRooms() timetable.RoomDirectory {
 	return timetable.RoomDirectoryFunc(func(context.Context, []int64) ([]timetable.RoomRef, error) { return nil, nil })

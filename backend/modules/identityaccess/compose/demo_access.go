@@ -6,9 +6,9 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -33,15 +33,11 @@ func composeDemoAccess(db *bun.DB, sessions DemoSessions, dependencies *DemoDepe
 
 // DemoSessions is the session minting the demo access redeems into; the
 // composed Identity & Access module satisfies it.
-type DemoSessions interface {
-	IssueTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error)
-}
+type DemoSessions = ports.DemoSessions
 
 // DemoSchools resolves the demo school by slug through Organisation &
 // Tenancy; found is false until the school exists and is active.
-type DemoSchools interface {
-	FindDemoSchool(ctx context.Context, slug string) (tenantID int64, found bool, err error)
-}
+type DemoSchools = ports.DemoSchools
 
 // DemoAccessDependencies compose the demo access of the public demo (#3462).
 // NewToken and Fingerprint are the opaque capability token of the token
@@ -61,11 +57,8 @@ func NewDemoAccess(deps DemoAccessDependencies) (*identityaccess.DemoAccess, err
 	if deps.DB == nil || deps.Sessions == nil || deps.Schools == nil || deps.NewToken == nil || deps.Fingerprint == nil {
 		return nil, errors.New("identity access compose: every demo access dependency is required")
 	}
-	scope := func(ctx context.Context) postgres.TenantScope {
-		return postgres.TenantScope{TenantID: tenant.FromContext(ctx), AdminTransaction: tenant.IsAdminTx(ctx)}
-	}
 	flows, err := application.NewDemoAccess(application.DemoAccessDependencies{
-		Sessions: deps.Sessions, Store: postgres.New(requestDatabase(deps.DB), scope), Schools: deps.Schools,
+		Sessions: deps.Sessions, Store: newStore(deps.DB), Schools: deps.Schools,
 		Tokens:  demoAccessTokens{mint: deps.NewToken, fingerprint: deps.Fingerprint},
 		AdminTx: tenant.WithinAdmin,
 	})

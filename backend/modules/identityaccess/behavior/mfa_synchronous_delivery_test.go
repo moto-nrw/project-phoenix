@@ -61,7 +61,7 @@ func TestMFAStartChallengeFailsClosedAndInvalidatesCodeAfterCancellation(t *test
 	ctx, cancel := context.WithCancel(context.Background())
 	transportErr := errors.New("smtp connection lost")
 	mailer := &cancelingMFAMailer{cancel: cancel, err: transportErr}
-	svc, repos, db, _ := newSynchronousDeliveryMFAService(t, mailer)
+	svc, _, db, _ := newSynchronousDeliveryMFAService(t, mailer)
 	account := testpkg.CreateTestAccount(t, db, "mfa-sync-delivery-failure")
 
 	token, err := svc.StartMFAChallenge(
@@ -76,12 +76,12 @@ func TestMFAStartChallengeFailsClosedAndInvalidatesCodeAfterCancellation(t *test
 	assert.Empty(t, token, "delivery failure must not produce a challenge credential")
 	assert.Equal(t, int32(1), mailer.attempts.Load(), "cancellation must stop retries")
 
-	_, activeErr := repos.MFAEmailChallenge.FindActiveByAccountIDInScope(
+	_, _, activeErr := nativeMFARecords(t, db).FindActiveChallengeInScope(
 		context.Background(), account.ID, 0, identityaccess.MFAChallengeScopeTenant,
 	)
 	require.Error(t, activeErr, "the undelivered code must not remain redeemable")
 
-	count, countErr := repos.MFAEmailChallenge.CountRecentByAccountID(
+	count, countErr := nativeMFARecords(t, db).CountChallengesSince(
 		context.Background(), account.ID, time.Now().Add(-time.Minute),
 	)
 	require.NoError(t, countErr)

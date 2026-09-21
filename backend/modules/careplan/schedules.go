@@ -9,10 +9,12 @@ import (
 )
 
 const (
-	ScheduleSourceStaff        = "staff"
-	ScheduleSourceCareOffering = "care_offering"
-	ExceptionSourceStaff       = "staff"
-	ExceptionSourceGuardian    = "guardian"
+	ScheduleSourceStaff          = "staff"
+	ScheduleSourceClassSchedule  = "class_schedule"
+	ScheduleSourceClassException = "class_exception"
+	ScheduleSourceCareOffering   = "care_offering"
+	ExceptionSourceStaff         = "staff"
+	ExceptionSourceGuardian      = "guardian"
 )
 
 var (
@@ -70,7 +72,13 @@ type ArrivalSchedule struct {
 	ExpectedArrival time.Time
 	Notes           *string
 	CreatedBy       int64
+	Source          string
+	SourceClass     string
+	SourceLabel     string
 }
+
+// InheritsClassTime reports whether the care day has no manual arrival time.
+func (s *ArrivalSchedule) InheritsClassTime() bool { return s.ExpectedArrival.IsZero() }
 
 type ArrivalException struct {
 	ID                int64
@@ -98,17 +106,18 @@ type ArrivalNote struct {
 }
 
 type PickupSchedule struct {
-	ID             int64
-	TenantID       int64
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	StudentID      int64
-	Weekday        int
-	PickupTime     time.Time
-	Notes          *string
-	CreatedBy      int64
-	Source         string
-	CareOfferingID *int64
+	ID               int64
+	TenantID         int64
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	StudentID        int64
+	Weekday          int
+	PickupTime       time.Time
+	Notes            *string
+	CreatedBy        int64
+	Source           string
+	CareOfferingID   *int64
+	CareOfferingName string
 }
 
 type PickupException struct {

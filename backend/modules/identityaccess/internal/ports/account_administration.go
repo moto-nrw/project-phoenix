@@ -7,12 +7,16 @@ import (
 )
 
 // AccountAdministrationStore is the persistence port over the auth.accounts
-// row the account administration reads and writes (#3332). Every read and
-// every write that an administrator drives carries the caller's visibility
+// row the account administration reads and writes (#3332). Ordinary management
+// reads and writes carry the caller's visibility
 // predicate in the same statement, so the boundary cannot be lost between a
 // read and the write it authorizes. Statements run on the connection the
-// caller's context carries.
+// caller's context carries. Platform deletion anonymization is explicitly
+// account-wide; its workflow authorizes the target before calling.
 type AccountAdministrationStore interface {
+	// AnonymizeAccountForDeletion is the account-wide write used by an
+	// authorized platform deletion workflow, not a school-management edit.
+	AnonymizeAccountForDeletion(context.Context, int64, string) (domain.OperationStats, error)
 	// FindAccountRecord reads the account without the administration
 	// predicate. It serves the caller's own account and the credential
 	// verification of a password change, both of which are the account

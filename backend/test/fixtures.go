@@ -26,7 +26,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -674,7 +673,7 @@ func CreateTestPersonWithAccountID(tb testing.TB, db *bun.DB, firstName, lastNam
 
 // CreateTestAccount creates a real account in the database for authentication testing.
 // The email is made unique by appending a timestamp.
-func CreateTestAccount(tb testing.TB, db *bun.DB, email string) *authmodels.Account {
+func CreateTestAccount(tb testing.TB, db *bun.DB, email string) *AccountFixture {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -683,7 +682,7 @@ func CreateTestAccount(tb testing.TB, db *bun.DB, email string) *authmodels.Acco
 	// Make email unique
 	uniqueEmail := fmt.Sprintf(testEmailFormat, email, uniqueFixtureSuffix())
 
-	account := &authmodels.Account{
+	account := &AccountFixture{
 		Email:  uniqueEmail,
 		Active: true,
 	}
@@ -770,7 +769,7 @@ func UnclaimTestAccount(tb testing.TB, db *bun.DB, accountID int64) {
 
 // CreateTestAccountWithPassword creates an account with a hashed password.
 // This is needed for login tests where the password needs to be verified.
-func CreateTestAccountWithPassword(tb testing.TB, db *bun.DB, email, password string) *authmodels.Account {
+func CreateTestAccountWithPassword(tb testing.TB, db *bun.DB, email, password string) *AccountFixture {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -780,7 +779,7 @@ func CreateTestAccountWithPassword(tb testing.TB, db *bun.DB, email, password st
 	hashedPassword, err := hashPassword(password)
 	require.NoError(tb, err, "Failed to hash password")
 
-	account := &authmodels.Account{
+	account := &AccountFixture{
 		Email:        email,
 		Active:       true,
 		PasswordHash: &hashedPassword,
@@ -831,7 +830,7 @@ func hashPasswordUncached(password string) (string, error) {
 
 // CreateTestPersonWithAccount creates a person linked to an account.
 // This is needed for policy tests that look up users by account ID.
-func CreateTestPersonWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Person, *authmodels.Account) {
+func CreateTestPersonWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Person, *AccountFixture) {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -859,7 +858,7 @@ func CreateTestPersonWithAccount(tb testing.TB, db *bun.DB, firstName, lastName 
 
 // CreateTestStudentWithAccount creates a student with linked person and account.
 // Returns the student with PersonID set, and the associated account for auth context.
-func CreateTestStudentWithAccount(tb testing.TB, db *bun.DB, firstName, lastName, schoolClass string) (*users.Student, *authmodels.Account) {
+func CreateTestStudentWithAccount(tb testing.TB, db *bun.DB, firstName, lastName, schoolClass string) (*users.Student, *AccountFixture) {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -882,7 +881,7 @@ func CreateTestStudentWithAccount(tb testing.TB, db *bun.DB, firstName, lastName
 }
 
 // CreateTestStaffWithAccount creates a staff member with linked person and account.
-func CreateTestStaffWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Staff, *authmodels.Account) {
+func CreateTestStaffWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Staff, *AccountFixture) {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -916,7 +915,7 @@ func CreateTestStaffWithAccount(tb testing.TB, db *bun.DB, firstName, lastName s
 // account so FindReachableCalendarStaffIDs treats them as invitable. Use this in
 // calendar tests wherever staff must be selectable recipients. The added rows
 // inherit ownership from the account's test-tenant mapping.
-func CreateTestCalendarStaff(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Staff, *authmodels.Account) {
+func CreateTestCalendarStaff(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Staff, *AccountFixture) {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -925,10 +924,10 @@ func CreateTestCalendarStaff(tb testing.TB, db *bun.DB, firstName, lastName stri
 	staff, account := CreateTestStaffWithAccount(tb, db, firstName, lastName)
 
 	now := time.Now()
-	mapping := &authmodels.AccountTenant{
+	mapping := &AccountTenantFixture{
 		AccountID:   account.ID,
 		TenantID:    fixtureTenantID(tb),
-		Status:      authmodels.AccountTenantStatusActive,
+		Status:      "active",
 		ActivatedAt: &now,
 	}
 	// Upsert: CreateTestAccount already mapped the account to this test's
@@ -944,13 +943,12 @@ func CreateTestCalendarStaff(tb testing.TB, db *bun.DB, firstName, lastName stri
 	err = db.NewSelect().
 		ColumnExpr("id").
 		TableExpr("auth.roles").
-		Where("name = ?", authmodels.BaseRoleUser).
+		Where("name = ?", "user").
 		Scan(ctx, &userRoleID)
 	require.NoError(tb, err, "Failed to find seeded user role")
 
-	roleAssignment := &authmodels.AccountRole{AccountID: account.ID, RoleID: userRoleID}
-	roleAssignment.SetTenantID(fixtureTenantID(tb))
-	_, err = db.NewInsert().Model(roleAssignment).ModelTableExpr(`auth.account_roles`).Exec(ctx)
+	_, err = db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+		account.ID, userRoleID, fixtureTenantID(tb)).Exec(ctx)
 	require.NoError(tb, err, "Failed to assign user role to staff account")
 
 	return staff, account
@@ -958,7 +956,7 @@ func CreateTestCalendarStaff(tb testing.TB, db *bun.DB, firstName, lastName stri
 
 // CreateTestTeacherWithAccount creates a teacher with full chain: Account → Person → Staff → Teacher.
 // Returns the teacher and account for auth context testing.
-func CreateTestTeacherWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Teacher, *authmodels.Account) {
+func CreateTestTeacherWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Teacher, *AccountFixture) {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1004,7 +1002,7 @@ func AssignStudentToGroup(tb testing.TB, db *bun.DB, studentID, groupID int64) {
 // ============================================================================
 
 // CreateTestRole creates a role in the database for permission testing.
-func CreateTestRole(tb testing.TB, db *bun.DB, name string) *authmodels.Role {
+func CreateTestRole(tb testing.TB, db *bun.DB, name string) *RoleFixture {
 	tb.Helper()
 	return CreateTestRoleForTenant(tb, db, name, fixtureTenantID(tb))
 }
@@ -1012,7 +1010,7 @@ func CreateTestRole(tb testing.TB, db *bun.DB, name string) *authmodels.Role {
 // CreateTestRoleForTenant creates a role scoped to the given tenant.
 // Use this when the test operates under a specific tenant context so that
 // FindByID's tenant filter (tenant_id = ? OR tenant_id IS NULL) can find it.
-func CreateTestRoleForTenant(tb testing.TB, db *bun.DB, name string, tenantID int64) *authmodels.Role {
+func CreateTestRoleForTenant(tb testing.TB, db *bun.DB, name string, tenantID int64) *RoleFixture {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1024,8 +1022,8 @@ func CreateTestRoleForTenant(tb testing.TB, db *bun.DB, name string, tenantID in
 	// base_role is required by the role-create API, so every real custom role
 	// carries one; without it the role has no privilege tier and role-grant
 	// checks fail it closed.
-	baseRole := authmodels.BaseRoleUser
-	role := &authmodels.Role{
+	baseRole := "user"
+	role := &RoleFixture{
 		Name:        uniqueName,
 		Description: "Test role: " + name,
 		IsSystem:    false,
@@ -1044,7 +1042,7 @@ func CreateTestRoleForTenant(tb testing.TB, db *bun.DB, name string, tenantID in
 
 // CreateTestSystemRole creates a system role (tenant_id IS NULL, is_system = true).
 // System roles are immutable and visible to all tenants.
-func CreateTestSystemRole(tb testing.TB, db *bun.DB, name string) *authmodels.Role {
+func CreateTestSystemRole(tb testing.TB, db *bun.DB, name string) *RoleFixture {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1052,7 +1050,7 @@ func CreateTestSystemRole(tb testing.TB, db *bun.DB, name string) *authmodels.Ro
 
 	uniqueName := fmt.Sprintf("%s-%d", name, uniqueFixtureSuffix())
 
-	role := &authmodels.Role{
+	role := &RoleFixture{
 		Name:        uniqueName,
 		Description: "System role: " + name,
 		IsSystem:    true,
@@ -1063,7 +1061,7 @@ func CreateTestSystemRole(tb testing.TB, db *bun.DB, name string) *authmodels.Ro
 	// "user"), which this fixture has to uniquify. Carry the tier in base_role
 	// instead so role-grant checks see the same privilege level the caller asked
 	// for rather than an unrecognizable name.
-	if slices.Contains(authmodels.ValidBaseRoles(), strings.ToLower(strings.TrimSpace(name))) {
+	if slices.Contains([]string{"admin", "user", "guardian"}, strings.ToLower(strings.TrimSpace(name))) {
 		baseRole := strings.ToLower(strings.TrimSpace(name))
 		role.BaseRole = &baseRole
 	}
@@ -1100,19 +1098,15 @@ func AssignLehrkraftSystemRole(tb testing.TB, db *bun.DB, accountID, tenantID in
 		Scan(ctx, &roleID)
 	require.NoError(tb, err, "seeded lehrkraft system role must exist")
 
-	roleAssignment := &authmodels.AccountRole{AccountID: accountID, RoleID: roleID}
-	roleAssignment.SetTenantID(tenantID)
-	_, err = db.NewInsert().
-		Model(roleAssignment).
-		ModelTableExpr(`auth.account_roles`).
-		Exec(ctx)
+	_, err = db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+		accountID, roleID, tenantID).Exec(ctx)
 	require.NoError(tb, err, "Failed to assign lehrkraft system role")
 }
 
 // CreateTestPermission creates a permission in the database.
 // Note: The database has a unique constraint on (resource, action), so each call
 // creates a unique resource to avoid constraint violations.
-func CreateTestPermission(tb testing.TB, db *bun.DB, name, resource, action string) *authmodels.Permission {
+func CreateTestPermission(tb testing.TB, db *bun.DB, name, resource, action string) *PermissionFixture {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1124,7 +1118,7 @@ func CreateTestPermission(tb testing.TB, db *bun.DB, name, resource, action stri
 	uniqueName := fmt.Sprintf("%s-%s", name, uniqueSuffix)
 	uniqueResource := fmt.Sprintf("%s-%s", resource, uniqueSuffix)
 
-	permission := &authmodels.Permission{
+	permission := &PermissionFixture{
 		Name:        uniqueName,
 		Description: "Test permission: " + name,
 		Resource:    uniqueResource,
@@ -1154,7 +1148,7 @@ func OwnTestPermission(tb testing.TB, db *bun.DB, permissionID int64) {
 
 // CreateTestToken creates an auth token for testing.
 // tokenType can be "access" or "refresh" to set appropriate expiry.
-func CreateTestToken(tb testing.TB, db *bun.DB, accountID int64, tokenType string) *authmodels.Token {
+func CreateTestToken(tb testing.TB, db *bun.DB, accountID int64, tokenType string) *TokenFixture {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1171,7 +1165,7 @@ func CreateTestToken(tb testing.TB, db *bun.DB, accountID int64, tokenType strin
 		expiry = time.Now().Add(15 * time.Minute)
 	}
 
-	token := &authmodels.Token{
+	token := &TokenFixture{
 		AccountID:  accountID,
 		Token:      tokenValue,
 		Expiry:     expiry,
@@ -1179,7 +1173,7 @@ func CreateTestToken(tb testing.TB, db *bun.DB, accountID int64, tokenType strin
 		FamilyID:   fmt.Sprintf("family-%d", uniqueFixtureSuffix()),
 		Generation: 0,
 	}
-	token.SetTenantID(fixtureTenantID(tb))
+	token.TenantID = fixtureTenantID(tb)
 
 	err := db.NewInsert().
 		Model(token).
@@ -1196,7 +1190,7 @@ func CreateTestToken(tb testing.TB, db *bun.DB, accountID int64, tokenType strin
 
 // CreateTestRFIDCard creates an RFID card in the database.
 // The ID is uppercase alphanumeric only (no hyphens) to match normalization in PersonRepository.
-func CreateTestRFIDCard(tb testing.TB, db *bun.DB, tagID string) *authmodels.RFIDCard {
+func CreateTestRFIDCard(tb testing.TB, db *bun.DB, tagID string) *RFIDCardFixture {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1205,11 +1199,11 @@ func CreateTestRFIDCard(tb testing.TB, db *bun.DB, tagID string) *authmodels.RFI
 	// Make tag ID unique - use only alphanumeric chars (no hyphens) to match normalization
 	uniqueTagID := fmt.Sprintf("%s%d", tagID, uniqueFixtureSuffix())
 
-	card := &authmodels.RFIDCard{
+	card := &RFIDCardFixture{
 		Active: true,
 	}
 	card.ID = uniqueTagID
-	card.SetTenantID(fixtureTenantID(tb))
+	card.TenantID = fixtureTenantID(tb)
 
 	err := db.NewInsert().
 		Model(card).
@@ -1329,38 +1323,6 @@ func CreateTestGuest(tb testing.TB, db *bun.DB, expertise string) *users.Guest {
 	return guest
 }
 
-// CreateTestProfile creates a user profile in the database.
-// This requires an Account, which is created automatically.
-func CreateTestProfile(tb testing.TB, db *bun.DB, prefix string) *authmodels.Profile {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Create account first
-	account := CreateTestAccount(tb, db, prefix)
-
-	profile := &authmodels.Profile{
-		AccountID: account.ID,
-		Avatar:    "https://example.com/avatar.png",
-		Bio:       "Test bio for " + prefix,
-		Settings:  `{"theme": "dark"}`,
-	}
-	profile.SetTenantID(fixtureTenantID(tb))
-
-	err := db.NewInsert().
-		Model(profile).
-		ModelTableExpr(`users.profiles`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test profile")
-
-	// Store account reference for convenience
-	profile.Account = account
-
-	return profile
-}
-
-// CreateTestPrivacyConsent creates a privacy consent record in the database.
 // This requires a Student, which is created automatically.
 func CreateTestPrivacyConsent(tb testing.TB, db *bun.DB, prefix string) *users.PrivacyConsent {
 	tb.Helper()
@@ -1399,8 +1361,8 @@ func CreateTestPrivacyConsent(tb testing.TB, db *bun.DB, prefix string) *users.P
 	return consent
 }
 
-// CreateTestParentAccount creates a parent account in the database.
-func CreateTestParentAccount(tb testing.TB, db *bun.DB, email string) *authmodels.AccountParent {
+// CreateTestParentAccount creates a legacy guardian-link account and returns its ID.
+func CreateTestParentAccount(tb testing.TB, db *bun.DB, email string) int64 {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1410,20 +1372,12 @@ func CreateTestParentAccount(tb testing.TB, db *bun.DB, email string) *authmodel
 	uniqueEmail := fmt.Sprintf(testEmailFormat, email, uniqueFixtureSuffix())
 	username := fmt.Sprintf("parent-%d", uniqueFixtureSuffix())
 
-	account := &authmodels.AccountParent{
-		Email:    uniqueEmail,
-		Username: &username,
-		Active:   true,
-	}
-	account.SetTenantID(fixtureTenantID(tb))
-
-	err := db.NewInsert().
-		Model(account).
-		ModelTableExpr(`auth.accounts_parents`).
-		Scan(ctx)
+	var accountID int64
+	err := db.NewRaw(`INSERT INTO auth.accounts_parents (tenant_id, email, username, active)
+		VALUES (?, ?, ?, TRUE) RETURNING id`, fixtureTenantID(tb), uniqueEmail, username).Scan(ctx, &accountID)
 	require.NoError(tb, err, "Failed to create test parent account")
 
-	return account
+	return accountID
 }
 
 // ============================================================================
@@ -1442,7 +1396,7 @@ type InvitationTokenOptions struct {
 
 // CreateTestInvitationToken creates an invitation token in the database.
 // Requires a role and creator account to exist.
-func CreateTestInvitationToken(tb testing.TB, db *bun.DB, email string, roleID, createdBy int64, expiresAt time.Time) *authmodels.InvitationToken {
+func CreateTestInvitationToken(tb testing.TB, db *bun.DB, email string, roleID, createdBy int64, expiresAt time.Time) *InvitationTokenFixture {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1452,7 +1406,7 @@ func CreateTestInvitationToken(tb testing.TB, db *bun.DB, email string, roleID, 
 	uniqueEmail := fmt.Sprintf(testEmailFormat, email, uniqueFixtureSuffix())
 	token := fmt.Sprintf("test-token-%d", uniqueFixtureSuffix())
 
-	invitation := &authmodels.InvitationToken{
+	invitation := &InvitationTokenFixture{
 		Email:     uniqueEmail,
 		Token:     token,
 		RoleID:    roleID,
@@ -1461,7 +1415,7 @@ func CreateTestInvitationToken(tb testing.TB, db *bun.DB, email string, roleID, 
 	if createdBy > 0 {
 		invitation.CreatedBy = Int64Ptr(createdBy)
 	}
-	invitation.SetTenantID(fixtureTenantID(tb))
+	invitation.TenantID = fixtureTenantID(tb)
 
 	err := db.NewInsert().
 		Model(invitation).
@@ -1473,7 +1427,7 @@ func CreateTestInvitationToken(tb testing.TB, db *bun.DB, email string, roleID, 
 }
 
 // CreateTestInvitationTokenWithOptions creates an invitation token with optional fields.
-func CreateTestInvitationTokenWithOptions(tb testing.TB, db *bun.DB, email string, roleID, createdBy int64, expiresAt time.Time, opts *InvitationTokenOptions) *authmodels.InvitationToken {
+func CreateTestInvitationTokenWithOptions(tb testing.TB, db *bun.DB, email string, roleID, createdBy int64, expiresAt time.Time, opts *InvitationTokenOptions) *InvitationTokenFixture {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1483,7 +1437,7 @@ func CreateTestInvitationTokenWithOptions(tb testing.TB, db *bun.DB, email strin
 	uniqueEmail := fmt.Sprintf(testEmailFormat, email, uniqueFixtureSuffix())
 	token := fmt.Sprintf("test-token-%d", uniqueFixtureSuffix())
 
-	invitation := &authmodels.InvitationToken{
+	invitation := &InvitationTokenFixture{
 		Email:     uniqueEmail,
 		Token:     token,
 		RoleID:    roleID,
@@ -1497,7 +1451,7 @@ func CreateTestInvitationTokenWithOptions(tb testing.TB, db *bun.DB, email strin
 		invitation.FirstName = opts.FirstName
 		invitation.LastName = opts.LastName
 	}
-	invitation.SetTenantID(fixtureTenantID(tb))
+	invitation.TenantID = fixtureTenantID(tb)
 
 	err := db.NewInsert().
 		Model(invitation).
@@ -1526,7 +1480,7 @@ func CreateTestInvitationTokenWithOptions(tb testing.TB, db *bun.DB, email strin
 // callers ask for "admin"/"user"/"teacher" and mean the privilege tier those
 // carry. A freshly created stand-in has base_role "user" and fails every
 // role-grant check the tests are actually about.
-func GetOrCreateTestRole(tb testing.TB, db *bun.DB, name string) *authmodels.Role {
+func GetOrCreateTestRole(tb testing.TB, db *bun.DB, name string) *RoleFixture {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1535,7 +1489,7 @@ func GetOrCreateTestRole(tb testing.TB, db *bun.DB, name string) *authmodels.Rol
 	tenantID := fixtureTenantID(tb)
 
 	// This tenant's own role first, the shared system role second.
-	var role authmodels.Role
+	var role RoleFixture
 	err := db.NewSelect().
 		Model(&role).
 		ModelTableExpr(`auth.roles AS "role"`).
@@ -1553,8 +1507,8 @@ func GetOrCreateTestRole(tb testing.TB, db *bun.DB, name string) *authmodels.Rol
 	// base_role is required by the role-create API, so every real custom role
 	// carries one; without it the role has no privilege tier and role-grant
 	// checks fail it closed.
-	baseRole := authmodels.BaseRoleUser
-	role = authmodels.Role{
+	baseRole := "user"
+	role = RoleFixture{
 		Name:        name,
 		Description: "Test role for " + name,
 		IsSystem:    false,
@@ -1584,7 +1538,7 @@ const TestJWTSecret = "test-jwt-secret-32-chars-minimum"
 func GetTestTokenAuth(tb testing.TB) *jwt.TokenAuth {
 	tb.Helper()
 
-	tokenAuth, err := jwt.NewTokenAuthWithSecret(TestJWTSecret)
+	tokenAuth, err := jwt.NewTokenAuthWithDurations(TestJWTSecret, 15*time.Minute, time.Hour)
 	require.NoError(tb, err, "Failed to create test TokenAuth")
 	return tokenAuth
 }
@@ -1948,7 +1902,7 @@ func CreateTestDeviceForTenant(tb testing.TB, db *bun.DB, tenantID int64, device
 
 // CreateTestTokenForTenant creates an auth token belonging to a specific tenant.
 // Requires an existing account ID (accounts are not tenant-scoped).
-func CreateTestTokenForTenant(tb testing.TB, db *bun.DB, tenantID int64, accountID int64) *authmodels.Token {
+func CreateTestTokenForTenant(tb testing.TB, db *bun.DB, tenantID int64, accountID int64) *TokenFixture {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1956,7 +1910,7 @@ func CreateTestTokenForTenant(tb testing.TB, db *bun.DB, tenantID int64, account
 
 	tokenValue := fmt.Sprintf("test-token-t%d-%d", tenantID, uniqueFixtureSuffix())
 
-	token := &authmodels.Token{
+	token := &TokenFixture{
 		AccountID:  accountID,
 		Token:      tokenValue,
 		Expiry:     time.Now().Add(24 * time.Hour),
@@ -1964,7 +1918,7 @@ func CreateTestTokenForTenant(tb testing.TB, db *bun.DB, tenantID int64, account
 		FamilyID:   fmt.Sprintf("family-t%d-%d", tenantID, uniqueFixtureSuffix()),
 		Generation: 0,
 	}
-	token.SetTenantID(tenantID)
+	token.TenantID = tenantID
 
 	err := db.NewInsert().
 		Model(token).
@@ -2004,7 +1958,7 @@ func CreateTestStaffForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstNa
 // also needs the account's tenant mapping, roles, or the school row itself —
 // those all hang off the tenant id, and tenant 1 is shared with every other
 // package running in parallel.
-func CreateTestStaffWithAccountForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName string) (*users.Staff, *authmodels.Account) {
+func CreateTestStaffWithAccountForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName string) (*users.Staff, *AccountFixture) {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -2953,10 +2907,10 @@ func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 	require.NoError(tb, err, "Failed to create students_guardians link")
 
 	now := time.Now()
-	mapping := &authmodels.AccountTenant{
+	mapping := &AccountTenantFixture{
 		AccountID:   account.ID,
 		TenantID:    fixtureTenantID(tb),
-		Status:      authmodels.AccountTenantStatusActive,
+		Status:      "active",
 		ActivatedAt: &now,
 	}
 	// Upsert for the same reason as in CreateTestCalendarStaff: the account
@@ -2978,13 +2932,12 @@ func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 	err = db.NewSelect().
 		ColumnExpr("id").
 		TableExpr("auth.roles").
-		Where("name = ?", authmodels.BaseRoleGuardian).
+		Where("name = ?", "guardian").
 		Scan(ctx, &guardianRoleID)
 	require.NoError(tb, err, "Failed to find seeded guardian role")
 
-	roleAssignment := &authmodels.AccountRole{AccountID: account.ID, RoleID: guardianRoleID}
-	roleAssignment.SetTenantID(fixtureTenantID(tb))
-	_, err = db.NewInsert().Model(roleAssignment).ModelTableExpr(`auth.account_roles`).Exec(ctx)
+	_, err = db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+		account.ID, guardianRoleID, fixtureTenantID(tb)).Exec(ctx)
 	require.NoError(tb, err, "Failed to assign guardian role")
 
 	return ParentChain{
@@ -3133,10 +3086,10 @@ func CreateTestCoGuardianForStudent(
 	require.NoError(tb, err, "Failed to link co-guardian to student")
 
 	now := time.Now()
-	mapping := &authmodels.AccountTenant{
+	mapping := &AccountTenantFixture{
 		AccountID:   account.ID,
 		TenantID:    fixtureTenantID(tb),
-		Status:      authmodels.AccountTenantStatusActive,
+		Status:      "active",
 		ActivatedAt: &now,
 	}
 	_, err = db.NewInsert().Model(mapping).ModelTableExpr(`auth.account_tenants`).
@@ -3147,11 +3100,10 @@ func CreateTestCoGuardianForStudent(
 
 	var guardianRoleID int64
 	err = db.NewSelect().ColumnExpr("id").TableExpr("auth.roles").
-		Where("name = ?", authmodels.BaseRoleGuardian).Scan(ctx, &guardianRoleID)
+		Where("name = ?", "guardian").Scan(ctx, &guardianRoleID)
 	require.NoError(tb, err, "Failed to find seeded guardian role")
-	roleAssignment := &authmodels.AccountRole{AccountID: account.ID, RoleID: guardianRoleID}
-	roleAssignment.SetTenantID(fixtureTenantID(tb))
-	_, err = db.NewInsert().Model(roleAssignment).ModelTableExpr(`auth.account_roles`).Exec(ctx)
+	_, err = db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+		account.ID, guardianRoleID, fixtureTenantID(tb)).Exec(ctx)
 	require.NoError(tb, err, "Failed to assign guardian role to co-guardian")
 
 	return ParentChain{

@@ -9,7 +9,6 @@ import (
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -48,12 +47,11 @@ func (r *recordingUsageRepository) DeleteLastSeenBefore(_ context.Context, tenan
 }
 
 type accountTenantStub struct {
-	authModels.AccountTenantRepository
-	mappings []authModels.AccountTenant
+	mappings []int64
 	err      error
 }
 
-func (r accountTenantStub) FindActiveGuardianByAccountID(context.Context, int64) ([]authModels.AccountTenant, error) {
+func (r accountTenantStub) ListGuardianSchoolIDs(context.Context, int64) ([]int64, error) {
 	return r.mappings, r.err
 }
 
@@ -101,7 +99,7 @@ func TestUsageServiceReportParent(t *testing.T) {
 
 	t.Run("fans out one row per active guardian mapping", func(t *testing.T) {
 		repo := &recordingUsageRepository{}
-		mappings := accountTenantStub{mappings: []authModels.AccountTenant{{TenantID: 11}, {TenantID: 12}}}
+		mappings := accountTenantStub{mappings: []int64{11, 12}}
 		service := NewUsageService(db, repo, nil, mappings, nil, nil)
 		testpkg.SetTenantRuntime(t, service, db)
 
@@ -131,7 +129,7 @@ func TestUsageServiceReportParent(t *testing.T) {
 		assert.ErrorContains(t, err, "resolving guardian tenant mappings")
 
 		repo := &recordingUsageRepository{recordErr: errUsageRepo}
-		service = NewUsageService(db, repo, nil, accountTenantStub{mappings: []authModels.AccountTenant{{TenantID: 11}}}, nil, nil)
+		service = NewUsageService(db, repo, nil, accountTenantStub{mappings: []int64{11}}, nil, nil)
 		testpkg.SetTenantRuntime(t, service, db)
 		err = service.ReportParent(context.Background(), 42)
 		require.ErrorIs(t, err, errUsageRepo)

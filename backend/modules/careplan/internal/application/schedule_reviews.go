@@ -13,15 +13,23 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 )
 
+type ScheduleReviewSchedules interface {
+	ListPickupSchedules(context.Context, careplan.StudentScheduleFilter) ([]careplan.PickupSchedule, error)
+	ListArrivalSchedules(context.Context, careplan.StudentScheduleFilter) ([]careplan.ArrivalSchedule, error)
+	ListPickupExceptions(context.Context, careplan.StudentScheduleFilter) ([]careplan.PickupException, error)
+	ListCareOfferings(context.Context, domain.CareOfferingFilter) ([]domain.CareOffering, error)
+}
+
 type ScheduleReviewDependencies struct {
 	Requests              careplan.CareScheduleRequestQuery
-	Schedules             *Service
+	Schedules             ScheduleReviewSchedules
 	People                ports.ScheduleReviewDirectory
 	Bookings              ports.ReviewBookings
 	Classes               ports.ReviewClassTimes
 	Scope                 ports.ReviewScopeResolver
 	BookingsAuthoritative func(context.Context) (bool, error)
 	Today                 func() careplan.Date
+	Fingerprint           func([]byte) string
 	Blocks                ports.PickupReviewBlocks
 	Logger                *slog.Logger
 }

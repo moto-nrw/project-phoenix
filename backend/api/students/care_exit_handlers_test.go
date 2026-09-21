@@ -44,7 +44,7 @@ func wireCareLifecycleWithBookingMode(t *testing.T, tc *testContext, authoritati
 			CleanupRepo:    repos.CareExitCleanup,
 			WithdrawalRepo: repos.CareWithdrawal,
 			TagReleaser:    repos.TagReleaser,
-			AuditService:   userService.NewStudentAuditService(repositories.NewStudentAudit(tc.db)),
+			AuditService:   userService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(tc.db)),
 			BookingsAuthoritative: func(context.Context) (bool, error) {
 				return authoritative, nil
 			},

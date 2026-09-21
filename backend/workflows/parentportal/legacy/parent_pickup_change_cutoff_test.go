@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/services"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -51,8 +50,8 @@ type cutoffServiceDeps struct {
 func newCutoffServiceDeps(t *testing.T) cutoffServiceDeps {
 	t.Helper()
 	var base parentService.ServiceConfig
-	pinToday := careschedule.WithCareRequestToday(func() timezone.Date { return cutoffToday })
-	_, db, repos := buildPickupChangeServiceWithRequestOptions(t, []careschedule.CareRequestOption{pinToday}, func(cfg *parentService.ServiceConfig) {
+	pinToday := services.WithCareRequestToday(func() timezone.Date { return cutoffToday })
+	_, db, repos := buildPickupChangeServiceWithRequestOptions(t, []services.CareRequestOption{pinToday}, func(cfg *parentService.ServiceConfig) {
 		base = *cfg
 	})
 	return cutoffServiceDeps{db: db, repos: repos, base: base}
@@ -61,7 +60,7 @@ func newCutoffServiceDeps(t *testing.T) cutoffServiceDeps {
 func (d cutoffServiceDeps) service(t *testing.T, settings configService.SettingsService, now func() time.Time) parentService.Service {
 	t.Helper()
 	cfg := d.base
-	cfg.ArrivalExceptionRepo = d.repos.StudentArrivalException
+	cfg.CareExceptions = d.repos.CarePlan()
 	cfg.Settings = settings
 	cfg.MealPlan = availableMealPlan(false)
 	cfg.Broadcaster = testpkg.NewRecordingBroadcaster()

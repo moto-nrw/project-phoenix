@@ -25,7 +25,7 @@ type SchoolDirectory interface {
 	FindSchool(ctx context.Context, id int64) (identityaccess.School, bool, error)
 	FindSchoolBySubdomain(ctx context.Context, subdomain string) (identityaccess.School, bool, error)
 	LockSchoolShared(ctx context.Context, id int64) (identityaccess.School, bool, error)
-	ListActiveSchoolsOfAccount(ctx context.Context, accountID int64) ([]identityaccess.School, error)
+	ListActiveSchoolsByID(ctx context.Context, schoolIDs []int64) ([]identityaccess.School, error)
 	// ListManageableSchoolIDs returns the live, active schools of the
 	// organisation: the set an organisation-scoped administrator may
 	// administer accounts at.
@@ -142,8 +142,8 @@ func (d schoolDirectory) LockSchoolShared(ctx context.Context, id int64) (domain
 	return domain.School(school), found, err
 }
 
-func (d schoolDirectory) ListActiveSchoolsOfAccount(ctx context.Context, accountID int64) ([]domain.School, error) {
-	schools, err := d.source.ListActiveSchoolsOfAccount(ctx, accountID)
+func (d schoolDirectory) ListActiveSchoolsByID(ctx context.Context, schoolIDs []int64) ([]domain.School, error) {
+	schools, err := d.source.ListActiveSchoolsByID(ctx, schoolIDs)
 	if err != nil {
 		return nil, err
 	}

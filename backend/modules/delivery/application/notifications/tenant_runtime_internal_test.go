@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -37,7 +36,7 @@ func newMockPushSubscriptionService(
 	t testing.TB,
 	db *bun.DB,
 	repo deliveryModels.PushSubscriptionRepository,
-	accountTenants authModels.AccountTenantRepository,
+	accountTenants GuardianSchools,
 	vapid VAPIDConfig,
 	logger *slog.Logger,
 ) PushSubscriptionService {

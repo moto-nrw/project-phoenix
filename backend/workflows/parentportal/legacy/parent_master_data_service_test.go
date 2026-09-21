@@ -53,7 +53,7 @@ func buildMasterDataService(t *testing.T, editEnabled bool) (parentService.Servi
 		PersonRepo:          repos.Person,
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		ChangeRequestRepo:   repos.StudentDataChangeRequest,
-		StudentAudit:        userService.NewStudentAuditService(repositories.NewStudentAudit(db)),
+		StudentAudit:        userService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(db)),
 		Settings:            masterDataSettings(editEnabled, false, true),
 		Broadcaster:         testpkg.NewRecordingBroadcaster(),
 		DB:                  db,

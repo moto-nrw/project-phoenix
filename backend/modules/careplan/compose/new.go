@@ -116,6 +116,9 @@ type engine struct {
 }
 
 func (e engine) LockStudentAndExceptionDay(ctx context.Context, studentID int64, date string) error {
+	if _, _, err := carePlanDatabase(e.database)(ctx); err != nil {
+		return err
+	}
 	return careplanning.LockStudentAndExceptionDay(ctx, e.database, studentID, date)
 }
 

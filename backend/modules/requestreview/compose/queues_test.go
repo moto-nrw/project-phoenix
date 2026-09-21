@@ -478,7 +478,7 @@ func TestRequestReviewEnforcesRLS(t *testing.T) {
 // parents portal does: an approved enrollment child with two offerings and
 // one pending change request for the child.
 
-func nativeCareQueue(query careplan.CareScheduleReviewQuery, today func() careplan.Date) requestreview.Queue {
+func nativeCareQueue(query CareScheduleQueueQuery, today func() careplan.Date) requestreview.Queue {
 	queue, err := NewCareScheduleQueue(query, today)
 	if err != nil {
 		panic(err)

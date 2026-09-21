@@ -10,13 +10,13 @@ import (
 // permission rows the role administration (#3314) reads and writes:
 // auth.roles, auth.permissions, auth.role_permissions, auth.account_roles,
 // auth.account_permissions and the account and school mapping locks the
-// mutations serialize on. The retained repositories serve it until #3226
-// moves them into the module. Every statement runs on the connection the
+// mutations serialize on. Every statement runs on the connection the
 // caller's context carries and applies that context's tenant filter.
 //
 // Lookups report found=false only for a missing row; every other failure is
 // an error the flows keep in their chain.
 type RoleStore interface {
+	PermissionStore
 	CreateRole(ctx context.Context, role domain.ManagedRole) (domain.ManagedRole, error)
 	FindRole(ctx context.Context, id int64) (domain.ManagedRole, bool, error)
 	// FindRoleIgnoringTenant resolves the role without the tenant filter, so a
@@ -41,30 +41,7 @@ type RoleStore interface {
 	CreateAccountRole(ctx context.Context, accountID, roleID, tenantID int64) error
 	DeleteAccountRole(ctx context.Context, accountID, roleID int64) error
 	DeleteRoleAssignments(ctx context.Context, roleID int64) error
-	DeleteRolePermissions(ctx context.Context, roleID int64) error
 
-	CreatePermission(ctx context.Context, permission domain.ManagedPermission) (domain.ManagedPermission, error)
-	FindPermission(ctx context.Context, id int64) (domain.ManagedPermission, bool, error)
-	FindPermissionByName(ctx context.Context, name string) (domain.ManagedPermission, error)
-	UpdatePermission(ctx context.Context, permission domain.ManagedPermission) error
-	DeletePermission(ctx context.Context, id int64) error
-	ListPermissions(ctx context.Context, filter domain.PermissionFilter) ([]domain.ManagedPermission, error)
-	ListRolePermissions(ctx context.Context, roleID int64) ([]domain.ManagedPermission, error)
-	// ListAccountPermissions returns the direct and the role-based
-	// permissions of the account.
-	ListAccountPermissions(ctx context.Context, accountID int64) ([]domain.ManagedPermission, error)
-	ListAccountDirectPermissions(ctx context.Context, accountID int64) ([]domain.ManagedPermission, error)
-	AssignRolePermission(ctx context.Context, roleID, permissionID int64) error
-	RemoveRolePermission(ctx context.Context, roleID, permissionID int64) error
-	DeletePermissionAssignments(ctx context.Context, permissionID int64) error
-	DeletePermissionGrants(ctx context.Context, permissionID int64) error
-	GrantAccountPermission(ctx context.Context, accountID, permissionID int64) error
-	DenyAccountPermission(ctx context.Context, accountID, permissionID int64) error
-	RemoveAccountPermission(ctx context.Context, accountID, permissionID int64) error
-
-	// FindManageableAccount reports whether the account is one the caller may
-	// manage.
-	FindManageableAccount(ctx context.Context, accountID int64) (bool, error)
 	// LockAccount locks the account row for the caller's transaction.
 	LockAccount(ctx context.Context, accountID int64) (bool, error)
 	// HasTenantMembership reports whether the account is mapped to the
@@ -106,4 +83,34 @@ type SessionRevocation interface {
 // path that guards the Lehrkraft role reads (#1772).
 type CaregiverProfiles interface {
 	HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error)
+}
+
+// PermissionStore persists the permission catalog, role selections and direct account grants.
+// Statements use the caller's connection and scope; application flows own locking and transactions.
+type PermissionStore interface {
+	DeleteRolePermissions(ctx context.Context, roleID int64) error
+	CreatePermission(ctx context.Context, permission domain.ManagedPermission) (domain.ManagedPermission, error)
+	FindPermission(ctx context.Context, id int64) (domain.ManagedPermission, bool, error)
+	FindPermissionByName(ctx context.Context, name string) (domain.ManagedPermission, error)
+	UpdatePermission(ctx context.Context, permission domain.ManagedPermission) error
+	DeletePermission(ctx context.Context, id int64) error
+	ListPermissions(ctx context.Context, filter domain.PermissionFilter) ([]domain.ManagedPermission, error)
+	ListRolePermissions(ctx context.Context, roleID int64) ([]domain.ManagedPermission, error)
+	// ListAccountPermissions returns the direct and the role-based
+	// permissions of the account.
+	ListAccountPermissions(ctx context.Context, accountID int64) ([]domain.ManagedPermission, error)
+	ListAccountDirectPermissions(ctx context.Context, accountID int64) ([]domain.ManagedPermission, error)
+	AssignRolePermission(ctx context.Context, roleID, permissionID int64) error
+	RemoveRolePermission(ctx context.Context, roleID, permissionID int64) error
+	DeletePermissionAssignments(ctx context.Context, permissionID int64) error
+	DeletePermissionGrants(ctx context.Context, permissionID int64) error
+	GrantAccountPermission(ctx context.Context, accountID, permissionID int64) error
+	DenyAccountPermission(ctx context.Context, accountID, permissionID int64) error
+	RemoveAccountPermission(ctx context.Context, accountID, permissionID int64) error
+}
+
+// ManageableAccounts applies the account administration's visibility rules.
+// Missing and out-of-scope accounts return ErrAccountNotFound.
+type ManageableAccounts interface {
+	FindManageableAccount(ctx context.Context, accountID int64) (domain.ManagedAccountRecord, error)
 }

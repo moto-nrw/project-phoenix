@@ -159,7 +159,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		body := presence.CheckinRequest{ActiveGroupID: activeGroup.ID}
 		req := makeCheckinRequest(t, student.ID, body, "")
 
-		router := handler.Router()
+		router := testpkg.SessionVerifier(handler.Router())
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
@@ -175,7 +175,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		body := presence.CheckinRequest{ActiveGroupID: 1}
 		req := makeCheckinRequest(t, student.ID, body, "invalid-token")
 
-		router := handler.Router()
+		router := testpkg.SessionVerifier(handler.Router())
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
@@ -199,7 +199,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+token)
 
-		router := handler.Router()
+		router := testpkg.SessionVerifier(handler.Router())
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
@@ -220,7 +220,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		body := map[string]interface{}{}
 		req := makeCheckinRequest(t, student.ID, body, token)
 
-		router := handler.Router()
+		router := testpkg.SessionVerifier(handler.Router())
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
@@ -241,7 +241,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		body := presence.CheckinRequest{ActiveGroupID: 999999}
 		req := makeCheckinRequest(t, student.ID, body, token)
 
-		router := handler.Router()
+		router := testpkg.SessionVerifier(handler.Router())
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
@@ -264,7 +264,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		body := presence.CheckinRequest{ActiveGroupID: activeGroup.ID}
 		req := makeCheckinRequest(t, student.ID, body, token)
 
-		router := handler.Router()
+		router := testpkg.SessionVerifier(handler.Router())
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
@@ -290,7 +290,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		body := presence.CheckinRequest{ActiveGroupID: activeGroup.ID}
 		req := makeCheckinRequest(t, student.ID, body, token)
 
-		router := handler.Router()
+		router := testpkg.SessionVerifier(handler.Router())
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
@@ -328,7 +328,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		body := presence.CheckinRequest{ActiveGroupID: activeGroup.ID}
 		req := makeCheckinRequest(t, student.ID, body, token)
 
-		router := handler.Router()
+		router := testpkg.SessionVerifier(handler.Router())
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
@@ -356,7 +356,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		body := presence.CheckinRequest{ActiveGroupID: activeGroup.ID}
 		req := makeCheckinRequest(t, student.ID, body, token)
 		rr := httptest.NewRecorder()
-		handler.Router().ServeHTTP(rr, req)
+		testpkg.SessionVerifier(handler.Router()).ServeHTTP(rr, req)
 
 		assert.Equal(t, testutil.StatusConflict, rr.Code)
 		assert.Contains(t, rr.Body.String(), "room capacity exceeded")
@@ -387,7 +387,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		body := presence.CheckinRequest{ActiveGroupID: activeGroup.ID}
 		req := makeCheckinRequest(t, student.ID, body, token)
 
-		router := handler.Router()
+		router := testpkg.SessionVerifier(handler.Router())
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 

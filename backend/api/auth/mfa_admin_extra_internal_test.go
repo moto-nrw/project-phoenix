@@ -16,24 +16,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
-// adminAuthStub satisfies identityaccess.Module via interface embed —
-// only the methods the admin handlers reach are implemented (GetAccountByID).
-// Everything else panics on nil-interface dereference, signalling a drift
-// in the handler.
+// adminAuthStub embeds the unrelated account capability. These MFA handlers
+// must not call it; the zero module fails closed if that boundary changes.
 type adminAuthStub struct {
 	identityaccess.Module
-	getAccountByIDFn func(ctx context.Context, id int) (*authModels.Account, error)
-}
-
-func (s *adminAuthStub) GetAccountByID(ctx context.Context, id int) (*authModels.Account, error) {
-	if s.getAccountByIDFn != nil {
-		return s.getAccountByIDFn(ctx, id)
-	}
-	return nil, nil
 }
 
 // adminMFAStub is a focused MFAService stub for the admin handlers.

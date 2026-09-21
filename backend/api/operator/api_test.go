@@ -64,7 +64,7 @@ func TestNewResource(t *testing.T) {
 	})
 
 	t.Run("creates resource with provided token auth", func(t *testing.T) {
-		tokenAuth, err := jwt.NewTokenAuth()
+		tokenAuth, err := jwt.NewTokenAuthWithDurations(operatorTestSecret, 15*time.Minute, time.Hour)
 		require.NoError(t, err)
 
 		cfg := operator.ResourceConfig{
@@ -77,7 +77,7 @@ func TestNewResource(t *testing.T) {
 		require.NotNil(t, resource)
 	})
 
-	t.Run("creates token auth internally when not provided", func(t *testing.T) {
+	t.Run("accepts a config whose token auth the root provides later", func(t *testing.T) {
 		cfg := operator.ResourceConfig{}
 		resource := operator.NewResource(cfg)
 		require.NotNil(t, resource)
@@ -89,15 +89,23 @@ func TestRouter(t *testing.T) {
 	t.Parallel()
 
 	t.Run("creates router successfully", func(t *testing.T) {
-		cfg := operator.ResourceConfig{}
+		cfg := operator.ResourceConfig{TokenAuth: operatorTestTokenAuth(t)}
 		resource := operator.NewResource(cfg)
 
 		router := resource.Router()
 		require.NotNil(t, router)
 	})
 
+	t.Run("names the missing token auth instead of dereferencing nil", func(t *testing.T) {
+		resource := operator.NewResource(operator.ResourceConfig{})
+		require.PanicsWithValue(t,
+			"operator api: ResourceConfig.TokenAuth is required to mount the operator routes",
+			func() { resource.Router() },
+		)
+	})
+
 	t.Run("router has expected routes", func(t *testing.T) {
-		cfg := operator.ResourceConfig{}
+		cfg := operator.ResourceConfig{TokenAuth: operatorTestTokenAuth(t)}
 		resource := operator.NewResource(cfg)
 
 		router := resource.Router()
@@ -110,6 +118,7 @@ func TestRouter(t *testing.T) {
 	t.Run("settings routes are mounted when SettingsService is provided", func(t *testing.T) {
 		cfg := operator.ResourceConfig{
 			SettingsService: stubSettingsService(),
+			TokenAuth:       operatorTestTokenAuth(t),
 		}
 		resource := operator.NewResource(cfg)
 		require.NotNil(t, resource)
@@ -131,7 +140,7 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("settings routes are NOT mounted when SettingsService is nil", func(t *testing.T) {
-		cfg := operator.ResourceConfig{}
+		cfg := operator.ResourceConfig{TokenAuth: operatorTestTokenAuth(t)}
 		resource := operator.NewResource(cfg)
 		require.NotNil(t, resource)
 
@@ -263,7 +272,7 @@ func TestProtectedOperatorRoutesAllowActiveOperator(t *testing.T) {
 
 func newOperatorRouteTokenAuth(t *testing.T) *jwt.TokenAuth {
 	t.Helper()
-	tokenAuth, err := jwt.NewTokenAuthWithSecret("operator-route-test-secret-123456")
+	tokenAuth, err := jwt.NewTokenAuthWithDurations("operator-route-test-secret-123456", 15*time.Minute, time.Hour)
 	require.NoError(t, err)
 	tokenAuth.JwtExpiry = 15 * time.Minute
 	return tokenAuth
@@ -288,4 +297,13 @@ func newCreateSchoolRequest(accessToken string, organizationID int) *http.Reques
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.RemoteAddr = "198.51.100.20:4444"
 	return req
+}
+
+const operatorTestSecret = "operator-test-secret-32-chars-min!"
+
+func operatorTestTokenAuth(t *testing.T) *jwt.TokenAuth {
+	t.Helper()
+	tokenAuth, err := jwt.NewTokenAuthWithDurations(operatorTestSecret, 15*time.Minute, time.Hour)
+	require.NoError(t, err)
+	return tokenAuth
 }

@@ -3,10 +3,10 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 20.09.2026 · Ratchet 677 · Composition 667 · Policy-Epoche 15 · 501 Regeln mit
-`convert it to exact debt` · 92.928 LOC unter `modules/*/legacy`
+Stand 21.09.2026 · Ratchet 645 · Composition 649 · Policy-Epoche 15 · 473 Regeln mit
+`convert it to exact debt` · 87.538 LOC unter `modules/*/legacy`
 
-Summenprobe: 260 + 61 + 61 + 43 + 28 + 19 + 205 = 677 = `wc -l backend/architecture/legacy.jsonl`.
+Summenprobe: 253 + 61 + 41 + 43 + 28 + 19 + 200 = 645 = `wc -l backend/architecture/legacy.jsonl`.
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Entscheidungen
@@ -16,17 +16,17 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [ ] [#3414](https://github.com/moto-nrw/project-phoenix/issues/3414) Projection-Owner `operator-dashboard-view`: ADR oder auflösen
 - [ ] Gehört der Träger-Strang [#2809](https://github.com/moto-nrw/project-phoenix/issues/2809) / [#2821](https://github.com/moto-nrw/project-phoenix/issues/2821) zu #2580?
 
-## Jetzt vergebbar · 260 Keys
+## Jetzt vergebbar · 253 Keys
 
 - [ ] [#2733](https://github.com/moto-nrw/project-phoenix/issues/2733) services/enrollment, repositories/enrollment — 69
 - [ ] [#2742](https://github.com/moto-nrw/project-phoenix/issues/2742) services/education, repositories/education, api/groups, api/admin — 63
-- [ ] [#2728](https://github.com/moto-nrw/project-phoenix/issues/2728) services/users — 45
+- [ ] [#2728](https://github.com/moto-nrw/project-phoenix/issues/2728) services/users — 42
 - [ ] [#2734](https://github.com/moto-nrw/project-phoenix/issues/2734) api/enrollment — 32
 - [ ] [#2738](https://github.com/moto-nrw/project-phoenix/issues/2738) api/common — 23
-- [ ] [#2727](https://github.com/moto-nrw/project-phoenix/issues/2727) database/repositories/users — 17
-- [ ] [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) models/users — 11
+- [ ] [#2727](https://github.com/moto-nrw/project-phoenix/issues/2727) database/repositories/users — 15
+- [ ] [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) models/users — 9
 
-## Legacy-Nester auflösen · 92.928 LOC, 0 Keys
+## Legacy-Nester auflösen · 87.538 LOC, 0 Keys
 
 - [ ] [#3424](https://github.com/moto-nrw/project-phoenix/issues/3424) `modules/timetable/legacy/timetableplanning` — 23.300 LOC, blockt #2732
 - [ ] [#3422](https://github.com/moto-nrw/project-phoenix/issues/3422) `modules/studentpresence/legacy` — 13.969 LOC
@@ -36,7 +36,7 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [ ] [#3427](https://github.com/moto-nrw/project-phoenix/issues/3427) `modules/careplan/legacy/carelifecycle` — 4.902 LOC, neu durch #3350 am 18.09., teilt `careexitview` mit #3432
 - [ ] [#3410](https://github.com/moto-nrw/project-phoenix/issues/3410) `modules/careplan/legacy` Wurzelpaket — 874 LOC, blockiert durch #3351, blockt #2743, #2748, #2750
 
-## Schuld sichtbar machen · 501 Regeln
+## Schuld sichtbar machen · 473 Regeln
 
 - [ ] [#3421](https://github.com/moto-nrw/project-phoenix/issues/3421) `inbound-parent.*` zu exaktem Debt konvertieren — 34 Regeln
 - [ ] [#3416](https://github.com/moto-nrw/project-phoenix/issues/3416) `issue`-Feld an Policy-Regeln und `rules.stale`
@@ -44,20 +44,19 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## api/students · 61 Keys
 
-- [ ] [#3351](https://github.com/moto-nrw/project-phoenix/issues/3351) `modules/careplan/legacy/careschedule` auflösen — 9.561 LOC
+- [x] [#3351](https://github.com/moto-nrw/project-phoenix/issues/3351) `modules/careplan/legacy/careschedule` auflösen — 9.561 LOC (nativ in Care Plan, ADR 0030)
 - [ ] [#3352](https://github.com/moto-nrw/project-phoenix/issues/3352) Status-Tage und Präsenz-Reads → `modules/studentpresence`
 - [ ] [#3353](https://github.com/moto-nrw/project-phoenix/issues/3353) Offering-Change- und Pickup-Entscheidungen → Owner-Commands
 - [ ] [#3354](https://github.com/moto-nrw/project-phoenix/issues/3354) Stammdaten- und Elternantrags-Reviews → Owner-Module
 - [ ] [#3356](https://github.com/moto-nrw/project-phoenix/issues/3356) Settings-, Listenexport-, Messaging-, IoT-, Aktivitäts- und Schulstruktur-Kanten
 - [ ] [#2731](https://github.com/moto-nrw/project-phoenix/issues/2731) Carrier — 61
 
-## Identity · 61 Keys
+## Identity · 41 Keys
 
-- [ ] [#3226](https://github.com/moto-nrw/project-phoenix/issues/3226) `authpostgres` auf die Modul-Persistenz neu schreiben — Body überholt
+- [ ] [#3487](https://github.com/moto-nrw/project-phoenix/issues/3487) Native Heimat für Session-Middleware und Signatur entscheiden, damit `legacy/jwt` gelöscht werden kann — Folge von #3226
 - [ ] [#3230](https://github.com/moto-nrw/project-phoenix/issues/3230) `api/auth` → `modules/identityaccess/inbound/auth`
 - [ ] [#3231](https://github.com/moto-nrw/project-phoenix/issues/3231) Identity-Handler aus `api/operator`
-- [ ] [#2725](https://github.com/moto-nrw/project-phoenix/issues/2725) Carrier — 17
-- [ ] [#2736](https://github.com/moto-nrw/project-phoenix/issues/2736) Carrier api/auth, api/operator — 44
+- [ ] [#2736](https://github.com/moto-nrw/project-phoenix/issues/2736) Carrier api/auth, api/operator — 41
 
 ## Storage
 
@@ -94,12 +93,12 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 - [ ] [#2706](https://github.com/moto-nrw/project-phoenix/issues/2706) Dokument-Rendering — 19, blockiert durch #2727, #2729, #2731
 
-## Endkette · 205 Keys
+## Endkette · 200 Keys
 
-- [ ] [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) root api, cmd, main composition — 70
-- [ ] [#2748](https://github.com/moto-nrw/project-phoenix/issues/2748) shared test und E2E composition — 65
-- [ ] [#2743](https://github.com/moto-nrw/project-phoenix/issues/2743) repository Factory — 33
+- [ ] [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) root api, cmd, main composition — 69
+- [ ] [#2748](https://github.com/moto-nrw/project-phoenix/issues/2748) shared test und E2E composition — 64
+- [ ] [#2743](https://github.com/moto-nrw/project-phoenix/issues/2743) repository Factory — 31
 - [ ] [#2747](https://github.com/moto-nrw/project-phoenix/issues/2747) service Factory — 32
-- [ ] [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition löschen, leeren Ratchet beweisen — 5
+- [ ] [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition löschen, leeren Ratchet beweisen — 4
 - [ ] [#2745](https://github.com/moto-nrw/project-phoenix/issues/2745) API-Aggregat — 0
 - [ ] [#2749](https://github.com/moto-nrw/project-phoenix/issues/2749) Scheduler-Setter, breite Test-Composition — 0

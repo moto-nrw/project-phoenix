@@ -6,7 +6,6 @@ import (
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
-	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/uptrace/bun"
 )
 
@@ -30,6 +29,6 @@ func NewStaffMessagingTestRepositories(db *bun.DB) (StaffMessagingTestRepositori
 		Message: staffStore.NewStaffMessageRepository(db),
 		Read: staffStore.NewStaffMessageReadRepository(db, usersRepo.NewMessageableStaffRepository(db, func(ctx context.Context) ([]int64, error) {
 			return currentTenantStaffAccounts(ctx, membership, members.Person)
-		}, staffMessageIdentity(db, authRepo.NewAccountRepository(db)))),
+		}, staffMessageIdentity(newIdentityAccess(db, nil)))),
 	}, nil
 }

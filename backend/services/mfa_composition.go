@@ -14,15 +14,13 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // Identity & Access owns the account and operator second factor and both
 // portals' passkey ceremonies (#3331). This file binds the seams those flows
-// need to the material the root still holds: the account MFA rows in the
-// retained repositories (they move under the module with #3226), the school
+// need to the material the root still holds: the school
 // settings that parameterise the gate, the challenge JWT codec, the Argon2id
 // code hasher, the two mails and the operator action log.
 
@@ -38,7 +36,6 @@ var mfaEmailBackoff = []time.Duration{
 type mfaWiring struct {
 	repos       *repositories.Factory
 	settings    config.SettingsService
-	tokenAuth   *authjwt.TokenAuth
 	dispatcher  *email.Dispatcher
 	defaultFrom email.Email
 	frontendURL string
@@ -58,8 +55,8 @@ type mfaWiring struct {
 	passkeys *identityaccessCompose.PasskeyDependencies
 }
 
-func mfaDependencies(wiring *mfaWiring) *identityaccessCompose.MFADependencies {
-	if wiring == nil || wiring.repos == nil || wiring.tokenAuth == nil {
+func mfaDependencies(wiring *mfaWiring, codec identityaccessCompose.MFAChallengeCodec) *identityaccessCompose.MFADependencies {
+	if wiring == nil || wiring.repos == nil || codec == nil {
 		return nil
 	}
 	logger := wiring.logger
@@ -70,15 +67,11 @@ func mfaDependencies(wiring *mfaWiring) *identityaccessCompose.MFADependencies {
 	if backoff == nil {
 		backoff = mfaEmailBackoff
 	}
-	records := repositories.NewAccountMFARecords(wiring.repos)
-	if wiring.decorate != nil {
-		records = wiring.decorate(records)
-	}
 	return &identityaccessCompose.MFADependencies{
-		Records:  records,
-		Settings: mfaSettings{settings: wiring.settings},
-		Codec:    mfaChallengeCodec{tokenAuth: wiring.tokenAuth},
-		Codes:    shortCodeHasher{},
+		DecorateRecords: wiring.decorate,
+		Settings:        mfaSettings{settings: wiring.settings},
+		Codec:           codec,
+		Codes:           shortCodeHasher{},
 		Mail: mfaMailer{
 			dispatcher: wiring.dispatcher, from: wiring.defaultFrom,
 			frontendURL: wiring.frontendURL, logger: logger, backoff: backoff,
@@ -168,26 +161,6 @@ func (s mfaSettings) LockoutDuration(ctx context.Context, tenantID int64) (time.
 }
 
 // --- the challenge codec and the code hasher ---------------------------------
-
-type mfaChallengeCodec struct{ tokenAuth *authjwt.TokenAuth }
-
-func (c mfaChallengeCodec) IssueChallengeToken(claims identityaccess.MFAChallengeClaims, ttl time.Duration) (string, error) {
-	return c.tokenAuth.CreateMFAChallengeJWT(authjwt.MFAChallengeClaims{
-		AccountID: claims.AccountID, Scope: claims.Scope,
-		TenantID: claims.TenantID, ChallengeID: claims.ChallengeID,
-	}, ttl)
-}
-
-func (c mfaChallengeCodec) ParseChallengeToken(token string) (identityaccess.MFAChallengeClaims, error) {
-	claims, err := c.tokenAuth.ParseMFAChallengeJWT(token)
-	if err != nil {
-		return identityaccess.MFAChallengeClaims{}, err
-	}
-	return identityaccess.MFAChallengeClaims{
-		AccountID: claims.AccountID, Scope: claims.Scope,
-		TenantID: claims.TenantID, ChallengeID: claims.ChallengeID,
-	}, nil
-}
 
 // shortCodeHasher routes the e-mail codes through the project-wide Argon2id
 // helper, so tuning its parameters reaches MFA codes too.

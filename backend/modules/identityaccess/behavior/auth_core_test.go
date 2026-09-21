@@ -13,10 +13,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -54,18 +52,19 @@ func authTestFactoryConfig(rateLimitEnabled bool) services.FactoryConfig {
 // the call shape the tests were written against and drives the owner's
 // capability underneath, so every assertion still describes real behavior.
 type testAuthService interface {
+	identityaccess.ParentAccountAccess
 	identityaccess.AccountAuthentication
 	identityaccess.AccountSessionMaintenance
 	identityaccess.StaffPreview
 	identityaccess.StaffOffboardingAccess
 	retainedSessionCalls
-	Register(ctx context.Context, email, username, password string, roleID *int64, tenantID int64) (*authModels.Account, error)
-	RegisterSchoolAccount(ctx context.Context, email, username, password string, roleID *int64, tenantID int64, identity *identityaccess.SchoolAccountIdentity) (*authModels.Account, *identityaccess.SchoolIdentity, error)
-	LinkAccountToTenant(ctx context.Context, email string, roleID *int64, tenantID int64) (*authModels.Account, error)
-	GetAccountByID(ctx context.Context, id int) (*authModels.Account, error)
-	UpdateAccount(ctx context.Context, account *authModels.Account) error
-	ListAccounts(ctx context.Context, filters map[string]any) ([]*authModels.Account, error)
-	GetAccountsByRole(ctx context.Context, roleName string) ([]*authModels.Account, error)
+	Register(ctx context.Context, email, username, password string, roleID *int64, tenantID int64) (*testpkg.AccountFixture, error)
+	RegisterSchoolAccount(ctx context.Context, email, username, password string, roleID *int64, tenantID int64, identity *identityaccess.SchoolAccountIdentity) (*testpkg.AccountFixture, *identityaccess.SchoolIdentity, error)
+	LinkAccountToTenant(ctx context.Context, email string, roleID *int64, tenantID int64) (*testpkg.AccountFixture, error)
+	GetAccountByID(ctx context.Context, id int) (*testpkg.AccountFixture, error)
+	UpdateAccount(ctx context.Context, account *testpkg.AccountFixture) error
+	ListAccounts(ctx context.Context, filters map[string]any) ([]*testpkg.AccountFixture, error)
+	GetAccountsByRole(ctx context.Context, roleName string) ([]*testpkg.AccountFixture, error)
 	ActivateAccount(ctx context.Context, accountID int) error
 	DeactivateAccount(ctx context.Context, accountID int) error
 	ChangePassword(ctx context.Context, accountID int, currentPassword, newPassword string) error
@@ -99,6 +98,7 @@ func setupInvitationService(t *testing.T, db *bun.DB) services.InvitationCapabil
 // composed Identity & Access module.
 func newFixtureAuthService(t *testing.T, db *bun.DB, module *identityaccess.Module) *fixtureOwnedAuthService {
 	return &fixtureOwnedAuthService{
+		ParentAccountAccess:       module,
 		AccountAuthentication:     module,
 		AccountSessionMaintenance: module,
 		StaffPreview:              module,
@@ -112,6 +112,7 @@ func newFixtureAuthService(t *testing.T, db *bun.DB, module *identityaccess.Modu
 }
 
 type fixtureOwnedAuthService struct {
+	identityaccess.ParentAccountAccess
 	identityaccess.AccountAuthentication
 	identityaccess.AccountSessionMaintenance
 	identityaccess.StaffPreview
@@ -128,7 +129,7 @@ type fixtureOwnedAuthService struct {
 // the owner's capability underneath, so every assertion still describes
 // real behavior.
 
-func (s *fixtureOwnedAuthService) GetAccountByID(ctx context.Context, id int) (*authModels.Account, error) {
+func (s *fixtureOwnedAuthService) GetAccountByID(ctx context.Context, id int) (*testpkg.AccountFixture, error) {
 	account, err := s.administration.FindManageableAccount(ctx, int64(id))
 	if err != nil {
 		return nil, err
@@ -136,13 +137,13 @@ func (s *fixtureOwnedAuthService) GetAccountByID(ctx context.Context, id int) (*
 	return managedAccountModel(account), nil
 }
 
-func (s *fixtureOwnedAuthService) UpdateAccount(ctx context.Context, account *authModels.Account) error {
+func (s *fixtureOwnedAuthService) UpdateAccount(ctx context.Context, account *testpkg.AccountFixture) error {
 	return s.administration.UpdateManageableAccount(ctx, identityaccess.AccountIdentityUpdate{
 		AccountID: account.ID, Email: account.Email, Username: account.Username,
 	})
 }
 
-func (s *fixtureOwnedAuthService) ListAccounts(ctx context.Context, filters map[string]any) ([]*authModels.Account, error) {
+func (s *fixtureOwnedAuthService) ListAccounts(ctx context.Context, filters map[string]any) ([]*testpkg.AccountFixture, error) {
 	var filter identityaccess.AccountListFilter
 	if email, ok := filters["email"].(string); ok {
 		filter.Email = email
@@ -157,7 +158,7 @@ func (s *fixtureOwnedAuthService) ListAccounts(ctx context.Context, filters map[
 	return managedAccountModels(accounts), nil
 }
 
-func (s *fixtureOwnedAuthService) GetAccountsByRole(ctx context.Context, roleName string) ([]*authModels.Account, error) {
+func (s *fixtureOwnedAuthService) GetAccountsByRole(ctx context.Context, roleName string) ([]*testpkg.AccountFixture, error) {
 	accounts, err := s.administration.ListManageableAccountsByRole(ctx, roleName)
 	if err != nil {
 		return nil, err
@@ -178,10 +179,10 @@ func (s *fixtureOwnedAuthService) ChangePassword(ctx context.Context, accountID 
 }
 
 // managedAccountModel is the retained account shape the assertions read.
-func managedAccountModel(account identityaccess.ManagedAccount) *authModels.Account {
+func managedAccountModel(account identityaccess.ManagedAccount) *testpkg.AccountFixture {
 	username := account.Username
-	return &authModels.Account{
-		Model:     modelBase.Model{ID: account.ID, CreatedAt: account.CreatedAt, UpdatedAt: account.UpdatedAt},
+	return &testpkg.AccountFixture{
+		ID: account.ID, CreatedAt: account.CreatedAt, UpdatedAt: account.UpdatedAt,
 		Email:     account.Email,
 		Username:  &username,
 		Active:    account.Active,
@@ -189,8 +190,8 @@ func managedAccountModel(account identityaccess.ManagedAccount) *authModels.Acco
 	}
 }
 
-func managedAccountModels(accounts []identityaccess.ManagedAccount) []*authModels.Account {
-	models := make([]*authModels.Account, 0, len(accounts))
+func managedAccountModels(accounts []identityaccess.ManagedAccount) []*testpkg.AccountFixture {
+	models := make([]*testpkg.AccountFixture, 0, len(accounts))
 	for _, account := range accounts {
 		models = append(models, managedAccountModel(account))
 	}
@@ -202,7 +203,7 @@ func (s *fixtureOwnedAuthService) Register(
 	email, username, password string,
 	roleID *int64,
 	tenantID int64,
-) (*authModels.Account, error) {
+) (*testpkg.AccountFixture, error) {
 	account, _, err := s.RegisterSchoolAccount(ctx, email, username, password, roleID, tenantID, nil)
 	return account, err
 }
@@ -213,7 +214,7 @@ func (s *fixtureOwnedAuthService) RegisterSchoolAccount(
 	roleID *int64,
 	tenantID int64,
 	identity *identityaccess.SchoolAccountIdentity,
-) (*authModels.Account, *identityaccess.SchoolIdentity, error) {
+) (*testpkg.AccountFixture, *identityaccess.SchoolIdentity, error) {
 	provisioned, err := s.provisioning.RegisterSchoolAccount(ctx, identityaccess.SchoolAccountRegistration{
 		TenantID: tenantID, Email: email, Username: username, Password: password,
 		RoleID: roleID, Identity: identity,
@@ -230,7 +231,7 @@ func (s *fixtureOwnedAuthService) LinkAccountToTenant(
 	email string,
 	roleID *int64,
 	tenantID int64,
-) (*authModels.Account, error) {
+) (*testpkg.AccountFixture, error) {
 	provisioned, err := s.provisioning.LinkSchoolAccount(ctx, identityaccess.SchoolAccountLink{
 		TenantID: tenantID, Email: email, RoleID: roleID,
 	})
@@ -241,10 +242,10 @@ func (s *fixtureOwnedAuthService) LinkAccountToTenant(
 }
 
 // registeredAccountModel is the retained account shape the assertions read.
-func registeredAccountModel(account identityaccess.RegisteredAccount) *authModels.Account {
+func registeredAccountModel(account identityaccess.RegisteredAccount) *testpkg.AccountFixture {
 	username := account.Username
-	return &authModels.Account{
-		Model:     modelBase.Model{ID: account.ID, CreatedAt: account.CreatedAt, UpdatedAt: account.UpdatedAt},
+	return &testpkg.AccountFixture{
+		ID: account.ID, CreatedAt: account.CreatedAt, UpdatedAt: account.UpdatedAt,
 		Email:     account.Email,
 		Username:  &username,
 		Active:    account.Active,
@@ -1468,7 +1469,7 @@ func TestAuthService_ReplaceAccountRole(t *testing.T) {
 	require.NoError(t, err)
 	// Guardian access is a parent-portal relationship, not a staff role, and
 	// survives every staff role change (parent who later became staff).
-	guardianRole, err := rbac.CreateRole(ctx, fmt.Sprintf("replace-guardian-%d", time.Now().UnixNano()), "guardian role", testpkg.StrPtr(authModels.BaseRoleGuardian))
+	guardianRole, err := rbac.CreateRole(ctx, fmt.Sprintf("replace-guardian-%d", time.Now().UnixNano()), "guardian role", testpkg.StrPtr("guardian"))
 	require.NoError(t, err)
 	require.NoError(t, rbac.AssignRoleToAccount(ctx, account.ID, guardianRole.ID))
 	require.NoError(t, rbac.AssignRoleToAccount(ctx, account.ID, oldRole.ID))
@@ -1725,7 +1726,7 @@ func TestAuthService_CreateParentAccount(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-		assert.Nil(t, account)
+		assert.Zero(t, account)
 	})
 }
 
@@ -1746,7 +1747,7 @@ func TestAuthService_GetParentAccountByID(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		result, err := service.GetParentAccountByID(ctx, int(account.ID))
+		result, err := service.GetParentAccountByID(ctx, account.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1760,7 +1761,7 @@ func TestAuthService_GetParentAccountByID(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-		assert.Nil(t, result)
+		assert.Zero(t, result)
 	})
 }
 
@@ -1781,7 +1782,7 @@ func TestAuthService_ListParentAccounts(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		result, err := service.ListParentAccounts(ctx, nil)
+		result, err := service.ListParentAccounts(ctx, identityaccess.ParentAccountFilter{})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -2171,7 +2172,7 @@ func TestAuthService_UpdateAccount(t *testing.T) {
 		assert.Equal(t, renamed, updated.Email)
 		// An identity update never disables an account: that is the
 		// deactivation command, which revokes the sessions with it (#3332).
-		assert.True(t, updated.IsActive())
+		assert.True(t, updated.Active)
 	})
 }
 
@@ -2283,7 +2284,9 @@ func TestInvitationService_ListPendingInvitations(t *testing.T) {
 func TestInvitationService_CleanupExpiredInvitations(t *testing.T) {
 	t.Parallel()
 
-	db := testpkg.SetupTestDB(t)
+	// Cleanup sweeps every tenant; a shared clone would delete the expired
+	// invitation fixtures concurrently being validated by other tests.
+	db := testpkg.SetupIsolatedTestDB(t)
 
 	invitationService := setupInvitationService(t, db)
 	ctx := testpkg.Ctx(t)
@@ -2413,7 +2416,7 @@ func TestInvitationService_ValidateInvitation(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, identityaccess.ErrInvitationExpired))
+		assert.ErrorIs(t, err, identityaccess.ErrInvitationExpired)
 	})
 
 	t.Run("returns error for non-existent token", func(t *testing.T) {
@@ -2585,7 +2588,7 @@ func TestAuthService_GetParentAccountByEmail(t *testing.T) {
 
 		// ASSERT - Expect error (either not found or repository error)
 		require.Error(t, err)
-		assert.Nil(t, result)
+		assert.Zero(t, result)
 	})
 }
 
@@ -2599,27 +2602,28 @@ func TestAuthService_UpdateParentAccount(t *testing.T) {
 
 	t.Run("updates parent account successfully", func(t *testing.T) {
 		// ARRANGE
-		parentAccount := testpkg.CreateTestParentAccount(t, db, "update-test")
+		parentAccount, err := service.CreateParentAccount(ctx, fmt.Sprintf("update-test-%d@example.com", testpkg.Tenant(t)), "", testPassword)
+		require.NoError(t, err)
 
 		// Modify the account
 		newUsername := fmt.Sprintf("updated-username-%d", time.Now().UnixNano())
-		parentAccount.Username = &newUsername
+		parentAccount.Username = newUsername
 
 		// ACT
-		err := service.UpdateParentAccount(ctx, parentAccount)
+		err = service.UpdateParentAccount(ctx, parentAccount)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify the update
-		updated, err := service.GetParentAccountByID(ctx, int(parentAccount.ID))
+		updated, err := service.GetParentAccountByID(ctx, parentAccount.ID)
 		require.NoError(t, err)
-		assert.Equal(t, newUsername, *updated.Username)
+		assert.Equal(t, newUsername, updated.Username)
 	})
 
 	t.Run("returns error for non-existent account", func(t *testing.T) {
 		// ARRANGE
-		fakeAccount := &authModels.AccountParent{}
+		fakeAccount := identityaccess.ParentAccount{}
 		fakeAccount.ID = 99999999
 
 		// ACT
@@ -2640,21 +2644,22 @@ func TestAuthService_ActivateParentAccount(t *testing.T) {
 
 	t.Run("activates parent account successfully", func(t *testing.T) {
 		// ARRANGE
-		parentAccount := testpkg.CreateTestParentAccount(t, db, "activate-test")
+		parentAccount, err := service.CreateParentAccount(ctx, fmt.Sprintf("activate-test-%d@example.com", testpkg.Tenant(t)), "", testPassword)
+		require.NoError(t, err)
 
 		// First deactivate
 		parentAccount.Active = false
-		err := service.UpdateParentAccount(ctx, parentAccount)
+		err = service.UpdateParentAccount(ctx, parentAccount)
 		require.NoError(t, err)
 
 		// ACT
-		err = service.ActivateParentAccount(ctx, int(parentAccount.ID))
+		err = service.ActivateParentAccount(ctx, parentAccount.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify activation
-		updated, err := service.GetParentAccountByID(ctx, int(parentAccount.ID))
+		updated, err := service.GetParentAccountByID(ctx, parentAccount.ID)
 		require.NoError(t, err)
 		assert.True(t, updated.Active)
 	})
@@ -2678,16 +2683,17 @@ func TestAuthService_DeactivateParentAccount(t *testing.T) {
 
 	t.Run("deactivates parent account successfully", func(t *testing.T) {
 		// ARRANGE
-		parentAccount := testpkg.CreateTestParentAccount(t, db, "deactivate-test")
+		parentAccount, err := service.CreateParentAccount(ctx, fmt.Sprintf("deactivate-test-%d@example.com", testpkg.Tenant(t)), "", testPassword)
+		require.NoError(t, err)
 
 		// ACT
-		err := service.DeactivateParentAccount(ctx, int(parentAccount.ID))
+		err = service.DeactivateParentAccount(ctx, parentAccount.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify deactivation
-		updated, err := service.GetParentAccountByID(ctx, int(parentAccount.ID))
+		updated, err := service.GetParentAccountByID(ctx, parentAccount.ID)
 		require.NoError(t, err)
 		assert.False(t, updated.Active)
 	})

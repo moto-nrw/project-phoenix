@@ -68,7 +68,7 @@ func newPayrollScenario(t *testing.T) *payrollScenario {
 	svc := usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
 		PersonRepo:           repos.Person,
 		RFIDRepo:             repos.RFIDCard,
-		AccountRepo:          repos.Account,
+		AccountExists:        repositories.AccountExists(repos.Profile),
 		StudentRepo:          repos.Student,
 		StaffRepo:            repos.Staff,
 		TeacherRepo:          repos.Teacher,
@@ -186,7 +186,7 @@ func TestUpdatePersonnelNumber_SerializesConcurrentAuditValues(t *testing.T) {
 	svc := usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
 		PersonRepo:           s.repos.Person,
 		RFIDRepo:             s.repos.RFIDCard,
-		AccountRepo:          s.repos.Account,
+		AccountExists:        repositories.AccountExists(s.repos.Profile),
 		StudentRepo:          s.repos.Student,
 		StaffRepo:            staffRepo,
 		TeacherRepo:          s.repos.Teacher,
