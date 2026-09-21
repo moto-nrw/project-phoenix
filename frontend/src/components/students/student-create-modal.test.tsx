@@ -49,8 +49,19 @@ vi.mock("~/components/ui/slide-over", () => ({
         {children}
       </div>
     ) : null,
-  SlideOverContent: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
+  SlideOverContent: ({
+    children,
+    isBackdropDismissDisabled,
+  }: {
+    children: React.ReactNode;
+    isBackdropDismissDisabled?: boolean;
+  }) => (
+    <div
+      data-testid="slide-over-content"
+      data-backdrop-dismiss-disabled={String(!!isBackdropDismissDisabled)}
+    >
+      {children}
+    </div>
   ),
   SlideOverHeader: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
@@ -356,6 +367,25 @@ describe("StudentCreateModal", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+  });
+
+  it("keeps the panel open on a click next to it (#3370)", async () => {
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    // Das Verhalten selbst prüft slide-over.test.tsx; hier zählt, dass das
+    // Anlegen-Panel es einschaltet.
+    await waitFor(() => {
+      expect(screen.getByTestId("slide-over-content")).toHaveAttribute(
+        "data-backdrop-dismiss-disabled",
+        "true",
+      );
     });
   });
 

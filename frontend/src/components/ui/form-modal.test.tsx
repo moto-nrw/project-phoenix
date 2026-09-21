@@ -197,6 +197,40 @@ describe("FormModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("ignores backdrop clicks with isBackdropDismissDisabled but still closes on Escape (#3370)", async () => {
+    const onClose = vi.fn();
+    render(
+      <TestWrapper>
+        <FormModal
+          isOpen={true}
+          onClose={onClose}
+          title="Test"
+          isBackdropDismissDisabled
+        >
+          <p>Content</p>
+        </FormModal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /hintergrund.*schließen/i }),
+    );
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("should call onClose when Escape key is pressed", async () => {
     const onClose = vi.fn();
     render(

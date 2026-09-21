@@ -171,47 +171,76 @@ type SlideOverContentProps = React.ComponentPropsWithoutRef<
    * es immer volle Breite.
    */
   widthClass?: string;
+  /**
+   * Ein Klick neben das Panel schließt es nicht. Für Formulare, deren
+   * Eingaben ein Fehlklick sonst verwirft (#3370). X, Abbrechen, Escape und
+   * die Wischgeste auf dem Telefon schließen weiterhin.
+   */
+  isBackdropDismissDisabled?: boolean;
 };
 
 const SlideOverContent = React.forwardRef<
   React.ComponentRef<typeof DrawerPrimitive.Content>,
   SlideOverContentProps
->(({ className, widthClass, children, ...props }, ref) => {
-  const direction = React.useContext(SlideOverDirectionContext);
-  const isSheet = direction === "bottom";
-  return (
-    <SlideOverPortal>
-      <SlideOverOverlay />
-      <DrawerPrimitive.Content
-        ref={ref}
-        data-date-picker-focus-trap="true"
-        className={cn(
-          "fixed z-50 flex flex-col bg-white shadow-2xl outline-none",
-          isSheet
-            ? // Blatt von unten: an drei Kanten bündig, oben abgerundet, nie
-              // höher als 90vh — der Rest der Seite bleibt als Kontext sichtbar.
-              "inset-x-0 bottom-0 max-h-[90vh] rounded-t-2xl"
-            : // `max-w-full` fängt den einen Frame vor dem matchMedia-Effect ab:
-              // ein per Deep-Link (?block=…) sofort offenes Panel würde sonst
-              // kurz mit 420px auf einem schmaleren Display stehen.
-              cn("top-0 right-0 h-full w-[420px] max-w-full", widthClass),
-          className,
-        )}
-        {...props}
-      >
-        {isSheet && (
-          // Griff wie im Drawer: signalisiert die Wischgeste, mit der Vaul das
-          // Blatt schließt.
-          <div
-            aria-hidden
-            className="mx-auto mt-3 h-1 w-12 shrink-0 rounded-full bg-gray-300"
-          />
-        )}
-        {children}
-      </DrawerPrimitive.Content>
-    </SlideOverPortal>
-  );
-});
+>(
+  (
+    {
+      className,
+      widthClass,
+      isBackdropDismissDisabled = false,
+      onInteractOutside,
+      children,
+      ...props
+    },
+    ref,
+  ) => {
+    const direction = React.useContext(SlideOverDirectionContext);
+    const isSheet = direction === "bottom";
+    return (
+      <SlideOverPortal>
+        <SlideOverOverlay />
+        <DrawerPrimitive.Content
+          ref={ref}
+          data-date-picker-focus-trap="true"
+          className={cn(
+            "fixed z-50 flex flex-col bg-white shadow-2xl outline-none",
+            isSheet
+              ? // Blatt von unten: an drei Kanten bündig, oben abgerundet, nie
+                // höher als 90vh — der Rest der Seite bleibt als Kontext sichtbar.
+                "inset-x-0 bottom-0 max-h-[90vh] rounded-t-2xl"
+              : // `max-w-full` fängt den einen Frame vor dem matchMedia-Effect ab:
+                // ein per Deep-Link (?block=…) sofort offenes Panel würde sonst
+                // kurz mit 420px auf einem schmaleren Display stehen.
+                cn("top-0 right-0 h-full w-[420px] max-w-full", widthClass),
+            className,
+          )}
+          // Nicht `dismissible={false}` an der Wurzel: Vaul sperrt damit jedes
+          // Schließen, auch X und Escape. Radix schließt bei einem Außenklick
+          // nur, solange dieses Ereignis nicht abgewiesen wurde.
+          onInteractOutside={
+            isBackdropDismissDisabled
+              ? (event) => {
+                  onInteractOutside?.(event);
+                  event.preventDefault();
+                }
+              : onInteractOutside
+          }
+          {...props}
+        >
+          {isSheet && (
+            // Griff wie im Drawer: signalisiert die Wischgeste, mit der Vaul das
+            // Blatt schließt.
+            <div
+              aria-hidden
+              className="mx-auto mt-3 h-1 w-12 shrink-0 rounded-full bg-gray-300"
+            />
+          )}
+          {children}
+        </DrawerPrimitive.Content>
+      </SlideOverPortal>
+    );
+  },
+);
 SlideOverContent.displayName = "SlideOverContent";
 
 const SlideOverHeader = ({
