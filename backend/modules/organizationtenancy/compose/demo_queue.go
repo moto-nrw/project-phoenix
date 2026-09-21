@@ -38,8 +38,8 @@ func (e demoQueueEngine) ClaimDemoSchoolOrder(ctx context.Context) (*organizatio
 	}, nil
 }
 
-func (e demoQueueEngine) FinishDemoSchoolOrder(ctx context.Context, slug string, visitorAccountID int64) error {
-	return e.store.Finish(ctx, slug, visitorAccountID)
+func (e demoQueueEngine) FinishDemoSchoolOrder(ctx context.Context, slug string, visitorAccountID, visitorParentAccountID int64) error {
+	return e.store.Finish(ctx, slug, visitorAccountID, visitorParentAccountID)
 }
 
 func (e demoQueueEngine) FailDemoSchoolOrder(ctx context.Context, slug string, maxAttempts int) (bool, error) {
@@ -110,6 +110,7 @@ func (e demoOrderEngine) DemoSchoolProgress(ctx context.Context, slug string) (*
 	}
 	return &organizationtenancy.DemoSchoolProgress{
 		Status: progress.Status, SchoolID: progress.TenantID, VisitorAccountID: progress.VisitorAccountID,
+		VisitorParentAccountID: progress.VisitorParentAccountID,
 	}, nil
 }
 

@@ -247,3 +247,19 @@ func TestBootstrapTenant_ReplacesTheSchoolOfABrokenSeed(t *testing.T) {
 	assert.True(t, deleted)
 	assert.Equal(t, "vollbetrieb-admin.ogs-nord-k3m9xp-2@example.test", invited["email"], "the abandoned school keeps its accounts, so the repetition needs its own scope")
 }
+
+// The demo role parent (#3468) signs the visitor in as the parent whose
+// guardian carries the visitor's name; the internal key keeps the seed name.
+func TestVisitorParentAccountID(t *testing.T) {
+	t.Parallel()
+
+	profile := &SeedProfile{}
+	assert.Zero(t, VisitorParentAccountID(profile), "a school without parents names none")
+	visitor := DemoGuardians[visitorGuardianIndex]
+	coParent := DemoGuardians[visitorGuardianIndex+1]
+	profile.Credentials.Parents = []ParentCredentials{
+		{Name: coParent.FirstName + " " + coParent.LastName, AccountID: 7},
+		{Name: visitor.FirstName + " " + visitor.LastName, AccountID: 9},
+	}
+	assert.Equal(t, profile.Credentials.Parents[1].AccountID, VisitorParentAccountID(profile))
+}

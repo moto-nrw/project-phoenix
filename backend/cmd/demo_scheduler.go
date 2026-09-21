@@ -153,7 +153,7 @@ func (s *demoScheduler) seedAndTick(ctx context.Context, order backendapi.DemoSc
 	if err := school.run(ctx, true, true, func() {}); err != nil {
 		return err
 	}
-	return s.schools.FinishDemoSchoolOrder(ctx, order.Slug, school.visitorID)
+	return s.schools.FinishDemoSchoolOrder(ctx, order.Slug, school.visitorID, school.visitorParentID)
 }
 
 // demoAccountScope is what the school's account emails and usernames carry.

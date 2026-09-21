@@ -48,6 +48,16 @@ func seedDemoSchool(t *testing.T, db *bun.DB, slug string, schoolID, visitorAcco
 	require.NoError(t, err)
 }
 
+// seedDemoSchoolWithParent is seedDemoSchool plus the parent who carries the
+// visitor's name (#3468), as the demo process names both.
+func seedDemoSchoolWithParent(t *testing.T, db *bun.DB, slug string, schoolID, visitorAccountID, parentAccountID int64) {
+	t.Helper()
+	seedDemoSchool(t, db, slug, schoolID, visitorAccountID)
+	_, err := db.NewRaw(`UPDATE platform.demo_school_states SET visitor_parent_account_id = ? WHERE name = ?`,
+		parentAccountID, slug).Exec(context.Background())
+	require.NoError(t, err)
+}
+
 func sessionClaims(t *testing.T, e demoEnv, token string) testutil.Claims {
 	t.Helper()
 	rr := e.post(t, "/demo/access/sessions", map[string]string{"token": token})

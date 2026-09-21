@@ -15,64 +15,79 @@ import {
   type DemoLink,
   type DemoSetupProgress,
   demoLinkFragment,
-  isParentDemoRole,
-  parentsDemoEntryUrl,
+  redeemDemoAccess,
+  startDemoSession,
   takeDemoLinkFromFragment,
   waitForDemoSchool,
 } from "~/lib/demo-access";
 import { createLogger } from "~/lib/logger";
 
-const logger = createLogger({ component: "DemoWaitingRoom" });
+const logger = createLogger({ component: "ParentDemoEntryPage" });
 
-// Waiting room of the public demo (#3463). Every visitor gets a demo school
-// of their own, and its subdomain answers only once the school is seeded. So
-// the link from the website leads here, on the main domain. The page names
-// the OGS being set up with its progress lines (#3464), waits until the
-// school is ready and then hands the token on to the school's own entry page,
-// again in the URL fragment, where it is redeemed.
-export default function DemoWaitingRoomPage() {
+// Entry page of the parents app in the public demo (#3468). The same link
+// that opens the OGS app arrives here with the role parent: from the
+// waiting room, from the OGS app's entry page or from the banner. The page
+// waits until the demo school can be entered, redeems the token as the
+// school's parent of the visitor's name and signs in to the parents app.
+// The standing demo school has no such parent; its visitor goes on to the
+// OGS app in the role the session really has.
+export default function ParentDemoEntryPage() {
   const [phase, setPhase] = useState<DemoEntryPhase>("opening");
   const [setup, setSetup] = useState<DemoSetupProgress>({ step: 0 });
-  // Every try waits anew; "Noch einmal versuchen" starts the next one.
+  // Every try enters anew; "Noch einmal versuchen" starts the next one.
   const [attempt, setAttempt] = useState(0);
-  const linkRef = useRef<DemoLink | null>(null);
+  const linkRef = useRef<DemoLink | null | undefined>(undefined);
 
   useEffect(() => {
     const run = { cancelled: false };
+
+    async function enter(link: DemoLink): Promise<DemoEntryPhase | "left"> {
+      const waited = await waitForDemoSchool(link.token, run, (progress) => {
+        setSetup(progress);
+        setPhase("preparing");
+      });
+      if (waited.phase === "cancelled") return "opening";
+      if (waited.phase !== "ready") return waited.phase;
+      const session = await redeemDemoAccess(link.token, "parent");
+      if (!session) return "invalid";
+      if (session.visit.role !== "parent") {
+        if (!waited.schoolUrl?.startsWith("http")) {
+          throw new Error("ready demo school without an address");
+        }
+        globalThis.location.assign(
+          `${waited.schoolUrl}/demo${demoLinkFragment({ ...link, role: session.visit.role })}`,
+        );
+        return "left";
+      }
+      const started = await startDemoSession(
+        {
+          ...session,
+          visit: { ...session.visit, schoolName: waited.schoolName },
+        },
+        link.switched ? "demo_role_switched" : "demo_entered",
+        "parent-credentials",
+      );
+      if (!started) return "failed";
+      globalThis.location.assign("/");
+      return "left";
+    }
+
     // The fragment is read once and removed; a repeated effect run (React
     // strict mode, another try) must find the link again.
-    linkRef.current ??= takeDemoLinkFromFragment();
+    if (linkRef.current === undefined) {
+      linkRef.current = takeDemoLinkFromFragment();
+    }
     const link = linkRef.current;
     if (!link) {
       setPhase("invalid");
       return;
     }
-    waitForDemoSchool(link.token, run, (progress) => {
-      setSetup(progress);
-      setPhase("preparing");
-    })
-      .then((waited) => {
-        if (run.cancelled || waited.phase === "cancelled") return;
-        if (waited.phase !== "ready") {
-          setPhase(waited.phase);
-          return;
-        }
-        // The role parent (#3468) goes straight to the parents app.
-        if (link.role && isParentDemoRole(link.role)) {
-          globalThis.location.assign(parentsDemoEntryUrl(link));
-          return;
-        }
-        if (!waited.schoolUrl?.startsWith("http")) {
-          throw new Error("ready demo school without an address");
-        }
-        // A preselected role (#3467) travels on, so the school's entry page
-        // skips its role cards.
-        globalThis.location.assign(
-          `${waited.schoolUrl}/demo${demoLinkFragment(link)}`,
-        );
+    enter(link)
+      .then((outcome) => {
+        if (!run.cancelled && outcome !== "left") setPhase(outcome);
       })
       .catch((error: unknown) => {
-        logger.error("demo_waiting_room_failed", {
+        logger.error("parent_demo_entry_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
         if (!run.cancelled) setPhase("failed");

@@ -82,8 +82,8 @@ func (d *DemoRuntime) ClaimDemoSchoolOrder(ctx context.Context) (*DemoSchoolOrde
 }
 
 // FinishDemoSchoolOrder opens the school for its demo access.
-func (d *DemoRuntime) FinishDemoSchoolOrder(ctx context.Context, slug string, visitorAccountID int64) error {
-	return d.queue.FinishDemoSchoolOrder(ctx, slug, visitorAccountID)
+func (d *DemoRuntime) FinishDemoSchoolOrder(ctx context.Context, slug string, visitorAccountID, visitorParentAccountID int64) error {
+	return d.queue.FinishDemoSchoolOrder(ctx, slug, visitorAccountID, visitorParentAccountID)
 }
 
 // FailDemoSchoolOrder queues the order again until maxAttempts are used.

@@ -15,7 +15,10 @@ type DemoAccessStore interface {
 	// that has not expired at now. It serialises requests of one address.
 	FindActiveDemoAccessByEmail(ctx context.Context, email string, now time.Time) (domain.DemoAccess, bool, error)
 	FindDemoAccessByTokenHash(ctx context.Context, tokenHash string) (domain.DemoAccess, bool, error)
-	RecordDemoAccessUse(ctx context.Context, id, accountID int64, usedAt time.Time) error
+	// RecordDemoAccessUse notes one redemption, the account it signed in and
+	// the school's parent of the role parent (#3468); a zero parent keeps
+	// the one noted before.
+	RecordDemoAccessUse(ctx context.Context, id, accountID, parentAccountID int64, usedAt time.Time) error
 	// ReplaceDemoAccountRole makes the system role the only role of the
 	// visitor's account in its demo school (#3467).
 	ReplaceDemoAccountRole(ctx context.Context, accountID, tenantID int64, role string) error
@@ -58,6 +61,9 @@ type DemoAccessTokens interface {
 // authentication of this module satisfies it.
 type DemoSessions interface {
 	IssueTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error)
+	// IssueParentTokensForAuthenticatedAccount mints the parent-scope session
+	// of the demo role parent (#3468).
+	IssueParentTokensForAuthenticatedAccount(ctx context.Context, accountID int64, ipAddress, userAgent string) (string, string, error)
 }
 
 // DemoAdminTx runs fn inside an administrative transaction.

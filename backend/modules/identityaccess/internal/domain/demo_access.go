@@ -72,12 +72,15 @@ const (
 	DemoRoleCaregiver DemoRole = "caregiver"
 	DemoRoleLead      DemoRole = "lead"
 	DemoRoleAll       DemoRole = "all"
+	// DemoRoleParent signs the visitor in to the parents portal as the
+	// school's parent who carries the visitor's name (#3468).
+	DemoRoleParent DemoRole = "parent"
 )
 
 // ParseDemoRole accepts the empty role, which chooses none.
 func ParseDemoRole(value string) (DemoRole, error) {
 	switch role := DemoRole(strings.TrimSpace(value)); role {
-	case "", DemoRoleCaregiver, DemoRoleLead, DemoRoleAll:
+	case "", DemoRoleCaregiver, DemoRoleLead, DemoRoleAll, DemoRoleParent:
 		return role, nil
 	default:
 		return "", ErrDemoAccessInvalid
@@ -107,6 +110,9 @@ type DemoSchoolEntry struct {
 	Status    string
 	TenantID  int64
 	AccountID int64
+	// ParentAccountID is the parent carrying the visitor's name (#3468);
+	// zero in a school without one.
+	ParentAccountID int64
 	// Shared marks the administrator every visitor of the standing school
 	// signs in as; no demo role switch may change its role (#3467).
 	Shared bool

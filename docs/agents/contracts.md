@@ -119,17 +119,36 @@ not composed. The backend routes are public, take no cookies, and rely on
 |---|---|
 | `POST /demo/access-requests` | `email`, `school_name`, `person_name`, `contact_opt_in`, optional `src` and `role` (a demo role, appended to the mailed link as `&role=`) → always `202 {link_sent: true}`, never the link itself; `422 demo_access_invalid`; `429 demo_access_rate_limited` with `Retry-After` (seconds); `503 demo_capacity_reached` |
 | `GET /demo/access/status` | token in `Authorization: Bearer` → `{status: preparing\|ready\|failed, school_name}` (the OGS name the prospect gave, shown while waiting, #3464), plus `school_url` (origin of the demo school) when `ready` |
-| `POST /demo/access/sessions` | `{token, role?}` → `{access_token, refresh_token, demo: {access_id, role, src, fixed_role}}` (tenant session); `409 demo_school_preparing`; `422 demo_access_invalid` for an unknown role |
+| `POST /demo/access/sessions` | `{token, role?}` → `{access_token, refresh_token, demo: {access_id, role, src, fixed_role}}` (tenant session; parents portal session for `role: parent`, #3468); `409 demo_school_preparing`; `422 demo_access_invalid` for an unknown role |
 
 Demo roles (#3467): `caregiver`, `lead`, `all`. A role first becomes the only
 role of the visitor's own caregiver in its school (`user` for `caregiver`,
 `admin` for `lead` and `all` until reduced permission sets exist), then the
 session is minted, so the banner's role switch is the same call as the entry.
+
 The shared administrator of the standing school keeps its role and answers
 `role: "all", fixed_role: true`; the banner then shows the role without a
 menu. The frontend route `/api/demo/access/sessions` keeps the
 redeemed token in the httpOnly cookie `moto-demo-token` (path `/api/demo`,
 14 days); a switch sends only the role.
+
+Demo role `parent` (#3468): the same route with the same token answers a
+parents portal token pair (`scope=parent`) for the school's parent of the
+visitor's name (`visitor_parent_account_id`), a primary guardian with full
+parent portal rights for exactly one child; the caregiver's role stays as it
+is. A school without that parent answers `422 demo_access_invalid`. The
+parents host serves the entry page `app/parents/demo` (`/demo`, public in
+`ParentAuthGuard`), which signs in with the `parent-credentials`
+`internalRefresh` path. Every app redeems on its own host, so switching apps
+is a navigation with the token in the fragment, not a separate hand-over:
+the banner navigates to `GET /api/demo/access/handoff?role=…`, which reads
+the `moto-demo-token` cookie and answers `303` to the other app's `/demo`
+entry page (`#token=…&role=…&switched=1`; for an OGS role it asks the
+backend for `school_url` first). Without a usable token it redirects to this
+host's `/demo`. The waiting room and the OGS entry page send the role
+`parent` straight to the parents host. The standing school has no parent of
+its own: `parent` there answers `role: "all", fixed_role: true`, and the
+parents entry page sends the visitor on to the school.
 
 Unknown token: `404 demo_access_unknown`; expired: `410 demo_access_expired`.
 The token is opaque, stored as SHA-256 fingerprint in `auth.demo_accesses`
@@ -170,8 +189,8 @@ address stays in `auth.demo_accesses`. The order carries
 only the OGS name and the person's name, so the address cannot become an
 account or guardian address in a demo school, where
 `attachExistingAccountByEmail` would hand an existing account of that address
-to the inviting tenant. The serving role reads `name`, `status`, `tenant_id`
-and `visitor_account_id` of an order, inserts new ones, and stamps
+to the inviting tenant. The serving role reads `name`, `status`, `tenant_id`,
+`visitor_account_id` and `visitor_parent_account_id` of an order, inserts new ones, and stamps
 `last_used_at` when a token is redeemed; `seed_state` and `status` are out of
 its reach. The demo process ticks only schools redeemed in the last 30 minutes
 (#3464).
@@ -209,7 +228,10 @@ routes, the capability and the lock alike.
 (`403 demo_session`), through a mint guard inside the switch transaction.
 Such an account is exempt from the session cap (`capSessionsUnlessDemo`): in
 the standing school all visitors share one account, and the sixth visitor
-would sign the first one out. `TenantGuard` leaves the entry page alone
+would sign the first one out. The role parent signs in another account than
+the caregiver, so the redemption notes it in
+`auth.demo_accesses.parent_account_id`; switching between the apps therefore
+ends no parent session either. `TenantGuard` leaves the entry page alone
 (`isDemoEntryPath`) and guards every other tenant route as before.
 
 ### Embedded enrollment

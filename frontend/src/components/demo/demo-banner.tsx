@@ -12,8 +12,10 @@ import {
   DEMO_START_URL,
   type DemoRole,
   type DemoVisit,
+  demoHandoffPath,
   demoRoleLabel,
   isDemoBuild,
+  isParentDemoRole,
   readDemoVisit,
   saveDemoVisit,
   startDemoSession,
@@ -34,7 +36,9 @@ const OPEN_MAILED_LINK =
 /**
  * Schmaler Streifen über jeder Seite der öffentlichen Demo (#3467): links
  * „Demo" und der Schulname, dann das Menü der Demo-Rolle, rechts als einziger
- * Knopf „Kostenlos starten". Es gibt ihn nur im Demo-Build.
+ * Knopf „Kostenlos starten". Es gibt ihn nur im Demo-Build, in der OGS-App
+ * und in der Eltern-App (#3468). Eine Rolle der jeweils anderen App öffnet
+ * diese auf ihrem eigenen Host.
  *
  * Wie der Streifen der Mitarbeiter-Vorschau liegt er fest oben (h-12) und
  * die AppShell rückt um dieselbe Höhe nach unten. So kollidiert er auf dem
@@ -47,15 +51,15 @@ export function DemoBanner() {
 
 /**
  * Whether the shell shows the demo banner: in the demo build, in the OGS app
- * only (the operator portal shares the shell), and not during a staff
- * preview, whose own strip takes the place.
+ * and the parents app (the operator portal shares the OGS shell), and not
+ * during a staff preview, whose own strip takes the place.
  */
 export function isDemoBannerShown(
   shellAuth: { mode: string; isPreview?: boolean } | null | undefined,
 ): boolean {
   return (
     isDemoBuild() &&
-    shellAuth?.mode === "teacher" &&
+    (shellAuth?.mode === "teacher" || shellAuth?.mode === "parent") &&
     shellAuth.isPreview !== true
   );
 }
@@ -67,7 +71,8 @@ export function useDemoBannerShown(): boolean {
 const CHOOSE_ROLE = "Rolle wählen";
 
 function ActiveDemoBanner() {
-  const schoolName = useTenantSafe()?.tenant?.name;
+  const tenantName = useTenantSafe()?.tenant?.name;
+  const inParentsApp = useShellAuthSafe()?.mode === "parent";
   const startPath = useTenantAwarePath()("/");
   const toast = useToast();
   // Undefined until mounted: the server knows no stored visit, so reading it
@@ -93,9 +98,18 @@ function ActiveDemoBanner() {
     }
   }, [visit]);
 
+  // The parents app knows no school; the entry noted its name (#3468).
+  const schoolName = tenantName ?? visit?.schoolName;
+
   const chooseRole = async (role: DemoRole) => {
     if (role === visit?.role || switching) return;
     setSwitching(true);
+    if (isParentDemoRole(role) !== inParentsApp) {
+      // The other app redeems the same link on its own host; its entry
+      // page reports the switch.
+      globalThis.location.assign(demoHandoffPath(role));
+      return;
+    }
     try {
       const session = await switchDemoRole(role);
       if (!session) {

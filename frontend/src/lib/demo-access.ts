@@ -3,6 +3,7 @@
 // log records it.
 
 import { signIn } from "next-auth/react";
+import { parentsPortalUrl } from "~/lib/parent-url";
 
 /** Demo page of the website; the way back for an unknown or expired link. */
 export const DEMO_WEBSITE_URL = "https://moto-ogs.de/demo";
@@ -20,9 +21,10 @@ export function isDemoBuild(): boolean {
 
 /**
  * What the visitor sees the demo school as (#3467). The visitor has one
- * account; a switch changes its role and issues a new session.
+ * account; a switch changes its role and issues a new session. The role
+ * parent (#3468) opens the parents app on its own host with the same link.
  */
-export type DemoRole = "caregiver" | "lead" | "all";
+export type DemoRole = "caregiver" | "lead" | "parent" | "all";
 
 export const DEMO_ROLES: readonly {
   role: DemoRole;
@@ -40,6 +42,11 @@ export const DEMO_ROLES: readonly {
     description: "Personal, Planung und Anfragen der Eltern.",
   },
   {
+    role: "parent",
+    label: "Elternteil",
+    description: "Die Eltern-App: Kind, Abholung, Krankmeldung, Nachrichten.",
+  },
+  {
     role: "all",
     label: "Alle Funktionen",
     description: "Alles, was moto kann.",
@@ -48,6 +55,11 @@ export const DEMO_ROLES: readonly {
 
 function isDemoRole(value: unknown): value is DemoRole {
   return DEMO_ROLES.some((entry) => entry.role === value);
+}
+
+/** The role parent lives in the parents app, every other role in the OGS app. */
+export function isParentDemoRole(role: DemoRole): boolean {
+  return role === "parent";
 }
 
 export function demoRoleLabel(role: DemoRole): string {
@@ -152,6 +164,11 @@ export interface DemoLink {
   token: string;
   /** A role chosen on the website or behind a fair QR code (#3467). */
   role?: DemoRole;
+  /**
+   * The banner sent the visitor over from the other app (#3468): the entry
+   * reports a role switch, not a new entry.
+   */
+  switched?: boolean;
 }
 
 /**
@@ -170,14 +187,36 @@ export function takeDemoLinkFromFragment(): DemoLink | null {
   }
   if (!token) return null;
   const role = fragment.get("role");
-  return isDemoRole(role) ? { token, role } : { token };
+  const link: DemoLink = isDemoRole(role) ? { token, role } : { token };
+  if (fragment.get("switched") === "1") link.switched = true;
+  return link;
 }
 
 /** The fragment that hands a demo link on to the demo school's entry page. */
 export function demoLinkFragment(link: DemoLink): string {
   const fragment = new URLSearchParams({ token: link.token });
   if (link.role) fragment.set("role", link.role);
+  if (link.switched) fragment.set("switched", "1");
   return `#${fragment.toString()}`;
+}
+
+/**
+ * The entry page of the parents app with the link (#3468): the same token
+ * signs the visitor in there as the school's parent.
+ */
+export function parentsDemoEntryUrl(link: DemoLink): string {
+  return parentsPortalUrl(
+    `/demo${demoLinkFragment({ ...link, role: "parent" })}`,
+  );
+}
+
+/**
+ * Where the banner switches to a role of the other app (#3468). The route
+ * reads the token from its cookie and answers with a redirect to the other
+ * app's entry page, so the token never reaches a script of this page.
+ */
+export function demoHandoffPath(role: DemoRole): string {
+  return `/api/demo/access/handoff?role=${encodeURIComponent(role)}`;
 }
 
 async function postToken(path: string, token: string): Promise<Response> {
@@ -211,7 +250,11 @@ async function fetchDemoAccessProgress(
     school_name?: string;
   };
   if (body.status === "ready") {
-    return { status: "ready", schoolUrl: body.school_url };
+    return {
+      status: "ready",
+      schoolUrl: body.school_url,
+      schoolName: body.school_name,
+    };
   }
   return {
     status: body.status === "failed" ? "failed" : "preparing",
@@ -224,7 +267,7 @@ const POLL_INTERVAL_MS = 2000;
 const MAX_POLLS = 60;
 
 export type DemoWaitOutcome =
-  | { phase: "ready"; schoolUrl?: string }
+  | { phase: "ready"; schoolUrl?: string; schoolName?: string }
   | { phase: "invalid" | "failed" | "unavailable" | "cancelled" };
 
 /** What the setup screen shows while the school is prepared (#3464). */
@@ -249,7 +292,11 @@ export async function waitForDemoSchool(
     if (progress.status === "invalid") return { phase: "invalid" };
     if (progress.status === "failed") return { phase: "unavailable" };
     if (progress.status === "ready") {
-      return { phase: "ready", schoolUrl: progress.schoolUrl };
+      return {
+        phase: "ready",
+        schoolUrl: progress.schoolUrl,
+        schoolName: progress.schoolName,
+      };
     }
     if (attempt >= MAX_POLLS) return { phase: "failed" };
     onPreparing({
@@ -333,19 +380,25 @@ export interface DemoVisit {
   src?: string;
   /** The standing demo school: its shared role cannot be switched. */
   fixedRole?: boolean;
+  /**
+   * The OGS name for the banner in the parents app, which knows no school
+   * (#3468). It never goes to the analytics.
+   */
+  schoolName?: string;
   pending?: "demo_entered" | "demo_role_switched";
 }
 
 /**
  * Signs in with the session's token pair and notes the visit for the banner,
  * which reports `pending` once the next page has loaded. False when the
- * sign-in failed.
+ * sign-in failed. The parents app signs in with its own provider (#3468).
  */
 export async function startDemoSession(
   session: DemoSession,
   pending: NonNullable<DemoVisit["pending"]>,
+  provider: "credentials" | "parent-credentials" = "credentials",
 ): Promise<boolean> {
-  const result = await signIn("credentials", {
+  const result = await signIn(provider, {
     redirect: false,
     internalRefresh: true,
     token: session.access_token,
@@ -379,6 +432,8 @@ export function readDemoVisit(): DemoVisit | null {
       role: visit.role,
       src: typeof visit.src === "string" ? visit.src : undefined,
       fixedRole: visit.fixedRole === true ? true : undefined,
+      schoolName:
+        typeof visit.schoolName === "string" ? visit.schoolName : undefined,
       pending:
         visit.pending === "demo_entered" ||
         visit.pending === "demo_role_switched"

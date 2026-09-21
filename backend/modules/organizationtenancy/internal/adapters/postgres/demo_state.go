@@ -142,10 +142,12 @@ func (s *DemoStateStore) Claim(ctx context.Context) (*DemoOrder, error) {
 	return &order, nil
 }
 
-// Finish opens the school for its demo access.
-func (s *DemoStateStore) Finish(ctx context.Context, name string, visitorAccountID int64) error {
-	_, err := s.db.NewRaw(`UPDATE platform.demo_school_states SET status = 'ready', claimed_at = NULL, visitor_account_id = NULLIF(?, 0) WHERE name = ?`,
-		visitorAccountID, name).Exec(ctx)
+// Finish opens the school for its demo access and names the visitor's
+// caregiver and parent account (#3468).
+func (s *DemoStateStore) Finish(ctx context.Context, name string, visitorAccountID, visitorParentAccountID int64) error {
+	_, err := s.db.NewRaw(`UPDATE platform.demo_school_states
+		SET status = 'ready', claimed_at = NULL, visitor_account_id = NULLIF(?, 0), visitor_parent_account_id = NULLIF(?, 0) WHERE name = ?`,
+		visitorAccountID, visitorParentAccountID, name).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("finish demo school order: %w", err)
 	}
@@ -200,6 +202,8 @@ type DemoProgress struct {
 	Status           string `bun:"status"`
 	TenantID         int64  `bun:"tenant_id"`
 	VisitorAccountID int64  `bun:"visitor_account_id"`
+	// VisitorParentAccountID is the parent the visitor enters as (#3468).
+	VisitorParentAccountID int64 `bun:"visitor_parent_account_id"`
 }
 
 // Enqueue queues the order unless maxActive demo schools hold a place: queued
@@ -241,7 +245,8 @@ func (s *DemoOrderStore) Progress(ctx context.Context, name string) (*DemoProgre
 		return nil, err
 	}
 	var progress DemoProgress
-	err = db.NewRaw(`SELECT status, COALESCE(tenant_id, 0) AS tenant_id, COALESCE(visitor_account_id, 0) AS visitor_account_id
+	err = db.NewRaw(`SELECT status, COALESCE(tenant_id, 0) AS tenant_id, COALESCE(visitor_account_id, 0) AS visitor_account_id,
+			COALESCE(visitor_parent_account_id, 0) AS visitor_parent_account_id
 		FROM platform.demo_school_states WHERE name = ?`, name).Scan(ctx, &progress)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil

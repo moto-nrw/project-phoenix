@@ -66,7 +66,9 @@ func (p demoSchoolsPort) PrepareDemoSchool(ctx context.Context, schoolName, pers
 
 func (p demoSchoolsPort) DemoSchoolEntry(ctx context.Context, slug string) (domain.DemoSchoolEntry, error) {
 	entry, err := p.schools.DemoSchoolEntry(ctx, slug)
-	return domain.DemoSchoolEntry{Status: entry.Status, TenantID: entry.SchoolID, AccountID: entry.AccountID}, err
+	return domain.DemoSchoolEntry{
+		Status: entry.Status, TenantID: entry.SchoolID, AccountID: entry.AccountID, ParentAccountID: entry.ParentAccountID,
+	}, err
 }
 
 // DemoAccessDependencies compose the demo access of the public demo (#3462).

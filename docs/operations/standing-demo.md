@@ -26,7 +26,10 @@ school of #3461 stays selectable as the fallback (see below).
    the administrator role, and the demo access signs in as that account.
 4. After the seed the process runs the school's first tick, which rebuilds
    rooms and attendance at any hour and on any weekday, and only then sets
-   `status = ready`.
+   `status = ready`. It names the visitor's caregiver (`visitor_account_id`)
+   and the visitor's parent (`visitor_parent_account_id`, #3468): the
+   renamed Sabine Schneider, a primary guardian with full parents portal
+   rights for exactly one child.
 5. Only schools in use get ticks (#3464). Redeeming the token stamps
    `last_used_at` on the school's row (the serving role may write that one
    column), and the process keeps one ticker per ready school entered in the
@@ -159,6 +162,14 @@ HTTP database roles cannot read that table.
   device or whose latest departure was booked by staff without a kiosk is
   left alone for 15 minutes. Automatic closing does not restart that period.
   Failed reads never trigger a rebuild.
+- Parent ticks (#3468): every 3 minutes another parent of the school asks
+  for a pickup change on a school day from the day after tomorrow on, or
+  writes a message about the own child, alternating, so „Offene Anfragen" in
+  the OGS app is never empty. One parent acts for 10 minutes on one login,
+  then the next takes over. The visitor's parent and every parent who shares
+  its child stay out: their messages would appear in the visitor's own
+  parents app. A request the school refuses (4xx) is skipped; a failing
+  parent never stops the children's ticks of the same round.
 - When no visits remain, the runner restores sessions and attendance without
   consulting the weekday timetable. It keeps existing sessions alive and
   recreates those ended by daily close. School schedules themselves are not

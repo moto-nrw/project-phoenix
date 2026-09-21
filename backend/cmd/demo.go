@@ -122,12 +122,15 @@ func runStandingDemo(ctx context.Context, schools *backendapi.DemoRuntime, baseU
 }
 
 // demoSchool is one seeded demo school with its own client and ticker.
+// visitorID and visitorParentID are the caregiver and the parent who carry
+// the visitor's name (#3463, #3468).
 type demoSchool struct {
-	slug      string
-	state     *simulate.SeedState
-	client    *seedapi.Client
-	ticker    *simulate.DemoTicker
-	visitorID int64
+	slug            string
+	state           *simulate.SeedState
+	client          *seedapi.Client
+	ticker          *simulate.DemoTicker
+	visitorID       int64
+	visitorParentID int64
 }
 
 func loadDemoSchool(ctx context.Context, schools *backendapi.DemoRuntime, slug, baseURL string) (*demoSchool, error) {
@@ -160,14 +163,26 @@ func loadDemoSchool(ctx context.Context, schools *backendapi.DemoRuntime, slug, 
 	if err != nil {
 		return nil, err
 	}
-	ticker, err := simulate.NewDemoTicker(simulate.DemoTickOptions{State: state, Client: client, Now: time.Now, Visits: query})
+	visitorParentID := seedapi.VisitorParentAccountID(profile)
+	ticker, err := simulate.NewDemoTicker(simulate.DemoTickOptions{
+		State: state, Client: client, Now: time.Now, Visits: query,
+		// The other parents ask for pickup changes and write messages (#3468);
+		// they keep a client of their own, apart from the admin's login.
+		Parents: simulate.OtherDemoParents(profile.Credentials.Parents, visitorParentID),
+		ParentClient: func() simulate.DemoParentClient {
+			return seedapi.NewClientWithAdapter(newSeedCommandAdapter(baseURL, false), false)
+		},
+	})
 	if err != nil {
 		return nil, err
 	}
 	if len(state.Accounts.Admin) == 0 {
 		return nil, fmt.Errorf("stored demo has no admin")
 	}
-	return &demoSchool{slug: slug, state: state, client: client, ticker: ticker, visitorID: seedapi.VisitorAccountID(profile)}, nil
+	return &demoSchool{
+		slug: slug, state: state, client: client, ticker: ticker,
+		visitorID: seedapi.VisitorAccountID(profile), visitorParentID: visitorParentID,
+	}, nil
 }
 
 // tick signs the school's admin in when due and executes one tick.
