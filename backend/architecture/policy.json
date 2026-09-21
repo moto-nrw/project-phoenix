@@ -24619,7 +24619,7 @@
       "source_role": "module-behavior-test",
       "target_owner": "inbound-timetable",
       "target_role": "test-support",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
       "id": "document-rendering.adapter-test.inbound-timetable-test-support",
@@ -24631,7 +24631,7 @@
       "source_role": "adapter-test",
       "target_owner": "inbound-timetable",
       "target_role": "test-support",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
       "id": "scheduler-runtime.module-internal-test.inbound-timetable-test-support",
@@ -24643,7 +24643,7 @@
       "source_role": "module-internal-test",
       "target_owner": "inbound-timetable",
       "target_role": "test-support",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3351"
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
       "id": "inbound-timetable.test-support.transaction-runtime-postgres",
