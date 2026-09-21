@@ -77,7 +77,7 @@
   ],
   "atomic_cutover": "The legacy auth models and authpostgres repositories are deleted in the same change that binds every consumer to the module's native adapters, owner capabilities or consumer-owned ports; no consumer keeps a fallback to the legacy rows. The token adapter loses its tenant runtime, viper and randstr imports together with the root change that resolves the signer once and binds the scope gates through jwt.TenantScope. Table shapes, RLS policies and the token wire format are unchanged; no DDL and no data migration. The adapter package legacy/jwt itself stays and continues under #3487.",
   "tests": [
-    "scripts/test-changed.sh origin/development without --fast on the candidate: 177 packages ok. One failure, TestFullProductionRouterGolden/contracts/phase_response_query_budget in package api (enrollment phase responses, 13 instead of 10 statements), did not reproduce in seven isolated reruns of the test and the package.",
+    "scripts/test-changed.sh origin/development without --fast on the final commit: 178 packages ok, 0 failures. An earlier run of the same command failed once in TestFullProductionRouterGolden/contracts/phase_response_query_budget (package api, enrollment phase responses, 13 instead of 10 statements); it did not reproduce in seven isolated reruns or in the two following full runs.",
     "Identity & Access behavior and integration suites, api/auth, api/operator and api/common scope-middleware suites, TestNativeSessionCodecTokenBoundaries and TestNativeSessionCodecRejectsOtherHMACAlgorithms for the token wire format, the route-table golden with its verifier-before-authenticator walk.",
     "scripts/backend-architecture.sh check and golangci-lint on the touched packages."
   ],
@@ -144,7 +144,7 @@
     },
     "smoke": {
       "state": "measured",
-      "result": "All ten measured operations succeed end to end through the mounted auth router on both sides; the full changed-package run reports 177 packages ok."
+      "result": "All ten measured operations succeed end to end through the mounted auth router on both sides; the full changed-package run on the final commit reports 178 packages ok."
     }
   },
   "rollback_and_cleanup": "Revert the commit range against the unchanged schema; no data cleanup or deployment sequencing is required. AUTH_JWT_SECRET must be an explicit secret on both sides of the revert, as serve already required.",
