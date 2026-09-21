@@ -347,6 +347,7 @@ export function NotificationSetupDialog({
       isDismissDisabled={busy}
       footer={footer}
       mobileSheet
+      focusTitleOnOpen
     >
       <div className="space-y-5">
         {/* Anleitungen tragen ihre eigenen Schrittsymbole; ein zweites Symbol
@@ -358,15 +359,15 @@ export function NotificationSetupDialog({
           <PushInstallSteps platform="android" />
         ) : (
           <div className="flex items-start gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gray-100">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gray-100">
               <MotoConceptIcon
                 concept={
                   mode.startsWith("install-") ? "devices" : "notifications"
                 }
-                size={26}
+                size={22}
               />
             </div>
-            <p className="text-[17px] leading-7 text-gray-700">
+            <p>
               {mode === "install-android"
                 ? t("installAndroidIntro")
                 : mode === "denied"
