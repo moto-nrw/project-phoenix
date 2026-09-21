@@ -4,7 +4,10 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Pencil } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { normalizeTimeInput } from "~/components/ui/time-field";
+import {
+  completesOneDigitHour,
+  normalizeTimeInput,
+} from "~/components/ui/time-field";
 
 interface SettingsTimeFieldProps {
   readonly ariaLabel?: string;
@@ -44,9 +47,13 @@ export function SettingsTimeField({
   const [display, setDisplay] = useState(value);
   const [isEditing, setIsEditing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const completedOneDigitHour = useRef<string | null>(null);
 
   useEffect(() => {
     setDisplay(value);
+    if (completedOneDigitHour.current !== value) {
+      completedOneDigitHour.current = null;
+    }
     if (value === "") {
       setIsEditing(false);
     }
@@ -54,7 +61,14 @@ export function SettingsTimeField({
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const formatted = normalizeTimeInput(e.target.value);
+      const formatted = normalizeTimeInput(
+        e.target.value,
+        display,
+        completedOneDigitHour.current === display,
+      );
+      completedOneDigitHour.current = completesOneDigitHour(e.target.value)
+        ? formatted
+        : null;
       setDisplay(formatted);
       if (formatted === "" && emptyLabel) {
         onChange("");
@@ -64,10 +78,11 @@ export function SettingsTimeField({
         onChange(formatted);
       }
     },
-    [emptyLabel, onChange],
+    [display, emptyLabel, onChange],
   );
 
   const handleBlur = useCallback(() => {
+    completedOneDigitHour.current = null;
     if (!isValidTime(display)) {
       setDisplay(value);
       if (value === "") {
@@ -118,7 +133,7 @@ export function SettingsTimeField({
           }
         }}
         disabled={disabled}
-        maxLength={5}
+        maxLength={6}
         controlSize="compact"
         className="text-center tabular-nums"
       />

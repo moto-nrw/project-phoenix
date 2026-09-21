@@ -462,6 +462,9 @@ function editStudentTopic(): HelpTopic {
     ],
     notes: [
       "Steht unter dem Feld `Ankunft` die Auswahl `Nach Schulstunde`? Wählen Sie zum Beispiel `5. Stunde`. moto trägt die passende Uhrzeit ein.",
+      // #3371: Knopf erscheint nur mit gepflegter Vorgabe unter einem leeren
+      // Feld an einem Betreuungstag (care-weekly-plan-editor.tsx).
+      "Steht unter einem leeren Feld zum Beispiel `16:00 Uhr eintragen`? Ein Klick trägt die übliche Zeit Ihrer Schule ein.",
     ],
     related: [
       HELP_TOPICS.studentSearch,
@@ -2856,6 +2859,11 @@ function careTimesTopic(): HelpTopic {
       "Dieselbe Auswahl gibt es für eine ganze Klasse: unter `Kinderdaten` im Menü der Klasse bei `Ankunftszeit bearbeiten`.",
       "Die Auswahl erscheint, wenn unter `Einstellungen` bei `Schulstunden` Uhrzeiten stehen. Jede Schule pflegt ihre eigenen Zeiten.",
       "Ändern Sie später eine Schulstunde, bleiben gespeicherte Zeiten unverändert.",
+      // #3371: Textfeld mit Ziffernmaske statt nativem Zeitfeld, Knopf nur
+      // mit gepflegter Vorgabe (care-weekly-plan-editor.tsx).
+      "Tippen Sie nur Ziffern, zum Beispiel 1600 für 16:00 Uhr.",
+      "Steht unter einem leeren Feld zum Beispiel `16:00 Uhr eintragen`? Ein Klick trägt die übliche Zeit Ihrer Schule ein.",
+      "Die üblichen Zeiten stehen unter `Einstellungen` bei `Betreuungszeiten`. Jede Schule pflegt ihre eigenen Zeiten.",
     ],
     differences: [
       // Einstellung `enrollment.bookings_authoritative`, Vorgabe aus. Der

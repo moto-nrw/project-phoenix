@@ -344,6 +344,25 @@ describe("SettingsField", () => {
     expect(queryByText("Jederzeit")).not.toBeInTheDocument();
   });
 
+  // #3371: an empty care time preset offers nothing; „Jederzeit“ would read as
+  // „children may arrive at any time“.
+  it("shows an empty care time preset as not entered", () => {
+    const { getByText, queryByText } = renderWithProviders(
+      <SettingsField
+        setting={makeSetting({
+          key: "care_times.default_pickup",
+          type: "time",
+          value: "",
+          default: "",
+        })}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    expect(getByText("Nicht eingetragen")).toBeInTheDocument();
+    expect(queryByText("Jederzeit")).not.toBeInTheDocument();
+  });
+
   it("keeps Jederzeit for other optional time settings", () => {
     const { getByText } = renderWithProviders(
       <SettingsField

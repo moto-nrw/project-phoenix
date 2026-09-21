@@ -207,11 +207,13 @@ vi.mock("./care-weekly-plan-modal", () => ({
     onSubmit,
     careDaysSource,
     schoolPeriods,
+    timePresets,
   }: {
     isOpen: boolean;
     onClose: () => void;
     careDaysSource: "weekly_plan" | "bookings";
     schoolPeriods?: Array<{ period: number; end_time: string }>;
+    timePresets?: { arrival: string; pickup: string };
     onSubmit: (data: {
       arrivalSchedules: Array<{
         weekday: number;
@@ -238,6 +240,9 @@ vi.mock("./care-weekly-plan-modal", () => ({
                 `${schoolPeriod.period}: ${schoolPeriod.end_time}`,
             )
             .join(", ")}
+        </span>
+        <span data-testid="care-time-presets">
+          {timePresets ? `${timePresets.arrival}/${timePresets.pickup}` : ""}
         </span>
         <button
           type="button"
@@ -855,6 +860,33 @@ describe("StudentCreateModal", () => {
     );
     expect(screen.getByTestId("care-school-periods")).toHaveTextContent(
       "1: 08:45, 2: 09:35",
+    );
+  });
+
+  // #3371: Sven's workflow is the create assistant, so the school's usual
+  // times must reach its weekly plan.
+  it("hands the school's usual times to the weekly care-plan editor", async () => {
+    mockFetchArrivalSettings.mockResolvedValueOnce({
+      care_days_source: "weekly_plan",
+      school_periods: [],
+      defaultArrivalTime: "12:30",
+      defaultPickupTime: "16:00",
+    });
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await screen.findByTestId("personal-info-section");
+    await act(async () => {
+      fireEvent.click(screen.getByText("Wochenplan hinzufügen"));
+    });
+
+    expect(screen.getByTestId("care-time-presets")).toHaveTextContent(
+      "12:30/16:00",
     );
   });
 

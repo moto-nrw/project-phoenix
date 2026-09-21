@@ -91,6 +91,49 @@ func TestGetArrivalSettingsSchoolPeriods(t *testing.T) {
 	})
 }
 
+// The usual arrival and pickup time a school maintains feed the one-click
+// adoption of the weekly plan (#3371).
+func TestGetArrivalSettingsCareTimePresets(t *testing.T) {
+	t.Parallel()
+
+	tc := setupStudentsRoute(t)
+
+	t.Run("nothing is offered while the school maintains no preset", func(t *testing.T) {
+		req := testutil.NewRequest("GET", "/arrival-settings", nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"users:read"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), `"default_arrival_time":""`)
+		assert.Contains(t, rr.Body.String(), `"default_pickup_time":""`)
+	})
+
+	t.Run("maintained presets come back as clock times", func(t *testing.T) {
+		ctx := testpkg.Ctx(t)
+		for key, value := range map[string]string{
+			configModel.KeyCareDefaultArrivalTime: "12:30",
+			configModel.KeyCareDefaultPickupTime:  "16:00",
+		} {
+			require.NoError(t, tc.resource.SettingsService.SetValue(ctx, key, value, nil, nil))
+			t.Cleanup(func() {
+				require.NoError(t, tc.resource.SettingsService.ResetValue(testpkg.Ctx(t), key, nil, nil))
+			})
+		}
+
+		req := testutil.NewRequest("GET", "/arrival-settings", nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"users:read"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), `"default_arrival_time":"12:30"`)
+		assert.Contains(t, rr.Body.String(), `"default_pickup_time":"16:00"`)
+	})
+
+	t.Run("a value that is no clock time is refused", func(t *testing.T) {
+		err := tc.resource.SettingsService.SetValue(
+			testpkg.Ctx(t), configModel.KeyCareDefaultPickupTime, "nachmittags", nil, nil)
+		require.Error(t, err)
+	})
+}
+
 func TestGetClassArrivalTimesUsesStandardEnvelope(t *testing.T) {
 	t.Parallel()
 
