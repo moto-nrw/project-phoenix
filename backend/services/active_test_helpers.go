@@ -192,7 +192,7 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 		return ActiveTestModule{}, err
 	}
 	dashboard, err := supervisiondashboardlegacy.New(supervisiondashboardlegacy.Sources{Active: presence, ActiveGroups: openRoomSessionPresence{newStudentPresence(db, logger), timetableOwner},
-		OpenVisits: active.NewVisitDisplayBatchReader(presenceDeps), Rooms: openRoomDirectory{rooms: rooms}, UserContext: groups.UserContext, Education: groups.Education,
+		OpenVisits: active.NewVisitDisplayBatchReader(presenceDeps), Rooms: openRoomDirectory{rooms: rooms}, UserContext: supervisionCaller{groups.UserContext}, Education: groups.Education,
 		Schulhof: yard, Operations: operations, Settings: settings.Settings, Pickups: pickups, Arrivals: arrivals, Now: optionalClock(clocks)})
 	if err != nil {
 		return ActiveTestModule{}, fmt.Errorf("compose supervision dashboard projection: %w", err)

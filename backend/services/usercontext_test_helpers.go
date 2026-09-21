@@ -4,31 +4,45 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 type UserContextTestModule struct {
-	UserContext usercontext.UserContextService
+	UserContext *repositories.CallerRows
 }
 
 func NewUserContextTestModule(db *bun.DB, unit tenant.UnitOfWork) (UserContextTestModule, error) {
-	r, err := repositories.NewUserContextTestRepositories(db)
-	if err != nil {
-		return UserContextTestModule{}, err
-	}
 	settings, err := NewSettingsTestModule(db, unit)
 	if err != nil {
 		return UserContextTestModule{}, err
 	}
+	rows, err := newCallerRowsForTests(db, settings.Settings)
+	if err != nil {
+		return UserContextTestModule{}, err
+	}
+	return UserContextTestModule{UserContext: rows}, nil
+}
+
+// newCallerRowsForTests composes the caller context over the same owners as
+// production. settings may be nil.
+func newCallerRowsForTests(db *bun.DB, settings callerSettings) (*repositories.CallerRows, error) {
+	r, err := repositories.NewUserContextTestRepositories(db)
+	if err != nil {
+		return nil, err
+	}
+	membership, err := repositories.NewSchoolMembership(db)
+	if err != nil {
+		return nil, err
+	}
 	tt := r.Timetable
-	service := usercontext.NewUserContextServiceWithRepos(usercontext.UserContextRepositories{
-		AccountRepo: repositories.NewCurrentAccountAccess(r.Profile), PersonRepo: tt.Person, StaffRepo: tt.Staff, TeacherRepo: tt.Teacher,
-		StudentRepo: tt.Student, EducationGroupRepo: tt.Group, ActivityGroupRepo: tt.ActivityGroup,
-		ActiveGroupRepo: tt.ActiveGroup, Presence: newStudentPresence(db, slog.Default()), SupervisorRepo: tt.GroupSupervisor,
-		ProfileRepo: r.Profile, StaffGroups: r.StaffGroups,
-		ActiveService: NewSSEPresence(newStudentPresence(db, slog.Default())), SSESettings: settings.Settings,
-	}, slog.Default())
-	return UserContextTestModule{UserContext: service}, nil
+	return newCallerRows(callerContextWiring{
+		Accounts: r.Profile, Persons: tt.Person, Membership: membership, StaffGroups: r.StaffGroups,
+		SupervisedActivities: supervisedActivityGroupIDs(tt.ActivityGroup),
+		Presence:             newStudentPresence(db, slog.Default()),
+		Settings:             settings,
+	}, repositories.CallerRowSources{
+		Groups: tt.Group, Staff: tt.Staff, Teachers: tt.Teacher, Students: tt.Student,
+		Activities: tt.ActivityGroup, Sessions: tt.ActiveGroup,
+	})
 }

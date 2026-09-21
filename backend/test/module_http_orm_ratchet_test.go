@@ -59,7 +59,6 @@ var moduleHTTPORMAllowlist = map[string]int{
 	"modules/delivery/http/sse/resource.go":                        1,
 	"modules/emergencysnapshot/http/api.go":                        1,
 	"modules/filestorage/http/files/api.go":                        1,
-	"modules/identityaccess/inbound/usercontext/api.go":            1,
 	"modules/organizationtenancy/inbound/operator/provisioning.go": 1,
 	"modules/settings/inbound/operator/settings.go":                1,
 	"modules/statistics/http/api.go":                               1,
