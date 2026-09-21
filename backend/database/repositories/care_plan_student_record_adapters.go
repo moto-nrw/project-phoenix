@@ -1,4 +1,4 @@
-package legacy
+package repositories
 
 import (
 	"context"
@@ -8,14 +8,18 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
 
+// Companion edges and child documents are Care Plan records that the retained
+// student services still read through the people model contracts. These
+// repositories translate those contracts onto the owner's Commands and Queries.
+
 type companionRepository struct{ capability careplan.Capability }
 
 var _ usersRepo.StudentCompanionRepository = companionRepository{}
 
-type CompanionRepository struct{ companionRepository }
-
-func NewCompanionRepository(capability careplan.Capability) *CompanionRepository {
-	return &CompanionRepository{companionRepository{capability: capability}}
+// NewStudentCompanionRepository serves the companion edge contract over the
+// Care Plan owner capability.
+func NewStudentCompanionRepository(capability careplan.Capability) usersRepo.StudentCompanionRepository {
+	return companionRepository{capability: capability}
 }
 
 func (r companionRepository) ListForStudent(ctx context.Context, studentID int64) ([]*usersRepo.StudentCompanion, error) {
@@ -106,7 +110,9 @@ type careDocumentRepository struct{ capability careplan.Capability }
 
 var _ usersRepo.StudentDocumentRepository = careDocumentRepository{}
 
-func NewCareDocumentRepository(capability careplan.Capability) usersRepo.StudentDocumentRepository {
+// NewStudentDocumentRepository serves the child document contract over the
+// Care Plan owner capability.
+func NewStudentDocumentRepository(capability careplan.Capability) usersRepo.StudentDocumentRepository {
 	return careDocumentRepository{capability: capability}
 }
 

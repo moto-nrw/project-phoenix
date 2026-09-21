@@ -63,7 +63,7 @@ func newStudentDocumentScenario(t *testing.T) *studentDocumentScenario {
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := carelifecycle.NewStudentDocumentService(
 		db,
-		repos.StudentDocument,
+		repositories.NewStudentDocumentRepository(repos.CarePlan()),
 		repos.Student,
 		repos.StudentFieldEdit,
 		repos.DataAccessLog,
@@ -336,7 +336,7 @@ func TestStudentDocumentService_NonStaffCallerIsUnreachable(t *testing.T) {
 	repos := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
 	outsider := carelifecycle.NewStudentDocumentService(
 		s.db,
-		repos.StudentDocument,
+		repositories.NewStudentDocumentRepository(repos.CarePlan()),
 		repos.Student,
 		repos.StudentFieldEdit,
 		repos.DataAccessLog,
@@ -421,7 +421,7 @@ func TestStudentDocumentService_RefusesToWriteWithoutAnAuditTrail(t *testing.T) 
 	repos := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
 	unaudited := carelifecycle.NewStudentDocumentService(
 		s.db,
-		repos.StudentDocument,
+		repositories.NewStudentDocumentRepository(repos.CarePlan()),
 		repos.Student,
 		nil,
 		repos.DataAccessLog,
@@ -448,7 +448,7 @@ func TestStudentDocumentService_RefusesToWriteWithoutAnAuditTrail(t *testing.T) 
 	// row, no file.
 	unlogged := carelifecycle.NewStudentDocumentService(
 		s.db,
-		repos.StudentDocument,
+		repositories.NewStudentDocumentRepository(repos.CarePlan()),
 		repos.Student,
 		repos.StudentFieldEdit,
 		nil,
@@ -695,7 +695,7 @@ func TestStudentDocumentService_AuthorizeUploadWritesNothing(t *testing.T) {
 	repos := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
 	outsider := carelifecycle.NewStudentDocumentService(
 		s.db,
-		repos.StudentDocument,
+		repositories.NewStudentDocumentRepository(repos.CarePlan()),
 		repos.Student,
 		repos.StudentFieldEdit,
 		repos.DataAccessLog,

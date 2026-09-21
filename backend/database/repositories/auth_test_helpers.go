@@ -4,7 +4,7 @@ import (
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
+	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/uptrace/bun"
@@ -27,7 +27,7 @@ func NewAuthTestRepositories(db *bun.DB, command auditModels.Command) (*Factory,
 		Staff: members.Staff, Teacher: members.Teacher, GroupTeacher: members.GroupTeacher, ClassTeacher: members.ClassTeacher,
 		RFIDCard: newIdentityAccess(db, nil), Student: NewStudentRepository(db),
 		GuardianProfile: NewGuardianProfileRepository(db), StudentGuardian: NewStudentGuardianRepository(db),
-		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(carePlanLegacy.NewParentRuntime(db), enrollmentCompose.New(), identityAccountDirectory{accounts: newIdentityAccess(db, nil)}),
+		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(parentRepo.RuntimeFunc(carePlanCompose.TenantAmbientDatabase(db)), enrollmentCompose.New(), identityAccountDirectory{accounts: newIdentityAccess(db, nil)}),
 		PushSubscription:        deliveryCompose.NewPushSubscriptionRepository(db),
 		AuthEvent:               authEventCommand{auditRepo.NewAuthEventRepository(newTestAuditRuntime(db)), command},
 		// The operator second factor appends to the operator ledger

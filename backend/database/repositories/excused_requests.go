@@ -9,7 +9,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 )
 
 // ExcusedRequestWiring is the legacy graph's contribution to the Care Plan
@@ -39,7 +38,7 @@ func NewExcusedAbsenceRequests(wiring ExcusedRequestWiring) (*carePlanCompose.Ex
 	}
 	today := wiring.Today
 	if today == nil {
-		today = carePlanLegacy.TodayDate
+		today = carePlanCompose.Today
 	}
 	return carePlanCompose.NewExcusedAbsenceRequests(carePlanCompose.ExcusedRequestDependencies{
 		CarePlan: wiring.CarePlan,

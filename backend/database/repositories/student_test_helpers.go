@@ -4,7 +4,6 @@ import (
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -21,11 +20,9 @@ type StudentTestRepositories struct {
 	EnrollmentTestRepositories
 	CareScheduleChangeRequest    scheduleModels.CareScheduleChangeRequestRepository
 	ExcusedAbsenceRequest        activeModels.ExcusedAbsenceRequestRepository
-	OfferingChangeRequest        enrollmentModels.OfferingChangeRequestRepository
 	ParentRequestEvent           usersModels.ParentRequestEventRepository
 	StudentDataChangeRequest     usersModels.StudentDataChangeRequestRepository
 	FamilyProtection             usersModels.FamilyProtectionEventRepository
-	StudentDocument              usersModels.StudentDocumentRepository
 	EnrollmentOfferingAdjustment auditModels.EnrollmentOfferingAdjustmentRepository
 	EnrollmentRestorationAudit   auditModels.EnrollmentRestorationRepository
 	GuardianFinancialChange      auditModels.GuardianFinancialChangeCreator
@@ -84,11 +81,9 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (Studen
 		ParentRequestShare:           usersRepo.NewParentRequestShareEventRepository(db),
 		CareScheduleChangeRequest:    r.CareScheduleChangeRequest,
 		ExcusedAbsenceRequest:        r.ExcusedAbsenceRequest,
-		OfferingChangeRequest:        r.OfferingChangeRequest,
 		ParentRequestEvent:           r.ParentRequestEvent,
 		StudentDataChangeRequest:     r.StudentDataChangeRequest,
 		FamilyProtection:             r.FamilyProtection,
-		StudentDocument:              r.StudentDocument,
 		EnrollmentOfferingAdjustment: r.EnrollmentOfferingAdjustment,
 		EnrollmentRestorationAudit:   r.EnrollmentRestorationAudit,
 		GuardianFinancialChange:      r.GuardianFinancialChange,
