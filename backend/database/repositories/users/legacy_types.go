@@ -1,7 +1,6 @@
 package users
 
 import (
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -17,8 +16,3 @@ type CareExit = userModels.CareExit
 
 var CompanionWeekdayKeys = userModels.CompanionWeekdayKeys
 var ErrCompanionInvalidWeekday = userModels.ErrCompanionInvalidWeekday
-
-func CareExitDate(value string) *timezone.Date {
-	date := timezone.Date(value)
-	return &date
-}

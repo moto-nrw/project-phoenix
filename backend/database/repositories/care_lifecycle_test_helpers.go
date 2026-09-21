@@ -87,12 +87,6 @@ func (r CareLifecycleTestRepositories) NewCareLifecycle(config CareLifecycleTest
 	})
 }
 
-// NewCompanions composes the native companion capability over these
-// repositories. audit may be nil when the suite never widens a plan.
-func (r CareLifecycleTestRepositories) NewCompanions(audit StudentChangeAudit) (careplan.StudentCompanions, error) {
-	return carePlanCompose.NewCompanions(r.CarePlan, NewCompanionStudents(r.Student, r.sources.People, audit))
-}
-
 // MustNewStudentCompanions composes the companion capability over a test
 // graph's Care Plan records, student repository and People Directory. audit
 // may be nil when the suite never widens a plan.

@@ -1,10 +1,6 @@
 package users
 
 import (
-	"errors"
-	"strings"
-	"unicode/utf8"
-
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -24,19 +20,6 @@ const (
 // unreviewed notes column on the child.
 const MaxCareExitNoteLen = 200
 
-var (
-	// ErrCareExitInvalidReason means the reason is not one of the three the
-	// product offers.
-	ErrCareExitInvalidReason = errors.New("users: invalid care exit reason")
-	// ErrCareExitNoteRequired means "Anderer Grund" was chosen without the
-	// short free text that makes it readable later.
-	ErrCareExitNoteRequired = errors.New("users: care exit reason note is required for the other reason")
-	// ErrCareExitNoteNotAllowed means a categorised reason carried free text.
-	ErrCareExitNoteNotAllowed = errors.New("users: care exit reason note is only allowed for the other reason")
-	// ErrCareExitNoteTooLong means the optional explanation exceeds the limit.
-	ErrCareExitNoteTooLong = errors.New("Die Begründung ist zu lang. Bitte kürzen Sie sie.") //nolint:staticcheck // user-facing German message
-)
-
 // CareExit records WHY a child's care ended and who wrote that down.
 //
 // It deliberately does not carry the last care day. users.students
@@ -55,45 +38,6 @@ type CareExit struct {
 	ReasonNote             *string        `bun:"reason_note" json:"reason_note,omitempty"`
 	RecordedBy             *int64         `bun:"recorded_by" json:"recorded_by,omitempty"`
 	WithdrawalCompletionID *int64         `bun:"withdrawal_completion_id" json:"-"`
-}
-
-// Validate normalizes and checks the reason pair.
-func (e *CareExit) Validate() error {
-	if e.StudentID <= 0 {
-		return errors.New("users: care exit requires a student")
-	}
-	if !IsValidCareExitReason(e.Reason) {
-		return ErrCareExitInvalidReason
-	}
-	if e.ReasonNote != nil {
-		trimmed := strings.TrimSpace(*e.ReasonNote)
-		if trimmed == "" {
-			e.ReasonNote = nil
-		} else {
-			if utf8.RuneCountInString(trimmed) > MaxCareExitNoteLen {
-				return ErrCareExitNoteTooLong
-			}
-			e.ReasonNote = &trimmed
-		}
-	}
-	if e.Reason == CareExitReasonOther && e.ReasonNote == nil {
-		return ErrCareExitNoteRequired
-	}
-	if e.Reason != CareExitReasonOther && e.ReasonNote != nil {
-		return ErrCareExitNoteNotAllowed
-	}
-	return nil
-}
-
-// IsValidCareExitReason reports whether the value is one of the three reasons
-// the product offers.
-func IsValidCareExitReason(reason string) bool {
-	switch reason {
-	case CareExitReasonMovedAway, CareExitReasonNoCareNeed, CareExitReasonOther:
-		return true
-	default:
-		return false
-	}
 }
 
 // CareEndedOn reports whether the child's care has already ended on the given
