@@ -194,13 +194,13 @@ function PhaseRow({
       href={`/parents/anmeldung/${encodeURIComponent(
         phase.school_subdomain,
       )}/${encodeURIComponent(phase.phase_id)}`}
-      aria-label={`${t("openPhase")}: ${phase.phase_name}`}
+      aria-label={`${t("openPhase")}: ${phaseDisplayName(phase, locale)}`}
       className="group flex items-center gap-4 p-4 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:px-6"
     >
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-semibold text-gray-900">
-            {phase.phase_name}
+            {phaseDisplayName(phase, locale)}
           </span>
           <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-600">
             {kindLabel}
@@ -279,4 +279,9 @@ function ParentEnrollSkeleton() {
       ))}
     </div>
   );
+}
+
+/** Phase name in the parent's language where the school translated it (#3377). */
+function phaseDisplayName(phase: EnrollablePhase, locale: string): string {
+  return phase.phase_name_translations?.[locale] ?? phase.phase_name;
 }

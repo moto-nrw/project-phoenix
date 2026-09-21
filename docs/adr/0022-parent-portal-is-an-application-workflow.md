@@ -92,3 +92,23 @@ The remaining flows moved into `workflows/parentportal/legacy`, classified
 `parent-portal`/`application` point, because that point exists at the base SHA
 and PR mode admits no new permission on it. The package now holds the public
 `Service` contract. The details are in `backend/architecture/README.md`.
+
+## Addendum (#3420)
+
+`workflows/parentportal/legacy` is dissolved. Its coordination moved into
+`workflows/parentportal/care`; the business writes moved onto owner
+commands: Care Plan for status days, the guardian pickup exception with its
+derived excusal, the Stammdaten requests and the child's care profile (health
+information, live absence flags), People Directory for guardian rows and the
+photo consent, Audit Platform for the guardian change trail. Each flow keeps
+the relationship's `parent_portal.*` check with the same permission constant
+and calls the commands inside one tenant unit of work taken from the request
+context; the portal language is written per school instead of in an
+administrative transaction.
+
+Two role points replace the `adapter` point: `workflows/parentportal`
+(`port`) carries the vocabulary the HTTP composition matches and the composed
+portal, and `workflows/parentportal/compose` (`compose`) binds the owners.
+The root is a port, not a public contract, because its vocabulary still
+carries retained model types. The announcement receipts in `messaging` are
+unchanged and remain Communication's follow-up.

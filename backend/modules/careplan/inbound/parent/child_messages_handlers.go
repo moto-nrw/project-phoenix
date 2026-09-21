@@ -10,7 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // MessageResponse is one message in a conversation. IDs stringified per the

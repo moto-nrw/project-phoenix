@@ -3,13 +3,10 @@ package care
 import (
 	"context"
 
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // attendanceCultureLookbackDays bestimmt, ueber wie viele Kalendertage
@@ -44,7 +41,7 @@ func (s *Service) GetChildTodayStatus(ctx context.Context, accountID, studentID 
 	today := s.todayDate()
 	facts := todayStatusFacts{NowHHMM: berlinHHMM(s.now())}
 
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		absent, absErr := s.hasActiveAbsenceToday(txCtx, studentID, today)
 		if absErr != nil {
 			return absErr

@@ -36,14 +36,9 @@ func (s *userContextService) GetMySchoolClasses(ctx context.Context) ([]string, 
 		return nil, &UserContextError{Op: opGetMySchoolClasses, Err: err}
 	}
 
-	assignments, err := s.classTeacherRepo.FindByStaff(ctx, staff.ID)
+	classes, err := s.staffGroups.SchoolClasses(ctx, staff.ID)
 	if err != nil {
 		return nil, &UserContextError{Op: opGetMySchoolClasses, Err: err}
-	}
-
-	classes := make([]string, 0, len(assignments))
-	for _, assignment := range assignments {
-		classes = append(classes, assignment.SchoolClass)
 	}
 
 	if memo {

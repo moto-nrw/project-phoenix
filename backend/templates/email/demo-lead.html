@@ -1,0 +1,16 @@
+{{define "demo-lead.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    {{template "moto-brand" .}}
+    <h1>Neuer Demo-Zugang</h1>
+    <p>Name: {{.PersonName}}</p>
+    <p>OGS: {{.OGSName}}</p>
+    <p>E-Mail: {{.Email}}</p>
+    <p>Quelle: {{if .Source}}{{.Source}}{{else}}keine Angabe{{end}}</p>
+    <p>Kontakt erlaubt: {{if .ContactOptIn}}ja{{else}}nein{{end}}</p>
+    <p>Kennung des Demo-Zugangs: {{.AccessID}}</p>
+</div>
+
+{{template "footer" .}}
+{{end}}

@@ -102,11 +102,10 @@ func TestIdentityRequestCacheDedupesChain(t *testing.T) {
 	ctx := usercontextSvc.WithIdentityRequestCache(contextWithClaims(t, int(account.ID)))
 	resolveFullChain(t, ctx, service)
 
-	// Each stage must be loaded exactly once per request. Two distinct repo
-	// projections read substitutions (GetMyGroups uses
-	// FindActiveBySubstituteWithRelations, GetSubstitutedGroupIDs uses
-	// FindActiveBySubstitute); each is memoized at its result level, so 2 is
-	// the per-request floor. Unifying the two projections is out of scope.
+	// Each stage must be loaded exactly once per request. GetMyGroups and
+	// GetSubstitutedGroupIDs each read substitutions through StaffGroupReads
+	// and are memoized at their own result level, so 2 is the per-request
+	// floor. Sharing one read between them is out of scope.
 	testpkg.AssertQueryBudget(t, "services.usercontext.identity_chain.persons", counter.bucket("persons"))
 	testpkg.AssertQueryBudget(t, "services.usercontext.identity_chain.staff", counter.bucket("staff"))
 	testpkg.AssertQueryBudget(t, "services.usercontext.identity_chain.teachers", counter.bucket("teachers"))

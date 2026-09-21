@@ -20,6 +20,7 @@ import {
   fetchPublicPhases,
   type PublicPhase,
 } from "~/lib/enrollment-submission-api";
+import { localizeNamed } from "~/lib/enrollment-translations";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "EnrollPhasePicker" });
@@ -162,7 +163,7 @@ export default function EnrollPhasePickerPage() {
                             )}
                           </div>
                           <h2 className="mt-3 text-lg font-semibold break-words text-gray-900 sm:text-xl">
-                            {phase.name}
+                            {localizeNamed(phase, locale).name}
                           </h2>
                           <p className="mt-1 text-sm text-gray-600">
                             {t("serviceRange", {

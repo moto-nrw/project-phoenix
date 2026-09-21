@@ -30,7 +30,7 @@ import (
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // Resource bundles the parent-portal HTTP handlers + their deps.
@@ -41,7 +41,7 @@ type Resource struct {
 	// Resets is the reset runtime the composition root binds to Identity &
 	// Access (#3332); the zero value leaves the reset routes answering 500.
 	Resets                PasswordResetRuntime
-	ParentService         parentService.Service
+	ParentService         PortalService
 	RequestSharing        parentService.RequestSharingService
 	CalendarService       calendarService.Service
 	RequestService        enrollmentService.RequestService
@@ -61,7 +61,7 @@ type ResourceConfig struct {
 	Auth LoginRuntime
 	// Resets is the reset runtime the composition root binds (#3332).
 	Resets                PasswordResetRuntime
-	Parent                parentService.Service
+	Parent                PortalService
 	Calendar              calendarService.Service
 	Requests              enrollmentService.RequestService
 	GuardianProfileLoader *usersService.GuardianProfileLoader

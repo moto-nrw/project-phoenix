@@ -432,6 +432,9 @@ func (s *rolloverService) createRolloverPhase(ctx context.Context, tenantID int6
 		CareOfferingSelectionMode: source.CareOfferingSelectionMode,
 		AvailableSchoolClasses:    source.AvailableSchoolClasses,
 		RequireSchoolClass:        source.RequireSchoolClass,
+		// Name translations ride along as a starting point; parents only see
+		// them again once the new name matches their German source (#3377).
+		Translations: source.Translations,
 		// Carry the eligibility config forward. Without this the successor
 		// silently defaults to audience=open with no class gate (Phase.Validate
 		// fills those in), turning a rolled linked/class-restricted phase

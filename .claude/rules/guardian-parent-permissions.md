@@ -3,6 +3,8 @@ paths:
   - "backend/auth/**"
   - "backend/api/**"
   - "backend/services/**"
+  - "backend/workflows/**"
+  - "backend/modules/**"
   - "backend/models/users/**"
   - "backend/database/repositories/**"
   - "frontend/src/**"
@@ -46,11 +48,16 @@ Role presets such as `primary_guardian`, `legal_guardian`, `co_guardian`, `picku
 
 ## Expected Checks
 
-Parent portal services should resolve a permitted child with the required action:
+Parent portal flows resolve a permitted child with the required action through
+the gate in `backend/workflows/parentportal/care` (`ResolvePermittedChild`):
 
 ```go
-resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionSickNoteSubmit)
+s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionSickNoteSubmit)
 ```
+
+An owner command a flow calls (Care Plan, People Directory, Audit Platform)
+does not repeat the relationship check: the flow keeps it, with the same
+permission constant, before it opens the unit of work.
 
 Use action-specific permissions:
 
@@ -73,7 +80,7 @@ School-level feature flags still apply after guardian permission passes.
 Before adding new parent portal guardian authorization code, search:
 
 ```bash
-rg "GuardianPermission|parent_portal|StudentGuardianHasPermission|resolvePermittedChild" backend
+rg "GuardianPermission|parent_portal|StudentGuardianHasPermission|ResolvePermittedChild" backend
 ```
 
 Then extend the existing helper/service path rather than creating a new authorization mechanism.

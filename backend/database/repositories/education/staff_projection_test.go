@@ -74,19 +74,14 @@ func TestGroupSubstitutionsCarryTheirStaffMembers(t *testing.T) {
 	// substitution they were part of.
 	require.NoError(t, factory.Staff.Delete(ctx, regular.ID))
 
-	rows, err := factory.GroupSubstitution.FindActiveBySubstituteWithRelations(ctx, substitute.ID, today)
-	require.NoError(t, err)
-	require.Len(t, rows, 1)
-	require.NotNil(t, rows[0].SubstituteStaff)
-	assert.Equal(t, substitute.PersonID, rows[0].SubstituteStaff.PersonID)
-	require.NotNil(t, rows[0].RegularStaff, "a soft-deleted regular staff member still resolves")
-	assert.Equal(t, regular.PersonID, rows[0].RegularStaff.PersonID)
-
-	// The unfiltered listing takes the same path; this test owns its tenant,
-	// so the substitution above is the only row it can see.
+	// This test owns its tenant, so the substitution above is the only row
+	// the listing can see.
 	listed, err := factory.GroupSubstitution.ListWithRelations(ctx, nil)
 	require.NoError(t, err)
 	require.Len(t, listed, 1)
+	require.NotNil(t, listed[0].Group)
 	require.NotNil(t, listed[0].SubstituteStaff)
-	require.NotNil(t, listed[0].RegularStaff)
+	assert.Equal(t, substitute.PersonID, listed[0].SubstituteStaff.PersonID)
+	require.NotNil(t, listed[0].RegularStaff, "a soft-deleted regular staff member still resolves")
+	assert.Equal(t, regular.PersonID, listed[0].RegularStaff.PersonID)
 }
