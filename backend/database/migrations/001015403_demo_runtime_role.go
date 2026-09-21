@@ -21,7 +21,7 @@ func init() {
 
 func demoRuntimeRoleUp(ctx context.Context, db *bun.DB) error {
 	password := os.Getenv("PHOENIX_DEMO_PASSWORD")
-	if password == "" {
+	if password == "" && demoRuntimeRoleRequiresPassword(os.Getenv("APP_ENV")) {
 		return fmt.Errorf("PHOENIX_DEMO_PASSWORD is required for the demo runtime role")
 	}
 	_, err := db.NewRaw(`
@@ -52,10 +52,19 @@ func demoRuntimeRoleUp(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("create demo runtime role: %w", err)
 	}
-	if _, err := db.ExecContext(ctx, "ALTER ROLE phoenix_demo PASSWORD ?", password); err != nil {
-		return fmt.Errorf("set demo runtime role password: %w", err)
+	if password != "" {
+		if _, err := db.ExecContext(ctx, "ALTER ROLE phoenix_demo PASSWORD ?", password); err != nil {
+			return fmt.Errorf("set demo runtime role password: %w", err)
+		}
 	}
 	return nil
+}
+
+// demoRuntimeRoleRequiresPassword keeps the test schema self-contained: its
+// migration creates the role and policies but never starts the demo runtime.
+// Every non-test environment must configure the role's login credential.
+func demoRuntimeRoleRequiresPassword(appEnv string) bool {
+	return appEnv != "test"
 }
 
 func demoRuntimeRoleDown(ctx context.Context, db *bun.DB) error {

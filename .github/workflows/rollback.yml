@@ -75,11 +75,11 @@ jobs:
             echo "Invalid backup ID"
             exit 1
           fi
-          ssh -i ~/.ssh/deploy_key "root@${SSH_HOST}" "mkdir -p ~/scripts"
-          scp -i ~/.ssh/deploy_key scripts/rollback-remote.sh scripts/restore-db.sh scripts/release-backup.sh "root@$SSH_HOST:~/scripts/"
+          ssh -i ~/.ssh/deploy_key "root@${SSH_HOST}" "mkdir -p ~/scripts/$DEPLOY_DIR"
+          scp -i ~/.ssh/deploy_key scripts/rollback-remote.sh scripts/restore-db.sh scripts/release-backup.sh "root@$SSH_HOST:~/scripts/$DEPLOY_DIR/"
           set +e
           ssh -i ~/.ssh/deploy_key "root@${SSH_HOST}" \
-            "BACKUP_ID=$BACKUP_ID DEPLOY_DIR=$DEPLOY_DIR bash ~/scripts/rollback-remote.sh"
+            "BACKUP_ID=$BACKUP_ID DEPLOY_DIR=$DEPLOY_DIR bash ~/scripts/$DEPLOY_DIR/rollback-remote.sh"
           ROLLBACK_EXIT=$?
           set -e
           echo "rollback_exit=$ROLLBACK_EXIT" >> "$GITHUB_OUTPUT"

@@ -107,3 +107,28 @@ test('demo browser hosts are generated at build time', t => {
   assert.match(tags, /type=raw,value=latest,enable=false/);
   assert.match(build, /NEXT_PUBLIC_APP_ENV=\$\{\{ needs.check-environment.outputs.environment \}\}/);
 });
+
+// Demo, staging and production share a host but not a concurrency group. Bash
+// reads a script while it runs, so one environment's copy step must never
+// overwrite a script another environment's release is executing (#3482).
+test('each environment copies and runs its release scripts in its own directory', () => {
+  for (const [workflow, step, directory] of [
+    [build, 'Deploy to staging', 'staging'], [build, 'Deploy to production', 'production'],
+    [build, 'Deploy to demo', 'demo'], [rollback, 'Rollback', '$DEPLOY_DIR'],
+  ]) {
+    const paths = stepRun(workflow, step).match(/~\/scripts[^\s"]*/g);
+    assert.ok(paths.length >= 3, step);
+    for (const path of paths) assert.ok(`${path}/`.startsWith(`~/scripts/${directory}/`), `${step}: ${path}`);
+  }
+});
+
+test('demo deploy ships one Compose file that carries the demo runtime', () => {
+  const script = stepRun(build, 'Deploy to demo');
+  assert.match(script, /environments\/demo\.compose\.yml root@\$SSH_HOST:~\/demo\/docker-compose\.yml\.new/);
+  const stack = readFileSync(new URL('../environments/demo.compose.yml', import.meta.url), 'utf8');
+  assert.match(stack, /^  demo-runtime:$/m);
+  for (const target of ['staging', 'production']) {
+    const other = readFileSync(new URL(`../environments/${target}.compose.yml`, import.meta.url), 'utf8');
+    assert.doesNotMatch(other, /demo-runtime/);
+  }
+});
