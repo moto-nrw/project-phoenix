@@ -35,8 +35,6 @@ import (
 type Store interface {
 	// MarkFileDeleted records that a document's bytes are gone.
 	MarkFileDeleted(ctx context.Context, documentID int64) error
-	// MarkQueuedCleanupComplete settles one orphan intent by ID.
-	MarkQueuedCleanupComplete(ctx context.Context, cleanupID int64) error
 	// MarkQueuedCleanupCompleteByFilename settles the intent of one object.
 	MarkQueuedCleanupCompleteByFilename(ctx context.Context, storedName string) error
 	// ActivateQueuedCleanup makes an intent eligible for retry right away.

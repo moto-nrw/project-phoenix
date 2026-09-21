@@ -44,7 +44,7 @@ func TestStudentRepository_Update_RefusesWhenFarEndLocked(t *testing.T) {
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon", "tue")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon", "tue")
-	require.NoError(t, repositories.NewStudentCompanionRepository(factory.CarePlan()).ReplaceForStudent(ctx, subject.ID, []*users.StudentCompanion{
+	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repositories.NewStudentCompanionRepository(factory.CarePlan()), subject.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, subject.ID, companion.ID, 1),
 		newCompanionEdge(t, subject.ID, companion.ID, 2),
 	}))
@@ -94,7 +94,7 @@ func TestStudentRepository_Update_UnaffectedWhenNoEdgeIsDropped(t *testing.T) {
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon")
-	require.NoError(t, repositories.NewStudentCompanionRepository(factory.CarePlan()).ReplaceForStudent(ctx, subject.ID, []*users.StudentCompanion{
+	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repositories.NewStudentCompanionRepository(factory.CarePlan()), subject.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, subject.ID, companion.ID, 1),
 	}))
 

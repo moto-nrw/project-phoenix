@@ -184,9 +184,30 @@ hands `NewFactory`.
 
 `services/users` keeps the People Directory half of the child record.
 `StudentService` no longer carries the companion graph; `api/students` holds
-`carelifecycle.StudentCompanionService` beside it, and the group roster read
-asks Care Plan for the dated participation decision through a narrow
+the companion capability beside it, and the group roster read asks Care Plan
+for the dated participation decision through a narrow
 `CareParticipationResolver` instead of holding the whole lifecycle service.
+
+#3427 dissolved both packages (epoch 20). The care lifecycle, withdrawal
+tasks, booking authority, companions and child documents are native Care Plan:
+the public contract in `modules/careplan` (`CareLifecycle`,
+`StudentCompanions`, `StudentDocuments`), the rules in `internal/domain`
+(the booking-state evaluator, the preview token content, the Go joins that
+replaced the jsonb recordset SQL), the orchestration in
+`internal/application`, and the directory reads in the Care Plan Postgres
+adapter over `student-directory-view`, which grants the same four tables
+`care-exit-view` did. The binding preview's roster and booking counts are a
+Timetable query (`timetable.CareExitBaselineQuery`), the scheduler's
+effect-day pass is the owner command `CareExitCommands.ApplyDueEffects`, and
+the document file sweep is `StudentDocumentCommands.SweepStudentDocumentFiles`.
+Every read that takes a set of foreign ids pages it by
+`careplan.MaxCareExitBatchSize`. The People Directory, Enrollment, Timetable,
+Presence, School Calendar and change-history owners reach the lifecycle as
+consumer-owned ports bound in `database/repositories/care_lifecycle_owners.go`.
+The 46 compatibility permissions and the `care-exit-view` owner are gone; the
+two consumers that could only reach the adapter and the moved behavior suites
+use the one-time replacement path of
+[ADR 0035](../../docs/adr/0035-care-lifecycle-cutover-replaces-legacy-permissions.md).
 
 The staff messaging writes live in the Communication Postgres adapter
 `modules/communication/internal/adapters/staffpostgres`. The inbox and unread
@@ -2028,6 +2049,16 @@ It does not allow new debt, ownership changes, private
 implementation access, or reuse after retirement reaches the comparison base.
 Intermediate states with the legacy service still present remain invalid.
 
+The Care Lifecycle retirement has the same kind of one-time path
+([ADR 0035](../../docs/adr/0035-care-lifecycle-cutover-replaces-legacy-permissions.md),
+#3427). In a reviewed epoch that no longer classifies
+`modules/careplan/legacy/carelifecycle`, a consumer may replace its existing,
+same-scope access to that `inbound-students/adapter` with Care Plan's public or
+contract role, and its tests may construct the replacement through Care Plan's
+compose role. Care Plan's contract suite may keep, in `external_test` scope,
+the reach the retired adapter's own behavior suites had, except the retired
+owner. The ADR lists the seven rules epoch 20 adds under it.
+
 The three existing student read projections have one fixed replacement path
 ([ADR 0025](../../docs/adr/0025-replace-student-read-projection-grants.md),
 [#3432](https://github.com/moto-nrw/project-phoenix/issues/3432)). In a reviewed
@@ -2040,7 +2071,8 @@ ID, owner, production/test roles, tenant safety, other grants and target write
 owners must stay unchanged. The checker exempts only these exact replacement
 pairs, not other additions in the same candidate. Without the old grant in the
 immutable base, the exception cannot activate again. Epoch 16 performs this
-cutover without changing the baseline or composition surface.
+cutover without changing the baseline or composition surface. Epoch 20 (#3427)
+has since removed `care-exit-view`; its reads live in `student-directory-view`.
 
 Reviewed data-less workflow additions may register new workflow owners when
 all their packages are candidate-created and the policy epoch increases

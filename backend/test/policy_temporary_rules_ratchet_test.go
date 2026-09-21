@@ -49,8 +49,9 @@ import (
 // identity persistence rewrite to 392 and 487, and the #2725 conversion of the
 // 46 user-context permissions to exact debt to 346 and 441, and the #3501
 // dissolution of the user-context package, which took its four Presence
-// rules along, to 342 and 437; this prose counter
-// remains as an independent guard.
+// rules along, to 342 and 437. The #3427 care-lifecycle cutover deleted the
+// 46 permissions #3350 had added and lowers them to 296 and 359;
+// this prose counter remains as an independent guard.
 //
 // Three shrink-only measurements, all read-only on policy.json:
 //
@@ -100,12 +101,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 342
+	policyTempRulesTotal = 296
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 405
+	policyTempRulesCompatTotal = 359
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -132,25 +133,21 @@ var policyTempRulesFamilies = map[string]int{
 	// #3214, #3218, #3220, #3224 — all closed.
 	"calendar-view": 4,
 
-	// #3350 (PR #3408) — closed. New family: the care-exit read projection
-	// modules/careplan/legacy/careexitview. No open ticket carries its
-	// conversion.
-	"care-exit-view": 2,
-
 	// #2736 (OPEN), #3232, #3224.
 	"communication": 4,
 
 	// #3218, #3219, #3220 — closed.
 	"document-rendering": 5,
 
-	// #3214, #3218, #3220 — closed; #3350 (PR #3408) added three.
-	"enrollment": 8,
+	// #3214, #3218, #3220 — closed; #3427 removed the three #3350 (PR #3408)
+	// had added.
+	"enrollment": 5,
 
 	// #3214, #3224 — closed.
 	"facilities": 1,
 
-	// #3214, #3218, #3220, #3224 — closed; #3350 (PR #3408) added one.
-	"group-live-view": 3,
+	// #3214, #3218, #3220, #3224 — closed; #3427 removed the one #3350 added.
+	"group-live-view": 2,
 
 	// #3364 — closed.
 	"identity-access": 18,
@@ -161,8 +158,8 @@ var policyTempRulesFamilies = map[string]int{
 	// #3214, #3224 — closed.
 	"inbound-groups": 2,
 
-	// #3214 — closed; #3350 (PR #3408) added one.
-	"inbound-operator": 2,
+	// #3214 — closed; #3427 removed the one #3350 (PR #3408) added.
+	"inbound-operator": 1,
 
 	// #3229, #3214, #3220 — closed; #2725 (OPEN) for one rule.
 	"inbound-parent": 29,
@@ -173,9 +170,9 @@ var policyTempRulesFamilies = map[string]int{
 	// #3214 — closed.
 	"inbound-statistics": 1,
 
-	// #3214, #3218, #3220, #3224 — closed; #3350 (PR #3408) added 36, the
-	// bulk of that PR's 46 new permissions.
-	"inbound-students": 42,
+	// #3214, #3218, #3220, #3224 — closed. #3427 removed the 36 that #3350
+	// (PR #3408) had added with the care-lifecycle adapter.
+	"inbound-students": 6,
 
 	// #3218, #3220, #3214, #3224 — closed. The largest family: 90 rules, every
 	// one of them permitted by an issue that is done.
@@ -184,8 +181,9 @@ var policyTempRulesFamilies = map[string]int{
 	// #2725 (OPEN) and #3224 (closed) name most rules jointly; #3214 the rest.
 	// The only large family with a live issue behind it.
 
-	// #3214, #3218, #3219, #3220, #3224 — closed; #3350 (PR #3408) added one.
-	"legacy-composition": 6,
+	// #3214, #3218, #3219, #3220, #3224 — closed; #3427 removed the one #3350
+	// (PR #3408) added.
+	"legacy-composition": 5,
 
 	// #3214 — closed.
 	"open-room-move": 2,
@@ -193,8 +191,8 @@ var policyTempRulesFamilies = map[string]int{
 	// #2736 (OPEN) and #3232 (closed) name most rules jointly; #3214 the rest.
 	"organization-tenancy": 14,
 
-	// #3214, #3218 — closed; #3350 (PR #3408) added one.
-	"people-directory": 4,
+	// #3214, #3218 — closed; #3427 removed the one #3350 (PR #3408) added.
+	"people-directory": 3,
 
 	// #3214, #3218, #3220 — closed.
 	"process-device-scan": 2,
@@ -209,8 +207,8 @@ var policyTempRulesFamilies = map[string]int{
 	"school-structure": 2,
 
 	// #2736 (OPEN) and #3232 (closed) name most rules jointly; #3207, #3214 the
-	// rest; #3350 (PR #3408) added one.
-	"settings-platform": 17,
+	// rest; #3427 removed the one #3350 (PR #3408) added.
+	"settings-platform": 16,
 
 	// #3214, #3207, #3218, #3224 — closed.
 	"student-presence": 27,

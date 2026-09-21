@@ -25,7 +25,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -58,7 +57,7 @@ type Sources struct {
 	Arrivals          careplan.BulkArrivalTimes
 	Instances         timetableplanning.InstanceService
 	CareDays          careplan.CareDayQuery
-	CareParticipation carelifecycle.CareLifecycleService
+	CareParticipation careplan.CareParticipation
 	ExcusedRequests   grouplive.PendingExcusedReader
 	StatusDays        *activeService.StudentStatusDayService
 	Logger            *slog.Logger
@@ -180,7 +179,7 @@ func (d directory) GroupRoomNames(ctx context.Context, groupIDs []int64) (map[in
 
 type roster struct {
 	people            userService.PersonService
-	careParticipation carelifecycle.CareLifecycleService
+	careParticipation careplan.CareParticipation
 }
 
 func (r roster) GroupMembers(ctx context.Context, groupID int64) ([]grouplive.RosterStudent, error) {

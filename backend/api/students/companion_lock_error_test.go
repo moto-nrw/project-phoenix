@@ -14,7 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,13 +34,13 @@ func TestUpdateStudentTxErrorRenderer_CompanionLockBusy(t *testing.T) {
 	t.Parallel()
 
 	t.Run("busy lock is a retriable conflict", func(t *testing.T) {
-		resp := rendererStatus(t, updateStudentTxErrorRenderer(carelifecycle.ErrCompanionLockBusy))
+		resp := rendererStatus(t, updateStudentTxErrorRenderer(careplan.ErrCompanionLockBusy))
 
 		assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
 		// The German sentence travels to the UI unchanged — it is the only
 		// instruction the user gets ("in einem Moment erneut speichern").
 		assert.Equal(t, studentdeletion.ErrCompanionLockBusy.Error(), resp.ErrorText)
-		assert.Equal(t, carelifecycle.ErrCompanionLockBusy.Error(), resp.ErrorText, "the workflow keeps the user-facing text of the update path")
+		assert.Equal(t, careplan.ErrCompanionLockBusy.Error(), resp.ErrorText, "the workflow keeps the user-facing text of the update path")
 	})
 
 	t.Run("still a conflict when wrapped by a caller", func(t *testing.T) {
@@ -54,11 +54,17 @@ func TestUpdateStudentTxErrorRenderer_CompanionLockBusy(t *testing.T) {
 		assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
 	})
 
-	t.Run("the Care Plan and models sentinels are the same instance", func(t *testing.T) {
-		// carelifecycle re-exports the models sentinel. If that ever becomes a
-		// separate errors.New, the repository's error would silently fall
-		// through to the 500 branch.
-		assert.Equal(t, userModels.ErrCompanionLockBusy, carelifecycle.ErrCompanionLockBusy)
+	t.Run("the Care Plan and People Directory sentinels answer alike", func(t *testing.T) {
+		// Care Plan raises its own sentinel for a companion row it may not
+		// wait for; the People Directory write path raises the models one.
+		// Both must reach the same retriable conflict with the same German
+		// text, or one path would silently fall through to the 500 branch.
+		carePlan := rendererStatus(t, updateStudentTxErrorRenderer(careplan.ErrCompanionLockBusy))
+		people := rendererStatus(t, updateStudentTxErrorRenderer(userModels.ErrCompanionLockBusy))
+
+		assert.Equal(t, http.StatusConflict, carePlan.HTTPStatusCode)
+		assert.Equal(t, http.StatusConflict, people.HTTPStatusCode)
+		assert.Equal(t, userModels.ErrCompanionLockBusy.Error(), careplan.ErrCompanionLockBusy.Error())
 	})
 
 	t.Run("an unrelated error is still a server error", func(t *testing.T) {
@@ -78,7 +84,7 @@ func TestStudentDeletionErrorRenderer_CompanionLockBusy(t *testing.T) {
 
 		assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
 		assert.Equal(t, studentdeletion.ErrCompanionLockBusy.Error(), resp.ErrorText)
-		assert.Equal(t, carelifecycle.ErrCompanionLockBusy.Error(), resp.ErrorText, "the workflow keeps the user-facing text of the update path")
+		assert.Equal(t, careplan.ErrCompanionLockBusy.Error(), resp.ErrorText, "the workflow keeps the user-facing text of the update path")
 	})
 
 	t.Run("an unrelated error is still a server error", func(t *testing.T) {
@@ -100,18 +106,18 @@ func TestUpdateStudentTxErrorRenderer_CompanionsChanged(t *testing.T) {
 	t.Parallel()
 
 	t.Run("a stale list is a coded, retriable conflict", func(t *testing.T) {
-		resp := rendererStatus(t, updateStudentTxErrorRenderer(carelifecycle.ErrCompanionsChanged))
+		resp := rendererStatus(t, updateStudentTxErrorRenderer(careplan.ErrCompanionsChanged))
 
 		assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
 		assert.Equal(t, CodeCompanionsChanged, resp.Code)
 		// The German sentence reaches the UI unchanged — it carries the one
 		// instruction that gets the user out ("neu laden").
-		assert.Equal(t, carelifecycle.ErrCompanionsChanged.Error(), resp.ErrorText)
+		assert.Equal(t, careplan.ErrCompanionsChanged.Error(), resp.ErrorText)
 	})
 
 	t.Run("still classified when wrapped by a caller", func(t *testing.T) {
 		resp := rendererStatus(t, updateStudentTxErrorRenderer(
-			errors.Join(errors.New("update student"), carelifecycle.ErrCompanionsChanged),
+			errors.Join(errors.New("update student"), careplan.ErrCompanionsChanged),
 		))
 
 		assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)

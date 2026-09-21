@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
@@ -90,8 +89,6 @@ type Factory struct {
 	RFIDCard            identityaccess.RFIDCards
 	Staff               userModels.StaffRepository
 	Student             userModels.StudentRepository
-	CareExit            userModels.CareExitRepository
-	CareExitCleanup     userModels.CareExitCleanupRepository
 	CareWithdrawal      userModels.CareWithdrawalCompletionRepository
 	Teacher             userModels.TeacherRepository
 	Guest               userModels.GuestRepository
@@ -490,20 +487,12 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	personRepo := NewPersonRepository(db)
 	studentRepo := NewStudentRepository(db)
 	groupRepo := education.NewGroupRepository(db)
-	// The care-exit repositories read their owners through resolvers over this
-	// pointer, because Care Plan and the School Calendar are composed after
-	// the factory; its own bind methods fill the fields they read.
-	var factory *Factory
-	factory = &Factory{
+	factory := &Factory{
 		db: db,
 		// Users repositories
-		Person:   personRepo,
-		RFIDCard: identity,
-		Student:  studentRepo,
-		CareExit: carelifecycle.NewCareExitRepository(db, careExitReasonsOf(&factory)),
-		CareExitCleanup: carelifecycle.NewCareExitCleanupRepository(db, newCareExitCleanup(
-			db, &factory, NewEnrollmentBookingProjection(enrollmentModule), presenceCapability, timetableCapability,
-		)),
+		Person:              personRepo,
+		RFIDCard:            identity,
+		Student:             studentRepo,
 		Profile:             identity,
 		StudentGuardian:     users.NewStudentGuardianRepository(db, users.WithStudentGuardianMemberships(identity.FindActiveSchoolMemberships)),
 		GuardianProfile:     NewGuardianProfileRepository(db),

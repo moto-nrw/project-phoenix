@@ -11,8 +11,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -46,19 +45,19 @@ func (b *careWithdrawalExitRequest) Bind(_ *http.Request) error {
 	return nil
 }
 
-func (b *careWithdrawalExitRequest) toInput() (carelifecycle.CareExitInput, error) {
+func (b *careWithdrawalExitRequest) toInput() (careplan.CareExitInput, error) {
 	day, err := timezone.ParseDate(strings.TrimSpace(b.LastCareDay))
 	if err != nil {
-		return carelifecycle.CareExitInput{}, errors.New("Bitte geben Sie den letzten Betreuungstag im Format JJJJ-MM-TT an.") //nolint:staticcheck // user-facing German message
+		return careplan.CareExitInput{}, errors.New("Bitte geben Sie den letzten Betreuungstag im Format JJJJ-MM-TT an.") //nolint:staticcheck // user-facing German message
 	}
-	return carelifecycle.CareExitInput{
+	return careplan.CareExitInput{
 		LastCareDay: day, Reason: strings.TrimSpace(b.Reason), ReasonNote: strings.TrimSpace(b.ReasonNote),
 	}, nil
 }
 
 func (b *careExitRequest) Bind(_ *http.Request) error {
 	if len(b.StudentIDs) == 0 {
-		return carelifecycle.ErrCareExitNoStudents
+		return careplan.ErrCareExitNoStudents
 	}
 	if strings.TrimSpace(b.LastCareDay) == "" {
 		return errors.New("Bitte geben Sie den letzten Betreuungstag an.") //nolint:staticcheck // ST1005: user-facing German message
@@ -68,20 +67,20 @@ func (b *careExitRequest) Bind(_ *http.Request) error {
 
 // toInput parses the wire shape into the service input. IDs arrive as strings
 // (backend int64 → frontend string, CLAUDE.md rule 3).
-func (b *careExitRequest) toInput() (carelifecycle.CareExitInput, error) {
+func (b *careExitRequest) toInput() (careplan.CareExitInput, error) {
 	ids := make([]int64, 0, len(b.StudentIDs))
 	for _, raw := range b.StudentIDs {
 		id, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
 		if err != nil || id <= 0 {
-			return carelifecycle.CareExitInput{}, errors.New("Die Auswahl enthält ein ungültiges Kind.") //nolint:staticcheck // ST1005: user-facing German message
+			return careplan.CareExitInput{}, errors.New("Die Auswahl enthält ein ungültiges Kind.") //nolint:staticcheck // ST1005: user-facing German message
 		}
 		ids = append(ids, id)
 	}
 	day, err := timezone.ParseDate(strings.TrimSpace(b.LastCareDay))
 	if err != nil {
-		return carelifecycle.CareExitInput{}, errors.New("Bitte geben Sie den letzten Betreuungstag im Format JJJJ-MM-TT an.") //nolint:staticcheck // ST1005: user-facing German message
+		return careplan.CareExitInput{}, errors.New("Bitte geben Sie den letzten Betreuungstag im Format JJJJ-MM-TT an.") //nolint:staticcheck // ST1005: user-facing German message
 	}
-	return carelifecycle.CareExitInput{
+	return careplan.CareExitInput{
 		StudentIDs:  ids,
 		LastCareDay: day,
 		Reason:      strings.TrimSpace(b.Reason),
@@ -91,19 +90,19 @@ func (b *careExitRequest) toInput() (carelifecycle.CareExitInput, error) {
 
 // careExitImpactResponse is one child in the preview, named.
 type careExitImpactResponse struct {
-	StudentID          string                              `json:"student_id"`
-	FirstName          string                              `json:"first_name"`
-	LastName           string                              `json:"last_name"`
-	SchoolClass        string                              `json:"school_class,omitempty"`
-	PlannedRosterRows  int                                 `json:"planned_roster_rows"`
-	ActivityBookings   int                                 `json:"activity_bookings"`
-	OpenParentRequests int                                 `json:"open_parent_requests"`
-	HasRFIDTag         bool                                `json:"has_rfid_tag"`
-	CurrentlyPresent   bool                                `json:"currently_present"`
-	SourceOfferings    []userModels.CareExitSourceOffering `json:"source_offerings"`
-	WeeklyPlans        []string                            `json:"weekly_plans"`
-	PlannedEndsOn      *string                             `json:"planned_ends_on,omitempty"`
-	Blocker            string                              `json:"blocker,omitempty"`
+	StudentID          string                            `json:"student_id"`
+	FirstName          string                            `json:"first_name"`
+	LastName           string                            `json:"last_name"`
+	SchoolClass        string                            `json:"school_class,omitempty"`
+	PlannedRosterRows  int                               `json:"planned_roster_rows"`
+	ActivityBookings   int                               `json:"activity_bookings"`
+	OpenParentRequests int                               `json:"open_parent_requests"`
+	HasRFIDTag         bool                              `json:"has_rfid_tag"`
+	CurrentlyPresent   bool                              `json:"currently_present"`
+	SourceOfferings    []careplan.CareExitSourceOffering `json:"source_offerings"`
+	WeeklyPlans        []string                          `json:"weekly_plans"`
+	PlannedEndsOn      *string                           `json:"planned_ends_on,omitempty"`
+	Blocker            string                            `json:"blocker,omitempty"`
 }
 
 type careExitPreviewResponse struct {
@@ -115,7 +114,7 @@ type careExitPreviewResponse struct {
 	Students    []careExitImpactResponse `json:"students"`
 }
 
-func toCareExitPreviewResponse(preview *carelifecycle.CareExitPreview) careExitPreviewResponse {
+func toCareExitPreviewResponse(preview *careplan.CareExitPreview) careExitPreviewResponse {
 	students := make([]careExitImpactResponse, 0, len(preview.Students))
 	for _, impact := range preview.Students {
 		row := careExitImpactResponse{
@@ -216,7 +215,7 @@ type careWithdrawalResponse struct {
 	ResolvedAt          string `json:"resolved_at,omitempty"`
 }
 
-func toCareWithdrawalResponse(row *userModels.CareWithdrawalCompletion) careWithdrawalResponse {
+func toCareWithdrawalResponse(row careplan.WithdrawalCompletion) careWithdrawalResponse {
 	studentID := ""
 	if row.StudentID != nil {
 		studentID = strconv.FormatInt(*row.StudentID, 10)
@@ -247,16 +246,16 @@ func (rs *Resource) listCareWithdrawals(w http.ResponseWriter, r *http.Request) 
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	filter := userModels.CareWithdrawalCompletionFilter{
+	filter := careplan.CareWithdrawalFilter{
 		Search: r.URL.Query().Get("search"), StudentID: studentID, Page: page, PageSize: pageSize,
 	}.Normalized()
 	state := strings.TrimSpace(r.URL.Query().Get("state"))
-	var rows []*userModels.CareWithdrawalCompletion
+	var rows []careplan.WithdrawalCompletion
 	var total int
 	switch state {
-	case "", userModels.CareWithdrawalStatePending:
+	case "", careplan.WithdrawalStatePending:
 		rows, total, err = rs.CareLifecycleService.ListPendingWithdrawals(r.Context(), filter)
-	case userModels.CareWithdrawalStateResolved:
+	case careplan.WithdrawalStateResolved:
 		rows, total, err = rs.CareLifecycleService.ListResolvedWithdrawals(r.Context(), filter)
 	default:
 		renderError(w, r, common.ErrorInvalidRequest(errors.New("state must be pending or resolved")))
@@ -405,28 +404,28 @@ func (rs *Resource) authorizeWithdrawalDeletion(
 	w http.ResponseWriter,
 	r *http.Request,
 	completionID int64,
-) (*userModels.CareWithdrawalCompletion, bool) {
+) (careplan.WithdrawalCompletion, bool) {
 	completion, err := rs.CareLifecycleService.GetPendingWithdrawal(r.Context(), completionID)
 	if err != nil {
 		renderError(w, r, withdrawalDeletionErrorRenderer(err))
-		return nil, false
+		return careplan.WithdrawalCompletion{}, false
 	}
 	students, err := rs.StudentService.GetByIDs(r.Context(), []int64{*completion.StudentID})
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
-		return nil, false
+		return careplan.WithdrawalCompletion{}, false
 	}
 	student := students[*completion.StudentID]
 	if student == nil {
-		renderError(w, r, common.ErrorNotFound(carelifecycle.ErrCareWithdrawalNotFound))
-		return nil, false
+		renderError(w, r, common.ErrorNotFound(careplan.ErrCareWithdrawalNotFound))
+		return careplan.WithdrawalCompletion{}, false
 	}
 	authorized, authErr := canDeleteStudent(
 		r.Context(), jwt.PermissionsFromCtx(r.Context()), student, rs.UserContextService,
 	)
 	if !authorized {
 		renderError(w, r, common.ErrorForbidden(authErr))
-		return nil, false
+		return careplan.WithdrawalCompletion{}, false
 	}
 	return completion, true
 }
@@ -437,7 +436,7 @@ type careExitCancelRequest struct {
 
 func (b *careExitCancelRequest) Bind(_ *http.Request) error {
 	if len(b.StudentIDs) == 0 {
-		return carelifecycle.ErrCareExitNoStudents
+		return careplan.ErrCareExitNoStudents
 	}
 	return nil
 }
@@ -481,7 +480,7 @@ func (b *careResumeRequest) Bind(_ *http.Request) error {
 		return errors.New("Bitte geben Sie den neuen Beginn an.") //nolint:staticcheck // ST1005: user-facing German message
 	}
 	if !b.Checked {
-		return carelifecycle.ErrCareResumeNotChecked
+		return careplan.ErrCareResumeNotChecked
 	}
 	return nil
 }
@@ -506,7 +505,7 @@ func (rs *Resource) resumeCare(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorInvalidRequest(errors.New("Bitte geben Sie den neuen Beginn im Format JJJJ-MM-TT an."))) //nolint:staticcheck // ST1005: user-facing German message
 		return
 	}
-	err := rs.CareLifecycleService.Resume(r.Context(), carelifecycle.CareResumeInput{
+	err := rs.CareLifecycleService.Resume(r.Context(), careplan.CareResumeInput{
 		StudentID:      studentID,
 		NewStart:       start,
 		ActorAccountID: int64(jwt.ClaimsFromCtx(r.Context()).ID),
@@ -540,7 +539,7 @@ func (rs *Resource) listEndedCare(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorInternalServer(errors.New("care lifecycle service not configured")))
 		return
 	}
-	filter := userModels.CareExitListFilter{
+	filter := careplan.EndedCareFilter{
 		Search:        strings.TrimSpace(r.URL.Query().Get("search")),
 		SchoolClasses: parseMultiValueParam(r.URL.Query()["school_class"]),
 		Page:          1,
@@ -591,28 +590,28 @@ func (rs *Resource) listEndedCare(w http.ResponseWriter, r *http.Request) {
 // here carries a German message meant for the person who pressed the button,
 // so the renderers pass the error through rather than replacing its text.
 var careExitErrorRenderer = common.RulesRenderer([]common.ErrorRule{
-	{Target: carelifecycle.ErrCareExitNoStudents, Render: common.ErrorInvalidRequest},
-	{Target: carelifecycle.ErrCareExitTooManyStudents, Render: common.ErrorInvalidRequest},
-	{Target: carelifecycle.ErrCareExitDayInPast, Render: common.ErrorInvalidRequest},
-	{Target: carelifecycle.ErrCareExitPreviewChanged, Render: common.ErrorConflict},
-	{Target: carelifecycle.ErrCareExitBlocked, Render: common.ErrorConflict},
-	{Target: carelifecycle.ErrCareExitNotPlanned, Render: common.ErrorConflict},
-	{Target: carelifecycle.ErrCareExitAlreadyEffective, Render: common.ErrorConflict},
-	{Target: carelifecycle.ErrCareResumeNotEnded, Render: common.ErrorConflict},
-	{Target: carelifecycle.ErrCareResumeMissing, Render: common.ErrorConflict},
-	{Target: carelifecycle.ErrCareResumeStartInPast, Render: common.ErrorInvalidRequest},
-	{Target: carelifecycle.ErrCareResumeNotChecked, Render: common.ErrorInvalidRequest},
-	{Target: carelifecycle.ErrCareWithdrawalNotFound, Render: common.ErrorNotFound},
-	{Target: carelifecycle.ErrCareWithdrawalAfterGap, Render: common.ErrorInvalidRequest},
-	{Target: userModels.ErrCareWithdrawalAlreadyResolved, Render: common.ErrorConflict},
+	{Target: careplan.ErrCareExitNoStudents, Render: common.ErrorInvalidRequest},
+	{Target: careplan.ErrCareExitTooManyStudents, Render: common.ErrorInvalidRequest},
+	{Target: careplan.ErrCareExitDayInPast, Render: common.ErrorInvalidRequest},
+	{Target: careplan.ErrCareExitPreviewChanged, Render: common.ErrorConflict},
+	{Target: careplan.ErrCareExitBlocked, Render: common.ErrorConflict},
+	{Target: careplan.ErrCareExitNotPlanned, Render: common.ErrorConflict},
+	{Target: careplan.ErrCareExitAlreadyEffective, Render: common.ErrorConflict},
+	{Target: careplan.ErrCareResumeNotEnded, Render: common.ErrorConflict},
+	{Target: careplan.ErrCareResumeMissing, Render: common.ErrorConflict},
+	{Target: careplan.ErrCareResumeStartInPast, Render: common.ErrorInvalidRequest},
+	{Target: careplan.ErrCareResumeNotChecked, Render: common.ErrorInvalidRequest},
+	{Target: careplan.ErrCareWithdrawalNotFound, Render: common.ErrorNotFound},
+	{Target: careplan.ErrCareWithdrawalAfterGap, Render: common.ErrorInvalidRequest},
+	{Target: careplan.ErrCareWithdrawalAlreadyResolved, Render: common.ErrorConflict},
 	{Match: func(err error) bool {
-		var dateErr *carelifecycle.CareWithdrawalDateError
+		var dateErr *careplan.CareWithdrawalDateError
 		return errors.As(err, &dateErr)
 	}, Render: common.ErrorInvalidRequest},
-	{Target: userModels.ErrCareExitInvalidReason, Render: common.ErrorInvalidRequest},
-	{Target: userModels.ErrCareExitNoteRequired, Render: common.ErrorInvalidRequest},
-	{Target: userModels.ErrCareExitNoteNotAllowed, Render: common.ErrorInvalidRequest},
-	{Target: userModels.ErrCareExitNoteTooLong, Render: common.ErrorInvalidRequest},
+	{Target: careplan.ErrCareExitInvalidReason, Render: common.ErrorInvalidRequest},
+	{Target: careplan.ErrCareExitNoteRequired, Render: common.ErrorInvalidRequest},
+	{Target: careplan.ErrCareExitNoteNotAllowed, Render: common.ErrorInvalidRequest},
+	{Target: careplan.ErrCareExitNoteTooLong, Render: common.ErrorInvalidRequest},
 }, func(cause error) render.Renderer {
 	// Alles Unerwartete (DB-Fehler, Sperren, Timeouts) bekommt EINEN ruhigen
 	// Satz. Der Dialog zeigt diese Meldung wörtlich an, und interne Details
@@ -624,10 +623,10 @@ var careExitErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 })
 
 func withdrawalDeletionErrorRenderer(err error) render.Renderer {
-	if errors.Is(err, carelifecycle.ErrCareWithdrawalNotFound) {
+	if errors.Is(err, careplan.ErrCareWithdrawalNotFound) {
 		return common.ErrorNotFoundWithCode(err, errCodeCareWithdrawalNotFound)
 	}
-	if errors.Is(err, userModels.ErrCareWithdrawalAlreadyResolved) {
+	if errors.Is(err, careplan.ErrCareWithdrawalAlreadyResolved) {
 		return common.ErrorConflictWithCode(err, errCodeCareWithdrawalAlreadyResolved)
 	}
 	return studentDeletionErrorRenderer(err)

@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -506,20 +505,20 @@ type fakeClassCareParticipation map[int64]bool
 
 func (f fakeClassCareParticipation) ResolveListParticipation(
 	_ context.Context, studentIDs []int64, _, _ timezone.Date, _ bool,
-) (*carelifecycle.CareParticipationResolution, error) {
-	return &carelifecycle.CareParticipationResolution{CandidateIDs: studentIDs, ParticipatingIDs: f}, nil
+) (*careplan.CareParticipationResolution, error) {
+	return &careplan.CareParticipationResolution{CandidateIDs: studentIDs, ParticipatingIDs: f}, nil
 }
 
 type allClassCareParticipation struct{}
 
 func (allClassCareParticipation) ResolveListParticipation(
 	_ context.Context, studentIDs []int64, _, _ timezone.Date, _ bool,
-) (*carelifecycle.CareParticipationResolution, error) {
+) (*careplan.CareParticipationResolution, error) {
 	result := make(map[int64]bool, len(studentIDs))
 	for _, studentID := range studentIDs {
 		result[studentID] = true
 	}
-	return &carelifecycle.CareParticipationResolution{CandidateIDs: studentIDs, ParticipatingIDs: result}, nil
+	return &careplan.CareParticipationResolution{CandidateIDs: studentIDs, ParticipatingIDs: result}, nil
 }
 
 type recordingClassCareParticipation struct {
@@ -529,9 +528,9 @@ type recordingClassCareParticipation struct {
 
 func (f *recordingClassCareParticipation) ResolveListParticipation(
 	_ context.Context, studentIDs []int64, on, today timezone.Date, _ bool,
-) (*carelifecycle.CareParticipationResolution, error) {
+) (*careplan.CareParticipationResolution, error) {
 	f.on, f.today = on, today
-	return &carelifecycle.CareParticipationResolution{
+	return &careplan.CareParticipationResolution{
 		CandidateIDs: studentIDs, ParticipatingIDs: map[int64]bool{studentIDs[0]: true},
 	}, nil
 }

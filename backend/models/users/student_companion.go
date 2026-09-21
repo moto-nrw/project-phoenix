@@ -2,7 +2,6 @@ package users
 
 import (
 	"errors"
-	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -86,15 +85,6 @@ var CompanionWeekdayShortLabels = map[string]string{
 	PickupDayFriday:    "Fr",
 }
 
-// CompanionWeekdayNumber translates a weekday key into its stored number.
-func CompanionWeekdayNumber(day string) (int, error) {
-	number, ok := CompanionWeekdayNumbers[day]
-	if !ok {
-		return 0, fmt.Errorf("%w: got %q", ErrCompanionInvalidWeekday, day)
-	}
-	return number, nil
-}
-
 // StudentCompanion is one undirected "walks home with" edge between two
 // children on one weekday (users.student_companions).
 //
@@ -103,38 +93,14 @@ func CompanionWeekdayNumber(day string) (int, error) {
 // 1.15.209 migration for why.
 //
 // StudentLowID always holds the smaller of the two student ids (DB CHECK), so a
-// pair is stored exactly once per weekday. Construct via NewStudentCompanion
-// rather than setting the fields directly.
+// pair is stored exactly once per weekday. Care Plan's domain builds the edges;
+// this row is the People Directory read shape.
 type StudentCompanion struct {
 	base.Model `bun:"schema:users,table:student_companions"`
 	base.TenantModel
 	StudentLowID  int64 `bun:"student_low_id,notnull" json:"student_low_id"`
 	StudentHighID int64 `bun:"student_high_id,notnull" json:"student_high_id"`
 	Weekday       int   `bun:"weekday,notnull" json:"weekday"`
-}
-
-// NewStudentCompanion builds an edge between two students, normalizing the pair
-// into the stored low/high order.
-func NewStudentCompanion(studentID, companionID int64, weekday int) (*StudentCompanion, error) {
-	if studentID <= 0 || companionID <= 0 {
-		return nil, ErrCompanionStudentIDRequired
-	}
-	if studentID == companionID {
-		return nil, ErrCompanionSelfLink
-	}
-	if _, ok := CompanionWeekdayKeys[weekday]; !ok {
-		return nil, fmt.Errorf("%w: got %d", ErrCompanionInvalidWeekday, weekday)
-	}
-
-	low, high := studentID, companionID
-	if low > high {
-		low, high = high, low
-	}
-	return &StudentCompanion{
-		StudentLowID:  low,
-		StudentHighID: high,
-		Weekday:       weekday,
-	}, nil
 }
 
 // Other returns the id at the far end of the edge as seen from studentID, and

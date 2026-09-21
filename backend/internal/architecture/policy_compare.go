@@ -478,7 +478,8 @@ func uncoveredFirstPartyPermission(rule Rule, base, candidate *Policy, scope Sco
 		if !candidate.matchesTarget(rule, sourcePackage, targetPackage) {
 			continue
 		}
-		if !policyAllowsFirstParty(base, scope, sourcePackage, targetPackage) && !careScheduleCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) {
+		if !policyAllowsFirstParty(base, scope, sourcePackage, targetPackage) && !careScheduleCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
+			!careLifecycleCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) {
 			return fmt.Sprintf("rule %s newly allows %s %s/%s -> %s/%s", rule.ID, scope, source.Owner.ID, source.Role, target.ID, rule.TargetRole)
 		}
 	}
@@ -534,7 +535,7 @@ func firstPartyImportLoosenings(base, candidate *Policy, sourcePath string, base
 		}
 		for _, scope := range allScopes() {
 			if policyAllowsFirstParty(candidate, scope, source, target) && !policyAllowsFirstParty(base, scope, baseSource, baseTarget) &&
-				!careScheduleCutoverPermission(base, candidate, scope, baseSource, target) {
+				!careScheduleCutoverPermission(base, candidate, scope, baseSource, target) && !careLifecycleCutoverPermission(base, candidate, scope, baseSource, target) {
 				problems = append(problems, Violation{Scope: scope, Rule: "imports.forbidden", Source: sourcePath, Target: targetPath}.Key())
 			}
 		}

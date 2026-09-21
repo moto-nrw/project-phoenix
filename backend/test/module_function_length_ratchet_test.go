@@ -86,13 +86,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	// Moved in by PR #3408 (#3350) from services/users and
 	// database/repositories/users; the bodies crossed the boundary at their
 	// old length.
-	"modules/careplan/legacy/carelifecycle/care_exit_cleanup.go:(*CareExitCleanupRepository).restoreRemovals":                             88,
-	"modules/careplan/legacy/carelifecycle/care_lifecycle_service.go:(*careLifecycleService).ApplyDueEffects":                             92,
-	"modules/careplan/legacy/carelifecycle/care_lifecycle_service.go:(*careLifecycleService).Cancel":                                      70,
-	"modules/careplan/legacy/carelifecycle/care_lifecycle_service.go:(*careLifecycleService).Resume":                                      65,
-	"modules/careplan/legacy/carelifecycle/care_lifecycle_service.go:(*careLifecycleService).buildPreview":                                108,
-	"modules/careplan/legacy/carelifecycle/student_companion_service.go:(*companionService).checkCompanionRemovals":                       63,
-	"modules/careplan/legacy/carelifecycle/student_companion_service.go:(*companionService).validateCompanionUpdate":                      69,
 	"modules/classday/internal/application/slotlists.go:(*service).ListOptions":                                                           296,
 	"modules/classday/internal/application/slotlists.go:(*service).RenderList":                                                            71,
 	"modules/classday/internal/application/slotlists.go:(*service).buildList":                                                             127,

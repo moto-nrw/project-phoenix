@@ -5,12 +5,12 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/stretchr/testify/require"
 )
 
 type failingRecordedExitService struct {
-	carelifecycle.CareLifecycleService
+	careplan.CareLifecycle
 	err error
 }
 

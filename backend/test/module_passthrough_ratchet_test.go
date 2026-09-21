@@ -160,7 +160,23 @@ var modulePassthroughBudgets = map[string]int{
 	// forward one store call per schedule and record operation, plus
 	// withdrawals (12), the care-exit/companion service surface (15) and the
 	// student-deletion and excused-request entry points.
-	"modules/careplan": 105,
+	//
+	// The one raise in this register, 105 → 112 with #3427: the care-lifecycle
+	// adapter (5,278 LOC, never scanned because it sat under legacy/) became
+	// native Care Plan application code, and eight of its methods keep the
+	// counted shape while each carries a rule of its own — GetPendingWithdrawal
+	// (state check and error mapping), LockStudentsForUpdateBelow (the
+	// no-wait lock order), CompanionIDsForWeekday and ListCompanionsForStudents
+	// (weekday and empty-set validation), QueueStudentDocumentFileCleanup
+	// (intent validation and delay), ResolveStudentDocumentCleanup,
+	// ListDeletedStudentDocumentsPendingFileCleanup and
+	// CanSeeStudentDocumentCategory (category authority). The same change
+	// removed nine counted forwarders: three file-sweep reads and marks folded
+	// into one owner command, three File Storage port methods bound in
+	// composition, the dead ListWithdrawalCompletionKeys, the People stranding
+	// forward and the internal-only AdministrativelyVisibleStudentIDs.
+	// Shrink-only from here like every other entry.
+	"modules/careplan": 112,
 	// The caller, report and arrival-exception ports reached straight
 	// through, most of them behind a nil-port guard and a date parse.
 	"modules/classday": 9,

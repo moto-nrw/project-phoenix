@@ -15,7 +15,6 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
@@ -42,7 +41,7 @@ type StudentTestModule struct {
 	PeopleDirectory    peopledirectory.Capability
 	Audit              auditModels.Command
 	Schools            organizationtenancy.Capability
-	CareLifecycle      carelifecycle.CareLifecycleService
+	CareLifecycle      careplan.CareLifecycle
 	StudentAudit       users.StudentAuditService
 	PartialAbsence     careplan.PartialAbsenceService
 	EnrollmentDecision enrollment.DecisionService
