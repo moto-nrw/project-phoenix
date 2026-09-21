@@ -12,8 +12,8 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 ## Entscheidungen
 
 - [ ] [#3387](https://github.com/moto-nrw/project-phoenix/issues/3387) Legacy-Guardian-Felder auf den Schüler-Endpunkten — blockt #2760
-- [ ] [#3417](https://github.com/moto-nrw/project-phoenix/issues/3417) Zyklenerkennung und das dauerhafte Plattform-Dreieck
-- [ ] [#3414](https://github.com/moto-nrw/project-phoenix/issues/3414) Projection-Owner `operator-dashboard-view`: ADR oder auflösen
+- [ ] [#3417](https://github.com/moto-nrw/project-phoenix/issues/3417) Zyklen-Ziel und Plattform-Dreieck — entschieden in ADR 0032; offen: Kante `organization-tenancy → delivery-platform` lösen, DoD-Satz in #2580, Teilmengen-Check für `cycles`
+- [x] [#3414](https://github.com/moto-nrw/project-phoenix/issues/3414) Projection-Owner `operator-dashboard-view` bleibt (ADR 0033)
 - [ ] Gehört der Träger-Strang [#2809](https://github.com/moto-nrw/project-phoenix/issues/2809) / [#2821](https://github.com/moto-nrw/project-phoenix/issues/2821) zu #2580?
 
 ## Jetzt vergebbar · 253 Keys
@@ -53,7 +53,7 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Identity · 41 Keys
 
-- [ ] [#3487](https://github.com/moto-nrw/project-phoenix/issues/3487) Native Heimat für Session-Middleware und Signatur entscheiden, damit `legacy/jwt` gelöscht werden kann — Folge von #3226
+- [ ] [#3487](https://github.com/moto-nrw/project-phoenix/issues/3487) `legacy/jwt` aus dem `legacy/`-Pfad umbenennen — entschieden in ADR 0031: das Paket bleibt der Session-Adapter, der Umzug läuft zuletzt nach den Carriern und blockt nichts
 - [ ] [#3230](https://github.com/moto-nrw/project-phoenix/issues/3230) `api/auth` → `modules/identityaccess/inbound/auth`
 - [ ] [#3231](https://github.com/moto-nrw/project-phoenix/issues/3231) Identity-Handler aus `api/operator`
 - [ ] [#2736](https://github.com/moto-nrw/project-phoenix/issues/2736) Carrier api/auth, api/operator — 41
