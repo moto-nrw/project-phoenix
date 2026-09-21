@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -82,13 +83,13 @@ func TestDemoAccessRequestQueuesASchoolOfItsOwn(t *testing.T) {
 	assert.Equal(t, "Kim Beispiel", order.PersonName)
 	assert.False(t, order.Seeded)
 
-	assert.JSONEq(t, `{"status":"preparing"}`, env.status(token).Body.String())
+	assert.JSONEq(t, `{"status":"preparing","school_name":"OGS Beispiel"}`, env.status(token).Body.String())
 	rr := env.post(t, "/demo/access/sessions", map[string]string{"token": token})
 	assert.Equal(t, http.StatusConflict, rr.Code, "a school that is not seeded cannot be entered")
 
 	_, err := env.db.NewRaw(`UPDATE platform.demo_school_states SET status = 'failed' WHERE name = ?`, slug).Exec(context.Background())
 	require.NoError(t, err)
-	assert.JSONEq(t, `{"status":"failed"}`, env.status(token).Body.String())
+	assert.JSONEq(t, `{"status":"failed","school_name":"OGS Beispiel"}`, env.status(token).Body.String())
 }
 
 // The prospect's address is contact data of the demo access only. It never
@@ -151,8 +152,8 @@ func TestDemoVisitorsDoNotSeeEachOthersSchool(t *testing.T) {
 	seedDemoSchool(t, env.db, firstOrder, firstSchool, firstVisitor.ID)
 	seedDemoSchool(t, env.db, secondOrder, secondSchool, secondVisitor.ID)
 
-	assert.JSONEq(t, `{"status":"ready","school_url":"https://`+firstOrder+`.demo.example"}`, env.status(firstToken).Body.String())
-	assert.JSONEq(t, `{"status":"ready","school_url":"https://`+secondOrder+`.demo.example"}`, env.status(secondToken).Body.String())
+	assert.JSONEq(t, `{"status":"ready","school_name":"OGS Beispiel","school_url":"https://`+firstOrder+`.demo.example"}`, env.status(firstToken).Body.String())
+	assert.JSONEq(t, `{"status":"ready","school_name":"OGS Beispiel","school_url":"https://`+secondOrder+`.demo.example"}`, env.status(secondToken).Body.String())
 
 	first, second := sessionClaims(t, env, firstToken), sessionClaims(t, env, secondToken)
 	assert.Equal(t, firstSchool, first.TenantID)
@@ -183,4 +184,44 @@ func TestDemoVisitorsDoNotSeeEachOthersSchool(t *testing.T) {
 	}
 	assert.Equal(t, 1, visible(first.TenantID))
 	assert.Zero(t, visible(second.TenantID), "the second visitor's school does not contain the first visitor's room")
+}
+
+// The simulation serves only the demo schools a visitor entered in the last
+// minutes (#3464). Entering is redeeming the token, which notes the entry on
+// the school; a returning visitor redeems it again and brings the school back.
+func TestDemoSimulationServesOnlySchoolsInUse(t *testing.T) {
+	t.Parallel()
+	env := newOwnSchoolDemoEnv(t)
+	usedSchool := testpkg.Tenant(t)
+	idleSchool, _ := testpkg.CreateTestTenant(t, env.db)
+	_, usedVisitor := testpkg.CreateTestStaffWithAccount(t, env.db, "Kim", "Beispiel")
+	testpkg.EnsureAccountTenant(t, env.db, usedVisitor.ID, usedSchool)
+	_, idleVisitor := testpkg.CreateTestStaffWithAccountForTenant(t, env.db, idleSchool, "Alex", "Muster")
+	testpkg.EnsureAccountTenant(t, env.db, idleVisitor.ID, idleSchool)
+
+	usedToken, used := env.requestOwnSchool(t, env.address())
+	_, idle := env.requestOwnSchool(t, "zweite-"+env.address())
+	seedDemoSchool(t, env.db, used, usedSchool, usedVisitor.ID)
+	seedDemoSchool(t, env.db, idle, idleSchool, idleVisitor.ID)
+
+	// The demo process ticks the schools whose entry is recent; the selection
+	// itself is Organisation & Tenancy's (TestActiveDemoSchoolsAreTheReadyOnesEnteredSince).
+	lastEntry := func(slug string) *time.Time {
+		var at *time.Time
+		require.NoError(t, env.db.NewRaw(`SELECT last_used_at FROM platform.demo_school_states WHERE name = ?`, slug).Scan(context.Background(), &at))
+		return at
+	}
+	assert.Nil(t, lastEntry(used), "a ready school nobody entered gets no ticks")
+
+	before := time.Now().Add(-time.Second)
+	sessionClaims(t, env, usedToken)
+	require.NotNil(t, lastEntry(used), "entering the school starts its simulation")
+	assert.True(t, lastEntry(used).After(before))
+	assert.Nil(t, lastEntry(idle), "entering one school does not wake another")
+
+	_, err := env.db.NewRaw(`UPDATE platform.demo_school_states SET last_used_at = NOW() - INTERVAL '1 hour' WHERE name = ?`, used).Exec(context.Background())
+	require.NoError(t, err)
+	before = time.Now().Add(-time.Second)
+	sessionClaims(t, env, usedToken)
+	assert.True(t, lastEntry(used).After(before), "a returning visitor brings the simulation back")
 }

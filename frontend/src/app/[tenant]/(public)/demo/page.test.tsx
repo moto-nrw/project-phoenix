@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import DemoEntryPage from "./page";
 
@@ -118,5 +118,16 @@ describe("DemoEntryPage", () => {
       await screen.findByText("Das hat leider nicht geklappt"),
     ).toBeInTheDocument();
     expect(assign).not.toHaveBeenCalled();
+
+    fetchMock
+      .mockReturnValueOnce(json(200, { status: "ready" }))
+      .mockReturnValueOnce(
+        json(200, { access_token: "access", refresh_token: "refresh" }),
+      );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Noch einmal versuchen" }),
+    );
+
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
   });
 });
