@@ -212,6 +212,15 @@ func (d demoSchoolDirectory) PrepareDemoSchool(ctx context.Context, schoolName, 
 	return slug, err
 }
 
+// MarkDemoSchoolUsed notes an entry. The standing school has no order and is
+// always simulated, so there is nothing to note for it.
+func (d demoSchoolDirectory) MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error {
+	if slug == d.standing {
+		return nil
+	}
+	return d.orders.MarkDemoSchoolUsed(ctx, slug, usedAt)
+}
+
 func (d demoSchoolDirectory) DemoSchoolEntry(ctx context.Context, slug string) (identityaccess.DemoSchoolEntry, error) {
 	preparing := identityaccess.DemoSchoolEntry{Status: identityaccess.DemoSchoolPreparing}
 	progress, err := d.orders.DemoSchoolProgress(ctx, slug)

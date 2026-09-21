@@ -91,8 +91,18 @@ type DemoAccessMail interface {
 // DemoAccessEngine is the composed implementation behind DemoAccess.
 type DemoAccessEngine interface {
 	RequestDemoAccess(ctx context.Context, request DemoAccessRequest) error
-	DemoAccessStatus(ctx context.Context, token string) (status, schoolSlug string, err error)
+	DemoAccessStatus(ctx context.Context, token string) (DemoAccessProgress, error)
 	RedeemDemoAccess(ctx context.Context, token, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
+}
+
+// DemoAccessProgress is what the token's holder may know about its demo
+// school: the progress, the slug that is the school's subdomain once it is
+// ready, and the OGS name the prospect gave, which the waiting room shows
+// (#3464).
+type DemoAccessProgress struct {
+	Status     string
+	SchoolSlug string
+	SchoolName string
 }
 
 // DemoAccess is the capability the public demo routes consume, separate from
@@ -110,9 +120,8 @@ func (d *DemoAccess) RequestDemoAccess(ctx context.Context, request DemoAccessRe
 	return d.engine.RequestDemoAccess(ctx, request)
 }
 
-// DemoAccessStatus reports the progress of the token's demo school and its
-// slug: the subdomain the prospect enters once the school is ready.
-func (d *DemoAccess) DemoAccessStatus(ctx context.Context, token string) (status, schoolSlug string, err error) {
+// DemoAccessStatus reports the progress of the token's demo school.
+func (d *DemoAccess) DemoAccessStatus(ctx context.Context, token string) (DemoAccessProgress, error) {
 	return d.engine.DemoAccessStatus(ctx, token)
 }
 

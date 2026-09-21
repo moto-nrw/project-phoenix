@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
@@ -41,13 +42,19 @@ type DemoSessions = ports.DemoSessions
 // the slug a new access enters: a queued school of its own or the standing
 // school, or identityaccess.ErrDemoCapacityReached when no further school
 // may be queued (#3466). DemoSchoolEntry reports "preparing" until the school
-// is seeded, exists and is active.
+// is seeded, exists and is active. MarkDemoSchoolUsed notes an entry into the
+// school.
 type DemoSchools interface {
 	PrepareDemoSchool(ctx context.Context, schoolName, personName string) (slug string, err error)
 	DemoSchoolEntry(ctx context.Context, slug string) (identityaccess.DemoSchoolEntry, error)
+	MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error
 }
 
 type demoSchoolsPort struct{ schools DemoSchools }
+
+func (p demoSchoolsPort) MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error {
+	return p.schools.MarkDemoSchoolUsed(ctx, slug, usedAt)
+}
 
 func (p demoSchoolsPort) PrepareDemoSchool(ctx context.Context, schoolName, personName string) (string, error) {
 	slug, err := p.schools.PrepareDemoSchool(ctx, schoolName, personName)
@@ -129,9 +136,12 @@ func (e demoAccessEngine) RequestDemoAccess(ctx context.Context, request identit
 	}, request.ClientIP, request.EntryURLPrefix))
 }
 
-func (e demoAccessEngine) DemoAccessStatus(ctx context.Context, token string) (string, string, error) {
-	status, schoolSlug, err := e.flows.Status(ctx, token)
-	return status, schoolSlug, demoAccessError(err)
+func (e demoAccessEngine) DemoAccessStatus(ctx context.Context, token string) (identityaccess.DemoAccessProgress, error) {
+	access, status, err := e.flows.Status(ctx, token)
+	if err != nil {
+		return identityaccess.DemoAccessProgress{}, demoAccessError(err)
+	}
+	return identityaccess.DemoAccessProgress{Status: status, SchoolSlug: access.SchoolSlug, SchoolName: access.SchoolName}, nil
 }
 
 func (e demoAccessEngine) RedeemDemoAccess(ctx context.Context, token, ipAddress, userAgent string) (string, string, error) {

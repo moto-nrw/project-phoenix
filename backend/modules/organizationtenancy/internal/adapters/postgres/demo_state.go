@@ -176,8 +176,19 @@ func (s *DemoStateStore) ReadyNames(ctx context.Context) ([]string, error) {
 	return names, nil
 }
 
+// ActiveNames lists the ready demo schools entered since the given instant:
+// the only ones the simulation serves (#3464).
+func (s *DemoStateStore) ActiveNames(ctx context.Context, since time.Time) ([]string, error) {
+	var names []string
+	err := s.db.NewRaw(`SELECT name FROM platform.demo_school_states WHERE status = 'ready' AND last_used_at >= ? ORDER BY created_at, name`, since).Scan(ctx, &names)
+	if err != nil {
+		return nil, fmt.Errorf("list demo schools in use: %w", err)
+	}
+	return names, nil
+}
+
 // DemoOrderStore is the serving backend's side of the queue. Its role may
-// only add an order and read its progress, never the seed state.
+// only add an order, read its progress and note its use, never the seed state.
 type DemoOrderStore struct{ database Database }
 
 func NewDemoOrderStore(database Database) *DemoOrderStore {
@@ -239,6 +250,18 @@ func (s *DemoOrderStore) Progress(ctx context.Context, name string) (*DemoProgre
 		return nil, fmt.Errorf("read demo school progress: %w", err)
 	}
 	return &progress, nil
+}
+
+// MarkUsed notes that a visitor entered the school at usedAt.
+func (s *DemoOrderStore) MarkUsed(ctx context.Context, name string, usedAt time.Time) error {
+	db, err := s.database(ctx)
+	if err != nil {
+		return err
+	}
+	if _, err := db.NewRaw(`UPDATE platform.demo_school_states SET last_used_at = ? WHERE name = ?`, usedAt, name).Exec(ctx); err != nil {
+		return fmt.Errorf("note demo school use: %w", err)
+	}
+	return nil
 }
 
 // ErrDemoOrderExists reports a name that is already queued or seeded.

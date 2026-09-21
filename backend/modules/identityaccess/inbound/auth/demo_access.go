@@ -20,7 +20,7 @@ import (
 // routes (#3462).
 type DemoAccesses interface {
 	RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) error
-	DemoAccessStatus(ctx context.Context, token string) (status, schoolSlug string, err error)
+	DemoAccessStatus(ctx context.Context, token string) (identityaccess.DemoAccessProgress, error)
 	RedeemDemoAccess(ctx context.Context, token, ipAddress, userAgent string) (string, string, error)
 }
 
@@ -120,15 +120,17 @@ func (rs *DemoResource) requestAccess(w http.ResponseWriter, r *http.Request) {
 
 func (rs *DemoResource) accessStatus(w http.ResponseWriter, r *http.Request) {
 	token, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-	status, schoolSlug, err := rs.accesses.DemoAccessStatus(r.Context(), strings.TrimSpace(token))
+	progress, err := rs.accesses.DemoAccessStatus(r.Context(), strings.TrimSpace(token))
 	if err != nil {
 		rs.renderError(w, r, err)
 		return
 	}
-	response := map[string]string{"status": status}
-	if status == identityaccess.DemoSchoolReady {
+	// The waiting room names the OGS being set up (#3464); only the token's
+	// holder asks, and the name is the one they gave.
+	response := map[string]string{"status": progress.Status, "school_name": progress.SchoolName}
+	if progress.Status == identityaccess.DemoSchoolReady {
 		// Only now the school's subdomain resolves.
-		response["school_url"] = strings.TrimRight(rs.origins.School(schoolSlug), "/")
+		response["school_url"] = strings.TrimRight(rs.origins.School(progress.SchoolSlug), "/")
 	}
 	render.JSON(w, r, response)
 }

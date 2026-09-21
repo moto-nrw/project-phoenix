@@ -31,6 +31,9 @@ type DemoSchools interface {
 	// DemoSchoolEntry reports the school's progress. A school that is
 	// unknown, inactive or deleted is still preparing.
 	DemoSchoolEntry(ctx context.Context, slug string) (domain.DemoSchoolEntry, error)
+	// MarkDemoSchoolUsed notes an entry into the school; the simulation
+	// serves only schools entered in the last minutes (#3464).
+	MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error
 }
 
 // DemoAccessMail sends the two mails of the public demo (#3465). Sending is

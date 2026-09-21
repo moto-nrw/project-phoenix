@@ -72,15 +72,16 @@ func (s *Store) FindDemoAccessByTokenHash(ctx context.Context, tokenHash string)
 		ID         int64     `bun:"id"`
 		ExpiresAt  time.Time `bun:"expires_at"`
 		SchoolSlug string    `bun:"school_slug"`
+		SchoolName string    `bun:"school_name"`
 	}
-	err = db.NewRaw(`SELECT id, expires_at, school_slug FROM auth.demo_accesses WHERE token_hash = ?`, tokenHash).Scan(ctx, &row)
+	err = db.NewRaw(`SELECT id, expires_at, school_slug, school_name FROM auth.demo_accesses WHERE token_hash = ?`, tokenHash).Scan(ctx, &row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.DemoAccess{}, false, nil
 	}
 	if err != nil {
 		return domain.DemoAccess{}, false, fmt.Errorf("identity access postgres: find demo access: %w", err)
 	}
-	return domain.DemoAccess{ID: row.ID, TokenHash: tokenHash, ExpiresAt: row.ExpiresAt, SchoolSlug: row.SchoolSlug}, true, nil
+	return domain.DemoAccess{ID: row.ID, TokenHash: tokenHash, ExpiresAt: row.ExpiresAt, SchoolSlug: row.SchoolSlug, SchoolName: row.SchoolName}, true, nil
 }
 
 // RecordDemoAccessUse notes one redemption and the account it signed in.

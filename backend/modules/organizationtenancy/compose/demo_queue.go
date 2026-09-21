@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/postgres"
@@ -47,6 +48,10 @@ func (e demoQueueEngine) FailDemoSchoolOrder(ctx context.Context, slug string, m
 
 func (e demoQueueEngine) ReadyDemoSchools(ctx context.Context) ([]string, error) {
 	return e.store.ReadyNames(ctx)
+}
+
+func (e demoQueueEngine) ActiveDemoSchools(ctx context.Context, since time.Time) ([]string, error) {
+	return e.store.ActiveNames(ctx, since)
 }
 
 // NewDemoSchoolOrders composes the serving backend's side. Every call needs
@@ -106,6 +111,10 @@ func (e demoOrderEngine) DemoSchoolProgress(ctx context.Context, slug string) (*
 	return &organizationtenancy.DemoSchoolProgress{
 		Status: progress.Status, SchoolID: progress.TenantID, VisitorAccountID: progress.VisitorAccountID,
 	}, nil
+}
+
+func (e demoOrderEngine) MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error {
+	return e.store.MarkUsed(ctx, slug, usedAt)
 }
 
 func (e demoQueueEngine) ReturnDemoSchoolOrder(ctx context.Context, slug string) error {
