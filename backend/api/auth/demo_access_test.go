@@ -186,6 +186,29 @@ func TestDemoAccessRedeemsRepeatedlyIntoALockedTenantSession(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), "demo_session")
 }
 
+// Every visitor signs in as the same administrator, so the session cap of a
+// single account must not end the demo of an earlier visitor.
+func TestDemoAccessKeepsEarlierVisitorsSignedIn(t *testing.T) {
+	t.Parallel()
+	env := newDemoEnv(t)
+	env.provisionDemoAdmin(t)
+	token := env.requestToken(t)
+
+	var first authAPI.TokenResponse
+	for visitor := range 7 {
+		rr := env.post(t, "/demo/access/sessions", map[string]string{"token": token})
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		if visitor == 0 {
+			require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &first))
+		}
+	}
+
+	req := testutil.NewJSONRequest(t, http.MethodPost, "/auth/refresh", nil)
+	req.Header.Set("Authorization", "Bearer "+first.RefreshToken)
+	rr := testutil.ExecuteRequest(env.router, req)
+	assert.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+}
+
 func TestDemoAccessRejectsUnknownAndExpiredTokens(t *testing.T) {
 	t.Parallel()
 	env := newDemoEnv(t)
