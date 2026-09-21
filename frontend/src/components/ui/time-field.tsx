@@ -3,14 +3,26 @@
 import { useId } from "react";
 
 /**
- * Nur Ziffern und der Doppelpunkt; nach zwei Ziffern setzt das Feld ihn
- * selbst, damit niemand ihn auf einer Zifferntastatur suchen muss. Geteilt
- * mit dem Uhrzeitfeld der Einstellungen (`SettingsTimeField`), damit es die
- * Maske nicht ein zweites Mal gibt (#3117).
+ * Nur Ziffern und der Doppelpunkt; auch einstellige Stunden bleiben gültig.
+ * Geteilt mit dem Uhrzeitfeld der Einstellungen (`SettingsTimeField`), damit
+ * es die Maske nicht ein zweites Mal gibt (#3117).
  */
 export function normalizeTimeInput(raw: string): string {
+  const explicitTime = raw.match(/^(\d{1,2}):(\d{0,2})$/);
+  if (explicitTime) {
+    return `${explicitTime[1]!.padStart(2, "0")}:${explicitTime[2]!}`;
+  }
+
   const digits = raw.replace(/\D/g, "").slice(0, 4);
   if (digits.length <= 2) return digits;
+  if (digits.length === 3) {
+    // Keep typing a two-digit hour naturally ("123" → "12:3"), but
+    // interpret a pasted or completed one-digit hour ("930" → "09:30").
+    if (Number(digits.slice(0, 2)) <= 23) {
+      return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+    }
+    return `0${digits.slice(0, 1)}:${digits.slice(1)}`;
+  }
   return `${digits.slice(0, 2)}:${digits.slice(2)}`;
 }
 

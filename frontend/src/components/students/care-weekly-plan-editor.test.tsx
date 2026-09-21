@@ -891,6 +891,30 @@ describe("CareWeeklyPlanEditForm", () => {
     expect(pickup).toHaveAttribute("placeholder", "HH:MM");
   });
 
+  it("pads a one-digit hour when typing a clock time", async () => {
+    const { onSubmitWeekly } = renderForm();
+
+    const pickup = screen.getByLabelText("Abholung", {
+      selector: "#weekly-pickup-1",
+    });
+    fireEvent.change(pickup, { target: { value: "930" } });
+
+    expect(pickup).toHaveValue("09:30");
+    fireEvent.change(pickup, { target: { value: "9:30" } });
+    expect(pickup).toHaveValue("09:30");
+    save();
+
+    await waitFor(() => {
+      expect(onSubmitWeekly).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pickupSchedules: expect.arrayContaining([
+            expect.objectContaining({ weekday: 1, pickupTime: "09:30" }),
+          ]),
+        }),
+      );
+    });
+  });
+
   // #3371: the school's usual times go into an empty field with one click;
   // what is saved is the plain clock time.
   it("fills an empty field with the school's usual time on one click", async () => {
