@@ -212,7 +212,7 @@ func attachOfferingGuardLink(t *testing.T, repos repositories.EnrollmentTestRepo
 			AvailableDays: []string{"mon", "tue", "wed", "thu", "fri"}, IsActive: true,
 			IsRequired: required, CountsAsCare: true,
 		}
-		require.NoError(t, repos.CareOffering.Create(ctx, offering))
+		require.NoError(t, enrollmentService.NewCareOfferingRepository(repos.CarePlan).Create(ctx, offering))
 		return &capability.RequestChildOffering{RequestChildID: childID, CareOfferingID: offering.ID}
 	}
 	link := createLink("Ganztag", fixture == requiredOnly)
@@ -242,7 +242,7 @@ func newOfferingGuardDecisionService(repos repositories.EnrollmentTestRepositori
 	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
 		Requests: repos.Enrollment(), Children: children, Guardians: repos.Enrollment(),
 		ApprovedOfferings: approvedOfferings,
-		LateInviteRepo:    repos.Enrollment(), CareOfferingRepo: repos.CareOffering,
+		LateInviteRepo:    repos.Enrollment(), CareOfferingRepo: enrollmentService.NewCareOfferingRepository(repos.CarePlan),
 		Phases: repos.Enrollment(), Schemas: repos.Enrollment(), PersonRepo: repos.Person, StaffRepo: repos.Staff,
 		StudentRepo: repos.Student, StudentGuardianRepo: repos.StudentGuardian, GuardianProfileRepo: repos.GuardianProfile,
 		GuardianPhoneRepo: repos.GuardianPhoneNumber, PickupScheduleRepo: repos.StudentPickupSchedule,

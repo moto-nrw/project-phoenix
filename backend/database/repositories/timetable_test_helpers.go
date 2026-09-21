@@ -11,10 +11,10 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	facilitiesAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -64,11 +64,12 @@ type TimetableTestRepositories struct {
 	StudentPickupException    scheduleModels.StudentPickupExceptionRepository
 	StudentPickupNote         scheduleModels.StudentPickupNoteRepository
 	StudentStatusDay          activeModels.StudentStatusDayOverviewRepository
-	CareOffering              enrollmentModels.CareOfferingRepository
-	Room                      facilitiesModels.RoomRepository
-	DeviationEvent            auditModels.DeviationEventRepository
-	ClassArrivalTime          educationModels.ClassArrivalTimeRepository
-	ClassArrivalException     scheduleModels.ClassArrivalExceptionRepository
+	// CarePlan is the owner capability the schedule adapters above delegate to.
+	CarePlan              careplan.Capability
+	Room                  facilitiesModels.RoomRepository
+	DeviationEvent        auditModels.DeviationEventRepository
+	ClassArrivalTime      educationModels.ClassArrivalTimeRepository
+	ClassArrivalException scheduleModels.ClassArrivalExceptionRepository
 }
 
 func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (TimetableTestRepositories, error) {
@@ -165,7 +166,7 @@ func timetableTestRepositories(r *Factory) TimetableTestRepositories {
 		StudentArrivalSchedule: r.StudentArrivalSchedule, StudentArrivalException: r.StudentArrivalException,
 		StudentArrivalNote: r.StudentArrivalNote, StudentPickupSchedule: r.StudentPickupSchedule,
 		StudentPickupException: r.StudentPickupException, StudentPickupNote: r.StudentPickupNote,
-		StudentStatusDay: r.StudentStatusDay, CareOffering: r.CareOffering,
+		StudentStatusDay: r.StudentStatusDay, CarePlan: r.carePlan,
 		Room: r.Room, DeviationEvent: r.DeviationEvent,
 		ClassArrivalTime: r.ClassArrivalTime, ClassArrivalException: r.ClassArrivalException,
 		enrollment: r.SubmissionRateLimit,

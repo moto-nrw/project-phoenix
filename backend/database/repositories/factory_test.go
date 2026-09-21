@@ -94,7 +94,7 @@ func TestNewFactory(t *testing.T) {
 	})
 
 	t.Run("enrollment repositories", func(t *testing.T) {
-		assert.NotNil(t, factory.CareOffering)
+		assert.NotNil(t, factory.CarePlan())
 		assert.NotNil(t, factory.Enrollment())
 	})
 }

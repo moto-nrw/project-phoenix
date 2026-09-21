@@ -79,7 +79,7 @@ func TestOfferingChangeRequestService_ListHistory(t *testing.T) {
 	require.NoError(t, err)
 	// Withdrawal was retired in #2267 (guardians edit instead); the status
 	// stays valid for historic rows, so it is written through the repository.
-	require.NoError(t, env.repos.OfferingChangeRequest.Decide(
+	require.NoError(t, enrollmentService.NewOfferingChangeRepository(env.repos.CarePlan(), nil).Decide(
 		ctx, withdrawn.ID, enrollmentModels.OfferingChangeStatusWithdrawn, nil, nil, false,
 	))
 

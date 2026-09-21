@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
@@ -41,7 +40,6 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
@@ -52,6 +50,7 @@ import (
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 
+	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -98,7 +97,6 @@ type Factory struct {
 	Guest               userModels.GuestRepository
 	Profile             identityaccess.AccountProfiles
 	StudentGuardian     userModels.StudentGuardianRepository
-	StudentCompanion    userModels.StudentCompanionRepository
 	GuardianProfile     userModels.GuardianProfileRepository
 	GuardianPhoneNumber userModels.GuardianPhoneNumberRepository
 	FamilyProtection    userModels.FamilyProtectionEventRepository
@@ -116,8 +114,7 @@ type Factory struct {
 	GuardianFinancialData userModels.GuardianFinancialDataRepository
 
 	// Staff documents (#1424)
-	StaffDocument   userModels.StaffDocumentRepository
-	StudentDocument userModels.StudentDocumentRepository
+	StaffDocument userModels.StaffDocumentRepository
 
 	// School file storage trail (#2596); folders, files and attachments are
 	// owned by modules/filestorage (#2707).
@@ -233,11 +230,7 @@ type Factory struct {
 	// (#2723, #2724).
 
 	// Enrollment domain (parent-enrollment PR 5+)
-	CareOffering enrollmentModels.CareOfferingRepository
-	// OfferingChangeRequest carries post-enrollment care/AG change requests
-	// from the parents portal (#1665).
-	OfferingChangeRequest enrollmentModels.OfferingChangeRequestRepository
-	SubmissionRateLimit   *enrollmentCapability.Module
+	SubmissionRateLimit *enrollmentCapability.Module
 
 	// Parent domain (cross-tenant guardian portal — PR 9+)
 	ParentChild             parentModels.ChildRepository
@@ -483,7 +476,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		}
 		return db, tenantID
 	}
-	parentRuntime := carePlanLegacy.NewParentRuntime(db)
+	parentRuntime := parentRepo.RuntimeFunc(carePlanCompose.TenantAmbientDatabase(db))
 	appointmentsModule, err := NewAppointments(db)
 	if err != nil {
 		panic(fmt.Sprintf("repository factory: compose appointments: %v", err))
@@ -513,7 +506,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		)),
 		Profile:             identity,
 		StudentGuardian:     users.NewStudentGuardianRepository(db, users.WithStudentGuardianMemberships(identity.FindActiveSchoolMemberships)),
-		StudentCompanion:    nil, // bound to Care Plan below
 		GuardianProfile:     NewGuardianProfileRepository(db),
 		GuardianPhoneNumber: users.NewGuardianPhoneNumberRepository(db),
 		FamilyProtection:    users.NewFamilyProtectionEventRepository(db),
@@ -535,7 +527,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 
 		// Staff documents (#1424) — StaffDocument is bound by
 		// bindStaffMembershipDecorators, it needs the membership owner.
-		StudentDocument: nil, // bound to Care Plan below
 
 		// School file storage trail (#2596)
 		FileEvent:          audit.NewFileEventRepository(auditRepositoryRuntime),

@@ -56,7 +56,7 @@ func createAutoAddTarget(
 	})
 	// Create writes only the offering row; the rule lives in
 	// enrollment.care_offering_auto_triggers.
-	require.NoError(t, env.repos.CareOffering.ReplaceAutoAddTriggers(
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).ReplaceAutoAddTriggers(
 		testpkg.Ctx(t), offering.ID, []int64{triggerID},
 	))
 	offering.AutoAddTriggerOfferingIDs = []int64{triggerID}
@@ -171,7 +171,7 @@ func TestOfferingChangeRequestService_ListPending_IncludesUnchangedGrandfathered
 			Value:    []int{1},
 		}},
 	}
-	require.NoError(t, env.repos.CareOffering.Update(ctx, auto))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Update(ctx, auto))
 	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
 		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
 		Selections: []enrollmentService.OfferingChangeSelection{
@@ -229,7 +229,7 @@ func TestOfferingChangeRequestService_Decide_ExclusionSkipsAutoTargetAndRecordsO
 	assert.Contains(t, linkedIDs, fx.newOffering.ID)
 	assert.NotContains(t, linkedIDs, auto.ID, "the excluded rule target must not be booked")
 
-	decided, err := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
+	decided, err := enrollmentService.NewOfferingChangeRepository(env.repos.CarePlan(), nil).FindByID(ctx, row.ID)
 	require.NoError(t, err)
 	require.NotNil(t, decided.DecisionSnapshot, "the decision must freeze its diff")
 	require.Len(t, decided.DecisionSnapshot.OverriddenOfferings, 1)
@@ -261,7 +261,7 @@ func TestOfferingChangeRequestService_Decide_ExclusionOmitsNeverBookedTargetFrom
 		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID,
 		ExcludedAutoOfferingIDs: []int64{auto.ID},
 	}))
-	decided, err := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
+	decided, err := enrollmentService.NewOfferingChangeRepository(env.repos.CarePlan(), nil).FindByID(ctx, row.ID)
 	require.NoError(t, err)
 	require.NotNil(t, decided.DecisionSnapshot)
 	for _, entry := range decided.DecisionSnapshot.Diff {
@@ -293,7 +293,7 @@ func TestOfferingChangeRequestService_Decide_SnapshotMatchesGrandfatheredAutomat
 			Value:    []int{1},
 		}},
 	}
-	require.NoError(t, env.repos.CareOffering.Update(ctx, automatic))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Update(ctx, automatic))
 
 	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
 		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
@@ -318,7 +318,7 @@ func TestOfferingChangeRequestService_Decide_SnapshotMatchesGrandfatheredAutomat
 	}
 	require.True(t, applied, "the applier must retain the grandfathered automatic booking")
 
-	decided, err := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
+	decided, err := enrollmentService.NewOfferingChangeRepository(env.repos.CarePlan(), nil).FindByID(ctx, row.ID)
 	require.NoError(t, err)
 	require.NotNil(t, decided.DecisionSnapshot)
 	for _, entry := range decided.DecisionSnapshot.Diff {
@@ -345,7 +345,7 @@ func TestOfferingChangeRequestService_Decide_ExclusionKeepsManualAndRequiredLunc
 	lunch := createAutoAddTarget(t, env, "OptOutMixed", trigger.ID)
 	lunch.IsRequired, lunch.IncludesLunch = true, true
 	lunch.CountsAsCare, lunch.CountsAsCareSet = false, true
-	require.NoError(t, env.repos.CareOffering.Update(ctx, lunch))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Update(ctx, lunch))
 
 	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
 		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
@@ -400,10 +400,10 @@ func TestOfferingChangeRequestService_PreviewDecision_RecomputesPartialExclusion
 	mixed := createAutoAddTarget(t, env, "PreviewPartialCascade", trigger.ID)
 	mixed.IsRequired, mixed.IncludesLunch = true, true
 	mixed.CountsAsCare, mixed.CountsAsCareSet, mixed.SortOrder = false, true, 205
-	require.NoError(t, env.repos.CareOffering.Update(ctx, mixed))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Update(ctx, mixed))
 	downstream := createAutoAddTarget(t, env, "PreviewPartialCascade downstream", mixed.ID)
 	downstream.CountsAsCare, downstream.CountsAsCareSet, downstream.SortOrder = false, true, 206
-	require.NoError(t, env.repos.CareOffering.Update(ctx, downstream))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Update(ctx, downstream))
 
 	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
 		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
@@ -446,7 +446,7 @@ func TestOfferingChangeRequestService_Decide_RejectsExclusionOfNonAutomaticOffer
 	require.ErrorIs(t, err, enrollmentService.ErrOfferingChangeInvalid,
 		"a parent-chosen offering cannot be overridden away")
 
-	pending, err := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
+	pending, err := enrollmentService.NewOfferingChangeRepository(env.repos.CarePlan(), nil).FindByID(ctx, row.ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, pending.Status)
 }
@@ -475,7 +475,7 @@ func TestOfferingChangeRequestService_Decide_RejectsExclusionWithoutRuleDerivedD
 		o.CountsAsCareSet = true
 		o.SortOrder = 205
 	})
-	require.NoError(t, env.repos.CareOffering.ReplaceAutoAddTriggers(ctx, lunch.ID, []int64{trigger.ID}))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).ReplaceAutoAddTriggers(ctx, lunch.ID, []int64{trigger.ID}))
 
 	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
 		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
@@ -495,7 +495,7 @@ func TestOfferingChangeRequestService_Decide_RejectsExclusionWithoutRuleDerivedD
 	require.ErrorIs(t, err, enrollmentService.ErrOfferingChangeInvalid,
 		"a selected trigger that contributes no target days must not authorize an override")
 
-	pending, err := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
+	pending, err := enrollmentService.NewOfferingChangeRepository(env.repos.CarePlan(), nil).FindByID(ctx, row.ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, pending.Status)
 }
@@ -509,9 +509,9 @@ func TestOfferingChangeRequestService_Decide_RevalidatesExclusionAgainstAppliedR
 	fx := setupOfferingChangeFixture(t, env, "FinalOverrideRules")
 	auto := createAutoAddTarget(t, env, "FinalOverrideRules", fx.newOffering.ID)
 	mutatingRepo := &ruleMutationOnLockCareOfferingRepo{
-		CareOfferingRepository: env.repos.CareOffering,
+		CareOfferingRepository: enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()),
 		mutate: func(ctx context.Context) error {
-			return env.repos.CareOffering.ReplaceAutoAddTriggers(ctx, auto.ID, nil)
+			return enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).ReplaceAutoAddTriggers(ctx, auto.ID, nil)
 		},
 	}
 	svc := newOfferingChangeServiceForTestWithCareRepo(t, env, mutatingRepo)
@@ -525,7 +525,7 @@ func TestOfferingChangeRequestService_Decide_RevalidatesExclusionAgainstAppliedR
 	assert.Contains(t, mutatingRepo.locked, auto.ID, "the excluded rule target must be locked")
 	require.ErrorIs(t, err, enrollmentService.ErrOfferingChangeInvalid)
 
-	pending, findErr := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
+	pending, findErr := enrollmentService.NewOfferingChangeRepository(env.repos.CarePlan(), nil).FindByID(ctx, row.ID)
 	require.NoError(t, findErr)
 	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, pending.Status)
 	assert.Nil(t, pending.DecisionSnapshot)
@@ -549,7 +549,7 @@ func TestOfferingChangeRequestService_Decide_RejectionFreezesDiffSnapshot(t *tes
 		ReviewedBy: env.creatorID,
 	}))
 
-	decided, err := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
+	decided, err := enrollmentService.NewOfferingChangeRepository(env.repos.CarePlan(), nil).FindByID(ctx, row.ID)
 	require.NoError(t, err)
 	require.NotNil(t, decided.DecisionSnapshot)
 	assert.Empty(t, decided.DecisionSnapshot.OverriddenOfferings)
@@ -582,14 +582,14 @@ func TestOfferingChangeRequestService_Decide_RejectionFallsBackToPayloadSnapshot
 	}))
 	row := createPendingTriggerRequest(t, env, svc, fx, []string{"mon"})
 	fx.newOffering.IsActive = false
-	require.NoError(t, env.repos.CareOffering.Update(ctx, fx.newOffering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Update(ctx, fx.newOffering))
 
 	err := svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
 		RequestID: row.ID, Approve: false, Reason: "Kapazität", ReviewedBy: env.creatorID,
 	})
 	require.NoError(t, err)
 
-	decided, findErr := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
+	decided, findErr := enrollmentService.NewOfferingChangeRepository(env.repos.CarePlan(), nil).FindByID(ctx, row.ID)
 	require.NoError(t, findErr)
 	assert.Equal(t, enrollmentModels.OfferingChangeStatusRejected, decided.Status)
 	require.NotNil(t, decided.DecisionSnapshot)
