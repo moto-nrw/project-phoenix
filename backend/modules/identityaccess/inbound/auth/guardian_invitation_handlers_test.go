@@ -5,8 +5,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth"
 )
 
 // setupGuardianInvitationRouter mounts the real auth Router() with the
@@ -16,7 +16,7 @@ func setupGuardianInvitationRouter(t *testing.T) chi.Router {
 	t.Helper()
 
 	db, authRoute := setupAuthDependenciesRoute(t)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, nil, authRoute.Sessions, db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, nil, authRoute.Sessions, authAPI.TenantUnitOfWork{})
 
 	router := testutil.NewTenantRouter(db)
 	router.Mount("/auth", resource.Router())

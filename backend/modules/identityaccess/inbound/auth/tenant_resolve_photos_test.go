@@ -27,8 +27,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -71,7 +71,7 @@ func TestResolveTenant_StudentPhotosEnabled_DefaultFalse(t *testing.T) {
 	db, authRoute := setupAuthDependenciesRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, authAPI.TenantUnitOfWork{})
 	resource.SettingsService = authRoute.SettingsService
 
 	router := chi.NewRouter()
@@ -109,7 +109,7 @@ func TestResolveTenant_StudentPhotosEnabled_OverrideTrue(t *testing.T) {
 		require.NoError(t, authRoute.SettingsService.ResetValue(ctx, configModel.KeyStudentPhotosEnabled, nil, nil))
 	})
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, authAPI.TenantUnitOfWork{})
 	resource.SettingsService = authRoute.SettingsService
 
 	router := chi.NewRouter()
@@ -142,7 +142,7 @@ func TestResolveTenant_GradeLevelMax_Override(t *testing.T) {
 		require.NoError(t, authRoute.SettingsService.ResetValue(ctx, configModel.KeyEnrollmentGradeLevelMax, nil, nil))
 	})
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, authAPI.TenantUnitOfWork{})
 	resource.SettingsService = authRoute.SettingsService
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())
@@ -168,7 +168,7 @@ func TestResolveTenant_NilSettingsServiceFailsGradeMetadata(t *testing.T) {
 	db, authRoute := setupAuthDependenciesRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, authAPI.TenantUnitOfWork{})
 	// Deliberately do NOT set SettingsService — exercises the nil branch.
 
 	router := chi.NewRouter()
@@ -189,7 +189,7 @@ func TestResolveTenant_GradeLevelSettingsFailureIsGeneric500(t *testing.T) {
 	db, authRoute := setupAuthDependenciesRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, authAPI.TenantUnitOfWork{})
 	resource.SettingsService = &configtest.Mock{
 		ResolveIntForTenantFn: func(context.Context, int64, string) (int, error) {
 			return 0, errors.New("private database failure detail")
@@ -213,7 +213,7 @@ func TestResolveTenant_StaffMessagingSettingsFailureIsGeneric500(t *testing.T) {
 	db, authRoute := setupAuthDependenciesRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, authAPI.TenantUnitOfWork{})
 	resource.SettingsService = &configtest.Mock{
 		ResolveBoolForTenantFn: func(_ context.Context, _ int64, key string) (bool, error) {
 			if key == configModel.KeyStaffMessagingEnabled {
@@ -245,7 +245,7 @@ func TestResolveTenant_OutOfRangeGradeLevelIsGeneric500(t *testing.T) {
 			db, authRoute := setupAuthDependenciesRoute(t)
 			_, slug := newTenantResolveScope(t, db)
 
-			resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, db)
+			resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, authAPI.TenantUnitOfWork{})
 			resource.SettingsService = &configtest.Mock{
 				ResolveIntForTenantFn: func(context.Context, int64, string) (int, error) {
 					return value, nil
@@ -271,9 +271,9 @@ func TestResolveTenant_OutOfRangeGradeLevelIsGeneric500(t *testing.T) {
 func TestResolveTenant_MissingSlug_400(t *testing.T) {
 	t.Parallel()
 
-	db, authRoute := setupAuthDependenciesRoute(t)
+	_, authRoute := setupAuthDependenciesRoute(t)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, authAPI.TenantUnitOfWork{})
 
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())

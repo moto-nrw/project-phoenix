@@ -6,7 +6,7 @@ import (
 
 	"github.com/uptrace/bun"
 
-	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
+	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )

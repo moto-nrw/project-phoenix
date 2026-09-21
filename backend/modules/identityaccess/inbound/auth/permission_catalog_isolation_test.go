@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database"
+	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -141,7 +141,7 @@ func setupPlatformPermissionRoute(t *testing.T) chi.Router {
 
 	svc, err := services.NewAuthTestModule(serveDB, testpkg.TenantRuntime(t, serveDB))
 	require.NoError(t, err)
-	authResource := authAPI.NewResource(svc.Auth, svc.Invitation, nil, svc.AccountAuthentication, serveDB)
+	authResource := authAPI.NewResource(svc.Auth, svc.Invitation, nil, svc.AccountAuthentication, authAPI.TenantUnitOfWork{})
 	router := testutil.NewTenantRouter(serveDB)
 	router.Mount("/auth", authResource.Router())
 	return router
