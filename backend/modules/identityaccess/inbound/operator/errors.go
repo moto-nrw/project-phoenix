@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
@@ -59,5 +60,30 @@ func (rs *Resource) accessError(err error) render.Renderer {
 		return rs.responses.Conflict("School is already deleted")
 	default:
 		return rs.responses.AccessFallback(err)
+	}
+}
+
+// AuthErrorRenderer maps Identity & Access authentication outcomes to HTTP
+// responses. The bodies are fixed sentences, so the owner's sentinels decide
+// exactly the statuses and texts the retained typed errors decided (#3364).
+func AuthErrorRenderer(err error) render.Renderer {
+	switch {
+	case errors.Is(err, ErrOperatorInvalidCredentials):
+		return common.OperatorInvalidCredentials()
+	case errors.Is(err, ErrOperatorInactive):
+		return common.OperatorForbidden("Operator account is inactive")
+	case errors.Is(err, ErrOperatorNotFound):
+		return common.OperatorInvalidCredentials()
+	case errors.Is(err, ErrMFARateLimited):
+		return common.OperatorTooManyRequests("Too many code requests, please wait")
+	case errors.Is(err, ErrMFALocked):
+		return common.OperatorTooManyRequests("MFA account temporarily locked")
+	case errors.Is(err, ErrMFAChallengeTokenInvalid),
+		errors.Is(err, ErrMFACodeInvalid):
+		return common.OperatorInvalidCredentials()
+	case errors.Is(err, ErrMFAStatusUnavailable):
+		return common.OperatorServiceUnavailable("MFA status temporarily unavailable, please retry")
+	default:
+		return common.OperatorInternal("Authentication failed")
 	}
 }

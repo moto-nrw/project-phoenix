@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/operator"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
@@ -35,7 +34,7 @@ func TestGetProfile_Success(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	req := httptest.NewRequest(http.MethodGet, "/profile", nil)
 	claims := jwt.AppClaims{ID: 123}
@@ -66,7 +65,7 @@ func TestGetProfile_OperatorNotFound(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	req := httptest.NewRequest(http.MethodGet, "/profile", nil)
 	claims := jwt.AppClaims{ID: 999}
@@ -89,7 +88,7 @@ func TestGetProfile_ServiceError(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	req := httptest.NewRequest(http.MethodGet, "/profile", nil)
 	claims := jwt.AppClaims{ID: 123}
@@ -343,7 +342,7 @@ func TestUpdateProfileRequest_Bind(t *testing.T) {
 	t.Parallel()
 
 	req := httptest.NewRequest(http.MethodPut, "/profile", nil)
-	updateReq := &operator.UpdateProfileRequest{}
+	updateReq := &identityoperator.UpdateProfileRequest{}
 
 	err := updateReq.Bind(req)
 	assert.NoError(t, err)
@@ -353,7 +352,7 @@ func TestChangePasswordRequest_Bind(t *testing.T) {
 	t.Parallel()
 
 	req := httptest.NewRequest(http.MethodPost, "/profile/password", nil)
-	changeReq := &operator.ChangePasswordRequest{}
+	changeReq := &identityoperator.ChangePasswordRequest{}
 
 	err := changeReq.Bind(req)
 	assert.NoError(t, err)
@@ -375,7 +374,7 @@ func TestInitiateEmailChange_Success(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"new_email":        "new@example.com",
@@ -399,7 +398,7 @@ func TestInitiateEmailChange_EmptyNewEmail(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{}
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"new_email":        "",
@@ -423,7 +422,7 @@ func TestInitiateEmailChange_EmptyPassword(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{}
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"new_email":        "new@example.com",
@@ -447,7 +446,7 @@ func TestInitiateEmailChange_InvalidJSON(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{}
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	req := httptest.NewRequest(http.MethodPost, "/profile/email-change", bytes.NewReader([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
@@ -470,7 +469,7 @@ func TestInitiateEmailChange_PasswordMismatch(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"new_email":        "new@example.com",
@@ -499,7 +498,7 @@ func TestInitiateEmailChange_SameEmail(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"new_email":        "same@example.com",
@@ -528,7 +527,7 @@ func TestInitiateEmailChange_EmailAlreadyInUse(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"new_email":        "taken@example.com",
@@ -557,7 +556,7 @@ func TestInitiateEmailChange_RateLimit(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"new_email":        "new@example.com",
@@ -586,7 +585,7 @@ func TestInitiateEmailChange_OperatorInactive(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"new_email":        "new@example.com",
@@ -615,7 +614,7 @@ func TestInitiateEmailChange_ServiceError(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"new_email":        "new@example.com",
@@ -650,7 +649,7 @@ func TestConfirmEmailChange_Success(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"token": testUUID,
@@ -676,7 +675,7 @@ func TestConfirmEmailChange_EmptyToken(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{}
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"token": "",
@@ -696,7 +695,7 @@ func TestConfirmEmailChange_InvalidJSON(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{}
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/email-confirm", bytes.NewReader([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
@@ -717,7 +716,7 @@ func TestConfirmEmailChange_TokenInvalid(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"token": testUUID,
@@ -743,7 +742,7 @@ func TestConfirmEmailChange_EmailAlreadyInUse(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"token": testUUID,
@@ -770,7 +769,7 @@ func TestConfirmEmailChange_OperatorInactive(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"token": testUUID,
@@ -797,7 +796,7 @@ func TestConfirmEmailChange_ServiceError(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"token": testUUID,
@@ -820,7 +819,7 @@ func TestConfirmEmailChange_WhitespaceToken(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{}
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"token": "   ",
@@ -840,7 +839,7 @@ func TestInitiateEmailChangeRequest_Bind(t *testing.T) {
 	t.Parallel()
 
 	req := httptest.NewRequest(http.MethodPost, "/profile/email-change", nil)
-	changeReq := &operator.InitiateEmailChangeRequest{
+	changeReq := &identityoperator.InitiateEmailChangeRequest{
 		NewEmail:        "test@example.com",
 		CurrentPassword: "password",
 	}
@@ -853,7 +852,7 @@ func TestConfirmEmailChangeRequest_Bind(t *testing.T) {
 	t.Parallel()
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/email-confirm", nil)
-	confirmReq := &operator.ConfirmEmailChangeRequest{
+	confirmReq := &identityoperator.ConfirmEmailChangeRequest{
 		Token: "00000000-0000-4000-a000-000000000001",
 	}
 
@@ -865,7 +864,7 @@ func TestConfirmEmailChange_InvalidTokenFormat(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{}
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"token": "not-a-valid-uuid",
