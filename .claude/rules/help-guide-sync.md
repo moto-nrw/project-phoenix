@@ -56,7 +56,7 @@ interface HelpTopic {
   summary: string;                 // one sentence under the title
   group: HelpTopicGroup;           // the category it appears under
   audience: "all" | HelpRole | readonly HelpRole[];
-  icon: LucideIcon;
+  icon: PhosphorIcon;              // from "@phosphor-icons/react/ssr"; unique within each tile overview (tested)
   requirements?: readonly string[];      // "Das brauchen Sie"
   steps: readonly string[];              // "So geht es", when there is one path
   instructionGroups?: readonly {         // several named paths instead of one list
