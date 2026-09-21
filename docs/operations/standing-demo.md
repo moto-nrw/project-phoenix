@@ -8,8 +8,8 @@ school of #3461 stays selectable as the fallback (see below).
 
 1. `POST /demo/access-requests` stores the demo access and queues an order in
    `platform.demo_school_states` (`status = preparing`). The slug is the OGS
-   name as a DNS label plus six random characters. `entry_url` points at the
-   waiting room `FRONTEND_URL/demo`, because `https://<slug>.<TENANT_DOMAIN>`
+   name as a DNS label plus six random characters. The link it mails (#3465)
+   points at the waiting room `FRONTEND_URL/demo`, because `https://<slug>.<TENANT_DOMAIN>`
    answers only once the school exists; the waiting room sends the visitor
    there when the status turns `ready`. The serving backend may
    only insert an order and read `name`, `status`, `tenant_id` and
@@ -41,8 +41,9 @@ school of #3461 stays selectable as the fallback (see below).
 6. A restart releases the claims of the stopped process. An order whose seed
    state was already stored is not seeded again; it only gets its first tick.
 
-An address with an unexpired demo access whose school did not fail gets `202`
-without `entry_url` and no second school.
+An address whose newest unexpired demo access enters a school that did not
+fail gets no second school: after the 10-minute cooldown of #3465 a further
+request stores an access into that same school and mails its link.
 
 `--once` empties the queue, ticks every ready school once and exits.
 

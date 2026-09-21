@@ -61,7 +61,7 @@ type accountAuthenticationWiring struct {
 	// operator link reports it as unavailable.
 	operatorLinks *operatorLinkWiring
 	// demoAccess composes the public demo flow only for APP_ENV=demo.
-	demoAccess bool
+	demoAccess *demoAccessWiring
 	// demoStandingSchool is the slug of the standing demo school every demo
 	// access enters instead of a school of its own: the fallback of #3463.
 	// Empty gives every access its own school.
@@ -163,14 +163,15 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 	return module, nil
 }
 
-func demoDependencies(enabled bool, standingSchool string, schools organizationtenancy.Query) *identityaccessCompose.DemoDependencies {
-	if !enabled {
+func demoDependencies(wiring *demoAccessWiring, standingSchool string, schools organizationtenancy.Query) *identityaccessCompose.DemoDependencies {
+	if wiring == nil {
 		return nil
 	}
 	return &identityaccessCompose.DemoDependencies{
 		Schools: demoSchoolDirectory{
 			schools: schools, orders: organizationCompose.NewDemoSchoolOrders(SecureRandomSource()), standing: standingSchool,
 		},
+		Mail:     newDemoAccessMail(wiring),
 		NewToken: authjwt.NewOpaqueCapabilityToken, Fingerprint: authjwt.OpaqueCapabilityFingerprint,
 	}
 }

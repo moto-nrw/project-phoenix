@@ -10,13 +10,14 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
 // DemoAccesses is the Identity & Access capability behind the public demo
 // routes (#3462).
 type DemoAccesses interface {
-	RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) (identityaccess.IssuedDemoAccess, error)
+	RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) error
 	DemoAccessStatus(ctx context.Context, token string) (status, schoolSlug string, err error)
 	RedeemDemoAccess(ctx context.Context, token, ipAddress, userAgent string) (string, string, error)
 }
@@ -59,7 +60,7 @@ func NewDemoResource(accesses DemoAccesses, origins DemoOrigins) (*DemoResource,
 // "demo". Everywhere else it does nothing and never calls compose: the
 // routes, and the capability behind them, do not exist there.
 func MountDemoRoutes(router chi.Router, appEnv string, compose func() (DemoAccesses, error), origins DemoOrigins) error {
-	if !strings.EqualFold(strings.TrimSpace(appEnv), "demo") {
+	if !email.IsDemoEnvironment(appEnv) {
 		return nil
 	}
 	accesses, err := compose()
@@ -96,23 +97,22 @@ func (rs *DemoResource) requestAccess(w http.ResponseWriter, r *http.Request) {
 		rs.renderError(w, r, identityaccess.ErrDemoAccessInvalid)
 		return
 	}
-	issued, err := rs.accesses.RequestDemoAccess(r.Context(), identityaccess.DemoAccessRequest{
+	// The link leads to the waiting room on the main domain: the school's
+	// subdomain exists only after its seed (#3463). The fragment keeps the
+	// token out of every server and proxy log.
+	err := rs.accesses.RequestDemoAccess(r.Context(), identityaccess.DemoAccessRequest{
 		Email: body.Email, PersonName: body.PersonName, SchoolName: body.SchoolName,
-		Source: body.Source, ContactOptIn: body.ContactOptIn,
+		Source: body.Source, ContactOptIn: body.ContactOptIn, EntryURLPrefix: rs.origins.Waiting + "/demo#token=",
 	})
 	if err != nil {
 		rs.renderError(w, r, err)
 		return
 	}
+	// The link leaves by mail only (#3465): the caller may not be the person
+	// the address belongs to, and one answer for every address tells nothing
+	// about who asked for a demo before.
 	render.Status(r, http.StatusAccepted)
-	if issued.Token == "" {
-		// The address still has an active demo access: no second school and
-		// no entry. The answer does not tell a stranger more than that.
-		render.JSON(w, r, map[string]string{})
-		return
-	}
-	// The fragment keeps the token out of every server and proxy log.
-	render.JSON(w, r, map[string]string{"entry_url": rs.origins.Waiting + "/demo#token=" + issued.Token})
+	render.JSON(w, r, map[string]bool{"link_sent": true})
 }
 
 func (rs *DemoResource) accessStatus(w http.ResponseWriter, r *http.Request) {

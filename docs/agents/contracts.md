@@ -117,7 +117,7 @@ not composed. They are public, take no cookies, and rely on
 
 | Route | Contract |
 |---|---|
-| `POST /demo/access-requests` | `email`, `school_name`, `person_name`, `contact_opt_in`, optional `src` → `202 {entry_url}`; `202 {}` without `entry_url` for an address that still has an active demo access; `422 demo_access_invalid` |
+| `POST /demo/access-requests` | `email`, `school_name`, `person_name`, `contact_opt_in`, optional `src` → always `202 {link_sent: true}`, never the link itself; `422 demo_access_invalid` |
 | `GET /demo/access/status` | token in `Authorization: Bearer` → `{status: preparing\|ready\|failed}`, plus `school_url` (origin of the demo school) when `ready` |
 | `POST /demo/access/sessions` | `{token}` → `{access_token, refresh_token}` (tenant session); `409 demo_school_preparing` |
 
@@ -127,13 +127,13 @@ The token is opaque, stored as SHA-256 fingerprint in `auth.demo_accesses`
 travels in the URL fragment, request bodies, or the header above, never in a
 URL a server logs.
 
-Every demo access enters a demo school of its own (#3463). The request
+Every address enters a demo school of its own (#3463). Its first request
 queues an order in `platform.demo_school_states` (owner
 `organization-tenancy`); the school's slug is the OGS name plus a random
 suffix. A demo school, and with it `{slug}.TENANT_DOMAIN`, exists only after
 its seed: the tenant layout resolves the slug and would send a visitor of an
-unknown subdomain away. So `entry_url` is always the waiting room on the main
-domain, `FRONTEND_URL/demo#token=…` (`app/demo/page.tsx`). It polls the
+unknown subdomain away. So the mailed link is always the waiting room on the
+main domain, `FRONTEND_URL/demo#token=…` (`app/demo/page.tsx`). It polls the
 status and, once `ready`, hands the token on to
 `{school_url}/demo#token=…`, where the entry page
 `[tenant]/(public)/demo` redeems it through `/api/demo/access/*` and signs in
@@ -151,14 +151,35 @@ redemption never take a slug from the caller.
 - `failed`: the seed failed twice. The entry page sends the prospect back to
   the website; the address no longer counts as active and may ask again.
 
-An address is active while it has an unexpired access whose school did not
-fail. The prospect's address stays in `auth.demo_accesses`. The order carries
+An address is active while its newest unexpired access enters a school that
+did not fail. A further request of an active address stores an access into
+that same school; only an inactive address queues a new one. The prospect's
+address stays in `auth.demo_accesses`. The order carries
 only the OGS name and the person's name, so the address cannot become an
 account or guardian address in a demo school, where
 `attachExistingAccountByEmail` would hand an existing account of that address
 to the inviting tenant. The serving role reads `name`, `status`, `tenant_id`
 and `visitor_account_id` of an order and inserts new ones; `seed_state` and
 `status` are out of its reach.
+
+Mails (#3465): the entry link leaves by mail only (`demo-access.html`,
+Reply-To `kontakt@moto.nrw`), and the answer is the same for every address,
+so it neither hands a demo to somebody who typed a foreign address nor tells
+who asked before. The mail carries nothing the form submitted. Every request
+stores its own access with the submitted details; earlier links stay valid
+until they expire. An address waits 10 minutes for its next link: within
+that cooldown a request stores and mails nothing. The team is mailed
+(`demo-lead.html`) for an address without an active access and when the
+contact consent changed. The website shows „Wir haben Ihnen den Link
+geschickt" for `link_sent`.
+
+Mail lock: under `APP_ENV=demo`, `email.NewMailer` wraps the one SMTP
+transport in `email.RestrictToDemoMails`. Every template but the two above
+is dropped and reported as sent, whoever the caller is; only
+`mfa-email-code.html` reports `email.ErrNotDeliveredInDemo`, because a
+sign-in waits for that code. A new mail that must leave the demo environment
+needs its template added there. `email.IsDemoEnvironment` decides for the
+routes, the capability and the lock alike.
 
 `SwitchTenant` refuses any account a demo access signed in
 (`403 demo_session`), through a mint guard inside the switch transaction.

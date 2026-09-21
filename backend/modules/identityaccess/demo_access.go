@@ -28,16 +28,8 @@ type DemoAccessRequest struct {
 	SchoolName   string
 	Source       string
 	ContactOptIn bool
-}
-
-// IssuedDemoAccess is a stored demo access with its token and the slug of the
-// demo school it enters (#3463). The token exists only here; it cannot be
-// read back. The zero value answers an address that still has an active
-// access: it gets no second school and no token.
-type IssuedDemoAccess struct {
-	ID         int64
-	Token      string
-	SchoolSlug string
+	// EntryURLPrefix precedes the token in the link the prospect receives.
+	EntryURLPrefix string
 }
 
 // Progress of the demo school behind a demo access.
@@ -56,9 +48,25 @@ type DemoSchoolEntry struct {
 	AccountID int64
 }
 
+// DemoAccessMessage is what the two demo mails (#3465) say about an access.
+type DemoAccessMessage struct {
+	AccessID     int64
+	Email        string
+	PersonName   string
+	SchoolName   string
+	Source       string
+	ContactOptIn bool
+}
+
+// DemoAccessMail sends the demo mails without blocking the request.
+type DemoAccessMail interface {
+	SendDemoAccessLink(ctx context.Context, message DemoAccessMessage, entryURL string)
+	SendDemoLead(ctx context.Context, message DemoAccessMessage)
+}
+
 // DemoAccessEngine is the composed implementation behind DemoAccess.
 type DemoAccessEngine interface {
-	RequestDemoAccess(ctx context.Context, request DemoAccessRequest) (IssuedDemoAccess, error)
+	RequestDemoAccess(ctx context.Context, request DemoAccessRequest) error
 	DemoAccessStatus(ctx context.Context, token string) (status, schoolSlug string, err error)
 	RedeemDemoAccess(ctx context.Context, token, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 }
@@ -74,7 +82,7 @@ func NewDemoAccess(engine DemoAccessEngine) *DemoAccess {
 	return &DemoAccess{engine: engine}
 }
 
-func (d *DemoAccess) RequestDemoAccess(ctx context.Context, request DemoAccessRequest) (IssuedDemoAccess, error) {
+func (d *DemoAccess) RequestDemoAccess(ctx context.Context, request DemoAccessRequest) error {
 	return d.engine.RequestDemoAccess(ctx, request)
 }
 

@@ -9,9 +9,9 @@ import (
 
 func init() {
 	MigrationRegistry.Register(&Migration{
-		Version:     "1.15.405",
+		Version:     "1.15.406",
 		Description: "Queue one demo school per demo access in the demo school states (#3463)",
-		DependsOn:   []string{"1.15.403", "1.15.404"},
+		DependsOn:   []string{"1.15.403", "1.15.405"},
 	})
 	Migrations.MustRegister(demoSchoolQueueUp, demoSchoolQueueDown)
 }
@@ -47,7 +47,6 @@ func demoSchoolQueueUp(ctx context.Context, db *bun.DB) error {
 			ON platform.demo_school_states TO phoenix_admin;
 
 		ALTER TABLE auth.demo_accesses ADD COLUMN school_slug TEXT NOT NULL DEFAULT 'messe-demo';
-		CREATE INDEX idx_demo_accesses_email ON auth.demo_accesses (email);
 
 		DROP POLICY demo_runtime_visits ON active.visits;
 		CREATE POLICY demo_runtime_visits ON active.visits
@@ -82,7 +81,6 @@ func demoSchoolQueueDown(ctx context.Context, db *bun.DB) error {
 		CREATE POLICY demo_runtime_attendance ON active.attendance
 			AS RESTRICTIVE FOR SELECT TO phoenix_demo
 			USING (tenant_id = (SELECT tenant_id FROM platform.demo_school_states WHERE name = 'messe-demo'));
-		DROP INDEX IF EXISTS auth.idx_demo_accesses_email;
 		ALTER TABLE auth.demo_accesses DROP COLUMN IF EXISTS school_slug;
 		REVOKE SELECT (name, status, tenant_id, visitor_account_id), INSERT (name, school_name, person_name)
 			ON platform.demo_school_states FROM phoenix_admin;

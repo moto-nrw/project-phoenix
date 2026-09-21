@@ -28,14 +28,12 @@ func newOwnSchoolDemoEnv(t *testing.T) demoEnv {
 	return mountDemoEnv(t, testpkg.SetupTestDB(t), "")
 }
 
-// requestOwnSchool returns the token and the slug of the queued demo school.
+// requestOwnSchool returns the mailed token and the slug of its demo school.
+// The school does not exist yet, so the link leads to the waiting room, not
+// to the school's subdomain.
 func (e demoEnv) requestOwnSchool(t *testing.T, address string) (token, slug string) {
 	t.Helper()
-	entryURL := e.request(t, address)
-	// The school does not exist yet, so the entry is the waiting room, not
-	// the school's subdomain.
-	require.True(t, strings.HasPrefix(entryURL, demoEntryPrefix), entryURL)
-	token = strings.TrimPrefix(entryURL, demoEntryPrefix)
+	token = e.requestTokenWith(t, e.requestBodyFor(t, address))
 	require.NotEmpty(t, token)
 	require.NoError(t, e.db.NewRaw(`SELECT school_slug FROM auth.demo_accesses WHERE token_hash = ?`, fingerprint(token)).Scan(context.Background(), &slug))
 	return token, slug
@@ -108,25 +106,31 @@ func TestDemoSchoolOrderCarriesNoAddress(t *testing.T) {
 	assert.NotContains(t, row, "@")
 }
 
+// A known address gets a further link after the cooldown (#3465), but no
+// second school: the new link leads into the school it already has.
 func TestDemoAccessOfAnActiveAddressGetsNoSecondSchool(t *testing.T) {
 	t.Parallel()
 	env := newOwnSchoolDemoEnv(t)
-	address := demoAddress(t)
-	_, slug := env.requestOwnSchool(t, address)
+	address := env.address()
+	first, slug := env.requestOwnSchool(t, address)
+	env.endCooldown(t)
 
-	assert.Empty(t, env.request(t, strings.ToUpper(address)), "an active address gets no entry_url")
+	second, again := env.requestOwnSchool(t, strings.ToUpper(address))
+	assert.NotEqual(t, first, second, "every request stores its own access")
+	assert.Equal(t, slug, again, "an active address gets no second school")
 	var accesses, orders int
 	require.NoError(t, env.db.NewRaw(`SELECT COUNT(*) FROM auth.demo_accesses WHERE email = ?`, address).Scan(context.Background(), &accesses))
 	require.NoError(t, env.db.NewRaw(`SELECT COUNT(*) FROM platform.demo_school_states
 		WHERE name IN (SELECT school_slug FROM auth.demo_accesses WHERE email = ?)`, address).Scan(context.Background(), &orders))
-	assert.Equal(t, 1, accesses)
+	assert.Equal(t, 2, accesses)
 	assert.Equal(t, 1, orders)
 
 	// An access whose school failed for good is not active: the prospect may try again.
 	_, err := env.db.NewRaw(`UPDATE platform.demo_school_states SET status = 'failed' WHERE name = ?`, slug).Exec(context.Background())
 	require.NoError(t, err)
-	_, second := env.requestOwnSchool(t, address)
-	assert.NotEqual(t, slug, second)
+	env.endCooldown(t)
+	_, third := env.requestOwnSchool(t, address)
+	assert.NotEqual(t, slug, third)
 }
 
 // Two visitors, two demo schools: each session belongs to its own school and
@@ -141,8 +145,8 @@ func TestDemoVisitorsDoNotSeeEachOthersSchool(t *testing.T) {
 	_, secondVisitor := testpkg.CreateTestStaffWithAccountForTenant(t, env.db, secondSchool, "Alex", "Muster")
 	testpkg.EnsureAccountTenant(t, env.db, secondVisitor.ID, secondSchool)
 
-	firstToken, firstOrder := env.requestOwnSchool(t, demoAddress(t))
-	secondToken, secondOrder := env.requestOwnSchool(t, "zweite-"+demoAddress(t))
+	firstToken, firstOrder := env.requestOwnSchool(t, env.address())
+	secondToken, secondOrder := env.requestOwnSchool(t, "zweite-"+env.address())
 	require.NotEqual(t, firstOrder, secondOrder)
 	seedDemoSchool(t, env.db, firstOrder, firstSchool, firstVisitor.ID)
 	seedDemoSchool(t, env.db, secondOrder, secondSchool, secondVisitor.ID)
