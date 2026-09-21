@@ -1,0 +1,173 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { CaretDownIcon } from "@phosphor-icons/react";
+import { ButtonLink } from "~/components/ui/button";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { useToast } from "~/contexts/ToastContext";
+import { registerDemoVisit, trackDemoEvent } from "~/lib/analytics";
+import {
+  DEMO_ROLES,
+  DEMO_START_URL,
+  type DemoRole,
+  type DemoVisit,
+  demoRoleLabel,
+  isDemoBuild,
+  readDemoVisit,
+  saveDemoVisit,
+  startDemoSession,
+  switchDemoRole,
+} from "~/lib/demo-access";
+import { createLogger } from "~/lib/logger";
+import { useShellAuthSafe } from "~/lib/shell-auth-context";
+import { useTenantAwarePath } from "~/lib/tenant-path";
+import { useTenantSafe } from "~/lib/tenant-context";
+
+const logger = createLogger({ component: "DemoBanner" });
+
+const SWITCH_FAILED =
+  "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
+const OPEN_MAILED_LINK =
+  "Bitte öffnen Sie die Demo noch einmal über den Link aus Ihrer E-Mail.";
+
+/**
+ * Schmaler Streifen über jeder Seite der öffentlichen Demo (#3467): links
+ * „Demo" und der Schulname, dann das Menü der Demo-Rolle, rechts als einziger
+ * Knopf „Kostenlos starten". Es gibt ihn nur im Demo-Build.
+ *
+ * Wie der Streifen der Mitarbeiter-Vorschau liegt er fest oben (h-12) und
+ * die AppShell rückt um dieselbe Höhe nach unten. So kollidiert er auf dem
+ * Handy nicht mit der unteren Leiste.
+ */
+export function DemoBanner() {
+  if (!isDemoBuild()) return null;
+  return <ActiveDemoBanner />;
+}
+
+/**
+ * Whether the shell shows the demo banner: in the demo build, in the OGS app
+ * only (the operator portal shares the shell), and not during a staff
+ * preview, whose own strip takes the place.
+ */
+export function isDemoBannerShown(
+  shellAuth: { mode: string; isPreview?: boolean } | null | undefined,
+): boolean {
+  return (
+    isDemoBuild() &&
+    shellAuth?.mode === "teacher" &&
+    shellAuth.isPreview !== true
+  );
+}
+
+export function useDemoBannerShown(): boolean {
+  return isDemoBannerShown(useShellAuthSafe());
+}
+
+const CHOOSE_ROLE = "Rolle wählen";
+
+function ActiveDemoBanner() {
+  const schoolName = useTenantSafe()?.tenant?.name;
+  const startPath = useTenantAwarePath()("/");
+  const toast = useToast();
+  // Undefined until mounted: the server knows no stored visit, so reading it
+  // during the first render would not match the server's markup. Null without
+  // a stored visit (no storage, a direct visit): the banner then claims no
+  // role and reports no identity it does not know.
+  const [visit, setVisit] = useState<DemoVisit | null | undefined>();
+  const [switching, setSwitching] = useState(false);
+
+  useEffect(() => {
+    setVisit(readDemoVisit());
+  }, []);
+
+  // An entry or a switch reloads the page; it reports itself here, once.
+  useEffect(() => {
+    if (!visit) return;
+    const { pending, ...current } = visit;
+    registerDemoVisit(current);
+    if (pending) {
+      trackDemoEvent(pending, current);
+      saveDemoVisit(current);
+      setVisit(current);
+    }
+  }, [visit]);
+
+  const chooseRole = async (role: DemoRole) => {
+    if (role === visit?.role || switching) return;
+    setSwitching(true);
+    try {
+      const session = await switchDemoRole(role);
+      if (!session) {
+        toast.error(OPEN_MAILED_LINK);
+        return;
+      }
+      if (!(await startDemoSession(session, "demo_role_switched"))) {
+        throw new Error("demo sign-in failed");
+      }
+      // Volle Neuladung: Seitenleiste und Startseite folgen den Rechten der
+      // neuen Sitzung.
+      globalThis.location.assign(startPath);
+    } catch (error) {
+      logger.error("demo_role_switch_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      toast.error(SWITCH_FAILED);
+    } finally {
+      setSwitching(false);
+    }
+  };
+
+  const roleLabel = visit ? demoRoleLabel(visit.role) : CHOOSE_ROLE;
+
+  return (
+    <div
+      role="region"
+      aria-label="Demo"
+      className="fixed inset-x-0 top-0 z-50 flex h-12 items-center gap-2 border-b border-gray-200 bg-white px-4 shadow-sm"
+    >
+      <StatusBadge tone="orange" label="Demo" compact />
+      {schoolName ? (
+        <span className="hidden min-w-0 truncate text-sm font-medium text-gray-900 sm:inline">
+          {schoolName}
+        </span>
+      ) : null}
+      {visit === undefined ? null : visit?.fixedRole ? (
+        // The standing demo school is shared; its role cannot change.
+        <span className="px-2 text-sm font-medium text-gray-900">
+          {roleLabel}
+        </span>
+      ) : (
+        <OverflowMenu
+          ariaLabel={visit ? `Rolle wechseln, jetzt ${roleLabel}` : roleLabel}
+          triggerContent={
+            <span className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-sm font-medium text-gray-900 hover:bg-gray-100">
+              {roleLabel}
+              <CaretDownIcon aria-hidden="true" className="size-4" />
+            </span>
+          }
+          items={[
+            { kind: "header", label: "Demo ansehen als" },
+            ...DEMO_ROLES.map((entry) => ({
+              kind: "radio" as const,
+              label: entry.label,
+              checked: entry.role === visit?.role,
+              onClick: () => void chooseRole(entry.role),
+            })),
+          ]}
+        />
+      )}
+      <ButtonLink
+        href={DEMO_START_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        variant="success"
+        size="compact"
+        className="ml-auto shrink-0 text-sm"
+        onClick={() => trackDemoEvent("demo_start_clicked", visit ?? null)}
+      >
+        Kostenlos starten
+      </ButtonLink>
+    </div>
+  );
+}

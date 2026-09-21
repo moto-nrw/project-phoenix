@@ -219,7 +219,11 @@ const SlideOverContent = React.forwardRef<
           // nur, solange dieses Ereignis nicht abgewiesen wurde.
           onInteractOutside={
             isBackdropDismissDisabled
-              ? (event) => {
+              ? (
+                  event: Parameters<
+                    NonNullable<SlideOverContentProps["onInteractOutside"]>
+                  >[0],
+                ) => {
                   onInteractOutside?.(event);
                   event.preventDefault();
                 }

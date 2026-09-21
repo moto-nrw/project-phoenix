@@ -132,7 +132,7 @@ type demoAccessEngine struct{ flows *application.DemoAccess }
 func (e demoAccessEngine) RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) error {
 	return demoAccessError(e.flows.Request(ctx, domain.DemoAccess{
 		Email: request.Email, PersonName: request.PersonName, SchoolName: request.SchoolName,
-		Source: request.Source, ContactOptIn: request.ContactOptIn,
+		Source: request.Source, ContactOptIn: request.ContactOptIn, Role: domain.DemoRole(request.Role),
 	}, request.ClientIP, request.EntryURLPrefix))
 }
 
@@ -144,9 +144,15 @@ func (e demoAccessEngine) DemoAccessStatus(ctx context.Context, token string) (i
 	return identityaccess.DemoAccessProgress{Status: status, SchoolSlug: access.SchoolSlug, SchoolName: access.SchoolName}, nil
 }
 
-func (e demoAccessEngine) RedeemDemoAccess(ctx context.Context, token, ipAddress, userAgent string) (string, string, error) {
-	access, refresh, err := e.flows.Redeem(ctx, token, ipAddress, userAgent)
-	return access, refresh, demoAccessError(err)
+func (e demoAccessEngine) RedeemDemoAccess(ctx context.Context, token, role, ipAddress, userAgent string) (identityaccess.DemoEntry, error) {
+	entry, err := e.flows.Redeem(ctx, token, domain.DemoRole(role), ipAddress, userAgent)
+	if err != nil {
+		return identityaccess.DemoEntry{}, demoAccessError(err)
+	}
+	return identityaccess.DemoEntry{
+		AccessToken: entry.AccessToken, RefreshToken: entry.RefreshToken,
+		AccessID: entry.AccessID, Role: string(entry.Role), Source: entry.Source, FixedRole: entry.FixedRole,
+	}, nil
 }
 
 var demoAccessSentinels = []struct{ internal, public error }{

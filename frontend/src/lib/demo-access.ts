@@ -2,8 +2,60 @@
 // fragment and leaves the browser only in a POST body, so no server or proxy
 // log records it.
 
+import { signIn } from "next-auth/react";
+
 /** Demo page of the website; the way back for an unknown or expired link. */
 export const DEMO_WEBSITE_URL = "https://moto-ogs.de/demo";
+
+/** Get-to-know page of the website behind „Kostenlos starten" (#3467). */
+export const DEMO_START_URL = "https://moto-ogs.de/start/?src=demo";
+
+/**
+ * True in the image built for the public demo only. Next.js inlines the
+ * value at build time, so no other build ever shows the demo banner.
+ */
+export function isDemoBuild(): boolean {
+  return process.env.NEXT_PUBLIC_APP_ENV === "demo";
+}
+
+/**
+ * What the visitor sees the demo school as (#3467). The visitor has one
+ * account; a switch changes its role and issues a new session.
+ */
+export type DemoRole = "caregiver" | "lead" | "all";
+
+export const DEMO_ROLES: readonly {
+  role: DemoRole;
+  label: string;
+  description: string;
+}[] = [
+  {
+    role: "caregiver",
+    label: "Betreuungskraft",
+    description: "Kinder an- und abmelden. Die eigene Gruppe im Blick.",
+  },
+  {
+    role: "lead",
+    label: "OGS-Leitung",
+    description: "Personal, Planung und Anfragen der Eltern.",
+  },
+  {
+    role: "all",
+    label: "Alle Funktionen",
+    description: "Alles, was moto kann.",
+  },
+];
+
+function isDemoRole(value: unknown): value is DemoRole {
+  return DEMO_ROLES.some((entry) => entry.role === value);
+}
+
+export function demoRoleLabel(role: DemoRole): string {
+  return DEMO_ROLES.find((entry) => entry.role === role)?.label ?? role;
+}
+
+export const DEMO_ROLE_CHOICE_TITLE = "Wie möchten Sie moto ansehen?";
+export const DEMO_ROLE_CHOICE_HINT = "Sie können das später oben wechseln.";
 
 /**
  * What a visitor of the public demo sees on the way in.
@@ -90,24 +142,42 @@ export function isDemoEntryPath(
 
 type DemoAccessStatus = "preparing" | "ready" | "failed" | "invalid";
 
-export interface DemoTokenPair {
+interface DemoTokenPair {
   access_token: string;
   refresh_token: string;
 }
 
-/** Reads `#token=…` and removes the fragment from the address bar. */
-export function takeDemoTokenFromFragment(): string | null {
-  const token = new URLSearchParams(globalThis.location.hash.slice(1)).get(
-    "token",
-  );
-  if (token) {
+/** What a demo link carries in its fragment. */
+export interface DemoLink {
+  token: string;
+  /** A role chosen on the website or behind a fair QR code (#3467). */
+  role?: DemoRole;
+}
+
+/**
+ * Reads `#token=…&role=…` and removes the fragment from the address bar.
+ * An unknown role counts as none: the entry page then asks for one.
+ */
+export function takeDemoLinkFromFragment(): DemoLink | null {
+  const fragment = new URLSearchParams(globalThis.location.hash.slice(1));
+  const token = fragment.get("token")?.trim();
+  if (fragment.has("token")) {
     globalThis.history.replaceState(
       null,
       "",
       globalThis.location.pathname + globalThis.location.search,
     );
   }
-  return token?.trim() ? token.trim() : null;
+  if (!token) return null;
+  const role = fragment.get("role");
+  return isDemoRole(role) ? { token, role } : { token };
+}
+
+/** The fragment that hands a demo link on to the demo school's entry page. */
+export function demoLinkFragment(link: DemoLink): string {
+  const fragment = new URLSearchParams({ token: link.token });
+  if (link.role) fragment.set("role", link.role);
+  return `#${fragment.toString()}`;
 }
 
 async function postToken(path: string, token: string): Promise<Response> {
@@ -191,12 +261,131 @@ export async function waitForDemoSchool(
   return { phase: "cancelled" };
 }
 
-/** Returns null for an unknown or expired link. */
-export async function redeemDemoAccess(
-  token: string,
-): Promise<DemoTokenPair | null> {
-  const response = await postToken("/api/demo/access/sessions", token);
+/**
+ * A redeemed demo link: the session and what the banner shows and reports.
+ * `accessId` names the demo access in the product analytics, never a person.
+ */
+export interface DemoSession extends DemoTokenPair {
+  visit: DemoVisit;
+}
+
+async function postSession(body: {
+  token?: string;
+  role: DemoRole;
+}): Promise<DemoSession | null> {
+  const response = await fetch("/api/demo/access/sessions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
   if (response.status === 404 || response.status === 410) return null;
   if (!response.ok) throw new Error(`demo redeem failed: ${response.status}`);
-  return (await response.json()) as DemoTokenPair;
+  const payload = (await response.json()) as DemoTokenPair & {
+    demo?: {
+      access_id?: string;
+      role?: string;
+      src?: string;
+      fixed_role?: boolean;
+    };
+  };
+  return {
+    access_token: payload.access_token,
+    refresh_token: payload.refresh_token,
+    visit: {
+      accessId: payload.demo?.access_id ?? "",
+      role: isDemoRole(payload.demo?.role) ? payload.demo.role : body.role,
+      src: payload.demo?.src,
+      fixedRole: payload.demo?.fixed_role === true ? true : undefined,
+    },
+  };
+}
+
+/**
+ * Redeems the link in the chosen role. Returns null for an unknown or
+ * expired link. The route keeps the token for later role switches in a
+ * cookie no script can read.
+ */
+export async function redeemDemoAccess(
+  token: string,
+  role: DemoRole,
+): Promise<DemoSession | null> {
+  return postSession({ token, role });
+}
+
+/**
+ * Switches the visitor's one account to another role and returns the new
+ * session (#3467). Null when the link behind the demo has expired.
+ */
+export async function switchDemoRole(
+  role: DemoRole,
+): Promise<DemoSession | null> {
+  return postSession({ role });
+}
+
+/**
+ * The demo visit as the banner knows it. It survives the full reload after
+ * an entry or a switch, which report themselves once the banner is mounted:
+ * an event captured right before a navigation may never leave the page.
+ */
+export interface DemoVisit {
+  accessId: string;
+  role: DemoRole;
+  src?: string;
+  /** The standing demo school: its shared role cannot be switched. */
+  fixedRole?: boolean;
+  pending?: "demo_entered" | "demo_role_switched";
+}
+
+/**
+ * Signs in with the session's token pair and notes the visit for the banner,
+ * which reports `pending` once the next page has loaded. False when the
+ * sign-in failed.
+ */
+export async function startDemoSession(
+  session: DemoSession,
+  pending: NonNullable<DemoVisit["pending"]>,
+): Promise<boolean> {
+  const result = await signIn("credentials", {
+    redirect: false,
+    internalRefresh: true,
+    token: session.access_token,
+    refreshToken: session.refresh_token,
+  });
+  if (result?.error) return false;
+  saveDemoVisit({ ...session.visit, pending });
+  return true;
+}
+
+const DEMO_VISIT_KEY = "moto-demo-visit";
+
+export function saveDemoVisit(visit: DemoVisit): void {
+  try {
+    globalThis.localStorage.setItem(DEMO_VISIT_KEY, JSON.stringify(visit));
+  } catch {
+    // Without storage the banner shows the default role and reports nothing.
+  }
+}
+
+export function readDemoVisit(): DemoVisit | null {
+  try {
+    const raw = globalThis.localStorage.getItem(DEMO_VISIT_KEY);
+    if (!raw) return null;
+    const visit = JSON.parse(raw) as Partial<DemoVisit>;
+    if (typeof visit.accessId !== "string" || !isDemoRole(visit.role)) {
+      return null;
+    }
+    return {
+      accessId: visit.accessId,
+      role: visit.role,
+      src: typeof visit.src === "string" ? visit.src : undefined,
+      fixedRole: visit.fixedRole === true ? true : undefined,
+      pending:
+        visit.pending === "demo_entered" ||
+        visit.pending === "demo_role_switched"
+          ? visit.pending
+          : undefined,
+    };
+  } catch {
+    return null;
+  }
 }

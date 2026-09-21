@@ -49,6 +49,8 @@ type DemoAccessRequest struct {
 	SchoolName   string
 	Source       string
 	ContactOptIn bool
+	// Role preselects a demo role in the mailed link (#3467); empty chooses none.
+	Role string
 	// ClientIP is the address the request came from; the requests of one IP
 	// address are limited (#3466).
 	ClientIP string
@@ -92,7 +94,21 @@ type DemoAccessMail interface {
 type DemoAccessEngine interface {
 	RequestDemoAccess(ctx context.Context, request DemoAccessRequest) error
 	DemoAccessStatus(ctx context.Context, token string) (DemoAccessProgress, error)
-	RedeemDemoAccess(ctx context.Context, token, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
+	RedeemDemoAccess(ctx context.Context, token, role, ipAddress, userAgent string) (DemoEntry, error)
+}
+
+// DemoEntry is a redeemed demo access (#3467): the token pair and what the
+// demo banner shows and reports. AccessID identifies the demo access in the
+// product analytics instead of a person; Role is the demo role the session
+// really has, empty when none was chosen. FixedRole marks the standing
+// school, whose shared administrator no switch changes.
+type DemoEntry struct {
+	AccessToken  string
+	RefreshToken string
+	AccessID     int64
+	Role         string
+	Source       string
+	FixedRole    bool
 }
 
 // DemoAccessProgress is what the token's holder may know about its demo
@@ -125,9 +141,10 @@ func (d *DemoAccess) DemoAccessStatus(ctx context.Context, token string) (DemoAc
 	return d.engine.DemoAccessStatus(ctx, token)
 }
 
-// RedeemDemoAccess mints a tenant session in the token's demo school.
-func (d *DemoAccess) RedeemDemoAccess(ctx context.Context, token, ipAddress, userAgent string) (string, string, error) {
-	return d.engine.RedeemDemoAccess(ctx, token, ipAddress, userAgent)
+// RedeemDemoAccess mints a tenant session in the token's demo school, in the
+// chosen demo role (caregiver, lead or all; empty keeps the account's role).
+func (d *DemoAccess) RedeemDemoAccess(ctx context.Context, token, role, ipAddress, userAgent string) (DemoEntry, error) {
+	return d.engine.RedeemDemoAccess(ctx, token, role, ipAddress, userAgent)
 }
 
 // NewDemoModule is NewModule with the demo-only capability; access is nil

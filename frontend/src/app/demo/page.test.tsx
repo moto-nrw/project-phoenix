@@ -63,6 +63,23 @@ describe("DemoWaitingRoomPage", () => {
     expect(document.URL).not.toContain("secret-token");
   });
 
+  it("hands a preselected role on with the token", async () => {
+    fetchMock.mockReturnValueOnce(
+      json(200, {
+        status: "ready",
+        school_url: "https://ogs-nord-k3m9xp.demo.example",
+      }),
+    );
+
+    open("#token=secret-token&role=lead");
+
+    await waitFor(() =>
+      expect(assign).toHaveBeenCalledWith(
+        "https://ogs-nord-k3m9xp.demo.example/demo#token=secret-token&role=lead",
+      ),
+    );
+  });
+
   it("names the OGS being set up, shows the progress lines and does not leave", async () => {
     fetchMock.mockReturnValue(
       json(200, { status: "preparing", school_name: "OGS Nord" }),
