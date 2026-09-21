@@ -132,6 +132,16 @@ and signs in with the `internalRefresh` credentials path.
 A demo session signs in the administrator of the standing school
 `messe-demo`. `SwitchTenant` refuses any account a demo access signed in
 (`403 demo_session`), through a mint guard inside the switch transaction.
+All visitors share that account, so it is exempt from the session cap
+(`capSessionsUnlessDemo`); otherwise the sixth visitor would sign the first
+one out. `TenantGuard` leaves the entry page alone (`isDemoEntryPath`) and
+guards every other tenant route as before.
+
+`ready` means: the school exists and has an active administrator. The server
+role cannot read `platform.demo_school_states` by design (#3461), so `ready`
+can appear while the one-time provisioning of `messe-demo` still seeds data.
+There is no `failed` status yet; the entry page gives up after two minutes.
+#3463 replaces both with a state per demo access.
 
 ### Embedded enrollment
 
