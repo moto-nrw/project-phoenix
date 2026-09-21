@@ -3,10 +3,10 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 21.09.2026 · Ratchet 681 · Composition 638 · Policy-Epoche 19 · 346 Regeln mit
-`convert it to exact debt` · 80.783 LOC unter `modules/*/legacy`
+Stand 21.09.2026 · Ratchet 626 · Composition 638 · Policy-Epoche 19 · 342 Regeln mit
+`convert it to exact debt` · 78.751 LOC unter `modules/*/legacy`
 
-Summenprobe: 252 + 61 + 93 + 43 + 28 + 19 + 185 = 681 = `wc -l backend/architecture/legacy.jsonl`.
+Summenprobe: 252 + 61 + 38 + 43 + 28 + 19 + 185 = 626 = `wc -l backend/architecture/legacy.jsonl`.
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Entscheidungen
@@ -51,13 +51,13 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [ ] [#3356](https://github.com/moto-nrw/project-phoenix/issues/3356) Settings-, Listenexport-, Messaging-, IoT-, Aktivitäts- und Schulstruktur-Kanten
 - [ ] [#2731](https://github.com/moto-nrw/project-phoenix/issues/2731) Carrier — 61
 
-## Identity · 93 Keys
+## Identity · 38 Keys
 
 - [ ] [#3487](https://github.com/moto-nrw/project-phoenix/issues/3487) `legacy/jwt` aus dem `legacy/`-Pfad umbenennen — entschieden in ADR 0031: das Paket bleibt der Session-Adapter, der Umzug läuft zuletzt nach den Carriern und blockt nichts
 - [x] [#3230](https://github.com/moto-nrw/project-phoenix/issues/3230) `api/auth` → `modules/identityaccess/inbound/auth` — Relocation (Epoche 19), 3 Keys weniger (684 → 681), 26 bleiben unter dem neuen Pfad bei #2736
 - [ ] [#3231](https://github.com/moto-nrw/project-phoenix/issues/3231) Identity-Handler aus `api/operator`
 - [ ] [#2736](https://github.com/moto-nrw/project-phoenix/issues/2736) Carrier `modules/identityaccess/inbound/auth`, api/operator — 38
-- [ ] [#2725](https://github.com/moto-nrw/project-phoenix/issues/2725) Carrier `modules/identityaccess/legacy/usercontext` — 55, aus 46 Kompatibilitätsregeln konvertiert (keine neue Kante). Auflösung wartet auf Owner-Contracts: Staff-/Teacher-Mitgliedschaft (`school-membership`, an #2753 ausrichten), eigene Gruppen und Vertretungen (`school-structure`), beaufsichtigte und aktive Gruppen (`student-presence`). Front-Tickets: #3498, #3499, #3500, danach #3501 (Auflösung)
+- [x] [#3501](https://github.com/moto-nrw/project-phoenix/issues/3501) `modules/identityaccess/legacy/usercontext` in den Caller-Context von Identity & Access aufgelöst — alle 55 Keys von #2725 weg (681 → 626), `/api/me` in `modules/identityaccess/inbound/me`; offen: Timetable-Read der geplanten Aufsichten, Personen-Read und -Schreiben über People Directory
 
 ## Storage
 

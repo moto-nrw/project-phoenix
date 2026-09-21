@@ -128,7 +128,6 @@ type StudentDocumentService interface {
 // authorize.StudentAccessUserContext, restated so the service depends on a
 // named interface rather than a package alias.
 type StudentDocumentUserContext interface {
-	GetCurrentStaff(ctx context.Context) (*userModels.Staff, error)
 	HasCurrentStaff(ctx context.Context) (bool, error)
 }
 

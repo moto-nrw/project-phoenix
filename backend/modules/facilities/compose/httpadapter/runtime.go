@@ -15,7 +15,6 @@ import (
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	roomsHTTP "github.com/moto-nrw/project-phoenix/modules/facilities/http/rooms"
 	projectJWT "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
@@ -30,7 +29,7 @@ type Resource = roomsHTTP.Resource
 type Dependencies struct {
 	Facilities  facilitiesService.Service
 	Settings    configService.SettingsService
-	UserContext userContextService.UserContextService
+	UserContext CallerStaff
 	Active      activeService.Service
 	Users       usersService.PersonService
 	Education   educationService.Service
@@ -149,22 +148,23 @@ func historyConfig(settings configService.SettingsService, logger *slog.Logger) 
 	}
 }
 
-func historyAllowed(users userContextService.UserContextService) func(context.Context) (bool, error) {
+// CallerStaff resolves the caller's staff member through the Identity &
+// Access caller context. found is false, without an error, for a caller who
+// is no staff member.
+type CallerStaff interface {
+	CurrentStaffID(ctx context.Context) (staffID int64, found bool, err error)
+}
+
+func historyAllowed(users CallerStaff) func(context.Context) (bool, error) {
 	return func(ctx context.Context) (bool, error) {
 		if apiCommon.HasAdminWildcard(projectJWT.PermissionsFromCtx(ctx)) {
 			return true, nil
 		}
-		staff, err := users.GetCurrentStaff(ctx)
-		if errors.Is(err, userContextService.ErrUserNotLinkedToStaff) {
-			return false, nil
-		}
+		_, found, err := users.CurrentStaffID(ctx)
 		if err != nil {
 			return false, err
 		}
-		if staff == nil {
-			return false, errors.New("unexpected nil staff")
-		}
-		return true, nil
+		return found, nil
 	}
 }
 

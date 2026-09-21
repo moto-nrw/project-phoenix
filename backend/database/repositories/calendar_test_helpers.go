@@ -5,16 +5,16 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/uptrace/bun"
 )
 
 type CalendarTestRepositories struct {
 	TimetableTestRepositories
 	Profile                    identityaccess.AccountProfiles
-	StaffGroups                usercontext.StaffGroupReads
+	StaffGroups                schoolstructure.StaffGroupQuery
 	GuardianProfile            userModels.GuardianProfileRepository
 	StudentGuardian            userModels.StudentGuardianRepository
 	ParentChild                parentModels.ChildRepository

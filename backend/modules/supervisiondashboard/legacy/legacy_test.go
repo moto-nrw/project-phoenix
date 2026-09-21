@@ -13,10 +13,8 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
@@ -75,22 +73,17 @@ func (m *mockActiveService) GetStudentsAttendanceStatuses(_ context.Context, stu
 }
 
 type mockUserContextService struct {
-	userContextService.UserContextService
-	getCurrentStaffFn       func() (*usersModels.Staff, error)
+	CallerContext
 	getMySupervisedGroupsFn func() ([]*activeModels.Group, error)
-	getMyGroupsFn           func() ([]*educationModels.Group, error)
-}
-
-func (m *mockUserContextService) GetCurrentStaff(_ context.Context) (*usersModels.Staff, error) {
-	return m.getCurrentStaffFn()
+	myGroupsFn              func() ([]CallerGroup, error)
 }
 
 func (m *mockUserContextService) GetMySupervisedGroups(_ context.Context) ([]*activeModels.Group, error) {
 	return m.getMySupervisedGroupsFn()
 }
 
-func (m *mockUserContextService) GetMyGroups(_ context.Context) ([]*educationModels.Group, error) {
-	return m.getMyGroupsFn()
+func (m *mockUserContextService) MyGroups(_ context.Context) ([]CallerGroup, error) {
+	return m.myGroupsFn()
 }
 
 type mockEducationService struct {
@@ -186,42 +179,6 @@ func TestNewRejectsMissingSourcesAtComposition(t *testing.T) {
 	query, err = New(fullSources())
 	require.NoError(t, err)
 	assert.NotNil(t, query)
-}
-
-func TestCurrentStaffIDBranches(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	staff := &usersModels.Staff{Model: base.Model{ID: 42}}
-
-	tests := []struct {
-		name    string
-		result  *usersModels.Staff
-		err     error
-		want    *int64
-		wantErr bool
-	}{
-		{name: "not linked to staff", err: userContextService.ErrUserNotLinkedToStaff},
-		{name: "not linked to person", err: userContextService.ErrUserNotLinkedToPerson},
-		{name: "lookup error", err: errors.New("db down"), wantErr: true},
-		{name: "nil staff", result: nil},
-		{name: "staff found", result: staff, want: int64Ptr(42)},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			a := access{userContext: &mockUserContextService{
-				getCurrentStaffFn: func() (*usersModels.Staff, error) { return tt.result, tt.err },
-			}}
-			got, err := a.CurrentStaffID(ctx)
-			if tt.wantErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			assert.Equal(t, tt.want, got)
-		})
-	}
 }
 
 func TestCallerResolvesOverviewAndPermissions(t *testing.T) {
@@ -355,10 +312,10 @@ func TestMyGroupsResolvesRoomsOnlyForGroupsWithRooms(t *testing.T) {
 
 	ctx := context.Background()
 	roomID := int64(31)
-	userContext := &mockUserContextService{getMyGroupsFn: func() ([]*educationModels.Group, error) {
-		return []*educationModels.Group{
-			{Model: base.Model{ID: 41}, Name: "Bären", RoomID: &roomID},
-			{Model: base.Model{ID: 42}, Name: "Füchse"},
+	userContext := &mockUserContextService{myGroupsFn: func() ([]CallerGroup, error) {
+		return []CallerGroup{
+			{ID: 41, Name: "Bären", RoomID: &roomID},
+			{ID: 42, Name: "Füchse"},
 		}, nil
 	}}
 	education := &mockEducationService{getGroupsWithRoomsByIDsFn: func(ids []int64) (map[int64]*educationModels.Group, error) {
@@ -378,7 +335,7 @@ func TestMyGroupsResolvesRoomsOnlyForGroupsWithRooms(t *testing.T) {
 	_, err = g.MyGroups(ctx)
 	require.ErrorContains(t, err, "load education group rooms")
 
-	userContext.getMyGroupsFn = func() ([]*educationModels.Group, error) { return nil, nil }
+	userContext.myGroupsFn = func() ([]CallerGroup, error) { return nil, nil }
 	education.getGroupsWithRoomsByIDsFn = func([]int64) (map[int64]*educationModels.Group, error) {
 		t.Fatal("no groups with rooms, no room lookup")
 		return nil, nil

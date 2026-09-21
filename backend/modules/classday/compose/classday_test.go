@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/compose"
@@ -107,8 +106,8 @@ func (stubReports) ClassDay(context.Context, string, timezone.Date, int64, strin
 type stubCaller struct{}
 
 func (stubCaller) GetMySchoolClasses(context.Context) ([]string, error) { return []string{"4a"}, nil }
-func (stubCaller) GetCurrentStaff(context.Context) (*userModels.Staff, error) {
-	return &userModels.Staff{}, nil
+func (stubCaller) CurrentStaffID(context.Context) (int64, bool, error) {
+	return 0, true, nil
 }
 
 type stubArrivalExceptions struct{ err error }

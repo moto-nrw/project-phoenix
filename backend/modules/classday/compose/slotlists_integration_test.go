@@ -197,13 +197,16 @@ func (p slotListParticipation) ParticipatingStudentIDsByDate(
 	return result, nil
 }
 
-func (u slotListUserContext) GetCurrentStaff(context.Context) (*userModels.Staff, error) {
-	return u.currentStaff, nil
+func (u slotListUserContext) CurrentStaffID(context.Context) (int64, bool, error) {
+	if u.currentStaff == nil {
+		return 0, false, nil
+	}
+	return u.currentStaff.ID, true, nil
 }
 
 func (u slotListUserContext) HasCurrentStaff(ctx context.Context) (bool, error) {
-	staff, err := u.GetCurrentStaff(ctx)
-	return err == nil && staff != nil, err
+	_, found, err := u.CurrentStaffID(ctx)
+	return err == nil && found, err
 }
 
 type failingRoomRepo struct {

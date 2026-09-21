@@ -9,20 +9,20 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestAuthorizeCheckoutPreservesIdentityErrorClassification(t *testing.T) {
 	t.Parallel()
+	// A caller without a staff link reaches this seam as "no staff, no
+	// error" (services.attendanceRouteStaff classifies the identity outcome);
+	// only a failed lookup is an error.
 	for _, tc := range []struct {
 		name      string
 		lookupErr error
 		want      error
 	}{
-		{name: "unlinked person", lookupErr: usercontext.ErrUserNotLinkedToPerson, want: ErrNotAuthorized},
-		{name: "wrapped unlinked staff", lookupErr: errors.Join(errors.New("lookup"), usercontext.ErrUserNotLinkedToStaff), want: ErrNotAuthorized},
 		{name: "lookup failure", lookupErr: errors.New("database unavailable"), want: ErrStaffNotFound},
 		{name: "missing staff without error", want: ErrNotAuthorized},
 	} {
@@ -116,7 +116,7 @@ func TestCheckoutStudent_RejectsNonStaffBeforeReadingAttendance(t *testing.T) {
 		},
 		UserContextService: &mockUserContextService{
 			getCurrentStaffFunc: func(_ context.Context) (*StaffIdentity, error) {
-				return nil, usercontext.ErrUserNotLinkedToStaff
+				return nil, nil
 			},
 		},
 	})

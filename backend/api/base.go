@@ -80,8 +80,8 @@ import (
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	filestoreAPI "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth"
+	meAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/me"
 	identityOperatorAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
-	usercontextAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/usercontext"
 	projectJWT "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	reviewidentity "github.com/moto-nrw/project-phoenix/modules/identityaccess/requestreview"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
@@ -719,7 +719,7 @@ type API struct {
 	ClassDay         *classdayHTTP.Resource
 	ClassListEntries *classListHTTP.Resource
 	School           *schoolPortal.Resource
-	UserContext      *usercontextAPI.Resource
+	UserContext      *meAPI.Resource
 	Substitutions    *substitutionsAPI.Resource
 	GradeTransitions *adminAPI.GradeTransitionResource
 	TimeTracking     *timeTrackingHTTP.Resource
@@ -996,7 +996,7 @@ func setupBasicMiddleware(router chi.Router, logger *slog.Logger, httpMetrics *h
 	// Request-scoped identity memo cache (issue #2099). Router-wide so routes
 	// outside ProtectedTenantGroup (notably /api/sse, which builds its own JWT
 	// chain) dedupe their identity-chain lookups too.
-	router.Use(apiCommon.RequestIdentityCacheMiddleware)
+	router.Use(meAPI.RequestIdentityCacheMiddleware)
 }
 
 func syncClientIPToRemoteAddr(next http.Handler) http.Handler {
@@ -1553,7 +1553,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.UserContext, db, logger.With("handler", "sse"))
 	api.SSE.SetSchoolAccess(api.Services.Auth)
 	api.Birthdays = birthdaysAPI.NewResource(api.Services.Birthdays, api.Services.ListExport, api.Services.UserContext, db, logger.With("handler", "birthdays"))
-	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, db)
+	api.UserContext = meAPI.NewResource(api.Services.UserContext.Caller(), api.Services.UserContext)
 	// The school portal's class-day surface reads the class-day projection
 	// (#2701); the projection binds the retained enrollment report and the
 	// arrival-exception write seam (#2970) behind its one public capability.
@@ -1693,14 +1693,7 @@ func requireHomeLayoutOperations(settings any) configAPI.HomeLayoutOperations {
 }
 
 func (a *API) currentStaffID(ctx context.Context) (int64, error) {
-	staff, err := a.Services.UserContext.GetCurrentStaff(ctx)
-	if err != nil {
-		return 0, err
-	}
-	if staff == nil {
-		return 0, errors.New("current staff member not found")
-	}
-	return staff.ID, nil
+	return a.Services.UserContext.Caller().StaffID(ctx)
 }
 
 // ServeHTTP implements the http.Handler interface for the API

@@ -5,11 +5,9 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
@@ -23,7 +21,7 @@ type DayReportReader interface {
 // resolves the caller with.
 type CallerReader interface {
 	GetMySchoolClasses(ctx context.Context) ([]string, error)
-	GetCurrentStaff(ctx context.Context) (*userModel.Staff, error)
+	StaffReader
 }
 
 // ClassDayDependencies wires the school-portal capability. ArrivalExceptions
@@ -151,16 +149,14 @@ func (b callerBinding) AssignedClasses(ctx context.Context) ([]string, error) {
 // lookup is a server error, not a missing record — the caller must not be
 // told to fix their account for a database outage.
 func (b callerBinding) StaffID(ctx context.Context) (int64, error) {
-	staff, err := b.context.GetCurrentStaff(ctx)
+	staffID, found, err := b.context.CurrentStaffID(ctx)
 	switch {
-	case errors.Is(err, usercontext.ErrUserNotLinkedToStaff), errors.Is(err, usercontext.ErrUserNotLinkedToPerson):
-		return 0, classday.ErrStaffRecordRequired
 	case err != nil:
 		return 0, err
-	case staff == nil:
+	case !found:
 		return 0, classday.ErrStaffRecordRequired
 	}
-	return staff.ID, nil
+	return staffID, nil
 }
 
 type arrivalExceptionBinding struct {

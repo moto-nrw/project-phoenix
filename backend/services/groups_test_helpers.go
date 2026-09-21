@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -20,7 +19,7 @@ type GroupsTestModule struct {
 	Education   education.Service
 	Active      active.Service
 	Users       users.PersonService
-	UserContext usercontext.UserContextService
+	UserContext *repositories.CallerRows
 }
 
 // TeacherGroupIDs exposes the same assignment projection as attendance composition.

@@ -193,7 +193,8 @@ var queryBudgets = map[string]queryBudget{
 	// as N+1 here.
 	"api.staff_notices.acknowledgements": {max: 7, exact: true},
 	"modules.careplan.request_feed.list": {max: 1, exact: true},
-	// modules/identityaccess/legacy/usercontext — #2099 request cache dedups the identity chain.
+	// modules/identityaccess caller context (behavior/caller_request_cache_test.go) —
+	// the #2099 request cache dedups the identity chain.
 	"services.usercontext.identity_chain.persons":       {max: 1, exact: true},
 	"services.usercontext.identity_chain.staff":         {max: 1, exact: true},
 	"services.usercontext.identity_chain.teachers":      {max: 1, exact: true},

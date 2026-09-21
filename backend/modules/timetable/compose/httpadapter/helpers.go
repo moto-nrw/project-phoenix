@@ -14,6 +14,9 @@ import (
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 )
 
+// errNotStaff reports a caller without a staff record.
+var errNotStaff = errors.New("user is not a staff member")
+
 // =============================================================================
 // HELPER METHODS - Reduce code duplication for common parsing/validation
 // =============================================================================
@@ -28,13 +31,16 @@ func (rs *Resource) getStaffIDAndManagePermission(r *http.Request) (int64, bool,
 	hasAdminPermission := authorize.HasAdminWildcard(jwt.PermissionsFromCtx(r.Context()))
 
 	// Get current staff
-	staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
+	staffID, found, err := rs.UserContextService.CurrentStaffID(r.Context())
 	if err != nil {
-		// User is not staff - they can only have manage permission if admin
 		return 0, hasAdminPermission, err
 	}
+	if !found {
+		// User is not staff - they can only have manage permission if admin
+		return 0, hasAdminPermission, errNotStaff
+	}
 
-	return staff.ID, hasAdminPermission, nil
+	return staffID, hasAdminPermission, nil
 }
 
 // requireActivityModification applies the same owner/supervisor/admin policy

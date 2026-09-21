@@ -9,7 +9,6 @@ package compose
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -23,7 +22,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
 
@@ -58,9 +56,11 @@ type SettingsReader interface {
 	LockSlotListCutoffPairShared(ctx context.Context) error
 }
 
-// StaffReader resolves the caller's staff record for the read-access verdict.
+// StaffReader resolves the caller's staff member. found is false, without an
+// error, for a caller whose account has no person or whose person is no
+// staff member.
 type StaffReader interface {
-	GetCurrentStaff(ctx context.Context) (*userModel.Staff, error)
+	CurrentStaffID(ctx context.Context) (staffID int64, found bool, err error)
 }
 
 // SlotListDependencies wires the slot lists. The owner facades are the
@@ -227,14 +227,11 @@ func (b accessBinding) CanReadStudents(ctx context.Context) (bool, error) {
 	if b.staff == nil {
 		return false, nil
 	}
-	staff, err := b.staff.GetCurrentStaff(ctx)
+	_, found, err := b.staff.CurrentStaffID(ctx)
 	if err != nil {
-		if errors.Is(err, usercontext.ErrUserNotLinkedToStaff) {
-			return false, nil
-		}
 		return false, fmt.Errorf("resolve current staff: %w", err)
 	}
-	return staff != nil, nil
+	return found, nil
 }
 
 // Rules forwards the pure care-plan rules to their owners so every reader of

@@ -20,7 +20,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -50,7 +49,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -101,35 +99,32 @@ import (
 	"github.com/uptrace/bun"
 )
 
-type substitutionIdentity interface {
-	GetCurrentStaff(context.Context) (*userModels.Staff, error)
-	GetCurrentTeacher(context.Context) (*userModels.Teacher, error)
+type substitutionActorResolver struct {
+	identity identityaccess.CallerIdentities
 }
 
-type substitutionActorResolver struct{ identity substitutionIdentity }
-
 func (r substitutionActorResolver) ResolveActor(ctx context.Context) (*education.Actor, error) {
-	staff, err := r.identity.GetCurrentStaff(ctx)
+	staffID, err := r.identity.StaffID(ctx)
 	if err != nil {
 		if expectedMissingSubstitutionIdentity(err) {
 			return nil, nil
 		}
 		return nil, err
 	}
-	teacher, err := r.identity.GetCurrentTeacher(ctx)
+	teacherID, err := r.identity.TeacherID(ctx)
 	if err != nil {
 		if expectedMissingSubstitutionIdentity(err) {
 			return nil, nil
 		}
 		return nil, err
 	}
-	return &education.Actor{StaffID: staff.ID, TeacherID: teacher.ID}, nil
+	return &education.Actor{StaffID: staffID, TeacherID: teacherID}, nil
 }
 
 func expectedMissingSubstitutionIdentity(err error) bool {
-	return errors.Is(err, usercontext.ErrUserNotLinkedToPerson) ||
-		errors.Is(err, usercontext.ErrUserNotLinkedToStaff) ||
-		errors.Is(err, usercontext.ErrUserNotLinkedToTeacher)
+	return errors.Is(err, identityaccess.ErrCallerNotLinkedToPerson) ||
+		errors.Is(err, identityaccess.ErrCallerNotLinkedToStaff) ||
+		errors.Is(err, identityaccess.ErrCallerNotLinkedToTeacher)
 }
 
 // Factory provides access to all services
@@ -204,7 +199,7 @@ type Factory struct {
 	Guardian                  *users.GuardianService
 	PeopleDirectory           peopledirectory.Capability
 	GuardianProfileLoader     *users.GuardianProfileLoader
-	UserContext               usercontext.UserContextService
+	UserContext               *repositories.CallerRows
 	Database                  database.DatabaseService
 	DatabaseStatsCapabilities func(context.Context) database.StatsCapabilities
 	Import                    *importService.ImportService[importModels.StudentImportRow]        // Student import service
@@ -253,7 +248,7 @@ type Factory struct {
 	// RequestReviewPolicy is the one cross-domain decision about WHO may see
 	// and decide parent requests. The API layer reads it to explain an empty
 	// queue; the four request services enforce it per child.
-	RequestReviewPolicy *usercontext.ParentRequestReviewPolicy
+	RequestReviewPolicy *ParentRequestReviewPolicy
 	StudentStatusDays   *active.StudentStatusDayService
 	AbsenceOverview     *active.StudentStatusDayOverviewService
 	StudentHistory      active.StudentHistoryService
@@ -1779,30 +1774,33 @@ func newFactory(
 		DB:                     db,
 	})
 
-	// Initialize user context service
+	// The Identity & Access caller context (#3501) resolves the caller's
+	// chain through the owners of each link; the rows serve the consumers
+	// that still speak the retained records.
 	staffGroups, err := repositories.NewUserContextStaffGroups(groups, membership, workTime)
 	if err != nil {
 		return nil, err
 	}
-	userContextService := usercontext.NewUserContextServiceWithRepos(usercontext.UserContextRepositories{
-		AccountRepo:        repositories.NewCurrentAccountAccess(repos.Profile),
-		PersonRepo:         repos.Person,
-		StaffRepo:          repos.Staff,
-		TeacherRepo:        repos.Teacher,
-		StudentRepo:        repos.Student,
-		EducationGroupRepo: repos.Group,
-		ActivityGroupRepo:  repos.ActivityGroup,
-		ActiveGroupRepo:    repos.ActiveGroup,
-		Presence:           newStudentPresence(db, logger),
-		SupervisorRepo:     repos.GroupSupervisor,
-		ProfileRepo:        repos.Profile,
-		StaffGroups:        staffGroups,
-		ActiveService:      NewSSEPresence(newStudentPresence(db, logger)),
-		SSESettings:        settingsService,
-	}, usercontextLogger)
+	userContextService, err := newCallerRows(callerContextWiring{
+		Accounts:             identityAccess,
+		Persons:              repos.Person,
+		Membership:           membership,
+		StaffGroups:          staffGroups,
+		SupervisedActivities: supervisedActivityGroupIDs(repos.ActivityGroup),
+		Presence:             newStudentPresence(db, logger),
+		Settings:             settingsService,
+		Logger:               usercontextLogger,
+	}, repositories.CallerRowSources{
+		Groups: repos.Group, Staff: repos.Staff, Teachers: repos.Teacher, Students: repos.Student,
+		Activities: repos.ActivityGroup, Sessions: repos.ActiveGroup,
+	})
+	if err != nil {
+		return nil, err
+	}
+	callerContext := userContextService.Caller()
 	substitutionService := education.NewSubstitutionModule(education.SubstitutionDependencies{
 		Groups: repos.Group, Substitutions: repos.GroupSubstitution, Persons: newEducationPersonQuery(persons),
-		Teachers: repos.Teacher, Staff: repos.Staff, Actors: substitutionActorResolver{identity: userContextService},
+		Teachers: repos.Teacher, Staff: repos.Staff, Actors: substitutionActorResolver{identity: callerContext},
 		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
 		Audit:                   repos.SubstitutionChange, DB: db, Broadcaster: realtimeHub,
@@ -2246,12 +2244,7 @@ func newFactory(
 		DB:                    db,
 		Logger:                logger.With("service", "enrollment-rollover"),
 	})
-	requestReviewPolicy := usercontext.NewParentRequestReviewPolicy(
-		settingsService,
-		userContextService,
-		configModels.KeyParentRequestGroupLeaderReviewEnabled,
-		configModels.KeyParentAbsenceReviewScope,
-	)
+	requestReviewPolicy := NewParentRequestReviewPolicy(callerContext.ParentRequestReviews)
 
 	// One append-only ledger for every parent request, shared by all four
 	// domains so a request's history survives edits, decisions and corrections
@@ -2309,7 +2302,7 @@ func newFactory(
 		PersonRepo:             repos.Person,
 		CareWithdrawalRepo:     repos.CareWithdrawal,
 		OfferingAdjustmentRepo: repos.EnrollmentOfferingAdjustment,
-		UserContext:            userContextService,
+		UserContext:            userContextService.Caller(),
 		Applier:                enrollmentDecisionApplier,
 		DirectApplier:          directOfferingApplier,
 		Settings:               settingsService,
@@ -2474,7 +2467,7 @@ func newFactory(
 			PersonRepo:           repos.Person,
 		},
 		Appointments:           repos.Appointments(),
-		UserContext:            userContextService,
+		UserContext:            userContextService.Caller(),
 		DB:                     db,
 		CalendarRenderer:       schoolCalendarRendererAdapter{renderer: repos.SchoolCalendar()},
 		Outbox:                 emailOutboxService,
@@ -2757,7 +2750,7 @@ func newFactory(
 		People:            usersService,
 		Education:         educationService,
 		Substitutions:     substitutionService,
-		UserContext:       userContextService,
+		UserContext:       groupLiveCaller{userContextService},
 		Active:            activeService,
 		Settings:          settingsService,
 		Pickups:           pickupScheduleService,
@@ -2779,7 +2772,7 @@ func newFactory(
 		ActiveGroups: openRoomSessionPresence{newStudentPresence(db, logger), timetableCapability},
 		OpenVisits:   active.NewVisitDisplayBatchReader(activeServiceDeps),
 		Rooms:        openRoomDirectory{rooms: rooms},
-		UserContext:  userContextService,
+		UserContext:  supervisionCaller{userContextService},
 		Education:    educationService,
 		Schulhof:     schulhofService,
 		Operations:   timetableOperationsService,
@@ -2954,7 +2947,7 @@ func newFactory(
 		UserContext:             userContextService,
 		Database:                databaseService,
 		DatabaseStatsCapabilities: func(ctx context.Context) database.StatsCapabilities {
-			return usercontext.DatabaseStatsCapabilities(ctx)
+			return securityruntime.DatabaseStatsCapabilities(authjwt.PermissionsFromCtx(ctx))
 		},
 		Import:               dataImports.Student,        // Student import service
 		StaffImport:          dataImports.Staff,          // Staff (Mitarbeiter) import service

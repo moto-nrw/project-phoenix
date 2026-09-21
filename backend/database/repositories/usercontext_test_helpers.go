@@ -4,8 +4,8 @@ import (
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/uptrace/bun"
 )
@@ -14,7 +14,7 @@ type UserContextTestRepositories struct {
 	Timetable     TimetableTestRepositories
 	Profile       identityaccess.AccountProfiles
 	Substitutions educationModels.GroupSubstitutionRepository
-	StaffGroups   usercontext.StaffGroupReads
+	StaffGroups   schoolstructure.StaffGroupQuery
 }
 
 func NewUserContextTestRepositories(db *bun.DB) (UserContextTestRepositories, error) {
@@ -48,7 +48,7 @@ func NewUserContextTestRepositories(db *bun.DB) (UserContextTestRepositories, er
 
 // NewUserContextStaffGroupsForTests composes the staff group reads over the
 // real School Structure, School Membership and Workforce owners.
-func NewUserContextStaffGroupsForTests(db *bun.DB) (usercontext.StaffGroupReads, error) {
+func NewUserContextStaffGroupsForTests(db *bun.DB) (schoolstructure.StaffGroupQuery, error) {
 	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return nil, err

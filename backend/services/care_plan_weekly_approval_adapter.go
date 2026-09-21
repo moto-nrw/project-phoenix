@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
@@ -37,17 +36,14 @@ func (*weeklyApprovalAdapter) TrackCompanionChanges(ctx context.Context) (contex
 	return ctx, recorder.Changed
 }
 func (a *weeklyApprovalAdapter) ActingStaffID(ctx context.Context) (int64, error) {
-	staff, err := a.s.userContext.GetCurrentStaff(ctx)
+	staffID, found, err := a.s.userContext.CurrentStaffID(ctx)
 	if err != nil {
-		if errors.Is(err, userContextService.ErrUserNotLinkedToStaff) || errors.Is(err, userContextService.ErrUserNotLinkedToPerson) {
-			return 0, carerequests.ErrCareRequestForbidden
-		}
 		return 0, fmt.Errorf("schedule: resolve acting staff: %w", err)
 	}
-	if staff == nil {
+	if !found {
 		return 0, carerequests.ErrCareRequestForbidden
 	}
-	return staff.ID, nil
+	return staffID, nil
 }
 func (a *weeklyApprovalAdapter) LockDepartureModes(ctx context.Context, id int64) (map[string][]string, error) {
 	student, err := a.s.people.FindStudentRecordForMutation(ctx, id)

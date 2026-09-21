@@ -20,7 +20,6 @@ import (
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
@@ -239,11 +238,11 @@ func (rs *Resource) permittedDayLogGroups(ctx context.Context, date timezone.Dat
 		return rs.EducationService.ListGroups(ctx, nil)
 	}
 
-	staff, err := rs.dayLogCurrentStaff(ctx)
+	_, staff, err := rs.UserContextService.CurrentStaffID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if staff == nil {
+	if !staff {
 		// No linked staff record: supervises nothing, and no scope may widen
 		// that. Renders as a 403 via filterDayLogGroups, mirroring the
 		// room-history endpoint.
@@ -251,21 +250,6 @@ func (rs *Resource) permittedDayLogGroups(ctx context.Context, date timezone.Dat
 	}
 
 	return rs.EducationService.ListGroups(ctx, nil)
-}
-
-// dayLogCurrentStaff returns the caller's staff record, or (nil, nil) when the
-// account has no person/staff link. That is an expected state (e.g.
-// admin-created accounts), not a dependency failure.
-func (rs *Resource) dayLogCurrentStaff(ctx context.Context) (*usersModel.Staff, error) {
-	staff, err := rs.UserContextService.GetCurrentStaff(ctx)
-	if err != nil {
-		if errors.Is(err, userContextService.ErrUserNotLinkedToStaff) ||
-			errors.Is(err, userContextService.ErrUserNotLinkedToPerson) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return staff, nil
 }
 
 // renderDayLogGroupError separates the two failure classes of

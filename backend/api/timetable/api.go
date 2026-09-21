@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -20,7 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
-	usercontextSvc "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
@@ -108,7 +108,7 @@ type Dependencies struct {
 	PersonService           userSvc.PersonService
 	TimetableData           *timetableplanning.TimetableDataService
 	CareDayService          careplan.CareDayQuery
-	UserContextService      usercontextSvc.UserContextService
+	UserContextService      authorize.StudentAccessUserContext
 	SettingsService         configSvc.SettingsService
 	SlotListsService        classday.SlotLists
 	// OfferingSourceOptions serves the offering-source editor support
