@@ -18,7 +18,7 @@ export function isDemoEntryPath(
   return path === "/demo" || (!!tenantSlug && path === `/${tenantSlug}/demo`);
 }
 
-export type DemoAccessStatus = "preparing" | "ready" | "failed" | "invalid";
+type DemoAccessStatus = "preparing" | "ready" | "failed" | "invalid";
 
 export interface DemoTokenPair {
   access_token: string;
@@ -48,14 +48,14 @@ async function postToken(path: string, token: string): Promise<Response> {
   });
 }
 
-export interface DemoAccessProgress {
+interface DemoAccessProgress {
   status: DemoAccessStatus;
   /** Origin of the demo school; present once the status is `ready`. */
   schoolUrl?: string;
 }
 
 /** Unknown and expired links are `invalid`; anything else unexpected throws. */
-export async function fetchDemoAccessProgress(
+async function fetchDemoAccessProgress(
   token: string,
 ): Promise<DemoAccessProgress> {
   const response = await postToken("/api/demo/access/status", token);
