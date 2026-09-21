@@ -738,11 +738,17 @@ table either: it filters its grouped rows against the owner's completion keys,
 which the former `NOT EXISTS` clause tested on the same grouping key. Both
 #2727 baseline entries for the table are gone.
 
-The Care Plan compatibility adapter (`modules/careplan/legacy`) uses this
-representation. Its remaining imports and repository-composition caller are
-bound to #2743, the root API caller to #2750, and the test-support caller to
-#2748. The conversion in #3032 removes 13 target permissions and records 14
-existing imports; it adds no runtime dependency or composition caller.
+The Care Plan compatibility adapter (`modules/careplan/legacy`, root package)
+used this representation from #3032 until #3410 dissolved it and removed its
+14 exact imports. The care-offering and offering-change repositories are now
+the enrollment services' own translation onto the Care Plan Commands and
+Queries (`services/enrollment/care_plan_offering_records.go`), with the name
+search bound to the People Directory by the services composition. The
+companion and child-document repositories sit with their sibling Care Plan
+adapters in `database/repositories`, as constructors instead of
+`repositories.Factory` fields. The calendar day comes from
+`modules/careplan/compose.Today`, the ambient transaction from
+`compose.TenantAmbientDatabase`.
 `target.svg` has no compatibility-rule edges. `migration.svg` renders these
 exact imports as orange-red `legacy` debt, separate from gray target-valid
 imports and dashed-red new violations, even when they share owner endpoints.
@@ -904,15 +910,20 @@ with unchanged behaviour, paths, status codes, error strings and authorization
 checks; their 49 baseline entries fell with the old packages. The read side
 could not land on the existing `identity-access`/`application` point: it still
 returns the retained `models/*` rows to its consumers, and PR mode rejects
-a new permission on a point that exists at the base SHA. Every
-`inbound-usercontext.adapter.*`, `inbound-usercontext.http.*` and
-`inbound-usercontext.adapter-test.*` rule, every
-`<consumer>.<role>.inbound-usercontext-adapter` rule and the
-`root-composition.compose.inbound-usercontext-http` mount is a compatibility
-permission that exists only because PR mode cannot record debt for a package
-the candidate creates: convert them to exact debt with the rule above once the
-packages exist at a base SHA, and dissolve the adapter into the Identity &
-Access application and public contract under #2725. The adapter role also
+a new permission on a point that exists at the base SHA. The 46 compatibility
+permissions this move needed (the `inbound-usercontext.adapter.*`,
+`inbound-usercontext.http.*` and `inbound-usercontext.adapter-test.*` rules,
+every `<consumer>.<role>.inbound-usercontext-adapter` rule and the
+`root-composition.compose.inbound-usercontext-http` mount) are converted: the
+rules are deleted and their 55 import tuples are exact debt under #2725. The
+baseline grew by those 55 entries without a new import; the edges were hidden
+behind allow-rules before. The `student-presence` domain and adapter rules of
+the same packages stay temporary under #3422. The tuples fall when the adapter
+dissolves into the Identity & Access application and public contract, which
+first needs owner contracts for the staff and teacher membership read
+(`school-membership`), the caller's groups and substitutions
+(`school-structure`) and the supervised and active groups
+(`student-presence`). The adapter role also
 covers the `net/http` status constants the SSE setup error carries through
 the generic `external.http-router.adapter` rule, and the former
 `inbound-usercontext.to.identity-access` target rule is removed until that

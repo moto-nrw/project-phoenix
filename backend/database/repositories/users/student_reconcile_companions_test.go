@@ -65,7 +65,7 @@ func TestStudentRepository_Update_TrimsCompanionEdgesToPlan(t *testing.T) {
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon", "tue")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon", "tue")
-	require.NoError(t, factory.StudentCompanion.ReplaceForStudent(ctx, subject.ID, []*users.StudentCompanion{
+	require.NoError(t, repositories.NewStudentCompanionRepository(factory.CarePlan()).ReplaceForStudent(ctx, subject.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, subject.ID, companion.ID, 1),
 		newCompanionEdge(t, subject.ID, companion.ID, 2),
 	}))
@@ -81,12 +81,12 @@ func TestStudentRepository_Update_TrimsCompanionEdgesToPlan(t *testing.T) {
 	require.NoError(t, factory.Student.Update(ctx, loaded))
 
 	// ASSERT — only the Monday edge remains, from both children's view.
-	edges, err := factory.StudentCompanion.ListForStudent(ctx, subject.ID)
+	edges, err := repositories.NewStudentCompanionRepository(factory.CarePlan()).ListForStudent(ctx, subject.ID)
 	require.NoError(t, err)
 	require.Len(t, edges, 1)
 	assert.Equal(t, 1, edges[0].Weekday)
 
-	fromCompanion, err := factory.StudentCompanion.ListForStudent(ctx, companion.ID)
+	fromCompanion, err := repositories.NewStudentCompanionRepository(factory.CarePlan()).ListForStudent(ctx, companion.ID)
 	require.NoError(t, err)
 	require.Len(t, fromCompanion, 1)
 	assert.Equal(t, 1, fromCompanion[0].Weekday)
@@ -109,7 +109,7 @@ func TestStudentRepository_Update_DropsAllEdgesWhenPlanLosesAccompanied(t *testi
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon")
-	require.NoError(t, factory.StudentCompanion.ReplaceForStudent(ctx, subject.ID, []*users.StudentCompanion{
+	require.NoError(t, repositories.NewStudentCompanionRepository(factory.CarePlan()).ReplaceForStudent(ctx, subject.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, subject.ID, companion.ID, 1),
 	}))
 
@@ -121,7 +121,7 @@ func TestStudentRepository_Update_DropsAllEdgesWhenPlanLosesAccompanied(t *testi
 	}
 	require.NoError(t, factory.Student.Update(ctx, loaded))
 
-	edges, err := factory.StudentCompanion.ListForStudent(ctx, subject.ID)
+	edges, err := repositories.NewStudentCompanionRepository(factory.CarePlan()).ListForStudent(ctx, subject.ID)
 	require.NoError(t, err)
 	assert.Empty(t, edges, "a plan without an accompanied day must not keep any edge")
 }
@@ -144,7 +144,7 @@ func TestStudentRepository_Update_RefusesStrandingCompanionWeekday(t *testing.T)
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon", "tue")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon", "tue")
-	require.NoError(t, factory.StudentCompanion.ReplaceForStudent(ctx, subject.ID, []*users.StudentCompanion{
+	require.NoError(t, repositories.NewStudentCompanionRepository(factory.CarePlan()).ReplaceForStudent(ctx, subject.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, subject.ID, companion.ID, 1),
 		newCompanionEdge(t, subject.ID, companion.ID, 2),
 	}))
@@ -162,7 +162,7 @@ func TestStudentRepository_Update_RefusesStrandingCompanionWeekday(t *testing.T)
 	err = factory.Student.Update(ctx, loaded)
 	require.ErrorIs(t, err, users.ErrCompanionWouldLoseDeparture)
 
-	edges, listErr := factory.StudentCompanion.ListForStudent(ctx, subject.ID)
+	edges, listErr := repositories.NewStudentCompanionRepository(factory.CarePlan()).ListForStudent(ctx, subject.ID)
 	require.NoError(t, listErr)
 	assert.Len(t, edges, 2, "a refused update must not have dropped the Tuesday edge")
 }
@@ -187,7 +187,7 @@ func TestStudentRepository_Update_BatchAllowsCoordinatedCompanionRemoval(t *test
 
 	giveAccompaniedPlan(t, db, ctx, first.ID, "mon")
 	giveAccompaniedPlan(t, db, ctx, second.ID, "mon")
-	require.NoError(t, factory.StudentCompanion.ReplaceForStudent(ctx, first.ID, []*users.StudentCompanion{
+	require.NoError(t, repositories.NewStudentCompanionRepository(factory.CarePlan()).ReplaceForStudent(ctx, first.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, first.ID, second.ID, 1),
 	}))
 	// Neither child has any other "mit wem" detail than the shared edge.
@@ -209,7 +209,7 @@ func TestStudentRepository_Update_BatchAllowsCoordinatedCompanionRemoval(t *test
 	// ASSERT — the batch verdict passes and the shared edge is gone.
 	require.NoError(t, factory.Student.VerifyCompanionStrandingBatch(batchCtx))
 
-	edges, err := factory.StudentCompanion.ListForStudent(ctx, first.ID)
+	edges, err := repositories.NewStudentCompanionRepository(factory.CarePlan()).ListForStudent(ctx, first.ID)
 	require.NoError(t, err)
 	assert.Empty(t, edges, "the edge lost its basis on both sides and must be gone")
 }
@@ -231,7 +231,7 @@ func TestStudentRepository_Update_BatchStillRefusesStrandingCompanion(t *testing
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon")
-	require.NoError(t, factory.StudentCompanion.ReplaceForStudent(ctx, subject.ID, []*users.StudentCompanion{
+	require.NoError(t, repositories.NewStudentCompanionRepository(factory.CarePlan()).ReplaceForStudent(ctx, subject.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, subject.ID, companion.ID, 1),
 	}))
 	// The companion keeps its accompanied Monday, answered ONLY by the link.
@@ -268,7 +268,7 @@ func TestStudentRepository_Update_RefusesStrandingCompanion(t *testing.T) {
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon")
-	require.NoError(t, factory.StudentCompanion.ReplaceForStudent(ctx, subject.ID, []*users.StudentCompanion{
+	require.NoError(t, repositories.NewStudentCompanionRepository(factory.CarePlan()).ReplaceForStudent(ctx, subject.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, subject.ID, companion.ID, 1),
 	}))
 	// The companion's "mit wem" is now answered ONLY by the link.
@@ -284,7 +284,7 @@ func TestStudentRepository_Update_RefusesStrandingCompanion(t *testing.T) {
 	err = factory.Student.Update(ctx, loaded)
 	require.ErrorIs(t, err, users.ErrCompanionWouldLoseDeparture)
 
-	edges, listErr := factory.StudentCompanion.ListForStudent(ctx, subject.ID)
+	edges, listErr := repositories.NewStudentCompanionRepository(factory.CarePlan()).ListForStudent(ctx, subject.ID)
 	require.NoError(t, listErr)
 	assert.Len(t, edges, 1, "a refused update must not have dropped the edge")
 }

@@ -704,7 +704,7 @@ func newStatusDayTestResource(db *bun.DB, clocks ...func() time.Time) *Resource 
 			StudentRepo:      repoFactory.Student,
 		}),
 		StudentService:          usersSvc.NewStudentService(repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)), repositories.MustNewPeopleDirectory(db), repoFactory.Student),
-		CompanionService:        carelifecycle.NewStudentCompanionService(repoFactory.Student, repoFactory.StudentCompanion, nil),
+		CompanionService:        carelifecycle.NewStudentCompanionService(repoFactory.Student, repositories.NewStudentCompanionRepository(repoFactory.CarePlan), nil),
 		StudentStatusDayService: activeService.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil, repoFactory.CarePlan.LockExceptionDay, clock),
 		Logger:                  slog.Default(),
 		Now:                     clock,

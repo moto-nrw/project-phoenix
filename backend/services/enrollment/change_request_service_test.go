@@ -39,7 +39,7 @@ func newChangeRequestServiceForTestWithAuthorizer(
 		Children:            repoFactory.Enrollment(),
 		Guardians:           repoFactory.Enrollment(),
 		LateInviteRepo:      repoFactory.Enrollment(),
-		CareOfferingRepo:    repoFactory.CareOffering,
+		CareOfferingRepo:    enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
 		Catalog:             repoFactory.Enrollment(),
 		SchoolRepo:          factorySchools{repos: repoFactory},
 		GuardianProfileRepo: repoFactory.GuardianProfile,
@@ -106,7 +106,7 @@ func newChangeRequestServiceWithDecisionAndIntakeForTest(
 		Children:            env.repos.Enrollment(),
 		Guardians:           env.repos.Enrollment(),
 		LateInviteRepo:      env.repos.Enrollment(),
-		CareOfferingRepo:    env.repos.CareOffering,
+		CareOfferingRepo:    enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()),
 		Catalog:             env.repos.Enrollment(),
 		SchoolRepo:          factorySchools{repos: env.repos},
 		GuardianProfileRepo: env.repos.GuardianProfile,
@@ -629,7 +629,7 @@ func TestChangeRequestService_Create_AllowsKeepingInactiveCurrentOffering(t *tes
 	enableChangeRequestMode(t, env, result.Children[0].ID)
 
 	offering.IsActive = false
-	require.NoError(t, repoFactory.CareOffering.Update(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).Update(ctx, offering))
 
 	phone := "+49 221 222333"
 	proposed := proposedChangeSubmission(t, env, result)
@@ -655,7 +655,7 @@ func TestChangeRequestService_Create_PreservesGradeCapabilityForInactiveConditio
 	env.settings.boolValues[configModel.KeyEnrollmentCollectGradeLevel] = false
 	offering := setupCareOfferingForCapacity(t, env, 10)
 	offering.AvailabilityRule = requestTestGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1)
-	require.NoError(t, repoFactory.CareOffering.Update(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).Update(ctx, offering))
 
 	req := validSubmission(t, env.phaseID)
 	req.GuardianEmail = "inactive-conditional-change-request@example.com"
@@ -666,7 +666,7 @@ func TestChangeRequestService_Create_PreservesGradeCapabilityForInactiveConditio
 	enableChangeRequestMode(t, env, result.Children[0].ID)
 
 	offering.IsActive = false
-	require.NoError(t, repoFactory.CareOffering.Update(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).Update(ctx, offering))
 
 	phone := "+49 221 222334"
 	proposed := proposedChangeSubmission(t, env, result)
@@ -1366,7 +1366,7 @@ func TestChangeRequestService_Create_RejectsInactiveOfferingOnlyCurrentForAnothe
 	firstOffering := setupCareOfferingForCapacity(t, env, 10)
 	secondOffering := setupCareOfferingForCapacity(t, env, 10)
 	secondOffering.Name = "Second inactive slot"
-	require.NoError(t, repoFactory.CareOffering.Update(ctx, secondOffering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).Update(ctx, secondOffering))
 
 	req := validSubmission(t, env.phaseID)
 	req.GuardianEmail = "cross-child-inactive-offering@example.com"
@@ -1384,7 +1384,7 @@ func TestChangeRequestService_Create_RejectsInactiveOfferingOnlyCurrentForAnothe
 	enableChangeRequestMode(t, env, result.Children[0].ID)
 
 	secondOffering.IsActive = false
-	require.NoError(t, repoFactory.CareOffering.Update(ctx, secondOffering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).Update(ctx, secondOffering))
 
 	proposed := req
 	proposed.Children[0].ID = result.Children[0].ID
