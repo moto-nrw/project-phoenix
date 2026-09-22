@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
@@ -39,15 +39,20 @@ func clock(hour, minute int) time.Time {
 func ptr[T any](v T) *T { return &v }
 
 type fakeOverview struct {
-	overview *shiftplanning.StaffScheduleOverview
+	overview workforce.StaffScheduleOverview
 	err      error
-	from, to timezone.Date
+	from, to string
 }
 
-func (f *fakeOverview) GetOverview(_ context.Context, from, to timezone.Date) (*shiftplanning.StaffScheduleOverview, error) {
+func (f *fakeOverview) Overview(_ context.Context, from, to string) (workforce.StaffScheduleOverview, error) {
 	f.from, f.to = from, to
 	return f.overview, f.err
 }
+
+// clockString is the public ClockLayout form of a fixture clock; wall
+// restores the normalized wall clock the adapter hands the renderer.
+func clockString(hour, minute int) string { return clock(hour, minute).Format(workforce.ClockLayout) }
+func wall(hour, minute int) time.Time     { return timezone.NormalizeWallClock(clock(hour, minute)) }
 
 type fakeShiftTypes struct {
 	types []*scheduleModel.ShiftType
@@ -153,10 +158,10 @@ func staffRow(id int64, first, last string) *usersModel.Staff {
 	return member
 }
 
-func shiftRow(id, staffID int64, date timezone.Date) *scheduleModel.StaffShift {
-	shift := &scheduleModel.StaffShift{StaffID: staffID, Date: scheduleModel.Date(date), StartTime: clock(7, 30), EndTime: clock(14, 0)}
-	shift.ID = id
-	return shift
+func plannedShift(id, staffID int64, date timezone.Date) workforce.PlannedShift {
+	return workforce.PlannedShift{StaffShift: workforce.StaffShift{
+		ID: id, StaffID: staffID, Date: date.String(), StartTime: clockString(7, 30), EndTime: clockString(14, 0),
+	}}
 }
 
 func instanceRow(id int64, date timezone.Date, title string, status string) *scheduleModel.ActivityInstance {
@@ -172,48 +177,46 @@ func day(date timezone.Date) planexport.Date {
 func TestOverviewAdapterMapsEveryPrintedField(t *testing.T) {
 	t.Parallel()
 
-	cancelled := shiftRow(1, 7, monday)
+	cancelled := plannedShift(1, 7, monday)
 	cancelled.Cancelled = true
 	cancelled.ChangeReason = ptr("krank")
 	cancelled.ShiftTypeID = ptr[int64](4)
 	cancelled.Notes = "Frühdienst"
-	cover := shiftRow(2, 8, monday)
+	cover := plannedShift(2, 8, monday)
 	cover.OriginShiftID = ptr[int64](1)
-	headless := &usersModel.Staff{}
-	headless.ID = 9
-	source := &fakeOverview{overview: &shiftplanning.StaffScheduleOverview{
-		Staff:  []*usersModel.Staff{staffRow(7, "Franziska", "Kessener"), nil, headless},
-		Shifts: []*scheduleModel.StaffShift{cancelled, nil, cover},
-		Assignments: []shiftplanning.StaffScheduleAssignment{{
-			StaffID: 7, Date: monday, StartTime: clock(12, 0), EndTime: clock(13, 0),
+	source := &fakeOverview{overview: workforce.StaffScheduleOverview{
+		Staff:  []workforce.OverviewStaff{{ID: 7, FirstName: "Franziska", LastName: "Kessener"}, {ID: 9}},
+		Shifts: []workforce.PlannedShift{cancelled, cover},
+		Assignments: []workforce.OverviewAssignment{{
+			StaffID: 7, Date: monday.String(), StartTime: clockString(12, 0), EndTime: clockString(13, 0),
 			ActivityTitle: "Mensa", ActivityGroupID: ptr[int64](21), RoomName: "Speisesaal",
 			IsSubstitute: true, IsAbsent: true,
-			UncoveredIntervals: []timetableplanning.ShiftCoverageInterval{{StartTime: clock(12, 30), EndTime: clock(13, 0)}},
+			UncoveredIntervals: []workforce.CoverageInterval{{StartTime: clockString(12, 30), EndTime: clockString(13, 0)}},
 		}},
 	}}
 
 	overview, err := (overviewAdapter{source: source}).StaffScheduleOverview(context.Background(), day(monday), day(monday.AddDays(6)))
 	require.NoError(t, err)
-	assert.Equal(t, monday, source.from)
-	assert.Equal(t, monday.AddDays(6), source.to)
+	assert.Equal(t, monday.String(), source.from)
+	assert.Equal(t, monday.AddDays(6).String(), source.to)
 
-	require.Len(t, overview.Staff, 2, "nil rows are dropped, a staff row without a person record is kept")
+	require.Len(t, overview.Staff, 2, "a staff row without a person record is kept")
 	assert.Equal(t, &planexport.StaffMember{ID: 7, FirstName: "Franziska", LastName: "Kessener"}, overview.Staff[0])
 	assert.Equal(t, &planexport.StaffMember{ID: 9}, overview.Staff[1])
 
 	require.Len(t, overview.Shifts, 2)
 	assert.Equal(t, &planexport.Shift{
-		ID: 1, StaffID: 7, Date: "2026-07-27", StartTime: clock(7, 30), EndTime: clock(14, 0),
+		ID: 1, StaffID: 7, Date: "2026-07-27", StartTime: wall(7, 30), EndTime: wall(14, 0),
 		ShiftTypeID: ptr[int64](4), Cancelled: true, ChangeReason: ptr("krank"), Notes: "Frühdienst",
 	}, overview.Shifts[0])
 	assert.Equal(t, ptr[int64](1), overview.Shifts[1].OriginShiftID)
 
 	require.Len(t, overview.Assignments, 1)
 	assert.Equal(t, planexport.Assignment{
-		StaffID: 7, Date: "2026-07-27", StartTime: clock(12, 0), EndTime: clock(13, 0),
+		StaffID: 7, Date: "2026-07-27", StartTime: wall(12, 0), EndTime: wall(13, 0),
 		ActivityTitle: "Mensa", ActivityGroupID: ptr[int64](21), RoomName: "Speisesaal",
 		IsSubstitute: true, IsAbsent: true,
-		UncoveredIntervals: []planexport.Interval{{StartTime: clock(12, 30), EndTime: clock(13, 0)}},
+		UncoveredIntervals: []planexport.Interval{{StartTime: wall(12, 30), EndTime: wall(13, 0)}},
 	}, overview.Assignments[0])
 }
 
@@ -360,9 +363,9 @@ func TestNewLeavesUnboundSourcesOptional(t *testing.T) {
 
 	renderer := &captureRenderer{}
 	service := New(Sources{
-		Overview: &fakeOverview{overview: &shiftplanning.StaffScheduleOverview{
-			Staff:  []*usersModel.Staff{staffRow(7, "Franziska", "Kessener")},
-			Shifts: []*scheduleModel.StaffShift{shiftRow(1, 7, monday)},
+		Overview: &fakeOverview{overview: workforce.StaffScheduleOverview{
+			Staff:  []workforce.OverviewStaff{{ID: 7, FirstName: "Franziska", LastName: "Kessener"}},
+			Shifts: []workforce.PlannedShift{plannedShift(1, 7, monday)},
 		}},
 		Renderer: renderer,
 	})

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -166,7 +166,7 @@ func TestPlanExportInputsEnforceRLS(t *testing.T) {
 			require.NoError(t, testpkg.WithTenantTx(t, fixture.ctx, db, fixture.tenantID, func(txCtx context.Context, tx bun.Tx) error {
 				reads := txOverviewReads{tx: tx}
 				service := New(Sources{
-					Overview: shiftplanning.NewStaffScheduleOverviewService(shiftplanning.StaffScheduleOverviewDependencies{
+					Overview: workforceCompose.NewStaffScheduleOverview(workforceCompose.StaffScheduleOverviewDependencies{
 						Shifts:        reads,
 						Instances:     timetablesqltest.NewActivityInstanceRepository(db),
 						InstanceStaff: timetablesqltest.NewInstanceStaffRepository(db),

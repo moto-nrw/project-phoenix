@@ -4,11 +4,10 @@ import (
 	"log/slog"
 	"time"
 
-	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
-
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/iot"
@@ -67,20 +66,33 @@ func NewBirthdayTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() 
 }
 
 type ShiftTypeTestModule struct {
-	ShiftTypes   shiftplanning.ShiftTypeService
+	ShiftTypes   workforce.ShiftTypeAdministration
 	Activities   activities.ActivityService
 	Repositories repositories.ShiftTypeTestRepositories
 }
 
+// NewShiftTypeTestModule composes the shift-type administration the way the
+// factory does: the Workforce planning composition over the timetable test
+// repositories, with the Kategorie↔Schichtart linker of the activity service.
 func NewShiftTypeTestModule(db *bun.DB) (ShiftTypeTestModule, error) {
 	repos := repositories.NewShiftTypeTestRepositories(db)
 	linker, err := activities.NewService(repos.Timetable, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		return ShiftTypeTestModule{}, err
 	}
-	return ShiftTypeTestModule{
-		ShiftTypes: shiftplanning.NewShiftTypeService(repos.Types, slog.Default()), Activities: linker, Repositories: repos,
-	}, nil
+	timetable, err := repositories.NewTimetableTestRepositories(db)
+	if err != nil {
+		return ShiftTypeTestModule{}, err
+	}
+	planning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
+		Workforce: repositories.NewAbsenceTypeTestCapability(db), Staff: timetable.Staff, CalendarPeriods: timetable.CalendarPeriod,
+		Instances: timetable.ActivityInstance, InstanceStaff: timetable.InstanceStaff, Rooms: timetable.Room, ActivityGroups: timetable.ActivityGroup,
+		CategoryLinker: linker.SetCategoryShiftTypeLinks, DB: db, Logger: slog.Default(),
+	})
+	if err != nil {
+		return ShiftTypeTestModule{}, err
+	}
+	return ShiftTypeTestModule{ShiftTypes: planning.ShiftTypes, Activities: linker, Repositories: repos}, nil
 }
 
 type DeviceTestModule struct{ IoT iot.Service }

@@ -13,7 +13,7 @@ import (
 
 // The shift-coverage interval vocabulary shared by the timetable-side
 // coverage probe (DetectShiftCoverage, the staff pool) and the retained
-// Dienstplan overview in modules/workforce/legacy/shiftplanning (#3219). The
+// Dienstplan overview in modules/workforce/internal/planning (#3219, #3418). The
 // overview moved with the staff-shift services; the interval math stays here
 // because the coverage probe is served through TimetableDataService.
 

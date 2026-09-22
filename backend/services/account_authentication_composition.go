@@ -212,6 +212,21 @@ func (d demoSchoolDirectory) PrepareDemoSchool(ctx context.Context, schoolName, 
 	return slug, err
 }
 
+// ReplaceDemoSchool hides the visitor's school and queues a fresh one with
+// the same names (#3470). It hides first, so the restart needs no free place
+// at the capacity; both happen in the caller's transaction, so a refused
+// order leaves the old school as it was. The standing school is shared: a
+// restart is refused.
+func (d demoSchoolDirectory) ReplaceDemoSchool(ctx context.Context, slug, schoolName, personName string) (string, error) {
+	if d.standing != "" || slug == StandingDemoSchoolSlug {
+		return "", identityaccess.ErrDemoAccessInvalid
+	}
+	if err := d.orders.RetireDemoSchool(ctx, slug); err != nil {
+		return "", err
+	}
+	return d.PrepareDemoSchool(ctx, schoolName, personName)
+}
+
 // MarkDemoSchoolUsed notes an entry. The standing school has no order and is
 // always simulated, so there is nothing to note for it.
 func (d demoSchoolDirectory) MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error {

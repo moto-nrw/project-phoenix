@@ -42,10 +42,24 @@ const AbsentLocationLabel = studentpresence.AbsentLocationLabel
 // AtSchoolLocationLabel is the location of an expected child before the first check-in (#3260).
 const AtSchoolLocationLabel = studentpresence.AtSchoolLocationLabel
 
+// StudentLocationReader is the presence surface the shared location snapshot
+// reads (#3352): the tenant's presence mode, today's attendance rows, the open
+// visits and the sessions those visits belong to. Inbound adapters bind it
+// from the public Student Presence contract instead of the whole capability.
+type StudentLocationReader interface {
+	studentpresence.PresenceModes
+	GetStudentsAttendanceStatuses(ctx context.Context, studentIDs []int64) (map[int64]*studentpresence.DailyAttendanceStatus, error)
+	GetStudentsCurrentVisits(ctx context.Context, studentIDs []int64) (map[int64]*studentpresence.Visit, error)
+	GetActiveGroupsByIDs(ctx context.Context, groupIDs []int64) (map[int64]*studentpresence.SessionDetail, error)
+}
+
+// The public capability satisfies the port; a contract change surfaces here.
+var _ StudentLocationReader = studentpresence.Presence(nil)
+
 // LoadStudentLocationSnapshot batches all data needed to resolve student locations.
 // In binary-mode tenants it skips the visit/group queries as a perf win — those
 // fields become irrelevant because the resolver won't read them anyway.
-func LoadStudentLocationSnapshot(ctx context.Context, svc studentpresence.Presence, studentIDs []int64) (*StudentLocationSnapshot, error) {
+func LoadStudentLocationSnapshot(ctx context.Context, svc StudentLocationReader, studentIDs []int64) (*StudentLocationSnapshot, error) {
 	uniqueIDs := sliceutil.Unique(studentIDs)
 	mode, err := svc.GetPresenceMode(ctx)
 	if err != nil {

@@ -97,6 +97,30 @@ type DemoAccessEngine interface {
 	RequestDemoAccess(ctx context.Context, request DemoAccessRequest) error
 	DemoAccessStatus(ctx context.Context, token string) (DemoAccessProgress, error)
 	RedeemDemoAccess(ctx context.Context, token, role, ipAddress, userAgent string) (DemoEntry, error)
+	ResetDemoAccess(ctx context.Context, token, clientIP string) error
+}
+
+// DemoAccessExpiryEngine is the composed implementation behind DemoAccessExpiry.
+type DemoAccessExpiryEngine interface {
+	ExpireDemoAccesses(ctx context.Context) (deleted int, orphanedSchoolSlugs []string, err error)
+}
+
+// DemoAccessExpiry is the demo process's capability (#3470): it deletes demo
+// accesses 14 days after their last use and names the demo schools that no
+// access enters any more, so the process can hide them through their owner.
+type DemoAccessExpiry struct{ engine DemoAccessExpiryEngine }
+
+func NewDemoAccessExpiry(engine DemoAccessExpiryEngine) *DemoAccessExpiry {
+	if engine == nil {
+		panic("demo access expiry requires an engine")
+	}
+	return &DemoAccessExpiry{engine: engine}
+}
+
+// ExpireDemoAccesses deletes the accesses past their end and returns how
+// many, plus the schools left without any access.
+func (e *DemoAccessExpiry) ExpireDemoAccesses(ctx context.Context) (int, []string, error) {
+	return e.engine.ExpireDemoAccesses(ctx)
 }
 
 // DemoEntry is a redeemed demo access (#3467): the token pair and what the
@@ -148,6 +172,15 @@ func (d *DemoAccess) DemoAccessStatus(ctx context.Context, token string) (DemoAc
 // account's role), a parents portal session for parent (#3468).
 func (d *DemoAccess) RedeemDemoAccess(ctx context.Context, token, role, ipAddress, userAgent string) (DemoEntry, error) {
 	return d.engine.RedeemDemoAccess(ctx, token, role, ipAddress, userAgent)
+}
+
+// ResetDemoAccess gives the token's access a fresh demo school and hides the
+// old one (#3470). The same token then enters the new school once it is
+// seeded. ErrDemoSchoolPreparing while the current school is still being
+// prepared; ErrDemoAccessInvalid for the shared standing school. A restart
+// counts against the request limits of the address and of clientIP (#3466).
+func (d *DemoAccess) ResetDemoAccess(ctx context.Context, token, clientIP string) error {
+	return d.engine.ResetDemoAccess(ctx, token, clientIP)
 }
 
 // NewDemoModule is NewModule with the demo-only capability; access is nil

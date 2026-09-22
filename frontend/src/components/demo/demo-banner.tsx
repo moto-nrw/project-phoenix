@@ -1,13 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CaretDownIcon } from "@phosphor-icons/react";
+import {
+  ArrowCounterClockwiseIcon,
+  CaretDownIcon,
+} from "@phosphor-icons/react";
 import { ButtonLink } from "~/components/ui/button";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useToast } from "~/contexts/ToastContext";
 import { registerDemoVisit, trackDemoEvent } from "~/lib/analytics";
 import {
+  DEMO_RESTART_CONFIRM,
+  DEMO_RESTART_LABEL,
+  DEMO_RESTART_RUNNING,
+  DEMO_RESTART_TEXT,
+  DEMO_RESTART_TITLE,
   DEMO_ROLES,
   DEMO_START_URL,
   type DemoRole,
@@ -17,6 +26,7 @@ import {
   isDemoBuild,
   isParentDemoRole,
   readDemoVisit,
+  restartDemo,
   saveDemoVisit,
   startDemoSession,
   switchDemoRole,
@@ -81,6 +91,10 @@ function ActiveDemoBanner() {
   // role and reports no identity it does not know.
   const [visit, setVisit] = useState<DemoVisit | null | undefined>();
   const [switching, setSwitching] = useState(false);
+  // „Demo neu anfangen" (#3470) asks first; restarting keeps the question
+  // open until the waiting room takes over.
+  const [restartAsked, setRestartAsked] = useState(false);
+  const [restarting, setRestarting] = useState(false);
 
   useEffect(() => {
     setVisit(readDemoVisit());
@@ -132,6 +146,32 @@ function ActiveDemoBanner() {
     }
   };
 
+  // The restart leads through the waiting room, where the setup screen of
+  // the first entry shows again; the new school's entry reports it. The
+  // question stays locked while the page navigates away, so a second click
+  // cannot order a second school.
+  const restart = async () => {
+    if (restarting) return;
+    setRestarting(true);
+    try {
+      const entryUrl = await restartDemo(visit?.role);
+      if (!entryUrl) {
+        setRestarting(false);
+        setRestartAsked(false);
+        toast.error(OPEN_MAILED_LINK);
+        return;
+      }
+      globalThis.location.assign(entryUrl);
+    } catch (error) {
+      logger.error("demo_restart_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      setRestarting(false);
+      setRestartAsked(false);
+      toast.error(SWITCH_FAILED);
+    }
+  };
+
   const roleLabel = visit ? demoRoleLabel(visit.role) : CHOOSE_ROLE;
 
   return (
@@ -168,9 +208,30 @@ function ActiveDemoBanner() {
               checked: entry.role === visit?.role,
               onClick: () => void chooseRole(entry.role),
             })),
+            { kind: "separator" as const },
+            {
+              label: DEMO_RESTART_LABEL,
+              icon: <ArrowCounterClockwiseIcon aria-hidden="true" />,
+              onClick: () => setRestartAsked(true),
+            },
           ]}
         />
       )}
+      <ConfirmationModal
+        isOpen={restartAsked}
+        onClose={() => {
+          if (!restarting) setRestartAsked(false);
+        }}
+        onConfirm={() => void restart()}
+        title={DEMO_RESTART_TITLE}
+        confirmText={DEMO_RESTART_CONFIRM}
+        confirmVariant="warning"
+        isConfirmLoading={restarting}
+        isDismissDisabled={restarting}
+        loadingText={DEMO_RESTART_RUNNING}
+      >
+        <p className="text-sm text-gray-700">{DEMO_RESTART_TEXT}</p>
+      </ConfirmationModal>
       <ButtonLink
         href={DEMO_START_URL}
         target="_blank"
