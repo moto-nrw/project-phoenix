@@ -3,13 +3,14 @@ package services
 import (
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/uptrace/bun"
 )
 
 func newStudentPresence(db *bun.DB, logger *slog.Logger) *studentpresence.Module {
-	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: studentPresenceObserver(logger)})
+	module, err := repositories.NewStudentPresence(db, studentPresenceObserver(logger))
 	if err != nil {
 		panic(err)
 	}

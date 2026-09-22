@@ -1267,7 +1267,7 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsOnlyUncoveredManual
 		return date
 	}
 	_, err = env.db.NewRaw(`
-		UPDATE enrollment.request_child_offerings
+		UPDATE enrollment.care_offering_bookings
 		SET valid_until = ?
 		WHERE tenant_id = ? AND request_child_id = ? AND care_offering_id = ?
 	`, dateFor(time.Thursday), testpkg.Tenant(t), fx.childID, fx.oldOffering.ID).Exec(ctx)

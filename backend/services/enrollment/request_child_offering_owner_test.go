@@ -30,13 +30,13 @@ func TestOwnerOfferingInsertDefaultsDatesAndRollsBack(t *testing.T) {
 		require.Equal(t, tenantID, selection.TenantID)
 		require.NotZero(t, selection.ID)
 		var count int
-		require.NoError(t, tx.NewRaw("SELECT COUNT(*) FROM enrollment.request_child_offerings WHERE id = ?", selection.ID).Scan(ctx, &count))
+		require.NoError(t, tx.NewRaw("SELECT COUNT(*) FROM enrollment.care_offering_bookings WHERE id = ?", selection.ID).Scan(ctx, &count))
 		require.Equal(t, 1, count)
 		return failure
 	})
 	require.ErrorIs(t, err, failure)
 	var count int
-	require.NoError(t, db.NewRaw("SELECT COUNT(*) FROM enrollment.request_child_offerings WHERE id = ?", selection.ID).Scan(testpkg.Ctx(t), &count))
+	require.NoError(t, db.NewRaw("SELECT COUNT(*) FROM enrollment.care_offering_bookings WHERE id = ?", selection.ID).Scan(testpkg.Ctx(t), &count))
 	require.Zero(t, count)
 	from, until := owner.Date("2026-10-25"), owner.Date("2027-03-28")
 	retry := &owner.RequestChildOffering{RequestChildID: childID, CareOfferingID: offeringID, ValidFrom: &from, ValidUntil: &until}

@@ -67,7 +67,7 @@ func TestVisitCheckInRollsBackAfterEachSlotWriteAndRetries(t *testing.T) {
 			testpkg.OwnTenant(t)
 			db := testpkg.SetupTestDB(t)
 			module := testSchoolPresence(t, db)
-			instances, assignments := repositories.NewAttendanceSyncTestRepositories(repositories.NewUnobservedTimetableDependencies(db).Capability)
+			instances, assignments := repositories.NewAttendanceSyncTestRepositories(db, repositories.NewUnobservedTimetableDependencies(db).Capability)
 			injected := errors.New("fail after visit slot write")
 			rows := &failingVisitSlotCheckIn{InstanceStudentRepository: assignments, failAt: tc.failAt, err: injected}
 			syncer := timetableplanning.NewAttendanceSyncService(instances, rows, slog.Default())

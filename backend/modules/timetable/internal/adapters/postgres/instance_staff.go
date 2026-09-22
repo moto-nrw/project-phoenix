@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 type instanceStaffRow struct {
@@ -229,7 +230,11 @@ func (s *Store) DeleteInstanceStaffByInstance(ctx context.Context, instanceID in
 		Where("tenant_id = ?", tenantID).Where("instance_id = ?", instanceID), "delete instance staff by instance")
 }
 
-func (s *Store) DeleteUpcomingInstanceStaff(ctx context.Context, staffID int64, after string) (int64, domain.OperationStats, error) {
+func (s *Store) DeleteUpcomingInstanceStaff(ctx context.Context, staffID int64, after string, excludedInstanceIDs []int64) (int64, domain.OperationStats, error) {
+	excluded := excludedInstanceIDs
+	if excluded == nil {
+		excluded = []int64{}
+	}
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
@@ -240,8 +245,9 @@ func (s *Store) DeleteUpcomingInstanceStaff(ctx context.Context, staffID int64, 
 			SELECT "activity_instance".id FROM schedule.activity_instances AS "activity_instance"
 			WHERE "activity_instance".tenant_id = ?
 			  AND ("activity_instance".date > ?::date OR
-			       ("activity_instance".date = ?::date AND "activity_instance".status = 'planned'))
-		)`, tenantID, after, after)
+			       ("activity_instance".date = ?::date AND "activity_instance".status <> 'cancelled'))
+			  AND NOT ("activity_instance".id = ANY(?::bigint[]))
+		)`, tenantID, after, after, pgdialect.Array(excluded))
 	stats, err := execMeasuredWrite(ctx, query, "delete upcoming instance staff")
 	return stats.Rows, stats, err
 }

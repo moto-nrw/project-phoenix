@@ -284,7 +284,7 @@ func auditFixtureTable(model any) string {
 	case *enrollmentModel.CareOffering:
 		return "enrollment.care_offerings"
 	case *auditOfferingSelection:
-		return "enrollment.request_child_offerings"
+		return "enrollment.care_offering_bookings"
 	case *scheduleModel.StudentArrivalSchedule:
 		return "schedule.student_arrival_schedules"
 	case *scheduleModel.StudentArrivalException:

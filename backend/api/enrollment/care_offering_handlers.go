@@ -440,7 +440,7 @@ func (rs *Resource) deleteCareOffering(w http.ResponseWriter, r *http.Request) {
 		return rs.CareOfferingService.Delete(ctx, id)
 	})
 	if err != nil {
-		// FK violation when request_child_offerings already references
+		// FK violation when a selection or care booking already references
 		// this offering — admin should soft-delete (is_active=false).
 		if common.IsConstraintViolation(err) {
 			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(

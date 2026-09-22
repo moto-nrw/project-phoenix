@@ -42,11 +42,6 @@ func NewCarePlan(db *bun.DB, students peopledirectory.Capability, slots schedule
 	if err != nil {
 		return nil, err
 	}
-	if repository, ok := slots.(interface {
-		BindCarePlan(timetableCompose.PickupExceptionDirectory)
-	}); ok {
-		repository.BindCarePlan(pickupExceptionDirectory{query: capability})
-	}
 	return capability, nil
 }
 
@@ -145,14 +140,6 @@ func (f *Factory) bindCarePlanAdapters(capability careplan.Capability) {
 	f.StudentDataChangeRequest = NewStudentDataChangeRequestRepository(capability)
 	f.StudentStatusDay = NewStudentStatusDayRepository(capability)
 	f.bindCarePlanAuditDirectory()
-
-	// The care-exit repositories read f.carePlan through the resolvers they
-	// were constructed with, so the assignment above is the whole binding.
-	if repository, ok := f.InstanceStudent.(interface {
-		BindCarePlan(timetableCompose.PickupExceptionDirectory)
-	}); ok {
-		repository.BindCarePlan(pickupExceptionDirectory{query: capability})
-	}
 }
 
 type pickupExceptionDirectory struct {

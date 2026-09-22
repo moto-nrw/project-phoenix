@@ -22,7 +22,7 @@ func TestInstanceAssignmentMigrationRuntime(t *testing.T) {
 	fixture := newOwnedActivityInstanceFixture(t, db, "assignment-runtime")
 	instance := createOwnedActivityInstance(t, module, ctx, fixture, "2027-11-02", "08:00:00", "Runtime")
 	student := testpkg.CreateTestStudent(t, db, "Runtime", "Assignment", "3a")
-	row := createOwnedInstanceStudent(t, module, ctx, instance.ID, student.ID, timetable.InstanceAttendanceExpected)
+	row := createOwnedInstanceStudent(t, module, ctx, instance.ID, student.ID)
 	ids, snapshot := []int64{student.ID}, []timetable.CareExitRosterRow{careExitSnapshot(row)}
 	counter := testpkg.CaptureQueriesForContext(t, db)
 	ctx = counter.Context(ctx)
@@ -77,9 +77,9 @@ func TestInstanceAssignmentMigrationRuntime(t *testing.T) {
 						if err != nil {
 							return err
 						}
-						require.EqualValues(t, 1, count)
+						require.Len(t, count, 1)
 						count, err = module.RestoreRosterForCareExit(txCtx, ids, removed)
-						require.Zero(t, count)
+						require.Empty(t, count)
 						return err
 					})
 					require.NoError(t, err)

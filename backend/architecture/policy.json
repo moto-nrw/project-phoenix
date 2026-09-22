@@ -15,6 +15,10 @@
   },
   "owners": [
     {
+      "id": "student-directory-view",
+      "kind": "projection"
+    },
+    {
       "id": "appointments",
       "kind": "domain"
     },
@@ -35,12 +39,44 @@
       "kind": "domain"
     },
     {
+      "id": "parent-request-feed-view",
+      "kind": "projection"
+    },
+    {
       "id": "class-day-view",
       "kind": "projection"
     },
     {
       "id": "communication",
       "kind": "domain"
+    },
+    {
+      "id": "parent-message-inbox",
+      "kind": "projection"
+    },
+    {
+      "id": "staff-message-inbox",
+      "kind": "projection"
+    },
+    {
+      "id": "parent-announcement-audience",
+      "kind": "projection"
+    },
+    {
+      "id": "staff-announcement-audience",
+      "kind": "projection"
+    },
+    {
+      "id": "timetable-enrollment-provenance",
+      "kind": "projection"
+    },
+    {
+      "id": "timetable-legacy-view",
+      "kind": "projection"
+    },
+    {
+      "id": "presence-legacy-view",
+      "kind": "projection"
     },
     {
       "id": "data-import",
@@ -67,6 +103,10 @@
       "kind": "projection"
     },
     {
+      "id": "request-review-view",
+      "kind": "projection"
+    },
+    {
       "id": "enrollment",
       "kind": "domain"
     },
@@ -85,10 +125,6 @@
     {
       "id": "file-storage",
       "kind": "domain"
-    },
-    {
-      "id": "grade-transition",
-      "kind": "workflow"
     },
     {
       "id": "group-live-view",
@@ -295,31 +331,11 @@
       "kind": "platform"
     },
     {
-      "id": "open-room-move",
-      "kind": "workflow"
-    },
-    {
-      "id": "operator-dashboard-view",
-      "kind": "projection"
-    },
-    {
       "id": "organization-tenancy",
       "kind": "domain"
     },
     {
-      "id": "parent-announcement-audience",
-      "kind": "projection"
-    },
-    {
-      "id": "parent-message-inbox",
-      "kind": "projection"
-    },
-    {
-      "id": "parent-portal",
-      "kind": "workflow"
-    },
-    {
-      "id": "parent-request-feed-view",
+      "id": "operator-dashboard-view",
       "kind": "projection"
     },
     {
@@ -335,8 +351,16 @@
       "kind": "workflow"
     },
     {
-      "id": "request-review-view",
-      "kind": "projection"
+      "id": "session-end",
+      "kind": "workflow"
+    },
+    {
+      "id": "open-room-move",
+      "kind": "workflow"
+    },
+    {
+      "id": "parent-portal",
+      "kind": "workflow"
     },
     {
       "id": "root-composition",
@@ -355,20 +379,12 @@
       "kind": "domain"
     },
     {
-      "id": "school-setup",
-      "kind": "projection"
-    },
-    {
       "id": "school-structure",
       "kind": "domain"
     },
     {
       "id": "security-runtime",
       "kind": "platform"
-    },
-    {
-      "id": "session-end",
-      "kind": "workflow"
     },
     {
       "id": "settings-platform",
@@ -379,32 +395,8 @@
       "kind": "kernel"
     },
     {
-      "id": "shift-plan-sync",
-      "kind": "workflow"
-    },
-    {
-      "id": "staff-announcement-audience",
-      "kind": "projection"
-    },
-    {
       "id": "staff-clock",
       "kind": "workflow"
-    },
-    {
-      "id": "staff-message-inbox",
-      "kind": "projection"
-    },
-    {
-      "id": "staff-offboarding",
-      "kind": "workflow"
-    },
-    {
-      "id": "student-deletion",
-      "kind": "workflow"
-    },
-    {
-      "id": "student-directory-view",
-      "kind": "projection"
     },
     {
       "id": "student-presence",
@@ -423,20 +415,32 @@
       "kind": "domain"
     },
     {
-      "id": "timetable-enrollment-provenance",
-      "kind": "projection"
-    },
-    {
-      "id": "timetable-legacy-view",
-      "kind": "projection"
-    },
-    {
       "id": "transaction-runtime",
       "kind": "platform"
     },
     {
       "id": "workforce",
       "kind": "domain"
+    },
+    {
+      "id": "staff-offboarding",
+      "kind": "workflow"
+    },
+    {
+      "id": "student-deletion",
+      "kind": "workflow"
+    },
+    {
+      "id": "grade-transition",
+      "kind": "workflow"
+    },
+    {
+      "id": "shift-plan-sync",
+      "kind": "workflow"
+    },
+    {
+      "id": "school-setup",
+      "kind": "projection"
     }
   ],
   "roles": [
@@ -1241,13 +1245,6 @@
     {
       "path": "modules/organizationtenancy/internal/adapters/operatordashboard",
       "owner": "operator-dashboard-view",
-      "role": "postgres",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "workflow-integration-test"
-    },
-    {
-      "path": "modules/schoolsetupview",
-      "owner": "school-setup",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
       "external_test_role": "workflow-integration-test"
@@ -2224,6 +2221,13 @@
       "role": "test-support",
       "internal_test_role": "workflow-integration-test",
       "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/presenceprojection",
+      "owner": "presence-legacy-view",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
     },
     {
       "path": "modules/timetableenrollmentprovenance",
@@ -3395,6 +3399,13 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "modules/schoolsetupview",
+      "owner": "school-setup",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
       "path": "modules/schoolsetup",
       "owner": "school-setup",
       "role": "public",
@@ -3435,6 +3446,10 @@
     {
       "name": "active.presence_backfill_checkpoints",
       "write_owner": "student-presence"
+    },
+    {
+      "name": "active.presence_compatibility_writes",
+      "write_owner": "migrations"
     },
     {
       "name": "active.activity_session_attendance",
@@ -3774,14 +3789,6 @@
     },
     {
       "name": "config.home_layouts",
-      "write_owner": "settings-platform"
-    },
-    {
-      "name": "config.school_setup_dismissals",
-      "write_owner": "settings-platform"
-    },
-    {
-      "name": "config.school_setups",
       "write_owner": "settings-platform"
     },
     {
@@ -4395,6 +4402,14 @@
     {
       "name": "users.guardian_financial_data",
       "write_owner": "people-directory"
+    },
+    {
+      "name": "config.school_setup_dismissals",
+      "write_owner": "settings-platform"
+    },
+    {
+      "name": "config.school_setups",
+      "write_owner": "settings-platform"
     }
   ],
   "read_projections": [
@@ -4510,6 +4525,20 @@
         "activities.groups",
         "activities.student_enrollments",
         "enrollment.request_children",
+        "schedule.activity_instances",
+        "schedule.instance_students"
+      ],
+      "tenant_safe": true
+    },
+    {
+      "id": "presence-legacy-view",
+      "package": "modules/presenceprojection",
+      "data_objects": [
+        "active.activity_session_attendance",
+        "active.activity_sessions",
+        "activities.categories",
+        "activities.groups",
+        "activities.student_enrollments",
         "schedule.activity_instances",
         "schedule.instance_students"
       ],
@@ -5276,17 +5305,6 @@
       "target_role": "public"
     },
     {
-      "id": "care-schedule-cutover.enrollment.module-behavior-test.care-plan.contract",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "module-behavior-test",
-      "target_owner": "care-plan",
-      "target_role": "contract"
-    },
-    {
       "id": "care-schedule-cutover.care-plan.module-internal-test.shared-kernel.contract",
       "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
       "scopes": [
@@ -5362,6 +5380,17 @@
       "source_role": "http",
       "target_owner": "care-plan",
       "target_role": "public"
+    },
+    {
+      "id": "care-schedule-cutover.enrollment.module-behavior-test.care-plan.contract",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "module-behavior-test",
+      "target_owner": "care-plan",
+      "target_role": "contract"
     },
     {
       "id": "care-schedule-cutover.legacy-composition.compose.care-plan.contract",
@@ -6790,6 +6819,17 @@
       "source_role": "module-internal-test",
       "target_owner": "student-presence",
       "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.compose.presence-cutover.presence-legacy-view.postgres",
+      "description": "The Timetable compose serves the retained reads that join the plan with the Student Presence execution and attendance from the tenant-safe presence projection (#2762).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "compose",
+      "target_owner": "presence-legacy-view",
+      "target_role": "postgres"
     },
     {
       "id": "legacy-composition.compose.presence-cutover.student-presence.public",
@@ -8260,17 +8300,6 @@
       "source_owner": "class-day-view",
       "source_role": "application",
       "target_owner": "student-presence",
-      "target_role": "public"
-    },
-    {
-      "id": "class-day-view.from.timetable-activities",
-      "description": "class-day-view reads the public timetable-activities query seam.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "class-day-view",
-      "source_role": "application",
-      "target_owner": "timetable-activities",
       "target_role": "public"
     },
     {
@@ -10552,17 +10581,6 @@
       "target_role": "domain"
     },
     {
-      "id": "school-setup-view.integration-test.postgres",
-      "description": "The school setup projection integration tests exercise the projection itself.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "school-setup",
-      "source_role": "workflow-integration-test",
-      "target_owner": "school-setup",
-      "target_role": "postgres"
-    },
-    {
       "id": "organization-tenancy.compose.public",
       "description": "Organization and Tenancy composition returns its public facade.",
       "scopes": [
@@ -11297,6 +11315,17 @@
       "target_role": "postgres"
     },
     {
+      "id": "enrollment.postgres.presence-legacy-view",
+      "description": "Enrollment impact previews read the manually planned care blocks of a child from the tenant-safe presence projection (#2762).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "postgres",
+      "target_owner": "presence-legacy-view",
+      "target_role": "postgres"
+    },
+    {
       "id": "timetable-legacy-view.test.subject",
       "description": "Projection regression tests call the exported SQL projection boundary.",
       "scopes": [
@@ -11305,6 +11334,17 @@
       "source_owner": "timetable-legacy-view",
       "source_role": "workflow-integration-test",
       "target_owner": "timetable-legacy-view",
+      "target_role": "postgres"
+    },
+    {
+      "id": "timetable-legacy-view.test.presence-legacy-view",
+      "description": "The timetable projection regression tests also call the presence projection that took over the joined reads (#2762).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "timetable-legacy-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "presence-legacy-view",
       "target_role": "postgres"
     },
     {
@@ -11349,6 +11389,28 @@
       "source_owner": "timetable-legacy-view",
       "source_role": "postgres",
       "target_owner": "enrollment",
+      "target_role": "domain"
+    },
+    {
+      "id": "presence-legacy-view.shared-date",
+      "description": "The presence projection preserves calendar-date contracts at its callers (#2762).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "presence-legacy-view",
+      "source_role": "postgres",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "presence-legacy-view.timetable-domain",
+      "description": "The presence projection serves the retained timetable model contracts to their legacy callers (#2762).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "presence-legacy-view",
+      "source_role": "postgres",
+      "target_owner": "timetable-activities",
       "target_role": "domain"
     },
     {
@@ -17445,17 +17507,6 @@
       "target_role": "public"
     },
     {
-      "id": "class-day-view.internal-test.timetable-public",
-      "description": "Class-day application tests name the Timetable instance statuses (#2701).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "class-day-view",
-      "source_role": "module-internal-test",
-      "target_owner": "timetable-activities",
-      "target_role": "public"
-    },
-    {
       "id": "class-day-view.integration-test.compose",
       "description": "Class-day integration tests compose the projection the way the service factory does (#2701).",
       "scopes": [
@@ -22964,7 +23015,7 @@
     },
     {
       "id": "settings-platform.http.care-plan-public",
-      "description": "The operator booking-authority setting previews and applies its impact through Care Plan's public booking-authority contract instead of the retired care-lifecycle adapter (#3427, ADR 0040).",
+      "description": "The operator booking-authority setting previews and applies its impact through Care Plan's public booking-authority contract instead of the retired care-lifecycle adapter (#3427, ADR 0035).",
       "scopes": [
         "production"
       ],
@@ -22975,7 +23026,7 @@
     },
     {
       "id": "care-plan.contracttest.audit-platform.domain",
-      "description": "The care-lifecycle behavior suites moved from the retired modules/careplan/legacy/carelifecycle into the Care Plan contract suite keep the fixture reach they had there (#3427, ADR 0040); no runtime package gains an import.",
+      "description": "The care-lifecycle behavior suites moved from the retired modules/careplan/legacy/carelifecycle into the Care Plan contract suite keep the fixture reach they had there (#3427, ADR 0035); no runtime package gains an import.",
       "scopes": [
         "external_test"
       ],
@@ -22986,7 +23037,7 @@
     },
     {
       "id": "care-plan.contracttest.enrollment.domain",
-      "description": "The care-lifecycle behavior suites moved from the retired modules/careplan/legacy/carelifecycle into the Care Plan contract suite keep the fixture reach they had there (#3427, ADR 0040); no runtime package gains an import.",
+      "description": "The care-lifecycle behavior suites moved from the retired modules/careplan/legacy/carelifecycle into the Care Plan contract suite keep the fixture reach they had there (#3427, ADR 0035); no runtime package gains an import.",
       "scopes": [
         "external_test"
       ],
@@ -22997,7 +23048,7 @@
     },
     {
       "id": "care-plan.contracttest.enrollment.test-support",
-      "description": "The care-lifecycle behavior suites moved from the retired modules/careplan/legacy/carelifecycle into the Care Plan contract suite keep the fixture reach they had there (#3427, ADR 0040); no runtime package gains an import.",
+      "description": "The care-lifecycle behavior suites moved from the retired modules/careplan/legacy/carelifecycle into the Care Plan contract suite keep the fixture reach they had there (#3427, ADR 0035); no runtime package gains an import.",
       "scopes": [
         "external_test"
       ],
@@ -23008,7 +23059,7 @@
     },
     {
       "id": "care-plan.contracttest.people-directory.application",
-      "description": "The care-lifecycle behavior suites moved from the retired modules/careplan/legacy/carelifecycle into the Care Plan contract suite keep the fixture reach they had there (#3427, ADR 0040); no runtime package gains an import.",
+      "description": "The care-lifecycle behavior suites moved from the retired modules/careplan/legacy/carelifecycle into the Care Plan contract suite keep the fixture reach they had there (#3427, ADR 0035); no runtime package gains an import.",
       "scopes": [
         "external_test"
       ],
@@ -24625,6 +24676,17 @@
       "source_role": "e2e-test",
       "target_owner": "security-runtime",
       "target_role": "contract"
+    },
+    {
+      "id": "school-setup.integration-test.projection",
+      "description": "The school setup projection integration tests exercise the projection itself.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "workflow-integration-test",
+      "target_owner": "school-setup",
+      "target_role": "postgres"
     },
     {
       "id": "school-setup.application.public",

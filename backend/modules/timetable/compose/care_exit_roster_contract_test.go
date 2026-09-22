@@ -16,7 +16,8 @@ func TestCareExitRosterCommandsPreservePlansAndOuterRollback(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	module := timetabletest.New(t, db)
+	facts := &timetabletest.FixedSessions{}
+	module := timetabletest.NewWithSessions(t, db, facts)
 	room := testpkg.CreateTestRoom(t, db, "Care exit roster")
 	student := testpkg.CreateTestStudent(t, db, "Roster", "Roundtrip", "2a")
 	after := testpkg.Date(2027, 9, 6)
@@ -25,8 +26,9 @@ func TestCareExitRosterCommandsPreservePlansAndOuterRollback(t *testing.T) {
 	lastDay := testpkg.CreateTestActivityInstance(t, db, after, room.ID, testpkg.ActivityInstanceOpts{})
 	testpkg.CreateTestInstanceStudent(t, db, planned.ID, student.ID, "absent")
 	at := after.BerlinMidnight()
-	testpkg.CreateTestInstanceStudent(t, db, observed.ID, student.ID, "present", testpkg.InstanceStudentOpts{CheckedInAt: &at})
+	observedRow := testpkg.CreateTestInstanceStudent(t, db, observed.ID, student.ID, "present", testpkg.InstanceStudentOpts{CheckedInAt: &at})
 	testpkg.CreateTestInstanceStudent(t, db, lastDay.ID, student.ID, "expected")
+	facts.Observed = []int64{observedRow.ID}
 	studentIDs := []int64{student.ID}
 	abort := errors.New("ledger write failed")
 	err := testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context) error {
@@ -39,7 +41,6 @@ func TestCareExitRosterCommandsPreservePlansAndOuterRollback(t *testing.T) {
 		}
 		require.Len(t, rows, 1)
 		assert.Equal(t, planned.ID, rows[0].InstanceID)
-		assert.Equal(t, "absent", rows[0].Status)
 		return abort
 	})
 	require.ErrorIs(t, err, abort)
@@ -56,17 +57,17 @@ func TestCareExitRosterCommandsPreservePlansAndOuterRollback(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, planned.ID, rows[0].InstanceID)
-	n, err := module.RestoreRosterForCareExit(otherCtx, studentIDs, rows)
+	restored, err := module.RestoreRosterForCareExit(otherCtx, studentIDs, rows)
 	require.NoError(t, err)
-	assert.Zero(t, n, "a foreign tenant cannot replay the owner's snapshot")
-	n, err = module.RestoreRosterForCareExit(ctx, studentIDs, rows)
+	assert.Empty(t, restored, "a foreign tenant cannot replay the owner's snapshot")
+	restored, err = module.RestoreRosterForCareExit(ctx, studentIDs, rows)
 	require.NoError(t, err)
-	assert.Equal(t, 1, n)
-	n, err = module.RestoreRosterForCareExit(ctx, studentIDs, rows)
+	assert.Len(t, restored, 1)
+	restored, err = module.RestoreRosterForCareExit(ctx, studentIDs, rows)
 	require.NoError(t, err)
-	assert.Zero(t, n, "replaying the same ledger must be idempotent")
+	assert.Empty(t, restored, "replaying the same ledger must be idempotent")
 	afterRestore, err := module.ListInstanceStudents(ctx, timetable.InstanceStudentFilter{InstanceIDs: []int64{planned.ID}})
 	require.NoError(t, err)
 	require.Len(t, afterRestore, 1)
-	assert.Equal(t, "absent", afterRestore[0].Status, "preserve the manual plan, do not rederive attendance")
+	assert.Equal(t, planned.ID, afterRestore[0].InstanceID, "the plan is back; its attendance is Student Presence's to replay")
 }

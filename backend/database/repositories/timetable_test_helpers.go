@@ -114,7 +114,7 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 		db: db, Person: members.Person, Staff: members.Staff, Teacher: members.Teacher,
 		Group: members.Group, GroupTeacher: members.GroupTeacher, ClassTeacher: members.ClassTeacher,
 		Student:               NewStudentRepository(db),
-		InstanceStudent:       timetableInstanceStudentRepository{timetable: bookings},
+		InstanceStudent:       newTimetableInstanceStudentRepository(db, bookings, newStudentPresence(db)),
 		ActiveGroup:           sessions,
 		GroupSupervisor:       sessions,
 		Room:                  facilitiesAdapter.New(),
@@ -139,7 +139,7 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
-	adapters := newTimetableRepositories(bookings, persons, groups, rooms, calendar, membership, workTime)
+	adapters := newTimetableRepositories(db, bookings, newStudentPresence(db), persons, groups, rooms, calendar, membership, workTime)
 	repos.ActivityCategory, repos.ActivityGroup = adapters.ActivityCategory, adapters.ActivityGroup
 	repos.ActivitySchedule, repos.ActivitySupervisor = adapters.ActivitySchedule, adapters.ActivitySupervisor
 	repos.StudentEnrollment, repos.Timeframe = adapters.StudentEnrollment, adapters.Timeframe

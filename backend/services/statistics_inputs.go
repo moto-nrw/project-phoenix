@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 type statisticsAuditLog struct {
@@ -72,37 +71,6 @@ func (a statisticsReportPeriods) StatisticsHolidayPeriods(ctx context.Context, f
 	result := make([]presenceCompose.HolidayPeriod, 0, len(values))
 	for _, value := range values {
 		result = append(result, presenceCompose.HolidayPeriod{StartDate: timezone.Date(value.StartDate), EndDate: timezone.Date(value.EndDate)})
-	}
-	return result, nil
-}
-
-type statisticsReportCourses struct {
-	courses interface {
-		CourseInstances(context.Context, string, string, string) ([]timetable.CourseInstanceRow, error)
-		CourseParticipation(context.Context, string, string, string) ([]timetable.CourseParticipationRow, error)
-	}
-}
-
-func (a statisticsReportCourses) CourseInstances(ctx context.Context, from, to, today timezone.Date) ([]presenceCompose.CourseInstance, error) {
-	values, err := a.courses.CourseInstances(ctx, from.String(), to.String(), today.String())
-	if err != nil {
-		return nil, err
-	}
-	result := make([]presenceCompose.CourseInstance, 0, len(values))
-	for _, value := range values {
-		result = append(result, presenceCompose.CourseInstance(value))
-	}
-	return result, nil
-}
-
-func (a statisticsReportCourses) CourseParticipation(ctx context.Context, from, to, today timezone.Date) ([]presenceCompose.CourseParticipation, error) {
-	values, err := a.courses.CourseParticipation(ctx, from.String(), to.String(), today.String())
-	if err != nil {
-		return nil, err
-	}
-	result := make([]presenceCompose.CourseParticipation, 0, len(values))
-	for _, value := range values {
-		result = append(result, presenceCompose.CourseParticipation(value))
 	}
 	return result, nil
 }

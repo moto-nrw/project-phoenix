@@ -73,7 +73,7 @@ func approvalOwnerSnapshot(t *testing.T, ctx context.Context, db bun.IDB, tenant
 	t.Helper()
 	result := map[string]string{}
 	for _, table := range []string{
-		"enrollment.requests", "enrollment.request_children", "enrollment.request_child_offerings",
+		"enrollment.requests", "enrollment.request_children", "enrollment.request_child_offering_selections", "enrollment.care_offering_bookings",
 		"users.persons", "users.student_profiles", "users.student_school_memberships", "users.student_care_profiles", "users.guardian_profiles", "users.students_guardians",
 		"users.class_list_entries", "activities.student_enrollments", "schedule.instance_students",
 		"schedule.student_pickup_schedules", "schedule.student_arrival_schedules",

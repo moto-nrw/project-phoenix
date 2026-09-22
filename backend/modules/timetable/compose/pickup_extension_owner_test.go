@@ -13,26 +13,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// emptyCarePlanDirectory answers the care-plan reads a roster write re-applies
-// (sick days, partial absences) with "nothing on file".
-type emptyCarePlanDirectory struct{}
-
-func (emptyCarePlanDirectory) FindPickupException(context.Context, int64) (*timetable.PickupException, error) {
-	return nil, nil
-}
-
-func (emptyCarePlanDirectory) ListPickupExceptions(context.Context, timetable.PickupExceptionFilter) ([]timetable.PickupException, error) {
-	return []timetable.PickupException{}, nil
-}
-
-func (emptyCarePlanDirectory) FindStudentStatusDay(context.Context, int64, bool) (*timetable.StudentStatusDay, error) {
-	return nil, nil
-}
-
-func (emptyCarePlanDirectory) ListStudentStatusDays(context.Context, timetable.StudentStatusDayFilter) ([]timetable.StudentStatusDay, error) {
-	return []timetable.StudentStatusDay{}, nil
-}
-
 func buildPickupExtensionModule(t *testing.T, db *bun.DB, observers ...func(Observation)) *timetable.Module {
 	return buildPickupExtensionModuleWithStudents(t, db, StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) {
 		return []TargetStudent{}, nil
@@ -42,13 +22,23 @@ func buildPickupExtensionModule(t *testing.T, db *bun.DB, observers ...func(Obse
 func buildPickupExtensionModuleWithStudents(
 	t *testing.T, db *bun.DB, students StudentDirectory, observers ...func(Observation),
 ) *timetable.Module {
+	return buildPickupExtensionModuleWith(t, db, students, &fixedSessions{}, observers...)
+}
+
+func buildPickupExtensionModuleWithSessions(t *testing.T, db *bun.DB, sessions timetable.SessionFacts, observers ...func(Observation)) *timetable.Module {
+	return buildPickupExtensionModuleWith(t, db, StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) {
+		return []TargetStudent{}, nil
+	}), sessions, observers...)
+}
+
+func buildPickupExtensionModuleWith(t *testing.T, db *bun.DB, students StudentDirectory, sessions timetable.SessionFacts, observers ...func(Observation)) *timetable.Module {
 	t.Helper()
 	observe := func(Observation) {}
 	if len(observers) > 0 {
 		observe = observers[0]
 	}
 	module, err := New(Dependencies{
-		DB: db, Students: students, Rooms: testRooms(), CareDays: testCareDays(), CarePlan: emptyCarePlanDirectory{},
+		DB: db, Students: students, Rooms: testRooms(), Sessions: sessions,
 		LockStaffAssignment: func(context.Context, int64) error { return nil }, Observe: observe,
 	})
 	require.NoError(t, err)
@@ -87,7 +77,8 @@ func TestModuleOwnsPickupDayExtension(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	log := &observationLog{}
-	module, ctx := buildPickupExtensionModule(t, db, log.record), testpkg.Ctx(t)
+	facts := &fixedSessions{}
+	module, ctx := buildPickupExtensionModuleWithSessions(t, db, facts, log.record), testpkg.Ctx(t)
 	fixture := newOwnedActivityInstanceFixture(t, db, "pickup-day")
 	suffix := time.Now().UnixNano()
 	child := testpkg.CreateTestStudent(t, db, "Mia", fmt.Sprintf("Later-%d", suffix), "1a")
@@ -105,14 +96,12 @@ func TestModuleOwnsPickupDayExtension(t *testing.T) {
 	spontaneousInput.IsSpontaneous = true
 	spontaneous, err := module.CreateActivityInstance(ctx, spontaneousInput)
 	require.NoError(t, err)
-	createOwnedInstanceStudent(t, module, ctx, freePlay.ID, other.ID, timetable.InstanceAttendanceExpected)
-	createOwnedInstanceStudent(t, module, ctx, notScheduled.ID, other.ID, timetable.InstanceAttendanceExpected)
-	createOwnedInstanceStudent(t, module, ctx, lunch.ID, other.ID, timetable.InstanceAttendanceExpected)
-	createOwnedInstanceStudent(t, module, ctx, lunch.ID, child.ID, timetable.InstanceAttendanceExpected)
-	createOwnedInstanceStudent(t, module, ctx, spontaneous.ID, other.ID, timetable.InstanceAttendanceExpected)
-	require.NoError(t, module.MarkNotScheduled(ctx, []timetable.StudentInstanceRef{{
-		StudentID: other.ID, InstanceID: notScheduled.ID,
-	}}))
+	createOwnedInstanceStudent(t, module, ctx, freePlay.ID, other.ID)
+	unbooked := createOwnedInstanceStudent(t, module, ctx, notScheduled.ID, other.ID)
+	createOwnedInstanceStudent(t, module, ctx, lunch.ID, other.ID)
+	createOwnedInstanceStudent(t, module, ctx, lunch.ID, child.ID)
+	createOwnedInstanceStudent(t, module, ctx, spontaneous.ID, other.ID)
+	facts.notScheduled = []int64{unbooked.ID}
 
 	require.NoError(t, module.RecordPickupDayExtension(ctx, timetable.PickupDayExtension{
 		StudentID: child.ID, PickupExceptionID: exception.ID, Date: date, PreviousPickup: "14:45", Pickup: "16:00",
@@ -125,6 +114,9 @@ func TestModuleOwnsPickupDayExtension(t *testing.T) {
 	assert.Equal(t, "16:00", task.Pickup)
 	assert.Equal(t, []int64{freePlay.ID}, pickupExtensionBlockIDs(task.Blocks), "only blocks with children in the extra time are choices")
 	assert.Equal(t, timetable.PickupExtensionBlock{ID: freePlay.ID, Title: "Freies Spiel", StartTime: "14:45", EndTime: "16:00"}, task.Blocks[0])
+	// The candidate blocks come with their participants; with the tasks that
+	// is two Timetable statements. Their execution and non-booking markers are
+	// Student Presence's one read since #2762 and not counted here.
 	assert.EqualValues(t, 2, observedOperation(log.seen, "list_open_pickup_extensions").Stats.Queries)
 
 	all, err := module.ListOpenPickupExtensions(ctx, 0)
@@ -143,12 +135,7 @@ func TestModuleOwnsPickupDayExtension(t *testing.T) {
 	roster, err := module.ListInstanceStudents(ctx, timetable.InstanceStudentFilter{InstanceIDs: []int64{freePlay.ID}})
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []int64{other.ID, child.ID}, instanceStudentStudentIDs(roster))
-	for _, row := range roster {
-		if row.StudentID == child.ID {
-			assert.Equal(t, timetable.InstanceAttendanceExpected, row.Status)
-			assert.False(t, row.IsUnplanned, "the child is planned, not an unplanned walk-in")
-		}
-	}
+	assert.Equal(t, []timetable.PickupExtensionInstance{{ID: freePlay.ID, Date: date}}, resolved.Instances, "the decision names the block and day Student Presence re-applies the care plan to")
 
 	tasks, err := module.ListOpenPickupExtensions(ctx, child.ID)
 	require.NoError(t, err)
@@ -180,7 +167,7 @@ func TestModuleClosesPickupDayExtensionWithoutBlock(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Team", fmt.Sprintf("None-%d", suffix))
 	exception := testpkg.CreateTestPickupException(t, db, child.ID, testpkg.Date(2099, time.March, 4), staff.ID, "16:30", "")
 	block := pickupExtensionInstance(t, module, ctx, fixture, "2099-03-04", "15:00:00", "16:30:00", "Hausaufgaben")
-	createOwnedInstanceStudent(t, module, ctx, block.ID, other.ID, timetable.InstanceAttendanceExpected)
+	createOwnedInstanceStudent(t, module, ctx, block.ID, other.ID)
 
 	require.NoError(t, module.RecordPickupDayExtension(ctx, timetable.PickupDayExtension{
 		StudentID: child.ID, PickupExceptionID: exception.ID, Date: "2099-03-04", PreviousPickup: "15:00", Pickup: "16:30",
@@ -299,7 +286,8 @@ func TestModuleOwnsPickupWeekdayExtension(t *testing.T) {
 func TestModuleRestoresNotScheduledPickupWeekdayInstance(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module, ctx := buildPickupExtensionModule(t, db), testpkg.Ctx(t)
+	facts := &fixedSessions{}
+	module, ctx := buildPickupExtensionModuleWithSessions(t, db, facts), testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 	category := createCategory(t, ctx, module, fmt.Sprintf("Restore pickup weekday %d", suffix))
 	child := testpkg.CreateTestStudent(t, db, "Mia", fmt.Sprintf("Restore pickup-%d", suffix), "1a")
@@ -318,10 +306,8 @@ func TestModuleRestoresNotScheduledPickupWeekdayInstance(t *testing.T) {
 	instanceInput.ActivityGroupID = &freePlay.ID
 	instance, err := module.CreateActivityInstance(ctx, instanceInput)
 	require.NoError(t, err)
-	createOwnedInstanceStudent(t, module, ctx, instance.ID, child.ID, timetable.InstanceAttendanceExpected)
-	require.NoError(t, module.MarkNotScheduled(ctx, []timetable.StudentInstanceRef{{
-		StudentID: child.ID, InstanceID: instance.ID,
-	}}))
+	unbooked := createOwnedInstanceStudent(t, module, ctx, instance.ID, child.ID)
+	facts.notScheduled = []int64{unbooked.ID}
 
 	require.NoError(t, module.RecordPickupWeekdayExtension(ctx, timetable.PickupWeekdayExtension{
 		StudentID: child.ID, Weekday: timetable.WeekdayTuesday, EffectiveFrom: today.Format(time.DateOnly),
@@ -335,7 +321,7 @@ func TestModuleRestoresNotScheduledPickupWeekdayInstance(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, roster, 1)
 	assert.Equal(t, child.ID, roster[0].StudentID)
-	assert.False(t, roster[0].NotScheduled)
+	assert.Equal(t, unbooked.ID, roster[0].ID, "the existing participant is kept; Student Presence lifts its non-booking marker")
 }
 
 func TestModuleIgnoresFuturePickupWeekdayEnrollment(t *testing.T) {

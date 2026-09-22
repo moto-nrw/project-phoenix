@@ -248,3 +248,14 @@ func (Rules) EnrolledOn(student ports.StudentFacts, date, today timezone.Date) b
 		Status: userModel.StudentStatus(student.Status), EnrolledFrom: student.EnrolledFrom, EnrolledUntil: student.EnrolledUntil,
 	}, date, today)
 }
+
+// SlotBlock is one block of the day as the slot lists read it: the Timetable
+// plan folded with the Student Presence execution (#2762).
+type SlotBlock = ports.ActivityInstance
+
+// SlotRosterRow is one roster row of a block with the attendance it carries.
+type SlotRosterRow = ports.InstanceStudent
+
+// TimetableReader is the block and roster read seam the slot lists build on;
+// the composition root binds it over both owners.
+type TimetableReader = ports.TimetableReader

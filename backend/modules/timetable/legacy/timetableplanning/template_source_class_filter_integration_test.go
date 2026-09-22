@@ -431,8 +431,8 @@ func mustJSON(t *testing.T, value any) string {
 func setLinkSelectedDays(t *testing.T, s *scenarioSetup, studentID int64, days []string) {
 	t.Helper()
 	_, err := s.db.NewRaw(`
-		UPDATE enrollment.request_child_offerings AS rco
-		SET selected_days = ?::jsonb
+		UPDATE enrollment.care_offering_bookings AS rco
+		SET manual_selected_days = ?::jsonb
 		FROM enrollment.request_children AS rc
 		WHERE rc.id = rco.request_child_id
 		  AND COALESCE(rc.created_student_id, rc.matched_student_id) = ?`,
@@ -446,7 +446,7 @@ func setLinkSelectedDays(t *testing.T, s *scenarioSetup, studentID int64, days [
 func endLinkAt(t *testing.T, s *scenarioSetup, studentID int64, until timezone.Date) {
 	t.Helper()
 	_, err := s.db.NewRaw(`
-		UPDATE enrollment.request_child_offerings AS rco
+		UPDATE enrollment.care_offering_bookings AS rco
 		SET valid_until = ?
 		FROM enrollment.request_children AS rc
 		WHERE rc.id = rco.request_child_id

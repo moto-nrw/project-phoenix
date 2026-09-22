@@ -32,7 +32,6 @@
     "phoenix gendoc",
     "phoenix migrate",
     "phoenix migrate backfill",
-    "phoenix migrate backfill request-child-compatibility",
     "phoenix migrate backfill request-child-storage",
     "phoenix migrate preflight",
     "phoenix migrate presence-backfill",
@@ -56,7 +55,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        334
+        321
       ],
       "tables": []
     },
@@ -3671,10 +3670,10 @@
       ],
       "tables": [
         "auth.accounts",
+        "enrollment.care_offering_bookings",
         "enrollment.care_offerings",
         "enrollment.form_schemas",
         "enrollment.phases",
-        "enrollment.request_child_offerings",
         "enrollment.request_children",
         "enrollment.requests",
         "enrollment.submission_rate_limits"
@@ -20781,27 +20780,27 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 178,
+          "line": 180,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 536,
+          "line": 523,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 699,
+          "line": 686,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 951,
+          "line": 938,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1361,
+          "line": 1349,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -20811,7 +20810,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 335,
+          "line": 322,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -20821,22 +20820,22 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 179,
+          "line": 181,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 407,
+          "line": 394,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 452,
+          "line": 439,
           "declaration": "withFileStorageWiring"
         },
         {
           "file": "api/base.go",
-          "line": 696,
+          "line": 683,
           "declaration": "type API"
         },
         {
@@ -20916,12 +20915,12 @@
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 40,
+          "line": 39,
           "declaration": "NewFactoryForTests"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 48,
+          "line": 47,
           "declaration": "NewFactoryForTestsWithConfig"
         },
         {
