@@ -221,6 +221,9 @@ var modulePassthroughBudgets = map[string]int{
 	// Membership service reads (17), teaching assignments (11) and the
 	// class-list-entry surface (5).
 	"modules/schoolmembership": 28,
+	// Hiding the wizard is personal state with no rule of its own, so the
+	// service hands it to the store (#2832).
+	"modules/schoolsetup": 1,
 	// School-year transition (9) plus the transition history and service reads.
 	"modules/schoolstructure": 13,
 	// Attendance, visit, supervision, group-mapping and room reads/writes
