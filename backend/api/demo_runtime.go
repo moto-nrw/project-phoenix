@@ -24,17 +24,24 @@ type DemoVisit struct {
 	ChangedAt   time.Time
 }
 
-// DemoRuntime composes only the two owner capabilities needed by the sidecar.
+// DemoRuntime composes only the owner capabilities needed by the sidecar.
 // It deliberately does not construct the retained API/service factory graph.
 type DemoRuntime struct {
 	schools      *organizationtenancy.DemoSchools
 	queue        *organizationtenancy.DemoSchoolQueue
+	expiry       services.DemoAccessExpiry
 	presence     *studentpresence.Module
 	transactions services.TenantRuntime
 }
 
-func NewDemoRuntime(db *bun.DB) (*DemoRuntime, error) {
+// NewDemoRuntime composes the sidecar on its privileged connection; now is
+// the clock the expiry of demo accesses reads (#3470).
+func NewDemoRuntime(db *bun.DB, now func() time.Time) (*DemoRuntime, error) {
 	schools, err := organizationcompose.NewDemoSchools(db)
+	if err != nil {
+		return nil, err
+	}
+	expiry, err := services.NewDemoAccessExpiry(db, now)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +61,19 @@ func NewDemoRuntime(db *bun.DB) (*DemoRuntime, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &DemoRuntime{schools: schools, queue: queue, presence: presence, transactions: transactions}, nil
+	return &DemoRuntime{schools: schools, queue: queue, expiry: expiry, presence: presence, transactions: transactions}, nil
+}
+
+// ExpireDemoAccesses deletes the demo accesses 14 days past their last use
+// (#3470) and returns how many, plus the demo schools no access enters any
+// more.
+func (d *DemoRuntime) ExpireDemoAccesses(ctx context.Context) (int, []string, error) {
+	return d.expiry.ExpireDemoAccesses(ctx)
+}
+
+// RetireDemoSchools hides the named demo schools and returns how many it hid.
+func (d *DemoRuntime) RetireDemoSchools(ctx context.Context, slugs []string) (int, error) {
+	return d.queue.RetireDemoSchools(ctx, slugs)
 }
 
 // DemoSchoolOrder is a demo school of the public demo waiting for its seed

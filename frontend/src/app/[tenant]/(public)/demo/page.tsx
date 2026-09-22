@@ -16,6 +16,7 @@ import {
   type DemoLink,
   type DemoRole,
   type DemoSetupProgress,
+  demoEntryEvent,
   isParentDemoRole,
   parentsDemoEntryUrl,
   redeemDemoAccess,
@@ -46,8 +47,9 @@ async function enterAs(
   }
   const session = await redeemDemoAccess(link.token, role);
   if (!session) return "invalid";
-  const pending = link.switched ? "demo_role_switched" : "demo_entered";
-  return (await startDemoSession(session, pending)) ? "entered" : "failed";
+  return (await startDemoSession(session, demoEntryEvent(link)))
+    ? "entered"
+    : "failed";
 }
 
 // Entry page of the public demo (#3462): takes the token from the URL

@@ -34,6 +34,7 @@ type demoScheduler struct {
 	adapter   *sharedOperatorSession
 
 	tickers *demoTickers
+	expiry  *demoExpiry
 	work    sync.WaitGroup
 	seeds   chan struct{}
 }
@@ -48,14 +49,16 @@ func runDemoSchools(ctx context.Context, schools *backendapi.DemoRuntime, baseUR
 	}
 	scheduler := &demoScheduler{
 		schools: schools, baseURL: baseURL, heartbeat: heartbeat, adapter: newSharedOperatorSession(adapter),
-		tickers: newDemoTickers(), seeds: make(chan struct{}, demoSeedWorkers),
+		tickers: newDemoTickers(), expiry: newDemoExpiry(schools, time.Now), seeds: make(chan struct{}, demoSeedWorkers),
 	}
 	defer scheduler.work.Wait()
 	if once {
 		return scheduler.drain(ctx)
 	}
 	for {
-		err := errors.Join(scheduler.startOrders(ctx), scheduler.startTickers(ctx))
+		// Expired accesses leave first (#3470), so a school hidden this poll
+		// gets no ticker and holds no place.
+		err := errors.Join(scheduler.expiry.run(ctx), scheduler.startOrders(ctx), scheduler.startTickers(ctx))
 		if err != nil && ctx.Err() == nil {
 			slog.Warn("demo scheduler poll failed; retrying", "error", err)
 		}
@@ -254,9 +257,12 @@ func (t *demoTickers) remove(slug string, ticker *demoTicker) {
 	}
 }
 
-// drain is --once: it empties the queue, repetitions included, and ticks
-// every ready school once.
+// drain is --once: it expires what is due, empties the queue, repetitions
+// included, and ticks every ready school once.
 func (s *demoScheduler) drain(ctx context.Context) error {
+	if err := s.expiry.run(ctx); err != nil {
+		return err
+	}
 	for {
 		// A worker that was busy before the poll may still queue its order again.
 		idle := len(s.seeds) == 0

@@ -83,6 +83,10 @@ type DemoQueueEngine interface {
 	// ActiveDemoSchools lists the ready schools a visitor entered since the
 	// instant; the simulation serves only these (#3464).
 	ActiveDemoSchools(ctx context.Context, since time.Time) ([]string, error)
+	// RetireDemoSchools soft-deletes the schools of the named orders (#3470)
+	// and returns how many it hid. A hidden school is neither ticked nor
+	// counted, and cannot be entered.
+	RetireDemoSchools(ctx context.Context, slugs []string) (int, error)
 }
 
 // DemoSchoolQueue hands the demo process its orders. Only the process that
@@ -116,6 +120,7 @@ type DemoOrderEngine interface {
 	OrderDemoSchool(ctx context.Context, schoolName, personName string) (slug string, err error)
 	DemoSchoolProgress(ctx context.Context, slug string) (*DemoSchoolProgress, error)
 	MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error
+	RetireDemoSchool(ctx context.Context, slug string) error
 }
 
 // DemoSchoolOrders is the serving backend's side: it queues a demo school
@@ -149,4 +154,15 @@ func (d *DemoSchoolOrders) DemoSchoolProgress(ctx context.Context, slug string) 
 // simulation running (#3464).
 func (d *DemoSchoolOrders) MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error {
 	return d.engine.MarkDemoSchoolUsed(ctx, slug, usedAt)
+}
+
+// RetireDemoSchool soft-deletes the school of the order when a visitor
+// starts over (#3470). The order keeps its row: it no longer holds a place,
+// is not ticked and cannot be entered. An order without a school (still
+// preparing, or failed) is left as it is.
+func (d *DemoSchoolOrders) RetireDemoSchool(ctx context.Context, slug string) error {
+	if slug == "" {
+		return fmt.Errorf("demo school slug is required")
+	}
+	return d.engine.RetireDemoSchool(ctx, slug)
 }
