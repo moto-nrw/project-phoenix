@@ -114,9 +114,10 @@ func TestModuleOwnsPickupDayExtension(t *testing.T) {
 	assert.Equal(t, "16:00", task.Pickup)
 	assert.Equal(t, []int64{freePlay.ID}, pickupExtensionBlockIDs(task.Blocks), "only blocks with children in the extra time are choices")
 	assert.Equal(t, timetable.PickupExtensionBlock{ID: freePlay.ID, Title: "Freies Spiel", StartTime: "14:45", EndTime: "16:00"}, task.Blocks[0])
-	// The candidate blocks, their participants (whose non-booking markers Student
-	// Presence answers since #2762) and the tasks are three statements.
-	assert.EqualValues(t, 3, observedOperation(log.seen, "list_open_pickup_extensions").Stats.Queries)
+	// The candidate blocks come with their participants; with the tasks that
+	// is two Timetable statements. Their execution and non-booking markers are
+	// Student Presence's one read since #2762 and not counted here.
+	assert.EqualValues(t, 2, observedOperation(log.seen, "list_open_pickup_extensions").Stats.Queries)
 
 	all, err := module.ListOpenPickupExtensions(ctx, 0)
 	require.NoError(t, err)

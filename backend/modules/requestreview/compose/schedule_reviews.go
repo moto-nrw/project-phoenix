@@ -20,6 +20,14 @@ type ScheduleReviewPeople interface {
 
 type TimetableObservation = timetablecompose.Observation
 
+// PickupReviewImpact and PickupReviewBlock are the Care Plan shapes behind the
+// Blocks dependency, re-exported so the root and the tests bind it without
+// naming the Care Plan composition.
+type (
+	PickupReviewImpact = carecompose.PickupReviewImpact
+	PickupReviewBlock  = carecompose.PickupReviewBlock
+)
+
 type ScheduleReviewDependencies struct {
 	People                ScheduleReviewPeople
 	Scope                 carecompose.ReviewScopeResolver

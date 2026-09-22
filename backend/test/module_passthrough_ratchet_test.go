@@ -232,11 +232,11 @@ var modulePassthroughBudgets = map[string]int{
 	// present-today projections, the combined-group validation and the
 	// status-day upsert guarded by the exception-day lock.
 	//
-	// The second raise in this register, 76 → 90 with #2762, has the same
+	// The second raise in this register, 76 → 89 with #2762, has the same
 	// shape as the #3427 one above: the activity-session and session-attendance
 	// commands used to live in database/repositories/student_presence.go
 	// (legacy composition, never scanned) and are now the owner's native
-	// application code. Fourteen of them keep the counted shape while each
+	// application code. Thirteen of them keep the counted shape while each
 	// carries its own rule: the session reads and SessionExecution validate the
 	// id sets and the status filter; the attendance reads and the participant
 	// commands (check-in, checkout, close, interval reconciliation, manual
@@ -245,7 +245,7 @@ var modulePassthroughBudgets = map[string]int{
 	// tenant transaction. The same cutover removed the four reads and the
 	// reinstate command no consumer called. Shrink-only from here like every
 	// other entry.
-	"modules/studentpresence": 90,
+	"modules/studentpresence": 89,
 	// The largest block, and the one the previous version could not see at
 	// all: service.go (23), instance_students.go (21), activity_instances.go
 	// (14) and 19 more files, every one of them s.run around a single
