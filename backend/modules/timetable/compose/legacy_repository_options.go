@@ -559,13 +559,6 @@ type StaffShiftListFilter struct {
 	Offset         int
 }
 
-// WrapNoRowsDatabaseError restores the legacy read error for a missing row:
-// the persistence-neutral not-found sentinel joined with the driver's no-rows
-// value, so callers that classify on either keep working.
-func WrapNoRowsDatabaseError(operation string) error {
-	return WrapDatabaseError(operation, errors.Join(modelBase.ErrNotFound, sql.ErrNoRows))
-}
-
 // translateNotFound joins the persistence-neutral not-found sentinel to a
 // driver no-rows error, as the generic repositories do.
 func translateNotFound(err error) error {
