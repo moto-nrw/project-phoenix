@@ -537,7 +537,10 @@ describe("MobileBottomNav", () => {
       "schedules:manage",
       "schedules:read",
       "time_tracking:manage",
+      // Elternzugänge verlangen beides: users:manage liest die
+      // Warteschlange, users:update entscheidet sie.
       "users:manage",
+      "users:update",
       "users:read",
       "rooms:manage",
       "groups:manage",

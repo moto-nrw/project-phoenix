@@ -2167,7 +2167,10 @@ describe("Sidebar", () => {
       "schedules:manage",
       "schedules:read",
       "time_tracking:manage",
+      // Elternzugänge verlangen beides: users:manage liest die
+      // Warteschlange, users:update entscheidet sie.
       "users:manage",
+      "users:update",
       "users:read",
       "rooms:manage",
       "groups:manage",
@@ -2233,6 +2236,24 @@ describe("Sidebar", () => {
       }
       expect(screen.getByText("Tagesplan")).toBeInTheDocument();
       expect(screen.getByText("Mein Kalender")).toBeInTheDocument();
+    });
+
+    it("verbirgt Elternzugänge ohne das Recht, die Warteschlange zu entscheiden", () => {
+      // users:manage liest die Warteschlange, entscheiden lässt das Backend
+      // sie nur mit users:update. Ohne das zweite Recht stünde dort eine
+      // gefüllte Liste, in der jedes Annehmen mit 403 endet.
+      const withoutDecide = new Set(LEAD_PERMISSIONS);
+      withoutDecide.delete("users:update");
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          withoutDecide.has(permission),
+      );
+
+      render(<Sidebar />);
+
+      expect(screen.queryByText("Elternzugänge")).not.toBeInTheDocument();
+      // Der Rest der Elterngruppe bleibt der Rolle erhalten.
+      expect(screen.getByText("Nachrichten")).toBeInTheDocument();
     });
 
     it("schickt eine Leitungsrolle in die Leitungs-Anleitung", () => {

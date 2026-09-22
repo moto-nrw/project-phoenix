@@ -38,6 +38,7 @@ import {
   isCaregiver,
   leadsSchool,
 } from "~/lib/auth-utils";
+import { canReviewGuardianApprovals } from "~/lib/guardian-approval-access";
 import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pending";
 import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import { operatorPath } from "~/lib/operator-url";
@@ -759,8 +760,8 @@ function SidebarContent({
           case "messages":
             return true;
           case "approvals":
-            // Die Warteschlange liest das Backend mit users:manage (#3469).
-            return userIsAdmin || hasPermission(session, "users:manage");
+            // Lesen users:manage, Entscheiden users:update (#3469).
+            return canReviewGuardianApprovals(session);
           case "announcements":
             return canAnnounce && parentNewsEnabled;
           case "bankDetails":

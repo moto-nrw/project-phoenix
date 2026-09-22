@@ -21,6 +21,7 @@ import {
   isCaregiver,
   leadsSchool,
 } from "~/lib/auth-utils";
+import { canReviewGuardianApprovals } from "~/lib/guardian-approval-access";
 import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
@@ -888,7 +889,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     if (href === "/day-log" && !attendanceLogEnabled) return false;
     // Eltern-Seiten: dieselben Regeln wie die Sidebar-Gruppe.
     if (href === "/admin/guardian-approvals") {
-      return userIsAdmin || hasPermission(session, "users:manage");
+      return canReviewGuardianApprovals(session);
     }
     if (href === "/parent-announcements") {
       return canAnnounce && parentNewsEnabled;
