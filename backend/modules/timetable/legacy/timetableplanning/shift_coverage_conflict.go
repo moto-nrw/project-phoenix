@@ -829,7 +829,7 @@ func invalidShiftCoverageQuery(detail string) error {
 func filterShiftCoverageDates(dates []timezone.Date, period *scheduleModel.CalendarPeriod, weekPattern int) []timezone.Date {
 	filtered := make([]timezone.Date, 0, len(dates))
 	for _, date := range dates {
-		if period.ContainsDay(scheduleModel.Date(date)) && ShouldMaterializeWeekPattern(weekPattern, date, period) {
+		if period.ContainsDay(scheduleModel.Date(date)) && shouldMaterializeWeekPattern(weekPattern, date, period) {
 			filtered = append(filtered, date)
 		}
 	}

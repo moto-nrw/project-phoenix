@@ -53,7 +53,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        325
+        335
       ],
       "tables": []
     },
@@ -357,7 +357,7 @@
       "declaration": "TestGroupSubstitutionRepository_Create_Validation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        377
+        306
       ],
       "tables": []
     },
@@ -384,16 +384,6 @@
     {
       "scope": "test",
       "file": "database/repositories/education/group_substitution_repository_test.go",
-      "declaration": "TestGroupSubstitutionRepository_FindActive",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        302
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_substitution_repository_test.go",
       "declaration": "TestGroupSubstitutionRepository_FindByGroup",
       "target": "database/repositories.NewFactory",
       "lines": [
@@ -408,16 +398,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         142
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/education/group_substitution_repository_test.go",
-      "declaration": "TestGroupSubstitutionRepository_FindOverlapping",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        326
       ],
       "tables": []
     },
@@ -447,7 +427,7 @@
       "declaration": "TestGroupSubstitutionRepository_ListWithRelations",
       "target": "database/repositories.NewFactory",
       "lines": [
-        513
+        442
       ],
       "tables": []
     },
@@ -457,7 +437,7 @@
       "declaration": "TestGroupSubstitutionRepository_List_WithFilters",
       "target": "database/repositories.NewFactory",
       "lines": [
-        428
+        357
       ],
       "tables": []
     },
@@ -477,7 +457,7 @@
       "declaration": "TestGroupSubstitutionRepository_Update_Validation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        409
+        338
       ],
       "tables": []
     },
@@ -754,7 +734,7 @@
       "declaration": "TestCapacityOccurrencesReadPeriodsThroughTheCalendarOwner",
       "target": "database/repositories.NewFactory",
       "lines": [
-        420
+        408
       ],
       "tables": []
     },
@@ -859,7 +839,7 @@
       "declaration": "TestStaffMembershipAdapter_ListRejectsUnknownFilters",
       "target": "database/repositories.NewFactory",
       "lines": [
-        423
+        413
       ],
       "tables": []
     },
@@ -911,7 +891,7 @@
       "declaration": "TestTeacherMembershipAdapter_ActiveCaregiversSortInGermanDictionaryOrder",
       "target": "database/repositories.NewFactory",
       "lines": [
-        444
+        434
       ],
       "tables": []
     },
@@ -1299,16 +1279,6 @@
     {
       "scope": "test",
       "file": "database/repositories/users/guest_repository_test.go",
-      "declaration": "TestGuestRepository_FindActive",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        231
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/guest_repository_test.go",
       "declaration": "TestGuestRepository_FindByID",
       "target": "database/repositories.NewFactory",
       "lines": [
@@ -1332,7 +1302,7 @@
       "declaration": "TestGuestRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        261
+        235
       ],
       "tables": []
     },
@@ -3169,7 +3139,7 @@
       "declaration": "setupPhaseTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        31
+        32
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -20813,22 +20783,22 @@
         },
         {
           "file": "api/base.go",
-          "line": 525,
+          "line": 536,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 688,
+          "line": 699,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 931,
+          "line": 942,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1341,
+          "line": 1352,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -20838,7 +20808,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 325,
+          "line": 335,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -20853,17 +20823,17 @@
         },
         {
           "file": "api/base.go",
-          "line": 397,
+          "line": 407,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 441,
+          "line": 452,
           "declaration": "withFileStorageWiring"
         },
         {
           "file": "api/base.go",
-          "line": 685,
+          "line": 696,
           "declaration": "type API"
         },
         {
@@ -20883,7 +20853,7 @@
         },
         {
           "file": "api/time_tracking_composition.go",
-          "line": 77,
+          "line": 78,
           "declaration": "newTimeTrackingResource"
         }
       ]
@@ -20933,22 +20903,22 @@
         },
         {
           "file": "services/factory.go",
-          "line": 460,
+          "line": 456,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 510,
+          "line": 506,
           "declaration": "newFactory"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 35,
+          "line": 40,
           "declaration": "NewFactoryForTests"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 43,
+          "line": 48,
           "declaration": "NewFactoryForTestsWithConfig"
         },
         {

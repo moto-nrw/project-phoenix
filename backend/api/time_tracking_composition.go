@@ -7,6 +7,7 @@ import (
 
 	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
 	projectJWT "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/timetracking"
@@ -74,7 +75,7 @@ func (p exportTransferPort) Transfer(ctx context.Context, request timeTrackingHT
 }
 
 // newTimeTrackingResource composes the MA-facing /api/time-tracking surface.
-func newTimeTrackingResource(svc *services.Factory, db *bun.DB) *timeTrackingHTTP.Resource {
+func newTimeTrackingResource(svc *services.Factory, calendar schoolcalendar.Calendar, db *bun.DB) *timeTrackingHTTP.Resource {
 	capabilities := services.NewWorkforceAdminCapabilities(svc.Users, svc.StaffDocuments, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth,
 		svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, svc.StaffTimeExport)
 	return timeTrackingHTTP.NewResource(timeTrackingHTTP.Dependencies{
@@ -84,7 +85,7 @@ func newTimeTrackingResource(svc *services.Factory, db *bun.DB) *timeTrackingHTT
 		WorkTimeMonth:    capabilities.WorkTimeMonth,
 		StaffShifts:      svc.StaffShifts,
 		Assignments:      svc.StaffAssignments,
-		Calendar:         services.PlanningCalendarCapability(svc.Holidays, svc.ClosingDays),
+		Calendar:         services.PlanningCalendarCapability(calendar),
 		AccountStartDate: services.TimeTrackingAccountStartDate(svc.Settings),
 		Identity:         timeTrackingIdentity,
 		DB:               db,

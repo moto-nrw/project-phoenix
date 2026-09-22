@@ -28,7 +28,7 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Legacy-Nester auflösen · 59.504 LOC, 0 Keys
 
-- [ ] [#3424](https://github.com/moto-nrw/project-phoenix/issues/3424) `modules/timetable/legacy/timetableplanning` — 23.300 LOC, blockt #2732
+- [ ] [#3424](https://github.com/moto-nrw/project-phoenix/issues/3424) `modules/timetable/legacy/timetableplanning` — 23.093 LOC (Schnitt S6 Schulkalender erledigt: Zeiträume, Schließtage, Feiertage, Wochenzyklus und Dateframes beim Owner `modules/schoolcalendar`, Budget 24.299 → 23.093, `planexport/legacy` 410 → 359, Legacy-Summe 49.904 → 48.639, 3 Kompatibilitätsregeln weg statt konvertiert, Policy-Epoche 21 → 22, Ausnahme für die 7 Ersatzregeln per ADR 0037; offen: Schnitte S1 bis S5), blockt #2732
 - [x] [#3422](https://github.com/moto-nrw/project-phoenix/issues/3422) `modules/studentpresence/legacy` aufgelöst — 13.969 LOC, Budget-Eintrag gelöscht (Legacy-Summe 51.310 → 49.904), 79 `student-presence`-`adapter`/`domain`-Regeln weg statt konvertiert, 0 Keys (Ratchet unverändert), Komplexitäts-Ratchet −35 Einträge, Policy-Epoche 20 → 21; Ausnahme für die 57 Ersatzregeln per ADR 0036; offen: Passthrough-Budget `modules/studentpresence` 64 → 76
 - [ ] [#3413](https://github.com/moto-nrw/project-phoenix/issues/3413) `modules/workforce/legacy/timetracking` — 13.511 LOC
 - [ ] [#3418](https://github.com/moto-nrw/project-phoenix/issues/3418) `modules/workforce/legacy/shiftplanning` — 5.336 LOC, blockt #2747, #2750
@@ -36,7 +36,7 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [x] [#3420](https://github.com/moto-nrw/project-phoenix/issues/3420) `workflows/parentportal/legacy` aufgelöst — 5.881 LOC, 46 Kompatibilitätsregeln weg, Schreibpfade als Owner-Commands (Care Plan, People Directory, Audit Platform); offen: Announcement-Quittungen in `messaging` (Communication)
 - [x] [#3410](https://github.com/moto-nrw/project-phoenix/issues/3410) `modules/careplan/legacy` Wurzelpaket aufgelöst — 874 LOC, 15 Keys weniger (644 → 629)
 
-## Schuld sichtbar machen · 195 Regeln
+## Schuld sichtbar machen · 193 Regeln
 
 - [ ] [#3421](https://github.com/moto-nrw/project-phoenix/issues/3421) `inbound-parent.*` zu exaktem Debt konvertieren — 34 Regeln
 - [ ] [#3416](https://github.com/moto-nrw/project-phoenix/issues/3416) `issue`-Feld an Policy-Regeln und `rules.stale`

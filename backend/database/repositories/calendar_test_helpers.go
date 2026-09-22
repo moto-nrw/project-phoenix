@@ -11,6 +11,19 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// NewSchoolCalendarWithAdministration composes the unobserved calendar owner
+// over the given administration resolver, which the services test graphs
+// answer with the recurrence gate, the care-offering guard and the
+// federal-state setting once those services exist. Production roots compose
+// the module themselves (api/base.go).
+func NewSchoolCalendarWithAdministration(db *bun.DB, administration func() schoolCalendarCompose.AdministrationRuntime) (*schoolcalendar.Module, error) {
+	return schoolCalendarCompose.New(schoolCalendarCompose.Dependencies{
+		DB:             db,
+		Observe:        func(schoolCalendarCompose.Observation) {},
+		Administration: administration,
+	})
+}
+
 type CalendarTestRepositories struct {
 	TimetableTestRepositories
 	Profile                    identityaccess.AccountProfiles

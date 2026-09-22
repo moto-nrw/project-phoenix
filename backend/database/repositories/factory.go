@@ -70,7 +70,7 @@ type Factory struct {
 	schoolCalendarBound bool
 	// schoolCalendar is the bound capability behind the calendar period,
 	// closing day and dateframe adapters (#2666).
-	schoolCalendar schoolcalendar.Capability
+	schoolCalendar schoolcalendar.Calendar
 	appointments   appointments.Capability
 	carePlan       careplan.Capability
 

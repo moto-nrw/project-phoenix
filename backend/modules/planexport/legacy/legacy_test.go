@@ -119,22 +119,20 @@ func (f fakePlanningTracks) ListAll(context.Context) ([]*scheduleModel.PlanningT
 }
 
 type fakeClosingDays struct {
-	timetableplanning.ClosingDayService
-	days []*scheduleModel.ClosingDay
+	days []*planexport.ClosingPeriod
 	err  error
 }
 
-func (f fakeClosingDays) ClosingDaysInRange(context.Context, timezone.Date, timezone.Date) ([]*scheduleModel.ClosingDay, error) {
+func (f fakeClosingDays) ClosingDaysInRange(context.Context, planexport.Date, planexport.Date) ([]*planexport.ClosingPeriod, error) {
 	return f.days, f.err
 }
 
 type fakeHolidays struct {
-	timetableplanning.HolidayService
-	days []timetableplanning.Holiday
+	days []planexport.Holiday
 	err  error
 }
 
-func (f fakeHolidays) HolidaysInRange(context.Context, timezone.Date, timezone.Date) ([]timetableplanning.Holiday, error) {
+func (f fakeHolidays) HolidaysInRange(context.Context, planexport.Date, planexport.Date) ([]planexport.Holiday, error) {
 	return f.days, f.err
 }
 
@@ -296,15 +294,6 @@ func TestRowAdaptersMapPlainRecordsAndSkipNilRows(t *testing.T) {
 		9: {ID: 9},
 	}, members, "a missing staff row keeps its slot so the sheet still prints Unbekannt for it")
 
-	closing, err := (closingDayAdapter{source: fakeClosingDays{days: []*scheduleModel.ClosingDay{
-		{StartDate: scheduleModel.Date(monday), EndDate: scheduleModel.Date(monday.AddDays(1)), Reason: "Betriebsferien"}, nil,
-	}}}).ClosingDaysInRange(ctx, day(monday), day(monday.AddDays(6)))
-	require.NoError(t, err)
-	assert.Equal(t, []*planexport.ClosingPeriod{{StartDate: "2026-07-27", EndDate: "2026-07-28", Reason: "Betriebsferien"}}, closing)
-
-	holidays, err := (holidayAdapter{source: fakeHolidays{days: []timetableplanning.Holiday{{Date: monday.AddDays(2), Name: "Fronleichnam"}}}}).HolidaysInRange(ctx, day(monday), day(monday.AddDays(6)))
-	require.NoError(t, err)
-	assert.Equal(t, []planexport.Holiday{{Date: "2026-07-29", Name: "Fronleichnam"}}, holidays)
 }
 
 // Source failures surface unchanged, so the capability keeps deciding which
@@ -329,10 +318,6 @@ func TestAdaptersSurfaceSourceErrors(t *testing.T) {
 	require.ErrorIs(t, err, errBoom)
 	_, err = (planningTrackAdapter{source: fakePlanningTracks{err: errBoom}}).ListPlanningTracks(ctx)
 	require.ErrorIs(t, err, errBoom)
-	_, err = (closingDayAdapter{source: fakeClosingDays{err: errBoom}}).ClosingDaysInRange(ctx, day(monday), day(monday))
-	require.ErrorIs(t, err, errBoom)
-	_, err = (holidayAdapter{source: fakeHolidays{err: errBoom}}).HolidaysInRange(ctx, day(monday), day(monday))
-	require.ErrorIs(t, err, errBoom)
 }
 
 // The capability validates its own request days, so a malformed day reaching
@@ -345,10 +330,6 @@ func TestAdaptersRefuseMalformedDays(t *testing.T) {
 	_, err := (overviewAdapter{source: &fakeOverview{}}).StaffScheduleOverview(ctx, "27.07.2026", day(monday))
 	require.Error(t, err)
 	_, err = (instanceAdapter{source: &fakeInstances{}}).InstancesInRange(ctx, day(monday), "")
-	require.Error(t, err)
-	_, err = (closingDayAdapter{source: fakeClosingDays{}}).ClosingDaysInRange(ctx, "x", day(monday))
-	require.Error(t, err)
-	_, err = (holidayAdapter{source: fakeHolidays{}}).HolidaysInRange(ctx, day(monday), "x")
 	require.Error(t, err)
 }
 
@@ -400,8 +381,8 @@ func TestNewRendersTheBetreuungsplanOverRetainedRows(t *testing.T) {
 		Staff:          fakeStaff{members: map[int64]*usersModel.Staff{7: staffRow(7, "Franziska", "Kessener")}},
 		ActivityGroups: fakeActivityGroups{groups: []*activitiesModel.Group{group}},
 		PlanningTracks: fakePlanningTracks{tracks: []*scheduleModel.PlanningTrack{track}},
-		ClosingDays:    fakeClosingDays{days: []*scheduleModel.ClosingDay{{StartDate: scheduleModel.Date(monday.AddDays(1)), EndDate: scheduleModel.Date(monday.AddDays(1)), Reason: "Betriebsferien"}}},
-		Holidays:       fakeHolidays{days: []timetableplanning.Holiday{{Date: monday.AddDays(2), Name: "Fronleichnam"}}},
+		ClosingDays:    fakeClosingDays{days: []*planexport.ClosingPeriod{{StartDate: day(monday.AddDays(1)), EndDate: day(monday.AddDays(1)), Reason: "Betriebsferien"}}},
+		Holidays:       fakeHolidays{days: []planexport.Holiday{{Date: day(monday.AddDays(2)), Name: "Fronleichnam"}}},
 		Renderer:       renderer,
 	})
 	params, err := planexport.ParseParams(monday.String(), monday.AddDays(4).String(), string(planexport.TemplateByOffering), "", "")

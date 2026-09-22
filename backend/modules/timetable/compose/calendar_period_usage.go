@@ -49,6 +49,31 @@ func NewCalendarPeriodUsageRepository(enrollment EnrollmentPhaseQueries, countRe
 // references are omitted from the map. Each owner answers with one statement:
 // Enrollment for its phases, Timetable for its five planning tables.
 func (r *CalendarPeriodUsageRepository) UsageCounts(ctx context.Context) (map[int64]schedule.CalendarPeriodUsage, error) {
+	usage, err := r.Usage(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int64]schedule.CalendarPeriodUsage, len(usage))
+	for id, entry := range usage {
+		result[id] = schedule.CalendarPeriodUsage(entry)
+	}
+	return result, nil
+}
+
+// CalendarPeriodUsage counts, per calendar period, the rows that reference it
+// through nullable calendar_period_id FKs: Enrollment's phases and the five
+// Timetable planning tables.
+type CalendarPeriodUsage struct {
+	EnrollmentPhases   int
+	ActivityGroups     int
+	Schedules          int
+	StudentEnrollments int
+	Supervisors        int
+	ActivityInstances  int
+}
+
+// Usage is UsageCounts in the composition's own shape.
+func (r *CalendarPeriodUsageRepository) Usage(ctx context.Context) (map[int64]CalendarPeriodUsage, error) {
 	phaseCounts, err := r.enrollment.PhaseCountsByCalendarPeriod(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "usage counts", Err: err}
@@ -58,9 +83,9 @@ func (r *CalendarPeriodUsageRepository) UsageCounts(ctx context.Context) (map[in
 		return nil, &modelBase.DatabaseError{Op: "usage counts", Err: err}
 	}
 
-	usage := make(map[int64]schedule.CalendarPeriodUsage, len(phaseCounts)+len(references))
+	usage := make(map[int64]CalendarPeriodUsage, len(phaseCounts)+len(references))
 	for id, count := range phaseCounts {
-		usage[id] = schedule.CalendarPeriodUsage{EnrollmentPhases: count}
+		usage[id] = CalendarPeriodUsage{EnrollmentPhases: count}
 	}
 	for id, refs := range references {
 		entry := usage[id]

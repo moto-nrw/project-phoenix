@@ -963,6 +963,21 @@ exception in [ADR 0036](../../docs/adr/0036-student-presence-cutover-replaces-le
 (policy epoch 20 to 21), and the `legacy` budget entry for
 `modules/studentpresence/legacy` is deleted rather than lowered.
 
+The timetable planning nest `modules/timetable/legacy/timetableplanning`
+(`inbound-timetable`/`adapter`, #3424) dissolves in slices. Slice S6 moved the
+calendar-period administration (name uniqueness, the same-type overlap
+invariant, the recurrence gate and the care-offering guard), the tenant's
+non-working days, the A/B-week engine (`schoolcalendar.WeekPatternApplies`)
+and the dateframe routes of the schedules HTTP composition to the School
+Calendar owner; `api/timetable`, the schedules composition, the retained shift
+planning services, Enrollment and the timetable e2e suite consume the public
+`schoolcalendar.Calendar` contract. The three compatibility rules the slice
+emptied are deleted, not converted; the seven replacement permissions are the
+epoch-gated exception in
+[ADR 0037](../../docs/adr/0037-timetable-planning-dissolution-replaces-legacy-permissions.md)
+(policy epoch 21 to 22), which every later slice of #3424 reuses and which
+ends when the last slice removes the package from the base.
+
 The import HTTP composition (`modules/dataimport/inbound`, with its runtime
 binding in `modules/dataimport/inbound/compose`) keeps the `inbound-import`
 owner and its `http` / `compose` roles after replacing `api/import` (#3217).

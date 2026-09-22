@@ -20,7 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 )
 
 // ErrStaffNoticeNotFound meldet einen unbekannten oder fremden Hinweis.
@@ -203,7 +203,7 @@ func (s *staffNoticeService) filterByWeekPattern(
 
 	kept := make([]*usersModels.StaffNotice, 0, len(notices))
 	for _, notice := range notices {
-		if timetableplanning.ShouldMaterializeWeekPattern(notice.WeekPattern, date, period) {
+		if period == nil || schoolcalendar.WeekPatternApplies(notice.WeekPattern, date.String(), schoolcalendar.WeekCycleOf(period.WeekCycleLength, period.WeekCycleAnchor)) {
 			kept = append(kept, notice)
 		}
 	}
@@ -211,11 +211,8 @@ func (s *staffNoticeService) filterByWeekPattern(
 }
 
 // periodFor sucht das aktive Schuljahr, das den Tag enthält und einen
-// Wochenzyklus führt. Für Tagesinformationen ist das Schuljahr der eindeutige
-// Träger von Woche A/B: Ferien, Halbjahre und eigene Zeiträume dürfen sich
-// damit überschneiden, ohne die Wiederholung zu verändern. Ohne Treffer nil —
-// schedule.ShouldMaterializeWeekPattern lässt den Hinweis dann durch, statt ihn stumm
-// verschwinden zu lassen.
+// Wochenzyklus führt; nur das Schuljahr trägt Woche A/B, Ferien und Halbjahre
+// dürfen sich überschneiden. Ohne Treffer nil: der Hinweis gilt dann jede Woche.
 func (s *staffNoticeService) periodFor(ctx context.Context, date timezone.Date) (*scheduleModels.CalendarPeriod, error) {
 	periods, err := s.periods.FindActiveByTenantID(ctx)
 	if err != nil {

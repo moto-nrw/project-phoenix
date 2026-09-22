@@ -184,6 +184,9 @@ type moduleServices struct {
 	persons       *peopleModule.Module
 	rooms         *facilitiesModule.Module
 	timetable     *timetableModule.Module
+	// calendar owns schedule.calendar_periods, schedule.closing_days and
+	// schedule.dateframes and answers the tenant's non-working days.
+	calendar *schoolCalendarModule.Module
 	// membership owns users.staff, users.teachers and users.guests (#2667).
 	membership *schoolMembershipModule.Module
 	// workforce owns the work-time templates and staff schedule versions
@@ -295,11 +298,18 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	if err != nil {
 		return moduleServices{}, err
 	}
+	// The period administration resolves the recurrence gate, the
+	// care-offering guard and the federal-state setting on every call from
+	// the runtime the services factory answers with below; the guard is an
+	// Enrollment service that itself reads this calendar, so it cannot exist
+	// before the factory does.
+	var calendarAdministration schoolCalendarCompose.AdministrationRuntime
 	calendar, err := schoolCalendarCompose.New(schoolCalendarCompose.Dependencies{
 		DB: db,
 		Observe: func(observation schoolCalendarCompose.Observation) {
 			observability.ObserveSchoolCalendarOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, schoolCalendarModule.ErrorCode(observation.Err), observation.Err)
 		},
+		Administration: func() schoolCalendarCompose.AdministrationRuntime { return calendarAdministration },
 	})
 	if err != nil {
 		return moduleServices{}, err
@@ -430,7 +440,8 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 		return moduleServices{}, err
 	}
 	legacyFacilities = factory.Facilities
-	return moduleServices{repositories: repoFactory, services: factory, demoAccess: authAPI.ComposedDemoAccess(factory.AccountAuthentication().DemoAccess()), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime}, nil
+	calendarAdministration = factory.SchoolCalendarAdministration()
+	return moduleServices{repositories: repoFactory, services: factory, demoAccess: authAPI.ComposedDemoAccess(factory.AccountAuthentication().DemoAccess()), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, calendar: calendar, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime}, nil
 }
 
 // withFileStorageWiring resolves what the File Storage module needs from the
@@ -1451,7 +1462,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		Students: api.Services.Import, Staff: api.Services.StaffImport, ClassList: api.Services.ClassListImport,
 		Files: fileformat.Decoder{}, Runtime: importCompose.HTTPRuntime(db, api.Services.PeopleDirectory, api.membership, api.Services.OpeningBalanceImport),
 	})
-	api.Activities = timetableHTTPAdapter.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
+	api.Activities = timetableHTTPAdapter.NewResource(api.Services.Activities, modules.timetable, api.Services.Users, api.Services.UserContext, db)
 	staffResource, staffAdmin, err := newStaffComposition(api.membership, workforce, api.Services, db, logger.With("handler", "staff"))
 	if err != nil {
 		return err
@@ -1491,7 +1502,13 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	// One Device Fleet owner serves every entry point: the services factory
 	// composes it and the IoT service hands it back here (#2676).
 	api.Display = displayHTTPAdapter.NewResource(api.Services.IoT.Fleet(), api.Services.Settings)
-	api.Schedules = timetableHTTPAdapter.NewSchedulesResource(api.Services.Schedule, db)
+	// Dateframes belong to the School Calendar, timeframes and recurrence
+	// rules to the Timetable owner; timeframe changes stay guarded by the
+	// recurrence gate and Enrollment's care-offering check.
+	api.Schedules = timetableHTTPAdapter.NewSchedulesResource(modules.calendar, modules.timetable, services.TimeframeChangeGuard(
+		func(ctx context.Context) error { return timetableplanning.LockTenantRecurrenceWrites(ctx, db) },
+		api.Services.EnrollmentCareOffering.(enrollmentSvc.CareOfferingMaterializationResourceValidator).ValidateTimeframeReplacement,
+	), db)
 	homeLayouts := requireHomeLayoutOperations(api.Services.Settings)
 	api.Settings = newSettingsResource(api.Services.TenantSettings, homeLayouts, repoFactory.Enrollment().SchemaReferencesLegalDocument, db)
 	openRoomMove, err := newOpenRoomMove(modules, api.Services.Active, logger)
@@ -1570,10 +1587,11 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.ClassListEntries = newClassListEntriesResource(api.membership, db, logger.With("handler", "class-list-entries"))
 	api.Substitutions = workforceInbound.NewSubstitutionsResource(services.SubstitutionCapability(api.Services.Substitution), db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
-	api.TimeTracking = newTimeTrackingResource(api.Services, db)
+	api.TimeTracking = newTimeTrackingResource(api.Services, modules.calendar, db)
 	api.Timetable = timetableAPI.NewResource(timetableAPI.Dependencies{
-		CalendarPeriodService:   api.Services.CalendarPeriod,
-		ClosingDayService:       api.Services.ClosingDays,
+		CalendarPeriods:         modules.calendar,
+		ClosingDays:             modules.calendar,
+		CalendarPeriodUsage:     calendarPeriodUsage{usage: repoFactory.CalendarPeriodUsage()},
 		MaterializationService:  api.Services.Materialization,
 		InstanceService:         api.Services.Instance,
 		InstanceSeriesConverter: api.Services.InstanceSeriesConverter,

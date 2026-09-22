@@ -309,9 +309,6 @@ type GuestRepository interface {
 
 	// FindByStaffID retrieves a guest by their staff ID
 	FindByStaffID(ctx context.Context, staffID int64) (*Guest, error)
-
-	// FindActive retrieves currently active guests
-	FindActive(ctx context.Context) ([]*Guest, error)
 }
 
 // StudentGuardianRepository defines operations for managing student-guardian relationships

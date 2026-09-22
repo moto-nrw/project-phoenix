@@ -29,6 +29,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -69,7 +70,8 @@ func setupTimetableScenarioModule(t *testing.T, clocks ...func() time.Time) *sce
 	require.NoError(t, err, "init JWT token auth")
 
 	resource := newTimetableTestResource(timetableTestDependencies{
-		CalendarPeriodService:  factory.CalendarPeriod,
+		CalendarPeriods:        factory.SchoolCalendar,
+		ClosingDays:            factory.SchoolCalendar,
 		MaterializationService: factory.Materialization,
 		InstanceService:        factory.Instance,
 		PersonService:          factory.Users,
@@ -218,7 +220,13 @@ func (s *scenario) createActivePeriod(name string, anchor timezone.Date) *schedu
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
-	require.NoError(s.t, s.resource.CalendarPeriodService.CreatePeriod(s.tenantCtx(), period))
+	created, err := s.resource.CalendarPeriods.AddCalendarPeriod(s.tenantCtx(), schoolcalendar.CreateCalendarPeriod{CalendarPeriodFields: schoolcalendar.CalendarPeriodFields{
+		Name: period.Name, PeriodType: period.PeriodType, StartDate: period.StartDate.String(), EndDate: period.EndDate.String(),
+		WeekCycleLength: period.WeekCycleLength, IsActive: period.IsActive,
+	}})
+	require.NoError(s.t, err)
+	period.ID = created.ID
+	period.SetTenantID(created.TenantID)
 	return period
 }
 

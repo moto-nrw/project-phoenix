@@ -223,32 +223,6 @@ func TestGuestRepository_Delete(t *testing.T) {
 // Query Tests
 // ============================================================================
 
-func TestGuestRepository_FindActive(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Guest
-	ctx := testpkg.Ctx(t)
-
-	t.Run("finds active guests with no date range", func(t *testing.T) {
-		guest := testpkg.CreateTestGuest(t, db, "ActiveNoDate")
-
-		found, err := repo.FindActive(ctx)
-		require.NoError(t, err)
-		// Guest with no dates should be considered active
-		var foundGuest bool
-		for _, g := range found {
-			if g.ID == guest.ID {
-				foundGuest = true
-				break
-			}
-		}
-		assert.True(t, foundGuest, "Guest with no date range should be active")
-	})
-
-}
-
 // ============================================================================
 // List and Filter Tests
 // ============================================================================

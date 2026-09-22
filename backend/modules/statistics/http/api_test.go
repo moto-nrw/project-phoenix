@@ -33,7 +33,7 @@ import (
 type testContext struct {
 	db               *bun.DB
 	resource         *statisticsAPI.Resource
-	createClosingDay func(context.Context, *scheduleModels.ClosingDay) error
+	createClosingDay func(ctx context.Context, start, end timezone.Date, reason string) error
 }
 
 func setupStatisticsRoute(t *testing.T, statisticsClocks ...func() time.Time) *testContext {
@@ -42,7 +42,7 @@ func setupStatisticsRoute(t *testing.T, statisticsClocks ...func() time.Time) *t
 	return &testContext{
 		db:               db,
 		resource:         statisticsAPI.NewResource(svc.Statistics, svc.ListExport, db, slog.Default()),
-		createClosingDay: svc.ClosingDays.Create,
+		createClosingDay: svc.CreateClosingDay,
 	}
 }
 
@@ -298,11 +298,7 @@ func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 
 	// Tue 09.06. is a closing day, Fri 12.06. lies in a holiday period.
 	// Care days: Mon, Wed, Thu = 3.
-	require.NoError(t, tc.createClosingDay(ctx, &scheduleModels.ClosingDay{
-		StartDate: scheduleModels.NewDate(2026, 6, 9),
-		EndDate:   scheduleModels.NewDate(2026, 6, 9),
-		Reason:    "Pädagogischer Tag",
-	}))
+	require.NoError(t, tc.createClosingDay(ctx, timezone.NewDate(2026, 6, 9), timezone.NewDate(2026, 6, 9), "Pädagogischer Tag"))
 	insertHolidayPeriod(t, tc.db, tenantID, "Pfingstferien", timezone.NewDate(2026, 6, 12), timezone.NewDate(2026, 6, 14))
 
 	// Anna: present Mon + Wed, unexplained Thu. Attendance on the closing

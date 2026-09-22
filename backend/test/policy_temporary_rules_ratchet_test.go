@@ -63,7 +63,9 @@ import (
 // grants to the nest stale. Dissolving the nest also rewrote the nine
 // surviving grants of its own behaviour suites, which describe the module's
 // suites now and promise no conversion. Together with #2736 that lowers them
-// to 195 and 254; this prose counter remains as an independent guard.
+// to 195 and 254, and slice S6 of #3424 (ADR 0037) retired the three grants
+// the School Calendar handover emptied, to 193 and 252; this prose counter
+// remains as an independent guard.
 //
 // Three shrink-only measurements, all read-only on policy.json:
 //
@@ -113,12 +115,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 195
+	policyTempRulesTotal = 193
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 254
+	policyTempRulesCompatTotal = 252
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -217,7 +219,6 @@ var policyTempRulesFamilies = map[string]int{
 	"test-support": 2,
 
 	// #3214, #3218, #3220, #3224 — closed.
-	"timetable-activities": 2,
 
 	// #3219, #3218 — closed.
 	"workforce": 4,

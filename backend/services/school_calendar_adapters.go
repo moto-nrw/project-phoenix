@@ -6,7 +6,6 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
 type calendarCalDAVSettings interface {
@@ -22,28 +21,6 @@ func (p calendarCalDAVPolicy) Enabled(ctx context.Context) (bool, error) {
 
 func (p calendarCalDAVPolicy) EnabledForTenant(ctx context.Context, tenantID int64) (bool, error) {
 	return p.settings.ResolveBoolForTenant(ctx, tenantID, configModels.KeyCalendarCalDAVEnabled)
-}
-
-type schoolCalendarHolidayAdapter struct{ query schoolcalendar.HolidayQuery }
-
-func (a schoolCalendarHolidayAdapter) ValidHolidayRegion(region string) bool {
-	return a.query.ValidHolidayRegion(region)
-}
-
-func (a schoolCalendarHolidayAdapter) ListHolidays(ctx context.Context, region, from, to string) ([]timetableplanning.CalendarHoliday, error) {
-	values, err := a.query.ListHolidays(ctx, region, from, to)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]timetableplanning.CalendarHoliday, 0, len(values))
-	for _, value := range values {
-		result = append(result, timetableplanning.CalendarHoliday{Date: value.Date, Name: value.Name})
-	}
-	return result, nil
-}
-
-func (a schoolCalendarHolidayAdapter) HolidayDates(ctx context.Context, region, from, to string) (map[string]bool, error) {
-	return a.query.HolidayDates(ctx, region, from, to)
 }
 
 type schoolCalendarRendererAdapter struct {

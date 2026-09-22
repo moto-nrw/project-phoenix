@@ -33,6 +33,24 @@ type Store interface {
 	DeleteDateframe(context.Context, int64) (domain.OperationStats, error)
 }
 
+// WriteTransaction runs fn inside the tenant's write transaction, joining
+// the ambient one when the caller already opened it.
+type WriteTransaction func(ctx context.Context, fn func(context.Context) error) error
+
+// RecurrenceGate serializes a calendar-period mutation against every
+// recurrence-derived write of the tenant (template re-planning,
+// materialization, care-offering rosters). It must run inside the
+// transaction the mutation commits in.
+type RecurrenceGate func(context.Context) error
+
+// CareOfferingGuard refuses a period change (replacement set) or removal
+// (replacement nil) while a linked care offering still needs the period. It
+// answers with ErrCalendarPeriodRequiredByCareOffering in the error chain.
+type CareOfferingGuard func(ctx context.Context, periodID int64, replacement *domain.CalendarPeriodFields) error
+
+// Today names the current calendar day in YYYY-MM-DD.
+type Today func() string
+
 type Observation struct {
 	Operation string
 	Duration  time.Duration
