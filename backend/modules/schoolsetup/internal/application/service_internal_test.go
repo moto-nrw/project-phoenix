@@ -30,7 +30,7 @@ func newFakeSchoolSetupStore() *fakeSchoolSetupStore {
 	return &fakeSchoolSetupStore{dismissed: map[int64]bool{}}
 }
 
-func (f *fakeSchoolSetupStore) Find(context.Context) (*schoolsetup.State, error) {
+func (f *fakeSchoolSetupStore) SetupOfSchool(context.Context) (*schoolsetup.State, error) {
 	if f.setup == nil {
 		return nil, nil
 	}
@@ -39,7 +39,7 @@ func (f *fakeSchoolSetupStore) Find(context.Context) (*schoolsetup.State, error)
 	return &copied, nil
 }
 
-func (f *fakeSchoolSetupStore) Upsert(_ context.Context, setup *schoolsetup.State) error {
+func (f *fakeSchoolSetupStore) StoreSetup(_ context.Context, setup *schoolsetup.State) error {
 	f.upserts++
 	copied := *setup
 	f.setup = &copied

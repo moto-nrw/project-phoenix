@@ -1,5 +1,5 @@
 // Package compose builds the onboarding wizard for new schools (#2832, ADR
-// 0035): the wizard's own store, the school-setup-view projection behind the
+// 0040): the wizard's own store, the school-setup progress projection behind the
 // progress port, and the presence-mode write through Settings Platform's
 // operator orchestration in the request's tenant transaction.
 package compose

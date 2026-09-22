@@ -235,10 +235,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-school-setup",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-shift-types",
       "kind": "inbound"
     },
@@ -360,10 +356,6 @@
     },
     {
       "id": "school-setup",
-      "kind": "workflow"
-    },
-    {
-      "id": "school-setup-view",
       "kind": "projection"
     },
     {
@@ -1255,7 +1247,7 @@
     },
     {
       "path": "modules/schoolsetupview",
-      "owner": "school-setup-view",
+      "owner": "school-setup",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
       "external_test_role": "workflow-integration-test"
@@ -3425,7 +3417,7 @@
     },
     {
       "path": "modules/schoolsetup/http",
-      "owner": "inbound-school-setup",
+      "owner": "school-setup",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -10565,9 +10557,9 @@
       "scopes": [
         "external_test"
       ],
-      "source_owner": "school-setup-view",
+      "source_owner": "school-setup",
       "source_role": "workflow-integration-test",
-      "target_owner": "school-setup-view",
+      "target_owner": "school-setup",
       "target_role": "postgres"
     },
     {
@@ -24679,17 +24671,6 @@
       "target_role": "public"
     },
     {
-      "id": "school-setup.compose.school-setup-view",
-      "description": "The wizard composition constructs the tenant-safe progress projection behind its port (ADR 0040).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-setup",
-      "source_role": "compose",
-      "target_owner": "school-setup-view",
-      "target_role": "postgres"
-    },
-    {
       "id": "school-setup.compose.settings-platform-application",
       "description": "The wizard writes the presence mode through the retained operator settings orchestration, inside the request transaction, so the open-attendance guard, the side effects and the settings broadcast apply exactly as for an operator write (#2832).",
       "scopes": [
@@ -24744,17 +24725,6 @@
       "target_role": "domain"
     },
     {
-      "id": "inbound-school-setup.to.school-setup",
-      "description": "The wizard routes call exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-school-setup",
-      "source_role": "http",
-      "target_owner": "school-setup",
-      "target_role": "public"
-    },
-    {
       "id": "root-composition.to.school-setup-compose",
       "description": "The serving root constructs the onboarding wizard once (#2832).",
       "scopes": [
@@ -24773,7 +24743,7 @@
       ],
       "source_owner": "root-composition",
       "source_role": "compose",
-      "target_owner": "inbound-school-setup",
+      "target_owner": "school-setup",
       "target_role": "http"
     },
     {
@@ -24797,6 +24767,83 @@
       "source_role": "postgres",
       "target_owner": "school-setup",
       "target_role": "public"
+    },
+    {
+      "id": "school-setup.http.public",
+      "description": "The wizard routes call exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "http",
+      "target_owner": "school-setup",
+      "target_role": "public"
+    },
+    {
+      "id": "school-setup.compose.postgres",
+      "description": "The wizard composition constructs its tenant-safe progress projection behind the port of its public contract (ADR 0040).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "compose",
+      "target_owner": "school-setup",
+      "target_role": "postgres"
+    },
+    {
+      "id": "school-setup.integration-test.compose",
+      "description": "The wizard integration tests build the real composition and drive its routes against Postgres (#2832).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "workflow-integration-test",
+      "target_owner": "school-setup",
+      "target_role": "compose"
+    },
+    {
+      "id": "school-setup.integration-test.http",
+      "description": "The wizard integration tests mount the wizard routes with the test tenant mechanics (#2832).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "workflow-integration-test",
+      "target_owner": "school-setup",
+      "target_role": "http"
+    },
+    {
+      "id": "school-setup.integration-test.settings-platform-application",
+      "description": "The wizard integration tests build the real settings service and its registry defaults (#2832).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "workflow-integration-test",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "school-setup.integration-test.settings-platform-postgres",
+      "description": "The wizard integration tests build the real setting value stores (#2832).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "workflow-integration-test",
+      "target_owner": "settings-platform",
+      "target_role": "postgres"
+    },
+    {
+      "id": "school-setup.integration-test.settings-platform-domain",
+      "description": "The wizard integration tests name the setting keys and values they assert on (#2832).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "workflow-integration-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
     }
   ],
   "relocations": [

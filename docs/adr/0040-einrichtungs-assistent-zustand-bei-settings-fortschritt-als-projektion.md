@@ -2,7 +2,7 @@
 
 Status: proposed. Gilt für den Einrichtungs-Assistenten neuer Schulen aus
 [#2832](https://github.com/moto-nrw/project-phoenix/issues/2832). Führt den
-Projection-Owner `school-setup-view` ein, den
+Projection-Owner `school-setup` ein, den
 [#2580](https://github.com/moto-nrw/project-phoenix/issues/2580) nur mit einer
 Architekturentscheidung zulässt.
 
@@ -41,7 +41,7 @@ Daraus entstehen zwei Arten von Daten:
    ist Konfiguration der Schule wie `config.home_block_policies` und
    `config.home_layouts`, die `settings-platform` schon besitzt. Ein eigener
    Domain-Owner lohnt für zwei kleine Tabellen ohne eigene Fachregeln nicht.
-2. **Der Fortschritt ist die Projektion `school-setup-view`** (Kind
+2. **Der Fortschritt ist eine Projektion des Owners `school-setup`** (Kind
    `projection`, Paket `modules/schoolsetupview`, Read-Projection
    `school-setup-progress`). Sie liest mit festen `SELECT`-Anweisungen:
 
@@ -60,11 +60,11 @@ Daraus entstehen zwei Arten von Daten:
    [ADR 0033](0033-operator-dashboard-view-is-a-projection-owner.md).
    Die Projektion besitzt keine Tabelle und schreibt nichts. Sie ist kein
    persistentes Read-Model.
-3. **Der Assistent ist ein eigener Workflow-Owner `school-setup`.** Er
-   orchestriert den eigenen Zustand, die Projektion und einen Schreibzugriff
-   auf die Einstellungen; die Tabellen bleiben bei `settings-platform`. Die
-   Routen unter `/api/school-setup` (Paket `modules/schoolsetup/http`, Owner
-   `inbound-school-setup`, Rolle `http`) verlangen `config:update`:
+3. **Derselbe Owner `school-setup` setzt den Assistenten zusammen.** Er liest
+   die Projektion, hält den eigenen Zustand und schreibt einmal in die
+   Einstellungen; die Tabellen bleiben bei `settings-platform`. Die Routen
+   unter `/api/school-setup` (Paket `modules/schoolsetup/http`, Rolle `http`)
+   verlangen `config:update`:
 
    | Route | Zweck |
    |---|---|
@@ -111,27 +111,27 @@ Tenant-Transaktion bricht diese Entscheidung.
 
 ## Policy-Registrierung
 
-Neu: Owner `school-setup-view` (Kind `projection`), Paket
-`modules/schoolsetupview` (Rolle `postgres`), Read-Projection
-`school-setup-progress` mit den fünf Tabellen oben und `"tenant_safe": true`.
-Die Data-Objects `config.school_setups` und `config.school_setup_dismissals`
-mit Write-Owner `settings-platform`. Owner-Id und Projection-Id unterscheiden
-sich wie bei `operator-dashboard-view` / `operator-dashboard`.
-
-Neu sind außerdem der Owner `school-setup` (Kind `workflow`) mit den Paketen
+Neu: Owner `school-setup` (Kind `projection`) mit den Paketen
+`modules/schoolsetupview` (Rolle `postgres`, die Projektion),
 `modules/schoolsetup` (`public`), `modules/schoolsetup/internal/application`
-(`application`) und `modules/schoolsetup/compose` (`compose`, externe Tests
-`workflow-integration-test`) sowie der Owner `inbound-school-setup` (Kind
-`inbound`) mit `modules/schoolsetup/http` (`http`).
+(`application`), `modules/schoolsetup/compose` (`compose`, externe Tests
+`workflow-integration-test`) und `modules/schoolsetup/http` (`http`). Dazu die
+Read-Projection `school-setup-progress` mit den fünf Tabellen oben und
+`"tenant_safe": true`. Owner-Id und Projection-Id unterscheiden sich wie bei
+`operator-dashboard-view` / `operator-dashboard`.
+
+Die Data-Objects `config.school_setups` und `config.school_setup_dismissals`
+behalten den Write-Owner `settings-platform`; ein Projection-Owner besitzt
+keine Tabelle. Deshalb liegt der Speicher in
+`database/repositories/config` und erfüllt dort den Port `Store` des
+öffentlichen Vertrags.
 
 Dass der Assistent ein eigener Owner ist und nicht ein weiteres Paket von
 `settings-platform`, ist keine Geschmacksfrage: Regeln gelten je Owner und
-Rolle. Neue Kanten für `settings-platform/compose` würden auch dem schon
-vorhandenen Paket `modules/settings/compose` (#2736) erlaubt und wären damit
-eine Lockerung der Policy. Die Regeln `school-setup.*`,
-`inbound-school-setup.to.school-setup`,
-`settings-platform.postgres.school-setup-public`,
-`school-setup-view.integration-test.postgres` und
+Rolle. Neue Kanten für die Rolle `compose` von `settings-platform` würden auch
+dem schon vorhandenen Paket `modules/settings/compose` (#2736) erlaubt und
+wären damit eine Lockerung der Policy. Die Regeln `school-setup.*`,
+`settings-platform.postgres.school-setup-public` und
 `root-composition.to.school-setup-*` hängen nur an den neuen Paketen und
 Rollen. Architektur-Altlasten und Composition-Surface bleiben unverändert.
 

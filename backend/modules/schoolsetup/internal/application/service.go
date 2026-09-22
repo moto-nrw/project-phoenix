@@ -38,7 +38,7 @@ func New(store schoolsetup.Store, progress schoolsetup.Progress, settings school
 
 // Status returns the wizard for the calling person.
 func (s *Service) Status(ctx context.Context, tenantID, accountID int64) (schoolsetup.Status, error) {
-	state, err := s.store.Find(ctx)
+	state, err := s.store.SetupOfSchool(ctx)
 	if err != nil {
 		return schoolsetup.Status{}, err
 	}
@@ -94,7 +94,7 @@ func (s *Service) ConfirmBasics(ctx context.Context, tenantID, accountID int64, 
 	state.ParentAppUsed = &parentAppUsed
 	state.BasicsConfirmedAt = &now
 	state.UpdatedBy = &accountID
-	return s.store.Upsert(ctx, state)
+	return s.store.StoreSetup(ctx, state)
 }
 
 // SetStepSkipped skips a step or takes the skip back. The first step cannot
@@ -113,7 +113,7 @@ func (s *Service) SetStepSkipped(ctx context.Context, tenantID, accountID int64,
 	}
 	state.SetSkipped(step, skipped)
 	state.UpdatedBy = &accountID
-	return s.store.Upsert(ctx, state)
+	return s.store.StoreSetup(ctx, state)
 }
 
 // Complete finishes setup for the whole school once every applicable step is
@@ -139,7 +139,7 @@ func (s *Service) Complete(ctx context.Context, tenantID, accountID int64) error
 	now := s.now()
 	state.CompletedAt = &now
 	state.UpdatedBy = &accountID
-	return s.store.Upsert(ctx, state)
+	return s.store.StoreSetup(ctx, state)
 }
 
 // SetDismissed hides the wizard for the calling person, or brings it back.
@@ -150,7 +150,7 @@ func (s *Service) SetDismissed(ctx context.Context, tenantID, accountID int64, d
 // openState returns the school's state for a write, creating it for a new
 // school, and refuses once setup is completed.
 func (s *Service) openState(ctx context.Context, tenantID int64) (*schoolsetup.State, error) {
-	state, err := s.store.Find(ctx)
+	state, err := s.store.SetupOfSchool(ctx)
 	if err != nil {
 		return nil, err
 	}

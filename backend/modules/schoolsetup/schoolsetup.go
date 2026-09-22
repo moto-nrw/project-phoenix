@@ -1,7 +1,7 @@
 // Package schoolsetup is the public contract of the onboarding wizard for new
 // schools (#2832, ADR 0040): the answers of the first step, the skipped
 // steps, completion and the personal hiding of the wizard. Progress is not
-// stored; the school-setup-view projection derives it on every read.
+// stored; the school-setup progress projection derives it on every read.
 //
 // Every method expects the caller's tenant transaction on ctx.
 package schoolsetup
@@ -168,9 +168,9 @@ func (s *State) SetSkipped(step StepKey, skipped bool) {
 // transaction and whether a person hid the wizard.
 type Store interface {
 	// Find returns the school's state, or (nil, nil) for a new school.
-	Find(ctx context.Context) (*State, error)
+	SetupOfSchool(ctx context.Context) (*State, error)
 	// Upsert replaces the school's state wholesale.
-	Upsert(ctx context.Context, state *State) error
+	StoreSetup(ctx context.Context, state *State) error
 	// IsDismissed reports whether the account hid the wizard.
 	IsDismissed(ctx context.Context, accountID int64) (bool, error)
 	// SetDismissed hides or shows the wizard for the account.
@@ -186,7 +186,7 @@ type Facts struct {
 	GuardianInvited bool
 }
 
-// Progress is the port onto the school-setup-view projection.
+// Progress is the port onto the school-setup progress projection.
 type Progress interface {
 	Facts(ctx context.Context, tenantID int64) (Facts, error)
 }

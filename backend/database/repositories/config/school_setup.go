@@ -11,8 +11,10 @@ import (
 )
 
 const (
-	tableSchoolSetups          = "config.school_setups"
-	tableSchoolSetupsAlias     = `config.school_setups AS "school_setup"`
+	tableSchoolSetups = "config.school_setups"
+	// The alias must match the row struct's name: bun qualifies the selected
+	// columns with the model alias it derives from it.
+	tableSchoolSetupsAlias     = `config.school_setups AS "school_setup_row"`
 	tableSchoolSetupDismissals = "config.school_setup_dismissals"
 )
 
@@ -45,7 +47,7 @@ func NewSchoolSetupRepository(runtime Runtime) schoolsetup.Store {
 }
 
 // Find returns the school's wizard state, or (nil, nil) for a new school.
-func (r *SchoolSetupRepository) Find(ctx context.Context) (*schoolsetup.State, error) {
+func (r *SchoolSetupRepository) SetupOfSchool(ctx context.Context) (*schoolsetup.State, error) {
 	stored := new(schoolSetupRow)
 	err := r.runtime.DB(ctx).NewSelect().
 		Model(stored).
@@ -69,7 +71,7 @@ func (r *SchoolSetupRepository) Find(ctx context.Context) (*schoolsetup.State, e
 }
 
 // Upsert replaces the school's wizard state wholesale.
-func (r *SchoolSetupRepository) Upsert(ctx context.Context, state *schoolsetup.State) error {
+func (r *SchoolSetupRepository) StoreSetup(ctx context.Context, state *schoolsetup.State) error {
 	if state == nil {
 		return errors.New("school setup cannot be nil")
 	}

@@ -2940,7 +2940,7 @@ function firstStepsTopic(): HelpTopic {
     summary: "Eine neue OGS geht die ersten Schritte in einem Fenster durch.",
     group: "einrichten",
     audience: "lead",
-    icon: ListChecks,
+    icon: "ClipboardList",
     requirements: [
       "Ihre OGS ist neu bei moto.",
       "Sie dürfen die Einstellungen Ihrer OGS ändern.",
