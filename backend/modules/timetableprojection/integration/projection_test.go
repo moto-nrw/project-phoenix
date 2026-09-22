@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/presenceprojection"
 	"github.com/moto-nrw/project-phoenix/modules/timetableprojection"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -19,33 +20,49 @@ func TestMain(m *testing.M) {
 	testpkg.Run(m)
 }
 
-func projectionReads(id int64, ids []int64) map[string]func(context.Context, bun.IDB, int64) (any, error) {
+// projectionRead is one exported read with the sentinel and the error
+// prefix its package promises.
+type projectionRead struct {
+	read          func(context.Context, bun.IDB, int64) (any, error)
+	invalidTenant error
+	prefix        string
+}
+
+func timetableRead(read func(context.Context, bun.IDB, int64) (any, error)) projectionRead {
+	return projectionRead{read: read, invalidTenant: timetableprojection.ErrInvalidTenantID, prefix: "timetable projection:"}
+}
+
+func presenceRead(read func(context.Context, bun.IDB, int64) (any, error)) projectionRead {
+	return projectionRead{read: read, invalidTenant: presenceprojection.ErrInvalidTenantID, prefix: "presence projection:"}
+}
+
+func projectionReads(id int64, ids []int64) map[string]projectionRead {
 	date := timezone.NewDate(2026, 9, 4)
-	return map[string]func(context.Context, bun.IDB, int64) (any, error){
-		"group names": func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
+	return map[string]projectionRead{
+		"group names": timetableRead(func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
 			return timetableprojection.GroupNames(ctx, db, tenantID, ids)
-		},
-		"activity groups": func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
+		}),
+		"activity groups": timetableRead(func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
 			return timetableprojection.ActivityGroupsByID(ctx, db, tenantID, ids)
-		},
-		"lock course groups": func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
+		}),
+		"lock course groups": timetableRead(func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
 			return timetableprojection.LockCourseGroups(ctx, db, tenantID, ids)
-		},
-		"course occupancy": func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
+		}),
+		"course occupancy": timetableRead(func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
 			return timetableprojection.CountActiveCourseEnrollments(ctx, db, tenantID, ids, date, date.AddDays(1), 0)
-		},
-		"manual planning": func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
-			return timetableprojection.ListManualPlanningOccurrences(ctx, db, tenantID, id, date, date)
-		},
-		"request enrollments": func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
+		}),
+		"manual planning": presenceRead(func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
+			return presenceprojection.ListManualPlanningOccurrences(ctx, db, tenantID, id, date, date)
+		}),
+		"request enrollments": timetableRead(func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
 			return timetableprojection.CountRequestSourceEnrollments(ctx, db, tenantID, id)
-		},
-		"child enrollments": func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
+		}),
+		"child enrollments": timetableRead(func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
 			return timetableprojection.CountChildSourceEnrollments(ctx, db, tenantID, id, id)
-		},
-		"student enrollments": func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
+		}),
+		"student enrollments": timetableRead(func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
 			return timetableprojection.CountStudentEnrollments(ctx, db, tenantID, id)
-		},
+		}),
 	}
 }
 
@@ -64,8 +81,8 @@ func TestProjectionReadsRejectInvalidTenantBeforeSQL(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				// An ambient valid tenant must not rescue an invalid explicit argument.
 				for _, invalid := range []int64{0, -1} {
-					result, err := read(ctx, tx, invalid)
-					assert.ErrorIs(t, err, timetableprojection.ErrInvalidTenantID)
+					result, err := read.read(ctx, tx, invalid)
+					assert.ErrorIs(t, err, read.invalidTenant)
 					assert.Empty(t, result)
 				}
 			})
@@ -84,9 +101,9 @@ func TestProjectionReadsPreserveDatabaseErrors(t *testing.T) {
 	require.NoError(t, tx.Rollback())
 	for name, read := range projectionReads(group.ID, []int64{group.ID}) {
 		t.Run(name, func(t *testing.T) {
-			_, err := read(ctx, tx, testpkg.Tenant(t))
+			_, err := read.read(ctx, tx, testpkg.Tenant(t))
 			assert.ErrorIs(t, err, sql.ErrTxDone)
-			assert.ErrorContains(t, err, "timetable projection:")
+			assert.ErrorContains(t, err, read.prefix)
 		})
 	}
 	// Empty batch reads still succeed without touching the database for valid tenants.

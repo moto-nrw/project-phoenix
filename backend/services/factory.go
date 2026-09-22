@@ -1296,7 +1296,7 @@ func newFactory(
 	// Later pickups open a block decision for the Leitung (#3261).
 	pickupAutoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
 		DB: db, Records: repos.CarePlan(), Baselines: pickupBaselines,
-		Blocks: timetableCapability, Preview: pickupExcusalTimetable{timetableCapability}, Extensions: pickupExcusalTimetable{timetableCapability},
+		Blocks: newStudentPresence(db, logger), Preview: newPickupExcusalTimetable(timetableCapability, db), Extensions: newPickupExcusalTimetable(timetableCapability, db),
 	})
 	if err != nil {
 		return nil, err
@@ -1337,7 +1337,7 @@ func newFactory(
 	}
 	iotService := iot.NewService(deviceFleet)
 
-	partialAbsenceService, err := careplanCompose.NewPartialAbsences(db, repos.CarePlan(), timetableCapability, pickupAutoExcusal)
+	partialAbsenceService, err := careplanCompose.NewPartialAbsences(db, repos.CarePlan(), newStudentPresence(db, logger), pickupAutoExcusal)
 	if err != nil {
 		return nil, err
 	}
@@ -2608,7 +2608,7 @@ func newFactory(
 	// facades are its tenant-safe reads, the retained schedule services its
 	// compatibility bindings.
 	slotListsService := classdayCompose.NewSlotLists(classdayCompose.SlotListDependencies{
-		Timetable:       timetableCapability,
+		Timetable:       repositories.NewClassDayTimetableRows(db),
 		Presence:        newStudentPresence(db, logger),
 		CarePlan:        repos.CarePlan(),
 		Students:        persons,
@@ -2942,7 +2942,7 @@ func newFactory(
 		StudentHistory:       presenceservice.NewStudentHistory(newStudentPresence(db, logger), historyRoomNames(rooms), NewDataAccessAudit(repos.DataAccessLog), NewHistorySlots(repos.InstanceStudent)),
 		Statistics: newStatistics(db, logger, presenceCompose.StatisticsDependencies{
 			StatusDays:  statisticsStatusDays{repos.CarePlan()},
-			Courses:     statisticsReportCourses{timetableCapability},
+			Courses:     newCourseStatistics(db),
 			Holidays:    tenantHolidays{calendar: calendar},
 			ClosingDays: tenantClosingDays{calendar: calendar},
 			Periods:     statisticsReportPeriods{calendar},

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
@@ -99,11 +98,7 @@ func newOwnerCapabilitiesForTests(db *bun.DB) (ownerCapabilities, error) {
 	if err != nil {
 		return ownerCapabilities{}, err
 	}
-	careLocks, err := carePlanCompose.NewDayLocks(db, persons.LockStudent, peopledirectory.ErrStudentNotFound)
-	if err != nil {
-		return ownerCapabilities{}, err
-	}
-	timetableCapability, err := repositories.NewTimetable(db, persons, rooms, careLocks)
+	timetableCapability, err := repositories.NewTimetable(db, persons, rooms)
 	if err != nil {
 		return ownerCapabilities{}, err
 	}

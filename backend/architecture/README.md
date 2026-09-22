@@ -209,6 +209,34 @@ two consumers that could only reach the adapter and the moved behavior suites
 use the one-time replacement path of
 [ADR 0035](../../docs/adr/0035-care-lifecycle-cutover-replaces-legacy-permissions.md).
 
+#2762 cut the execution and the attendance of a block over to Student
+Presence (migration 1.15.413, one release with the caller switch). Timetable
+& Activities keeps the plan in `schedule.activity_instances` and
+`schedule.instance_students`; Student Presence owns `active.activity_sessions`
+(status active/completed, live group, actor, timestamps, completion snapshot)
+and `active.activity_session_attendance` (status, substatus, note, check-in and
+checkout, walk-in and non-booking markers, manual decision, care-plan
+provenance). Timetable asks the owner which planned rows already run, ended,
+were observed or are not booked through its consumer-owned `SessionFacts`
+port (`timetable/compose.NewPresenceSessionFacts`); Student Presence resolves
+the participants of its attendance rules (reported day statuses, partial
+excusals, block end) through its `PlannedRoster` port, bound in
+`database/repositories/presence_bindings.go`. The retained list endpoints
+still read one row per block or participant, so the tenant-safe projection
+`modules/presenceprojection` (owner `presence-legacy-view`) joins the plan
+with the owner rows in one statement each (`ListLegacyInstances`,
+`ListLegacyParticipants`, the partial-absence, parallel-presence, course and
+manual-planning reads), and `timetable/compose.PresenceReads` wraps it for
+the legacy composition. The old execution and attendance columns stay as a
+trigger-kept rollback mirror with the `active.presence_compatibility_writes`
+counter until #2763; `TestPresenceStorageCallerInventory` keeps every
+provider off them. The later-pickup decision that writes to both owners is
+bound at the composition root (`api/pickup_extensions.go`) rather than as a
+new workflow owner. `database/repositories/student_presence.go`, the old
+provider, is gone. The evidence lives in
+[presence-cutover-2762.json](presence-cutover-2762.json) and the runbook in
+[docs/operations/presence-storage-cutover-2762.md](../../docs/operations/presence-storage-cutover-2762.md).
+
 The staff messaging writes live in the Communication Postgres adapter
 `modules/communication/internal/adapters/staffpostgres`. The inbox and unread
 badge join People Directory's person rows, so they read through the tenant-safe

@@ -85,7 +85,7 @@ func NewSessionCleanupRepositories(db *bun.DB, timetableCapability timetable.Cap
 	})
 	return SessionCleanupRepositories{
 		Sessions: sessions, Device: device,
-		TimetableBridge: timetableActivityInstanceRepository{timetable: timetableCapability},
+		TimetableBridge: newTimetableActivityInstanceRepository(db, timetableCapability, newStudentPresence(db)),
 	}
 }
 
@@ -117,10 +117,11 @@ func NewTimetableCleanupRepositories(db *bun.DB, command auditModels.Command, ti
 		panic("timetable cleanup repositories: timetable capability is required")
 	}
 	deletions := auditRepo.NewDataDeletionRepository(auditRootRuntime(db))
+	presence := newStudentPresence(db)
 	return TimetableCleanupRepositories{
-		Instance:  timetableActivityInstanceRepository{timetable: timetableCapability},
+		Instance:  newTimetableActivityInstanceRepository(db, timetableCapability, presence),
 		Exception: timetableActivityExceptionRepository{timetable: timetableCapability},
-		Student:   timetableInstanceStudentRepository{timetable: timetableCapability}, Deletion: RouteDataDeletionWrites(deletions, command),
+		Student:   newTimetableInstanceStudentRepository(db, timetableCapability, presence), Deletion: RouteDataDeletionWrites(deletions, command),
 		Deviation: auditRepo.NewDeviationEventRepository(auditRootRuntime(db)),
 	}
 }

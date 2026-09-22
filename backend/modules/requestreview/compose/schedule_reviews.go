@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentcompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetablecompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/uptrace/bun"
 )
@@ -28,19 +27,18 @@ type ScheduleReviewDependencies struct {
 	Today                 func() careplan.Date
 	ObserveCare           func(CareObservation)
 	ObserveTimetable      func(timetablecompose.Observation)
+	// Blocks previews the blocks a pickup change would excuse; the root
+	// binds it over the Timetable plan and the Student Presence execution.
+	Blocks carecompose.PickupReviewBlocks
 }
 
 // NewScheduleReviews binds native owner reads. No retained service is needed
 // to resolve a child's recurring schedule or preview a pickup change.
 func NewScheduleReviews(db *bun.DB, deps ScheduleReviewDependencies) (careplan.CareScheduleReviewQuery, error) {
-	if deps.People == nil {
-		return nil, errors.New("care schedule reviews: people are required")
+	if deps.People == nil || deps.Blocks == nil {
+		return nil, errors.New("care schedule reviews: people and pickup review blocks are required")
 	}
 	classes, err := timetablecompose.NewClassArrivalQueries(db, deps.ObserveTimetable)
-	if err != nil {
-		return nil, err
-	}
-	blocks, err := timetablecompose.NewPickupReviewQueries(db, deps.ObserveTimetable)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +46,7 @@ func NewScheduleReviews(db *bun.DB, deps ScheduleReviewDependencies) (careplan.C
 		People:   scheduleReviewDirectory{reviewDirectory: reviewDirectory{people: deps.People}, departures: deps.People},
 		Bookings: scheduleReviewBookings{query: enrollmentcompose.New(), bookings: carecompose.NewOfferingBookings()}, Classes: classes,
 		Scope: deps.Scope, BookingsAuthoritative: deps.BookingsAuthoritative, Today: deps.Today,
-		Blocks: scheduleReviewBlocks{query: blocks}, Fingerprint: pickupImpactFingerprint,
+		Blocks: deps.Blocks, Fingerprint: pickupImpactFingerprint,
 	})
 }
 
@@ -99,20 +97,6 @@ func (b scheduleReviewBookings) ApprovedForStudents(ctx context.Context, ids []i
 			booking.ValidUntil = *row.ValidUntil
 		}
 		result = append(result, booking)
-	}
-	return result, nil
-}
-
-type scheduleReviewBlocks struct{ query timetable.PickupReviewQuery }
-
-func (b scheduleReviewBlocks) PreviewPickupBlocks(ctx context.Context, input carecompose.PickupReviewImpact) ([]carecompose.PickupReviewBlock, error) {
-	rows, err := b.query.PreviewPickupBlocks(ctx, timetable.PickupReviewInput{StudentID: input.StudentID, Date: input.Date.String(), From: input.From, Enrolled: input.Enrolled, AutoExceptionIDs: input.AutoExceptionIDs})
-	if err != nil {
-		return nil, err
-	}
-	result := make([]carecompose.PickupReviewBlock, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, carecompose.PickupReviewBlock{ID: row.ID, Title: row.Title, StartTime: row.StartTime, EndTime: row.EndTime})
 	}
 	return result, nil
 }

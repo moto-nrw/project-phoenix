@@ -12,7 +12,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func newCareExitBaselineModule(t *testing.T, db *bun.DB) *timetable.Module {
+func newCareExitBaselineModule(t *testing.T, db *bun.DB, sessions timetable.SessionFacts) *timetable.Module {
 	t.Helper()
 	module, err := New(Dependencies{
 		LockStaffAssignment: func(context.Context, int64) error { return nil },
@@ -21,7 +21,7 @@ func newCareExitBaselineModule(t *testing.T, db *bun.DB) *timetable.Module {
 		Rooms: timetable.RoomDirectoryFunc(func(context.Context, []int64) ([]timetable.RoomRef, error) {
 			return nil, nil
 		}),
-		CareDays: testCareDays(), CarePlan: unusedCarePlanDirectory{}, Observe: func(Observation) {},
+		Sessions: sessions, Observe: func(Observation) {},
 	})
 	require.NoError(t, err)
 	return module
@@ -34,7 +34,8 @@ func newCareExitBaselineModule(t *testing.T, db *bun.DB) *timetable.Module {
 func TestCareExitBaselineCountsPlannedRosterWithRestorableRows(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module := newCareExitBaselineModule(t, db)
+	facts := &fixedSessions{}
+	module := newCareExitBaselineModule(t, db, facts)
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Roster", "Preview", "1a")
 	room := testpkg.CreateTestRoom(t, db, "Roster preview")
@@ -47,7 +48,8 @@ func TestCareExitBaselineCountsPlannedRosterWithRestorableRows(t *testing.T) {
 	testpkg.CreateTestInstanceStudent(t, db, live.ID, student.ID, "absent")
 	testpkg.CreateTestInstanceStudent(t, db, lastDay.ID, student.ID, "expected")
 	at := after.BerlinMidnight()
-	testpkg.CreateTestInstanceStudent(t, db, observed.ID, student.ID, "present", testpkg.InstanceStudentOpts{CheckedInAt: &at})
+	observedRow := testpkg.CreateTestInstanceStudent(t, db, observed.ID, student.ID, "present", testpkg.InstanceStudentOpts{CheckedInAt: &at})
+	facts.observed = []int64{observedRow.ID}
 	otherTenant, _ := testpkg.CreateTestTenant(t, db)
 	tenantID := testpkg.Tenant(t)
 	restorable := []timetable.CareExitRosterRow{
@@ -77,7 +79,8 @@ func TestCareExitBaselineCountsPlannedRosterWithRestorableRows(t *testing.T) {
 func TestCareExitBaselineCountsRunningEnrollmentsWithRestorableBookings(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module := newCareExitBaselineModule(t, db)
+	facts := &fixedSessions{}
+	module := newCareExitBaselineModule(t, db, facts)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	student := testpkg.CreateTestStudent(t, db, "Booking", "Preview", "1a")

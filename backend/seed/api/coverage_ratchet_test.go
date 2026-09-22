@@ -30,10 +30,6 @@ import (
 var seedCoverageExemptions = map[string]string{
 	"active.presence_backfill_checkpoints": "one-time migration ledger (#2761); only the explicit backfill CLI writes checkpoints, never seed/API traffic",
 	"active.presence_backfill_batches":     "one-time migration evidence (#2761); empty unless an operator explicitly runs the backfill",
-	// Expand #2718 explicitly requires empty targets and forbids dual writes.
-	// Remove these exemptions when #2762 switches the real seed/API callers.
-	"active.activity_sessions":           "empty Expand target (#2718); old timetable rows remain authoritative until #2762",
-	"active.activity_session_attendance": "empty Expand target (#2718); old participant rows remain authoritative until #2762",
 	// Expand #2716 explicitly requires empty targets and forbids dual writes.
 	// Remove these exemptions when the guardian Cutover switches the real seed/API callers.
 	"users.student_guardian_relationships":      "empty Expand target (#2716); users.students_guardians remains authoritative until Cutover",

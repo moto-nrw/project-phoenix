@@ -17,21 +17,43 @@ func (s *Service) CountPlannedRosterForCareExit(ctx context.Context, studentIDs 
 		return counts, nil
 	}
 	err = s.run("count_planned_roster_for_care_exit", func(stats *domain.OperationStats) error {
-		live, measured, err := s.store.CountPlannedRosterForCareExit(ctx, studentIDs, after)
-		stats.Add(measured)
+		live, err := s.plannedCareExitRoster(ctx, studentIDs, after, stats)
 		if err != nil {
 			return err
 		}
-		addCareExitCounts(counts, live)
+		for _, row := range live {
+			counts[row.StudentID]++
+		}
 		if len(restorable) == 0 {
 			return nil
 		}
-		restored, measured, err := s.store.CountRestorableRosterForCareExit(ctx, studentIDs, after, restorable)
-		stats.Add(measured)
-		addCareExitCounts(counts, restored)
-		return err
+		return s.countRestorableCareExitRoster(ctx, studentIDs, after, restorable, counts, stats)
 	})
 	return counts, err
+}
+
+// countRestorableCareExitRoster adds the archived rows a care exit could
+// restore, except those of blocks that already ended.
+func (s *Service) countRestorableCareExitRoster(ctx context.Context, studentIDs []int64, after string, restorable []domain.CareExitRosterRow, counts map[int64]int, stats *domain.OperationStats) error {
+	restored, measured, err := s.store.ListRestorableRosterForCareExit(ctx, studentIDs, after, restorable)
+	stats.Add(measured)
+	if err != nil {
+		return err
+	}
+	instanceIDs := make([]int64, 0, len(restored))
+	for _, row := range restored {
+		instanceIDs = append(instanceIDs, row.InstanceID)
+	}
+	completed, err := s.completedInstanceIDs(ctx, sortedUniqueIDs(instanceIDs))
+	if err != nil {
+		return err
+	}
+	for _, row := range restored {
+		if !completed[row.InstanceID] {
+			counts[row.StudentID]++
+		}
+	}
+	return nil
 }
 
 // CountRunningEnrollmentsForCareExit measures the bookings a care exit ending

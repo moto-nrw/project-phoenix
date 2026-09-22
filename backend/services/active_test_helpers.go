@@ -165,7 +165,7 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	groups.Users = data.Users
 	yard := facilities.NewSchulhofService(data.Facilities, facilitiesLegacy.ActivityCatalog(data.Activities), facilitiesLegacy.OpenGroupCatalog(facilitiesGroupSupervisions(newStudentPresence(db, logger)), facilitiesRoomSessions(newStudentPresence(db, logger)), facilitiesGroupVisits(newStudentPresence(db, logger))), logger)
 	autoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
-		DB: db, Records: carePlan, Baselines: pickup, Blocks: r.Timetable, Preview: pickupExcusalTimetable{r.Timetable},
+		DB: db, Records: carePlan, Baselines: pickup, Blocks: newStudentPresence(db, logger), Preview: newPickupExcusalTimetable(r.Timetable, db),
 	})
 	if err != nil {
 		return ActiveTestModule{}, err
@@ -193,7 +193,7 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 		StudentRepo: r.Student, EducationGroupRepo: r.Group, RoomRepo: r.Room, PersonService: timetableOperationPeople{OperationPersonService: data.Users, membership: membership}, PlanningTrackRepo: r.PlanningTrack,
 		Settings: settings.Settings, Broadcaster: hub, DB: db, Logger: logger, Now: optionalClock(clocks), RecoveryRepo: repositories.NewActivityRecoveryRepository(db, r.InstanceStudent),
 	})
-	timetableOwner, err := repositories.NewTimetable(db, students, rooms, carePlan)
+	timetableOwner, err := repositories.NewTimetable(db, students, rooms)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
@@ -204,7 +204,7 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 		return ActiveTestModule{}, fmt.Errorf("compose supervision dashboard projection: %w", err)
 	}
 	sessionEnd, err := sessionEndCompose.New(sessionEndCompose.Dependencies{
-		Presence: newStudentPresence(db, logger), Timetable: timetableOwner, Completion: bridge, Students: students, Rooms: rooms,
+		Presence: newStudentPresence(db, logger), Sessions: newStudentPresence(db, logger), Timetable: timetableOwner, Completion: bridge, Students: students, Rooms: rooms,
 		Broadcaster: hub, Observe: func(sessionEndCompose.Observation) {}, Now: optionalClock(clocks),
 	})
 	if err != nil {

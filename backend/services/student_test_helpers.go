@@ -155,7 +155,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		return StudentTestModule{}, err
 	}
 	pickupAutoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
-		DB: db, Records: repos.CarePlan, Baselines: pickupBaselines, Blocks: repos.Timetable, Preview: pickupExcusalTimetable{repos.Timetable},
+		DB: db, Records: repos.CarePlan, Baselines: pickupBaselines, Blocks: newStudentPresence(db, logger), Preview: newPickupExcusalTimetable(repos.Timetable, db),
 	})
 	if err != nil {
 		return StudentTestModule{}, err
@@ -170,7 +170,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		Broadcaster: realtimeHub,
 		Logger:      logger.With("service", "parent-events"),
 	})
-	partialAbsenceService, err := careplanCompose.NewPartialAbsences(db, repos.CarePlan, repos.Timetable, pickupAutoExcusal)
+	partialAbsenceService, err := careplanCompose.NewPartialAbsences(db, repos.CarePlan, newStudentPresence(db, logger), pickupAutoExcusal)
 	if err != nil {
 		return StudentTestModule{}, err
 	}

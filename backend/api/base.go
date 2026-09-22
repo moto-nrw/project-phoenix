@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/dataimport/fileformat"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 
 	sentryhttp "github.com/getsentry/sentry-go/http"
 	"github.com/go-chi/chi/v5"
@@ -208,31 +210,16 @@ func NewCleanupTimetable(db *bun.DB) (timetableModule.Capability, error) {
 	if err != nil {
 		return nil, err
 	}
-	careLocks, err := carePlanCompose.NewDayLocks(db, students.LockStudent, peopleModule.ErrStudentNotFound)
-	if err != nil {
-		return nil, err
-	}
-	return repositories.NewTimetable(db, students, rooms, careLocks)
+	return repositories.NewTimetable(db, students, rooms)
 }
 
 func composeTimetable(db *bun.DB, persons *peopleModule.Module, rooms *facilitiesModule.Module, membership *schoolMembershipModule.Module) (*timetableModule.Module, error) {
-	careQueries, err := repositories.NewTimetableCarePlanQueries(db, func(observation carePlanCompose.Observation) {
-		observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
-	})
-	if err != nil {
-		return nil, err
-	}
-	careLocks, err := carePlanCompose.NewDayLocks(db, persons.LockStudent, peopleModule.ErrStudentNotFound)
-	if err != nil {
-		return nil, err
-	}
 	return timetableCompose.New(timetableCompose.Dependencies{
 		LockStaffAssignment: func(ctx context.Context, staffID int64) error {
 			_, err := membership.FindStaffForMutation(ctx, staffID)
 			return err
 		},
-		CarePlan: careQueries,
-		DB:       db, Students: timetableStudents(persons), Rooms: timetableRooms(rooms), CareDays: careLocks,
+		DB: db, Students: timetableStudents(persons), Rooms: timetableRooms(rooms), Sessions: repositories.NewPresenceFacts(db),
 		Observe: func(observation timetableCompose.Observation) {
 			observability.ObserveTimetableActivitiesOperation(
 				observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows,
@@ -1292,7 +1279,8 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
 			return api.Services.Settings.ResolveBool(ctx, reviewsettings.BookingsAuthoritative)
 		},
-		Today: carePlanCompose.Today,
+		Today:  carePlanCompose.Today,
+		Blocks: repositories.NewPickupReviewBlocks(db),
 		ObserveCare: func(observation requestreviewcompose.CareObservation) {
 			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
 		},
@@ -1547,7 +1535,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		Active:     api.Services.Active,
 		Users:      api.Services.Users,
 		Activities: api.Services.Activities,
-		Rosters:    timetableModule.SessionRosters{Query: modules.timetable},
+		Rosters:    repositories.SessionRosters{Sessions: presence, Roster: modules.timetable},
 		Education:  api.Services.Education,
 		Pickups:    api.Services.PickupSchedule,
 		Settings:   api.Services.Settings,
@@ -1590,6 +1578,10 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.Substitutions = workforceInbound.NewSubstitutionsResource(services.SubstitutionCapability(api.Services.Substitution), db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
 	api.TimeTracking = newTimeTrackingResource(api.Services, modules.calendar, db)
+	pickupExtensions, err := newPickupExtensions(modules.timetable, presence)
+	if err != nil {
+		return err
+	}
 	api.Timetable = timetableAPI.NewResource(timetableAPI.Dependencies{
 		CalendarPeriods:         modules.calendar,
 		ClosingDays:             modules.calendar,
@@ -1609,7 +1601,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		OfferingSourceOptions:   offeringSourceOptions(api.Services.EnrollmentDecision),
 		ReportService:           api.Services.EnrollmentReport,
 		PlanExportService:       api.Services.PlanExport,
-		PickupExtensions:        modules.timetable,
+		PickupExtensions:        pickupExtensions,
 		Broadcaster:             api.Services.RealtimeHub,
 		Logger:                  logger.With("handler", "timetable"),
 		DB:                      db,
@@ -2130,4 +2122,23 @@ func newSessionTokenAuth() (*projectJWT.TokenAuth, error) {
 		return nil, fmt.Errorf("invalid auth JWT configuration: %w", err)
 	}
 	return tokenAuth, nil
+}
+
+// newStudentPresence composes the Student Presence owner for the serving
+// root with its attendance rules bound to the Timetable planned roster and
+// the Care Plan reads (#2762).
+func newStudentPresence(db *bun.DB, logger *slog.Logger) *studentpresence.Module {
+	module, err := repositories.NewStudentPresence(db, func(o presenceCompose.Observation) {
+		logger.Debug("student presence operation",
+			"operation", o.Operation,
+			"duration", o.Duration,
+			"queries", o.Queries,
+			"rows", o.Rows,
+			"error", o.Err,
+		)
+	})
+	if err != nil {
+		panic(err)
+	}
+	return module
 }

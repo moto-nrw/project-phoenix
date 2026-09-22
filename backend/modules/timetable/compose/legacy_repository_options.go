@@ -551,3 +551,9 @@ func translateNotFound(err error) error {
 	}
 	return errors.Join(modelBase.ErrNotFound, err)
 }
+
+// InstanceStudentDay is the Berlin calendar day of an instant as the legacy
+// adapters compare it with a planned participant's date.
+func InstanceStudentDay(at time.Time) string {
+	return timezone.DateFromTime(at).String()
+}

@@ -77,7 +77,10 @@ type stack struct {
 func newStack(t *testing.T) *stack {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	plan := timetabletest.New(t, db)
+	// The slot check-outs of the close are a Student Presence attendance rule
+	// that resolves its participants through the Timetable plan (#2762).
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}, Roster: plannedRoster{plan: plan}})
 	require.NoError(t, err)
 	people, err := peopleCompose.New(peopleCompose.Dependencies{DB: db, Observe: func(peopleCompose.Observation) {}})
 	require.NoError(t, err)
@@ -90,7 +93,7 @@ func newStack(t *testing.T) *stack {
 	require.NoError(t, err)
 	s := &stack{
 		presence:   presence,
-		timetable:  timetabletest.New(t, db),
+		timetable:  plan,
 		completion: &recordingCompletion{},
 		bc:         testpkg.NewRecordingBroadcaster(),
 		waker:      &recordingWaker{},
@@ -137,6 +140,7 @@ func newStack(t *testing.T) *stack {
 	}
 	s.command, err = compose.New(compose.Dependencies{
 		Presence:    presence,
+		Sessions:    presence,
 		Timetable:   s.timetable,
 		Completion:  s.completion,
 		Students:    people,
@@ -357,10 +361,10 @@ func TestEndSessionRespectsTwoTenantRLS(t *testing.T) {
 	assert.False(t, foreignEnded)
 	assert.False(t, foreignSupervisorEnded)
 	assert.Equal(t, 2, s.openVisits(t, foreignCtx, foreign.visitIDs))
-	foreignInstances, err := s.timetable.ListActivityInstances(foreignCtx, timetable.ActivityInstanceFilter{IDs: []int64{foreign.instanceID}})
+	foreignSessions, err := s.presence.ListActivitySessions(foreignCtx, studentpresence.ActivitySessionFilter{InstanceIDs: []int64{foreign.instanceID}})
 	require.NoError(t, err)
-	require.Len(t, foreignInstances, 1)
-	assert.Equal(t, "active", foreignInstances[0].Status)
+	require.Len(t, foreignSessions, 1)
+	assert.Equal(t, studentpresence.ActivitySessionActive, foreignSessions[0].Status, "the other school's block keeps running")
 	for _, call := range s.bc.Calls() {
 		assert.Equal(t, testpkg.Tenant(t), call.TenantID, "announcements stay inside the closing tenant")
 	}
@@ -370,3 +374,28 @@ func TestEndSessionRespectsTwoTenantRLS(t *testing.T) {
 }
 
 func itoa(id int64) string { return strconv.FormatInt(id, 10) }
+
+// plannedRoster serves the Student Presence roster port from the Timetable
+// plan of the test stack.
+type plannedRoster struct{ plan timetable.Capability }
+
+func (r plannedRoster) ListPlannedParticipants(ctx context.Context, filter studentpresence.PlannedRosterFilter) ([]studentpresence.PlannedParticipant, error) {
+	query := timetable.InstanceStudentFilter{IDs: filter.IDs, InstanceIDs: filter.InstanceIDs, StudentIDs: filter.StudentIDs, ExcludeCancelled: filter.ExcludeCancelled}
+	if filter.Date != "" {
+		date := filter.Date
+		query.Date = &date
+	}
+	if filter.FromClock != "" {
+		clock := filter.FromClock
+		query.FromClock = &clock
+	}
+	rows, err := r.plan.ListPlannedInstanceStudents(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]studentpresence.PlannedParticipant, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, studentpresence.PlannedParticipant(row))
+	}
+	return result, nil
+}

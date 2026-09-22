@@ -30,7 +30,7 @@ func runPresenceMigration(ctx context.Context, db *testpkg.DB, name string, up b
 
 func TestPresenceExpandColumnMapping(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupPresenceStorageBeforeCutover(t)
 	for _, tc := range []struct {
 		target, source string
 		columns        []string
@@ -105,7 +105,7 @@ func requirePresenceSQLState(t *testing.T, err error, state string) {
 
 func TestPresenceExpandTenantIsolation(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupPresenceStorageBeforeCutover(t)
 	a, b := createPresenceExpandFixture(t, db), createPresenceExpandFixture(t, db)
 	for _, table := range []string{"activity_sessions", "activity_session_attendance"} {
 		t.Run(table, func(t *testing.T) {
@@ -171,7 +171,7 @@ func TestPresenceExpandTenantIsolation(t *testing.T) {
 
 func TestPresenceExpandConstraints(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupPresenceStorageBeforeCutover(t)
 	a, b := createPresenceExpandFixture(t, db), createPresenceExpandFixture(t, db)
 	_, err := db.ExecContext(t.Context(), `INSERT INTO active.activity_sessions
 		(tenant_id, schedule_instance_id, active_group_id, started_by) VALUES (?, ?, ?, ?)`, a.tenant, a.instance, a.group, a.staff)
@@ -267,6 +267,7 @@ func assertPresenceTargetsEmpty(t *testing.T, db *testpkg.DB) {
 func TestPresenceExpandUpDownPreservesOldAuthority(t *testing.T) {
 	t.Parallel()
 	db := setupIsolatedStaffStorageBeforeCutover(t)
+	testpkg.RestorePresenceStorageBeforeCutover(t, db)
 	f := createPresenceExpandFixture(t, db)
 	assertPresenceTargetsEmpty(t, db)
 	require.NoError(t, runPresenceMigration(t.Context(), db, "001015378", false))
@@ -317,7 +318,7 @@ func TestPresenceExpandUpDownPreservesOldAuthority(t *testing.T) {
 
 func TestPresenceExpandRollbackRefusesPopulatedTargets(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupPresenceStorageBeforeCutover(t)
 	f := createPresenceExpandFixture(t, db)
 	for _, tc := range []struct {
 		table, column string
@@ -342,7 +343,7 @@ func TestPresenceExpandRollbackRefusesPopulatedTargets(t *testing.T) {
 
 func TestPresenceExpandReferenceDeletion(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupPresenceStorageBeforeCutover(t)
 	f := createPresenceExpandFixture(t, db)
 	account := testpkg.CreateTestAccount(t, db, "presence-expand@example.test")
 	_, err := db.ExecContext(t.Context(), `INSERT INTO active.activity_sessions
@@ -380,7 +381,7 @@ func TestPresenceExpandReferenceDeletion(t *testing.T) {
 
 func TestPresenceExpandCatalogAndDefaults(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupPresenceStorageBeforeCutover(t)
 	for _, table := range []string{"activity_sessions", "activity_session_attendance"} {
 		var forced bool
 		require.NoError(t, db.NewRaw(`SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid = ?::regclass`, "active."+table).Scan(t.Context(), &forced))
@@ -435,7 +436,7 @@ func TestPresenceExpandCatalogAndDefaults(t *testing.T) {
 
 func TestPresenceExpandFailureIsAtomic(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupPresenceStorageBeforeCutover(t)
 	require.NoError(t, runPresenceMigration(t.Context(), db, "001015378", false))
 	// Fail after the first table has been created, before RLS provisioning.
 	_, err := db.ExecContext(t.Context(), `CREATE TABLE active.activity_session_attendance (probe BOOLEAN)`)

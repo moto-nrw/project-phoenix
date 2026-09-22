@@ -34,7 +34,7 @@ func TestOperationalDateEditRejectsAssignmentsAddedAfterDiscovery(t *testing.T) 
 			interleaved := false
 			editor, err := New(Dependencies{DB: db,
 				Students: StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) { return nil, nil }),
-				Rooms:    testRooms(), CareDays: testCareDays(), CarePlan: unusedCarePlanDirectory{},
+				Rooms:    testRooms(), Sessions: &fixedSessions{},
 				Observe: func(Observation) {},
 				LockStaffAssignment: func(context.Context, int64) error {
 					if !interleaved {
@@ -72,11 +72,11 @@ func TestOffboardingTimetableKeepsTodaysNonPlannedAssignments(t *testing.T) {
 	module := buildModule(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "SameDay", "Offboarding")
 	fixture := newOwnedActivityInstanceFixture(t, db, "offboarding-same-day")
-	completed := createOwnedInstanceWithStatus(t, module, ctx, fixture, "2027-10-02", "08:00:00", "Completed", "completed")
+	completed := createOwnedActivityInstance(t, module, ctx, fixture, "2027-10-02", "08:00:00", "Completed")
 	planned := createOwnedActivityInstance(t, module, ctx, fixture, "2027-10-02", "10:00:00", "Planned")
 	history := createOwnedInstanceStaff(t, module, ctx, completed.ID, staff.ID, true, false)
 	future := createOwnedInstanceStaff(t, module, ctx, planned.ID, staff.ID, true, false)
-	offboarding, err := NewOffboarding(OffboardingDependencies{DB: db, Observe: func(Observation) {}})
+	offboarding, err := NewOffboarding(OffboardingDependencies{DB: db, Sessions: &fixedSessions{completed: []int64{completed.ID}}, Observe: func(Observation) {}})
 	require.NoError(t, err)
 	preview, err := offboarding.Preview(ctx, staff.ID, "2027-10-02")
 	require.NoError(t, err)
@@ -98,7 +98,7 @@ func TestOffboardingTimetableDetectsActivityDateDrift(t *testing.T) {
 	fixture := newOwnedActivityInstanceFixture(t, db, "offboarding-date-drift")
 	instance := createOwnedActivityInstance(t, module, ctx, fixture, "2027-10-01", "08:00:00", "Past")
 	assignment := createOwnedInstanceStaff(t, module, ctx, instance.ID, staff.ID, true, false)
-	offboarding, err := NewOffboarding(OffboardingDependencies{DB: db, Observe: func(Observation) {}})
+	offboarding, err := NewOffboarding(OffboardingDependencies{DB: db, Sessions: &fixedSessions{}, Observe: func(Observation) {}})
 	require.NoError(t, err)
 	preview, err := offboarding.Preview(ctx, staff.ID, "2027-10-02")
 	require.NoError(t, err)
@@ -124,7 +124,7 @@ func TestOffboardingTimetableRetainsHistoryAndRollsBack(t *testing.T) {
 	future := createOwnedInstanceStaff(t, module, ctx, futureInstance.ID, staff.ID, true, false)
 	group := testpkg.CreateTestActivityGroup(t, db, "Offboarding planned supervisor")
 	supervisor := createOwnedSupervisor(t, module, ctx, staff.ID, group.ID, false)
-	offboarding, err := NewOffboarding(OffboardingDependencies{DB: db, Observe: func(Observation) {}})
+	offboarding, err := NewOffboarding(OffboardingDependencies{DB: db, Sessions: &fixedSessions{}, Observe: func(Observation) {}})
 	require.NoError(t, err)
 	preview, err := offboarding.Preview(ctx, staff.ID, "2027-10-02")
 	require.NoError(t, err)

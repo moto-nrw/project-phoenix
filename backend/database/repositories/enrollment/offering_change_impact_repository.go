@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/presenceprojection"
 	"github.com/moto-nrw/project-phoenix/modules/timetableprojection"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -34,7 +35,7 @@ func (r *OfferingChangeImpactRepository) ListManualPlanningOccurrences(ctx conte
 	if fromErr != nil || toErr != nil || toDate.Before(fromDate) {
 		return nil, fmt.Errorf("valid planning date range is required")
 	}
-	rows, err := timetableprojection.ListManualPlanningOccurrences(ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), studentID, fromDate, toDate)
+	rows, err := presenceprojection.ListManualPlanningOccurrences(ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), studentID, fromDate, toDate)
 	if err != nil {
 		return nil, err
 	}

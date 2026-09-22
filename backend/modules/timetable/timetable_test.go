@@ -31,8 +31,6 @@ type recordingEngine struct {
 	rejections []string
 }
 
-func (e *recordingEngine) BindCarePlan(timetable.CarePlanDirectory) { e.calls++ }
-
 func (e *recordingEngine) CountCalendarPeriodReferences(context.Context) (map[int64]timetable.CalendarPeriodReferences, error) {
 	e.calls++
 	return nil, nil
@@ -41,35 +39,6 @@ func (e *recordingEngine) CountCalendarPeriodReferences(context.Context) (map[in
 func (e *recordingEngine) LockInstanceStudentAssignments(context.Context, int64) error {
 	e.calls++
 	return nil
-}
-func (e *recordingEngine) RestoreInstanceStudentAttendance(context.Context, int64, []timetable.CompletionAttendance) error {
-	e.calls++
-	return nil
-}
-
-func (e *recordingEngine) CourseInstances(context.Context, string, string, string) ([]timetable.CourseInstanceRow, error) {
-	e.calls++
-	return nil, nil
-}
-
-func (e *recordingEngine) CourseParticipation(context.Context, string, string, string) ([]timetable.CourseParticipationRow, error) {
-	e.calls++
-	return nil, nil
-}
-
-func (e *recordingEngine) ListOpenStudentAssignments(ctx context.Context, studentIDs []int64) ([]int64, error) {
-	e.calls++
-	return nil, nil
-}
-
-func (e *recordingEngine) LatestStudentAssignmentAttendanceDate(ctx context.Context, studentID int64) (*string, error) {
-	e.calls++
-	return nil, nil
-}
-
-func (e *recordingEngine) CloseOpenStudentAssignments(ctx context.Context, studentIDs []int64, at time.Time) (int64, error) {
-	e.calls++
-	return 0, nil
 }
 
 func (e *recordingEngine) CountStudentAssignments(ctx context.Context, studentID int64) (int, error) {
@@ -87,24 +56,14 @@ func (e *recordingEngine) DeleteStudentAssignments(ctx context.Context, studentI
 	return 0, nil
 }
 
-func (e *recordingEngine) LockOpenStudentAssignments(ctx context.Context, studentIDs []int64) error {
-	e.calls++
-	return nil
-}
-
-func (e *recordingEngine) ReconnectCareExitAssignmentPickupExceptions(ctx context.Context, studentIDs, pickupExceptionIDs []int64, removals []timetable.InstanceStudent) error {
-	e.calls++
-	return nil
-}
-
-func (e *recordingEngine) ArchivePlannedInstanceStudents(context.Context, int64, []int64, string, time.Time) (int, error) {
+func (e *recordingEngine) ArchivePlannedInstanceStudents(context.Context, int64, []timetable.RosterArchiveEntry) (int, error) {
 	e.calls++
 	return 0, nil
 }
 
-func (e *recordingEngine) RestoreArchivedInstanceStudents(context.Context, int64, []int64, string) (int, error) {
+func (e *recordingEngine) RestoreArchivedInstanceStudents(context.Context, int64, []int64, string) ([]timetable.RestoredInstanceStudent, error) {
 	e.calls++
-	return 0, nil
+	return nil, nil
 }
 
 func (e *recordingEngine) FindCategory(context.Context, int64) (timetable.Category, error) {
@@ -551,16 +510,6 @@ func (e *recordingEngine) DeleteActivityInstance(context.Context, int64) error {
 	return nil
 }
 
-func (e *recordingEngine) MarkActivityInstanceCompleted(context.Context, int64, time.Time) error {
-	e.calls++
-	return nil
-}
-
-func (e *recordingEngine) CompleteActiveActivityInstances(context.Context, []int64, time.Time) (int64, error) {
-	e.calls++
-	return 0, nil
-}
-
 func (e *recordingEngine) DeletePlannedActivityInstances(context.Context, string, *string, *int64, bool) (int64, error) {
 	e.calls++
 	return 0, nil
@@ -636,16 +585,6 @@ func (e *recordingEngine) ListInstanceStudents(context.Context, timetable.Instan
 	return []timetable.InstanceStudent{}, nil
 }
 
-func (e *recordingEngine) CountNonAbsentInstanceStudents(context.Context, []int64) (map[int64]int, error) {
-	e.calls++
-	return map[int64]int{}, nil
-}
-
-func (e *recordingEngine) ListParallelStudentPresence(context.Context, int64, string, []int64) ([]timetable.ParallelPresence, error) {
-	e.calls++
-	return []timetable.ParallelPresence{}, nil
-}
-
 func (e *recordingEngine) CreateInstanceStudent(context.Context, timetable.InstanceStudentInput) (timetable.InstanceStudent, error) {
 	e.calls++
 	return timetable.InstanceStudent{}, nil
@@ -666,114 +605,14 @@ func (e *recordingEngine) DeleteInstanceStudentsByInstance(context.Context, int6
 	return nil
 }
 
-func (e *recordingEngine) UpdateAttendanceFromCheckin(context.Context, int64, int64, time.Time) (bool, error) {
-	e.calls++
-	return true, nil
-}
-
-func (e *recordingEngine) UpdateAttendanceFromCheckinBatch(context.Context, []timetable.InstanceStudentKey, time.Time) error {
-	e.calls++
-	return nil
-}
-
-func (e *recordingEngine) UpdateAttendanceCheckout(context.Context, int64, int64, time.Time) error {
-	e.calls++
-	return nil
-}
-
-func (e *recordingEngine) UpdateAttendanceCheckoutBatch(context.Context, []timetable.InstanceStudentKey, time.Time) error {
-	e.calls++
-	return nil
-}
-
-func (e *recordingEngine) CreateUnplannedPresentIfAbsent(context.Context, int64, int64, time.Time) (timetable.InstanceStudent, error) {
-	e.calls++
-	return timetable.InstanceStudent{}, nil
-}
-
-func (e *recordingEngine) ReconcileAttendanceInterval(context.Context, int64, int64, time.Time, *time.Time, time.Time, *time.Time) (bool, error) {
-	e.calls++
-	return true, nil
-}
-
 func (e *recordingEngine) ListStudentInstanceRefsBefore(context.Context, string) ([]timetable.StudentInstanceRef, error) {
 	e.calls++
 	return []timetable.StudentInstanceRef{}, nil
 }
 
-func (e *recordingEngine) ListScheduledInstancesForStudent(context.Context, int64, string, string) ([]timetable.ScheduledInstanceRow, error) {
-	e.calls++
-	return []timetable.ScheduledInstanceRow{}, nil
-}
-
-func (e *recordingEngine) HasPlannedStudentSlots(context.Context, string, string) (bool, error) {
-	e.calls++
-	return false, nil
-}
-
 func (e *recordingEngine) ListPlannedStudentIDs(context.Context, []int64, string) ([]int64, error) {
 	e.calls++
 	return []int64{}, nil
-}
-
-func (e *recordingEngine) ListPartialAbsenceBlocks(context.Context, int64, string, time.Time) ([]timetable.PartialAbsenceBlock, error) {
-	e.calls++
-	return []timetable.PartialAbsenceBlock{}, nil
-}
-
-func (e *recordingEngine) UpdateAttendanceFields(context.Context, int64, timetable.AttendanceFieldPatch) error {
-	e.calls++
-	return nil
-}
-
-func (e *recordingEngine) BulkUpdateStatus(context.Context, int64, string, string, []int64) (int, error) {
-	e.calls++
-	return 0, nil
-}
-
-func (e *recordingEngine) MarkNotScheduled(context.Context, []timetable.StudentInstanceRef) error {
-	e.calls++
-	return nil
-}
-
-func (e *recordingEngine) MarkExpectedAbsentByActiveGroupIDs(context.Context, []int64, time.Time, []timetable.StudentInstanceRef) error {
-	e.calls++
-	return nil
-}
-
-func (e *recordingEngine) CloseOpenCheckoutsByActiveGroupIDs(context.Context, []int64, time.Time) (int, error) {
-	e.calls++
-	return 0, nil
-}
-
-func (e *recordingEngine) ApplyStatusDay(context.Context, int64, string, int64, string) (int, error) {
-	e.calls++
-	return 0, nil
-}
-
-func (e *recordingEngine) ReleaseStatusDay(context.Context, int64) (int, error) {
-	e.calls++
-	return 0, nil
-}
-
-func (e *recordingEngine) ApplyActiveStatusDaysForInstance(context.Context, int64, string) (int, error) {
-	e.calls++
-	return 0, nil
-}
-
-func (e *recordingEngine) ApplyPartialAbsence(context.Context, int64) (int, error) {
-	e.calls++
-	return 0, nil
-}
-
-func (e *recordingEngine) ReleasePartialAbsence(context.Context, int64) (int, error) {
-	e.calls++
-	return 0, nil
-}
-
-func (e *recordingEngine) ApplyActivePartialAbsencesForInstance(context.Context, int64, string) (int, error) {
-	e.calls++
-	return 0, nil
 }
 
 func (e *recordingEngine) ReplaceGroupTargets(_ context.Context, _ int64, targets []timetable.GroupTargetInput) error {
@@ -1209,4 +1048,19 @@ func TestErrorCodeIsStable(t *testing.T) {
 func TestNewModulePanicsWithoutEngine(t *testing.T) {
 	t.Parallel()
 	assert.Panics(t, func() { timetable.NewModule(nil) })
+}
+
+func (e *recordingEngine) EnsureInstanceStudent(context.Context, int64, int64) (timetable.InstanceStudent, bool, error) {
+	e.calls++
+	return timetable.InstanceStudent{}, false, nil
+}
+
+func (e *recordingEngine) ListPlannedInstanceStudents(context.Context, timetable.InstanceStudentFilter) ([]timetable.PlannedInstanceStudent, error) {
+	e.calls++
+	return []timetable.PlannedInstanceStudent{}, nil
+}
+
+func (e *recordingEngine) PreviewPlannedRosterForCareExit(context.Context, []int64, string) ([]timetable.CareExitRosterRow, error) {
+	e.calls++
+	return []timetable.CareExitRosterRow{}, nil
 }

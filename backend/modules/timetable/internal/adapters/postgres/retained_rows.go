@@ -108,25 +108,6 @@ func (s *Store) classArrivalExceptionDeleteQuery(ctx context.Context, class stri
 		Where(`"class_arrival_exception".tenant_id = ?`, tenantID), nil
 }
 
-// ReopenCompletedActivityInstance returns a completed instance to active. The
-// caller reads the changed row count from the result.
-func (s *Store) ReopenCompletedActivityInstance(ctx context.Context, instanceID, activeGroupID int64) (sql.Result, error) {
-	db, tenantID, err := s.database(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return db.NewUpdate().Table("schedule.activity_instances").
-		Set("status = 'active'").
-		Set("active_group_id = ?", activeGroupID).
-		Set("completed_at = NULL").
-		Set("completed_by = NULL").
-		Set("reopen_until = NULL").
-		Set("completion_snapshot = NULL").
-		Where("id = ? AND status = 'completed'", instanceID).
-		Where("tenant_id = ?", tenantID).
-		Exec(ctx)
-}
-
 // StaffNotice is the persisted shape of users.staff_notices. It mirrors
 // the retained users.StaffNotice model field for field; WherePK uses the
 // "staff_notice" alias.

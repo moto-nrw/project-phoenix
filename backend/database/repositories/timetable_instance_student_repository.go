@@ -4,55 +4,43 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/uptrace/bun"
 )
 
+// participantPresence is the Student Presence surface the legacy participant
+// adapter composes: the sessions of the blocks and the attendance of their
+// participants (#2762).
+type participantPresence interface {
+	studentpresence.ActivitySessionQuery
+	studentpresence.SessionAttendanceQuery
+	studentpresence.SessionAttendanceCommand
+	studentpresence.SessionAttendanceRules
+}
+
+// timetableInstanceStudentRepository serves the legacy instance_students DTO,
+// which used to be one row, from its two owners: the participant is
+// Timetable's, the attendance is Student Presence's, and a participant
+// without an attendance row is expected. Reads that join both halves with the
+// block go through the tenant-safe projection.
 type timetableInstanceStudentRepository struct {
+	reads     timetableCompose.PresenceReads
+	preview   PartialAbsencePreview
 	timetable timetable.InstanceStudentCapability
+	presence  participantPresence
 }
 
-type timetableCarePlanDirectory struct {
-	query timetableCompose.PickupExceptionDirectory
-}
-
-func (d timetableCarePlanDirectory) FindPickupException(ctx context.Context, id int64) (*timetable.PickupException, error) {
-	value, err := d.query.FindPickupException(ctx, id)
-	if value == nil || err != nil {
-		return nil, err
+func newTimetableInstanceStudentRepository(db *bun.DB, capability timetable.InstanceStudentCapability, presence participantPresence) timetableInstanceStudentRepository {
+	if db == nil || capability == nil || presence == nil {
+		panic("timetable instance student repository: database, timetable and student presence are required")
 	}
-	result := timetable.PickupException(*value)
-	return &result, nil
-}
-
-func (d timetableCarePlanDirectory) ListPickupExceptions(ctx context.Context, filter timetable.PickupExceptionFilter) ([]timetable.PickupException, error) {
-	values, err := d.query.ListPickupExceptions(ctx, timetableCompose.PickupExceptionFilter(filter))
-	result := make([]timetable.PickupException, 0, len(values))
-	for _, value := range values {
-		result = append(result, timetable.PickupException(value))
-	}
-	return result, err
-}
-
-func (d timetableCarePlanDirectory) FindStudentStatusDay(ctx context.Context, id int64, activeOnly bool) (*timetable.StudentStatusDay, error) {
-	value, err := d.query.FindStudentStatusDay(ctx, id, activeOnly)
-	if value == nil || err != nil {
-		return nil, err
-	}
-	result := timetable.StudentStatusDay(*value)
-	return &result, nil
-}
-
-func (d timetableCarePlanDirectory) ListStudentStatusDays(ctx context.Context, filter timetable.StudentStatusDayFilter) ([]timetable.StudentStatusDay, error) {
-	values, err := d.query.ListStudentStatusDays(ctx, timetableCompose.StudentStatusDayFilter(filter))
-	result := make([]timetable.StudentStatusDay, 0, len(values))
-	for _, value := range values {
-		result = append(result, timetable.StudentStatusDay(value))
-	}
-	return result, err
+	return timetableInstanceStudentRepository{reads: mustPresenceReads(db), preview: NewPartialAbsencePreview(db), timetable: capability, presence: presence}
 }
 
 func (r timetableInstanceStudentRepository) Create(ctx context.Context, value *scheduleModels.InstanceStudent) error {
@@ -66,7 +54,20 @@ func (r timetableInstanceStudentRepository) Create(ctx context.Context, value *s
 	if err != nil {
 		return timetableCompose.WrapDatabaseError("create", err)
 	}
-	replaceLegacyInstanceStudent(value, created)
+	attendance := studentpresence.ExpectedSessionAttendance(created.ID)
+	if legacyAttendanceDiffers(value) {
+		if err := r.presence.RestoreSessionAttendance(ctx, []studentpresence.SessionAttendanceRestore{legacyAttendanceRestore(created.ID, value)}); err != nil {
+			return timetableCompose.WrapDatabaseError("create", err)
+		}
+		rows, err := r.presence.ListSessionAttendance(ctx, []int64{created.ID})
+		if err != nil {
+			return timetableCompose.WrapDatabaseError("create", err)
+		}
+		if len(rows) > 0 {
+			attendance = rows[0]
+		}
+	}
+	replaceLegacyInstanceStudent(value, created, attendance)
 	return nil
 }
 
@@ -78,11 +79,14 @@ func (r timetableInstanceStudentRepository) FindByID(ctx context.Context, id any
 	if rowID <= 0 {
 		return nil, timetableCompose.WrapNotFoundDatabaseError("find by id")
 	}
-	value, err := r.timetable.FindInstanceStudent(ctx, rowID)
+	rows, err := r.list(ctx, timetable.InstanceStudentFilter{IDs: []int64{rowID}}, "find by id")
 	if err != nil {
-		return nil, legacyInstanceStudentError("find by id", err)
+		return nil, err
 	}
-	return legacyInstanceStudent(value), nil
+	if len(rows) == 0 {
+		return nil, timetableCompose.WrapNotFoundDatabaseError("find by id")
+	}
+	return rows[0], nil
 }
 
 func (r timetableInstanceStudentRepository) Update(ctx context.Context, value *scheduleModels.InstanceStudent) error {
@@ -96,8 +100,41 @@ func (r timetableInstanceStudentRepository) Update(ctx context.Context, value *s
 	if err != nil {
 		return legacyInstanceStudentError("update", err)
 	}
-	replaceLegacyInstanceStudent(value, updated)
+	current, err := r.attendanceByParticipant(ctx, []int64{updated.ID})
+	if err != nil {
+		return timetableCompose.WrapDatabaseError("update", err)
+	}
+	attendance, ok := current[updated.ID]
+	if !ok {
+		attendance = studentpresence.ExpectedSessionAttendance(updated.ID)
+	}
+	if wanted := legacyAttendanceRestore(updated.ID, value); wanted != legacyAttendanceRestoreOf(attendance) {
+		if err := r.presence.RestoreSessionAttendance(ctx, []studentpresence.SessionAttendanceRestore{wanted}); err != nil {
+			return timetableCompose.WrapDatabaseError("update", err)
+		}
+		current, err = r.attendanceByParticipant(ctx, []int64{updated.ID})
+		if err != nil {
+			return timetableCompose.WrapDatabaseError("update", err)
+		}
+		attendance = current[updated.ID]
+	}
+	replaceLegacyInstanceStudent(value, updated, attendance)
 	return nil
+}
+
+// legacyAttendanceRestoreOf is the stored attendance in restore shape, so an
+// unchanged row is recognised without a write.
+func legacyAttendanceRestoreOf(row studentpresence.SessionAttendance) studentpresence.SessionAttendanceRestore {
+	status := row.Status
+	if status == "" {
+		status = studentpresence.SessionAttendanceExpected
+	}
+	return studentpresence.SessionAttendanceRestore{
+		ParticipantID: row.ParticipantID, Status: status, Substatus: row.Substatus, Note: row.Note,
+		CheckedInAt: row.CheckedInAt, CheckedOutAt: row.CheckedOutAt, IsUnplanned: row.IsUnplanned,
+		NotScheduled: row.NotScheduled, ManualStatusAt: row.ManualStatusAt,
+		StudentStatusDayID: row.StudentStatusDayID, PickupExceptionID: row.PickupExceptionID,
+	}
 }
 
 func (r timetableInstanceStudentRepository) Delete(ctx context.Context, id any) error {
@@ -116,8 +153,12 @@ func (r timetableInstanceStudentRepository) List(ctx context.Context, options *t
 	if err != nil {
 		return nil, timetableCompose.WrapDatabaseError("list with options", err)
 	}
-	return r.list(ctx, timetable.InstanceStudentFilter{IDs: filter.IDs, InstanceIDs: filter.InstanceIDs,
-		StudentIDs: filter.StudentIDs, Status: filter.Status, Limit: filter.Limit, Offset: filter.Offset}, "list with options")
+	rows, err := r.list(ctx, timetable.InstanceStudentFilter{IDs: filter.IDs, InstanceIDs: filter.InstanceIDs,
+		StudentIDs: filter.StudentIDs, Limit: filter.Limit, Offset: filter.Offset}, "list with options")
+	if err != nil || filter.Status == nil {
+		return rows, err
+	}
+	return filterLegacyInstanceStudents(rows, func(row *scheduleModels.InstanceStudent) bool { return row.Status == *filter.Status }), nil
 }
 
 func (r timetableInstanceStudentRepository) FindByInstanceID(ctx context.Context, instanceID int64) ([]*scheduleModels.InstanceStudent, error) {
@@ -132,24 +173,34 @@ func (r timetableInstanceStudentRepository) FindByInstanceIDs(ctx context.Contex
 }
 
 func (r timetableInstanceStudentRepository) FindExpectedByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModels.InstanceStudent, error) {
-	if len(instanceIDs) == 0 {
-		return []*scheduleModels.InstanceStudent{}, nil
+	rows, err := r.FindByInstanceIDs(ctx, instanceIDs)
+	if err != nil {
+		return nil, err
 	}
-	status := timetable.InstanceAttendanceExpected
-	return r.list(ctx, timetable.InstanceStudentFilter{InstanceIDs: instanceIDs, Status: &status, OrderByInstanceStudent: true}, "find expected by instance ids")
+	return filterLegacyInstanceStudents(rows, func(row *scheduleModels.InstanceStudent) bool {
+		return row.Status == scheduleModels.AttendanceStatusExpected
+	}), nil
 }
 
+// FindNotScheduledCandidatesByInstanceIDs mirrors the rows Student Presence's
+// non-booking marker can still change: expected rows and absences a day
+// status or an excusal owns, never a decision somebody made by hand.
 func (r timetableInstanceStudentRepository) FindNotScheduledCandidatesByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModels.InstanceStudent, error) {
-	if len(instanceIDs) == 0 {
-		return []*scheduleModels.InstanceStudent{}, nil
+	rows, err := r.FindByInstanceIDs(ctx, instanceIDs)
+	if err != nil {
+		return nil, err
 	}
-	return r.list(ctx, timetable.InstanceStudentFilter{InstanceIDs: instanceIDs,
-		NotScheduledCandidatesOnly: true, OrderByInstanceStudent: true}, "find not scheduled candidates by instance ids")
+	return filterLegacyInstanceStudents(rows, func(row *scheduleModels.InstanceStudent) bool {
+		if row.ManualStatusAt != nil {
+			return false
+		}
+		return row.Status == scheduleModels.AttendanceStatusExpected ||
+			(row.Status == scheduleModels.AttendanceStatusAbsent && (row.StudentStatusDayID != nil || row.PickupExceptionID != nil))
+	}), nil
 }
 
 func (r timetableInstanceStudentRepository) CountNonAbsentByInstanceIDs(ctx context.Context, instanceIDs []int64) (map[int64]int, error) {
-	instanceIDs = positiveInstanceStudentIDs(instanceIDs)
-	result, err := r.timetable.CountNonAbsentInstanceStudents(ctx, instanceIDs)
+	result, err := r.reads.CountNonAbsentParticipants(ctx, positiveInstanceStudentIDs(instanceIDs))
 	if err != nil {
 		return nil, timetableCompose.WrapDatabaseError("count non-absent by instance ids", err)
 	}
@@ -157,26 +208,17 @@ func (r timetableInstanceStudentRepository) CountNonAbsentByInstanceIDs(ctx cont
 }
 
 func (r timetableInstanceStudentRepository) FindPresentInOtherActiveInstances(ctx context.Context, excludedID int64, date timetableCompose.InstanceStudentDate, studentIDs []int64) ([]scheduleModels.ParallelPresence, error) {
-	studentIDs = positiveInstanceStudentIDs(studentIDs)
-	values, err := r.timetable.ListParallelStudentPresence(ctx, excludedID, date.String(), studentIDs)
+	result, err := r.reads.ListParallelPresence(ctx, excludedID, date.String(), positiveInstanceStudentIDs(studentIDs))
 	if err != nil {
 		return nil, timetableCompose.WrapDatabaseError("find present in other active instances", err)
-	}
-	result := make([]scheduleModels.ParallelPresence, 0, len(values))
-	for _, value := range values {
-		result = append(result, scheduleModels.ParallelPresence(value))
 	}
 	return result, nil
 }
 
 func (r timetableInstanceStudentRepository) FindPartialAbsenceBlocks(ctx context.Context, studentID int64, date timetableCompose.InstanceStudentDate, cutoff time.Time) ([]scheduleModels.PartialAbsenceBlock, error) {
-	values, err := r.timetable.ListPartialAbsenceBlocks(ctx, studentID, date.String(), cutoff)
+	result, err := r.preview.FindPartialAbsenceBlocks(ctx, studentID, date.String(), cutoff)
 	if err != nil {
 		return nil, timetableCompose.WrapDatabaseError("find partial absence blocks", err)
-	}
-	result := make([]scheduleModels.PartialAbsenceBlock, 0, len(values))
-	for _, value := range values {
-		result = append(result, scheduleModels.PartialAbsenceBlock(value))
 	}
 	return result, nil
 }
@@ -215,6 +257,8 @@ func (r timetableInstanceStudentRepository) FindCurrentCandidatesByStudentIDs(ct
 	return r.findCurrent(ctx, studentIDs, date, at, "find current student slot candidates batch")
 }
 
+// findCurrent lists the running blocks of the students; a block that ended
+// is no candidate.
 func (r timetableInstanceStudentRepository) findCurrent(ctx context.Context, studentIDs []int64, date timetableCompose.InstanceStudentDate, at time.Time, operation string) ([]*scheduleModels.InstanceStudent, error) {
 	dateText, clock := date.String(), timetableCompose.InstanceStudentWallClock(at)
 	return r.list(ctx, timetable.InstanceStudentFilter{StudentIDs: studentIDs, Date: &dateText, CurrentTime: &clock,
@@ -229,50 +273,83 @@ func (r timetableInstanceStudentRepository) DeleteByInstanceID(ctx context.Conte
 }
 
 func (r timetableInstanceStudentRepository) UpdateAttendanceFromCheckin(ctx context.Context, instanceID, studentID int64, checkedInAt time.Time) (bool, error) {
-	updated, err := r.timetable.UpdateAttendanceFromCheckin(ctx, instanceID, studentID, checkedInAt)
+	ids, err := r.participantIDs(ctx, []scheduleModels.InstanceStudentKey{{InstanceID: instanceID, StudentID: studentID}}, false)
 	if err != nil {
 		return false, timetableCompose.WrapDatabaseError("update attendance from checkin", err)
 	}
-	return updated, nil
+	if len(ids) == 0 {
+		return false, nil
+	}
+	rows, err := r.presence.CheckInParticipants(ctx, ids, checkedInAt)
+	if err != nil {
+		return false, timetableCompose.WrapDatabaseError("update attendance from checkin", err)
+	}
+	return rows > 0, nil
 }
 
 func (r timetableInstanceStudentRepository) UpdateAttendanceFromCheckinBatch(ctx context.Context, keys []scheduleModels.InstanceStudentKey, checkedInAt time.Time) error {
-	if len(keys) == 0 {
+	ids, err := r.participantIDs(ctx, keys, false)
+	if err != nil {
+		return timetableCompose.WrapDatabaseError("update attendance from checkin batch", err)
+	}
+	if len(ids) == 0 {
 		return nil
 	}
-	if err := r.timetable.UpdateAttendanceFromCheckinBatch(ctx, publicInstanceStudentKeys(keys), checkedInAt); err != nil {
+	if _, err := r.presence.CheckInParticipants(ctx, ids, checkedInAt); err != nil {
 		return timetableCompose.WrapDatabaseError("update attendance from checkin batch", err)
 	}
 	return nil
 }
 
 func (r timetableInstanceStudentRepository) UpdateAttendanceCheckout(ctx context.Context, instanceID, studentID int64, checkedOutAt time.Time) error {
-	if err := r.timetable.UpdateAttendanceCheckout(ctx, instanceID, studentID, checkedOutAt); err != nil {
-		return timetableCompose.WrapDatabaseError("update slot attendance checkout", err)
-	}
-	return nil
+	return r.UpdateAttendanceCheckoutBatch(ctx, []scheduleModels.InstanceStudentKey{{InstanceID: instanceID, StudentID: studentID}}, checkedOutAt)
 }
 
 func (r timetableInstanceStudentRepository) UpdateAttendanceCheckoutBatch(ctx context.Context, keys []scheduleModels.InstanceStudentKey, checkedOutAt time.Time) error {
-	if len(keys) == 0 {
+	ids, err := r.participantIDs(ctx, keys, false)
+	if err != nil {
+		return timetableCompose.WrapDatabaseError("update slot attendance checkout batch", err)
+	}
+	if len(ids) == 0 {
 		return nil
 	}
-	if err := r.timetable.UpdateAttendanceCheckoutBatch(ctx, publicInstanceStudentKeys(keys), checkedOutAt); err != nil {
+	if _, err := r.presence.CheckOutParticipants(ctx, ids, checkedOutAt); err != nil {
 		return timetableCompose.WrapDatabaseError("update slot attendance checkout batch", err)
 	}
 	return nil
 }
 
+// CreateUnplannedPresentIfAbsent lists the child on the block if the plan
+// does not, then opens the presence: as a walk-in for a new participant, as a
+// check-in for a planned one.
 func (r timetableInstanceStudentRepository) CreateUnplannedPresentIfAbsent(ctx context.Context, instanceID, studentID int64, checkedInAt time.Time) (*scheduleModels.InstanceStudent, error) {
-	value, err := r.timetable.CreateUnplannedPresentIfAbsent(ctx, instanceID, studentID, checkedInAt)
+	participant, inserted, err := r.timetable.EnsureInstanceStudent(ctx, instanceID, studentID)
 	if err != nil {
 		return nil, timetableCompose.WrapDatabaseError("create unplanned slot attendance", err)
 	}
-	return legacyInstanceStudent(value), nil
+	if inserted {
+		if _, err := r.presence.CheckInWalkIn(ctx, participant.ID, checkedInAt); err != nil {
+			return nil, timetableCompose.WrapDatabaseError("create unplanned slot attendance", err)
+		}
+	} else if _, err := r.presence.CheckInParticipants(ctx, []int64{participant.ID}, checkedInAt); err != nil {
+		return nil, timetableCompose.WrapDatabaseError("create unplanned slot attendance", err)
+	}
+	attendance, err := r.attendanceByParticipant(ctx, []int64{participant.ID})
+	if err != nil {
+		return nil, timetableCompose.WrapDatabaseError("create unplanned slot attendance", err)
+	}
+	return legacyInstanceStudent(participant, attendance), nil
 }
 
 func (r timetableInstanceStudentRepository) ReconcileAttendanceInterval(ctx context.Context, instanceID, studentID int64, previousCheckIn time.Time, previousCheckOut *time.Time, updatedCheckIn time.Time, updatedCheckOut *time.Time) (bool, error) {
-	updated, err := r.timetable.ReconcileAttendanceInterval(ctx, instanceID, studentID, previousCheckIn, previousCheckOut, updatedCheckIn, updatedCheckOut)
+	ids, err := r.participantIDs(ctx, []scheduleModels.InstanceStudentKey{{InstanceID: instanceID, StudentID: studentID}}, false)
+	if err != nil {
+		return false, timetableCompose.WrapDatabaseError("reconcile slot attendance interval", err)
+	}
+	if len(ids) == 0 {
+		return false, nil
+	}
+	updated, err := r.presence.ReconcileParticipantInterval(ctx, ids[0], previousCheckIn, previousCheckOut, updatedCheckIn, updatedCheckOut)
 	if err != nil {
 		return false, timetableCompose.WrapDatabaseError("reconcile slot attendance interval", err)
 	}
@@ -283,24 +360,48 @@ func (r timetableInstanceStudentRepository) UpdateAttendanceFields(ctx context.C
 	if !patch.HasChanges() {
 		return nil
 	}
-	input := timetable.AttendanceFieldPatch{Status: patch.Status, Substatus: patch.Substatus,
-		SubstatusClear: patch.SubstatusClear, Note: patch.Note, NoteClear: patch.NoteClear}
-	if err := r.timetable.UpdateAttendanceFields(ctx, id, input); err != nil {
+	if err := r.presence.PatchSessionAttendance(ctx, id, studentpresence.SessionAttendancePatch{Status: patch.Status, Substatus: patch.Substatus,
+		SubstatusClear: patch.SubstatusClear, Note: patch.Note, NoteClear: patch.NoteClear}); err != nil {
 		return timetableCompose.WrapDatabaseError("update attendance fields", err)
 	}
 	return nil
 }
 
 func (r timetableInstanceStudentRepository) BulkUpdateStatus(ctx context.Context, instanceID int64, fromStatus, toStatus string, excludedStudentIDs []int64) (int, error) {
-	rows, err := r.timetable.BulkUpdateStatus(ctx, instanceID, fromStatus, toStatus, positiveInstanceStudentIDs(excludedStudentIDs))
+	participants, err := r.timetable.ListInstanceStudents(ctx, timetable.InstanceStudentFilter{InstanceIDs: []int64{instanceID}})
 	if err != nil {
 		return 0, timetableCompose.WrapDatabaseError("bulk update status", err)
 	}
-	return rows, nil
+	excluded := positiveInstanceStudentIDs(excludedStudentIDs)
+	ids := make([]int64, 0, len(participants))
+	for _, participant := range participants {
+		if !slices.Contains(excluded, participant.StudentID) {
+			ids = append(ids, participant.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	rows, err := r.presence.TransitionParticipants(ctx, ids, fromStatus, toStatus, time.Time{})
+	if err != nil {
+		return 0, timetableCompose.WrapDatabaseError("bulk update status", err)
+	}
+	return int(rows), nil
 }
 
 func (r timetableInstanceStudentRepository) MarkNotScheduled(ctx context.Context, refs []scheduleModels.StudentInstanceRef) error {
-	if err := r.timetable.MarkNotScheduled(ctx, publicStudentInstanceRefs(refs)); err != nil {
+	keys := make([]scheduleModels.InstanceStudentKey, 0, len(refs))
+	for _, ref := range refs {
+		keys = append(keys, scheduleModels.InstanceStudentKey{InstanceID: ref.InstanceID, StudentID: ref.StudentID})
+	}
+	ids, err := r.participantIDs(ctx, keys, true)
+	if err != nil {
+		return timetableCompose.WrapDatabaseError("mark attendance rows not scheduled", err)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	if _, err := r.presence.MarkParticipantsNotScheduled(ctx, ids); err != nil {
 		return timetableCompose.WrapDatabaseError("mark attendance rows not scheduled", err)
 	}
 	return nil
@@ -310,7 +411,13 @@ func (r timetableInstanceStudentRepository) MarkExpectedAbsentByActiveGroupIDs(c
 	if len(activeGroupIDs) == 0 {
 		return nil
 	}
-	if err := r.timetable.MarkExpectedAbsentByActiveGroupIDs(ctx, positiveInstanceStudentIDs(activeGroupIDs), updatedAt, publicStudentInstanceRefs(exclusions)); err != nil {
+	refs := make([]studentpresence.PlannedParticipantRef, 0, len(exclusions))
+	for _, ref := range exclusions {
+		if ref.InstanceID > 0 && ref.StudentID > 0 {
+			refs = append(refs, studentpresence.PlannedParticipantRef(ref))
+		}
+	}
+	if err := r.presence.MarkExpectedAbsentByActiveGroupIDs(ctx, positiveInstanceStudentIDs(activeGroupIDs), updatedAt, refs); err != nil {
 		return timetableCompose.WrapDatabaseError("mark expected absent by active group ids", err)
 	}
 	return nil
@@ -320,7 +427,7 @@ func (r timetableInstanceStudentRepository) CloseOpenCheckoutsByActiveGroupIDs(c
 	if len(activeGroupIDs) == 0 {
 		return 0, nil
 	}
-	rows, err := r.timetable.CloseOpenCheckoutsByActiveGroupIDs(ctx, positiveInstanceStudentIDs(activeGroupIDs), checkedOutAt)
+	rows, err := r.presence.CloseOpenCheckoutsByActiveGroupIDs(ctx, positiveInstanceStudentIDs(activeGroupIDs), checkedOutAt)
 	if err != nil {
 		return 0, timetableCompose.WrapDatabaseError("close open checkouts by active group ids", err)
 	}
@@ -340,7 +447,7 @@ func (r timetableInstanceStudentRepository) ListStudentInstanceRefsBefore(ctx co
 }
 
 func (r timetableInstanceStudentRepository) ApplyStatusDay(ctx context.Context, studentID int64, date timetableCompose.InstanceStudentDate, statusDayID int64, substatus string) (int, error) {
-	rows, err := r.timetable.ApplyStatusDay(ctx, studentID, date.String(), statusDayID, substatus)
+	rows, err := r.presence.ApplyStatusDay(ctx, studentID, date.String(), statusDayID, substatus)
 	if err != nil {
 		return 0, timetableCompose.WrapDatabaseError("apply student status day to slots", err)
 	}
@@ -348,7 +455,7 @@ func (r timetableInstanceStudentRepository) ApplyStatusDay(ctx context.Context, 
 }
 
 func (r timetableInstanceStudentRepository) ReleaseStatusDay(ctx context.Context, statusDayID int64) (int, error) {
-	rows, err := r.timetable.ReleaseStatusDay(ctx, statusDayID)
+	rows, err := r.presence.ReleaseStatusDay(ctx, statusDayID)
 	if err != nil {
 		return 0, timetableCompose.WrapDatabaseError("release student status day from slots", err)
 	}
@@ -356,7 +463,7 @@ func (r timetableInstanceStudentRepository) ReleaseStatusDay(ctx context.Context
 }
 
 func (r timetableInstanceStudentRepository) ApplyActiveStatusDaysForInstance(ctx context.Context, instanceID int64, date timetableCompose.InstanceStudentDate) (int, error) {
-	rows, err := r.timetable.ApplyActiveStatusDaysForInstance(ctx, instanceID, date.String())
+	rows, err := r.presence.ApplyActiveStatusDaysForInstance(ctx, instanceID, date.String())
 	if err != nil {
 		return 0, timetableCompose.WrapDatabaseError("apply active status days to instance", err)
 	}
@@ -364,7 +471,7 @@ func (r timetableInstanceStudentRepository) ApplyActiveStatusDaysForInstance(ctx
 }
 
 func (r timetableInstanceStudentRepository) ApplyPartialAbsence(ctx context.Context, pickupExceptionID int64) (int, error) {
-	rows, err := r.timetable.ApplyPartialAbsence(ctx, pickupExceptionID)
+	rows, err := r.presence.ApplyPartialAbsence(ctx, pickupExceptionID)
 	if err != nil {
 		return 0, timetableCompose.WrapDatabaseError("apply partial absence to slots", err)
 	}
@@ -372,7 +479,7 @@ func (r timetableInstanceStudentRepository) ApplyPartialAbsence(ctx context.Cont
 }
 
 func (r timetableInstanceStudentRepository) ReleasePartialAbsence(ctx context.Context, pickupExceptionID int64) (int, error) {
-	rows, err := r.timetable.ReleasePartialAbsence(ctx, pickupExceptionID)
+	rows, err := r.presence.ReleasePartialAbsence(ctx, pickupExceptionID)
 	if err != nil {
 		return 0, timetableCompose.WrapDatabaseError("release partial absence from slots", err)
 	}
@@ -380,7 +487,7 @@ func (r timetableInstanceStudentRepository) ReleasePartialAbsence(ctx context.Co
 }
 
 func (r timetableInstanceStudentRepository) ApplyActivePartialAbsencesForInstance(ctx context.Context, instanceID int64, date timetableCompose.InstanceStudentDate) (int, error) {
-	rows, err := r.timetable.ApplyActivePartialAbsencesForInstance(ctx, instanceID, date.String())
+	rows, err := r.presence.ApplyActivePartialAbsencesForInstance(ctx, instanceID, date.String())
 	if err != nil {
 		return 0, timetableCompose.WrapDatabaseError("apply active partial absences to instance", err)
 	}
@@ -391,25 +498,15 @@ func (r timetableInstanceStudentRepository) FindInstancesWithAttendanceByStudent
 	if studentID <= 0 {
 		return []*scheduleModels.ScheduledInstanceRow{}, nil
 	}
-	values, err := r.timetable.ListScheduledInstancesForStudent(ctx, studentID, from.String(), to.String())
+	result, err := r.reads.ListScheduledInstancesForStudent(ctx, studentID, from.String(), to.String())
 	if err != nil {
 		return nil, timetableCompose.WrapDatabaseError("find instances with attendance by student and date range", err)
-	}
-	result := make([]*scheduleModels.ScheduledInstanceRow, 0, len(values))
-	for _, value := range values {
-		instance, convertErr := legacyActivityInstance(value.Instance)
-		if convertErr != nil {
-			return nil, timetableCompose.WrapDatabaseError("find instances with attendance by student and date range", convertErr)
-		}
-		result = append(result, &scheduleModels.ScheduledInstanceRow{
-			Instance: instance, Attendance: legacyInstanceStudent(value.Attendance),
-		})
 	}
 	return result, nil
 }
 
 func (r timetableInstanceStudentRepository) HasPlannedSlotsInRange(ctx context.Context, from, to timetableCompose.InstanceStudentDate) (bool, error) {
-	result, err := r.timetable.HasPlannedStudentSlots(ctx, from.String(), to.String())
+	result, err := r.reads.HasPlannedSlotsInRange(ctx, from.String(), to.String())
 	if err != nil {
 		return false, timetableCompose.WrapDatabaseError("check planned slots in range", err)
 	}
@@ -428,22 +525,109 @@ func (r timetableInstanceStudentRepository) FindPlannedStudentIDsByDate(ctx cont
 	return result, nil
 }
 
+// ArchivePlannedByStudentIDsFrom parks the still-planned rows of departing
+// children: a row stays when it records an observed presence, or a hand-set
+// status on a block that already started. The attendance each parked row
+// carried travels into the archive with it.
 func (r timetableInstanceStudentRepository) ArchivePlannedByStudentIDsFrom(ctx context.Context, transitionID int64, studentIDs []int64, from timetableCompose.InstanceStudentDate, at time.Time) (int, error) {
-	rows, err := r.timetable.ArchivePlannedInstanceStudents(ctx, transitionID, positiveInstanceStudentIDs(studentIDs), from.String(), at)
+	studentIDs = positiveInstanceStudentIDs(studentIDs)
+	if len(studentIDs) == 0 {
+		return 0, nil
+	}
+	fromText := from.String()
+	participants, err := r.timetable.ListPlannedInstanceStudents(ctx, timetable.InstanceStudentFilter{StudentIDs: studentIDs, FromDate: &fromText, ExcludeCancelled: true})
+	if err != nil {
+		return 0, timetableCompose.WrapDatabaseError("archive planned by student ids from", err)
+	}
+	if len(participants) == 0 {
+		return 0, nil
+	}
+	ids, instanceIDs := make([]int64, 0, len(participants)), make([]int64, 0, len(participants))
+	for _, participant := range participants {
+		ids = append(ids, participant.ID)
+		instanceIDs = append(instanceIDs, participant.InstanceID)
+	}
+	attendance, err := r.attendanceByParticipant(ctx, ids)
+	if err != nil {
+		return 0, timetableCompose.WrapDatabaseError("archive planned by student ids from", err)
+	}
+	sessions, err := r.presence.ListActivitySessions(ctx, studentpresence.ActivitySessionFilter{InstanceIDs: uniqueInt64s(instanceIDs)})
+	if err != nil {
+		return 0, timetableCompose.WrapDatabaseError("archive planned by student ids from", err)
+	}
+	started := make(map[int64]bool, len(sessions))
+	completed := make(map[int64]bool, len(sessions))
+	for _, session := range sessions {
+		started[session.InstanceID] = true
+		completed[session.InstanceID] = session.Status == studentpresence.ActivitySessionCompleted
+	}
+	today, clock := timetableCompose.InstanceStudentDay(at), timetableCompose.InstanceStudentWallClock(at)
+	entries := make([]timetable.RosterArchiveEntry, 0, len(participants))
+	for _, participant := range participants {
+		row := attendance[participant.ID]
+		if completed[participant.InstanceID] || row.CheckedInAt != nil || row.CheckedOutAt != nil {
+			continue
+		}
+		undecided := row.ManualStatusAt == nil && row.Status != studentpresence.SessionAttendancePresent
+		future := !started[participant.InstanceID] && (participant.Date > today || (participant.Date == today && participant.StartTime > clock))
+		if !undecided && !future {
+			continue
+		}
+		entries = append(entries, timetable.RosterArchiveEntry{ParticipantID: participant.ID, Attendance: archivedAttendance(row)})
+	}
+	rows, err := r.timetable.ArchivePlannedInstanceStudents(ctx, transitionID, entries)
 	if err != nil {
 		return 0, timetableCompose.WrapDatabaseError("archive planned by student ids from", err)
 	}
 	return rows, nil
 }
 
+// RestoreArchivedByTransition replays the parked rows: the participant comes
+// back through Timetable, a non-booking or hand-set status is restored as
+// archived, and every other row takes today's day statuses and excusals.
 func (r timetableInstanceStudentRepository) RestoreArchivedByTransition(ctx context.Context, transitionID int64, studentIDs []int64, from timetableCompose.InstanceStudentDate) (int, error) {
-	rows, err := r.timetable.RestoreArchivedInstanceStudents(ctx, transitionID, positiveInstanceStudentIDs(studentIDs), from.String())
+	restored, err := r.timetable.RestoreArchivedInstanceStudents(ctx, transitionID, positiveInstanceStudentIDs(studentIDs), from.String())
 	if err != nil {
 		return 0, timetableCompose.WrapDatabaseError("restore archived rows by transition", err)
 	}
-	return rows, nil
+	if len(restored) == 0 {
+		return 0, nil
+	}
+	rows := make([]studentpresence.SessionAttendanceRestore, 0, len(restored))
+	instances := make(map[int64]string, len(restored))
+	for _, row := range restored {
+		archived := row.Attendance
+		if archived.NotScheduled || (archived.ManualStatusAt != nil && archived.Status != studentpresence.SessionAttendanceExpected) {
+			rows = append(rows, studentpresence.SessionAttendanceRestore{
+				ParticipantID: row.ID, Status: archived.Status, Substatus: archived.Substatus, Note: archived.Note,
+				IsUnplanned: archived.IsUnplanned, NotScheduled: archived.NotScheduled, ManualStatusAt: archived.ManualStatusAt,
+			})
+			continue
+		}
+		if archived.IsUnplanned || archived.Note != nil {
+			rows = append(rows, studentpresence.SessionAttendanceRestore{
+				ParticipantID: row.ID, Status: studentpresence.SessionAttendanceExpected, Note: archived.Note, IsUnplanned: archived.IsUnplanned,
+			})
+		}
+		instances[row.InstanceID] = row.Date
+	}
+	if len(rows) > 0 {
+		if err := r.presence.RestoreSessionAttendance(ctx, rows); err != nil {
+			return 0, timetableCompose.WrapDatabaseError("restore archived rows by transition", err)
+		}
+	}
+	for _, instanceID := range sortedKeys(instances) {
+		if _, err := r.presence.ApplyActiveStatusDaysForInstance(ctx, instanceID, instances[instanceID]); err != nil {
+			return 0, timetableCompose.WrapDatabaseError("restore archived rows by transition", err)
+		}
+		if _, err := r.presence.ApplyActivePartialAbsencesForInstance(ctx, instanceID, instances[instanceID]); err != nil {
+			return 0, timetableCompose.WrapDatabaseError("restore archived rows by transition", err)
+		}
+	}
+	return len(restored), nil
 }
 
+// list reads the participants and joins their attendance.
 func (r timetableInstanceStudentRepository) list(ctx context.Context, filter timetable.InstanceStudentFilter, operation string) ([]*scheduleModels.InstanceStudent, error) {
 	requestedIDs, requestedInstances, requestedStudents := len(filter.IDs) > 0, len(filter.InstanceIDs) > 0, len(filter.StudentIDs) > 0
 	filter.IDs = positiveInstanceStudentIDs(filter.IDs)
@@ -452,15 +636,73 @@ func (r timetableInstanceStudentRepository) list(ctx context.Context, filter tim
 	if requestedIDs && len(filter.IDs) == 0 || requestedInstances && len(filter.InstanceIDs) == 0 || requestedStudents && len(filter.StudentIDs) == 0 {
 		return []*scheduleModels.InstanceStudent{}, nil
 	}
-	values, err := r.timetable.ListInstanceStudents(ctx, filter)
+	rows, err := r.reads.ListLegacyParticipants(ctx, timetableCompose.LegacyParticipantFilter{
+		IDs: filter.IDs, InstanceIDs: filter.InstanceIDs, StudentIDs: filter.StudentIDs,
+		Date: filter.Date, FromDate: filter.FromDate, ToDate: filter.ToDate, CurrentTime: filter.CurrentTime,
+		OrderByCreated: filter.OrderByCreated, OrderByInstanceStudent: filter.OrderByInstanceStudent,
+		OrderByStudentActivityTime: filter.OrderByStudentActivityTime, OrderByActivityDateTime: filter.OrderByActivityDateTime,
+		Limit: filter.Limit, Offset: filter.Offset,
+	})
 	if err != nil {
 		return nil, timetableCompose.WrapDatabaseError(operation, err)
 	}
-	result := make([]*scheduleModels.InstanceStudent, 0, len(values))
-	for _, value := range values {
-		result = append(result, legacyInstanceStudent(value))
+	return rows, nil
+}
+
+// attendanceByParticipant reads the stored attendance of the participants;
+// a participant without a row is expected.
+func (r timetableInstanceStudentRepository) attendanceByParticipant(ctx context.Context, participantIDs []int64) (map[int64]studentpresence.SessionAttendance, error) {
+	result := make(map[int64]studentpresence.SessionAttendance, len(participantIDs))
+	if len(participantIDs) == 0 {
+		return result, nil
+	}
+	rows, err := r.presence.ListSessionAttendance(ctx, participantIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		result[row.ParticipantID] = row
 	}
 	return result, nil
+}
+
+// participantIDs resolves (instance, student) pairs to participant ids; a
+// pair the plan does not list resolves to nothing.
+func (r timetableInstanceStudentRepository) participantIDs(ctx context.Context, keys []scheduleModels.InstanceStudentKey, excludeFinished bool) ([]int64, error) {
+	instanceIDs, studentIDs := make([]int64, 0, len(keys)), make([]int64, 0, len(keys))
+	wanted := make(map[scheduleModels.InstanceStudentKey]bool, len(keys))
+	for _, key := range keys {
+		if key.InstanceID <= 0 || key.StudentID <= 0 {
+			continue
+		}
+		wanted[key] = true
+		instanceIDs = append(instanceIDs, key.InstanceID)
+		studentIDs = append(studentIDs, key.StudentID)
+	}
+	if len(wanted) == 0 {
+		return nil, nil
+	}
+	participants, err := r.reads.ListLegacyParticipants(ctx, timetableCompose.LegacyParticipantFilter{InstanceIDs: uniqueInt64s(instanceIDs), StudentIDs: uniqueInt64s(studentIDs), ExcludeFinished: excludeFinished})
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]int64, 0, len(participants))
+	for _, participant := range participants {
+		if wanted[scheduleModels.InstanceStudentKey{InstanceID: participant.InstanceID, StudentID: participant.StudentID}] {
+			ids = append(ids, participant.ID)
+		}
+	}
+	return ids, nil
+}
+
+func filterLegacyInstanceStudents(rows []*scheduleModels.InstanceStudent, keep func(*scheduleModels.InstanceStudent) bool) []*scheduleModels.InstanceStudent {
+	result := make([]*scheduleModels.InstanceStudent, 0, len(rows))
+	for _, row := range rows {
+		if keep(row) {
+			result = append(result, row)
+		}
+	}
+	return result
 }
 
 func positiveInstanceStudentIDs(ids []int64) []int64 {
@@ -473,44 +715,77 @@ func positiveInstanceStudentIDs(ids []int64) []int64 {
 	return result
 }
 
-func legacyInstanceStudent(value timetable.InstanceStudent) *scheduleModels.InstanceStudent {
+func uniqueInt64s(ids []int64) []int64 {
+	result := slices.Clone(ids)
+	slices.Sort(result)
+	return slices.Compact(result)
+}
+
+func sortedKeys(values map[int64]string) []int64 {
+	keys := make([]int64, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+	return keys
+}
+
+func legacyInstanceStudent(value timetable.InstanceStudent, attendance map[int64]studentpresence.SessionAttendance) *scheduleModels.InstanceStudent {
 	result := &scheduleModels.InstanceStudent{}
-	replaceLegacyInstanceStudent(result, value)
+	row, ok := attendance[value.ID]
+	if !ok {
+		row = studentpresence.ExpectedSessionAttendance(value.ID)
+	}
+	replaceLegacyInstanceStudent(result, value, row)
 	return result
 }
 
-func replaceLegacyInstanceStudent(result *scheduleModels.InstanceStudent, value timetable.InstanceStudent) {
+func replaceLegacyInstanceStudent(result *scheduleModels.InstanceStudent, value timetable.InstanceStudent, attendance studentpresence.SessionAttendance) {
 	*result = scheduleModels.InstanceStudent{InstanceID: value.InstanceID, StudentID: value.StudentID, RoomID: value.RoomID,
-		Status: value.Status, Substatus: value.Substatus, Note: value.Note, CheckedInAt: value.CheckedInAt,
-		CheckedOutAt: value.CheckedOutAt, IsUnplanned: value.IsUnplanned, NotScheduled: value.NotScheduled,
-		ManualStatusAt: value.ManualStatusAt, StudentStatusDayID: value.StudentStatusDayID, PickupExceptionID: value.PickupExceptionID}
+		Status: attendance.Status, Substatus: attendance.Substatus, Note: attendance.Note, CheckedInAt: attendance.CheckedInAt,
+		CheckedOutAt: attendance.CheckedOutAt, IsUnplanned: attendance.IsUnplanned, NotScheduled: attendance.NotScheduled,
+		ManualStatusAt: attendance.ManualStatusAt, StudentStatusDayID: attendance.StudentStatusDayID, PickupExceptionID: attendance.PickupExceptionID}
 	result.ID, result.CreatedAt, result.UpdatedAt = value.ID, value.CreatedAt, value.UpdatedAt
+	if attendance.UpdatedAt.After(result.UpdatedAt) {
+		result.UpdatedAt = attendance.UpdatedAt
+	}
 	result.SetTenantID(value.TenantID)
 }
 
 func publicInstanceStudentInput(value *scheduleModels.InstanceStudent) timetable.InstanceStudentInput {
-	return timetable.InstanceStudentInput{InstanceID: value.InstanceID, StudentID: value.StudentID, RoomID: value.RoomID,
-		Status: value.Status, Substatus: value.Substatus, Note: value.Note, CheckedInAt: value.CheckedInAt,
-		CheckedOutAt: value.CheckedOutAt, IsUnplanned: value.IsUnplanned, NotScheduled: value.NotScheduled,
-		ManualStatusAt: value.ManualStatusAt, StudentStatusDayID: value.StudentStatusDayID, PickupExceptionID: value.PickupExceptionID}
+	return timetable.InstanceStudentInput{InstanceID: value.InstanceID, StudentID: value.StudentID, RoomID: value.RoomID}
 }
 
-func publicInstanceStudentKeys(keys []scheduleModels.InstanceStudentKey) []timetable.InstanceStudentKey {
-	result := make([]timetable.InstanceStudentKey, 0, len(keys))
-	for _, key := range keys {
-		result = append(result, timetable.InstanceStudentKey(key))
-	}
-	return result
+// legacyAttendanceDiffers reports whether the DTO carries anything beyond
+// expected attendance.
+func legacyAttendanceDiffers(value *scheduleModels.InstanceStudent) bool {
+	return (value.Status != "" && value.Status != scheduleModels.AttendanceStatusExpected) || value.Substatus != nil || value.Note != nil ||
+		value.CheckedInAt != nil || value.CheckedOutAt != nil || value.IsUnplanned || value.NotScheduled ||
+		value.ManualStatusAt != nil || value.StudentStatusDayID != nil || value.PickupExceptionID != nil
 }
 
-func publicStudentInstanceRefs(refs []scheduleModels.StudentInstanceRef) []timetable.StudentInstanceRef {
-	result := make([]timetable.StudentInstanceRef, 0, len(refs))
-	for _, ref := range refs {
-		if ref.InstanceID > 0 && ref.StudentID > 0 {
-			result = append(result, timetable.StudentInstanceRef(ref))
-		}
+func legacyAttendanceRestore(participantID int64, value *scheduleModels.InstanceStudent) studentpresence.SessionAttendanceRestore {
+	status := value.Status
+	if status == "" {
+		status = scheduleModels.AttendanceStatusExpected
 	}
-	return result
+	return studentpresence.SessionAttendanceRestore{
+		ParticipantID: participantID, Status: status, Substatus: value.Substatus, Note: value.Note,
+		CheckedInAt: value.CheckedInAt, CheckedOutAt: value.CheckedOutAt, IsUnplanned: value.IsUnplanned,
+		NotScheduled: value.NotScheduled, ManualStatusAt: value.ManualStatusAt,
+		StudentStatusDayID: value.StudentStatusDayID, PickupExceptionID: value.PickupExceptionID,
+	}
+}
+
+func archivedAttendance(row studentpresence.SessionAttendance) timetable.ArchivedAttendance {
+	status := row.Status
+	if status == "" {
+		status = studentpresence.SessionAttendanceExpected
+	}
+	return timetable.ArchivedAttendance{
+		Status: status, Substatus: row.Substatus, Note: row.Note, IsUnplanned: row.IsUnplanned, NotScheduled: row.NotScheduled,
+		ManualStatusAt: row.ManualStatusAt, StudentStatusDayID: row.StudentStatusDayID,
+	}
 }
 
 func legacyInstanceStudentError(operation string, err error) error {
