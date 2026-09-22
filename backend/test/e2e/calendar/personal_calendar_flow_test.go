@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	calendarAPI "github.com/moto-nrw/project-phoenix/modules/staffcalendar/http"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -27,13 +28,6 @@ func setupPersonalCalendarRoute(t *testing.T) (*bun.DB, chi.Router) {
 	router.Mount("/calendar", resource.Router())
 	return db, router
 }
-
-// The calendar permission names as the staff calendar routes require them on
-// the wire; the end-to-end flows drive the HTTP contract, not the constants.
-const (
-	permissionCalendarOwn    = "calendar:own"
-	permissionCalendarManage = "calendar:manage"
-)
 
 func calendarToken(t *testing.T, accountID int64, perms ...string) string {
 	t.Helper()
@@ -93,8 +87,8 @@ func TestPersonalCalendarHTTPFlow_StaffInvitationRSVP(t *testing.T) {
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "Organizer")
 	invitee, inviteeAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "Invitee")
 
-	manageToken := calendarToken(t, organizerAccount.ID, permissionCalendarManage, permissionCalendarOwn)
-	ownToken := calendarToken(t, inviteeAccount.ID, permissionCalendarOwn)
+	manageToken := calendarToken(t, organizerAccount.ID, permissions.CalendarManage, permissions.CalendarOwn)
+	ownToken := calendarToken(t, inviteeAccount.ID, permissions.CalendarOwn)
 
 	createBody := map[string]any{
 		"title":         "HTTP calendar planning",
@@ -147,8 +141,8 @@ func TestPersonalCalendarHTTPFlow_EditCancelDeleteAndICS(t *testing.T) {
 
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "LifecycleOrg")
 	invitee, inviteeAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "LifecycleInv")
-	manageToken := calendarToken(t, organizerAccount.ID, permissionCalendarManage, permissionCalendarOwn)
-	ownToken := calendarToken(t, inviteeAccount.ID, permissionCalendarOwn)
+	manageToken := calendarToken(t, organizerAccount.ID, permissions.CalendarManage, permissions.CalendarOwn)
+	ownToken := calendarToken(t, inviteeAccount.ID, permissions.CalendarOwn)
 
 	createRR := doJSON(t, router, http.MethodPost, "/calendar/appointments", manageToken, map[string]any{
 		"title":         "Original",
@@ -221,8 +215,8 @@ func TestPersonalCalendarHTTPFlow_ForbiddenEdit(t *testing.T) {
 
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "OwnerOrg")
 	other, otherAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "OtherMgr")
-	ownerToken := calendarToken(t, organizerAccount.ID, permissionCalendarManage, permissionCalendarOwn)
-	otherToken := calendarToken(t, otherAccount.ID, permissionCalendarManage, permissionCalendarOwn)
+	ownerToken := calendarToken(t, organizerAccount.ID, permissions.CalendarManage, permissions.CalendarOwn)
+	otherToken := calendarToken(t, otherAccount.ID, permissions.CalendarManage, permissions.CalendarOwn)
 
 	createRR := doJSON(t, router, http.MethodPost, "/calendar/appointments", ownerToken, map[string]any{
 		"title":         "Owner only",
