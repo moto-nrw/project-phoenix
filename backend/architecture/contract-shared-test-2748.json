@@ -1,0 +1,128 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2650",
+    "#2652",
+    "#2653",
+    "#2697",
+    "#2698",
+    "#2699",
+    "#2701",
+    "#2702",
+    "#2703",
+    "#2704",
+    "#2705",
+    "#2708",
+    "#2711",
+    "#2725",
+    "#3215"
+  ],
+  "owner_and_capability": "Legacy composition — Contract step for the shared test and E2E composition (test-support: test, api/testutil, internal/testdb, test/e2e/calendar, test/e2e/timetable, services/config/configtest, services/users/userstest), cut 1 of #2748",
+  "affected_packages": [
+    "api/testutil",
+    "internal/testdb",
+    "internal/testdb/cmd/bootstrap",
+    "internal/testdb/cmd/sweep",
+    "services/config/configtest",
+    "services/users/userstest",
+    "test",
+    "test/e2e/calendar",
+    "test/e2e/timetable"
+  ],
+  "affected_tables": [
+    "audit.data_deletions",
+    "active.visits"
+  ],
+  "exact_ratchet_keys": [
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/test/e2e/calendar|github.com/moto-nrw/project-phoenix/auth/authorize/permissions",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/test/e2e/calendar|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/test/e2e/calendar|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/test/e2e/calendar|github.com/moto-nrw/project-phoenix/tenant",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/test/e2e/timetable|github.com/moto-nrw/project-phoenix/auth/authorize/permissions",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/test/e2e/timetable|github.com/moto-nrw/project-phoenix/auth/device",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/test/e2e/timetable|github.com/moto-nrw/project-phoenix/models/audit",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/test/e2e/timetable|github.com/moto-nrw/project-phoenix/models/users",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/test/e2e/timetable|github.com/moto-nrw/project-phoenix/tenant",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/internal/testdb|crypto/rand",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/internal/testdb|crypto/sha1",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/internal/testdb|crypto/sha256"
+  ],
+  "atomic_cutover": "One PR removes the twelve keys that fall without a policy decision and without touching the fixture core 137 packages consume. internal/testdb derives clone names, template suffixes and cache keys with hash/fnv and math/rand/v2 instead of crypto/sha1, crypto/sha256 and crypto/rand; the unused crypto/sha1 classification leaves the policy. test/e2e/calendar mints tokens through the api/testutil claim builders TenantUserTestClaims and ParentTestClaims and asserts the wire strings for permissions and dates. test/e2e/timetable binds the kiosk actor through testutil.WithDeviceActor, resolves tenant contexts through testpkg.ContextForTenant, and spells the permission and audit deletion-type strings it sends and reads on the wire. No route, status code, error string, table or write owner changes.",
+  "tests": [
+    "scripts/test-changed.sh origin/development without --fast: 142 affected packages.",
+    "internal/testdb: TestMigrationsHashIsStableAndSourceSensitive expects the 32-character digest; TestIdentifierHashIsStableAndSourceSensitive pins the FNV-1a 128 digest.",
+    "test/e2e/calendar and test/e2e/timetable suites unchanged in assertion strength; the permission and deletion-type literals are the values of the constants they replace.",
+    "scripts/backend-architecture.sh check with the listed keys absent from legacy.jsonl, no key introduced, no rule changed."
+  ],
+  "runtime_evidence": {
+    "source": "Local run on the PR branch. The change touches test support only: no production code path, query, route or worker changes, so the evidence is the unchanged behaviour suites and the architecture check, not a benchmark rerun.",
+    "sources": [
+      "backend/internal/testdb/identifier_hash.go",
+      "backend/api/testutil/helpers.go",
+      "backend/test/e2e/calendar/personal_calendar_flow_test.go",
+      "backend/test/e2e/timetable/shared_setup_test.go"
+    ],
+    "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",
+    "thresholds": "The suite passes with unchanged assertion strength, and the architecture check reports no new violation and no stale baseline entry.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "No production write path changes; the fixtures insert the same rows through the same helpers."
+    },
+    "query_count": {
+      "state": "not_applicable",
+      "reason": "No production query changes; the register in test/query_budgets.go is unchanged and its tests pass in the changed-test run."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No production code path changes."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No production code path changes."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "scripts/test-changed.sh origin/development passed (142 packages, exit 0); golangci-lint reported 0 issues on the changed packages."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No production code path changes."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "No production code path changes."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No production code path changes."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The affected packages have no worker path."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "The affected packages have no worker path."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "The affected packages have no worker path."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The end-to-end suites keep their failure paths: the calendar flows assert 401 for a staff token on the parent surface and 403 for a foreign manager; the timetable flows assert 404 for the isolated tenant. All pass unchanged."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No production write path changes."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed locally with the keys absent: 578 legacy violations remain (590 -> 578), composition surface unchanged at 623."
+    }
+  },
+  "rollback_and_cleanup": "Revert the PR; the crypto imports, the wire strings and the twelve baseline entries return together. The template and clone databases are renamed once by the hash change and rebuilt on the next run; the sweep drops the old ones. No data cleanup.",
+  "exit_criterion": "The twelve listed keys are absent from legacy.jsonl, no key is introduced, policy ownership is unchanged and scripts/backend-architecture.sh check passes. The remaining keys of #2748 stay on the issue for the epoch that grants the shared fixtures their standing targets and for the carriers that dissolve the packages they name."
+}

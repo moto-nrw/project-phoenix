@@ -10,11 +10,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	parentAPI "github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	calendarAPI "github.com/moto-nrw/project-phoenix/modules/staffcalendar/http"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,12 +40,9 @@ func setupParentCalendarRoute(t *testing.T) (*bun.DB, chi.Router) {
 
 func parentCalendarToken(t *testing.T, accountID int64) string {
 	t.Helper()
-	return testutil.MintTestJWT(t, jwt.AppClaims{
-		ID:    int(accountID),
-		Sub:   "parent-e2e@example.com",
-		Roles: []string{"guardian"},
-		Scope: tenant.ScopeParent,
-	})
+	claims := testutil.ParentTestClaims(int(accountID))
+	claims.Sub = "parent-e2e@example.com"
+	return testutil.MintTestJWT(t, claims)
 }
 
 type feedE2EResponse struct {
@@ -69,7 +63,7 @@ func TestParentCalendarHTTPFlow_ViewICSAndFeed(t *testing.T) {
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "ParentFlowOrg")
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	manageToken := calendarToken(t, organizerAccount.ID, permissions.CalendarManage, permissions.CalendarOwn)
+	manageToken := calendarToken(t, organizerAccount.ID, permissionCalendarManage, permissionCalendarOwn)
 	createRR := doJSON(t, router, http.MethodPost, "/calendar/appointments", manageToken, map[string]any{
 		"title":         "Elternabend",
 		"start_date":    "2026-05-04",
