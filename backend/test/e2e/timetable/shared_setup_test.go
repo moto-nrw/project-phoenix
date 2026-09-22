@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
 	"github.com/stretchr/testify/require"
@@ -31,21 +32,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-)
-
-// The permission names the timetable and settings routes require on the wire.
-// The flows drive the HTTP contract, so they spell the strings the way a
-// token carries them rather than importing the authorization constants.
-const (
-	permissionSchedulesRead   = "schedules:read"
-	permissionSchedulesCreate = "schedules:create"
-	permissionSchedulesUpdate = "schedules:update"
-	permissionSchedulesDelete = "schedules:delete"
-	permissionSchedulesManage = "schedules:manage"
-	permissionConfigRead      = "config:read"
-	permissionConfigUpdate    = "config:update"
-	permissionConfigManage    = "config:manage"
-	permissionUsersRead       = "users:read"
 )
 
 // Each scenario owns two tenants (#2419): the primary one every fixture lands
@@ -187,15 +173,15 @@ func decodeResponse(t *testing.T, rr *httptest.ResponseRecorder, target any) {
 func adminClaimsForTenant(accountID, tenantID int64) timetableTestClaims {
 	c := testutil.AdminTestClaims(int(accountID))
 	c.Permissions = []string{
-		permissionSchedulesRead,
-		permissionSchedulesCreate,
-		permissionSchedulesUpdate,
-		permissionSchedulesDelete,
-		permissionSchedulesManage,
-		permissionConfigRead,
-		permissionConfigUpdate,
-		permissionConfigManage,
-		permissionUsersRead,
+		permissions.SchedulesRead,
+		permissions.SchedulesCreate,
+		permissions.SchedulesUpdate,
+		permissions.SchedulesDelete,
+		permissions.SchedulesManage,
+		permissions.ConfigRead,
+		permissions.ConfigUpdate,
+		permissions.ConfigManage,
+		permissions.UsersRead,
 		"admin:*",
 	}
 	c.IsAdmin = true

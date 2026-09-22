@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
@@ -173,8 +174,8 @@ func runInTenantTx(t *testing.T, s *scenario, fn func(ctx context.Context) (any,
 func setRetentionDays(t *testing.T, s *scenario, days int) {
 	t.Helper()
 	perms := []string{
-		permissionConfigManage,
-		permissionConfigUpdate,
+		permissions.ConfigManage,
+		permissions.ConfigUpdate,
 	}
 	err := testpkg.WithTenantTx(t, context.Background(), s.db, s.primaryTenant,
 		func(ctx context.Context, _ bun.Tx) error {

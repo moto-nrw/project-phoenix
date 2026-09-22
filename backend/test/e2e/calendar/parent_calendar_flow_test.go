@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	parentAPI "github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	calendarAPI "github.com/moto-nrw/project-phoenix/modules/staffcalendar/http"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -63,7 +64,7 @@ func TestParentCalendarHTTPFlow_ViewICSAndFeed(t *testing.T) {
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "ParentFlowOrg")
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	manageToken := calendarToken(t, organizerAccount.ID, permissionCalendarManage, permissionCalendarOwn)
+	manageToken := calendarToken(t, organizerAccount.ID, permissions.CalendarManage, permissions.CalendarOwn)
 	createRR := doJSON(t, router, http.MethodPost, "/calendar/appointments", manageToken, map[string]any{
 		"title":         "Elternabend",
 		"start_date":    "2026-05-04",

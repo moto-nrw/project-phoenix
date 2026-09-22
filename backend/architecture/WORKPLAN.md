@@ -3,10 +3,10 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 22.09.2026 · Ratchet 578 · Composition 623 · Policy-Epoche 23 · 129 Regeln mit
+Stand 22.09.2026 · Ratchet 568 · Composition 623 · Policy-Epoche 24 · 129 Regeln mit
 `convert it to exact debt` · 52.901 LOC unter `modules/*/legacy`
 
-Summenprobe: 251 + 4 + 61 + 43 + 28 + 19 + 172 = 578 = `wc -l backend/architecture/legacy.jsonl`.
+Summenprobe: 251 + 4 + 61 + 43 + 28 + 19 + 162 = 568 = `wc -l backend/architecture/legacy.jsonl`.
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Entscheidungen
@@ -96,10 +96,10 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 - [ ] [#2706](https://github.com/moto-nrw/project-phoenix/issues/2706) Dokument-Rendering — 19, blockiert durch #2727, #2729, #2731
 
-## Endkette · 172 Keys
+## Endkette · 162 Keys
 
 - [ ] [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) root api, cmd, main composition — 67
-- [ ] [#2748](https://github.com/moto-nrw/project-phoenix/issues/2748) shared test und E2E composition — 51 (Schnitt 1: `internal/testdb` ohne `crypto`, Kalender- und Stundenplan-E2E ohne `permissions`, `jwt`, `tenant`, `auth/device`, `models/users`, `models/audit`; offen sind die Fixture-Kerne `test`, `api/testutil`, `configtest`, `userstest` — jeder verbleibende Key braucht eine Regel-Entscheidung für `test-support` → Owner-Verträge, `tenant-runtime` und `legacy-shared`, oder fällt mit #2747/#2750/#3424)
+- [ ] [#2748](https://github.com/moto-nrw/project-phoenix/issues/2748) shared test und E2E composition — 41 (Schnitt 1: `internal/testdb` ohne `crypto`, E2E ohne `jwt`, `tenant`, `auth/device`, `models/users`, `models/audit`; Epoche 24 gewährt dem Fixture-Owner per ADR 0039 eigenes Werkzeug, `tenant-runtime/public`, `legacy-shared/domain` und `security-runtime/contract`; die restlichen Keys zeigen auf Pakete, die andere Carrier auflösen: `models/*` #2729/#2742/#2733, `services/users` #2728, `database/repositories/*` #2727, Settings, Root-Composition #2747/#2750, Stundenplan-Zeilen #3424 — keine Regel dafür)
 - [ ] [#2743](https://github.com/moto-nrw/project-phoenix/issues/2743) repository Factory — 18
 - [ ] [#2747](https://github.com/moto-nrw/project-phoenix/issues/2747) service Factory — 32
 - [ ] [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition löschen, leeren Ratchet beweisen — 4
