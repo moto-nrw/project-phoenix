@@ -108,7 +108,7 @@ func (r timetableInstanceStudentRepository) Update(ctx context.Context, value *s
 	if !ok {
 		attendance = studentpresence.ExpectedSessionAttendance(updated.ID)
 	}
-	if wanted := legacyAttendanceRestore(updated.ID, value); wanted != legacyAttendanceRestoreOf(attendance) {
+	if wanted := legacyAttendanceRestore(updated.ID, value); !sameLegacyAttendanceRestore(wanted, legacyAttendanceRestoreOf(attendance)) {
 		if err := r.presence.RestoreSessionAttendance(ctx, []studentpresence.SessionAttendanceRestore{wanted}); err != nil {
 			return timetableCompose.WrapDatabaseError("update", err)
 		}
@@ -135,6 +135,37 @@ func legacyAttendanceRestoreOf(row studentpresence.SessionAttendance) studentpre
 		NotScheduled: row.NotScheduled, ManualStatusAt: row.ManualStatusAt,
 		StudentStatusDayID: row.StudentStatusDayID, PickupExceptionID: row.PickupExceptionID,
 	}
+}
+
+// sameLegacyAttendanceRestore holds the wanted attendance against the stored
+// one by value. The restore shape carries pointers, so Go's == would compare
+// their addresses and report a change on every call.
+func sameLegacyAttendanceRestore(wanted, stored studentpresence.SessionAttendanceRestore) bool {
+	return wanted.ParticipantID == stored.ParticipantID && wanted.Status == stored.Status &&
+		sameLegacyAttendanceValue(wanted.Substatus, stored.Substatus) &&
+		sameLegacyAttendanceValue(wanted.Note, stored.Note) &&
+		sameLegacyAttendanceInstant(wanted.CheckedInAt, stored.CheckedInAt) &&
+		sameLegacyAttendanceInstant(wanted.CheckedOutAt, stored.CheckedOutAt) &&
+		wanted.IsUnplanned == stored.IsUnplanned && wanted.NotScheduled == stored.NotScheduled &&
+		sameLegacyAttendanceInstant(wanted.ManualStatusAt, stored.ManualStatusAt) &&
+		sameLegacyAttendanceValue(wanted.StudentStatusDayID, stored.StudentStatusDayID) &&
+		sameLegacyAttendanceValue(wanted.PickupExceptionID, stored.PickupExceptionID)
+}
+
+func sameLegacyAttendanceValue[T comparable](wanted, stored *T) bool {
+	if wanted == nil || stored == nil {
+		return wanted == nil && stored == nil
+	}
+	return *wanted == *stored
+}
+
+// sameLegacyAttendanceInstant compares the instant, not the location the
+// stored row was decoded in.
+func sameLegacyAttendanceInstant(wanted, stored *time.Time) bool {
+	if wanted == nil || stored == nil {
+		return wanted == nil && stored == nil
+	}
+	return wanted.Equal(*stored)
 }
 
 func (r timetableInstanceStudentRepository) Delete(ctx context.Context, id any) error {
