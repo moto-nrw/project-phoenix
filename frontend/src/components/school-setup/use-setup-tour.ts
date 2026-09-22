@@ -139,7 +139,9 @@ export function useSetupTour(
   // neu startet und das gefundene Ziel verwirft.
   const router = useTenantRouter();
   const routerRef = useRef(router);
-  routerRef.current = router;
+  useEffect(() => {
+    routerRef.current = router;
+  }, [router]);
   const pathname = usePathname();
   const [tour, setTour] = useState<TourState | null>(null);
   // Das Suchergebnis gehört zu genau einer Station. So zeigt eine neue
@@ -322,7 +324,9 @@ export function useSetupTour(
   // der Seite nach einem Klick in der Seitenleiste ist kein Verlassen.
   const reachedStop = useRef<SetupTourStop | null>(null);
   const onLeftRef = useRef(onLeft);
-  onLeftRef.current = onLeft;
+  useEffect(() => {
+    onLeftRef.current = onLeft;
+  }, [onLeft]);
   useEffect(() => {
     if (!stop || !tour || stop.nav) return undefined;
     if (onStopPage) {
