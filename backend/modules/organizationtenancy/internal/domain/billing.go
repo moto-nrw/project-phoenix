@@ -85,6 +85,16 @@ func DueBillingKeyDate(local time.Time, keyDay int) (string, bool) {
 	}
 }
 
+// BillingKeyDateWasConfigured reports whether the current setting was in
+// place when this month's key date became capturable. A later setting change
+// must not invent a past key date from live data.
+func BillingKeyDateWasConfigured(updatedAt, local time.Time, keyDay int) bool {
+	captureAt := time.Date(
+		local.Year(), local.Month(), keyDay, BillingCaptureHour, 0, 0, 0, local.Location(),
+	)
+	return !updatedAt.In(local.Location()).After(captureAt)
+}
+
 // NextBillingKeyDate is the next key date whose counts are not due yet at
 // local: from the key date's capture hour on, that is next month's.
 func NextBillingKeyDate(local time.Time, keyDay int) string {

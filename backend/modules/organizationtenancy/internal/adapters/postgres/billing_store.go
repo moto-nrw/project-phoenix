@@ -25,6 +25,8 @@ func NewBillingStore(database Database) *BillingStore {
 	return &BillingStore{database: database}
 }
 
+const setRepeatableReadSnapshotSQL = `SET TRANSACTION ISOLATION LEVEL REPEATABLE READ`
+
 const selectBillingSettingsSQL = `SELECT key_day, updated_at, updated_by_operator_id
 FROM platform.billing_settings WHERE id = 1`
 
@@ -68,6 +70,19 @@ type billingSettingsRow struct {
 	KeyDay              int       `bun:"key_day"`
 	UpdatedAt           time.Time `bun:"updated_at"`
 	UpdatedByOperatorID *int64    `bun:"updated_by_operator_id"`
+}
+
+// UseRepeatableReadSnapshot pins all reads of one billing capture to the same
+// database snapshot. It must be the first operation in the transaction.
+func (s *BillingStore) UseRepeatableReadSnapshot(ctx context.Context) error {
+	db, err := s.database(ctx)
+	if err != nil {
+		return err
+	}
+	if _, err := db.NewRaw(setRepeatableReadSnapshotSQL).Exec(ctx); err != nil {
+		return fmt.Errorf("organization tenancy postgres: set billing capture snapshot: %w", err)
+	}
+	return nil
 }
 
 func (r billingSettingsRow) toDomain() domain.BillingSettings {

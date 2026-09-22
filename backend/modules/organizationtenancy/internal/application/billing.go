@@ -109,12 +109,16 @@ func (b *Billing) ListBillingKeyDateCounts(ctx context.Context) ([]organizationt
 func (b *Billing) RecordDueBillingKeyDates(ctx context.Context, now time.Time) (int, error) {
 	written := 0
 	err := b.tx.RunAdmin(ctx, func(adminCtx context.Context) error {
+		if err := b.store.UseRepeatableReadSnapshot(adminCtx); err != nil {
+			return err
+		}
 		settings, err := b.store.BillingSettings(adminCtx)
 		if err != nil {
 			return err
 		}
-		keyDate, due := domain.DueBillingKeyDate(now.In(b.location), settings.KeyDay)
-		if !due {
+		localNow := now.In(b.location)
+		keyDate, due := domain.DueBillingKeyDate(localNow, settings.KeyDay)
+		if !due || !domain.BillingKeyDateWasConfigured(settings.UpdatedAt, localNow, settings.KeyDay) {
 			return nil
 		}
 		schools, err := b.store.SchoolsMissingBillingPeriod(adminCtx, keyDate)

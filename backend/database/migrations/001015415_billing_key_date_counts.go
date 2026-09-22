@@ -38,7 +38,10 @@ func billingKeyDateCountsUp(ctx context.Context, db *bun.DB) error {
 
 		CREATE TABLE platform.billing_key_date_counts (
 			id BIGSERIAL PRIMARY KEY,
-			school_id BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
+			-- Historical counts outlive the live school row. The captured name
+			-- and this retained school ID are the invoice reference, so no foreign
+			-- key may cascade a hard deletion into this evidence.
+			school_id BIGINT NOT NULL,
 			period DATE NOT NULL,
 			key_date DATE NOT NULL,
 			school_name TEXT NOT NULL,

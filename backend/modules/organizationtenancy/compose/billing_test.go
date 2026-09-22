@@ -141,6 +141,21 @@ func TestBillingCaptureSkipsSchoolsCreatedAfterTheKeyDate(t *testing.T) {
 	}
 }
 
+// TestBillingCaptureDoesNotBackdateAChangedKeyDay keeps a setting changed
+// after its newly selected capture time from creating a made-up past record.
+func TestBillingCaptureDoesNotBackdateAChangedKeyDay(t *testing.T) {
+	t.Parallel()
+	db, billing, _ := billingTestSetup(t, &stubBillingCounts{}, berlinTime(2099, time.September, 1, 12, 0))
+	ctx := adminCtx(t, db)
+	_, err := db.ExecContext(context.Background(), `UPDATE platform.billing_settings
+		SET key_day = 10, updated_at = ? WHERE id = 1`, berlinTime(2099, time.September, 20, 9, 0))
+	require.NoError(t, err)
+
+	written, err := billing.RecordDueBillingKeyDates(ctx, berlinTime(2099, time.September, 20, 9, 0))
+	require.NoError(t, err)
+	assert.Zero(t, written)
+}
+
 // TestBillingCaptureWritesNothingWhenACountFails pins that a failing owner
 // count aborts the whole capture instead of writing partial zeros.
 func TestBillingCaptureWritesNothingWhenACountFails(t *testing.T) {
@@ -242,4 +257,18 @@ func TestBillingCountsCannotBeChangedByTheServerRoles(t *testing.T) {
 			assert.Equal(t, allowed, has, "%s %s", role, privilege)
 		}
 	}
+}
+
+func TestBillingCountsKeepSchoolReferencesAfterHardDeletion(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	var referencesSchool bool
+	err := db.NewRaw(`SELECT EXISTS (
+		SELECT 1 FROM pg_constraint
+		WHERE conrelid = 'platform.billing_key_date_counts'::regclass
+		  AND confrelid = 'platform.schools'::regclass
+		  AND contype = 'f'
+	)`).Scan(t.Context(), &referencesSchool)
+	require.NoError(t, err)
+	assert.False(t, referencesSchool, "historical billing rows must outlive live school rows")
 }

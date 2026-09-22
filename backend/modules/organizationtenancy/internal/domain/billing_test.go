@@ -55,6 +55,15 @@ func TestNextBillingKeyDate(t *testing.T) {
 	assert.Equal(t, "2027-01-15", NextBillingKeyDate(local(2026, time.December, 31, 9, 0), 15))
 }
 
+func TestBillingKeyDateWasConfigured(t *testing.T) {
+	t.Parallel()
+	keyDate := local(2026, time.September, 20, 9, 0)
+
+	assert.True(t, BillingKeyDateWasConfigured(local(2026, time.September, 10, 9, 0), keyDate, 15))
+	assert.True(t, BillingKeyDateWasConfigured(local(2026, time.September, 15, 6, 0), keyDate, 15))
+	assert.False(t, BillingKeyDateWasConfigured(local(2026, time.September, 15, 6, 1), keyDate, 15))
+}
+
 func TestBillingPeriod(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "2026-09-01", BillingPeriod("2026-09-15"))

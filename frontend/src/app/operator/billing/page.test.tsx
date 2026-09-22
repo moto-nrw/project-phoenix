@@ -128,6 +128,15 @@ describe("OperatorBillingPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("explains that active physical terminals count while offline", async () => {
+    mockListKeyDateCounts.mockResolvedValue([]);
+    renderPage();
+
+    expect(
+      await screen.findByText(/Auch offline Geräte zählen/),
+    ).toBeInTheDocument();
+  });
+
   it("shows the newest month with its totals and only that month's rows", async () => {
     mockListKeyDateCounts.mockResolvedValue([
       count({ period: "2026-08-01", schoolId: "11", activeStudents: 120 }),
@@ -166,6 +175,14 @@ describe("OperatorBillingPage", () => {
     expect(
       await screen.findAllByText("17.08.2026, 09:30 Uhr · nachträglich"),
     ).not.toHaveLength(0);
+  });
+
+  it("does not mark a capture from its key date as late later on", async () => {
+    mockListKeyDateCounts.mockResolvedValue([count()]);
+    renderPage();
+
+    await screen.findAllByText("15.08.2026, 06:00 Uhr");
+    expect(screen.queryByText(/nachträglich/)).not.toBeInTheDocument();
   });
 
   it("downloads the chosen month and every month as CSV", async () => {

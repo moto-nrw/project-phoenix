@@ -225,9 +225,10 @@ function CountingRulesSection() {
           Schulabgang und gelöschte Kinder.
         </DataField>
         <DataField label="Aktive Terminals">
-          Geräte mit dem Status „aktiv“. Nicht gezählt werden inaktive Geräte,
-          Geräte in Wartung oder offline und die Erfassung im Browser. Ein
-          umgezogenes Gerät zählt nur bei der neuen Schule.
+          Physische Geräte mit dem Status „aktiv“. Auch offline Geräte zählen.
+          Nicht gezählt werden inaktive Geräte, Geräte in Wartung und die
+          Erfassung im Browser. Ein umgezogenes Gerät zählt nur bei der neuen
+          Schule.
         </DataField>
       </DataGrid>
     </SectionCard>

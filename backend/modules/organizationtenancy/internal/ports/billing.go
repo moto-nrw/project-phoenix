@@ -10,6 +10,9 @@ import (
 // BillingStore keeps the billing key day and the captured counts (#2791).
 // Every call runs on the caller's administrative transaction.
 type BillingStore interface {
+	// UseRepeatableReadSnapshot makes the capture's school and owner reads see
+	// one database snapshot before any of those reads begin.
+	UseRepeatableReadSnapshot(context.Context) error
 	BillingSettings(context.Context) (domain.BillingSettings, error)
 	UpdateBillingKeyDay(ctx context.Context, keyDay int, operatorID int64) (domain.BillingSettings, error)
 	// SchoolsMissingBillingPeriod lists the non-deleted schools that existed
