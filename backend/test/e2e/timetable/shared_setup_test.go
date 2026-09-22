@@ -182,7 +182,7 @@ func adminClaimsForTenant(accountID, tenantID int64) timetableTestClaims {
 		permissions.ConfigUpdate,
 		permissions.ConfigManage,
 		permissions.UsersRead,
-		"admin:*",
+		permissions.AdminWildcard,
 	}
 	c.IsAdmin = true
 	c.TenantID = tenantID

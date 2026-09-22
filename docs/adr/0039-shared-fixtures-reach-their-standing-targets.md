@@ -23,11 +23,14 @@ dissolving: the fixture catalog opens the test database lifecycle and the
 API helpers build on the catalog; rows are created inside a tenant through
 the tenant runtime; DATE columns are mandated to use the calendar-date type in
 `internal/timezone`; tokens carry the permission constants the routes check.
-Individual owners already hold each of these grants for their own test
-support (`communication`, `inbound-timetable`, `care-plan`,
-`student-presence`, `settings-platform`). Withholding them from the shared
-fixtures only produced the first cut's wire strings for permissions: a
-visible key traded for a silent duplicate of the constant.
+Individual owners already hold the tenant-runtime and calendar-date grants
+for their own test support (`communication`, `inbound-timetable`,
+`care-plan`, `student-presence`, `settings-platform`); the permission
+constants reach the Care Plan contract suite through the owner's `public`
+and `application` roles, and no rule yet lets one test-support package build
+on another, because only the shared owner has two. Withholding them from
+the shared fixtures only produced the first cut's wire strings for
+permissions: a visible key traded for a silent duplicate of the constant.
 
 The other forty-one name packages other carriers are dissolving: `models/*`
 (#2729, #2742, #2733), `services/users` (#2728),
