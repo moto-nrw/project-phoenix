@@ -28,8 +28,11 @@ import (
 // limited to security/session artifacts, one-time migration backups, legacy
 // compatibility tables, and transient lifecycle state.
 var seedCoverageExemptions = map[string]string{
-	"active.presence_backfill_checkpoints": "one-time migration ledger (#2761); only the explicit backfill CLI writes checkpoints, never seed/API traffic",
-	"active.presence_backfill_batches":     "one-time migration evidence (#2761); empty unless an operator explicitly runs the backfill",
+	// active.presence_backfill_checkpoints carries no exemption any more: the
+	// cutover #2762 writes the switch's own verdict into the checkpoint of
+	// every school it finds, and migration 1.14.002 always leaves the default
+	// school behind, so a migrated stack holds at least one row.
+	"active.presence_backfill_batches": "one-time migration evidence (#2761); empty unless an operator explicitly runs the backfill",
 	// Expand #2716 explicitly requires empty targets and forbids dual writes.
 	// Remove these exemptions when the guardian Cutover switches the real seed/API callers.
 	"users.student_guardian_relationships":      "empty Expand target (#2716); users.students_guardians remains authoritative until Cutover",
