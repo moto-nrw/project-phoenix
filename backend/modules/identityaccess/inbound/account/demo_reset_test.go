@@ -141,6 +141,33 @@ func TestDemoResetRejectsUnknownAndExpiredTokens(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), "demo_access_expired")
 }
 
+// A restart is a seed job, so it counts against the address's window like a
+// request does (#3466): three in an hour, the request included, then 429.
+func TestDemoResetCountsAgainstTheAddressLimit(t *testing.T) {
+	t.Parallel()
+	env := newOwnSchoolDemoEnv(t)
+	token, slug := env.requestOwnSchool(t, env.address())
+	for round := range 2 {
+		school, _ := testpkg.CreateTestTenant(t, env.db)
+		_, visitor := testpkg.CreateTestStaffWithAccountForTenant(t, env.db, school, "Kim", "Beispiel")
+		testpkg.EnsureAccountTenant(t, env.db, visitor.ID, school)
+		seedDemoSchool(t, env.db, slug, school, visitor.ID)
+		old := slug
+		t.Cleanup(func() {
+			_, err := env.db.NewRaw(`DELETE FROM platform.demo_school_states WHERE name = ?`, old).Exec(context.Background())
+			require.NoError(t, err)
+		})
+		rr := env.reset(t, token)
+		require.Equal(t, http.StatusAccepted, rr.Code, "restart %d: %s", round+1, rr.Body.String())
+		require.NoError(t, env.db.NewRaw(`SELECT school_slug FROM auth.demo_accesses WHERE token_hash = ?`, fingerprint(token)).Scan(context.Background(), &slug))
+	}
+
+	rr := env.reset(t, token)
+	assert.Equal(t, http.StatusTooManyRequests, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), "demo_access_rate_limited")
+	assert.NotEmpty(t, rr.Header().Get("Retry-After"))
+}
+
 // Every use extends the link (#3470): the demo expires 14 days after the
 // last entry, not 14 days after the request.
 func TestDemoAccessUseExtendsItsLifetime(t *testing.T) {

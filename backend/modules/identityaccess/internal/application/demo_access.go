@@ -222,11 +222,22 @@ func (d *DemoAccess) Redeem(ctx context.Context, token string, role domain.DemoR
 // The old school's sessions end, so nobody keeps working in a hidden school.
 // A school that is still being prepared cannot be restarted; the standing
 // school is shared and never is.
-func (d *DemoAccess) Reset(ctx context.Context, token string) (domain.DemoAccess, error) {
+//
+// A restart is a seed job and leaves a hidden school behind, so it counts
+// against the same windows as a request (#3466): per IP address and per
+// address of the access. A refused restart gives its places back.
+func (d *DemoAccess) Reset(ctx context.Context, token, clientIP string) (domain.DemoAccess, error) {
+	at := d.now()
+	if err := d.perIP.admit(clientIP, at); err != nil {
+		return domain.DemoAccess{}, err
+	}
 	var access domain.DemoAccess
 	err := d.adminTx(ctx, func(txCtx context.Context) error {
 		var err error
 		if access, err = d.valid(txCtx, token); err != nil {
+			return err
+		}
+		if err := d.perAddress.admit(access.Email, at); err != nil {
 			return err
 		}
 		entry, err := d.entry(txCtx, access.SchoolSlug)
@@ -241,6 +252,12 @@ func (d *DemoAccess) Reset(ctx context.Context, token string) (domain.DemoAccess
 		}
 		return d.replaceSchool(txCtx, access, entry)
 	})
+	if err != nil {
+		d.perIP.withdraw(clientIP, at)
+		if access.Email != "" {
+			d.perAddress.withdraw(access.Email, at)
+		}
+	}
 	if err != nil {
 		return domain.DemoAccess{}, err
 	}

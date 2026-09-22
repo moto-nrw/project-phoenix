@@ -198,8 +198,10 @@ func (s *DemoStateStore) ActiveNames(ctx context.Context, since time.Time) ([]st
 
 // RetireMany hides the schools of the named orders (#3470): the demo process
 // calls it for the schools whose last demo access expired. It returns how
-// many schools it hid; orders without a school and schools hidden before
-// count nothing.
+// many schools it hid; schools hidden before count nothing. An order that
+// still waits for its seed is closed as failed, so it holds no place either;
+// an order being seeded right now is left alone and finishes as a ready
+// school nobody enters.
 func (s *DemoStateStore) RetireMany(ctx context.Context, names []string) (int, error) {
 	if len(names) == 0 {
 		return 0, nil
@@ -213,6 +215,11 @@ func (s *DemoStateStore) RetireMany(ctx context.Context, names []string) (int, e
 	hidden, err := result.RowsAffected()
 	if err != nil {
 		return 0, fmt.Errorf("retire demo schools: %w", err)
+	}
+	_, err = s.db.NewRaw(`UPDATE platform.demo_school_states SET status = 'failed'
+		WHERE name IN (?) AND status = 'preparing' AND claimed_at IS NULL AND tenant_id IS NULL`, bun.List(names)).Exec(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("close waiting demo school orders: %w", err)
 	}
 	return int(hidden), nil
 }

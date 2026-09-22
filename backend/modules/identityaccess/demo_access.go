@@ -97,7 +97,7 @@ type DemoAccessEngine interface {
 	RequestDemoAccess(ctx context.Context, request DemoAccessRequest) error
 	DemoAccessStatus(ctx context.Context, token string) (DemoAccessProgress, error)
 	RedeemDemoAccess(ctx context.Context, token, role, ipAddress, userAgent string) (DemoEntry, error)
-	ResetDemoAccess(ctx context.Context, token string) error
+	ResetDemoAccess(ctx context.Context, token, clientIP string) error
 }
 
 // DemoAccessExpiryEngine is the composed implementation behind DemoAccessExpiry.
@@ -177,9 +177,10 @@ func (d *DemoAccess) RedeemDemoAccess(ctx context.Context, token, role, ipAddres
 // ResetDemoAccess gives the token's access a fresh demo school and hides the
 // old one (#3470). The same token then enters the new school once it is
 // seeded. ErrDemoSchoolPreparing while the current school is still being
-// prepared; ErrDemoAccessInvalid for the shared standing school.
-func (d *DemoAccess) ResetDemoAccess(ctx context.Context, token string) error {
-	return d.engine.ResetDemoAccess(ctx, token)
+// prepared; ErrDemoAccessInvalid for the shared standing school. A restart
+// counts against the request limits of the address and of clientIP (#3466).
+func (d *DemoAccess) ResetDemoAccess(ctx context.Context, token, clientIP string) error {
+	return d.engine.ResetDemoAccess(ctx, token, clientIP)
 }
 
 // NewDemoModule is NewModule with the demo-only capability; access is nil

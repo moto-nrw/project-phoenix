@@ -56,12 +56,16 @@ func TestRetiredDemoSchoolsLeaveTheSimulationAndTheCapacity(t *testing.T) {
 	}
 
 	// The demo process hides the schools whose last access expired; an order
-	// without a school and an unknown slug are passed over.
+	// still waiting for its seed is closed, and an unknown slug is passed over.
 	hidden, err := queue.RetireDemoSchools(ctx, []string{first, waiting, "nobody-ordered-this"})
 	require.NoError(t, err)
 	assert.Equal(t, 1, hidden)
 	assert.True(t, schoolHidden(t, db, firstID))
 	assert.False(t, schoolHidden(t, db, secondID))
+	assert.Equal(t, organizationtenancy.DemoSchoolFailed, demoSchoolProgress(t, db, waiting).Status, "a waiting order nobody can enter is not seeded")
+	none, err := queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	assert.Nil(t, none)
 	hidden, err = queue.RetireDemoSchools(ctx, []string{first})
 	require.NoError(t, err)
 	assert.Zero(t, hidden, "a school hidden before counts nothing")
@@ -77,7 +81,8 @@ func TestRetiredDemoSchoolsLeaveTheSimulationAndTheCapacity(t *testing.T) {
 	assert.Equal(t, []string{second}, active, "a hidden school is not simulated, even if it was just entered")
 	assert.Equal(t, organizationtenancy.DemoSchoolReady, demoSchoolProgress(t, db, first).Status, "the order keeps its progress; the school itself is what is gone")
 
-	// The capacity: the hidden school holds no place, the others do.
+	// The capacity: the hidden school and the closed order hold no place,
+	// the remaining ready school does.
 	order := func(schoolName string) error {
 		return testpkg.WithinAdminContext(t, ctx, db, func(ctx context.Context) error {
 			_, err := orderDemoSchoolWithin(ctx, schoolName, 3)
@@ -85,7 +90,8 @@ func TestRetiredDemoSchoolsLeaveTheSimulationAndTheCapacity(t *testing.T) {
 		})
 	}
 	require.NoError(t, order("OGS Ost"), "the hidden school's place is free")
-	require.ErrorIs(t, order("OGS Mitte"), organizationtenancy.ErrDemoCapacityReached)
+	require.NoError(t, order("OGS Mitte"), "the closed order's place is free")
+	require.ErrorIs(t, order("OGS Hafen"), organizationtenancy.ErrDemoCapacityReached)
 }
 
 // The serving backend hides the visitor's school when the visitor starts over

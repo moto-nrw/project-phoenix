@@ -21,7 +21,7 @@ type DemoAccesses interface {
 	RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) error
 	DemoAccessStatus(ctx context.Context, token string) (identityaccess.DemoAccessProgress, error)
 	RedeemDemoAccess(ctx context.Context, token, role, ipAddress, userAgent string) (identityaccess.DemoEntry, error)
-	ResetDemoAccess(ctx context.Context, token string) error
+	ResetDemoAccess(ctx context.Context, token, clientIP string) error
 }
 
 // ComposedDemoAccess keeps a capability that was not composed a nil
@@ -190,7 +190,7 @@ func (rs *DemoResource) resetAccess(w http.ResponseWriter, r *http.Request) {
 		rs.renderError(w, r, identityaccess.ErrDemoAccessUnknown)
 		return
 	}
-	if err := rs.accesses.ResetDemoAccess(r.Context(), body.Token); err != nil {
+	if err := rs.accesses.ResetDemoAccess(r.Context(), body.Token, getClientIP(r)); err != nil {
 		rs.renderError(w, r, err)
 		return
 	}

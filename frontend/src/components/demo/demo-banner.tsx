@@ -147,13 +147,16 @@ function ActiveDemoBanner() {
   };
 
   // The restart leads through the waiting room, where the setup screen of
-  // the first entry shows again; the new school's entry reports it.
+  // the first entry shows again; the new school's entry reports it. The
+  // question stays locked while the page navigates away, so a second click
+  // cannot order a second school.
   const restart = async () => {
     if (restarting) return;
     setRestarting(true);
     try {
       const entryUrl = await restartDemo(visit?.role);
       if (!entryUrl) {
+        setRestarting(false);
         setRestartAsked(false);
         toast.error(OPEN_MAILED_LINK);
         return;
@@ -163,10 +166,9 @@ function ActiveDemoBanner() {
       logger.error("demo_restart_failed", {
         error: error instanceof Error ? error.message : String(error),
       });
+      setRestarting(false);
       setRestartAsked(false);
       toast.error(SWITCH_FAILED);
-    } finally {
-      setRestarting(false);
     }
   };
 

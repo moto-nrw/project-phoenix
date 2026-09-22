@@ -173,8 +173,8 @@ func (e demoAccessEngine) RedeemDemoAccess(ctx context.Context, token, role, ipA
 	}, nil
 }
 
-func (e demoAccessEngine) ResetDemoAccess(ctx context.Context, token string) error {
-	_, err := e.flows.Reset(ctx, token)
+func (e demoAccessEngine) ResetDemoAccess(ctx context.Context, token, clientIP string) error {
+	_, err := e.flows.Reset(ctx, token, clientIP)
 	return demoAccessError(err)
 }
 
