@@ -10,12 +10,14 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
-	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
+	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -78,9 +80,9 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	staffAbsenceTypeService := AbsenceTypes(repos.StaffAbsenceType)
 	timeTrackingEvents := TimeTrackingEvents(realtimeHub)
 	today := timezone.CalendarDateClock(optionalClock(clocks))
-	var shiftPlanSyncer shiftplanning.ShiftPlanSyncer
+	var shiftPlanSyncer shiftplansync.SickCascade
 	workSessionService := timetracking.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, NewWorkSessionAudit(repos.WorkSessionEdit), repos.StaffAbsence, repos.GroupSupervisor, repos.ActiveGroup, WorkSessionStaff(repos.Staff, repositories.MustNewStaffEmployment(db)), NewWorkSessionSchedules(repos.StaffWorkSchedule), NewWorkSessionTimeModels(repos.WorkTimeModel), PresenceSettings(settingsService), activeLogger, db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook,
-		timetracking.WithWorkSessionShifts(NewTimeTrackingShifts(repos.StaffShift)),
+		timetracking.WithWorkSessionShifts(NewTimeTrackingShifts(repos.StaffAbsenceType)),
 		timetracking.WithWorkSessionEvents(timeTrackingEvents),
 		timetracking.WithWorkSessionHolidays(nonWorkingDayService),
 		timetracking.WithWorkSessionAbsenceTypes(staffAbsenceTypeService),
@@ -92,7 +94,7 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		StaffScheduleAssignments(repositories.MustNewStaffEmployment(db)),
 		NewWorkScheduleTargets(repos.StaffWorkSchedule),
 		NewWorkTimeTargetModels(repos.WorkTimeModel),
-		NewTimeTrackingShifts(repos.StaffShift),
+		NewTimeTrackingShifts(repos.StaffAbsenceType),
 		PresenceSettings(settingsService),
 		activeLogger,
 		timetracking.WithMonthHolidays(nonWorkingDayService),
@@ -107,7 +109,7 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		timetracking.WithAbsenceLogger(activeLogger),
 		timetracking.WithAbsenceDeletionAudit(NewTimeTrackingDeletionAudit(repos.TimeTrackingDeletion)),
 		timetracking.WithVacationOpenings(repos.StaffVacationOpening),
-		timetracking.WithAbsenceShiftPlanSyncer(ShiftPlanSyncBridge(func() shiftplanning.ShiftPlanSyncer { return shiftPlanSyncer })),
+		timetracking.WithAbsenceShiftPlanSyncer(shiftplansyncCompose.DeferredSickCascade(func() shiftplansync.SickCascade { return shiftPlanSyncer })),
 		timetracking.WithAbsenceMonthSnapshots(MonthSnapshotCapability(repos.StaffMonthSnapshot)),
 	)
 
@@ -137,7 +139,7 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		MonthSnapshotCapability(repos.StaffMonthSnapshot),
 		NewWorkScheduleTargets(repos.StaffWorkSchedule),
 		NewWorkTimeTargetModels(repos.WorkTimeModel),
-		NewTimeTrackingShifts(repos.StaffShift),
+		NewTimeTrackingShifts(repos.StaffAbsenceType),
 		PresenceSettings(settingsService),
 		activeLogger,
 		timetracking.WithOverviewHolidays(nonWorkingDayService),
@@ -178,12 +180,26 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	if err != nil {
 		return WorkforceTestModule{}, err
 	}
-	shifts := shiftplanning.NewStaffShiftService(repos.StaffShift, repos.Staff, shiftplanning.NewShiftTypeService(repos.ShiftType, logger), db, logger,
-		shiftplanning.WithStaffShiftSeriesExceptions(repos.StaffShiftSeriesException),
-		shiftplanning.WithStaffShiftDeviationEvents(repos.DeviationEvent),
-		shiftplanning.WithStaffShiftBroadcaster(realtimeHub))
-	shiftPlanSyncer = shiftplanning.NewShiftPlanSyncService(shifts, timetable.Instance, timetable.TimetableData,
-		repos.StaffShift, repos.InstanceStaff, realtimeHub, db, logger, today)
+	// The #1843 sick cascade is the shift-plan-sync workflow over the
+	// Workforce planning composition and the timetable test module, bound
+	// the way the factory binds it (#3418).
+	planning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
+		Workforce: repos.StaffAbsenceType, Staff: repos.Staff, CalendarPeriods: repos.CalendarPeriod, DeviationEvents: repos.DeviationEvent,
+		Instances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff, Rooms: repos.Room, ActivityGroups: repos.ActivityGroup,
+		WorkSchedules: repos.StaffWorkSchedule, WorkModels: repos.WorkTimeModel, Holidays: nonWorkingDayService,
+		DB: db, Broadcaster: realtimeHub, Logger: logger, Today: today,
+	})
+	if err != nil {
+		return WorkforceTestModule{}, err
+	}
+	shiftPlanSyncer, err = shiftplansyncCompose.NewSickCascade(shiftplansyncCompose.SickCascadeDependencies{
+		Planning: planning.Planning(nil), Workforce: repos.StaffAbsenceType, LockStaffShifts: workforceCompose.NewStaffShiftLock(db),
+		Instances: timetable.Instance, TimetableData: timetable.TimetableData, InstanceStaff: repos.InstanceStaff,
+		Broadcaster: realtimeHub, Logger: logger, Today: today,
+	})
+	if err != nil {
+		return WorkforceTestModule{}, err
+	}
 	return WorkforceTestModule{Users: usersService, StaffDocuments: staffDocumentService, WorkSession: workSessionService, StaffAbsence: staffAbsenceService, WorkTimeMonth: workTimeMonthService, StaffBalanceAdjust: staffBalanceAdjustService, StaffMonthClose: staffMonthCloseService, StaffOverview: staffOverviewService, TimeTrackingAuditLog: timeTrackingAuditLogService, StaffTimeExport: staffTimeExportService, Settings: settingsService}, nil
 }
 

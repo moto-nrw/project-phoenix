@@ -14,6 +14,7 @@ import {
   type DemoEntryPhase,
   type DemoLink,
   type DemoSetupProgress,
+  demoEntryEvent,
   demoLinkFragment,
   redeemDemoAccess,
   startDemoSession,
@@ -64,7 +65,7 @@ export default function ParentDemoEntryPage() {
           ...session,
           visit: { ...session.visit, schoolName: waited.schoolName },
         },
-        link.switched ? "demo_role_switched" : "demo_entered",
+        demoEntryEvent(link),
         "parent-credentials",
       );
       if (!started) return "failed";

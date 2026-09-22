@@ -169,6 +169,17 @@ export interface DemoLink {
    * reports a role switch, not a new entry.
    */
   switched?: boolean;
+  /**
+   * The visitor started the demo over (#3470): the entry into the fresh
+   * school reports a restart, not a new entry.
+   */
+  restarted?: boolean;
+}
+
+/** What the entry into a school reports once its start page has loaded. */
+export function demoEntryEvent(link: DemoLink): DemoEntryEvent {
+  if (link.restarted) return "demo_restarted";
+  return link.switched ? "demo_role_switched" : "demo_entered";
 }
 
 /**
@@ -189,6 +200,7 @@ export function takeDemoLinkFromFragment(): DemoLink | null {
   const role = fragment.get("role");
   const link: DemoLink = isDemoRole(role) ? { token, role } : { token };
   if (fragment.get("switched") === "1") link.switched = true;
+  if (fragment.get("restarted") === "1") link.restarted = true;
   return link;
 }
 
@@ -197,7 +209,40 @@ export function demoLinkFragment(link: DemoLink): string {
   const fragment = new URLSearchParams({ token: link.token });
   if (link.role) fragment.set("role", link.role);
   if (link.switched) fragment.set("switched", "1");
+  if (link.restarted) fragment.set("restarted", "1");
   return `#${fragment.toString()}`;
+}
+
+// „Demo neu anfangen" (#3470): the question before the visitor loses what
+// they changed, and what happens when the restart does not work.
+export const DEMO_RESTART_LABEL = "Demo neu anfangen";
+export const DEMO_RESTART_TITLE = "Demo neu anfangen?";
+export const DEMO_RESTART_TEXT =
+  "Sie bekommen eine neue Demo-Schule mit frischen Daten. Alles, was Sie bisher geändert haben, geht verloren. Der Link aus Ihrer E-Mail gilt weiter.";
+export const DEMO_RESTART_CONFIRM = "Neu anfangen";
+export const DEMO_RESTART_RUNNING = "Wird vorbereitet …";
+
+/**
+ * Starts the demo over in the current role (#3470). The route reads the
+ * token from its cookie, asks the backend for a fresh demo school and
+ * answers with the waiting room's address, where the setup screen of the
+ * first entry shows again. Null when the link behind the demo has expired.
+ */
+export async function restartDemo(
+  role: DemoRole | undefined,
+): Promise<string | null> {
+  const response = await fetch("/api/demo/access/reset", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ role }),
+  });
+  if (response.status === 404 || response.status === 410) return null;
+  if (!response.ok) throw new Error(`demo restart failed: ${response.status}`);
+  const body = (await response.json()) as { entry_url?: string };
+  if (!body.entry_url?.startsWith("http")) {
+    throw new Error("demo restart without a waiting room");
+  }
+  return body.entry_url;
 }
 
 /**
@@ -385,7 +430,19 @@ export interface DemoVisit {
    * (#3468). It never goes to the analytics.
    */
   schoolName?: string;
-  pending?: "demo_entered" | "demo_role_switched";
+  pending?: DemoEntryEvent;
+}
+
+/** What an entry reports: a first entry, a role switch or a restart. */
+export type DemoEntryEvent =
+  "demo_entered" | "demo_role_switched" | "demo_restarted";
+
+function isDemoEntryEvent(value: unknown): value is DemoEntryEvent {
+  return (
+    value === "demo_entered" ||
+    value === "demo_role_switched" ||
+    value === "demo_restarted"
+  );
 }
 
 /**
@@ -434,11 +491,7 @@ export function readDemoVisit(): DemoVisit | null {
       fixedRole: visit.fixedRole === true ? true : undefined,
       schoolName:
         typeof visit.schoolName === "string" ? visit.schoolName : undefined,
-      pending:
-        visit.pending === "demo_entered" ||
-        visit.pending === "demo_role_switched"
-          ? visit.pending
-          : undefined,
+      pending: isDemoEntryEvent(visit.pending) ? visit.pending : undefined,
     };
   } catch {
     return null;

@@ -523,55 +523,46 @@ The retained `models/schedule` repository contracts are served from
 `database/repositories` over the Workforce facade; that package's
 `models/schedule` import is already recorded debt.
 
-The retained staff-shift, shift-type, assignment, Dienstplan overview,
-staff-notice, shift-plan sync and substitution services that
-`services/schedule` used to hold are retained as the
-`inbound-staff-shifts`/`adapter` compatibility package
-`modules/workforce/legacy/shiftplanning` (#3219), moved file for file with
-their behaviour tests. The package also serves the public `StaffShiftPlanning`
-and `ShiftTypeAdministration` contracts that the shift-planning HTTP
-composition used to map, so the implementations now sit behind the contracts
-and the HTTP composition only mounts the routes. No HTTP path, status code,
-error string, authorization check, tenant scoping, coverage-conflict or
-substitution semantics changed. The services could not land on the existing
-`workforce`/`adapter` point: they still speak the retained `models/schedule`,
-`models/audit`, `models/config` and `models/facilities` rows, the Delivery
-producer, the plan export capability and the retained timetable services (in
-`services/schedule` then, `modules/timetable/legacy/timetableplanning` since
-#3218), and PR mode rejects a new permission on a point that exists at the
-base SHA. Every `inbound-staff-shifts.adapter.*`,
-`inbound-staff-shifts.module-internal-test.*` and
-`inbound-staff-shifts.module-behavior-test.*` rule and every
-`<consumer>.<role>.inbound-staff-shifts-adapter` rule is a compatibility
-permission that exists only because PR mode cannot record debt for a package
-the candidate creates: convert them to exact debt with the rule above once the
-package exists at a base SHA, and dissolve the services into the Workforce
-application and domain layers under #2730. The `adapter` role also covers the
-`cmp.Or` logger fallback the helper-consolidation ratchet requires
-(`inbound-staff-shifts.adapter.test`). The move replaced the post-construction
-setters of the shift and series services with construction-time options,
-because the composition surface guard records mutable wiring per package and
-a relocated setter would count as growth. Four subjects the ticket listed stay
-in `services/schedule` because they are methods of, or are served through,
-the retained timetable services and the two packages may only depend in one
-direction: the shift-coverage probe (`DetectShiftCoverage`, reached through
-`TimetableDataService`), the staff pool (a `TimetableDataService` method),
-the whole-day bulk substitution (an `InstanceService` method over the
-deviation pipeline) and the student partial-absence service (a student-care
-write over the care-exception lock). The shift-coverage interval vocabulary
-the overview and the probe share stays in `services/schedule`
-(`shift_coverage_intervals.go`) and the moved overview binds it through the
-package's own aliases (`vocabulary.go`). Seven package-private helpers the
-moved services shared with the retained timetable services (`isoWeekday`,
-`marshalDeviationValue`, `normalizeActor`, `int64FilterArgs`, `legacyList`,
-`broadcastStaffingChanged`, `isPlannableInstance`; `legacy_helpers.go`) and
-the overview test fakes now exist in both packages, because exporting them
-would widen the retained timetable package that #3218 dissolves. The copies
-are temporary debt that goes with the retained services under #2730 and
-#3218; a fix to the #1844 staffing broadcast must land in both until then.
-#3218 moved the coverage probe, the staff pool, the bulk substitution and the
-shared interval vocabulary on with the timetable services (below); the
-partial-absence service moved with the care services in #3220.
+The staff-shift, shift-type, assignment, Dienstplan overview, staff-notice,
+shift-plan sync and substitution services that `services/schedule` used to
+hold spent #3219 to #3418 as the `inbound-staff-shifts`/`adapter`
+compatibility package `modules/workforce/legacy/shiftplanning`: 5,336
+production LOC no ratchet could point at, hidden behind 37
+`inbound-staff-shifts.*` rules and 7 rules naming that point as a target.
+#3418 dissolved the package into its owners
+([ADR 0037](../../docs/adr/0037-shift-planning-cutover-replaces-legacy-permissions.md),
+policy epoch 21 to 22). The shift, series, move, lock, planning facade,
+shift-type, assignment and overview services are Workforce commands and
+queries in `modules/workforce/internal/planning` (`workforce`/`application`),
+bound by `modules/workforce/compose` behind the public `StaffShiftPlanning`,
+`ShiftTypeAdministration`, `StaffAssignmentQuery` and
+`StaffScheduleOverviewQuery` contracts; the retained `models/schedule`
+Dienstplan repository contracts and their adapter in `database/repositories`
+are deleted, the planning package declares its own row ports, and the
+compose package serves the retained rows to the Timetable coverage probe,
+the staff calendar feed and the plan export through `ShiftRows` and
+`ShiftTypeRows`. The Tagesinformationen service and route are Timetable's,
+whose write ownership of `users.staff_notices` and `users.staff_notice_acks`
+was already recorded: the service sits beside the native repository in
+`modules/timetable/compose` behind the public `timetable.StaffNotices`
+contract, the route in `modules/timetable/compose/httpadapter`. The #1843
+sick cascade and the schedule substitution moves cross the Workforce and
+Timetable line inside one tenant transaction and are the application
+workflow `workflows/shiftplansync` (owner `shift-plan-sync`, kind
+`workflow`): the absence service reaches the cascade through the port
+Workforce declares publicly (`workforce.ShiftPlanSync`), the substitution
+module through the port `services/education` still owns, and the two
+composition bridges in `services` are gone. No HTTP path, status code, error
+string, authorization check, tenant scoping, coverage-conflict or
+substitution semantics changed. The 44 compatibility rules are deleted, not
+converted; `inbound-staff-shifts.to.workforce` is the owner's only rule and
+`api/staff-shifts` its only package. `legacy.jsonl` is unchanged: the
+package never had a key, which is what the ticket set out to repair. The
+Dienstplan rows still speak the retained `models/schedule` structs inside
+the planning package, because the Timetable coverage probe and staff pool in
+`modules/timetable/legacy/timetableplanning` share that vocabulary; they go
+with #3424, together with the shift-coverage interval vocabulary
+(`shift_coverage_intervals.go`) the overview binds through its own aliases.
 
 The retained timetable and instance services that `services/schedule` used to
 hold (templates, splits and updates, materialization, the instance lifecycle
@@ -734,10 +725,10 @@ under the same compatibility permissions (#2690). It replaced
 ledger, month-close, overview, audit-log, export and personnel-record
 contracts of `modules/workforce`, which the root composition adapts from the
 retained time-tracking services in `modules/workforce/legacy/timetracking`
-and the retained `services/users` services. Its own-shift, assignment and
-staff-notice routes reach the retained services in
-`modules/workforce/legacy/shiftplanning` (`workforce.http.inbound-staff-shifts-adapter`,
-#3219) and still map their `models/schedule` rows. The kiosk staff
+and the retained `services/users` services. Its own-shift and assignment
+routes read the public `OwnShiftQuery` and `StaffAssignmentQuery` contracts
+the Workforce planning composition serves (#3418); the staff-notice route
+moved to Timetable with its service. The kiosk staff
 clock consumes the public device-scan contract in `modules/devicescan`
 (`process-device-scan`/`public`); `staff-clock.to.process-device-scan` is the
 one rule anchored to that new point, and the staff-clock workflow reaches the
@@ -971,6 +962,24 @@ replacement permissions are the 57 rules of the one-time, epoch-gated
 exception in [ADR 0036](../../docs/adr/0036-student-presence-cutover-replaces-legacy-permissions.md)
 (policy epoch 20 to 21), and the `legacy` budget entry for
 `modules/studentpresence/legacy` is deleted rather than lowered.
+
+#3352 was the students-inbound half of that dependency: `api/students`
+imported the nest's services in 12 production files and its models in 8.
+#3422 switched those 16 files to the public contract while deleting the nest,
+so the status days (`StatusDays`, `StatusDayOverviews` with
+`ErrStudentStatusDayPartialAbsenceConflict`), the presence history
+(`StudentHistory`) and the attendance and visit reads already ran through
+`modules/studentpresence` when #3352 landed. What #3352 changed is the shape
+of the remaining binding: `api/students` no longer takes the wiring composite
+`Presence` but its own port `students.StudentPresence`: the thirteen reads
+and commands the student list, day planning, visit and school check-in
+handlers call, eleven declared on the port and two inherited from the
+embedded `common.StudentLocationReader`, the four-method port the shared
+location snapshot in `api/common` reads. The composition root still
+hands over the public capability; compile-time assertions keep both ports
+satisfied by it. No key, rule or baseline entry changed; the two remaining
+`inbound-students.*.student-presence-*` rules are target permissions on the
+`public` and `compose` roles, not compatibility.
 
 The import HTTP composition (`modules/dataimport/inbound`, with its runtime
 binding in `modules/dataimport/inbound/compose`) keeps the `inbound-import`
@@ -2173,6 +2182,19 @@ inherit only the canonical calendar-date value, and two pinned production
 bindings carry the handed-back rows into the contracts that name them. The ADR
 lists the 57 rules epoch 21 adds under it. Everything else — other owners,
 other roles, other scopes, production composition access — stays forbidden.
+
+The shift-planning compatibility package has the fourth such path
+([ADR 0037](../../docs/adr/0037-shift-planning-cutover-replaces-legacy-permissions.md),
+#3418). In a reviewed epoch that no longer classifies
+`modules/workforce/legacy/shiftplanning` and whose base classifies it as
+`inbound-staff-shifts`/`adapter`, a consumer may replace its existing,
+same-scope access to that package with Workforce's or Timetable's `public`
+role, and its tests may instead construct the replacement through that
+owner's `compose` role. The roles that received the retired code, Workforce's
+`application` and `compose` and Timetable's `compose` with the test roles of
+their suites, keep exactly that code's reach in the same scope. The
+shift-plan-sync workflow's points are created by the candidate and need no
+exception. Everything else stays forbidden.
 
 The three existing student read projections have one fixed replacement path
 ([ADR 0025](../../docs/adr/0025-replace-student-read-projection-grants.md),

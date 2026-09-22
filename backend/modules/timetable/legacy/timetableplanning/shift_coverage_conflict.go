@@ -94,11 +94,6 @@ type ShiftCoverageDependencies struct {
 	CalendarPeriods CalendarPeriodByIDReader
 }
 
-type StaffShiftCoverageReader interface {
-	FindByStaffIDsAndDates(ctx context.Context, staffIDs []int64, dates []scheduleModel.Date) ([]*scheduleModel.StaffShift, error)
-	FindUsedCalendarWeeks(ctx context.Context, start, end scheduleModel.Date) ([]scheduleModel.Date, error)
-}
-
 // DetectShiftCoverageWarnings checks every effective occurrence with a fixed
 // number of batched reads. A ReplanWeek projection uses at most eight reads:
 // period, the group's recurrence envelope, group-scoped instances,

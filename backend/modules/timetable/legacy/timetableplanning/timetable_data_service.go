@@ -33,7 +33,7 @@ type TimetableDataDependencies struct {
 	ActivityExceptionRepo scheduleModel.ActivityExceptionRepository
 	ActivityScheduleRepo  activitiesModel.ScheduleRepository
 	InstanceStaffRepo     scheduleModel.InstanceStaffRepository
-	StaffShiftRepo        scheduleModel.StaffShiftRepository
+	StaffShiftRepo        StaffShiftCoverageReader
 	StaffRepo             usersModel.StaffRepository
 	CalendarPeriodRepo    scheduleModel.CalendarPeriodRepository
 	ActiveGroupRepo       studentpresence.SessionRecords

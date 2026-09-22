@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 )
 
@@ -52,6 +51,9 @@ func (q staffNoticeNameLookup) ListPersonNamesByAccount(ctx context.Context, acc
 	return names, nil
 }
 
-func newStaffNoticeNameLookup(persons peopledirectory.Query) shiftplanning.StaffNoticeNameLookup {
-	return staffNoticeNameLookup{persons: persons}
+// StaffNoticeNames binds the Tagesinformationen's acknowledger-name port to
+// the People Directory; the Timetable composition takes it as a plain
+// function (#3418).
+func StaffNoticeNames(persons peopledirectory.Query) func(context.Context, []int64) (map[int64]string, error) {
+	return staffNoticeNameLookup{persons: persons}.ListPersonNamesByAccount
 }

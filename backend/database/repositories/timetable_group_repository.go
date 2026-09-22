@@ -6,21 +6,23 @@ import (
 	"fmt"
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
 // timetableActivityGroupRepository keeps the legacy repository contract while
 // routing group lifecycle and target persistence through the Timetable owner.
 type timetableActivityGroupRepository struct {
-	timetable  timetable.Capability
-	groups     schoolstructure.Query
-	rooms      facilities.Query
-	calendar   schoolcalendar.Query
-	shiftTypes scheduleModels.ShiftTypeRepository
+	timetable timetable.Capability
+	groups    schoolstructure.Query
+	rooms     facilities.Query
+	calendar  schoolcalendar.Query
+	// shiftTypes labels the template list with the Workforce-owned
+	// Schichtart names and colours through the public shift query (#3418).
+	shiftTypes workforce.ShiftQuery
 }
 
 func (r timetableActivityGroupRepository) Create(ctx context.Context, group *activitiesModels.Group) error {

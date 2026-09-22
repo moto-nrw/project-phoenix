@@ -44,6 +44,7 @@ type offboardingIdentity interface {
 type offboardingScenario struct {
 	db      *bun.DB
 	repos   *repositories.Factory
+	rows    repositories.TimetableTestRepositories
 	authSvc offboardingIdentity
 	svc     *offboardingTestRunner
 	deps    offboardingcompose.Dependencies
@@ -60,7 +61,10 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 		db = databases[0]
 	}
 
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	rows, err := repositories.NewTimetableTestRepositories(db)
+	require.NoError(t, err)
+	owners := repositories.NewUnobservedTimetableDependencies(db)
+	repos := repositories.NewFactory(db, owners)
 	repos.SetConfigRuntime(testpkg.ConfigRuntime(db))
 
 	authService, err := services.IdentityAccessForTests(repos, services.IdentityAccessTestConfig{
@@ -87,6 +91,7 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 	return &offboardingScenario{
 		db:      db,
 		repos:   repos,
+		rows:    rows,
 		authSvc: authService,
 		svc:     svc,
 		deps:    deps,
@@ -196,7 +201,7 @@ func TestOffboardStaff_CleanupIntentFailureRestoresAccessAndAllOwnerWrites(t *te
 	require.ErrorIs(t, err, failure)
 	_, err = sc.repos.Staff.FindByID(sc.ctx, staff.ID)
 	require.NoError(t, err)
-	_, err = sc.repos.StaffShift.FindByID(sc.ctx, shift.ID)
+	_, err = sc.rows.StaffShift.FindByID(sc.ctx, shift.ID)
 	require.NoError(t, err)
 	_, err = sc.repos.InstanceStaff.FindByID(sc.ctx, assignment.ID)
 	require.NoError(t, err)
@@ -264,7 +269,7 @@ func assertConcurrentPlanningRejected(t *testing.T, operation string) {
 		go func() {
 			writerDone <- tenant.WithinCurrentTenant(ctx, func(writerCtx context.Context) error {
 				if operation == "shift" {
-					return sc.repos.StaffShift.Create(writerCtx, &scheduleModels.StaffShift{StaffID: staff.ID, Date: scheduleModels.Date(testpkg.TodayDate().AddDays(1)), StartTime: testpkg.WallClock(8, 0), EndTime: testpkg.WallClock(12, 0), CreatedBy: staff.ID})
+					return sc.rows.StaffShift.Create(writerCtx, &scheduleModels.StaffShift{StaffID: staff.ID, Date: scheduleModels.Date(testpkg.TodayDate().AddDays(1)), StartTime: testpkg.WallClock(8, 0), EndTime: testpkg.WallClock(12, 0), CreatedBy: staff.ID})
 				}
 				if operation == "move_history" {
 					instance.Date = scheduleModels.Date(testpkg.TodayDate().AddDays(1))
@@ -1134,7 +1139,7 @@ func TestOffboardStaff_RemovesUpcomingStaffShifts(t *testing.T) {
 			EndTime:   time.Date(1, 1, 1, startHour+4, 0, 0, 0, time.UTC),
 			CreatedBy: staff.ID,
 		}
-		require.NoError(t, sc.repos.StaffShift.Create(sc.ctx, shift))
+		require.NoError(t, sc.rows.StaffShift.Create(sc.ctx, shift))
 		return shift
 	}
 	past := makeShift(today.AddDays(-1), 8)
