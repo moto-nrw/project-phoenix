@@ -64,7 +64,7 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [ ] [#2759](https://github.com/moto-nrw/project-phoenix/issues/2759) Cutover `users.students` — DB-Hälfte durch PR #3384, offen ist der Caller-Switch
 - [ ] [#3432](https://github.com/moto-nrw/project-phoenix/issues/3432) Drei Projection-Grants von `users.students` umhängen — blockt #2760
 - [ ] [#2760](https://github.com/moto-nrw/project-phoenix/issues/2760) Contract `users.students` — blockiert durch #2759, #3387, #3432
-- [ ] [#2755](https://github.com/moto-nrw/project-phoenix/issues/2755) Backfill `users.students_guardians`
+- [x] [#2755](https://github.com/moto-nrw/project-phoenix/issues/2755) Backfill `users.students_guardians` — Migration 1.15.413 und `backfill guardian-owner`; Checkpoint und Verifikation (Counts, Checksummen, Account-Bindung, RLS) liegen für #2756 bereit, `users.students_guardians` bleibt autoritativ
 - [ ] [#2756](https://github.com/moto-nrw/project-phoenix/issues/2756) Cutover `users.students_guardians`
 - [ ] [#2757](https://github.com/moto-nrw/project-phoenix/issues/2757) Contract `users.students_guardians`
 - [x] [#2753](https://github.com/moto-nrw/project-phoenix/issues/2753) Cutover `users.staff` — Migration 1.15.409 und Caller-Switch in einem Release: School Membership schreibt die Mitgliedschaft, Workforce das Beschäftigungsprofil (`StaffEmployments`); Kompatibilitäts-View, Archiv und Zähler bleiben für #2754
