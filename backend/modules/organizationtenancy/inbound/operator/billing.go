@@ -135,9 +135,9 @@ func (rs *BillingResource) ExportKeyDateCounts(w http.ResponseWriter, r *http.Re
 		common.RenderError(w, r, rs.billingError(r, err))
 		return
 	}
-	filename := "abrechnung-stichtage.csv"
+	filename := "stichtagszahlen.csv"
 	if month != "" {
-		filename = "abrechnung-stichtag-" + month + ".csv"
+		filename = "stichtagszahlen-" + month + ".csv"
 	}
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)

@@ -97,7 +97,7 @@ describe("operator billing api", () => {
         status: 200,
         headers: {
           "Content-Disposition":
-            'attachment; filename="abrechnung-stichtag-2026-08.csv"',
+            'attachment; filename="stichtagszahlen-2026-08.csv"',
         },
       }),
     );
@@ -110,7 +110,18 @@ describe("operator billing api", () => {
     );
     expect(mockDownloadBlob).toHaveBeenCalledWith(
       expect.any(Blob),
-      "abrechnung-stichtag-2026-08.csv",
+      "stichtagszahlen-2026-08.csv",
+    );
+  });
+
+  it("uses a Stichtagszahlen file name when the backend sends none", async () => {
+    fetchMock.mockResolvedValue(new Response("csv", { status: 200 }));
+
+    await operatorBillingService.downloadKeyDateCounts("2026-08");
+
+    expect(mockDownloadBlob).toHaveBeenCalledWith(
+      expect.any(Blob),
+      "stichtagszahlen-2026-08.csv",
     );
   });
 

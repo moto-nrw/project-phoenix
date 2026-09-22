@@ -68,7 +68,7 @@ func TestBillingExportWritesAGermanSpreadsheetCSV(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	assert.Equal(t, "text/csv; charset=utf-8", recorder.Header().Get("Content-Type"))
-	assert.Equal(t, `attachment; filename="abrechnung-stichtag-2026-08.csv"`, recorder.Header().Get("Content-Disposition"))
+	assert.Equal(t, `attachment; filename="stichtagszahlen-2026-08.csv"`, recorder.Header().Get("Content-Disposition"))
 	body := recorder.Body.String()
 	require.True(t, strings.HasPrefix(body, "\xEF\xBB\xBF"), "Excel needs the BOM to read umlauts")
 	lines := strings.Split(strings.TrimSpace(strings.TrimPrefix(body, "\xEF\xBB\xBF")), "\n")
@@ -87,7 +87,7 @@ func TestBillingExportWithoutMonthContainsEveryMonth(t *testing.T) {
 	NewBillingResource(report, nil).ExportKeyDateCounts(recorder, httptest.NewRequest(http.MethodGet, "/billing/key-date-counts/export", nil))
 
 	require.Equal(t, http.StatusOK, recorder.Code)
-	assert.Equal(t, `attachment; filename="abrechnung-stichtage.csv"`, recorder.Header().Get("Content-Disposition"))
+	assert.Equal(t, `attachment; filename="stichtagszahlen.csv"`, recorder.Header().Get("Content-Disposition"))
 	assert.Contains(t, recorder.Body.String(), "OGS August")
 	assert.Contains(t, recorder.Body.String(), "OGS Juli")
 }

@@ -114,8 +114,8 @@ export const operatorBillingService = {
     }
     const blob = await response.blob();
     const fallback = month
-      ? `abrechnung-stichtag-${month}.csv`
-      : "abrechnung-stichtage.csv";
+      ? `stichtagszahlen-${month}.csv`
+      : "stichtagszahlen.csv";
     downloadBlob(blob, filenameFromDisposition(response) ?? fallback);
   },
 };
