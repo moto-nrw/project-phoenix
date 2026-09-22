@@ -35,6 +35,25 @@ func NewAuthEventCommand(repo audit.AuthEventRepository) audit.Command {
 	return authEventCommand{repo: repo}
 }
 
+type guardianFinancialChangeCommand struct {
+	repo audit.GuardianFinancialChangeCreator
+}
+
+func (c guardianFinancialChangeCommand) Append(ctx context.Context, event any) error {
+	change, ok := event.(*audit.GuardianFinancialChange)
+	if !ok {
+		return fmt.Errorf("test guardian financial change command: unsupported event %T", event)
+	}
+	return c.repo.Create(ctx, change)
+}
+
+// NewGuardianFinancialChangeCommand routes the guardian payer audit rows a
+// flow appends into the given trail, so a behaviour suite can pin the audit
+// row without naming the Audit Platform's event types.
+func NewGuardianFinancialChangeCommand(repo audit.GuardianFinancialChangeCreator) audit.Command {
+	return guardianFinancialChangeCommand{repo: repo}
+}
+
 func NewAuditAuthEvent(accountID int64, ipAddress string) any {
 	return audit.NewAuthEvent(accountID, audit.EventTypeLogin, true, ipAddress)
 }

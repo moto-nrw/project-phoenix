@@ -9,15 +9,12 @@ package behavior_test
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"log/slog"
 	"net"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/services"
 
@@ -25,127 +22,21 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
-
-// --- minimal in-memory settings repos (real settingsService backed by mocks) ---
-
-type mfaTestValueRepo struct {
-	mu     sync.Mutex
-	values map[string]*configModel.SettingValue
-}
-
-func newMFATestValueRepo() *mfaTestValueRepo {
-	return &mfaTestValueRepo{values: make(map[string]*configModel.SettingValue)}
-}
-
-func (r *mfaTestValueRepo) key(tenantID int64, settingKey string) string {
-	return fmt.Sprintf("%d:%s", tenantID, settingKey)
-}
-
-func (r *mfaTestValueRepo) FindByTenantAndKey(_ context.Context, tenantID int64, settingKey string) (*configModel.SettingValue, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if sv, ok := r.values[r.key(tenantID, settingKey)]; ok {
-		return sv, nil
-	}
-	return nil, nil
-}
-
-func (r *mfaTestValueRepo) FindByTenantAndKeys(_ context.Context, tenantID int64, settingKeys []string) ([]*configModel.SettingValue, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	requested := make(map[string]struct{}, len(settingKeys))
-	for _, key := range settingKeys {
-		requested[key] = struct{}{}
-	}
-	prefix := fmt.Sprintf("%d:", tenantID)
-	out := []*configModel.SettingValue{}
-	for k, v := range r.values {
-		if len(k) <= len(prefix) || k[:len(prefix)] != prefix {
-			continue
-		}
-		if _, ok := requested[v.SettingKey]; !ok {
-			continue
-		}
-		out = append(out, v)
-	}
-	return out, nil
-}
-
-func (r *mfaTestValueRepo) FindByTenantsAndKeys(_ context.Context, tenantIDs []int64, settingKeys []string) ([]*configModel.SettingValue, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	tenants := make(map[int64]struct{}, len(tenantIDs))
-	for _, tenantID := range tenantIDs {
-		tenants[tenantID] = struct{}{}
-	}
-	requested := make(map[string]struct{}, len(settingKeys))
-	for _, key := range settingKeys {
-		requested[key] = struct{}{}
-	}
-	var out []*configModel.SettingValue
-	for _, value := range r.values {
-		if _, ok := tenants[value.GetTenantID()]; !ok {
-			continue
-		}
-		if _, ok := requested[value.SettingKey]; ok {
-			out = append(out, value)
-		}
-	}
-	return out, nil
-}
-
-func (r *mfaTestValueRepo) Upsert(_ context.Context, sv *configModel.SettingValue) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.values[r.key(sv.GetTenantID(), sv.SettingKey)] = sv
-	return nil
-}
-
-func (r *mfaTestValueRepo) Delete(_ context.Context, tenantID int64, settingKey string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	delete(r.values, r.key(tenantID, settingKey))
-	return nil
-}
-
-func (r *mfaTestValueRepo) setOverride(t *testing.T, tenantID int64, key string, value any) {
-	t.Helper()
-	raw, err := json.Marshal(value)
-	require.NoError(t, err)
-	sv := &configModel.SettingValue{
-		SettingKey: key,
-		Value:      raw,
-	}
-	sv.SetTenantID(tenantID)
-	require.NoError(t, r.Upsert(context.Background(), sv))
-}
-
-type mfaTestAuditRepo struct{}
-
-func (m *mfaTestAuditRepo) Create(_ context.Context, _ *configModel.SettingAuditEntry) error {
-	return nil
-}
-
-// --- capturing mailer reused across this file ---
 
 // --- shared helpers for this file ---
 
 type wiredMFAFixture struct {
-	svc       identityaccess.AccountMFA
-	repos     *repositories.Factory
-	tenantID  int64
-	valueRepo *mfaTestValueRepo
-	mailer    *testpkg.CapturingMailer
-	settings  configSvc.SettingsService
+	svc      identityaccess.AccountMFA
+	repos    *repositories.Factory
+	db       *bun.DB
+	tenantID int64
+	mailer   *testpkg.CapturingMailer
 }
 
-// newWiredMFAFixture wires a real MFA service against the test DB with a
-// real settings service backed by an in-memory value repo and a real
+// newWiredMFAFixture wires a real MFA service against the test DB with the
+// module's real settings service over the tenant settings rows and a real
 // dispatcher backed by a capturing mailer.
 func newWiredMFAFixture(t *testing.T) *wiredMFAFixture {
 	t.Helper()
@@ -154,27 +45,28 @@ func newWiredMFAFixture(t *testing.T) *wiredMFAFixture {
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	valueRepo := newMFATestValueRepo()
-	settings := configSvc.NewSettingsService(valueRepo, &mfaTestAuditRepo{}, nil, testpkg.SettingsRuntime(t, db), slog.Default())
-	testpkg.SetTenantRuntime(t, settings, db)
-
 	mailer := testpkg.NewCapturingMailer()
 	module := newMFATestModule(t, db,
 		services.WithAuthTestMailer(mailer),
-		services.WithAuthTestMFASettings(settings),
 		// No retries: a refused send must fail in milliseconds, not in the
 		// production twenty seconds.
 		services.WithAuthTestMFABackoff(time.Millisecond),
 	)
 
 	return &wiredMFAFixture{
-		svc:       module.MFA,
-		repos:     module.Repos,
-		tenantID:  tenantID,
-		valueRepo: valueRepo,
-		mailer:    mailer,
-		settings:  settings,
+		svc:      module.MFA,
+		repos:    module.Repos,
+		db:       db,
+		tenantID: tenantID,
+		mailer:   mailer,
 	}
+}
+
+// setOverride stores a raw tenant override for the fixture's tenant, so the
+// suite can drive values the registry would refuse as well as valid ones.
+func (fix *wiredMFAFixture) setOverride(t *testing.T, key string, value any) {
+	t.Helper()
+	writeTenantSettingOverride(t, fix.db, fix.tenantID, key, value)
 }
 
 // --- IsRequired: drive each mode value ---
@@ -183,7 +75,7 @@ func TestMFAService_IsRequired_ModeOff_ReturnsFalse(t *testing.T) {
 	t.Parallel()
 
 	fix := newWiredMFAFixture(t)
-	fix.valueRepo.setOverride(t, fix.tenantID, configModel.KeyMFAMode, configModel.MFAModeOff)
+	fix.setOverride(t, settingKeyMFAMode, mfaModeOff)
 
 	required, err := fix.svc.IsRequired(context.Background(), 4242, nil, fix.tenantID)
 	require.NoError(t, err)
@@ -194,7 +86,7 @@ func TestMFAService_IsRequired_ModeRequiredAll_ReturnsTrue(t *testing.T) {
 	t.Parallel()
 
 	fix := newWiredMFAFixture(t)
-	fix.valueRepo.setOverride(t, fix.tenantID, configModel.KeyMFAMode, configModel.MFAModeRequiredAll)
+	fix.setOverride(t, settingKeyMFAMode, mfaModeRequiredAll)
 
 	required, err := fix.svc.IsRequired(context.Background(), 4242, nil, fix.tenantID)
 	require.NoError(t, err)
@@ -205,7 +97,7 @@ func TestMFAService_IsRequired_ModeRequiredAdmins_RequiresAdminsOnly(t *testing.
 	t.Parallel()
 
 	fix := newWiredMFAFixture(t)
-	fix.valueRepo.setOverride(t, fix.tenantID, configModel.KeyMFAMode, configModel.MFAModeRequiredAdmins)
+	fix.setOverride(t, settingKeyMFAMode, mfaModeRequiredAdmins)
 
 	required, err := fix.svc.IsRequired(context.Background(), 4242, []string{"admin"}, fix.tenantID)
 	require.NoError(t, err)
@@ -220,7 +112,7 @@ func TestMFAService_IsRequired_UnknownModeFallsBackToOff(t *testing.T) {
 	t.Parallel()
 
 	fix := newWiredMFAFixture(t)
-	fix.valueRepo.setOverride(t, fix.tenantID, configModel.KeyMFAMode, "garbage_mode_value")
+	fix.setOverride(t, settingKeyMFAMode, "garbage_mode_value")
 
 	required, err := fix.svc.IsRequired(context.Background(), 4242, nil, fix.tenantID)
 	require.NoError(t, err)
@@ -246,7 +138,7 @@ func TestMFAService_IsTrustedDeviceEnabled_TenantOverrideRespected(t *testing.T)
 
 	// Registry default for trusted_device_enabled is true. Explicitly flip
 	// it to false for this tenant and the per-tenant resolver must pick it up.
-	fix.valueRepo.setOverride(t, fix.tenantID, configModel.KeyMFATrustedDeviceEnabled, false)
+	fix.setOverride(t, settingKeyMFATrustedDeviceEnabled, false)
 
 	enabled := fix.svc.IsTrustedDeviceEnabled(context.Background(), fix.tenantID)
 	assert.False(t, enabled, "tenant override must win over registry default")
@@ -264,7 +156,7 @@ func TestMFAService_TrustedDeviceDays_TenantOverrideRespected(t *testing.T) {
 	t.Parallel()
 
 	fix := newWiredMFAFixture(t)
-	fix.valueRepo.setOverride(t, fix.tenantID, configModel.KeyMFATrustedDeviceDays, 14)
+	fix.setOverride(t, settingKeyMFATrustedDeviceDays, 14)
 
 	days := fix.svc.TrustedDeviceDays(context.Background(), fix.tenantID)
 	assert.Equal(t, 14, days, "tenant override must override the registry default")
@@ -275,7 +167,7 @@ func TestMFAService_TrustedDeviceDays_NegativeOverrideFallsBackToDefault(t *test
 
 	fix := newWiredMFAFixture(t)
 	// A bad value (≤0) must fall through to the package constant default.
-	fix.valueRepo.setOverride(t, fix.tenantID, configModel.KeyMFATrustedDeviceDays, -5)
+	fix.setOverride(t, settingKeyMFATrustedDeviceDays, -5)
 	days := fix.svc.TrustedDeviceDays(context.Background(), fix.tenantID)
 	assert.Positive(t, days, "negative override must not break the resolver — it must fall back to the default")
 }
@@ -290,7 +182,7 @@ func TestMFAService_IssueTrustedDevice_DisabledBySetting_NoCookieIssued(t *testi
 
 	// Flip the per-tenant setting off — IssueTrustedDevice must short-circuit
 	// to ("", zero, nil) instead of persisting a row.
-	fix.valueRepo.setOverride(t, fix.tenantID, configModel.KeyMFATrustedDeviceEnabled, false)
+	fix.setOverride(t, settingKeyMFATrustedDeviceEnabled, false)
 
 	// Need a real account so the account FK is satisfied for any downstream call.
 	// (IssueTrustedDevice never reaches persistence in the disabled branch.)
@@ -307,7 +199,7 @@ func TestMFAService_VerifyTrustedDevice_DisabledBySetting_ReturnsFalse(t *testin
 	ctx := context.Background()
 	fix := newWiredMFAFixture(t)
 
-	fix.valueRepo.setOverride(t, fix.tenantID, configModel.KeyMFATrustedDeviceEnabled, false)
+	fix.setOverride(t, settingKeyMFATrustedDeviceEnabled, false)
 	ok, err := fix.svc.VerifyTrustedDevice(ctx, 99999, fix.tenantID, "any-cookie-value")
 	require.NoError(t, err)
 	assert.False(t, ok, "disabled setting must reject the cookie before signature check")

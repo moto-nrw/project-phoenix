@@ -63,9 +63,14 @@ import (
 // grants to the nest stale. Dissolving the nest also rewrote the nine
 // surviving grants of its own behaviour suites, which describe the module's
 // suites now and promise no conversion. Together with #2736 that lowers them
-// to 195 and 254, and slice S6 of #3424 (ADR 0038) retired the three grants
-// the School Calendar handover emptied, to 193 and 252; this prose counter
-// remains as an independent guard.
+// to 195 and 254. #3446 removed the 18 `identity-access.behaviour.*`
+// permissions of the Identity & Access behaviour suites: fourteen edges left
+// the suites, the four that remain (the module's own public contract, its
+// token adapter and refresh-rotation application, and the tenant runtime)
+// became exact `legacy.jsonl` debt under the same issue, lowering them to 177
+// and 236. Slice S6 of #3424 (ADR 0038) retired the three grants the School
+// Calendar handover emptied; this prose counter remains as an independent
+// guard.
 //
 // Three shrink-only measurements, all read-only on policy.json:
 //
@@ -115,12 +120,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 147
+	policyTempRulesTotal = 129
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 206
+	policyTempRulesCompatTotal = 188
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -158,9 +163,6 @@ var policyTempRulesFamilies = map[string]int{
 	// #3214, #3218, #3220, #3224 — closed; #3427 removed the one #3350 added.
 	// #3422 removed 1 that went stale with legacy/services/active.
 	"group-live-view": 1,
-
-	// #3364 — closed.
-	"identity-access": 18,
 
 	// #3229, #3214, #3220 — closed; #2725 (OPEN) for one rule.
 	"inbound-parent": 27,

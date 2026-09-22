@@ -6,8 +6,6 @@ import (
 	"testing"
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -120,27 +118,12 @@ func tokenFamilyID(t *testing.T, db *bun.DB, accountID int64, offset int) string
 
 func insertStaffPush(t *testing.T, db *bun.DB, accountID, tenantID int64, endpoint, familyID string) {
 	t.Helper()
-	insertPush(t, db, accountID, tenantID, deliveryModels.PushPortalStaff, endpoint, familyID)
+	insertPushSubscription(t, db, accountID, tenantID, pushPortalStaff, endpoint, familyID)
 }
 
 func insertParentPush(t *testing.T, db *bun.DB, accountID, tenantID int64, endpoint, familyID string) {
 	t.Helper()
-	insertPush(t, db, accountID, tenantID, deliveryModels.PushPortalParent, endpoint, familyID)
-}
-
-func insertPush(t *testing.T, db *bun.DB, accountID, tenantID int64, portal, endpoint, familyID string) {
-	t.Helper()
-	sub := &deliveryModels.PushSubscription{
-		AccountID:     accountID,
-		Portal:        portal,
-		Endpoint:      endpoint,
-		P256dh:        "p256dh-key",
-		Auth:          "auth-key",
-		TokenFamilyID: familyID,
-	}
-	sub.SetTenantID(tenantID)
-	_, err := db.NewInsert().Model(sub).ModelTableExpr("iot.push_subscriptions").Exec(context.Background())
-	require.NoError(t, err)
+	insertPushSubscription(t, db, accountID, tenantID, pushPortalParent, endpoint, familyID)
 }
 
 func TestRevokeAllTokensClearsStaffPushAcrossTenants(t *testing.T) {
@@ -281,25 +264,12 @@ func TestDeactivateAccountFromAdminTxRemovesPush(t *testing.T) {
 
 func countStaffPush(t *testing.T, db *bun.DB, accountID int64, endpoint string) int {
 	t.Helper()
-	return countPush(t, db, accountID, deliveryModels.PushPortalStaff, endpoint)
+	return countPushSubscriptions(t, db, accountID, pushPortalStaff, endpoint)
 }
 
 func countParentPush(t *testing.T, db *bun.DB, accountID int64, endpoint string) int {
 	t.Helper()
-	return countPush(t, db, accountID, deliveryModels.PushPortalParent, endpoint)
-}
-
-func countPush(t *testing.T, db *bun.DB, accountID int64, portal, endpoint string) int {
-	t.Helper()
-	count, err := db.NewSelect().
-		Model((*deliveryModels.PushSubscription)(nil)).
-		ModelTableExpr(`iot.push_subscriptions AS "push_subscription"`).
-		Where("account_id = ?", accountID).
-		Where("portal = ?", portal).
-		Where("endpoint = ?", endpoint).
-		Count(context.Background())
-	require.NoError(t, err)
-	return count
+	return countPushSubscriptions(t, db, accountID, pushPortalParent, endpoint)
 }
 
 func TestLogoutLeavesOtherPortalSessionsIntact(t *testing.T) {
@@ -842,7 +812,7 @@ func TestActivateAccountCompletesPendingAccountWideWipeWithoutMutatingHistory(t 
 		TableExpr("audit.auth_events").
 		Column("id").
 		Where("account_id = ?", account.ID).
-		Where("event_type = ?", auditModels.EventTypeTokenRevoked).
+		Where("event_type = ?", authEventTokenRevoked).
 		Where(`metadata @> ?`, `{"pending_account_wide_wipe":true}`).
 		Scan(context.Background(), &pendingID))
 	require.NoError(t, service.ActivateAccount(ctx, int(account.ID)))
@@ -850,7 +820,7 @@ func TestActivateAccountCompletesPendingAccountWideWipeWithoutMutatingHistory(t 
 	history, err := db.NewSelect().
 		TableExpr("audit.auth_events").
 		Where("account_id = ?", account.ID).
-		Where("event_type = ?", auditModels.EventTypeTokenRevoked).
+		Where("event_type = ?", authEventTokenRevoked).
 		Where(`metadata @> ?`, `{"pending_account_wide_wipe":true}`).
 		Count(context.Background())
 	require.NoError(t, err)
@@ -859,7 +829,7 @@ func TestActivateAccountCompletesPendingAccountWideWipeWithoutMutatingHistory(t 
 	completed, err := db.NewSelect().
 		TableExpr("audit.auth_events").
 		Where("account_id = ?", account.ID).
-		Where("event_type = ?", auditModels.EventTypeAccountWideWipeCompleted).
+		Where("event_type = ?", authEventAccountWideWipeCompleted).
 		Where(`metadata->>'pending_event_id' = ?`, fmt.Sprint(pendingID)).
 		Count(context.Background())
 	require.NoError(t, err)

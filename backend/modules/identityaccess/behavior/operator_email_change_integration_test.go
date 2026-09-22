@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -23,16 +22,6 @@ import (
 )
 
 const operatorTestPassword = "SecurePass123!" //nolint:gosec // pragma: allowlist secret
-
-// fastArgon2Params returns cheap Argon2id params for tests so hashing takes ~1ms
-// instead of ~200ms (production DefaultParams).
-var fastArgon2Params = &userpass.PasswordParams{
-	Memory:      1024, // 1 MB
-	Iterations:  1,
-	Parallelism: 1,
-	SaltLength:  16,
-	KeyLength:   32,
-}
 
 // buildServiceFactory composes the service root the way the server does.
 func buildServiceFactory(t *testing.T, db *bun.DB) *services.Factory {
@@ -65,11 +54,10 @@ func createEmailChangeTestOperator(t *testing.T, db *bun.DB, email string) (int6
 	t.Helper()
 	ctx := context.Background()
 
-	hash, err := userpass.HashPassword(operatorTestPassword, fastArgon2Params)
-	require.NoError(t, err, "Failed to hash test password")
+	hash := testpkg.HashTestPassword(t, operatorTestPassword)
 
 	var operatorID int64
-	err = db.NewRaw(
+	err := db.NewRaw(
 		`INSERT INTO platform.operators (email, password_hash, display_name, active)
 		 VALUES (?, ?, ?, true) RETURNING id`,
 		email, hash, "Test Operator",

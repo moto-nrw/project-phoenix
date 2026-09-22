@@ -574,6 +574,7 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 			"test/module_file_size_ratchet_test.go",                        // Source-scanning ratchet (#2580); allowlist keys name *_repositories.go files, no DB is used
 			"test/module_complexity_ratchet_test.go",                       // Source-scanning ratchet (#2580); same as above, no DB is used
 			"test/module_http_orm_ratchet_test.go",                         // Source-scanning ratchet (#2580); the rule text names *bun.DB, which is the thing it forbids, no DB is used
+			"modules/identityaccess/behavior/owner_contracts_test.go",      // Shared row readers of the behaviour suites (#3446); caller tests own DB setup
 		}
 		skip := false
 		for _, sf := range skipFiles {

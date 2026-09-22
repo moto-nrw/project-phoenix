@@ -17,7 +17,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/email"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -28,11 +27,11 @@ type cancelingMFAMailer struct {
 	attempts atomic.Int32
 }
 
-func (m *cancelingMFAMailer) Send(message email.Message) error {
+func (m *cancelingMFAMailer) Send(message testpkg.EmailMessage) error {
 	return m.SendContext(context.Background(), message)
 }
 
-func (m *cancelingMFAMailer) SendContext(_ context.Context, _ email.Message) error {
+func (m *cancelingMFAMailer) SendContext(_ context.Context, _ testpkg.EmailMessage) error {
 	m.attempts.Add(1)
 	if m.cancel != nil {
 		m.cancel()
@@ -42,7 +41,7 @@ func (m *cancelingMFAMailer) SendContext(_ context.Context, _ email.Message) err
 
 func newSynchronousDeliveryMFAService(
 	t *testing.T,
-	mailer email.Mailer,
+	mailer testpkg.Mailer,
 ) (identityaccess.AccountMFA, *repositories.Factory, *bun.DB, *authjwt.TokenAuth) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)

@@ -6,8 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
 	"github.com/stretchr/testify/assert"
@@ -29,8 +27,7 @@ import (
 // row, so a test can drive verify with the plaintext.
 func seedChallenge(t *testing.T, repo services.AccountMFARecords, accountID int64, code string, ttl time.Duration) identityaccess.AccountMFAChallenge {
 	t.Helper()
-	hash, err := securityruntime.HashPassword(code)
-	require.NoError(t, err)
+	hash := testpkg.HashTestPassword(t, code)
 	challenge := identityaccess.AccountMFAChallenge{
 		AccountID: accountID,
 		Scope:     identityaccess.MFAChallengeScopeTenant,
