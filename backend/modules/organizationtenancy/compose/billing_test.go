@@ -18,12 +18,14 @@ import (
 // are pinned in School Membership and Device Fleet; these tests pin the
 // capture around them.
 type stubBillingCounts struct {
-	students  map[int64]int
-	terminals map[int64]int
-	err       error
+	students          map[int64]int
+	terminals         map[int64]int
+	studentCapturedAt time.Time
+	err               error
 }
 
-func (s *stubBillingCounts) CountActiveStudentsByTenant(context.Context) (map[int64]int, error) {
+func (s *stubBillingCounts) CountActiveStudentsByTenant(_ context.Context, capturedAt time.Time) (map[int64]int, error) {
+	s.studentCapturedAt = capturedAt
 	return s.students, s.err
 }
 
@@ -129,6 +131,7 @@ func TestBillingCaptureSkipsSchoolsCreatedAfterTheKeyDate(t *testing.T) {
 	// keeps the key date, and its time says so.
 	_, err = billing.RecordDueBillingKeyDates(ctx, berlinTime(2099, time.June, 20, 9, 0))
 	require.NoError(t, err)
+	assert.Equal(t, berlinTime(2099, time.June, 20, 9, 0), counts.studentCapturedAt)
 
 	rows, err := billing.ListBillingKeyDateCounts(ctx)
 	require.NoError(t, err)

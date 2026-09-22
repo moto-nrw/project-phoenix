@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
@@ -28,14 +29,14 @@ func newOperatorBilling(logger *slog.Logger) (organizationModule.BillingReport, 
 // School Membership counts the active students, Device Fleet the active
 // terminals.
 type billingCounts struct {
-	students  func(context.Context) (map[int64]int, error)
+	students  func(context.Context, time.Time) (map[int64]int, error)
 	terminals func(context.Context) (map[int64]int, error)
 }
 
 var _ organizationCompose.BillingCounts = billingCounts{}
 
-func (c billingCounts) CountActiveStudentsByTenant(ctx context.Context) (map[int64]int, error) {
-	return c.students(ctx)
+func (c billingCounts) CountActiveStudentsByTenant(ctx context.Context, capturedAt time.Time) (map[int64]int, error) {
+	return c.students(ctx, capturedAt)
 }
 
 func (c billingCounts) CountActiveTerminalsByTenant(ctx context.Context) (map[int64]int, error) {

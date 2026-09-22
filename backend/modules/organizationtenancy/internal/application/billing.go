@@ -125,7 +125,7 @@ func (b *Billing) RecordDueBillingKeyDates(ctx context.Context, now time.Time) (
 		if err != nil || len(schools) == 0 {
 			return err
 		}
-		rows, err := b.capture(adminCtx, schools, keyDate)
+		rows, err := b.capture(adminCtx, schools, keyDate, localNow)
 		if err != nil {
 			return err
 		}
@@ -143,8 +143,8 @@ func (b *Billing) RecordDueBillingKeyDates(ctx context.Context, now time.Time) (
 	return written, nil
 }
 
-func (b *Billing) capture(ctx context.Context, schools []domain.BillingSchool, keyDate string) ([]domain.BillingKeyDateCount, error) {
-	students, err := b.counts.CountActiveStudentsByTenant(ctx)
+func (b *Billing) capture(ctx context.Context, schools []domain.BillingSchool, keyDate string, capturedAt time.Time) ([]domain.BillingKeyDateCount, error) {
+	students, err := b.counts.CountActiveStudentsByTenant(ctx, capturedAt)
 	if err != nil {
 		return nil, fmt.Errorf("count active students: %w", err)
 	}

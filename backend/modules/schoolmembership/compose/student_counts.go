@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres"
@@ -20,7 +21,7 @@ func NewActiveStudentCounts() schoolmembership.ActiveStudentCounts {
 
 type activeStudentCounts struct{}
 
-func (activeStudentCounts) CountActiveStudentsByTenant(ctx context.Context) (map[int64]int, error) {
+func (activeStudentCounts) CountActiveStudentsByTenant(ctx context.Context, capturedAt time.Time) (map[int64]int, error) {
 	transaction, ok := tenant.TransactionFromContext(ctx)
 	if !ok {
 		return nil, errors.New("school membership: transaction is required")
@@ -30,10 +31,10 @@ func (activeStudentCounts) CountActiveStudentsByTenant(ctx context.Context) (map
 	}
 	switch tx := transaction.(type) {
 	case bun.Tx:
-		return postgres.CountActiveStudentsByTenant(ctx, tx)
+		return postgres.CountActiveStudentsByTenant(ctx, tx, capturedAt)
 	case *bun.Tx:
 		if tx != nil {
-			return postgres.CountActiveStudentsByTenant(ctx, tx)
+			return postgres.CountActiveStudentsByTenant(ctx, tx, capturedAt)
 		}
 	}
 	return nil, fmt.Errorf("school membership postgres: unsupported transaction %T", transaction)

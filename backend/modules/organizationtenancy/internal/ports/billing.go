@@ -28,7 +28,7 @@ type BillingStore interface {
 // owner: School Membership for active students, Device Fleet for active
 // terminals. A school missing from a map has none.
 type BillingCounts interface {
-	CountActiveStudentsByTenant(context.Context) (map[int64]int, error)
+	CountActiveStudentsByTenant(context.Context, time.Time) (map[int64]int, error)
 	CountActiveTerminalsByTenant(context.Context) (map[int64]int, error)
 }
 
