@@ -22,20 +22,21 @@ import (
 // that applies to every school and the monthly key-date counts, as JSON and
 // as a CSV download.
 type BillingResource struct {
-	service organizationtenancy.BillingReport
-	logger  *slog.Logger
+	service            organizationtenancy.BillingReport
+	logger             *slog.Logger
+	isLocalSeedRequest func(*http.Request) bool
 }
 
 // NewBillingResource creates the billing routes' handlers.
 // A nil logger falls back to slog.Default.
-func NewBillingResource(service organizationtenancy.BillingReport, logger *slog.Logger) *BillingResource {
+func NewBillingResource(service organizationtenancy.BillingReport, logger *slog.Logger, isLocalSeedRequest func(*http.Request) bool) *BillingResource {
 	if service == nil {
 		panic("organization tenancy operator: billing report is required")
 	}
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &BillingResource{service: service, logger: logger}
+	return &BillingResource{service: service, logger: logger, isLocalSeedRequest: isLocalSeedRequest}
 }
 
 type billingKeyDayResponse struct {
@@ -122,6 +123,21 @@ func (rs *BillingResource) ListKeyDateCounts(w http.ResponseWriter, r *http.Requ
 		result = append(result, toBillingKeyDateCountResponse(count))
 	}
 	common.Respond(w, r, http.StatusOK, result, "Billing key-date counts retrieved successfully")
+}
+
+// SeedKeyDateCounts writes the deterministic demo snapshot. It is only
+// reachable by the local API seeder and never enables a production capture.
+func (rs *BillingResource) SeedKeyDateCounts(w http.ResponseWriter, r *http.Request) {
+	if rs.isLocalSeedRequest == nil || !rs.isLocalSeedRequest(r) {
+		common.RenderError(w, r, common.OperatorForbidden("Die Demo-Erfassung ist nur lokal verfügbar."))
+		return
+	}
+	written, err := rs.service.SeedBillingKeyDateCounts(r.Context(), time.Now())
+	if err != nil {
+		common.RenderError(w, r, rs.billingError(r, err))
+		return
+	}
+	common.Respond(w, r, http.StatusCreated, map[string]int{"written": written}, "Demo-Stichtagszahlen erfasst")
 }
 
 var billingMonthPattern = regexp.MustCompile(`^\d{4}-(0[1-9]|1[0-2])$`)

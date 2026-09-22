@@ -43,6 +43,9 @@ type Resource struct {
 type ResourceConfig struct {
 	AppEnv      string
 	AuthService identityoperator.OperatorAccess
+	// IsLocalSeedRequest permits the local demo seed endpoint. A nil function
+	// keeps that endpoint unavailable, including for partial test wiring.
+	IsLocalSeedRequest func(*http.Request) bool
 	// Identity serves operator login, refresh, the profile and password
 	// changes and the school access of accounts from Identity & Access
 	// (#3252). Without it those routes are not mounted.
@@ -125,7 +128,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		sessions:              cfg.Sessions,
 	}
 	if cfg.Billing != nil {
-		resource.billingResource = provisioningoperator.NewBillingResource(cfg.Billing, nil)
+		resource.billingResource = provisioningoperator.NewBillingResource(cfg.Billing, nil, cfg.IsLocalSeedRequest)
 	}
 	if cfg.SchoolSettings != nil {
 		resource.settingsResource = settingsoperator.NewSettingsResource(settingsoperator.SettingsConfig{
@@ -256,6 +259,7 @@ func (rs *Resource) mountBillingRoutes(r chi.Router) {
 		r.Put("/key-day", rs.billingResource.UpdateKeyDay)
 		r.Get("/key-date-counts", rs.billingResource.ListKeyDateCounts)
 		r.Get("/key-date-counts/export", rs.billingResource.ExportKeyDateCounts)
+		r.Post("/key-date-counts/seed", rs.billingResource.SeedKeyDateCounts)
 	})
 }
 

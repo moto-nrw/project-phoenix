@@ -905,6 +905,7 @@ POST /operator/auth/passkeys/login/verify
 POST /operator/auth/passkeys/register/options
 POST /operator/auth/passkeys/register/verify
 POST /operator/auth/refresh
+POST /operator/billing/key-date-counts/seed
 POST /operator/devices/
 POST /operator/devices/{id}/set-api-key
 POST /operator/devices/{id}/transfer

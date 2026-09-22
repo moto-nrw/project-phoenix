@@ -121,16 +121,9 @@ func (b *Billing) RecordDueBillingKeyDates(ctx context.Context, now time.Time) (
 		if !due || !domain.BillingKeyDateWasConfigured(settings.UpdatedAt, localNow, settings.KeyDay) {
 			return nil
 		}
-		schools, err := b.store.SchoolsMissingBillingPeriod(adminCtx, keyDate)
-		if err != nil || len(schools) == 0 {
-			return err
-		}
-		rows, err := b.capture(adminCtx, schools, keyDate, localNow)
-		if err != nil {
-			return err
-		}
-		written, err = b.store.InsertBillingKeyDateCounts(adminCtx, rows)
-		return err
+		var captureErr error
+		written, captureErr = b.captureMissingSchools(adminCtx, keyDate, localNow)
+		return captureErr
 	})
 	if err != nil {
 		return 0, fmt.Errorf("record billing key-date counts: %w", err)
@@ -141,6 +134,40 @@ func (b *Billing) RecordDueBillingKeyDates(ctx context.Context, now time.Time) (
 		)
 	}
 	return written, nil
+}
+
+// SeedBillingKeyDateCounts writes one synthetic current-day snapshot for the
+// local demo seeder. Its HTTP entry point is restricted to local seed
+// environments, so production records continue to be created only by the
+// monthly worker.
+func (b *Billing) SeedBillingKeyDateCounts(ctx context.Context, now time.Time) (int, error) {
+	localNow := now.In(b.location)
+	keyDate := localNow.Format("2006-01-02")
+	written := 0
+	err := b.tx.RunAdmin(ctx, func(adminCtx context.Context) error {
+		if err := b.store.UseRepeatableReadSnapshot(adminCtx); err != nil {
+			return err
+		}
+		var captureErr error
+		written, captureErr = b.captureMissingSchools(adminCtx, keyDate, localNow)
+		return captureErr
+	})
+	if err != nil {
+		return 0, fmt.Errorf("seed billing key-date counts: %w", err)
+	}
+	return written, nil
+}
+
+func (b *Billing) captureMissingSchools(ctx context.Context, keyDate string, capturedAt time.Time) (int, error) {
+	schools, err := b.store.SchoolsMissingBillingPeriod(ctx, keyDate)
+	if err != nil || len(schools) == 0 {
+		return 0, err
+	}
+	rows, err := b.capture(ctx, schools, keyDate, capturedAt)
+	if err != nil {
+		return 0, err
+	}
+	return b.store.InsertBillingKeyDateCounts(ctx, rows)
 }
 
 func (b *Billing) capture(ctx context.Context, schools []domain.BillingSchool, keyDate string, capturedAt time.Time) ([]domain.BillingKeyDateCount, error) {

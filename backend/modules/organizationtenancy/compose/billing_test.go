@@ -159,6 +159,30 @@ func TestBillingCaptureDoesNotBackdateAChangedKeyDay(t *testing.T) {
 	assert.Zero(t, written)
 }
 
+func TestBillingSeedCaptureWritesOneCurrentDaySnapshot(t *testing.T) {
+	t.Parallel()
+	counts := &stubBillingCounts{}
+	db, billing, schoolID := billingTestSetup(t, counts, berlinTime(2099, time.September, 1, 12, 0))
+	counts.students = map[int64]int{schoolID: 7}
+	counts.terminals = map[int64]int{schoolID: 2}
+	ctx := adminCtx(t, db)
+
+	written, err := billing.SeedBillingKeyDateCounts(ctx, berlinTime(2099, time.September, 3, 9, 0))
+	require.NoError(t, err)
+	assert.Positive(t, written)
+
+	rows, err := billing.ListBillingKeyDateCounts(ctx)
+	require.NoError(t, err)
+	row := countOf(t, rows, schoolID, "2099-09-01")
+	assert.Equal(t, "2099-09-03", row.KeyDate)
+	assert.Equal(t, 7, row.ActiveStudents)
+	assert.Equal(t, 2, row.ActiveTerminals)
+
+	written, err = billing.SeedBillingKeyDateCounts(ctx, berlinTime(2099, time.September, 3, 10, 0))
+	require.NoError(t, err)
+	assert.Zero(t, written, "the synthetic demo snapshot is immutable too")
+}
+
 // TestBillingCaptureWritesNothingWhenACountFails pins that a failing owner
 // count aborts the whole capture instead of writing partial zeros.
 func TestBillingCaptureWritesNothingWhenACountFails(t *testing.T) {

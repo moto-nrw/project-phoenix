@@ -17,10 +17,13 @@ import (
 // fakeBillingReport answers the billing routes without a database; the
 // capture and the store are covered by the compose tests.
 type fakeBillingReport struct {
-	counts    []organizationtenancy.BillingKeyDateCount
-	listErr   error
-	setDays   []int
-	setResult organizationtenancy.BillingKeyDay
+	counts      []organizationtenancy.BillingKeyDateCount
+	listErr     error
+	setDays     []int
+	setResult   organizationtenancy.BillingKeyDay
+	seedCalls   []time.Time
+	seedWritten int
+	seedErr     error
 }
 
 func (f *fakeBillingReport) BillingKeyDay(context.Context) (organizationtenancy.BillingKeyDay, error) {
@@ -43,6 +46,11 @@ func (f *fakeBillingReport) RecordDueBillingKeyDates(context.Context, time.Time)
 	return 0, nil
 }
 
+func (f *fakeBillingReport) SeedBillingKeyDateCounts(_ context.Context, now time.Time) (int, error) {
+	f.seedCalls = append(f.seedCalls, now)
+	return f.seedWritten, f.seedErr
+}
+
 func billingCount(period, keyDate, school string) organizationtenancy.BillingKeyDateCount {
 	berlin, err := time.LoadLocation("Europe/Berlin")
 	if err != nil {
@@ -61,7 +69,7 @@ func TestBillingExportWritesAGermanSpreadsheetCSV(t *testing.T) {
 		billingCount("2026-08-01", "2026-08-15", "=HYPERLINK(\"x\")"),
 		billingCount("2026-07-01", "2026-07-15", "OGS Juli"),
 	}}
-	resource := NewBillingResource(report, nil)
+	resource := NewBillingResource(report, nil, nil)
 
 	recorder := httptest.NewRecorder()
 	resource.ExportKeyDateCounts(recorder, httptest.NewRequest(http.MethodGet, "/billing/key-date-counts/export?month=2026-08", nil))
@@ -84,7 +92,7 @@ func TestBillingExportWithoutMonthContainsEveryMonth(t *testing.T) {
 		billingCount("2026-07-01", "2026-07-15", "OGS Juli"),
 	}}
 	recorder := httptest.NewRecorder()
-	NewBillingResource(report, nil).ExportKeyDateCounts(recorder, httptest.NewRequest(http.MethodGet, "/billing/key-date-counts/export", nil))
+	NewBillingResource(report, nil, nil).ExportKeyDateCounts(recorder, httptest.NewRequest(http.MethodGet, "/billing/key-date-counts/export", nil))
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	assert.Equal(t, `attachment; filename="stichtagszahlen.csv"`, recorder.Header().Get("Content-Disposition"))
@@ -96,7 +104,7 @@ func TestBillingExportRejectsAMalformedMonth(t *testing.T) {
 	t.Parallel()
 	for _, month := range []string{"2026-13", "2026-8", "08-2026", "x"} {
 		recorder := httptest.NewRecorder()
-		NewBillingResource(&fakeBillingReport{}, nil).ExportKeyDateCounts(recorder,
+		NewBillingResource(&fakeBillingReport{}, nil, nil).ExportKeyDateCounts(recorder,
 			httptest.NewRequest(http.MethodGet, "/billing/key-date-counts/export?month="+month, nil))
 		assert.Equal(t, http.StatusBadRequest, recorder.Code, month)
 	}
@@ -106,7 +114,7 @@ func TestBillingListHidesInternalErrors(t *testing.T) {
 	t.Parallel()
 	recorder := httptest.NewRecorder()
 	report := &fakeBillingReport{listErr: errors.New("pq: relation does not exist")}
-	NewBillingResource(report, nil).ListKeyDateCounts(recorder, httptest.NewRequest(http.MethodGet, "/billing/key-date-counts", nil))
+	NewBillingResource(report, nil, nil).ListKeyDateCounts(recorder, httptest.NewRequest(http.MethodGet, "/billing/key-date-counts", nil))
 
 	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
 	assert.NotContains(t, recorder.Body.String(), "relation")
@@ -120,7 +128,7 @@ func TestBillingListWritesSchoolIDsAsStrings(t *testing.T) {
 		{SchoolID: schoolID},
 	}}
 
-	NewBillingResource(report, nil).ListKeyDateCounts(recorder, httptest.NewRequest(http.MethodGet, "/billing/key-date-counts", nil))
+	NewBillingResource(report, nil, nil).ListKeyDateCounts(recorder, httptest.NewRequest(http.MethodGet, "/billing/key-date-counts", nil))
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	assert.Contains(t, recorder.Body.String(), `"school_id":"9007199254740993"`)
@@ -144,7 +152,7 @@ func TestBillingKeyDayUpdateValidatesTheBody(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			request := httptest.NewRequest(http.MethodPut, "/billing/key-day", strings.NewReader(tc.body))
 			request.Header.Set("Content-Type", "application/json")
-			NewBillingResource(report, nil).UpdateKeyDay(recorder, request)
+			NewBillingResource(report, nil, nil).UpdateKeyDay(recorder, request)
 			assert.Equal(t, tc.status, recorder.Code, recorder.Body.String())
 			if tc.status == http.StatusOK {
 				assert.Equal(t, []int{10}, report.setDays)
@@ -152,4 +160,38 @@ func TestBillingKeyDayUpdateValidatesTheBody(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBillingSeedCaptureAcceptsOnlyTheLocalSeeder(t *testing.T) {
+	t.Parallel()
+
+	t.Run("captures on a local development request", func(t *testing.T) {
+		t.Parallel()
+		report := &fakeBillingReport{seedWritten: 3}
+		request := httptest.NewRequest(http.MethodPost, "/billing/key-date-counts/seed", nil)
+		request.Host = "localhost:8080"
+		request.Header.Set("X-Phoenix-Seed-Token", "true")
+		recorder := httptest.NewRecorder()
+
+		NewBillingResource(report, nil, func(*http.Request) bool { return true }).SeedKeyDateCounts(recorder, request)
+
+		require.Equal(t, http.StatusCreated, recorder.Code, recorder.Body.String())
+		require.Len(t, report.seedCalls, 1)
+		assert.False(t, report.seedCalls[0].IsZero())
+		assert.Contains(t, recorder.Body.String(), `"written":3`)
+	})
+
+	t.Run("refuses a production request", func(t *testing.T) {
+		t.Parallel()
+		report := &fakeBillingReport{}
+		request := httptest.NewRequest(http.MethodPost, "/billing/key-date-counts/seed", nil)
+		request.Host = "localhost:8080"
+		request.Header.Set("X-Phoenix-Seed-Token", "true")
+		recorder := httptest.NewRecorder()
+
+		NewBillingResource(report, nil, func(*http.Request) bool { return false }).SeedKeyDateCounts(recorder, request)
+
+		assert.Equal(t, http.StatusForbidden, recorder.Code)
+		assert.Empty(t, report.seedCalls)
+	})
 }

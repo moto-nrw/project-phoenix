@@ -141,12 +141,6 @@ var seedCoverageDebt = map[string]string{}
 var seedCoverageTransient = map[string]string{
 	"auth.invitation_tokens": "short-lived invitation state; successful acceptance consumes the seeded tokens",
 	"platform.push_outbox":   "transient delivery state that requires an honest browser/VAPID-bound push subscription, which the server-side seed cannot create",
-	// The billing capture (#2791) only counts schools that existed on the
-	// month's key date. A fresh seed creates its schools today, so rows appear
-	// only when the embedded worker runs on a key date itself. Forging past
-	// months would put invented billing figures behind an API; the table is
-	// empty or filled depending on the calendar day, never on the seed.
-	"platform.billing_key_date_counts": "written only by the worker on the monthly key date for schools that existed then; a fresh seed's schools are created today",
 }
 
 var seedCoverageAllowlist = mergeCoverageClassifications(seedCoverageExemptions, seedCoverageTransient, seedCoverageDebt)

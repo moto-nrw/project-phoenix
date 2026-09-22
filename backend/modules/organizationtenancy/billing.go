@@ -29,6 +29,10 @@ type BillingReport interface {
 	// key date is due at now and a school has no row yet. It is idempotent
 	// and returns the number of rows written.
 	RecordDueBillingKeyDates(ctx context.Context, now time.Time) (int, error)
+	// SeedBillingKeyDateCounts writes a synthetic current-day snapshot for the
+	// local demo seeder. The inbound route keeps this unavailable outside local
+	// seed environments; production captures remain worker-only.
+	SeedBillingKeyDateCounts(ctx context.Context, now time.Time) (int, error)
 }
 
 // ErrInvalidBillingKeyDay rejects a key day outside 1..28. The key day stops
