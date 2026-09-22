@@ -19,19 +19,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -116,7 +115,7 @@ func (s *scenario) cleanupTimetable(ctx context.Context) (*timetableplanning.Tim
 
 // tenantCtx returns a context bound to the primary tenant.
 func (s *scenario) tenantCtx() context.Context {
-	return tenant.WithTenantID(testpkg.WithTestTenantRuntime(s.t, context.Background()), s.primaryTenant)
+	return testpkg.ContextForTenant(testpkg.WithTestTenantRuntime(s.t, context.Background()), s.primaryTenant)
 }
 
 // mountRouter builds the full timetable Resource with real services and
@@ -183,7 +182,7 @@ func adminClaimsForTenant(accountID, tenantID int64) timetableTestClaims {
 		permissions.ConfigUpdate,
 		permissions.ConfigManage,
 		permissions.UsersRead,
-		"admin:*",
+		permissions.AdminWildcard,
 	}
 	c.IsAdmin = true
 	c.TenantID = tenantID

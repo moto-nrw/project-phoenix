@@ -23,8 +23,15 @@ func insertAuditOfferingSelection(t *testing.T, db *bun.DB, ctx context.Context,
 		storedDays = string(days)
 	}
 	row.TenantID = tenantID
-	err = db.NewRaw(`INSERT INTO enrollment.request_child_offerings
- (tenant_id, request_child_id, care_offering_id, selected_days, valid_from, valid_until)
+	// The submitted choice is immutable per pair; a second interval for the
+	// same pair keeps the first submission, exactly as the owner writes do.
+	_, err = db.NewRaw(`INSERT INTO enrollment.request_child_offering_selections
+ (tenant_id, request_child_id, care_offering_id, selected_days)
+ VALUES (?, ?, ?, ?::jsonb) ON CONFLICT (tenant_id, request_child_id, care_offering_id) DO NOTHING`,
+		tenantID, row.RequestChildID, row.CareOfferingID, storedDays).Exec(ctx)
+	require.NoError(t, err)
+	err = db.NewRaw(`INSERT INTO enrollment.care_offering_bookings
+ (tenant_id, request_child_id, care_offering_id, manual_selected_days, valid_from, valid_until)
  VALUES (?, ?, ?, ?::jsonb, ?, ?) RETURNING id, created_at, updated_at`,
 		tenantID, row.RequestChildID, row.CareOfferingID, storedDays, row.ValidFrom, row.ValidUntil).Scan(ctx, row)
 	require.NoError(t, err)

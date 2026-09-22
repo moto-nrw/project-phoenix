@@ -2272,6 +2272,17 @@ a loosening. Epoch 6 registered `external.<class>.<role>` for every test role,
 replacing the 65 owner-specific rules they subsume, so a per-owner test-role
 rule for these classes would now overlap and fail to load.
 
+A reviewed epoch may also grant the shared fixture owner its four standing
+reaches ([ADR 0039](../../docs/adr/0039-shared-fixtures-reach-their-standing-targets.md),
+[#2748](https://github.com/moto-nrw/project-phoenix/issues/2748)): a rule with
+`source_owner` `test-support`, the `test-support` role in production or the
+`e2e-test` role in the test scopes, and a target of `test-support/test-support`,
+`tenant-runtime/public`, `legacy-shared/domain` or `security-runtime/contract`.
+Epoch 24 registers the six `shared-fixtures.*` rules under it. Everything else
+the fixtures still import — the models, services and repositories other
+carriers are dissolving, the device authenticator, the legacy composition —
+stays exact debt on #2748 and falls with those carriers; a rule would hide it.
+
 A reviewed epoch may also let a target owner adopt an existing table
 ([ADR 0015](../../docs/adr/0015-owners-adopt-existing-unowned-tables.md),
 [#3235](https://github.com/moto-nrw/project-phoenix/issues/3235)): a new

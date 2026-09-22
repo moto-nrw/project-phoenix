@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 23,
+  "policy_epoch": 24,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -4596,10 +4596,6 @@
     },
     {
       "path": "crypto/rand",
-      "class": "crypto"
-    },
-    {
-      "path": "crypto/sha1",
       "class": "crypto"
     },
     {
@@ -24554,6 +24550,73 @@
       "target_owner": "people-directory",
       "target_role": "domain",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/2729"
+    },
+    {
+      "id": "shared-fixtures.own-tooling",
+      "description": "The shared fixtures wire their own tooling: the fixture catalog opens the test database lifecycle, the API helpers build on the catalog, and the bootstrap and sweep commands drive the lifecycle (ADR 0039).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "shared-fixtures.tenant-runtime-public",
+      "description": "The shared fixtures create rows inside a tenant through the shared tenant runtime (ADR 0039).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "shared-fixtures.e2e.tenant-runtime-public",
+      "description": "The shared end-to-end suites verify tenant isolation through the shared tenant runtime (ADR 0039).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "shared-fixtures.calendar-date",
+      "description": "The shared fixtures build DATE column values with the mandated calendar-date type (ADR 0039).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "shared-fixtures.e2e.calendar-date",
+      "description": "The shared end-to-end suites pin calendar days with the mandated calendar-date type (ADR 0039).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "shared-fixtures.e2e.permission-constants",
+      "description": "The shared end-to-end suites mint tokens with the permission constants the routes check, instead of spelling the wire strings (ADR 0039).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
     }
   ],
   "relocations": [

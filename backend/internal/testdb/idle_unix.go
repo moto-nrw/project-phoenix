@@ -4,10 +4,10 @@ package testdb
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -66,7 +66,7 @@ func HoldServer(ctx context.Context, cfg *Config) error {
 	if err != nil {
 		return err
 	}
-	key := fmt.Sprintf("%x", sha256.Sum256([]byte(identity)))
+	key := identifierHash(identity)
 	dir := filepath.Join(cache, "moto-testdb", "v1", key)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
@@ -240,7 +240,7 @@ func buildIdleWatcher(ctx context.Context, cache string) (string, error) {
 		return "", err
 	}
 	sources = append(sources, filepath.Join(root, "internal/testdb/cmd/bootstrap/main.go"), filepath.Join(root, "go.mod"), filepath.Join(root, "go.sum"))
-	hash := sha256.New()
+	hash := fnv.New128a() // identifier derivation, see identifierHash
 	for _, path := range sources {
 		if strings.HasSuffix(path, "_test.go") {
 			continue

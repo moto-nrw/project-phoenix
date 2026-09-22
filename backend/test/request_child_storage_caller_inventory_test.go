@@ -13,18 +13,25 @@ import (
 	"testing"
 )
 
-// Rollback SQL belongs only to migrations. Current application providers must
-// not reference either the compatibility view or its archived base table.
-// The migration CLI descriptions and test fixture builders are not providers.
+// The Contract (#2719) removed the compatibility view and its archived base
+// table, so no application code, fixture or behavior test may reference
+// either name any more. Historical migrations and their CLI keep the name for
+// the frozen Expand/Backfill/Cutover contracts, which restore the retired
+// table inside disposable clones through the two exempted helpers below.
 func TestRequestChildStorageCallerInventory(t *testing.T) {
 	t.Parallel()
 	legacy := regexp.MustCompile(`\brequest_child_offerings(?:_legacy)?\b`)
-	for _, root := range []string{"api", "services", "modules", "database/repositories", "models"} {
+	exempt := map[string]bool{
+		"request_child_storage_caller_inventory_test.go": true, // this pattern
+		"request_child_storage_cutover.go":               true, // historical restore helper
+		"calendar_date_verification_test.go":             true, // renamed-column registry of historical migrations
+	}
+	for _, root := range []string{"api", "services", "modules", "database/repositories", "models", "seed", "test"} {
 		err := filepath.WalkDir(filepath.Join("..", root), func(path string, entry fs.DirEntry, walkErr error) error {
 			if walkErr != nil {
 				return walkErr
 			}
-			if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			if entry.IsDir() || !strings.HasSuffix(path, ".go") || exempt[filepath.Base(path)] {
 				return nil
 			}
 			positions := token.NewFileSet()

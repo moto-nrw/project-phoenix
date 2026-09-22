@@ -195,6 +195,18 @@ HTTP database roles cannot read that table.
   consulting the weekday timetable. It keeps existing sessions alive and
   recreates those ended by daily close. School schedules themselves are not
   shifted to weekends.
+- Weekend day plan (#3471): the device sessions the runner starts are
+  mirrored into the timetable as spontaneous blocks (title of the activity,
+  window from the session start plus 60 minutes, status running), so home
+  page, „Mein Tag" and the day plan show eight running blocks on a Saturday
+  as well. That is all the simulation can add on a weekend: the web
+  spontaneous start and instance planning reject Saturday and Sunday on the
+  server, and a device session can neither be back-dated nor planned ahead.
+  Upcoming blocks, pickup and arrival times and the week view stay empty.
+  Rotating the sessions to fill the day was tried and rejected: it turns the
+  day plan into a log of the same eight activities and changes nothing for a
+  per-access school, which only ticks during the visit. Screenshots and the
+  proposed follow-up are in the issue.
 - The initial occupancy is capped at 84 children to respect the seed profile's
   room capacities. All eligible children receive simulator RFID identities,
   including those available to subsequent attendance ticks.

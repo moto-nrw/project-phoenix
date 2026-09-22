@@ -24,7 +24,7 @@ WITH RECURSIVE selected_links AS (
         rc.created_student_id AS student_id,
         co.id AS care_offering_id,
         co.activity_group_id AS linked_group_id
-    FROM enrollment.request_child_offerings AS rco
+    FROM enrollment.care_offering_bookings AS rco
     INNER JOIN enrollment.request_children AS rc
         ON rc.tenant_id = rco.tenant_id
         AND rc.id = rco.request_child_id
@@ -93,7 +93,7 @@ WITH RECURSIVE selected_links AS (
       AND candidate_group.created_at = candidate_enrollment.created_at
       AND NOT EXISTS (
           SELECT 1
-          FROM enrollment.request_child_offerings AS selected_rco
+          FROM enrollment.care_offering_bookings AS selected_rco
           INNER JOIN enrollment.care_offerings AS selected_offering
               ON selected_offering.tenant_id = selected_rco.tenant_id
               AND selected_offering.id = selected_rco.care_offering_id

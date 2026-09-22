@@ -166,7 +166,7 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 				WHERE tenant_id = ?
 				  AND (id = ? OR rollover_source_phase_id = ?)
 			)
-			DELETE FROM enrollment.request_child_offerings rco
+			DELETE FROM enrollment.care_offering_bookings rco
 			USING enrollment.request_children rc, enrollment.requests r, phase_scope ps
 			WHERE rco.request_child_id = rc.id
 			  AND rc.request_id = r.id

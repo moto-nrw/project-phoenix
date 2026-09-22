@@ -213,7 +213,7 @@ type DecisionService interface {
 	UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*RequestChild, error)
 	ListOfferingAdjustments(ctx context.Context, requestID, requestChildID int64) ([]*auditModels.EnrollmentOfferingAdjustment, error)
 
-	// ListChildOfferings returns the request_child_offerings rows for
+	// ListChildOfferings returns the care offering bookings for
 	// every child under requestID, joined to the offering's name +
 	// description so the admin detail page can render labels without
 	// a second per-offering fetch. Map key is request_child_id.

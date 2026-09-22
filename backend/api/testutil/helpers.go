@@ -604,6 +604,15 @@ func StaffPrincipal(s *users.Staff) *device.AuthenticatedStaff {
 	return &device.AuthenticatedStaff{ID: s.ID, TenantID: s.TenantID}
 }
 
+// WithDeviceActor binds the device and staff principals the device auth
+// middleware would bind for a verified kiosk request, so a scenario can call
+// a presence capability directly as that actor without naming the auth
+// context keys itself.
+func WithDeviceActor(ctx context.Context, d *iot.Device, s *users.Staff) context.Context {
+	ctx = context.WithValue(ctx, device.CtxDevice, DevicePrincipal(d))
+	return context.WithValue(ctx, device.CtxStaff, StaffPrincipal(s))
+}
+
 // WithDeviceContext adds an IoT device to the request context.
 // This is used for testing device-authenticated endpoints.
 // Also injects the device's tenant_id so TenantTxMiddleware can create
@@ -935,6 +944,29 @@ func AdminTestClaimsForTenant(accountID int, tenantID int64) jwt.AppClaims {
 		Permissions: []string{"admin:*"},
 		IsAdmin:     true,
 		TenantID:    tenantID,
+	}
+}
+
+// TenantUserTestClaims returns the claims of a regular (non-admin) staff
+// account on the given tenant that holds exactly the listed permissions.
+func TenantUserTestClaims(accountID int, tenantID int64, permissions ...string) jwt.AppClaims {
+	return jwt.AppClaims{
+		ID:          accountID,
+		Sub:         "user@example.com",
+		Roles:       []string{"user"},
+		TenantID:    tenantID,
+		Permissions: permissions,
+	}
+}
+
+// ParentTestClaims returns the claims of a guardian account in the
+// cross-tenant parent scope, as the parent portal mints them.
+func ParentTestClaims(accountID int) jwt.AppClaims {
+	return jwt.AppClaims{
+		ID:    accountID,
+		Sub:   "parent@example.com",
+		Roles: []string{"guardian"},
+		Scope: tenant.ScopeParent,
 	}
 }
 
