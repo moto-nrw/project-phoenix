@@ -280,6 +280,10 @@ func TestGuardianStorageExpandConstraints(t *testing.T) {
 func TestGuardianStorageExpandReferenceDeletion(t *testing.T) {
 	t.Parallel()
 	db := setupIsolatedStudentStorageBeforeCutover(t)
+	// The Backfill (1.15.413) relaxes the guardian foreign key to CASCADE for
+	// as long as the targets are copies; its rollback restores the Expand
+	// schema whose RESTRICT contract this test pins.
+	require.NoError(t, guardianOwnerBackfillDown(t.Context(), db))
 	f := createGuardianStorageExpandFixture(t, db)
 	relationship := f.insertRelationship(t, db)
 	_, err := db.ExecContext(t.Context(), `INSERT INTO users.student_guardian_pickup_permissions (tenant_id, relationship_id, can_pickup) VALUES (?, ?, TRUE)`, f.tenant, relationship)

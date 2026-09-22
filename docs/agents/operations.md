@@ -86,6 +86,7 @@ go run . cleanup timetable|time-tracking [preview|stats]      # nested dry-runs 
 go run . cleanup tokens|invitations|rate-limits|attendance|sessions|supervisors
 go run . backfill staff-owner [status|reset]   # resumable users.staff → Membership/Workforce copy (#2752); exits 1 while unstable
 go run . backfill student-owner [status|reset] # resumable users.students → People/Membership/Care Plan copy (#2758); exits 1 while unstable
+go run . backfill guardian-owner [status|reset] # resumable users.students_guardians → People/Care Plan/Identity copy (#2755); exits 1 while unstable
 go run . gendoc                     # Generates routes.md + docs/openapi.yaml
 ```
 
