@@ -108,14 +108,6 @@ type StaffScheduleOverviewDependencies struct {
 	Holidays timetableplanning.HolidayService
 }
 
-// NewStaffScheduleOverview composes the public week-grid read. The result
-// carries string dates and ClockLayout wall clocks, so a consumer never
-// touches the row models.
-func NewStaffScheduleOverview(deps StaffScheduleOverviewDependencies) workforce.StaffScheduleOverviewQuery {
-	query, _ := newStaffScheduleOverview(deps)
-	return query
-}
-
 // newStaffScheduleOverview builds the public query and the getter the
 // planning facade keeps for its own export path over one service.
 func newStaffScheduleOverview(deps StaffScheduleOverviewDependencies) (workforce.StaffScheduleOverviewQuery, planning.StaffScheduleOverviewGetter) {
