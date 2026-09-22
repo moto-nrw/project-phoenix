@@ -4,8 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -20,7 +18,7 @@ import (
 func TestBulkInviteToStudents_InvitesEachGuardianOnce(t *testing.T) {
 	t.Parallel()
 
-	outbox := &stubOutboxEnqueuer{}
+	outbox := testpkg.NewCapturingOutbox()
 	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *services.GuardianInvitationTestConfig) { cfg.Outbox = outbox })
 	defer env.cleanup()
 
@@ -30,9 +28,9 @@ func TestBulkInviteToStudents_InvitesEachGuardianOnce(t *testing.T) {
 	defer env.deleteStudentGuardianLinks(younger.ID)
 	parent := testpkg.CreateTestGuardianProfileNamed(t, env.db, "Katharina", "Brenner", "bulk-parent")
 	grandma := testpkg.CreateTestGuardianProfileNamed(t, env.db, "Oma", "Brenner", "bulk-grandma")
-	testpkg.CreateTestStudentGuardianLink(t, env.db, older.ID, parent.ID, authorize.GuardianRoleLegalGuardian)
-	testpkg.CreateTestStudentGuardianLink(t, env.db, younger.ID, parent.ID, authorize.GuardianRoleLegalGuardian)
-	grandmaLink := testpkg.CreateTestStudentGuardianLink(t, env.db, older.ID, grandma.ID, authorize.GuardianRolePickupOnly)
+	testpkg.CreateTestStudentGuardianLink(t, env.db, older.ID, parent.ID, guardianRoleLegalGuardian)
+	testpkg.CreateTestStudentGuardianLink(t, env.db, younger.ID, parent.ID, guardianRoleLegalGuardian)
+	grandmaLink := testpkg.CreateTestStudentGuardianLink(t, env.db, older.ID, grandma.ID, guardianRolePickupOnly)
 	defer func() {
 		_, _ = env.db.NewDelete().TableExpr("auth.guardian_invitations").
 			Where("guardian_profile_id IN (?)", bun.List([]int64{parent.ID, grandma.ID})).Exec(context.Background())
@@ -48,27 +46,28 @@ func TestBulkInviteToStudents_InvitesEachGuardianOnce(t *testing.T) {
 	counted, err := env.service.BulkInviteToStudents(ctx, preview)
 	require.NoError(t, err)
 	assert.Equal(t, 1, counted.Invited)
-	assert.Empty(t, outbox.requests, "the preview mails nobody")
+	assert.Empty(t, outbox.Requests(), "the preview mails nobody")
 
 	result, err := env.service.BulkInviteToStudents(ctx, req)
 	require.NoError(t, err)
 	assert.Equal(t, 1, result.Invited)
 	assert.Equal(t, 1, result.SkippedRestricted)
 	assert.Empty(t, result.Problems)
-	require.Len(t, outbox.requests, 1, "two children, one guardian, one mail")
-	assert.Equal(t, platformModels.EmailKindGuardianInvitation, outbox.requests[0].Kind)
+	require.Len(t, outbox.Requests(), 1, "two children, one guardian, one mail")
+	assert.Equal(t, emailKindGuardianInvitation, outbox.Requests()[0].Kind)
 	assert.False(t, testpkg.StudentGuardianLinkGrantsPortalAccess(t, env.db, grandmaLink.ID), "the pickup-only contact is not upgraded")
 
 	again, err := env.service.BulkInviteToStudents(ctx, req)
 	require.NoError(t, err)
 	assert.Zero(t, again.Invited)
 	assert.Equal(t, 1, again.SkippedOpen)
-	assert.Len(t, outbox.requests, 1, "a repeated run does not mail again")
+	assert.Len(t, outbox.Requests(), 1, "a repeated run does not mail again")
 
 	req.ResendOpen = true
 	resent, err := env.service.BulkInviteToStudents(ctx, req)
 	require.NoError(t, err)
 	assert.Equal(t, 1, resent.Resent)
-	require.Len(t, outbox.requests, 2)
-	assert.Equal(t, outbox.requests[0].RelatedEntityID, outbox.requests[1].RelatedEntityID, "the same invitation is mailed again")
+	mailed := outbox.Requests()
+	require.Len(t, mailed, 2)
+	assert.Equal(t, mailed[0].RelatedEntityID, mailed[1].RelatedEntityID, "the same invitation is mailed again")
 }

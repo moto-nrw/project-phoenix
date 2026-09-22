@@ -383,6 +383,13 @@ func CreateTestStaffForPerson(tb testing.TB, db *bun.DB, personID int64) *users.
 	return staff
 }
 
+// StudentInGroup returns a detached student row that belongs to groupID
+// (nil: no group), for policy tests that decide over the row alone and never
+// touch the database.
+func StudentInGroup(groupID *int64) *users.Student {
+	return &users.Student{GroupID: groupID}
+}
+
 // CreateTestStudent creates a real student in the database
 // This requires a person, so it creates one automatically
 func CreateTestStudent(tb testing.TB, db *bun.DB, firstName, lastName, schoolClass string) *users.Student {
@@ -2977,6 +2984,31 @@ func CreateTestEnrollmentPhase(tb testing.TB, db *bun.DB) *enrollmentOwner.Phase
 func CreateTestEnrollmentPhaseForCalendarPeriod(tb testing.TB, db *bun.DB, periodID int64) *enrollmentOwner.Phase {
 	tb.Helper()
 	return createTestEnrollmentPhase(tb, db, &periodID)
+}
+
+// CreateTestEnrollmentRequestAwaitingGuardian submits a public enrollment
+// request in phaseID for a guardian who has no account yet, in the current
+// test tenant. statusToken must be unique per request.
+func CreateTestEnrollmentRequestAwaitingGuardian(tb testing.TB, db *bun.DB, phaseID int64, guardianEmail, statusToken string) *enrollmentOwner.Request {
+	tb.Helper()
+	ctx := WithTenantRuntime(tb, TenantContext(fixtureTenantID(tb)), db)
+	request := &enrollmentOwner.Request{
+		TenantID:          fixtureTenantID(tb),
+		PhaseID:           phaseID,
+		GuardianFirstName: "Guardian",
+		GuardianLastName:  "Test",
+		GuardianEmail:     guardianEmail,
+		ConsentFlags:      []byte("{}"),
+		CustomData:        []byte("{}"),
+		SubmissionSource:  enrollment.RequestSourcePublic,
+		SourceMetadata:    []byte("{}"),
+		StatusToken:       statusToken,
+		SubmittedAt:       time.Now(),
+	}
+	if err := enrollmentOwner.New().InsertRequest(ctx, request); err != nil {
+		tb.Fatalf("create test enrollment request: %v", err)
+	}
+	return request
 }
 
 func createTestEnrollmentPhase(tb testing.TB, db *bun.DB, periodID *int64) *enrollmentOwner.Phase {

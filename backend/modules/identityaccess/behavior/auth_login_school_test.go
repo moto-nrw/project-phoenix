@@ -12,7 +12,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
-	"github.com/moto-nrw/project-phoenix/models/audit"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -346,7 +345,7 @@ func TestSwitchSchool_PortalRoleRequiredAtTarget(t *testing.T) {
 		// The switch must leave a trace at the TARGET school. Without the
 		// request IP reaching generateAndLogTokens this event is silently
 		// never written — a school switch that nothing records.
-		requireAuthEventEventually(t, db, accountID, tenantB, audit.EventTypeTenantSwitch)
+		requireAuthEventEventually(t, db, accountID, tenantB, authEventTenantSwitch)
 	})
 }
 
@@ -814,13 +813,13 @@ func TestLogout_SchoolSession_AuditedAtTheSessionsSchool(t *testing.T) {
 
 	require.NoError(t, service.LogoutWithAudit(context.Background(), login.RefreshToken, switchIP, switchUserAgent))
 
-	requireAuthEventEventually(t, db, accountID, schoolTenantID, audit.EventTypeLogout)
+	requireAuthEventEventually(t, db, accountID, schoolTenantID, authEventLogout)
 
 	count, err := db.NewSelect().
 		TableExpr("audit.auth_events").
 		Where("account_id = ?", accountID).
 		Where("tenant_id = ?", otherTenantID).
-		Where("event_type = ?", audit.EventTypeLogout).
+		Where("event_type = ?", authEventLogout).
 		Count(context.Background())
 	require.NoError(t, err)
 	assert.Zero(t, count, "the logout must not be filed under a school the session never belonged to")

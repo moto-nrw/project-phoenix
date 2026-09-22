@@ -7,9 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/email"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/services"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +18,7 @@ import (
 // the text asks for the existing credentials (#3320).
 func TestEnqueueExistingAccountEmail_RendersPortalLoginHint(t *testing.T) {
 	t.Parallel()
-	outbox := &stubOutboxEnqueuer{}
+	outbox := testpkg.NewCapturingOutbox()
 	mailer := services.NewGuardianInvitationMailer(services.GuardianInvitationMailerConfig{
 		Outbox:      outbox,
 		FrontendURL: "https://eltern.example.test/",
@@ -29,9 +28,9 @@ func TestEnqueueExistingAccountEmail_RendersPortalLoginHint(t *testing.T) {
 		FirstName: " Olga ", LastName: "Muster", Email: " admin@example.test ",
 	}, "OGS Musterschule")
 
-	require.Len(t, outbox.requests, 1)
-	req := outbox.requests[0]
-	assert.Equal(t, platformModels.EmailKindGuardianInvitation, req.Kind)
+	require.Len(t, outbox.Requests(), 1)
+	req := outbox.Requests()[0]
+	assert.Equal(t, emailKindGuardianInvitation, req.Kind)
 	assert.Equal(t, "admin@example.test", req.Payload["recipient_email"])
 	assert.Equal(t, "https://eltern.example.test/login", req.Payload["invitation_url"])
 	assert.Equal(t, true, req.Payload["existing_account"])
@@ -53,11 +52,11 @@ func TestEnqueueExistingAccountEmail_RendersPortalLoginHint(t *testing.T) {
 
 func TestEnqueueExistingAccountEmail_SkipsWithoutAddress(t *testing.T) {
 	t.Parallel()
-	outbox := &stubOutboxEnqueuer{}
+	outbox := testpkg.NewCapturingOutbox()
 	mailer := services.NewGuardianInvitationMailer(services.GuardianInvitationMailerConfig{Outbox: outbox})
 
 	mailer.EnqueueExistingAccount(context.Background(), services.GuardianMailRecipient{Email: "  "}, "")
-	assert.Empty(t, outbox.requests)
+	assert.Empty(t, outbox.Requests())
 }
 
 // The token invitation keeps its registration wording.
@@ -78,7 +77,7 @@ func TestGuardianInvitationRenderer_TokenInvitationUnchanged(t *testing.T) {
 	assert.NotContains(t, body, "bisherigen Zugangsdaten")
 }
 
-func renderGuardianTemplate(t *testing.T, msg *email.Message) string {
+func renderGuardianTemplate(t *testing.T, msg *testpkg.EmailMessage) string {
 	t.Helper()
 	dir, err := filepath.Abs(filepath.Join("..", "..", "..", "templates", "email"))
 	require.NoError(t, err)
