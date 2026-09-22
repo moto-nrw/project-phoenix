@@ -281,19 +281,19 @@ func TestRequestChildContractObservedLockWaitAndTimeout(t *testing.T) {
 func TestRequestChildContractOrdinaryUpgradeContractsExistingStorage(t *testing.T) {
 	t.Parallel()
 	db, _ := requestChildContractFixture(t)
-	_, err := db.ExecContext(t.Context(), `DELETE FROM public.bun_migrations WHERE name = '001015413';
+	_, err := db.ExecContext(t.Context(), `DELETE FROM public.bun_migrations WHERE name = '001015414';
 		SELECT setval('enrollment.request_child_compatibility_reads', 566);
 		SELECT setval('enrollment.request_child_compatibility_writes', 12)`)
 	require.NoError(t, err)
 	before := requestChildContractOwnerRows(t, db)
 	var output bytes.Buffer
 	require.NoError(t, migratePreflightTo(t.Context(), db, &output))
-	require.Contains(t, output.String(), "migration preflight OK 1.15.413")
+	require.Contains(t, output.String(), "migration preflight OK 1.15.414")
 	require.NoError(t, Migrate(t.Context(), db))
 	require.Equal(t, before, requestChildContractOwnerRows(t, db))
 	require.False(t, requestChildCompatibilityRetained(t, db), "ordinary upgrades must perform cleanup, not silently defer it")
 	var applied bool
-	require.NoError(t, db.NewRaw(`SELECT EXISTS (SELECT FROM public.bun_migrations WHERE name = '001015413')`).Scan(t.Context(), &applied))
+	require.NoError(t, db.NewRaw(`SELECT EXISTS (SELECT FROM public.bun_migrations WHERE name = '001015414')`).Scan(t.Context(), &applied))
 	require.True(t, applied)
 	require.NoError(t, migratePreflightTo(t.Context(), db, &output))
 }
@@ -301,14 +301,14 @@ func TestRequestChildContractOrdinaryUpgradeContractsExistingStorage(t *testing.
 func TestRequestChildContractOrdinaryUpgradeRejectsUntrackedDependency(t *testing.T) {
 	t.Parallel()
 	db, _ := requestChildContractFixture(t)
-	_, err := db.ExecContext(t.Context(), `DELETE FROM public.bun_migrations WHERE name = '001015413';
+	_, err := db.ExecContext(t.Context(), `DELETE FROM public.bun_migrations WHERE name = '001015414';
 		CREATE FUNCTION enrollment.contract_hidden_reader() RETURNS bigint LANGUAGE sql AS 'SELECT count(*) FROM enrollment.request_child_offerings'`)
 	require.NoError(t, err)
 	var output bytes.Buffer
 	require.ErrorContains(t, migratePreflightTo(t.Context(), db, &output), "stored function still references retired storage")
 	require.ErrorContains(t, Migrate(t.Context(), db), "stored function still references retired storage")
 	var applied bool
-	require.NoError(t, db.NewRaw(`SELECT EXISTS (SELECT FROM public.bun_migrations WHERE name = '001015413')`).Scan(t.Context(), &applied))
+	require.NoError(t, db.NewRaw(`SELECT EXISTS (SELECT FROM public.bun_migrations WHERE name = '001015414')`).Scan(t.Context(), &applied))
 	require.False(t, applied)
 	require.True(t, requestChildCompatibilityRetained(t, db))
 }
@@ -317,7 +317,7 @@ func TestRequestChildContractInitialMigrationReachesContractedSchema(t *testing.
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	var applied, removed bool
-	require.NoError(t, db.NewRaw(`SELECT EXISTS (SELECT 1 FROM public.bun_migrations WHERE name = '001015413'),
+	require.NoError(t, db.NewRaw(`SELECT EXISTS (SELECT 1 FROM public.bun_migrations WHERE name = '001015414'),
 		to_regclass('enrollment.request_child_offerings') IS NULL
 		AND to_regclass('enrollment.request_child_offerings_legacy') IS NULL
 		AND to_regclass('enrollment.request_child_compatibility_reads') IS NULL`).Scan(t.Context(), &applied, &removed))

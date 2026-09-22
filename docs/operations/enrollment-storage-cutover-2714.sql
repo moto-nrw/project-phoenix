@@ -1,5 +1,5 @@
 -- HISTORICAL: requires the 1.15.385 compatibility schema, which migration
--- 1.15.413 (#2719) removed. It no longer executes against current databases.
+-- 1.15.414 (#2719) removed. It no longer executes against current databases.
 -- Run with psql -v ON_ERROR_STOP=1 through the guarded maintenance connection.
 -- No application rows change. The compatibility probe advances its read counter.
 BEGIN ISOLATION LEVEL REPEATABLE READ;

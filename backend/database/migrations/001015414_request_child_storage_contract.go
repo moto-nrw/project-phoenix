@@ -1,6 +1,6 @@
 package migrations
 
-const requestChildStorageContractVersion = "1.15.413"
+const requestChildStorageContractVersion = "1.15.414"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
