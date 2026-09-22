@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
-	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -66,7 +65,7 @@ func mapTimeTrackingFailure(err error) error {
 	}
 	// The #1843 sick cascade wraps the planning layer's overlap: a shift whose
 	// freed window was re-planned collides when the report is reversed.
-	if errors.Is(err, shiftplanning.ErrShiftOverlap) {
+	if errors.Is(err, workforce.ErrStaffShiftOverlap) {
 		return &workforce.TimeTrackingError{Kind: workforce.ErrStaffShiftOverlap, Cause: err}
 	}
 	for _, pair := range timeTrackingSentinels {

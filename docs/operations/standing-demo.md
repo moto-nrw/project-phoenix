@@ -52,12 +52,33 @@ school of #3461 stays selectable as the fallback (see below).
    no longer counts as having an active demo access.
 7. A restart releases the claims of the stopped process. An order whose seed
    state was already stored is not seeded again; it only gets its first tick.
+8. „Demo neu anfangen" (#3470, `POST /demo/access/reset`) soft-deletes the
+   visitor's school, revokes its sessions and queues a new order with the
+   same OGS and visitor names; every access of the old school now enters the
+   new one. The old order keeps its row and its `ready` status, but the
+   process skips it: `ReadyDemoSchools` and `ActiveDemoSchools` join
+   `platform.schools` and leave hidden schools out, so a running ticker
+   stops at the next poll. The standing school cannot be restarted.
 
 An address whose newest unexpired demo access enters a school that did not
 fail gets no second school: after the 10-minute cooldown of #3465 a further
 request stores an access into that same school and mails its link.
 
-`--once` empties the queue, ticks every ready school once, in use or not, and exits.
+`--once` runs the expiry, empties the queue, ticks every ready school once, in use or not, and exits.
+
+### Expiry
+
+A demo access ends 14 days after its last use (#3470): every redemption moves
+`expires_at` forward by the full lifetime. Once an hour (`demoExpiryInterval`,
+first run at the first poll) the process deletes every access past its end
+and soft-deletes the demo schools no remaining access enters; the standing
+school is never hidden. A hidden school holds no place against the capacity,
+gets no ticker and cannot be entered. A school that could not be hidden
+(database away) is remembered and hidden at the next poll. The process's role
+sees only `id`, `school_slug` and `expires_at` of `auth.demo_accesses`, never
+an address or a name, and may set `deleted_at` on `platform.schools`
+(migration 1.15.412). Hidden schools accumulate; the ADR allows rebuilding
+the demo database when that matters.
 
 ### Capacity
 

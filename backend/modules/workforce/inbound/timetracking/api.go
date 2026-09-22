@@ -10,15 +10,12 @@ import (
 	"strings"
 	"time"
 
-	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	staffshifts "github.com/moto-nrw/project-phoenix/api/staff-shifts"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -33,10 +30,10 @@ type Resource struct {
 	WorkSessionService  workforce.WorkSessions
 	StaffAbsenceService workforce.StaffAbsences
 	PersonService       workforce.StaffDirectory
-	StaffShiftService   shiftplanning.StaffShiftService
+	StaffShiftService   workforce.OwnShiftQuery
 	// StaffAssignmentService backs GET /assignments — the staff member's own
 	// Betreuungsplan blocks (Ort/Aufgabe) for a day (#1844).
-	StaffAssignmentService shiftplanning.StaffAssignmentService
+	StaffAssignmentService workforce.StaffAssignmentQuery
 	// WorkTimeMonthService backs GET /month-summary — the Monatskarte (#1842).
 	WorkTimeMonthService workforce.WorkTimeMonths
 	// Calendar backs GET /holidays and GET /closing-days — the tenant's public
@@ -55,8 +52,8 @@ type Dependencies struct {
 	StaffAbsences workforce.StaffAbsences
 	Staff         workforce.StaffDirectory
 	WorkTimeMonth workforce.WorkTimeMonths
-	StaffShifts   shiftplanning.StaffShiftService
-	Assignments   shiftplanning.StaffAssignmentService
+	StaffShifts   workforce.OwnShiftQuery
+	Assignments   workforce.StaffAssignmentQuery
 	Calendar      workforce.PlanningCalendar
 	// AccountStartDate resolves the tenant's time-account start day; nil
 	// renders an empty start date.
@@ -818,45 +815,25 @@ func (rs *Resource) getOwnShifts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shifts, err := rs.StaffShiftService.ListShiftsForStaff(r.Context(), staffID, from, to)
+	shifts, err := rs.StaffShiftService.ListShifts(r.Context(), workforce.ShiftRange{
+		From: from.String(), To: to.String(), StaffID: staffID,
+	})
 	if err != nil {
-		if errors.Is(err, shiftplanning.ErrShiftInvalid) || errors.Is(err, shiftplanning.ErrShiftRangeTooLarge) {
-			common.RenderError(w, r, common.ErrorInvalidRequest(err))
-			return
-		}
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		renderShiftRangeError(w, r, err)
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, staffshifts.ToShiftResponses(plannedShifts(shifts)), "Shifts retrieved successfully")
+	common.Respond(w, r, http.StatusOK, staffshifts.ToShiftResponses(shifts), "Shifts retrieved successfully")
 }
 
-// plannedShifts maps the retained shift rows onto the Workforce planning
-// shape the shared wire format is rendered from (#2689).
-func plannedShifts(shifts []*scheduleModels.StaffShift) []workforce.PlannedShift {
-	result := make([]workforce.PlannedShift, 0, len(shifts))
-	for _, shift := range shifts {
-		if shift == nil {
-			continue
-		}
-		planned := workforce.PlannedShift{StaffShift: workforce.StaffShift{
-			ID: shift.ID, TenantID: shift.TenantID, StaffID: shift.StaffID, Date: shift.Date.String(),
-			StartTime:    timezone.NormalizeWallClock(shift.StartTime).Format(workforce.ClockLayout),
-			EndTime:      timezone.NormalizeWallClock(shift.EndTime).Format(workforce.ClockLayout),
-			BreakMinutes: shift.BreakMinutes, ShiftTypeID: shift.ShiftTypeID, Notes: shift.Notes,
-			SeriesID: shift.SeriesID, Detached: shift.Detached, Cancelled: shift.Cancelled,
-			ChangeReason: shift.ChangeReason, OriginShiftID: shift.OriginShiftID, SickAbsenceID: shift.SickAbsenceID,
-			CreatedBy: shift.CreatedBy, UpdatedBy: shift.UpdatedBy, CreatedAt: shift.CreatedAt, UpdatedAt: shift.UpdatedAt,
-		}}
-		if shift.SeriesOccurrenceDate != nil {
-			planned.SeriesOccurrenceDate = shift.SeriesOccurrenceDate.String()
-		}
-		if shift.ShiftType != nil {
-			planned.ShiftType = &workforce.ShiftTypeLabel{Name: shift.ShiftType.Name, Color: shift.ShiftType.Color}
-		}
-		result = append(result, planned)
+// renderShiftRangeError keeps the range reads' classification: a malformed or
+// oversized range is the caller's fault, everything else is a 500.
+func renderShiftRangeError(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, workforce.ErrInvalidStaffShift) || errors.Is(err, workforce.ErrStaffShiftRangeTooLarge) {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
 	}
-	return result
+	common.RenderError(w, r, common.ErrorInternalServer(err))
 }
 
 // assignmentResponse is the wire format for one Betreuungsplan block a staff
@@ -880,7 +857,7 @@ type assignmentResponse struct {
 	UnderstaffedAck bool    `json:"understaffed_ack"`
 }
 
-func toAssignmentResponses(assignments []*shiftplanning.StaffAssignment) []assignmentResponse {
+func toAssignmentResponses(assignments []workforce.StaffAssignment) []assignmentResponse {
 	out := make([]assignmentResponse, 0, len(assignments))
 	for _, a := range assignments {
 		out = append(out, assignmentResponse{
@@ -888,9 +865,9 @@ func toAssignmentResponses(assignments []*shiftplanning.StaffAssignment) []assig
 			Title:           a.Title,
 			GroupName:       a.GroupName,
 			RoomName:        a.RoomName,
-			Date:            a.Date.String(),
-			StartTime:       timezone.NormalizeWallClock(a.StartTime).Format("15:04"),
-			EndTime:         timezone.NormalizeWallClock(a.EndTime).Format("15:04"),
+			Date:            a.Date,
+			StartTime:       assignmentClock(a.StartTime),
+			EndTime:         assignmentClock(a.EndTime),
 			Status:          a.Status,
 			Cancelled:       a.Cancelled,
 			IsPrimary:       a.IsPrimary,
@@ -902,6 +879,17 @@ func toAssignmentResponses(assignments []*shiftplanning.StaffAssignment) []assig
 		})
 	}
 	return out
+}
+
+// assignmentClock renders a ClockLayout wall clock in the minute precision
+// the assignment wire format has always used. A value the contract could not
+// have produced passes through unchanged instead of being blanked.
+func assignmentClock(value string) string {
+	parsed, err := time.Parse(workforce.ClockLayout, value)
+	if err != nil {
+		return value
+	}
+	return parsed.Format("15:04")
 }
 
 // getOwnAssignments handles GET /api/time-tracking/assignments — the staff
@@ -921,13 +909,9 @@ func (rs *Resource) getOwnAssignments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	assignments, err := rs.StaffAssignmentService.ListAssignmentsForStaff(r.Context(), staffID, from, to)
+	assignments, err := rs.StaffAssignmentService.ListStaffAssignments(r.Context(), staffID, from.String(), to.String())
 	if err != nil {
-		if errors.Is(err, shiftplanning.ErrShiftInvalid) || errors.Is(err, shiftplanning.ErrShiftRangeTooLarge) {
-			common.RenderError(w, r, common.ErrorInvalidRequest(err))
-			return
-		}
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		renderShiftRangeError(w, r, err)
 		return
 	}
 

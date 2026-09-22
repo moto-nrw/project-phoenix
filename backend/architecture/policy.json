@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 21,
+  "policy_epoch": 22,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -428,6 +428,10 @@
     },
     {
       "id": "grade-transition",
+      "kind": "workflow"
+    },
+    {
+      "id": "shift-plan-sync",
       "kind": "workflow"
     }
   ],
@@ -2344,13 +2348,6 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "modules/workforce/legacy/shiftplanning",
-      "owner": "inbound-staff-shifts",
-      "role": "adapter",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/workforce/inbound",
       "owner": "workforce",
       "role": "adapter",
@@ -3347,6 +3344,41 @@
     {
       "path": "workflows/gradetransition/compose",
       "owner": "grade-transition",
+      "role": "compose",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/workforce/internal/planning",
+      "owner": "workforce",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "workflows/shiftplansync",
+      "owner": "shift-plan-sync",
+      "role": "public",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/shiftplansync/ports",
+      "owner": "shift-plan-sync",
+      "role": "port",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/shiftplansync/internal/application",
+      "owner": "shift-plan-sync",
+      "role": "application",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/shiftplansync/compose",
+      "owner": "shift-plan-sync",
       "role": "compose",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -5794,17 +5826,6 @@
       "target_role": "domain"
     },
     {
-      "id": "workforce.contracttest.timetable-activities.domain",
-      "description": "The new test-only Workforce contract root exercises retained adapter inputs and outputs; it grants no runtime or existing test package new imports.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "e2e-test",
-      "target_owner": "timetable-activities",
-      "target_role": "domain"
-    },
-    {
       "id": "workforce.contracttest.school-structure.application",
       "description": "The new test-only Workforce contract root exercises retained adapter inputs and outputs; it grants no runtime or existing test package new imports.",
       "scopes": [
@@ -5813,28 +5834,6 @@
       "source_owner": "workforce",
       "source_role": "e2e-test",
       "target_owner": "school-structure",
-      "target_role": "application"
-    },
-    {
-      "id": "workforce.contracttest.document-rendering.public",
-      "description": "The new test-only Workforce contract root exercises retained adapter inputs and outputs; it grants no runtime or existing test package new imports.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "e2e-test",
-      "target_owner": "document-rendering",
-      "target_role": "public"
-    },
-    {
-      "id": "workforce.contracttest.document-rendering.application",
-      "description": "The new test-only Workforce contract root exercises retained adapter inputs and outputs; it grants no runtime or existing test package new imports.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "e2e-test",
-      "target_owner": "document-rendering",
       "target_role": "application"
     },
     {
@@ -16285,17 +16284,6 @@
       "target_role": "domain"
     },
     {
-      "id": "workforce.http.timetable-domain",
-      "description": "The Workforce shift-planning composition maps the retained models/schedule Dienstplan rows and the category-link rejection while their services migrate (#2689).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "http",
-      "target_owner": "timetable-activities",
-      "target_role": "domain"
-    },
-    {
       "id": "workforce.http.orm-sql",
       "description": "The Workforce shift-planning HTTP composition passes the concrete Bun database to the shared tenant middleware.",
       "scopes": [
@@ -21330,496 +21318,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/2748"
     },
     {
-      "id": "inbound-staff-shifts.adapter.legacy-shared-domain",
-      "description": "The retained staff-shift services in modules/workforce/legacy/shiftplanning still speak the retained calendar-date type and slice helpers while #2730 dissolves them into the Workforce application (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "adapter",
-      "target_owner": "legacy-shared",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.adapter.timetable-activities-domain",
-      "description": "The retained staff-shift services in modules/workforce/legacy/shiftplanning still read and write the retained models/schedule and models/activities rows (staff shifts, series, shift types, instances, calendar periods) (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "adapter",
-      "target_owner": "timetable-activities",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.adapter.audit-platform-domain",
-      "description": "The retained staff-shift services in modules/workforce/legacy/shiftplanning append the shift_moved Änderungsprotokoll rows through the retained models/audit contract (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "adapter",
-      "target_owner": "audit-platform",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.adapter.transaction-runtime-domain",
-      "description": "The retained staff-shift services in modules/workforce/legacy/shiftplanning build the shared persistence base and query options (models/base) (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "adapter",
-      "target_owner": "transaction-runtime",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.adapter.transaction-runtime-postgres",
-      "description": "The retained staff-shift services in modules/workforce/legacy/shiftplanning take the per-staff advisory lock through database/repositories/base (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "adapter",
-      "target_owner": "transaction-runtime",
-      "target_role": "postgres",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.adapter.settings-platform-domain",
-      "description": "The retained Dienstplan overview in modules/workforce/legacy/shiftplanning derives weekly targets from the retained work-time model rows (models/config) (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "adapter",
-      "target_owner": "settings-platform",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.adapter.facilities-domain",
-      "description": "The retained assignment and overview services in modules/workforce/legacy/shiftplanning resolve room names from the retained models/facilities rows (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "adapter",
-      "target_owner": "facilities",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.adapter.people-directory-domain",
-      "description": "The retained staff-shift services in modules/workforce/legacy/shiftplanning read staff, person and staff-notice rows through the retained models/users contracts (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "adapter",
-      "target_owner": "people-directory",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.adapter.delivery-platform-application",
-      "description": "The retained staff-shift and series services in modules/workforce/legacy/shiftplanning queue the staff time-tracking invalidation through the Delivery producer (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "adapter",
-      "target_owner": "delivery-platform",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.adapter.delivery-platform-public",
-      "description": "The retained staff-shift services in modules/workforce/legacy/shiftplanning broadcast staffing changes through the retained realtime hub contract (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "adapter",
-      "target_owner": "delivery-platform",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.adapter.document-rendering-public",
-      "description": "The retained StaffShiftPlanning implementation in modules/workforce/legacy/shiftplanning serves the Dienstplan export from the public plan export capability (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "adapter",
-      "target_owner": "document-rendering",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.adapter.workforce-public",
-      "description": "The retained staff-shift services in modules/workforce/legacy/shiftplanning serve the public StaffShiftPlanning and ShiftTypeAdministration contracts of modules/workforce (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "adapter",
-      "target_owner": "workforce",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.adapter.tenant-runtime-public",
-      "description": "The retained staff-shift services in modules/workforce/legacy/shiftplanning scope their locks, after-commit hooks and broadcasts through the tenant runtime (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "adapter",
-      "target_owner": "tenant-runtime",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.adapter.orm-sql",
-      "description": "The retained staff-shift services in modules/workforce/legacy/shiftplanning bind the ORM handle for the advisory locks and the retained SQL sentinels (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "adapter",
-      "target_class": "orm-sql",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.adapter.test",
-      "description": "The retained staff-shift services in modules/workforce/legacy/shiftplanning keep the cmp.Or logger fallback the helper-consolidation ratchet requires (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "adapter",
-      "target_class": "test",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "root-composition.compose.inbound-staff-shifts-adapter",
-      "description": "The root composition binds the StaffShiftPlanning and ShiftTypeAdministration contracts from the retained staff-shift services in modules/workforce/legacy/shiftplanning (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-staff-shifts",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "legacy-composition.compose.inbound-staff-shifts-adapter",
-      "description": "The legacy service factory and its test modules still build the retained staff-shift services in modules/workforce/legacy/shiftplanning (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-staff-shifts",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "workforce.http.inbound-staff-shifts-adapter",
-      "description": "The Workforce time-tracking HTTP composition still serves own shifts, assignments and staff notices from the retained services in modules/workforce/legacy/shiftplanning (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "http",
-      "target_owner": "inbound-staff-shifts",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "document-rendering.adapter.inbound-staff-shifts-adapter",
-      "description": "The retained plan export adapter still reads the Dienstplan overview from modules/workforce/legacy/shiftplanning (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "adapter",
-      "target_owner": "inbound-staff-shifts",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.module-internal-test.legacy-shared-domain",
-      "description": "The retained staff-shift unit tests pin calendar-day expectations with the retained calendar-date type (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "module-internal-test",
-      "target_owner": "legacy-shared",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.module-internal-test.timetable-activities-domain",
-      "description": "The retained staff-shift unit tests build the retained models/schedule and models/activities rows their mocks serve (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "module-internal-test",
-      "target_owner": "timetable-activities",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.module-internal-test.audit-platform-domain",
-      "description": "The retained shift-move unit tests capture the shift_moved Änderungsprotokoll rows through the retained models/audit contract (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "module-internal-test",
-      "target_owner": "audit-platform",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.module-internal-test.transaction-runtime-domain",
-      "description": "The retained staff-shift unit tests build the shared persistence model and query options (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "module-internal-test",
-      "target_owner": "transaction-runtime",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.module-internal-test.settings-platform-domain",
-      "description": "The retained Dienstplan overview unit tests script work-time model rows (models/config) (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "module-internal-test",
-      "target_owner": "settings-platform",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.module-internal-test.facilities-domain",
-      "description": "The retained assignment and overview unit tests script room rows (models/facilities) (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "module-internal-test",
-      "target_owner": "facilities",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.module-internal-test.people-directory-domain",
-      "description": "The retained staff-shift unit tests script staff, person and staff-notice rows (models/users) (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "module-internal-test",
-      "target_owner": "people-directory",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.module-internal-test.delivery-platform-public",
-      "description": "The retained staff-shift broadcast unit tests record the realtime events the services queue (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "module-internal-test",
-      "target_owner": "delivery-platform",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.module-internal-test.tenant-runtime-public",
-      "description": "The retained staff-shift unit tests scope contexts and after-commit hooks through the tenant runtime (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "module-internal-test",
-      "target_owner": "tenant-runtime",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "document-rendering.adapter-test.inbound-staff-shifts-adapter",
-      "description": "The retained plan export adapter tests still build the Dienstplan overview from modules/workforce/legacy/shiftplanning (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "adapter-test",
-      "target_owner": "inbound-staff-shifts",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "workforce.adapter-test.inbound-staff-shifts-adapter",
-      "description": "The Workforce shift-planning HTTP tests still bind the shift-type administration from modules/workforce/legacy/shiftplanning (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "adapter-test",
-      "target_owner": "inbound-staff-shifts",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.module-behavior-test.subject",
-      "description": "The retained staff-shift behaviour tests drive the compatibility package they moved with (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "module-behavior-test",
-      "same_owner": true,
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.module-behavior-test.legacy-composition-compose",
-      "description": "The retained staff-shift behaviour tests build the legacy repository and service graph they exercise (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "module-behavior-test",
-      "target_owner": "legacy-composition",
-      "target_role": "compose",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.module-behavior-test.legacy-shared-domain",
-      "description": "The retained staff-shift behaviour tests pin calendar-day expectations with the retained calendar-date type (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "module-behavior-test",
-      "target_owner": "legacy-shared",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.module-behavior-test.timetable-activities-domain",
-      "description": "The retained staff-shift behaviour tests seed and assert the retained models/schedule and models/activities rows (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "module-behavior-test",
-      "target_owner": "timetable-activities",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.module-behavior-test.audit-platform-domain",
-      "description": "The retained sick-cascade behaviour tests read the audit rows the shift-plan sync writes (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "module-behavior-test",
-      "target_owner": "audit-platform",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.module-behavior-test.settings-platform-domain",
-      "description": "The retained Dienstplan overview behaviour tests seed the work-time model rows the weekly targets derive from (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "module-behavior-test",
-      "target_owner": "settings-platform",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.module-behavior-test.people-directory-domain",
-      "description": "The retained staff-shift behaviour tests seed and assert the retained staff and person rows (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "module-behavior-test",
-      "target_owner": "people-directory",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.module-behavior-test.delivery-platform-public",
-      "description": "The retained shift-plan sync behaviour tests record the realtime events the cascade queues (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "module-behavior-test",
-      "target_owner": "delivery-platform",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.module-behavior-test.school-structure-application",
-      "description": "The retained substitution behaviour tests drive the schedule substitution through the retained education substitution service (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "module-behavior-test",
-      "target_owner": "school-structure",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "inbound-staff-shifts.module-behavior-test.tenant-runtime-public",
-      "description": "The retained staff-shift behaviour tests scope contexts through the tenant runtime (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "module-behavior-test",
-      "target_owner": "tenant-runtime",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
-      "id": "workforce.e2e-test.inbound-staff-shifts-adapter",
-      "description": "The Workforce contract tests bind the StaffShiftPlanning contract from modules/workforce/legacy/shiftplanning (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "e2e-test",
-      "target_owner": "inbound-staff-shifts",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3418"
-    },
-    {
       "id": "identity-access.http.public",
       "description": "The operator identity routes call the public Identity & Access capability (#3252).",
       "scopes": [
@@ -22091,18 +21589,6 @@
         "external_test"
       ],
       "source_owner": "enrollment",
-      "source_role": "module-behavior-test",
-      "target_owner": "inbound-timetable",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
-      "id": "inbound-staff-shifts.module-behavior-test.inbound-timetable-adapter",
-      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/workforce/legacy/shiftplanning. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-staff-shifts",
       "source_role": "module-behavior-test",
       "target_owner": "inbound-timetable",
       "target_role": "adapter",
@@ -22443,18 +21929,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
-      "id": "workforce.e2e-test.inbound-timetable-adapter",
-      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/workforce/contracttest. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "e2e-test",
-      "target_owner": "inbound-timetable",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
       "id": "calendar-view.adapter-test.inbound-timetable-adapter",
       "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/supervisiondashboard/legacy. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -22474,18 +21948,6 @@
       ],
       "source_owner": "document-rendering",
       "source_role": "adapter-test",
-      "target_owner": "inbound-timetable",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
-      "id": "inbound-staff-shifts.module-internal-test.inbound-timetable-adapter",
-      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/workforce/legacy/shiftplanning. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "module-internal-test",
       "target_owner": "inbound-timetable",
       "target_role": "adapter",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
@@ -22739,18 +22201,6 @@
       "source_role": "adapter",
       "target_owner": "care-plan",
       "target_role": "contract"
-    },
-    {
-      "id": "inbound-staff-shifts.adapter.inbound-timetable-adapter",
-      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/workforce/legacy/shiftplanning. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "adapter",
-      "target_owner": "inbound-timetable",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
       "id": "inbound-students.http.inbound-timetable-adapter",
@@ -24260,6 +23710,986 @@
       "source_role": "application",
       "target_owner": "student-presence",
       "target_role": "public"
+    },
+    {
+      "id": "workforce.application.legacy-shared-domain",
+      "description": "The Workforce planning commands and queries (modules/workforce/internal/planning, #3418) speak the shared calendar-date and wall-clock helpers.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "application",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.application.timetable-domain",
+      "description": "The Workforce planning commands and queries still speak the retained models/schedule Dienstplan rows and the timetable instance and staffing rows, because the Timetable coverage probe and staff pool share that vocabulary (#3418). Goes with the timetable nest.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "application",
+      "target_owner": "timetable-activities",
+      "target_role": "domain",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
+    },
+    {
+      "id": "workforce.application.audit-domain",
+      "description": "Shift moves append the shift_moved Änderungsprotokoll entry through the retained audit contract (#1884, #3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "application",
+      "target_owner": "audit-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.application.transaction-domain",
+      "description": "The Workforce planning package classifies the retained repository error and unique-violation shapes (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "application",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.compose.transaction-postgres",
+      "description": "Workforce composition takes the per-staff shift write lock through the shared advisory-lock helper (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "transaction-runtime",
+      "target_role": "postgres"
+    },
+    {
+      "id": "workforce.application.settings-domain",
+      "description": "The Dienstplan weekly summaries resolve the contractual target through the retained work-schedule and work-time-model rows (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "application",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.application.facilities-domain",
+      "description": "The Dienstplan overview and the self-service assignments read the retained room rows through consumer-owned reader ports (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "application",
+      "target_owner": "facilities",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.application.people-domain",
+      "description": "The Workforce planning commands read the retained staff rows through a consumer-owned directory port (#3418). Goes with the models/users retirement.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "application",
+      "target_owner": "people-directory",
+      "target_role": "domain",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2729"
+    },
+    {
+      "id": "workforce.application.delivery-application",
+      "description": "Committed shift and series writes queue the time-tracking invalidation through the Delivery producer (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "application",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "workforce.application.delivery-public",
+      "description": "The Workforce planning commands hold the tenant-wide SSE broadcaster (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "application",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.application.document-rendering-public",
+      "description": "The planning facade renders the printable Dienstplan through the public plan export capability (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "application",
+      "target_owner": "document-rendering",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.application.public",
+      "description": "The Workforce planning package serves the public planning, assignment, overview and shift-type contracts over the owner's row capability (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "application",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.application.tenant-runtime",
+      "description": "The Workforce planning commands read the tenant id and register after-commit work (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "application",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.application.inbound-timetable-adapter",
+      "description": "The Dienstplan overview and the series materialization reach the coverage interval math, the calendar-week helpers and the week-pattern rule in the retained timetable services (#3418). Goes with the timetable nest.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "application",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
+    },
+    {
+      "id": "workforce.compose.timetable-domain",
+      "description": "Workforce composition declares the retained-row reader ports of the Dienstplan side and serves the retained models/schedule rows to the readers that still speak them (#3418). Goes with the timetable nest.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "domain",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
+    },
+    {
+      "id": "workforce.compose.audit-domain",
+      "description": "Workforce composition binds the retained deviation-event contract to the shift move (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "audit-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.compose.transaction-domain",
+      "description": "Workforce composition keeps the retained repository error shape on the retained-row adapters (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.compose.facilities-domain",
+      "description": "Workforce composition declares the room reader port of the Dienstplan side (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "facilities",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.compose.people-domain",
+      "description": "Workforce composition declares the staff directory port of the Dienstplan side (#3418). Goes with the models/users retirement.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "domain",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2729"
+    },
+    {
+      "id": "workforce.compose.document-rendering-public",
+      "description": "Workforce composition binds the plan export capability to the planning facade (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "document-rendering",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.compose.inbound-timetable-adapter",
+      "description": "Workforce composition binds the retained holiday service to the Dienstplan weekly summaries (#3418). Goes with the timetable nest.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
+    },
+    {
+      "id": "workforce.compose.delivery-public",
+      "description": "Workforce composition binds the SSE broadcaster to the planning commands (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "document-rendering.adapter.workforce-public",
+      "description": "The plan export adapter names the Dienstplan overview through the public Workforce query (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "document-rendering.adapter.facilities-domain",
+      "description": "The plan export adapter names the retained room rows it reads directly instead of through the retired reader interface (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter",
+      "target_owner": "facilities",
+      "target_role": "domain"
+    },
+    {
+      "id": "legacy-composition.to.shift-plan-sync-public",
+      "description": "The legacy factory binds the shift-plan-sync workflow contracts to the absence service and the substitution module (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "shift-plan-sync",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.to.shift-plan-sync-compose",
+      "description": "The legacy factory composes the shift-plan-sync workflow (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "shift-plan-sync",
+      "target_role": "compose"
+    },
+    {
+      "id": "shift-plan-sync.public.workforce",
+      "description": "The shift-plan-sync contract is the port Workforce declares for the sick cascade (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "public",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "shift-plan-sync.public.school-structure-application",
+      "description": "The shift-plan-sync contract serves the schedule port the retained substitution module owns until services/education dissolves (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "public",
+      "target_owner": "school-structure",
+      "target_role": "application",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2742"
+    },
+    {
+      "id": "shift-plan-sync.port.workforce",
+      "description": "The shift-plan-sync ports carry the public Workforce planning types (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "port",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "shift-plan-sync.application.ports",
+      "description": "The shift-plan-sync application depends on its own ports.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "application",
+      "target_owner": "shift-plan-sync",
+      "target_role": "port"
+    },
+    {
+      "id": "shift-plan-sync.application.legacy-shared-domain",
+      "description": "The sick cascade expands absence ranges into calendar days with the shared date helpers (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "application",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "shift-plan-sync.application.transaction-domain",
+      "description": "The sick cascade reads the retained instance staffing rows through the generic query options (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "application",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "shift-plan-sync.application.timetable-domain",
+      "description": "The sick cascade and the substitution moves speak the retained timetable instance and staffing rows (#3418). Goes with the timetable nest.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "application",
+      "target_owner": "timetable-activities",
+      "target_role": "domain",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
+    },
+    {
+      "id": "shift-plan-sync.application.people-domain",
+      "description": "The substitution overview names staff through the retained staff rows (#3418). Goes with the models/users retirement.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "application",
+      "target_owner": "people-directory",
+      "target_role": "domain",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2729"
+    },
+    {
+      "id": "shift-plan-sync.application.inbound-timetable-adapter",
+      "description": "The sick cascade and the substitution moves drive the retained timetable instance and deviation services (#3418). Goes with the timetable nest.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "application",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
+    },
+    {
+      "id": "shift-plan-sync.application.workforce",
+      "description": "The sick cascade cancels and releases shifts through the public Workforce planning contracts (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "application",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "shift-plan-sync.application.delivery-public",
+      "description": "The shift-plan-sync application queues the staffing broadcast after commit (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "application",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "shift-plan-sync.application.school-structure-application",
+      "description": "The substitution moves implement the schedule port the retained substitution module owns until services/education dissolves (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "application",
+      "target_owner": "school-structure",
+      "target_role": "application",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2742"
+    },
+    {
+      "id": "shift-plan-sync.application.tenant-runtime",
+      "description": "The shift-plan-sync application reads the tenant id and registers after-commit work (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "application",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "shift-plan-sync.application.test",
+      "description": "The shift-plan-sync application keeps the cmp.Or logger fallback the helper-consolidation ratchet requires (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "application",
+      "target_class": "test"
+    },
+    {
+      "id": "shift-plan-sync.compose.public",
+      "description": "Shift-plan-sync composition returns the workflow contracts.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "compose",
+      "target_owner": "shift-plan-sync",
+      "target_role": "public"
+    },
+    {
+      "id": "shift-plan-sync.compose.application",
+      "description": "Shift-plan-sync composition constructs its application.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "compose",
+      "target_owner": "shift-plan-sync",
+      "target_role": "application"
+    },
+    {
+      "id": "shift-plan-sync.compose.port",
+      "description": "Shift-plan-sync composition binds its ports.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "compose",
+      "target_owner": "shift-plan-sync",
+      "target_role": "port"
+    },
+    {
+      "id": "shift-plan-sync.compose.legacy-shared-domain",
+      "description": "Shift-plan-sync composition takes the calendar-day clock (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "compose",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "shift-plan-sync.compose.timetable-domain",
+      "description": "Shift-plan-sync composition binds the retained timetable instance and staffing repositories (#3418). Goes with the timetable nest.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "domain",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
+    },
+    {
+      "id": "shift-plan-sync.compose.people-domain",
+      "description": "Shift-plan-sync composition binds the retained staff repository to the substitution overview (#3418). Goes with the models/users retirement.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "domain",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2729"
+    },
+    {
+      "id": "shift-plan-sync.compose.inbound-timetable-adapter",
+      "description": "Shift-plan-sync composition binds the retained timetable instance and data services (#3418). Goes with the timetable nest.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "compose",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
+    },
+    {
+      "id": "shift-plan-sync.compose.workforce",
+      "description": "Shift-plan-sync composition binds the public Workforce planning contracts to its shift port (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "shift-plan-sync.compose.delivery-public",
+      "description": "Shift-plan-sync composition binds the SSE broadcaster (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "compose",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "shift-plan-sync.decision-test.delivery-public",
+      "description": "The shift-plan-sync application suites record the staffing broadcast.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "workflow-decision-test",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "shift-plan-sync.decision-test.tenant-runtime",
+      "description": "The shift-plan-sync application suites run inside a tenant context.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "workflow-decision-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "shift-plan-sync.adapter-test.legacy-composition",
+      "description": "The shift-plan-sync behaviour suites build their fixtures through the legacy factory and repositories (#3418).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "adapter-test",
+      "target_owner": "legacy-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "shift-plan-sync.adapter-test.legacy-shared-domain",
+      "description": "The shift-plan-sync behaviour suites pin calendar days.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "adapter-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "shift-plan-sync.adapter-test.audit-domain",
+      "description": "The shift-plan-sync behaviour suites assert the sick_reported and sick_cleared deviation events.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "adapter-test",
+      "target_owner": "audit-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "shift-plan-sync.adapter-test.timetable-domain",
+      "description": "The shift-plan-sync behaviour suites read the retained instance staffing rows.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "adapter-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "shift-plan-sync.adapter-test.workforce-compose",
+      "description": "The shift-plan-sync behaviour suites compose the Workforce planning side the workflow runs over.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "adapter-test",
+      "target_owner": "workforce",
+      "target_role": "compose"
+    },
+    {
+      "id": "shift-plan-sync.adapter-test.school-structure-application",
+      "description": "The shift-plan-sync behaviour suites drive the retained substitution module.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "adapter-test",
+      "target_owner": "school-structure",
+      "target_role": "application",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2742"
+    },
+    {
+      "id": "shift-plan-sync.adapter-test.compose",
+      "description": "The shift-plan-sync behaviour suites compose the workflow they drive.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "adapter-test",
+      "target_owner": "shift-plan-sync",
+      "target_role": "compose"
+    },
+    {
+      "id": "workforce.behaviour-test.subject",
+      "description": "The Workforce planning behaviour suites drive the planning package they moved with (#3418).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-behavior-test",
+      "same_owner": true,
+      "target_role": "application"
+    },
+    {
+      "id": "workforce.behaviour-test.compose",
+      "description": "The Workforce planning behaviour suites compose the planning side they drive (#3418).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-behavior-test",
+      "target_owner": "workforce",
+      "target_role": "compose"
+    },
+    {
+      "id": "workforce.behaviour-test.legacy-composition",
+      "description": "The Workforce planning behaviour suites build their fixtures through the legacy factory and repositories (#3418).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-behavior-test",
+      "target_owner": "legacy-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "workforce.behaviour-test.legacy-shared-domain",
+      "description": "The Workforce planning behaviour suites pin calendar days and wall clocks.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-behavior-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.behaviour-test.timetable-domain",
+      "description": "The Workforce planning behaviour suites build retained Dienstplan and timetable rows (#3418). Goes with the timetable nest.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-behavior-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
+    },
+    {
+      "id": "workforce.behaviour-test.settings-domain",
+      "description": "The Dienstplan overview suites build retained work-schedule rows for the weekly target.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-behavior-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.behaviour-test.people-domain",
+      "description": "The Workforce planning behaviour suites build retained staff rows (#3418). Goes with the models/users retirement.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-behavior-test",
+      "target_owner": "people-directory",
+      "target_role": "domain",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2729"
+    },
+    {
+      "id": "workforce.behaviour-test.document-rendering-public",
+      "description": "The planning contract suite renders the printable plan through the public plan export capability (#3418).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-behavior-test",
+      "target_owner": "document-rendering",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.behaviour-test.document-rendering-application",
+      "description": "The planning contract suite renders through the list export renderer (#3418).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-behavior-test",
+      "target_owner": "document-rendering",
+      "target_role": "application"
+    },
+    {
+      "id": "workforce.behaviour-test.inbound-timetable-adapter",
+      "description": "The Dienstplan overview suites build the retained timetable services (#3418). Goes with the timetable nest.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-behavior-test",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
+    },
+    {
+      "id": "workforce.behaviour-test.tenant-runtime",
+      "description": "The Workforce planning behaviour suites run inside a tenant context.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-behavior-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.internal-test.legacy-shared-domain",
+      "description": "The Workforce planning unit suites pin calendar days and wall clocks.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-internal-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.internal-test.timetable-domain",
+      "description": "The Workforce planning unit suites mock the retained Dienstplan and timetable rows (#3418). Goes with the timetable nest.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-internal-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
+    },
+    {
+      "id": "workforce.internal-test.audit-domain",
+      "description": "The shift move unit suites assert the shift_moved deviation event.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-internal-test",
+      "target_owner": "audit-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.internal-test.transaction-domain",
+      "description": "The Workforce planning unit suites raise the retained repository error shapes.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-internal-test",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.internal-test.settings-domain",
+      "description": "The Dienstplan overview unit suites build retained work-schedule rows.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-internal-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.internal-test.facilities-domain",
+      "description": "The Dienstplan overview unit suites build retained room rows.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-internal-test",
+      "target_owner": "facilities",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.internal-test.people-domain",
+      "description": "The Workforce planning unit suites mock the retained staff rows (#3418). Goes with the models/users retirement.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-internal-test",
+      "target_owner": "people-directory",
+      "target_role": "domain",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2729"
+    },
+    {
+      "id": "workforce.internal-test.inbound-timetable-adapter",
+      "description": "The Dienstplan overview unit suites use the retained coverage interval vocabulary (#3418). Goes with the timetable nest.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-internal-test",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
+    },
+    {
+      "id": "workforce.internal-test.delivery-public",
+      "description": "The shift broadcast unit suites record the SSE events.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-internal-test",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.internal-test.tenant-runtime",
+      "description": "The Workforce planning unit suites run inside a tenant context.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-internal-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "document-rendering.adapter-test.workforce-compose",
+      "description": "The plan export isolation and checkpoint suites compose the Dienstplan overview they export (#3418).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter-test",
+      "target_owner": "workforce",
+      "target_role": "compose"
+    },
+    {
+      "id": "timetable-activities.integration-test.legacy-shared-domain",
+      "description": "The Tagesinformationen service suite pins calendar days (#3418).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "timetable-activities.integration-test.people-domain",
+      "description": "The Tagesinformationen service suite mocks the retained notice repository rows (#3418). Goes with the models/users retirement.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "domain",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2729"
+    },
+    {
+      "id": "timetable-activities.integration-test.legacy-composition",
+      "description": "The Tagesinformationen route suite binds the People Directory and calendar periods through the legacy repositories (#3418).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "legacy-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "workforce.integration-test.timetable-domain",
+      "description": "The Workforce planning composition suite builds retained Dienstplan and timetable rows for its reader ports (#3418). Goes with the timetable nest.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "workflow-integration-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
+    },
+    {
+      "id": "workforce.integration-test.transaction-domain",
+      "description": "The Workforce planning composition suite asserts the retained repository error shapes of the row adapters (#3418).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "workflow-integration-test",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.integration-test.facilities-domain",
+      "description": "The Workforce planning composition suite builds retained room rows (#3418).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "workflow-integration-test",
+      "target_owner": "facilities",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.integration-test.people-domain",
+      "description": "The Workforce planning composition suite builds retained staff rows (#3418). Goes with the models/users retirement.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "domain",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2729"
     }
   ],
   "relocations": [

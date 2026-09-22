@@ -33,7 +33,7 @@ type StudentResponseOpts struct {
 
 // StudentResponseServices groups service dependencies for student response creation
 type StudentResponseServices struct {
-	ActiveService studentpresence.Presence
+	ActiveService StudentPresence
 	PersonService userService.PersonService
 }
 
@@ -303,7 +303,7 @@ func absentInfo(hasFullAccess bool, checkOutTime *time.Time) common.StudentLocat
 // write only attendance (no room visit), so falling through to
 // presentOrTransit() would always yield "Unterwegs", contradicting the
 // simplified Anwesend/Schulhof/Abwesend UX binary mode promises.
-func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFullAccess bool, svc studentpresence.Presence) (common.StudentLocationInfo, error) {
+func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFullAccess bool, svc StudentPresence) (common.StudentLocationInfo, error) {
 	mode, err := svc.GetPresenceMode(ctx)
 	if err != nil {
 		return common.StudentLocationInfo{}, err

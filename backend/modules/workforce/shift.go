@@ -411,12 +411,16 @@ type CoverageInterval struct {
 }
 
 type OverviewAssignment struct {
-	InstanceID         int64
-	StaffID            int64
-	Date               string
-	StartTime          string
-	EndTime            string
-	ActivityTitle      string
+	InstanceID    int64
+	StaffID       int64
+	Date          string
+	StartTime     string
+	EndTime       string
+	ActivityTitle string
+	// ActivityGroupID identifies the Angebot the block was materialized from,
+	// nil for a spontaneous block. Titles are not unique, so a consumer
+	// grouping assignments needs the identity, not the label (#2079).
+	ActivityGroupID    *int64
 	RoomID             int64
 	RoomName           string
 	Status             string
@@ -684,4 +688,59 @@ func (m *Module) DeleteShiftType(ctx context.Context, id int64) error {
 		return ErrShiftTypeNotFound
 	}
 	return m.engine.DeleteShiftType(ctx, id)
+}
+
+// OwnShiftQuery is the slice of the planning capability a staff member's own
+// plan is read from: the time-tracking route lists the caller's shifts with a
+// StaffID-bound range. StaffShiftPlanning satisfies it.
+type OwnShiftQuery interface {
+	ListShifts(context.Context, ShiftRange) ([]PlannedShift, error)
+}
+
+// StaffScheduleOverviewQuery is the Dienstplan week grid as its own read,
+// consumed by the printable plan export. StaffShiftPlanning satisfies it.
+type StaffScheduleOverviewQuery interface {
+	Overview(ctx context.Context, from, to string) (StaffScheduleOverview, error)
+}
+
+// StaffAssignment is one Betreuungsplan block a staff member is planned into
+// on a concrete date: where (room), what (activity title/group), when, and
+// the Vertretungsplan facts (substitute / absent / block cancelled /
+// understaffed, #1840). It is the "Ort/Aufgabe" the Dienstplan shift alone
+// cannot express (#1844) and deliberately carries no student data. Date is
+// a calendar day in DateLayout; StartTime and EndTime are wall clocks in
+// ClockLayout.
+type StaffAssignment struct {
+	InstanceID int64
+	Title      string
+	// GroupName is the activity/Betreuungsgruppe name, nil for a spontaneous
+	// instance with no template.
+	GroupName *string
+	RoomName  string
+	Date      string
+	StartTime string
+	EndTime   string
+	Status    string
+	// Cancelled mirrors Status == cancelled: the block does not take place.
+	Cancelled bool
+	IsPrimary bool
+	// IsSubstitute marks this staff member as a stand-in for the block,
+	// IsAbsent that they were pulled from it (#1840).
+	IsSubstitute  bool
+	IsAbsent      bool
+	AbsenceReason *string
+	// CancelReason and UnderstaffedAck surface the block-level
+	// Vertretungsplan state so the staff member sees why the block changed.
+	CancelReason    *string
+	UnderstaffedAck bool
+}
+
+// StaffAssignmentQuery resolves the Betreuungsplan blocks one staff member
+// is planned into for a date range (self-service "Mein Tag", #1844): the
+// staff member's own assignments in [from, to], enriched with room and
+// activity names and the Vertretungsplan flags, ordered by date then start
+// time. A malformed or oversized range is ErrInvalidStaffShift or
+// ErrStaffShiftRangeTooLarge.
+type StaffAssignmentQuery interface {
+	ListStaffAssignments(ctx context.Context, staffID int64, from, to string) ([]StaffAssignment, error)
 }

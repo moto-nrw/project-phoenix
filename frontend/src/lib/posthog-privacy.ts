@@ -17,6 +17,7 @@ const allowedEvents = new Set([
   // Public demo (#3467): the visitor is the demo access, never a person.
   "demo_entered",
   "demo_role_switched",
+  "demo_restarted",
   "demo_start_clicked",
 ]);
 

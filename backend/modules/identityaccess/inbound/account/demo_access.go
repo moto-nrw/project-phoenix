@@ -21,6 +21,7 @@ type DemoAccesses interface {
 	RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) error
 	DemoAccessStatus(ctx context.Context, token string) (identityaccess.DemoAccessProgress, error)
 	RedeemDemoAccess(ctx context.Context, token, role, ipAddress, userAgent string) (identityaccess.DemoEntry, error)
+	ResetDemoAccess(ctx context.Context, token, clientIP string) error
 }
 
 // ComposedDemoAccess keeps a capability that was not composed a nil
@@ -82,6 +83,7 @@ func (rs *DemoResource) Router() chi.Router {
 	r.Post("/access-requests", rs.requestAccess)
 	r.Get("/access/status", rs.accessStatus)
 	r.Post("/access/sessions", rs.createSession)
+	r.Post("/access/reset", rs.resetAccess)
 	return r
 }
 
@@ -173,6 +175,29 @@ func (rs *DemoResource) createSession(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, demoSessionResponse{
 		TokenResponse: TokenResponse{AccessToken: entry.AccessToken, RefreshToken: entry.RefreshToken},
 		Demo:          demoSessionFacts{AccessID: strconv.FormatInt(entry.AccessID, 10), Role: entry.Role, Source: entry.Source, FixedRole: entry.FixedRole},
+	})
+}
+
+// resetAccess starts the visitor's demo over (#3470): a fresh demo school
+// for the same token. The answer names the waiting room the entry page
+// sends the visitor to, with the token in the fragment as in the mailed
+// link, so the new school's setup screen is the same as on the first entry.
+func (rs *DemoResource) resetAccess(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<12)).Decode(&body); err != nil {
+		rs.renderError(w, r, identityaccess.ErrDemoAccessUnknown)
+		return
+	}
+	if err := rs.accesses.ResetDemoAccess(r.Context(), body.Token, getClientIP(r)); err != nil {
+		rs.renderError(w, r, err)
+		return
+	}
+	render.Status(r, http.StatusAccepted)
+	render.JSON(w, r, map[string]string{
+		"status":    identityaccess.DemoSchoolPreparing,
+		"entry_url": rs.origins.Waiting + "/demo#token=" + body.Token,
 	})
 }
 

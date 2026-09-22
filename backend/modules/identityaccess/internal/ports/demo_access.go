@@ -17,14 +17,17 @@ type DemoAccessStore interface {
 	FindDemoAccessByTokenHash(ctx context.Context, tokenHash string) (domain.DemoAccess, bool, error)
 	// RecordDemoAccessUse notes one redemption, the account it signed in and
 	// the school's parent of the role parent (#3468); a zero parent keeps
-	// the one noted before.
-	RecordDemoAccessUse(ctx context.Context, id, accountID, parentAccountID int64, usedAt time.Time) error
+	// the one noted before. expiresAt is the access's new end (#3470).
+	RecordDemoAccessUse(ctx context.Context, id, accountID, parentAccountID int64, usedAt, expiresAt time.Time) error
 	// ReplaceDemoAccountRole makes the first of the named roles the demo
 	// school knows, a role of the school or a system role, the only role of
 	// the visitor's account there (#3467, #3469).
 	ReplaceDemoAccountRole(ctx context.Context, accountID, tenantID int64, roles []string) error
 	// FindSchoolAdministrator returns the oldest active administrator of the school.
 	FindSchoolAdministrator(ctx context.Context, tenantID int64) (accountID int64, found bool, err error)
+	// MoveDemoAccesses lets every access of the school enter the new school
+	// instead and forgets the accounts of the old one (#3470).
+	MoveDemoAccesses(ctx context.Context, fromSlug, toSlug string) error
 }
 
 // DemoSchools reaches the demo schools through their owner, Organisation &
@@ -41,6 +44,10 @@ type DemoSchools interface {
 	// MarkDemoSchoolUsed notes an entry into the school; the simulation
 	// serves only schools entered in the last minutes (#3464).
 	MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error
+	// ReplaceDemoSchool hides the school and queues a fresh one with the same
+	// names (#3470); it returns the new school's slug. The standing school is
+	// shared and reports domain.ErrDemoAccessInvalid.
+	ReplaceDemoSchool(ctx context.Context, slug, schoolName, personName string) (newSlug string, err error)
 }
 
 // DemoAccessMail sends the two mails of the public demo (#3465). Sending is
@@ -65,6 +72,8 @@ type DemoSessions interface {
 	// IssueParentTokensForAuthenticatedAccount mints the parent-scope session
 	// of the demo role parent (#3468).
 	IssueParentTokensForAuthenticatedAccount(ctx context.Context, accountID int64, ipAddress, userAgent string) (string, string, error)
+	// RevokeTokensByTenantID ends every session of a hidden demo school (#3470).
+	RevokeTokensByTenantID(ctx context.Context, tenantID int64) (int, error)
 }
 
 // DemoAdminTx runs fn inside an administrative transaction.

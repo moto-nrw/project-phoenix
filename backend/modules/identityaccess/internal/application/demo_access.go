@@ -194,7 +194,8 @@ func (d *DemoAccess) Redeem(ctx context.Context, token string, role domain.DemoR
 		// The access keeps naming the caregiver, also for the role parent;
 		// the parent it signs in is noted next to it, so the tenant lock and
 		// the session cap of the demo hold for that account too (#3462).
-		return d.store.RecordDemoAccessUse(txCtx, access.ID, entry.AccountID, signedInParent(entry, role), d.now())
+		usedAt := d.now()
+		return d.store.RecordDemoAccessUse(txCtx, access.ID, entry.AccountID, signedInParent(entry, role), usedAt, usedAt.Add(domain.DemoAccessLifetime))
 	})
 	if err != nil {
 		return domain.DemoEntry{}, err
@@ -212,6 +213,75 @@ func (d *DemoAccess) Redeem(ctx context.Context, token string, role domain.DemoR
 		AccessToken: accessToken, RefreshToken: refreshToken,
 		AccessID: access.ID, Role: role, Source: access.Source, FixedRole: entry.Shared,
 	}, nil
+}
+
+// Reset gives the token's demo access a fresh demo school (#3470): the old
+// school is hidden and queued anew with the same OGS and visitor names, and
+// every access of the old school enters the new one from now on. The link
+// keeps working; the next entry waits for the seed like the first one did.
+// The old school's sessions end, so nobody keeps working in a hidden school.
+// A school that is still being prepared cannot be restarted; the standing
+// school is shared and never is.
+//
+// A restart is a seed job and leaves a hidden school behind, so it counts
+// against the same windows as a request (#3466): per IP address and per
+// address of the access. A refused restart gives its places back.
+func (d *DemoAccess) Reset(ctx context.Context, token, clientIP string) (domain.DemoAccess, error) {
+	at := d.now()
+	if err := d.perIP.admit(clientIP, at); err != nil {
+		return domain.DemoAccess{}, err
+	}
+	var access domain.DemoAccess
+	err := d.adminTx(ctx, func(txCtx context.Context) error {
+		var err error
+		if access, err = d.valid(txCtx, token); err != nil {
+			return err
+		}
+		if err := d.perAddress.admit(access.Email, at); err != nil {
+			return err
+		}
+		entry, err := d.entry(txCtx, access.SchoolSlug)
+		if err != nil {
+			return err
+		}
+		if entry.Shared {
+			return domain.ErrDemoAccessInvalid
+		}
+		if entry.Status == domain.DemoSchoolPreparing {
+			return domain.ErrDemoSchoolPreparing
+		}
+		return d.replaceSchool(txCtx, access, entry)
+	})
+	if err != nil {
+		d.perIP.withdraw(clientIP, at)
+		if access.Email != "" {
+			d.perAddress.withdraw(access.Email, at)
+		}
+	}
+	if err != nil {
+		return domain.DemoAccess{}, err
+	}
+	return access, nil
+}
+
+// replaceSchool hides the access's school, queues its successor, moves every
+// access along and ends the old school's sessions. A failed school has no
+// sessions to end.
+func (d *DemoAccess) replaceSchool(ctx context.Context, access domain.DemoAccess, entry domain.DemoSchoolEntry) error {
+	newSlug, err := d.schools.ReplaceDemoSchool(ctx, access.SchoolSlug, access.SchoolName, access.PersonName)
+	if err != nil {
+		return err
+	}
+	if err := d.store.MoveDemoAccesses(ctx, access.SchoolSlug, newSlug); err != nil {
+		return err
+	}
+	if entry.TenantID == 0 {
+		return nil
+	}
+	if _, err := d.sessions.RevokeTokensByTenantID(ctx, entry.TenantID); err != nil {
+		return fmt.Errorf("end the sessions of the hidden demo school: %w", err)
+	}
+	return nil
 }
 
 // signedInParent names the account a redemption signs in besides the

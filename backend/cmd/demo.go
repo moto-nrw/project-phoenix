@@ -44,7 +44,7 @@ var demoCmd = &cobra.Command{
 			return err
 		}
 		defer func() { _ = db.Close() }()
-		schools, err := backendapi.NewDemoRuntime(db)
+		schools, err := backendapi.NewDemoRuntime(db, time.Now)
 		if err != nil {
 			return err
 		}

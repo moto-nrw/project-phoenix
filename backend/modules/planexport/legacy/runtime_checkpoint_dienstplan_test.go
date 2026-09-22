@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
@@ -38,7 +38,7 @@ func TestDienstplanRuntimeEvidence(t *testing.T) {
 	export := func(txCtx context.Context, tx bun.Tx, renderer planexport.Renderer, params planexport.Params) (listexport.File, error) {
 		reads := txOverviewReads{tx: tx}
 		service := New(Sources{
-			Overview: shiftplanning.NewStaffScheduleOverviewService(shiftplanning.StaffScheduleOverviewDependencies{
+			Overview: workforceCompose.NewStaffScheduleOverview(workforceCompose.StaffScheduleOverviewDependencies{
 				Shifts:        reads,
 				Instances:     timetablesqltest.NewActivityInstanceRepository(db),
 				InstanceStaff: timetablesqltest.NewInstanceStaffRepository(db),

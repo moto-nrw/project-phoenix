@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/students"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -14,7 +15,7 @@ import (
 )
 
 type failedSnapshotAttendance struct {
-	studentpresence.Presence
+	students.StudentPresence
 	reads int
 }
 
@@ -28,7 +29,7 @@ func TestStudentListAndExportRejectFailedPresenceSnapshot(t *testing.T) {
 	tc := setupStudentsRoute(t)
 	testpkg.CreateTestStudent(t, tc.db, "Snapshot", "Unavailable", "3a")
 	account := testpkg.CreateTestAccount(t, tc.db, "snapshot-reader")
-	fault := &failedSnapshotAttendance{Presence: tc.resource.ActiveService}
+	fault := &failedSnapshotAttendance{StudentPresence: tc.resource.ActiveService}
 	tc.resource.ActiveService = fault
 	for _, route := range []string{"list", "export"} {
 		t.Run(route, func(t *testing.T) {
