@@ -191,7 +191,7 @@ func readGuardianLink(t *testing.T, db *bun.DB, studentID, guardianProfileID int
 	t.Helper()
 	var row guardianLinkRow
 	require.NoError(t, db.NewRaw(`SELECT id, guardian_role, is_payer FROM users.students_guardians
-		WHERE student_id = ? AND guardian_profile_id = ?`, studentID, guardianProfileID).
+		WHERE tenant_id = ? AND student_id = ? AND guardian_profile_id = ?`, testpkg.Tenant(t), studentID, guardianProfileID).
 		Scan(context.Background(), &row))
 	row.portalAccess = testpkg.StudentGuardianLinkGrantsPortalAccess(t, db, row.ID)
 	return &row
