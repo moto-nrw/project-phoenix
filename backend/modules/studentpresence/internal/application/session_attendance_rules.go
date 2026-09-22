@@ -35,7 +35,7 @@ func (s *Service) completedInstanceIDs(ctx context.Context, instanceIDs []int64,
 	if len(instanceIDs) == 0 {
 		return result, nil
 	}
-	sessions, sessionStats, err := s.store.ListActivitySessions(ctx, ports.ActivitySessionFilter{InstanceIDs: instanceIDs, Status: "completed"})
+	sessions, sessionStats, err := s.store.ListActivitySessions(ctx, ports.ActivitySessionFilter{InstanceIDs: instanceIDs, Status: ports.ActivitySessionCompleted})
 	addStats(stats, sessionStats)
 	if err != nil {
 		return nil, err
@@ -182,11 +182,11 @@ func (s *Service) ReleaseStatusDay(ctx context.Context, statusDayID int64) (rows
 		if err != nil {
 			return stats, err
 		}
-		released_, err := s.releaseStatusDayRows(txCtx, statusDayID, replacement, &stats)
+		changed, err := s.releaseStatusDayRows(txCtx, statusDayID, replacement, &stats)
 		if err != nil {
 			return stats, err
 		}
-		rows = int(released_)
+		rows = int(changed)
 		return stats, s.replayPartialAbsences(txCtx, carePlan, released.StudentID, released.Date, &stats)
 	})
 	return rows, err
@@ -347,7 +347,7 @@ func (s *Service) ApplyActiveStatusDaysForInstance(ctx context.Context, instance
 		if err := lockStudentDays(txCtx, locks, uniqueStudentIDs(participants), date); err != nil {
 			return stats, err
 		}
-		statuses, err := carePlan.ListStudentStatusDays(txCtx, ports.StudentStatusDayFilter{Date: date, ActiveOnly: true, LatestOnly: true})
+		statuses, err := carePlan.ListStudentStatusDays(txCtx, ports.StudentStatusDayFilter{StudentIDs: uniqueStudentIDs(participants), Date: date, ActiveOnly: true, LatestOnly: true})
 		if err != nil {
 			return stats, err
 		}

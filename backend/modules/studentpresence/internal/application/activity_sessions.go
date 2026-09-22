@@ -59,7 +59,7 @@ func (s *Service) SessionExecution(ctx context.Context, filter ports.SessionExec
 
 func validActivitySessionStatus(status string, optional bool) bool {
 	switch status {
-	case "active", "completed":
+	case ports.ActivitySessionActive, ports.ActivitySessionCompleted:
 		return true
 	case "":
 		return optional

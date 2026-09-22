@@ -27,6 +27,12 @@ type ActivitySession struct {
 	CompletionSnapshot   []byte
 }
 
+// Session statuses as stored in active.activity_sessions.status.
+const (
+	ActivitySessionActive    = "active"
+	ActivitySessionCompleted = "completed"
+)
+
 type ActivitySessionFilter struct {
 	InstanceIDs    []int64
 	ActiveGroupIDs []int64

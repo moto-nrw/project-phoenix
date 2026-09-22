@@ -33,10 +33,14 @@ func TestPresenceStorageCallerInventory(t *testing.T) {
 	}
 	// A statement that names the old table and one of its mirrored columns
 	// in the same literal without qualifying it. Qualified references were
-	// judged above; the owner tables' aliases ("attendance", "session") and
-	// the retained planning status of the block ("activity_instance".status)
-	// are legitimate and are stripped before the bare words are inspected.
-	qualifiedReference := regexp.MustCompile(`\w+"?\.\w+`)
+	// judged above. Before the bare words are inspected, references through
+	// the owner tables' aliases ("attendance", "session") are stripped, but
+	// only in a literal that names the owner table itself, so an old-table
+	// alias of the same name stays visible; the retained planning status of
+	// the block ("activity_instance".status) is stripped through any alias.
+	ownerTable := regexp.MustCompile(`\bactive\.activity_session(?:s|_attendance)\b`)
+	ownerReference := regexp.MustCompile(`\b(?:attendance|session)"?\.\w+`)
+	planningStatus := regexp.MustCompile(`\w+"?\.status\b`)
 	unqualified := []struct {
 		table   *regexp.Regexp
 		columns *regexp.Regexp
@@ -80,7 +84,10 @@ func TestPresenceStorageCallerInventory(t *testing.T) {
 						t.Errorf("%s: application references the rollback-only presence mirror: %q", positions.Position(literal.Pos()), match)
 					}
 				}
-				bare := qualifiedReference.ReplaceAllString(value, " ")
+				bare := planningStatus.ReplaceAllString(value, " ")
+				if ownerTable.MatchString(value) {
+					bare = ownerReference.ReplaceAllString(bare, " ")
+				}
 				for _, pattern := range unqualified {
 					if pattern.table.MatchString(value) {
 						if match := pattern.columns.FindString(bare); match != "" {
