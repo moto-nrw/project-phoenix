@@ -75,6 +75,28 @@ func CreateTestStudentGuardianLinkForTenant(tb testing.TB, db *bun.DB, tenantID,
 	return link
 }
 
+// SetTestStudentGuardianLinkRole re-files a stored link under the given role
+// preset, rewriting its permissions exactly as the production link path does.
+func SetTestStudentGuardianLinkRole(tb testing.TB, db *bun.DB, linkID int64, role string) {
+	tb.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var link users.StudentGuardian
+	err := db.NewSelect().Model(&link).
+		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
+		Where(`"student_guardian".id = ?`, linkID).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to load students_guardians link")
+	authorize.ApplyStudentGuardianRole(&link, role)
+	_, err = db.NewUpdate().Model(&link).
+		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
+		Column("guardian_role", "permissions").
+		Where(`"student_guardian".id = ?`, linkID).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to update students_guardians link role")
+}
+
 // StudentGuardianLinkGrantsPortalAccess reports whether the stored link grants
 // parent_portal.access, read straight from the row so a test can pin what a
 // write left behind.

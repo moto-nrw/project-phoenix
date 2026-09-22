@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -79,9 +78,8 @@ func activeOperatorChallenge(t *testing.T, db *bun.DB, operatorID int64) *operat
 // how a verification happy path is driven end to end.
 func substituteOperatorChallengeCode(t *testing.T, db *bun.DB, challengeID int64, code string) {
 	t.Helper()
-	hash, err := securityruntime.HashPassword(code)
-	require.NoError(t, err)
-	_, err = db.NewUpdate().Model((*operatorChallengeRow)(nil)).
+	hash := testpkg.HashTestPassword(t, code)
+	_, err := db.NewUpdate().Model((*operatorChallengeRow)(nil)).
 		Set("code_hash = ?", hash).
 		Where("id = ?", challengeID).
 		Exec(context.Background())

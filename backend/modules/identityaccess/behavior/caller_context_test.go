@@ -11,8 +11,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -550,23 +548,17 @@ func TestCallerContext_GroupVisits(t *testing.T) {
 		ctx := callerCtx(t, account.ID)
 
 		// Verify prerequisite: staff is findable via account→person→staff chain.
-		personCheck := new(users.Person)
-		err := db.NewSelect().Model(personCheck).
-			ModelTableExpr(`users.persons AS "person"`).
-			Where(`"person".account_id = ?`, account.ID).
-			Where(`"person".tenant_id = ?`, testpkg.Tenant(t)).
-			Scan(context.Background())
+		var personID int64
+		err := db.NewRaw(`SELECT id FROM users.persons WHERE account_id = ? AND tenant_id = ?`,
+			account.ID, testpkg.Tenant(t)).Scan(context.Background(), &personID)
 		require.NoError(t, err, "prerequisite: person should be findable by account_id")
-		require.Equal(t, staff.Person.ID, personCheck.ID, "prerequisite: person ID should match")
+		require.Equal(t, staff.Person.ID, personID, "prerequisite: person ID should match")
 
-		staffCheck := new(users.Staff)
-		err = db.NewSelect().Model(staffCheck).
-			ModelTableExpr(`users.staff AS "staff"`).
-			Where(`"staff".person_id = ?`, personCheck.ID).
-			Where(`"staff".tenant_id = ?`, testpkg.Tenant(t)).
-			Scan(context.Background())
+		var staffID int64
+		err = db.NewRaw(`SELECT id FROM users.staff WHERE person_id = ? AND tenant_id = ?`,
+			personID, testpkg.Tenant(t)).Scan(context.Background(), &staffID)
 		require.NoError(t, err, "prerequisite: staff should be findable by person_id")
-		require.Equal(t, staff.ID, staffCheck.ID, "prerequisite: staff ID should match")
+		require.Equal(t, staff.ID, staffID, "prerequisite: staff ID should match")
 
 		visits, err := caller.GroupVisits(ctx, activeGroup.ID)
 
@@ -651,15 +643,15 @@ func TestParentRequestReviews_UsesRealTeacherGroupAssignments(t *testing.T) {
 	settingsCtx := testpkg.WithTestTenantRuntime(t, testpkg.Ctx(t))
 	setSettings := func(groupLeaderEnabled bool, absenceScope string) {
 		t.Helper()
-		require.NoError(t, settings.SetValue(settingsCtx, configModels.KeyParentRequestGroupLeaderReviewEnabled, groupLeaderEnabled, nil, nil))
-		require.NoError(t, settings.SetValue(settingsCtx, configModels.KeyParentAbsenceReviewScope, absenceScope, nil, nil))
+		require.NoError(t, settings.SetValue(settingsCtx, settingKeyGroupLeaderReviewEnabled, groupLeaderEnabled, nil, nil))
+		require.NoError(t, settings.SetValue(settingsCtx, settingKeyParentAbsenceReviewScope, absenceScope, nil, nil))
 	}
 	permissions := []string{"users:update"}
 
 	// Group leaders enabled: exactly the own group and the active
 	// substitution; neither the expired substitution nor a foreign group,
 	// and never school-wide (a student without a group stays out).
-	setSettings(true, configModels.ParentAbsenceReviewScopeInherit)
+	setSettings(true, parentAbsenceReviewScopeInherit)
 	wide, ids, err := reviews.ReviewScope(callerCtx(t, account.ID), permissions)
 	require.NoError(t, err)
 	assert.False(t, wide)
@@ -667,7 +659,7 @@ func TestParentRequestReviews_UsesRealTeacherGroupAssignments(t *testing.T) {
 	assert.NotContains(t, ids, expiredSubstitutionGroup.ID)
 	assert.NotContains(t, ids, otherGroup.ID)
 
-	setSettings(false, configModels.ParentAbsenceReviewScopeInherit)
+	setSettings(false, parentAbsenceReviewScopeInherit)
 	wide, ids, err = reviews.ReviewScope(callerCtx(t, account.ID), permissions)
 	require.NoError(t, err)
 	assert.False(t, wide)
@@ -675,7 +667,7 @@ func TestParentRequestReviews_UsesRealTeacherGroupAssignments(t *testing.T) {
 
 	// The absence-only selection uses the same live group/substitution
 	// resolver, without granting access to the other request kinds.
-	setSettings(false, configModels.ParentAbsenceReviewScopeGroupLeaders)
+	setSettings(false, parentAbsenceReviewScopeGroupLeaders)
 	wide, ids, err = reviews.AbsenceReviewScope(callerCtx(t, account.ID), permissions)
 	require.NoError(t, err)
 	assert.False(t, wide)
@@ -685,7 +677,7 @@ func TestParentRequestReviews_UsesRealTeacherGroupAssignments(t *testing.T) {
 	assert.False(t, wide)
 	assert.Empty(t, ids)
 
-	setSettings(false, configModels.ParentAbsenceReviewScopeAllStaff)
+	setSettings(false, parentAbsenceReviewScopeAllStaff)
 	wide, ids, err = reviews.AbsenceReviewScope(callerCtx(t, account.ID), permissions)
 	require.NoError(t, err)
 	assert.True(t, wide)
