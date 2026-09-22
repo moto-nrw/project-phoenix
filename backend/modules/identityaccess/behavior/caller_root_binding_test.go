@@ -11,7 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/services"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 )
@@ -22,7 +21,7 @@ import (
 func overviewScopeSettings(scope string) *configtest.Mock {
 	return &configtest.Mock{
 		ResolveStringFn: func(_ context.Context, key string) (string, error) {
-			if key != configModels.KeyOperationalOverviewScope {
+			if key != settingKeyOperationalOverviewScope {
 				return "", fmt.Errorf("unexpected settings key: %s", key)
 			}
 			return scope, nil
@@ -67,15 +66,15 @@ type overviewCase struct {
 // through the overview port; each case names the old SSE subscription test
 // it carries.
 var overviewCases = []overviewCase{
-	{name: "admin with admins scope (AdminWithSettingEnabled, WildcardAdminWithoutStaff)", settings: overviewScopeSettings(configModels.OverviewScopeAdmins), admin: true, want: true},
-	{name: "admin with own scope (AdminWithOwnScope)", settings: overviewScopeSettings(configModels.OverviewScopeOwn), admin: true, want: true},
-	{name: "non-admin with admins scope (NonAdmin)", settings: overviewScopeSettings(configModels.OverviewScopeAdmins), staff: true},
-	{name: "caregiver with own scope (OwnScopeKeepsCaregiverNarrow)", settings: overviewScopeSettings(configModels.OverviewScopeOwn), staff: true},
-	{name: "staff with all_staff scope (AllStaffScopeSubscribesNonAdmin)", settings: overviewScopeSettings(configModels.OverviewScopeAllStaff), staff: true, want: true},
-	{name: "non-staff with all_staff scope (AllStaffScopeDeniesNonStaff)", settings: overviewScopeSettings(configModels.OverviewScopeAllStaff)},
+	{name: "admin with admins scope (AdminWithSettingEnabled, WildcardAdminWithoutStaff)", settings: overviewScopeSettings(overviewScopeAdmins), admin: true, want: true},
+	{name: "admin with own scope (AdminWithOwnScope)", settings: overviewScopeSettings(overviewScopeOwn), admin: true, want: true},
+	{name: "non-admin with admins scope (NonAdmin)", settings: overviewScopeSettings(overviewScopeAdmins), staff: true},
+	{name: "caregiver with own scope (OwnScopeKeepsCaregiverNarrow)", settings: overviewScopeSettings(overviewScopeOwn), staff: true},
+	{name: "staff with all_staff scope (AllStaffScopeSubscribesNonAdmin)", settings: overviewScopeSettings(overviewScopeAllStaff), staff: true, want: true},
+	{name: "non-staff with all_staff scope (AllStaffScopeDeniesNonStaff)", settings: overviewScopeSettings(overviewScopeAllStaff)},
 	{name: "admin with setting error (SettingErrorFallsBack)", settings: failingOverviewSettings(), admin: true, wantErr: true},
 	{name: "non-admin with setting error (NonAdminStaffError)", settings: failingOverviewSettings(), staff: true, wantErr: true},
-	{name: "school portal with all_staff scope", settings: overviewScopeSettings(configModels.OverviewScopeAllStaff), admin: true, staff: true, assignmentBound: true},
+	{name: "school portal with all_staff scope", settings: overviewScopeSettings(overviewScopeAllStaff), admin: true, staff: true, assignmentBound: true},
 }
 
 func TestCallerOverviewAppliesTheOverviewScope(t *testing.T) {
@@ -115,13 +114,13 @@ func TestCallerOverviewAsksForStaffOnlyUnderAllStaff(t *testing.T) {
 	t.Parallel()
 
 	admin := &overviewStaffFake{staff: true}
-	_, err := services.CallerOverview{Settings: overviewScopeSettings(configModels.OverviewScopeAllStaff)}.
+	_, err := services.CallerOverview{Settings: overviewScopeSettings(overviewScopeAllStaff)}.
 		HasOperationalOverview(context.Background(), admin, false, true)
 	require.NoError(t, err)
 	assert.Zero(t, admin.calls)
 
 	own := &overviewStaffFake{staff: true}
-	_, err = services.CallerOverview{Settings: overviewScopeSettings(configModels.OverviewScopeOwn)}.
+	_, err = services.CallerOverview{Settings: overviewScopeSettings(overviewScopeOwn)}.
 		HasOperationalOverview(context.Background(), own, false, false)
 	require.NoError(t, err)
 	assert.Zero(t, own.calls)

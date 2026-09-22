@@ -5,7 +5,6 @@ import (
 	"context"
 	"testing"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -286,9 +285,9 @@ func TestIntegration_GrantAccountTenantAccess_RejectsLehrkraftForCaregiverProfil
 	// RevokeAccountTenantAccess).
 	staff := testpkg.CreateTestStaffForTenant(t, db, accessTargetTenantID(t), "Gestrandet", "Betreuung")
 	linkPersonToAccount(t, db, staff.PersonID, account.ID)
-	teacher := &userModels.Teacher{StaffID: staff.ID}
-	teacher.SetTenantID(accessTargetTenantID(t))
-	require.NoError(t, db.NewInsert().Model(teacher).ModelTableExpr(`users.teachers`).Scan(ctx))
+	_, teacherErr := db.NewRaw(`INSERT INTO users.teachers (tenant_id, staff_id) VALUES (?, ?)`,
+		accessTargetTenantID(t), staff.ID).Exec(ctx)
+	require.NoError(t, teacherErr)
 	defer func() {
 		cleanupAccessFixtures(t, db, account.ID)
 	}()
@@ -780,7 +779,7 @@ func TestIntegration_UpdateAccountTenantRole_RefusesAmbiguousNameSource(t *testi
 	first := testpkg.CreateTestPerson(t, db, "Anna", "Beispiel")
 	linkPersonToAccount(t, db, first.ID, account.ID)
 	second := createPersonAtTenant(t, db, ambiguousNameTenantID(t), "Bea", "Beispiel")
-	linkPersonToAccount(t, db, second.ID, account.ID)
+	linkPersonToAccount(t, db, second, account.ID)
 
 	defer func() {
 		cleanupAccessFixtures(t, db, account.ID)
@@ -822,7 +821,7 @@ func TestIntegration_GrantAccountTenantAccess_ReGrantReusesLocalIdentityDespiteA
 	first := testpkg.CreateTestPerson(t, db, "Anna", "Beispiel")
 	linkPersonToAccount(t, db, first.ID, account.ID)
 	second := createPersonAtTenant(t, db, ambiguousNameTenantID(t), "Bea", "Beispiel")
-	linkPersonToAccount(t, db, second.ID, account.ID)
+	linkPersonToAccount(t, db, second, account.ID)
 
 	defer func() {
 		cleanupAccessFixtures(t, db, account.ID)
@@ -878,18 +877,11 @@ func ambiguousNameTenantID(t *testing.T) int64 {
 	return testpkg.Tenant(t) + 600_000_000
 }
 
-func createPersonAtTenant(t *testing.T, db *bun.DB, tenantID int64, firstName, lastName string) *userModels.Person {
+// createPersonAtTenant creates a person at tenantID and returns its id.
+func createPersonAtTenant(t *testing.T, db *bun.DB, tenantID int64, firstName, lastName string) int64 {
 	t.Helper()
 	testpkg.EnsureTestTenant(t, db, tenantID)
-
-	person := &userModels.Person{FirstName: firstName, LastName: lastName}
-	person.SetTenantID(tenantID)
-	_, err := db.NewInsert().
-		Model(person).
-		ModelTableExpr(`users.persons`).
-		Exec(context.Background())
-	require.NoError(t, err)
-	return person
+	return testpkg.CreateTestPersonForTenant(t, db, tenantID, firstName, lastName).ID
 }
 
 func assertNoPersonAt(t *testing.T, db *bun.DB, accountID, tenantID int64) {

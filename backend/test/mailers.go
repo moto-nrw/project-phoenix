@@ -7,6 +7,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 )
 
+// EmailMessage and Mailer name the delivery contract a test double sends or
+// receives, so a behaviour suite outside the Delivery Platform can implement
+// a refusing or flaky transport without importing the transport package.
+type EmailMessage = email.Message
+type Mailer = email.Mailer
+
 // CapturingMailer records messages sent during tests.
 // It implements email.Mailer and captures all sent messages for verification.
 //
