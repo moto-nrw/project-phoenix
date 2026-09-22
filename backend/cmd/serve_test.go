@@ -98,9 +98,10 @@ func TestScrubSentryEvent_RemovesRequestDataAndSensitiveHeaders(t *testing.T) {
 		Request: &sentry.Request{
 			Data: `{"notes":"person names and free text"}`,
 			Headers: map[string]string{
-				"Authorization": "Basic replayable-caldav-credentials",
-				"X-Staff-PIN":   "1234",
-				"Accept":        "application/json",
+				"Authorization":    "Basic replayable-caldav-credentials",
+				"X-Staff-PIN":      "1234",
+				"X-Staff-Auth-PIN": "personal-pin",
+				"Accept":           "application/json",
 			},
 		},
 	}
@@ -111,6 +112,7 @@ func TestScrubSentryEvent_RemovesRequestDataAndSensitiveHeaders(t *testing.T) {
 	assert.Empty(t, scrubbed.Request.Data)
 	assert.Equal(t, "[filtered]", scrubbed.Request.Headers["Authorization"])
 	assert.Equal(t, "[filtered]", scrubbed.Request.Headers["X-Staff-PIN"])
+	assert.Equal(t, "[filtered]", scrubbed.Request.Headers["X-Staff-Auth-PIN"])
 	assert.Equal(t, "application/json", scrubbed.Request.Headers["Accept"])
 }
 
