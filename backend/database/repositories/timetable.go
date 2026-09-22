@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
@@ -41,11 +40,7 @@ func NewUnobservedTimetableDependencies(db *bun.DB) TimetableDependencies {
 	if err != nil {
 		panic(fmt.Sprintf("compose timetable rooms: %v", err))
 	}
-	locks, err := carePlanCompose.NewDayLocks(db, students.LockStudent, peopledirectory.ErrStudentNotFound)
-	if err != nil {
-		panic(fmt.Sprintf("compose timetable care-day locks: %v", err))
-	}
-	capability, err := NewTimetable(db, students, rooms, locks)
+	capability, err := NewTimetable(db, students, rooms)
 	if err != nil {
 		panic(fmt.Sprintf("compose timetable: %v", err))
 	}
@@ -70,12 +65,10 @@ func NewUnobservedTimetableDependencies(db *bun.DB) TimetableDependencies {
 
 // NewTimetable composes the owner behind legacy repository adapters for test
 // and CLI graphs. The production root replaces it with the observed module.
-func NewTimetable(db *bun.DB, students peopledirectory.StudentQuery, rooms facilities.Query, careDays timetable.CareDayLocker) (timetable.Capability, error) {
+// The session facts come from Student Presence over the same database
+// (#2762).
+func NewTimetable(db *bun.DB, students peopledirectory.StudentQuery, rooms facilities.Query) (timetable.Capability, error) {
 	membership, err := NewSchoolMembership(db)
-	if err != nil {
-		return nil, err
-	}
-	queries, err := NewTimetableCarePlanQueries(db, func(carePlanCompose.Observation) {})
 	if err != nil {
 		return nil, err
 	}
@@ -87,18 +80,9 @@ func NewTimetable(db *bun.DB, students peopledirectory.StudentQuery, rooms facil
 		DB:       db,
 		Students: repositoryTimetableStudents{students: students},
 		Rooms:    repositoryTimetableRooms{rooms: rooms},
-		CareDays: careDays,
-		CarePlan: queries,
+		Sessions: NewPresenceFacts(db),
 		Observe:  func(timetableCompose.Observation) {},
 	})
-}
-
-func NewTimetableCarePlanQueries(db *bun.DB, observe func(carePlanCompose.Observation)) (timetable.CarePlanDirectory, error) {
-	queries, err := carePlanCompose.NewExceptionQueries(db, observe)
-	if err != nil {
-		return nil, err
-	}
-	return timetableCarePlanDirectory{query: pickupExceptionDirectory{query: queries}}, nil
 }
 
 type repositoryTimetableStudents struct{ students peopledirectory.StudentQuery }

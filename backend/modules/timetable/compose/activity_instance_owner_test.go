@@ -144,28 +144,6 @@ func TestModuleActivityInstancesAreTenantIsolated(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestModuleActivityInstanceBulkLifecycle(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	module, ctx := buildModule(t, db), testpkg.Ctx(t)
-	fixture := newOwnedActivityInstanceFixture(t, db, "bulk")
-	activeGroup := testpkg.CreateTestActiveGroup(t, db, fixture.groupID, fixture.roomID)
-	input := ownedActivityInstanceInput(fixture, "2027-09-12", "08:00:00", "Active")
-	input.Status, input.ActiveGroupID = timetable.InstanceStatusActive, &activeGroup.ID
-	active, err := module.CreateActivityInstance(ctx, input)
-	require.NoError(t, err)
-
-	completedAt := time.Date(2027, 9, 12, 10, 0, 0, 0, time.UTC)
-	rows, err := module.CompleteActiveActivityInstances(ctx, []int64{activeGroup.ID}, completedAt)
-	require.NoError(t, err)
-	assert.EqualValues(t, 1, rows)
-	stored, err := module.FindActivityInstance(ctx, active.ID)
-	require.NoError(t, err)
-	assert.Equal(t, timetable.InstanceStatusCompleted, stored.Status)
-	require.NotNil(t, stored.CompletedAt)
-	assert.True(t, completedAt.Equal(*stored.CompletedAt))
-}
-
 func TestModuleActivityInstanceReplanPreservesDeviations(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

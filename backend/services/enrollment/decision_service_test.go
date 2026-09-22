@@ -4694,8 +4694,8 @@ func approvedOfferingTestProjection(repos *repositories.Factory) *enrollmentServ
 // repositories, including its Care Plan reads and student-before-day locks.
 func newPickupExcusal(t *testing.T, db *bun.DB, records compose.PickupExcusalRecords, baselines careplan.PickupBaselineReader, tt timetable.Capability, extensions bool) careplan.PickupAutoExcusal {
 	t.Helper()
-	adapter := pickupExcusalTimetable{tt}
-	deps := compose.PickupExcusalDependencies{DB: db, Records: records, Baselines: baselines, Blocks: tt, Preview: adapter}
+	adapter := pickupExcusalTimetable{partialAbsencePreview{reads: repositories.NewPartialAbsencePreview(db)}, tt, db}
+	deps := compose.PickupExcusalDependencies{DB: db, Records: records, Baselines: baselines, Blocks: repositories.NewStudentPresenceForTests(db), Preview: adapter}
 	if extensions {
 		deps.Extensions = adapter
 	}
@@ -4704,19 +4704,12 @@ func newPickupExcusal(t *testing.T, db *bun.DB, records compose.PickupExcusalRec
 	return service
 }
 
-type pickupExcusalTimetable struct{ timetable.Capability }
-
-func (a pickupExcusalTimetable) FindPartialAbsenceBlocks(ctx context.Context, id int64, date timezone.Date, clock time.Time) ([]carerequests.Block, error) {
-	rows, err := a.ListPartialAbsenceBlocks(ctx, id, date.String(), clock)
-	if err != nil {
-		return nil, err
-	}
-	blocks := make([]carerequests.Block, 0, len(rows))
-	for _, row := range rows {
-		blocks = append(blocks, carerequests.Block{ID: row.ID, Title: row.Title, StartTime: row.StartTime, EndTime: row.EndTime})
-	}
-	return blocks, nil
+type pickupExcusalTimetable struct {
+	partialAbsencePreview
+	timetable.Capability
+	db *bun.DB
 }
+
 func (a pickupExcusalTimetable) RecordPickupDayExtension(ctx context.Context, input compose.PickupDayExtension) error {
 	return a.Capability.RecordPickupDayExtension(ctx, timetable.PickupDayExtension(input))
 }
@@ -4740,4 +4733,25 @@ func newTestCareLifecycle(db *bun.DB, config repositories.CareLifecycleTestConfi
 		panic(err)
 	}
 	return lifecycle
+}
+
+// partialAbsenceReads is the joined block read the preview builds on.
+type partialAbsenceReads interface {
+	FindPartialAbsenceBlocks(context.Context, int64, string, time.Time) ([]scheduleModels.PartialAbsenceBlock, error)
+}
+
+// partialAbsencePreview serves the Care Plan's partial absence preview port
+// the way the retained services do (#2762).
+type partialAbsencePreview struct{ reads partialAbsenceReads }
+
+func (p partialAbsencePreview) FindPartialAbsenceBlocks(ctx context.Context, studentID int64, date timezone.Date, clock time.Time) ([]carerequests.Block, error) {
+	rows, err := p.reads.FindPartialAbsenceBlocks(ctx, studentID, date.String(), clock)
+	if err != nil {
+		return nil, err
+	}
+	blocks := make([]carerequests.Block, 0, len(rows))
+	for _, row := range rows {
+		blocks = append(blocks, carerequests.Block{ID: row.ID, Title: row.Title, StartTime: row.StartTime, EndTime: row.EndTime})
+	}
+	return blocks, nil
 }

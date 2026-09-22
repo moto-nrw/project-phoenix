@@ -12,15 +12,16 @@ import (
 )
 
 type OffboardingDependencies struct {
-	DB      *bun.DB
-	Observe func(Observation)
+	DB       *bun.DB
+	Sessions timetable.SessionFacts
+	Observe  func(Observation)
 }
 
 func NewOffboarding(dependencies OffboardingDependencies) (*timetable.Offboarding, error) {
-	if dependencies.DB == nil || dependencies.Observe == nil {
-		return nil, errors.New("timetable: offboarding database and observer are required")
+	if dependencies.DB == nil || dependencies.Sessions == nil || dependencies.Observe == nil {
+		return nil, errors.New("timetable: offboarding database, session facts and observer are required")
 	}
-	service := application.NewOffboarding(postgres.New(databaseRuntime(dependencies.DB)), transaction{}, func(observation Observation) {
+	service := application.NewOffboarding(postgres.New(databaseRuntime(dependencies.DB)), transaction{}, dependencies.Sessions, func(observation Observation) {
 		observation.Err = mapError(observation.Err)
 		dependencies.Observe(observation)
 	})

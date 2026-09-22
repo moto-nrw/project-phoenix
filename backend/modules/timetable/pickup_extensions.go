@@ -79,6 +79,16 @@ type PickupExtensionResolution struct {
 	// InstanceIDs are the concrete blocks that got the child, including the
 	// already planned future blocks of a weekday task.
 	InstanceIDs []int64
+	// Instances pairs those blocks with their dates. The child joins them as
+	// expected; Student Presence re-applies the reported day statuses and
+	// partial absences of each date, which the caller asks for.
+	Instances []PickupExtensionInstance
+}
+
+// PickupExtensionInstance is one concrete block a decision added the child to.
+type PickupExtensionInstance struct {
+	ID   int64
+	Date string
 }
 
 type PickupExtensionRecorder interface {

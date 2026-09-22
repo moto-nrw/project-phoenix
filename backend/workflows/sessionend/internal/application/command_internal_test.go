@@ -47,28 +47,44 @@ func (f *fakePresence) EndGroupSession(_ context.Context, id int64, at time.Time
 	return f.ended, f.endErr
 }
 
-type fakeTimetable struct {
+type fakeSessions struct {
 	rec         *recorder
-	instances   []timetable.ActivityInstance
+	sessions    []studentpresence.ActivitySession
 	listErr     error
 	checkoutErr error
 	checkoutAt  time.Time
-	groupName   string
-	groupErr    error
 }
 
-func (f *fakeTimetable) ListActivityInstances(_ context.Context, filter timetable.ActivityInstanceFilter) ([]timetable.ActivityInstance, error) {
+func (f *fakeSessions) ListActivitySessions(_ context.Context, filter studentpresence.ActivitySessionFilter) ([]studentpresence.ActivitySession, error) {
 	f.rec.step("find-instance")
-	if filter.ActiveGroupID == nil {
+	if len(filter.ActiveGroupIDs) == 0 {
 		return nil, errors.New("filter must name the active group")
 	}
-	return f.instances, f.listErr
+	return f.sessions, f.listErr
 }
 
-func (f *fakeTimetable) CloseOpenCheckoutsByActiveGroupIDs(_ context.Context, _ []int64, at time.Time) (int, error) {
+func (f *fakeSessions) CloseOpenCheckoutsByActiveGroupIDs(_ context.Context, _ []int64, at time.Time) (int, error) {
 	f.rec.step("checkouts")
 	f.checkoutAt = at
 	return 1, f.checkoutErr
+}
+
+func ptrInt64(value int64) *int64 { return &value }
+
+type fakeTimetable struct {
+	rec       *recorder
+	instance  timetable.ActivityInstance
+	findErr   error
+	groupName string
+	groupErr  error
+}
+
+func (f *fakeTimetable) FindActivityInstance(_ context.Context, id int64) (timetable.ActivityInstance, error) {
+	f.rec.step("read-instance")
+	if id != f.instance.ID {
+		return timetable.ActivityInstance{}, timetable.ErrActivityInstanceNotFound
+	}
+	return f.instance, f.findErr
 }
 
 func (f *fakeTimetable) FindGroup(context.Context, int64) (timetable.Group, error) {
@@ -160,6 +176,7 @@ type harness struct {
 	rec        *recorder
 	presence   *fakePresence
 	timetable  *fakeTimetable
+	sessions   *fakeSessions
 	completion *fakeCompletion
 	students   *fakeStudents
 	rooms      *fakeRooms
@@ -189,9 +206,10 @@ func newHarness() *harness {
 				EndedSupervisorIDs: []int64{9},
 			},
 		},
+		sessions: &fakeSessions{rec: rec, sessions: []studentpresence.ActivitySession{{InstanceID: 77, ActiveGroupID: ptrInt64(66), Status: studentpresence.ActivitySessionActive}}},
 		timetable: &fakeTimetable{
 			rec:       rec,
-			instances: []timetable.ActivityInstance{{ID: 77, Date: "2026-09-08", StartTime: "15:00:00", RoomID: 5}},
+			instance:  timetable.ActivityInstance{ID: 77, Date: "2026-09-08", StartTime: "15:00:00", RoomID: 5},
 			groupName: "Fußball",
 		},
 		completion: &fakeCompletion{rec: rec, changed: 1},
@@ -209,6 +227,7 @@ func newHarness() *harness {
 func (h *harness) command() sessionend.Command {
 	return NewCommand(Dependencies{
 		Presence:   h.presence,
+		Sessions:   h.sessions,
 		Timetable:  h.timetable,
 		Completion: h.completion,
 		Students:   h.students,
@@ -227,12 +246,12 @@ func TestEndSessionClosesBothOwnersInOneUnitAndAnnouncesAfterCommit(t *testing.T
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{
-		"begin", "lock", "presence", "find-instance", "checkouts", "complete",
+		"begin", "lock", "presence", "find-instance", "checkouts", "complete", "read-instance",
 		"students", "activity-name", "room-name", "commit", "notify",
 	}, h.rec.steps, "presence closes first, the timetable follows in the same unit, the announcement waits for the commit")
 	assert.Equal(t, int64(66), h.presence.endedGroup)
 	assert.Equal(t, h.now, h.presence.endedAt)
-	assert.Equal(t, h.now, h.timetable.checkoutAt, "slot check-outs carry the close instant")
+	assert.Equal(t, h.now, h.sessions.checkoutAt, "slot check-outs carry the close instant")
 	assert.Equal(t, h.now, h.completion.at, "the completion carries the close instant")
 	assert.Equal(t, []int64{100, 200}, h.students.ids, "students are resolved once per child")
 
@@ -269,7 +288,7 @@ func TestEndSessionClosesBothOwnersInOneUnitAndAnnouncesAfterCommit(t *testing.T
 func TestEndSessionWithoutMirroredInstanceSkipsTheTimetableWrites(t *testing.T) {
 	t.Parallel()
 	h := newHarness()
-	h.timetable.instances = nil
+	h.sessions.sessions = nil
 	h.presence.group.ActivityGroupID = nil
 	h.presence.ended.ClosedVisits = nil
 
@@ -349,8 +368,8 @@ func TestEndSessionFailuresRollBackTheWholeUnitAndStaySilent(t *testing.T) {
 	boom := errors.New("owner down")
 	cases := map[string]func(*harness){
 		"presence end":     func(h *harness) { h.presence.endErr = boom },
-		"instance lookup":  func(h *harness) { h.timetable.listErr = boom },
-		"slot check-outs":  func(h *harness) { h.timetable.checkoutErr = boom },
+		"instance lookup":  func(h *harness) { h.sessions.listErr = boom },
+		"slot check-outs":  func(h *harness) { h.sessions.checkoutErr = boom },
 		"completion":       func(h *harness) { h.completion.err = boom },
 		"student lookup":   func(h *harness) { h.students.err = boom },
 		"activity lookup":  func(h *harness) { h.timetable.groupErr = boom },
@@ -390,7 +409,7 @@ func TestNewCommandRequiresEveryDependency(t *testing.T) {
 	t.Parallel()
 	h := newHarness()
 	deps := Dependencies{
-		Presence: h.presence, Timetable: h.timetable, Completion: h.completion, Students: h.students,
+		Presence: h.presence, Sessions: h.sessions, Timetable: h.timetable, Completion: h.completion, Students: h.students,
 		Rooms: h.rooms, Notifier: h.notifier, Runtime: h.runtime.runtime(h.now), Observe: func(ports.Observation) {},
 	}
 	assert.NotPanics(t, func() { NewCommand(deps) })

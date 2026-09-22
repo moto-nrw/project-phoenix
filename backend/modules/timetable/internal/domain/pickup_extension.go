@@ -36,12 +36,17 @@ func (t PickupExtensionTask) IsDay() bool { return !t.Date.IsZero() }
 // of one task. Member reports whether the child is already on it. For day
 // tasks ID is the activity instance, for weekday tasks the template.
 type PickupExtensionBlock struct {
-	TaskID           int64
-	ID               int64
-	Title            string
-	StartTime        string
-	EndTime          string
-	Member           bool
+	TaskID    int64
+	ID        int64
+	Title     string
+	StartTime string
+	EndTime   string
+	Member    bool
+	// OwnParticipantID is the child's own roster row on the block, when any.
+	OwnParticipantID *int64
+	// ParticipantIDs are the roster rows of a day block; weekday templates
+	// leave it empty.
+	ParticipantIDs   []int64
 	CalendarPeriodID *int64
 	ValidFrom        Date
 	ValidUntil       *Date
@@ -52,6 +57,8 @@ type PickupExtensionBlock struct {
 type PickupExtensionInstance struct {
 	ID   int64
 	Date Date
+	// OwnParticipantID is the child's roster row on the block, when any.
+	OwnParticipantID *int64
 }
 
 // OpenPickupExtensionBlocks decides which blocks the Leitung can still pick.

@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/uptrace/bun"
 )
 
@@ -180,42 +179,6 @@ func CountActiveCourseEnrollments(ctx context.Context, db bun.IDB, tenantID int6
 	return counts, nil
 }
 
-func ListManualPlanningOccurrences(ctx context.Context, db bun.IDB, tenantID, studentID int64, from, to timezone.Date) ([]ManualPlanningOccurrence, error) {
-	if tenantID <= 0 {
-		return nil, ErrInvalidTenantID
-	}
-	var rows []struct {
-		ActivityGroupID   int64
-		ActivityGroupName string
-		InstanceID        int64
-		Date              timezone.Date
-	}
-	err := db.NewRaw(`
-		SELECT activity_group.id AS activity_group_id, activity_group.name AS activity_group_name,
-		       activity_instance.id AS instance_id, activity_instance.date
-		FROM schedule.instance_students AS instance_student
-		JOIN schedule.activity_instances AS activity_instance
-		  ON activity_instance.id = instance_student.instance_id AND activity_instance.tenant_id = instance_student.tenant_id
-		JOIN activities.groups AS activity_group
-		  ON activity_group.id = activity_instance.activity_group_id AND activity_group.tenant_id = activity_instance.tenant_id
-		WHERE instance_student.tenant_id = ? AND instance_student.student_id = ?
-		  AND instance_student.is_unplanned = FALSE AND instance_student.not_scheduled = FALSE
-		  AND activity_instance.date BETWEEN ? AND ? AND activity_instance.status = ?
-		  AND activity_instance.calendar_period_id IS NOT NULL AND activity_instance.is_spontaneous = FALSE
-		  AND activity_group.is_template = TRUE AND activity_group.type = ?
-		  AND COALESCE(jsonb_array_length(activity_group.source_care_offering_ids), 0) = 0
-		ORDER BY activity_group.name, activity_group.id, activity_instance.date, activity_instance.id`,
-		tenantID, studentID, from, to, scheduleModels.InstanceStatusPlanned, activitiesModels.GroupTypeCare).Scan(ctx, &rows)
-	if err != nil {
-		return nil, fmt.Errorf("timetable projection: list manual planning occurrences: %w", err)
-	}
-	result := make([]ManualPlanningOccurrence, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, ManualPlanningOccurrence{ActivityGroupID: row.ActivityGroupID, ActivityGroupName: row.ActivityGroupName, InstanceID: row.InstanceID, Date: row.Date.String()})
-	}
-	return result, nil
-}
-
 func CountRequestSourceEnrollments(ctx context.Context, db bun.IDB, tenantID, requestID int64) (int, error) {
 	if tenantID <= 0 {
 		return 0, ErrInvalidTenantID
@@ -255,11 +218,4 @@ func wrapCountError(err error) error {
 		return nil
 	}
 	return fmt.Errorf("timetable projection: count enrollments: %w", err)
-}
-
-type ManualPlanningOccurrence struct {
-	ActivityGroupID   int64
-	ActivityGroupName string
-	InstanceID        int64
-	Date              string
 }

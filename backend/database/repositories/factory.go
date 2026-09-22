@@ -545,7 +545,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		ActivityInstance:          nil, // bound to Timetable below
 		InstanceIdempotency:       nil, // bound to Timetable below
 		InstanceStaff:             nil, // bound to Timetable below
-		InstanceStudent:           timetableInstanceStudentRepository{timetable: timetableCapability},
+		InstanceStudent:           newTimetableInstanceStudentRepository(db, timetableCapability, presenceCapability),
 		ActivityException:         nil, // bound to Timetable below
 
 		// Activities repositories
@@ -732,7 +732,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	factory.bindStaffProjections(lazyStaffLookup{
 		get: func() schoolmembership.Capability { return factory.schoolMembership },
 	}, timetableDependencies.Workforce)
-	adapters := newTimetableRepositories(timetableCapability, timetableDependencies.Students, timetableDependencies.Groups, timetableDependencies.Rooms, timetableDependencies.Calendar, timetableDependencies.Membership, timetableDependencies.Workforce)
+	adapters := newTimetableRepositories(db, timetableCapability, presenceCapability, timetableDependencies.Students, timetableDependencies.Groups, timetableDependencies.Rooms, timetableDependencies.Calendar, timetableDependencies.Membership, timetableDependencies.Workforce)
 	factory.ActivityCategory, factory.ActivityGroup = adapters.ActivityCategory, adapters.ActivityGroup
 	factory.ActivitySchedule, factory.ActivitySupervisor = adapters.ActivitySchedule, adapters.ActivitySupervisor
 	factory.StudentEnrollment, factory.Timeframe = adapters.StudentEnrollment, adapters.Timeframe

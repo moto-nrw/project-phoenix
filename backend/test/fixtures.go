@@ -2555,6 +2555,12 @@ func CreateTestActivityInstanceForTenant(tb testing.TB, db *bun.DB, tenantID int
 	status := opts.Status
 	if status == "" {
 		status = schedule.InstanceStatusPlanned
+		// A block bridged to a live group is running: since #2762 Student
+		// Presence owns that execution, and the compatibility routing only
+		// mirrors a session for a row in an execution state.
+		if opts.ActiveGroupID != nil {
+			status = schedule.InstanceStatusActive
+		}
 	}
 	startHHMM := opts.StartHHMM
 	if startHHMM == "" {

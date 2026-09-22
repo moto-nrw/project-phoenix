@@ -48,6 +48,7 @@ func TestPresenceBackfillCommandWritesDurableProgressAndStopsAtLimit(t *testing.
 func TestPresenceBackfillCommandRunsAllTenantsAndStatusDoesNotWrite(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	testpkg.RestorePresenceStorageBeforeCutover(t, db)
 	a := testpkg.UniqueTestTenantID(t)
 	b := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, a)
