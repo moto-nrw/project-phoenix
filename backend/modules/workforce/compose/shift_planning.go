@@ -112,7 +112,15 @@ type StaffScheduleOverviewDependencies struct {
 // carries string dates and ClockLayout wall clocks, so a consumer never
 // touches the row models.
 func NewStaffScheduleOverview(deps StaffScheduleOverviewDependencies) workforce.StaffScheduleOverviewQuery {
-	return planning.NewStaffScheduleOverviewQuery(newStaffScheduleOverviewService(deps))
+	query, _ := newStaffScheduleOverview(deps)
+	return query
+}
+
+// newStaffScheduleOverview builds the public query and the getter the
+// planning facade keeps for its own export path over one service.
+func newStaffScheduleOverview(deps StaffScheduleOverviewDependencies) (workforce.StaffScheduleOverviewQuery, planning.StaffScheduleOverviewGetter) {
+	service := newStaffScheduleOverviewService(deps)
+	return planning.NewStaffScheduleOverviewQuery(service), service
 }
 
 func newStaffScheduleOverviewService(deps StaffScheduleOverviewDependencies) planning.StaffScheduleOverviewGetter {
@@ -230,7 +238,7 @@ func NewShiftPlanning(deps ShiftPlanningDependencies) (*ShiftPlanning, error) {
 		ActivityGroupRepo:    deps.ActivityGroups,
 	}, logger)
 
-	overview := newStaffScheduleOverviewService(StaffScheduleOverviewDependencies{
+	overviewQuery, overview := newStaffScheduleOverview(StaffScheduleOverviewDependencies{
 		Shifts: shiftRows, ShiftWeeks: shiftRows, Instances: deps.Instances, InstanceStaff: deps.InstanceStaff,
 		Rooms: deps.Rooms, Staff: deps.Staff, WorkSchedules: deps.WorkSchedules, WorkModels: deps.WorkModels,
 		Holidays: deps.Holidays,
@@ -239,7 +247,7 @@ func NewShiftPlanning(deps ShiftPlanningDependencies) (*ShiftPlanning, error) {
 	return &ShiftPlanning{
 		ShiftTypes:  planning.NewShiftTypeAdministration(shiftTypes, deps.CategoryLinker),
 		Assignments: planning.NewStaffAssignmentQuery(assignments),
-		Overview:    planning.NewStaffScheduleOverviewQuery(overview),
+		Overview:    overviewQuery,
 		shifts:      shifts,
 		series:      series,
 		overview:    overview,
