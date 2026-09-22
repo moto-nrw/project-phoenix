@@ -347,7 +347,7 @@ const OPERATOR_ADDITIONAL_ITEMS: AdditionalNavItem[] = [
   },
   {
     href: "/operator/billing",
-    label: "Abrechnung",
+    label: "Stichtagszahlen",
     iconKey: "chart",
     concept: "reports",
     alwaysShow: true,

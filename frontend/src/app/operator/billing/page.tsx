@@ -236,7 +236,7 @@ function CountingRulesSection() {
 }
 
 function OperatorBillingPageContent() {
-  useSetBreadcrumb({ pageTitle: "Abrechnung" });
+  useSetBreadcrumb({ pageTitle: "Stichtagszahlen" });
   const { status } = useSession();
   const { error: toastError } = useToast();
   const isAuthenticated = status === "authenticated";
@@ -299,10 +299,10 @@ function OperatorBillingPageContent() {
   return (
     <div className="-mt-1.5 w-full space-y-6">
       <PageHeaderWithSearch
-        title="Abrechnung"
+        title="Stichtagszahlen"
         concept="reports"
         tabs={{
-          items: [{ id: "billing", label: "Abrechnung" }],
+          items: [{ id: "billing", label: "Stichtagszahlen" }],
           activeTab: "billing",
           onTabChange: () => undefined,
         }}

@@ -24,6 +24,7 @@ const {
   mockDownload,
   mockToastSuccess,
   mockToastError,
+  mockSetBreadcrumb,
 } = vi.hoisted(() => ({
   mockGetKeyDay: vi.fn(),
   mockUpdateKeyDay: vi.fn(),
@@ -31,6 +32,7 @@ const {
   mockDownload: vi.fn(),
   mockToastSuccess: vi.fn(),
   mockToastError: vi.fn(),
+  mockSetBreadcrumb: vi.fn(),
 }));
 
 // The page's loading, empty and saved states come from SWR itself, so this
@@ -42,7 +44,7 @@ vi.mock("next-auth/react", () => ({
 }));
 
 vi.mock("~/lib/breadcrumb-context", () => ({
-  useSetBreadcrumb: vi.fn(),
+  useSetBreadcrumb: mockSetBreadcrumb,
 }));
 
 vi.mock("~/contexts/ToastContext", () => ({
@@ -109,6 +111,17 @@ describe("OperatorBillingPage", () => {
 
     expect(await screen.findByText("Jeden Monat am 15.")).toBeInTheDocument();
     expect(screen.getByText("15.09.2026")).toBeInTheDocument();
+  });
+
+  it("uses Stichtagszahlen as the report title", async () => {
+    mockListKeyDateCounts.mockResolvedValue([]);
+    renderPage();
+
+    await screen.findByText("Jeden Monat am 15.");
+    expect(mockSetBreadcrumb).toHaveBeenCalledWith({
+      pageTitle: "Stichtagszahlen",
+    });
+    expect(screen.getAllByText("Stichtagszahlen")).not.toHaveLength(0);
   });
 
   it("explains when the first counts arrive while none are captured", async () => {

@@ -354,7 +354,7 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
     items: [
       {
         href: "/operator/billing",
-        label: "Abrechnung",
+        label: "Stichtagszahlen",
         icon: navigationIcons.chart,
         concept: "reports",
         activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
