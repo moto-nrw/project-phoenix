@@ -328,4 +328,124 @@ describe("DemoBanner", () => {
       expect.objectContaining({ role: "parent" }),
     );
   });
+
+  // „Demo neu anfangen" (#3470) sits apart from the roles and asks first.
+  describe("Demo neu anfangen", () => {
+    async function openMenu(user: ReturnType<typeof userEvent.setup>) {
+      await user.click(screen.getByRole("button", { name: /Rolle wechseln/ }));
+      return screen.getByRole("menuitem", { name: "Demo neu anfangen" });
+    }
+
+    it("stands apart from the roles and reports a restart once confirmed", async () => {
+      const user = userEvent.setup();
+      fetchMock.mockReturnValueOnce(
+        json(202, {
+          entry_url:
+            "https://demo.example/demo#token=secret&restarted=1&role=caregiver",
+        }),
+      );
+      renderBanner();
+
+      const restart = await openMenu(user);
+      expect(restart).toBeInTheDocument();
+      expect(screen.getByRole("separator")).toBeInTheDocument();
+      await user.click(restart);
+
+      const dialog = await screen.findByRole("dialog", {
+        name: "Demo neu anfangen?",
+      });
+      expect(dialog).toHaveTextContent(
+        "Alles, was Sie bisher geändert haben, geht verloren.",
+      );
+      expect(dialog).toHaveTextContent(
+        "Der Link aus Ihrer E-Mail gilt weiter.",
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+      await user.click(screen.getByRole("button", { name: "Neu anfangen" }));
+
+      await waitFor(() =>
+        expect(assign).toHaveBeenCalledWith(
+          "https://demo.example/demo#token=secret&restarted=1&role=caregiver",
+        ),
+      );
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("/api/demo/access/reset");
+      expect(init.method).toBe("POST");
+      expect(init.body).toBe(JSON.stringify({ role: "caregiver" }));
+      expect(signIn).not.toHaveBeenCalled();
+    });
+
+    it("changes nothing when the question is answered with Abbrechen", async () => {
+      const user = userEvent.setup();
+      renderBanner();
+
+      await user.click(await openMenu(user));
+      await screen.findByRole("dialog", { name: "Demo neu anfangen?" });
+      await user.click(screen.getByRole("button", { name: "Abbrechen" }));
+
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("dialog", { name: "Demo neu anfangen?" }),
+        ).toBeNull(),
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(assign).not.toHaveBeenCalled();
+    });
+
+    it("sends the visitor back to the mailed link when the demo cannot tell who it is", async () => {
+      const user = userEvent.setup();
+      fetchMock.mockReturnValueOnce(json(410));
+      renderBanner();
+
+      await user.click(await openMenu(user));
+      await user.click(
+        await screen.findByRole("button", { name: "Neu anfangen" }),
+      );
+
+      expect(
+        await screen.findByText(
+          "Bitte öffnen Sie die Demo noch einmal über den Link aus Ihrer E-Mail.",
+        ),
+      ).toBeInTheDocument();
+      expect(assign).not.toHaveBeenCalled();
+    });
+
+    it("says so when the restart fails and keeps the demo as it is", async () => {
+      const user = userEvent.setup();
+      fetchMock.mockReturnValueOnce(json(500));
+      renderBanner();
+
+      await user.click(await openMenu(user));
+      await user.click(
+        await screen.findByRole("button", { name: "Neu anfangen" }),
+      );
+
+      expect(
+        await screen.findByText(
+          "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
+        ),
+      ).toBeInTheDocument();
+      expect(assign).not.toHaveBeenCalled();
+      expect(
+        screen.getByRole("button", { name: /Rolle wechseln/ }),
+      ).toHaveTextContent("Betreuungskraft");
+    });
+
+    it("reports a restart once the new school has opened", () => {
+      saveDemoVisit({
+        accessId: "4711",
+        role: "lead",
+        src: "messe",
+        pending: "demo_restarted",
+      });
+
+      renderBanner();
+
+      expect(analytics.trackDemoEvent).toHaveBeenCalledWith("demo_restarted", {
+        accessId: "4711",
+        role: "lead",
+        src: "messe",
+      });
+    });
+  });
 });

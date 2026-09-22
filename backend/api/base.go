@@ -118,7 +118,6 @@ import (
 	workforceInbound "github.com/moto-nrw/project-phoenix/modules/workforce/inbound"
 	workforceShiftPlanning "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/shiftplanning"
 	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/timetracking"
-	workforceShiftServices "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
@@ -748,7 +747,7 @@ type API struct {
 	StaffMessaging   *staffMessagingAPI.Resource
 	Calendar         *calendarAPI.Resource
 	Announcements    *announcementAPI.Resource
-	StaffNotices     *timeTrackingHTTP.StaffNoticeResource
+	StaffNotices     *timetableHTTPAdapter.StaffNoticeResource
 	FileStore        *filestoreAPI.Resource
 	Reminders        *remindersAPI.Resource
 	Notifications    *notificationsAPI.Resource
@@ -1454,7 +1453,14 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.StaffMessaging = staffMessagingAPI.NewResource(api.Services.StaffMessaging, db)
 	api.Calendar = calendarAPI.NewResource(api.Services.Calendar, logger.With("handler", "calendar"))
 	api.Announcements = announcementAPI.NewResource(api.Services.ParentAnnouncement, db)
-	api.StaffNotices = timeTrackingHTTP.NewStaffNoticeResource(api.Services.StaffNotice, timeTrackingIdentity, db)
+	// Tagesinformationen (#2180) are Timetable's: the owner composes the
+	// service over its own repository, the calendar periods for the week
+	// pattern and the People Directory names of the acknowledgement list
+	// (#3418).
+	api.StaffNotices = timetableHTTPAdapter.NewStaffNoticeResource(timetableCompose.NewStaffNotices(timetableCompose.StaffNoticeDependencies{
+		DB: db, Periods: repoFactory.CalendarPeriod, Names: services.StaffNoticeNames(api.Services.PeopleDirectory),
+		Logger: logger.With("service", "staffnotice"),
+	}), func(ctx context.Context) int64 { return timeTrackingIdentity(ctx).AccountID }, db)
 	api.FileStore = filestoreAPI.NewResource(api.Services.FileStore, db, logger.With("handler", "filestore"))
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, db)
 	api.Guardians = newGuardiansResource(api.Services.PeopleDirectory, api.Services.NewGuardianDirectoryRuntime(db), db, viper.GetString("app_env"), logger.With("handler", "guardians"))
@@ -1469,16 +1475,12 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	}
 	api.Staff, api.StaffAdmin = staffResource, staffAdmin
 	api.StaffShifts = workforceShiftPlanning.NewStaffShiftsResource(workforceShiftPlanning.StaffShiftsDependencies{
-		Planning: workforceShiftServices.NewStaffShiftPlanning(workforceShiftServices.PlanningDependencies{
-			Shifts: api.Services.StaffShifts, Series: api.Services.StaffShiftSeries,
-			Overview: api.Services.StaffScheduleOverview, PlanExport: api.Services.PlanExport,
-		}),
+		Planning:       api.Services.StaffShifts,
 		DB:             db,
 		ResolveStaffID: api.currentStaffID,
 		ActorAccountID: projectJWT.ActorAccountIDFromCtx,
 	})
-	api.ShiftTypes = workforceShiftPlanning.NewShiftTypesResource(
-		workforceShiftServices.NewShiftTypeAdministration(api.Services.ShiftTypes, api.Services.Activities.SetCategoryShiftTypeLinks), db)
+	api.ShiftTypes = workforceShiftPlanning.NewShiftTypesResource(api.Services.ShiftTypes, db)
 	api.AbsenceTypes = workforceInbound.NewAbsenceTypesResource(services.AbsenceTypeAdministration(workforce, logger.With("service", "active")), db, api.currentStaffID)
 	api.Enrollment = enrollmentAPI.NewResource(
 		api.Services.EnrollmentFormSchema,

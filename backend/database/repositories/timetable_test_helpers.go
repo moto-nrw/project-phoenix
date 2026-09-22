@@ -22,6 +22,7 @@ import (
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -35,10 +36,10 @@ type TimetableTestRepositories struct {
 	ActivitySchedule          activitiesModels.ScheduleRepository
 	ActivitySupervisor        activitiesModels.SupervisorPlannedRepository
 	StudentEnrollment         activitiesModels.StudentEnrollmentRepository
-	StaffShift                scheduleModels.StaffShiftRepository
-	StaffShiftSeries          scheduleModels.StaffShiftSeriesRepository
-	StaffShiftSeriesException scheduleModels.StaffShiftSeriesExceptionRepository
-	ShiftType                 scheduleModels.ShiftTypeRepository
+	StaffShift                *workforceCompose.ShiftRows
+	StaffShiftSeries          *workforceCompose.ShiftSeriesRows
+	StaffShiftSeriesException *workforceCompose.ShiftSeriesExceptionRows
+	ShiftType                 *workforceCompose.ShiftTypeRows
 	PlanningTrack             scheduleModels.PlanningTrackRepository
 	ActivityInstance          scheduleModels.ActivityInstanceRepository
 	InstanceIdempotency       scheduleModels.InstanceIdempotencyRepository
@@ -112,18 +113,15 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	repos := &Factory{
 		db: db, Person: members.Person, Staff: members.Staff, Teacher: members.Teacher,
 		Group: members.Group, GroupTeacher: members.GroupTeacher, ClassTeacher: members.ClassTeacher,
-		Student:    NewStudentRepository(db),
-		StaffShift: newWorkforceStaffShiftRepository(workTime), StaffShiftSeries: newWorkforceStaffShiftSeriesRepository(workTime),
-		StaffShiftSeriesException: newWorkforceStaffShiftSeriesExceptionRepository(workTime),
-		ShiftType:                 newWorkforceShiftTypeRepository(workTime),
-		InstanceStudent:           timetableInstanceStudentRepository{timetable: bookings},
-		ActiveGroup:               sessions,
-		GroupSupervisor:           sessions,
-		Room:                      facilitiesAdapter.New(),
-		DeviationEvent:            auditRepo.NewDeviationEventRepository(newTestAuditRuntime(db)),
-		ClassArrivalTime:          educationRepo.NewClassArrivalTimeRepository(db),
-		ClassArrivalException:     timetableCompose.NewClassArrivalExceptionRepository(db),
-		SubmissionRateLimit:       enrollmentCompose.New(),
+		Student:               NewStudentRepository(db),
+		InstanceStudent:       timetableInstanceStudentRepository{timetable: bookings},
+		ActiveGroup:           sessions,
+		GroupSupervisor:       sessions,
+		Room:                  facilitiesAdapter.New(),
+		DeviationEvent:        auditRepo.NewDeviationEventRepository(newTestAuditRuntime(db)),
+		ClassArrivalTime:      educationRepo.NewClassArrivalTimeRepository(db),
+		ClassArrivalException: timetableCompose.NewClassArrivalExceptionRepository(db),
+		SubmissionRateLimit:   enrollmentCompose.New(),
 	}
 	repos.bindDefaultFacilities(db)
 	repos.bindSchoolCalendarAdapters(calendar, NewCalendarPeriodUsage(enrollmentCompose.New(), bookings))
@@ -141,7 +139,7 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
-	adapters := newTimetableRepositories(bookings, persons, groups, rooms, calendar, membership, repos.ShiftType)
+	adapters := newTimetableRepositories(bookings, persons, groups, rooms, calendar, membership, workTime)
 	repos.ActivityCategory, repos.ActivityGroup = adapters.ActivityCategory, adapters.ActivityGroup
 	repos.ActivitySchedule, repos.ActivitySupervisor = adapters.ActivitySchedule, adapters.ActivitySupervisor
 	repos.StudentEnrollment, repos.Timeframe = adapters.StudentEnrollment, adapters.Timeframe
@@ -150,6 +148,13 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	repos.InstanceIdempotency, repos.InstanceStaff = adapters.InstanceIdempotency, adapters.InstanceStaff
 	result := timetableTestRepositories(repos)
 	result.Timetable = bookings
+	// The Dienstplan rows belong to Workforce (#2689); suites that still
+	// speak the retained rows reach them through the compose adapters
+	// over the one facade (#3418).
+	result.StaffShift = workforceCompose.NewShiftRows(workTime)
+	result.StaffShiftSeries = workforceCompose.NewShiftSeriesRows(workTime)
+	result.StaffShiftSeriesException = workforceCompose.NewShiftSeriesExceptionRows(workTime)
+	result.ShiftType = workforceCompose.NewShiftTypeRows(workTime)
 	return result, nil
 }
 
@@ -157,8 +162,7 @@ func timetableTestRepositories(r *Factory) TimetableTestRepositories {
 	return TimetableTestRepositories{
 		ActivityGroup: r.ActivityGroup, ActivityCategory: r.ActivityCategory, ActivitySchedule: r.ActivitySchedule,
 		ActivitySupervisor: r.ActivitySupervisor, StudentEnrollment: r.StudentEnrollment,
-		StaffShift: r.StaffShift, StaffShiftSeries: r.StaffShiftSeries, StaffShiftSeriesException: r.StaffShiftSeriesException,
-		ShiftType: r.ShiftType, PlanningTrack: r.PlanningTrack,
+		PlanningTrack:    r.PlanningTrack,
 		ActivityInstance: r.ActivityInstance, InstanceIdempotency: r.InstanceIdempotency,
 		InstanceStaff: r.InstanceStaff, InstanceStudent: r.InstanceStudent, ActivityException: r.ActivityException,
 		Timeframe: r.Timeframe, RecurrenceRule: r.RecurrenceRule, CalendarPeriod: r.CalendarPeriod,

@@ -82,7 +82,10 @@ export function trackPageView(viewId: AnalyticsViewId, schoolId: string): void {
 }
 
 export type DemoAnalyticsEvent =
-  "demo_entered" | "demo_role_switched" | "demo_start_clicked";
+  | "demo_entered"
+  | "demo_role_switched"
+  | "demo_restarted"
+  | "demo_start_clicked";
 
 // The visitor of the public demo is the demo access (#3467): its ID is the
 // distinct_id, so the team can follow one visit without a name or address.

@@ -168,10 +168,13 @@ func (s *DemoStateStore) Fail(ctx context.Context, name string, maxAttempts int)
 	return failed, nil
 }
 
-// ReadyNames lists the demo schools the simulation keeps alive.
+// ReadyNames lists the demo schools the simulation keeps alive. A hidden
+// school (#3470) is ready no more, whatever its order says.
 func (s *DemoStateStore) ReadyNames(ctx context.Context) ([]string, error) {
 	var names []string
-	err := s.db.NewRaw(`SELECT name FROM platform.demo_school_states WHERE status = 'ready' ORDER BY created_at, name`).Scan(ctx, &names)
+	err := s.db.NewRaw(`SELECT state.name FROM platform.demo_school_states AS state
+		JOIN platform.schools AS school ON school.id = state.tenant_id
+		WHERE state.status = 'ready' AND school.deleted_at IS NULL ORDER BY state.created_at, state.name`).Scan(ctx, &names)
 	if err != nil {
 		return nil, fmt.Errorf("list demo schools: %w", err)
 	}
@@ -179,14 +182,46 @@ func (s *DemoStateStore) ReadyNames(ctx context.Context) ([]string, error) {
 }
 
 // ActiveNames lists the ready demo schools entered since the given instant:
-// the only ones the simulation serves (#3464).
+// the only ones the simulation serves (#3464). A hidden school is not
+// served, even if a visitor entered it right before it was hidden.
 func (s *DemoStateStore) ActiveNames(ctx context.Context, since time.Time) ([]string, error) {
 	var names []string
-	err := s.db.NewRaw(`SELECT name FROM platform.demo_school_states WHERE status = 'ready' AND last_used_at >= ? ORDER BY created_at, name`, since).Scan(ctx, &names)
+	err := s.db.NewRaw(`SELECT state.name FROM platform.demo_school_states AS state
+		JOIN platform.schools AS school ON school.id = state.tenant_id
+		WHERE state.status = 'ready' AND school.deleted_at IS NULL AND state.last_used_at >= ?
+		ORDER BY state.created_at, state.name`, since).Scan(ctx, &names)
 	if err != nil {
 		return nil, fmt.Errorf("list demo schools in use: %w", err)
 	}
 	return names, nil
+}
+
+// RetireMany hides the schools of the named orders (#3470): the demo process
+// calls it for the schools whose last demo access expired. It returns how
+// many schools it hid; schools hidden before count nothing. An order that
+// still waits for its seed is closed as failed, so it holds no place either;
+// an order being seeded right now is left alone and finishes as a ready
+// school nobody enters.
+func (s *DemoStateStore) RetireMany(ctx context.Context, names []string) (int, error) {
+	if len(names) == 0 {
+		return 0, nil
+	}
+	result, err := s.db.NewRaw(`UPDATE platform.schools SET deleted_at = NOW()
+		WHERE deleted_at IS NULL AND id IN (SELECT tenant_id FROM platform.demo_school_states WHERE name IN (?) AND tenant_id IS NOT NULL)`,
+		bun.List(names)).Exec(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("retire demo schools: %w", err)
+	}
+	hidden, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("retire demo schools: %w", err)
+	}
+	_, err = s.db.NewRaw(`UPDATE platform.demo_school_states SET status = 'failed'
+		WHERE name IN (?) AND status = 'preparing' AND claimed_at IS NULL AND tenant_id IS NULL`, bun.List(names)).Exec(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("close waiting demo school orders: %w", err)
+	}
+	return int(hidden), nil
 }
 
 // DemoOrderStore is the serving backend's side of the queue. Its role may
@@ -265,6 +300,23 @@ func (s *DemoOrderStore) MarkUsed(ctx context.Context, name string, usedAt time.
 	}
 	if _, err := db.NewRaw(`UPDATE platform.demo_school_states SET last_used_at = ? WHERE name = ?`, usedAt, name).Exec(ctx); err != nil {
 		return fmt.Errorf("note demo school use: %w", err)
+	}
+	return nil
+}
+
+// Retire hides the school of the order when its visitor starts over
+// (#3470). The serving role holds every right on platform.schools; the
+// order itself is not touched, so its row stays out of the serving role's
+// narrow reach.
+func (s *DemoOrderStore) Retire(ctx context.Context, name string) error {
+	db, err := s.database(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = db.NewRaw(`UPDATE platform.schools SET deleted_at = NOW()
+		WHERE deleted_at IS NULL AND id = (SELECT tenant_id FROM platform.demo_school_states WHERE name = ?)`, name).Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("retire demo school: %w", err)
 	}
 	return nil
 }

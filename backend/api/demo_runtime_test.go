@@ -20,7 +20,7 @@ func TestDemoReadsWebAttributionFromSchoolStayWithoutRoomVisit(t *testing.T) {
 	web := testpkg.EnsureWebManualDevice(t, db)
 	arrival := time.Now().Add(-time.Minute).Truncate(time.Microsecond)
 	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, web.ID, arrival, nil)
-	runtime, err := NewDemoRuntime(db)
+	runtime, err := NewDemoRuntime(db, time.Now)
 	require.NoError(t, err)
 	today := testpkg.TodayDate()
 	visits, err := runtime.LatestDemoVisits(testpkg.Ctx(t), web.ID, today.AddDays(-1).String(), today.String())
@@ -48,7 +48,7 @@ func TestDemoReadsWebCheckoutOfPhysicalSchoolStay(t *testing.T) {
 		StudentIDs: []int64{student.ID}, Date: stay.Date, At: departure, StaffID: staff.ID,
 	})
 	require.NoError(t, err)
-	runtime, err := NewDemoRuntime(db)
+	runtime, err := NewDemoRuntime(db, time.Now)
 	require.NoError(t, err)
 	today := testpkg.TodayDate()
 	visits, err := runtime.LatestDemoVisits(testpkg.Ctx(t), web.ID, today.AddDays(-1).String(), today.String())

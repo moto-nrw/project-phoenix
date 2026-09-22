@@ -12,7 +12,7 @@ var timetablePlanningRetiredPackage = Package{
 
 // timetablePlanningCutoverPermission is the #3424 dissolution of the
 // timetable planning nest into the School Calendar and the Timetable owner
-// (ADR 0037). The nest is retired in slices, so unlike the #3351, #3427 and
+// (ADR 0038). The nest is retired in slices, so unlike the #3351, #3427 and
 // #3422 cutovers the retired package may still be classified in the
 // candidate: each slice moves behaviour out of it and its consumers must
 // already name the owner that now holds that behaviour. Like those cutovers

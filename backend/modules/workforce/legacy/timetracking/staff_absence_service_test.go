@@ -2153,8 +2153,8 @@ func TestAbsCreateAbsenceFor_SickCascadesWithActor(t *testing.T) {
 	assert.Equal(t, creatorID, call.ActorStaffID)
 	require.NotNil(t, call.ActorAccountID)
 	assert.Equal(t, accountID, *call.ActorAccountID)
-	assert.Equal(t, "2026-02-10", call.DateStart.String())
-	assert.Equal(t, "2026-02-12", call.DateEnd.String())
+	assert.Equal(t, "2026-02-10", call.DateStart)
+	assert.Equal(t, "2026-02-12", call.DateEnd)
 }
 
 func TestAbsCreateAbsenceFor_HalfDayAndNonSickSkipCascade(t *testing.T) {
@@ -2376,8 +2376,8 @@ func TestAbsCreateAbsenceFor_MergeCascadesMergedRange(t *testing.T) {
 	require.Len(t, syncer.markCalls, 1)
 	call := syncer.markCalls[0]
 	assert.Equal(t, int64(42), call.AbsenceID, "cascade must target the merged primary")
-	assert.Equal(t, "2026-02-10", call.DateStart.String(), "cascade must cover the merged range")
-	assert.Equal(t, "2026-02-14", call.DateEnd.String())
+	assert.Equal(t, "2026-02-10", call.DateStart, "cascade must cover the merged range")
+	assert.Equal(t, "2026-02-14", call.DateEnd)
 }
 
 func TestAbsDeleteAbsenceFor_SickReversesCascadeBeforeDelete(t *testing.T) {
@@ -2544,8 +2544,8 @@ func TestAbsUpdateAbsence_ReconcilesSickDateDifference(t *testing.T) {
 	_, err := svc.UpdateAbsence(context.Background(), 100, &actorAccountID, 42, UpdateAbsenceRequest{DateEnd: &newEnd})
 	require.NoError(t, err)
 	require.Len(t, syncer.reconcileCalls, 1)
-	assert.Equal(t, "2026-02-11", syncer.reconcileCalls[0][0].DateEnd.String())
-	assert.Equal(t, "2026-02-13", syncer.reconcileCalls[0][1].DateEnd.String())
+	assert.Equal(t, "2026-02-11", syncer.reconcileCalls[0][0].DateEnd)
+	assert.Equal(t, "2026-02-13", syncer.reconcileCalls[0][1].DateEnd)
 	assert.Equal(t, int64(42), syncer.reconcileCalls[0][1].AbsenceID)
 	require.NotNil(t, syncer.reconcileCalls[0][0].ActorAccountID)
 	assert.Equal(t, actorAccountID, *syncer.reconcileCalls[0][0].ActorAccountID)
@@ -2614,8 +2614,8 @@ func TestAbsCreateAbsenceFor_MergeReassignsSecondaryStamps(t *testing.T) {
 	require.Len(t, syncer.reassignCalls, 1, "the deleted secondary's stamps must move to the primary")
 	assert.Equal(t, [2]int64{43, 42}, syncer.reassignCalls[0])
 	require.Len(t, syncer.markCalls, 1)
-	assert.Equal(t, "2026-02-10", syncer.markCalls[0].DateStart.String())
-	assert.Equal(t, "2026-02-14", syncer.markCalls[0].DateEnd.String())
+	assert.Equal(t, "2026-02-10", syncer.markCalls[0].DateStart)
+	assert.Equal(t, "2026-02-14", syncer.markCalls[0].DateEnd)
 }
 
 func TestAbsCreateAbsenceFor_RejectsMixedDurationSickMerge(t *testing.T) {

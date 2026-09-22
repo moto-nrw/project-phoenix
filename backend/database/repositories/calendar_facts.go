@@ -28,8 +28,8 @@ type CalendarFacts struct {
 	InstanceStaffRepo    scheduleModels.InstanceStaffRepository
 	ActivityInstanceRepo scheduleModels.ActivityInstanceRepository
 	RoomRepo             facilitiesModels.RoomRepository
-	StaffShiftRepo       scheduleModels.StaffShiftRepository
-	ShiftTypeRepo        scheduleModels.ShiftTypeRepository
+	StaffShiftRepo       CalendarStaffShiftSource
+	ShiftTypeRepo        CalendarShiftTypeSource
 	SchoolRepo           organizationtenancy.Query
 	AccountRepo          identityaccess.ParentCalendarFeeds
 	StaffFeedRepo        identityaccess.StaffCalendarFeeds
@@ -273,8 +273,19 @@ func (p calendarInstancePort) FindByIDs(ctx context.Context, ids []int64) ([]*ca
 	}), err
 }
 
+// CalendarStaffShiftSource is the planned-shift read the staff calendar feed
+// needs; the Workforce capability's retained-row adapter serves it (#3418).
+type CalendarStaffShiftSource interface {
+	FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end scheduleModels.Date) ([]*scheduleModels.StaffShift, error)
+}
+
+// CalendarShiftTypeSource is the shift-type list the feed labels shifts with.
+type CalendarShiftTypeSource interface {
+	ListAll(ctx context.Context) ([]*scheduleModels.ShiftType, error)
+}
+
 type calendarShiftPort struct {
-	source scheduleModels.StaffShiftRepository
+	source CalendarStaffShiftSource
 }
 
 func (p calendarShiftPort) FindByStaffAndDateRange(ctx context.Context, id int64, from, to appointmentcap.Date) ([]*calendarCompose.StaffShift, error) {
@@ -285,7 +296,7 @@ func (p calendarShiftPort) FindByStaffAndDateRange(ctx context.Context, id int64
 }
 
 type calendarShiftTypePort struct {
-	source scheduleModels.ShiftTypeRepository
+	source CalendarShiftTypeSource
 }
 
 func (p calendarShiftTypePort) ListAll(ctx context.Context) ([]*calendarCompose.ShiftType, error) {

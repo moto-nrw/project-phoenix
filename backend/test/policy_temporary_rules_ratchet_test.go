@@ -63,7 +63,7 @@ import (
 // grants to the nest stale. Dissolving the nest also rewrote the nine
 // surviving grants of its own behaviour suites, which describe the module's
 // suites now and promise no conversion. Together with #2736 that lowers them
-// to 195 and 254, and slice S6 of #3424 (ADR 0037) retired the three grants
+// to 195 and 254, and slice S6 of #3424 (ADR 0038) retired the three grants
 // the School Calendar handover emptied, to 193 and 252; this prose counter
 // remains as an independent guard.
 //
@@ -115,12 +115,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 193
+	policyTempRulesTotal = 147
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 252
+	policyTempRulesCompatTotal = 206
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -149,7 +149,7 @@ var policyTempRulesFamilies = map[string]int{
 	"calendar-view": 2,
 
 	// #3218, #3219, #3220 — closed.
-	"document-rendering": 5,
+	"document-rendering": 2,
 
 	// #3214, #3218, #3220 — closed; #3427 removed the three #3350 (PR #3408)
 	// had added.
@@ -164,9 +164,6 @@ var policyTempRulesFamilies = map[string]int{
 
 	// #3229, #3214, #3220 — closed; #2725 (OPEN) for one rule.
 	"inbound-parent": 27,
-
-	// #3219, #3218, #2730 — closed.
-	"inbound-staff-shifts": 37,
 
 	// #3214, #3218, #3220, #3224 — closed. #3427 removed the 36 that #3350
 	// (PR #3408) had added with the care-lifecycle adapter.
@@ -184,7 +181,7 @@ var policyTempRulesFamilies = map[string]int{
 	// #3214, #3218, #3219, #3220, #3224 — closed; #3427 removed the one #3350
 	// (PR #3408) added.
 	// #3422 removed 1 that went stale with legacy/services/active.
-	"legacy-composition": 2,
+	"legacy-composition": 1,
 
 	// #3214, #3218 — closed; #3427 removed the one #3350 (PR #3408) added.
 	// #3422 removed 1 that went stale with legacy/services/active.
@@ -196,7 +193,7 @@ var policyTempRulesFamilies = map[string]int{
 
 	// #3207, #3214, #3217, #3218, #3219, #3220, #3224, #3229 — all closed.
 	// #3422 removed 2 that went stale with legacy/services/active.
-	"root-composition": 6,
+	"root-composition": 5,
 
 	// #3214, #3218, #3220 — closed.
 	// #3422 removed 3 that went stale with legacy/services/active.
@@ -219,9 +216,6 @@ var policyTempRulesFamilies = map[string]int{
 	"test-support": 2,
 
 	// #3214, #3218, #3220, #3224 — closed.
-
-	// #3219, #3218 — closed.
-	"workforce": 4,
 }
 
 // policyTempRulesFamilyFix is the guidance ratchetViolations prints for a family
