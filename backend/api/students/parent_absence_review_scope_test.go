@@ -14,9 +14,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -126,7 +126,7 @@ func TestParentAbsenceReviewScopeKeepsReadsAndDecisionsConsistent(t *testing.T) 
 	require.Equal(t, http.StatusForbidden, otherDecision.Code, otherDecision.Body.String())
 	decide(unassigned, http.StatusOK)
 
-	var stored activeModels.ExcusedAbsenceRequest
+	var stored testpkg.ExcusedAbsenceRequestRow
 	require.NoError(t, tc.db.NewSelect().Model(&stored).Where("id = ?", requestID).Scan(testpkg.Ctx(t)))
 	require.Equal(t, "rejected", stored.Status)
 	require.NotNil(t, stored.ReviewedBy)
@@ -174,23 +174,23 @@ func TestParentAbsenceReviewScopeKeepsReadsAndDecisionsConsistent(t *testing.T) 
 		map[string]any{"requests": refs, "reason": "Gemeinsam geprüft"}), unassigned, perms)
 	require.Equal(t, http.StatusConflict, bulk.Code, bulk.Body.String())
 	require.Contains(t, bulk.Body.String(), `"code":"bulk_approval_ineligible"`)
-	var unchanged activeModels.ExcusedAbsenceRequest
+	var unchanged testpkg.ExcusedAbsenceRequestRow
 	require.NoError(t, tc.db.NewSelect().Model(&unchanged).Where("id = ?", requestID).Scan(testpkg.Ctx(t)))
 	require.Equal(t, "pending", unchanged.Status)
-	statusCount, err := tc.db.NewSelect().Model((*activeModels.StudentStatusDay)(nil)).Where("student_id = ?", chain.StudentID).Count(testpkg.Ctx(t))
+	statusCount, err := tc.db.NewSelect().Model((*testpkg.StudentStatusDayRow)(nil)).Where("student_id = ?", chain.StudentID).Count(testpkg.Ctx(t))
 	require.NoError(t, err)
 	require.Zero(t, statusCount)
 	approved := authExec(t, tc, testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/excused-absence-requests/%d/decide", requestID),
 		map[string]any{"approve": true, "reason": "Geprüft"}), unassigned, perms)
 	require.Equal(t, http.StatusOK, approved.Code, approved.Body.String())
-	var status activeModels.StudentStatusDay
+	var status testpkg.StudentStatusDayRow
 	require.NoError(t, tc.db.NewSelect().Model(&status).Where("student_id = ?", chain.StudentID).
 		Where("date = ?", date).Scan(testpkg.Ctx(t)))
-	require.Equal(t, activeModels.StudentStatusDayExcused, status.Status)
-	require.Equal(t, activeModels.StudentStatusSourceParent, status.Source)
+	require.Equal(t, absencerecords.StudentStatusDayExcused, status.Status)
+	require.Equal(t, absencerecords.StudentStatusSourceParent, status.Source)
 	require.NotNil(t, status.GuardianAccountID)
 	require.Equal(t, chain.AccountID, *status.GuardianAccountID)
-	var decision activeModels.ExcusedAbsenceRequest
+	var decision testpkg.ExcusedAbsenceRequestRow
 	require.NoError(t, tc.db.NewSelect().Model(&decision).Where("id = ?", requestID).Scan(testpkg.Ctx(t)))
 	require.Equal(t, "approved", decision.Status)
 	require.NotNil(t, decision.ReviewedBy)

@@ -27,6 +27,7 @@ import {
   fetchPublicEnrollmentBootstrap,
   type PublicEnrollmentBootstrap,
 } from "~/lib/enrollment-submission-api";
+import { localizeNamed } from "~/lib/enrollment-translations";
 
 interface PageProps {
   readonly params: Promise<{ tenant: string; phaseId: string }>;
@@ -87,7 +88,7 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
     };
   }, [lateInviteToken, phaseId, tenantSlug, t]);
 
-  const phase = bootstrap?.phase ?? null;
+  const phase = bootstrap ? localizeNamed(bootstrap.phase, locale) : null;
   const resolvedGradeLevelMax = tenant?.gradeLevelMax;
   const gradeLevelMax = isSupportedGradeLevelMax(resolvedGradeLevelMax)
     ? resolvedGradeLevelMax

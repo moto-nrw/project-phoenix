@@ -48,8 +48,12 @@ var demoCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		// One lease for both modes: the fallback and the scheduler never run side by side.
 		err = schools.WithDemoLease(ctx, standingDemoSlug, func(ctx context.Context) error {
-			return runStandingDemo(ctx, schools, baseURL, heartbeat, once)
+			if viper.GetBool("demo_standing_school") {
+				return runStandingDemo(ctx, schools, baseURL, heartbeat, once)
+			}
+			return runDemoSchools(ctx, schools, baseURL, heartbeat, once)
 		})
 		if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
 			return nil
@@ -101,69 +105,122 @@ func runStandingDemo(ctx context.Context, schools *backendapi.DemoRuntime, baseU
 		return err
 	}
 	if saved == nil {
-		if err := provisionStandingDemo(ctx, schools, adapter); err != nil {
-			return err
-		}
-		saved, err = schools.LoadDemoSchool(ctx, standingDemoSlug)
-		if err != nil {
+		options := seedapi.SeedOptions{TenantSlug: standingDemoSlug, SchoolName: "moto Demo-Schule"}
+		if err := provisionDemoSchool(ctx, schools, adapter, options); err != nil {
 			return err
 		}
 	}
+	school, err := loadDemoSchool(ctx, schools, standingDemoSlug, baseURL)
+	if err != nil {
+		return err
+	}
+	return school.run(ctx, once, true, func() {
+		if err := writeDemoHeartbeat(heartbeat); err != nil {
+			slog.Warn("demo heartbeat not written; the healthcheck will report unhealthy", "error", err)
+		}
+	})
+}
+
+// demoSchool is one seeded demo school with its own client and ticker.
+// visitorID and visitorParentID are the caregiver and the parent who carry
+// the visitor's name (#3463, #3468).
+type demoSchool struct {
+	slug            string
+	state           *simulate.SeedState
+	client          *seedapi.Client
+	ticker          *simulate.DemoTicker
+	visitorID       int64
+	visitorParentID int64
+}
+
+func loadDemoSchool(ctx context.Context, schools *backendapi.DemoRuntime, slug, baseURL string) (*demoSchool, error) {
+	saved, err := schools.LoadDemoSchool(ctx, slug)
+	if err != nil {
+		return nil, err
+	}
 	if saved == nil {
-		return fmt.Errorf("demo provisioning did not save its school")
+		return nil, fmt.Errorf("demo provisioning did not save its school")
 	}
 	var contract seedapi.SeedState
 	if err := json.Unmarshal(saved.SeedJSON, &contract); err != nil {
-		return fmt.Errorf("invalid stored demo state")
+		return nil, fmt.Errorf("invalid stored demo state")
 	}
 	profile, err := contract.SelectProfile(seedapi.DefaultProfileKey)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if profile.School.ID != saved.SchoolID {
-		return fmt.Errorf("stored demo school identity mismatch")
+		return nil, fmt.Errorf("stored demo school identity mismatch")
 	}
 	state, err := simulate.SeedStateFromContract(&contract, seedapi.DefaultProfileKey)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	state.BaseURL = baseURL // Never trust a persisted endpoint as an HTTP target.
-	client := seedapi.NewClientWithAdapter(adapter, false)
+	// Every school keeps its own client: a client holds one school's login.
+	client := seedapi.NewClientWithAdapter(newSeedCommandAdapter(baseURL, false), false)
 	query, err := demoVisitsQuery(schools, saved.SchoolID, profile)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	ticker, err := simulate.NewDemoTicker(simulate.DemoTickOptions{State: state, Client: client, Now: time.Now, Visits: query})
+	visitorParentID := seedapi.VisitorParentAccountID(profile)
+	ticker, err := simulate.NewDemoTicker(simulate.DemoTickOptions{
+		State: state, Client: client, Now: time.Now, Visits: query,
+		// The other parents ask for pickup changes and write messages (#3468);
+		// they keep a client of their own, apart from the admin's login.
+		Parents: simulate.OtherDemoParents(profile.Credentials.Parents, visitorParentID),
+		ParentClient: func() simulate.DemoParentClient {
+			return seedapi.NewClientWithAdapter(newSeedCommandAdapter(baseURL, false), false)
+		},
+	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if len(state.Accounts.Admin) == 0 {
-		return fmt.Errorf("stored demo has no admin")
+		return nil, fmt.Errorf("stored demo has no admin")
 	}
-	admin := state.Accounts.Admin[0]
+	return &demoSchool{
+		slug: slug, state: state, client: client, ticker: ticker,
+		visitorID: seedapi.VisitorAccountID(profile), visitorParentID: visitorParentID,
+	}, nil
+}
+
+// tick signs the school's admin in when due and executes one tick.
+func (s *demoSchool) tick(ctx context.Context, nextLogin *time.Time) error {
+	if time.Now().After(*nextLogin) {
+		admin := s.state.Accounts.Admin[0]
+		if err := s.client.Login(admin.Email, admin.Password, s.state.Bootstrap.TenantSlug); err != nil {
+			return fmt.Errorf("%w: %w", errDemoLogin, err)
+		}
+		*nextLogin = time.Now().Add(10 * time.Minute)
+	}
+	return s.ticker.Tick(ctx)
+}
+
+var errDemoLogin = errors.New("demo admin login failed")
+
+// run ticks the school every 5–8 seconds until ctx ends; ticked reports every
+// successful tick. The standing demo stops on a failed login and lets the
+// container restart; one school among many only retries.
+func (s *demoSchool) run(ctx context.Context, once, stopOnLogin bool, ticked func()) error {
 	var nextLogin time.Time
 	for {
 		if ctx.Err() != nil {
 			return nil
 		}
-		if time.Now().After(nextLogin) {
-			if err := client.Login(admin.Email, admin.Password, state.Bootstrap.TenantSlug); err != nil {
-				return fmt.Errorf("demo admin login failed: %w", err)
-			}
-			nextLogin = time.Now().Add(10 * time.Minute)
-		}
-		tickErr := ticker.Tick(ctx)
-		if once {
+		tickErr := s.tick(ctx, &nextLogin)
+		if once || (stopOnLogin && errors.Is(tickErr, errDemoLogin)) {
 			return tickErr
 		}
-		if err := tickErr; err != nil && ctx.Err() == nil {
-			slog.Warn("demo tick failed; retrying", "error", err)
+		if tickErr != nil && ctx.Err() == nil {
+			slog.Warn("demo tick failed; retrying",
+				"school", s.slug,
+				"error", tickErr,
+			)
 			nextLogin = time.Time{}
 		}
 		if tickErr == nil {
-			if err := writeDemoHeartbeat(heartbeat); err != nil {
-				slog.Warn("demo heartbeat not written; the healthcheck will report unhealthy", "error", err)
-			}
+			ticked()
 		}
 		if err := waitDemoInterval(ctx, 5*time.Second+time.Duration(mathrand.Intn(3001))*time.Millisecond); err != nil {
 			return nil
@@ -171,7 +228,9 @@ func runStandingDemo(ctx context.Context, schools *backendapi.DemoRuntime, baseU
 	}
 }
 
-func provisionStandingDemo(ctx context.Context, schools *backendapi.DemoRuntime, adapter seedapi.Adapter) error {
+// provisionDemoSchool seeds the school of options and stores its state under
+// its slug. Tenant slug and school name come from the caller.
+func provisionDemoSchool(ctx context.Context, schools *backendapi.DemoRuntime, adapter seedapi.Adapter, options seedapi.SeedOptions) error {
 	email, password, pin := viper.GetString("operator_email"), viper.GetString("operator_password"), viper.GetString("ogs_device_pin")
 	if email == "" || password == "" || pin == "" {
 		return fmt.Errorf("demo provisioning requires OPERATOR_EMAIL, OPERATOR_PASSWORD and OGS_DEVICE_PIN")
@@ -180,21 +239,19 @@ func provisionStandingDemo(ctx context.Context, schools *backendapi.DemoRuntime,
 	if err != nil {
 		return err
 	}
-	options := seedapi.SeedOptions{
-		TenantSlug: standingDemoSlug, SchoolName: "moto Demo-Schule", OnlyProfile: seedapi.DefaultProfileKey,
-		StaffPassword: staffPassword, StandingDemo: true,
-		SaveState: func(ctx context.Context, state *seedapi.SeedState) error {
-			profile, err := state.SelectProfile(seedapi.DefaultProfileKey)
-			if err != nil {
-				return err
-			}
-			profile.Credentials.Operator = nil
-			raw, err := json.Marshal(state)
-			if err != nil {
-				return err
-			}
-			return schools.RememberDemoSchool(ctx, standingDemoSlug, backendapi.DemoSchoolRecord{SchoolID: profile.School.ID, SeedJSON: raw})
-		},
+	slug := options.TenantSlug
+	options.OnlyProfile, options.StaffPassword, options.StandingDemo = seedapi.DefaultProfileKey, staffPassword, true
+	options.SaveState = func(ctx context.Context, state *seedapi.SeedState) error {
+		profile, err := state.SelectProfile(seedapi.DefaultProfileKey)
+		if err != nil {
+			return err
+		}
+		profile.Credentials.Operator = nil
+		raw, err := json.Marshal(state)
+		if err != nil {
+			return err
+		}
+		return schools.RememberDemoSchool(ctx, slug, backendapi.DemoSchoolRecord{SchoolID: profile.School.ID, SeedJSON: raw})
 	}
 	_, err = seedapi.NewSeeder(adapter, services.SecureRandomSource(), false, options).Seed(ctx, email, password, pin)
 	return err

@@ -12,7 +12,7 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -683,13 +683,13 @@ func TestInstanceStudentRepository_ReleaseStatusDayReappliesLatestRemainingStatu
 	attendance.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, factory.InstanceStudent.Create(ctx, attendance))
 
-	older := &activeModels.StudentStatusDay{
-		StudentID: student.ID, Date: timezone.Date(date), Status: activeModels.StudentStatusDaySick,
-		ReportedAt: time.Date(2026, 10, 1, 8, 0, 0, 0, time.UTC), Source: activeModels.StudentStatusSourcePlanned,
+	older := &absencerecords.StudentStatusDay{
+		StudentID: student.ID, Date: timezone.Date(date), Status: absencerecords.StudentStatusDaySick,
+		ReportedAt: time.Date(2026, 10, 1, 8, 0, 0, 0, time.UTC), Source: absencerecords.StudentStatusSourcePlanned,
 	}
-	newer := &activeModels.StudentStatusDay{
-		StudentID: student.ID, Date: timezone.Date(date), Status: activeModels.StudentStatusDayExcused,
-		ReportedAt: time.Date(2026, 10, 2, 8, 0, 0, 0, time.UTC), Source: activeModels.StudentStatusSourcePlanned,
+	newer := &absencerecords.StudentStatusDay{
+		StudentID: student.ID, Date: timezone.Date(date), Status: absencerecords.StudentStatusDayExcused,
+		ReportedAt: time.Date(2026, 10, 2, 8, 0, 0, 0, time.UTC), Source: absencerecords.StudentStatusSourcePlanned,
 	}
 	require.NoError(t, factory.StudentStatusDay.UpsertReported(ctx, older))
 	require.NoError(t, factory.StudentStatusDay.UpsertReported(ctx, newer))
@@ -701,14 +701,14 @@ func TestInstanceStudentRepository_ReleaseStatusDayReappliesLatestRemainingStatu
 	require.NotNil(t, got.StudentStatusDayID)
 	assert.Equal(t, newer.ID, *got.StudentStatusDayID, "the newest active status must take provenance immediately")
 
-	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, newer.ID, time.Now(), activeModels.StudentStatusSourceManual))
+	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, newer.ID, time.Now(), absencerecords.StudentStatusSourceManual))
 	got, err = factory.InstanceStudent.FindByID(ctx, attendance.ID)
 	require.NoError(t, err)
 	require.NotNil(t, got.StudentStatusDayID)
 	assert.Equal(t, older.ID, *got.StudentStatusDayID, "clearing the newest status must restore the older active status")
 	require.NoError(t, factory.StudentStatusDay.UpsertReported(ctx, newer))
 
-	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, older.ID, time.Now(), activeModels.StudentStatusSourceManual))
+	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, older.ID, time.Now(), absencerecords.StudentStatusSourceManual))
 	got, err = factory.InstanceStudent.FindByID(ctx, attendance.ID)
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, got.Status)
@@ -717,16 +717,16 @@ func TestInstanceStudentRepository_ReleaseStatusDayReappliesLatestRemainingStatu
 	require.NotNil(t, got.StudentStatusDayID)
 	assert.Equal(t, newer.ID, *got.StudentStatusDayID)
 
-	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, newer.ID, time.Now(), activeModels.StudentStatusSourceManual))
+	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, newer.ID, time.Now(), absencerecords.StudentStatusSourceManual))
 	got, err = factory.InstanceStudent.FindByID(ctx, attendance.ID)
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.AttendanceStatusExpected, got.Status)
 	assert.Nil(t, got.Substatus)
 	assert.Nil(t, got.StudentStatusDayID)
 
-	completedStatus := &activeModels.StudentStatusDay{
-		StudentID: student.ID, Date: timezone.Date(date), Status: activeModels.StudentStatusDayClassTrip,
-		ReportedAt: time.Date(2026, 10, 3, 8, 0, 0, 0, time.UTC), Source: activeModels.StudentStatusSourcePlanned,
+	completedStatus := &absencerecords.StudentStatusDay{
+		StudentID: student.ID, Date: timezone.Date(date), Status: absencerecords.StudentStatusDayClassTrip,
+		ReportedAt: time.Date(2026, 10, 3, 8, 0, 0, 0, time.UTC), Source: absencerecords.StudentStatusSourcePlanned,
 	}
 	require.NoError(t, factory.StudentStatusDay.UpsertReported(ctx, completedStatus))
 	_, err = db.NewUpdate().
@@ -735,7 +735,7 @@ func TestInstanceStudentRepository_ReleaseStatusDayReappliesLatestRemainingStatu
 		Where("id = ?", inst.ID).
 		Exec(ctx)
 	require.NoError(t, err)
-	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, completedStatus.ID, time.Now(), activeModels.StudentStatusSourceManual))
+	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, completedStatus.ID, time.Now(), absencerecords.StudentStatusSourceManual))
 	got, err = factory.InstanceStudent.FindByID(ctx, attendance.ID)
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, got.Status, "completed slots remain historical absences")
@@ -771,9 +771,9 @@ func TestInstanceStudentRepository_MarkNotScheduled_TakesBackStatusDayAbsence(t 
 	attendance.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, factory.InstanceStudent.Create(ctx, attendance))
 
-	sick := &activeModels.StudentStatusDay{
-		StudentID: student.ID, Date: timezone.Date(date), Status: activeModels.StudentStatusDaySick,
-		ReportedAt: time.Date(2026, 10, 14, 7, 0, 0, 0, time.UTC), Source: activeModels.StudentStatusSourcePlanned,
+	sick := &absencerecords.StudentStatusDay{
+		StudentID: student.ID, Date: timezone.Date(date), Status: absencerecords.StudentStatusDaySick,
+		ReportedAt: time.Date(2026, 10, 14, 7, 0, 0, 0, time.UTC), Source: absencerecords.StudentStatusSourcePlanned,
 	}
 	require.NoError(t, factory.StudentStatusDay.UpsertReported(ctx, sick))
 
@@ -1391,9 +1391,9 @@ func TestInstanceStudentRepository_FindNotScheduledCandidatesByInstanceIDs(t *te
 	manualRow := create(manualStudent.ID, scheduleModels.AttendanceStatusAbsent)
 	presentRow := create(presentStudent.ID, scheduleModels.AttendanceStatusPresent)
 
-	sick := &activeModels.StudentStatusDay{
-		StudentID: sickStudent.ID, Date: timezone.Date(date), Status: activeModels.StudentStatusDaySick,
-		ReportedAt: time.Date(2026, 10, 16, 7, 0, 0, 0, time.UTC), Source: activeModels.StudentStatusSourcePlanned,
+	sick := &absencerecords.StudentStatusDay{
+		StudentID: sickStudent.ID, Date: timezone.Date(date), Status: absencerecords.StudentStatusDaySick,
+		ReportedAt: time.Date(2026, 10, 16, 7, 0, 0, 0, time.UTC), Source: absencerecords.StudentStatusSourcePlanned,
 	}
 	require.NoError(t, factory.StudentStatusDay.UpsertReported(ctx, sick))
 

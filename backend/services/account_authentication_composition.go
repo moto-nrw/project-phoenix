@@ -15,6 +15,7 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/uptrace/bun"
@@ -60,7 +61,11 @@ type accountAuthenticationWiring struct {
 	// operator link reports it as unavailable.
 	operatorLinks *operatorLinkWiring
 	// demoAccess composes the public demo flow only for APP_ENV=demo.
-	demoAccess bool
+	demoAccess *demoAccessWiring
+	// demoStandingSchool is the slug of the standing demo school every demo
+	// access enters instead of a school of its own: the fallback of #3463.
+	// Empty gives every access its own school.
+	demoStandingSchool string
 }
 
 // sessionRepositories are the retained repositories the session seams read:
@@ -124,6 +129,10 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 	if err != nil {
 		return nil, err
 	}
+	demo, err := demoDependencies(wiring.demoAccess, wiring.demoStandingSchool, wiring.repos.schools.schools)
+	if err != nil {
+		return nil, err
+	}
 	// The reset delivery records its outcome through the module it is
 	// composed into, so it reads the module back at call time.
 	var module *identityaccess.Module
@@ -150,7 +159,7 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 			Logger:        wiring.logger,
 		},
 		Operators: wiring.operators,
-		Demo:      demoDependencies(wiring.demoAccess, wiring.repos.schools.schools),
+		Demo:      demo,
 	})
 	if err != nil {
 		return nil, err
@@ -158,30 +167,95 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 	return module, nil
 }
 
-func demoDependencies(enabled bool, schools organizationtenancy.Query) *identityaccessCompose.DemoDependencies {
-	if !enabled {
-		return nil
+func demoDependencies(wiring *demoAccessWiring, standingSchool string, schools organizationtenancy.Query) (*identityaccessCompose.DemoDependencies, error) {
+	if wiring == nil {
+		return nil, nil
+	}
+	if wiring.maxActiveSchools < 1 {
+		return nil, errors.New("the public demo requires serve --demo-max-active-schools above zero")
 	}
 	return &identityaccessCompose.DemoDependencies{
-		Schools:  demoSchoolDirectory{schools: schools},
+		Schools: demoSchoolDirectory{
+			schools: schools, orders: organizationCompose.NewDemoSchoolOrders(SecureRandomSource(), wiring.maxActiveSchools), standing: standingSchool,
+		},
+		Mail:     newDemoAccessMail(wiring),
 		NewToken: authjwt.NewOpaqueCapabilityToken, Fingerprint: authjwt.OpaqueCapabilityFingerprint,
-	}
+	}, nil
 }
 
-type demoSchoolDirectory struct{ schools organizationtenancy.Query }
+// StandingDemoSchoolSlug is the shared demo school `go run . demo` provisions.
+// Every demo access enters it while the fallback is selected; accesses issued
+// before #3463 carry it as well.
+const StandingDemoSchoolSlug = "messe-demo"
 
-func (d demoSchoolDirectory) FindDemoSchool(ctx context.Context, slug string) (int64, bool, error) {
-	school, err := d.schools.FindSchoolBySlug(ctx, slug)
+func standingDemoSchool(selected bool) string {
+	if selected {
+		return StandingDemoSchoolSlug
+	}
+	return ""
+}
+
+type demoSchoolDirectory struct {
+	schools  organizationtenancy.Query
+	orders   *organizationtenancy.DemoSchoolOrders
+	standing string
+}
+
+func (d demoSchoolDirectory) PrepareDemoSchool(ctx context.Context, schoolName, personName string) (string, error) {
+	if d.standing != "" {
+		return d.standing, nil
+	}
+	slug, err := d.orders.OrderDemoSchool(ctx, schoolName, personName)
+	if errors.Is(err, organizationtenancy.ErrDemoCapacityReached) {
+		return "", identityaccess.ErrDemoCapacityReached
+	}
+	return slug, err
+}
+
+// MarkDemoSchoolUsed notes an entry. The standing school has no order and is
+// always simulated, so there is nothing to note for it.
+func (d demoSchoolDirectory) MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error {
+	if slug == d.standing {
+		return nil
+	}
+	return d.orders.MarkDemoSchoolUsed(ctx, slug, usedAt)
+}
+
+func (d demoSchoolDirectory) DemoSchoolEntry(ctx context.Context, slug string) (identityaccess.DemoSchoolEntry, error) {
+	preparing := identityaccess.DemoSchoolEntry{Status: identityaccess.DemoSchoolPreparing}
+	progress, err := d.orders.DemoSchoolProgress(ctx, slug)
+	if err != nil {
+		return preparing, err
+	}
+	// The standing school is provisioned without an order; its school record
+	// alone tells whether it can be entered.
+	if progress == nil && slug != d.standing {
+		return preparing, nil
+	}
+	if progress != nil && progress.Status != organizationtenancy.DemoSchoolReady {
+		return identityaccess.DemoSchoolEntry{Status: progress.Status}, nil
+	}
+	var school organizationtenancy.School
+	if progress != nil {
+		// The order names the school it seeded; the slug is only its address.
+		school, err = d.schools.FindSchool(ctx, progress.SchoolID)
+	} else {
+		school, err = d.schools.FindSchoolBySlug(ctx, slug)
+	}
 	if errors.Is(err, organizationtenancy.ErrSchoolNotFound) {
-		return 0, false, nil
+		return preparing, nil
 	}
 	if err != nil {
-		return 0, false, err
+		return preparing, err
 	}
 	if !school.Active || school.IsDeleted() {
-		return 0, false, nil
+		return preparing, nil
 	}
-	return school.ID, true, nil
+	entry := identityaccess.DemoSchoolEntry{Status: identityaccess.DemoSchoolReady, SchoolID: school.ID}
+	if progress != nil {
+		entry.AccountID, entry.ParentAccountID = progress.VisitorAccountID, progress.VisitorParentAccountID
+	}
+	return entry, nil
 }
 
 // AccountAuthentication returns the Identity & Access module the session,
@@ -190,6 +264,13 @@ func (d demoSchoolDirectory) FindDemoSchool(ctx context.Context, slug string) (i
 // the consumer-owned runtimes of those that may not (#3364).
 func (f *Factory) AccountAuthentication() *identityaccess.Module {
 	return f.Auth
+}
+
+// AccountRouteTenantRuntime is the tenant runtime the account routes of
+// Identity & Access run in (#2736). The root may not name the module's
+// composition, so it takes the runtime from here.
+func AccountRouteTenantRuntime() identityaccessCompose.TenantUnitOfWork {
+	return identityaccessCompose.TenantUnitOfWork{}
 }
 
 // --- retained owner seams -------------------------------------------------

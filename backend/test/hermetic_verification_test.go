@@ -526,7 +526,7 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"makeMoveSetup",                    // modules/timetable/legacy/timetableplanning staff-pool/move tests (#1884) — wraps SetupTestDB
 		"buildDevSetup",                    // api/timetable deviations/protocol tests — wraps SetupTestDB
 		"setupAbsenceAdminTest",            // api/staff absence question tests (#1419) — wraps setupTestContext
-		"newOverviewFixture",               // modules/studentpresence/legacy/services/active overview/export integration tests (#1417) — wraps SetupTestDB
+		"newOverviewFixture",               // modules/studentpresence/internal/application/presence overview/export integration tests (#1417) — wraps SetupTestDB
 		"setupOverviewAPI",                 // api/staff overview/export tests (#1417) — wraps setupTestContext
 		"newTransitionFixture",             // services/education grade-transition workflow tests — wraps SetupTestDB
 		"buildLifecycle",                   // modules/timetable/legacy/timetableplanning instance-lifecycle tests — wraps SetupTestDB

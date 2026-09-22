@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
 // MonthSummary is the Monatskarte aggregate for one staff member and month
@@ -191,25 +191,25 @@ type monthShiftReader interface {
 	FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end timezone.Date) ([]*TimeTrackingShift, error)
 }
 
-// monthSessionReader is implemented by active.WorkSessionRepository.
+// monthSessionReader is implemented by timerecords.WorkSessionRepository.
 type monthSessionReader interface {
-	ListOverlappingByStaffID(ctx context.Context, staffID int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error)
+	ListOverlappingByStaffID(ctx context.Context, staffID int64, from time.Time, to *time.Time) ([]*WorkSession, error)
 }
 
-// monthBreakReader is implemented by active.WorkSessionBreakRepository.
+// monthBreakReader is implemented by timerecords.WorkSessionBreakRepository.
 type monthBreakReader interface {
-	GetBySessionID(ctx context.Context, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
-	GetBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64][]*activeModels.WorkSessionBreak, error)
+	GetBySessionID(ctx context.Context, sessionID int64) ([]*WorkSessionBreak, error)
+	GetBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64][]*WorkSessionBreak, error)
 }
 
-// monthAbsenceReader is implemented by active.StaffAbsenceRepository.
+// monthAbsenceReader is implemented by timerecords.StaffAbsenceRepository.
 type monthAbsenceReader interface {
-	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.StaffAbsence, error)
+	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffAbsence, error)
 }
 
-// monthAdjustmentReader is implemented by active.StaffBalanceAdjustmentRepository.
+// monthAdjustmentReader is implemented by timerecords.StaffBalanceAdjustmentRepository.
 type monthAdjustmentReader interface {
-	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.StaffBalanceAdjustment, error)
+	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffBalanceAdjustment, error)
 }
 
 // monthSnapshotReader is implemented by
@@ -419,7 +419,7 @@ type monthAggregates struct {
 	hasShifts        bool
 	plannedShift     int
 	adjustment       int
-	adjustments      []*activeModels.StaffBalanceAdjustment
+	adjustments      []*StaffBalanceAdjustment
 }
 
 func (a *monthAggregates) creditedTotal() int {
@@ -611,13 +611,13 @@ func (s *workTimeMonthService) addActualMinutes(ctx context.Context, staffID int
 	return nil
 }
 
-func (s *workTimeMonthService) breaksBySessionID(ctx context.Context, sessions []*activeModels.WorkSession) (map[int64][]*activeModels.WorkSessionBreak, error) {
+func (s *workTimeMonthService) breaksBySessionID(ctx context.Context, sessions []*WorkSession) (map[int64][]*WorkSessionBreak, error) {
 	ids := make([]int64, 0, len(sessions))
 	for _, session := range sessions {
 		ids = append(ids, session.ID)
 	}
 	if len(ids) == 0 {
-		return map[int64][]*activeModels.WorkSessionBreak{}, nil
+		return map[int64][]*WorkSessionBreak{}, nil
 	}
 	breaks, err := s.breakRepo.GetBySessionIDs(ctx, ids)
 	if err != nil {
@@ -629,7 +629,7 @@ func (s *workTimeMonthService) breaksBySessionID(ctx context.Context, sessions [
 // sessionEndUpTo clamps a session end at now. This prevents a future
 // check-out from being credited before it happens while preserving valid work
 // across Berlin midnight.
-func sessionEndUpTo(session *activeModels.WorkSession, now time.Time) time.Time {
+func sessionEndUpTo(session *WorkSession, now time.Time) time.Time {
 	end := now
 	if session.CheckOutTime != nil && session.CheckOutTime.Before(end) {
 		end = *session.CheckOutTime
@@ -640,16 +640,16 @@ func sessionEndUpTo(session *activeModels.WorkSession, now time.Time) time.Time 
 // maxOpenWorkSessionDuration is the shared live limit. The presence lookup in
 // database/repositories/active reads the same constant, so a block that stops
 // counting toward the balance stops marking its owner present as well.
-const maxOpenWorkSessionDuration = activeModels.MaxOpenWorkSessionDuration
+const maxOpenWorkSessionDuration = workforce.MaxOpenWorkSessionDuration
 
 // BalanceSessionEnd applies the live balance limit using the Berlin day of
 // now. Readers outside this package (notably the kiosk) use it so a running
 // block cannot produce a different total from the monthly balance.
-func BalanceSessionEnd(session *activeModels.WorkSession, now time.Time) time.Time {
+func BalanceSessionEnd(session *WorkSession, now time.Time) time.Time {
 	return balanceSessionEnd(session, now, timezone.DateFromTime(now))
 }
 
-func balanceSessionEnd(session *activeModels.WorkSession, now time.Time, today timezone.Date) time.Time {
+func balanceSessionEnd(session *WorkSession, now time.Time, today timezone.Date) time.Time {
 	end := sessionEndUpTo(session, now)
 	// A completed block is historical fact. Only still-open blocks (or a
 	// malformed future check-out) need a live safety limit.
@@ -687,7 +687,7 @@ func (s *workTimeMonthService) addAbsenceCredits(ctx context.Context, staffID in
 		through = today
 	}
 	walkCreditedAbsenceDays(absences, first, through, resolver.targetFor,
-		func(d timezone.Date, absence *activeModels.StaffAbsence, credit int, fraction float64) {
+		func(d timezone.Date, absence *StaffAbsence, credit int, fraction float64) {
 			creditAbsenceDay(absence, credit, fraction, aggregates[monthOf(d)])
 		})
 	return nil
@@ -696,7 +696,7 @@ func (s *workTimeMonthService) addAbsenceCredits(ctx context.Context, staffID in
 // absenceDayVisitor receives one effectively covered absence day together with
 // the minutes it credits (already 0 for Freizeitausgleich, already halved on a
 // half-day boundary) and the day fraction that credit represents.
-type absenceDayVisitor func(d timezone.Date, absence *activeModels.StaffAbsence, credit int, fraction float64)
+type absenceDayVisitor func(d timezone.Date, absence *StaffAbsence, credit int, fraction float64)
 
 // walkCreditedAbsenceDays applies the ONE set of absence rules every reader
 // prices days with — Monatskarte, Tageszeile, Stundenkonto: only
@@ -710,7 +710,7 @@ type absenceDayVisitor func(d timezone.Date, absence *activeModels.StaffAbsence,
 // (a planned comp-time day must still reserve its Soll). Callers that used to
 // carry their own copy of this walk drifted apart in exactly these details.
 func walkCreditedAbsenceDays(
-	absences []*activeModels.StaffAbsence,
+	absences []*StaffAbsence,
 	first, through timezone.Date,
 	targetFor func(timezone.Date) int,
 	visit absenceDayVisitor,
@@ -718,7 +718,7 @@ func walkCreditedAbsenceDays(
 	sort.Slice(absences, func(i, j int) bool { return absences[i].ID < absences[j].ID })
 	credited := make(map[timezone.Date]bool)
 	for _, absence := range absences {
-		if absence.Status != activeModels.AbsenceStatusReported && absence.Status != activeModels.AbsenceStatusApproved {
+		if absence.Status != AbsenceStatusReported && absence.Status != AbsenceStatusApproved {
 			continue
 		}
 		startHalf, endHalf := effectiveAbsenceBoundaryHalves(absence)
@@ -737,7 +737,7 @@ func walkCreditedAbsenceDays(
 				fraction = 0.5
 				credit = target / 2
 			}
-			if absence.AbsenceType == activeModels.AbsenceTypeCompTime {
+			if absence.AbsenceType == AbsenceTypeCompTime {
 				// Freizeitausgleich (#1420 5b) credits NOTHING: the day keeps
 				// its Soll, so the balance drops by the day's target. The day
 				// still counts as consumed above, so an overlapping vacation
@@ -752,24 +752,24 @@ func walkCreditedAbsenceDays(
 // creditAbsenceDay books one credited absence day into its month's counters.
 // The credit itself is already resolved by walkCreditedAbsenceDays; this only
 // routes it to the Lohnart the month card reports.
-func creditAbsenceDay(absence *activeModels.StaffAbsence, credit int, fraction float64, agg *monthAggregates) {
+func creditAbsenceDay(absence *StaffAbsence, credit int, fraction float64, agg *monthAggregates) {
 	if agg == nil {
 		return
 	}
 	switch absence.AbsenceType {
-	case activeModels.AbsenceTypeSick:
+	case AbsenceTypeSick:
 		agg.creditedSick += credit
 		agg.sickDays += fraction
-	case activeModels.AbsenceTypeVacation:
+	case AbsenceTypeVacation:
 		agg.creditedVacation += credit
 		agg.vacationDays += fraction
-	case activeModels.AbsenceTypeTraining:
+	case AbsenceTypeTraining:
 		// Fortbildung split (#1417 2b writers): a Lohnart "Fortbildung"
 		// needs hours OR days separately from "Sonstige" — same credit
 		// math, own counters.
 		agg.creditedTraining += credit
 		agg.trainingDays += fraction
-	case activeModels.AbsenceTypeCompTime:
+	case AbsenceTypeCompTime:
 		// Nothing to credit (see walkCreditedAbsenceDays); the type still
 		// needs its own case so it does not land in "Sonstige".
 	default:
@@ -780,14 +780,14 @@ func creditAbsenceDay(absence *activeModels.StaffAbsence, credit int, fraction f
 // effectiveAbsenceBoundaryHalves mirrors the absence service semantics: a
 // bare half_day flag with no explicit boundary flags means both boundaries
 // are half days.
-func effectiveAbsenceBoundaryHalves(absence *activeModels.StaffAbsence) (bool, bool) {
+func effectiveAbsenceBoundaryHalves(absence *StaffAbsence) (bool, bool) {
 	if absence.HalfDay && !absence.StartHalfDay && !absence.EndHalfDay {
 		return true, true
 	}
 	return absence.StartHalfDay, absence.EndHalfDay
 }
 
-func isHalfAbsenceDay(absence *activeModels.StaffAbsence, d timezone.Date, startHalf, endHalf bool) bool {
+func isHalfAbsenceDay(absence *StaffAbsence, d timezone.Date, startHalf, endHalf bool) bool {
 	if absence.DateStart == absence.DateEnd {
 		return d == absence.DateStart && (startHalf || endHalf)
 	}
@@ -1090,7 +1090,7 @@ func (s *workTimeMonthService) addCompTimeReductionCheckpoints(
 	staffID int64,
 	effectiveDate, last timezone.Date,
 	checkpoints map[timezone.Date]struct{},
-) ([]*activeModels.StaffAbsence, error) {
+) ([]*StaffAbsence, error) {
 	if s.absenceRepo == nil {
 		return nil, nil
 	}
@@ -1098,10 +1098,10 @@ func (s *workTimeMonthService) addCompTimeReductionCheckpoints(
 	if err != nil {
 		return nil, fmt.Errorf("failed to load comp-time absences for reduction validation: %w", err)
 	}
-	compTimeAbsences := make([]*activeModels.StaffAbsence, 0, len(absences))
+	compTimeAbsences := make([]*StaffAbsence, 0, len(absences))
 	for _, absence := range absences {
-		if absence.AbsenceType != activeModels.AbsenceTypeCompTime ||
-			(absence.Status != activeModels.AbsenceStatusReported && absence.Status != activeModels.AbsenceStatusApproved) {
+		if absence.AbsenceType != AbsenceTypeCompTime ||
+			(absence.Status != AbsenceStatusReported && absence.Status != AbsenceStatusApproved) {
 			continue
 		}
 		compTimeAbsences = append(compTimeAbsences, absence)
@@ -1118,7 +1118,7 @@ func (s *workTimeMonthService) minimumOpeningReductionCapacity(
 	ctx context.Context,
 	staffID int64,
 	checkpoints []timezone.Date,
-	compTimeAbsences []*activeModels.StaffAbsence,
+	compTimeAbsences []*StaffAbsence,
 	today timezone.Date,
 ) (int, error) {
 	capacity := int(^uint(0) >> 1)
@@ -1140,7 +1140,7 @@ func (s *workTimeMonthService) getOpeningBalanceOnDate(
 	ctx context.Context,
 	staffID int64,
 	date, today timezone.Date,
-	compTimeAbsences []*activeModels.StaffAbsence,
+	compTimeAbsences []*StaffAbsence,
 ) (int, error) {
 	anchor, err := s.chainAnchor(ctx, monthOf(today))
 	if err != nil {
@@ -1198,7 +1198,7 @@ func (s *workTimeMonthService) getCompTimeDeductionInRange(
 	ctx context.Context,
 	staffID int64,
 	from, to timezone.Date,
-	absences []*activeModels.StaffAbsence,
+	absences []*StaffAbsence,
 ) (int, error) {
 	if to.Before(from) {
 		return 0, nil
@@ -1232,7 +1232,7 @@ type compTimeRange struct {
 	end   timezone.Date
 }
 
-func clippedCompTimeRanges(absences []*activeModels.StaffAbsence, from, to timezone.Date) []compTimeRange {
+func clippedCompTimeRanges(absences []*StaffAbsence, from, to timezone.Date) []compTimeRange {
 	ranges := make([]compTimeRange, 0, len(absences))
 	for _, absence := range absences {
 		start, end := absence.DateStart, absence.DateEnd
@@ -1435,7 +1435,7 @@ func (s *workTimeMonthService) getDailyAbsenceCredits(
 	}
 	credits := make(map[timezone.Date]int)
 	walkCreditedAbsenceDays(absences, from, through, resolver.targetFor,
-		func(d timezone.Date, _ *activeModels.StaffAbsence, credit int, _ float64) {
+		func(d timezone.Date, _ *StaffAbsence, credit int, _ float64) {
 			credits[d] += credit
 		})
 	return credits, nil
@@ -1464,9 +1464,9 @@ func (s *workTimeMonthService) getRemainingCompTimeCommitment(
 	ctx context.Context,
 	staffID int64,
 	from timezone.Date,
-	absences []*activeModels.StaffAbsence,
+	absences []*StaffAbsence,
 ) (int, error) {
-	remaining := make([]*activeModels.StaffAbsence, 0, len(absences))
+	remaining := make([]*StaffAbsence, 0, len(absences))
 	var through timezone.Date
 	for _, absence := range absences {
 		if from.Before(absence.DateStart) || from.After(absence.DateEnd) {

@@ -16,16 +16,26 @@ vi.stubGlobal("crypto", {
 // SlideOver läuft über Vaul; in jsdom ersetzt dieser Mock die Bibliothek.
 vi.mock("vaul", async () => {
   const React = await import("react");
+  const OpenChangeContext = React.createContext<
+    ((open: boolean) => void) | undefined
+  >(undefined);
 
   return {
     Drawer: {
       Root: ({
         children,
         open,
+        onOpenChange,
       }: {
         children: React.ReactNode;
         open?: boolean;
-      }) => (open === false ? null : <div>{children}</div>),
+        onOpenChange?: (open: boolean) => void;
+      }) =>
+        open === false ? null : (
+          <OpenChangeContext.Provider value={onOpenChange}>
+            <div>{children}</div>
+          </OpenChangeContext.Provider>
+        ),
       Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
       Overlay: React.forwardRef<
         HTMLDivElement,
@@ -33,8 +43,28 @@ vi.mock("vaul", async () => {
       >((props, ref) => <div ref={ref} {...props} />),
       Content: React.forwardRef<
         HTMLDivElement,
-        React.HTMLAttributes<HTMLDivElement>
-      >((props, ref) => <div ref={ref} {...props} />),
+        React.HTMLAttributes<HTMLDivElement> & {
+          onInteractOutside?: (event: Event) => void;
+        }
+      >(({ onInteractOutside, children, ...props }, ref) => {
+        const onOpenChange = React.useContext(OpenChangeContext);
+        return (
+          <div ref={ref} {...props}>
+            {/* Radix' Vertrag: ein Klick neben den Inhalt schließt nur, wenn
+                onInteractOutside das Ereignis nicht abgewiesen hat. */}
+            <button
+              type="button"
+              data-testid="vaul-outside"
+              onClick={() => {
+                const event = new Event("pointerdown", { cancelable: true });
+                onInteractOutside?.(event);
+                if (!event.defaultPrevented) onOpenChange?.(false);
+              }}
+            />
+            {children}
+          </div>
+        );
+      }),
       Close: React.forwardRef<
         HTMLButtonElement,
         React.ButtonHTMLAttributes<HTMLButtonElement>
@@ -379,6 +409,27 @@ describe("GuardianFormModal", () => {
         name: "Erziehungsberechtigte/n hinzufügen",
       }),
     ).toBeInTheDocument();
+  });
+
+  it("keeps entered phone numbers when the user clicks next to the panel (#3370)", () => {
+    render(
+      <GuardianFormModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onSubmit={mockOnSubmit}
+        mode="create"
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Telefonnummer 1"), {
+      target: { value: "0171 1234567" },
+    });
+    fireEvent.click(screen.getByTestId("vaul-outside"));
+
+    expect(mockOnClose).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Telefonnummer 1")).toHaveValue(
+      "0171 1234567",
+    );
   });
 
   it("displays create title in create mode", () => {

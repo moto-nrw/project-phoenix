@@ -13,7 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -37,7 +37,7 @@ func TestListStudents_UnplannedPresenceEndsAtCheckout(t *testing.T) {
 	for _, student := range []int64{absent.ID, present.ID, checkedOut.ID} {
 		testpkg.CreateTestArrivalException(t, tc.db, student, today, staff.ID, "", "Kommt heute nicht")
 	}
-	testpkg.CreateTestStudentStatusDay(t, tc.db, sickPresent.ID, today, activeModel.StudentStatusDaySick)
+	testpkg.CreateTestStudentStatusDay(t, tc.db, sickPresent.ID, today, absencerecords.StudentStatusDaySick)
 
 	checkIn := fixedNow.Add(-time.Hour)
 	testpkg.CreateTestAttendance(t, tc.db, present.ID, staff.ID, device.ID, checkIn, nil)
@@ -92,7 +92,7 @@ func TestListStudents_ExpectedChildReadsSchoolBeforeFirstCheckIn(t *testing.T) {
 		testpkg.CreateTestPickupSchedule(t, tc.db, student, scheduleModel.WeekdayFriday, staff.ID, "15:30")
 	}
 	testpkg.CreateTestPickupSchedule(t, tc.db, pickupPassed.ID, scheduleModel.WeekdayFriday, staff.ID, "11:45")
-	testpkg.CreateTestStudentStatusDay(t, tc.db, sick.ID, today, activeModel.StudentStatusDaySick)
+	testpkg.CreateTestStudentStatusDay(t, tc.db, sick.ID, today, absencerecords.StudentStatusDaySick)
 	testpkg.CreateTestArrivalException(t, tc.db, notComing.ID, today, staff.ID, "", "Kommt heute nicht")
 
 	checkIn := fixedNow.Add(-2 * time.Hour)

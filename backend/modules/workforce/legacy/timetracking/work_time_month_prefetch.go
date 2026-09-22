@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
 // The adapters in this file let the Monatskarte math run over data loaded once
@@ -31,10 +30,10 @@ type monthPrefetch struct {
 	from, to timezone.Date
 
 	staff          map[int64]*StaffScheduleAssignment
-	sessions       map[int64][]*activeModels.WorkSession
-	breaks         map[int64][]*activeModels.WorkSessionBreak
-	absences       map[int64][]*activeModels.StaffAbsence
-	adjustments    map[int64][]*activeModels.StaffBalanceAdjustment
+	sessions       map[int64][]*WorkSession
+	breaks         map[int64][]*WorkSessionBreak
+	absences       map[int64][]*StaffAbsence
+	adjustments    map[int64][]*StaffBalanceAdjustment
 	shifts         map[int64][]*TimeTrackingShift
 	schedules      map[int64]WorkScheduleTargets
 	scheduleHist   map[int64]bool
@@ -97,9 +96,9 @@ func (r prefetchedStaffReader) ScheduleAssignment(_ context.Context, staffID int
 
 type prefetchedSessionReader struct{ p *monthPrefetch }
 
-func (r prefetchedSessionReader) ListOverlappingByStaffID(_ context.Context, staffID int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error) {
+func (r prefetchedSessionReader) ListOverlappingByStaffID(_ context.Context, staffID int64, from time.Time, to *time.Time) ([]*WorkSession, error) {
 	sessions := r.p.sessions[staffID]
-	result := make([]*activeModels.WorkSession, 0, len(sessions))
+	result := make([]*WorkSession, 0, len(sessions))
 	for _, session := range sessions {
 		end := time.Now()
 		if session.CheckOutTime != nil {
@@ -115,12 +114,12 @@ func (r prefetchedSessionReader) ListOverlappingByStaffID(_ context.Context, sta
 
 type prefetchedBreakReader struct{ p *monthPrefetch }
 
-func (r prefetchedBreakReader) GetBySessionID(_ context.Context, sessionID int64) ([]*activeModels.WorkSessionBreak, error) {
+func (r prefetchedBreakReader) GetBySessionID(_ context.Context, sessionID int64) ([]*WorkSessionBreak, error) {
 	return r.p.breaks[sessionID], nil
 }
 
-func (r prefetchedBreakReader) GetBySessionIDs(_ context.Context, sessionIDs []int64) (map[int64][]*activeModels.WorkSessionBreak, error) {
-	result := make(map[int64][]*activeModels.WorkSessionBreak, len(sessionIDs))
+func (r prefetchedBreakReader) GetBySessionIDs(_ context.Context, sessionIDs []int64) (map[int64][]*WorkSessionBreak, error) {
+	result := make(map[int64][]*WorkSessionBreak, len(sessionIDs))
 	for _, sessionID := range sessionIDs {
 		result[sessionID] = r.p.breaks[sessionID]
 	}
@@ -129,15 +128,15 @@ func (r prefetchedBreakReader) GetBySessionIDs(_ context.Context, sessionIDs []i
 
 type prefetchedAbsenceReader struct{ p *monthPrefetch }
 
-func (r prefetchedAbsenceReader) GetByStaffAndDateRange(_ context.Context, staffID int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
+func (r prefetchedAbsenceReader) GetByStaffAndDateRange(_ context.Context, staffID int64, _, _ timezone.Date) ([]*StaffAbsence, error) {
 	return r.p.absences[staffID], nil
 }
 
 type prefetchedAdjustmentReader struct{ p *monthPrefetch }
 
-func (r prefetchedAdjustmentReader) GetByStaffAndDateRange(_ context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.StaffBalanceAdjustment, error) {
+func (r prefetchedAdjustmentReader) GetByStaffAndDateRange(_ context.Context, staffID int64, from, to timezone.Date) ([]*StaffBalanceAdjustment, error) {
 	adjustments := r.p.adjustments[staffID]
-	result := make([]*activeModels.StaffBalanceAdjustment, 0, len(adjustments))
+	result := make([]*StaffBalanceAdjustment, 0, len(adjustments))
 	for _, adjustment := range adjustments {
 		if adjustment.EffectiveDate.Before(from) || adjustment.EffectiveDate.After(to) {
 			continue

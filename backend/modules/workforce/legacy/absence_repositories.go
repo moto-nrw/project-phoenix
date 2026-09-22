@@ -8,28 +8,28 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 )
 
-// The adapters in this file keep the retained models/active staff absence
+// The adapters in this file keep the retained timerecords staff absence
 // contracts alive on top of the Workforce capability while their consumers
 // migrate (#2688). They perform no persistence of their own: they map the
 // legacy models onto the public capability types and preserve the error
 // shapes those callers still classify on.
 
-// staffAbsenceRepository serves activeModels.StaffAbsenceRepository
+// staffAbsenceRepository serves timerecords.StaffAbsenceRepository
 // from the Workforce capability.
 type staffAbsenceRepository struct{ workforce workforce.Capability }
 
-func NewStaffAbsenceRepository(capability workforce.Capability) activeModels.StaffAbsenceRepository {
+func NewStaffAbsenceRepository(capability workforce.Capability) timerecords.StaffAbsenceRepository {
 	if capability == nil {
 		panic("staff absence repository adapter: Workforce capability is required")
 	}
 	return staffAbsenceRepository{workforce: capability}
 }
 
-func (r staffAbsenceRepository) Create(ctx context.Context, entity *activeModels.StaffAbsence) error {
+func (r staffAbsenceRepository) Create(ctx context.Context, entity *timerecords.StaffAbsence) error {
 	if entity == nil {
 		return errors.New("StaffAbsence cannot be nil or zero value")
 	}
@@ -41,7 +41,7 @@ func (r staffAbsenceRepository) Create(ctx context.Context, entity *activeModels
 	return nil
 }
 
-func (r staffAbsenceRepository) FindByID(ctx context.Context, id any) (*activeModels.StaffAbsence, error) {
+func (r staffAbsenceRepository) FindByID(ctx context.Context, id any) (*timerecords.StaffAbsence, error) {
 	absenceID, err := legacyID(id)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find by id", Err: err}
@@ -53,7 +53,7 @@ func (r staffAbsenceRepository) FindByID(ctx context.Context, id any) (*activeMo
 	return absenceToLegacy(value), nil
 }
 
-func (r staffAbsenceRepository) Update(ctx context.Context, entity *activeModels.StaffAbsence) error {
+func (r staffAbsenceRepository) Update(ctx context.Context, entity *timerecords.StaffAbsence) error {
 	if entity == nil {
 		return errors.New("StaffAbsence cannot be nil or zero value")
 	}
@@ -79,7 +79,7 @@ func (r staffAbsenceRepository) Delete(ctx context.Context, id any) error {
 	return nil
 }
 
-func (r staffAbsenceRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*activeModels.StaffAbsence, error) {
+func (r staffAbsenceRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*timerecords.StaffAbsence, error) {
 	filter, err := staffAbsenceFilterFromOptions(options)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list with options", Err: err}
@@ -130,15 +130,15 @@ func (r staffAbsenceRepository) LockStaffAbsenceWrites(ctx context.Context, staf
 	return r.workforce.LockStaffAbsenceWrites(ctx, staffID)
 }
 
-func (r staffAbsenceRepository) GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.StaffAbsence, error) {
+func (r staffAbsenceRepository) GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*timerecords.StaffAbsence, error) {
 	return r.list(ctx, "get absences by staff and date range", workforce.StaffAbsenceFilter{
 		StaffID: staffID, OverlapFrom: from.String(), OverlapTo: to.String(),
 		Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderDateStart}},
 	})
 }
 
-func (r staffAbsenceRepository) GetByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*activeModels.StaffAbsence, error) {
-	result := make(map[int64][]*activeModels.StaffAbsence, len(staffIDs))
+func (r staffAbsenceRepository) GetByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*timerecords.StaffAbsence, error) {
+	result := make(map[int64][]*timerecords.StaffAbsence, len(staffIDs))
 	if len(staffIDs) == 0 {
 		return result, nil
 	}
@@ -155,7 +155,7 @@ func (r staffAbsenceRepository) GetByStaffIDsAndDateRange(ctx context.Context, s
 	return result, nil
 }
 
-func (r staffAbsenceRepository) GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.StaffAbsence, error) {
+func (r staffAbsenceRepository) GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*timerecords.StaffAbsence, error) {
 	absences, err := r.list(ctx, "get absence by staff and date", workforce.StaffAbsenceFilter{
 		StaffID: staffID, OverlapFrom: date.String(), OverlapTo: date.String(),
 		Statuses: []string{workforce.AbsenceStatusReported, workforce.AbsenceStatusApproved}, Limit: 1,
@@ -182,7 +182,7 @@ func (r staffAbsenceRepository) GetAbsenceTypeIDMapForDate(ctx context.Context, 
 	return result, nil
 }
 
-func (r staffAbsenceRepository) ListByStatuses(ctx context.Context, statuses []string) ([]*activeModels.StaffAbsence, error) {
+func (r staffAbsenceRepository) ListByStatuses(ctx context.Context, statuses []string) ([]*timerecords.StaffAbsence, error) {
 	return r.list(ctx, "list absences by statuses", workforce.StaffAbsenceFilter{
 		Statuses: statuses, Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderRequestedAt}},
 	})
@@ -191,7 +191,7 @@ func (r staffAbsenceRepository) ListByStatuses(ctx context.Context, statuses []s
 // ListRequests is only correct once the composition layer has wrapped this
 // adapter: the subject and decider persons belong to School Membership, and
 // so does resolving filter.SubjectPersonIDs.
-func (r staffAbsenceRepository) ListRequests(ctx context.Context, filter activeModels.AbsenceRequestFilter) ([]*activeModels.AbsenceRequestRow, error) {
+func (r staffAbsenceRepository) ListRequests(ctx context.Context, filter timerecords.AbsenceRequestFilter) ([]*timerecords.AbsenceRequestRow, error) {
 	if filter.SubjectPersonIDs != nil {
 		return nil, errors.New("staff absence repository resolves subject persons through School Membership")
 	}
@@ -200,7 +200,7 @@ func (r staffAbsenceRepository) ListRequests(ctx context.Context, filter activeM
 
 // ListRequestRows returns absence requests narrowed to the subject staff IDs
 // (nil means no subject filter); names are attached by the composition layer.
-func (r staffAbsenceRepository) ListRequestRows(ctx context.Context, filter activeModels.AbsenceRequestFilter, subjectStaffIDs []int64) ([]*activeModels.AbsenceRequestRow, error) {
+func (r staffAbsenceRepository) ListRequestRows(ctx context.Context, filter timerecords.AbsenceRequestFilter, subjectStaffIDs []int64) ([]*timerecords.AbsenceRequestRow, error) {
 	absences, err := r.workforce.ListStaffAbsenceRequests(ctx, workforce.StaffAbsenceRequestFilter{
 		Statuses: filter.Statuses, Types: filter.Types, FilterSubjects: subjectStaffIDs != nil,
 		SubjectStaffIDs: subjectStaffIDs, Limit: filter.Limit, Decided: filter.Decided,
@@ -211,20 +211,20 @@ func (r staffAbsenceRepository) ListRequestRows(ctx context.Context, filter acti
 		}
 		return nil, readError("list absence requests", err, nil)
 	}
-	rows := make([]*activeModels.AbsenceRequestRow, 0, len(absences))
+	rows := make([]*timerecords.AbsenceRequestRow, 0, len(absences))
 	for _, absence := range absences {
-		rows = append(rows, &activeModels.AbsenceRequestRow{StaffAbsence: absenceToLegacy(absence)})
+		rows = append(rows, &timerecords.AbsenceRequestRow{StaffAbsence: absenceToLegacy(absence)})
 	}
 	return rows, nil
 }
 
-func (r staffAbsenceRepository) list(ctx context.Context, op string, filter workforce.StaffAbsenceFilter) ([]*activeModels.StaffAbsence, error) {
+func (r staffAbsenceRepository) list(ctx context.Context, op string, filter workforce.StaffAbsenceFilter) ([]*timerecords.StaffAbsence, error) {
 	values, err := r.workforce.ListStaffAbsences(ctx, filter)
 	if err != nil {
 		return nil, readError(op, err, nil)
 	}
 	// Empty, not nil: callers serialize the result straight to JSON.
-	result := make([]*activeModels.StaffAbsence, 0, len(values))
+	result := make([]*timerecords.StaffAbsence, 0, len(values))
 	for _, value := range values {
 		result = append(result, absenceToLegacy(value))
 	}
@@ -334,17 +334,17 @@ func applyStaffAbsenceCondition(filter *workforce.StaffAbsenceFilter, condition 
 }
 
 // staffAbsenceAuditRepository serves
-// activeModels.StaffAbsenceAuditRepository from the Workforce capability.
+// timerecords.StaffAbsenceAuditRepository from the Workforce capability.
 type staffAbsenceAuditRepository struct{ workforce workforce.Capability }
 
-func NewStaffAbsenceAuditRepository(capability workforce.Capability) activeModels.StaffAbsenceAuditRepository {
+func NewStaffAbsenceAuditRepository(capability workforce.Capability) timerecords.StaffAbsenceAuditRepository {
 	if capability == nil {
 		panic("staff absence audit repository adapter: Workforce capability is required")
 	}
 	return staffAbsenceAuditRepository{workforce: capability}
 }
 
-func (r staffAbsenceAuditRepository) Create(ctx context.Context, audit *activeModels.StaffAbsenceAudit) error {
+func (r staffAbsenceAuditRepository) Create(ctx context.Context, audit *timerecords.StaffAbsenceAudit) error {
 	if audit == nil {
 		return errors.New("staff absence audit cannot be nil")
 	}
@@ -367,7 +367,7 @@ func (r staffAbsenceAuditRepository) Create(ctx context.Context, audit *activeMo
 
 // --- mapping ---
 
-func absenceToWorkforce(entity *activeModels.StaffAbsence) workforce.StaffAbsence {
+func absenceToWorkforce(entity *timerecords.StaffAbsence) workforce.StaffAbsence {
 	return workforce.StaffAbsence{
 		ID: entity.ID, TenantID: entity.TenantID, StaffID: entity.StaffID, AbsenceType: entity.AbsenceType,
 		AbsenceTypeID: entity.AbsenceTypeID, DateStart: entity.DateStart.String(), DateEnd: entity.DateEnd.String(),
@@ -378,13 +378,13 @@ func absenceToWorkforce(entity *activeModels.StaffAbsence) workforce.StaffAbsenc
 	}
 }
 
-func absenceToLegacy(value workforce.StaffAbsence) *activeModels.StaffAbsence {
-	entity := &activeModels.StaffAbsence{}
+func absenceToLegacy(value workforce.StaffAbsence) *timerecords.StaffAbsence {
+	entity := &timerecords.StaffAbsence{}
 	applyAbsenceToLegacy(entity, value)
 	return entity
 }
 
-func applyAbsenceToLegacy(entity *activeModels.StaffAbsence, value workforce.StaffAbsence) {
+func applyAbsenceToLegacy(entity *timerecords.StaffAbsence, value workforce.StaffAbsence) {
 	entity.ID = value.ID
 	entity.CreatedAt = value.CreatedAt
 	entity.UpdatedAt = value.UpdatedAt

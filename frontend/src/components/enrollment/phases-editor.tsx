@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { CheckboxCard } from "~/components/ui/checkbox-card";
+import { TranslationsSection } from "~/components/enrollment/translations-section";
 import {
   type Phase,
   type PhaseAudience,
@@ -1815,6 +1816,24 @@ function PhaseForm(props: PhaseFormProps) {
           />
         </div>
       </fieldset>
+
+      <TranslationsSection
+        targets={
+          draft.name.trim() === ""
+            ? []
+            : [
+                {
+                  id: "name",
+                  caption: "Name der Anmeldephase",
+                  german: draft.name,
+                  attr: "name",
+                  translations: draft.translations,
+                },
+              ]
+        }
+        onChange={(_target, translations) => update({ translations })}
+        disabled={saving}
+      />
 
       <div className="flex justify-end gap-2">
         <Button

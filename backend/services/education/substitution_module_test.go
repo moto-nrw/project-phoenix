@@ -93,8 +93,7 @@ func TestAdditionalSupervisionExternalInterface(t *testing.T) {
 	require.Equal(t, running.ID, created.ActiveGroupID)
 	require.Equal(t, target.StaffID, created.Target.ID)
 
-	row, err := repos.GroupSupervisor.FindByID(ctx, created.ID)
-	require.NoError(t, err)
+	row := testpkg.GroupSupervisorRowByID(t, db, created.ID)
 	require.Equal(t, "additional_supervisor", row.Role)
 	require.Equal(t, timezone.DateFromTime(now), row.StartDate)
 	require.Nil(t, row.EndDate)
@@ -317,7 +316,7 @@ func TestAdditionalSupervisionRejectsConcurrentSessionEnd(t *testing.T) {
 	target, _ := activeTeacher(t, db, "Theo", "Target")
 	testpkg.CreateTestGroupSupervisor(t, db, owner.StaffID, running.ID, "supervisor")
 	entered := make(chan struct{})
-	groups := &testpkg.SignalingGroupRepository{GroupRepository: repos.ActiveGroup, Entered: entered}
+	groups := &testpkg.SignalingGroupRepository{SessionRecords: repos.ActiveGroup, Entered: entered}
 
 	module := substitution.NewSubstitutionModule(substitution.SubstitutionDependencies{
 		Groups: repos.Group, Substitutions: repos.GroupSubstitution, Teachers: repos.Teacher, Staff: repos.Staff,

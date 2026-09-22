@@ -35,7 +35,8 @@ import (
 // nor a staleness check for them, so a temporary permission outlives its issue
 // silently — 34 of the 39 families below cite only issues that are closed
 // today. The five exceptions all hang on #2725 or #2736: communication,
-// inbound-parent, inbound-usercontext, organization-tenancy, settings-platform.
+// inbound-parent, inbound-usercontext (gone with #3501), organization-tenancy,
+// settings-platform.
 //
 // This test does not fix any of that. It puts a number on the surface and lets
 // the number move one way only.
@@ -45,8 +46,24 @@ import (
 // rule deletions lower these seeds to 483 conversion promises and 581 wider
 // compatibility markers. The #3351 care-schedule cutover and the seven
 // file-storage rules #3461 removed lower them to 395 and 492, and the #3226
-// identity persistence rewrite to 392 and 487; this prose counter remains as
-// an independent guard.
+// identity persistence rewrite to 392 and 487, and the #2725 conversion of the
+// 46 user-context permissions to exact debt to 346 and 441, and the #3501
+// dissolution of the user-context package, which took its four Presence
+// rules along, to 342 and 437. The #3427 care-lifecycle cutover deleted the
+// 46 permissions #3350 had added and lowers them to 296 and 359. #2736
+// removed the #3232 operator permissions of Organisation & Tenancy, Settings
+// Platform and Communication and the two retained Presence and Care Plan
+// edges of the operator router, lowering them to 262 and 325. The #3422
+// statistics cutover dropped the statistics HTTP grant to the retained
+// Presence adapter, the #3422 Care Plan row handover moved the status-day and
+// excused-request rows out of the Presence nest and so dropped eleven stale
+// grants to it, the #3422 Workforce row handover left the scheduler's grant
+// to the retained Presence rows stale, and the two remaining #3422 slices
+// retired the presence services and the session rows and left 23 further
+// grants to the nest stale. Dissolving the nest also rewrote the nine
+// surviving grants of its own behaviour suites, which describe the module's
+// suites now and promise no conversion. Together with #2736 that lowers them
+// to 195 and 254; this prose counter remains as an independent guard.
 //
 // Three shrink-only measurements, all read-only on policy.json:
 //
@@ -96,12 +113,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 392
+	policyTempRulesTotal = 195
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 487
+	policyTempRulesCompatTotal = 254
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -126,109 +143,81 @@ var policyTempRulesCompatMarkers = []string{
 // when the family is empty, and never raise one.
 var policyTempRulesFamilies = map[string]int{
 	// #3214, #3218, #3220, #3224 — all closed.
-	"calendar-view": 6,
-
-	// #3350 (PR #3408) — closed. New family: the care-exit read projection
-	// modules/careplan/legacy/careexitview. No open ticket carries its
-	// conversion.
-	"care-exit-view": 2,
-
-	// #3220, #3224 — closed.
-	"class-day-view": 1,
-
-	// #2736 (OPEN), #3232, #3224.
-	"communication": 6,
+	// #3422 removed 2 that went stale with legacy/services/active.
+	"calendar-view": 2,
 
 	// #3218, #3219, #3220 — closed.
 	"document-rendering": 5,
 
-	// #3214, #3218, #3220 — closed; #3350 (PR #3408) added three.
-	"enrollment": 8,
+	// #3214, #3218, #3220 — closed; #3427 removed the three #3350 (PR #3408)
+	// had added.
+	"enrollment": 3,
 
-	// #3214, #3224 — closed.
-	"facilities": 2,
-
-	// #3214, #3218, #3220, #3224 — closed; #3350 (PR #3408) added one.
-	"group-live-view": 4,
+	// #3214, #3218, #3220, #3224 — closed; #3427 removed the one #3350 added.
+	// #3422 removed 1 that went stale with legacy/services/active.
+	"group-live-view": 1,
 
 	// #3364 — closed.
 	"identity-access": 18,
 
-	// #3224 — closed.
-	"inbound-birthdays": 1,
-
-	// #3214, #3224 — closed.
-	"inbound-common": 5,
-
-	// #3214, #3224 — closed.
-	"inbound-groups": 3,
-
-	// #3214 — closed; #3350 (PR #3408) added one.
-	"inbound-operator": 2,
-
 	// #3229, #3214, #3220 — closed; #2725 (OPEN) for one rule.
-	"inbound-parent": 29,
-
-	// #3224 — closed.
-	"inbound-sse": 1,
+	"inbound-parent": 27,
 
 	// #3219, #3218, #2730 — closed.
 	"inbound-staff-shifts": 37,
 
-	// #3214 — closed.
-	"inbound-statistics": 1,
-
-	// #3214, #3218, #3220, #3224 — closed; #3350 (PR #3408) added 36, the
-	// bulk of that PR's 46 new permissions.
-	"inbound-students": 43,
+	// #3214, #3218, #3220, #3224 — closed. #3427 removed the 36 that #3350
+	// (PR #3408) had added with the care-lifecycle adapter.
+	// #3422 removed 4 that went stale with legacy/services/active.
+	"inbound-students": 2,
 
 	// #3218, #3220, #3214, #3224 — closed. The largest family: 90 rules, every
 	// one of them permitted by an issue that is done.
-	"inbound-timetable": 83,
+	// #3422 removed 5 that went stale with legacy/services/active.
+	"inbound-timetable": 72,
 
 	// #2725 (OPEN) and #3224 (closed) name most rules jointly; #3214 the rest.
 	// The only large family with a live issue behind it.
-	"inbound-usercontext": 31,
 
-	// #3214, #3218, #3219, #3220, #3224 — closed; #3350 (PR #3408) added one.
-	"legacy-composition": 7,
+	// #3214, #3218, #3219, #3220, #3224 — closed; #3427 removed the one #3350
+	// (PR #3408) added.
+	// #3422 removed 1 that went stale with legacy/services/active.
+	"legacy-composition": 2,
 
-	// #3214 — closed.
-	"open-room-move": 2,
-
-	// #2736 (OPEN) and #3232 (closed) name most rules jointly; #3214 the rest.
-	"organization-tenancy": 14,
-
-	// #3214, #3218 — closed; #3350 (PR #3408) added one.
-	"people-directory": 4,
+	// #3214, #3218 — closed; #3427 removed the one #3350 (PR #3408) added.
+	// #3422 removed 1 that went stale with legacy/services/active.
+	"people-directory": 1,
 
 	// #3214, #3218, #3220 — closed.
-	"process-device-scan": 2,
+	// #3422 removed 1 that went stale with legacy/services/active.
+	"process-device-scan": 1,
 
 	// #3207, #3214, #3217, #3218, #3219, #3220, #3224, #3229 — all closed.
-	"root-composition": 9,
+	// #3422 removed 2 that went stale with legacy/services/active.
+	"root-composition": 6,
 
 	// #3214, #3218, #3220 — closed.
-	"scheduler-runtime": 7,
-
-	// #3224 — closed.
-	"school-calendar": 1,
+	// #3422 removed 3 that went stale with legacy/services/active.
+	"scheduler-runtime": 3,
 
 	// #3214, #3218 — closed.
-	"school-structure": 2,
+	"school-structure": 1,
 
-	// #2736 (OPEN) and #3232 (closed) name most rules jointly; #3207, #3214 the
-	// rest; #3350 (PR #3408) added one.
-	"settings-platform": 17,
+	// #3448 for the one test-support rule; #2736 removed the #3232 rules and
+	// #3427 the one #3350 (PR #3408) added.
+	"settings-platform": 1,
 
 	// #3214, #3207, #3218, #3224 — closed.
-	"student-presence": 28,
+	// #3422 removed 7 that went stale with legacy/services/active and rewrote
+	// the 9 of the dissolved nest's behaviour suites, which now describe the
+	// module's own suites and promise no conversion.
+	"student-presence": 5,
 
 	// #3214, #3218, #3229 — closed.
-	"test-support": 4,
+	"test-support": 2,
 
 	// #3214, #3218, #3220, #3224 — closed.
-	"timetable-activities": 3,
+	"timetable-activities": 2,
 
 	// #3219, #3218 — closed.
 	"workforce": 4,

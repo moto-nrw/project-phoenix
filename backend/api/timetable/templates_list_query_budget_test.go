@@ -27,7 +27,7 @@ func TestListTemplatesQueryBudget(t *testing.T) {
 	repos := mustTimetableTestRepositories(s.db)
 	_, settings := apiTest.SetupSettingsModule(t)
 	lister, ok := enrollmentSvc.NewDecisionService(enrollmentSvc.DecisionServiceConfig{
-		CareOfferingRepo:  repos.CareOffering,
+		CareOfferingRepo:  enrollmentSvc.NewCareOfferingRepository(repos.CarePlan),
 		ActivityGroupRepo: repos.ActivityGroup,
 		Settings:          settings.Settings,
 	}).(enrollmentSvc.OfferingSourceOptionLister)

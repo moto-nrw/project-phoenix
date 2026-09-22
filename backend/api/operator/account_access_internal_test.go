@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
 // The account school-access routes are Identity & Access routes (#3252)
@@ -62,8 +62,8 @@ func (m *mockAccountAccess) RevokeAccountTenantAccess(ctx context.Context, accou
 }
 
 func withOperatorClaims(req *http.Request, operatorID int) *http.Request {
-	claims := jwt.AppClaims{ID: operatorID, Scope: "platform"}
-	return req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, claims))
+	claims := testutil.Claims{ID: operatorID, Scope: "platform"}
+	return req.WithContext(testutil.WithAuthenticatedContext(req.Context(), claims, nil))
 }
 
 func decodeBody(t *testing.T, rr *httptest.ResponseRecorder) map[string]any {

@@ -7,7 +7,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/uptrace/bun"
@@ -15,10 +15,10 @@ import (
 
 type WorkSessionTestRepositories struct {
 	TimetableTestRepositories
-	WorkSession       activeModels.WorkSessionRepository
-	WorkSessionBreak  activeModels.WorkSessionBreakRepository
+	WorkSession       timerecords.WorkSessionRepository
+	WorkSessionBreak  timerecords.WorkSessionBreakRepository
 	WorkSessionEdit   auditModels.WorkSessionEditRepository
-	StaffAbsence      activeModels.StaffAbsenceRepository
+	StaffAbsence      timerecords.StaffAbsenceRepository
 	StaffWorkSchedule configModels.StaffWorkScheduleRepository
 	WorkTimeModel     configModels.WorkTimeModelRepository
 }

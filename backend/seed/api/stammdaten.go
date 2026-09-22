@@ -40,6 +40,7 @@ type FixedSeeder struct {
 	guardianIDs      map[string]int64   // guardian "firstName lastName" -> id
 	staffCredentials []StaffCredentials // created staff credentials for summary
 	accountScope     string             // slug all account emails and usernames carry; empty for the local seed
+	visitorName      string             // prospect of the public demo shown as one caregiver and one parent
 }
 
 // FixedResult contains counts of created entities
@@ -141,6 +142,9 @@ func (s *FixedSeeder) Seed(ctx context.Context) (*FixedResult, error) {
 	if err := s.seedSchoolPeriods(); err != nil {
 		return nil, fmt.Errorf("failed to seed school periods: %w", err)
 	}
+	if err := s.seedCareTimePresets(); err != nil {
+		return nil, fmt.Errorf("failed to seed care time presets: %w", err)
+	}
 	if err := s.seedClassArrivalTimes(ctx, result); err != nil {
 		return nil, fmt.Errorf("failed to seed class arrival times: %w", err)
 	}
@@ -216,6 +220,24 @@ func (s *FixedSeeder) seedSchoolPeriods() error {
 	}
 	if s.verbose {
 		fmt.Printf("  ✓ %d school periods seeded\n", len(endTimes))
+	}
+	return nil
+}
+
+// seedCareTimePresets maintains the usual arrival and pickup time of the demo
+// school (#3371), so the weekly plan offers them for one-click adoption.
+func (s *FixedSeeder) seedCareTimePresets() error {
+	presets := map[string]string{
+		"care_times.default_arrival": "12:30",
+		"care_times.default_pickup":  "16:00",
+	}
+	for key, value := range presets {
+		if _, err := s.client.Put("/api/settings/values/"+key, map[string]any{"value": value}); err != nil {
+			return fmt.Errorf("seed %s: %w", key, err)
+		}
+	}
+	if s.verbose {
+		fmt.Printf("  ✓ %d care time presets seeded\n", len(presets))
 	}
 	return nil
 }
@@ -739,11 +761,11 @@ func (s *FixedSeeder) seedGuardians(_ context.Context, result *FixedResult) erro
 
 		// 1. Create guardian profile
 		body := map[string]any{
-			"first_name":               guardian.FirstName,
-			"last_name":                guardian.LastName,
 			"preferred_contact_method": "email",
 			"language_preference":      "de",
 		}
+		body["first_name"], body["last_name"] = visitorDisplayName(s.visitorName, index == visitorGuardianIndex,
+			guardian.FirstName, guardian.LastName, DemoGuardians[visitorGuardianIndex].FirstName, DemoGuardians[visitorGuardianIndex].LastName)
 
 		// Add contact methods
 		if guardian.Email != "" {
@@ -1307,8 +1329,12 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 			"password":         password,
 			"confirm_password": password,
 			"role_id":          roleID,
-			"first_name":       staff.FirstName,
-			"last_name":        staff.LastName,
+		}
+		registerBody["first_name"], registerBody["last_name"] = visitorDisplayName(s.visitorName, i == visitorStaffIndex,
+			staff.FirstName, staff.LastName, DemoStaff[visitorStaffIndex].FirstName, DemoStaff[visitorStaffIndex].LastName)
+		if s.visitorName != "" && i == visitorStaffIndex {
+			// Until the demo roles exist the visitor keeps every function.
+			registerBody["role_id"] = adminRoleID
 		}
 
 		registerResp, err := s.client.Post("/auth/register", registerBody)

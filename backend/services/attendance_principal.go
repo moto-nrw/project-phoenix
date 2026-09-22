@@ -4,12 +4,12 @@ import (
 	"context"
 
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // AttendancePrincipal binds attendance to the device authentication projection.
-func AttendancePrincipal(ctx context.Context) active.RequestPrincipal {
+func AttendancePrincipal(ctx context.Context) presenceservice.RequestPrincipal {
 	return devicescanCompose.AttendancePrincipal(ctx)
 }
 

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,7 +34,7 @@ func TestBuildSchoolCheckinResponse_CheckedIn(t *testing.T) {
 	t.Parallel()
 
 	checkin := time.Now().Add(-1 * time.Hour)
-	status := &activeService.AttendanceStatus{
+	status := &studentpresence.DailyAttendanceStatus{
 		StudentID:   42,
 		Status:      "checked_in",
 		CheckInTime: &checkin,
@@ -58,7 +58,7 @@ func TestBuildSchoolCheckinResponse_OnYard(t *testing.T) {
 
 	checkin := time.Now().Add(-2 * time.Hour)
 	yard := time.Now().Add(-15 * time.Minute)
-	status := &activeService.AttendanceStatus{
+	status := &studentpresence.DailyAttendanceStatus{
 		StudentID:   42,
 		Status:      "on_yard",
 		CheckInTime: &checkin,
@@ -77,7 +77,7 @@ func TestBuildSchoolCheckinResponse_CheckedOut(t *testing.T) {
 	t.Parallel()
 
 	checkout := time.Now().Add(-5 * time.Minute)
-	status := &activeService.AttendanceStatus{
+	status := &studentpresence.DailyAttendanceStatus{
 		StudentID:    42,
 		Status:       "checked_out",
 		CheckOutTime: &checkout,
@@ -92,7 +92,7 @@ func TestBuildSchoolCheckinResponse_CheckedOut(t *testing.T) {
 func TestBuildSchoolCheckinResponse_NotCheckedIn(t *testing.T) {
 	t.Parallel()
 
-	status := &activeService.AttendanceStatus{
+	status := &studentpresence.DailyAttendanceStatus{
 		StudentID: 42,
 		Status:    "not_checked_in",
 	}
@@ -106,8 +106,8 @@ func TestBuildSchoolCheckinResponse_NotCheckedIn(t *testing.T) {
 }
 
 // =============================================================================
-// activeService.IsSchoolCheckinNoop — pure decision logic, no mocks needed
-// (moved from the handler into modules/studentpresence/legacy/services/active with the batch orchestration,
+// studentpresence.IsSchoolCheckinNoop — pure decision logic, no mocks needed
+// (moved from the handler into modules/studentpresence/internal/application/presence with the batch orchestration,
 // review #2372; cases and assertions unchanged)
 // =============================================================================
 
@@ -133,7 +133,7 @@ func TestIsIdempotentSchoolCheckin(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.wantNoOp, activeService.IsSchoolCheckinNoop(tc.action, tc.currentStatus))
+			assert.Equal(t, tc.wantNoOp, studentpresence.IsSchoolCheckinNoop(tc.action, tc.currentStatus))
 		})
 	}
 }

@@ -5,13 +5,13 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -22,11 +22,21 @@ func getPermissionsFromRequest(r *http.Request) []string {
 	return jwt.PermissionsFromCtx(r.Context())
 }
 
-func canUpdateStudent(ctx context.Context, userPermissions []string, student *users.Student, ucs userContextService.UserContextService) (bool, error) {
+// CallerContext is the slice of the Identity & Access caller context the
+// student routes read: the verified staff record, the caller's staff member
+// (found is false, without an error, for a caller who is no staff member)
+// and the student access decision.
+type CallerContext interface {
+	HasCurrentStaff(ctx context.Context) (bool, error)
+	CurrentStaffID(ctx context.Context) (staffID int64, found bool, err error)
+	common.StudentAccessSource
+}
+
+func canUpdateStudent(ctx context.Context, userPermissions []string, student *users.Student, ucs CallerContext) (bool, error) {
 	return authorize.CanUpdateStudent(ctx, userPermissions, student, ucs)
 }
 
-func canDeleteStudent(ctx context.Context, userPermissions []string, student *users.Student, ucs userContextService.UserContextService) (bool, error) {
+func canDeleteStudent(ctx context.Context, userPermissions []string, student *users.Student, ucs CallerContext) (bool, error) {
 	return authorize.CanDeleteStudent(ctx, userPermissions, student, ucs)
 }
 
@@ -42,7 +52,7 @@ func (rs *Resource) canManageStudentAbsence(ctx context.Context, userPermissions
 // excused statuses. Parent review and class trips retain their separate gates.
 func (rs *Resource) canManageStudentStatus(ctx context.Context, userPermissions []string, student *users.Student, status string) (bool, error) {
 	allowed, err := rs.canManageStudentAbsence(ctx, userPermissions, student)
-	if !allowed || err != nil || (status != activeModel.StudentStatusDaySick && status != activeModel.StudentStatusDayExcused) {
+	if !allowed || err != nil || (status != absencerecords.StudentStatusDaySick && status != absencerecords.StudentStatusDayExcused) {
 		return allowed, err
 	}
 	if authorize.HasAdminWildcard(userPermissions) {
@@ -81,7 +91,7 @@ func (rs *Resource) checkStudentAbsenceWriteAccess(r *http.Request, student *use
 }
 
 func (rs *Resource) checkStudentSickExcusedWriteAccess(r *http.Request, student *users.Student) bool {
-	ok, _ := rs.canManageStudentStatus(r.Context(), jwt.PermissionsFromCtx(r.Context()), student, activeModel.StudentStatusDaySick)
+	ok, _ := rs.canManageStudentStatus(r.Context(), jwt.PermissionsFromCtx(r.Context()), student, absencerecords.StudentStatusDaySick)
 	return ok
 }
 

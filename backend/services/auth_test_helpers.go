@@ -85,6 +85,21 @@ type authTestSettings struct {
 	mfaCapability    identityaccess.AccountMFA
 	mfaSettings      config.SettingsService
 	staffCreateErr   error
+	standingDemo     string
+	// demoMaxActiveSchools is the demo capacity; the default leaves room
+	// for every demo school the tests of a package queue.
+	demoMaxActiveSchools int
+}
+
+// WithDemoMaxActiveSchools composes the demo access with this capacity.
+func WithDemoMaxActiveSchools(capacity int) AuthTestOption {
+	return func(settings *authTestSettings) { settings.demoMaxActiveSchools = capacity }
+}
+
+// WithStandingDemoSchool composes the demo access with the fallback of #3463:
+// every access enters the school with this slug instead of its own.
+func WithStandingDemoSchool(slug string) AuthTestOption {
+	return func(settings *authTestSettings) { settings.standingDemo = slug }
 }
 
 // WithAuthTestMailer composes the module on the given mailer, so a test can
@@ -163,7 +178,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		return AuthTestModule{}, err
 	}
 	cfg := currentFactoryConfig()
-	settingsOverrides := authTestSettings{mailer: email.NewMockMailer(), rateLimitEnabled: cfg.RateLimitEnabled}
+	settingsOverrides := authTestSettings{mailer: email.NewMockMailer(), rateLimitEnabled: cfg.RateLimitEnabled, demoMaxActiveSchools: 300}
 	for _, option := range options {
 		option(&settingsOverrides)
 	}
@@ -226,8 +241,12 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 	}
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
 		repos: sessionRepos, codec: codec, settings: settings.Settings, audit: command, logger: logger,
-		operators:  operators,
-		demoAccess: true,
+		operators: operators,
+		demoAccess: &demoAccessWiring{
+			dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL,
+			logger: logger, backoff: settingsOverrides.resetBackoff, maxActiveSchools: settingsOverrides.demoMaxActiveSchools,
+		},
+		demoStandingSchool: settingsOverrides.standingDemo,
 		mfa: &mfaWiring{
 			repos: r, settings: mfaSettingsService(settings.Settings, settingsOverrides),
 			dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL,
@@ -237,6 +256,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		},
 		lifecycle: &lifecycleWiring{
 			settings: settings.Settings, audit: command,
+			caregivers: caregiverProfiles{persons: owners.persons, membership: owners.membership},
 			guardianMail: &guardianInvitationWiring{
 				settings: settings.Settings, schools: r.School,
 				outbox:      func() platformModels.OutboxEnqueuer { return outboxEnqueuer{outbox: deliveryModule.EmailOutbox} },
@@ -299,6 +319,10 @@ func IdentityAccessForTests(repos *repositories.Factory, cfg IdentityAccessTestC
 	if err != nil {
 		return nil, err
 	}
+	caregivers, err := caregiverProfilesForTests(db)
+	if err != nil {
+		return nil, err
+	}
 	module, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
 		repos: sessionRepositoriesOf(repos, repos.School), codec: codec, settings: cfg.Settings,
 		audit: cfg.Audit, logger: logger,
@@ -307,7 +331,7 @@ func IdentityAccessForTests(repos *repositories.Factory, cfg IdentityAccessTestC
 			dispatcher: cfg.Dispatcher, defaultFrom: cfg.DefaultFrom, frontendURL: cfg.FrontendURL,
 			jwtSecret: mfaTestSecret(), logger: logger,
 		},
-		lifecycle: &lifecycleWiring{settings: cfg.Settings, audit: cfg.Audit},
+		lifecycle: &lifecycleWiring{settings: cfg.Settings, audit: cfg.Audit, caregivers: caregivers},
 		resets: &passwordResetWiring{
 			dispatcher: cfg.Dispatcher, defaultFrom: cfg.DefaultFrom,
 			staffURL: cfg.FrontendURL, parentsURL: cfg.ParentsURL, schoolURL: cfg.SchoolURL,

@@ -55,7 +55,7 @@ func NewMembershipTestRepositories(db *bun.DB) (MembershipTestRepositories, erro
 		db: db, Group: group,
 		Person: NewPersonRepository(db),
 	}
-	repos.membershipDeps = newStaffMembershipDeps(repos.Person, newIdentityAccess(db, nil))
+	repos.membershipDeps = newStaffMembershipDeps(repos.Person, newIdentityAccess(db, nil), MustNewStaffEmployment(db))
 	repos.membershipDeps.groupTeachers = func() educationModels.GroupTeacherRepository { return repos.GroupTeacher }
 	repos.bindStaffMembershipAdapters(membership)
 	workTime, err := NewWorkforce(db, membership)

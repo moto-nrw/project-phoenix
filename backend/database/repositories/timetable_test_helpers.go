@@ -11,15 +11,14 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	facilitiesAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/uptrace/bun"
@@ -55,20 +54,21 @@ type TimetableTestRepositories struct {
 	Person                    usersModels.PersonRepository
 	Student                   usersModels.StudentRepository
 	Group                     educationModels.GroupRepository
-	ActiveGroup               activeModels.GroupRepository
-	GroupSupervisor           activeModels.GroupSupervisorRepository
+	ActiveGroup               studentpresence.SessionRecords
+	GroupSupervisor           studentpresence.SupervisionRecords
 	StudentArrivalSchedule    scheduleModels.StudentArrivalScheduleRepository
 	StudentArrivalException   scheduleModels.StudentArrivalExceptionRepository
 	StudentArrivalNote        scheduleModels.StudentArrivalNoteRepository
 	StudentPickupSchedule     scheduleModels.StudentPickupScheduleRepository
 	StudentPickupException    scheduleModels.StudentPickupExceptionRepository
 	StudentPickupNote         scheduleModels.StudentPickupNoteRepository
-	StudentStatusDay          activeModels.StudentStatusDayOverviewRepository
-	CareOffering              enrollmentModels.CareOfferingRepository
-	Room                      facilitiesModels.RoomRepository
-	DeviationEvent            auditModels.DeviationEventRepository
-	ClassArrivalTime          educationModels.ClassArrivalTimeRepository
-	ClassArrivalException     scheduleModels.ClassArrivalExceptionRepository
+	StudentStatusDay          *StudentStatusDayRepository
+	// CarePlan is the owner capability the schedule adapters above delegate to.
+	CarePlan              careplan.Capability
+	Room                  facilitiesModels.RoomRepository
+	DeviationEvent        auditModels.DeviationEventRepository
+	ClassArrivalTime      educationModels.ClassArrivalTimeRepository
+	ClassArrivalException scheduleModels.ClassArrivalExceptionRepository
 }
 
 func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (TimetableTestRepositories, error) {
@@ -101,20 +101,21 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
-	var repos *Factory
-	repos = &Factory{
+	sessions := newPresenceSessionRecords(presenceCompose.SessionRecordDependencies{
+		DB: db, Now: now, Rooms: &activeRoomDirectory{},
+		Activities: NewSessionActivities(timetableActivityGroupRepository{timetable: bookings}),
+		Staff:      &presenceSupervisionStaff{},
+	})
+	repos := &Factory{
 		db: db, Person: members.Person, Staff: members.Staff, Teacher: members.Teacher,
 		Group: members.Group, GroupTeacher: members.GroupTeacher, ClassTeacher: members.ClassTeacher,
-		Student: NewStudentRepository(db),
-		CareExitCleanup: carelifecycle.NewCareExitCleanupRepository(db, newCareExitCleanup(
-			db, &repos, NewEnrollmentBookingProjection(enrollmentCompose.New()), newStudentPresence(db), bookings,
-		)),
+		Student:    NewStudentRepository(db),
 		StaffShift: newWorkforceStaffShiftRepository(workTime), StaffShiftSeries: newWorkforceStaffShiftSeriesRepository(workTime),
 		StaffShiftSeriesException: newWorkforceStaffShiftSeriesExceptionRepository(workTime),
 		ShiftType:                 newWorkforceShiftTypeRepository(workTime),
 		InstanceStudent:           timetableInstanceStudentRepository{timetable: bookings},
-		ActiveGroup:               presenceCompose.NewLegacyGroupRepository(nil, NewPresenceGroupRecords(db), NewSessionActivities(timetableActivityGroupRepository{timetable: bookings}), presenceCompose.WithLegacyRoomDirectory(&activeRoomDirectory{})),
-		GroupSupervisor:           presenceCompose.NewLegacyGroupSupervisorRepository(NewPresenceSupervisionRecords(db), now),
+		ActiveGroup:               sessions,
+		GroupSupervisor:           sessions,
 		Room:                      facilitiesAdapter.New(),
 		DeviationEvent:            auditRepo.NewDeviationEventRepository(newTestAuditRuntime(db)),
 		ClassArrivalTime:          educationRepo.NewClassArrivalTimeRepository(db),
@@ -165,7 +166,7 @@ func timetableTestRepositories(r *Factory) TimetableTestRepositories {
 		StudentArrivalSchedule: r.StudentArrivalSchedule, StudentArrivalException: r.StudentArrivalException,
 		StudentArrivalNote: r.StudentArrivalNote, StudentPickupSchedule: r.StudentPickupSchedule,
 		StudentPickupException: r.StudentPickupException, StudentPickupNote: r.StudentPickupNote,
-		StudentStatusDay: r.StudentStatusDay, CareOffering: r.CareOffering,
+		StudentStatusDay: r.StudentStatusDay, CarePlan: r.carePlan,
 		Room: r.Room, DeviationEvent: r.DeviationEvent,
 		ClassArrivalTime: r.ClassArrivalTime, ClassArrivalException: r.ClassArrivalException,
 		enrollment: r.SubmissionRateLimit,

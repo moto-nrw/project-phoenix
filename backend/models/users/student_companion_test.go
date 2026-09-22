@@ -1,147 +1,8 @@
 package users
 
 import (
-	"errors"
 	"testing"
 )
-
-// TestNewStudentCompanion_NormalizesOrder pins the storage invariant behind the
-// DB CHECK (student_low_id < student_high_id): the pair is stored exactly once
-// per weekday no matter which child the caller edits, so removing the link from
-// one card removes the same row from the other.
-func TestNewStudentCompanion_NormalizesOrder(t *testing.T) {
-	t.Parallel()
-
-	const (
-		lower  = int64(41)
-		higher = int64(77)
-	)
-
-	tests := []struct {
-		name              string
-		studentID         int64
-		companionID       int64
-		expectedLowValue  int64
-		expectedHighValue int64
-	}{
-		{
-			name:              "already in low/high order",
-			studentID:         lower,
-			companionID:       higher,
-			expectedLowValue:  lower,
-			expectedHighValue: higher,
-		},
-		{
-			name:              "reversed arguments are swapped",
-			studentID:         higher,
-			companionID:       lower,
-			expectedLowValue:  lower,
-			expectedHighValue: higher,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			edge, err := NewStudentCompanion(tt.studentID, tt.companionID, 3)
-			if err != nil {
-				t.Fatalf("NewStudentCompanion() unexpected error: %v", err)
-			}
-			if edge.StudentLowID != tt.expectedLowValue {
-				t.Errorf("StudentLowID = %d, want %d", edge.StudentLowID, tt.expectedLowValue)
-			}
-			if edge.StudentHighID != tt.expectedHighValue {
-				t.Errorf("StudentHighID = %d, want %d", edge.StudentHighID, tt.expectedHighValue)
-			}
-			if edge.StudentLowID >= edge.StudentHighID {
-				t.Errorf("low must be strictly smaller than high, got %d/%d", edge.StudentLowID, edge.StudentHighID)
-			}
-			if edge.Weekday != 3 {
-				t.Errorf("Weekday = %d, want 3", edge.Weekday)
-			}
-		})
-	}
-}
-
-// TestNewStudentCompanion_Rejects covers the constructor's guard rails: the
-// invalid combinations must never reach the database, where they would either
-// violate the CHECK constraint or silently store an unreadable weekday.
-func TestNewStudentCompanion_Rejects(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name        string
-		studentID   int64
-		companionID int64
-		weekday     int
-		wantErr     error
-	}{
-		{
-			name:        "self link",
-			studentID:   12,
-			companionID: 12,
-			weekday:     1,
-			wantErr:     ErrCompanionSelfLink,
-		},
-		{
-			name:        "weekday below range",
-			studentID:   12,
-			companionID: 13,
-			weekday:     0,
-			wantErr:     ErrCompanionInvalidWeekday,
-		},
-		{
-			name:        "weekend weekday",
-			studentID:   12,
-			companionID: 13,
-			weekday:     6,
-			wantErr:     ErrCompanionInvalidWeekday,
-		},
-		{
-			name:        "weekday above range",
-			studentID:   12,
-			companionID: 13,
-			weekday:     9,
-			wantErr:     ErrCompanionInvalidWeekday,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			edge, err := NewStudentCompanion(tt.studentID, tt.companionID, tt.weekday)
-			if err == nil {
-				t.Fatalf("NewStudentCompanion() expected an error, got edge %+v", edge)
-			}
-			if !errors.Is(err, tt.wantErr) {
-				t.Errorf("error = %v, want errors.Is(..., %v)", err, tt.wantErr)
-			}
-			if edge != nil {
-				t.Errorf("expected a nil edge on error, got %+v", edge)
-			}
-		})
-	}
-}
-
-// TestNewStudentCompanion_RejectsMissingIDs guards the zero/negative id case,
-// which would otherwise insert a row pointing at no child at all.
-func TestNewStudentCompanion_RejectsMissingIDs(t *testing.T) {
-	t.Parallel()
-
-	for _, tt := range []struct {
-		name        string
-		studentID   int64
-		companionID int64
-	}{
-		{name: "missing student", studentID: 0, companionID: 5},
-		{name: "missing companion", studentID: 5, companionID: 0},
-		{name: "negative id", studentID: -1, companionID: 5},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			if _, err := NewStudentCompanion(tt.studentID, tt.companionID, 1); err == nil {
-				t.Fatal("expected an error for a missing student ID")
-			}
-		})
-	}
-}
 
 // TestStudentCompanion_Other checks the far-end lookup from both endpoints and
 // from a child that is not part of the edge at all — the "ok" flag is what
@@ -149,10 +10,7 @@ func TestNewStudentCompanion_RejectsMissingIDs(t *testing.T) {
 func TestStudentCompanion_Other(t *testing.T) {
 	t.Parallel()
 
-	edge, err := NewStudentCompanion(10, 20, 1)
-	if err != nil {
-		t.Fatalf("NewStudentCompanion() unexpected error: %v", err)
-	}
+	edge := &StudentCompanion{StudentLowID: 10, StudentHighID: 20, Weekday: 1}
 
 	t.Run("from the low endpoint", func(t *testing.T) {
 		other, ok := edge.Other(10)
@@ -183,35 +41,6 @@ func TestStudentCompanion_Other(t *testing.T) {
 			t.Errorf("Other(30) = %d, want 0", other)
 		}
 	})
-}
-
-// TestCompanionWeekdayNumber pins the key<->number translation both API
-// directions depend on.
-func TestCompanionWeekdayNumber(t *testing.T) {
-	t.Parallel()
-
-	for key, want := range map[string]int{
-		PickupDayMonday:    1,
-		PickupDayTuesday:   2,
-		PickupDayWednesday: 3,
-		PickupDayThursday:  4,
-		PickupDayFriday:    5,
-	} {
-		got, err := CompanionWeekdayNumber(key)
-		if err != nil {
-			t.Fatalf("CompanionWeekdayNumber(%q) unexpected error: %v", key, err)
-		}
-		if got != want {
-			t.Errorf("CompanionWeekdayNumber(%q) = %d, want %d", key, got, want)
-		}
-		if back := CompanionWeekdayKeys[want]; back != key {
-			t.Errorf("CompanionWeekdayKeys[%d] = %q, want %q", want, back, key)
-		}
-	}
-
-	if _, err := CompanionWeekdayNumber("sat"); !errors.Is(err, ErrCompanionInvalidWeekday) {
-		t.Errorf("CompanionWeekdayNumber(\"sat\") error = %v, want ErrCompanionInvalidWeekday", err)
-	}
 }
 
 // TestCompanionLinksFingerprint_OrderIndependent pins that the fingerprint

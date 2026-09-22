@@ -160,7 +160,23 @@ var modulePassthroughBudgets = map[string]int{
 	// forward one store call per schedule and record operation, plus
 	// withdrawals (12), the care-exit/companion service surface (15) and the
 	// student-deletion and excused-request entry points.
-	"modules/careplan": 105,
+	//
+	// The one raise in this register, 105 → 112 with #3427: the care-lifecycle
+	// adapter (5,278 LOC, never scanned because it sat under legacy/) became
+	// native Care Plan application code, and eight of its methods keep the
+	// counted shape while each carries a rule of its own — GetPendingWithdrawal
+	// (state check and error mapping), LockStudentsForUpdateBelow (the
+	// no-wait lock order), CompanionIDsForWeekday and ListCompanionsForStudents
+	// (weekday and empty-set validation), QueueStudentDocumentFileCleanup
+	// (intent validation and delay), ResolveStudentDocumentCleanup,
+	// ListDeletedStudentDocumentsPendingFileCleanup and
+	// CanSeeStudentDocumentCategory (category authority). The same change
+	// removed nine counted forwarders: three file-sweep reads and marks folded
+	// into one owner command, three File Storage port methods bound in
+	// composition, the dead ListWithdrawalCompletionKeys, the People stranding
+	// forward and the internal-only AdministrativelyVisibleStudentIDs.
+	// Shrink-only from here like every other entry.
+	"modules/careplan": 112,
 	// The caller, report and arrival-exception ports reached straight
 	// through, most of them behind a nil-port guard and a date parse.
 	"modules/classday": 9,
@@ -204,12 +220,18 @@ var modulePassthroughBudgets = map[string]int{
 	"modules/schoolcalendar": 15,
 	// Membership service reads (17), teaching assignments (11) and the
 	// class-list-entry surface (5).
-	"modules/schoolmembership": 33,
+	"modules/schoolmembership": 28,
 	// School-year transition (9) plus the transition history and service reads.
 	"modules/schoolstructure": 13,
 	// Attendance, visit, supervision, group-mapping and room reads/writes
-	// across 18 files, each one store call inside the operation wrapper.
-	"modules/studentpresence": 64,
+	// across 18 files, each one store call inside the operation wrapper (64).
+	// internal/application/presence (#3422) adds 12 that map a single read or
+	// write onto the capability's contract: presence-mode validation, the
+	// visit and session lookups that turn port failures and misses into the
+	// public sentinels (ErrVisitNotFound, ErrNoActiveSession), the room and
+	// present-today projections, the combined-group validation and the
+	// status-day upsert guarded by the exception-day lock.
+	"modules/studentpresence": 76,
 	// The largest block, and the one the previous version could not see at
 	// all: service.go (23), instance_students.go (21), activity_instances.go
 	// (14) and 19 more files, every one of them s.run around a single

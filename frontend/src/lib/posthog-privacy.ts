@@ -14,9 +14,14 @@ const allowedEvents = new Set([
   "pwa_install_prompt_accepted",
   "pwa_install_prompt_dismissed",
   "pwa_installed",
+  // Public demo (#3467): the visitor is the demo access, never a person.
+  "demo_entered",
+  "demo_role_switched",
+  "demo_start_clicked",
 ]);
 
 const safePropertyValues: Readonly<Record<string, ReadonlySet<string>>> = {
+  demo_role: new Set(["caregiver", "lead", "parent", "all"]),
   direction: new Set(["up", "down"]),
   export_type: new Set(["rooms", "emergency", "students"]),
   format: new Set(["pdf", "docx", "xlsx"]),
@@ -76,6 +81,16 @@ function sanitizeProperties(properties: Properties): Properties {
     }
     if (key === "deployment" && isSafeDeployment(value)) {
       safe.deployment = value;
+      continue;
+    }
+    // The demo source is a campaign label from the website (`messe`,
+    // `website`); anything else could be typed-in personal data.
+    if (
+      key === "src" &&
+      typeof value === "string" &&
+      /^[a-z0-9_-]{1,40}$/i.test(value)
+    ) {
+      safe.src = value;
       continue;
     }
     if (key === "school_id" && isSafeSchoolID(value)) {

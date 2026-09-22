@@ -15,18 +15,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/operator"
-	"github.com/moto-nrw/project-phoenix/models/platform"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
 func TestGetProfile_Success(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{
-		getOperatorFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
+		getOperatorFn: func(ctx context.Context, id int64) (*identityaccess.Operator, error) {
 			assert.Equal(t, int64(123), id)
-			op := &platform.Operator{
+			op := &identityaccess.Operator{
 				Email:       "operator@example.com",
 				DisplayName: "Test Operator",
 			}
@@ -35,11 +34,11 @@ func TestGetProfile_Success(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	req := httptest.NewRequest(http.MethodGet, "/profile", nil)
-	claims := jwt.AppClaims{ID: 123}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := testutil.Claims{ID: 123}
+	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -61,16 +60,16 @@ func TestGetProfile_OperatorNotFound(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{
-		getOperatorFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
+		getOperatorFn: func(ctx context.Context, id int64) (*identityaccess.Operator, error) {
 			return nil, identityoperator.ErrOperatorNotFound
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	req := httptest.NewRequest(http.MethodGet, "/profile", nil)
-	claims := jwt.AppClaims{ID: 999}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := testutil.Claims{ID: 999}
+	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -84,16 +83,16 @@ func TestGetProfile_ServiceError(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{
-		getOperatorFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
+		getOperatorFn: func(ctx context.Context, id int64) (*identityaccess.Operator, error) {
 			return nil, errors.New("database error")
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	req := httptest.NewRequest(http.MethodGet, "/profile", nil)
-	claims := jwt.AppClaims{ID: 123}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := testutil.Claims{ID: 123}
+	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -107,10 +106,10 @@ func TestUpdateProfile_Success(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{
-		updateProfileFn: func(ctx context.Context, operatorID int64, displayName string) (*platform.Operator, error) {
+		updateProfileFn: func(ctx context.Context, operatorID int64, displayName string) (*identityaccess.Operator, error) {
 			assert.Equal(t, int64(123), operatorID)
 			assert.Equal(t, "New Display Name", displayName)
-			op := &platform.Operator{
+			op := &identityaccess.Operator{
 				Email:       "operator@example.com",
 				DisplayName: "New Display Name",
 			}
@@ -127,8 +126,8 @@ func TestUpdateProfile_Success(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPut, "/profile", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 123}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := testutil.Claims{ID: 123}
+	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -156,8 +155,8 @@ func TestUpdateProfile_EmptyDisplayName(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPut, "/profile", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 123}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := testutil.Claims{ID: 123}
+	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -175,8 +174,8 @@ func TestUpdateProfile_InvalidJSON(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPut, "/profile", bytes.NewReader([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 123}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := testutil.Claims{ID: 123}
+	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -189,7 +188,7 @@ func TestUpdateProfile_InvalidData(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{
-		updateProfileFn: func(ctx context.Context, operatorID int64, displayName string) (*platform.Operator, error) {
+		updateProfileFn: func(ctx context.Context, operatorID int64, displayName string) (*identityaccess.Operator, error) {
 			return nil, &identityoperator.InvalidInputError{Err: errors.New("display name too long")}
 		},
 	}
@@ -202,8 +201,8 @@ func TestUpdateProfile_InvalidData(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPut, "/profile", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 123}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := testutil.Claims{ID: 123}
+	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -233,8 +232,8 @@ func TestChangePassword_Success(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/profile/password", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 123}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := testutil.Claims{ID: 123}
+	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -257,8 +256,8 @@ func TestChangePassword_EmptyCurrentPassword(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/profile/password", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 123}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := testutil.Claims{ID: 123}
+	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -281,8 +280,8 @@ func TestChangePassword_EmptyNewPassword(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/profile/password", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 123}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := testutil.Claims{ID: 123}
+	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -300,8 +299,8 @@ func TestChangePassword_InvalidJSON(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/profile/password", bytes.NewReader([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 123}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := testutil.Claims{ID: 123}
+	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -328,8 +327,8 @@ func TestChangePassword_PasswordMismatch(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/profile/password", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 123}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := testutil.Claims{ID: 123}
+	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -343,7 +342,7 @@ func TestUpdateProfileRequest_Bind(t *testing.T) {
 	t.Parallel()
 
 	req := httptest.NewRequest(http.MethodPut, "/profile", nil)
-	updateReq := &operator.UpdateProfileRequest{}
+	updateReq := &identityoperator.UpdateProfileRequest{}
 
 	err := updateReq.Bind(req)
 	assert.NoError(t, err)
@@ -353,7 +352,7 @@ func TestChangePasswordRequest_Bind(t *testing.T) {
 	t.Parallel()
 
 	req := httptest.NewRequest(http.MethodPost, "/profile/password", nil)
-	changeReq := &operator.ChangePasswordRequest{}
+	changeReq := &identityoperator.ChangePasswordRequest{}
 
 	err := changeReq.Bind(req)
 	assert.NoError(t, err)
@@ -375,7 +374,7 @@ func TestInitiateEmailChange_Success(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"new_email":        "new@example.com",
@@ -384,8 +383,8 @@ func TestInitiateEmailChange_Success(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/profile/email-change", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 123}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := testutil.Claims{ID: 123}
+	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -399,7 +398,7 @@ func TestInitiateEmailChange_EmptyNewEmail(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{}
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"new_email":        "",
@@ -408,8 +407,8 @@ func TestInitiateEmailChange_EmptyNewEmail(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/profile/email-change", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 123}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := testutil.Claims{ID: 123}
+	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -423,7 +422,7 @@ func TestInitiateEmailChange_EmptyPassword(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{}
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"new_email":        "new@example.com",
@@ -432,8 +431,8 @@ func TestInitiateEmailChange_EmptyPassword(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/profile/email-change", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 123}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := testutil.Claims{ID: 123}
+	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -447,12 +446,12 @@ func TestInitiateEmailChange_InvalidJSON(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{}
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	req := httptest.NewRequest(http.MethodPost, "/profile/email-change", bytes.NewReader([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 123}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := testutil.Claims{ID: 123}
+	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -470,7 +469,7 @@ func TestInitiateEmailChange_PasswordMismatch(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"new_email":        "new@example.com",
@@ -479,8 +478,8 @@ func TestInitiateEmailChange_PasswordMismatch(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/profile/email-change", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 123}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := testutil.Claims{ID: 123}
+	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -499,7 +498,7 @@ func TestInitiateEmailChange_SameEmail(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"new_email":        "same@example.com",
@@ -508,8 +507,8 @@ func TestInitiateEmailChange_SameEmail(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/profile/email-change", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 123}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := testutil.Claims{ID: 123}
+	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -528,7 +527,7 @@ func TestInitiateEmailChange_EmailAlreadyInUse(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"new_email":        "taken@example.com",
@@ -537,8 +536,8 @@ func TestInitiateEmailChange_EmailAlreadyInUse(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/profile/email-change", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 123}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := testutil.Claims{ID: 123}
+	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -557,7 +556,7 @@ func TestInitiateEmailChange_RateLimit(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"new_email":        "new@example.com",
@@ -566,8 +565,8 @@ func TestInitiateEmailChange_RateLimit(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/profile/email-change", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 123}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := testutil.Claims{ID: 123}
+	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -586,7 +585,7 @@ func TestInitiateEmailChange_OperatorInactive(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"new_email":        "new@example.com",
@@ -595,8 +594,8 @@ func TestInitiateEmailChange_OperatorInactive(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/profile/email-change", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 123}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := testutil.Claims{ID: 123}
+	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -615,7 +614,7 @@ func TestInitiateEmailChange_ServiceError(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"new_email":        "new@example.com",
@@ -624,8 +623,8 @@ func TestInitiateEmailChange_ServiceError(t *testing.T) {
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/profile/email-change", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	claims := jwt.AppClaims{ID: 123}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	claims := testutil.Claims{ID: 123}
+	ctx := testutil.WithAuthenticatedContext(req.Context(), claims, nil)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -650,7 +649,7 @@ func TestConfirmEmailChange_Success(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"token": testUUID,
@@ -676,7 +675,7 @@ func TestConfirmEmailChange_EmptyToken(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{}
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"token": "",
@@ -696,7 +695,7 @@ func TestConfirmEmailChange_InvalidJSON(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{}
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/email-confirm", bytes.NewReader([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
@@ -717,7 +716,7 @@ func TestConfirmEmailChange_TokenInvalid(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"token": testUUID,
@@ -743,7 +742,7 @@ func TestConfirmEmailChange_EmailAlreadyInUse(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"token": testUUID,
@@ -770,7 +769,7 @@ func TestConfirmEmailChange_OperatorInactive(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"token": testUUID,
@@ -797,7 +796,7 @@ func TestConfirmEmailChange_ServiceError(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"token": testUUID,
@@ -820,7 +819,7 @@ func TestConfirmEmailChange_WhitespaceToken(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{}
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"token": "   ",
@@ -840,7 +839,7 @@ func TestInitiateEmailChangeRequest_Bind(t *testing.T) {
 	t.Parallel()
 
 	req := httptest.NewRequest(http.MethodPost, "/profile/email-change", nil)
-	changeReq := &operator.InitiateEmailChangeRequest{
+	changeReq := &identityoperator.InitiateEmailChangeRequest{
 		NewEmail:        "test@example.com",
 		CurrentPassword: "password",
 	}
@@ -853,7 +852,7 @@ func TestConfirmEmailChangeRequest_Bind(t *testing.T) {
 	t.Parallel()
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/email-confirm", nil)
-	confirmReq := &operator.ConfirmEmailChangeRequest{
+	confirmReq := &identityoperator.ConfirmEmailChangeRequest{
 		Token: "00000000-0000-4000-a000-000000000001",
 	}
 
@@ -865,7 +864,7 @@ func TestConfirmEmailChange_InvalidTokenFormat(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{}
-	resource := operator.NewProfileResource(mockService)
+	resource := identityoperator.NewProfileResource(mockService)
 
 	body := map[string]string{
 		"token": "not-a-valid-uuid",

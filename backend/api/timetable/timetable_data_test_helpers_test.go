@@ -58,13 +58,13 @@ func testTimetableDataWithOfferingCallbacks(
 		panic(err)
 	}
 	activityInstanceRepo := timetablesqltest.NewActivityInstanceRepository(db)
-	supervisorRepo := presenceCompose.NewLegacyGroupSupervisorRepository(repositories.NewPresenceSupervisionRecords(db))
+	supervisorRepo := repositories.NewPresenceSessionRecords(db)
 	var today func() timezone.Date
 	if len(clocks) > 0 && clocks[0] != nil {
 		clock := clocks[0]
 		today = func() timezone.Date { return timezone.DateFromTime(clock()) }
 		activityInstanceRepo = timetablesqltest.NewActivityInstanceRepository(db, clock)
-		supervisorRepo = presenceCompose.NewLegacyGroupSupervisorRepository(repositories.NewPresenceSupervisionRecords(db), clock)
+		supervisorRepo = repositories.NewPresenceSessionRecords(db, clock)
 	}
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	if err != nil {

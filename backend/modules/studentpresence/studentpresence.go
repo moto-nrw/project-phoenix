@@ -115,6 +115,7 @@ func (m *Module) CloseOpenPresence(ctx context.Context, studentIDs []int64, at t
 
 type Capability interface {
 	Query
+	SupervisedLiveGroupQuery
 	Command
 }
 

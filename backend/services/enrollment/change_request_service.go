@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
@@ -1347,6 +1348,12 @@ func (s *changeRequestService) lockApprovedStudents(ctx context.Context, childre
 		return nil
 	}
 	if err := s.CompanionGraphLocker.LockCompanionGraph(ctx, ids, nil); err != nil {
+		// Care Plan reports a linked child held elsewhere with its own
+		// sentinel; the approval answers with the student write's retriable
+		// conflict, the one the handler maps to 409.
+		if errors.Is(err, careplan.ErrCompanionLockBusy) {
+			err = userModels.ErrCompanionLockBusy
+		}
 		return fmt.Errorf("change request approve: lock students: %w", err)
 	}
 	return nil

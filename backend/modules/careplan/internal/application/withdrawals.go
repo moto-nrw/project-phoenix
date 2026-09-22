@@ -52,12 +52,6 @@ func (s *Service) ListPendingWithdrawalBoundaries(ctx context.Context, studentID
 	})
 }
 
-func (s *Service) ListWithdrawalCompletionKeys(ctx context.Context, studentIDs []int64) ([]domain.WithdrawalCompletionKey, error) {
-	return runValue(s, "list_withdrawal_completion_keys", func() ([]domain.WithdrawalCompletionKey, domain.OperationStats, error) {
-		return s.store.ListWithdrawalCompletionKeys(ctx, studentIDs)
-	})
-}
-
 func (s *Service) UpsertPendingWithdrawal(ctx context.Context, value domain.WithdrawalCompletion) (domain.WithdrawalCompletion, error) {
 	return runValue(s, "upsert_pending_withdrawal", func() (domain.WithdrawalCompletion, domain.OperationStats, error) {
 		return s.store.UpsertPendingWithdrawal(ctx, value)

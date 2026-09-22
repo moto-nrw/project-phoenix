@@ -27,7 +27,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/analytics"
 	absencetypesAPI "github.com/moto-nrw/project-phoenix/api/absence-types"
 	adminAPI "github.com/moto-nrw/project-phoenix/api/admin"
-	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
@@ -52,7 +51,6 @@ import (
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	parentAPI "github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
-	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 	requestFeedCompose "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/compose"
 	requestFeedHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/http"
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
@@ -81,8 +79,9 @@ import (
 	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	filestoreAPI "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
+	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
+	meAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/me"
 	identityOperatorAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
-	usercontextAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/usercontext"
 	projectJWT "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	reviewidentity "github.com/moto-nrw/project-phoenix/modules/identityaccess/requestreview"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
@@ -104,6 +103,7 @@ import (
 	schoolPortal "github.com/moto-nrw/project-phoenix/modules/schoolportal"
 	schoolStructureModule "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
 	calendarAPI "github.com/moto-nrw/project-phoenix/modules/staffcalendar/http"
 	statisticsAPI "github.com/moto-nrw/project-phoenix/modules/statistics/http"
@@ -123,7 +123,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
-	openRoomMoveCompose "github.com/moto-nrw/project-phoenix/workflows/openroommove/compose"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 )
 
@@ -278,11 +277,20 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	if err != nil {
 		return moduleServices{}, err
 	}
+	// A staff member is School Membership's membership row plus Workforce's
+	// employment profile (#2753); the membership owner composes the two.
+	staffEmployment, err := workforceCompose.NewStaffEmployment(db, func(observation workforceCompose.Observation) {
+		observability.ObserveWorkforceOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, workforceModule.ErrorCode(observation.Err), observation.Err)
+	})
+	if err != nil {
+		return moduleServices{}, err
+	}
 	membership, err := schoolMembershipCompose.New(schoolMembershipCompose.Dependencies{
 		DB: db,
 		Observe: func(observation schoolMembershipCompose.Observation) {
 			observability.ObserveSchoolMembershipOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, schoolMembershipModule.ErrorCode(observation.Err), observation.Err)
 		},
+		Employment: repositories.MembershipStaffEmployment(staffEmployment),
 	})
 	if err != nil {
 		return moduleServices{}, err
@@ -305,9 +313,8 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 			_, err := membership.FindStaffForMutation(ctx, staffID)
 			return err
 		},
-		DB:                db,
-		AssignedStaffIDs:  repositories.WorkforceAssignedStaffIDs(membership),
-		RebaseStaffAnchor: membership.RebaseWorkTimeModelAnchor,
+		DB:           db,
+		LiveStaffIDs: repositories.WorkforceLiveStaffIDs(membership),
 		Observe: func(observation workforceCompose.Observation) {
 			observability.ObserveWorkforceOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, workforceModule.ErrorCode(observation.Err), observation.Err)
 		},
@@ -480,7 +487,7 @@ func composeCarePlan(db *bun.DB, persons *peopleModule.Module, slots carePlanCom
 		return nil, err
 	}
 	return carePlanCompose.New(carePlanCompose.Dependencies{
-		DB: db, AmbientDB: carePlanLegacy.NewAmbientDatabase(db),
+		DB: db, AmbientDB: carePlanCompose.TenantAmbientDatabase(db),
 		StatusStudents: statusStudents, StatusSlots: slots,
 		People: carePlanCompose.StudentNameFinderFunc(func(ctx context.Context, ids []int64) ([]carePlanCompose.StudentName, error) {
 			values, err := persons.ListStudentNamesByID(ctx, ids)
@@ -720,7 +727,7 @@ type API struct {
 	ClassDay         *classdayHTTP.Resource
 	ClassListEntries *classListHTTP.Resource
 	School           *schoolPortal.Resource
-	UserContext      *usercontextAPI.Resource
+	UserContext      *meAPI.Resource
 	Substitutions    *substitutionsAPI.Resource
 	GradeTransitions *adminAPI.GradeTransitionResource
 	TimeTracking     *timeTrackingHTTP.Resource
@@ -1260,7 +1267,7 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 		func(ctx context.Context) (carePlanCompose.ReviewScope, error) {
 			scope, err := reviewPolicy.Scope(ctx)
 			return carePlanCompose.ReviewScope{SchoolWide: scope.SchoolWide, GroupIDs: scope.GroupIDs}, err
-		}, carePlanLegacy.TodayDate, func(observation requestreviewcompose.CareObservation) {
+		}, carePlanCompose.Today, func(observation requestreviewcompose.CareObservation) {
 			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
 		})
 	if err != nil {
@@ -1275,7 +1282,7 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
 			return api.Services.Settings.ResolveBool(ctx, reviewsettings.BookingsAuthoritative)
 		},
-		Today: carePlanLegacy.TodayDate,
+		Today: carePlanCompose.Today,
 		ObserveCare: func(observation requestreviewcompose.CareObservation) {
 			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
 		},
@@ -1286,7 +1293,7 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("care schedule reviews: %w", err)
 	}
-	careQueue, err := requestreviewcompose.NewCareScheduleQueue(careReviews, carePlanLegacy.TodayDate)
+	careQueue, err := requestreviewcompose.NewCareScheduleQueue(careReviews, carePlanCompose.Today)
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("care schedule review queue: %w", err)
 	}
@@ -1296,7 +1303,7 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 			scope, err := reviewPolicy.Scope(ctx)
 			return carePlanCompose.ReviewScope{SchoolWide: scope.SchoolWide, GroupIDs: scope.GroupIDs}, err
 		},
-		Today: carePlanLegacy.TodayDate,
+		Today: carePlanCompose.Today,
 		ObserveCare: func(observation requestreviewcompose.CareObservation) {
 			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
 		},
@@ -1307,7 +1314,7 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("offering reviews: %w", err)
 	}
-	offeringQueue, err := requestreviewcompose.NewOfferingQueue(offeringReviews, carePlanLegacy.TodayDate)
+	offeringQueue, err := requestreviewcompose.NewOfferingQueue(offeringReviews, carePlanCompose.Today)
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("offering review queue: %w", err)
 	}
@@ -1321,7 +1328,7 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("master data review queue: %w", err)
 	}
-	excusedQueue, err := requestreviewcompose.NewExcusedQueue(api.Services.ExcusedRequests, carePlanLegacy.TodayDate)
+	excusedQueue, err := requestreviewcompose.NewExcusedQueue(api.Services.ExcusedRequests, carePlanCompose.Today)
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("excused review queue: %w", err)
 	}
@@ -1342,11 +1349,12 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		Settings:    api.Services.Settings,
 		FallbackPIN: os.Getenv("OGS_DEVICE_PIN"),
 	})
-	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, authSchools, api.Services.AccountAuthentication(), db)
-	api.Auth.CaregiverCapabilityService = api.Services.CaregiverCapability
+	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, authSchools, api.Services.AccountAuthentication(), services.AccountRouteTenantRuntime())
+	api.Auth.CaregiverCapabilityService = api.Services.CaregiverCapabilityViews(db)
 	api.Auth.SettingsService = api.Services.Settings
-	api.Auth.SetMFAService(api.Services.MFA)
-	api.Auth.SetPasskeyService(api.Services.Passkey)
+	api.Auth.RoleGrants = services.RoleGrantPolicy{}
+	api.Auth.MFAService = api.Services.MFA
+	api.Auth.PasskeyService = api.Services.Passkey
 	api.Rooms = roomsHTTPAdapter.NewResource(api.rooms, roomsHTTPAdapter.Dependencies{
 		Facilities: api.Services.Facilities, Settings: api.Services.Settings,
 		UserContext: api.Services.UserContext, Active: api.Services.Active,
@@ -1485,11 +1493,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.Schedules = timetableHTTPAdapter.NewSchedulesResource(api.Services.Schedule, db)
 	homeLayouts := requireHomeLayoutOperations(api.Services.Settings)
 	api.Settings = newSettingsResource(api.Services.TenantSettings, homeLayouts, repoFactory.Enrollment().SchemaReferencesLegalDocument, db)
-	openRoomPresence, ok := api.Services.Active.(openRoomMoveCompose.RetainedPresence)
-	if !ok {
-		return errors.New("open room move: the active service does not provide the room session operations")
-	}
-	openRoomMove, err := newOpenRoomMove(modules, openRoomPresence, logger)
+	openRoomMove, err := newOpenRoomMove(modules, api.Services.Active, logger)
 	if err != nil {
 		return err
 	}
@@ -1553,7 +1557,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.UserContext, db, logger.With("handler", "sse"))
 	api.SSE.SetSchoolAccess(api.Services.Auth)
 	api.Birthdays = birthdaysAPI.NewResource(api.Services.Birthdays, api.Services.ListExport, api.Services.UserContext, db, logger.With("handler", "birthdays"))
-	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, db)
+	api.UserContext = meAPI.NewResource(api.Services.UserContext.Caller(), api.Services.UserContext)
 	// The school portal's class-day surface reads the class-day projection
 	// (#2701); the projection binds the retained enrollment report and the
 	// arrival-exception write seam (#2970) behind its one public capability.
@@ -1602,39 +1606,41 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		Scans:     api.Services.IoT.Fleet(),
 		Directory: tagScanSchoolDirectory{schools: api.Services.Schools},
 		Surface: tagScanOperatorAPI.Surface{
-			InvalidRequest:  operatorAPI.ErrInvalidRequest,
-			Internal:        operatorAPI.ErrInternal,
-			ResolveFallback: operatorAPI.UnregisteredTagScanResolveError,
-			RenderError:     apiCommon.RenderError,
-			Respond:         apiCommon.Respond,
+			InvalidRequest: apiCommon.OperatorInvalidRequest,
+			Internal:       apiCommon.OperatorInternal,
+			RenderError:    apiCommon.RenderError,
+			Respond:        apiCommon.Respond,
 			OperatorID: func(ctx context.Context) int64 {
 				return int64(projectJWT.ClaimsFromCtx(ctx).ID)
 			},
 		},
 	})
-	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
-		AppEnv:                     viper.GetString("app_env"),
-		AuthService:                api.Services.OperatorAuth,
-		Identity:                   identityOperatorAPI.NewResource(api.Services.AccountAuthentication(), operatorAPI.IdentityResponses()),
-		PasskeyService:             api.Services.OperatorPasskey,
-		MFAService:                 api.Services.OperatorMFA,
-		InvitationService:          api.Services.OperatorInvitation,
-		ProvisioningService:        api.Services.OperatorProvisioning,
-		CaregiverCapabilityService: api.Services.CaregiverCapability,
-		AnnouncementsService:       api.Services.Announcement,
-		UnregisteredTagScans:       tagScanReview.Router(),
-		SettingsService:            api.Services.Settings,
-		Broadcaster:                api.Services.RealtimeHub,
-		SchoolService:              api.Services.Schools,
-		ActiveService:              api.Services.Active,
-		CareLifecycle:              api.Services.CareLifecycle,
+	schoolSettings := settingsCompose.NewOperatorSchoolSettings(settingsCompose.OperatorDependencies{
+		Settings:       api.Services.Settings,
+		DB:             db,
+		Notify:         api.Services.SettingsChangedNotifier(),
+		OpenAttendance: api.Services.OpenAttendanceChecker(),
+		CareLifecycle:  api.Services.CareLifecycle,
 		// Mirror the tenant-side OnValueSet hook so operator writes also
 		// trigger side effects (e.g. auto-creating the Schulhof/WC rooms when
 		// the corresponding checkout toggle flips on).
-		SettingValueSet:  api.Services.SettingsSideEffects.Dispatch,
-		TenantMFAService: api.Services.MFA,
-		TokenAuth:        sessionAuth,
-		DB:               db,
+		OnValueSet: api.Services.SettingsSideEffects.Dispatch,
+	})
+	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
+		AppEnv:               viper.GetString("app_env"),
+		AuthService:          api.Services.OperatorAuth,
+		Identity:             identityOperatorAPI.NewResource(api.Services.AccountAuthentication(), operatorAPI.IdentityResponses()),
+		PasskeyService:       api.Services.OperatorPasskey,
+		MFAService:           api.Services.OperatorMFA,
+		InvitationService:    api.Services.OperatorInvitation,
+		ProvisioningService:  api.Services.OperatorProvisioning,
+		Caregivers:           api.Services.CaregiverCapabilityViews(db),
+		AnnouncementsService: api.Services.Announcement,
+		UnregisteredTagScans: tagScanReview.Router(),
+		SchoolSettings:       schoolSettings,
+		SchoolService:        api.Services.Schools,
+		TenantMFAService:     api.Services.MFA,
+		Sessions:             identityOperatorAPI.NewSessions(sessionAuth, api.Services.OperatorAuth),
 	})
 	api.Parent = parentAPI.NewResource(parentAPI.ResourceConfig{
 		Auth:                  parentPortalLogin(api.Services.ParentPortalLogin()),
@@ -1693,14 +1699,7 @@ func requireHomeLayoutOperations(settings any) configAPI.HomeLayoutOperations {
 }
 
 func (a *API) currentStaffID(ctx context.Context) (int64, error) {
-	staff, err := a.Services.UserContext.GetCurrentStaff(ctx)
-	if err != nil {
-		return 0, err
-	}
-	if staff == nil {
-		return 0, errors.New("current staff member not found")
-	}
-	return staff.ID, nil
+	return a.Services.UserContext.Caller().StaffID(ctx)
 }
 
 // ServeHTTP implements the http.Handler interface for the API
@@ -1846,11 +1845,13 @@ func (a *API) registerPublicRoutes(requestFeed *requestFeedHTTP.Resource) {
 // operator, parent) and applies the auth rate limiters when present.
 func (a *API) registerPortalRoutes(limiters authRateLimiters) {
 	// Auth routes mounted at root level to match frontend expectations
-	// Rate limiting is applied per-route inside Auth.Router() (only login, register, password-reset)
+	// RouterWithAuthRateLimiter applies the limiter only to the public login,
+	// password-reset, MFA and passkey-login routes.
+	var authRateLimiter func(http.Handler) http.Handler
 	if limiters.auth != nil {
-		a.Auth.SetAuthRateLimiter(limiters.auth.Middleware())
+		authRateLimiter = limiters.auth.Middleware()
 	}
-	a.Router.Mount("/auth", a.Auth.Router())
+	a.Router.Mount("/auth", a.Auth.RouterWithAuthRateLimiter(authRateLimiter))
 
 	// Mount operator dashboard routes at root level (separate from tenant API)
 	// Apply the same auth rate limiter to operator login for brute-force protection

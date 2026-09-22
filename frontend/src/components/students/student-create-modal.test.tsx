@@ -49,8 +49,19 @@ vi.mock("~/components/ui/slide-over", () => ({
         {children}
       </div>
     ) : null,
-  SlideOverContent: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
+  SlideOverContent: ({
+    children,
+    isBackdropDismissDisabled,
+  }: {
+    children: React.ReactNode;
+    isBackdropDismissDisabled?: boolean;
+  }) => (
+    <div
+      data-testid="slide-over-content"
+      data-backdrop-dismiss-disabled={String(!!isBackdropDismissDisabled)}
+    >
+      {children}
+    </div>
   ),
   SlideOverHeader: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
@@ -196,11 +207,13 @@ vi.mock("./care-weekly-plan-modal", () => ({
     onSubmit,
     careDaysSource,
     schoolPeriods,
+    timePresets,
   }: {
     isOpen: boolean;
     onClose: () => void;
     careDaysSource: "weekly_plan" | "bookings";
     schoolPeriods?: Array<{ period: number; end_time: string }>;
+    timePresets?: { arrival: string; pickup: string };
     onSubmit: (data: {
       arrivalSchedules: Array<{
         weekday: number;
@@ -227,6 +240,9 @@ vi.mock("./care-weekly-plan-modal", () => ({
                 `${schoolPeriod.period}: ${schoolPeriod.end_time}`,
             )
             .join(", ")}
+        </span>
+        <span data-testid="care-time-presets">
+          {timePresets ? `${timePresets.arrival}/${timePresets.pickup}` : ""}
         </span>
         <button
           type="button"
@@ -351,6 +367,25 @@ describe("StudentCreateModal", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+  });
+
+  it("keeps the panel open on a click next to it (#3370)", async () => {
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    // Das Verhalten selbst prüft slide-over.test.tsx; hier zählt, dass das
+    // Anlegen-Panel es einschaltet.
+    await waitFor(() => {
+      expect(screen.getByTestId("slide-over-content")).toHaveAttribute(
+        "data-backdrop-dismiss-disabled",
+        "true",
+      );
     });
   });
 
@@ -825,6 +860,33 @@ describe("StudentCreateModal", () => {
     );
     expect(screen.getByTestId("care-school-periods")).toHaveTextContent(
       "1: 08:45, 2: 09:35",
+    );
+  });
+
+  // #3371: Sven's workflow is the create assistant, so the school's usual
+  // times must reach its weekly plan.
+  it("hands the school's usual times to the weekly care-plan editor", async () => {
+    mockFetchArrivalSettings.mockResolvedValueOnce({
+      care_days_source: "weekly_plan",
+      school_periods: [],
+      defaultArrivalTime: "12:30",
+      defaultPickupTime: "16:00",
+    });
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await screen.findByTestId("personal-info-section");
+    await act(async () => {
+      fireEvent.click(screen.getByText("Wochenplan hinzufügen"));
+    });
+
+    expect(screen.getByTestId("care-time-presets")).toHaveTextContent(
+      "12:30/16:00",
     );
   });
 

@@ -16,7 +16,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -65,7 +65,7 @@ type AdminCreateSessionRequest struct {
 
 // SessionResponse wraps a work session with calculated fields
 type SessionResponse struct {
-	*activeModels.WorkSession
+	*WorkSession
 	// BreakMinutes SHADOWS WorkSession.BreakMinutes on the wire — the outer
 	// field is at the shallower depth, so encoding/json emits this one for
 	// "break_minutes". That is deliberate: the model field caches ENDED breaks
@@ -74,13 +74,13 @@ type SessionResponse struct {
 	// stopped growing. Both numbers come from the same as-of-now pair
 	// (totalBreakMinutes / netMinutesWithBreaks), which keeps
 	// gross = net + break true for the reader (#1842).
-	BreakMinutes     int                              `json:"break_minutes"`
-	NetMinutes       int                              `json:"net_minutes"`
-	IsOvertime       bool                             `json:"is_overtime"`
-	IsBreakCompliant bool                             `json:"is_break_compliant"`
-	Breaks           []*activeModels.WorkSessionBreak `json:"breaks"`
-	EditCount        int                              `json:"edit_count"`
-	AuditCount       int                              `json:"audit_count"`
+	BreakMinutes     int                 `json:"break_minutes"`
+	NetMinutes       int                 `json:"net_minutes"`
+	IsOvertime       bool                `json:"is_overtime"`
+	IsBreakCompliant bool                `json:"is_break_compliant"`
+	Breaks           []*WorkSessionBreak `json:"breaks"`
+	EditCount        int                 `json:"edit_count"`
+	AuditCount       int                 `json:"audit_count"`
 }
 
 // MarshalJSON emits the session id as a decimal STRING instead of the model's
@@ -235,10 +235,10 @@ type WorkSessionService interface {
 	// planned shift window of the day; an empty reason then yields
 	// *DeviationReasonRequiredError, a non-empty one is written to
 	// audit.work_session_edits. Same contract on CheckOut.
-	CheckIn(ctx context.Context, staffID int64, status, source, reason string) (*activeModels.WorkSession, error)
-	CheckOut(ctx context.Context, staffID int64, reason string) (*activeModels.WorkSession, error)
-	StartBreak(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error)
-	EndBreak(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	CheckIn(ctx context.Context, staffID int64, status, source, reason string) (*WorkSession, error)
+	CheckOut(ctx context.Context, staffID int64, reason string) (*WorkSession, error)
+	StartBreak(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*WorkSessionBreak, error)
+	EndBreak(ctx context.Context, staffID int64) (*WorkSession, error)
 
 	// The *On variants act on the open session of an explicit calendar day
 	// instead of re-deriving "today" from the server clock. A caller whose
@@ -247,32 +247,32 @@ type WorkSessionService interface {
 	// "no active session found". The break variants above delegate here with
 	// the current day and keep their behaviour; CheckIn and CheckOut resolve
 	// the running block across days and ignore the pin.
-	CheckInOn(ctx context.Context, staffID int64, day timezone.Date, status, source, reason string) (*activeModels.WorkSession, error)
-	CheckOutOn(ctx context.Context, staffID int64, day timezone.Date, reason string) (*activeModels.WorkSession, error)
-	StartBreakOn(ctx context.Context, staffID int64, day timezone.Date, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error)
-	EndBreakOn(ctx context.Context, staffID int64, day timezone.Date) (*activeModels.WorkSession, error)
-	GetSessionBreaks(ctx context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
-	UpdateSession(ctx context.Context, staffID int64, sessionID int64, updates SessionUpdateRequest) (*activeModels.WorkSession, error)
+	CheckInOn(ctx context.Context, staffID int64, day timezone.Date, status, source, reason string) (*WorkSession, error)
+	CheckOutOn(ctx context.Context, staffID int64, day timezone.Date, reason string) (*WorkSession, error)
+	StartBreakOn(ctx context.Context, staffID int64, day timezone.Date, plannedDurationMinutes *int) (*WorkSessionBreak, error)
+	EndBreakOn(ctx context.Context, staffID int64, day timezone.Date) (*WorkSession, error)
+	GetSessionBreaks(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionBreak, error)
+	UpdateSession(ctx context.Context, staffID int64, sessionID int64, updates SessionUpdateRequest) (*WorkSession, error)
 	// UpdateSessionAsAdmin is the admin-facing counterpart. editorStaffID is
 	// the staff record of the admin performing the edit (lands in
 	// audit.work_session_edits.edited_by). targetStaffID is the owner of the
 	// session. We verify session.StaffID == targetStaffID so the route can't
 	// be used to leak edits across staff in the same tenant. Notes are always
 	// required (BAG "Verlässlichkeit" for foreign edits).
-	UpdateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID, sessionID int64, updates SessionUpdateRequest) (*activeModels.WorkSession, error)
+	UpdateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID, sessionID int64, updates SessionUpdateRequest) (*WorkSession, error)
 	// CreateSessionAsAdmin records a session an admin nachträgt for another
 	// staff member, typically because that staff member forgot to stamp.
 	// Notes are required to preserve the audit trail's "Verlässlichkeit".
-	CreateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID int64, req AdminCreateSessionRequest) (*activeModels.WorkSession, error)
+	CreateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID int64, req AdminCreateSessionRequest) (*WorkSession, error)
 	// GetCurrentSession only sees a session that is open AND dated today. Use
 	// it only where "today" is the actual question — asking it whether the
 	// person is clocked in gives the wrong answer for a block that crossed
 	// Berlin midnight; GetLatestOpenSession answers that one.
-	GetCurrentSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	GetCurrentSession(ctx context.Context, staffID int64) (*WorkSession, error)
 	// GetLatestOpenSession is GetCurrentSession without the "today" filter: it
 	// finds a session that is still running even when it was opened on an
 	// earlier calendar day.
-	GetLatestOpenSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	GetLatestOpenSession(ctx context.Context, staffID int64) (*WorkSession, error)
 	// GetHistory reads by the stored session date: one block is one row, filed
 	// under the day it started. That is the export contract, where a night
 	// block must appear in exactly one period, never in two.
@@ -306,7 +306,7 @@ type WorkSessionService interface {
 	// the service so future callers (web action triggers, schedulers) cannot
 	// be silently mislabelled as NFC. Returns nil if the staff member is
 	// already checked out today (no re-open).
-	EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*activeModels.WorkSession, error)
+	EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*WorkSession, error)
 	// ExportSessions renders the single-staff export. CSV serializes locally
 	// (data format); XLSX uses the workbook writer, and PDF delegates to the
 	// injected renderer for the shared document design (#1568).
@@ -379,15 +379,15 @@ type ScheduleUpdateInput struct {
 
 // workSessionService implements WorkSessionService
 type workSessionService struct {
-	repo        activeModels.WorkSessionRepository
-	breakRepo   activeModels.WorkSessionBreakRepository
+	repo        timerecords.WorkSessionRepository
+	breakRepo   timerecords.WorkSessionBreakRepository
 	auditRepo   WorkSessionAudit
-	absenceRepo activeModels.StaffAbsenceRepository
+	absenceRepo timerecords.StaffAbsenceRepository
 	// absenceTypes resolves school-defined Abwesenheitsarten for exports
 	// (#2403). Setter injection; nil in bare-constructed unit fixtures.
 	absenceTypes   AbsenceTypeReader
-	supervisorRepo activeModels.GroupSupervisorRepository
-	groupRepo      activeModels.GroupRepository
+	supervisorRepo GroupSupervisorRepository
+	groupRepo      GroupRepository
 	db             DatabaseHandle
 	staffRepo      WorkSessionStaff
 	scheduleRepo   WorkSessionSchedules
@@ -435,7 +435,7 @@ func (s *workSessionService) lockStaffBalanceWritesOrdered(ctx context.Context, 
 
 // NewWorkSessionService creates a new work session service
 
-func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository, auditRepo WorkSessionAudit, absenceRepo activeModels.StaffAbsenceRepository, supervisorRepo activeModels.GroupSupervisorRepository, groupRepo activeModels.GroupRepository, staffRepo WorkSessionStaff, scheduleRepo WorkSessionSchedules, workModelRepo WorkSessionTimeModels, settings settingsResolver, logger *slog.Logger, db DatabaseHandle, renderPDF TimeTrackingPDFRenderer, renderWorkbook TimeTrackingWorkbookRenderer, opts ...WorkSessionOption) WorkSessionService {
+func NewWorkSessionService(repo timerecords.WorkSessionRepository, breakRepo timerecords.WorkSessionBreakRepository, auditRepo WorkSessionAudit, absenceRepo timerecords.StaffAbsenceRepository, supervisorRepo GroupSupervisorRepository, groupRepo GroupRepository, staffRepo WorkSessionStaff, scheduleRepo WorkSessionSchedules, workModelRepo WorkSessionTimeModels, settings settingsResolver, logger *slog.Logger, db DatabaseHandle, renderPDF TimeTrackingPDFRenderer, renderWorkbook TimeTrackingWorkbookRenderer, opts ...WorkSessionOption) WorkSessionService {
 	service := &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, supervisorRepo: supervisorRepo, groupRepo: groupRepo, staffRepo: staffRepo, scheduleRepo: scheduleRepo, workModelRepo: workModelRepo, settings: settings, logger: logger, db: db, renderPDF: renderPDF, renderWorkbook: renderWorkbook}
 	for _, opt := range opts {
 		opt(service)
@@ -454,7 +454,7 @@ func (s *workSessionService) now() time.Time {
 // the two equality conditions used by check-in and auto-check-in. Keeping the
 // lookup here avoids a per-field repository method while retaining the
 // chronological block order required by the caller.
-func (s *workSessionService) listSessionsByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*activeModels.WorkSession, error) {
+func (s *workSessionService) listSessionsByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*WorkSession, error) {
 	options := modelBase.NewQueryOptions()
 	options.Filter.Equal("staff_id", staffID).Equal("date", date)
 	options.Sorting = (&modelBase.Sorting{}).AddField("check_in_time", modelBase.SortAsc)
@@ -469,7 +469,7 @@ func (s *workSessionService) listSessionsByStaffAndDate(ctx context.Context, sta
 // CheckIn creates a new work session for the staff member.
 // Status must be explicitly chosen. Empty values are rejected so the caller
 // (HTTP handler or internal worker) cannot accidentally fall back to "present".
-func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status, source, reason string) (*activeModels.WorkSession, error) {
+func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status, source, reason string) (*WorkSession, error) {
 	return s.checkIn(ctx, staffID, status, source, reason, true)
 }
 
@@ -478,7 +478,7 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status,
 // in checkIn scans every day (a block opened before Berlin midnight is still
 // open after it), and a session that is created fresh is filed on the day its
 // own stamp falls on — see checkIn.
-func (s *workSessionService) CheckInOn(ctx context.Context, staffID int64, _ timezone.Date, status, source, reason string) (*activeModels.WorkSession, error) {
+func (s *workSessionService) CheckInOn(ctx context.Context, staffID int64, _ timezone.Date, status, source, reason string) (*WorkSession, error) {
 	return s.checkIn(ctx, staffID, status, source, reason, true)
 }
 
@@ -493,11 +493,11 @@ func (s *workSessionService) CheckInOn(ctx context.Context, staffID int64, _ tim
 // pre-midnight day next to a post-midnight stamp would misfile the session in
 // the daily history, in shift and deviation lookups, and in every total built
 // from the date column.
-func (s *workSessionService) checkIn(ctx context.Context, staffID int64, status, source, reason string, enforceDeviationGate bool) (*activeModels.WorkSession, error) {
-	if status != activeModels.WorkSessionStatusPresent && status != activeModels.WorkSessionStatusHomeOffice {
+func (s *workSessionService) checkIn(ctx context.Context, staffID int64, status, source, reason string, enforceDeviationGate bool) (*WorkSession, error) {
+	if status != WorkSessionStatusPresent && status != WorkSessionStatusHomeOffice {
 		return nil, fmt.Errorf("status must be 'present' or 'home_office'")
 	}
-	if source != activeModels.WorkSessionSourceApp && source != activeModels.WorkSessionSourceNFC {
+	if source != WorkSessionSourceApp && source != WorkSessionSourceNFC {
 		return nil, fmt.Errorf("source must be 'app' or 'nfc'")
 	}
 	if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
@@ -588,7 +588,7 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, status,
 	}
 
 	// Create new session
-	session := &activeModels.WorkSession{
+	session := &WorkSession{
 		StaffID:      staffID,
 		Date:         stampDay,
 		Status:       status,
@@ -669,7 +669,7 @@ func (s *workSessionService) ensurePlannedStartReached(ctx context.Context, staf
 // was opened on. Resolving the day from the clock instead would strand a block
 // that crossed Berlin midnight: check-in refuses while it is open, so a
 // today-only checkout would leave no way to close it.
-func (s *workSessionService) CheckOut(ctx context.Context, staffID int64, reason string) (*activeModels.WorkSession, error) {
+func (s *workSessionService) CheckOut(ctx context.Context, staffID int64, reason string) (*WorkSession, error) {
 	day, err := s.openBlockDay(ctx, staffID)
 	if err != nil {
 		return nil, err
@@ -702,7 +702,7 @@ func (s *workSessionService) openBlockDay(ctx context.Context, staffID int64) (t
 }
 
 // CheckOutOn ends the open session of an explicit calendar day.
-func (s *workSessionService) CheckOutOn(ctx context.Context, staffID int64, day timezone.Date, reason string) (*activeModels.WorkSession, error) {
+func (s *workSessionService) CheckOutOn(ctx context.Context, staffID int64, day timezone.Date, reason string) (*WorkSession, error) {
 	if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
 		return nil, err
 	}
@@ -866,7 +866,7 @@ func (s *workSessionService) detectPlannedDeviation(ctx context.Context, staffID
 // session: old value = planned wall clock, new value = actual wall clock,
 // notes = the reason. The stamp and its audit row share the handler's tenant
 // transaction, so a failed audit write rolls the stamp back.
-func (s *workSessionService) recordDeviationReason(ctx context.Context, session *activeModels.WorkSession, dev *plannedDeviation, reason string, now time.Time) error {
+func (s *workSessionService) recordDeviationReason(ctx context.Context, session *WorkSession, dev *plannedDeviation, reason string, now time.Time) error {
 	planned := dev.planned.In(timezone.Berlin).Format("15:04")
 	actual := dev.actual.In(timezone.Berlin).Format("15:04")
 	trimmed := strings.TrimSpace(reason)
@@ -982,7 +982,7 @@ func (s *workSessionService) runInWorkSessionTx(ctx context.Context, fn func(con
 // StartBreak starts a new break on the running block, whichever day it was
 // opened on (see openBlockDay).
 // If plannedDurationMinutes is provided (1-240), sets planned_end_time for auto-end
-func (s *workSessionService) StartBreak(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error) {
+func (s *workSessionService) StartBreak(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*WorkSessionBreak, error) {
 	day, err := s.openBlockDay(ctx, staffID)
 	if err != nil {
 		return nil, err
@@ -991,7 +991,7 @@ func (s *workSessionService) StartBreak(ctx context.Context, staffID int64, plan
 }
 
 // StartBreakOn starts a break on the open session of an explicit calendar day.
-func (s *workSessionService) StartBreakOn(ctx context.Context, staffID int64, day timezone.Date, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error) {
+func (s *workSessionService) StartBreakOn(ctx context.Context, staffID int64, day timezone.Date, plannedDurationMinutes *int) (*WorkSessionBreak, error) {
 	if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
 		return nil, err
 	}
@@ -1025,7 +1025,7 @@ func (s *workSessionService) StartBreakOn(ctx context.Context, staffID int64, da
 
 	// Create a new break
 	now := s.now()
-	brk := &activeModels.WorkSessionBreak{
+	brk := &WorkSessionBreak{
 		SessionID: session.ID,
 		StartedAt: now,
 	}
@@ -1050,7 +1050,7 @@ func (s *workSessionService) StartBreakOn(ctx context.Context, staffID int64, da
 
 // EndBreak ends the active break on the running block, whichever day it was
 // opened on (see openBlockDay).
-func (s *workSessionService) EndBreak(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
+func (s *workSessionService) EndBreak(ctx context.Context, staffID int64) (*WorkSession, error) {
 	day, err := s.openBlockDay(ctx, staffID)
 	if err != nil {
 		return nil, err
@@ -1059,7 +1059,7 @@ func (s *workSessionService) EndBreak(ctx context.Context, staffID int64) (*acti
 }
 
 // EndBreakOn ends the active break on the open session of an explicit calendar day.
-func (s *workSessionService) EndBreakOn(ctx context.Context, staffID int64, day timezone.Date) (*activeModels.WorkSession, error) {
+func (s *workSessionService) EndBreakOn(ctx context.Context, staffID int64, day timezone.Date) (*WorkSession, error) {
 	if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
 		return nil, err
 	}
@@ -1107,7 +1107,7 @@ func (s *workSessionService) EndBreakOn(ctx context.Context, staffID int64, day 
 }
 
 // GetSessionBreaks returns all breaks for a given session
-func (s *workSessionService) GetSessionBreaks(ctx context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error) {
+func (s *workSessionService) GetSessionBreaks(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionBreak, error) {
 	// Verify ownership: session must belong to requesting staff
 	session, err := s.repo.FindByID(ctx, sessionID)
 	if err != nil {
@@ -1151,7 +1151,7 @@ func (s *workSessionService) recalcBreakMinutes(ctx context.Context, sessionID i
 
 // sessionUpdateContext holds state during session update to avoid passing many parameters.
 type sessionUpdateContext struct {
-	session    *activeModels.WorkSession
+	session    *WorkSession
 	sessionID  int64
 	staffID    int64
 	now        time.Time
@@ -1175,7 +1175,7 @@ func (uc *sessionUpdateContext) addAuditEdit(field string, oldVal, newVal *strin
 // UpdateSession updates a work session with the provided fields and creates
 // audit entries. Self-edit path: the requesting staff must own the session.
 // Notes are only required when changing status (Vor Ort ↔ Homeoffice).
-func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, sessionID int64, updates SessionUpdateRequest) (*activeModels.WorkSession, error) {
+func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, sessionID int64, updates SessionUpdateRequest) (*WorkSession, error) {
 	if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
 		return nil, err
 	}
@@ -1235,7 +1235,7 @@ func (s *workSessionService) deviationReasonRequired(ctx context.Context) (bool,
 
 // selfEditChangesRecordedTimes reports whether the update would change
 // check_in_time, check_out_time, or break minutes on the session.
-func (s *workSessionService) selfEditChangesRecordedTimes(session *activeModels.WorkSession, updates SessionUpdateRequest) bool {
+func (s *workSessionService) selfEditChangesRecordedTimes(session *WorkSession, updates SessionUpdateRequest) bool {
 	if updates.CheckInTime != nil && !session.CheckInTime.Equal(*updates.CheckInTime) {
 		return true
 	}
@@ -1256,7 +1256,7 @@ func (s *workSessionService) selfEditChangesRecordedTimes(session *activeModels.
 // Notes are unconditionally required: BAG demands "Verlässlichkeit" of the
 // audit trail, and any foreign edit needs a reason. We're stricter than
 // self-edit on purpose.
-func (s *workSessionService) UpdateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID, sessionID int64, updates SessionUpdateRequest) (*activeModels.WorkSession, error) {
+func (s *workSessionService) UpdateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID, sessionID int64, updates SessionUpdateRequest) (*WorkSession, error) {
 	if err := s.lockStaffBalanceWrites(ctx, targetStaffID); err != nil {
 		return nil, err
 	}
@@ -1280,7 +1280,7 @@ func (s *workSessionService) UpdateSessionAsAdmin(ctx context.Context, editorSta
 // edit. editorStaffID lands in audit.work_session_edits.edited_by so the
 // MA-side can distinguish "ich selbst" from "Florian (Admin)" without an
 // extra column.
-func (s *workSessionService) applySessionUpdate(ctx context.Context, editorStaffID int64, session *activeModels.WorkSession, updates SessionUpdateRequest) (*activeModels.WorkSession, error) {
+func (s *workSessionService) applySessionUpdate(ctx context.Context, editorStaffID int64, session *WorkSession, updates SessionUpdateRequest) (*WorkSession, error) {
 	uc := &sessionUpdateContext{
 		session:   session,
 		sessionID: session.ID,
@@ -1334,7 +1334,7 @@ func (s *workSessionService) applySessionUpdate(ctx context.Context, editorStaff
 // shows the create as a series of explicit "field war leer → field ist jetzt
 // X" entries. Notes are stored both on the session and on every audit row
 // (consistent with edit semantics).
-func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID int64, req AdminCreateSessionRequest) (*activeModels.WorkSession, error) {
+func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID int64, req AdminCreateSessionRequest) (*WorkSession, error) {
 	if targetStaffID <= 0 {
 		return nil, fmt.Errorf("target staff id is required")
 	}
@@ -1348,7 +1348,7 @@ func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorSta
 		return nil, fmt.Errorf("check_out_time must be after check_in_time")
 	}
 	if req.Status == "" {
-		req.Status = activeModels.WorkSessionStatusPresent
+		req.Status = WorkSessionStatusPresent
 	}
 	if req.BreakMinutes < 0 {
 		return nil, fmt.Errorf("break_minutes must not be negative")
@@ -1364,11 +1364,11 @@ func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorSta
 	if err := s.assertNoBlockOverlap(ctx, targetStaffID, 0, req.CheckInTime, &checkOut); err != nil {
 		return nil, err
 	}
-	session := &activeModels.WorkSession{
+	session := &WorkSession{
 		StaffID:      targetStaffID,
 		Date:         date,
 		Status:       req.Status,
-		Source:       activeModels.WorkSessionSourceApp,
+		Source:       WorkSessionSourceApp,
 		CheckInTime:  req.CheckInTime,
 		CheckOutTime: &checkOut,
 		BreakMinutes: req.BreakMinutes,
@@ -1455,7 +1455,7 @@ func (s *workSessionService) assertNoBlockOverlap(ctx context.Context, staffID i
 // staff member has no way to repair the row and would be locked out of the
 // clock entirely (#2402); an admin IS the person who repairs it, so there a
 // Nachtrag keeps being refused while an open block is unresolved.
-func (s *workSessionService) closeStaleOpenBlock(ctx context.Context, session *activeModels.WorkSession, at time.Time) error {
+func (s *workSessionService) closeStaleOpenBlock(ctx context.Context, session *WorkSession, at time.Time) error {
 	if err := s.endActiveBreakIfExists(ctx, session.ID, at); err != nil {
 		// Mirrors CleanupOpenSessions: a break that cannot be ended must not
 		// keep the block open — that would leave the staff member unable to
@@ -1485,7 +1485,7 @@ func (s *workSessionService) closeStaleOpenBlock(ctx context.Context, session *a
 //
 // The original row is never modified; closing it for real is the check-in's
 // job (closeStaleOpenBlock) or the nightly auto-checkout's.
-func ExpireStaleOpenBlock(session *activeModels.WorkSession, now time.Time) (*activeModels.WorkSession, bool) {
+func ExpireStaleOpenBlock(session *WorkSession, now time.Time) (*WorkSession, bool) {
 	if session == nil || session.CheckOutTime != nil {
 		return session, false
 	}
@@ -1500,8 +1500,8 @@ func ExpireStaleOpenBlock(session *activeModels.WorkSession, now time.Time) (*ac
 
 // expireStaleOpenBlocks applies ExpireStaleOpenBlock to a whole list, leaving
 // closed and still-running blocks untouched.
-func expireStaleOpenBlocks(siblings []*activeModels.WorkSession, now time.Time) []*activeModels.WorkSession {
-	expired := make([]*activeModels.WorkSession, len(siblings))
+func expireStaleOpenBlocks(siblings []*WorkSession, now time.Time) []*WorkSession {
+	expired := make([]*WorkSession, len(siblings))
 	for i, sibling := range siblings {
 		expired[i], _ = ExpireStaleOpenBlock(sibling, now)
 	}
@@ -1510,7 +1510,7 @@ func expireStaleOpenBlocks(siblings []*activeModels.WorkSession, now time.Time) 
 
 // assertNoBlockOverlapIn is the list-based body of assertNoBlockOverlap, kept
 // separate so the interval arithmetic can be exercised without a database.
-func assertNoBlockOverlapIn(siblings []*activeModels.WorkSession, excludeID int64, checkIn time.Time, checkOut *time.Time) error {
+func assertNoBlockOverlapIn(siblings []*WorkSession, excludeID int64, checkIn time.Time, checkOut *time.Time) error {
 	for _, sibling := range siblings {
 		if sibling.ID == excludeID {
 			continue
@@ -1605,7 +1605,7 @@ func (s *workSessionService) processIndividualBreakUpdates(ctx context.Context, 
 		return fmt.Errorf("failed to load session breaks: %w", err)
 	}
 
-	breakMap := make(map[int64]*activeModels.WorkSessionBreak, len(sessionBreaks))
+	breakMap := make(map[int64]*WorkSessionBreak, len(sessionBreaks))
 	for _, b := range sessionBreaks {
 		breakMap[b.ID] = b
 	}
@@ -1631,7 +1631,7 @@ func (s *workSessionService) processIndividualBreakUpdates(ctx context.Context, 
 	return nil
 }
 
-func (s *workSessionService) updateSingleBreak(ctx context.Context, uc *sessionUpdateContext, breakMap map[int64]*activeModels.WorkSessionBreak, bu BreakDurationUpdate, strPtr func(string) *string) error {
+func (s *workSessionService) updateSingleBreak(ctx context.Context, uc *sessionUpdateContext, breakMap map[int64]*WorkSessionBreak, bu BreakDurationUpdate, strPtr func(string) *string) error {
 	brk, ok := breakMap[bu.ID]
 	if !ok {
 		return fmt.Errorf("break %d does not belong to this session", bu.ID)
@@ -1676,7 +1676,7 @@ func (s *workSessionService) applySimpleFieldUpdates(uc *sessionUpdateContext, u
 }
 
 // GetCurrentSession returns the current active session for a staff member
-func (s *workSessionService) GetCurrentSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
+func (s *workSessionService) GetCurrentSession(ctx context.Context, staffID int64) (*WorkSession, error) {
 	session, err := s.repo.GetCurrentByStaffID(ctx, staffID)
 	if err != nil {
 		if modelBase.IsNoRows(err) {
@@ -1692,7 +1692,7 @@ func (s *workSessionService) GetCurrentSession(ctx context.Context, staffID int6
 // member across all days, or nil when none is open. It answers "is this person
 // clocked in right now" without assuming the session was opened today — a night
 // stamp survives the Berlin midnight rollover.
-func (s *workSessionService) GetLatestOpenSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
+func (s *workSessionService) GetLatestOpenSession(ctx context.Context, staffID int64) (*WorkSession, error) {
 	session, err := s.repo.GetLatestOpenByStaffID(ctx, staffID)
 	if err != nil {
 		if modelBase.IsNoRows(err) {
@@ -1730,7 +1730,7 @@ func (s *workSessionService) GetHistoryIntersecting(ctx context.Context, staffID
 // range is carried through because the weekly summaries are aggregated per
 // calendar day: a block that reaches beyond the requested range (a night block
 // at either border) must not contribute the minutes it spends outside it.
-func (s *workSessionService) historyResponse(ctx context.Context, staffID int64, sessions []*activeModels.WorkSession, from, to timezone.Date) (*HistoryResponse, error) {
+func (s *workSessionService) historyResponse(ctx context.Context, staffID int64, sessions []*WorkSession, from, to timezone.Date) (*HistoryResponse, error) {
 
 	// Collect session IDs for batch edit count query
 	sessionIDs := make([]int64, len(sessions))
@@ -2097,7 +2097,7 @@ func (s *workSessionService) GetSessionEditsForStaff(ctx context.Context, staffI
 // loadSessionEditsView is the shared body that loads edits and decorates
 // them with editor display names. Names are resolved through a single batch
 // staff+person query so we never N+1 the audit log.
-func (s *workSessionService) loadSessionEditsView(ctx context.Context, session *activeModels.WorkSession, sessionID int64) ([]*WorkSessionEditView, error) {
+func (s *workSessionService) loadSessionEditsView(ctx context.Context, session *WorkSession, sessionID int64) ([]*WorkSessionEditView, error) {
 	edits, err := s.auditRepo.GetBySessionID(ctx, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get session edits: %w", err)
@@ -2369,7 +2369,7 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 	return count, nil
 }
 
-func autoCheckoutEffectiveStart(session *activeModels.WorkSession) time.Time {
+func autoCheckoutEffectiveStart(session *WorkSession) time.Time {
 	if session == nil {
 		return time.Time{}
 	}
@@ -2379,8 +2379,8 @@ func autoCheckoutEffectiveStart(session *activeModels.WorkSession) time.Time {
 	return session.CheckInTime
 }
 
-func activeBreakAndLateBreakAfter(breaks []*activeModels.WorkSessionBreak, closeAt time.Time) (*activeModels.WorkSessionBreak, *activeModels.WorkSessionBreak) {
-	var activeBreak *activeModels.WorkSessionBreak
+func activeBreakAndLateBreakAfter(breaks []*WorkSessionBreak, closeAt time.Time) (*WorkSessionBreak, *WorkSessionBreak) {
+	var activeBreak *WorkSessionBreak
 	for _, brk := range breaks {
 		if brk == nil {
 			continue
@@ -2398,7 +2398,7 @@ func activeBreakAndLateBreakAfter(breaks []*activeModels.WorkSessionBreak, close
 	return activeBreak, nil
 }
 
-func (s *workSessionService) endActiveBreak(ctx context.Context, sessionID int64, activeBreak *activeModels.WorkSessionBreak, endAt time.Time) error {
+func (s *workSessionService) endActiveBreak(ctx context.Context, sessionID int64, activeBreak *WorkSessionBreak, endAt time.Time) error {
 	duration := int(math.Round(endAt.Sub(activeBreak.StartedAt).Minutes()))
 	if err := s.breakRepo.EndBreak(ctx, activeBreak.ID, endAt, duration); err != nil {
 		return fmt.Errorf("failed to end active break: %w", err)
@@ -2412,7 +2412,7 @@ func (s *workSessionService) endActiveBreak(ctx context.Context, sessionID int64
 
 // EnsureCheckedIn ensures a staff member is checked in, creating a session if needed.
 // `source` is forwarded to CheckIn so the channel is recorded faithfully.
-func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*activeModels.WorkSession, error) {
+func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*WorkSession, error) {
 	// Check if already checked in. Across all days, like the check-in guard:
 	// a block that crossed Berlin midnight is still running, and starting a
 	// supervision must return it instead of running into "already checked in".
@@ -2444,7 +2444,7 @@ func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64,
 	// The F9 deviation gate is bypassed: this auto-stamp fires because the
 	// staff member started a supervision, and that flow cannot collect a
 	// reason (see checkIn).
-	return s.checkIn(ctx, staffID, activeModels.WorkSessionStatusPresent, source, "", false)
+	return s.checkIn(ctx, staffID, WorkSessionStatusPresent, source, "", false)
 }
 
 // German weekday names for export
@@ -2452,11 +2452,11 @@ var germanWeekdays = [7]string{"Sonntag", "Montag", "Dienstag", "Mittwoch", "Don
 
 // German absence type labels for export
 var germanAbsenceTypeLabels = map[string]string{
-	activeModels.AbsenceTypeSick:     "Krank",
-	activeModels.AbsenceTypeVacation: "Urlaub",
-	activeModels.AbsenceTypeTraining: "Fortbildung",
-	activeModels.AbsenceTypeOther:    "Sonstige",
-	activeModels.AbsenceTypeCompTime: "Freizeitausgleich",
+	AbsenceTypeSick:     "Krank",
+	AbsenceTypeVacation: "Urlaub",
+	AbsenceTypeTraining: "Fortbildung",
+	AbsenceTypeOther:    "Sonstige",
+	AbsenceTypeCompTime: "Freizeitausgleich",
 }
 
 // exportRow represents a single row in the export (either a work session or an absence day)
@@ -2512,7 +2512,7 @@ func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, 
 	}
 
 	// Load absences for the same date range
-	var absences []*activeModels.StaffAbsence
+	var absences []*StaffAbsence
 	if s.absenceRepo != nil {
 		absences, err = s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, from, to)
 		if err != nil {
@@ -2619,8 +2619,8 @@ func (s *workSessionService) buildTimeTrackingDocument(ctx context.Context, staf
 // inside the requested export period. Repository range lookups deliberately
 // return overlapping absences, including records that start before `from` or
 // end after `to`.
-func clampAbsencesToRange(absences []*activeModels.StaffAbsence, from, to timezone.Date) []*activeModels.StaffAbsence {
-	clamped := make([]*activeModels.StaffAbsence, 0, len(absences))
+func clampAbsencesToRange(absences []*StaffAbsence, from, to timezone.Date) []*StaffAbsence {
+	clamped := make([]*StaffAbsence, 0, len(absences))
 	for _, absence := range absences {
 		if absence == nil || absence.DateEnd.Before(from) || to.Before(absence.DateStart) {
 			continue
@@ -2638,7 +2638,7 @@ func clampAbsencesToRange(absences []*activeModels.StaffAbsence, from, to timezo
 }
 
 // buildExportRows merges session rows and absence rows, sorted by date
-func (s *workSessionService) buildExportRows(sessions []*SessionResponse, absences []*activeModels.StaffAbsence) []exportRow {
+func (s *workSessionService) buildExportRows(sessions []*SessionResponse, absences []*StaffAbsence) []exportRow {
 	var rows []exportRow
 
 	// Add session rows (a day can carry several blocks since #2402)
@@ -2652,8 +2652,8 @@ func (s *workSessionService) buildExportRows(sessions []*SessionResponse, absenc
 
 	// Add absence rows (one row per day in the absence range)
 	for _, absence := range absences {
-		if absence.Status != activeModels.AbsenceStatusReported &&
-			absence.Status != activeModels.AbsenceStatusApproved {
+		if absence.Status != AbsenceStatusReported &&
+			absence.Status != AbsenceStatusApproved {
 			continue
 		}
 		// The school's own wording wins when the absence carries one (#2403);
@@ -2728,7 +2728,7 @@ func (s *workSessionService) sessionToRow(sr *SessionResponse) []string {
 	// the row was Vor Ort or Homeoffice, even if the session was later
 	// auto-closed or manually corrected.
 	status := "Vor Ort"
-	if sess.Status == activeModels.WorkSessionStatusHomeOffice {
+	if sess.Status == WorkSessionStatusHomeOffice {
 		status = "Homeoffice"
 	}
 
@@ -2755,9 +2755,9 @@ func (s *workSessionService) sessionToRow(sr *SessionResponse) []string {
 // briefly between migration and new-server boot.
 func quelleLabel(source string) string {
 	switch source {
-	case activeModels.WorkSessionSourceNFC:
+	case WorkSessionSourceNFC:
 		return "NFC"
-	case activeModels.WorkSessionSourceUnknown:
+	case WorkSessionSourceUnknown:
 		return "-"
 	default:
 		return "App"
@@ -2788,7 +2788,7 @@ func (s *workSessionService) AutoEndExpiredBreaks(ctx context.Context) (int, err
 	if err != nil {
 		return 0, fmt.Errorf("failed to resolve work sessions for balance lock: %w", err)
 	}
-	sessionsByID := make(map[int64]*activeModels.WorkSession, len(sessions))
+	sessionsByID := make(map[int64]*WorkSession, len(sessions))
 	for _, session := range sessions {
 		sessionsByID[session.ID] = session
 	}

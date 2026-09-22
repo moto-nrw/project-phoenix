@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -49,7 +48,7 @@ type SetVacationOpeningRequest struct {
 }
 
 // GetVacationOpening returns the takeover row for a staff/year, or nil.
-func (s *staffAbsenceService) GetVacationOpening(ctx context.Context, staffID int64, year int) (*activeModels.StaffVacationOpening, error) {
+func (s *staffAbsenceService) GetVacationOpening(ctx context.Context, staffID int64, year int) (*StaffVacationOpening, error) {
 	if staffID <= 0 {
 		return nil, fmt.Errorf("%w: staff id is required", ErrVacationOpeningInvalid)
 	}
@@ -89,7 +88,7 @@ func validateSetVacationOpening(staffID, decidedBy int64, req SetVacationOpening
 }
 
 // SetVacationOpening books the vacation takeover for the Stichtag's year.
-func (s *staffAbsenceService) SetVacationOpening(ctx context.Context, staffID, decidedBy int64, req SetVacationOpeningRequest) (*activeModels.StaffVacationOpening, error) {
+func (s *staffAbsenceService) SetVacationOpening(ctx context.Context, staffID, decidedBy int64, req SetVacationOpeningRequest) (*StaffVacationOpening, error) {
 	if s.openingRepo == nil {
 		return nil, fmt.Errorf("vacation opening repository is not configured")
 	}
@@ -126,7 +125,7 @@ func (s *staffAbsenceService) SetVacationOpening(ctx context.Context, staffID, d
 	takenBefore := entitled + carryover - req.RemainingDays
 
 	now := time.Now()
-	opening := &activeModels.StaffVacationOpening{
+	opening := &StaffVacationOpening{
 		StaffID:              staffID,
 		Year:                 year,
 		EffectiveDate:        req.EffectiveDate,
@@ -164,8 +163,8 @@ func (s *staffAbsenceService) ValidateVacationOpeningAbsencesBefore(ctx context.
 // rejectVacationBeforeOpening keeps later vacation mutations from invalidating
 // an already-booked takeover. Callers hold LockStaffAbsenceWrites, the same
 // lock SetVacationOpening holds while checking and inserting its row.
-func (s *staffAbsenceService) rejectVacationBeforeOpening(ctx context.Context, absence *activeModels.StaffAbsence) error {
-	if absence.AbsenceType != activeModels.AbsenceTypeVacation || s.openingRepo == nil {
+func (s *staffAbsenceService) rejectVacationBeforeOpening(ctx context.Context, absence *StaffAbsence) error {
+	if absence.AbsenceType != AbsenceTypeVacation || s.openingRepo == nil {
 		return nil
 	}
 	for year := absence.DateStart.Year(); year <= absence.DateEnd.Year(); year++ {
@@ -240,11 +239,11 @@ func (s *staffAbsenceService) rejectVacationAbsencesBefore(ctx context.Context, 
 		return fmt.Errorf("failed to check absences for vacation opening: %w", err)
 	}
 	for _, a := range absences {
-		if a.AbsenceType != activeModels.AbsenceTypeVacation {
+		if a.AbsenceType != AbsenceTypeVacation {
 			continue
 		}
 		switch a.Status {
-		case activeModels.AbsenceStatusDeclined, activeModels.AbsenceStatusCanceled:
+		case AbsenceStatusDeclined, AbsenceStatusCanceled:
 			continue
 		}
 		if vacationAbsenceHasWorkingDayBefore(a, yearStart, effectiveDate) {
@@ -262,7 +261,7 @@ func (s *staffAbsenceService) rejectVacationAbsencesBefore(ctx context.Context, 
 // vacation quota before cutoff within the requested calendar year. Vacation
 // quota currently counts Monday through Friday only; holidays are deliberately
 // not excluded by countWorkingDays yet.
-func vacationAbsenceHasWorkingDayBefore(absence *activeModels.StaffAbsence, yearStart, cutoff timezone.Date) bool {
+func vacationAbsenceHasWorkingDayBefore(absence *StaffAbsence, yearStart, cutoff timezone.Date) bool {
 	from := absence.DateStart
 	if from.Before(yearStart) {
 		from = yearStart

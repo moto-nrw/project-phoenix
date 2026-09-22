@@ -80,7 +80,6 @@ func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *repositori
 		PickupSchedules:  sf.PickupSchedule,
 		CareRequests:     sf.CareRequests,
 		StatusDayRepo:    repos.StudentStatusDay,
-		DB:               db,
 		Logger:           slog.Default(),
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)

@@ -25,18 +25,23 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
+
+// CallerContext is the Identity & Access caller context the adapters read.
+type CallerContext interface {
+	HasCurrentStaff(context.Context) (bool, error)
+	HasFullStudentAccess(context.Context) bool
+	MyGroupRecords(context.Context) ([]grouplive.GroupRecord, error)
+	GetSubstitutedGroupIDs(context.Context) (map[int64]bool, error)
+}
 
 // Sources are the retained owner services the projection's ports adapt.
 type Sources struct {
@@ -44,16 +49,16 @@ type Sources struct {
 	People            userService.PersonService
 	Education         educationService.Service
 	Substitutions     educationService.SubstitutionModule
-	UserContext       userContextService.UserContextService
-	Active            activeService.Service
+	UserContext       CallerContext
+	Active            studentpresence.Presence
 	Settings          configService.SettingsService
 	Pickups           careplan.BulkPickupTimes
 	Arrivals          careplan.BulkArrivalTimes
 	Instances         timetableplanning.InstanceService
 	CareDays          careplan.CareDayQuery
-	CareParticipation carelifecycle.CareLifecycleService
+	CareParticipation careplan.CareParticipation
 	ExcusedRequests   grouplive.PendingExcusedReader
-	StatusDays        *activeService.StudentStatusDayService
+	StatusDays        studentpresence.StatusDays
 	Logger            *slog.Logger
 	Now               func() time.Time
 }
@@ -91,7 +96,7 @@ func New(sources Sources) (grouplive.Query, error) {
 
 type access struct {
 	settings    configService.SettingsService
-	userContext userContextService.UserContextService
+	userContext CallerContext
 }
 
 func (a access) Caller(ctx context.Context) (grouplive.Caller, error) {
@@ -111,7 +116,7 @@ func (a access) Caller(ctx context.Context) (grouplive.Caller, error) {
 }
 
 func (a access) FullStudentAccess(ctx context.Context) (bool, error) {
-	return userContextService.ResolveStudentAccess(ctx, a.userContext).HasFullAccess(), nil
+	return a.userContext.HasFullStudentAccess(ctx), nil
 }
 
 // parseDay converts the projection's calendar day into the retained
@@ -122,21 +127,12 @@ func parseDay(date grouplive.Date) (timezone.Date, error) {
 
 type directory struct {
 	education   educationService.Service
-	userContext userContextService.UserContextService
+	userContext CallerContext
 }
 
 func (d directory) SupervisedGroups(ctx context.Context) ([]grouplive.GroupRecord, error) {
-	groups, err := d.userContext.GetMyGroups(ctx)
-	if err != nil {
-		return nil, err
-	}
-	records := make([]grouplive.GroupRecord, 0, len(groups))
-	for _, group := range groups {
-		if group != nil {
-			records = append(records, grouplive.GroupRecord{ID: group.ID, Name: group.Name, RoomID: group.RoomID})
-		}
-	}
-	return sortedRecords(records), nil
+	records, err := d.userContext.MyGroupRecords(ctx)
+	return sortedRecords(records), err
 }
 
 func (d directory) TenantGroups(ctx context.Context) ([]grouplive.GroupRecord, error) {
@@ -182,7 +178,7 @@ func (d directory) GroupRoomNames(ctx context.Context, groupIDs []int64) (map[in
 
 type roster struct {
 	people            userService.PersonService
-	careParticipation carelifecycle.CareLifecycleService
+	careParticipation careplan.CareParticipation
 }
 
 func (r roster) GroupMembers(ctx context.Context, groupID int64) ([]grouplive.RosterStudent, error) {
@@ -233,8 +229,8 @@ func (r roster) CareParticipants(ctx context.Context, studentIDs []int64, date g
 
 type presence struct {
 	presence   studentpresence.Query
-	active     activeService.Service
-	statusDays *activeService.StudentStatusDayService
+	active     studentpresence.Presence
+	statusDays studentpresence.StatusDays
 }
 
 func (p presence) Snapshot(ctx context.Context, studentIDs []int64, date grouplive.Date) (grouplive.PresenceSnapshot, error) {
@@ -246,7 +242,7 @@ func (p presence) Snapshot(ctx context.Context, studentIDs []int64, date groupli
 	if err != nil {
 		return nil, err
 	}
-	snapshot := activeService.NewStudentLocationSnapshot(mode)
+	snapshot := studentpresence.NewStudentLocationSnapshot(mode)
 	ids := slices.Compact(slices.Sorted(slices.Values(studentIDs)))
 	if len(ids) == 0 {
 		return locationSnapshot{snapshot: snapshot}, nil
@@ -259,13 +255,13 @@ func (p presence) Snapshot(ctx context.Context, studentIDs []int64, date groupli
 		return nil, err
 	}
 	for _, attendance := range attendances {
-		snapshot.Attendances[attendance.StudentID] = &activeService.AttendanceStatus{
+		snapshot.Attendances[attendance.StudentID] = &studentpresence.DailyAttendanceStatus{
 			StudentID: attendance.StudentID, Date: day, Status: attendance.Status,
 			CheckInTime: attendance.CheckInTime, CheckOutTime: attendance.CheckOutTime, YardSince: attendance.YardSince,
 		}
 	}
-	if mode == activeService.PresenceModeBinary {
-		snapshot.YardRoomColor = activeService.ResolveYardRoomColor(ctx, p.active)
+	if mode == studentpresence.PresenceModeBinary {
+		snapshot.YardRoomColor = studentpresence.ResolveYardRoomColor(ctx, p.active)
 		return locationSnapshot{snapshot: snapshot}, nil
 	}
 	if err := p.loadVisits(ctx, snapshot, ids); err != nil {
@@ -274,7 +270,7 @@ func (p presence) Snapshot(ctx context.Context, studentIDs []int64, date groupli
 	return locationSnapshot{snapshot: snapshot}, nil
 }
 
-func (p presence) loadVisits(ctx context.Context, snapshot *activeService.StudentLocationSnapshot, studentIDs []int64) error {
+func (p presence) loadVisits(ctx context.Context, snapshot *studentpresence.StudentLocationSnapshot, studentIDs []int64) error {
 	visits, err := p.presence.ListVisits(ctx, studentpresence.VisitFilter{StudentIDs: studentIDs, OpenOnly: true, StudentOrder: true, NewestFirst: true})
 	if err != nil {
 		return err
@@ -305,7 +301,7 @@ func (p presence) loadVisits(ctx context.Context, snapshot *activeService.Studen
 }
 
 type locationSnapshot struct {
-	snapshot *activeService.StudentLocationSnapshot
+	snapshot *studentpresence.StudentLocationSnapshot
 }
 
 func (s locationSnapshot) Location(studentID int64, fullAccess bool) grouplive.Location {
@@ -346,13 +342,13 @@ func (p presence) EffectiveStatuses(ctx context.Context, studentIDs []int64, dat
 	if err != nil {
 		return nil, err
 	}
-	byStudent := make(map[int64][]*activeModels.StudentStatusDay)
+	byStudent := make(map[int64][]*absencerecords.StudentStatusDay)
 	for _, row := range rows {
 		byStudent[row.StudentID] = append(byStudent[row.StudentID], row)
 	}
 	result := make(map[int64]grouplive.EffectiveStatus, len(byStudent))
 	for studentID, statusRows := range byStudent {
-		status := activeService.ResolveEffectiveStatus(statusRows)
+		status := studentpresence.ResolveEffectiveStatus(statusRows)
 		result[studentID] = grouplive.EffectiveStatus{
 			Sick: status.Sick, ClassTrip: status.ClassTrip, Excused: status.Excused,
 			SickSince: status.SickSince, ClassTripSince: status.ClassTripSince, ExcusedSince: status.ExcusedSince,

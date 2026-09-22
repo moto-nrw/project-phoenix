@@ -469,9 +469,9 @@ src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[1
 src/components/calendar/personal-calendar.tsx|text-[11px]@786 text-[11px]@814 text-[11px]@901 text-[11px]@962 text-[11px]@966 text-[11px]@972 text-[11px]@1018 text-[11px]@1024 text-[10px]@1044 text-[11px]@1097 text-[11px]@1177 text-[11px]@1183 text-[11px]@1188
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@40 text-[10px]@94
 src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@920 text-[11px]@939
-src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1306 text-[11px]@2991 text-[11px]@3183 text-[11px]@3188 text-[11px]@3193 text-[11px]@3347 text-[11px]@3939 text-[10px]@4156 text-[11px]@4168 text-[11px]@4203 text-[10px]@4217 text-[10px]@4261
-src/components/enrollment/enrollment-form.tsx|text-[11px]@2090
-src/components/enrollment/phases-editor.tsx|text-[11px]@668 text-[11px]@673
+src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1349
+src/components/enrollment/enrollment-form.tsx|text-[11px]@2122
+src/components/enrollment/phases-editor.tsx|text-[11px]@669 text-[11px]@674
 src/components/files/files-page.tsx|text-[11px]@158 text-[11px]@275
 src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141
 src/components/guardians/guardian-list.tsx|text-[10px]@373
@@ -482,7 +482,7 @@ src/components/planning/closing-day-marker.tsx|text-[10px]@53
 src/components/staff/absence-request-row.tsx|text-[11px]@107
 src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@468 text-[11px]@564 text-[11px]@573 text-[11px]@580 text-[10px]@714
 src/components/staff/staff-session-table.tsx|text-[11px]@1194
-src/components/students/care-schedule-manager.tsx|text-[10px]@1194 text-[11px]@1355 text-[11px]@1444 text-[11px]@1454 text-[11px]@1484
+src/components/students/care-schedule-manager.tsx|text-[10px]@1201 text-[11px]@1362 text-[11px]@1451 text-[11px]@1461 text-[11px]@1491
 src/components/students/planned-status-days-modal.tsx|text-[10px]@927 text-[11px]@927
 src/components/students/school-checkin-fab.tsx|text-[10px]@198
 src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@118 text-[10px]@139 text-[10px]@150
@@ -510,7 +510,7 @@ src/components/ui/multi-checkbox-select.tsx|text-[11px]@246
 src/components/ui/notification-badge.tsx|text-[10px]@15
 src/components/ui/origin-chip.tsx|text-[11px]@24
 src/components/ui/page-header/FilterButton.tsx|text-[10px]@61
-src/components/ui/page-header/OverflowMenu.tsx|text-[10px]@393 text-[11px]@456
+src/components/ui/page-header/OverflowMenu.tsx|text-[10px]@437 text-[11px]@500
 src/components/ui/parent-visible-badge.tsx|text-[11px]@44
 src/components/ui/plan-block.tsx|text-[11px]@126 text-[11px]@133
 src/components/ui/plan-legend.tsx|text-[11px]@106

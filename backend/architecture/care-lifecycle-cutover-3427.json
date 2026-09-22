@@ -1,0 +1,101 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#3020",
+    "#3350",
+    "#3410"
+  ],
+  "owner_and_capability": "Care Plan — the public modules/careplan contract (CareLifecycle, StudentCompanions, StudentDocuments) for care exits, withdrawal tasks, booking authority, companions and child documents, replacing the dissolved modules/careplan/legacy/carelifecycle and careexitview packages (#3427)",
+  "affected_packages": [
+    "modules/careplan",
+    "modules/careplan/contracttest",
+    "modules/careplan/legacy",
+    "database/repositories",
+    "database/repositories/users",
+    "models/users"
+  ],
+  "affected_tables": [
+    "users.student_companions",
+    "users.student_documents",
+    "users.student_document_file_cleanup"
+  ],
+  "exact_ratchet_keys": [
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/users|github.com/moto-nrw/project-phoenix/models/documents"
+  ],
+  "atomic_cutover": "The carelifecycle and careexitview legacy packages are deleted in one PR together with every caller. The student-document repository adapter in database/repositories/users was reachable only from its own tests once the lifecycle moved to Care Plan, so the adapter and its test are deleted and the ten document tests run against Care Plan's record capability in modules/careplan/contracttest. That deleted external test was the only importer of models/documents from database/repositories/users, which retires the listed key. No statement and no second provider is added.",
+  "tests": [
+    "scripts/test-changed.sh origin/development without --fast: the full backend suite, including the care-exit, companion and care-document behaviour tests and the query-budget tests.",
+    "modules/careplan/contracttest/care_document_records_test.go, the ten student-document repository tests ported onto the Care Plan record capability.",
+    "scripts/backend-architecture.sh check with the listed key absent from legacy.jsonl."
+  ],
+  "runtime_evidence": {
+    "source": "Local run on the PR branch after merging origin/development. The retired key belongs to a deleted test file; the production paths execute the same Care Plan record statements, so the evidence is the unchanged behaviour and query-budget suites plus the architecture check, not a benchmark rerun.",
+    "sources": [
+      "backend/modules/careplan/contracttest/care_document_records_test.go",
+      "backend/test/query_budgets.go",
+      "https://github.com/moto-nrw/project-phoenix/pull/3516"
+    ],
+    "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",
+    "thresholds": "The suite passes with an unchanged query-budget register, and the architecture check reports no new violation and no stale baseline entry.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "The retired key comes from a deleted test file; no production write statement changes with it."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "The query-budget tests passed with test/query_budgets.go unchanged, so no budgeted scenario gained a statement."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "Deleting a test-only adapter changes no request path."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "Deleting a test-only adapter changes no request path."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "scripts/test-changed.sh origin/development exited 0 with no failing test and no panic."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection is acquired differently; the deleted adapter had no production caller."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "No lock statement or lock order changes with the deleted adapter."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No transaction boundary or lock order changes with the deleted adapter."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The deleted adapter has no worker path."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "The deleted adapter has no worker path."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "The deleted adapter has no worker path."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The not-found and validation error shapes of the student-document records are covered by the ported contract tests in care_document_records_test.go."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data or schema change. Reverting the PR restores the adapter, its test and the baseline entry together."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed locally with the key absent: 624 legacy violations remain after merging development, composition surface 638 -> 636."
+    }
+  },
+  "rollback_and_cleanup": "Revert the PR; the legacy packages, the document repository adapter with its test and the baseline entry return together. No data cleanup.",
+  "exit_criterion": "No file remains under backend/modules/careplan/legacy, database/repositories/users has no test importing models/documents, and the listed key is absent from legacy.jsonl."
+}

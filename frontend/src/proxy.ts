@@ -279,6 +279,8 @@ const PARENTS_PUBLIC_PATHS = [
   "/settings",
   "/anmeldung",
   "/accept-guardian-invite",
+  // Entry page of the public demo in the role parent (#3468).
+  "/demo",
 ];
 
 function isParentsHost(hostname: string): boolean {

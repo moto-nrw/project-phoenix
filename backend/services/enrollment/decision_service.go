@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
@@ -383,7 +384,7 @@ type PickupGuardianNotifier interface {
 // CareWithdrawalReconciler persists or obsoletes the durable follow-up in the
 // same tenant transaction as the authoritative booking change.
 type CareWithdrawalReconciler interface {
-	ReconcileAuthoritativeBookingChange(ctx context.Context, change users.CareWithdrawalBookingChange) error
+	ReconcileAuthoritativeBookingChange(ctx context.Context, change careplan.CareWithdrawalBookingChange) error
 }
 
 type DecisionLateInvites interface {
@@ -2052,7 +2053,7 @@ func (s *decisionService) reconcileExistingStudentCareRenewal(
 	if !requestChildOfferingLinksHaveCareDays(links, offeringByID) {
 		return nil
 	}
-	if err := s.CareWithdrawal.ReconcileAuthoritativeBookingChange(ctx, users.CareWithdrawalBookingChange{
+	if err := s.CareWithdrawal.ReconcileAuthoritativeBookingChange(ctx, careplan.CareWithdrawalBookingChange{
 		StudentID: studentID, FirstBookinglessDay: timezone.Date(phase.ServiceStartDate),
 	}); err != nil {
 		return fmt.Errorf("decision: reconcile renewed care withdrawal: %w", err)

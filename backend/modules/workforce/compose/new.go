@@ -22,13 +22,15 @@ import (
 type Observation = ports.Observation
 
 // Dependencies are the collaborators the Workforce work-time module cannot
-// own. AssignedStaffIDs and RebaseStaffAnchor reach the School Membership
-// rows; both are required so a missing wiring fails at startup instead of
+// own. The template binding lives on Workforce's employment profile (#2753);
+// LiveStaffIDs asks School Membership which of the bound memberships are
+// still live. It is required so a missing wiring fails at startup instead of
 // silently skipping the assigned-staff refresh.
 type Dependencies struct {
-	DB                  *bun.DB
-	AssignedStaffIDs    func(ctx context.Context, workTimeModelID int64) ([]int64, error)
-	RebaseStaffAnchor   func(ctx context.Context, workTimeModelID int64, anchorDate string) ([]int64, error)
+	DB *bun.DB
+	// LiveStaffIDs returns the given memberships that are not offboarded,
+	// sorted by ID.
+	LiveStaffIDs        func(ctx context.Context, membershipIDs []int64) ([]int64, error)
 	LockStaffAssignment func(context.Context, int64) error
 	Observe             func(Observation)
 	// Now is the clock the live work-session window and the calendar day
@@ -49,8 +51,8 @@ func New(dependencies Dependencies) (*workforce.Module, error) {
 }
 
 func newApplication(dependencies Dependencies) (*application.Service, error) {
-	if dependencies.DB == nil || dependencies.AssignedStaffIDs == nil ||
-		dependencies.RebaseStaffAnchor == nil || dependencies.LockStaffAssignment == nil || dependencies.Observe == nil {
+	if dependencies.DB == nil || dependencies.LiveStaffIDs == nil ||
+		dependencies.LockStaffAssignment == nil || dependencies.Observe == nil {
 		return nil, errors.New("workforce compose: all dependencies are required")
 	}
 	store := postgres.New(databaseRuntime(dependencies.DB))
@@ -65,7 +67,7 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 	service := application.New(
 		store,
 		transaction{lock: store.AcquireXactLock},
-		assignments{ids: dependencies.AssignedStaffIDs, rebase: dependencies.RebaseStaffAnchor},
+		assignments{store: store, live: dependencies.LiveStaffIDs},
 		dependencies.LockStaffAssignment,
 		clock{now: now},
 		allowanceUses,
@@ -154,17 +156,26 @@ type clock struct{ now func() time.Time }
 func (c clock) Now() time.Time { return c.now() }
 func (c clock) Today() string  { return timezone.DateFromTime(c.now()).String() }
 
+// assignments reads the template binding from the employment profile and
+// keeps only the memberships School Membership still holds as live.
 type assignments struct {
-	ids    func(context.Context, int64) ([]int64, error)
-	rebase func(context.Context, int64, string) ([]int64, error)
+	store *postgres.Store
+	live  func(context.Context, []int64) ([]int64, error)
 }
 
 func (a assignments) AssignedStaffIDs(ctx context.Context, workTimeModelID int64) ([]int64, error) {
-	return a.ids(ctx, workTimeModelID)
+	ids, err := a.store.StaffOnWorkTimeModel(ctx, workTimeModelID)
+	if err != nil || len(ids) == 0 {
+		return ids, err
+	}
+	return a.live(ctx, ids)
 }
 
-func (a assignments) RebaseAnchor(ctx context.Context, workTimeModelID int64, anchorDate string) ([]int64, error) {
-	return a.rebase(ctx, workTimeModelID, anchorDate)
+func (a assignments) RebaseAnchor(ctx context.Context, staffIDs []int64, anchorDate string) error {
+	if len(staffIDs) == 0 {
+		return nil
+	}
+	return a.store.RebaseStaffRotationAnchor(ctx, staffIDs, anchorDate)
 }
 
 type engine struct{ service *application.Service }

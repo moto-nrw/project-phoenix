@@ -17,21 +17,21 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	statisticsService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/statistics"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/uptrace/bun"
 )
 
 // Resource is the statistics API resource.
 type Resource struct {
-	Service    statisticsService.Service
+	Service    studentpresence.StatisticsReports
 	ListExport *listexport.RendererService
 	DB         *bun.DB
 	Logger     *slog.Logger
 }
 
 // NewResource creates the statistics resource.
-func NewResource(service statisticsService.Service, listExport *listexport.RendererService, db *bun.DB, logger *slog.Logger) *Resource {
+func NewResource(service studentpresence.StatisticsReports, listExport *listexport.RendererService, db *bun.DB, logger *slog.Logger) *Resource {
 	return &Resource{Service: service, ListExport: listExport, DB: db, Logger: logger}
 }
 
@@ -56,7 +56,7 @@ func (rs *Resource) Router() chi.Router {
 }
 
 var renderError = common.RulesRenderer([]common.ErrorRule{
-	{Target: statisticsService.ErrInvalidRange, Render: common.ErrorInvalidRequest},
+	{Target: studentpresence.ErrInvalidStatisticsRange, Render: common.ErrorInvalidRequest},
 }, func(err error) render.Renderer {
 	return common.ErrorInternalServerWrap("statistics failed", err)
 })
@@ -117,35 +117,35 @@ func (rs *Resource) exportReport(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) logFailure(msg string, err error) {
-	if errors.Is(err, statisticsService.ErrInvalidRange) {
+	if errors.Is(err, studentpresence.ErrInvalidStatisticsRange) {
 		return
 	}
 	rs.logger().Error(msg, slog.String("error", err.Error()))
 }
 
-func actorFromRequest(r *http.Request) statisticsService.Actor {
+func actorFromRequest(r *http.Request) studentpresence.StatisticsActor {
 	claims := jwt.ClaimsFromCtx(r.Context())
-	return statisticsService.Actor{
+	return studentpresence.StatisticsActor{
 		AccountID: int64(claims.ID),
 		Role:      strings.Join(claims.Roles, ","),
 	}
 }
 
 // parseFilters reads from, to (YYYY-MM-DD, required) and group_id (repeatable).
-func parseFilters(r *http.Request) (statisticsService.Filters, error) {
+func parseFilters(r *http.Request) (studentpresence.StatisticsFilters, error) {
 	q := r.URL.Query()
 	from, err := timezone.ParseDate(strings.TrimSpace(q.Get("from")))
 	if err != nil {
-		return statisticsService.Filters{}, fmt.Errorf("invalid from date: %w", err)
+		return studentpresence.StatisticsFilters{}, fmt.Errorf("invalid from date: %w", err)
 	}
 	to, err := timezone.ParseDate(strings.TrimSpace(q.Get("to")))
 	if err != nil {
-		return statisticsService.Filters{}, fmt.Errorf("invalid to date: %w", err)
+		return studentpresence.StatisticsFilters{}, fmt.Errorf("invalid to date: %w", err)
 	}
-	filters := statisticsService.Filters{From: from, To: to}
+	filters := studentpresence.StatisticsFilters{From: from, To: to}
 	sections, err := parseReportSections(q["section"])
 	if err != nil {
-		return statisticsService.Filters{}, err
+		return studentpresence.StatisticsFilters{}, err
 	}
 	filters.Sections = sections
 	for _, raw := range q["group_id"] {
@@ -156,7 +156,7 @@ func parseFilters(r *http.Request) (statisticsService.Filters, error) {
 			}
 			id, err := strconv.ParseInt(part, 10, 64)
 			if err != nil || id < 0 {
-				return statisticsService.Filters{}, fmt.Errorf("invalid group_id %q", part)
+				return studentpresence.StatisticsFilters{}, fmt.Errorf("invalid group_id %q", part)
 			}
 			filters.GroupIDs = append(filters.GroupIDs, id)
 		}
@@ -189,8 +189,8 @@ func parseSection(r *http.Request) (string, error) {
 // parseReportSections limits which sections the report computes. Repeatable
 // and comma-separated; absent means the whole report, which is what the
 // screen asks for so switching tabs costs no request.
-func parseReportSections(raw []string) ([]statisticsService.Section, error) {
-	var sections []statisticsService.Section
+func parseReportSections(raw []string) ([]studentpresence.StatisticsSection, error) {
+	var sections []studentpresence.StatisticsSection
 	for _, value := range raw {
 		for _, part := range strings.Split(value, ",") {
 			part = strings.TrimSpace(part)
@@ -199,11 +199,11 @@ func parseReportSections(raw []string) ([]statisticsService.Section, error) {
 			}
 			switch part {
 			case sectionAttendance:
-				sections = append(sections, statisticsService.SectionAttendance)
+				sections = append(sections, studentpresence.StatisticsSectionAttendance)
 			case sectionRooms:
-				sections = append(sections, statisticsService.SectionRooms)
+				sections = append(sections, studentpresence.StatisticsSectionRooms)
 			case sectionCourses, sectionCourseStudents:
-				sections = append(sections, statisticsService.SectionCourses)
+				sections = append(sections, studentpresence.StatisticsSectionCourses)
 			default:
 				return nil, fmt.Errorf("unsupported section %q", part)
 			}

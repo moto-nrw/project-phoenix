@@ -14,7 +14,9 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -71,6 +73,7 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 	actorAccount := testpkg.CreateTestAccount(t, db, "offboarding-audit-actor@example.org")
 	deps := offboardingcompose.Dependencies{
 		DB: db, Access: services.StaffOffboardingAccess(authService),
+		Employment: repositories.MembershipStaffEmployment(repositories.MustNewStaffEmployment(db)),
 		Authorize: func(ctx context.Context) (staffoffboarding.Actor, error) {
 			actor, _ := ctx.Value(offboardingTestActorKey{}).(staffoffboarding.Actor)
 			actor.AccountID = actorAccount.ID
@@ -153,8 +156,8 @@ func assertConcurrentSupervisionRejected(t *testing.T, operation string) {
 					_, err := active.Active.UpdateActiveGroupSupervisors(writerCtx, group.ID, []int64{staff.ID})
 					return err
 				}
-				return active.Active.CreateGroupSupervisor(writerCtx, &activeModels.GroupSupervisor{
-					StaffID: staff.ID, GroupID: group.ID, Role: "supervisor", StartDate: timezone.TodayDate(),
+				return active.Active.CreateGroupSupervisor(writerCtx, &studentpresence.GroupSupervision{
+					StaffID: staff.ID, GroupID: group.ID, Role: "supervisor", StartDate: timezone.TodayDate().String(),
 				})
 			})
 		}()
@@ -1013,8 +1016,8 @@ func TestOffboardStaff_RemovesPendingAndFutureAbsences(t *testing.T) {
 	actor := testpkg.CreateTestStaff(t, sc.db, "Offboarding", "Admin")
 	today := timezone.TodayDate()
 
-	makeAbsence := func(absenceType, status string, start, end timezone.Date) *activeModels.StaffAbsence {
-		absence := &activeModels.StaffAbsence{
+	makeAbsence := func(absenceType, status string, start, end timezone.Date) *timerecords.StaffAbsence {
+		absence := &timerecords.StaffAbsence{
 			StaffID:     staff.ID,
 			AbsenceType: absenceType,
 			DateStart:   start,
@@ -1025,13 +1028,13 @@ func TestOffboardStaff_RemovesPendingAndFutureAbsences(t *testing.T) {
 		require.NoError(t, sc.repos.StaffAbsence.Create(sc.ctx, absence))
 		return absence
 	}
-	pendingRequest := makeAbsence(activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusRequested,
+	pendingRequest := makeAbsence(workforce.AbsenceTypeVacation, workforce.AbsenceStatusRequested,
 		today.AddDays(3), today.AddDays(5))
-	futureApproved := makeAbsence(activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusApproved,
+	futureApproved := makeAbsence(workforce.AbsenceTypeVacation, workforce.AbsenceStatusApproved,
 		today.AddDays(10), today.AddDays(12))
-	pastApproved := makeAbsence(activeModels.AbsenceTypeSick, activeModels.AbsenceStatusApproved,
+	pastApproved := makeAbsence(workforce.AbsenceTypeSick, workforce.AbsenceStatusApproved,
 		today.AddDays(-10), today.AddDays(-8))
-	pastQuestion := makeAbsence(activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusQuestion,
+	pastQuestion := makeAbsence(workforce.AbsenceTypeVacation, workforce.AbsenceStatusQuestion,
 		today.AddDays(-6), today.AddDays(-4))
 
 	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, actor.ID, "test-admin"))
@@ -1070,7 +1073,7 @@ func TestOffboardStaff_RemovesPendingAndFutureAbsences(t *testing.T) {
 		assert.Equal(t, actor.ID, tombstone.DeletedBy)
 		assert.Equal(t, auditModels.TimeTrackingDeletionSourceAbsence, tombstone.Source)
 		assert.Equal(t, "Personal-Offboarding", tombstone.Note)
-		var payload activeModels.StaffAbsence
+		var payload timerecords.StaffAbsence
 		require.NoError(t, json.Unmarshal(tombstone.Payload, &payload))
 		assert.Equal(t, tombstone.SourceID, payload.ID)
 	}
@@ -1083,12 +1086,12 @@ func TestOffboardStaff_AbsenceAuditFailureRollsBackOffboarding(t *testing.T) {
 
 	staff := testpkg.CreateTestStaff(t, sc.db, "Audit", "Rollback")
 	today := timezone.TodayDate()
-	absence := &activeModels.StaffAbsence{
+	absence := &timerecords.StaffAbsence{
 		StaffID:     staff.ID,
-		AbsenceType: activeModels.AbsenceTypeVacation,
+		AbsenceType: workforce.AbsenceTypeVacation,
 		DateStart:   today.AddDays(1),
 		DateEnd:     today.AddDays(2),
-		Status:      activeModels.AbsenceStatusApproved,
+		Status:      workforce.AbsenceStatusApproved,
 		CreatedBy:   staff.ID,
 	}
 	require.NoError(t, sc.repos.StaffAbsence.Create(sc.ctx, absence))

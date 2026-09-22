@@ -465,8 +465,43 @@ jobs:
           # this disposable CI database; keep production limits unchanged.
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
             'DELETE FROM platform.operator_mfa_email_challenges WHERE consumed_at IS NOT NULL'
-          "${RUNNER_TEMP}/phoenix" demo --url http://localhost:8080 --once
-          "${RUNNER_TEMP}/phoenix" demo --url http://localhost:8080 --once
+          # The standing school is the fallback of #3463 and keeps its coverage.
+          "${RUNNER_TEMP}/phoenix" demo --url http://localhost:8080 --once --demo-standing-school
+          "${RUNNER_TEMP}/phoenix" demo --url http://localhost:8080 --once --demo-standing-school
+
+      # One demo school per demo access (#3463): queue what the serving backend
+      # queues for three prospects, let the demo process seed them with its
+      # three workers and tick them once. A school that did not become ready
+      # fails the job. The durations are what a visitor waits for.
+      - name: Seed queued demo schools with the demo process
+        working-directory: backend
+        run: |
+          psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
+            'DELETE FROM platform.operator_mfa_email_challenges WHERE consumed_at IS NOT NULL'
+          psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
+            "INSERT INTO platform.demo_school_states (name, school_name, person_name)
+             SELECT 'ogs-smoke-' || i || '-k3m9x' || i, 'OGS Smoke ' || i, 'Kim Beispiel' FROM generate_series(1, 3) AS i"
+          LOG_LEVEL=info "${RUNNER_TEMP}/phoenix" demo --url http://localhost:8080 --once 2>&1 | grep -E 'demo school (ready|order failed)' || true
+          not_ready=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM platform.demo_school_states WHERE name LIKE 'ogs-smoke-%' AND status <> 'ready'")
+          visitors=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM users.persons p JOIN platform.demo_school_states d ON d.tenant_id = p.tenant_id JOIN users.staff s ON s.person_id = p.id WHERE d.name LIKE 'ogs-smoke-%' AND p.first_name = 'Kim' AND p.last_name = 'Beispiel'")
+          echo "demo schools not ready: ${not_ready}, staff named after the visitor: ${visitors}"
+          test "${not_ready}" = 0
+          test "${visitors}" = 3
+          # The demo role parent (#3468): each school names the visitor's
+          # parent, a guardian of the visitor's name with full parent portal
+          # rights for exactly one child and no other child.
+          parents=$(psql "${DB_DSN}" -At -c "
+            SELECT count(*) FROM platform.demo_school_states d
+            JOIN users.guardian_profiles g ON g.account_id = d.visitor_parent_account_id AND g.tenant_id = d.tenant_id
+            WHERE d.name LIKE 'ogs-smoke-%' AND g.first_name = 'Kim' AND g.last_name = 'Beispiel'
+              AND (SELECT count(*) FROM users.students_guardians sg WHERE sg.guardian_profile_id = g.id) = 1
+              AND (SELECT count(*) FROM users.students_guardians sg WHERE sg.guardian_profile_id = g.id
+                   AND sg.guardian_role = 'primary_guardian' AND (sg.permissions ->> 'parent_portal.access')::boolean) = 1
+              AND (SELECT count(*) FROM users.guardian_profiles other
+                   JOIN users.students_guardians sg ON sg.guardian_profile_id = other.id
+                   WHERE other.account_id = d.visitor_parent_account_id) = 1")
+          echo "demo schools with the visitor's parent: ${parents}"
+          test "${parents}" = 3
 
       - name: Check seed coverage ratchet
         working-directory: backend

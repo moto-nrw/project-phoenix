@@ -51,6 +51,7 @@ import {
 import {
   fetchArrivalSettings,
   type CareDaysSource,
+  type CareTimePresets,
   type SchoolPeriod,
 } from "~/lib/student-arrival-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -228,6 +229,7 @@ export function StudentCreateModal({
   const [schoolPeriods, setSchoolPeriods] = useState<readonly SchoolPeriod[]>(
     [],
   );
+  const [timePresets, setTimePresets] = useState<CareTimePresets>();
   const [arrivalSettingsLoading, setArrivalSettingsLoading] = useState(false);
   const [arrivalSettingsLoadError, setArrivalSettingsLoadError] =
     useState(false);
@@ -271,6 +273,7 @@ export function StudentCreateModal({
       setCarePlanModalOpen(false);
       setCareDaysSource(null);
       setSchoolPeriods([]);
+      setTimePresets(undefined);
       setArrivalSettingsLoading(false);
       setArrivalSettingsLoadError(false);
       setGuardianPickerOpen(false);
@@ -291,12 +294,17 @@ export function StudentCreateModal({
         if (!cancelled) {
           setCareDaysSource(settings.care_days_source);
           setSchoolPeriods(settings.school_periods ?? []);
+          setTimePresets({
+            arrival: settings.defaultArrivalTime ?? "",
+            pickup: settings.defaultPickupTime ?? "",
+          });
         }
       })
       .catch(() => {
         if (!cancelled) {
           setCareDaysSource(null);
           setSchoolPeriods([]);
+          setTimePresets(undefined);
           setArrivalSettingsLoadError(true);
         }
       })
@@ -473,7 +481,7 @@ export function StudentCreateModal({
           if (!open) onClose();
         }}
       >
-        <SlideOverContent widthClass="sm:w-[720px]">
+        <SlideOverContent widthClass="sm:w-[720px]" isBackdropDismissDisabled>
           <SlideOverHeader className="flex-row items-start justify-between gap-3">
             <div className="min-w-0">
               <SlideOverTitle>Neues Kind</SlideOverTitle>
@@ -912,6 +920,7 @@ export function StudentCreateModal({
           isOpen={carePlanModalOpen}
           careDaysSource={careDaysSource}
           schoolPeriods={schoolPeriods}
+          timePresets={timePresets}
           onClose={() => setCarePlanModalOpen(false)}
           initialArrivalSchedules={arrivalSchedules}
           initialPickupSchedules={pickupSchedules}

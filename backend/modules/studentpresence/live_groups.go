@@ -36,6 +36,26 @@ func (m *Module) QueryLiveGroups(ctx context.Context, filter LiveGroupFilter) ([
 	return m.engine.QueryLiveGroups(ctx, filter)
 }
 
+// SupervisedLiveGroupQuery answers which room sessions a staff member runs.
+type SupervisedLiveGroupQuery interface {
+	ListSupervisedLiveGroups(context.Context, int64) ([]LiveGroup, error)
+	ListOpenLiveGroupsForActivities(context.Context, []int64) ([]LiveGroup, error)
+}
+
+// ListSupervisedLiveGroups returns the open room sessions the staff member
+// supervises today. The owner decides "today" in the school calendar and
+// counts a supervision from its start date up to, not including, its end date.
+// Room display facts stay with Facilities; the session carries its RoomID.
+func (m *Module) ListSupervisedLiveGroups(ctx context.Context, staffID int64) ([]LiveGroup, error) {
+	return m.engine.ListSupervisedLiveGroups(ctx, staffID)
+}
+
+// ListOpenLiveGroupsForActivities returns the open room sessions of the given
+// activity groups. Unlike LiveGroupFilter, nil or empty IDs match nothing.
+func (m *Module) ListOpenLiveGroupsForActivities(ctx context.Context, activityGroupIDs []int64) ([]LiveGroup, error) {
+	return m.engine.ListOpenLiveGroupsForActivities(ctx, activityGroupIDs)
+}
+
 func (m *Module) OccupiedActivityGroupIDs(ctx context.Context, ids []int64) ([]int64, error) {
 	return m.engine.OccupiedActivityGroupIDs(ctx, ids)
 }

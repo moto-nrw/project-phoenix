@@ -36,7 +36,6 @@ func buildNoticeFeedService(t *testing.T, newsEnabled, noticeEnabled bool) (*mes
 				configModels.KeyNotificationsCareCancelledEnabled: noticeEnabled,
 			},
 		},
-		DB:     db,
 		Logger: slog.Default(),
 	})
 	return svc, db, repos

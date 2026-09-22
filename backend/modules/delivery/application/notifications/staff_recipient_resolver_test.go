@@ -6,7 +6,7 @@ import (
 
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -33,8 +33,8 @@ func TestStaffRecipientResolverReachesGroupTeamAndAdmins(t *testing.T) {
 		&fakeAdminReader{ids: []int64{absenceAdmin}},
 		&fakeOnDutySetting{enabled: true},
 		&fakeDutyReader{presence: map[int64]string{
-			absenceStaffA:     activeModel.WorkSessionStatusPresent,
-			absenceAdminStaff: activeModel.WorkSessionStatusPresent,
+			absenceStaffA:     workforce.WorkSessionStatusPresent,
+			absenceAdminStaff: workforce.WorkSessionStatusPresent,
 		}},
 	)
 

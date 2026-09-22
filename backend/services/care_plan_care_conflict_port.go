@@ -64,11 +64,11 @@ func (a requestConflictPlans) ActingStaffID(ctx context.Context) (int64, error) 
 	if a.s.userContext == nil {
 		return 0, errors.New("schedule: pickup change dependencies not configured")
 	}
-	staff, err := a.s.resolvePickupChangeStaff(ctx)
+	staffID, err := a.s.resolvePickupChangeStaff(ctx)
 	if err != nil {
 		return 0, err
 	}
-	return staff.ID, nil
+	return staffID, nil
 }
 func (a requestConflictPlans) SaveApprovedException(ctx context.Context, tenantID, studentID int64, date timezone.Date, pickup time.Time, reason string, staffID int64) (int64, error) {
 	approvals, err := a.s.pickupApprovals()

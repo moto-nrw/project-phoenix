@@ -2,7 +2,7 @@ package services
 
 import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
+	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // The Identity & Access request shapes and the parents-portal guardian port,

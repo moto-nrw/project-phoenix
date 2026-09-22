@@ -14,8 +14,6 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -266,7 +264,7 @@ func TestTimetableOperationsRosterReportsCanOperate(t *testing.T) {
 				deps.settings.scope = configModel.OverviewScopeAllStaff
 				wireAssignedStaff(deps, 704, 804, 904, instanceID)
 				deps.staffRepo.byInstance[instanceID] = nil
-				deps.supervisors.byActiveGroup[activeGroupID] = []*activeModel.GroupSupervisor{{StaffID: 904}}
+				deps.supervisors.byActiveGroup[activeGroupID] = []*studentpresence.StaffedSupervision{{GroupSupervision: studentpresence.GroupSupervision{StaffID: 904}}}
 			},
 			want: true,
 		},
@@ -320,7 +318,7 @@ func TestTimetableOperationsWriteResponsesReportCanOperate(t *testing.T) {
 	wireAssignedStaff(deps, 711, 811, 911, instanceID)
 	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
 	deps.visitRepo.byActiveGroup[activeGroupID] = []*studentpresence.Visit{{StudentID: studentID, ActiveGroupID: activeGroupID, EntryTime: time.Now()}}
-	deps.activeService.endErr = activeSvc.ErrVisitAlreadyEnded
+	deps.activeService.endErr = studentpresence.ErrVisitAlreadyEnded
 
 	roster, err := deps.service.CheckOutStudent(context.Background(), 711, false, instanceID, studentID)
 

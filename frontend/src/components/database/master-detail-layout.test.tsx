@@ -178,6 +178,75 @@ describe("MasterDetailLayout", () => {
       );
       expect(container.firstChild).toHaveClass("my-root");
     });
+
+    // #3330: Höhe aus useFillHeight, Scrollen in der Karte. Den Browser-
+    // Nachbau dieses Markups prüft e2e/layout/database-layouts.spec.ts.
+    it("takes both cards out of the grow rule and keeps them in one row", () => {
+      const { container } = render(
+        <MasterDetailLayout
+          list={<div>List</div>}
+          detail={<div>Detail</div>}
+          selectedId="1"
+          onDeselect={vi.fn()}
+        />,
+      );
+
+      const root = container.firstChild as HTMLElement;
+      expect(root.style.height).toContain("100dvh");
+      expect(root).toHaveClass("flex", "gap-4");
+      const cards = root.querySelectorAll(":scope > .moto-content-surface");
+      expect(cards).toHaveLength(2);
+      expect(cards[0]).toHaveClass("moto-scroll-surface", "shrink-0");
+      expect(cards[1]).toHaveClass("moto-scroll-surface", "min-w-0", "flex-1");
+    });
+
+    it("takes the lone list card out of the grow rule when nothing is selected", () => {
+      const { container } = render(
+        <MasterDetailLayout
+          list={<div>List</div>}
+          detail={<div>Detail</div>}
+          selectedId={null}
+          onDeselect={vi.fn()}
+          unselectedBehavior="expand"
+        />,
+      );
+
+      const cards = (container.firstChild as HTMLElement).querySelectorAll(
+        ":scope > .moto-content-surface",
+      );
+      expect(cards).toHaveLength(1);
+      expect(cards[0]).toHaveClass("moto-scroll-surface", "flex-1");
+    });
+
+    it("measures the restored desktop container after switching from mobile", () => {
+      vi.mocked(useIsMobile).mockReturnValue(true);
+      const { container, rerender } = render(
+        <MasterDetailLayout
+          list={<div>List</div>}
+          detail={<div>Detail</div>}
+          selectedId="1"
+          onDeselect={vi.fn()}
+        />,
+      );
+      const getBoundingClientRect = vi
+        .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+        .mockReturnValue({ top: 120 } as DOMRect);
+
+      vi.mocked(useIsMobile).mockReturnValue(false);
+      rerender(
+        <MasterDetailLayout
+          list={<div>List</div>}
+          detail={<div>Detail</div>}
+          selectedId="1"
+          onDeselect={vi.fn()}
+        />,
+      );
+
+      expect((container.firstChild as HTMLElement).style.height).toBe(
+        "calc(100dvh - 152px)",
+      );
+      getBoundingClientRect.mockRestore();
+    });
   });
 
   describe("mobile", () => {
@@ -198,6 +267,25 @@ describe("MasterDetailLayout", () => {
       expect(screen.getByText("List")).toBeInTheDocument();
       expect(screen.getByTestId("drawer")).toHaveAttribute("data-open", "true");
       expect(screen.getByText("Detail")).toBeInTheDocument();
+    });
+
+    // #3330: Auf dem Telefon scrollt die Seite. Keine feste Höhe, und die
+    // Karte bleibt in der Wachstumsregel, damit sie mit der Liste wächst.
+    it("lets the page scroll instead of fixing the list card's height", () => {
+      const { container } = render(
+        <MasterDetailLayout
+          list={<div>List</div>}
+          detail={<div>Detail</div>}
+          selectedId={null}
+          onDeselect={vi.fn()}
+        />,
+      );
+
+      const root = container.firstChild as HTMLElement;
+      expect(root.style.height).toBe("");
+      const card = root.querySelector(":scope > .moto-content-surface");
+      expect(card).not.toBeNull();
+      expect(card).not.toHaveClass("moto-scroll-surface");
     });
 
     it("drawer is closed when selectedId is null", () => {

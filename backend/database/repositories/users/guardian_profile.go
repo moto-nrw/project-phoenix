@@ -417,34 +417,6 @@ func (r *GuardianProfileRepository) Update(ctx context.Context, profile *users.G
 	return nil
 }
 
-// UpdatePortalLocaleByAccountID updates portal_locale for every profile linked
-// to the parent account. Parent accounts are cross-tenant, so callers run this
-// under an admin transaction.
-func (r *GuardianProfileRepository) UpdatePortalLocaleByAccountID(ctx context.Context, accountID int64, locale string) error {
-	result, err := repoBase.GetDB(ctx, r.db).NewUpdate().
-		Model((*users.GuardianProfile)(nil)).
-		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
-		Set(`portal_locale = ?`, locale).
-		Set(`updated_at = NOW()`).
-		Where(`"guardian_profile".account_id = ?`, accountID).
-		Exec(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to update guardian portal locale: %w", err)
-	}
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf(errRowsAffected, err)
-	}
-	// Fail loud when the account has no guardian_profiles row. Without this the
-	// UPDATE matches zero rows, silently succeeds, and the caller reports the
-	// preference as saved — but the next read returns NULL again. Surface it so
-	// a "saved" choice that never persisted can't masquerade as success.
-	if rowsAffected == 0 {
-		return users.ErrGuardianProfileNotFound
-	}
-	return nil
-}
-
 // Delete removes a guardian profile
 func (r *GuardianProfileRepository) Delete(ctx context.Context, id int64) error {
 	result, err := repoBase.GetDB(ctx, r.db).NewDelete().

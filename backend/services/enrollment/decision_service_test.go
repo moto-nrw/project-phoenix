@@ -25,7 +25,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -155,13 +154,8 @@ func newDecisionServiceForTestWithPickupExtensions(
 		outbox = outboxes[0]
 	}
 	if careWithdrawal == nil {
-		careWithdrawal = carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
-			StudentRepo: repositories.NewCareStudents(repoFactory.Student, repoFactory.SchoolMembership()), PersonRepo: repoFactory.Person,
-			CareExitRepo: repoFactory.CareExit, CleanupRepo: repoFactory.CareExitCleanup,
-			WithdrawalRepo: repoFactory.CareWithdrawal, TagReleaser: repoFactory.StudentTagReleaser(),
-			AuditService:          usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(env.db)),
+		careWithdrawal = newTestCareLifecycle(env.db, repositories.CareLifecycleTestConfig{
 			BookingsAuthoritative: testBookingsAuthority(settings),
-			DB:                    env.db, Logger: slog.Default(),
 		})
 	}
 	pickupBaselines := newPickupBaselineService(repoFactory.CarePlan(), approvedOfferingTestProjection(repoFactory))
@@ -176,7 +170,7 @@ func newDecisionServiceForTestWithPickupExtensions(
 		Guardians:                 repoFactory.Enrollment(),
 		LateInviteRepo:            repoFactory.Enrollment(),
 		ApprovedOfferings:         enrollmentService.NewApprovedOfferingProjection(repoFactory.Enrollment(), offeringStudentTestDirectory{repoFactory.Student}),
-		CareOfferingRepo:          repoFactory.CareOffering,
+		CareOfferingRepo:          enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
 		Phases:                    repoFactory.Enrollment(),
 		Schemas:                   repoFactory.Enrollment(),
 		OfferingAdjustmentRepo:    repoFactory.EnrollmentOfferingAdjustment,
@@ -198,7 +192,7 @@ func newDecisionServiceForTestWithPickupExtensions(
 		ActivityExceptionRepo:     repoFactory.ActivityException,
 		GuardianAccess:            testGuardianAccess(env.db),
 		StudentEnrollment:         testStudentEnrollment(env.db),
-		DepartureCompanions:       repoFactory.StudentCompanion,
+		DepartureCompanions:       repositories.NewStudentCompanionRepository(repoFactory.CarePlan()),
 		DeleteDepartureCompanions: repoFactory.CarePlan().DeleteCompanionEdges,
 		OutboxEnqueuer:            outbox,
 		StudentAudit:              usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(env.db)),
@@ -3323,7 +3317,7 @@ func TestDecisionService_Decide_ApprovedUsesFixedOfferingDaysForActivityEnrollme
 		IsActive:        true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Create(ctx, offering))
 
 	req := enrollmentService.SubmitRequest{
 		TenantID:          testpkg.Tenant(t),
@@ -3433,7 +3427,7 @@ func TestDecisionService_UpdateChildOfferings_RebuildsEverySplitSeriesSegment(t 
 		AvailableDays: []string{"mon"}, IsActive: true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Create(ctx, offering))
 
 	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
 		TenantID: testpkg.Tenant(t), PhaseID: env.sourcePhase.ID,
@@ -3530,7 +3524,7 @@ func TestDecisionService_Decide_ApprovedPreservesLegacyNonTemplateLinkedOffering
 		IsActive:        true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Create(ctx, offering))
 
 	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
 		TenantID:          testpkg.Tenant(t),
@@ -3611,7 +3605,7 @@ func TestDecisionService_Decide_RolloverApprovalMaterializesClonedOffering(t *te
 		IsActive:        true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Create(ctx, offering))
 
 	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
 		TenantID:          testpkg.Tenant(t),
@@ -3661,7 +3655,7 @@ func TestDecisionService_Decide_RolloverApprovalMaterializesClonedOffering(t *te
 	require.NotNil(t, rolled.RolloverSourceChildID)
 	assert.Equal(t, submitted.Children[0].ID, *rolled.RolloverSourceChildID)
 
-	clones, err := env.repos.CareOffering.ListByPhase(ctx, result.Phase.ID)
+	clones, err := enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).ListByPhase(ctx, result.Phase.ID)
 	require.NoError(t, err)
 	require.Len(t, clones, 1)
 	clone := clones[0]
@@ -3756,7 +3750,7 @@ func TestDecisionService_Decide_ApprovedRejectsEmptyDaysForTemplateOffering(t *t
 		IsActive:        true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Create(ctx, offering))
 	// Simulate a legacy row saved before #1885 made available_days
 	// mandatory: clear the days directly, bypassing Validate. Such rows
 	// still exist in production and Decide must keep rejecting them.
@@ -3986,7 +3980,7 @@ func TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure(t *testing.
 		Requests:          repoFactory.Enrollment(),
 		Children:          repoFactory.Enrollment(),
 		ApprovedOfferings: enrollmentService.NewApprovedOfferingProjection(repoFactory.Enrollment(), offeringStudentTestDirectory{repoFactory.Student}),
-		CareOfferingRepo:  catalogFailureRepo{repoFactory.CareOffering},
+		CareOfferingRepo:  catalogFailureRepo{enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan())},
 		Phases:            repoFactory.Enrollment(),
 	})
 
@@ -4357,7 +4351,7 @@ func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterOffer
 	`, manualEnrollment.ID).Exec(ctx)
 	require.NoError(t, err)
 	offering.ActivityGroupID = &newGroup.ID
-	require.NoError(t, env.repos.CareOffering.Update(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Update(ctx, offering))
 
 	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
 		RequestID:      submitted.Request.ID,
@@ -4460,7 +4454,7 @@ func TestDecisionService_UpdateChildOfferings_RemovesLegacyUnsourcedEnrollmentAf
 	require.NoError(t, err)
 
 	offering.ActivityGroupID = &newGroup.ID
-	require.NoError(t, env.repos.CareOffering.Update(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Update(ctx, offering))
 
 	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
 		RequestID:      submitted.Request.ID,
@@ -4674,7 +4668,7 @@ func createAdjustmentCareOfferingWith(t *testing.T, env *decisionTestEnv, name s
 	if mutate != nil {
 		mutate(offering)
 	}
-	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Create(ctx, offering))
 	return offering
 }
 
@@ -4728,4 +4722,22 @@ func (a pickupExcusalTimetable) RecordPickupDayExtension(ctx context.Context, in
 }
 func (a pickupExcusalTimetable) RecordPickupWeekdayExtension(ctx context.Context, input compose.PickupWeekdayExtension) error {
 	return a.Capability.RecordPickupWeekdayExtension(ctx, timetable.PickupWeekdayExtension(input))
+}
+
+// newTestCareLifecycle composes Care Plan's lifecycle over the test database,
+// with its owners bound the way the production graph binds them. The care-end
+// history goes to the ordinary student audit unless the config names another.
+func newTestCareLifecycle(db *bun.DB, config repositories.CareLifecycleTestConfig) careplan.CareLifecycle {
+	repos, err := repositories.NewCareLifecycleTestRepositories(db, nil)
+	if err != nil {
+		panic(err)
+	}
+	if config.Audit == nil {
+		config.Audit = usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(db))
+	}
+	lifecycle, err := repos.NewCareLifecycle(config)
+	if err != nil {
+		panic(err)
+	}
+	return lifecycle
 }

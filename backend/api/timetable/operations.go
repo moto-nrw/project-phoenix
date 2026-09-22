@@ -20,7 +20,7 @@ import (
 	activityModel "github.com/moto-nrw/project-phoenix/models/activities"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -336,7 +336,7 @@ func (rs *Resource) validateSpontaneousRoom(w http.ResponseWriter, r *http.Reque
 		return false
 	}
 	if hasRoomConflict {
-		common.RenderError(w, r, common.ErrorConflict(activeSvc.ErrRoomConflict))
+		common.RenderError(w, r, common.ErrorConflict(studentpresence.ErrRoomConflict))
 		return false
 	}
 	return true
@@ -687,16 +687,16 @@ func (rs *Resource) renderOperationsError(w http.ResponseWriter, r *http.Request
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "completion_confirmation_stale"))
 	case errors.Is(err, timetableplanning.ErrInstanceNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, activeSvc.ErrStudentAlreadyActive), errors.Is(err, activeSvc.ErrRoomConflict),
-		errors.Is(err, activeSvc.ErrRoomCapacityExceeded), errors.Is(err, activeSvc.ErrStudentsNotPresent),
-		errors.Is(err, activeSvc.ErrActiveGroupAlreadyEnded):
+	case errors.Is(err, studentpresence.ErrStudentAlreadyActive), errors.Is(err, studentpresence.ErrRoomConflict),
+		errors.Is(err, studentpresence.ErrRoomCapacityExceeded), errors.Is(err, studentpresence.ErrStudentsNotPresent),
+		errors.Is(err, studentpresence.ErrGroupAlreadyEnded):
 		common.RenderError(w, r, common.ErrorConflict(err))
-	case errors.Is(err, activeSvc.ErrStudentNotFound), errors.Is(err, activeSvc.ErrVisitNotFound),
+	case errors.Is(err, studentpresence.ErrStudentNotFound), errors.Is(err, studentpresence.ErrVisitNotFound),
 		// A graduated (alumnus) student left on a roster is treated like an
 		// unknown/absent student (404), matching the IoT check-in mapper (#405).
-		errors.Is(err, activeSvc.ErrStudentGraduated), errors.Is(err, activeSvc.ErrStudentCareEnded):
+		errors.Is(err, studentpresence.ErrStudentGraduated), errors.Is(err, studentpresence.ErrStudentCareEnded):
 		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, activeSvc.ErrInvalidData):
+	case errors.Is(err, studentpresence.ErrInvalidData):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))

@@ -14,7 +14,7 @@ import (
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/uptrace/bun"
 )
 
@@ -39,11 +39,13 @@ type OperatorProvisioningDependencies struct {
 	StaffRepo    userModels.StaffRepository
 	Accounts     accountEmailQuery
 	ActiveGroups interface {
-		FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*activeModels.Group, error)
+		FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*studentpresence.SessionDetail, error)
 	}
-	Supervisors activeModels.GroupSupervisorRepository
-	Categories  activitiesModels.CategoryRepository
-	AuditLog    platformModels.OperatorAuditLogRepository
+	Supervisors interface {
+		FindActiveByStaffID(ctx context.Context, staffID int64) ([]*studentpresence.GroupSupervision, error)
+	}
+	Categories activitiesModels.CategoryRepository
+	AuditLog   platformModels.OperatorAuditLogRepository
 }
 
 // OperatorProvisioningAdapters bind the provisioning seams to the retained
@@ -202,7 +204,7 @@ func (p provisioningPeople) ListPersons(ctx context.Context, tenantIDs []int64) 
 		return nil, err
 	}
 	staff := make(map[int64]bool, len(personIDs))
-	members, err := p.membership.ListStaff(ctx, schoolmembership.StaffFilter{PersonIDs: personIDs})
+	members, err := p.membership.ListStaff(ctx, schoolmembership.StaffFilter{PersonIDs: personIDs, MembershipOnly: true})
 	if err != nil {
 		return nil, fmt.Errorf("load operator staff membership: %w", err)
 	}
@@ -281,9 +283,11 @@ func (p provisioningPeople) AnonymizeAndSoftDelete(ctx context.Context, personID
 
 type provisioningPresence struct {
 	groups interface {
-		FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*activeModels.Group, error)
+		FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*studentpresence.SessionDetail, error)
 	}
-	supervisors activeModels.GroupSupervisorRepository
+	supervisors interface {
+		FindActiveByStaffID(ctx context.Context, staffID int64) ([]*studentpresence.GroupSupervision, error)
+	}
 }
 
 // ActiveDeviceSession reads the device's open kiosk session under the
@@ -294,8 +298,8 @@ func (p provisioningPresence) ActiveDeviceSession(ctx context.Context, tenantID,
 		return nil, err
 	}
 	session := &organizationCompose.DeviceSession{ID: group.ID, StartedAt: group.StartTime}
-	if group.ActualGroup != nil {
-		session.ActivityName = &group.ActualGroup.Name
+	if group.Activity != nil {
+		session.ActivityName = &group.Activity.Name
 	}
 	if group.Room != nil {
 		session.RoomName = &group.Room.Name

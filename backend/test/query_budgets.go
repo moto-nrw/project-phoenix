@@ -155,6 +155,11 @@ var queryBudgets = map[string]queryBudget{
 	// modules/schoolmembership — assignment lists, 8 rows each.
 	"modules.schoolmembership.list_class_assignments": {max: 5},
 	"modules.schoolmembership.list_group_assignments": {max: 5},
+	// modules/schoolstructure — staff-keyed group reads (#3499): teacher
+	// groups, substituted groups and school classes in one pass, 1 and then
+	// 4 rows each, on the caller's tenant transaction. Every read resolves
+	// ids at its owner and loads groups in one batch.
+	"modules.schoolstructure.staff_group_reads": {max: 6},
 	// modules/classday — one slot reconciliation over the owner facades
 	// inside its tenant transaction, 3 and then 8 planned children (#2701).
 	// Every read is a bulk load by ID set; the count must not move with the
@@ -188,7 +193,8 @@ var queryBudgets = map[string]queryBudget{
 	// as N+1 here.
 	"api.staff_notices.acknowledgements": {max: 7, exact: true},
 	"modules.careplan.request_feed.list": {max: 1, exact: true},
-	// modules/identityaccess/legacy/usercontext — #2099 request cache dedups the identity chain.
+	// modules/identityaccess caller context (behavior/caller_request_cache_test.go) —
+	// the #2099 request cache dedups the identity chain.
 	"services.usercontext.identity_chain.persons":       {max: 1, exact: true},
 	"services.usercontext.identity_chain.staff":         {max: 1, exact: true},
 	"services.usercontext.identity_chain.teachers":      {max: 1, exact: true},

@@ -41,6 +41,7 @@ type CareOffering struct {
 	SelectionGroup            string
 	SelectionRule             string
 	PickupTimes               map[string]string
+	Translations              json.RawMessage
 	AutoAddTriggerOfferingIDs []int64
 }
 
@@ -64,6 +65,7 @@ type CareOfferingFields struct {
 	SelectionGroup            string
 	SelectionRule             string
 	PickupTimes               map[string]string
+	Translations              json.RawMessage
 	AutoAddTriggerOfferingIDs []int64
 }
 

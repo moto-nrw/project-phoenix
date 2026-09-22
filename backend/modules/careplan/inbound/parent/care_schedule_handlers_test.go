@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	"github.com/stretchr/testify/assert"
 )
 

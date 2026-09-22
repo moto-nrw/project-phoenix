@@ -1,0 +1,118 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#3020",
+    "#3214",
+    "#3416"
+  ],
+  "owner_and_capability": "Student Presence — the public modules/studentpresence contract (the presence, session, visit, attendance, status-day, statistics and cleanup facades plus SessionRecords and SupervisionRecords) over its own internal application, ports and Postgres adapter, replacing the dissolved modules/studentpresence/legacy nest; the row types the nest held for other owners move to modules/workforce/adapters/timerecords and modules/careplan/absencerecords (#3422)",
+  "affected_packages": [
+    "modules/studentpresence",
+    "modules/studentpresence/compose",
+    "modules/studentpresence/compose/presenceservice",
+    "modules/studentpresence/internal/application",
+    "modules/studentpresence/internal/application/presence",
+    "modules/studentpresence/internal/application/statistics",
+    "modules/studentpresence/internal/ports",
+    "modules/studentpresence/internal/adapters/postgres",
+    "modules/studentpresence/sessionrecordstest",
+    "modules/workforce/adapters/timerecords",
+    "modules/careplan/absencerecords",
+    "modules/careplan/absencerecordstest",
+    "database/repositories",
+    "services",
+    "test"
+  ],
+  "affected_tables": [
+    "active.groups",
+    "active.group_supervisors",
+    "active.visits",
+    "active.attendance",
+    "active.student_status_days",
+    "active.excused_absence_requests",
+    "active.work_sessions",
+    "active.staff_absences"
+  ],
+  "exact_ratchet_keys": [],
+  "atomic_cutover": "The four legacy packages are deleted across five commits on one branch, each switching its consumers in the same commit, and the branch merges as one pull request. No package under modules/studentpresence/legacy survives it. The reads and writes keep running through the same repositories, transaction boundaries, lock order and tenant scoping: the session and supervision repository bodies moved into the module's Postgres adapter over record ports the native application already satisfied, and the presence services moved into internal/application/presence behind the public facades the composition root binds. No DDL, no data migration, no second write owner: active.groups and active.group_supervisors stay with Student Presence, the nine active.staff_* and active.work_session* tables with Workforce and the two Care Plan tables with Care Plan, exactly as data_objects records them. The nest carried no legacy.jsonl key, so none is retired and none is added; the 79 student-presence adapter and domain rules that hid its import edges are deleted rather than converted, under the epoch-gated exception of ADR 0036.",
+  "tests": [
+    "scripts/test-changed.sh origin/development without --fast: the full backend suite, including the presence, check-in, transit, attendance-history, status-day, statistics and Workforce time-tracking behaviour tests, the two-tenant RLS isolation tests and the query-budget tests.",
+    "The moved suites: modules/studentpresence/internal/adapters/postgres (the session, supervision, attendance, staff-absence and projection repository tests), modules/studentpresence/internal/application/presence (the moved service tests) and modules/studentpresence/internal/ports (the row tests), each with its assertions and two-tenant coverage unchanged.",
+    "backend/api/iot/pyreportal_error_strings_test.go with the legacy path removed from extraGuardSources and the three locally defined PyrePortal strings still in the guard corpus.",
+    "go test ./test/ -run 'TestModule|TestPolicyTemporaryRules': the module ratchets, with the modules/studentpresence/legacy budget entry deleted and 35 complexity entries removed.",
+    "go test ./internal/architecture: the policy loader, the comparison and internal/architecture/studentpresence_cutover_test.go.",
+    "scripts/backend-architecture.sh check in pull-request mode against the merge base."
+  ],
+  "runtime_evidence": {
+    "source": "Local run on the pull-request branch against the postgres-test server. The relocation changes no SQL statement, no transaction boundary and no tenant predicate, so the evidence is the unchanged behaviour, isolation and query-budget suites plus the architecture check, not a benchmark rerun.",
+    "sources": [
+      "backend/test/query_budgets.go",
+      "backend/modules/studentpresence/internal/adapters/postgres/session_repository.go",
+      "backend/modules/studentpresence/internal/application/presence/session_service.go",
+      "backend/api/iot/pyreportal_error_strings_test.go",
+      "docs/adr/0036-student-presence-cutover-replaces-legacy-permissions.md"
+    ],
+    "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",
+    "thresholds": "The suite passes with an unchanged query-budget register, the architecture check reports no new violation and no baseline change, and the module ratchets accept no new or raised entry apart from the declared pass-through budget.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "No data or schema migration. The moved code writes the same rows through the same repositories."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "The query-budget tests passed with test/query_budgets.go unchanged, so no budgeted scenario gained or lost a statement across the relocation."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "The request paths execute the same statements through the same repositories; only the package a type is declared in changed."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "The request paths execute the same statements through the same repositories; only the package a type is declared in changed."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "scripts/test-changed.sh origin/development exited 0 with no failing test and no panic; the IoT error-string guard passed with the three PyrePortal strings unchanged."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection is acquired differently; the composition root builds the same graph from the module's own facades."
+    },
+    "lock_wait": {
+      "state": "measured",
+      "result": "The session and supervision repository tests, including the FOR UPDATE session and supervision reads, passed unchanged after the bodies moved into the module's Postgres adapter, so the lock statements and their order are the same."
+    },
+    "deadlocks": {
+      "state": "measured",
+      "result": "No serialization failure or deadlock in the full suite; the transaction boundaries are the tenant unit of work the module already opened."
+    },
+    "job_duration": {
+      "state": "measured",
+      "result": "The scheduler session-maintenance and retention-cleanup tests passed against the public facades the scheduler now calls, with the same per-tenant loop."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "The presence scheduler tasks have no retry path; a failed run is logged and retried on the next tick."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "The presence scheduler tasks hold no queue."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The moved suites keep the error-identity assertions: the presence sentinels, the status-day conflict error, the repository not-found shape and the three PyrePortal-mapped IoT strings are covered and unchanged."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data or schema change. Reverting the pull request restores the nest, its rules and the policy epoch together."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed in pull-request mode against the merge base: 624 legacy violations remain, unchanged, and the composition surface fell from 636 to 634."
+    }
+  },
+  "rollback_and_cleanup": "Revert the pull request; the four legacy packages, their rules, the policy epoch and the deleted ratchet entries return together. No data cleanup.",
+  "exit_criterion": "No file remains under backend/modules/studentpresence/legacy, no Go file imports github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/..., policy.json classifies no package under that path and no rule names student-presence/adapter or student-presence/domain, and legacy.jsonl is unchanged at 624 entries."
+}

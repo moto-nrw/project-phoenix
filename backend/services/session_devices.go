@@ -6,7 +6,7 @@ import (
 	"time"
 
 	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 )
 
 type sessionDevices struct {
@@ -16,7 +16,7 @@ type sessionDevices struct {
 
 // NewSessionDeviceDirectory binds session device operations and the owner's
 // online-window resolver without exposing the settings service to attendance.
-func NewSessionDeviceDirectory(records devicefleetLegacy.SessionDeviceRecords, settings devicefleetLegacy.SettingsResolver, logger *slog.Logger) active.SessionDeviceDirectory {
+func NewSessionDeviceDirectory(records devicefleetLegacy.SessionDeviceRecords, settings devicefleetLegacy.SettingsResolver, logger *slog.Logger) presenceservice.SessionDeviceDirectory {
 	return sessionDevices{SessionDeviceIDs: &devicefleetLegacy.SessionDeviceIDs{SessionDeviceRecords: records}, window: devicefleetLegacy.NewOnlineWindowResolver(settings, logger)}
 }
 

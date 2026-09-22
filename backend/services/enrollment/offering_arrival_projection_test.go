@@ -2,9 +2,10 @@ package enrollment_test
 
 import (
 	"context"
-	"log/slog"
 	"testing"
 	"time"
+
+	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
@@ -15,9 +16,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,13 +40,8 @@ func bookingModeArrivalBaseline(t *testing.T, env *decisionTestEnv, authoritativ
 
 func bookingModeCareDays(t *testing.T, env *decisionTestEnv, authoritative bool) careplan.CareDayQuery {
 	t.Helper()
-	participation := carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
-		StudentRepo: repositories.NewCareStudents(env.repos.Student, env.repos.SchoolMembership()), PersonRepo: env.repos.Person,
-		CareExitRepo: env.repos.CareExit, CleanupRepo: env.repos.CareExitCleanup,
-		WithdrawalRepo: env.repos.CareWithdrawal, TagReleaser: env.repos.StudentTagReleaser(),
-		AuditService:          usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(env.db)),
+	participation := newTestCareLifecycle(env.db, repositories.CareLifecycleTestConfig{
 		BookingsAuthoritative: func(context.Context) (bool, error) { return authoritative, nil },
-		DB:                    env.db, Logger: slog.Default(),
 	})
 	return careplanCompose.NewCareDays(careplanCompose.CareDayDependencies{
 		ArrivalBaselines: bookingModeArrivalBaseline(t, env, authoritative),
@@ -97,7 +91,7 @@ func createArrivalOffering(t *testing.T, env *decisionTestEnv, name string, days
 		CountsAsCare:   true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, env.repos.CareOffering.Create(testpkg.Ctx(t), offering))
+	require.NoError(t, enrollmentSvc.NewCareOfferingRepository(env.repos.CarePlan()).Create(testpkg.Ctx(t), offering))
 	return offering
 }
 

@@ -99,10 +99,6 @@ type StudentRepository interface {
 	// ListSchoolClasses retrieves all distinct non-empty school classes.
 	ListSchoolClasses(ctx context.Context) ([]string, error)
 
-	// ListIDs retrieves lightweight tenant-scoped candidates. The shared dated
-	// participation evaluator, not a lifecycle status, decides visibility.
-	ListIDs(ctx context.Context) ([]int64, error)
-
 	// FindBirthdaysOn returns the non-graduated children whose birthday falls
 	// on one of the given annually recurring days (#1542). Children without a
 	// stored birth date are omitted, never rendered as an unknown date.
@@ -182,13 +178,6 @@ type StudentRepository interface {
 	// opened a batch MUST call this before committing.
 	VerifyCompanionStrandingBatch(ctx context.Context) error
 
-	// FindByIDForUpdateNoWait is FindByIDForUpdate that fails immediately
-	// (PostgreSQL 55P03) instead of waiting when the row is already locked.
-	// Used only where waiting would invert the ascending-id order every
-	// companion writer follows and could therefore deadlock — see the
-	// lock protocol in api/students and StudentRepository.lockCompanionFarEnds.
-	FindByIDForUpdateNoWait(ctx context.Context, id int64) (*Student, error)
-
 	// FindByIDsForUpdate fetches and locks the given student rows in one
 	// SELECT … ORDER BY id FOR UPDATE (the project-wide ascending-id lock
 	// order), so batch writers acquire all their row locks in one query and
@@ -230,12 +219,6 @@ type StaffRepository interface {
 	// (role + direct account_permissions grants, wildcard-aware) so unreachable
 	// staff aren't invited as recipients.
 	FindReachableCalendarStaffIDs(ctx context.Context, ids []int64) (map[int64]bool, error)
-
-	// ClearWorkTimeModel sets work_time_model_id to NULL. Used by staff
-	// offboarding: soft-deleted staff must not keep the reference, or the
-	// RESTRICT FK blocks work-time-model deletion while the live-staff
-	// pre-check reports zero assignments.
-	ClearWorkTimeModel(ctx context.Context, id int64) error
 
 	// FindWithPerson retrieves a staff member with their associated person data
 	FindWithPerson(ctx context.Context, id int64) (*Staff, error)
@@ -461,15 +444,10 @@ type StudentCompanionRepository interface {
 	// ListForStudent returns every edge touching the student, all weekdays.
 	ListForStudent(ctx context.Context, studentID int64) ([]*StudentCompanion, error)
 
-	// ListLinksForStudent returns the edges folded per companion, with names.
-	ListLinksForStudent(ctx context.Context, studentID int64) ([]CompanionLink, error)
-
-	// ListLinksForStudents is the bulk form of ListLinksForStudent, for the
-	// offline lists that render the "mit wem" detail of a whole school.
+	// ListLinksForStudents returns the edges folded per companion, with
+	// names, for the offline lists that render the "mit wem" detail of a
+	// whole school.
 	ListLinksForStudents(ctx context.Context, studentIDs []int64) (map[int64][]CompanionLink, error)
-
-	// ReplaceForStudent makes the given edges the student's complete set.
-	ReplaceForStudent(ctx context.Context, studentID int64, edges []*StudentCompanion) error
 
 	// CompanionIDsForWeekday bulk-resolves companions for one weekday.
 	CompanionIDsForWeekday(ctx context.Context, studentIDs []int64, weekday int) (map[int64][]int64, error)
@@ -528,10 +506,6 @@ type GuardianProfileRepository interface {
 	// Update updates an existing guardian profile
 	Update(ctx context.Context, profile *GuardianProfile) error
 
-	// UpdatePortalLocaleByAccountID updates portal_locale for every guardian
-	// profile linked to the given parent account.
-	UpdatePortalLocaleByAccountID(ctx context.Context, accountID int64, locale string) error
-
 	// Delete removes a guardian profile
 	Delete(ctx context.Context, id int64) error
 
@@ -577,9 +551,6 @@ type GuardianPhoneNumberRepository interface {
 
 	// CountByGuardianID returns the number of phone numbers for a guardian
 	CountByGuardianID(ctx context.Context, guardianProfileID int64) (int, error)
-
-	// DeleteByGuardianID removes all phone numbers for a guardian
-	DeleteByGuardianID(ctx context.Context, guardianProfileID int64) error
 
 	// GetNextPriority returns the next priority value for a guardian's phone numbers
 	GetNextPriority(ctx context.Context, guardianProfileID int64) (int, error)

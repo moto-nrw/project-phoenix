@@ -21,8 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -63,7 +61,7 @@ type OperationPersonService interface {
 type OperationActiveService interface {
 	CreateVisit(ctx context.Context, visit *studentpresence.Visit) error
 	EndVisit(ctx context.Context, id int64) error
-	MoveStudentsToActiveGroupAuthorized(ctx context.Context, studentIDs []int64, activeGroupID int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error)
+	MoveStudentsToActiveGroupAuthorized(ctx context.Context, studentIDs []int64, activeGroupID int64, auth studentpresence.StudentMoveAuthorization) (*studentpresence.StudentMoveResult, error)
 }
 
 type OperationArrivalService interface {
@@ -129,13 +127,13 @@ type TimetableOperationsDependencies struct {
 	InstanceStaffRepo  scheduleModel.InstanceStaffRepository
 	InstanceStudents   scheduleModel.InstanceStudentRepository
 	InstanceService    InstanceService
-	ActiveGroupRepo    activeModel.GroupRepository
+	ActiveGroupRepo    studentpresence.SessionRecords
 	ActivityGroupRepo  activitiesModel.GroupRepository
 	ActiveService      OperationActiveService
 	ArrivalService     OperationArrivalService
 	PickupService      OperationPickupService
 	CareDayService     careplan.CareDayQuery
-	SupervisorRepo     activeModel.GroupSupervisorRepository
+	SupervisorRepo     studentpresence.SupervisionRecords
 	Presence           StudentVisitReader
 	StudentRepo        usersModel.StudentRepository
 	EducationGroupRepo educationModel.GroupRepository
@@ -797,7 +795,7 @@ func (s *timetableOperationsService) checkInStudent(ctx context.Context, account
 		if errors.Is(createErr, tenant.ErrSavepointControl) {
 			return nil, createErr
 		}
-		if errors.Is(createErr, activeSvc.ErrStudentAlreadyActive) {
+		if errors.Is(createErr, studentpresence.ErrStudentAlreadyActive) {
 			current, lookupErr := s.currentVisit(ctx, studentID)
 			if lookupErr != nil {
 				return nil, lookupErr
@@ -836,7 +834,7 @@ func (s *timetableOperationsService) checkInStudentWithCurrentVisit(ctx context.
 // Target authorization already happened in requireCanEditAttendance, so the move's
 // own supervision check is bypassed.
 func (s *timetableOperationsService) moveStudentFromOtherSession(ctx context.Context, staffID int64, inst *scheduleModel.ActivityInstance, instanceID, studentID int64) (*OperationRoster, error) {
-	result, err := s.deps.ActiveService.MoveStudentsToActiveGroupAuthorized(ctx, []int64{studentID}, *inst.ActiveGroupID, activeSvc.StudentMoveAuthorization{
+	result, err := s.deps.ActiveService.MoveStudentsToActiveGroupAuthorized(ctx, []int64{studentID}, *inst.ActiveGroupID, studentpresence.StudentMoveAuthorization{
 		StaffID:              staffID,
 		BypassResourceChecks: true,
 	})
@@ -872,12 +870,12 @@ func (s *timetableOperationsService) resolveActiveGroupLabel(ctx context.Context
 	if inst, err := s.deps.InstanceRepo.FindByActiveGroupID(ctx, activeGroupID); err == nil && inst != nil {
 		return inst.Title
 	}
-	group, err := s.deps.ActiveGroupRepo.FindByID(ctx, activeGroupID)
+	group, err := s.deps.ActiveGroupRepo.FindSession(ctx, activeGroupID)
 	if err != nil || group == nil {
 		return ""
 	}
-	if group.GroupID != nil {
-		if activityGroup, err := s.deps.ActivityGroupRepo.FindByID(ctx, *group.GroupID); err == nil && activityGroup != nil {
+	if group.ActivityGroupID != nil {
+		if activityGroup, err := s.deps.ActivityGroupRepo.FindByID(ctx, *group.ActivityGroupID); err == nil && activityGroup != nil {
 			return activityGroup.Name
 		}
 	}
@@ -932,7 +930,7 @@ func (s *timetableOperationsService) checkOutStudent(ctx context.Context, accoun
 	}
 	visitCtx := context.WithValue(ctx, device.CtxStaff, &device.AuthenticatedStaff{ID: staffID, TenantID: visit.TenantID})
 	if err := s.deps.ActiveService.EndVisit(visitCtx, visit.ID); err != nil {
-		if errors.Is(err, activeSvc.ErrVisitAlreadyEnded) {
+		if errors.Is(err, studentpresence.ErrVisitAlreadyEnded) {
 			return s.buildRoster(ctx, instanceID)
 		}
 		return nil, err

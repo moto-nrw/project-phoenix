@@ -28,6 +28,7 @@ type DemoVisit struct {
 // It deliberately does not construct the retained API/service factory graph.
 type DemoRuntime struct {
 	schools      *organizationtenancy.DemoSchools
+	queue        *organizationtenancy.DemoSchoolQueue
 	presence     *studentpresence.Module
 	transactions services.TenantRuntime
 }
@@ -49,7 +50,56 @@ func NewDemoRuntime(db *bun.DB) (*DemoRuntime, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &DemoRuntime{schools: schools, presence: presence, transactions: transactions}, nil
+	queue, err := organizationcompose.NewDemoSchoolQueue(db)
+	if err != nil {
+		return nil, err
+	}
+	return &DemoRuntime{schools: schools, queue: queue, presence: presence, transactions: transactions}, nil
+}
+
+// DemoSchoolOrder is a demo school of the public demo waiting for its seed
+// (#3463). Seeded orders only miss their first tick.
+type DemoSchoolOrder struct {
+	Slug, SchoolName, PersonName string
+	Attempts                     int
+	Seeded                       bool
+}
+
+// ReleaseDemoSchoolOrders returns the orders of a stopped process to the queue.
+func (d *DemoRuntime) ReleaseDemoSchoolOrders(ctx context.Context) error {
+	return d.queue.ReleaseDemoSchoolOrders(ctx)
+}
+
+// ClaimDemoSchoolOrder takes the oldest waiting order, or nil.
+func (d *DemoRuntime) ClaimDemoSchoolOrder(ctx context.Context) (*DemoSchoolOrder, error) {
+	order, err := d.queue.ClaimDemoSchoolOrder(ctx)
+	if order == nil || err != nil {
+		return nil, err
+	}
+	return &DemoSchoolOrder{
+		Slug: order.Slug, SchoolName: order.SchoolName, PersonName: order.PersonName, Attempts: order.Attempts, Seeded: order.Seeded,
+	}, nil
+}
+
+// FinishDemoSchoolOrder opens the school for its demo access.
+func (d *DemoRuntime) FinishDemoSchoolOrder(ctx context.Context, slug string, visitorAccountID, visitorParentAccountID int64) error {
+	return d.queue.FinishDemoSchoolOrder(ctx, slug, visitorAccountID, visitorParentAccountID)
+}
+
+// FailDemoSchoolOrder queues the order again until maxAttempts are used.
+func (d *DemoRuntime) FailDemoSchoolOrder(ctx context.Context, slug string, maxAttempts int) (bool, error) {
+	return d.queue.FailDemoSchoolOrder(ctx, slug, maxAttempts)
+}
+
+// ReadyDemoSchools lists every demo school that can be entered.
+func (d *DemoRuntime) ReadyDemoSchools(ctx context.Context) ([]string, error) {
+	return d.queue.ReadyDemoSchools(ctx)
+}
+
+// ActiveDemoSchools lists the ready demo schools a visitor entered since the
+// instant; only these get simulation ticks (#3464).
+func (d *DemoRuntime) ActiveDemoSchools(ctx context.Context, since time.Time) ([]string, error) {
+	return d.queue.ActiveDemoSchools(ctx, since)
 }
 
 func (d *DemoRuntime) LoadDemoSchool(ctx context.Context, name string) (*DemoSchoolRecord, error) {
@@ -82,4 +132,9 @@ func (d *DemoRuntime) LatestDemoVisits(ctx context.Context, webDeviceID int64, f
 		result = append(result, DemoVisit{StudentID: row.StudentID, Active: row.Active, Web: row.Web, ChangedAt: row.ChangedAt})
 	}
 	return result, nil
+}
+
+// ReturnDemoSchoolOrder hands a claimed order back without counting the attempt.
+func (d *DemoRuntime) ReturnDemoSchoolOrder(ctx context.Context, slug string) error {
+	return d.queue.ReturnDemoSchoolOrder(ctx, slug)
 }

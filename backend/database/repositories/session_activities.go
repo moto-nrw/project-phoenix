@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 )
 
 type SessionActivityRecords interface {
@@ -19,37 +19,37 @@ func NewSessionActivities(records SessionActivityRecords) *SessionActivities {
 	return &SessionActivities{records: records}
 }
 
-func (r *SessionActivities) FindByID(ctx context.Context, id any) (*active.SessionActivity, error) {
+func (r *SessionActivities) FindByID(ctx context.Context, id any) (*presenceCompose.SessionActivity, error) {
 	row, err := r.records.FindByID(ctx, id)
 	return sessionActivity(row), err
 }
 
-func (r *SessionActivities) FindByIDs(ctx context.Context, ids []int64) ([]*active.SessionActivity, error) {
+func (r *SessionActivities) FindByIDs(ctx context.Context, ids []int64) ([]*presenceCompose.SessionActivity, error) {
 	rows, err := r.records.FindByIDs(ctx, ids)
 	return sessionActivities(rows), err
 }
 
-func (r *SessionActivities) ListSessionActivities(ctx context.Context) ([]*active.SessionActivity, error) {
+func (r *SessionActivities) ListSessionActivities(ctx context.Context) ([]*presenceCompose.SessionActivity, error) {
 	rows, err := r.records.ListWithCategory(ctx, nil)
 	return sessionActivities(rows), err
 }
 
-func sessionActivities(rows []*activities.Group) []*active.SessionActivity {
+func sessionActivities(rows []*activities.Group) []*presenceCompose.SessionActivity {
 	if rows == nil {
 		return nil
 	}
-	result := make([]*active.SessionActivity, len(rows))
+	result := make([]*presenceCompose.SessionActivity, len(rows))
 	for i, row := range rows {
 		result[i] = sessionActivity(row)
 	}
 	return result
 }
 
-func sessionActivity(row *activities.Group) *active.SessionActivity {
+func sessionActivity(row *activities.Group) *presenceCompose.SessionActivity {
 	if row == nil {
 		return nil
 	}
-	result := &active.SessionActivity{
+	result := &presenceCompose.SessionActivity{
 		ID:                    row.ID,
 		TenantID:              row.TenantID,
 		CreatedAt:             row.CreatedAt,
@@ -79,7 +79,7 @@ func sessionActivity(row *activities.Group) *active.SessionActivity {
 		Notes:                 row.Notes,
 	}
 	if row.Category != nil {
-		result.Category = &active.SessionActivityCategory{
+		result.Category = &presenceCompose.SessionActivityCategory{
 			ID:          row.Category.ID,
 			TenantID:    row.Category.TenantID,
 			CreatedAt:   row.Category.CreatedAt,

@@ -155,6 +155,9 @@ describe("tenant-api", () => {
         // Absent operational_overview_scope collapses to the restrictive
         // "own": an older backend must never widen the UI (#2380).
         operationalOverviewScope: "own",
+        // Absent attendance_edit_scope is "own" for the same reason: the list
+        // must not offer moves the server would refuse (#3066).
+        attendanceEditScope: "own",
         // Fehlende parent_request_reason_policy gilt als "both", die
         // strengste Fassung: ein älteres Backend darf die Begründungs-Pflicht
         // nicht stillschweigend abschalten (#2267).
@@ -192,6 +195,7 @@ describe("tenant-api", () => {
                 attendance_web_enabled: true,
                 group_mode: "open_care",
                 operational_overview_scope: "all_staff",
+                attendance_edit_scope: "all_staff",
                 show_timetable_counts: true,
                 waitlist_enabled: true,
                 emergency_list_health_info_enabled: true,
@@ -210,6 +214,7 @@ describe("tenant-api", () => {
                 attendance_web_enabled: false,
                 group_mode: "fixed_groups",
                 operational_overview_scope: "nonsense_from_a_newer_backend",
+                attendance_edit_scope: "admins",
                 show_timetable_counts: false,
                 waitlist_enabled: false,
                 emergency_list_health_info_enabled: false,
@@ -224,6 +229,7 @@ describe("tenant-api", () => {
         attendanceWebEnabled: true,
         groupMode: "open_care",
         operationalOverviewScope: "all_staff",
+        attendanceEditScope: "all_staff",
         showTimetableCounts: true,
         waitlistEnabled: true,
         emergencyHealthInfoEnabled: true,
@@ -235,6 +241,7 @@ describe("tenant-api", () => {
         // An unrecognised scope collapses to the restrictive "own" — a value
         // the client cannot interpret must never widen the UI (#2380).
         operationalOverviewScope: "own",
+        attendanceEditScope: "own",
         showTimetableCounts: false,
         waitlistEnabled: false,
         emergencyHealthInfoEnabled: false,

@@ -33,6 +33,17 @@ type SeedOptions struct {
 	OnlyProfile   string // Restrict the run to one profile; empty seeds all four
 	StatePath     string // Output path; empty uses DefaultSeedStatePath
 	StandingDemo  bool   // Keep simulation devices but disable their user interface
+	// VisitorName puts a prospect of the public demo into the school (#3463):
+	// one caregiver with a group and one parent carry this name. Only the
+	// name is taken; every account keeps its synthetic address.
+	VisitorName string
+	// AccountScope replaces the tenant slug in account emails and usernames.
+	// A repeated seed of the same slug needs a fresh one: accounts are unique
+	// across the database and the abandoned school keeps its own.
+	AccountScope string
+	// ReplaceAbandoned moves a school a broken seed left under the slug out
+	// of the way (renamed and soft-deleted) instead of failing with 409.
+	ReplaceAbandoned bool
 	// SaveState replaces file output, allowing the demo process to persist
 	// credentials in the database. A failure fails the seed workflow.
 	SaveState func(context.Context, *SeedState) error
@@ -133,6 +144,11 @@ func (s *Seeder) bootstrapTenant(ctx context.Context) (*bootstrapSeedState, erro
 		return nil, wrapConflictError(err, "organization")
 	}
 	schoolID, tenantSlug, err := s.createSeedSchool(orgID, identity.schoolName, identity.schoolSlug, identity.schoolSlug)
+	if err != nil && s.options.ReplaceAbandoned && isConflictError(err) {
+		if err = s.retireAbandonedSchool(identity.schoolSlug); err == nil {
+			schoolID, tenantSlug, err = s.createSeedSchool(orgID, identity.schoolName, identity.schoolSlug, identity.schoolSlug)
+		}
+	}
 	if err != nil {
 		return nil, wrapConflictError(err, "school")
 	}
@@ -183,6 +199,9 @@ func (s *Seeder) profileIdentity() seedProfileIdentity {
 func (s *Seeder) accountScope() string {
 	if s.options.Randomize || s.options.TenantSlug == s.definition.SchoolSlug {
 		return ""
+	}
+	if s.options.AccountScope != "" {
+		return s.options.AccountScope
 	}
 	return s.options.TenantSlug
 }
@@ -299,6 +318,45 @@ func (s *Seeder) findSeedOrganization(slug string) (int64, error) {
 		}
 	}
 	return 0, fmt.Errorf("organization %q not found", slug)
+}
+
+// retireAbandonedSchool frees the subdomain a broken seed occupies. Schools
+// are never hard-deleted, and a soft-deleted one keeps its unique subdomain,
+// so the school is renamed first.
+func (s *Seeder) retireAbandonedSchool(subdomain string) error {
+	resp, err := s.client.Get("/operator/schools")
+	if err != nil {
+		return fmt.Errorf("list schools: %w", err)
+	}
+	var payload struct {
+		Data []struct {
+			ID             int64  `json:"id"`
+			OrganizationID int64  `json:"organization_id"`
+			Name           string `json:"name"`
+			Subdomain      string `json:"subdomain"`
+		} `json:"data"`
+	}
+	if err := parseJSON(resp, &payload); err != nil {
+		return fmt.Errorf("parse schools response: %w", err)
+	}
+	for _, school := range payload.Data {
+		if school.Subdomain != subdomain {
+			continue
+		}
+		retired := truncateSeedSubdomain(fmt.Sprintf("x%d-%s", school.ID, subdomain))
+		path := fmt.Sprintf("/operator/schools/%d", school.ID)
+		if _, err := s.client.Put(path, map[string]any{
+			"organization_id": school.OrganizationID, "name": school.Name,
+			"slug": retired, "subdomain": retired, "active": false, "hidden": true,
+		}); err != nil {
+			return fmt.Errorf("rename abandoned school: %w", err)
+		}
+		if _, err := s.client.Delete(path); err != nil {
+			return fmt.Errorf("delete abandoned school: %w", err)
+		}
+		return nil
+	}
+	return fmt.Errorf("school with subdomain %q not found", subdomain)
 }
 
 func (s *Seeder) createSeedSchool(organizationID int64, name, slug, subdomain string) (int64, string, error) {

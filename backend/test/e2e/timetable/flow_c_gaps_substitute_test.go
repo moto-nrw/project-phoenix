@@ -11,7 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/sessionrecordstest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -149,7 +149,7 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 
 	// For inst1 (active): active.group_supervisors was rotated.
 	supervisors := fetchGroupSupervisors(t, s, startResp.ActiveGroupID)
-	var supS1, supS3 *activeModel.GroupSupervisor
+	var supS1, supS3 *sessionrecordstest.GroupSupervisorRow
 	for i := range supervisors {
 		switch supervisors[i].StaffID {
 		case staff1.ID:
@@ -274,9 +274,9 @@ func fetchInstanceStaff(t *testing.T, s *scenario, instanceID int64) []scheduleM
 }
 
 // fetchGroupSupervisors returns all supervisor rows for an active.group.
-func fetchGroupSupervisors(t *testing.T, s *scenario, activeGroupID int64) []activeModel.GroupSupervisor {
+func fetchGroupSupervisors(t *testing.T, s *scenario, activeGroupID int64) []sessionrecordstest.GroupSupervisorRow {
 	t.Helper()
-	var rows []activeModel.GroupSupervisor
+	var rows []sessionrecordstest.GroupSupervisorRow
 	err := s.db.NewSelect().Model(&rows).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 		Where(`"group_supervisor".group_id = ?`, activeGroupID).

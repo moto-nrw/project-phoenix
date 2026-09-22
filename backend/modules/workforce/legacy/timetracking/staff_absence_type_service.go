@@ -6,7 +6,6 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
 var (
@@ -31,8 +30,8 @@ var (
 
 // AbsenceTypeReader supplies custom labels and booking checks from Workforce.
 type AbsenceTypeReader interface {
-	GetAbsenceType(context.Context, int64) (*activeModels.StaffAbsenceType, error)
-	ResolveForAbsence(context.Context, int64) (*activeModels.StaffAbsenceType, error)
+	GetAbsenceType(context.Context, int64) (*StaffAbsenceType, error)
+	ResolveForAbsence(context.Context, int64) (*StaffAbsenceType, error)
 	LabelsByID(context.Context) (map[int64]string, error)
 	PreviewAllowanceBooking(context.Context, int64, int64, timezone.Date, timezone.Date, bool) ([]*AbsenceTypeAllowanceSummary, error)
 	// PreviewAllowanceRebooking checks stored absences against the allowance
@@ -60,7 +59,7 @@ type AbsenceTypeAllowanceSummary struct {
 
 // StampAbsenceTypeLabels enriches custom absences only. Failed label lookups
 // preserve existing labels and report through the caller's service logger.
-func StampAbsenceTypeLabels(ctx context.Context, svc AbsenceTypeReader, absences []*activeModels.StaffAbsence, logger *slog.Logger) {
+func StampAbsenceTypeLabels(ctx context.Context, svc AbsenceTypeReader, absences []*StaffAbsence, logger *slog.Logger) {
 	if svc == nil {
 		return
 	}

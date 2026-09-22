@@ -24,6 +24,10 @@ type DemoTickOptions struct {
 	Client Client
 	Now    func() time.Time
 	Visits func(context.Context) ([]DemoVisit, error)
+	// Parents are the other parents of the school (#3468); ParentClient
+	// builds the client they act through. Without either, no parent acts.
+	Parents      []DemoParent
+	ParentClient func() DemoParentClient
 }
 
 // DemoTicker reuses live actions while reconciling against server state before
@@ -33,6 +37,7 @@ type DemoTicker struct {
 	live     *liveState
 	counts   liveCounts
 	prepared map[int64]bool
+	parents  demoParentState
 }
 
 func NewDemoTicker(options DemoTickOptions) (*DemoTicker, error) {
@@ -91,19 +96,27 @@ func (d *DemoTicker) Tick(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	// The parents act apart from the children: a failing parent is logged
+	// and never stops the children or the opening of a school.
+	d.parentTick(now)
+	return d.childrenTick(ctx, &state, rooms, active)
+}
+
+// childrenTick moves the eligible children, or rebuilds the day when none is present.
+func (d *DemoTicker) childrenTick(ctx context.Context, state *SeedState, rooms []int64, active int) error {
 	if len(state.Students) == 0 {
 		return nil
 	}
-	if err := d.prepareStudents(ctx, &state); err != nil {
+	if err := d.prepareStudents(ctx, state); err != nil {
 		return err
 	}
 	d.live.roomIDs = rooms
 	d.live.sessionID = 0
 	if active == 0 {
-		return d.rebuild(ctx, &state, rooms)
+		return d.rebuild(ctx, state, rooms)
 	}
 	device := state.Devices[sortedDeviceKeys(state.Devices)[0]]
-	if err := runLiveTick(d.options.Client, d.live, &state, device, &d.counts); err != nil {
+	if err := runLiveTick(d.options.Client, d.live, state, device, &d.counts); err != nil {
 		var coded interface{ HTTPErrorCode() string }
 		if errors.As(err, &coded) && coded.HTTPErrorCode() == "ROOM_CAPACITY_EXCEEDED" {
 			return nil // A visitor or another simulated child already fills the room.

@@ -15,17 +15,15 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	grouplivelegacy "github.com/moto-nrw/project-phoenix/modules/grouplive/legacy"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
@@ -43,7 +41,7 @@ type StudentTestModule struct {
 	PeopleDirectory    peopledirectory.Capability
 	Audit              auditModels.Command
 	Schools            organizationtenancy.Capability
-	CareLifecycle      carelifecycle.CareLifecycleService
+	CareLifecycle      careplan.CareLifecycle
 	StudentAudit       users.StudentAuditService
 	PartialAbsence     careplan.PartialAbsenceService
 	EnrollmentDecision enrollment.DecisionService
@@ -62,12 +60,12 @@ type StudentTestModule struct {
 }
 
 // ManualPartialAbsences binds the owner projection without constructing another service graph.
-func (m StudentTestModule) ManualPartialAbsences(source careplan.Capability) active.ManualPartialAbsenceReader {
+func (m StudentTestModule) ManualPartialAbsences(source careplan.Capability) presenceservice.ManualPartialAbsenceReader {
 	return NewManualPartialAbsenceDates(source)
 }
 
 // DataAccessAudit supplies the access-evidence writer from this module's audit command.
-func (m StudentTestModule) DataAccessAudit() active.DataAccessAudit {
+func (m StudentTestModule) DataAccessAudit() presenceservice.DataAccessAudit {
 	return NewDataAccessAudit(studentAccessAuditWriter{m.Audit})
 }
 
@@ -187,7 +185,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		Guardians:                 repos.Enrollment(),
 		LateInviteRepo:            repos.Enrollment(),
 		ApprovedOfferings:         approvedOfferings,
-		CareOfferingRepo:          repos.CareOffering,
+		CareOfferingRepo:          enrollment.NewCareOfferingRepository(repos.CarePlan),
 		Phases:                    repos.Enrollment(),
 		Schemas:                   repos.Enrollment(),
 		DataAccessLogRepo:         repos.DataAccessLog,
@@ -212,7 +210,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		ActivityExceptionRepo:     repos.ActivityException,
 		GuardianAccess:            guardianAccess,
 		StudentEnrollment:         persons,
-		DepartureCompanions:       repos.StudentCompanion,
+		DepartureCompanions:       repositories.NewStudentCompanionRepository(repos.CarePlan),
 		DeleteDepartureCompanions: repos.CarePlan.DeleteCompanionEdges,
 		OutboxEnqueuer:            outboxEnqueuer{outbox: emailOutboxService},
 		StudentAudit:              studentAuditService,
@@ -254,12 +252,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	offeringResync = enrollmentDecisionService.(education.OfferingSourceResyncer)
 	enrollmentDecisionApplier := enrollmentDecisionService.(enrollment.ChangeRequestDecisionApplier)
 	directOfferingApplier := enrollmentDecisionService.(enrollment.DirectOfferingAdjustmentApplier)
-	requestReviewPolicy := usercontext.NewParentRequestReviewPolicy(
-		settingsService,
-		userContextService,
-		configModels.KeyParentRequestGroupLeaderReviewEnabled,
-		configModels.KeyParentAbsenceReviewScope,
-	)
+	requestReviewPolicy := NewParentRequestReviewPolicy(userContextService.Caller().ParentRequestReviews)
 	parentRequestEvents := users.NewParentRequestEventRecorder(repos.ParentRequestEvent)
 	careRequestService := NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		repos.CarePlan,
@@ -279,11 +272,11 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		WithCareRequestToday(today),
 	)
 	offeringChangeRequestService := enrollment.NewOfferingChangeRequestServiceWithPolicy(enrollment.OfferingChangeRequestServiceConfig{
-		ChangeRepo:             repos.OfferingChangeRequest,
+		ChangeRepo:             enrollment.NewOfferingChangeRepository(repos.CarePlan, offeringChangeStudentSearch{people: persons}),
 		Children:               repos.Enrollment(),
 		Requests:               repos.Enrollment(),
 		Phases:                 repos.Enrollment(),
-		CareOfferingRepo:       repos.CareOffering,
+		CareOfferingRepo:       enrollment.NewCareOfferingRepository(repos.CarePlan),
 		ImpactRepo:             manualPlanningReader{db: db},
 		StudentRepo:            repos.Student,
 		PersonRepo:             repos.Person,
@@ -345,7 +338,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	parentRequestCoordinator.SetEventRecorder(parentRequestEvents)
 	substitutionService := education.NewSubstitutionModule(education.SubstitutionDependencies{
 		Groups: repos.Group, Substitutions: contextRepos.Substitutions, Persons: newEducationPersonQuery(persons),
-		Teachers: repos.Teacher, Staff: repos.Staff, Actors: substitutionActorResolver{identity: userContextService},
+		Teachers: repos.Teacher, Staff: repos.Staff, Actors: substitutionActorResolver{identity: userContextService.Caller()},
 		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
 		Audit:                   repos.SubstitutionChange, DB: db, Broadcaster: realtimeHub,
@@ -367,7 +360,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		},
 		Now: now,
 	})
-	studentStatusDayService := active.NewStudentStatusDayServiceWithPartialAbsences(
+	studentStatusDayService := presenceservice.NewStatusDays(
 		repos.StudentStatusDay,
 		NewManualPartialAbsenceDates(repos.CarePlan),
 		db,
@@ -379,7 +372,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		People:            usersService,
 		Education:         educationService,
 		Substitutions:     substitutionService,
-		UserContext:       userContextService,
+		UserContext:       groupLiveCaller{userContextService},
 		Active:            activeService,
 		Settings:          settingsService,
 		Pickups:           pickupScheduleService,
@@ -407,11 +400,11 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 
 // StatusDayOverviewPeople serves the absence overview's people reads from the
 // module's users service.
-func (m StudentTestModule) StatusDayOverviewPeople() active.StatusDayOverviewPeople {
+func (m StudentTestModule) StatusDayOverviewPeople() presenceservice.StatusDayOverviewPeople {
 	return StatusDayOverviewPeople(m.Users)
 }
 
 // HistorySlots supplies the same owner projection to narrow student route fixtures.
-func (m StudentTestModule) HistorySlots(records timetableCompose.AttendanceHistoryRecords) active.HistorySlotReader {
+func (m StudentTestModule) HistorySlots(records timetableCompose.AttendanceHistoryRecords) presenceservice.HistorySlotReader {
 	return NewHistorySlots(records)
 }

@@ -11,7 +11,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -28,12 +28,18 @@ type CaregiverCapabilityServiceDependencies struct {
 	TeacherRepo            userModels.TeacherRepository
 	GroupTeacherRepo       educationModels.GroupTeacherRepository
 	GroupSubstitutionRepo  educationModels.GroupSubstitutionRepository
-	GroupSupervisorRepo    activeModels.GroupSupervisorRepository
+	GroupSupervisorRepo    SupervisionBlockerReader
 	ActivitySupervisorRepo activitiesModels.SupervisorPlannedRepository
 	// RoleAssignments assigns and removes the caregiver role through the
 	// Identity & Access role administration (#3314).
 	RoleAssignments CaregiverRoleAssignments
 	DB              *bun.DB
+}
+
+// SupervisionBlockerReader lists the Student Presence supervision a staff
+// member still holds today.
+type SupervisionBlockerReader interface {
+	ListActiveSupervisionBlockers(ctx context.Context, staffID int64) ([]studentpresence.SupervisionBlocker, error)
 }
 
 // CaregiverRoleAssignments is the consumer-owned port over the Identity &

@@ -701,10 +701,15 @@ describe("MeinRaumPage additional scenarios", () => {
     render(<MeinRaumPage />);
 
     // Die Zahl stand früher als Zähler im Kopf; sie steht jetzt in der
-    // Statuszeile der Kopfkarte.
+    // Statuszeile der Kopfkarte. Der Name der Aufsicht ist der Seitentitel
+    // und steht deshalb nicht noch einmal in der Statuszeile (#3312).
     await waitFor(() => {
-      expect(screen.getByText("Raum 101 · 2 Kinder")).toBeInTheDocument();
+      expect(screen.getByText("2 Kinder", { selector: "p" })).toBeVisible();
     });
+    expect(screen.getByRole("heading", { name: "Raum 101" })).toBeVisible();
+    expect(
+      screen.queryByRole("heading", { name: "Aktuelle Aufsicht" }),
+    ).not.toBeInTheDocument();
   });
 });
 

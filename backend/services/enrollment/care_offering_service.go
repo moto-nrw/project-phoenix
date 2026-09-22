@@ -1109,6 +1109,9 @@ func validateCareOfferingWrite(offering *enrollmentModels.CareOffering) error {
 	if err := offering.Validate(); err != nil {
 		return wrapCareOfferingInvalid(err, "validate care offering")
 	}
+	if err := normalizeCareOfferingTranslations(offering); err != nil {
+		return err
+	}
 	if !offering.IsActive || !offering.CountsAsCare {
 		return nil
 	}

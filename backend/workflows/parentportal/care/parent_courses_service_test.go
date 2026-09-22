@@ -50,7 +50,6 @@ func TestCourseWritesRequireCatalogPermissionBeforeMutation(t *testing.T) {
 	svc := &Service{Config: Config{
 		ChildRepo:       careOfferingsChildRepoStub{child: child},
 		StudentRepo:     careOfferingsStudentRepoStub{},
-		DB:              careOfferingsTestDB(t),
 		OfferingChanges: changes,
 	}}
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())

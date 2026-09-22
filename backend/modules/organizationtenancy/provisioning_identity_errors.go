@@ -46,4 +46,32 @@ var (
 	ErrPasswordMismatch = errors.New("passwords don't match")
 	// ErrPasswordTooWeak reports a credential the password policy refused.
 	ErrPasswordTooWeak = errors.New("password doesn't meet complexity requirements")
+	// ErrIdentityStoreFailed marks an identity step that failed in its store
+	// rather than refusing the request; the error keeps the store's text.
+	ErrIdentityStoreFailed = errors.New("identity store failed")
 )
+
+// MarkIdentityStoreFailure tags err with ErrIdentityStoreFailed when it, or
+// an error it wraps, reports StoreFailure() — the retained repositories'
+// database error — and returns every other error unchanged. The tagged error
+// keeps err's text and chain (#2736).
+func MarkIdentityStoreFailure(err error) error {
+	if err == nil || errors.Is(err, ErrIdentityStoreFailed) {
+		return err
+	}
+	if _, failed := errors.AsType[storeFailure](err); !failed {
+		return err
+	}
+	return &identityStoreFailure{err: err}
+}
+
+type storeFailure interface {
+	error
+	StoreFailure() bool
+}
+
+type identityStoreFailure struct{ err error }
+
+func (e *identityStoreFailure) Error() string { return e.err.Error() }
+
+func (e *identityStoreFailure) Unwrap() []error { return []error{ErrIdentityStoreFailed, e.err} }

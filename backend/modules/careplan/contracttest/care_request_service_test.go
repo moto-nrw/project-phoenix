@@ -1071,9 +1071,9 @@ func (f *careFixture) linkCompanionOnTuesday(t *testing.T) {
 	accompaniedTuesday(partner.ID)
 	accompaniedTuesday(f.chain.StudentID)
 
-	edge, err := usersModels.NewStudentCompanion(f.chain.StudentID, partner.ID, 2)
+	edge, err := repositories.NewStudentCompanionEdge(f.chain.StudentID, partner.ID, 2)
 	require.NoError(t, err)
-	require.NoError(t, f.repos.StudentCompanion.ReplaceForStudent(ctx, f.chain.StudentID, []*usersModels.StudentCompanion{edge}))
+	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repositories.NewStudentCompanionRepository(f.repos.CarePlan()), f.chain.StudentID, []*usersModels.StudentCompanion{edge}))
 }
 
 // TestDecide_BogusIDNotFound covers the staff-decision lock on a missing row:

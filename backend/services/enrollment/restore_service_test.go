@@ -220,7 +220,7 @@ func newRestoreDecisionServiceForRequestEnv(t *testing.T, env *requestTestEnv) e
 		Requests:             repoFactory.Enrollment(),
 		Children:             repoFactory.Enrollment(),
 		ApprovedOfferings:    approvedOfferingTestProjection(repoFactory),
-		CareOfferingRepo:     repoFactory.CareOffering,
+		CareOfferingRepo:     enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
 		Phases:               repoFactory.Enrollment(),
 		RestorationAuditRepo: repoFactory.EnrollmentRestorationAudit,
 		Logger:               slog.Default(),
@@ -407,7 +407,7 @@ func TestDecisionService_RestoreWithdrawn_OverlappingIntervalsShareCapacity(t *t
 	// either interval fits alone but the overlap cannot.
 	one := 1
 	offering.Capacity = &one
-	require.NoError(t, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).CareOffering.Update(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).CarePlan()).Update(ctx, offering))
 
 	decision := newRestoreDecisionServiceForRequestEnv(t, env)
 	outcome, err := decision.RestoreWithdrawn(ctx, res.Request.ID, env.creatorID)

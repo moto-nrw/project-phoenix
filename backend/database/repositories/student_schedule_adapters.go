@@ -5,10 +5,11 @@ import (
 	"errors"
 	"fmt"
 
+	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 )
 
 // StudentScheduleRepositories contains the Care Plan compatibility adapters
@@ -20,7 +21,7 @@ type StudentScheduleRepositories struct {
 	PickupSchedule   scheduleModels.StudentPickupScheduleRepository
 	PickupException  scheduleModels.StudentPickupExceptionRepository
 	PickupNote       scheduleModels.StudentPickupNoteRepository
-	StatusDay        activeModels.StudentStatusDayRepository
+	StatusDay        *StudentStatusDayRepository
 }
 
 type arrivalScheduleRepository struct{ careplan.Capability }
@@ -52,14 +53,70 @@ func NewPickupNoteRepository(capability careplan.Capability) scheduleModels.Stud
 func invalidLegacyEntity(name string) error {
 	return fmt.Errorf("%s cannot be nil or zero value", name)
 }
-func legacyScheduleID(raw any) (int64, error) { return carePlanLegacy.ScheduleID(raw) }
-func legacyScheduleQueryOptions(options *carePlanLegacy.ScheduleQueryOptions) *careplan.StudentScheduleQueryOptions {
-	return carePlanLegacy.CarePlanScheduleQueryOptions(options)
+func legacyScheduleID(raw any) (int64, error) {
+	switch value := raw.(type) {
+	case int64:
+		return value, nil
+	case int:
+		return int64(value), nil
+	case int32:
+		return int64(value), nil
+	default:
+		return 0, fmt.Errorf("unsupported id type %T", raw)
+	}
 }
+
+// legacyScheduleQueryOptions translates the retained repository query shape
+// into the owner's schedule query options.
+func legacyScheduleQueryOptions(options *userModels.QueryOptions) *careplan.StudentScheduleQueryOptions {
+	if options == nil {
+		return nil
+	}
+	result := &careplan.StudentScheduleQueryOptions{}
+	if options.Filter != nil {
+		result.Filter = legacyScheduleQueryFilter(*options.Filter)
+	}
+	if options.Pagination != nil {
+		result.Limit = options.Pagination.PageSize
+		result.Offset = options.Pagination.Offset()
+	}
+	if options.Sorting != nil {
+		result.Sorting = make([]careplan.StudentScheduleSortField, 0, len(options.Sorting.Fields))
+		for _, field := range options.Sorting.Fields {
+			result.Sorting = append(result.Sorting, careplan.StudentScheduleSortField{Field: field.Field, Descending: field.Direction == userModels.SortDesc})
+		}
+	}
+	return result
+}
+
+func legacyScheduleQueryFilter(filter userModels.QueryFilter) *careplan.StudentScheduleQueryFilter {
+	result := &careplan.StudentScheduleQueryFilter{}
+	for _, condition := range filter.Conditions() {
+		result.Conditions = append(result.Conditions, careplan.StudentScheduleQueryCondition{Field: condition.Field, Operator: string(condition.Operator), Value: condition.Value})
+	}
+	for _, child := range filter.OrFilters() {
+		result.Or = append(result.Or, *legacyScheduleQueryFilter(child))
+	}
+	for _, child := range filter.AndFilters() {
+		result.And = append(result.And, *legacyScheduleQueryFilter(child))
+	}
+	return result
+}
+
+// legacyScheduleError keeps the retained repository error shape: a missing
+// schedule row classifies as not found, everything else is wrapped with its
+// operation.
 func legacyScheduleError(op string, err error) error {
-	return carePlanLegacy.ScheduleError(op, err)
+	if errors.Is(err, careplan.ErrStudentScheduleNotFound) {
+		return usersRepo.NotFoundError(op)
+	}
+	return usersRepo.WrapError(op, err)
 }
-func today() careplan.Date                         { return carePlanLegacy.TodayScheduleDate() }
+
+// noRowsError is the bare not-found sentinel pair without an operation.
+func noRowsError() error { return errors.Unwrap(usersRepo.NotFoundError("")) }
+
+func today() careplan.Date                         { return carePlanCompose.Today() }
 func date(value scheduleModels.Date) careplan.Date { return careplan.Date(value) }
 
 func (r arrivalScheduleRepository) Create(ctx context.Context, row *scheduleModels.StudentArrivalSchedule) error {
@@ -103,8 +160,8 @@ func (r arrivalScheduleRepository) Delete(ctx context.Context, raw any) error {
 	}
 	return legacyScheduleError("delete", r.DeleteArrivalSchedule(ctx, id))
 }
-func (r arrivalScheduleRepository) List(ctx context.Context, options *carePlanLegacy.ScheduleQueryOptions) ([]*scheduleModels.StudentArrivalSchedule, error) {
-	values, err := r.ListArrivalSchedules(ctx, careplan.StudentScheduleFilter{Options: carePlanLegacy.CarePlanScheduleQueryOptions(options)})
+func (r arrivalScheduleRepository) List(ctx context.Context, options *userModels.QueryOptions) ([]*scheduleModels.StudentArrivalSchedule, error) {
+	values, err := r.ListArrivalSchedules(ctx, careplan.StudentScheduleFilter{Options: legacyScheduleQueryOptions(options)})
 	if err != nil {
 		return nil, legacyScheduleError("list with options", err)
 	}
@@ -206,8 +263,8 @@ func (r arrivalExceptionRepository) Delete(ctx context.Context, raw any) error {
 	}
 	return legacyScheduleError("delete", r.DeleteArrivalException(ctx, id))
 }
-func (r arrivalExceptionRepository) List(ctx context.Context, options *carePlanLegacy.ScheduleQueryOptions) ([]*scheduleModels.StudentArrivalException, error) {
-	values, err := r.ListArrivalExceptions(ctx, careplan.StudentScheduleFilter{Options: carePlanLegacy.CarePlanScheduleQueryOptions(options)})
+func (r arrivalExceptionRepository) List(ctx context.Context, options *userModels.QueryOptions) ([]*scheduleModels.StudentArrivalException, error) {
+	values, err := r.ListArrivalExceptions(ctx, careplan.StudentScheduleFilter{Options: legacyScheduleQueryOptions(options)})
 	if err != nil {
 		return nil, legacyScheduleError("list with options", err)
 	}
@@ -291,8 +348,8 @@ func (r arrivalNoteRepository) Delete(ctx context.Context, raw any) error {
 	}
 	return legacyScheduleError("delete", r.DeleteArrivalNote(ctx, id))
 }
-func (r arrivalNoteRepository) List(ctx context.Context, options *carePlanLegacy.ScheduleQueryOptions) ([]*scheduleModels.StudentArrivalNote, error) {
-	return r.list(ctx, careplan.StudentScheduleFilter{Options: carePlanLegacy.CarePlanScheduleQueryOptions(options)}, "list with options")
+func (r arrivalNoteRepository) List(ctx context.Context, options *userModels.QueryOptions) ([]*scheduleModels.StudentArrivalNote, error) {
+	return r.list(ctx, careplan.StudentScheduleFilter{Options: legacyScheduleQueryOptions(options)}, "list with options")
 }
 func (r arrivalNoteRepository) FindByStudentID(ctx context.Context, id int64) ([]*scheduleModels.StudentArrivalNote, error) {
 	return r.list(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{id}}, "find by student id")
@@ -359,8 +416,8 @@ func (r pickupScheduleRepository) Delete(ctx context.Context, raw any) error {
 	}
 	return legacyScheduleError("delete", r.DeletePickupSchedule(ctx, id))
 }
-func (r pickupScheduleRepository) List(ctx context.Context, options *carePlanLegacy.ScheduleQueryOptions) ([]*scheduleModels.StudentPickupSchedule, error) {
-	values, err := r.ListPickupSchedules(ctx, careplan.StudentScheduleFilter{Options: carePlanLegacy.CarePlanScheduleQueryOptions(options)})
+func (r pickupScheduleRepository) List(ctx context.Context, options *userModels.QueryOptions) ([]*scheduleModels.StudentPickupSchedule, error) {
+	values, err := r.ListPickupSchedules(ctx, careplan.StudentScheduleFilter{Options: legacyScheduleQueryOptions(options)})
 	if err != nil {
 		return nil, legacyScheduleError("list with options", err)
 	}
@@ -463,8 +520,8 @@ func (r pickupExceptionRepository) Delete(ctx context.Context, raw any) error {
 	}
 	return legacyScheduleError("delete", r.DeletePickupException(ctx, id))
 }
-func (r pickupExceptionRepository) List(ctx context.Context, options *carePlanLegacy.ScheduleQueryOptions) ([]*scheduleModels.StudentPickupException, error) {
-	values, err := r.ListPickupExceptions(ctx, careplan.StudentScheduleFilter{Options: carePlanLegacy.CarePlanScheduleQueryOptions(options)})
+func (r pickupExceptionRepository) List(ctx context.Context, options *userModels.QueryOptions) ([]*scheduleModels.StudentPickupException, error) {
+	values, err := r.ListPickupExceptions(ctx, careplan.StudentScheduleFilter{Options: legacyScheduleQueryOptions(options)})
 	if err != nil {
 		return nil, legacyScheduleError("list with options", err)
 	}
@@ -548,8 +605,8 @@ func (r pickupNoteRepository) Delete(ctx context.Context, raw any) error {
 	}
 	return legacyScheduleError("delete", r.DeletePickupNote(ctx, id))
 }
-func (r pickupNoteRepository) List(ctx context.Context, options *carePlanLegacy.ScheduleQueryOptions) ([]*scheduleModels.StudentPickupNote, error) {
-	return r.list(ctx, careplan.StudentScheduleFilter{Options: carePlanLegacy.CarePlanScheduleQueryOptions(options)}, "list with options")
+func (r pickupNoteRepository) List(ctx context.Context, options *userModels.QueryOptions) ([]*scheduleModels.StudentPickupNote, error) {
+	return r.list(ctx, careplan.StudentScheduleFilter{Options: legacyScheduleQueryOptions(options)}, "list with options")
 }
 func (r pickupNoteRepository) FindByStudentID(ctx context.Context, id int64) ([]*scheduleModels.StudentPickupNote, error) {
 	return r.list(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{id}}, "find by student id")

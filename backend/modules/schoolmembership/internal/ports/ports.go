@@ -23,13 +23,11 @@ type Store interface {
 	FindStaff(ctx context.Context, id int64, lock string, includeDeleted bool) (domain.Staff, bool, domain.OperationStats, error)
 	FindStaffByPerson(context.Context, int64) (domain.Staff, bool, domain.OperationStats, error)
 	ListStaff(context.Context, domain.StaffFilter) ([]domain.Staff, domain.OperationStats, error)
-	CreateStaff(context.Context, domain.StaffFields) (domain.Staff, domain.OperationStats, error)
-	UpdateStaff(context.Context, int64, domain.StaffFields) (domain.Staff, domain.OperationStats, error)
+	// CreateStaff and UpdateStaff write the membership row only; the
+	// employment half belongs to Workforce (StaffEmployment).
+	CreateStaff(ctx context.Context, personID int64) (domain.Staff, domain.OperationStats, error)
+	UpdateStaff(ctx context.Context, id, personID int64) (domain.Staff, domain.OperationStats, error)
 	SoftDeleteStaff(context.Context, int64) (domain.OperationStats, error)
-	ClearWorkTimeModel(context.Context, int64) (domain.OperationStats, error)
-	SetStaffNotes(context.Context, int64, string) (domain.OperationStats, error)
-	SetBirthdayDisplayOptOut(context.Context, int64, bool) (domain.OperationStats, error)
-	RebaseWorkTimeModelAnchor(ctx context.Context, workTimeModelID int64, anchorDate string) ([]int64, domain.OperationStats, error)
 
 	FindTeacher(ctx context.Context, id int64, lock string) (domain.Teacher, bool, domain.OperationStats, error)
 	FindTeacherByStaff(context.Context, int64) (domain.Teacher, bool, domain.OperationStats, error)
@@ -91,10 +89,26 @@ type AuditTrail interface {
 	AppendClassListEntryChange(context.Context, domain.ClassListEntryChange) error
 }
 
+// StaffEmployment is the consumer-owned Workforce port over the employment
+// profile of a staff membership (#2753). A staff member is the membership row
+// plus this profile; the module composes the two and never stores the profile
+// itself. Calls join the caller's transaction.
+type StaffEmployment interface {
+	// StaffEmployments returns the profiles of the given memberships; a
+	// membership without one is absent from the map.
+	StaffEmployments(context.Context, []int64) (map[int64]domain.StaffEmployment, error)
+	SaveStaffEmployment(context.Context, domain.StaffEmployment) error
+	ClearStaffWorkTimeModel(context.Context, int64) error
+}
+
 type Transaction interface {
 	// RunWrite joins the caller's transaction or opens one for the tenant
 	// in context.
 	RunWrite(context.Context, func(context.Context) error) error
+	// RunSavepoint runs a multi-owner write inside a savepoint of the
+	// current transaction, so a failed owner write undoes the earlier ones
+	// even when the caller catches the error and commits.
+	RunSavepoint(context.Context, func(context.Context) error) error
 	// RunRead joins the caller's transaction, else opens a tenant
 	// transaction, else an admin transaction for cross-tenant readers.
 	RunRead(context.Context, func(context.Context) error) error

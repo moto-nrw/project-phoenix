@@ -12,8 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -223,7 +221,7 @@ func TestStudentDataSnapshot_ResolveLocationWithTime_WithLocationSnapshot(t *tes
 	startTime := time.Now().Add(-2 * time.Hour)
 
 	locationSnapshot := &common.StudentLocationSnapshot{
-		Attendances: map[int64]*activeService.AttendanceStatus{
+		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			123: {
 				StudentID:   123,
 				Status:      "checked_in",
@@ -237,12 +235,12 @@ func TestStudentDataSnapshot_ResolveLocationWithTime_WithLocationSnapshot(t *tes
 				EntryTime:     entryTime,
 			},
 		},
-		Groups: map[int64]*activeModels.Group{
+		Groups: map[int64]*studentpresence.SessionDetail{
 			456: {
-				GroupID:   ptrtest.Ptr(int64(789)),
-				RoomID:    1,
-				StartTime: startTime,
-				Room: &activeModels.SessionRoom{
+				ActivityGroupID: ptrtest.Ptr(int64(789)),
+				RoomID:          1,
+				StartTime:       startTime,
+				Room: &studentpresence.SessionRoomSummary{
 					Name: "Science Lab",
 				},
 			},
@@ -268,7 +266,7 @@ func TestStudentDataSnapshot_ResolveLocationWithTime_NoFullAccess(t *testing.T) 
 	checkinTime := time.Now().Add(-1 * time.Hour)
 
 	locationSnapshot := &common.StudentLocationSnapshot{
-		Attendances: map[int64]*activeService.AttendanceStatus{
+		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			123: {
 				StudentID:   123,
 				Status:      "checked_in",
@@ -276,7 +274,7 @@ func TestStudentDataSnapshot_ResolveLocationWithTime_NoFullAccess(t *testing.T) 
 			},
 		},
 		Visits: make(map[int64]*studentpresence.Visit),
-		Groups: make(map[int64]*activeModels.Group),
+		Groups: make(map[int64]*studentpresence.SessionDetail),
 	}
 
 	snapshot := &common.StudentDataSnapshot{
@@ -316,17 +314,17 @@ func TestStudentDataSnapshot_CompleteScenario(t *testing.T) {
 
 	// Create location snapshot
 	locationSnapshot := &common.StudentLocationSnapshot{
-		Attendances: map[int64]*activeService.AttendanceStatus{
+		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			100: {StudentID: 100, Status: "checked_in", CheckInTime: &checkinTime},
 			200: {StudentID: 200, Status: "not_checked_in"},
 		},
 		Visits: map[int64]*studentpresence.Visit{
 			100: {StudentID: 100, ActiveGroupID: 500, EntryTime: entryTime},
 		},
-		Groups: map[int64]*activeModels.Group{
+		Groups: map[int64]*studentpresence.SessionDetail{
 			500: {
-				GroupID: ptrtest.Ptr(int64(10)), RoomID: 1, StartTime: startTime,
-				Room: &activeModels.SessionRoom{Name: "Library"},
+				ActivityGroupID: ptrtest.Ptr(int64(10)), RoomID: 1, StartTime: startTime,
+				Room: &studentpresence.SessionRoomSummary{Name: "Library"},
 			},
 		},
 	}

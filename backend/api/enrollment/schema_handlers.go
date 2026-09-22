@@ -268,13 +268,7 @@ func (rs *Resource) listPublicActiveSchema(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	out := PublicFormSchemaResponse{
-		ID:               strconv.FormatInt(schema.ID, 10),
-		Version:          schema.Version,
-		Fields:           schema.Fields,
-		CoreRequirements: coreRequirementsValue(schema.CoreRequirements),
-	}
-	common.Respond(w, r, http.StatusOK, out, "Public active form schema retrieved")
+	common.Respond(w, r, http.StatusOK, toPublicFormSchemaResponse(schema), "Public active form schema retrieved")
 }
 
 // PublicCaptchaConfigResponse carries the tenant-scoped Cloudflare

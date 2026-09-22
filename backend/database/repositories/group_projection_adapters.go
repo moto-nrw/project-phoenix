@@ -7,7 +7,8 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 )
 
 // unknownGroupName is the caregiver-capability blocker label for a
@@ -84,7 +85,7 @@ func optionalGroupID(id *int64) int64 {
 
 // CrossTenantQuery is the cross-tenant student read the active service consumes.
 type CrossTenantQuery interface {
-	FindCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]activeModels.CrossTenantStudent, error)
+	FindCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]presenceCompose.CrossTenantStudent, error)
 }
 
 type groupCrossTenantRepository struct {
@@ -92,18 +93,18 @@ type groupCrossTenantRepository struct {
 	groups schoolstructure.Query
 }
 
-func (r groupCrossTenantRepository) FindCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]activeModels.CrossTenantStudent, error) {
+func (r groupCrossTenantRepository) FindCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]presenceCompose.CrossTenantStudent, error) {
 	rows, err := r.CrossTenantQuery.FindCrossTenantStudents(ctx, hostingTenantID)
 	if err != nil {
 		return nil, err
 	}
-	pointers := make([]*activeModels.CrossTenantStudent, len(rows))
+	pointers := make([]*presenceCompose.CrossTenantStudent, len(rows))
 	for index := range rows {
 		pointers[index] = &rows[index]
 	}
 	if _, err := enrichGroupNames(ctx, r.groups, pointers,
-		func(row *activeModels.CrossTenantStudent) int64 { return optionalGroupID(row.GroupID) },
-		func(row *activeModels.CrossTenantStudent, name string) { row.GroupName = name },
+		func(row *presenceCompose.CrossTenantStudent) int64 { return optionalGroupID(row.GroupID) },
+		func(row *presenceCompose.CrossTenantStudent, name string) { row.GroupName = name },
 		"", "cross-tenant students"); err != nil {
 		return nil, err
 	}
@@ -111,22 +112,22 @@ func (r groupCrossTenantRepository) FindCrossTenantStudents(ctx context.Context,
 }
 
 type groupSupervisorRepository struct {
-	activeModels.GroupSupervisorRepository
+	studentpresence.SupervisionRecords
 	groups schoolstructure.Query
 }
 
-func (r groupSupervisorRepository) ListActiveSupervisionBlockers(ctx context.Context, staffID int64) ([]activeModels.SupervisionBlocker, error) {
-	rows, err := r.GroupSupervisorRepository.ListActiveSupervisionBlockers(ctx, staffID)
+func (r groupSupervisorRepository) ListActiveSupervisionBlockers(ctx context.Context, staffID int64) ([]studentpresence.SupervisionBlocker, error) {
+	rows, err := r.SupervisionRecords.ListActiveSupervisionBlockers(ctx, staffID)
 	if err != nil {
 		return nil, err
 	}
-	pointers := make([]*activeModels.SupervisionBlocker, len(rows))
+	pointers := make([]*studentpresence.SupervisionBlocker, len(rows))
 	for index := range rows {
 		pointers[index] = &rows[index]
 	}
 	if _, err := enrichGroupNames(ctx, r.groups, pointers,
-		func(row *activeModels.SupervisionBlocker) int64 { return row.GroupID },
-		func(row *activeModels.SupervisionBlocker, name string) { row.GroupName = name },
+		func(row *studentpresence.SupervisionBlocker) int64 { return row.GroupID },
+		func(row *studentpresence.SupervisionBlocker, name string) { row.GroupName = name },
 		unknownGroupName, "supervision blockers"); err != nil {
 		return nil, err
 	}

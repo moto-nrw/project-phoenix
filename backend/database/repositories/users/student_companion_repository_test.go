@@ -17,7 +17,7 @@ import (
 // newCompanionEdge builds a normalized edge or fails the test.
 func newCompanionEdge(t *testing.T, studentID, companionID int64, weekday int) *users.StudentCompanion {
 	t.Helper()
-	edge, err := users.NewStudentCompanion(studentID, companionID, weekday)
+	edge, err := repositories.NewStudentCompanionEdge(studentID, companionID, weekday)
 	require.NoError(t, err)
 	return edge
 }
@@ -35,7 +35,7 @@ func companionIDsOf(t *testing.T, studentID int64, edges []*users.StudentCompani
 }
 
 // ============================================================================
-// ReplaceForStudent Tests
+// Edge replacement Tests
 // ============================================================================
 
 // TestStudentCompanionRepository_ReplaceForStudent_IsSymmetric pins the central
@@ -47,14 +47,14 @@ func TestStudentCompanionRepository_ReplaceForStudent_IsSymmetric(t *testing.T) 
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentCompanion
+	repo := repositories.NewStudentCompanionRepository(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CarePlan())
 	ctx := testpkg.Ctx(t)
 
 	studentA := testpkg.CreateTestStudent(t, db, "CompanionA", "Symmetric", "1a")
 	studentB := testpkg.CreateTestStudent(t, db, "CompanionB", "Symmetric", "1a")
 
 	// ACT — edited from A's card only.
-	err := repo.ReplaceForStudent(ctx, studentA.ID, []*users.StudentCompanion{
+	err := repositories.ReplaceStudentCompanions(ctx, repo, studentA.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, studentA.ID, studentB.ID, 1),
 	})
 	require.NoError(t, err)
@@ -82,13 +82,13 @@ func TestStudentCompanionRepository_ReplaceForStudent_MultipleWeekdays(t *testin
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentCompanion
+	repo := repositories.NewStudentCompanionRepository(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CarePlan())
 	ctx := testpkg.Ctx(t)
 
 	studentA := testpkg.CreateTestStudent(t, db, "CompanionA", "Weekdays", "2a")
 	studentB := testpkg.CreateTestStudent(t, db, "CompanionB", "Weekdays", "2a")
 
-	err := repo.ReplaceForStudent(ctx, studentA.ID, []*users.StudentCompanion{
+	err := repositories.ReplaceStudentCompanions(ctx, repo, studentA.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, studentA.ID, studentB.ID, 1),
 		newCompanionEdge(t, studentB.ID, studentA.ID, 4), // reversed args, same pair
 	})
@@ -113,18 +113,18 @@ func TestStudentCompanionRepository_ReplaceForStudent_EmptyClears(t *testing.T) 
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentCompanion
+	repo := repositories.NewStudentCompanionRepository(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CarePlan())
 	ctx := testpkg.Ctx(t)
 
 	studentA := testpkg.CreateTestStudent(t, db, "CompanionA", "Clear", "3a")
 	studentB := testpkg.CreateTestStudent(t, db, "CompanionB", "Clear", "3a")
 
-	require.NoError(t, repo.ReplaceForStudent(ctx, studentA.ID, []*users.StudentCompanion{
+	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repo, studentA.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, studentA.ID, studentB.ID, 2),
 	}))
 
 	// ACT — clear A's list.
-	require.NoError(t, repo.ReplaceForStudent(ctx, studentA.ID, nil))
+	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repo, studentA.ID, nil))
 
 	edgesA, err := repo.ListForStudent(ctx, studentA.ID)
 	require.NoError(t, err)
@@ -144,7 +144,7 @@ func TestStudentCompanionRepository_ReplaceForStudent_LeavesUnrelatedEdges(t *te
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentCompanion
+	repo := repositories.NewStudentCompanionRepository(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CarePlan())
 	ctx := testpkg.Ctx(t)
 
 	studentA := testpkg.CreateTestStudent(t, db, "CompanionA", "Unrelated", "4a")
@@ -152,15 +152,15 @@ func TestStudentCompanionRepository_ReplaceForStudent_LeavesUnrelatedEdges(t *te
 	studentC := testpkg.CreateTestStudent(t, db, "CompanionC", "Unrelated", "4a")
 
 	// A–B (edited later) and B–C (must survive).
-	require.NoError(t, repo.ReplaceForStudent(ctx, studentA.ID, []*users.StudentCompanion{
+	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repo, studentA.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, studentA.ID, studentB.ID, 1),
 	}))
-	require.NoError(t, repo.ReplaceForStudent(ctx, studentC.ID, []*users.StudentCompanion{
+	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repo, studentC.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, studentC.ID, studentB.ID, 1),
 	}))
 
 	// ACT — clear A's list; B–C is none of A's business.
-	require.NoError(t, repo.ReplaceForStudent(ctx, studentA.ID, nil))
+	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repo, studentA.ID, nil))
 
 	edgesA, err := repo.ListForStudent(ctx, studentA.ID)
 	require.NoError(t, err)
@@ -189,7 +189,7 @@ func TestStudentCompanionRepository_CompanionIDsForWeekday(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentCompanion
+	repo := repositories.NewStudentCompanionRepository(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CarePlan())
 	ctx := testpkg.Ctx(t)
 
 	studentA := testpkg.CreateTestStudent(t, db, "CompanionA", "Weekday", "5a")
@@ -197,7 +197,7 @@ func TestStudentCompanionRepository_CompanionIDsForWeekday(t *testing.T) {
 	studentC := testpkg.CreateTestStudent(t, db, "CompanionC", "Weekday", "5a")
 
 	// A–B on Monday, A–C on Tuesday.
-	require.NoError(t, repo.ReplaceForStudent(ctx, studentA.ID, []*users.StudentCompanion{
+	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repo, studentA.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, studentA.ID, studentB.ID, 1),
 		newCompanionEdge(t, studentA.ID, studentC.ID, 2),
 	}))
@@ -250,7 +250,7 @@ func TestStudentCompanionRepository_CompanionIDsForWeekdayTransitive(t *testing.
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentCompanion
+	repo := repositories.NewStudentCompanionRepository(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CarePlan())
 	ctx := testpkg.Ctx(t)
 
 	studentA := testpkg.CreateTestStudent(t, db, "ChainA", "Reach", "5b")
@@ -259,11 +259,11 @@ func TestStudentCompanionRepository_CompanionIDsForWeekdayTransitive(t *testing.
 	studentD := testpkg.CreateTestStudent(t, db, "ChainD", "Reach", "5b")
 
 	// A–B, B–C, C–D on Monday.
-	require.NoError(t, repo.ReplaceForStudent(ctx, studentB.ID, []*users.StudentCompanion{
+	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repo, studentB.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, studentB.ID, studentA.ID, 1),
 		newCompanionEdge(t, studentB.ID, studentC.ID, 1),
 	}))
-	require.NoError(t, repo.ReplaceForStudent(ctx, studentD.ID, []*users.StudentCompanion{
+	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repo, studentD.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, studentD.ID, studentC.ID, 1),
 	}))
 
@@ -283,30 +283,31 @@ func TestStudentCompanionRepository_CompanionIDsForWeekdayTransitive(t *testing.
 }
 
 // ============================================================================
-// ListLinksForStudent Tests
+// Folded link Tests
 // ============================================================================
 
-// TestStudentCompanionRepository_ListLinksForStudent verifies the per-child
+// TestStudentCompanionRepository_ListLinksFoldsWeekdays verifies the per-child
 // read model: one entry per companion with the weekdays folded and the
 // companion's name joined in, so the detail view renders without a second round
 // trip.
-func TestStudentCompanionRepository_ListLinksForStudent(t *testing.T) {
+func TestStudentCompanionRepository_ListLinksFoldsWeekdays(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentCompanion
+	repo := repositories.NewStudentCompanionRepository(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CarePlan())
 	ctx := testpkg.Ctx(t)
 
 	studentA := testpkg.CreateTestStudent(t, db, "LinkSource", "Companion", "6a")
 	studentB := testpkg.CreateTestStudent(t, db, "LinkTarget", "Companion", "6a")
 
-	require.NoError(t, repo.ReplaceForStudent(ctx, studentA.ID, []*users.StudentCompanion{
+	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repo, studentA.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, studentA.ID, studentB.ID, 1),
 		newCompanionEdge(t, studentA.ID, studentB.ID, 3),
 	}))
 
-	links, err := repo.ListLinksForStudent(ctx, studentA.ID)
+	byStudent, err := repo.ListLinksForStudents(ctx, []int64{studentA.ID})
+	links := byStudent[studentA.ID]
 	require.NoError(t, err)
 	require.Len(t, links, 1, "two weekdays with the same child must fold into ONE link")
 
@@ -319,9 +320,9 @@ func TestStudentCompanionRepository_ListLinksForStudent(t *testing.T) {
 	t.Run("returns an empty list for a child without companions", func(t *testing.T) {
 		lonely := testpkg.CreateTestStudent(t, db, "NoCompanion", "Child", "6b")
 
-		got, err := repo.ListLinksForStudent(ctx, lonely.ID)
+		byStudent, err := repo.ListLinksForStudents(ctx, []int64{lonely.ID})
 		require.NoError(t, err)
-		assert.Empty(t, got)
+		assert.Empty(t, byStudent[lonely.ID])
 	})
 }
 
@@ -342,7 +343,7 @@ func TestStudentCompanionRepository_ListLinksForStudents(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentCompanion
+	repo := repositories.NewStudentCompanionRepository(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CarePlan())
 	ctx := testpkg.Ctx(t)
 
 	first := testpkg.CreateTestStudent(t, db, "BulkFirst", "Companion", "7a")
@@ -353,11 +354,11 @@ func TestStudentCompanionRepository_ListLinksForStudents(t *testing.T) {
 	// A chain: first-second on Mon+Wed, second-third on Tue. The middle child
 	// therefore carries links to BOTH ends and must not receive the other pair's
 	// weekdays.
-	require.NoError(t, repo.ReplaceForStudent(ctx, first.ID, []*users.StudentCompanion{
+	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repo, first.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, first.ID, second.ID, 1),
 		newCompanionEdge(t, first.ID, second.ID, 3),
 	}))
-	require.NoError(t, repo.ReplaceForStudent(ctx, third.ID, []*users.StudentCompanion{
+	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repo, third.ID, []*users.StudentCompanion{
 		newCompanionEdge(t, third.ID, second.ID, 2),
 	}))
 

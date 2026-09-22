@@ -54,6 +54,18 @@ export function parentsPortalLoginUrl(search?: string): string {
   if (typeof window === "undefined") {
     throw new Error("parentsPortalLoginUrl() is client-only.");
   }
+  return parentsPortalUrl(`/login${search ?? ""}`);
+}
+
+/**
+ * Absolute URL of a path on the parents portal's OWN host, like
+ * parentsPortalLoginUrl. The public demo (#3468) sends a visitor there in
+ * the demo role parent. Client-side only — throws on server.
+ */
+export function parentsPortalUrl(path: string): string {
+  if (typeof window === "undefined") {
+    throw new Error("parentsPortalUrl() is client-only.");
+  }
 
   const parentsHostname = process.env.NEXT_PUBLIC_PARENTS_HOSTNAME;
   if (!parentsHostname) {
@@ -63,7 +75,7 @@ export function parentsPortalLoginUrl(search?: string): string {
     );
   }
 
-  return `${window.location.protocol}//${parentsHostname}/login${search ?? ""}`;
+  return `${window.location.protocol}//${parentsHostname}${path}`;
 }
 
 /**

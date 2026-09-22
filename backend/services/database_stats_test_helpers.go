@@ -6,7 +6,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
+	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/services/database"
 	"github.com/uptrace/bun"
 )
@@ -51,6 +52,6 @@ func NewDatabaseStatsTestReader(db *bun.DB) (DatabaseStatsReader, error) {
 	}, slog.Default())
 
 	return NewDatabaseStatsReader(databaseService, func(ctx context.Context) database.StatsCapabilities {
-		return usercontext.DatabaseStatsCapabilities(ctx)
+		return securityruntime.DatabaseStatsCapabilities(authjwt.PermissionsFromCtx(ctx))
 	}), nil
 }

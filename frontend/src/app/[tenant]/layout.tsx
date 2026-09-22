@@ -8,6 +8,7 @@ import type { ShellBootstrap } from "~/lib/shell-seed";
 import { readTenantSessionSnapshot } from "~/lib/tenant-session-snapshot.server";
 import type { TenantInfo, TenantSettings } from "~/lib/tenant-api";
 import {
+  normalizeAttendanceEditScope,
   normalizeOverviewScope,
   normalizePresenceMode,
 } from "~/lib/tenant-api";
@@ -36,6 +37,7 @@ interface TenantResolveResponse {
   attendance_log_enabled?: boolean;
   group_mode?: string;
   operational_overview_scope?: string;
+  attendance_edit_scope?: string;
   timetable_enabled?: boolean;
   show_timetable_counts?: boolean;
   waitlist_enabled?: boolean;
@@ -86,6 +88,9 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
     groupMode: data.group_mode === "open_care" ? "open_care" : "fixed_groups",
     operationalOverviewScope: normalizeOverviewScope(
       data.operational_overview_scope,
+    ),
+    attendanceEditScope: normalizeAttendanceEditScope(
+      data.attendance_edit_scope,
     ),
     timetableEnabled: data.timetable_enabled !== false,
     showTimetableCounts: data.show_timetable_counts !== false,

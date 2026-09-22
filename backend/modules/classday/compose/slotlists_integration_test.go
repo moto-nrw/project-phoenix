@@ -22,6 +22,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/classdaytest"
@@ -34,7 +35,6 @@ import (
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -197,13 +197,16 @@ func (p slotListParticipation) ParticipatingStudentIDsByDate(
 	return result, nil
 }
 
-func (u slotListUserContext) GetCurrentStaff(context.Context) (*userModels.Staff, error) {
-	return u.currentStaff, nil
+func (u slotListUserContext) CurrentStaffIDOfPerson(context.Context) (int64, bool, error) {
+	if u.currentStaff == nil {
+		return 0, false, nil
+	}
+	return u.currentStaff.ID, true, nil
 }
 
 func (u slotListUserContext) HasCurrentStaff(ctx context.Context) (bool, error) {
-	staff, err := u.GetCurrentStaff(ctx)
-	return err == nil && staff != nil, err
+	_, found, err := u.CurrentStaffIDOfPerson(ctx)
+	return err == nil && found, err
 }
 
 type failingRoomRepo struct {
@@ -1572,7 +1575,7 @@ func TestBuildList_PickupReconciliationMarksStatusDayAsExcused(t *testing.T) {
 		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, pickupRepo.Create(ctx, row))
 	}
-	testpkg.CreateTestStudentStatusDay(t, db, sick.ID, pickupDate, activeModels.StudentStatusDaySick)
+	testpkg.CreateTestStudentStatusDay(t, db, sick.ID, pickupDate, absencerecords.StudentStatusDaySick)
 
 	svc := newTestService(db)
 	result, err := svc.BuildList(ctx, classday.Params{
@@ -2485,7 +2488,7 @@ func TestBuildList_SlotListDropsStatusDayAbsenceOnUnbookedDay(t *testing.T) {
 
 	// A broad sick day stamps sickUnbooked's expected row as absent and takes
 	// ownership of it via student_status_day_id.
-	statusDay := testpkg.CreateTestStudentStatusDay(t, db, sickUnbooked.ID, listDate, activeModels.StudentStatusDaySick)
+	statusDay := testpkg.CreateTestStudentStatusDay(t, db, sickUnbooked.ID, listDate, absencerecords.StudentStatusDaySick)
 
 	isRepo := newBoundInstanceStudentRepository(db)
 	bookedRow := &scheduleModels.InstanceStudent{
@@ -2595,7 +2598,7 @@ func TestBuildList_SlotReconciliationDropsUnbookedStatusDayAbsenceBeforeStart(t 
 
 	// A broad sick day stamps sickUnbooked's expected row absent and owns it via
 	// student_status_day_id — a false absence on a day the child was never booked.
-	statusDay := testpkg.CreateTestStudentStatusDay(t, db, sickUnbooked.ID, pickupDate, activeModels.StudentStatusDaySick)
+	statusDay := testpkg.CreateTestStudentStatusDay(t, db, sickUnbooked.ID, pickupDate, absencerecords.StudentStatusDaySick)
 
 	isRepo := newBoundInstanceStudentRepository(db)
 	sickRow := &scheduleModels.InstanceStudent{

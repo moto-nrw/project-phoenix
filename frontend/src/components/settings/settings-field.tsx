@@ -61,12 +61,16 @@ function toStr(v: unknown): string {
 
 /**
  * What an optional time setting shows while it is empty. „Jederzeit“ fits a
- * time that limits something; a lesson without an end time (#3372) limits
- * nothing, it is just not maintained.
+ * time that limits something; a lesson without an end time (#3372) or a care
+ * time preset (#3371) limits nothing, it is just not maintained.
  */
+const NOT_ENTERED_TIME_PREFIXES = ["school_periods.", "care_times."];
+
 function emptyTimeLabel(setting: ResolvedSetting): string | undefined {
   if (setting.default !== "") return undefined;
-  return setting.key.startsWith("school_periods.")
+  return NOT_ENTERED_TIME_PREFIXES.some((prefix) =>
+    setting.key.startsWith(prefix),
+  )
     ? "Nicht eingetragen"
     : "Jederzeit";
 }

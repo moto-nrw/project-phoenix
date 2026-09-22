@@ -43,7 +43,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: ["./main", "serve"]
+    # At most this many demo schools exist at once; a further request that
+    # needs a new one answers 503 demo_capacity_reached (#3466).
+    command: ["./main", "serve", "--demo-max-active-schools", "300"]
     ports:
       - "127.0.0.1:8082:8080"
     volumes:
@@ -165,8 +167,12 @@ services:
     networks:
       - demo
 
-  # Standing demo school (docs/operations/standing-demo.md). deploy-remote.sh
-  # pins the image to the server's revision and starts it with the application.
+  # Demo process (docs/operations/standing-demo.md): seeds one demo school per
+  # demo access and keeps them alive. deploy-remote.sh pins the image to the
+  # server's revision and starts it with the application.
+  # Fallback to the one standing demo school: append "--demo-standing-school"
+  # to this command AND to the server's command; check-runtime-env.py rejects
+  # a stack where only one of them carries it.
   demo-runtime:
     image: ghcr.io/moto-nrw/phoenix-server:demo
     command: ["./main", "demo", "--url", "http://server:8080", "--heartbeat", "/tmp/demo-heartbeat"]

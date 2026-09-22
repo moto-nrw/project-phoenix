@@ -3,6 +3,8 @@ package enrollment_test
 import (
 	"context"
 
+	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 
 	"testing"
@@ -29,7 +31,7 @@ func TestPhaseExpiryProjection_ListSnapshots_RequiresEffectiveSuccessorBooking(t
 	phaseRepo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 	requestRepo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 	childRepo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
-	offeringRepo := carePlanTest.NewCareOfferingRepository(t, db)
+	offeringRepo := enrollmentSvc.NewCareOfferingRepository(carePlanTest.NewCarePlan(t, db))
 	linkRepo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 
 	source := makeOwnerEligibilityPhase(uniquePhaseName("expiry-source"))
