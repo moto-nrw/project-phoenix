@@ -141,10 +141,6 @@ type Factory struct {
 	StudentArrivalException   scheduleModels.StudentArrivalExceptionRepository
 	StudentArrivalNote        scheduleModels.StudentArrivalNoteRepository
 	CareScheduleChangeRequest scheduleModels.CareScheduleChangeRequestRepository
-	StaffShift                scheduleModels.StaffShiftRepository
-	StaffShiftSeries          scheduleModels.StaffShiftSeriesRepository
-	StaffShiftSeriesException scheduleModels.StaffShiftSeriesExceptionRepository
-	ShiftType                 scheduleModels.ShiftTypeRepository
 	PlanningTrack             scheduleModels.PlanningTrackRepository
 	CalendarPeriod            scheduleModels.CalendarPeriodRepository
 	ClosingDay                scheduleModels.ClosingDayRepository
@@ -545,12 +541,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		StudentArrivalException:   nil, // bound to Care Plan below
 		StudentArrivalNote:        nil, // bound to Care Plan below
 		CareScheduleChangeRequest: nil, // bound to Care Plan below
-		// Dienstplan rows belong to Workforce (#2689): the retained contracts
-		// are served by the adapters over the one facade.
-		StaffShift:                newWorkforceStaffShiftRepository(timetableDependencies.Workforce),
-		StaffShiftSeries:          newWorkforceStaffShiftSeriesRepository(timetableDependencies.Workforce),
-		StaffShiftSeriesException: newWorkforceStaffShiftSeriesExceptionRepository(timetableDependencies.Workforce),
-		ShiftType:                 newWorkforceShiftTypeRepository(timetableDependencies.Workforce),
 		PlanningTrack:             nil, // bound to Timetable below
 		ActivityInstance:          nil, // bound to Timetable below
 		InstanceIdempotency:       nil, // bound to Timetable below
@@ -742,7 +732,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	factory.bindStaffProjections(lazyStaffLookup{
 		get: func() schoolmembership.Capability { return factory.schoolMembership },
 	}, timetableDependencies.Workforce)
-	adapters := newTimetableRepositories(timetableCapability, timetableDependencies.Students, timetableDependencies.Groups, timetableDependencies.Rooms, timetableDependencies.Calendar, timetableDependencies.Membership, factory.ShiftType)
+	adapters := newTimetableRepositories(timetableCapability, timetableDependencies.Students, timetableDependencies.Groups, timetableDependencies.Rooms, timetableDependencies.Calendar, timetableDependencies.Membership, timetableDependencies.Workforce)
 	factory.ActivityCategory, factory.ActivityGroup = adapters.ActivityCategory, adapters.ActivityGroup
 	factory.ActivitySchedule, factory.ActivitySupervisor = adapters.ActivitySchedule, adapters.ActivitySupervisor
 	factory.StudentEnrollment, factory.Timeframe = adapters.StudentEnrollment, adapters.Timeframe

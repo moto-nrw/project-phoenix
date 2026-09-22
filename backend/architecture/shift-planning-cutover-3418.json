@@ -1,0 +1,123 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#3020",
+    "#3219",
+    "#3416"
+  ],
+  "owner_and_capability": "Workforce — the public modules/workforce planning contracts (StaffShiftPlanning, ShiftTypeAdministration, StaffAssignmentQuery, StaffScheduleOverviewQuery and the ShiftPlanSync port) over the planning commands and queries in modules/workforce/internal/planning; Timetable & Activities — the public timetable.StaffNotices contract over the Tagesinformationen service beside its native repository; the shift-plan-sync application workflow (workflows/shiftplansync) for the #1843 sick cascade and the schedule substitution moves; replacing the dissolved inbound-staff-shifts/adapter compatibility package modules/workforce/legacy/shiftplanning (#3418)",
+  "affected_packages": [
+    "modules/workforce",
+    "modules/workforce/compose",
+    "modules/workforce/internal/planning",
+    "modules/workforce/inbound/timetracking",
+    "modules/workforce/inbound/shiftplanning",
+    "modules/workforce/legacy/timetracking",
+    "modules/timetable",
+    "modules/timetable/compose",
+    "modules/timetable/compose/httpadapter",
+    "modules/timetable/legacy/timetableplanning",
+    "modules/planexport/legacy",
+    "workflows/shiftplansync",
+    "workflows/shiftplansync/ports",
+    "workflows/shiftplansync/internal/application",
+    "workflows/shiftplansync/compose",
+    "models/schedule",
+    "database/repositories",
+    "services",
+    "api",
+    "test"
+  ],
+  "affected_tables": [
+    "schedule.staff_shifts",
+    "schedule.staff_shift_series",
+    "schedule.staff_shift_series_exceptions",
+    "schedule.shift_types",
+    "schedule.instance_staff",
+    "schedule.activity_instances",
+    "users.staff_notices",
+    "users.staff_notice_acks",
+    "audit.deviation_events"
+  ],
+  "exact_ratchet_keys": [],
+  "atomic_cutover": "The compatibility package is deleted on one branch that merges as one pull request; no file under modules/workforce/legacy/shiftplanning survives it and no Go file imports the path. The shift planning services keep running on the native Workforce Postgres adapter they already ran on through the retained-row shim; the models/schedule Dienstplan repository contracts and the repositories file are deleted, the shim body lives on as the Workforce compose row adapters that the root binds for the retained readers until #3424, and the planning package declares its own row ports over the public capability, so no SQL statement, transaction boundary, advisory lock order or tenant predicate changes. The Tagesinformationen keep the native Timetable repository and move their service and route to that owner. The sick cascade and the substitution moves keep every lock order, fail-closed rule and neutral label and become the shift-plan-sync workflow bound to the absence service through the public workforce.ShiftPlanSync port and to the substitution module through its schedule port. No DDL, no data migration, no write-owner change: the four Dienstplan tables stay with Workforce, the two instance tables and the two notice tables with Timetable, audit.deviation_events with the Audit Platform. The package carried no legacy.jsonl key, so none is retired and none is added; the 44 inbound-staff-shifts compatibility rules are deleted rather than converted, under the epoch-gated exception of ADR 0037.",
+  "tests": [
+    "scripts/test-changed.sh origin/development without --fast: the full backend suite, including the shift series, move, lock, coverage, substitution, sick-cascade, staff-notice, Dienstplan-overview and plan-export behaviour tests and their RLS checkpoints, plus modules/workforce/contracttest.",
+    "The moved suites: modules/workforce/internal/planning (the shift, series, move, lock, shift-type, assignment and overview suites and the planning contract suite), workflows/shiftplansync (the sick-cascade and substitution suites), modules/timetable/compose and modules/timetable/compose/httpadapter (the staff-notice service and route suites), each with its assertions and two-tenant coverage unchanged.",
+    "go test ./test/ -run 'TestModule|TestPolicyTemporaryRules': the module ratchets, with the modules/workforce/legacy budget lowered by the 5,336 LOC and the moved size, length and complexity entries renamed.",
+    "go test ./internal/architecture: the policy loader, the comparison and internal/architecture/shiftplanning_cutover_test.go.",
+    "scripts/backend-architecture.sh check in pull-request mode against the merge base."
+  ],
+  "runtime_evidence": {
+    "source": "Local run on the pull-request branch against the postgres-test server. The relocation changes no SQL statement, no transaction boundary and no tenant predicate, so the evidence is the unchanged behaviour, isolation and query-budget suites plus the architecture check, not a benchmark rerun.",
+    "sources": [
+      "backend/test/query_budgets.go",
+      "backend/modules/workforce/internal/adapters/postgres/shift_store.go",
+      "backend/modules/workforce/internal/planning/staff_shift_service.go",
+      "backend/workflows/shiftplansync/internal/application/sick_cascade.go",
+      "docs/adr/0037-shift-planning-cutover-replaces-legacy-permissions.md"
+    ],
+    "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",
+    "thresholds": "The suite passes with an unchanged query-budget register, the architecture check reports no new violation and no baseline change, and the module ratchets accept no new or raised entry.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "No data or schema migration. The moved code writes the same rows through the same Postgres adapter."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "The query-budget tests passed with test/query_budgets.go unchanged, so no budgeted scenario gained or lost a statement across the relocation."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "The request paths execute the same statements through the same adapter; only the package a type is declared in and the port it is reached through changed."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "The request paths execute the same statements through the same adapter; only the package a type is declared in and the port it is reached through changed."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "scripts/test-changed.sh origin/development exited 0 with no failing test and no panic; the planning contract suite keeps the error-identity assertions for every sentinel the routes classify on."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection is acquired differently; the composition root builds the same graph from the owners' facades."
+    },
+    "lock_wait": {
+      "state": "measured",
+      "result": "The shift lock, series, move and sick-cascade suites passed unchanged: the per-staff advisory lock keeps its key and order, and the cascade still takes every staff lock before every day lock."
+    },
+    "deadlocks": {
+      "state": "measured",
+      "result": "No serialization failure or deadlock in the full suite; the transaction boundaries are the tenant unit of work the absence service and the routes already opened."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The relocated code has no Worker path; the auto-checkout job reads the same planned windows through the public shift query."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "The relocated code has no Worker path."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "The relocated code holds no queue."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The moved suites keep the error-identity assertions: the invalid, overlap, conflict, not-found, range, series and shift-type kinds on the public contract, the substitution operation errors with their codes and messages, and the staff-notice not-found and invalid sentinels are covered and unchanged."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data or schema change. Reverting the pull request restores the package, its rules and the policy epoch together."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed in pull-request mode against the merge base: 586 legacy violations remain, unchanged, and the composition surface did not grow."
+    }
+  },
+  "rollback_and_cleanup": "Revert the pull request; the compatibility package, its rules, the policy epoch, the two bridges and the ratchet entries return together. No data cleanup.",
+  "exit_criterion": "No file remains under backend/modules/workforce/legacy/shiftplanning, no Go file imports github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning, database/repositories/workforce_shift_repositories.go and the models/schedule Dienstplan repository contracts are deleted, policy.json classifies no package under that path, inbound-staff-shifts.to.workforce is the owner's only rule and api/staff-shifts its only package, and legacy.jsonl is unchanged at 586 entries."
+}

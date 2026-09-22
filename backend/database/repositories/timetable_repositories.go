@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
 type timetableRepositories struct {
@@ -27,7 +28,7 @@ type timetableRepositories struct {
 	InstanceStudent     schedule.InstanceStudentRepository
 }
 
-func newTimetableRepositories(capability timetable.Capability, people peopledirectory.Capability, groups schoolstructure.Query, rooms facilities.Query, calendar schoolcalendar.Query, membership schoolmembership.Capability, shiftTypes schedule.ShiftTypeRepository) timetableRepositories {
+func newTimetableRepositories(capability timetable.Capability, people peopledirectory.Capability, groups schoolstructure.Query, rooms facilities.Query, calendar schoolcalendar.Query, membership schoolmembership.Capability, shiftTypes workforce.ShiftQuery) timetableRepositories {
 	groupRows := timetableActivityGroupRepository{timetable: capability, groups: groups, rooms: rooms, calendar: calendar, shiftTypes: shiftTypes}
 	groupProjection := groupActivityGroupRepository{activityGroupTargets: groupRows, groups: groups}
 	staffGroups := newStaffActivityGroupRepository(groupProjection, membership)

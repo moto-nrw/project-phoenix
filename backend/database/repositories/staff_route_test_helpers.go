@@ -2,10 +2,10 @@ package repositories
 
 import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -23,7 +23,7 @@ func NewAbsenceTypeTestCapability(db *bun.DB) workforce.Capability {
 
 type ShiftTypeTestRepositories struct {
 	Timetable  timetable.Capability
-	Types      scheduleModels.ShiftTypeRepository
+	Types      *workforceCompose.ShiftTypeRows
 	Categories activitiesModels.CategoryRepository
 }
 
