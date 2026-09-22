@@ -3,12 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   mutate: vi.fn(),
-  useRequireAdmin: vi.fn(),
+  useRequirePermission: vi.fn(),
   useSettingsSchema: vi.fn(),
 }));
 
-vi.mock("~/lib/hooks/use-require-admin", () => ({
-  useRequireAdmin: () => mocks.useRequireAdmin(),
+vi.mock("~/lib/hooks/use-require-permission", () => ({
+  useRequirePermission: () => mocks.useRequirePermission(),
 }));
 
 vi.mock("~/lib/hooks/use-settings-schema", () => ({
@@ -87,7 +87,7 @@ function setSettingsResult({
 describe("GuardianApprovalsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.useRequireAdmin.mockReturnValue({ isReady: true });
+    mocks.useRequirePermission.mockReturnValue({ isReady: true });
     setSettingsResult({ data: schemaWithInviteMode("staff_approval") });
   });
 

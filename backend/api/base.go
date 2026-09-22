@@ -2037,7 +2037,12 @@ func (a *API) databaseStatsRouter() chi.Router {
 func newDatabaseStatsRouter(db *bun.DB, read services.DatabaseStatsReader, logger *slog.Logger) chi.Router {
 	router := chi.NewRouter()
 	apiCommon.ProtectedTenantGroup(router, db, func(router chi.Router, withTx apiCommon.Middleware) {
-		router.With(apiCommon.RequiresPermission("system:manage"), withTx).Get("/stats", func(w http.ResponseWriter, r *http.Request) { serveDatabaseStats(w, r, read, logger) })
+		// The reader redacts every count the caller may not read, so the
+		// route opens for any permission authorize.NewDatabaseStatsCapabilities
+		// honours: the Datenverwaltung hub shows its counts to a lead role a
+		// school defines itself, not only to system administrators (#3469).
+		router.With(apiCommon.RequiresAnyPermission(services.DatabaseStatsPermissions()...), withTx).
+			Get("/stats", func(w http.ResponseWriter, r *http.Request) { serveDatabaseStats(w, r, read, logger) })
 	})
 	return router
 }

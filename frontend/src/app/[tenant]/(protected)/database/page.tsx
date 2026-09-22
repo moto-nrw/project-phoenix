@@ -17,7 +17,8 @@ import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { DatabaseCardGridSkeleton } from "./page-skeleton";
 import { formatCount } from "~/lib/format-utils";
 
-import { hasEffectiveAdminScope, hasPermission } from "~/lib/auth-utils";
+import { hasEffectiveAdminScope } from "~/lib/auth-utils";
+import { hasAnyDatabasePagePermission } from "~/lib/section-navigation";
 import { useNFCEnabled, useTimetableEnabled } from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
@@ -27,18 +28,6 @@ interface DataSection {
   description: string;
   href: string;
   concept: MotoConceptKey;
-  /**
-   * Permission flag from /api/database/counts gating this card. Defaults to the
-   * `canView{Id}` flag derived from the section id; set it where the section has
-   * no flag of its own.
-   */
-  permissionKey?: string;
-  /**
-   * Tenant-Berechtigung aus der Sitzung. Die Stammdaten-Kataloge (#3114)
-   * haben keine Zahl in /api/database/counts und damit auch kein Flag dort;
-   * sie hängen an dem Recht, das ihre Route verlangt.
-   */
-  sessionPermission?: string;
   /** Nur sichtbar, solange der Planungsbereich eingeschaltet ist. */
   requiresPlanning?: boolean;
   /** Replaces the entry-count badge for sections that count nothing. */
@@ -178,7 +167,6 @@ const baseDataSections: DataSection[] = [
     description: "Termine und Aktivitäten einordnen, zum Beispiel Essen",
     href: "/database/categories",
     concept: "activities",
-    sessionPermission: "activities:manage_categories",
     badge: "Stammdaten",
   },
   {
@@ -187,7 +175,6 @@ const baseDataSections: DataSection[] = [
     description: "Regeltermine im Betreuungsplan farblich bündeln",
     href: "/database/planning-tracks",
     concept: "carePlan",
-    sessionPermission: "schedules:manage",
     requiresPlanning: true,
     badge: "Stammdaten",
   },
@@ -197,7 +184,6 @@ const baseDataSections: DataSection[] = [
     description: "Aufgabe einer Schicht im Dienstplan benennen",
     href: "/database/shift-types",
     concept: "staffPlan",
-    sessionPermission: "time_tracking:manage",
     requiresPlanning: true,
     badge: "Stammdaten",
   },
@@ -207,7 +193,6 @@ const baseDataSections: DataSection[] = [
     description: "Eigene Namen für Abwesenheiten der Mitarbeitenden",
     href: "/database/absence-types",
     concept: "timeTracking",
-    sessionPermission: "time_tracking:manage",
     badge: "Stammdaten",
   },
   {
@@ -217,7 +202,6 @@ const baseDataSections: DataSection[] = [
       "Kinder zum Schuljahreswechsel in die nächste Klasse versetzen",
     href: "/database/grade-transitions",
     concept: "gradeTransitions",
-    permissionKey: "canViewGradeTransitions",
     badge: "Schuljahr",
     cta: "Öffnen",
   },
@@ -227,9 +211,6 @@ const baseDataSections: DataSection[] = [
     description: "Kinder-, Geburtstags-, Notfall- und Raumlisten erstellen",
     href: "/database/exports",
     concept: "exports",
-    // Every export on that page reads child data, so it rides on the same
-    // visibility as the Kinder section rather than inventing a flag.
-    permissionKey: "canViewStudents",
     badge: "Listen",
     cta: "Öffnen",
   },
@@ -276,7 +257,6 @@ function DatabaseContent() {
     },
   );
   const counts = data ?? EMPTY_DATABASE_COUNTS;
-  const permissions = counts.permissions;
 
   if (!session?.user) {
     redirect("/");
@@ -319,22 +299,14 @@ function DatabaseContent() {
               return null;
             }
 
-            if (section.sessionPermission !== undefined) {
-              // Stammdaten-Katalog: das Recht der Route entscheidet, nicht ein
-              // Flag aus den Zählern (#3114).
-              if (
-                !hasEffectiveAdminScope(session) &&
-                !hasPermission(session, section.sessionPermission)
-              ) {
-                return null;
-              }
-            } else {
-              // Check permissions for this section
-              const permissionKey = (section.permissionKey ??
-                `canView${section.id.charAt(0).toUpperCase() + section.id.slice(1)}`) as keyof typeof permissions;
-              if (!permissions?.[permissionKey]) {
-                return null;
-              }
+            // Das Recht der Route entscheidet, nicht ein Flag aus den
+            // Zählern: derselbe Katalog wie Seitenleiste und Route-Guard
+            // (#3114, #3469). Der Adminzuschnitt öffnet jede Kachel.
+            if (
+              !hasEffectiveAdminScope(session) &&
+              !hasAnyDatabasePagePermission(session, section.href)
+            ) {
+              return null;
             }
 
             const countKey =

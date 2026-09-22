@@ -536,7 +536,11 @@ func (s *substitutionModule) resolveAccess(ctx context.Context, caller Substitut
 		actor, err := s.resolveActor(ctx, caller.AccountID)
 		return substitutionAccess{admin: true, actor: actor}, err
 	}
-	if !containsRole(caller.Roles, "user") && !containsRole(caller.Roles, "teacher") {
+	// The standard staff roles carry the substitutions by name; a role a
+	// school defines itself carries them by the permission its routes read
+	// (#3469), so a reduced caregiver role reaches its own groups too.
+	if !containsRole(caller.Roles, "user") && !containsRole(caller.Roles, "teacher") &&
+		(caller.HasPermission == nil || !caller.HasPermission("substitutions:read")) {
 		return substitutionAccess{}, ErrForbidden
 	}
 	actor, err := s.resolveActor(ctx, caller.AccountID)

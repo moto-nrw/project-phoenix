@@ -7,7 +7,8 @@ import GuardianApprovalQueue, {
   type GuardianInviteModeState,
 } from "~/components/admin/guardian-approval-queue";
 import { TenantPage } from "~/components/ui/tenant-page";
-import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
+import { canReviewGuardianApprovals } from "~/lib/guardian-approval-access";
+import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { getSettingValue } from "~/lib/settings-api";
 
@@ -25,7 +26,9 @@ function parseInviteMode(value: unknown): GuardianInviteMode | undefined {
 // relevant when a school sets guardians.parent_invite_mode = staff_approval;
 // otherwise the queue is simply empty.
 export default function GuardianApprovalsPage() {
-  const { isReady } = useRequireAdmin();
+  // Lesen verlangt users:manage, Annehmen und Ablehnen users:update;
+  // dieselbe Regel zeigt den Eintrag in der Elterngruppe (#3469).
+  const { isReady } = useRequirePermission(canReviewGuardianApprovals);
   // Zeilenzahl der Warteschlange, von ihr selbst gemeldet (kein zusätzlicher
   // Request). `null` = noch am Laden.
   const [pendingCount, setPendingCount] = useState<number | null>(null);

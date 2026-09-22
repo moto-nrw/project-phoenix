@@ -953,13 +953,15 @@ export function computeBoardCells(
 /**
  * Welche Standardansicht jemand bekommt.
  *
- * Am Adminzuschnitt festgemacht, nicht am Rollennamen: eine Schule kann ihre
+ * Am Zuschnitt festgemacht, nicht am Rollennamen: eine Schule kann ihre
  * Rollen frei anlegen, und die Frage ist nur, ob jemand die Einrichtung führt
- * oder in ihr betreut. Wer beides tut, bekommt die Vereinigung — den eigenen
- * Tag vorneweg, die Lage der Schule dahinter.
+ * oder in ihr betreut. Die Einrichtung führt, wer den Adminzuschnitt hat oder
+ * config:manage, das Recht hinter Anmeldungen und Einstellungen (#3469).
+ * Wer beides tut, bekommt die Vereinigung — den eigenen Tag vorneweg, die
+ * Lage der Schule dahinter.
  */
 export function homeProfileFor(access: HomeBlockAccess): HomeProfile {
-  if (!access.isAdminScope) return "care";
+  if (!access.isAdminScope && !access.has("config:manage")) return "care";
   return access.caresForGroups ? "lead_care" : "lead";
 }
 

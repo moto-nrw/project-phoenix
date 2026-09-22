@@ -87,14 +87,27 @@ func ParseDemoRole(value string) (DemoRole, error) {
 	}
 }
 
-// SchoolRole is the system role the visitor's account holds in the role.
-// Until the reduced permission sets exist, the caregiver is a standard staff
-// member and the OGS lead an administrator, like "all functions".
-func (r DemoRole) SchoolRole() string {
-	if r == DemoRoleCaregiver {
-		return "user"
+// The reduced roles of the demo school (#3469). The seeder creates both as
+// roles of the school with their permission sets (seed/api/demo_roles.go);
+// "all functions" is the administrator.
+const (
+	DemoSchoolRoleCaregiver = "betreuungskraft"
+	DemoSchoolRoleLead      = "ogs-leitung"
+)
+
+// SchoolRoles names the roles the visitor's account may hold in the demo
+// role, best first: the school's reduced role, then the system role a school
+// seeded before the reduced roles existed falls back to. Until #3469 the
+// caregiver was a standard staff member and the OGS lead an administrator.
+func (r DemoRole) SchoolRoles() []string {
+	switch r {
+	case DemoRoleCaregiver:
+		return []string{DemoSchoolRoleCaregiver, "user"}
+	case DemoRoleLead:
+		return []string{DemoSchoolRoleLead, "admin"}
+	default:
+		return []string{"admin"}
 	}
-	return "admin"
 }
 
 // Progress of the demo school behind a demo access (#3463).

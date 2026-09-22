@@ -17,9 +17,9 @@ interface UseRequirePermissionReturn {
  * Gate a client page on a tenant permission (admins always pass via the
  * `admin:*` / `*:*` wildcard). Callers lacking it are redirected to /dashboard;
  * unauthenticated users are redirected to "/" by NextAuth's `required: true`.
- * The permission mirror of useRequireAdmin — use it where a page is open to more
- * than admins (e.g. the Änderungsanfragen queue, gated on users:update and
- * scoped per child in the backend). An array grants access when ANY of the
+ * Every gated page names the permission its backend route demands; there is
+ * no admin-only gate any more, because a school can create its own lead
+ * role (#3469). An array grants access when ANY of the
  * listed permissions is held (matching backend RequiresAnyPermission routes).
  * Where the backend rule is not a plain "any of these" — a required pair, for
  * example — pass the predicate that already states it (one shared rule instead

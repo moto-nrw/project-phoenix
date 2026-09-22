@@ -1236,7 +1236,13 @@ export default function OGSGroupPage() {
 
 function OGSGroupPageGuarded() {
   return (
-    <RoleGuard variant="staffOrAdmin" fallback={<OgsGroupsPageSkeleton />}>
+    <RoleGuard
+      variant="staffOrAdmin"
+      // Eine Betreuungsrolle, die die Schule selbst anlegt, heißt nicht
+      // „user“; die Gruppen liest das Backend mit groups:read (#3469).
+      permission="groups:read"
+      fallback={<OgsGroupsPageSkeleton />}
+    >
       <Suspense fallback={<OgsGroupsPageSkeleton />}>
         <SSEErrorBoundary>
           <OGSGroupPageContent />

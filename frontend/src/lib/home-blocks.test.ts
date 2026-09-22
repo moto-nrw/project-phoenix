@@ -30,12 +30,28 @@ const leadAccess: HomeBlockAccess = {
   hasOwnGroups: false,
 };
 
+/**
+ * Betreut, führt die Einrichtung aber nicht: alle Rechte des Alltags, nicht
+ * das Leitungsrecht config:manage, an dem die Leitungsansicht hängt (#3469).
+ */
 const careAccess: HomeBlockAccess = {
   isAdminScope: false,
-  has: () => true,
+  has: (permission) => permission !== "config:manage",
   canOpenRequestsPage: true,
   caresForGroups: true,
   hasOwnGroups: true,
+};
+
+/**
+ * Eine Leitungsrolle, die die Schule selbst angelegt hat (#3469): kein
+ * Adminzuschnitt, aber config:manage. Sie führt die Einrichtung.
+ */
+const customLeadAccess: HomeBlockAccess = {
+  isAdminScope: false,
+  has: () => true,
+  canOpenRequestsPage: true,
+  caresForGroups: false,
+  hasOwnGroups: false,
 };
 
 /** Führt die Einrichtung UND betreut selbst: bekommt die Vereinigung. */
@@ -104,6 +120,21 @@ describe("resolveHomeLayout — Standardansicht", () => {
         keys.includes("section.my_day") && keys.includes("section.day_flow"),
       ).toBe(false);
     }
+  });
+
+  // Eine Leitungsrolle der Schule ohne Adminzuschnitt führt die Einrichtung
+  // über config:manage und bekommt die Leitungsansicht (#3469).
+  it("gibt einer selbst angelegten Leitungsrolle die Leitungsansicht", () => {
+    expect(homeProfileFor(customLeadAccess)).toBe("lead");
+    const { placements } = resolveHomeLayout(
+      { ...fullContext, access: customLeadAccess },
+      [],
+      {},
+      {},
+    );
+    expect(keysOf(placements)).toEqual(
+      keysOf(resolveHomeLayout(fullContext, [], {}, {}).placements),
+    );
   });
 
   // Das Issue verlangt für Mischrollen die Vereinigung: die Gruppenleitung

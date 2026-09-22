@@ -24,7 +24,7 @@ import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SegmentedControl } from "~/components/ui/segmented-control";
-import { hasPermission, isAdmin } from "~/lib/auth-utils";
+import { hasPermission } from "~/lib/auth-utils";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
@@ -85,7 +85,10 @@ function DienstplanContent() {
   const tenantPath = useTenantAwarePath();
   const { params, updateParams: updateUrlParams } =
     useUrlParams(ALLOWED_URL_PARAMS);
-  const canEdit = isAdmin(session);
+  // Schichten schreibt das Backend mit time_tracking:manage (Admins halten es
+  // über das Wildcard-Recht). Am Rollennamen `admin` festgemacht, kam eine
+  // Leitungsrolle, die die Schule selbst anlegt, nie in den Dienstplan (#3469).
+  const canEdit = hasPermission(session, "time_tracking:manage");
   // Die Halbjahres-Sicht zeigt Soll-/Plan-Abgleiche aus /overview. Dieser
   // Endpunkt verlangt zusätzlich `schedules:read`; Tab und Deep-Link sind
   // darum weiterhin auf beide Berechtigungen gegated, auch wenn die
@@ -126,9 +129,9 @@ function DienstplanContent() {
   // Kalenderzeiträume für die Zeitraum-Anzeige in der Kontextzeile (#1946).
   // Gleicher SWR-Key wie der Betreuungsplan, damit beide Ansichten denselben
   // Cache teilen. Der Endpoint verlangt schedules:read; die Ansicht selbst
-  // ist admin-only, darum ist der Key zusätzlich auf canEdit gegated — sonst
-  // feuerte der Request bei Direktaufruf durch Nicht-Admins noch vor dem
-  // Redirect und liefe in einen 403.
+  // gehört den Schichtplanenden, darum ist der Key zusätzlich auf canEdit
+  // gegated — sonst feuerte der Request bei Direktaufruf ohne das Recht noch
+  // vor dem Redirect und liefe in einen 403.
   const {
     data: periods,
     isLoading: periodsLoading,

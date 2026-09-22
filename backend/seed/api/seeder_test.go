@@ -1297,6 +1297,10 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		if r.URL.Path == "/api/staff" && r.Method == seedHTTPMethodPost && planningStaffID == 0 {
 			planningStaffID = idCounter
 		}
+		if strings.HasPrefix(r.URL.Path, "/auth/roles/") && strings.HasSuffix(r.URL.Path, "/permissions") {
+			w.WriteHeader(seedHTTPStatusNoContent)
+			return
+		}
 
 		switch r.URL.Path {
 		case "/health":
@@ -1421,6 +1425,13 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 
 		case "/auth/roles":
+			if r.Method == seedHTTPMethodPost {
+				// A reduced demo role of the school (#3469).
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"status": "success", "data": map[string]any{"id": fmt.Sprintf("%d", 100+idCounter)},
+				})
+				return
+			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",
 				"data": []map[string]any{
@@ -1428,6 +1439,11 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 					{"id": "2", "name": "user"},
 					{"id": "3", "name": "guest"},
 				},
+			})
+
+		case "/auth/permissions":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": seedTestPermissionCatalog(),
 			})
 
 		case "/api/activities/categories":

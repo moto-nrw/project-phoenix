@@ -19,9 +19,10 @@ type DemoAccessStore interface {
 	// the school's parent of the role parent (#3468); a zero parent keeps
 	// the one noted before. expiresAt is the access's new end (#3470).
 	RecordDemoAccessUse(ctx context.Context, id, accountID, parentAccountID int64, usedAt, expiresAt time.Time) error
-	// ReplaceDemoAccountRole makes the system role the only role of the
-	// visitor's account in its demo school (#3467).
-	ReplaceDemoAccountRole(ctx context.Context, accountID, tenantID int64, role string) error
+	// ReplaceDemoAccountRole makes the first of the named roles the demo
+	// school knows, a role of the school or a system role, the only role of
+	// the visitor's account there (#3467, #3469).
+	ReplaceDemoAccountRole(ctx context.Context, accountID, tenantID int64, roles []string) error
 	// FindSchoolAdministrator returns the oldest active administrator of the school.
 	FindSchoolAdministrator(ctx context.Context, tenantID int64) (accountID int64, found bool, err error)
 	// MoveDemoAccesses lets every access of the school enter the new school
