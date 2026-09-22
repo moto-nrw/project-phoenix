@@ -23,7 +23,7 @@ func TestPartialAbsenceCreate_RefusesPendingFullDayRequest(t *testing.T) {
 
 	timetableDeps := repositories.NewUnobservedTimetableDependencies(db)
 	repos := repositories.NewFactory(db, timetableDeps)
-	svc, err := compose.NewPartialAbsences(db, repos.CarePlan(), timetableDeps.Capability, nil)
+	svc, err := compose.NewPartialAbsences(db, repos.CarePlan(), repositories.NewStudentPresenceForTests(db), nil)
 	require.NoError(t, err)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)

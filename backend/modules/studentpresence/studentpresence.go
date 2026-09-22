@@ -24,6 +24,8 @@ type Query interface {
 	LockStaffSupervision(context.Context, int64, string) ([]int64, error)
 	UnclaimedGroups(context.Context, string) ([]UnclaimedGroup, error)
 	AttendanceQuery
+	ActivitySessionQuery
+	SessionAttendanceQuery
 	VisitQuery
 	PrivacyConsentQuery
 	ListOpenPresence(context.Context, []int64) ([]int64, error)
@@ -63,6 +65,9 @@ type Command interface {
 	RemoveGroupFromCombination(context.Context, int64, int64) error
 	ClaimGroup(context.Context, GroupClaim) (ClaimedSupervision, error)
 	AttendanceCommand
+	ActivitySessionCommand
+	SessionAttendanceCommand
+	SessionAttendanceRules
 	VisitCommand
 	GroupRecovery
 	GroupSessionCommand

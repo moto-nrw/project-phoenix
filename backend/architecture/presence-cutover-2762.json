@@ -1,0 +1,116 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2718",
+    "#2761"
+  ],
+  "owner_and_capability": "Student Presence — activity sessions and session attendance (active.activity_sessions, active.activity_session_attendance) as the authoritative execution and attendance storage; Timetable & Activities keeps the plan (schedule.activity_instances, schedule.instance_students) and asks Student Presence through its SessionFacts port; the tenant-safe presence projection (modules/presenceprojection, owner presence-legacy-view) serves the retained joined rows (#2762)",
+  "affected_packages": [
+    "database/migrations",
+    "database/repositories",
+    "modules/studentpresence",
+    "modules/studentpresence/compose",
+    "modules/timetable",
+    "modules/timetable/compose",
+    "modules/timetable/timetabletest",
+    "modules/presenceprojection",
+    "modules/timetableprojection",
+    "modules/classday/compose",
+    "modules/careplan/compose",
+    "modules/requestreview/compose",
+    "workflows/sessionend",
+    "services",
+    "api"
+  ],
+  "affected_tables": [
+    "schedule.activity_instances",
+    "schedule.instance_students",
+    "active.activity_sessions",
+    "active.activity_session_attendance",
+    "active.presence_compatibility_writes"
+  ],
+  "exact_ratchet_keys": [],
+  "atomic_cutover": "Migration 1.15.415 locks the four tables, applies the final backfill delta per school, compares counts and checksums, and installs the mirror and routing triggers in one transaction; the old execution and attendance columns stay as a rollback-only mirror because the previous image books participants with INSERT ... ON CONFLICT, which a view cannot serve. The same release switches every caller: the retained activity-instance and instance-student repositories, the class-day lists, the care-exit roster, the recovery, the session-end workflow, the pickup extension decision and the statistics read the plan through Timetable and the execution and attendance through Student Presence or the presence projection; database/repositories/student_presence.go, the old provider, is deleted. Each multi-owner write runs inside the caller's tenant transaction, so a failing owner command rolls the plan back with it. No application dual write and no fallback read chain remain.",
+  "tests": [
+    "backend/database/migrations: TestPresenceCutover* (final delta, rollback with a failing switch, unequal targets refused, contract golden) and TestPresenceCompatibility* (mirror, routing of previous-image writes, tenant isolation).",
+    "backend/modules/studentpresence/compose/session_storage_test.go: one session per block, two-tenant isolation of both targets, writes rolling back with the caller's transaction.",
+    "backend/modules/timetable/legacy/timetablesqltest/presence_cutover_composition_test.go: a DTO created in an execution state joins the caller's transaction; a Presence command failing after the Timetable command leaves no plan row.",
+    "backend/test/presence_storage_caller_inventory_test.go: zero application literals name a mirrored column or the routing counter.",
+    "scripts/test-changed.sh origin/development without --fast, including the retained timetablesqltest, classday, careplan, parentportal, enrollment and query-budget suites.",
+    "scripts/backend-architecture.sh check with no new violation and no policy loosening."
+  ],
+  "runtime_evidence": {
+    "source": "Local run on the PR branch against disposable PostgreSQL 17 clones on 2026-09-22; staging acceptance (switch wall time on real data, previous image against the switched schema, counter trend over the rollback window) is recorded in docs/operations/presence-storage-cutover-2762.md once the release is out.",
+    "sources": [
+      "docs/operations/presence-storage-cutover-2762.md",
+      "docs/operations/presence-storage-cutover-2762.sql",
+      "backend/database/migrations/presence_cutover_test.go",
+      "backend/modules/studentpresence/compose/session_storage_test.go",
+      "backend/modules/timetable/legacy/timetablesqltest/presence_cutover_composition_test.go",
+      "backend/test/presence_storage_caller_inventory_test.go",
+      "backend/test/query_budgets.go"
+    ],
+    "workload": "go test through scripts/run-go-toolchain.sh against the local postgres-test server with per-test tenants and default package parallelism: the migration, owner, composition, query-budget and ratchet suites listed under tests.",
+    "thresholds": "Every listed suite passes with unchanged assertion strength; the query-budget register is unchanged; the architecture check reports no new violation and no loosening; the caller inventory reports zero hits.",
+    "affected_rows": {
+      "state": "measured",
+      "result": "The migration tests copy the final delta of a school with started and ended blocks and mixed attendance and report equal counts and checksums for sessions and attendance; the composition tests leave zero plan rows and zero sessions after an aborted or failing multi-owner create."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "The query-budget tests pass with backend/test/query_budgets.go unchanged: the pickup-extension list stays at 9 statements, the planned-now, open-rooms and class-day lists keep their ceilings, because the retained lists read plan and owner rows in one joined statement each and the block choice asks Student Presence one SessionExecution statement."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "Local clone latencies are not representative; the runbook records p50 of the named owner operations from the debug log lines and the Timetable histograms during the staging rollback window."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "Local clone latencies are not representative; the runbook records p95 of the named owner operations during the staging rollback window."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "The listed suites and scripts/test-changed.sh origin/development exit 0 with no failing test and no panic; a second start of the same block fails with ErrActivitySessionExists and a foreign school's write fails or changes zero rows."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection is acquired differently: the owner commands and the projection reads run on the caller's tenant connection; the migration uses the migration CLI's administrative connection like the backfill it completes."
+    },
+    "lock_wait": {
+      "state": "measured",
+      "result": "The cutover holds ACCESS EXCLUSIVE locks on the four tables with lock_timeout 5s and statement_timeout 60s inside one transaction; TestPresenceCutoverFinalDeltaRollsBackWithTheSwitch proves a failing switch releases them with a full rollback. The runbook samples pg_stat_activity lock waits during the window."
+    },
+    "deadlocks": {
+      "state": "measured",
+      "result": "No deadlock in the local suites; the owner commands take the same lock order as before (participants through Timetable, then attendance through Student Presence), and the runbook records pg_stat_database.deadlocks with stats_reset."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The cutover has no worker path; the session-end scheduler keeps its existing loop and now ends sessions through the Student Presence command."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "The cutover has no worker path."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "The cutover has no worker path."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "A second start of a block fails with ErrActivitySessionExists; a Presence command failing after the Timetable command rolls the plan back with the caller's transaction; a foreign school cannot read, end or mark the other school's block or participants; the migration refuses a school without a completed backfill pass and unequal targets."
+    },
+    "rollback": {
+      "state": "measured",
+      "result": "TestPresenceCompatibilityRoutesPreviousImageWrites proves the previous image's writes of the mirrored columns land in the owner tables and are counted; TestPresenceCompatibilityMirrorsOwnerWrites proves owner writes land in the mirrored columns; the down migration refuses and the runbook deploys the previous image against the retained shape."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passes with the 568 baseline violations unchanged, no key removed or added, and composition surface 623 -> 623; the caller inventory, module ratchets and query budgets pass."
+    }
+  },
+  "rollback_and_cleanup": "Deploy the previous image against the retained mirror; do not run a down migration, do not drop the triggers, the counter or the mirrored columns, do not truncate the owner tables. The pre-cutover backfill and its restart refuse after the switch. #2763 removes the mirrored columns, the triggers and the counter after the rollback window.",
+  "exit_criterion": "Every caller uses Student Presence, Timetable or the presence projection; exactly one provider writes each field (the Timetable adapter the plan, the Student Presence adapter the execution and attendance, the migration the mirror); the final-delta checksums are equal per school; compatibility writes are observable through active.presence_compatibility_writes; scripts/backend-architecture.sh check removes no key, introduces no key and leaves ownership unchanged."
+}

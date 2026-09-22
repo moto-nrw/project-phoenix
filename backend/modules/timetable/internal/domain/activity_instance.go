@@ -5,7 +5,18 @@ import (
 	"time"
 )
 
-var ErrActivityInstanceNotFound = errors.New("activity instance not found")
+var (
+	ErrActivityInstanceNotFound = errors.New("activity instance not found")
+	// ErrActivityInstanceStarted refuses a planning-status change of a block
+	// that has a session; the execution must end first.
+	ErrActivityInstanceStarted = errors.New("activity instance has started")
+)
+
+// Planning states. Execution state is Student Presence's activity session.
+const (
+	InstanceStatusPlanned   = "planned"
+	InstanceStatusCancelled = "cancelled"
+)
 
 type ActivityInstance struct {
 	ID                     int64
@@ -22,7 +33,6 @@ type ActivityInstance struct {
 	RoomID                 int64
 	RequiredStaff          *int
 	Status                 string
-	ActiveGroupID          *int64
 	ListKind               *string
 	IsSpontaneous          bool
 	UnderstaffedAck        bool
@@ -32,12 +42,6 @@ type ActivityInstance struct {
 	IdempotencyKey         *string
 	IdempotencyFingerprint *string
 	CreatedBy              *int64
-	StartedBy              *int64
-	StartedAt              *time.Time
-	CompletedAt            *time.Time
-	CompletedBy            *int64
-	ReopenUntil            *time.Time
-	CompletionSnapshot     []byte
 }
 
 type ActivityInstanceFields struct {
@@ -51,7 +55,6 @@ type ActivityInstanceFields struct {
 	RoomID                 int64
 	RequiredStaff          *int
 	Status                 string
-	ActiveGroupID          *int64
 	ListKind               *string
 	IsSpontaneous          bool
 	UnderstaffedAck        bool
@@ -61,12 +64,6 @@ type ActivityInstanceFields struct {
 	IdempotencyKey         *string
 	IdempotencyFingerprint *string
 	CreatedBy              *int64
-	StartedBy              *int64
-	StartedAt              *time.Time
-	CompletedAt            *time.Time
-	CompletedBy            *int64
-	ReopenUntil            *time.Time
-	CompletionSnapshot     []byte
 }
 
 type ActivityInstanceFilter struct {
@@ -77,8 +74,6 @@ type ActivityInstanceFilter struct {
 	ToDate              *string
 	ActivityGroupID     *int64
 	ActivityGroupIDs    []int64
-	ActiveGroupID       *int64
-	ActiveGroupIDs      []int64
 	Status              string
 	IsSpontaneous       *bool
 	IdempotencyKey      string

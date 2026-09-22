@@ -398,6 +398,7 @@ func TestRequestReviewEnforcesRLS(t *testing.T) {
 			return svc.Settings.ResolveBool(ctx, "enrollment.bookings_authoritative")
 		},
 		Today:       func() ReviewDate { return ReviewDate(reviewToday()) },
+		Blocks:      noPickupReviewBlocks{},
 		ObserveCare: func(CareObservation) {}, ObserveTimetable: func(TimetableObservation) {},
 	})
 	require.NoError(t, err)
@@ -514,4 +515,12 @@ func reviewToday() careplan.Date {
 		panic(err)
 	}
 	return careplan.Date(time.Now().In(location).Format(careplan.DateLayout))
+}
+
+// noPickupReviewBlocks answers the pickup preview with no blocks; the RLS
+// test never opens a pickup change.
+type noPickupReviewBlocks struct{}
+
+func (noPickupReviewBlocks) PreviewPickupBlocks(context.Context, PickupReviewImpact) ([]PickupReviewBlock, error) {
+	return nil, nil
 }

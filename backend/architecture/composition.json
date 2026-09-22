@@ -55,7 +55,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        334
+        321
       ],
       "tables": []
     },
@@ -20780,27 +20780,27 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 177,
+          "line": 179,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 535,
+          "line": 522,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 698,
+          "line": 685,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 941,
+          "line": 928,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1351,
+          "line": 1339,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -20810,7 +20810,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 334,
+          "line": 321,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -20820,22 +20820,22 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 178,
+          "line": 180,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 406,
+          "line": 393,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 451,
+          "line": 438,
           "declaration": "withFileStorageWiring"
         },
         {
           "file": "api/base.go",
-          "line": 695,
+          "line": 682,
           "declaration": "type API"
         },
         {
@@ -20915,12 +20915,12 @@
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 40,
+          "line": 39,
           "declaration": "NewFactoryForTests"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 48,
+          "line": 47,
           "declaration": "NewFactoryForTestsWithConfig"
         },
         {

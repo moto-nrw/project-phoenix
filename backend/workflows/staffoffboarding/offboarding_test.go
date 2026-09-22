@@ -63,7 +63,7 @@ func newFixture(t *testing.T) fixture {
 		return errors.New("fixture has no absences")
 	})
 	require.NoError(t, err)
-	timetableOffboarding, err := timetablecompose.NewOffboarding(timetablecompose.OffboardingDependencies{DB: db, Observe: func(timetablecompose.Observation) {}})
+	timetableOffboarding, err := timetablecompose.NewOffboarding(timetablecompose.OffboardingDependencies{DB: db, Sessions: timetablecompose.NewPresenceSessionFacts(presence), Observe: func(timetablecompose.Observation) {}})
 	require.NoError(t, err)
 	room := testpkg.CreateTestRoom(t, db, "Offboarding workflow")
 	instance := testpkg.CreateTestActivityInstance(t, db, testpkg.Date(2027, 10, 4), room.ID, testpkg.ActivityInstanceOpts{})

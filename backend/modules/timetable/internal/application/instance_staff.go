@@ -120,7 +120,26 @@ func (s *Service) DeleteInstanceStaffByInstance(ctx context.Context, instanceID 
 
 func (s *Service) DeleteUpcomingInstanceStaff(ctx context.Context, staffID int64, after string) (result int64, err error) {
 	err = s.runWrite(ctx, "delete_upcoming_instance_staff", true, func(txCtx context.Context, stats *domain.OperationStats) error {
-		rows, queryStats, deleteErr := s.store.DeleteUpcomingInstanceStaff(txCtx, staffID, after)
+		// A block of the day that Student Presence already runs or ended is
+		// history and keeps its staff (#2762); only unstarted plans go.
+		sameDay, listStats, listErr := s.store.ListInstanceStaff(txCtx, domain.InstanceStaffFilter{StaffIDs: []int64{staffID}, Date: &after})
+		stats.Add(listStats)
+		if listErr != nil {
+			return listErr
+		}
+		instanceIDs := make([]int64, 0, len(sameDay))
+		for _, row := range sameDay {
+			instanceIDs = append(instanceIDs, row.InstanceID)
+		}
+		started, factsErr := s.startedInstanceIDs(txCtx, sortedUniqueIDs(instanceIDs))
+		if factsErr != nil {
+			return factsErr
+		}
+		excluded := make([]int64, 0, len(started))
+		for id := range started {
+			excluded = append(excluded, id)
+		}
+		rows, queryStats, deleteErr := s.store.DeleteUpcomingInstanceStaff(txCtx, staffID, after, sortedUniqueIDs(excluded))
 		stats.Add(queryStats)
 		result = rows
 		return deleteErr

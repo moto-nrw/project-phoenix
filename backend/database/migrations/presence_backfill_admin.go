@@ -25,6 +25,9 @@ func RestartPresenceBackfill(ctx context.Context, db *bun.DB, tenantID int64) er
 	if db == nil || tenantID <= 0 {
 		return fmt.Errorf("database and positive tenant ID are required")
 	}
+	if err := requirePresenceStorageBeforeCutover(ctx, db); err != nil {
+		return err
+	}
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		if _, err := tx.ExecContext(ctx, `SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '60s'`); err != nil {
 			return err

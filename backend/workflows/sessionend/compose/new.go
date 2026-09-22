@@ -20,6 +20,7 @@ type Observation = ports.Observation
 // modules' public facades satisfy the port interfaces directly.
 type Dependencies struct {
 	Presence   ports.Presence
+	Sessions   ports.Sessions
 	Timetable  ports.Timetable
 	Completion ports.InstanceCompletion
 	Students   ports.Students
@@ -38,7 +39,7 @@ type Dependencies struct {
 // New binds the workflow. It joins the caller's tenant transaction when one
 // is open and otherwise runs the close in its own.
 func New(deps Dependencies) (sessionend.Command, error) {
-	if deps.Presence == nil || deps.Timetable == nil || deps.Completion == nil || deps.Students == nil ||
+	if deps.Presence == nil || deps.Sessions == nil || deps.Timetable == nil || deps.Completion == nil || deps.Students == nil ||
 		deps.Rooms == nil || deps.Broadcaster == nil || deps.Observe == nil {
 		return nil, errors.New("session end compose: all dependencies are required")
 	}
@@ -48,6 +49,7 @@ func New(deps Dependencies) (sessionend.Command, error) {
 	}
 	return application.NewCommand(application.Dependencies{
 		Presence:   deps.Presence,
+		Sessions:   deps.Sessions,
 		Timetable:  deps.Timetable,
 		Completion: deps.Completion,
 		Students:   deps.Students,

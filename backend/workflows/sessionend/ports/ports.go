@@ -20,14 +20,20 @@ type Presence interface {
 	EndGroupSession(context.Context, int64, time.Time) (studentpresence.EndedGroupSession, error)
 }
 
-// Timetable is the Timetable & Activities surface the close uses: find the
-// instance mirrored from the session, stamp the slot check-outs of the
-// children the close sent home, and resolve the activity name for the
-// announcement.
+// Timetable is the Timetable & Activities surface the close uses: read the
+// plan of the instance mirrored from the session and resolve the activity
+// name for the announcement.
 type Timetable interface {
-	ListActivityInstances(context.Context, timetable.ActivityInstanceFilter) ([]timetable.ActivityInstance, error)
-	CloseOpenCheckoutsByActiveGroupIDs(context.Context, []int64, time.Time) (int, error)
+	FindActivityInstance(context.Context, int64) (timetable.ActivityInstance, error)
 	FindGroup(context.Context, int64) (timetable.Group, error)
+}
+
+// Sessions is the Student Presence surface that owns the execution of a
+// block since #2762: find the session mirrored from the group and stamp the
+// slot check-outs of the children the close sent home.
+type Sessions interface {
+	ListActivitySessions(context.Context, studentpresence.ActivitySessionFilter) ([]studentpresence.ActivitySession, error)
+	CloseOpenCheckoutsByActiveGroupIDs(context.Context, []int64, time.Time) (int, error)
 }
 
 // InstanceCompletion finalizes the attendance of every still-active instance

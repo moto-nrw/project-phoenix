@@ -29,7 +29,7 @@ func finishPresenceBackfill(t *testing.T, db *testpkg.DB, tenantID int64) Presen
 
 func TestPresenceBackfillResumesAtEveryBoundary(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupPresenceStorageBeforeCutover(t)
 	f := createPresenceExpandFixture(t, db)
 	var before string
 	require.NoError(t, db.NewRaw(`SELECT to_jsonb(i)::text FROM schedule.activity_instances i WHERE id = ?`, f.instance).Scan(t.Context(), &before))
@@ -77,7 +77,7 @@ func TestPresenceBackfillRetriesTransactionFailures(t *testing.T) {
 	t.Parallel()
 	for _, state := range []string{"40001", "40P01"} {
 		t.Run(state, func(t *testing.T) {
-			db := testpkg.SetupIsolatedTestDB(t)
+			db := setupPresenceStorageBeforeCutover(t)
 			f := createPresenceExpandFixture(t, db)
 			// Sequences survive rollback, making exactly the first attempt fail at
 			// PostgreSQL's write boundary, not in a mock of the retry implementation.
@@ -109,7 +109,7 @@ func TestPresenceBackfillRetriesTransactionFailures(t *testing.T) {
 
 func TestPresenceBackfillReportsTerminalDeadlock(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupPresenceStorageBeforeCutover(t)
 	f := createPresenceExpandFixture(t, db)
 	_, err := db.ExecContext(t.Context(), `CREATE FUNCTION active.always_deadlock() RETURNS trigger LANGUAGE plpgsql AS $$
   BEGIN RAISE EXCEPTION 'injected deadlock' USING ERRCODE = '40P01'; END $$;
@@ -125,7 +125,7 @@ func TestPresenceBackfillReportsTerminalDeadlock(t *testing.T) {
 
 func TestPresenceBackfillReconcilesChangesBehindHighWater(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupPresenceStorageBeforeCutover(t)
 	f := createPresenceExpandFixture(t, db)
 	account := testpkg.CreateTestAccount(t, db, "presence-backfill-completion@example.test")
 	first, err := PresenceBackfillBatch(t.Context(), db, f.tenant, 1)
@@ -207,7 +207,7 @@ func TestPresenceBackfillReconcilesChangesBehindHighWater(t *testing.T) {
 
 func TestPresenceBackfillRollbackOnlyClearsSelectedTenantTargets(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupPresenceStorageBeforeCutover(t)
 	a, b := createPresenceExpandFixture(t, db), createPresenceExpandFixture(t, db)
 	finishPresenceBackfill(t, db, a.tenant)
 	bBefore := finishPresenceBackfill(t, db, b.tenant)
@@ -232,7 +232,7 @@ func TestPresenceBackfillRollbackOnlyClearsSelectedTenantTargets(t *testing.T) {
 
 func TestPresenceBackfillFailureRollsBackOnlyCurrentBatch(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupPresenceStorageBeforeCutover(t)
 	f := createPresenceExpandFixture(t, db)
 	_, err := PresenceBackfillBatch(t.Context(), db, f.tenant, 1)
 	require.NoError(t, err)
@@ -261,7 +261,7 @@ func TestPresenceBackfillFailureRollsBackOnlyCurrentBatch(t *testing.T) {
 
 func TestPresenceBackfillMeasuresActualLockWaits(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupPresenceStorageBeforeCutover(t)
 	f := createPresenceExpandFixture(t, db)
 	finishPresenceBackfill(t, db, f.tenant)
 	_, err := db.ExecContext(t.Context(), `UPDATE schedule.activity_instances SET started_at = clock_timestamp() WHERE id = ?`, f.instance)
@@ -292,7 +292,7 @@ func TestPresenceBackfillMeasuresActualLockWaits(t *testing.T) {
 
 func TestPresenceBackfillTenantIsolationAndCheckpointLifecycle(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupPresenceStorageBeforeCutover(t)
 	require.NoError(t, runPresenceMigration(t.Context(), db, "001015381", false))
 	require.NoError(t, runPresenceMigration(t.Context(), db, "001015381", true))
 	a, b := createPresenceExpandFixture(t, db), createPresenceExpandFixture(t, db)
@@ -329,7 +329,7 @@ func TestPresenceBackfillTenantIsolationAndCheckpointLifecycle(t *testing.T) {
 
 func TestPresenceBackfillPlansUseTenantKeysetIndexes(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupPresenceStorageBeforeCutover(t)
 	f := createPresenceExpandFixture(t, db)
 	_, err := db.ExecContext(t.Context(), `INSERT INTO schedule.activity_instances
   (tenant_id, date, title, start_time, end_time, room_id, status)

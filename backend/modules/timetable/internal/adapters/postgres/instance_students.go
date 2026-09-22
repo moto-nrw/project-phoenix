@@ -4,31 +4,34 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/uptrace/bun"
 )
 
+// instanceStudentRow maps the planning columns of schedule.instance_students.
+// The attendance columns still present on the table are a rollback-only
+// mirror of active.activity_session_attendance (#2762) and are neither read
+// nor written here.
 type instanceStudentRow struct {
-	bun.BaseModel      `bun:"table:instance_students,alias:instance_student"`
-	ID                 int64      `bun:"id,pk,autoincrement"`
-	TenantID           int64      `bun:"tenant_id,notnull"`
-	CreatedAt          time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt          time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
-	InstanceID         int64      `bun:"instance_id,notnull"`
-	StudentID          int64      `bun:"student_id,notnull"`
-	RoomID             *int64     `bun:"room_id"`
-	Status             string     `bun:"status,notnull"`
-	Substatus          *string    `bun:"substatus"`
-	Note               *string    `bun:"note"`
-	CheckedInAt        *time.Time `bun:"checked_in_at"`
-	CheckedOutAt       *time.Time `bun:"checked_out_at"`
-	IsUnplanned        bool       `bun:"is_unplanned,notnull"`
-	NotScheduled       bool       `bun:"not_scheduled,notnull"`
-	ManualStatusAt     *time.Time `bun:"manual_status_at"`
-	StudentStatusDayID *int64     `bun:"student_status_day_id"`
-	PickupExceptionID  *int64     `bun:"pickup_exception_id"`
+	bun.BaseModel `bun:"table:instance_students,alias:instance_student"`
+	ID            int64     `bun:"id,pk,autoincrement"`
+	TenantID      int64     `bun:"tenant_id,notnull"`
+	CreatedAt     time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt     time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	InstanceID    int64     `bun:"instance_id,notnull"`
+	StudentID     int64     `bun:"student_id,notnull"`
+	RoomID        *int64    `bun:"room_id"`
+}
+
+type plannedInstanceStudentRow struct {
+	ID         int64  `bun:"id"`
+	InstanceID int64  `bun:"instance_id"`
+	StudentID  int64  `bun:"student_id"`
+	Date       string `bun:"date"`
+	StartTime  string `bun:"start_time"`
 }
 
 func (s *Store) FindInstanceStudent(ctx context.Context, id int64) (domain.InstanceStudent, bool, domain.OperationStats, error) {
@@ -60,14 +63,46 @@ func (s *Store) ListInstanceStudents(ctx context.Context, filter domain.Instance
 	return result, stats, nil
 }
 
+// ListPlannedInstanceStudents joins the instance's planning day and block
+// start onto every participant.
+func (s *Store) ListPlannedInstanceStudents(ctx context.Context, filter domain.InstanceStudentFilter) ([]domain.PlannedInstanceStudent, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	rows := []plannedInstanceStudentRow{}
+	query := db.NewSelect().Model(&rows).ModelTableExpr(`schedule.instance_students AS "instance_student"`).
+		ColumnExpr(`"instance_student".id, "instance_student".instance_id, "instance_student".student_id`).
+		ColumnExpr(`"activity_instance".date::text AS date, "activity_instance".start_time::text AS start_time`).
+		Join(instanceStudentActivityJoin).
+		Where(`"instance_student".tenant_id = ?`, tenantID)
+	query = filterInstanceStudentIDs(query, filter)
+	query = filterInstanceStudentDates(query, filter)
+	query = query.OrderExpr(`"instance_student".id ASC`)
+	if filter.Limit > 0 {
+		query = query.Limit(filter.Limit).Offset(filter.Offset)
+	}
+	stats, err := scanAll(ctx, query, "list planned instance students")
+	if err != nil {
+		return nil, stats, err
+	}
+	result := make([]domain.PlannedInstanceStudent, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, domain.PlannedInstanceStudent(row))
+	}
+	stats.Rows = int64(len(result))
+	return result, stats, nil
+}
+
+const instanceStudentActivityJoin = `INNER JOIN schedule.activity_instances AS "activity_instance"
+			ON "activity_instance".id = "instance_student".instance_id
+			AND "activity_instance".tenant_id = "instance_student".tenant_id`
+
 func filterInstanceStudents(query *bun.SelectQuery, filter domain.InstanceStudentFilter) *bun.SelectQuery {
 	if needsInstanceStudentActivityJoin(filter) {
-		query = query.Join(`INNER JOIN schedule.activity_instances AS "activity_instance"
-			ON "activity_instance".id = "instance_student".instance_id
-			AND "activity_instance".tenant_id = "instance_student".tenant_id`)
+		query = query.Join(instanceStudentActivityJoin)
 	}
 	query = filterInstanceStudentIDs(query, filter)
-	query = filterInstanceStudentState(query, filter)
 	query = filterInstanceStudentDates(query, filter)
 	query = orderInstanceStudents(query, filter)
 	if filter.Limit > 0 {
@@ -78,6 +113,7 @@ func filterInstanceStudents(query *bun.SelectQuery, filter domain.InstanceStuden
 
 func needsInstanceStudentActivityJoin(filter domain.InstanceStudentFilter) bool {
 	return filter.Date != nil || filter.FromDate != nil || filter.ToDate != nil || filter.CurrentTime != nil ||
+		filter.FromClock != nil || filter.ExcludeCancelled ||
 		filter.OrderByStudentActivityTime || filter.OrderByActivityDateTime
 }
 
@@ -94,20 +130,6 @@ func filterInstanceStudentIDs(query *bun.SelectQuery, filter domain.InstanceStud
 	return query
 }
 
-func filterInstanceStudentState(query *bun.SelectQuery, filter domain.InstanceStudentFilter) *bun.SelectQuery {
-	if filter.Status != nil {
-		query = query.Where(`"instance_student".status = ?`, *filter.Status)
-	}
-	if filter.NotScheduledCandidatesOnly {
-		query = query.Where(`"instance_student".manual_status_at IS NULL`).WhereGroup(" AND ", func(group *bun.SelectQuery) *bun.SelectQuery {
-			return group.WhereOr(`"instance_student".status = 'expected'`).
-				WhereOr(`("instance_student".status = 'absent' AND "instance_student".student_status_day_id IS NOT NULL)`).
-				WhereOr(`("instance_student".status = 'absent' AND "instance_student".pickup_exception_id IS NOT NULL)`)
-		})
-	}
-	return query
-}
-
 func filterInstanceStudentDates(query *bun.SelectQuery, filter domain.InstanceStudentFilter) *bun.SelectQuery {
 	if filter.Date != nil {
 		query = query.Where(`"activity_instance".date = ?::date`, *filter.Date)
@@ -119,9 +141,15 @@ func filterInstanceStudentDates(query *bun.SelectQuery, filter domain.InstanceSt
 		query = query.Where(`"activity_instance".date <= ?::date`, *filter.ToDate)
 	}
 	if filter.CurrentTime != nil {
-		query = query.Where(`"activity_instance".status IN ('planned', 'active')`).
+		query = query.Where(activityInstanceNotCancelled).
 			Where(`"activity_instance".start_time <= ?::time`, *filter.CurrentTime).
 			Where(`"activity_instance".end_time > ?::time`, *filter.CurrentTime)
+	}
+	if filter.FromClock != nil {
+		query = query.Where(`"activity_instance".start_time >= ?::time`, *filter.FromClock)
+	}
+	if filter.ExcludeCancelled {
+		query = query.Where(activityInstanceNotCancelled)
 	}
 	return query
 }
@@ -141,71 +169,6 @@ func orderInstanceStudents(query *bun.SelectQuery, filter domain.InstanceStudent
 	}
 }
 
-type instanceStudentCount struct {
-	InstanceID int64 `bun:"instance_id"`
-	Count      int   `bun:"count"`
-}
-
-func (s *Store) CountNonAbsentInstanceStudents(ctx context.Context, instanceIDs []int64) (map[int64]int, domain.OperationStats, error) {
-	result := make(map[int64]int)
-	if len(instanceIDs) == 0 {
-		return result, domain.OperationStats{}, nil
-	}
-	db, tenantID, err := s.database(ctx)
-	if err != nil {
-		return nil, domain.OperationStats{}, err
-	}
-	rows := []instanceStudentCount{}
-	query := db.NewSelect().Model(&rows).ModelTableExpr(`schedule.instance_students AS "instance_student"`).
-		ColumnExpr(`"instance_student".instance_id`).ColumnExpr(`COUNT(*)::int AS count`).
-		Where(`"instance_student".tenant_id = ?`, tenantID).Where(`"instance_student".instance_id IN (?)`, bun.List(instanceIDs)).
-		Where(`"instance_student".status != 'absent'`).GroupExpr(`"instance_student".instance_id`)
-	stats, err := scanAll(ctx, query, "count non-absent instance students")
-	for _, row := range rows {
-		result[row.InstanceID] = row.Count
-	}
-	stats.Rows = int64(len(rows))
-	return result, stats, err
-}
-
-type parallelPresenceRow struct {
-	StudentID  int64     `bun:"student_id"`
-	InstanceID int64     `bun:"instance_id"`
-	Title      string    `bun:"title"`
-	StartTime  time.Time `bun:"start_time"`
-	EndTime    time.Time `bun:"end_time"`
-}
-
-func (s *Store) ListParallelStudentPresence(ctx context.Context, excludeInstanceID int64, date string, studentIDs []int64) ([]domain.ParallelPresence, domain.OperationStats, error) {
-	if len(studentIDs) == 0 {
-		return []domain.ParallelPresence{}, domain.OperationStats{}, nil
-	}
-	db, tenantID, err := s.database(ctx)
-	if err != nil {
-		return nil, domain.OperationStats{}, err
-	}
-	rows := []parallelPresenceRow{}
-	query := parallelPresenceSelect(db, &rows, tenantID, excludeInstanceID, date, studentIDs)
-	stats, err := scanAll(ctx, query, "list parallel student presence")
-	result := make([]domain.ParallelPresence, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, domain.ParallelPresence(row))
-	}
-	stats.Rows = int64(len(result))
-	return result, stats, err
-}
-
-func parallelPresenceSelect(db bun.IDB, rows any, tenantID, excludedID int64, date string, studentIDs []int64) *bun.SelectQuery {
-	return db.NewSelect().Model(rows).ModelTableExpr(`schedule.instance_students AS "instance_student"`).
-		ColumnExpr(`"instance_student".student_id, "activity_instance".id AS instance_id`).
-		ColumnExpr(`"activity_instance".title, "activity_instance".start_time, "activity_instance".end_time`).
-		Join(`INNER JOIN schedule.activity_instances AS "activity_instance" ON "activity_instance".id = "instance_student".instance_id AND "activity_instance".tenant_id = "instance_student".tenant_id`).
-		Where(`"instance_student".tenant_id = ?`, tenantID).Where(`"instance_student".instance_id != ?`, excludedID).
-		Where(`"instance_student".student_id IN (?)`, bun.List(studentIDs)).Where(`"instance_student".status = 'present'`).
-		Where(`"instance_student".checked_out_at IS NULL`).Where(`"activity_instance".date = ?::date`, date).
-		Where(`"activity_instance".status = 'active'`).OrderExpr(`"activity_instance".start_time DESC, "activity_instance".id DESC`)
-}
-
 func (s *Store) CreateInstanceStudent(ctx context.Context, fields domain.InstanceStudentFields) (domain.InstanceStudent, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
@@ -223,28 +186,33 @@ func (s *Store) CreateInstanceStudent(ctx context.Context, fields domain.Instanc
 	return instanceStudentToDomain(row), stats, nil
 }
 
-func (s *Store) CreateInstanceStudentIfAbsent(ctx context.Context, fields domain.InstanceStudentFields) (bool, domain.OperationStats, error) {
+// EnsureInstanceStudent adds the child to the roster when it is not on it
+// yet. The no-op update on conflict lets RETURNING report the existing row;
+// xmax tells an insert from an update.
+func (s *Store) EnsureInstanceStudent(ctx context.Context, instanceID, studentID int64) (domain.InstanceStudent, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return false, domain.OperationStats{}, err
+		return domain.InstanceStudent{}, false, domain.OperationStats{}, err
 	}
-	row := newInstanceStudentRow(tenantID, fields)
+	var row struct {
+		instanceStudentRow
+		Inserted bool `bun:"inserted"`
+	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	result, err := db.NewInsert().Model(&row).ModelTableExpr(`schedule.instance_students`).
-		On(`CONFLICT (instance_id, student_id) DO UPDATE
-			SET not_scheduled = FALSE, updated_at = NOW()
-			WHERE schedule.instance_students.not_scheduled`).Exec(ctx)
+	err = db.NewRaw(`INSERT INTO schedule.instance_students AS target (tenant_id, instance_id, student_id)
+		VALUES (?, ?, ?)
+		ON CONFLICT (instance_id, student_id) DO UPDATE SET updated_at = target.updated_at
+		RETURNING target.id, target.tenant_id, target.created_at, target.updated_at, target.instance_id, target.student_id, target.room_id,
+			(target.xmax = 0) AS inserted`, tenantID, instanceID, studentID).Scan(ctx, &row)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return false, stats, classifyWriteError("create instance student if absent", err, &stats)
+		return domain.InstanceStudent{}, false, stats, classifyWriteError("ensure instance student", err, &stats)
 	}
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return false, stats, classifyWriteError("count created instance students", err, &stats)
+	if row.Inserted {
+		stats.Rows = 1
 	}
-	stats.Rows = rows
-	return rows > 0, stats, nil
+	return instanceStudentToDomain(row.instanceStudentRow), row.Inserted, stats, nil
 }
 
 func (s *Store) UpdateInstanceStudent(ctx context.Context, id int64, fields domain.InstanceStudentFields) (domain.InstanceStudent, bool, domain.OperationStats, error) {
@@ -255,7 +223,10 @@ func (s *Store) UpdateInstanceStudent(ctx context.Context, id int64, fields doma
 	row := instanceStudentRow{}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	err = updateInstanceStudent(db, &row, tenantID, id, fields).Returning(instanceStudentColumns).Scan(ctx)
+	err = db.NewUpdate().Model(&row).ModelTableExpr(`schedule.instance_students`).
+		Set("instance_id = ?", fields.InstanceID).Set("student_id = ?", fields.StudentID).Set("room_id = ?", fields.RoomID).
+		Set("updated_at = NOW()").Where("id = ?", id).Where("tenant_id = ?", tenantID).
+		Returning(instanceStudentColumns).Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.InstanceStudent{}, false, stats, nil
@@ -265,17 +236,6 @@ func (s *Store) UpdateInstanceStudent(ctx context.Context, id int64, fields doma
 	}
 	stats.Rows = 1
 	return instanceStudentToDomain(row), true, stats, nil
-}
-
-func updateInstanceStudent(db bun.IDB, row *instanceStudentRow, tenantID, id int64, fields domain.InstanceStudentFields) *bun.UpdateQuery {
-	return db.NewUpdate().Model(row).ModelTableExpr(`schedule.instance_students`).
-		Set("instance_id = ?", fields.InstanceID).Set("student_id = ?", fields.StudentID).Set("room_id = ?", fields.RoomID).
-		Set("status = ?", fields.Status).Set("substatus = ?", fields.Substatus).Set("note = ?", fields.Note).
-		Set("checked_in_at = ?", fields.CheckedInAt).Set("checked_out_at = ?", fields.CheckedOutAt).
-		Set("is_unplanned = ?", fields.IsUnplanned).Set("not_scheduled = ?", fields.NotScheduled).
-		Set("manual_status_at = ?", fields.ManualStatusAt).Set("student_status_day_id = ?", fields.StudentStatusDayID).
-		Set("pickup_exception_id = ?", fields.PickupExceptionID).Set("updated_at = NOW()").
-		Where("id = ?", id).Where("tenant_id = ?", tenantID)
 }
 
 func (s *Store) DeleteInstanceStudent(ctx context.Context, id int64) (domain.OperationStats, error) {
@@ -294,32 +254,101 @@ func (s *Store) DeleteInstanceStudentsByInstance(ctx context.Context, instanceID
 	return execMeasuredWrite(ctx, db.NewDelete().Table("schedule.instance_students").Where("tenant_id = ?", tenantID).Where("instance_id = ?", instanceID), "delete instance students by instance")
 }
 
-const instanceStudentColumns = `id, tenant_id, created_at, updated_at, instance_id, student_id, room_id, status,
-	substatus, note, checked_in_at, checked_out_at, is_unplanned, not_scheduled, manual_status_at,
-	student_status_day_id, pickup_exception_id`
+func (s *Store) ListStudentInstanceRefsBefore(ctx context.Context, cutoff string) ([]domain.StudentInstanceRef, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	rows := []domain.StudentInstanceRef{}
+	query := db.NewSelect().TableExpr(`schedule.instance_students AS "instance_student"`).
+		ColumnExpr(`"instance_student".student_id, "instance_student".instance_id`).
+		Join(instanceStudentActivityJoin).
+		Where(`"instance_student".tenant_id = ?`, tenantID).Where(`"activity_instance".date < ?::date`, cutoff).
+		OrderExpr(`"instance_student".student_id ASC, "instance_student".instance_id ASC`)
+	stats, err := scanAllInto(ctx, query, &rows, "list student instance refs before")
+	stats.Rows = int64(len(rows))
+	return rows, stats, err
+}
+
+func (s *Store) ListPlannedStudentIDs(ctx context.Context, studentIDs []int64, date string) ([]int64, domain.OperationStats, error) {
+	if len(studentIDs) == 0 {
+		return []int64{}, domain.OperationStats{}, nil
+	}
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	ids := []int64{}
+	query := db.NewSelect().TableExpr(`schedule.instance_students AS "instance_student"`).
+		ColumnExpr(`DISTINCT "instance_student".student_id`).
+		Join(instanceStudentActivityJoin).
+		Where(`"instance_student".tenant_id = ?`, tenantID).Where(`"instance_student".student_id IN (?)`, bun.List(studentIDs)).
+		Where(`"activity_instance".date = ?::date`, date).Where(activityInstanceNotCancelled).
+		OrderExpr(`"instance_student".student_id ASC`)
+	stats, err := scanAllInto(ctx, query, &ids, "list planned student ids")
+	stats.Rows = int64(len(ids))
+	return ids, stats, err
+}
+
+func (s *Store) LockInstanceStudentAssignments(ctx context.Context, instanceID int64) (domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	var ids []int64
+	return scanAllInto(ctx, db.NewSelect().Table("schedule.instance_students").Column("id").
+		Where("tenant_id = ?", tenantID).Where("instance_id = ?", instanceID).OrderExpr("id").For("UPDATE"), &ids, "lock attendance")
+}
+
+func (s *Store) LockInstanceStudentsByID(ctx context.Context, ids []int64) (domain.OperationStats, error) {
+	if len(ids) == 0 {
+		return domain.OperationStats{}, nil
+	}
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	var locked []int64
+	return scanAllInto(ctx, db.NewSelect().Table("schedule.instance_students").Column("id").
+		Where("tenant_id = ?", tenantID).Where("id IN (?)", bun.List(ids)).OrderExpr("id").For("UPDATE"), &locked, "lock instance students")
+}
+
+const instanceStudentColumns = `id, tenant_id, created_at, updated_at, instance_id, student_id, room_id`
 
 func instanceStudentSelect(db bun.IDB, model any, tenantID int64) *bun.SelectQuery {
 	return db.NewSelect().Model(model).ModelTableExpr(`schedule.instance_students AS "instance_student"`).
 		ColumnExpr(`"instance_student".id, "instance_student".tenant_id, "instance_student".created_at, "instance_student".updated_at`).
-		ColumnExpr(`"instance_student".instance_id, "instance_student".student_id, "instance_student".room_id, "instance_student".status`).
-		ColumnExpr(`"instance_student".substatus, "instance_student".note, "instance_student".checked_in_at, "instance_student".checked_out_at`).
-		ColumnExpr(`"instance_student".is_unplanned, "instance_student".not_scheduled, "instance_student".manual_status_at`).
-		ColumnExpr(`"instance_student".student_status_day_id, "instance_student".pickup_exception_id`).
+		ColumnExpr(`"instance_student".instance_id, "instance_student".student_id, "instance_student".room_id`).
 		Where(`"instance_student".tenant_id = ?`, tenantID)
 }
 
 func newInstanceStudentRow(tenantID int64, fields domain.InstanceStudentFields) instanceStudentRow {
-	return instanceStudentRow{TenantID: tenantID, InstanceID: fields.InstanceID, StudentID: fields.StudentID,
-		RoomID: fields.RoomID, Status: fields.Status, Substatus: fields.Substatus, Note: fields.Note,
-		CheckedInAt: fields.CheckedInAt, CheckedOutAt: fields.CheckedOutAt, IsUnplanned: fields.IsUnplanned,
-		NotScheduled: fields.NotScheduled, ManualStatusAt: fields.ManualStatusAt,
-		StudentStatusDayID: fields.StudentStatusDayID, PickupExceptionID: fields.PickupExceptionID}
+	return instanceStudentRow{TenantID: tenantID, InstanceID: fields.InstanceID, StudentID: fields.StudentID, RoomID: fields.RoomID}
 }
 
 func instanceStudentToDomain(row instanceStudentRow) domain.InstanceStudent {
 	return domain.InstanceStudent{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
-		InstanceID: row.InstanceID, StudentID: row.StudentID, RoomID: row.RoomID, Status: row.Status,
-		Substatus: row.Substatus, Note: row.Note, CheckedInAt: row.CheckedInAt, CheckedOutAt: row.CheckedOutAt,
-		IsUnplanned: row.IsUnplanned, NotScheduled: row.NotScheduled, ManualStatusAt: row.ManualStatusAt,
-		StudentStatusDayID: row.StudentStatusDayID, PickupExceptionID: row.PickupExceptionID}
+		InstanceID: row.InstanceID, StudentID: row.StudentID, RoomID: row.RoomID}
+}
+
+func instanceStudentsToDomain(rows []instanceStudentRow) []domain.InstanceStudent {
+	result := make([]domain.InstanceStudent, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, instanceStudentToDomain(row))
+	}
+	return result
+}
+
+// scanRestoredInstanceStudents reads RETURNING rows of a participant insert.
+func scanRestoredInstanceStudents(ctx context.Context, query *bun.InsertQuery) ([]domain.InstanceStudent, domain.OperationStats, error) {
+	rows := []instanceStudentRow{}
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err := query.Returning(instanceStudentColumns).Scan(ctx, &rows)
+	stats.StatementDuration = time.Since(started)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, stats, fmt.Errorf("timetable postgres: restore instance students: %w", err)
+	}
+	stats.Rows = int64(len(rows))
+	return instanceStudentsToDomain(rows), stats, nil
 }

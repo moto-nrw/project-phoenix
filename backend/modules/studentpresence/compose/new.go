@@ -22,6 +22,13 @@ type Dependencies struct {
 	Observe func(Observation)
 	// Now is the clock the module reads the school day from; nil uses time.Now.
 	Now func() time.Time
+	// The session attendance rules (#2762) resolve their participants through
+	// the Timetable owner and decide against the care plan. A composition that
+	// serves none of those rules leaves the three ports nil; the rules then
+	// fail with the module's configuration errors.
+	Roster   studentpresence.PlannedRoster
+	CarePlan studentpresence.SessionCarePlanDirectory
+	CareDays studentpresence.SessionCareDayLocker
 }
 
 func New(deps Dependencies) (*studentpresence.Module, error) {
@@ -33,7 +40,24 @@ func New(deps Dependencies) (*studentpresence.Module, error) {
 	if now == nil {
 		now = time.Now
 	}
-	return studentpresence.NewModule(engine{Service: application.New(store, transaction{}, deps.Observe), now: now}), nil
+	service := application.New(store, transaction{}, deps.Observe, sessionAttendancePorts(deps))
+	return studentpresence.NewModule(engine{Service: service, now: now}), nil
+}
+
+func sessionAttendancePorts(deps Dependencies) ports.AttendanceRulePorts {
+	var roster ports.PlannedRoster
+	var carePlan ports.CarePlanDirectory
+	var careDays ports.CareDayLocker
+	if deps.Roster != nil {
+		roster = plannedRoster{query: deps.Roster}
+	}
+	if deps.CarePlan != nil {
+		carePlan = carePlanDirectory{query: deps.CarePlan}
+	}
+	if deps.CareDays != nil {
+		careDays = deps.CareDays
+	}
+	return ports.AttendanceRulePorts{Roster: roster, CarePlan: carePlan, CareDays: careDays}
 }
 
 func databaseRuntime(db *bun.DB) postgres.Database {
