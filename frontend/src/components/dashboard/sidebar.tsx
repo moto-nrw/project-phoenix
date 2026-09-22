@@ -350,6 +350,19 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
     ],
   },
   {
+    label: "AUSWERTUNG",
+    items: [
+      {
+        href: "/operator/billing",
+        label: "Abrechnung",
+        icon: navigationIcons.chart,
+        concept: "reports",
+        activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
+        alwaysShow: true,
+      },
+    ],
+  },
+  {
     label: "KOMMUNIKATION",
     items: [
       {

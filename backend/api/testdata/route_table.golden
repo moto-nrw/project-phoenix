@@ -501,6 +501,9 @@ GET /operator/announcements/{id}/views
 GET /operator/auth/mfa/trusted-devices
 GET /operator/auth/passkeys
 GET /operator/auth/passkeys/
+GET /operator/billing/key-date-counts
+GET /operator/billing/key-date-counts/export
+GET /operator/billing/key-day
 GET /operator/devices/
 GET /operator/devices/{id}/transfer-status
 GET /operator/invitations/
@@ -1056,6 +1059,7 @@ PUT /internal/metrics
 PUT /operator/accounts/{accountId}/mfa/global-override
 PUT /operator/accounts/{accountId}/tenants/{tenantId}
 PUT /operator/announcements/{id}
+PUT /operator/billing/key-day
 PUT /operator/organizations/{id}
 PUT /operator/profile/
 PUT /operator/schools/{id}

@@ -26,6 +26,7 @@ type Resource struct {
 	passkeys                *identityoperator.PasskeyResource
 	mfaResource             *identityoperator.MFAResource
 	provisioningResource    *provisioningoperator.ProvisioningResource
+	billingResource         *provisioningoperator.BillingResource
 	mfaAdminResource        *identityoperator.SchoolAccountMFAResource
 	settingsResource        *settingsoperator.SettingsResource
 	announcementsResource   *operatorannouncements.AnnouncementsResource
@@ -66,6 +67,10 @@ type ResourceConfig struct {
 	// responses so the frontend operator proxy can bust the slug-keyed
 	// `tenant-${slug}` cache after tenant-resolve-affecting toggles.
 	SchoolService settingsoperator.SchoolLookup
+	// Billing is Organisation & Tenancy's billing report (#2791): the key day
+	// and the monthly key-date counts of every school. Without it the billing
+	// routes are not mounted.
+	Billing organizationtenancy.BillingReport
 	// TenantMFAService is the tenant-side MFA service (auth package).
 	// The operator dashboard reuses it to read + write per-account MFA
 	// state on behalf of school staff. Distinct from MFAService above,
@@ -118,6 +123,9 @@ func NewResource(cfg ResourceConfig) *Resource {
 		invitationsResource:   identityoperator.NewInvitationsResource(cfg.InvitationService),
 		unregisteredTagScans:  cfg.UnregisteredTagScans,
 		sessions:              cfg.Sessions,
+	}
+	if cfg.Billing != nil {
+		resource.billingResource = provisioningoperator.NewBillingResource(cfg.Billing, nil)
 	}
 	if cfg.SchoolSettings != nil {
 		resource.settingsResource = settingsoperator.NewSettingsResource(settingsoperator.SettingsConfig{
@@ -234,6 +242,20 @@ func (rs *Resource) mountProtectedRoutes(r chi.Router) {
 		rs.mountTrustedDeviceRoutes(r)
 		rs.mountInvitationRoutes(r)
 		rs.mountAnnouncementRoutes(r)
+		rs.mountBillingRoutes(r)
+	})
+}
+
+// mountBillingRoutes registers the optional billing report (#2791).
+func (rs *Resource) mountBillingRoutes(r chi.Router) {
+	if rs.billingResource == nil {
+		return
+	}
+	r.Route("/billing", func(r chi.Router) {
+		r.Get("/key-day", rs.billingResource.GetKeyDay)
+		r.Put("/key-day", rs.billingResource.UpdateKeyDay)
+		r.Get("/key-date-counts", rs.billingResource.ListKeyDateCounts)
+		r.Get("/key-date-counts/export", rs.billingResource.ExportKeyDateCounts)
 	})
 }
 

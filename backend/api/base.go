@@ -1636,6 +1636,10 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 			},
 		},
 	})
+	billing, err := newOperatorBilling(logger)
+	if err != nil {
+		return fmt.Errorf("compose operator billing: %w", err)
+	}
 	schoolSettings := settingsCompose.NewOperatorSchoolSettings(settingsCompose.OperatorDependencies{
 		Settings:       api.Services.Settings,
 		DB:             db,
@@ -1660,6 +1664,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		UnregisteredTagScans: tagScanReview.Router(),
 		SchoolSettings:       schoolSettings,
 		SchoolService:        api.Services.Schools,
+		Billing:              billing,
 		TenantMFAService:     api.Services.MFA,
 		Sessions:             identityOperatorAPI.NewSessions(sessionAuth, api.Services.OperatorAuth),
 	})
