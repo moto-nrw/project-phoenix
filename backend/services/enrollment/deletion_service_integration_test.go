@@ -280,7 +280,7 @@ func TestEnrollmentDeletion_DeleteRequestCleansDependenciesAndPreservesPeople(t 
 	}{
 		{"enrollment.requests", request.ID},
 		{"enrollment.request_children", child.ID},
-		{"enrollment.request_child_offerings", childOffering.ID},
+		{"enrollment.care_offering_bookings", childOffering.ID},
 		{"enrollment.request_guardians", coGuardian.ID},
 		{"enrollment.change_requests", change.ID},
 		{"enrollment.change_request_messages", message.ID},

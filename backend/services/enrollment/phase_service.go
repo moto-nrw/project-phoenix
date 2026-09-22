@@ -677,11 +677,12 @@ func (s *phaseService) DeleteImpact(ctx context.Context, id int64) (*PhaseDelete
 // delete a phase at any lifecycle stage. To merely hide a phase from
 // parents, use Update(is_active=false) instead.
 //
-// Ordering matters. enrollment.request_child_offerings.care_offering_id
-// is an ON DELETE RESTRICT FK, so a single DELETE on phases (which would
-// cascade requests and care_offerings concurrently) can fail. We delete
-// requests first — that cascades request_children and
-// request_child_offerings away, clearing the RESTRICT referrers — then
+// Ordering matters. The care_offering_id FKs of care_offering_bookings and
+// request_child_offering_selections are ON DELETE RESTRICT, so a single
+// DELETE on phases (which would cascade requests and care_offerings
+// concurrently) can fail. We delete requests first — that cascades
+// request_children, bookings and selections away, clearing the RESTRICT
+// referrers — then
 // delete the phase, whose cascade drops the now-unreferenced care
 // offerings cleanly. Both steps run in one transaction.
 //

@@ -9,24 +9,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Historical Expand/Backfill contracts need the pre-cutover schema, not the
-// latest compatibility view. This reversal is confined to a disposable clone;
-// production rollback deliberately retains the compatibility layer.
+// Historical Expand/Backfill/Cutover contracts need the pre-cutover base
+// table, which the Contract (#2719) removed together with the compatibility
+// view. The restore is confined to a disposable clone; production never
+// reverses either migration.
 func setupRequestChildStorageBeforeCutover(t *testing.T) *testpkg.DB {
 	t.Helper()
 	db := testpkg.SetupIsolatedTestDB(t)
-	_, err := db.ExecContext(t.Context(), `
-		DROP VIEW enrollment.request_child_offerings;
-		DROP FUNCTION enrollment.route_request_child_offering_compatibility();
-		DROP FUNCTION enrollment.request_child_effective_days(jsonb, jsonb);
-		DROP FUNCTION enrollment.request_child_legacy_manual(jsonb, jsonb, jsonb);
-		DROP SEQUENCE enrollment.request_child_compatibility_reads, enrollment.request_child_compatibility_writes;
-		ALTER TABLE enrollment.request_child_offerings_legacy RENAME TO request_child_offerings;
-		ALTER TABLE enrollment.request_child_offerings ADD CONSTRAINT request_child_offerings_non_overlapping_validity
-			EXCLUDE USING gist (request_child_id WITH =, care_offering_id WITH =,
-				daterange(COALESCE(valid_from, '-infinity'::date), COALESCE(valid_until, 'infinity'::date), '[)') WITH &&);
-	`)
-	require.NoError(t, err)
+	testpkg.RestoreRequestChildStorageBeforeCutover(t, db)
 	return db
 }
 

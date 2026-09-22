@@ -32,7 +32,6 @@
     "phoenix gendoc",
     "phoenix migrate",
     "phoenix migrate backfill",
-    "phoenix migrate backfill request-child-compatibility",
     "phoenix migrate backfill request-child-storage",
     "phoenix migrate preflight",
     "phoenix migrate presence-backfill",
@@ -3671,10 +3670,10 @@
       ],
       "tables": [
         "auth.accounts",
+        "enrollment.care_offering_bookings",
         "enrollment.care_offerings",
         "enrollment.form_schemas",
         "enrollment.phases",
-        "enrollment.request_child_offerings",
         "enrollment.request_children",
         "enrollment.requests",
         "enrollment.submission_rate_limits"

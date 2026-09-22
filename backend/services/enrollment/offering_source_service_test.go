@@ -2261,7 +2261,7 @@ func TestListOfferingSourceOptions_CountsScopedToSelectedPeriod(t *testing.T) {
 	// start, which lies after the cap).
 	ctx := testpkg.Ctx(t)
 	_, err := env.db.NewRaw(
-		`UPDATE enrollment.request_child_offerings SET valid_from = NULL, valid_until = ? WHERE request_child_id = ? AND care_offering_id = ?`,
+		`UPDATE enrollment.care_offering_bookings SET valid_from = NULL, valid_until = ? WHERE request_child_id = ? AND care_offering_id = ?`,
 		phaseStart.AddDays(-20), childID, offering.ID,
 	).Exec(ctx)
 	require.NoError(t, err)

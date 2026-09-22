@@ -125,15 +125,18 @@ SELECT
     so.care_offering_id,
     so.name AS offering_name,
     so.named_day,
-    rco.id AS request_child_offering_id,
+    rco.id AS care_offering_booking_id,
     rco.request_child_id,
     rc.request_id,
     rc.status,
     r.submission_source,
-    rco.selected_days,
+    -- Effective days: manual choice plus automatic additions (#2719 retired
+    -- the mixed selected_days column together with its compatibility view).
+    COALESCE(rco.manual_selected_days, '[]'::jsonb)
+        || COALESCE(rco.automatic_selected_days, '[]'::jsonb) AS selected_days,
     rco.created_at
 FROM single_day_offerings AS so
-INNER JOIN enrollment.request_child_offerings AS rco
+INNER JOIN enrollment.care_offering_bookings AS rco
     ON rco.tenant_id = so.tenant_id
     AND rco.care_offering_id = so.care_offering_id
 INNER JOIN enrollment.request_children AS rc
@@ -142,10 +145,13 @@ INNER JOIN enrollment.request_children AS rc
 INNER JOIN enrollment.requests AS r
     ON r.tenant_id = rc.tenant_id
     AND r.id = rc.request_id
-WHERE rco.selected_days IS NOT NULL
+WHERE (rco.manual_selected_days IS NOT NULL OR rco.automatic_selected_days IS NOT NULL)
   AND EXISTS (
       SELECT 1
-      FROM jsonb_array_elements_text(rco.selected_days) AS day(value)
+      FROM jsonb_array_elements_text(
+          COALESCE(rco.manual_selected_days, '[]'::jsonb)
+          || COALESCE(rco.automatic_selected_days, '[]'::jsonb)
+      ) AS day(value)
       WHERE day.value <> so.named_day
   )
 ORDER BY rco.tenant_id, so.care_offering_id, rco.id;

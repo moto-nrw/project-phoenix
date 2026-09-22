@@ -235,7 +235,7 @@ type SubmitGuardian struct {
 // for offerings whose days_of_week_mode is "parent_choice". Entries
 // in OfferingDays MUST also appear in OfferingIDs; missing entries
 // inherit the offering's default (admin-fixed) day set, written as
-// NULL on the resulting request_child_offerings row. The service
+// NULL on the resulting selection and booking rows. The service
 // validates subset/non-empty before inserting.
 type SubmitChild struct {
 	ID                int64
