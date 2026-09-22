@@ -23,55 +23,6 @@ type TargetStudent struct {
 	EnrolledUntil    string
 }
 
-// InstanceStudent is the planned participant as this harness exposes it.
-// Attendance is Student Presence's session attendance (#2762) and is not
-// part of the Timetable owner any more.
-type InstanceStudent struct {
-	ID         int64
-	TenantID   int64
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
-	InstanceID int64
-	StudentID  int64
-	RoomID     *int64
-}
-
-type InstanceStudents struct {
-	capability timetable.InstanceStudentCapability
-}
-
-func NewInstanceStudents(tb TB, db *bun.DB) InstanceStudents {
-	return InstanceStudents{capability: New(tb, db)}
-}
-
-func (r InstanceStudents) Create(ctx context.Context, value InstanceStudent) (InstanceStudent, error) {
-	created, err := r.capability.CreateInstanceStudent(ctx, instanceStudentInput(value))
-	return testInstanceStudent(created), err
-}
-
-func (r InstanceStudents) Update(ctx context.Context, value InstanceStudent) (InstanceStudent, error) {
-	updated, err := r.capability.UpdateInstanceStudent(ctx, value.ID, instanceStudentInput(value))
-	return testInstanceStudent(updated), err
-}
-
-func (r InstanceStudents) ListByInstanceIDs(ctx context.Context, ids []int64) ([]InstanceStudent, error) {
-	values, err := r.capability.ListInstanceStudents(ctx, timetable.InstanceStudentFilter{InstanceIDs: ids})
-	result := make([]InstanceStudent, 0, len(values))
-	for _, value := range values {
-		result = append(result, testInstanceStudent(value))
-	}
-	return result, err
-}
-
-func instanceStudentInput(value InstanceStudent) timetable.InstanceStudentInput {
-	return timetable.InstanceStudentInput{InstanceID: value.InstanceID, StudentID: value.StudentID, RoomID: value.RoomID}
-}
-
-func testInstanceStudent(value timetable.InstanceStudent) InstanceStudent {
-	return InstanceStudent{ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
-		InstanceID: value.InstanceID, StudentID: value.StudentID, RoomID: value.RoomID}
-}
-
 func New(tb TB, db *bun.DB) timetable.Capability {
 	return newModule(tb, db, timetableCompose.StudentDirectoryFunc(func(context.Context) ([]timetableCompose.TargetStudent, error) {
 		return []timetableCompose.TargetStudent{}, nil
