@@ -39,10 +39,10 @@ func setupIdempotentCreateRoute(t *testing.T) *idempotentCreateSetup {
 	period := testpkg.CreateTestCalendarPeriod(t, db, fmt.Sprintf("Create-Idempotent-Period-%d", suffix), timezone.TodayDate().AddDays(-1), timezone.TodayDate().AddDays(7))
 	testpkg.SetCalendarPeriodActive(t, db, period, true)
 	resource := timetableAPI.NewResource(timetableAPI.Dependencies{
-		CalendarPeriodService: serviceFactory.CalendarPeriod,
-		TimetableData:         serviceFactory.TimetableData,
-		InstanceService:       serviceFactory.Instance,
-		DB:                    db,
+		CalendarPeriods: serviceFactory.SchoolCalendar,
+		TimetableData:   serviceFactory.TimetableData,
+		InstanceService: serviceFactory.Instance,
+		DB:              db,
 	})
 	router := chi.NewRouter()
 	router.Mount("/timetable", resource.Router())

@@ -13,15 +13,19 @@ import (
 // repositories), records one observation per call and turns "no row"
 // outcomes into the stable domain errors.
 type Service struct {
-	store   ports.Store
-	observe ports.Observer
+	store          ports.Store
+	observe        ports.Observer
+	administration Administration
 }
 
-func New(store ports.Store, observe ports.Observer) *Service {
-	if store == nil || observe == nil {
+// New composes the service. The administrative write path needs a
+// transaction runner and a clock; the gate, guard and federal-state ports
+// are optional collaborators of the composition.
+func New(store ports.Store, observe ports.Observer, administration Administration) *Service {
+	if store == nil || observe == nil || administration.Transaction == nil || administration.Today == nil {
 		panic("school calendar application: all dependencies are required")
 	}
-	return &Service{store: store, observe: observe}
+	return &Service{store: store, observe: observe, administration: administration}
 }
 
 // --- calendar periods ---

@@ -68,7 +68,9 @@ import (
 // the suites, the four that remain (the module's own public contract, its
 // token adapter and refresh-rotation application, and the tenant runtime)
 // became exact `legacy.jsonl` debt under the same issue, lowering them to 177
-// and 236; this prose counter remains as an independent guard.
+// and 236. Slice S6 of #3424 (ADR 0038) retired the three grants the School
+// Calendar handover emptied; this prose counter remains as an independent
+// guard.
 //
 // Three shrink-only measurements, all read-only on policy.json:
 //
@@ -118,12 +120,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 132
+	policyTempRulesTotal = 129
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 191
+	policyTempRulesCompatTotal = 188
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -152,7 +154,7 @@ var policyTempRulesFamilies = map[string]int{
 	"calendar-view": 2,
 
 	// #3218, #3219, #3220 — closed.
-	"document-rendering": 3,
+	"document-rendering": 2,
 
 	// #3214, #3218, #3220 — closed; #3427 removed the three #3350 (PR #3408)
 	// had added.
@@ -216,7 +218,6 @@ var policyTempRulesFamilies = map[string]int{
 	"test-support": 2,
 
 	// #3214, #3218, #3220, #3224 — closed.
-	"timetable-activities": 2,
 }
 
 // policyTempRulesFamilyFix is the guidance ratchetViolations prints for a family

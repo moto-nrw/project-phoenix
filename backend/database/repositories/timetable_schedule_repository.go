@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -82,18 +81,6 @@ func (r timetableActivityScheduleRepository) FindByGroupIDs(ctx context.Context,
 	values, err := r.timetable.ListSchedules(ctx, timetable.ScheduleFilter{GroupIDs: groupIDs})
 	if err != nil {
 		return nil, legacyActivityScheduleError("find by group IDs", err)
-	}
-	return legacySchedules(values), nil
-}
-
-func (r timetableActivityScheduleRepository) FindByWeekday(ctx context.Context, weekday string) ([]*activitiesModels.Schedule, error) {
-	value, err := strconv.Atoi(weekday)
-	if err != nil {
-		return nil, legacyDatabaseError("find by weekday", err)
-	}
-	values, err := r.timetable.ListSchedules(ctx, timetable.ScheduleFilter{Weekday: &value})
-	if err != nil {
-		return nil, legacyActivityScheduleError("find by weekday", err)
 	}
 	return legacySchedules(values), nil
 }

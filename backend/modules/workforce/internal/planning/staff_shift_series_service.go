@@ -11,7 +11,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
@@ -329,7 +329,7 @@ func (s *staffShiftSeriesService) materializeSeries(ctx context.Context, series 
 		if excepted[d] || ownedDates[d] {
 			continue
 		}
-		if !timetableplanning.ShouldMaterializeWeekPattern(series.WeekPattern, timezone.Date(d), period) {
+		if !schoolcalendar.WeekPatternApplies(series.WeekPattern, d.String(), schoolcalendar.WeekCycleOf(period.WeekCycleLength, period.WeekCycleAnchor)) {
 			continue
 		}
 		seriesID := series.ID
@@ -395,7 +395,7 @@ func hasFutureSeriesOccurrence(series *scheduleModels.StaffShiftSeries, period *
 		}
 	}
 	for d := from; !d.After(to); d = d.AddDays(1) {
-		if series.ContainsWeekday(isoWeekday(timezone.Date(d))) && timetableplanning.ShouldMaterializeWeekPattern(series.WeekPattern, timezone.Date(d), period) {
+		if series.ContainsWeekday(isoWeekday(timezone.Date(d))) && schoolcalendar.WeekPatternApplies(series.WeekPattern, d.String(), schoolcalendar.WeekCycleOf(period.WeekCycleLength, period.WeekCycleAnchor)) {
 			return true
 		}
 	}

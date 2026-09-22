@@ -16,6 +16,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	facilitiesAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
@@ -27,6 +28,8 @@ import (
 
 type TimetableTestRepositories struct {
 	enrollment                *enrollmentCapability.Module
+	schoolCalendar            schoolcalendar.Calendar
+	calendarPeriodUsage       *timetableCompose.CalendarPeriodUsageRepository
 	Timetable                 timetable.Capability
 	ActivityGroup             activitiesModels.GroupRepository
 	ActivityCategory          activitiesModels.CategoryRepository
@@ -173,10 +176,20 @@ func timetableTestRepositories(r *Factory) TimetableTestRepositories {
 		StudentStatusDay: r.StudentStatusDay, CarePlan: r.carePlan,
 		Room: r.Room, DeviationEvent: r.DeviationEvent,
 		ClassArrivalTime: r.ClassArrivalTime, ClassArrivalException: r.ClassArrivalException,
-		enrollment: r.SubmissionRateLimit,
+		enrollment: r.SubmissionRateLimit, schoolCalendar: r.SchoolCalendar(), calendarPeriodUsage: r.CalendarPeriodUsage(),
 	}
 }
 
 func (r TimetableTestRepositories) Enrollment() EnrollmentBookingProjection {
 	return NewEnrollmentBookingProjection(r.enrollment)
+}
+
+// SchoolCalendar returns the calendar owner the period, closing-day and
+// dateframe adapters above delegate to.
+func (r TimetableTestRepositories) SchoolCalendar() schoolcalendar.Calendar { return r.schoolCalendar }
+
+// CalendarPeriodUsage returns the planning owners' per-period reference
+// counts (#3124).
+func (r TimetableTestRepositories) CalendarPeriodUsage() *timetableCompose.CalendarPeriodUsageRepository {
+	return r.calendarPeriodUsage
 }

@@ -145,16 +145,6 @@ func (r *groupSubstitutionRepository) FindByGroup(ctx context.Context, groupID i
 	return r.list(ctx, "find by group", workforce.GroupSubstitutionFilter{GroupID: groupID})
 }
 
-func (r *groupSubstitutionRepository) FindActive(ctx context.Context, date timezone.Date) ([]*educationModels.GroupSubstitution, error) {
-	return r.list(ctx, "find active", workforce.GroupSubstitutionFilter{On: date.String()})
-}
-
-func (r *groupSubstitutionRepository) FindOverlapping(ctx context.Context, staffID int64, startDate, endDate timezone.Date) ([]*educationModels.GroupSubstitution, error) {
-	return r.list(ctx, "find overlapping", workforce.GroupSubstitutionFilter{
-		StaffID: staffID, OverlapFrom: startDate.String(), OverlapTo: endDate.String(),
-	})
-}
-
 func (r *groupSubstitutionRepository) ListWithRelations(ctx context.Context, options *modelBase.QueryOptions) ([]*educationModels.GroupSubstitution, error) {
 	rows, err := r.ListWithOptions(ctx, options)
 	if err != nil {

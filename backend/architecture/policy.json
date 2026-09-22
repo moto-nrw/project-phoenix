@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 22,
+  "policy_epoch": 23,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -21917,36 +21917,12 @@
       "target_role": "contract"
     },
     {
-      "id": "timetable-activities.workflow-integration-test.inbound-timetable-adapter",
-      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/timetable/compose/httpintegration. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "workflow-integration-test",
-      "target_owner": "inbound-timetable",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
       "id": "calendar-view.adapter-test.inbound-timetable-adapter",
       "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/supervisiondashboard/legacy. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
         "internal_test"
       ],
       "source_owner": "calendar-view",
-      "source_role": "adapter-test",
-      "target_owner": "inbound-timetable",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
-      "id": "document-rendering.adapter-test.inbound-timetable-adapter",
-      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/planexport/legacy. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "document-rendering",
       "source_role": "adapter-test",
       "target_owner": "inbound-timetable",
       "target_role": "adapter",
@@ -22560,18 +22536,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
-      "id": "timetable-activities.compose.inbound-timetable-adapter",
-      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/timetable/compose/httpadapter. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "compose",
-      "target_owner": "inbound-timetable",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
       "id": "inbound-timetable.adapter-test.inbound-timetable-test-support",
       "description": "The retained timetable SQL test providers that moved from database/repositories/schedule to modules/timetable/legacy/timetablesqltest (#3220) are still consumed by api/timetable. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -22839,17 +22803,6 @@
       ],
       "source_owner": "inbound-timetable",
       "source_role": "module-internal-test",
-      "target_owner": "timetable-activities",
-      "target_role": "public"
-    },
-    {
-      "id": "care-schedule-cutover.inbound-timetable.module-behavior-test.timetable-activities.public",
-      "description": "Assert Timetable errors at their native owner after Care Schedule retirement (#3351, ADR 0030).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "module-behavior-test",
       "target_owner": "timetable-activities",
       "target_role": "public"
     },
@@ -23496,6 +23449,83 @@
       "target_role": "public"
     },
     {
+      "id": "timetable-planning-cutover.inbound-timetable.http.school-calendar.public",
+      "description": "The calendar period and closing day routes of api/timetable drive the School Calendar owner directly since slice S6 of #3424 (ADR 0038).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "http",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-planning-cutover.inbound-timetable.adapter.school-calendar.public",
+      "description": "The retained timetable planning services ask the School Calendar for the A/B-week decision slice S6 of #3424 moved out of them (ADR 0038); the rule ends with the package.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-planning-cutover.timetable-activities.compose.school-calendar.public",
+      "description": "The schedules HTTP composition serves dateframes from the School Calendar owner since slice S6 of #3424 (ADR 0038).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "compose",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-planning-cutover.workforce.application.school-calendar.public",
+      "description": "The Workforce planning commands ask the School Calendar for the A/B-week decision since slice S6 of #3424 (ADR 0038).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "application",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-planning-cutover.enrollment.application.school-calendar.public",
+      "description": "Enrollment validates calendar-period links and renders proposed periods through the School Calendar contract since slice S6 of #3424 (ADR 0038).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "application",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-planning-cutover.enrollment.module-behavior-test.school-calendar.public",
+      "description": "The Enrollment behaviour suites read calendar periods through the School Calendar contract since slice S6 of #3424 (ADR 0038).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "module-behavior-test",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-planning-cutover.test-support.e2e-test.school-calendar.public",
+      "description": "The timetable end-to-end flows (an internal-test suite beside its own setup) create calendar periods through the School Calendar contract since slice S6 of #3424 (ADR 0038).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
       "id": "workforce.application.legacy-shared-domain",
       "description": "The Workforce planning commands and queries (modules/workforce/internal/planning, #3418) speak the shared calendar-date and wall-clock helpers.",
       "scopes": [
@@ -23719,18 +23749,6 @@
       "source_role": "compose",
       "target_owner": "document-rendering",
       "target_role": "public"
-    },
-    {
-      "id": "workforce.compose.inbound-timetable-adapter",
-      "description": "Workforce composition binds the retained holiday service to the Dienstplan weekly summaries (#3418). Goes with the timetable nest.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "compose",
-      "target_owner": "inbound-timetable",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
       "id": "workforce.compose.delivery-public",

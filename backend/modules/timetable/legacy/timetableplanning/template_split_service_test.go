@@ -294,7 +294,7 @@ func createShortCalendarPeriod(t *testing.T, s *scenarioSetup, start, end timezo
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
-	require.NoError(t, s.factory.CalendarPeriod.CreatePeriod(s.ctx, period))
+	createCalendarPeriodRow(t, s.db, s.ctx, period)
 	return period
 }
 
@@ -473,7 +473,7 @@ func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t 
 		anchor := scheduleModels.Date(effective)
 		s.period.WeekCycleLength = 2
 		s.period.WeekCycleAnchor = &anchor
-		require.NoError(t, s.factory.CalendarPeriod.UpdatePeriod(s.ctx, s.period))
+		updateCalendarPeriodRow(t, s.db, s.ctx, s.period)
 		createLinkedCareOffering(t, s, effective, effective.AddDays(21))
 		in := linkedTemplateUpdateInput(t, s, &s.period.ID)
 		in.WeekPattern = 1

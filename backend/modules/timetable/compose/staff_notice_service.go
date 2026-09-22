@@ -10,8 +10,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/uptrace/bun"
 )
 
@@ -21,9 +21,9 @@ import (
 // Wichtig für die Einordnung: hier entsteht KEINE zweite Recurrence-Engine. Ein
 // Hinweis wird nie in Tageszeilen materialisiert, er wird beim Lesen gegen das
 // Datum geprüft. Das Vokabular (Wochentage, Wochenmuster, Gültigkeitszeitraum)
-// und die Auswertung des Wochenmusters kommen aus dem Stundenplan
-// (schedule.schedule.ShouldMaterializeWeekPattern), damit "Woche A" hier dasselbe heißt
-// wie dort.
+// kommen aus dem Stundenplan, die Auswertung des Wochenmusters aus dem
+// Schulkalender (schoolcalendar.WeekPatternApplies), damit "Woche A" hier
+// dasselbe heißt wie dort.
 
 // StaffNoticePeriodLookup ist der Ausschnitt des Kalenderzeitraum-Repositories, den die
 // Auflösung des Wochenmusters braucht. Bewusst hier deklariert und nicht das
@@ -34,7 +34,7 @@ type StaffNoticePeriodLookup interface {
 
 // StaffNoticeDependencies ist das Abhängigkeitsbündel. Periods ist optional: ohne
 // Kalenderzeitraum lässt sich kein Wochenmuster auflösen, dann gilt ein Hinweis
-// in jeder Woche (dieselbe Richtung wie schedule.ShouldMaterializeWeekPattern). Names ist
+// in jeder Woche (wie die Serienmaterialisierung ohne Zyklus). Names ist
 // optional: ohne Verzeichnis zeigt die Bestätigungsliste den Platzhalter. Names
 // gibt je Konto-Id den Anzeigenamen der aktiven Person des Mandanten zurück;
 // Konten ohne Person fehlen in der Antwort.
@@ -159,7 +159,7 @@ func (s *staffNoticeService) filterByWeekPattern(
 
 	kept := make([]*usersModels.StaffNotice, 0, len(notices))
 	for _, notice := range notices {
-		if timetableplanning.ShouldMaterializeWeekPattern(notice.WeekPattern, date, period) {
+		if period == nil || schoolcalendar.WeekPatternApplies(notice.WeekPattern, date.String(), schoolcalendar.WeekCycleOf(period.WeekCycleLength, period.WeekCycleAnchor)) {
 			kept = append(kept, notice)
 		}
 	}
@@ -167,11 +167,8 @@ func (s *staffNoticeService) filterByWeekPattern(
 }
 
 // periodFor sucht das aktive Schuljahr, das den Tag enthält und einen
-// Wochenzyklus führt. Für Tagesinformationen ist das Schuljahr der eindeutige
-// Träger von Woche A/B: Ferien, Halbjahre und eigene Zeiträume dürfen sich
-// damit überschneiden, ohne die Wiederholung zu verändern. Ohne Treffer nil —
-// schedule.ShouldMaterializeWeekPattern lässt den Hinweis dann durch, statt ihn stumm
-// verschwinden zu lassen.
+// Wochenzyklus führt; nur das Schuljahr trägt Woche A/B, Ferien und Halbjahre
+// dürfen sich überschneiden. Ohne Treffer nil: der Hinweis gilt dann jede Woche.
 func (s *staffNoticeService) periodFor(ctx context.Context, date timezone.Date) (*scheduleModels.CalendarPeriod, error) {
 	periods, err := s.periods.FindActiveByTenantID(ctx)
 	if err != nil {

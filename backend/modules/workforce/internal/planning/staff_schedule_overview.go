@@ -121,9 +121,14 @@ type StaffScheduleOverviewDependencies struct {
 	// planned-minutes-only summaries (TargetMinutes stays nil).
 	WorkSchedules StaffWorkScheduleBatchReader
 	WorkModels    WorkTimeModelBatchReader
-	// Holidays reduces the weekly targets by public-holiday Soll (#1418 3a).
-	// Optional: nil skips the reduction (unit fixtures).
-	Holidays timetableplanning.HolidayService
+	// Holidays reduces the weekly targets by the non-working-day Soll (#1418
+	// 3a/3b), bound to the School Calendar; nil skips it (unit fixtures).
+	Holidays HolidayDatesReader
+}
+
+// HolidayDatesReader answers the tenant's non-working days as a date set.
+type HolidayDatesReader interface {
+	HolidayDates(ctx context.Context, from, to timezone.Date) (map[timezone.Date]bool, error)
 }
 
 type StaffScheduleOverviewGetter interface {

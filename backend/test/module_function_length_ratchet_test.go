@@ -232,7 +232,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/timetable/legacy/timetableplanning/materialization_service.go:(*materializationService).materializeTemplate":                 184,
 	"modules/timetable/legacy/timetableplanning/roster_reconciler.go:(*RosterReconciler).ReconcileSourcedTemplateRosters":                 110,
 	"modules/timetable/legacy/timetableplanning/roster_reconciler.go:(*RosterReconciler).fillInstancesMaterializedDuringAlumnusWindow":    97,
-	"modules/timetable/legacy/timetableplanning/schedule_service.go:(*service).FindAvailableSlots":                                        71,
 	"modules/timetable/legacy/timetableplanning/template_create_service.go:(*TimetableDataService).createTemplateLocked":                  122,
 	"modules/timetable/legacy/timetableplanning/template_create_service.go:validateOfferingSourceInput":                                   61,
 	"modules/timetable/legacy/timetableplanning/template_series_roster.go:(*TimetableDataService).reconcilePredecessorEnrollmentRows":     68,

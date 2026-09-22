@@ -12,6 +12,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 )
 
 // CareOfferingCalendarPeriodValidator is the narrow cross-domain contract
@@ -22,6 +23,13 @@ type CareOfferingCalendarPeriodValidator interface {
 		ctx context.Context,
 		periodID int64,
 		replacement *scheduleModels.CalendarPeriod,
+	) error
+	// ValidateCalendarPeriodFieldsChange is the same check for the School
+	// Calendar's own period fields.
+	ValidateCalendarPeriodFieldsChange(
+		ctx context.Context,
+		periodID int64,
+		replacement *schoolcalendar.CalendarPeriodFields,
 	) error
 }
 

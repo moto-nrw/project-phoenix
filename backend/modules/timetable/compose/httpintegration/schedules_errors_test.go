@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -19,7 +20,7 @@ func TestSchedulesErrorRenderer_DateframeNotFound(t *testing.T) {
 
 	err := &careplan.ScheduleError{
 		Op:  "GetDateframe",
-		Err: timetableModule.ErrDateframeNotFound,
+		Err: schoolcalendar.ErrDateframeNotFound,
 	}
 
 	renderer := schedulesAPI.SchedulesErrorRenderer(err)

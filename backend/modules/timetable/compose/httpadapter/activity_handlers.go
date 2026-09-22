@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -494,8 +495,12 @@ func (rs *Resource) deleteActivity(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) getTimespans(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// Fetch active timeframes from the schedule service
-	timeframes, err := rs.ScheduleService.FindActiveTimeframes(ctx)
+	// Fetch active timeframes from the Timetable owner
+	values, err := rs.Timeframes.ListTimeframes(ctx, timetableModule.TimeframeFilter{ActiveOnly: true})
+	var timeframes []timeframeSlot
+	if err == nil {
+		timeframes, err = timeframesToSlots(values)
+	}
 	if err != nil {
 		slog.Default().ErrorContext(ctx, "Error fetching timeframes", slog.String("error", err.Error()))
 		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to retrieve timeframes")

@@ -146,8 +146,6 @@ type Factory struct {
 	ActiveCleanup        studentpresence.PresenceCleanup
 	WorkSession          timetracking.WorkSessionService
 	WorkTimeMonth        timetracking.WorkTimeMonthService
-	Holidays             timetableplanning.HolidayService
-	ClosingDays          timetableplanning.ClosingDayService
 	StaffAbsence         timetracking.StaffAbsenceService
 	StaffBalanceAdjust   timetracking.StaffBalanceAdjustmentService
 	StaffMonthClose      timetracking.StaffMonthCloseService
@@ -170,7 +168,6 @@ type Factory struct {
 	Settings           config.SettingsService
 	TenantSettings     *config.TenantOperations
 	PayrollStatus      config.PayrollStatusGetter
-	Schedule           timetableplanning.Service
 	// The Dienstplan side of Workforce (#3418): the planning capability the
 	// staff-shift route mounts, the self-service assignments and the week
 	// overview, and the shift-type administration, all public contracts.
@@ -182,7 +179,6 @@ type Factory struct {
 	PickupSchedule            careplan.PickupScheduleService
 	PartialAbsence            careplan.PartialAbsenceService
 	ArrivalSchedule           careplan.ArrivalScheduleService
-	CalendarPeriod            timetableplanning.CalendarPeriodService
 	CareDay                   careplan.CareDayQuery
 	TimetableBridge           *timetableplanning.TimetableBridgeService
 	Materialization           timetableplanning.MaterializationService
@@ -469,7 +465,7 @@ func NewFactoryWithModules(
 	groups schoolstructure.Capability,
 	rooms facilitiesModule.Capability,
 	membership schoolmembership.Capability,
-	calendar schoolcalendar.Capability,
+	calendar schoolcalendar.Calendar,
 	timetableCapability timetable.Capability,
 	appointmentCapability appointments.Capability,
 	communicationCapability communication.Capability,
@@ -519,7 +515,7 @@ func newFactory(
 	groups schoolstructure.Capability,
 	rooms facilitiesModule.Capability,
 	membership schoolmembership.Capability,
-	calendar schoolcalendar.Capability,
+	calendar schoolcalendar.Calendar,
 	timetableCapability timetable.Capability,
 	communicationCapability communication.Capability,
 	observeCommunication func(communicationCompose.Observation),
@@ -898,15 +894,11 @@ func newFactory(
 	// and into the existing GuardianProfileRepository.LoadProfileWithChildren.
 	guardianProfileLoader := users.NewGuardianProfileLoader(repos.GuardianProfile, db, logger.With("service", "guardian-profile-loader"))
 
-	// Public holidays per Bundesland (#1418 3a): computed from the
-	// operations.federal_state setting, zero the Soll of their day.
-	holidayService := timetableplanning.NewHolidayService(settingsService, schoolCalendarHolidayAdapter{query: repos.SchoolCalendar()}, logger.With("service", "holidays"))
-	// Tenant closing days (#1418 3b) share the Soll=0 semantics of public
-	// holidays. The Soll consumers get the UNION of both via the composite
-	// reader; Factory.Holidays stays the plain holiday service so the
-	// /holidays endpoint keeps reporting only real public holidays.
-	closingDayService := timetableplanning.NewClosingDayService(repos.ClosingDay)
-	nonWorkingDayService := timetableplanning.NewNonWorkingDayResolver(holidayService, closingDayService)
+	// Public holidays per Bundesland (#1418 3a) and tenant closing days
+	// (#1418 3b) share the Soll=0 semantics. The Soll consumers get the UNION
+	// of both from the School Calendar; the statistics reports and the
+	// holidays endpoint keep reading only the statutory holidays.
+	nonWorkingDayService := nonWorkingDays{calendar: calendar}
 	// School-defined Abwesenheitsarten (#2403): the time-tracking services
 	// resolve custom names on both the write path (which base type an art
 	// inherits) and the read paths.
@@ -1213,8 +1205,7 @@ func newFactory(
 	if !ok {
 		return nil, fmt.Errorf("enrollment care offering service does not implement series validation")
 	}
-	careOfferingCalendarPeriodValidator, ok := enrollmentCareOfferingService.(enrollment.CareOfferingCalendarPeriodValidator)
-	if !ok {
+	if _, ok := enrollmentCareOfferingService.(enrollment.CareOfferingCalendarPeriodValidator); !ok {
 		return nil, fmt.Errorf("enrollment care offering service does not implement calendar period validation")
 	}
 	careOfferingResourceValidator, ok := enrollmentCareOfferingService.(enrollment.CareOfferingMaterializationResourceValidator)
@@ -1263,18 +1254,6 @@ func newFactory(
 		facilitiesLegacy.ActivityCatalog(activitiesService),
 		facilitiesLogger,
 	)
-
-	// Initialize schedule service
-	scheduleService := timetableplanning.NewServiceWithConfig(timetableplanning.ServiceConfig{
-		RecurrenceEvents:   timetableCapability,
-		DateframeRepo:      repos.Dateframe,
-		TimeframeRepo:      repos.Timeframe,
-		RecurrenceRuleRepo: repos.RecurrenceRule,
-		LockTemplateRecurrence: func(ctx context.Context) error {
-			return timetableplanning.LockTenantRecurrenceWrites(ctx, db)
-		},
-		ValidateCareOfferingTimeframeChange: careOfferingResourceValidator.ValidateTimeframeChange,
-	})
 
 	planningTrackService := timetableplanning.NewPlanningTrackService(repos.PlanningTrack, db)
 
@@ -1363,17 +1342,6 @@ func newFactory(
 		return nil, err
 	}
 
-	// Period updates/deletes use the same tenant recurrence transaction and
-	// advisory lock as template and care-offering mutations. The preflight
-	// callback sees the proposed post-update row (or nil for delete) before any
-	// FK can be cleared by ON DELETE SET NULL.
-	calendarPeriodService := timetableplanning.NewCalendarPeriodServiceWithConfig(timetableplanning.CalendarPeriodServiceConfig{
-		Repo:                       repos.CalendarPeriod,
-		DB:                         db,
-		ValidateCareOfferingChange: careOfferingCalendarPeriodValidator.ValidateCalendarPeriodChange,
-		Logger:                     logger.With("service", "calendar-period"),
-	})
-
 	// Initialize materialization service (WP-B8). Turns activity templates into
 	// concrete schedule.activity_instances + instance_staff/instance_students
 	// for a date window. Consumed by the scheduler task (gated on the
@@ -1389,7 +1357,6 @@ func newFactory(
 		repos.InstanceStudent,
 		repos.ActivityException,
 		repos.Timeframe,
-		calendarPeriodService,
 		db,
 		realtimeHub,
 		logger.With("service", "materialization"),
@@ -1927,7 +1894,7 @@ func newFactory(
 	enrollmentPhaseService := enrollment.NewPhaseService(enrollment.PhaseServiceConfig{
 		Owner:            repos.Enrollment(),
 		CareOfferingRepo: enrollment.NewCareOfferingRepository(repos.CarePlan()),
-		CalendarPeriods:  calendarPeriodService,
+		CalendarPeriods:  calendar,
 		LockTemplateRecurrence: func(ctx context.Context) error {
 			return timetableplanning.LockTenantRecurrenceWrites(ctx, db)
 		},
@@ -2671,8 +2638,8 @@ func newFactory(
 		Staff:          repos.Staff,
 		ActivityGroups: repos.ActivityGroup,
 		PlanningTracks: repos.PlanningTrack,
-		ClosingDays:    closingDayService,
-		Holidays:       holidayService,
+		ClosingDays:    planExportClosingDays{calendar: calendar},
+		Holidays:       planExportHolidays{calendar: calendar},
 		Renderer:       listExportService,
 		Logger:         logger.With("service", "plan_export"),
 	})
@@ -2872,8 +2839,6 @@ func newFactory(
 		ActiveCleanup:           activeCleanupService,
 		WorkSession:             workSessionService,
 		WorkTimeMonth:           workTimeMonthService,
-		Holidays:                holidayService,
-		ClosingDays:             closingDayService,
 		StaffAbsence:            staffAbsenceService,
 		StaffBalanceAdjust:      staffBalanceAdjustService,
 		StaffMonthClose:         staffMonthCloseService,
@@ -2891,7 +2856,6 @@ func newFactory(
 		StaffClock:              staffClockService,
 		Settings:                settingsService,
 		PayrollStatus:           payrollStatusService,
-		Schedule:                scheduleService,
 		StaffShifts:             shiftPlanning.Planning(planExportService),
 		StaffAssignments:        shiftPlanning.Assignments,
 		StaffScheduleOverview:   shiftPlanning.Overview,
@@ -2902,7 +2866,6 @@ func newFactory(
 		ArrivalSchedule:         arrivalScheduleService,
 		CareDay:                 careDayService,
 		TimetableBridge:         timetableBridgeService,
-		CalendarPeriod:          calendarPeriodService,
 		Materialization:         materializationService,
 		TemplateSplit:           templateSplitService,
 		TimetableCleanup:        timetableCleanupService,
@@ -2980,8 +2943,8 @@ func newFactory(
 		Statistics: newStatistics(db, logger, presenceCompose.StatisticsDependencies{
 			StatusDays:  statisticsStatusDays{repos.CarePlan()},
 			Courses:     statisticsReportCourses{timetableCapability},
-			Holidays:    holidayService,
-			ClosingDays: closingDayService,
+			Holidays:    tenantHolidays{calendar: calendar},
+			ClosingDays: tenantClosingDays{calendar: calendar},
 			Periods:     statisticsReportPeriods{calendar},
 			Students:    statisticsReportStudents{repos.Student},
 			Rooms:       statisticsReportRooms{rooms},

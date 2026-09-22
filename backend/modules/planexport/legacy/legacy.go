@@ -63,8 +63,8 @@ type Sources struct {
 	Staff          timetableplanning.StaffWithPersonBatchReader
 	ActivityGroups ActivityGroupSource
 	PlanningTracks PlanningTrackSource
-	ClosingDays    timetableplanning.ClosingDayService
-	Holidays       timetableplanning.HolidayService
+	ClosingDays    planexport.ClosingDayReader
+	Holidays       planexport.HolidayReader
 	Renderer       planexport.Renderer
 	Logger         *slog.Logger
 }
@@ -102,12 +102,8 @@ func New(sources Sources) planexport.Service {
 	if sources.PlanningTracks != nil {
 		deps.PlanningTracks = planningTrackAdapter{source: sources.PlanningTracks}
 	}
-	if sources.ClosingDays != nil {
-		deps.ClosingDays = closingDayAdapter{source: sources.ClosingDays}
-	}
-	if sources.Holidays != nil {
-		deps.Holidays = holidayAdapter{source: sources.Holidays}
-	}
+	deps.ClosingDays = sources.ClosingDays
+	deps.Holidays = sources.Holidays
 	return planexport.NewService(deps, sources.Logger)
 }
 
@@ -358,53 +354,6 @@ func (a planningTrackAdapter) ListPlanningTracks(ctx context.Context) ([]*planex
 			continue
 		}
 		out = append(out, &planexport.PlanningTrack{ID: track.ID, Color: track.Color})
-	}
-	return out, nil
-}
-
-type closingDayAdapter struct {
-	source timetableplanning.ClosingDayService
-}
-
-func (a closingDayAdapter) ClosingDaysInRange(ctx context.Context, from, to planexport.Date) ([]*planexport.ClosingPeriod, error) {
-	start, end, err := parseRange(from, to)
-	if err != nil {
-		return nil, err
-	}
-	ranges, err := a.source.ClosingDaysInRange(ctx, start, end)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]*planexport.ClosingPeriod, 0, len(ranges))
-	for _, closing := range ranges {
-		if closing == nil {
-			continue
-		}
-		out = append(out, &planexport.ClosingPeriod{
-			StartDate: planexport.Date(closing.StartDate),
-			EndDate:   planexport.Date(closing.EndDate),
-			Reason:    closing.Reason,
-		})
-	}
-	return out, nil
-}
-
-type holidayAdapter struct {
-	source timetableplanning.HolidayService
-}
-
-func (a holidayAdapter) HolidaysInRange(ctx context.Context, from, to planexport.Date) ([]planexport.Holiday, error) {
-	start, end, err := parseRange(from, to)
-	if err != nil {
-		return nil, err
-	}
-	holidays, err := a.source.HolidaysInRange(ctx, start, end)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]planexport.Holiday, 0, len(holidays))
-	for _, holiday := range holidays {
-		out = append(out, planexport.Holiday{Date: planexport.Date(holiday.Date), Name: holiday.Name})
 	}
 	return out, nil
 }
