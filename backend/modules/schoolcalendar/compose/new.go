@@ -452,9 +452,9 @@ func mapError(err error) error {
 			return &schoolcalendar.CalendarPeriodOverlapError{Overlaps: overlaps}
 		}
 		return schoolcalendar.ErrCalendarPeriodOverlapConflict
-	case errors.Is(err, domain.ErrCalendarPeriodRequiredByCareOffering):
-		return fmt.Errorf("%w: %w", schoolcalendar.ErrCalendarPeriodRequiredByCareOffering, err)
 	default:
+		// Care-offering refusals already carry the public sentinel: the
+		// runtime guard wraps them before the service sees them.
 		return err
 	}
 }

@@ -13,9 +13,6 @@ var (
 	// ErrCalendarPeriodOverlapConflict: an active period may not overlap an
 	// active period of the same type (#1837).
 	ErrCalendarPeriodOverlapConflict = errors.New("calendar period overlaps an active period of the same type")
-	// ErrCalendarPeriodRequiredByCareOffering: a linked care offering still
-	// needs the period as it is.
-	ErrCalendarPeriodRequiredByCareOffering = errors.New("calendar period is required by a linked care offering")
 )
 
 // CalendarPeriodOverlapError names the active same-type periods a mutation

@@ -45,7 +45,8 @@ type RecurrenceGate func(context.Context) error
 
 // CareOfferingGuard refuses a period change (replacement set) or removal
 // (replacement nil) while a linked care offering still needs the period. It
-// answers with ErrCalendarPeriodRequiredByCareOffering in the error chain.
+// answers with schoolcalendar.ErrCalendarPeriodRequiredByCareOffering in the
+// error chain.
 type CareOfferingGuard func(ctx context.Context, periodID int64, replacement *domain.CalendarPeriodFields) error
 
 // Today names the current calendar day in YYYY-MM-DD.
