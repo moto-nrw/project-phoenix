@@ -260,21 +260,6 @@ func RoleNames(roles []RoleAssignment) []string {
 	return names
 }
 
-// MaskEmail renders an address as `j***@example.com` so the frontend can
-// show which mailbox received a code without leaking the full address.
-func MaskEmail(email string) string {
-	at := strings.IndexByte(email, '@')
-	if at <= 0 {
-		return email
-	}
-	local := email[:at]
-	domain := email[at:]
-	if len(local) <= 1 {
-		return local + "***" + domain
-	}
-	return string(local[0]) + "***" + domain
-}
-
 // IsAccountWideRevocation reports whether a revocation reason wipes every
 // session of the account at every school.
 func IsAccountWideRevocation(reason string) bool {

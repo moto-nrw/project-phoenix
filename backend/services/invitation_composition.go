@@ -189,7 +189,7 @@ func (d invitationDelivery) recordDelivery(ctx context.Context, meta email.Deliv
 	if result.Final && result.Status == email.DeliveryStatusFailed {
 		d.logger.Error("invitation email permanently failed",
 			slog.Int64("invitation_id", meta.ReferenceID),
-			slog.String("recipient", meta.Recipient),
+			slog.String("recipient", identityaccessCompose.MaskEmail(meta.Recipient)),
 			slog.Any("error", result.Err),
 		)
 	}
