@@ -206,11 +206,17 @@ func billingCSV(counts []organizationtenancy.BillingKeyDateCount) ([]byte, error
 // germanDate renders a YYYY-MM-DD calendar day in layout; a value that is
 // not such a day stays as it is.
 func germanDate(day, layout string) string {
-	parsed, err := time.Parse("2006-01-02", day)
-	if err != nil {
+	if len(day) != len("2006-01-02") || day[4] != '-' || day[7] != '-' {
 		return day
 	}
-	return parsed.Format(layout)
+	switch layout {
+	case "01/2006":
+		return day[5:7] + "/" + day[:4]
+	case "02.01.2006":
+		return day[8:] + "." + day[5:7] + "." + day[:4]
+	default:
+		return day
+	}
 }
 
 // sanitizeCSVCell prefixes a cell a spreadsheet would read as a formula.

@@ -1,6 +1,8 @@
 package domain
 
 import (
+	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -55,17 +57,52 @@ func ValidBillingKeyDay(day int) bool {
 }
 
 func billingDate(year int, month time.Month, day int) string {
-	return time.Date(year, month, day, 0, 0, 0, 0, time.UTC).Format(billingDateLayout)
+	monthNumber := int(month)
+	year += (monthNumber - 1) / 12
+	monthNumber = (monthNumber-1)%12 + 1
+	return fmt.Sprintf("%04d-%02d-%02d", year, monthNumber, day)
 }
 
 // BillingPeriod is the first day of the month of keyDate; one row per school
 // and period exists at most.
 func BillingPeriod(keyDate string) string {
-	day, err := time.Parse(billingDateLayout, keyDate)
-	if err != nil {
+	year, month, _, ok := billingDateParts(keyDate)
+	if !ok {
 		return ""
 	}
-	return billingDate(day.Year(), day.Month(), 1)
+	return billingDate(year, time.Month(month), 1)
+}
+
+func billingDateParts(value string) (year, month, day int, ok bool) {
+	if len(value) != len(billingDateLayout) || value[4] != '-' || value[7] != '-' {
+		return 0, 0, 0, false
+	}
+	for _, index := range []int{0, 1, 2, 3, 5, 6, 8, 9} {
+		if value[index] < '0' || value[index] > '9' {
+			return 0, 0, 0, false
+		}
+	}
+	year, _ = strconv.Atoi(value[:4])
+	month, _ = strconv.Atoi(value[5:7])
+	day, _ = strconv.Atoi(value[8:])
+	if month < int(time.January) || month > int(time.December) || day < 1 || day > billingDaysInMonth(year, month) {
+		return 0, 0, 0, false
+	}
+	return year, month, day, true
+}
+
+func billingDaysInMonth(year, month int) int {
+	switch time.Month(month) {
+	case time.April, time.June, time.September, time.November:
+		return 30
+	case time.February:
+		if year%4 == 0 && (year%100 != 0 || year%400 == 0) {
+			return 29
+		}
+		return 28
+	default:
+		return 31
+	}
 }
 
 // DueBillingKeyDate returns the key date of the month of local, and whether

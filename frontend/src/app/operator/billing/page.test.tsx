@@ -150,6 +150,15 @@ describe("OperatorBillingPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("explains that immediately activated children count before their planned start", async () => {
+    mockListKeyDateCounts.mockResolvedValue([]);
+    renderPage();
+
+    expect(
+      await screen.findByText(/Ein sofort aktiviertes Kind zählt auch/),
+    ).toBeInTheDocument();
+  });
+
   it("shows the newest month with its totals and only that month's rows", async () => {
     mockListKeyDateCounts.mockResolvedValue([
       count({ period: "2026-08-01", schoolId: "11", activeStudents: 120 }),

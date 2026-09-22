@@ -68,5 +68,7 @@ func TestBillingPeriod(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "2026-09-01", BillingPeriod("2026-09-15"))
 	assert.Equal(t, "2026-12-01", BillingPeriod("2026-12-28"))
-	assert.Empty(t, BillingPeriod("not a date"))
+	for _, invalid := range []string{"not a date", "2026-02-29", "2025-02-29", "2026-13-01", "2026-12-32"} {
+		assert.Empty(t, BillingPeriod(invalid), invalid)
+	}
 }

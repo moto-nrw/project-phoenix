@@ -220,9 +220,10 @@ function CountingRulesSection() {
     >
       <DataGrid>
         <DataField label="Aktive Kinder">
-          Kinder mit dem Status „aktiv“. Nicht gezählt werden Kinder mit
-          späterem Betreuungsbeginn, mit beendeter Betreuung, nach dem
-          Schulabgang und gelöschte Kinder.
+          Kinder mit dem Status „aktiv“. Ein sofort aktiviertes Kind zählt auch
+          vor dem geplanten Betreuungsbeginn. Nicht gezählt werden Kinder mit
+          dem Status „ausstehend“, mit beendeter Betreuung, nach dem Schulabgang
+          und gelöschte Kinder.
         </DataField>
         <DataField label="Aktive Terminals">
           Physische Geräte mit dem Status „aktiv“. Auch offline Geräte zählen.
