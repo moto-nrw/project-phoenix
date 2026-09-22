@@ -153,7 +153,9 @@ func (rs *Resource) Router() chi.Router {
 
 		r.Route("/phases", func(r chi.Router) {
 			r.With(common.RequiresPermission("config:read")).Get("/", rs.listPhases)
-			r.With(common.RequiresPermission("admin:*")).Get("/expiry-warnings", rs.listPhaseExpiryWarnings)
+			// The warnings ask for a successor phase, which config:manage
+			// creates; a lead role without the admin wildcard reads them too (#3469).
+			r.With(common.RequiresPermission("config:manage")).Get("/expiry-warnings", rs.listPhaseExpiryWarnings)
 			r.With(common.RequiresPermission("config:manage")).Post("/", rs.createPhase)
 			r.Route("/{id}", func(r chi.Router) {
 				r.With(common.RequiresPermission("config:read")).Get("/", rs.getPhase)

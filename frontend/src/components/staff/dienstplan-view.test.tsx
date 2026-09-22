@@ -759,10 +759,15 @@ describe("DienstplanView", () => {
     expect(screen.getByTestId("dienstplan-grid")).toBeInTheDocument();
   });
 
-  it("does not request calendar periods for non-admins", () => {
-    // Der Periods-Key ist auf canEdit gegated: bei Direktaufruf durch
-    // Nicht-Admins darf vor dem Redirect kein schedules:read-Request feuern.
+  it("does not request calendar periods without the shift-planning right", () => {
+    // Der Periods-Key ist auf canEdit (time_tracking:manage, #3469) gegated:
+    // bei Direktaufruf ohne das Recht darf vor dem Redirect kein
+    // schedules:read-Request feuern.
     mocks.isAdmin.mockReturnValue(false);
+    mocks.hasPermission.mockImplementation(
+      (_session: unknown, permission: string) =>
+        permission !== "time_tracking:manage",
+    );
     mockOverviewLoaded();
 
     render(<DienstplanView />);

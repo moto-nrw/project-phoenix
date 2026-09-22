@@ -19,6 +19,7 @@ import {
   hasPermission,
   hasRole,
   isCaregiver,
+  leadsSchool,
 } from "~/lib/auth-utils";
 import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import { navigationIcons } from "~/lib/navigation-icons";
@@ -47,9 +48,14 @@ import { normalizeTenantPathname, useTenantAwarePath } from "~/lib/tenant-path";
 import {
   COMMUNICATION_SUB_PAGES,
   DATABASE_SECTION,
+  DATABASE_SUB_PAGES,
+  databasePagePermissions,
   ENROLLMENT_SECTION,
   ENROLLMENT_SUB_PAGES,
+  hasAnyDatabasePagePermission,
+  NFC_ONLY_DATABASE_HREFS,
   PARENT_SUB_PAGES,
+  PLANNING_CATALOG_HREFS,
   STAFF_FLAT_PAGES,
 } from "~/lib/section-navigation";
 import {
@@ -492,34 +498,22 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
     ...STAFF_FLAT_PAGES.settings,
     iconKey: "settings",
     concept: "settings",
-    requiresAdmin: true,
+    // Wie in der Seitenleiste: das Recht der Einstellungsrouten (#3469).
+    requiresPermission: "config:manage",
   },
 ];
 
 const PAGE_ITEMS_BY_HREF = new Map(PAGE_ITEMS.map((item) => [item.href, item]));
 
-const DATABASE_CATALOG_ITEMS = [
-  {
-    href: "/database/categories",
-    permission: "activities:manage_categories",
-    requiresTimetable: false,
-  },
-  {
-    href: "/database/planning-tracks",
-    permission: "schedules:manage",
-    requiresTimetable: true,
-  },
-  {
-    href: "/database/shift-types",
-    permission: "time_tracking:manage",
-    requiresTimetable: true,
-  },
-  {
-    href: "/database/absence-types",
-    permission: "time_tracking:manage",
-    requiresTimetable: false,
-  },
-] as const;
+/**
+ * Die Seiten der Datenverwaltung und ihre Rechte kommen aus dem Katalog
+ * (`DATABASE_PAGE_PERMISSIONS`), derselben Quelle wie Seitenleiste und
+ * Route-Guard (#3469).
+ */
+const DATABASE_PAGE_HREFS = DATABASE_SUB_PAGES.map((page) => page.href);
+const DATABASE_PAGE_PERMISSION_LIST = [
+  ...new Set(DATABASE_PAGE_HREFS.flatMap(databasePagePermissions)),
+];
 
 /**
  * Die Akkordeon-Bereiche der Seitenleiste als je eine Zeile: Meine Gruppen
@@ -547,15 +541,17 @@ const SECTION_ITEMS: Readonly<Record<StaffNavSectionKey, AdditionalNavItem>> = {
     label: DATABASE_SECTION.label,
     iconKey: "database",
     concept: "database",
-    requiresPermission: DATABASE_CATALOG_ITEMS.map((item) => item.permission),
-    activePaths: DATABASE_CATALOG_ITEMS.map((item) => item.href),
+    requiresPermission: DATABASE_PAGE_PERMISSION_LIST,
+    activePaths: DATABASE_PAGE_HREFS,
   },
   enrollments: {
     href: ENROLLMENT_SECTION.href,
     label: ENROLLMENT_SECTION.label,
     iconKey: "enrollments",
     concept: "enrollments",
-    requiresAdmin: true,
+    // Jede Anmeldungsroute verlangt config:manage; das Recht öffnet den
+    // Bereich auch einer Leitungsrolle der Schule (#3469).
+    requiresPermission: "config:manage",
     activePaths: ENROLLMENT_SUB_PAGES.map((page) => page.href),
   },
 };
@@ -580,7 +576,7 @@ const TENANT_SCOPED_HREFS = new Set<string>([
     (item) => item.href,
   ),
   ...Object.values(SECTION_ITEMS).map((item) => item.href),
-  ...DATABASE_CATALOG_ITEMS.map((item) => item.href),
+  ...DATABASE_PAGE_HREFS,
 ]);
 
 const NFC_ONLY_HREFS = new Set<string>(["/activities"]);
@@ -798,13 +794,17 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     getSettingValue(settingsSchema, "operations.parent_news_enabled") === true;
   const mealPlanEnabled =
     getSettingValue(settingsSchema, "operations.meal_plan_enabled") === true;
-  const databaseLandingHref = userHasEffectiveAdminScope
-    ? DATABASE_SECTION.href
-    : DATABASE_CATALOG_ITEMS.find(
-        (item) =>
-          (!item.requiresTimetable || timetableEnabled) &&
-          hasPermission(session, item.permission),
-      )?.href;
+  // Die Leitung landet auf dem Hub; wer nur einzelne Kataloge hält, startet
+  // beim ersten erreichbaren Unterpunkt statt auf einer fast leeren Hub-Seite.
+  const databaseLandingHref =
+    userHasEffectiveAdminScope || leadsSchool(session)
+      ? DATABASE_SECTION.href
+      : DATABASE_PAGE_HREFS.find(
+          (href) =>
+            (!PLANNING_CATALOG_HREFS.has(href) || timetableEnabled) &&
+            (!NFC_ONLY_DATABASE_HREFS.has(href) || nfcEnabled) &&
+            hasAnyDatabasePagePermission(session, href),
+        );
   // Elternmitteilungen (#1669) authoring is admin-only (admin:* wildcard on
   // every /api/parent-announcements route); same rule as the sidebar entry.
   const canAnnounce = hasPermission(session, "admin:*");
@@ -845,9 +845,12 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     // Seiten-Guard und Badge.
     if (href === "/anfragen") return changeRequestAccess.canOpenRequestsPage;
     if (href === "/ogs-groups") {
-      // Bei offener Betreuung gibt es keine "meine Gruppe" (#1544).
+      // Bei offener Betreuung gibt es keine "meine Gruppe" (#1544). Wie in der
+      // Seitenleiste zählt auch die schulweite Übersicht (#2380): eine
+      // Betreuungsrolle der Schule heißt nicht `user` (#3469).
       return (
-        (userIsCaregiver || userHasEffectiveAdminScope) && !openCareGroupMode
+        (userIsCaregiver || overviewEnabled || userHasEffectiveAdminScope) &&
+        !openCareGroupMode
       );
     }
     // Aufsicht wie in der Seitenleiste: eigene Aufsicht der Betreuungskräfte
@@ -884,7 +887,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     if (href === "/info-displays" && !displayEnabled) return false;
     if (href === "/day-log" && !attendanceLogEnabled) return false;
     // Eltern-Seiten: dieselben Regeln wie die Sidebar-Gruppe.
-    if (href === "/admin/guardian-approvals") return userIsAdmin;
+    if (href === "/admin/guardian-approvals") {
+      return userIsAdmin || hasPermission(session, "users:manage");
+    }
     if (href === "/parent-announcements") {
       return canAnnounce && parentNewsEnabled;
     }

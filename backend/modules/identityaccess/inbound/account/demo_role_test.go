@@ -67,12 +67,23 @@ func (e demoEnv) schoolRoles(t *testing.T, accountID int64) []string {
 	return roles
 }
 
+// createDemoSchoolRoles does what the seeder does for a demo school (#3469):
+// the two reduced roles exist as roles of the test's school.
+func (e demoEnv) createDemoSchoolRoles(t *testing.T) {
+	t.Helper()
+	_, err := e.db.NewRaw(`INSERT INTO auth.roles (name, tenant_id, is_system, base_role)
+		VALUES ('betreuungskraft', ?, false, 'user'), ('ogs-leitung', ?, false, 'admin')`,
+		testpkg.Tenant(t), testpkg.Tenant(t)).Exec(context.Background())
+	require.NoError(t, err)
+}
+
 func TestDemoRoleSwitchChangesTheVisitorsRoleAndIssuesANewSession(t *testing.T) {
 	t.Parallel()
 	env := newOwnSchoolDemoEnv(t)
+	env.createDemoSchoolRoles(t)
 	_, visitor := testpkg.CreateTestStaffWithAccount(t, env.db, "Kim", "Beispiel")
 	testpkg.EnsureAccountTenant(t, env.db, visitor.ID, testpkg.Tenant(t))
-	env.grantRole(t, visitor.ID, "user")
+	env.grantRole(t, visitor.ID, "admin")
 	token, slug := env.requestOwnSchool(t, env.address())
 	seedDemoSchool(t, env.db, slug, testpkg.Tenant(t), visitor.ID)
 	var accessID string
@@ -85,8 +96,9 @@ func TestDemoRoleSwitchChangesTheVisitorsRoleAndIssuesANewSession(t *testing.T) 
 	assert.False(t, lead.Demo.FixedRole, "the visitor's own school lets the banner switch roles")
 	claims := lead.claims(t)
 	assert.EqualValues(t, visitor.ID, claims.ID, "every demo role is the same account")
-	assert.Contains(t, claims.Roles, "admin", "until reduced roles exist, the OGS lead uses the administrator role")
-	assert.Equal(t, []string{"admin"}, env.schoolRoles(t, visitor.ID))
+	assert.Equal(t, []string{"ogs-leitung"}, claims.Roles, "the OGS lead is the school's reduced role, not the administrator")
+	assert.False(t, claims.IsAdmin)
+	assert.Equal(t, []string{"ogs-leitung"}, env.schoolRoles(t, visitor.ID))
 
 	// A role of the school's own adds permissions a caregiver must not keep.
 	_, err := env.db.NewRaw(`WITH role AS (
@@ -99,13 +111,37 @@ func TestDemoRoleSwitchChangesTheVisitorsRoleAndIssuesANewSession(t *testing.T) 
 	assert.Equal(t, "caregiver", caregiver.Demo.Role)
 	claims = caregiver.claims(t)
 	assert.EqualValues(t, visitor.ID, claims.ID)
-	assert.Equal(t, []string{"user"}, claims.Roles, "the caregiver uses the standard staff role")
+	assert.Equal(t, []string{"betreuungskraft"}, claims.Roles, "the caregiver is the school's reduced role")
 	assert.False(t, claims.IsAdmin)
-	assert.Equal(t, []string{"user"}, env.schoolRoles(t, visitor.ID), "the name stays once in the staff list: no second account")
+	assert.Equal(t, []string{"betreuungskraft"}, env.schoolRoles(t, visitor.ID), "the name stays once in the staff list: no second account")
 
 	all := env.enterAs(t, token, "all")
 	assert.Equal(t, "all", all.Demo.Role)
 	assert.True(t, all.claims(t).IsAdmin)
+	assert.Equal(t, []string{"admin"}, env.schoolRoles(t, visitor.ID), "all functions is the administrator")
+}
+
+// A demo school the demo process seeded before the reduced roles existed
+// has none of them; its visitor keeps the system roles of #3467 instead of
+// losing every role.
+func TestDemoRoleSwitchFallsBackToTheSystemRolesInASchoolWithoutReducedRoles(t *testing.T) {
+	t.Parallel()
+	env := newOwnSchoolDemoEnv(t)
+	_, visitor := testpkg.CreateTestStaffWithAccount(t, env.db, "Kim", "Beispiel")
+	testpkg.EnsureAccountTenant(t, env.db, visitor.ID, testpkg.Tenant(t))
+	env.grantRole(t, visitor.ID, "user")
+	token, slug := env.requestOwnSchool(t, env.address())
+	seedDemoSchool(t, env.db, slug, testpkg.Tenant(t), visitor.ID)
+
+	lead := env.enterAs(t, token, "lead")
+	assert.Equal(t, "lead", lead.Demo.Role)
+	assert.True(t, lead.claims(t).IsAdmin)
+	assert.Equal(t, []string{"admin"}, env.schoolRoles(t, visitor.ID))
+
+	caregiver := env.enterAs(t, token, "caregiver")
+	assert.Equal(t, "caregiver", caregiver.Demo.Role)
+	assert.Equal(t, []string{"user"}, caregiver.claims(t).Roles)
+	assert.Equal(t, []string{"user"}, env.schoolRoles(t, visitor.ID))
 }
 
 func TestDemoRoleSwitchRejectsAnUnknownRole(t *testing.T) {

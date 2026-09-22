@@ -27,6 +27,10 @@
  * genau einen Platz in der Seitenleiste bekommt.
  */
 
+import type { Session } from "next-auth";
+
+import { hasPermission } from "~/lib/auth-utils";
+
 export interface SectionSubPage {
   readonly href: string;
   readonly label: string;
@@ -111,6 +115,80 @@ export const DATABASE_SUB_PAGES: readonly SectionSubPage[] = [
   { href: "/database/grade-transitions", label: "Jahrgangswechsel" },
   { href: "/database/exports", label: "Exporte" },
 ];
+
+/**
+ * Das Recht, mit dem das Backend die Route hinter jeder Datenverwaltungsseite
+ * beantwortet. Der Adminzuschnitt öffnet jede Seite; ohne ihn entscheidet
+ * allein dieses Recht, ob der Eintrag in Seitenleiste und Mehr-Menü steht,
+ * ob die Hub-Kachel erscheint und ob der Guard der Route öffnet (#2906,
+ * #3114, #3469). Eine Liste öffnet, sobald eines der Rechte vorliegt.
+ *
+ * Die Zuordnung stand vorher dreimal (Seitenleiste, Mehr-Menü, Route-Guard)
+ * und deckte nur die Kataloge ab; alle übrigen Seiten hingen am Rollennamen
+ * `admin`. Eine Leitungsrolle, die eine Schule selbst anlegt, kam damit nie
+ * in die Verwaltung.
+ *
+ * Für Kinderdaten, Räume, Gruppen und Exporte gilt das `manage`-Recht des
+ * Bereichs, nicht das Leserecht: mit `users:read` allein sähe jede
+ * Betreuungskraft eine Kinderdaten-Seite, deren Anlegen und Löschen ihr
+ * das Backend verweigert. Die Aktivitäten-Stammdaten haben keinen Eintrag
+ * und bleiben dem Adminzuschnitt vorbehalten: ihr Recht `activities:manage`
+ * hält auch die Standard-Betreuerrolle, und die Seite jeder Betreuungskraft
+ * in die Verwaltung zu stellen ist eine eigene Entscheidung. Aktivitäten
+ * legt jede Rolle mit dem Recht im Tagesbetrieb an.
+ */
+export const DATABASE_PAGE_PERMISSIONS: Readonly<
+  Record<string, string | readonly string[]>
+> = {
+  // Kinderdaten und Exporte: users:manage, oder users:delete als das Recht
+  // der Seite, das die Standard-Betreuerrolle nicht hält (sie darf Kinder
+  // anlegen und ändern, aber nicht löschen oder die Betreuung beenden).
+  "/database/students": ["users:manage", "users:delete"],
+  "/database/personal": ["staff:manage", "staff:stammdaten"],
+  "/database/rooms": "rooms:manage",
+  "/database/categories": "activities:manage_categories",
+  "/database/planning-tracks": "schedules:manage",
+  "/database/shift-types": "time_tracking:manage",
+  "/database/absence-types": "time_tracking:manage",
+  "/database/groups": "groups:manage",
+  "/database/roles": "roles:read",
+  "/database/devices": "iot:manage",
+  "/database/permissions": "permissions:read",
+  "/database/grade-transitions": "grade_transitions:read",
+  "/database/exports": ["users:manage", "users:delete"],
+};
+
+/** Kataloge, die ohne den Planungsbereich (timetable.enabled) nichts zu ordnen haben. */
+export const PLANNING_CATALOG_HREFS: ReadonlySet<string> = new Set([
+  "/database/planning-tracks",
+  "/database/shift-types",
+]);
+
+/** Datenverwaltungsseiten, die es nur mit NFC gibt: Aktivitäten und Geräte. */
+export const NFC_ONLY_DATABASE_HREFS: ReadonlySet<string> = new Set([
+  "/database/activities",
+  "/database/devices",
+]);
+
+/** Die Rechte einer Datenverwaltungsseite als Liste; leer für unbekannte Pfade. */
+export function databasePagePermissions(href: string): readonly string[] {
+  const permission = DATABASE_PAGE_PERMISSIONS[href];
+  if (permission === undefined) return [];
+  return typeof permission === "string" ? [permission] : permission;
+}
+
+/**
+ * Hält die Sitzung eines der Rechte der Datenverwaltungsseite? Für einen
+ * Pfad ohne Eintrag `false`: die Seite bleibt dem Adminzuschnitt vorbehalten.
+ */
+export function hasAnyDatabasePagePermission(
+  session: Session | null,
+  href: string,
+): boolean {
+  return databasePagePermissions(href).some((permission) =>
+    hasPermission(session, permission),
+  );
+}
 
 /**
  * Wählt die Sichtbarkeitsregel, die die Seitenleiste auf den Eintrag anwendet.

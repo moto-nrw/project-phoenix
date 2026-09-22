@@ -3,7 +3,7 @@
 import { use } from "react";
 import { RolloverReviewQueue } from "~/components/enrollment/rollover-review-queue";
 import { TenantPage } from "~/components/ui/tenant-page";
-import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
+import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 
 interface PageProps {
   readonly params: Promise<{ tenant: string; id: string }>;
@@ -15,7 +15,7 @@ interface PageProps {
  */
 export default function RolloverReviewPage({ params }: PageProps) {
   const { id } = use(params);
-  const { isReady } = useRequireAdmin();
+  const { isReady } = useRequirePermission("config:manage");
 
   // Titel, Statuszeile und Zurück-Knopf trägt die Prüfliste selbst.
   if (!isReady) {

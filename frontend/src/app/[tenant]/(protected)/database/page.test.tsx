@@ -4,7 +4,16 @@ import DatabasePage from "./page";
 import { mockSessionData } from "~/test/mocks/next-auth";
 import useSWR from "swr";
 
-const mockSession = mockSessionData();
+// Die Kacheln folgen den Rechten der Sitzung (#3469); die Leitung hält den
+// Adminzuschnitt und sieht jede.
+const mockSession = {
+  ...mockSessionData(),
+  user: {
+    ...mockSessionData().user,
+    roles: ["admin"],
+    permissions: ["admin:*"],
+  },
+};
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
@@ -204,20 +213,20 @@ describe("DatabasePage", () => {
   });
 
   it("hides sections when user lacks permissions", async () => {
-    mockCounts({
-      ...mockCountsResponse.data,
-      permissions: {
-        canViewStudents: true,
-        canViewTeachers: false,
-        canViewRooms: false,
-        canViewActivities: false,
-        canViewGroups: false,
-        canViewRoles: false,
-        canViewDevices: false,
-        canViewPermissions: false,
-        canViewTimetables: false,
+    // Eine Rolle der Schule ohne Adminzuschnitt sieht nur die Kacheln, deren
+    // Route ihr Recht öffnet (#3469): hier die Kinderdaten mit users:manage.
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        ...mockSession,
+        user: {
+          ...mockSession.user,
+          roles: ["ogs-leitung"],
+          permissions: ["users:manage"],
+        },
       },
-    });
+      status: "authenticated",
+      update: vi.fn(),
+    } as never);
 
     render(<DatabasePage />);
 
@@ -302,9 +311,11 @@ describe("DatabasePage", () => {
 
     render(<DatabasePage />);
 
-    // Should not crash and not show any sections
+    // Ohne Zahlen bleibt die Seite benutzbar: die Kacheln folgen den Rechten
+    // der Sitzung, nicht den Zählern (#3469), und die Zähler fehlen still.
     await waitFor(() => {
-      expect(screen.queryByText("Kinderdaten")).not.toBeInTheDocument();
+      expect(screen.getByText("Kinderdaten")).toBeInTheDocument();
+      expect(screen.queryByText("100 Einträge")).not.toBeInTheDocument();
     });
   });
 
@@ -313,9 +324,9 @@ describe("DatabasePage", () => {
 
     render(<DatabasePage />);
 
-    // Should not crash and not show any sections
     await waitFor(() => {
-      expect(screen.queryByText("Kinderdaten")).not.toBeInTheDocument();
+      expect(screen.getByText("Kinderdaten")).toBeInTheDocument();
+      expect(screen.queryByText("100 Einträge")).not.toBeInTheDocument();
     });
   });
 

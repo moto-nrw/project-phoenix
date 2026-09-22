@@ -2577,7 +2577,7 @@
       "declaration": "TestGroupHandoverAllStaffVisibilityDoesNotGrantActions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        531
+        543
       ],
       "tables": []
     },
@@ -2587,7 +2587,7 @@
       "declaration": "TestGroupHandoverAuditFailureRollsBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        580
+        592
       ],
       "tables": []
     },
@@ -2619,7 +2619,7 @@
       "declaration": "TestGroupHandoverRechecksOwnershipAfterGroupLock",
       "target": "database/repositories.NewFactory",
       "lines": [
-        658
+        670
       ],
       "tables": []
     },
@@ -2629,7 +2629,7 @@
       "declaration": "TestGroupHandoverSignalsOnlyAfterCommit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        618
+        630
       ],
       "tables": []
     },

@@ -25,16 +25,25 @@ vi.mock("~/lib/supervision-context", () => ({
 vi.mock("~/lib/auth-utils", () => {
   const isAdminFn = vi.fn();
   const isCaregiverFn = vi.fn(() => !isAdminFn());
+  const hasEffectiveAdminScopeFn = vi.fn(() => isAdminFn());
+  const hasPermissionFn = vi.fn(
+    (_session: unknown, _permission: string) => false,
+  );
   return {
     isAdmin: isAdminFn,
     isCaregiver: isCaregiverFn,
-    hasEffectiveAdminScope: vi.fn(() => isAdminFn()),
+    hasEffectiveAdminScope: hasEffectiveAdminScopeFn,
     hasRole: vi.fn((_session: unknown, role: string) => {
       if (role === "admin") return isAdminFn();
       if (role === "user") return !isAdminFn();
       return false;
     }),
-    hasPermission: vi.fn(() => false),
+    hasPermission: hasPermissionFn,
+    // Wie die echte Funktion: Adminzuschnitt oder config:manage (#3469).
+    leadsSchool: vi.fn(
+      (session: unknown) =>
+        hasEffectiveAdminScopeFn() || hasPermissionFn(session, "config:manage"),
+    ),
   };
 });
 
@@ -516,6 +525,76 @@ describe("MobileBottomNav", () => {
         "href",
         "/test-tenant/activities",
       );
+    });
+  });
+
+  // Die reduzierten Rollen der Demo-Schule (#3469) heißen nicht `admin`; das
+  // Mehr-Menü folgt ihren Rechten wie die Seitenleiste.
+  describe("Rollen der Schule ohne den Rollennamen admin (#3469)", () => {
+    const LEAD_PERMISSIONS = new Set([
+      "config:manage",
+      "config:read",
+      "schedules:manage",
+      "schedules:read",
+      "time_tracking:manage",
+      "users:manage",
+      "users:read",
+      "rooms:manage",
+      "groups:manage",
+      "staff:manage",
+      "calendar:own",
+    ]);
+
+    beforeEach(() => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+    });
+
+    it("zeigt einer Leitungsrolle Planung, Anmeldungen, Datenverwaltung und Einstellungen", () => {
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          LEAD_PERMISSIONS.has(permission),
+      );
+
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      for (const label of [
+        "Betreuungsplan",
+        "Dienstplan",
+        "Vertretungsplan",
+        "Schuljahr und Ferien",
+        "Anmeldungen",
+        "Elternzugänge",
+        "Einstellungen",
+      ]) {
+        expect(screen.getByText(label)).toBeInTheDocument();
+      }
+      // Die Leitung landet auf dem Hub der Datenverwaltung.
+      expect(
+        screen.getByRole("link", { name: "Datenverwaltung" }),
+      ).toHaveAttribute("href", "/test-tenant/database");
+    });
+
+    it("hält Planung, Anmeldungen und Einstellungen von einer Betreuungsrolle fern", () => {
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          ["users:read", "schedules:read", "calendar:own"].includes(permission),
+      );
+
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      for (const label of [
+        "Betreuungsplan",
+        "Dienstplan",
+        "Anmeldungen",
+        "Elternzugänge",
+        "Datenverwaltung",
+        "Einstellungen",
+      ]) {
+        expect(screen.queryByText(label)).not.toBeInTheDocument();
+      }
     });
   });
 

@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 // Identity-owned rows behind the demo access of the public demo (#3462). The
@@ -105,25 +107,35 @@ func (s *Store) RecordDemoAccessUse(ctx context.Context, id, accountID, parentAc
 	return nil
 }
 
-// ReplaceDemoAccountRole makes the system role the only role of the visitor's
-// account in its demo school. A school-defined role would otherwise carry
-// its permissions into every demo role.
-func (s *Store) ReplaceDemoAccountRole(ctx context.Context, accountID, tenantID int64, role string) error {
+// ReplaceDemoAccountRole makes one role the only role of the visitor's
+// account in its demo school: the first of the named roles that exists as a
+// role of the school or as a system role. Any other role of the school would
+// carry its permissions into every demo role. A school none of the roles
+// exists in cannot serve the demo role.
+func (s *Store) ReplaceDemoAccountRole(ctx context.Context, accountID, tenantID int64, roles []string) error {
 	db, err := s.database(ctx)
 	if err != nil {
 		return err
 	}
+	var roleID int64
+	err = db.NewRaw(`SELECT id FROM auth.roles
+		WHERE name IN (?) AND (tenant_id = ? OR tenant_id IS NULL)
+		ORDER BY array_position(?::text[], name), tenant_id NULLS LAST
+		LIMIT 1`, bun.List(roles), tenantID, pgdialect.Array(roles)).Scan(ctx, &roleID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("identity access postgres: demo role: none of %v exists in school %d", roles, tenantID)
+	}
+	if err != nil {
+		return fmt.Errorf("identity access postgres: find demo role: %w", err)
+	}
 	_, err = db.NewRaw(`DELETE FROM auth.account_roles
-		WHERE account_id = ? AND tenant_id = ? AND role_id NOT IN (
-			SELECT id FROM auth.roles WHERE tenant_id IS NULL AND name = ?)`,
-		accountID, tenantID, role).Exec(ctx)
+		WHERE account_id = ? AND tenant_id = ? AND role_id <> ?`, accountID, tenantID, roleID).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("identity access postgres: drop demo account role: %w", err)
 	}
 	_, err = db.NewRaw(`INSERT INTO auth.account_roles (account_id, role_id, tenant_id)
-		SELECT ?, id, ? FROM auth.roles WHERE tenant_id IS NULL AND name = ?
-		ON CONFLICT (account_id, role_id, tenant_id) DO NOTHING`,
-		accountID, tenantID, role).Exec(ctx)
+		VALUES (?, ?, ?)
+		ON CONFLICT (account_id, role_id, tenant_id) DO NOTHING`, accountID, roleID, tenantID).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("identity access postgres: grant demo account role: %w", err)
 	}

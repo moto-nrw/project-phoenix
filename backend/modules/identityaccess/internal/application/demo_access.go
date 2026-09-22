@@ -240,7 +240,7 @@ func (d *DemoAccess) assumeRole(ctx context.Context, entry domain.DemoSchoolEntr
 		}
 		return role, nil
 	}
-	return role, d.store.ReplaceDemoAccountRole(ctx, entry.AccountID, entry.TenantID, role.SchoolRole())
+	return role, d.store.ReplaceDemoAccountRole(ctx, entry.AccountID, entry.TenantID, role.SchoolRoles())
 }
 
 // entry resolves the account a demo session signs in.

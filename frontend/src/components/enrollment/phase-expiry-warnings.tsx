@@ -137,6 +137,11 @@ export function PhaseExpiryWarnings({
   );
 
   if (error) {
+    // Die Hinweise liest das Backend nur mit dem Admin-Wildcard-Recht. Eine
+    // Leitungsrolle der Schule (#3469) darf die Anmeldungen bearbeiten, die
+    // Hinweise aber nicht lesen: ohne das Recht gibt es keinen Hinweis und
+    // keinen Fehler.
+    if ((error as { status?: number }).status === 403) return null;
     return (
       <Alert
         type="error"

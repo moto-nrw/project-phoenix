@@ -445,6 +445,18 @@ func TestGroupHandoverPermissionsAndPeriod(t *testing.T) {
 	_, err := service.Overview(ctx, unauthorized, substitution.OverviewQuery{})
 	require.ErrorIs(t, err, substitution.ErrForbidden)
 
+	// A role the school defines itself (#3469) reaches its own groups through
+	// the permission its routes read, without the standard role names.
+	schoolRole := caller
+	schoolRole.Roles = []string{"betreuungskraft"}
+	schoolRole.HasPermission = func(permission string) bool { return permission == "substitutions:read" }
+	overview, err := service.Overview(ctx, schoolRole, substitution.OverviewQuery{})
+	require.NoError(t, err)
+	require.NotNil(t, overview)
+	schoolRole.HasPermission = func(string) bool { return false }
+	_, err = service.Overview(ctx, schoolRole, substitution.OverviewQuery{})
+	require.ErrorIs(t, err, substitution.ErrForbidden)
+
 	_, err = service.Assign(ctx, caller, substitution.Assignment{Type: substitution.TargetGroupHandover,
 		GroupHandover: &substitution.GroupHandoverAssignment{GroupID: owned.ID, TargetStaffID: owner.StaffID}})
 	require.ErrorIs(t, err, substitution.ErrInvalidTarget)

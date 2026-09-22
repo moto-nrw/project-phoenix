@@ -28,6 +28,12 @@ func apiMock(t *testing.T) *seedHTTPTestServer {
 			})
 
 		case "/auth/roles":
+			if r.Method == seedHTTPMethodPost {
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"status": "success", "data": map[string]any{"id": fmt.Sprintf("%d", 100+idCounter)},
+				})
+				return
+			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",
 				"data": []map[string]any{
@@ -35,6 +41,11 @@ func apiMock(t *testing.T) *seedHTTPTestServer {
 					{"id": "20", "name": "user"},
 					{"id": "30", "name": "guest"},
 				},
+			})
+
+		case "/auth/permissions":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": seedTestPermissionCatalog(),
 			})
 
 		case "/api/activities/categories":

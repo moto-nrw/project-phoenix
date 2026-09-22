@@ -24,7 +24,6 @@ import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { StaffList } from "@/components/teachers/staff-list";
 import { InvitationForm } from "~/components/admin/invitation-form";
 import { PendingInvitationsList } from "~/components/admin/pending-invitations-list";
-import { RoleGuard } from "~/components/auth/role-guard";
 import { hasPermission } from "~/lib/auth-utils";
 import { getRoleDisplayName } from "@/lib/auth-helpers";
 import { createCrudService } from "@/lib/database/service-factory";
@@ -341,11 +340,15 @@ function TeachersPageContent() {
         />
       }
     >
-      <RoleGuard variant="adminOnly" embedded>
+      {/* Einladungen anlegen, erneut senden und zurückziehen verlangt
+          users:manage. Wer es nicht hält, sieht den Block gar nicht: eine
+          Leitungsrolle ohne das Recht bekommt hier keine Sperrkarte, die
+          Personalseite selbst gehört ihr (#3469). */}
+      {canManageUsers ? (
         <div className="mb-4">
           <PendingInvitationsList refreshKey={invitationRefreshKey} />
         </div>
-      </RoleGuard>
+      ) : null}
 
       {filteredTeachers.length === 0 ? (
         <SectionCard>
