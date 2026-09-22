@@ -963,6 +963,24 @@ exception in [ADR 0036](../../docs/adr/0036-student-presence-cutover-replaces-le
 (policy epoch 20 to 21), and the `legacy` budget entry for
 `modules/studentpresence/legacy` is deleted rather than lowered.
 
+#3352 was the students-inbound half of that dependency: `api/students`
+imported the nest's services in 12 production files and its models in 8.
+#3422 switched those 16 files to the public contract while deleting the nest,
+so the status days (`StatusDays`, `StatusDayOverviews` with
+`ErrStudentStatusDayPartialAbsenceConflict`), the presence history
+(`StudentHistory`) and the attendance and visit reads already ran through
+`modules/studentpresence` when #3352 landed. What #3352 changed is the shape
+of the remaining binding: `api/students` no longer takes the wiring composite
+`Presence` but its own port `students.StudentPresence`: the thirteen reads
+and commands the student list, day planning, visit and school check-in
+handlers call, eleven declared on the port and two inherited from the
+embedded `common.StudentLocationReader`, the four-method port the shared
+location snapshot in `api/common` reads. The composition root still
+hands over the public capability; compile-time assertions keep both ports
+satisfied by it. No key, rule or baseline entry changed; the two remaining
+`inbound-students.*.student-presence-*` rules are target permissions on the
+`public` and `compose` roles, not compatibility.
+
 The import HTTP composition (`modules/dataimport/inbound`, with its runtime
 binding in `modules/dataimport/inbound/compose`) keeps the `inbound-import`
 owner and its `http` / `compose` roles after replacing `api/import` (#3217).
