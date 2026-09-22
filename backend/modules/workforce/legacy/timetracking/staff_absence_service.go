@@ -556,16 +556,7 @@ func (s *staffAbsenceService) cascadeSickReport(ctx context.Context, absence *St
 	if absence.AbsenceType != AbsenceTypeSick || absence.HalfDay {
 		return nil
 	}
-	if err := s.planSyncer().MarkSickForRange(ctx, SickCascadeInput{
-		SubjectStaffID: absence.StaffID,
-		DateStart:      absence.DateStart,
-		DateEnd:        absence.DateEnd,
-		SkipStartDay:   absence.StartHalfDay,
-		SkipEndDay:     absence.EndHalfDay,
-		AbsenceID:      absence.ID,
-		ActorStaffID:   actorStaffID,
-		ActorAccountID: actorAccountID,
-	}); err != nil {
+	if err := s.planSyncer().MarkSickForRange(ctx, sickCascadeInput(absence, actorStaffID, actorAccountID)); err != nil {
 		return fmt.Errorf("sick report saved nothing — plan cascade failed: %w", err)
 	}
 	return nil
@@ -1166,11 +1157,13 @@ func (s *staffAbsenceService) reconcileUpdatedSickAbsence(ctx context.Context, b
 	return nil
 }
 
+// sickCascadeInput is the cascade's view of one sick report. The public
+// contract carries the range as DateLayout strings.
 func sickCascadeInput(absence *StaffAbsence, actorStaffID int64, actorAccountID *int64) SickCascadeInput {
 	return SickCascadeInput{
 		SubjectStaffID: absence.StaffID,
-		DateStart:      absence.DateStart,
-		DateEnd:        absence.DateEnd,
+		DateStart:      absence.DateStart.String(),
+		DateEnd:        absence.DateEnd.String(),
 		SkipStartDay:   absence.StartHalfDay,
 		SkipEndDay:     absence.EndHalfDay,
 		AbsenceID:      absence.ID,
@@ -1274,16 +1267,7 @@ func (s *staffAbsenceService) deleteAbsenceFor(ctx context.Context, subjectStaff
 	// stamps (sick_absence_id == this id), so an absence that never cascaded
 	// is a cheap no-op, while gating on type/half_day would let a mutated row
 	// (e.g. half_day flipped after the cascade ran) orphan its stamps forever.
-	if err := s.planSyncer().ClearSickForRange(ctx, SickCascadeInput{
-		SubjectStaffID: absence.StaffID,
-		DateStart:      absence.DateStart,
-		DateEnd:        absence.DateEnd,
-		SkipStartDay:   absence.StartHalfDay,
-		SkipEndDay:     absence.EndHalfDay,
-		AbsenceID:      absence.ID,
-		ActorStaffID:   actorStaffID,
-		ActorAccountID: actorAccountID,
-	}); err != nil {
+	if err := s.planSyncer().ClearSickForRange(ctx, sickCascadeInput(absence, actorStaffID, actorAccountID)); err != nil {
 		return fmt.Errorf("absence not deleted — plan cascade reversal failed: %w", err)
 	}
 
