@@ -140,10 +140,14 @@ export const DATABASE_SUB_PAGES: readonly SectionSubPage[] = [
 export const DATABASE_PAGE_PERMISSIONS: Readonly<
   Record<string, string | readonly string[]>
 > = {
-  // Kinderdaten und Exporte: users:manage, oder users:delete als das Recht
-  // der Seite, das die Standard-Betreuerrolle nicht hält (sie darf Kinder
-  // anlegen und ändern, aber nicht löschen oder die Betreuung beenden).
-  "/database/students": ["users:manage", "users:delete"],
+  // Kinderdaten und Exporte hängen an users:delete, dem Recht der Seite, das
+  // die Standard-Betreuerrolle nicht hält (sie darf Kinder anlegen und
+  // ändern, aber nicht löschen oder die Betreuung beenden). users:manage
+  // stand hier zuvor daneben, gehört aber zu Konten, Einladungen und
+  // Rollenvergabe (/api/auth) und öffnet keine einzige Kinder-Route; eine
+  // Rolle mit users:manage ohne Kinderrechte hätte Kacheln bekommen, deren
+  // Seiten jede Anfrage mit 403 beantworten.
+  "/database/students": "users:delete",
   "/database/personal": ["staff:manage", "staff:stammdaten"],
   "/database/rooms": "rooms:manage",
   "/database/categories": "activities:manage_categories",
@@ -155,7 +159,7 @@ export const DATABASE_PAGE_PERMISSIONS: Readonly<
   "/database/devices": "iot:manage",
   "/database/permissions": "permissions:read",
   "/database/grade-transitions": "grade_transitions:read",
-  "/database/exports": ["users:manage", "users:delete"],
+  "/database/exports": "users:delete",
 };
 
 /** Kataloge, die ohne den Planungsbereich (timetable.enabled) nichts zu ordnen haben. */

@@ -61,12 +61,20 @@ describe("DATABASE_PAGE_PERMISSIONS", () => {
     ).toBe(true);
     expect(
       hasAnyDatabasePagePermission(
-        sessionWith(["users:manage"]),
+        sessionWith(["users:delete"]),
         "/database/students",
       ),
     ).toBe(true);
+    // users:manage verwaltet Konten und Rollen, keine Kinderdaten; es öffnet
+    // die Kinderdaten-Kachel deshalb nicht (#3524-Review).
     expect(
-      hasAnyDatabasePagePermission(sessionWith(["users:manage"]), "/unknown"),
+      hasAnyDatabasePagePermission(
+        sessionWith(["users:manage"]),
+        "/database/students",
+      ),
+    ).toBe(false);
+    expect(
+      hasAnyDatabasePagePermission(sessionWith(["users:delete"]), "/unknown"),
     ).toBe(false);
   });
 });

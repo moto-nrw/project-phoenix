@@ -16,11 +16,15 @@ import {
  * Seitenleiste, Mehr-Menü und Hub (`DATABASE_PAGE_PERMISSIONS`). Ohne das
  * Recht stünde die Seite offen und jede Aktion darin liefe in ein 403.
  *
- * Zwei Unterseiten des Personals weichen von ihrer Seite ab: der
- * Personal-Import hängt wie POST /api/import/teachers und die Vorlage an
- * users:create, der Eröffnungssalden-Import an der Zeitwirtschaft. Der Hub
- * selbst öffnet für jedes Recht einer seiner Seiten; er zeigt dann nur die
- * Kacheln, die die Person öffnen darf.
+ * Vier Unterseiten weichen von ihrer Seite ab, weil ihre Route an einem
+ * anderen Recht hängt: der Personal-Import wie POST /api/import/teachers an
+ * users:create, der Eröffnungssalden-Import an der Zeitwirtschaft, und die
+ * beiden Kinder-Importe wie POST /api/import/students und
+ * /api/import/class-list-entries ebenfalls an users:create. Ohne diese
+ * Ausnahmen erbten sie über den Pfadpräfix das stärkere Recht der
+ * Kinderdaten und blieben genau den Rollen verschlossen, für die sie da
+ * sind. Der Hub selbst öffnet für jedes Recht einer seiner Seiten; er zeigt
+ * dann nur die Kacheln, die die Person öffnen darf.
  */
 const HUB_PERMISSIONS = [
   ...new Set(
@@ -41,6 +45,12 @@ function permissionForPath(
     return "time_tracking:manage";
   }
   if (matchesPathPrefix(path, "/database/personal/import")) {
+    return "users:create";
+  }
+  if (
+    matchesPathPrefix(path, "/database/students/import") ||
+    matchesPathPrefix(path, "/database/students/class-list/import")
+  ) {
     return "users:create";
   }
   const page = Object.keys(DATABASE_PAGE_PERMISSIONS).find((href) =>

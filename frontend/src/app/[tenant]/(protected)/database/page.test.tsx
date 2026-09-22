@@ -214,14 +214,14 @@ describe("DatabasePage", () => {
 
   it("hides sections when user lacks permissions", async () => {
     // Eine Rolle der Schule ohne Adminzuschnitt sieht nur die Kacheln, deren
-    // Route ihr Recht öffnet (#3469): hier die Kinderdaten mit users:manage.
+    // Route ihr Recht öffnet (#3469): hier die Kinderdaten mit users:delete.
     vi.mocked(useSession).mockReturnValue({
       data: {
         ...mockSession,
         user: {
           ...mockSession.user,
           roles: ["ogs-leitung"],
-          permissions: ["users:manage"],
+          permissions: ["users:delete"],
         },
       },
       status: "authenticated",

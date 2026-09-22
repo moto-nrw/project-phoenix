@@ -200,6 +200,50 @@ describe("DatabaseLayout", () => {
     expect(screen.queryByTestId("database-content")).not.toBeInTheDocument();
   });
 
+  it.each([
+    ["/test-tenant/database/students/import"],
+    ["/test-tenant/database/students/class-list/import"],
+  ])("lets users:create reach %s (#3469)", (pathname) => {
+    // Beide Kinder-Importe hängen backendseitig an users:create; über den
+    // Pfadpräfix erbten sie sonst das users:delete der Kinderdaten.
+    mockPathname.mockReturnValue(pathname);
+    mockUseSession.mockReturnValue({
+      data: {
+        user: { isAdmin: false, token: "tok", permissions: ["users:create"] },
+      },
+      status: "authenticated",
+    });
+
+    render(
+      <DatabaseLayout>
+        <div data-testid="database-content">Database Content</div>
+      </DatabaseLayout>,
+    );
+
+    expect(screen.getByTestId("database-content")).toBeInTheDocument();
+  });
+
+  it("keeps the child imports closed without users:create (#3469)", () => {
+    mockPathname.mockReturnValue(
+      "/test-tenant/database/students/class-list/import",
+    );
+    mockUseSession.mockReturnValue({
+      data: {
+        user: { isAdmin: false, token: "tok", permissions: ["users:read"] },
+      },
+      status: "authenticated",
+    });
+
+    render(
+      <DatabaseLayout>
+        <div data-testid="database-content">Database Content</div>
+      </DatabaseLayout>,
+    );
+
+    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
+    expect(screen.queryByTestId("database-content")).not.toBeInTheDocument();
+  });
+
   it("keeps the rest of the database area closed for staff:manage (#2906)", () => {
     mockPathname.mockReturnValue("/test-tenant/database/students");
     mockUseSession.mockReturnValue({
