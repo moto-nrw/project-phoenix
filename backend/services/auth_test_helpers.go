@@ -84,7 +84,6 @@ type authTestSettings struct {
 	mfaBackoff       []time.Duration
 	mfaRecords       func(AccountMFARecords) AccountMFARecords
 	mfaCapability    identityaccess.AccountMFA
-	mfaSettings      config.SettingsService
 	staffCreateErr   error
 	standingDemo     string
 	// demoMaxActiveSchools is the demo capacity; the default leaves room
@@ -140,13 +139,6 @@ func WithAuthTestMFABackoff(backoff ...time.Duration) AuthTestOption {
 // make one statement fail and prove the flow refuses instead of degrading.
 func WithAuthTestMFARecords(decorate func(AccountMFARecords) AccountMFARecords) AuthTestOption {
 	return func(s *authTestSettings) { s.mfaRecords = decorate }
-}
-
-// WithAuthTestMFASettings resolves the MFA gate's school settings through
-// the given service, so a test can drive security.mfa_mode and the
-// trusted-device values without touching the rest of the composition.
-func WithAuthTestMFASettings(settings config.SettingsService) AuthTestOption {
-	return func(s *authTestSettings) { s.mfaSettings = settings }
 }
 
 // WithAuthTestMFACapability composes the module over the given account
@@ -249,7 +241,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		},
 		demoStandingSchool: settingsOverrides.standingDemo,
 		mfa: &mfaWiring{
-			repos: r, settings: mfaSettingsService(settings.Settings, settingsOverrides),
+			repos: r, settings: settings.Settings,
 			dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL,
 			jwtSecret: mfaTestSecret(), logger: logger, backoff: settingsOverrides.mfaBackoff,
 			decorate: settingsOverrides.mfaRecords, capability: settingsOverrides.mfaCapability,
@@ -379,12 +371,3 @@ func (d failingStaffDirectory) Create(context.Context, *userModels.Staff) error 
 // trusted-device HMAC key from: the process configuration, exactly as the
 // production root reads it, so no key is stored in source.
 func mfaTestSecret() string { return currentFactoryConfig().JWTSecret }
-
-// mfaSettingsService is the settings service the MFA gate resolves through:
-// the composed one, or the one a test supplied.
-func mfaSettingsService(composed config.SettingsService, overrides authTestSettings) config.SettingsService {
-	if overrides.mfaSettings != nil {
-		return overrides.mfaSettings
-	}
-	return composed
-}

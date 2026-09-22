@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -83,8 +82,7 @@ func TestPasskeyRegistration_RefusedAttestationSpendsTheCeremony(t *testing.T) {
 // code, so a test can drive a flow that redeems one.
 func seedTenantChallenge(t *testing.T, repo services.AccountMFARecords, accountID, tenantID int64, code string) identityaccess.AccountMFAChallenge {
 	t.Helper()
-	hash, err := securityruntime.HashPassword(code)
-	require.NoError(t, err)
+	hash := testpkg.HashTestPassword(t, code)
 	challenge := identityaccess.AccountMFAChallenge{
 		AccountID: accountID,
 		TenantID:  tenantID,

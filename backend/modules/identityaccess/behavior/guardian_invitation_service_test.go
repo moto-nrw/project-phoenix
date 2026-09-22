@@ -9,15 +9,9 @@ import (
 	"testing"
 	"time"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/email"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -35,19 +29,7 @@ type guardianTestEnv struct {
 	db      *bun.DB
 	repos   *repositories.Factory
 	service services.GuardianInvitationCapability
-	mailer  *email.MockMailer
 	cleanup func()
-}
-
-// stubOutboxEnqueuer satisfies authService.OutboxEnqueuer so tests can
-// capture what the service enqueues without wiring the full outbox stack.
-type stubOutboxEnqueuer struct {
-	requests []platformModels.OutboxEnqueueRequest
-}
-
-func (s *stubOutboxEnqueuer) EnqueueOutbox(_ context.Context, req platformModels.OutboxEnqueueRequest) error {
-	s.requests = append(s.requests, req)
-	return nil
 }
 
 // setupGuardianInvitationTest composes the guardian invitation service over
@@ -59,10 +41,9 @@ func setupGuardianInvitationTest(t *testing.T, mutate ...func(*bun.DB, *services
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	mailer := email.NewMockMailer()
 
 	cfg := services.GuardianInvitationTestConfig{
-		Outbox: &stubOutboxEnqueuer{},
+		Outbox: testpkg.NewCapturingOutbox(),
 		Expiry: 48 * time.Hour,
 		Logger: slog.Default(),
 	}
@@ -79,7 +60,6 @@ func setupGuardianInvitationTest(t *testing.T, mutate ...func(*bun.DB, *services
 		db:      db,
 		repos:   repoFactory,
 		service: service,
-		mailer:  mailer,
 		cleanup: cleanup,
 	}
 }
@@ -157,18 +137,11 @@ func TestGuardianInvitationService_Create_RejectsProfileWithoutEmail(t *testing.
 
 	// Build a profile with no email, must use a raw insert because the
 	// fixture helper always sets one.
-	profile := &users.GuardianProfile{
-		FirstName:              "NoEmail",
-		LastName:               "Guardian",
-		PreferredContactMethod: "phone",
-		LanguagePreference:     "de",
-	}
-	profile.SetTenantID(testpkg.Tenant(t))
-	_, err := env.db.NewInsert().
-		Model(profile).
-		ModelTableExpr(`users.guardian_profiles`).
-		Returning("id").
-		Exec(context.Background())
+	var profile struct{ ID int64 }
+	err := env.db.NewRaw(`INSERT INTO users.guardian_profiles
+		(tenant_id, first_name, last_name, preferred_contact_method, language_preference)
+		VALUES (?, 'NoEmail', 'Guardian', 'phone', 'de') RETURNING id`, testpkg.Tenant(t)).
+		Scan(context.Background(), &profile.ID)
 	require.NoError(t, err)
 	defer func() {
 		_, _ = env.db.NewDelete().
@@ -613,7 +586,7 @@ func TestGuardianInvitationService_Resend_ResetsEmailColumns(t *testing.T) {
 	// Wire the outbox path (what production uses since PR 5). The legacy
 	// dispatcher path would asynchronously re-populate email_sent_at after
 	// delivery, racing the nil assertions below.
-	outbox := &stubOutboxEnqueuer{}
+	outbox := testpkg.NewCapturingOutbox()
 	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *services.GuardianInvitationTestConfig) {
 		cfg.Outbox = outbox
 	})
@@ -711,24 +684,12 @@ func cleanupAcceptedAccount(t *testing.T, db *bun.DB, accountID int64) {
 	_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", accountID).Exec(bg)
 }
 
-func createEnrollmentAwaitingGuardian(t *testing.T, env *guardianTestEnv, email string) *capability.Request {
+// createEnrollmentAwaitingGuardian submits an enrollment request for a
+// guardian without an account and returns its id.
+func createEnrollmentAwaitingGuardian(t *testing.T, env *guardianTestEnv, email string) int64 {
 	t.Helper()
 	phase := testpkg.CreateTestEnrollmentPhase(t, env.db)
-	request := &capability.Request{
-		PhaseID:           phase.ID,
-		GuardianFirstName: "Guardian",
-		GuardianLastName:  "Test",
-		GuardianEmail:     email,
-		ConsentFlags:      []byte("{}"),
-		CustomData:        []byte("{}"),
-		SubmissionSource:  enrollmentModels.RequestSourcePublic,
-		SourceMetadata:    []byte("{}"),
-		StatusToken:       "guardian-backfill-" + t.Name(),
-		SubmittedAt:       time.Now(),
-	}
-	request.TenantID = testpkg.Tenant(t)
-	require.NoError(t, env.repos.Enrollment().InsertRequest(testpkg.Ctx(t), request))
-	return request
+	return testpkg.CreateTestEnrollmentRequestAwaitingGuardian(t, env.db, phase.ID, email, "guardian-backfill-"+t.Name()).ID
 }
 
 func requireGuardianEnrollmentClaimed(t *testing.T, env *guardianTestEnv, requestID, accountID int64) {
@@ -738,14 +699,15 @@ func requireGuardianEnrollmentClaimed(t *testing.T, env *guardianTestEnv, reques
 	require.NotNil(t, linkedRequest.GuardianAccountID)
 	assert.Equal(t, accountID, *linkedRequest.GuardianAccountID)
 
-	var enrollments []*parentModels.EnrollmentRequestSummary
+	var enrollmentRequestIDs []int64
 	require.NoError(t, testpkg.WithAdminTx(t, context.Background(), env.db, func(ctx context.Context, _ bun.Tx) error {
-		var listErr error
-		enrollments, listErr = env.repos.ParentEnrollmentRequest.ListByAccount(ctx, accountID)
+		enrollments, listErr := env.repos.ParentEnrollmentRequest.ListByAccount(ctx, accountID)
+		for _, enrollment := range enrollments {
+			enrollmentRequestIDs = append(enrollmentRequestIDs, enrollment.RequestID)
+		}
 		return listErr
 	}))
-	require.Len(t, enrollments, 1)
-	assert.Equal(t, requestID, enrollments[0].RequestID)
+	assert.Equal(t, []int64{requestID}, enrollmentRequestIDs)
 }
 
 func TestGuardianInvitationService_Accept_InvokesBackfiller(t *testing.T) {
@@ -786,7 +748,7 @@ func TestGuardianInvitationService_Accept_ClaimsEnrollmentInsideOuterAdminTransa
 	env := setupGuardianInviteWithBackfiller(t, realBackfiller)
 
 	profile := testpkg.CreateTestGuardianProfile(t, db, "backfill-outer-admin")
-	request := createEnrollmentAwaitingGuardian(t, env, "  "+strings.ToUpper(*profile.Email)+"  ")
+	requestID := createEnrollmentAwaitingGuardian(t, env, "  "+strings.ToUpper(*profile.Email)+"  ")
 
 	creatorID := env.inviterAccountID(t)
 	invitation, err := env.service.CreateGuardianInvitation(testpkg.Ctx(t), identityaccess.GuardianInvitationRequest{
@@ -806,7 +768,7 @@ func TestGuardianInvitationService_Accept_ClaimsEnrollmentInsideOuterAdminTransa
 	})
 	require.NoError(t, err)
 	require.NotZero(t, account.ID)
-	requireGuardianEnrollmentClaimed(t, env, request.ID, account.ID)
+	requireGuardianEnrollmentClaimed(t, env, requestID, account.ID)
 }
 
 func TestGuardianInvitationService_Accept_NotInvokedOnPasswordMismatch(t *testing.T) {
@@ -841,8 +803,8 @@ func TestGuardianInvitationService_Accept_BackfillErrorDoesNotBreakAccept(t *tes
 	bf := &constraintFailingEnrollmentBackfiller{}
 	env := setupGuardianInviteWithBackfiller(t, bf)
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "backfill-error")
-	request := createEnrollmentAwaitingGuardian(t, env, *profile.Email)
-	bf.requestID = request.ID
+	requestID := createEnrollmentAwaitingGuardian(t, env, *profile.Email)
+	bf.requestID = requestID
 	creatorID := env.inviterAccountID(t)
 
 	ctx := testpkg.Ctx(t)
@@ -863,7 +825,7 @@ func TestGuardianInvitationService_Accept_BackfillErrorDoesNotBreakAccept(t *tes
 
 	updated := testpkg.GuardianInvitationByID(t, env.db, invitation.ID)
 	assert.NotNil(t, updated.AcceptedAt, "invitation must remain accepted after backfill error")
-	unlinked, err := env.repos.Enrollment().RequestByID(testpkg.Ctx(t), request.ID, false)
+	unlinked, err := env.repos.Enrollment().RequestByID(testpkg.Ctx(t), requestID, false)
 	require.NoError(t, err)
 	assert.Nil(t, unlinked.GuardianAccountID, "failed backfill write must be rolled back")
 }
