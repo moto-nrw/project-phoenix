@@ -10,13 +10,14 @@ import (
 )
 
 // countActiveStudentsByTenantSQL is the billing rule for "actively managed":
-// a live membership in status active whose enrollment interval includes the
-// capture day (#2791).
+// a live membership in status active whose enrollment has not ended before the
+// capture day (#2791). A start after the capture day does not exclude it:
+// immediate activation enrolls an active child before its formal start, as in
+// the current-care rule of the student directory.
 const countActiveStudentsByTenantSQL = `SELECT tenant_id, COUNT(*) AS count
 FROM users.student_school_memberships
 WHERE deleted_at IS NULL
   AND status = 'active'
-  AND (enrolled_from IS NULL OR enrolled_from <= ?::date)
   AND (enrolled_until IS NULL OR enrolled_until >= ?::date)
 GROUP BY tenant_id`
 
@@ -28,7 +29,7 @@ func CountActiveStudentsByTenant(ctx context.Context, db bun.IDB, capturedAt tim
 		TenantID int64 `bun:"tenant_id"`
 		Count    int   `bun:"count"`
 	}
-	if err := db.NewRaw(countActiveStudentsByTenantSQL, captureDate, captureDate).Scan(ctx, &rows); err != nil {
+	if err := db.NewRaw(countActiveStudentsByTenantSQL, captureDate).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("school membership postgres: count active students by tenant: %w", err)
 	}
 	counts := make(map[int64]int, len(rows))

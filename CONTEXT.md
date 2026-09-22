@@ -576,7 +576,9 @@ später ändern. Lief die Erfassung am Stichtag nicht, holt sie sie im selben
 Monat nach und nennt den tatsächlichen Zeitpunkt.
 
 **Aktiv verwaltet** ist ein Kind mit dem Status „aktiv“ und einer nicht
-gelöschten Schulzugehörigkeit. Nicht gezählt werden Kinder, deren Betreuung
+gelöschten Schulzugehörigkeit, deren Betreuungsende nicht vor dem Tag der
+Erfassung liegt. Ein sofort aktiviertes Kind zählt auch vor seinem regulären
+Betreuungsbeginn. Nicht gezählt werden Kinder, deren Betreuung
 erst später beginnt, deren Betreuung beendet ist (inaktiv), Abgänger und
 gelöschte Kinder.
 

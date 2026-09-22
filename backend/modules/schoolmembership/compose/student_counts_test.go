@@ -10,9 +10,10 @@ import (
 )
 
 // TestActiveStudentCountsCountOnlyLiveActiveMemberships pins the billing rule
-// of #2791: only a live membership in status active whose enrollment interval
-// contains the capture date counts. Pending, inactive (care ended), alumnus
-// and soft-deleted memberships do not.
+// of #2791: only a live membership in status active whose enrollment has not
+// ended before the capture date counts, including an immediately activated
+// child whose formal start is still ahead. Pending, inactive (care ended),
+// alumnus and soft-deleted memberships do not.
 func TestActiveStudentCountsCountOnlyLiveActiveMemberships(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -44,7 +45,7 @@ func TestActiveStudentCountsCountOnlyLiveActiveMemberships(t *testing.T) {
 	require.NoError(t, testpkg.WithinAdminContext(t, context.Background(), db, func(adminCtx context.Context) error {
 		byTenant, err := counts.CountActiveStudentsByTenant(adminCtx, capturedAt)
 		require.NoError(t, err)
-		require.Equal(t, 3, byTenant[tenantID])
+		require.Equal(t, 4, byTenant[tenantID])
 		return nil
 	}))
 }
