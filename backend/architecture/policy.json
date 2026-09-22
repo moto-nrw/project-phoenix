@@ -4570,10 +4570,6 @@
       "class": "crypto"
     },
     {
-      "path": "crypto/sha1",
-      "class": "crypto"
-    },
-    {
       "path": "crypto/sha256",
       "class": "crypto"
     },
