@@ -40,7 +40,7 @@ INNER JOIN platform.schools AS school
 WHERE rc.status = 'approved'
   AND NOT EXISTS (
       SELECT 1
-      FROM enrollment.request_child_offerings AS link
+      FROM enrollment.care_offering_bookings AS link
       INNER JOIN enrollment.care_offerings AS offering
           ON offering.tenant_id = link.tenant_id
           AND offering.id = link.care_offering_id

@@ -312,10 +312,10 @@ func TestDecisionService_RestoreWithdrawn_FreeSlotComesBackSubmitted(t *testing.
 func setOfferingInterval(t *testing.T, db *bun.DB, requestChildID int64, validFrom, validUntil *timezone.Date) {
 	t.Helper()
 	_, err := db.NewUpdate().
-		TableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).
+		TableExpr(`enrollment.care_offering_bookings AS "care_offering_booking"`).
 		Set(`valid_from = ?`, validFrom).
 		Set(`valid_until = ?`, validUntil).
-		Where(`"request_child_offering".request_child_id = ?`, requestChildID).
+		Where(`"care_offering_booking".request_child_id = ?`, requestChildID).
 		Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 }

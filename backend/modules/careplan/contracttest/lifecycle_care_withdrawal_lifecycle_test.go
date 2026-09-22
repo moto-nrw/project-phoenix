@@ -106,7 +106,7 @@ func bookingEndDates(t *testing.T, db *bun.DB, ctx context.Context, studentID in
 	var rows []struct {
 		ValidUntil timezone.Date `bun:"valid_until"`
 	}
-	err := db.NewSelect().TableExpr("enrollment.request_child_offerings AS rco").
+	err := db.NewSelect().TableExpr("enrollment.care_offering_bookings AS rco").
 		Column("rco.valid_until").
 		Join("JOIN enrollment.request_children AS rc ON rc.id = rco.request_child_id").
 		Where("rc.created_student_id = ?", studentID).Order("rco.id ASC").Scan(ctx, &rows)

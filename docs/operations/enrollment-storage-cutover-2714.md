@@ -1,5 +1,10 @@
 # Request-child storage cutover and rollback window
 
+**Historical.** The rollback window closed with migration 1.15.413
+([cleanup, #2719](enrollment-storage-contract-2719.md)), which removed the
+compatibility view, archive, functions, counters and the repair CLI described
+below. This page records the cutover release as it was operated.
+
 Migration 1.15.385 applies the final delta under a bounded write lock,
 verifies each school, and replaces the old table name with a compatibility
 view. Enrollment owns submitted choices and notes. Care Plan owns effective

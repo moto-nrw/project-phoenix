@@ -67,7 +67,7 @@ func setupChildOfferingTest(t *testing.T, db *bun.DB) (
 	t.Cleanup(func() {
 		bg := context.Background()
 		_, _ = db.NewDelete().
-			TableExpr("enrollment.request_child_offerings").
+			TableExpr("enrollment.care_offering_bookings").
 			Where("tenant_id = ? AND request_child_id = ?", tenantID, child.ID).
 			Exec(bg)
 		wipeOfferings(db, tenantID, phase.ID)
@@ -101,7 +101,7 @@ func addGradedChild(
 	t.Cleanup(func() {
 		bg := context.Background()
 		_, _ = db.NewDelete().
-			TableExpr("enrollment.request_child_offerings").
+			TableExpr("enrollment.care_offering_bookings").
 			Where("tenant_id = ? AND request_child_id = ?", tenantID, child.ID).
 			Exec(bg)
 		_, _ = db.NewDelete().
@@ -198,7 +198,7 @@ func addRolloverSuccessorHolding(
 	}))
 	t.Cleanup(func() {
 		bg := context.Background()
-		_, _ = db.NewDelete().TableExpr("enrollment.request_child_offerings").
+		_, _ = db.NewDelete().TableExpr("enrollment.care_offering_bookings").
 			Where("tenant_id = ? AND request_child_id = ?", tenantID, childID).Exec(bg)
 		_, _ = db.NewDelete().TableExpr("enrollment.request_children").
 			Where("tenant_id = ? AND id = ?", tenantID, childID).Exec(bg)

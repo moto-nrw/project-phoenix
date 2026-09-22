@@ -201,7 +201,7 @@ func (s *decisionService) restoreWithdrawn(ctx context.Context, requestID, resto
 // restoreCapacityWaitlist re-runs the submit-time capacity gate for the
 // children about to be restored and returns the ids that must come back as
 // waitlisted because an offering is meanwhile full. The claims are the
-// children's surviving request_child_offerings rows, reduced to those that
+// children's surviving care_offering_bookings rows, reduced to those that
 // still cover a day of the phase's remaining capacity window (a dated
 // switch whose interval already ended holds no future slot); each claim
 // keeps its ValidFrom/ValidUntil so it is only checked against occupancy
