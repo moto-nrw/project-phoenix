@@ -25,14 +25,27 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+)
+
+// The permission names the timetable and settings routes require on the wire.
+// The flows drive the HTTP contract, so they spell the strings the way a
+// token carries them rather than importing the authorization constants.
+const (
+	permissionSchedulesRead   = "schedules:read"
+	permissionSchedulesCreate = "schedules:create"
+	permissionSchedulesUpdate = "schedules:update"
+	permissionSchedulesDelete = "schedules:delete"
+	permissionSchedulesManage = "schedules:manage"
+	permissionConfigRead      = "config:read"
+	permissionConfigUpdate    = "config:update"
+	permissionConfigManage    = "config:manage"
+	permissionUsersRead       = "users:read"
 )
 
 // Each scenario owns two tenants (#2419): the primary one every fixture lands
@@ -116,7 +129,7 @@ func (s *scenario) cleanupTimetable(ctx context.Context) (*timetableplanning.Tim
 
 // tenantCtx returns a context bound to the primary tenant.
 func (s *scenario) tenantCtx() context.Context {
-	return tenant.WithTenantID(testpkg.WithTestTenantRuntime(s.t, context.Background()), s.primaryTenant)
+	return testpkg.ContextForTenant(testpkg.WithTestTenantRuntime(s.t, context.Background()), s.primaryTenant)
 }
 
 // mountRouter builds the full timetable Resource with real services and
@@ -174,15 +187,15 @@ func decodeResponse(t *testing.T, rr *httptest.ResponseRecorder, target any) {
 func adminClaimsForTenant(accountID, tenantID int64) timetableTestClaims {
 	c := testutil.AdminTestClaims(int(accountID))
 	c.Permissions = []string{
-		permissions.SchedulesRead,
-		permissions.SchedulesCreate,
-		permissions.SchedulesUpdate,
-		permissions.SchedulesDelete,
-		permissions.SchedulesManage,
-		permissions.ConfigRead,
-		permissions.ConfigUpdate,
-		permissions.ConfigManage,
-		permissions.UsersRead,
+		permissionSchedulesRead,
+		permissionSchedulesCreate,
+		permissionSchedulesUpdate,
+		permissionSchedulesDelete,
+		permissionSchedulesManage,
+		permissionConfigRead,
+		permissionConfigUpdate,
+		permissionConfigManage,
+		permissionUsersRead,
 		"admin:*",
 	}
 	c.IsAdmin = true

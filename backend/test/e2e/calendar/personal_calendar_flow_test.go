@@ -11,9 +11,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	calendarAPI "github.com/moto-nrw/project-phoenix/modules/staffcalendar/http"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -31,15 +28,18 @@ func setupPersonalCalendarRoute(t *testing.T) (*bun.DB, chi.Router) {
 	return db, router
 }
 
+// The calendar permission names as the staff calendar routes require them on
+// the wire; the end-to-end flows drive the HTTP contract, not the constants.
+const (
+	permissionCalendarOwn    = "calendar:own"
+	permissionCalendarManage = "calendar:manage"
+)
+
 func calendarToken(t *testing.T, accountID int64, perms ...string) string {
 	t.Helper()
-	return testutil.MintTestJWT(t, jwt.AppClaims{
-		ID:          int(accountID),
-		Sub:         "calendar-e2e@example.com",
-		Roles:       []string{"user"},
-		TenantID:    testpkg.Tenant(t),
-		Permissions: perms,
-	})
+	claims := testutil.TenantUserTestClaims(int(accountID), testpkg.Tenant(t), perms...)
+	claims.Sub = "calendar-e2e@example.com"
+	return testutil.MintTestJWT(t, claims)
 }
 
 func doJSON(t *testing.T, router http.Handler, method, path, token string, body any) *httptest.ResponseRecorder {
@@ -93,8 +93,8 @@ func TestPersonalCalendarHTTPFlow_StaffInvitationRSVP(t *testing.T) {
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "Organizer")
 	invitee, inviteeAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "Invitee")
 
-	manageToken := calendarToken(t, organizerAccount.ID, permissions.CalendarManage, permissions.CalendarOwn)
-	ownToken := calendarToken(t, inviteeAccount.ID, permissions.CalendarOwn)
+	manageToken := calendarToken(t, organizerAccount.ID, permissionCalendarManage, permissionCalendarOwn)
+	ownToken := calendarToken(t, inviteeAccount.ID, permissionCalendarOwn)
 
 	createBody := map[string]any{
 		"title":         "HTTP calendar planning",
@@ -123,7 +123,7 @@ func TestPersonalCalendarHTTPFlow_StaffInvitationRSVP(t *testing.T) {
 	require.NoError(t, json.Unmarshal(listRR.Body.Bytes(), &listed))
 	require.Len(t, listed.Data.Events, 1)
 	assert.Equal(t, "HTTP calendar planning", listed.Data.Events[0].Title)
-	assert.Equal(t, timezone.NewDate(2026, 5, 4).String(), listed.Data.Events[0].StartDate)
+	assert.Equal(t, "2026-05-04", listed.Data.Events[0].StartDate)
 	assert.Equal(t, "pending", listed.Data.Events[0].ResponseStatus)
 	assert.True(t, listed.Data.Events[0].CanRespond)
 
@@ -147,8 +147,8 @@ func TestPersonalCalendarHTTPFlow_EditCancelDeleteAndICS(t *testing.T) {
 
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "LifecycleOrg")
 	invitee, inviteeAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "LifecycleInv")
-	manageToken := calendarToken(t, organizerAccount.ID, permissions.CalendarManage, permissions.CalendarOwn)
-	ownToken := calendarToken(t, inviteeAccount.ID, permissions.CalendarOwn)
+	manageToken := calendarToken(t, organizerAccount.ID, permissionCalendarManage, permissionCalendarOwn)
+	ownToken := calendarToken(t, inviteeAccount.ID, permissionCalendarOwn)
 
 	createRR := doJSON(t, router, http.MethodPost, "/calendar/appointments", manageToken, map[string]any{
 		"title":         "Original",
@@ -221,8 +221,8 @@ func TestPersonalCalendarHTTPFlow_ForbiddenEdit(t *testing.T) {
 
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "OwnerOrg")
 	other, otherAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "OtherMgr")
-	ownerToken := calendarToken(t, organizerAccount.ID, permissions.CalendarManage, permissions.CalendarOwn)
-	otherToken := calendarToken(t, otherAccount.ID, permissions.CalendarManage, permissions.CalendarOwn)
+	ownerToken := calendarToken(t, organizerAccount.ID, permissionCalendarManage, permissionCalendarOwn)
+	otherToken := calendarToken(t, otherAccount.ID, permissionCalendarManage, permissionCalendarOwn)
 
 	createRR := doJSON(t, router, http.MethodPost, "/calendar/appointments", ownerToken, map[string]any{
 		"title":         "Owner only",
