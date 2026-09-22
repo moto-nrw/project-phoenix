@@ -45,7 +45,7 @@ type billingKeyDayResponse struct {
 }
 
 type billingKeyDateCountResponse struct {
-	SchoolID         int64     `json:"school_id"`
+	SchoolID         string    `json:"school_id"`
 	SchoolName       string    `json:"school_name"`
 	OrganizationName string    `json:"organization_name"`
 	Period           string    `json:"period"`
@@ -68,6 +68,19 @@ func (req *updateBillingKeyDayRequest) Bind(_ *http.Request) error {
 
 func toBillingKeyDayResponse(keyDay organizationtenancy.BillingKeyDay) billingKeyDayResponse {
 	return billingKeyDayResponse{KeyDay: keyDay.Day, NextKeyDate: keyDay.NextKeyDate, UpdatedAt: keyDay.UpdatedAt}
+}
+
+func toBillingKeyDateCountResponse(count organizationtenancy.BillingKeyDateCount) billingKeyDateCountResponse {
+	return billingKeyDateCountResponse{
+		SchoolID:         strconv.FormatInt(count.SchoolID, 10),
+		SchoolName:       count.SchoolName,
+		OrganizationName: count.OrganizationName,
+		Period:           count.Period,
+		KeyDate:          count.KeyDate,
+		ActiveStudents:   count.ActiveStudents,
+		ActiveTerminals:  count.ActiveTerminals,
+		RecordedAt:       count.RecordedAt,
+	}
 }
 
 // GetKeyDay returns the billing key day. GET /operator/billing/key-day.
@@ -106,7 +119,7 @@ func (rs *BillingResource) ListKeyDateCounts(w http.ResponseWriter, r *http.Requ
 	}
 	result := make([]billingKeyDateCountResponse, 0, len(counts))
 	for _, count := range counts {
-		result = append(result, billingKeyDateCountResponse(count))
+		result = append(result, toBillingKeyDateCountResponse(count))
 	}
 	common.Respond(w, r, http.StatusOK, result, "Billing key-date counts retrieved successfully")
 }

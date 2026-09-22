@@ -13,7 +13,7 @@ interface BackendBillingKeyDay {
 }
 
 interface BackendBillingKeyDateCount {
-  school_id: number;
+  school_id: string;
   school_name: string;
   organization_name: string;
   period: string;
@@ -60,7 +60,7 @@ export function mapBillingKeyDateCount(
   data: BackendBillingKeyDateCount,
 ): BillingKeyDateCount {
   return {
-    schoolId: String(data.school_id),
+    schoolId: data.school_id,
     schoolName: data.school_name,
     organizationName: data.organization_name,
     period: data.period,

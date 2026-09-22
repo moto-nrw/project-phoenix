@@ -34,10 +34,10 @@ describe("operator billing api", () => {
     vi.unstubAllGlobals();
   });
 
-  it("maps a captured row and turns the school ID into a string", () => {
+  it("preserves a captured school ID beyond JavaScript's safe number range", () => {
     expect(
       mapBillingKeyDateCount({
-        school_id: 42,
+        school_id: "9007199254740993",
         school_name: "OGS Am Berg",
         organization_name: "Träger Nord",
         period: "2026-08-01",
@@ -47,7 +47,7 @@ describe("operator billing api", () => {
         recorded_at: "2026-08-15T04:00:00Z",
       }),
     ).toEqual({
-      schoolId: "42",
+      schoolId: "9007199254740993",
       schoolName: "OGS Am Berg",
       organizationName: "Träger Nord",
       period: "2026-08-01",

@@ -112,6 +112,20 @@ func TestBillingListHidesInternalErrors(t *testing.T) {
 	assert.NotContains(t, recorder.Body.String(), "relation")
 }
 
+func TestBillingListWritesSchoolIDsAsStrings(t *testing.T) {
+	t.Parallel()
+	const schoolID = int64(9_007_199_254_740_993)
+	recorder := httptest.NewRecorder()
+	report := &fakeBillingReport{counts: []organizationtenancy.BillingKeyDateCount{
+		{SchoolID: schoolID},
+	}}
+
+	NewBillingResource(report, nil).ListKeyDateCounts(recorder, httptest.NewRequest(http.MethodGet, "/billing/key-date-counts", nil))
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"school_id":"9007199254740993"`)
+}
+
 func TestBillingKeyDayUpdateValidatesTheBody(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
