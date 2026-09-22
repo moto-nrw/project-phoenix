@@ -523,6 +523,7 @@ function StudentsPageContent() {
                 />
                 <Link
                   href={tenantPath("/database/students/import")}
+                  data-setup-tour="student-import"
                   className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
                 >
                   Importieren
@@ -535,6 +536,7 @@ function StudentsPageContent() {
                 variant="outline"
                 size="md"
                 aria-pressed={selectionMode}
+                data-setup-tour="student-select"
                 className={cn(
                   "h-10 gap-2 px-3 shadow-none hover:ring-gray-300",
                   selectionMode && "ring-gray-900 hover:ring-gray-900",

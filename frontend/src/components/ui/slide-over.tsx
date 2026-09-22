@@ -310,6 +310,8 @@ const SlideOverCloseButton = React.forwardRef<
   <DrawerPrimitive.Close
     ref={ref}
     aria-label="Schließen"
+    // Daran findet die Tour der ersten Schritte (#2832) das Schließen.
+    data-overlay-close=""
     className={cn(
       "inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300",
       className,

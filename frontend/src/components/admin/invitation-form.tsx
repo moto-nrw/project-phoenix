@@ -293,6 +293,7 @@ export function InvitationForm({
 
         <button
           type="submit"
+          data-setup-tour="invite-submit"
           disabled={isSubmitting || isLoadingRoles}
           className="w-full rounded-xl bg-gray-900 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-800 active:scale-98 disabled:cursor-not-allowed disabled:opacity-50"
         >

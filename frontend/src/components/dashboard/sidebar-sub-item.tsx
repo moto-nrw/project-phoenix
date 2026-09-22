@@ -12,6 +12,8 @@ interface SidebarSubItemProps {
   // Domain-colored pill for unread messages or pending requests. Distinct from
   // `count`, which is the muted gray attendance count.
   readonly badgeCount?: number;
+  // Ziel der geführten Tour der ersten Schritte (#2832).
+  readonly tourId?: string;
 }
 
 export function SidebarSubItem({
@@ -20,10 +22,12 @@ export function SidebarSubItem({
   isActive,
   count,
   badgeCount = 0,
+  tourId,
 }: SidebarSubItemProps) {
   return (
     <NavLink
       href={href}
+      data-setup-tour={tourId}
       className={`${SIDEBAR_SUB_ITEM_CLASSES} ${
         isActive
           ? "bg-gray-100 font-semibold text-gray-900"

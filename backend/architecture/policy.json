@@ -347,6 +347,10 @@
       "kind": "projection"
     },
     {
+      "id": "school-setup-view",
+      "kind": "projection"
+    },
+    {
       "id": "people-directory",
       "kind": "domain"
     },
@@ -1217,6 +1221,13 @@
     {
       "path": "modules/organizationtenancy/internal/adapters/operatordashboard",
       "owner": "operator-dashboard-view",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/schoolsetupview",
+      "owner": "school-setup-view",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
       "external_test_role": "workflow-integration-test"
@@ -3168,6 +3179,20 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "modules/settings/inbound/setup",
+      "owner": "settings-platform",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/settings/setup/compose",
+      "owner": "settings-platform",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
       "path": "modules/communication/http/operatorannouncements",
       "owner": "communication",
       "role": "http",
@@ -3680,6 +3705,14 @@
     },
     {
       "name": "config.home_layouts",
+      "write_owner": "settings-platform"
+    },
+    {
+      "name": "config.school_setup_dismissals",
+      "write_owner": "settings-platform"
+    },
+    {
+      "name": "config.school_setups",
       "write_owner": "settings-platform"
     },
     {
@@ -4427,6 +4460,18 @@
         "iot.pwa_standalone_usage",
         "platform.organizations",
         "platform.schools"
+      ],
+      "tenant_safe": true
+    },
+    {
+      "id": "school-setup-progress",
+      "package": "modules/schoolsetupview",
+      "data_objects": [
+        "auth.guardian_invitations",
+        "auth.invitation_tokens",
+        "education.groups",
+        "facilities.rooms",
+        "users.student_school_memberships"
       ],
       "tenant_safe": true
     }
@@ -10450,6 +10495,191 @@
       "source_role": "workflow-integration-test",
       "target_owner": "organization-tenancy",
       "target_role": "domain"
+    },
+    {
+      "id": "root-composition.to.settings-platform-compose",
+      "description": "The production root mounts the onboarding wizard routes Settings Platform composes (#2832, ADR 0035).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "compose"
+    },
+    {
+      "id": "school-setup-view.integration-test.postgres",
+      "description": "The school setup projection integration tests exercise the projection itself.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-setup-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "school-setup-view",
+      "target_role": "postgres"
+    },
+    {
+      "id": "settings-platform.integration-test.compose",
+      "description": "The onboarding wizard integration tests drive the composed routes against Postgres (#2832).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "settings-platform",
+      "target_role": "compose"
+    },
+    {
+      "id": "settings-platform.integration-test.application",
+      "description": "The onboarding wizard integration tests build the real settings service, its registry defaults and read the wizard status.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "settings-platform.integration-test.domain",
+      "description": "The onboarding wizard integration tests name setting keys and setup steps.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "settings-platform.integration-test.postgres",
+      "description": "The onboarding wizard integration tests build the real setting value stores.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "settings-platform",
+      "target_role": "postgres"
+    },
+    {
+      "id": "settings-platform.integration-test.calendar-date",
+      "description": "The onboarding wizard integration tests stub the open-attendance guard by calendar day.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "settings-platform.compose.application",
+      "description": "The onboarding wizard composition builds the school setup service and the operator settings orchestration (#2832).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "settings-platform.compose.domain",
+      "description": "The onboarding wizard composition names the presence mode key and calendar day of the settings domain (#2832).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "settings-platform.compose.postgres",
+      "description": "The onboarding wizard composition constructs the school setup store (#2832).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "postgres"
+    },
+    {
+      "id": "settings-platform.compose.http",
+      "description": "The onboarding wizard composition returns the wizard routes (#2832).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "http"
+    },
+    {
+      "id": "settings-platform.compose.school-setup-view",
+      "description": "The onboarding wizard composition constructs the tenant-safe school setup projection behind the service's port (ADR 0035).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "compose",
+      "target_owner": "school-setup-view",
+      "target_role": "postgres"
+    },
+    {
+      "id": "settings-platform.compose.tenant-runtime",
+      "description": "The onboarding wizard composition binds the ambient tenant transaction.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "settings-platform.compose.calendar-date",
+      "description": "The onboarding wizard composition passes the Berlin calendar day to the presence mode guard.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "compose",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "settings-platform.compose.delivery-public",
+      "description": "The onboarding wizard composition broadcasts the tenant settings change after a presence mode write.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "compose",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "settings-platform.compose.orm-sql",
+      "description": "The onboarding wizard composition resolves the Bun tenant transaction.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "settings-platform.compose.http-router",
+      "description": "The onboarding wizard composition passes the router and middleware shapes to its routes.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "compose",
+      "target_class": "http-router"
     },
     {
       "id": "organization-tenancy.compose.public",

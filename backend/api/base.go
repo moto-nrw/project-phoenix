@@ -104,6 +104,7 @@ import (
 	schoolStructureModule "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
+	schoolSetupCompose "github.com/moto-nrw/project-phoenix/modules/settings/setup/compose"
 	calendarAPI "github.com/moto-nrw/project-phoenix/modules/staffcalendar/http"
 	statisticsAPI "github.com/moto-nrw/project-phoenix/modules/statistics/http"
 	presenceAPI "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
@@ -914,7 +915,16 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL 
 	api.securityLogging = os.Getenv("SECURITY_LOGGING_ENABLED") == "true"
 	api.rateLimiting = os.Getenv("RATE_LIMIT_ENABLED") == "true"
 	api.authRateLimit = os.Getenv("RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE")
-	api.registerRoutesWithRateLimiting(requestFeedResource)
+	schoolSetup, err := newSchoolSetupRoute(schoolSetupCompose.Dependencies{
+		Settings:       api.Services.Settings,
+		OpenAttendance: api.Services.Active.HasOpenAttendanceOn,
+		Broadcaster:    api.Services.RealtimeHub,
+		SideEffect:     api.Services.SettingsSideEffects.Dispatch,
+	}, db)
+	if err != nil {
+		return nil, err
+	}
+	api.registerRoutesWithRateLimiting(requestFeedResource, schoolSetup)
 
 	buildResources.released = true
 	return api, nil
@@ -1773,7 +1783,7 @@ func buildAuthRateLimiters(securityLogger *customMiddleware.SecurityLogger, conf
 }
 
 // registerRoutesWithRateLimiting registers all API routes with appropriate rate limiting
-func (a *API) registerRoutesWithRateLimiting(requestFeed *requestFeedHTTP.Resource) {
+func (a *API) registerRoutesWithRateLimiting(requestFeed *requestFeedHTTP.Resource, modules ...moduleRoute) {
 	// Get security logger if it exists
 	var securityLogger *customMiddleware.SecurityLogger
 	if a.securityLogging {
@@ -1788,7 +1798,7 @@ func (a *API) registerRoutesWithRateLimiting(requestFeed *requestFeedHTTP.Resour
 	}
 
 	a.registerPublicRoutes(requestFeed)
-	a.registerTenantRoutes(requestFeed)
+	a.registerTenantRoutes(requestFeed, modules)
 	a.registerPortalRoutes(limiters)
 }
 
@@ -1905,11 +1915,14 @@ func (a *API) registerPortalRoutes(limiters authRateLimiters) {
 }
 
 // registerTenantRoutes mounts all tenant API resources under the /api prefix.
-func (a *API) registerTenantRoutes(requestFeed *requestFeedHTTP.Resource) {
+func (a *API) registerTenantRoutes(requestFeed *requestFeedHTTP.Resource, modules []moduleRoute) {
 	// Other API routes under /api prefix for organization
 	a.Router.Route("/api", func(r chi.Router) {
 		if requestFeed != nil {
 			r.Mount("/students/change-requests/rss-feed", requestFeed.TenantRouter())
+		}
+		for _, module := range modules {
+			r.Mount(module.pattern, module.router)
 		}
 		// Mount room resources
 		r.Mount("/rooms", a.Rooms.Router())

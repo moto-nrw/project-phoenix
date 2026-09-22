@@ -143,6 +143,7 @@ function MobileSheetModal({
               disabled={isDismissDisabled}
               className="flex size-11 shrink-0 items-center justify-center rounded-xl text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 active:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50"
               aria-label={closeLabel}
+              data-overlay-close=""
             >
               <svg
                 className="size-6"
@@ -398,6 +399,7 @@ function DialogModal({
                 disabled={isDismissDisabled}
                 className="group relative flex size-11 shrink-0 items-center justify-center rounded-xl text-gray-400 transition-all duration-200 hover:scale-105 hover:bg-gray-100 hover:text-gray-600 active:scale-95"
                 aria-label={closeLabel}
+                data-overlay-close=""
               >
                 {/* Animated X icon */}
                 <svg
@@ -432,6 +434,7 @@ function DialogModal({
               disabled={isDismissDisabled}
               className="group absolute top-4 right-4 z-10 rounded-xl p-2 text-gray-400 transition-all duration-200 hover:scale-105 hover:bg-gray-100 hover:text-gray-600 active:scale-95"
               aria-label={closeLabel}
+              data-overlay-close=""
             >
               {/* Animated X icon */}
               <svg

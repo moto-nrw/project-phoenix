@@ -703,6 +703,7 @@ export default function StudentImportPage() {
               variant="success"
               size="md"
               className="flex-1"
+              data-setup-tour="student-import-submit"
               disabled={
                 isImporting ||
                 isLoading ||

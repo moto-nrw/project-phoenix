@@ -506,6 +506,7 @@ function SelectionBar({
             size="compact"
             onClick={onInviteGuardians}
             disabled={disabled}
+            data-setup-tour="invite-guardians"
           >
             Eltern einladen
           </Button>

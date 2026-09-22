@@ -856,6 +856,7 @@ export function StudentCreateModal({
               {mode === "list-entry" || studentFormAvailable ? (
                 <button
                   type="submit"
+                  data-setup-tour="student-submit"
                   disabled={saveLoading}
                   className="flex-1 rounded-lg bg-gray-900 px-3 py-2 text-xs font-medium text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm md:hover:scale-105"
                 >

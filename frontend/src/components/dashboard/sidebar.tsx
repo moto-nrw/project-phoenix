@@ -1760,6 +1760,7 @@ function SidebarContent({
         label={DATABASE_SECTION.label}
         activeColor="text-gray-500"
         isExpanded={expanded === "database"}
+        tourId="nav-database"
         {...sectionProps("database", handleDatabaseToggle)}
         isActive={isAccordionSectionActive(
           "/database",
@@ -1782,6 +1783,7 @@ function SidebarContent({
             // Eltern accordion. No-op in subdomain mode.
             href={tenantPath(page.href)}
             label={page.label}
+            tourId={`nav-${page.href}`}
             // Auch aktiv, wenn die Objektroute (Kindakte, Personalakte,
             // Raumseite) aus diesem Register geöffnet wurde (#3115).
             isActive={
@@ -1891,6 +1893,7 @@ function SidebarContent({
                 <SidebarGroup
                   label={group.label}
                   icon={group.icon}
+                  tourId={`nav-group-${group.key}`}
                   isOpen={isGroupOpen(group.key)}
                   onToggle={() => toggleGroup(group.key)}
                   containsActive={group.entries.some(isEntryActive)}

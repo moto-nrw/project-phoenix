@@ -30,16 +30,29 @@ export function buildHelpHref(
   context: HelpUrlContext,
   topic?: HelpTopicId,
 ): string {
-  const query = new URLSearchParams({
+  const path = topic ? `/help/${encodeURIComponent(topic)}` : "/help";
+  return `${path}?${helpQuery(context)}`;
+}
+
+/**
+ * Die Seite eines Oberthemas (`/help/gruppe/<id>`): alle Anleitungen einer
+ * Kategorie als Karten, mit derselben Rolle und denselben Einstellungen.
+ */
+export function buildHelpGroupHref(
+  context: HelpUrlContext,
+  group: string,
+): string {
+  return `/help/gruppe/${encodeURIComponent(group)}?${helpQuery(context)}`;
+}
+
+function helpQuery(context: HelpUrlContext): string {
+  return new URLSearchParams({
     role: context.role,
     nfc_enabled: String(context.nfcEnabled),
     presence_mode: context.presenceMode,
     group_mode: context.groupMode,
     return_to: context.returnTo,
-  });
-
-  const path = topic ? `/help/${encodeURIComponent(topic)}` : "/help";
-  return `${path}?${query.toString()}`;
+  }).toString();
 }
 
 export const HELP_TOPICS = {
@@ -91,6 +104,7 @@ export const HELP_TOPICS = {
   // Betreuungskraft (Anmelden, Kindersuche, Elternnachrichten, Tagesauswertung,
   // Dateien), stehen bewusst NICHT hier: sie tragen mehrere Rollen im Feld
   // `audience` statt eines zweiten, fast gleichen Artikels.
+  leadFirstSteps: "erste-schritte-mit-moto",
   leadGoLive: "moto-fuer-den-ersten-betreuungstag-vorbereiten",
   leadRooms: "raeume-anlegen",
   leadGroups: "gruppen-anlegen",
