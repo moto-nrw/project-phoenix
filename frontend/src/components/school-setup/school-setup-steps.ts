@@ -95,7 +95,7 @@ export function applicableSteps(state: SchoolSetupState): SchoolSetupStep[] {
   return state.steps.filter((step) => step.applies);
 }
 
-export function isStepOpen(step: SchoolSetupStep): boolean {
+function isStepOpen(step: SchoolSetupStep): boolean {
   return !step.done && !step.skipped;
 }
 

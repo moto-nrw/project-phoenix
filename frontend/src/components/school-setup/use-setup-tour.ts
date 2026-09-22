@@ -31,7 +31,7 @@ const MIN_VISIBLE_PX = 8;
  * `overflow: hidden` auf Höhe 0 zugeschnitten. Beides zählt als unsichtbar,
  * ebenso ausgeblendete Elemente (etwa mobile Knöpfe auf dem Desktop).
  */
-export function isShown(element: Element): boolean {
+function isShown(element: Element): boolean {
   if (element.closest("[inert]")) return false;
   if (element.getClientRects().length === 0) return false;
   const rect = element.getBoundingClientRect();
@@ -72,7 +72,7 @@ export function findVisibleTarget(selector: string): Element | null {
 }
 
 /** Die erste Station auf der Seite selbst, nach dem Weg durch die Leiste. */
-export function firstPageStop(stops: readonly SetupTourStop[]): number {
+function firstPageStop(stops: readonly SetupTourStop[]): number {
   const index = stops.findIndex((stop) => !stop.nav);
   return index === -1 ? 0 : index;
 }
@@ -82,7 +82,7 @@ export function firstPageStop(stops: readonly SetupTourStop[]): number {
  * das Fenster, wenn die vorige Station nicht darin liegt. Sonst läge es über
  * dem Knopf, der es geöffnet hat.
  */
-export function closeOverlayLeftBehind(
+function closeOverlayLeftBehind(
   shown: Element | null,
   previous: SetupTourStop,
 ): void {
