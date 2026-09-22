@@ -85,10 +85,10 @@ func DueBillingKeyDate(local time.Time, keyDay int) (string, bool) {
 	}
 }
 
-// NextBillingKeyDate is the first key date on or after the calendar day of
-// local.
+// NextBillingKeyDate is the next key date whose counts are not due yet at
+// local: from the key date's capture hour on, that is next month's.
 func NextBillingKeyDate(local time.Time, keyDay int) string {
-	if local.Day() > keyDay {
+	if _, due := DueBillingKeyDate(local, keyDay); due {
 		return billingDate(local.Year(), local.Month()+1, keyDay)
 	}
 	return billingDate(local.Year(), local.Month(), keyDay)

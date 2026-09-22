@@ -297,7 +297,15 @@ function OperatorBillingPageContent() {
 
   return (
     <div className="-mt-1.5 w-full space-y-6">
-      <PageHeaderWithSearch title="Abrechnung" concept="reports" />
+      <PageHeaderWithSearch
+        title="Abrechnung"
+        concept="reports"
+        tabs={{
+          items: [{ id: "billing", label: "Abrechnung" }],
+          activeTab: "billing",
+          onTabChange: () => undefined,
+        }}
+      />
 
       <KeyDaySection
         keyDay={keyDay}
@@ -351,11 +359,7 @@ function OperatorBillingPageContent() {
         ) : !countsLoading && !hasCounts ? (
           <EmptyState
             title="Noch keine Stichtagszahlen"
-            description={
-              keyDay
-                ? `Die ersten Zahlen erfasst moto am ${formatDate(keyDay.nextKeyDate)}.`
-                : "Die ersten Zahlen erfasst moto am nächsten Stichtag."
-            }
+            description="moto erfasst die Zahlen am Stichtag ab 6 Uhr. Fällt die Erfassung am Stichtag aus, holt moto sie im selben Monat nach."
           />
         ) : (
           <div className="space-y-4">
@@ -364,7 +368,7 @@ function OperatorBillingPageContent() {
                 Stichtag {rows[0] ? formatDate(rows[0].keyDate) : "–"}
               </p>
             )}
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-3 gap-3">
               <StatCard variant="tile" label="Schulen" value={rows.length} />
               <StatCard
                 variant="tile"
@@ -383,9 +387,7 @@ function OperatorBillingPageContent() {
               getRowKey={(row) => `${row.period}-${row.schoolId}`}
               isLoading={countsLoading}
               defaultSortKey="organization"
-              caption={
-                period ? `Stichtagszahlen ${monthLabel(period)}` : undefined
-              }
+              stackedOnMobile
             />
           </div>
         )}

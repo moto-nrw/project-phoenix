@@ -48,7 +48,9 @@ func TestDueBillingKeyDate(t *testing.T) {
 func TestNextBillingKeyDate(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "2026-09-25", NextBillingKeyDate(local(2026, time.September, 22, 9, 0), 25))
-	assert.Equal(t, "2026-09-22", NextBillingKeyDate(local(2026, time.September, 22, 23, 0), 22))
+	assert.Equal(t, "2026-09-22", NextBillingKeyDate(local(2026, time.September, 22, 5, 59), 22))
+	assert.Equal(t, "2026-10-22", NextBillingKeyDate(local(2026, time.September, 22, 6, 0), 22),
+		"from the capture hour on, today's key date is taken")
 	assert.Equal(t, "2026-10-15", NextBillingKeyDate(local(2026, time.September, 22, 9, 0), 15))
 	assert.Equal(t, "2027-01-15", NextBillingKeyDate(local(2026, time.December, 31, 9, 0), 15))
 }

@@ -119,7 +119,9 @@ describe("OperatorBillingPage", () => {
       await screen.findByText("Noch keine Stichtagszahlen"),
     ).toBeInTheDocument();
     expect(
-      await screen.findByText("Die ersten Zahlen erfasst moto am 15.09.2026."),
+      await screen.findByText(
+        "moto erfasst die Zahlen am Stichtag ab 6 Uhr. Fällt die Erfassung am Stichtag aus, holt moto sie im selben Monat nach.",
+      ),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Monat als CSV" }),
@@ -147,9 +149,9 @@ describe("OperatorBillingPage", () => {
     ]);
     renderPage();
 
-    expect(await screen.findByText("OGS Am See")).toBeInTheDocument();
+    expect(await screen.findAllByText("OGS Am See")).not.toHaveLength(0);
     expect(screen.getByText("Stichtag 15.08.2026")).toBeInTheDocument();
-    expect(screen.queryByText("OGS Juli")).not.toBeInTheDocument();
+    expect(screen.queryAllByText("OGS Juli")).toHaveLength(0);
     expect(screen.getByText("200")).toBeInTheDocument();
     expect(screen.getByText("5")).toBeInTheDocument();
   });
@@ -160,9 +162,10 @@ describe("OperatorBillingPage", () => {
     ]);
     renderPage();
 
+    // The table renders its desktop and its stacked phone layout.
     expect(
-      await screen.findByText("17.08.2026, 09:30 Uhr · nachträglich"),
-    ).toBeInTheDocument();
+      await screen.findAllByText("17.08.2026, 09:30 Uhr · nachträglich"),
+    ).not.toHaveLength(0);
   });
 
   it("downloads the chosen month and every month as CSV", async () => {
