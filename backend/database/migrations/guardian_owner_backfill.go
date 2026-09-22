@@ -191,12 +191,22 @@ type guardianOwnerBatch struct {
 }
 
 // guardianOwnerEligibleBatch selects one keyset batch of source rows joined
-// with the guardian's account binding. The join is on the composite tenant key:
-// users.students_guardians already carries composite foreign keys for both the
-// student and the guardian, so a row without a same-tenant guardian cannot
-// exist once those constraints are validated. A row that nevertheless lacks one
-// counts as rejected and keeps the tenant unverified instead of being laundered
-// into Identity storage with a NULL binding.
+// with the guardian's account binding. Two kinds of row are rejected rather
+// than copied; both count as rejected and keep the tenant unverified until the
+// source is corrected:
+//
+//   - A row without a same-tenant guardian profile. users.students_guardians
+//     already carries composite foreign keys for both the student and the
+//     guardian, so this cannot exist once those constraints are validated; the
+//     check keeps a forced row from being laundered into Identity storage with
+//     a NULL binding.
+//   - A primary row of a child who has more than one primary. The old table
+//     enforces the single primary only through a trigger on writes of
+//     is_primary; moving a primary row to another child with an UPDATE of
+//     student_id leaves two primaries, which the target's partial unique index
+//     refuses. Copying either would make the run rewind forever, so the copy
+//     leaves both out and the mismatch reports them. Payer needs no such
+//     check: the old table has the same partial unique index as the target.
 const guardianOwnerEligibleBatch = `
 	batch AS (
 		SELECT sg.id, sg.tenant_id, sg.student_id, sg.guardian_profile_id, sg.relationship_type,
@@ -211,6 +221,9 @@ const guardianOwnerEligibleBatch = `
 		SELECT b.*, g.account_id
 		FROM batch AS b
 		JOIN users.guardian_profiles AS g ON g.id = b.guardian_profile_id AND g.tenant_id = b.tenant_id
+		WHERE NOT (b.is_primary AND EXISTS (
+			SELECT 1 FROM users.students_guardians AS o
+			WHERE o.tenant_id = b.tenant_id AND o.student_id = b.student_id AND o.is_primary AND o.id <> b.id))
 	)`
 
 // guardianOwnerCopyBatch copies one batch into all three targets and returns

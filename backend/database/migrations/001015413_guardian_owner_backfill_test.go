@@ -911,6 +911,89 @@ func TestGuardianOwnerBackfillRollbackPermitsExpandRollback(t *testing.T) {
 	require.EqualValues(t, 2, cp.RowsCopied)
 }
 
+// The old table's single-primary rule lives in a trigger that only fires on
+// writes of is_primary; re-parenting a primary row to another child leaves
+// that child with two primaries. The target's partial unique index refuses
+// both, and a rewind can never release a claim that both source rows hold, so
+// the copy must leave them out and report them instead of restarting forever.
+func TestGuardianOwnerBackfillRejectsDuplicatePrimaries(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	tenantID := testpkg.Tenant(t)
+	ids := guardianOwnerFixture(t, db, tenantID, 3)
+	var childID int64
+	require.NoError(t, db.NewRaw(`SELECT student_id FROM users.students_guardians WHERE id = ?`, ids[0]).Scan(ctx, &childID))
+	_, err := db.ExecContext(ctx, `UPDATE users.students_guardians SET student_id = ? WHERE id = ?`, childID, ids[2])
+	require.NoError(t, err)
+	var primaries int64
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM users.students_guardians WHERE student_id = ? AND is_primary`, childID).Scan(ctx, &primaries))
+	require.EqualValues(t, 2, primaries, "the source trigger does not fire on a student_id change")
+
+	report, err := RunGuardianOwnerBackfill(ctx, db, GuardianOwnerBackfillOptions{MaxPasses: 2})
+	require.NoError(t, err, "duplicate primaries must not fail the run")
+	require.Equal(t, []int64{tenantID}, report.Unstable())
+	cp := guardianOwnerCheckpoint(t, report, tenantID)
+	require.False(t, cp.Verified())
+	require.EqualValues(t, 4, cp.RowsRejected, "both primaries are rejected on both passes")
+	require.EqualValues(t, 2, cp.MismatchCount)
+	require.EqualValues(t, 3, cp.SourceCount)
+	require.EqualValues(t, 1, cp.TargetCount)
+	require.Zero(t, cp.BatchesRetried, "rejecting avoids the unique-conflict rewind")
+
+	_, err = db.ExecContext(ctx, `UPDATE users.students_guardians SET is_primary = false WHERE id = ?`, ids[2])
+	require.NoError(t, err)
+	report, err = RunGuardianOwnerBackfill(ctx, db, GuardianOwnerBackfillOptions{})
+	require.NoError(t, err)
+	requireGuardianOwnerTenantEqual(t, db, report, tenantID)
+}
+
+// "Komplett löschen" deletes a guardian's old links and then the profile in
+// one transaction. The copied relationship must not refuse that delete: while
+// the old table is authoritative the copy follows the profile, and rollback
+// restores the RESTRICT action the authoritative target will need.
+func TestGuardianOwnerBackfillDoesNotBlockGuardianDeletion(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	tenantID := testpkg.Tenant(t)
+	ids := guardianOwnerFixture(t, db, tenantID, 2)
+	report, err := RunGuardianOwnerBackfill(ctx, db, GuardianOwnerBackfillOptions{})
+	require.NoError(t, err)
+	requireGuardianOwnerTenantEqual(t, db, report, tenantID)
+	var guardianID int64
+	require.NoError(t, db.NewRaw(`SELECT guardian_profile_id FROM users.students_guardians WHERE id = ?`, ids[0]).Scan(ctx, &guardianID))
+	require.NoError(t, db.RunInTx(ctx, nil, func(ctx context.Context, tx testpkg.Tx) error {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM users.students_guardians WHERE guardian_profile_id = ?`, guardianID); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, `DELETE FROM users.guardian_profiles WHERE id = ?`, guardianID)
+		return err
+	}), "the copied relationship must not refuse the guardian delete")
+	var remaining int64
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM users.student_guardian_relationships WHERE id = ?`, ids[0]).Scan(ctx, &remaining))
+	require.Zero(t, remaining, "the copy follows the deleted profile")
+	report, err = RunGuardianOwnerBackfill(ctx, db, GuardianOwnerBackfillOptions{})
+	require.NoError(t, err)
+	cp := requireGuardianOwnerTenantEqual(t, db, report, tenantID)
+	require.EqualValues(t, 1, cp.SourceCount)
+	require.Zero(t, cp.RowsRemoved, "nothing is left for the orphan sweep")
+
+	deleteAction := func() string {
+		var action string
+		require.NoError(t, db.NewRaw(`SELECT confdeltype::text FROM pg_constraint
+			WHERE conrelid = 'users.student_guardian_relationships'::regclass
+			  AND conname = 'fk_student_guardian_relationships_guardian'`).Scan(ctx, &action))
+		return action
+	}
+	require.Equal(t, "c", deleteAction())
+	require.NoError(t, guardianOwnerBackfillDown(ctx, db))
+	require.Equal(t, "r", deleteAction(), "rollback restores the Expand action")
+	require.NoError(t, guardianOwnerBackfillUp(ctx, db))
+	require.Equal(t, "c", deleteAction())
+	require.NoError(t, guardianOwnerBackfillUp(ctx, db), "the rewrite is idempotent")
+}
+
 func requireGuardianOwnerTargetsEmpty(t *testing.T, db *testpkg.DB) {
 	t.Helper()
 	for _, table := range []string{"users.student_guardian_relationships", "users.student_guardian_pickup_permissions", "auth.guardian_student_access"} {

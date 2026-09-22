@@ -60,8 +60,19 @@ re-reads the binding on every pass and verification reports drift as
   rejected, not copied. The old table already carries composite tenant foreign
   keys for both the student and the guardian, so this cannot happen on
   validated data; the check keeps a forced or not-yet-validated row from being
-  laundered into Identity storage with an empty binding. Rejected rows keep
-  the tenant unverified until the source is corrected.
+  laundered into Identity storage with an empty binding. Primary rows of a
+  child who has more than one primary are rejected as well: the old table
+  enforces the single primary only through a trigger on writes of
+  `is_primary`, so moving a primary row to another child leaves two, and the
+  target's partial unique index would make the pass rewind forever. Rejected
+  rows keep the tenant unverified until the source is corrected.
+- While the targets are copies, the guardian foreign key of
+  `users.student_guardian_relationships` is `ON DELETE CASCADE` instead of the
+  `RESTRICT` Expand created. "Komplett löschen" deletes the old links and the
+  profile in one transaction, and a copied relationship that still referenced
+  the profile would refuse that delete until the next pass swept it. The
+  rollback restores `RESTRICT`; Cutover decides the final action for the
+  authoritative table.
 - After each full pass the tenant's orphaned target rows (source physically
   deleted) are removed, then counts, canonical checksums (SHA-256 over ordered
   SHA-256 canonical JSON row digests on both sides), a row-wise mismatch count
@@ -113,16 +124,23 @@ only and mirrors `guardianOwnerEligibleBatch` in
 
 ### `rows_rejected`
 
-A rejected row points at a guardian profile that is missing or belongs to
-another school. Repoint `users.students_guardians.guardian_profile_id` at this
-school's guardian, or delete the link.
+A rejected row either points at a guardian profile that is missing or belongs
+to another school, or is one of two primary rows of the same child. Repoint
+`users.students_guardians.guardian_profile_id` at this school's guardian or
+delete the link; for duplicate primaries, decide which guardian stays primary
+and clear `is_primary` on the other row.
 
 ```sql
-SELECT sg.id AS link_id, sg.tenant_id AS link_tenant, sg.student_id, sg.guardian_profile_id, g.tenant_id AS guardian_tenant
+SELECT sg.id AS link_id, sg.tenant_id AS link_tenant, sg.student_id, sg.guardian_profile_id,
+       g.tenant_id AS guardian_tenant, sg.is_primary,
+       (SELECT count(*) FROM users.students_guardians o
+        WHERE o.tenant_id = sg.tenant_id AND o.student_id = sg.student_id AND o.is_primary) AS primaries_of_child
 FROM users.students_guardians sg
 LEFT JOIN users.guardian_profiles g ON g.id = sg.guardian_profile_id
 WHERE sg.tenant_id = :tenant_id
-  AND (g.id IS NULL OR g.tenant_id <> sg.tenant_id)
+  AND (g.id IS NULL OR g.tenant_id <> sg.tenant_id
+       OR (sg.is_primary AND EXISTS (SELECT 1 FROM users.students_guardians o
+             WHERE o.tenant_id = sg.tenant_id AND o.student_id = sg.student_id AND o.is_primary AND o.id <> sg.id)))
 ORDER BY sg.id;
 ```
 

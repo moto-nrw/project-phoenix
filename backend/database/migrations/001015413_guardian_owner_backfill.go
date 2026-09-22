@@ -80,6 +80,9 @@ func guardianOwnerBackfillUp(ctx context.Context, db *bun.DB) error {
 		if err != nil {
 			return fmt.Errorf("create storage backfill checkpoints: %w", err)
 		}
+		if err := setGuardianRelationshipDeleteAction(ctx, tx, "CASCADE"); err != nil {
+			return err
+		}
 		return provisionTenantRLS(ctx, tx, "platform.storage_backfill_checkpoints")
 	})
 	if err != nil {
@@ -126,6 +129,70 @@ func guardianOwnerBackfillDown(ctx context.Context, db *bun.DB) error {
 				END IF;
 			END $$;
 		`, GuardianOwnerBackfillName)
-		return err
+		if err != nil {
+			return err
+		}
+		return setGuardianRelationshipDeleteAction(ctx, tx, "RESTRICT")
 	})
 }
+
+// setGuardianRelationshipDeleteAction rewrites the guardian foreign key of
+// users.student_guardian_relationships with the given ON DELETE action.
+//
+// Expand created it as RESTRICT, the action the authoritative table will need
+// once the targets own the data (#819: deleting a guardian must not silently
+// unlink siblings). While users.students_guardians stays authoritative the
+// target rows are copies that no application caller maintains: "Komplett
+// löschen" deletes the old links and then the profile in one transaction, and
+// a copied relationship that still references the profile would refuse that
+// delete with a foreign-key violation until the next backfill pass swept it.
+// A copy that outlives its source has no value, so the backfill window uses
+// CASCADE; rollback restores RESTRICT, and Cutover owns the final action. The
+// rewrite is idempotent so resumed deployments and the guarded down/up
+// sequence can repeat it.
+func setGuardianRelationshipDeleteAction(ctx context.Context, tx bun.Tx, onDelete string) error {
+	var deleteType string
+	switch onDelete {
+	case "CASCADE":
+		deleteType = "c"
+	case "RESTRICT":
+		deleteType = "r"
+	default:
+		return fmt.Errorf("unsupported ON DELETE action %q", onDelete)
+	}
+	var current string
+	if err := tx.NewRaw(`SELECT confdeltype::text FROM pg_constraint
+		WHERE conrelid = 'users.student_guardian_relationships'::regclass
+		  AND conname = 'fk_student_guardian_relationships_guardian'`).Scan(ctx, &current); err != nil {
+		return fmt.Errorf("inspect fk_student_guardian_relationships_guardian: %w", err)
+	}
+	if current == deleteType {
+		return nil
+	}
+	// The architecture ratchet resolves migration SQL statically, so each
+	// action runs its own literal statement instead of a composed one.
+	var err error
+	if onDelete == "CASCADE" {
+		_, err = tx.ExecContext(ctx, guardianRelationshipGuardianFKCascade)
+	} else {
+		_, err = tx.ExecContext(ctx, guardianRelationshipGuardianFKRestrict)
+	}
+	if err != nil {
+		return fmt.Errorf("set fk_student_guardian_relationships_guardian to ON DELETE %s: %w", onDelete, err)
+	}
+	return nil
+}
+
+const guardianRelationshipGuardianFKCascade = `
+	SET LOCAL lock_timeout = '5s';
+	ALTER TABLE users.student_guardian_relationships
+		DROP CONSTRAINT fk_student_guardian_relationships_guardian,
+		ADD CONSTRAINT fk_student_guardian_relationships_guardian FOREIGN KEY (tenant_id, guardian_profile_id)
+			REFERENCES users.guardian_profiles(tenant_id, id) ON DELETE CASCADE`
+
+const guardianRelationshipGuardianFKRestrict = `
+	SET LOCAL lock_timeout = '5s';
+	ALTER TABLE users.student_guardian_relationships
+		DROP CONSTRAINT fk_student_guardian_relationships_guardian,
+		ADD CONSTRAINT fk_student_guardian_relationships_guardian FOREIGN KEY (tenant_id, guardian_profile_id)
+			REFERENCES users.guardian_profiles(tenant_id, id) ON DELETE RESTRICT`
