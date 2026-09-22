@@ -1,9 +1,32 @@
 import { describe, expect, it } from "vitest";
 import {
   DEMO_SETUP_STEPS,
+  demoEntryEvent,
+  demoLinkFragment,
   demoSetupStep,
   isDemoEntryPath,
 } from "./demo-access";
+
+// A restart (#3470) travels through the fragment like a role switch does,
+// and the entry into the fresh school reports it as such.
+describe("demoEntryEvent", () => {
+  it("reports an entry, a switch or a restart", () => {
+    expect(demoEntryEvent({ token: "t" })).toBe("demo_entered");
+    expect(demoEntryEvent({ token: "t", switched: true })).toBe(
+      "demo_role_switched",
+    );
+    expect(demoEntryEvent({ token: "t", restarted: true })).toBe(
+      "demo_restarted",
+    );
+  });
+
+  it("carries the restart through the fragment", () => {
+    expect(
+      demoLinkFragment({ token: "t", role: "lead", restarted: true }),
+    ).toBe("#token=t&role=lead&restarted=1");
+    expect(demoLinkFragment({ token: "t" })).toBe("#token=t");
+  });
+});
 
 describe("isDemoEntryPath", () => {
   it("matches the entry page on a subdomain and in path mode", () => {

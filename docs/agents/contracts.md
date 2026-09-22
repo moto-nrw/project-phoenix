@@ -120,6 +120,7 @@ not composed. The backend routes are public, take no cookies, and rely on
 | `POST /demo/access-requests` | `email`, `school_name`, `person_name`, `contact_opt_in`, optional `src` and `role` (a demo role, appended to the mailed link as `&role=`) → always `202 {link_sent: true}`, never the link itself; `422 demo_access_invalid`; `429 demo_access_rate_limited` with `Retry-After` (seconds); `503 demo_capacity_reached` |
 | `GET /demo/access/status` | token in `Authorization: Bearer` → `{status: preparing\|ready\|failed, school_name}` (the OGS name the prospect gave, shown while waiting, #3464), plus `school_url` (origin of the demo school) when `ready` |
 | `POST /demo/access/sessions` | `{token, role?}` → `{access_token, refresh_token, demo: {access_id, role, src, fixed_role}}` (tenant session; parents portal session for `role: parent`, #3468); `409 demo_school_preparing`; `422 demo_access_invalid` for an unknown role |
+| `POST /demo/access/reset` | `{token}` → `202 {status: "preparing", entry_url}` (#3470): a fresh demo school is queued for the same access with the same names, the old one is soft-deleted and its sessions are revoked; `entry_url` is the waiting room with the token in the fragment, as in the mailed link. `409 demo_school_preparing` while the current school is still being seeded; `422 demo_access_invalid` for the shared standing school; `503 demo_capacity_reached` never for a restart, because the old school gives its place back first |
 
 Demo roles (#3467): `caregiver`, `lead`, `all`. A role first becomes the only
 role of the visitor's own caregiver in its school (`user` for `caregiver`,
@@ -152,9 +153,28 @@ parents entry page sends the visitor on to the school.
 
 Unknown token: `404 demo_access_unknown`; expired: `410 demo_access_expired`.
 The token is opaque, stored as SHA-256 fingerprint in `auth.demo_accesses`
-(owner `identity-access`), valid 14 days, reusable, every use counted. It
-travels in the URL fragment, request bodies, or the header above, never in a
-URL a server logs.
+(owner `identity-access`), reusable, every use counted. It is valid 14 days
+after its last use (#3470): a redemption moves `expires_at` forward by the
+full lifetime. It travels in the URL fragment, request bodies, or the header
+above, never in a URL a server logs.
+
+Restart and expiry (#3470). „Demo neu anfangen" in the banner asks first
+(`ConfirmationModal`), then posts the role to the frontend route
+`/api/demo/access/reset`, which reads the `moto-demo-token` cookie, calls the
+backend and answers `{entry_url}` with `&restarted=1` and the role appended
+to the fragment. The banner navigates there: the waiting room shows the setup
+screen as on the first entry, the school's entry page skips the role cards
+and reports `demo_restarted` instead of `demo_entered`. Every access of the
+old school moves to the new one (`school_slug`), so earlier links of the
+address lead there too, and the old school's `account_id` and
+`parent_account_id` are forgotten. Expiry runs in the demo process once an
+hour on an injected clock (`cmd/demo_expiry.go`): accesses past `expires_at`
+are deleted, and a demo school no remaining access enters is soft-deleted
+through its owner. The standing school is never hidden. A hidden school
+holds no place against the capacity, gets no ticker, and cannot be entered:
+its subdomain resolves no tenant. An expired or deleted link answers `410` or
+`404`, and both entry pages show „Dieser Link funktioniert nicht mehr" with
+„Neuen Link anfordern" to the website's demo page.
 
 Every address enters a demo school of its own (#3463). Its first request
 queues an order in `platform.demo_school_states` (owner
@@ -192,8 +212,12 @@ account or guardian address in a demo school, where
 to the inviting tenant. The serving role reads `name`, `status`, `tenant_id`,
 `visitor_account_id` and `visitor_parent_account_id` of an order, inserts new ones, and stamps
 `last_used_at` when a token is redeemed; `seed_state` and `status` are out of
-its reach. The demo process ticks only schools redeemed in the last 30 minutes
-(#3464).
+its reach. A restart soft-deletes the school through `platform.schools`, on
+which the serving role holds every right; the order row is not touched. The
+demo process ticks only schools redeemed in the last 30 minutes (#3464) and,
+for the expiry (#3470), may read `id`, `school_slug` and `expires_at` of
+`auth.demo_accesses` and delete rows, and read and set `deleted_at` of
+`platform.schools`; it never sees an address or a name (migration 1.15.412).
 
 Mails (#3465): the entry link leaves by mail only (`demo-access.html`,
 Reply-To `kontakt@moto.nrw`), and the answer is the same for every address,

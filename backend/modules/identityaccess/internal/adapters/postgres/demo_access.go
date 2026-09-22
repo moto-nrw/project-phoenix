@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/uptrace/bun"
 )
 
 // Identity-owned rows behind the demo access of the public demo (#3462). The
@@ -73,32 +74,37 @@ func (s *Store) FindDemoAccessByTokenHash(ctx context.Context, tokenHash string)
 		ExpiresAt  time.Time `bun:"expires_at"`
 		SchoolSlug string    `bun:"school_slug"`
 		SchoolName string    `bun:"school_name"`
+		PersonName string    `bun:"person_name"`
 		Source     string    `bun:"source"`
 	}
-	err = db.NewRaw(`SELECT id, expires_at, school_slug, school_name, source FROM auth.demo_accesses WHERE token_hash = ?`, tokenHash).Scan(ctx, &row)
+	err = db.NewRaw(`SELECT id, expires_at, school_slug, school_name, person_name, source FROM auth.demo_accesses WHERE token_hash = ?`, tokenHash).Scan(ctx, &row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.DemoAccess{}, false, nil
 	}
 	if err != nil {
 		return domain.DemoAccess{}, false, fmt.Errorf("identity access postgres: find demo access: %w", err)
 	}
-	return domain.DemoAccess{ID: row.ID, TokenHash: tokenHash, ExpiresAt: row.ExpiresAt, SchoolSlug: row.SchoolSlug, SchoolName: row.SchoolName, Source: row.Source}, true, nil
+	return domain.DemoAccess{
+		ID: row.ID, TokenHash: tokenHash, ExpiresAt: row.ExpiresAt,
+		SchoolSlug: row.SchoolSlug, SchoolName: row.SchoolName, PersonName: row.PersonName, Source: row.Source,
+	}, true, nil
 }
 
 // RecordDemoAccessUse notes one redemption, the account it signed in and the
 // school's parent the role parent signs in (#3468). A redemption without such
 // a parent keeps the one noted before: an earlier parent session of the same
-// access stays exempt from the session cap.
-func (s *Store) RecordDemoAccessUse(ctx context.Context, id, accountID, parentAccountID int64, usedAt time.Time) error {
+// access stays exempt from the session cap. Every use extends the access by
+// its full lifetime (#3470): the demo expires 14 days after the last entry.
+func (s *Store) RecordDemoAccessUse(ctx context.Context, id, accountID, parentAccountID int64, usedAt, expiresAt time.Time) error {
 	db, err := s.database(ctx)
 	if err != nil {
 		return err
 	}
 	_, err = db.NewRaw(`UPDATE auth.demo_accesses
-		SET use_count = use_count + 1, last_used_at = ?, account_id = ?,
+		SET use_count = use_count + 1, last_used_at = ?, expires_at = ?, account_id = ?,
 			parent_account_id = COALESCE(NULLIF(?, 0::BIGINT), parent_account_id)
 		WHERE id = ?`,
-		usedAt, accountID, parentAccountID, id).Exec(ctx)
+		usedAt, expiresAt, accountID, parentAccountID, id).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("identity access postgres: record demo access use: %w", err)
 	}
@@ -168,4 +174,57 @@ func (s *Store) DemoAccountExists(ctx context.Context, accountID int64) (bool, e
 		return false, fmt.Errorf("identity access postgres: check demo account: %w", err)
 	}
 	return exists, nil
+}
+
+// MoveDemoAccesses lets every access of the hidden school enter its
+// successor (#3470). The accounts of the old school are forgotten: the next
+// entry notes the new school's.
+func (s *Store) MoveDemoAccesses(ctx context.Context, fromSlug, toSlug string) error {
+	db, err := s.database(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = db.NewRaw(`UPDATE auth.demo_accesses SET school_slug = ?, account_id = NULL, parent_account_id = NULL WHERE school_slug = ?`,
+		toSlug, fromSlug).Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("identity access postgres: move demo accesses: %w", err)
+	}
+	return nil
+}
+
+// DemoAccessExpiryStore runs on the demo process's own connection (#3470),
+// whose role may delete accesses and read the columns that decide it, and
+// nothing that names a prospect.
+type DemoAccessExpiryStore struct{ db bun.IDB }
+
+func NewDemoAccessExpiryStore(db bun.IDB) *DemoAccessExpiryStore {
+	return &DemoAccessExpiryStore{db: db}
+}
+
+// DeleteExpiredDemoAccesses deletes every access past its lifetime and
+// returns the schools of the deleted accesses that no access enters any
+// more: with the last link gone, the school can be hidden.
+func (s *DemoAccessExpiryStore) DeleteExpiredDemoAccesses(ctx context.Context, now time.Time) (int, []string, error) {
+	var rows []struct {
+		SchoolSlug string `bun:"school_slug"`
+		Orphaned   bool   `bun:"orphaned"`
+	}
+	// The sub-select reads the table as it was when the statement began, so
+	// it must ask for accesses that survive, not for rows that are left.
+	err := s.db.NewRaw(`WITH expired AS (
+			DELETE FROM auth.demo_accesses WHERE expires_at <= ? RETURNING school_slug)
+		SELECT school_slug,
+			NOT EXISTS (SELECT 1 FROM auth.demo_accesses AS remaining
+				WHERE remaining.school_slug = expired.school_slug AND remaining.expires_at > ?) AS orphaned
+		FROM expired ORDER BY school_slug`, now, now).Scan(ctx, &rows)
+	if err != nil {
+		return 0, nil, fmt.Errorf("identity access postgres: delete expired demo accesses: %w", err)
+	}
+	var slugs []string
+	for _, row := range rows {
+		if row.Orphaned && (len(slugs) == 0 || slugs[len(slugs)-1] != row.SchoolSlug) {
+			slugs = append(slugs, row.SchoolSlug)
+		}
+	}
+	return len(rows), slugs, nil
 }

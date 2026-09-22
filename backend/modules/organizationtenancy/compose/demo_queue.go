@@ -121,3 +121,11 @@ func (e demoOrderEngine) MarkDemoSchoolUsed(ctx context.Context, slug string, us
 func (e demoQueueEngine) ReturnDemoSchoolOrder(ctx context.Context, slug string) error {
 	return e.store.Return(ctx, slug)
 }
+
+func (e demoQueueEngine) RetireDemoSchools(ctx context.Context, slugs []string) (int, error) {
+	return e.store.RetireMany(ctx, slugs)
+}
+
+func (e demoOrderEngine) RetireDemoSchool(ctx context.Context, slug string) error {
+	return e.store.Retire(ctx, slug)
+}

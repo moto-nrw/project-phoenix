@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
@@ -48,12 +49,27 @@ type DemoSchools interface {
 	PrepareDemoSchool(ctx context.Context, schoolName, personName string) (slug string, err error)
 	DemoSchoolEntry(ctx context.Context, slug string) (identityaccess.DemoSchoolEntry, error)
 	MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error
+	// ReplaceDemoSchool hides the school and queues a fresh one with the
+	// same names, returning its slug (#3470). The standing school reports
+	// identityaccess.ErrDemoAccessInvalid: it is shared and never restarts.
+	ReplaceDemoSchool(ctx context.Context, slug, schoolName, personName string) (newSlug string, err error)
 }
 
 type demoSchoolsPort struct{ schools DemoSchools }
 
 func (p demoSchoolsPort) MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error {
 	return p.schools.MarkDemoSchoolUsed(ctx, slug, usedAt)
+}
+
+func (p demoSchoolsPort) ReplaceDemoSchool(ctx context.Context, slug, schoolName, personName string) (string, error) {
+	newSlug, err := p.schools.ReplaceDemoSchool(ctx, slug, schoolName, personName)
+	switch {
+	case errors.Is(err, identityaccess.ErrDemoCapacityReached):
+		return "", domain.ErrDemoCapacityReached
+	case errors.Is(err, identityaccess.ErrDemoAccessInvalid):
+		return "", domain.ErrDemoAccessInvalid
+	}
+	return newSlug, err
 }
 
 func (p demoSchoolsPort) PrepareDemoSchool(ctx context.Context, schoolName, personName string) (string, error) {
@@ -155,6 +171,37 @@ func (e demoAccessEngine) RedeemDemoAccess(ctx context.Context, token, role, ipA
 		AccessToken: entry.AccessToken, RefreshToken: entry.RefreshToken,
 		AccessID: entry.AccessID, Role: string(entry.Role), Source: entry.Source, FixedRole: entry.FixedRole,
 	}, nil
+}
+
+func (e demoAccessEngine) ResetDemoAccess(ctx context.Context, token string) error {
+	_, err := e.flows.Reset(ctx, token)
+	return demoAccessError(err)
+}
+
+// NewDemoAccessExpiry composes the demo process's expiry (#3470) on that
+// process's own connection; now is the clock the process injects.
+func NewDemoAccessExpiry(db bun.IDB, now func() time.Time) (*identityaccess.DemoAccessExpiry, error) {
+	if db == nil {
+		return nil, errors.New("identity access compose: demo access expiry requires a database")
+	}
+	if now == nil {
+		return nil, errors.New("identity access compose: demo access expiry requires a clock")
+	}
+	return identityaccess.NewDemoAccessExpiry(demoAccessExpiryEngine{store: postgres.NewDemoAccessExpiryStore(db), now: now}), nil
+}
+
+// demoAccessExpiryEngine deletes demo accesses 14 days after their last use
+// (#3470). A use extends the access, so an access past its end has not been
+// used for its whole lifetime; deleting it removes the prospect's contact
+// data. The schools left without any access go back to the caller, which
+// hides them through their owner.
+type demoAccessExpiryEngine struct {
+	store *postgres.DemoAccessExpiryStore
+	now   func() time.Time
+}
+
+func (e demoAccessExpiryEngine) ExpireDemoAccesses(ctx context.Context) (int, []string, error) {
+	return e.store.DeleteExpiredDemoAccesses(ctx, e.now())
 }
 
 var demoAccessSentinels = []struct{ internal, public error }{
