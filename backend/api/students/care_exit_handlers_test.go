@@ -7,13 +7,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -33,25 +31,17 @@ func wireCareLifecycle(t *testing.T, tc *testContext) {
 
 func wireCareLifecycleWithBookingMode(t *testing.T, tc *testContext, authoritative bool) {
 	t.Helper()
-	repos := newStudentTestRepositories(tc.db)
-	membership, err := repositories.NewSchoolMembership(tc.db)
+	repos, err := repositories.NewCareLifecycleTestRepositories(tc.db, nil)
 	require.NoError(t, err)
-	tc.resource.CareLifecycleService = carelifecycle.NewCareLifecycleService(
-		carelifecycle.CareLifecycleDependencies{
-			StudentRepo:    repositories.NewCareStudents(repos.Student, membership),
-			PersonRepo:     repos.Person,
-			CareExitRepo:   repos.CareExit,
-			CleanupRepo:    repos.CareExitCleanup,
-			WithdrawalRepo: repos.CareWithdrawal,
-			TagReleaser:    repos.TagReleaser,
-			AuditService:   userService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(tc.db)),
-			BookingsAuthoritative: func(context.Context) (bool, error) {
-				return authoritative, nil
-			},
-			Today:  func() timezone.Date { return timezone.DateFromTime(tc.resource.Now()) },
-			DB:     tc.db,
-			Logger: slog.Default(),
-		})
+	lifecycle, err := repos.NewCareLifecycle(repositories.CareLifecycleTestConfig{
+		Audit: userService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(tc.db)),
+		BookingsAuthoritative: func(context.Context) (bool, error) {
+			return authoritative, nil
+		},
+		Today: func() timezone.Date { return timezone.DateFromTime(tc.resource.Now()) },
+	})
+	require.NoError(t, err)
+	tc.resource.CareLifecycleService = lifecycle
 }
 
 func TestStudentList_UsesBookingParticipationButKeepsAdministrationAndLivePresence(t *testing.T) {

@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	auditmodel "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -54,7 +53,7 @@ func TestMFAService_RecordAuthEvent_LandsRowWithExplicitTenantID(t *testing.T) {
 	require.NoError(t, err)
 
 	// Query the synchronously appended audit row.
-	row := waitForAuthEvent(t, db, acc.ID, auditmodel.EventTypeMFAEmailSent, 3*time.Second)
+	row := waitForAuthEvent(t, db, acc.ID, authEventMFAEmailSent, 3*time.Second)
 	require.NotNil(t, row, "mfa_email_sent audit row must land — login-flow audit was the regression")
 	assert.Equal(t, tenantID, row.TenantID,
 		"audit row must be filed under the tenant passed to StartChallenge, not 0")
@@ -105,7 +104,7 @@ func TestMFAService_RecordAuthEvent_FallsBackToSentinelIPForInternalEvents(t *te
 	err = svc.VerifyMFACodeForAccount(authedCtx, acc.ID, tenantID, "000000", identityaccess.MFAChallengeScopeTenant)
 	require.ErrorIs(t, err, identityaccess.ErrMFACodeInvalid)
 
-	row := waitForAuthEvent(t, db, acc.ID, auditmodel.EventTypeMFAFailed, 3*time.Second)
+	row := waitForAuthEvent(t, db, acc.ID, authEventMFAFailed, 3*time.Second)
 	require.NotNil(t, row, "mfa_failed row must land even when caller passes nil IP")
 	assert.Equal(t, tenantID, row.TenantID,
 		"audit row must use the tenant from context (VerifyCodeForAccount runs inside tenant tx)")
@@ -117,14 +116,13 @@ func TestMFAService_RecordAuthEvent_FallsBackToSentinelIPForInternalEvents(t *te
 // eventType) and returns it once it lands or after timeout. Returns nil on
 // timeout. We bypass tenant RLS by querying directly with the postgres
 // superuser DSN (the test DB connection).
-func waitForAuthEvent(t *testing.T, db *bun.DB, accountID int64, eventType string, timeout time.Duration) *auditmodel.AuthEvent {
+func waitForAuthEvent(t *testing.T, db *bun.DB, accountID int64, eventType string, timeout time.Duration) *authEventRow {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	for {
-		var row auditmodel.AuthEvent
+		var row authEventRow
 		err := db.NewSelect().
 			Model(&row).
-			ModelTableExpr(`audit.auth_events AS "auth_event"`).
 			Where("account_id = ?", accountID).
 			Where("event_type = ?", eventType).
 			Order("created_at DESC").

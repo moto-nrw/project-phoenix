@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -14,18 +14,16 @@ func TestNewSettingsResource(t *testing.T) {
 
 	res := NewSettingsResource(SettingsConfig{})
 	assert.NotNil(t, res)
-	assert.Nil(t, res.settingsService)
-	assert.Nil(t, res.db)
+	assert.Nil(t, res.settings)
 	assert.Nil(t, res.schoolService)
-	assert.NotNil(t, res.operatorSettings)
 }
 
 func TestRenderOperatorSettingsError_DefinitionNotFound(t *testing.T) {
 	t.Parallel()
 
-	err := &configSvc.SettingsError{
+	err := &settings.SettingsError{
 		Op:  "resolve",
-		Err: &configSvc.DefinitionNotFoundError{Key: "bad.key"},
+		Err: &settings.DefinitionNotFoundError{Key: "bad.key"},
 	}
 
 	w := httptest.NewRecorder()
@@ -39,9 +37,9 @@ func TestRenderOperatorSettingsError_DefinitionNotFound(t *testing.T) {
 func TestRenderOperatorSettingsError_InvalidValue(t *testing.T) {
 	t.Parallel()
 
-	err := &configSvc.SettingsError{
+	err := &settings.SettingsError{
 		Op:  "set_value",
-		Err: &configSvc.InvalidValueError{Key: "test", Reason: "too small"},
+		Err: &settings.InvalidValueError{Key: "test", Reason: "too small"},
 	}
 
 	w := httptest.NewRecorder()
@@ -55,9 +53,9 @@ func TestRenderOperatorSettingsError_InvalidValue(t *testing.T) {
 func TestRenderOperatorSettingsError_PermissionDenied(t *testing.T) {
 	t.Parallel()
 
-	err := &configSvc.SettingsError{
+	err := &settings.SettingsError{
 		Op:  "set_value",
-		Err: &configSvc.PermissionDeniedError{Key: "admin.setting", RequiredPermission: "config:manage"},
+		Err: &settings.PermissionDeniedError{Key: "admin.setting", RequiredPermission: "config:manage"},
 	}
 
 	w := httptest.NewRecorder()
@@ -71,7 +69,7 @@ func TestRenderOperatorSettingsError_PermissionDenied(t *testing.T) {
 func TestRenderOperatorSettingsError_GenericSettingsError(t *testing.T) {
 	t.Parallel()
 
-	err := &configSvc.SettingsError{
+	err := &settings.SettingsError{
 		Op:  "set_value",
 		Err: assert.AnError,
 	}

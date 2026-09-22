@@ -31,6 +31,8 @@ type lifecycleWiring struct {
 	repos    lifecycleRepositories
 	settings config.SettingsService
 	audit    auditModels.Command
+	// caregivers is the Lehrkraft guard the role administration reads.
+	caregivers caregiverProfiles
 	// guardianMail carries the invitation delivery and the enrollment claim
 	// the guardian invitation flows leave to the root.
 	guardianMail *guardianInvitationWiring
@@ -51,7 +53,8 @@ type lifecycleRepositories struct {
 func (w lifecycleWiring) complete() bool {
 	r := w.repos
 	return r.persons != nil && r.staff != nil && r.teachers != nil && r.students != nil &&
-		r.guardianProfiles != nil && r.studentGuardians != nil && r.authEvents != nil && w.audit != nil
+		r.guardianProfiles != nil && r.studentGuardians != nil && r.authEvents != nil && w.audit != nil &&
+		w.caregivers.complete()
 }
 
 func lifecycleDependencies(wiring *lifecycleWiring, logger *slog.Logger) (*identityaccessCompose.LifecycleDependencies, error) {
@@ -59,14 +62,14 @@ func lifecycleDependencies(wiring *lifecycleWiring, logger *slog.Logger) (*ident
 		return nil, nil
 	}
 	if !wiring.complete() {
-		return nil, errors.New("identity access composition: every lifecycle repository and the audit command are required")
+		return nil, errors.New("identity access composition: every lifecycle repository, the audit command and the caregiver profiles are required")
 	}
 	delivery, enrollments, err := guardianInvitationDependencies(wiring.guardianMail)
 	if err != nil {
 		return nil, err
 	}
 	return &identityaccessCompose.LifecycleDependencies{
-		Staff:       staffDirectory{repos: wiring.repos},
+		Staff:       staffDirectory{repos: wiring.repos, caregivers: wiring.caregivers},
 		PINs:        pinHasher{},
 		Lockout:     lockoutPolicy{settings: wiring.settings, logger: logger},
 		Audit:       previewAudit{events: wiring.repos.authEvents},
@@ -81,7 +84,10 @@ func lifecycleDependencies(wiring *lifecycleWiring, logger *slog.Logger) (*ident
 
 // --- staff directory --------------------------------------------------------
 
-type staffDirectory struct{ repos lifecycleRepositories }
+type staffDirectory struct {
+	repos      lifecycleRepositories
+	caregivers caregiverProfiles
+}
 
 func personRecord(person *userModels.Person) identityaccessCompose.PersonRecord {
 	return identityaccessCompose.PersonRecord{
@@ -219,7 +225,7 @@ func (d staffDirectory) FindCaregiverProfile(ctx context.Context, staffID int64)
 }
 
 func (d staffDirectory) HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
-	return hasLiveCaregiverProfile(ctx, d.repos.persons, d.repos.staff, d.repos.teachers, accountID)
+	return d.caregivers.hasLive(ctx, accountID)
 }
 
 func (d staffDirectory) CreateCaregiverProfile(ctx context.Context, tenantID, staffID int64, position string) (int64, error) {

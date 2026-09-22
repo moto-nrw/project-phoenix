@@ -16,14 +16,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
-	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activityService "github.com/moto-nrw/project-phoenix/services/activities"
@@ -90,14 +87,41 @@ type WeekdayPickupNoteReplacer interface {
 	ReplaceWeekdayPickupNotes(context.Context, int64, int64, map[int]string) error
 }
 
+// StudentPresence is the consumer-owned presence port of the students inbound
+// (#3352). It names exactly what the student list, day planning, visit and
+// school check-in handlers read and write on the Student Presence capability:
+// the shared location snapshot (embedded, which also brings the presence mode
+// and the bulk attendance read), today's attendance status, the current and
+// past room visits, the present/in-transit/in-room list filters, the session a
+// visit belongs to, and the explicit web check-in, check-out and batch
+// commands. The composition root binds the public capability to it; handlers
+// never see kiosk sessions, student moves or maintenance.
+type StudentPresence interface {
+	common.StudentLocationReader
+	GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*studentpresence.DailyAttendanceStatus, error)
+	GetStudentCurrentVisit(ctx context.Context, studentID int64) (*studentpresence.Visit, error)
+	FindVisitsByStudentID(ctx context.Context, studentID int64) ([]studentpresence.Visit, error)
+	ListStudentsPresentToday(ctx context.Context) ([]int64, error)
+	ListStudentsInTransit(ctx context.Context) ([]int64, error)
+	ListStudentsPresentInRoom(ctx context.Context, roomID int64) ([]int64, error)
+	GetActiveGroup(ctx context.Context, id int64) (*studentpresence.SessionDetail, error)
+	EndVisit(ctx context.Context, id int64) error
+	CheckInStudent(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (*studentpresence.AttendanceResult, error)
+	CheckOutStudent(ctx context.Context, studentID, staffID int64, skipAuthCheck bool) (*studentpresence.AttendanceResult, error)
+	ProcessSchoolCheckinBatch(ctx context.Context, studentIDs []int64, staffID int64, action string) (*studentpresence.SchoolCheckinBatchResult, error)
+}
+
+// The public capability satisfies the port; a contract change surfaces here.
+var _ StudentPresence = studentpresence.Presence(nil)
+
 // ResourceConfig holds all dependencies for creating a students Resource.
 // Using a config struct instead of individual parameters improves maintainability.
 type ResourceConfig struct {
 	PersonService          userService.PersonService
 	PeopleDirectory        peopleModule.Capability
 	EducationService       educationService.Service
-	UserContextService     userContextService.UserContextService
-	ActiveService          activeService.Service
+	UserContextService     CallerContext
+	ActiveService          StudentPresence
 	IoTService             iotSvc.Service
 	PickupScheduleService  careplan.PickupScheduleService
 	WeekdayPickupNotes     WeekdayPickupNoteReplacer
@@ -117,7 +141,7 @@ type ResourceConfig struct {
 	// themselves and the lock protocol every writer of them shares. It is a
 	// second field rather than part of StudentService because the two halves
 	// of the child record have different owners.
-	CompanionService carelifecycle.StudentCompanionService
+	CompanionService careplan.StudentCompanions
 	// ClassListEntries supplies the class-list-only entries (#2382) the
 	// "Klassenliste" export merges into the Klassenverband, read through
 	// their School Membership owner in the display order the export needs.
@@ -130,7 +154,7 @@ type ResourceConfig struct {
 	StudentDeletion *studentdeletion.Workflow
 	// CareLifecycleService backs "Betreuung beenden" (#2487) — the regular
 	// exit, which is deliberately NOT a deletion.
-	CareLifecycleService    carelifecycle.CareLifecycleService
+	CareLifecycleService    careplan.CareLifecycle
 	StudentAuditService     userService.StudentAuditService
 	MasterDataReviewService userService.MasterDataReviewService
 	CareRequestService      carerequests.Decisions
@@ -158,9 +182,9 @@ type ResourceConfig struct {
 	// the aggregated list and the pending-count badge. Optional for bare
 	// test Resources; the two routes answer 500 without it.
 	RequestReview           requestreview.Query
-	StudentStatusDayService *activeService.StudentStatusDayService
-	AbsenceOverview         *activeService.StudentStatusDayOverviewService
-	StudentHistoryService   activeService.StudentHistoryService
+	StudentStatusDayService studentpresence.StatusDays
+	AbsenceOverview         studentpresence.StatusDayOverviews
+	StudentHistoryService   studentpresence.StudentHistory
 	OGSGroupLiveService     grouplive.Query
 	ActivityService         activityService.ActivityService
 	EnrollmentDecision      enrollmentService.DecisionService
@@ -194,7 +218,7 @@ type ResourceConfig struct {
 	// second path.
 	PrivacyConsents PrivacyConsentCapability
 	// StudentDocumentService backs the child's Dokumente tab (#777).
-	StudentDocumentService carelifecycle.StudentDocumentService
+	StudentDocumentService careplan.StudentDocuments
 	ListExportService      *listexport.RendererService
 	Logger                 *slog.Logger
 	Now                    func() time.Time

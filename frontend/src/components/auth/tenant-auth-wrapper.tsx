@@ -12,11 +12,11 @@
 import { useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
-import { clientEnv } from "~/env.client";
 import { useUserContext } from "~/lib/hooks/use-user-context";
 import { useGlobalSSE } from "~/lib/hooks/use-global-sse";
 import { createLogger } from "~/lib/logger";
 import { trackPageView } from "~/lib/analytics";
+import { analyticsDeployment } from "~/lib/analytics-deployment";
 import { resolveAnalyticsViewId } from "~/lib/analytics-routes";
 import { clearPostHogContext, setPostHogContext } from "~/lib/posthog-client";
 import { useTenant } from "~/lib/tenant-context";
@@ -50,7 +50,7 @@ function TeacherSpecificHooks() {
         {
           school_id: schoolId,
           $groups: { school: schoolId },
-          deployment: clientEnv.NEXT_PUBLIC_TENANT_DOMAIN,
+          deployment: analyticsDeployment(),
         },
         registeredSchoolIdRef.current !== null &&
           registeredSchoolIdRef.current !== schoolId,

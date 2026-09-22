@@ -19,7 +19,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -33,11 +33,11 @@ type TimetableDataDependencies struct {
 	ActivityExceptionRepo scheduleModel.ActivityExceptionRepository
 	ActivityScheduleRepo  activitiesModel.ScheduleRepository
 	InstanceStaffRepo     scheduleModel.InstanceStaffRepository
-	StaffShiftRepo        scheduleModel.StaffShiftRepository
+	StaffShiftRepo        StaffShiftCoverageReader
 	StaffRepo             usersModel.StaffRepository
 	CalendarPeriodRepo    scheduleModel.CalendarPeriodRepository
-	ActiveGroupRepo       activeModel.GroupRepository
-	SupervisorRepo        activeModel.GroupSupervisorRepository
+	ActiveGroupRepo       studentpresence.SessionRecords
+	SupervisorRepo        studentpresence.SupervisionRecords
 	// ArrivalBaselines resolves the regular arrival plan the way every other
 	// reader sees it (#2414, ADR 0005): the class timetable supplies the time,
 	// and with enrollment.bookings_authoritative on the approved bookings
@@ -407,7 +407,7 @@ func (s *TimetableDataService) CountNonAbsentInstanceStaffByInstanceIDs(ctx cont
 	return s.deps.InstanceStaffRepo.CountNonAbsentByInstanceIDs(ctx, instanceIDs)
 }
 
-func (s *TimetableDataService) CheckRoomConflict(ctx context.Context, roomID int64, excludeGroupID int64) (bool, *activeModel.Group, error) {
+func (s *TimetableDataService) CheckRoomConflict(ctx context.Context, roomID int64, excludeGroupID int64) (bool, *studentpresence.LiveGroup, error) {
 	return s.deps.ActiveGroupRepo.CheckRoomConflict(ctx, roomID, excludeGroupID)
 }
 
@@ -415,8 +415,8 @@ func (s *TimetableDataService) EndGroupSupervisor(ctx context.Context, activeGro
 	return s.deps.SupervisorRepo.EndByActiveGroupAndStaffID(ctx, activeGroupID, staffID)
 }
 
-func (s *TimetableDataService) CreateGroupSupervisor(ctx context.Context, supervisor *activeModel.GroupSupervisor) error {
-	return s.deps.SupervisorRepo.Create(ctx, supervisor)
+func (s *TimetableDataService) CreateGroupSupervisor(ctx context.Context, supervisor *studentpresence.GroupSupervision) error {
+	return s.deps.SupervisorRepo.CreateSupervision(ctx, supervisor)
 }
 
 func (s *TimetableDataService) GetArrivalExceptionsByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*scheduleModel.StudentArrivalException, error) {

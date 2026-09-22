@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	documentModels "github.com/moto-nrw/project-phoenix/models/documents"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
 
 // CleanupOrphanedStudentDocumentFiles retries object removal independently of
@@ -26,62 +27,36 @@ func (rs *Resource) CleanupOrphanedStudentDocumentFiles(ctx context.Context) (in
 	if err != nil {
 		return 0, fmt.Errorf("student document storage unavailable: %w", err)
 	}
-
-	removed := 0
-	var cleanupErr error
-
-	documents, err := rs.StudentDocumentService.ListDeletedStudentDocumentsPendingFileCleanups(ctx)
-	if err != nil {
-		cleanupErr = errors.Join(cleanupErr, fmt.Errorf("list deleted student documents: %w", err))
-	} else {
-		for _, document := range documents {
-			if err := coordinator.Remove(ctx, document.TenantID, document.FilenameStored); err != nil {
-				rs.getLogger().Warn("student document cleanup failed",
-					"student_id", document.StudentID,
-					"document_id", document.ID,
-					"error", err)
-				cleanupErr = errors.Join(cleanupErr, err)
-				continue
-			}
-			if err := rs.StudentDocumentService.MarkFileDeleted(ctx, document.ID); err != nil {
-				rs.getLogger().Error("student document cleanup status update failed",
-					"student_id", document.StudentID,
-					"document_id", document.ID,
-					"error", err)
-				cleanupErr = errors.Join(cleanupErr, err)
-				continue
-			}
-			removed++
-		}
-		rs.logCleanupBatchFull(len(documents), "deleted")
+	sweep, err := rs.StudentDocumentService.SweepStudentDocumentFiles(ctx, coordinator.Remove)
+	cleanupErr := err
+	for _, failure := range sweep.Failures {
+		rs.logCleanupFailure(failure)
+		cleanupErr = errors.Join(cleanupErr, failure.Err)
 	}
+	rs.logCleanupBatchFull(sweep.DeletedListed, "deleted")
+	rs.logCleanupBatchFull(sweep.OrphansListed, "orphan")
+	return sweep.Removed, cleanupErr
+}
 
-	cleanups, err := rs.StudentDocumentService.ListQueuedStudentDocumentFileCleanups(ctx)
-	if err != nil {
-		return removed, errors.Join(cleanupErr, fmt.Errorf("list queued student document cleanups: %w", err))
+// logCleanupFailure reports one item the sweep left for the next pass. A
+// failed removal is a storage hiccup; a removed object whose row could not be
+// settled is an inconsistency worth an error.
+func (rs *Resource) logCleanupFailure(failure careplan.StudentDocumentFileFailure) {
+	source, idKey, id := "student document cleanup", "document_id", failure.DocumentID
+	if failure.DocumentID == 0 {
+		source, idKey, id = "student document orphan cleanup", "cleanup_id", failure.CleanupID
 	}
-	for _, cleanup := range cleanups {
-		if err := coordinator.Remove(ctx, cleanup.TenantID, cleanup.FilenameStored); err != nil {
-			rs.getLogger().Warn("student document orphan cleanup failed",
-				"student_id", cleanup.OwnerID,
-				"cleanup_id", cleanup.ID,
-				"error", err)
-			cleanupErr = errors.Join(cleanupErr, err)
-			continue
-		}
-		if err := rs.StudentDocumentService.MarkQueuedCleanupComplete(ctx, cleanup.ID); err != nil {
-			rs.getLogger().Error("student document orphan cleanup status update failed",
-				"student_id", cleanup.OwnerID,
-				"cleanup_id", cleanup.ID,
-				"error", err)
-			cleanupErr = errors.Join(cleanupErr, err)
-			continue
-		}
-		removed++
+	if failure.Stage == careplan.StudentDocumentSweepRemove {
+		rs.getLogger().Warn(source+" failed",
+			"student_id", failure.StudentID,
+			idKey, id,
+			"error", failure.Err)
+		return
 	}
-	rs.logCleanupBatchFull(len(cleanups), "orphan")
-
-	return removed, cleanupErr
+	rs.getLogger().Error(source+" status update failed",
+		"student_id", failure.StudentID,
+		idKey, id,
+		"error", failure.Err)
 }
 
 // logCleanupBatchFull reports a pass that filled its batch. Without it a

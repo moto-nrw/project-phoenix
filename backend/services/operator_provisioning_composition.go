@@ -320,7 +320,9 @@ func provisioningIdentityError(err error) error {
 		if err == sentinel.public {
 			return sentinel.retained
 		}
-		return &retainedError{text: err.Error(), sentinel: sentinel.retained, cause: err}
+		// A store failure stays marked even when it also carries a
+		// translated refusal, as the routes classified it before (#2736).
+		return organizationtenancy.MarkIdentityStoreFailure(&retainedError{text: err.Error(), sentinel: sentinel.retained, cause: err})
 	}
-	return err
+	return organizationtenancy.MarkIdentityStoreFailure(err)
 }

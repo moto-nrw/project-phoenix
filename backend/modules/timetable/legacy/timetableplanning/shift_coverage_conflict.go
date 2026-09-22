@@ -94,11 +94,6 @@ type ShiftCoverageDependencies struct {
 	CalendarPeriods CalendarPeriodByIDReader
 }
 
-type StaffShiftCoverageReader interface {
-	FindByStaffIDsAndDates(ctx context.Context, staffIDs []int64, dates []scheduleModel.Date) ([]*scheduleModel.StaffShift, error)
-	FindUsedCalendarWeeks(ctx context.Context, start, end scheduleModel.Date) ([]scheduleModel.Date, error)
-}
-
 // DetectShiftCoverageWarnings checks every effective occurrence with a fixed
 // number of batched reads. A ReplanWeek projection uses at most eight reads:
 // period, the group's recurrence envelope, group-scoped instances,
@@ -829,7 +824,7 @@ func invalidShiftCoverageQuery(detail string) error {
 func filterShiftCoverageDates(dates []timezone.Date, period *scheduleModel.CalendarPeriod, weekPattern int) []timezone.Date {
 	filtered := make([]timezone.Date, 0, len(dates))
 	for _, date := range dates {
-		if period.ContainsDay(scheduleModel.Date(date)) && ShouldMaterializeWeekPattern(weekPattern, date, period) {
+		if period.ContainsDay(scheduleModel.Date(date)) && shouldMaterializeWeekPattern(weekPattern, date, period) {
 			filtered = append(filtered, date)
 		}
 	}

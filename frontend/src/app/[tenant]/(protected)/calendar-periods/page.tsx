@@ -7,7 +7,7 @@ import {
 } from "~/components/planning/calendar-periods-editor";
 import { ClosingDaysEditor } from "~/components/planning/closing-days-editor";
 import { TenantPage } from "~/components/ui/tenant-page";
-import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
+import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 
 /**
  * Bewusst KEIN timetable.enabled-Route-Gate wie auf den übrigen
@@ -21,7 +21,9 @@ import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
  * Eintrag der Planungsgruppe, eine Desktop-Sperre wäre dort eine Sackgasse.
  */
 export default function CalendarPeriodsPage() {
-  const { isReady } = useRequireAdmin();
+  // Dasselbe Recht wie der Eintrag in der Planungsgruppe (#3469): Zeiträume
+  // und Schließtage pflegt, wer den Betreuungsplan verwaltet.
+  const { isReady } = useRequirePermission("schedules:manage");
 
   // Solange die Rechteprüfung läuft, steht hier das Seitengerüst mit seinem
   // Ladezustand; die Zeiträume werden erst danach abgerufen.

@@ -20,7 +20,10 @@ var (
 	ErrCareScheduleRequestNotDecided = carerequests.ErrNotDecided
 	ErrStudentDataRequestNotFound    = errors.New("student data change request not found")
 	ErrStudentDataRequestNotPending  = errors.New("student data change request is not pending")
-	ErrStudentDataRequestNotDecided  = errors.New("student data change request is not decided")
+	// ErrStudentDataRequestFieldPending joins the raw database error when a
+	// pending request for the same student, target, and field already exists.
+	ErrStudentDataRequestFieldPending = errors.New("a student data change request for this field is already pending")
+	ErrStudentDataRequestNotDecided   = errors.New("student data change request is not decided")
 )
 
 // RequestQueueFilter is the owner-neutral paging contract shared by the

@@ -2,6 +2,9 @@
 	base = development
 	env = .env
 	copy = frontend/.env.local
+	copy = backend/dev.env
+	copy = docker-compose.yml
+	copy = config/ssl/postgres/certs
 	compose = true
 	port = FRONTEND_HOST_PORT
 	port = MAILPIT_HOST_PORT
@@ -11,7 +14,7 @@
 	port = SERVER_HOST_PORT
 	port = TEST_DB_PORT
 	bootstrap = "devbox run bootstrap"
-	teardown = "docker compose down --remove-orphans"
+	teardown = "docker compose down --volumes --remove-orphans; docker compose -p \"project-phoenix-testdb-$(sed -n 's/^TEST_DB_PORT=//p' .env)\" -f docker-compose.example.yml --profile test down --volumes --remove-orphans"
 	disposable = .devbox
 	disposable = frontend/.next
 	disposable = frontend/coverage
@@ -19,3 +22,4 @@
 	disposable = frontend/node_modules
 	disposable = frontend/tsconfig.tsbuildinfo
 	disposable = node_modules
+	disposable = tmp

@@ -205,6 +205,7 @@ func liveStaffCount(t *testing.T, db *testpkg.DB, personID int64) int {
 func TestRepairSchoolIdentitiesTenantScopingIsEnforcedBySchema(t *testing.T) {
 	t.Parallel()
 	db := setupStudentStorageBeforeCutover(t)
+	testpkg.RestoreStaffStorageBeforeCutover(t, db)
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
 	otherTenantID := testpkg.UniqueTestTenantID(t)

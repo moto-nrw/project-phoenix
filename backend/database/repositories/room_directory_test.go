@@ -26,7 +26,7 @@ func TestSessionCleanupRootResolvesRoomsThroughOwner(t *testing.T) {
 	group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 	err := testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
-		groups, err := repos.Group.FindByIDs(ctx, []int64{group.ID})
+		groups, err := repos.Sessions.FindByIDs(ctx, []int64{group.ID})
 		require.NoError(t, err)
 		require.NotNil(t, groups[group.ID].Room)
 		assert.Equal(t, room.Name, groups[group.ID].Room.Name)
@@ -57,12 +57,12 @@ func TestFactoryResolvesRoomsThroughTheOwner(t *testing.T) {
 	require.NoError(t, err)
 
 	err = testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
-		groups, err := factory.ActiveGroup.FindByIDs(ctx, []int64{activeGroup.ID})
+		rooms, err := testpkg.SessionRooms(ctx, factory.ActiveGroup, []int64{activeGroup.ID})
 		require.NoError(t, err)
-		require.NotNil(t, groups[activeGroup.ID].Room, "active group carries its room")
-		assert.Equal(t, room.Name, groups[activeGroup.ID].Room.Name)
-		assert.Equal(t, room.Building, groups[activeGroup.ID].Room.Building, "the full row, colour and capacity included")
-		assert.Equal(t, room.Capacity, groups[activeGroup.ID].Room.Capacity)
+		require.NotNil(t, rooms[activeGroup.ID], "active group carries its room")
+		assert.Equal(t, room.Name, rooms[activeGroup.ID].Name)
+		assert.Equal(t, room.Building, rooms[activeGroup.ID].Building, "the full row, colour and capacity included")
+		assert.Equal(t, room.Capacity, rooms[activeGroup.ID].Capacity)
 
 		withRoom, err := factory.Group.FindWithRoom(ctx, educationGroup.ID)
 		require.NoError(t, err)

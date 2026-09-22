@@ -197,52 +197,6 @@ func TestTimeframeRepository_List(t *testing.T) {
 	})
 }
 
-func TestTimeframeRepository_FindActive(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := timeframeRepository(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("finds only active timeframes", func(t *testing.T) {
-		now := time.Now()
-		activeTimeframe := &schedule.Timeframe{
-			StartTime:   now,
-			IsActive:    true,
-			Description: "Active timeframe",
-		}
-		inactiveTimeframe := &schedule.Timeframe{
-			StartTime:   now,
-			IsActive:    false,
-			Description: "Inactive timeframe",
-		}
-
-		err := repo.Create(ctx, activeTimeframe)
-		require.NoError(t, err)
-		err = repo.Create(ctx, inactiveTimeframe)
-		require.NoError(t, err)
-
-		timeframes, err := repo.FindActive(ctx)
-		require.NoError(t, err)
-
-		// All returned timeframes should be active
-		for _, tf := range timeframes {
-			assert.True(t, tf.IsActive)
-		}
-
-		// Our active timeframe should be in the results
-		var found bool
-		for _, tf := range timeframes {
-			if tf.ID == activeTimeframe.ID {
-				found = true
-				break
-			}
-		}
-		assert.True(t, found)
-	})
-}
-
 func TestTimeframeRepository_FindByTimeRange(t *testing.T) {
 	t.Parallel()
 

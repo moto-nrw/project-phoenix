@@ -183,9 +183,6 @@ type ScheduleRepository interface {
 	// FindByGroupID finds all schedules for a specific group
 	FindByGroupID(ctx context.Context, groupID int64) ([]*Schedule, error)
 
-	// FindByWeekday finds all schedules for a specific weekday
-	FindByWeekday(ctx context.Context, weekday string) ([]*Schedule, error)
-
 	// DeleteByGroupID removes all schedules of an activity group.
 	DeleteByGroupID(ctx context.Context, groupID int64) error
 

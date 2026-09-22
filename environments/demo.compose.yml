@@ -43,7 +43,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: ["./main", "serve"]
+    # At most this many demo schools exist at once; a further request that
+    # needs a new one answers 503 demo_capacity_reached (#3466).
+    command: ["./main", "serve", "--demo-max-active-schools", "300"]
     ports:
       - "127.0.0.1:8082:8080"
     volumes:

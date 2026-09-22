@@ -1,43 +1,4 @@
-import {
-  ArrowUpRight,
-  BarChart3,
-  BellRing,
-  Building2,
-  CalendarDays,
-  CalendarPlus,
-  ClipboardList,
-  Clock3,
-  Database,
-  Download,
-  Eye,
-  FileText,
-  FolderOpen,
-  GraduationCap,
-  KeyRound,
-  Landmark,
-  ListChecks,
-  LogIn,
-  LogOut,
-  Megaphone,
-  MessageSquareText,
-  Monitor,
-  PlugZap,
-  Repeat,
-  Search,
-  Settings,
-  ShieldAlert,
-  ShieldCheck,
-  SlidersHorizontal,
-  Smartphone,
-  Sparkles,
-  TabletSmartphone,
-  Trash2,
-  UserRoundPlus,
-  UserRoundSearch,
-  Users,
-  UtensilsCrossed,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import type { HelpIconName } from "~/components/help/help-icons";
 import {
   HELP_TOPICS,
   type HelpRole,
@@ -99,7 +60,7 @@ export interface HelpTopic {
    * und einer davon liefe irgendwann hinterher. `"all"` heisst jede Rolle.
    */
   readonly audience: "all" | HelpRole | readonly HelpRole[];
-  readonly icon: LucideIcon;
+  readonly icon: HelpIconName;
   readonly requirements?: readonly string[];
   readonly steps: readonly string[];
   readonly instructionGroups?: readonly {
@@ -157,7 +118,7 @@ function invitationTopic(): HelpTopic {
       "Öffnen Sie Ihre Einladungs-Mail und legen Sie Ihr persönliches Passwort fest.",
     group: "einstieg",
     audience: ["caregiver", "lead"],
-    icon: LogIn,
+    icon: "EnvelopeOpen",
     requirements: [
       "Ihre Einladungs-Mail von moto",
       "Zugriff auf das E-Mail-Postfach, an das die Einladung gesendet wurde",
@@ -199,7 +160,7 @@ function loginTopic(
       "Melden Sie sich über die moto-Seite Ihrer OGS mit Ihrem persönlichen Konto an.",
     group: "einstieg",
     audience: ["caregiver", "lead"],
-    icon: LogIn,
+    icon: "UserCircle",
     requirements: [
       "Den Link zur moto-Seite Ihrer OGS",
       "Ein moto-Konto. Nehmen Sie vorher Ihre Einladung an.",
@@ -241,7 +202,7 @@ function installAppTopic(): HelpTopic {
       "Fügen Sie moto zum Startbildschirm hinzu. Sie brauchen dafür keinen App Store.",
     group: "einstieg",
     audience: ["caregiver", "lead"],
-    icon: Smartphone,
+    icon: "Smartphone",
     requirements: [
       "Ein Handy oder Tablet",
       "Den Link zur moto-Seite Ihrer OGS",
@@ -295,7 +256,7 @@ function appOverviewTopic(): HelpTopic {
       "Über die Navigation öffnen Sie die Bereiche, die Sie für Ihren Arbeitstag brauchen.",
     group: "einstieg",
     audience: ["caregiver", "lead"],
-    icon: ListChecks,
+    icon: "ListChecks",
     steps: [],
     instructionGroups: [
       {
@@ -378,7 +339,7 @@ function studentSearchTopic(
     summary: "Finden Sie ein Kind. Öffnen Sie danach die benötigten Angaben.",
     group: "kinder",
     audience: ["caregiver", "lead"],
-    icon: Search,
+    icon: "Search",
     steps: [],
     instructionGroups: [
       {
@@ -448,7 +409,7 @@ function editStudentTopic(): HelpTopic {
       "Ändern Sie persönliche Angaben, den Wochenplan oder einen einzelnen Tag.",
     group: "kinder",
     audience: "caregiver",
-    icon: FileText,
+    icon: "FileText",
     steps: [],
     instructionGroups: [
       {
@@ -501,6 +462,9 @@ function editStudentTopic(): HelpTopic {
     ],
     notes: [
       "Steht unter dem Feld `Ankunft` die Auswahl `Nach Schulstunde`? Wählen Sie zum Beispiel `5. Stunde`. moto trägt die passende Uhrzeit ein.",
+      // #3371: Knopf erscheint nur mit gepflegter Vorgabe unter einem leeren
+      // Feld an einem Betreuungstag (care-weekly-plan-editor.tsx).
+      "Steht unter einem leeren Feld zum Beispiel `16:00 Uhr eintragen`? Ein Klick trägt die übliche Zeit Ihrer Schule ein.",
     ],
     related: [
       HELP_TOPICS.studentSearch,
@@ -525,7 +489,7 @@ function webAttendanceTopic(presenceMode: HelpPresenceMode): HelpTopic {
     summary: "Tragen Sie ein, ob ein Kind heute in der OGS ist.",
     group: "kinder",
     audience: "caregiver",
-    icon: ListChecks,
+    icon: "ListChecks",
     steps: [],
     instructionGroups: [
       {
@@ -578,7 +542,7 @@ function changeLocationTopic(presenceMode: HelpPresenceMode): HelpTopic {
         "Bei einfacher Anwesenheit erfasst moto keine Räume oder Aufenthaltsorte.",
       group: "kinder",
       audience: "caregiver",
-      icon: Eye,
+      icon: "Eye",
       steps: [
         "Öffnen Sie das Kind unter `Alle Kinder`.",
         "Wählen Sie `Anmelden` oder `Abmelden`.",
@@ -597,7 +561,7 @@ function changeLocationTopic(presenceMode: HelpPresenceMode): HelpTopic {
         "Ob moto Aufenthaltsorte erfasst, hängt von der Arbeitsweise Ihrer OGS ab.",
       group: "kinder",
       audience: "caregiver",
-      icon: Eye,
+      icon: "Eye",
       steps: [
         "Prüfen Sie, ob der Bereich `Räume` in der Seitenleiste steht.",
         "Ist der Bereich vorhanden? Öffnen Sie den aktuellen Raum des Kindes und wählen Sie einen neuen Zielraum.",
@@ -616,12 +580,12 @@ function changeLocationTopic(presenceMode: HelpPresenceMode): HelpTopic {
     summary: "Ändern Sie den Raum eines anwesenden Kindes.",
     group: "kinder",
     audience: "caregiver",
-    icon: Eye,
+    icon: "MapPin",
     requirements: [
       "Ihre OGS erfasst die Räume der Kinder.",
       "Das Kind ist anwesend.",
       "Sie beaufsichtigen den aktuellen Raum oder den Zielraum.",
-      "Im Zielraum läuft eine Aufsicht.",
+      "Im Zielraum läuft eine Aufsicht, oder er ist ein offener Raum.",
     ],
     steps: [
       "Öffnen Sie `Räume`.",
@@ -634,6 +598,7 @@ function changeLocationTopic(presenceMode: HelpPresenceMode): HelpTopic {
     notes: ["Sie können mehrere Kinder auswählen und gemeinsam verschieben."],
     differences: [
       "Hat das Kind noch keinen Raum? Wählen Sie auf `Räume` die Karte `Unterwegs`. Wählen Sie dort das Kind und den Zielraum.",
+      "Steht hinter dem Zielraum `(offener Raum)`? Dort braucht es keine Aufsicht. Das Kind nutzt den Raum dann, ohne an einem Angebot teilzunehmen.",
       "Fehlt der Zielraum? Prüfen Sie dort `Aktuelle Aufsicht`.",
       "Beaufsichtigen Sie keinen der beiden Räume? Bitten Sie eine zuständige Aufsicht. Oder fragen Sie Ihre Leitung.",
     ],
@@ -655,7 +620,7 @@ function absencesTopic(): HelpTopic {
       "Tragen Sie eine Krankmeldung oder Entschuldigung für die passenden Tage ein.",
     group: "kinder",
     audience: "caregiver",
-    icon: BellRing,
+    icon: "BellRing",
     steps: [],
     instructionGroups: [
       {
@@ -756,7 +721,7 @@ function dayLogTopic(groupMode: HelpGroupMode): HelpTopic {
     summary: "Prüfen Sie für heute, welche Kinder anwesend oder abwesend sind.",
     group: "kinder",
     audience: ["caregiver", "lead"],
-    icon: CalendarDays,
+    icon: "CalendarCheck",
     requirements: ["Ihre OGS hat das `Anwesenheitsprotokoll` eingeschaltet."],
     steps: [],
     instructionGroups: [
@@ -817,7 +782,7 @@ function emergencyTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Nutzen Sie die Liste zum Beispiel bei einem geplanten Feueralarm. Damit prüfen Sie am Sammelplatz, ob alle anwesenden Kinder da sind.",
     group: "kinder",
     audience: ["caregiver", "lead"],
-    icon: ShieldAlert,
+    icon: "ShieldAlert",
     requirements: ["Ihr Konto hat das Recht `Benutzerinformationen ansehen`."],
     steps: [],
     instructionGroups: [
@@ -871,7 +836,7 @@ function ownGroupsTopic(
         "Bei offener Betreuung gibt es keine festen eigenen Gruppen in moto.",
       group: "gruppen",
       audience: ["caregiver", "lead"],
-      icon: Users,
+      icon: "Users",
       steps: [
         "Öffnen Sie `Alle Kinder`.",
         "Nutzen Sie die Suche oder die Filter für die benötigten Kinder.",
@@ -890,7 +855,7 @@ function ownGroupsTopic(
         "Ob Sie eigene Gruppen sehen, hängt von der Arbeitsweise Ihrer OGS ab.",
       group: "gruppen",
       audience: ["caregiver", "lead"],
-      icon: Users,
+      icon: "Users",
       steps: [
         "Prüfen Sie, ob `Meine Gruppen` in der Seitenleiste steht.",
         "Ist der Bereich vorhanden? Öffnen Sie dort die gewünschte Gruppe.",
@@ -914,7 +879,7 @@ function ownGroupsTopic(
     summary: "Öffnen Sie Ihre festen Gruppen und die zugehörigen Kinder.",
     group: "gruppen",
     audience: ["caregiver", "lead"],
-    icon: Users,
+    icon: "Users",
     steps: [
       "Öffnen Sie `Meine Gruppen` in der Seitenleiste.",
       "Wählen Sie die gewünschte Gruppe.",
@@ -951,7 +916,7 @@ function transferGroupTopic(groupMode: HelpGroupMode): HelpTopic {
         "Bei offener Betreuung gibt es keine feste eigene Gruppe zum Übergeben.",
       group: "gruppen",
       audience: ["caregiver", "lead"],
-      icon: Users,
+      icon: "ArrowsLeftRight",
       steps: [
         "Sie müssen keine Gruppe übergeben.",
         "Öffnen Sie `Alle Kinder`, um mit den Kindern der OGS zu arbeiten.",
@@ -969,7 +934,7 @@ function transferGroupTopic(groupMode: HelpGroupMode): HelpTopic {
       summary: "Eine Übergabe ist nur bei festen Gruppen möglich.",
       group: "gruppen",
       audience: ["caregiver", "lead"],
-      icon: Users,
+      icon: "ArrowsLeftRight",
       steps: [
         "Prüfen Sie, ob `Meine Gruppen` in der Seitenleiste steht.",
         "Ist der Bereich vorhanden? Öffnen Sie Ihre Gruppe und das Menü mit den drei Punkten.",
@@ -988,7 +953,7 @@ function transferGroupTopic(groupMode: HelpGroupMode): HelpTopic {
       "Geben Sie einer anderen Betreuungskraft bis zum Tagesende Zugriff auf Ihre Gruppe.",
     group: "gruppen",
     audience: ["caregiver", "lead"],
-    icon: Users,
+    icon: "ArrowsLeftRight",
     requirements: ["Sie sind dieser Gruppe fest zugeordnet."],
     steps: [],
     instructionGroups: [
@@ -1037,7 +1002,7 @@ function myScheduleTopic(): HelpTopic {
       "Prüfen Sie persönliche Termine, geplante Schichten und Ihre Einsätze im Betreuungsplan.",
     group: "tagesplanung",
     audience: ["caregiver", "lead"],
-    icon: CalendarDays,
+    icon: "CalendarDays",
     steps: [],
     instructionGroups: [
       {
@@ -1093,7 +1058,7 @@ function carePlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Prüfen Sie, welche Betreuung für die Schule geplant ist und wo Sie selbst eingesetzt sind.",
     group: "tagesplanung",
     audience: ["caregiver", "lead"],
-    icon: CalendarDays,
+    icon: "Table",
     steps: [
       "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Mein Kalender`.",
       "Wählen Sie den Tab `Betreuungsplan`.",
@@ -1135,7 +1100,7 @@ function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Der Tagesplan zeigt die Betreuungsblöcke des Tages der Reihe nach.",
     group: "tagesplanung",
     audience: "caregiver",
-    icon: CalendarDays,
+    icon: "ClockAfternoon",
     requirements: [
       "Ihre OGS hat den Betreuungsplan eingeschaltet.",
       "Sie dürfen den Betreuungsplan sehen.",
@@ -1177,7 +1142,7 @@ function roomsTopic(presenceMode: HelpPresenceMode): HelpTopic {
       summary: "Bei einfacher Anwesenheit ordnet moto Kinder keinen Räumen zu.",
       group: "gruppen",
       audience: ["caregiver", "lead"],
-      icon: Eye,
+      icon: "DoorOpen",
       steps: [
         "Öffnen Sie `Alle Kinder`.",
         "Prüfen Sie dort, welche Kinder anwesend oder abwesend sind.",
@@ -1196,7 +1161,7 @@ function roomsTopic(presenceMode: HelpPresenceMode): HelpTopic {
         "Der Bereich ist nur sichtbar, wenn Ihre OGS Aufenthaltsorte erfasst.",
       group: "gruppen",
       audience: ["caregiver", "lead"],
-      icon: Eye,
+      icon: "DoorOpen",
       steps: [
         "Prüfen Sie, ob `Räume` in der Seitenleiste steht.",
         "Ist der Bereich vorhanden? Öffnen Sie dort einen Raum und prüfen Sie die Belegung.",
@@ -1216,7 +1181,7 @@ function roomsTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Prüfen Sie, welche Räume frei oder belegt sind und wer sich dort befindet.",
     group: "gruppen",
     audience: ["caregiver", "lead"],
-    icon: Eye,
+    icon: "DoorOpen",
     steps: [],
     instructionGroups: [
       {
@@ -1236,7 +1201,7 @@ function roomsTopic(presenceMode: HelpPresenceMode): HelpTopic {
       {
         title: "Kinder ohne Raum in einen Raum setzen",
         description:
-          "Führen Sie selbst die Aufsicht, stehen nur Ihre Räume zur Wahl. Mit dem Recht für alle Räume steht die ganze Liste da.",
+          "Führen Sie selbst die Aufsicht, stehen nur Ihre Räume zur Wahl. Mit dem Recht für alle Räume steht die ganze Liste da. Dann stehen auch offene Räume in der Liste, mit dem Zusatz `(offener Raum)`. So bleibt ein Kind nach seinem Angebot im Raum, ohne an einem Angebot teilzunehmen.",
         steps: [
           "Wählen Sie oben die Karte `Unterwegs`.",
           "Wählen Sie die gewünschten Kinder aus.",
@@ -1265,7 +1230,7 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
         "Bei einfacher Anwesenheit führt moto keine Aufsichten für einzelne Räume oder Aktivitäten.",
       group: "gruppen",
       audience: ["caregiver", "lead"],
-      icon: Eye,
+      icon: "Eye",
       steps: [
         "Öffnen Sie `Alle Kinder`.",
         "Nutzen Sie `An- & Abmelden`, um die Anwesenheit zu erfassen.",
@@ -1284,7 +1249,7 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
         "Der Bereich ist nur sichtbar, wenn Ihre OGS Räume und Aktivitäten erfasst.",
       group: "gruppen",
       audience: ["caregiver", "lead"],
-      icon: Eye,
+      icon: "Eye",
       steps: [
         "Prüfen Sie, ob `Aktuelle Aufsicht` in der Seitenleiste steht.",
         "Ist der Bereich vorhanden? Öffnen Sie dort einen Raum oder geplanten Termin.",
@@ -1303,7 +1268,7 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Übernehmen Sie einen Raum oder einen geplanten Termin und halten Sie die Kinderliste aktuell.",
     group: "gruppen",
     audience: ["caregiver", "lead"],
-    icon: Eye,
+    icon: "Eye",
     steps: [],
     instructionGroups: [
       {
@@ -1364,7 +1329,7 @@ function manageActivityTopic(
           : "Bei einfacher Anwesenheit gibt es keine Aktivitäten mit eigener Kinderzuordnung.",
       group: "gruppen",
       audience: "caregiver",
-      icon: ListChecks,
+      icon: "Sparkles",
       steps: [
         "Nutzen Sie den `Betreuungsplan`, um geplante Angebote anzusehen.",
         // Live geprueft: der Katalog `Aktivitäten` haengt an NFC, der
@@ -1386,7 +1351,7 @@ function manageActivityTopic(
         "Der Bereich erscheint nur bei NFC und detaillierter Anwesenheit.",
       group: "gruppen",
       audience: "caregiver",
-      icon: ListChecks,
+      icon: "Sparkles",
       steps: [
         "Prüfen Sie, ob `Aktivitäten` in der Seitenleiste steht.",
         "Ist der Bereich vorhanden? Wählen Sie `Aktivität erstellen`.",
@@ -1406,7 +1371,7 @@ function manageActivityTopic(
       "Legen Sie eine Aktivität für NFC-Tablets an oder ändern Sie eine eigene Aktivität.",
     group: "gruppen",
     audience: "caregiver",
-    icon: ListChecks,
+    icon: "Sparkles",
     steps: [
       "Öffnen Sie `Aktivitäten`.",
       "Wählen Sie die Schaltfläche `Aktivität erstellen` mit dem Plus-Symbol.",
@@ -1434,7 +1399,7 @@ function parentMessageTopic(): HelpTopic {
       "Starten Sie eine Unterhaltung mit einer Bezugsperson oder antworten Sie auf eine Nachricht.",
     group: "team",
     audience: ["caregiver", "lead"],
-    icon: MessageSquareText,
+    icon: "MessageSquareText",
     steps: [],
     instructionGroups: [
       {
@@ -1481,7 +1446,7 @@ function parentRequestsTopic(groupMode: HelpGroupMode): HelpTopic {
       "Vergleichen Sie die bisherigen Angaben mit dem Elternwunsch. Tragen Sie danach Ihre Entscheidung ein.",
     group: "team",
     audience: ["caregiver", "lead"],
-    icon: ListChecks,
+    icon: "ListChecks",
     requirements: [
       "Ihr Konto darf Kinderdaten bearbeiten.",
       // Ohne feste Gruppen gibt es keine Gruppenzuordnung, an der ein
@@ -1530,7 +1495,7 @@ function teamChatTopic(): HelpTopic {
       "Schreiben Sie einer Betreuungskraft oder Lehrkraft Ihrer Schule eine Nachricht.",
     group: "team",
     audience: ["caregiver", "lead"],
-    icon: MessageSquareText,
+    icon: "ChatsCircle",
     steps: [
       "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Team-Chat`.",
       "Wählen Sie `Neue Nachricht`.",
@@ -1560,7 +1525,7 @@ function findStaffTopic(presenceMode: HelpPresenceMode): HelpTopic {
     summary: "Suchen Sie eine Person und sehen Sie, ob sie gerade da ist.",
     group: "team",
     audience: ["caregiver", "lead"],
-    icon: UserRoundSearch,
+    icon: "UserRoundSearch",
     steps: [
       "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Mitarbeiter`.",
       "Geben Sie den Namen in das Suchfeld ein.",
@@ -1591,7 +1556,7 @@ function sharedFilesTopic(): HelpTopic {
     summary: "Nutzen Sie die gemeinsame Dateiablage Ihrer OGS.",
     group: "team",
     audience: ["caregiver", "lead"],
-    icon: FolderOpen,
+    icon: "FolderOpen",
     steps: [],
     instructionGroups: [
       {
@@ -1639,7 +1604,7 @@ function trackWorkTimeTopic(): HelpTopic {
       "Stempeln Sie sich zu Arbeitsbeginn ein. Erfassen Sie Pausen und das Arbeitsende.",
     group: "arbeitszeit",
     audience: ["caregiver", "lead"],
-    icon: Clock3,
+    icon: "Timer",
     steps: [],
     instructionGroups: [
       {
@@ -1694,7 +1659,7 @@ function correctWorkTimeTopic(): HelpTopic {
       "Prüfen Sie Ihre erfassten Zeiten und berichtigen Sie einen vorhandenen Eintrag.",
     group: "arbeitszeit",
     audience: ["caregiver", "lead"],
-    icon: Clock3,
+    icon: "Clock3",
     steps: [
       "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Zeiterfassung`.",
       // Live geprueft: der Umschalter sitzt in der Kopfkarte, nicht an der
@@ -1728,7 +1693,7 @@ function vacationTopic(): HelpTopic {
       "Senden Sie einen Urlaubsantrag und verfolgen Sie die Entscheidung.",
     group: "arbeitszeit",
     audience: ["caregiver", "lead"],
-    icon: CalendarDays,
+    icon: "SunHorizon",
     steps: [
       "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Zeiterfassung`.",
       "Suchen Sie die Karte `Urlaub`.",
@@ -1760,7 +1725,7 @@ function ownAbsenceTopic(): HelpTopic {
       "Melden Sie Krankheit, Fortbildung oder eine andere Abwesenheit für den passenden Zeitraum.",
     group: "arbeitszeit",
     audience: ["caregiver", "lead"],
-    icon: BellRing,
+    icon: "BellRing",
     steps: [
       "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Zeiterfassung`.",
       "Wählen Sie in der `Stempeluhr` oben `Abwesend`.",
@@ -1789,6 +1754,7 @@ function unavailableNfcTopic(
   id: HelpTopicId,
   title: string,
   question: string,
+  icon: HelpIconName,
   related: readonly HelpTopicId[],
   group: HelpTopicGroup = "nfc",
 ): HelpTopic {
@@ -1800,7 +1766,7 @@ function unavailableNfcTopic(
       "Dieser Ablauf ist nicht verfügbar, weil Ihre OGS NFC nicht nutzt.",
     group,
     audience: ["caregiver", "lead"],
-    icon: TabletSmartphone,
+    icon,
     steps: [
       "Nutzen Sie die entsprechenden Funktionen in der moto-App.",
       "Erwarten Sie ein NFC-Tablet? Nur das moto-Team kann NFC einschalten.",
@@ -1814,6 +1780,7 @@ function unknownNfcTopic(
   id: HelpTopicId,
   title: string,
   question: string,
+  icon: HelpIconName,
   related: readonly HelpTopicId[],
   group: HelpTopicGroup = "nfc",
 ): HelpTopic {
@@ -1824,7 +1791,7 @@ function unknownNfcTopic(
     summary: "Ob dieser Ablauf verfügbar ist, hängt von Ihrer OGS ab.",
     group,
     audience: ["caregiver", "lead"],
-    icon: TabletSmartphone,
+    icon,
     steps: [
       "Prüfen Sie, ob in Ihrer OGS ein Tablet mit moto steht.",
       "Steht dort keines? Nutzen Sie die entsprechenden Funktionen in der moto-App.",
@@ -1842,6 +1809,7 @@ function tabletLoginTopic(nfcEnabled: boolean | null): HelpTopic {
       HELP_TOPICS.tabletLogin,
       "Mit der PIN am Tablet anmelden",
       "Wie melde ich mich mit meiner PIN am Tablet an?",
+      "Password",
       [HELP_TOPICS.login, HELP_TOPICS.nfcProblem],
     );
   }
@@ -1850,6 +1818,7 @@ function tabletLoginTopic(nfcEnabled: boolean | null): HelpTopic {
       HELP_TOPICS.tabletLogin,
       "Mit der PIN am Tablet anmelden",
       "Wie melde ich mich mit meiner PIN am Tablet an?",
+      "Password",
       [HELP_TOPICS.login, HELP_TOPICS.nfcProblem],
     );
   }
@@ -1862,7 +1831,7 @@ function tabletLoginTopic(nfcEnabled: boolean | null): HelpTopic {
       "Öffnen Sie mit der Geräte-PIN den geschützten Bereich des Tablets.",
     group: "nfc",
     audience: ["caregiver", "lead"],
-    icon: KeyRound,
+    icon: "Password",
     requirements: ["Die vierstellige Geräte-PIN Ihrer OGS"],
     steps: [
       "Wählen Sie auf dem Startbildschirm `Anmelden`.",
@@ -1886,6 +1855,7 @@ function tagAssignmentTopic(nfcEnabled: boolean | null): HelpTopic {
       HELP_TOPICS.tagAssignment,
       "Ein Armband zuweisen oder ändern",
       "Wie weise ich ein Armband zu oder ändere die Zuweisung?",
+      "Watch",
       [HELP_TOPICS.studentSearch, HELP_TOPICS.nfcProblem],
     );
   }
@@ -1894,6 +1864,7 @@ function tagAssignmentTopic(nfcEnabled: boolean | null): HelpTopic {
       HELP_TOPICS.tagAssignment,
       "Ein Armband zuweisen oder ändern",
       "Wie weise ich ein Armband zu oder ändere die Zuweisung?",
+      "Watch",
       [HELP_TOPICS.studentSearch, HELP_TOPICS.nfcProblem],
     );
   }
@@ -1906,7 +1877,7 @@ function tagAssignmentTopic(nfcEnabled: boolean | null): HelpTopic {
       "Verbinden Sie ein NFC-Armband mit dem richtigen Kind oder Teammitglied.",
     group: "nfc",
     audience: ["caregiver", "lead"],
-    icon: TabletSmartphone,
+    icon: "Watch",
     requirements: [
       "Die Person ist in moto angelegt und steht dort nur einmal.",
     ],
@@ -1950,6 +1921,7 @@ function nfcWorkTimeTopic(nfcEnabled: boolean | null): HelpTopic {
       HELP_TOPICS.nfcWorkTime,
       "Die eigene Arbeitszeit mit dem Armband erfassen",
       "Wie erfasse ich meine Arbeitszeit mit dem Armband?",
+      "Timer",
       [HELP_TOPICS.trackWorkTime, HELP_TOPICS.nfcProblem],
     );
   }
@@ -1958,6 +1930,7 @@ function nfcWorkTimeTopic(nfcEnabled: boolean | null): HelpTopic {
       HELP_TOPICS.nfcWorkTime,
       "Die eigene Arbeitszeit mit dem Armband erfassen",
       "Wie erfasse ich meine Arbeitszeit mit dem Armband?",
+      "Timer",
       [HELP_TOPICS.trackWorkTime, HELP_TOPICS.nfcProblem],
     );
   }
@@ -1969,7 +1942,7 @@ function nfcWorkTimeTopic(nfcEnabled: boolean | null): HelpTopic {
     summary: "Stempeln Sie sich am NFC-Tablet ein, aus oder in eine Pause.",
     group: "nfc",
     audience: ["caregiver", "lead"],
-    icon: Clock3,
+    icon: "Timer",
     requirements: ["Ihr persönliches, aktives NFC-Armband"],
     steps: [
       "Öffnen Sie im `Menü` den Bereich `Mitarbeiter-Stempeln`.",
@@ -1999,6 +1972,7 @@ function nfcSupervisionTopic(
       HELP_TOPICS.nfcSupervision,
       "Eine Aufsicht am Tablet starten und beenden",
       "Wie starte oder beende ich eine Aufsicht am Tablet?",
+      "TabletSmartphone",
       [HELP_TOPICS.activeSupervision, HELP_TOPICS.nfcProblem],
     );
   }
@@ -2007,6 +1981,7 @@ function nfcSupervisionTopic(
       HELP_TOPICS.nfcSupervision,
       "Eine Aufsicht am Tablet starten und beenden",
       "Wie starte oder beende ich eine Aufsicht am Tablet?",
+      "TabletSmartphone",
       [HELP_TOPICS.activeSupervision, HELP_TOPICS.nfcProblem],
     );
   }
@@ -2026,7 +2001,7 @@ function nfcSupervisionTopic(
         "Am Tablet wählen Sie zuerst Aktivität und Raum. Bei einfacher Anwesenheit ändert diese Auswahl nichts.",
       group: "nfc",
       audience: ["caregiver", "lead"],
-      icon: TabletSmartphone,
+      icon: "TabletSmartphone",
       steps: [
         "Melden Sie sich am Tablet mit Ihrer PIN an.",
         "Wählen Sie eine Aktivität und einen Raum.",
@@ -2050,7 +2025,7 @@ function nfcSupervisionTopic(
       "Wählen Sie Aktivität, Betreuungsteam und Raum. Starten Sie danach die Aufsicht.",
     group: "nfc",
     audience: ["caregiver", "lead"],
-    icon: TabletSmartphone,
+    icon: "TabletSmartphone",
     steps: [],
     instructionGroups: [
       {
@@ -2094,6 +2069,7 @@ function nfcCheckInTopic(
       HELP_TOPICS.nfcCheckIn,
       "Kinder mit dem Armband ein- und auschecken",
       "Wie checken sich Kinder mit dem Armband ein und aus?",
+      "Scan",
       [HELP_TOPICS.webAttendance, HELP_TOPICS.nfcProblem],
     );
   }
@@ -2102,6 +2078,7 @@ function nfcCheckInTopic(
       HELP_TOPICS.nfcCheckIn,
       "Kinder mit dem Armband ein- und auschecken",
       "Wie checken sich Kinder mit dem Armband ein und aus?",
+      "Scan",
       [HELP_TOPICS.webAttendance, HELP_TOPICS.nfcProblem],
     );
   }
@@ -2119,7 +2096,7 @@ function nfcCheckInTopic(
         "Kinder melden sich mit ihrem Armband an und ab. moto hält fest, ob ein Kind da ist.",
       group: "nfc",
       audience: ["caregiver", "lead"],
-      icon: TabletSmartphone,
+      icon: "Scan",
       requirements: [
         "Das Armband ist dem Kind zugewiesen.",
         "Am Tablet ist der Scan-Bildschirm geöffnet.",
@@ -2160,7 +2137,7 @@ function nfcCheckInTopic(
       "Kinder melden sich mit ihrem Armband bei einer Aufsicht an. Danach wählen sie ihr nächstes Ziel.",
     group: "nfc",
     audience: ["caregiver", "lead"],
-    icon: TabletSmartphone,
+    icon: "Scan",
     requirements: [
       "Das Armband ist dem Kind zugewiesen.",
       "Am Tablet läuft eine Aufsicht.",
@@ -2258,7 +2235,7 @@ function missingMenuTopic(
       "Ein Bereich kann wegen Ihrer Rolle, einer Einstellung oder der gewählten Arbeitsweise der OGS fehlen.",
     group: "probleme",
     audience: "caregiver",
-    icon: ShieldAlert,
+    icon: "EyeSlash",
     steps: [
       "Öffnen Sie auf dem Handy unten `Mehr`. Dort stehen alle Bereiche.",
       "Klappen Sie am Computer in der Seitenleiste die passende Gruppe auf.",
@@ -2283,7 +2260,7 @@ function missingChildOrGroupTopic(groupMode: HelpGroupMode): HelpTopic {
       "Prüfen Sie Suche, Filter, gewählten Tag und Ihre Gruppenzuordnung.",
     group: "probleme",
     audience: "caregiver",
-    icon: Search,
+    icon: "Search",
     steps: [
       "Löschen Sie den Text im Suchfeld.",
       // Jede Liste hat eigene Filter: ein Symbol, ein Umschalter oder eine
@@ -2323,7 +2300,7 @@ function attendanceProblemTopic(presenceMode: HelpPresenceMode): HelpTopic {
     summary: "Prüfen Sie den aktuellen Status, Ihre Auswahl und Ihre Rechte.",
     group: "probleme",
     audience: "caregiver",
-    icon: ShieldAlert,
+    icon: "ShieldAlert",
     steps: [
       "Öffnen Sie das Kind und prüfen Sie den aktuellen Status.",
       "Laden Sie die Seite neu, damit Sie den neuesten Stand sehen.",
@@ -2355,6 +2332,7 @@ function nfcProblemTopic(nfcEnabled: boolean | null): HelpTopic {
       HELP_TOPICS.nfcProblem,
       "Das NFC-Tablet funktioniert nicht",
       "Was kann ich tun, wenn das NFC-Tablet nicht funktioniert?",
+      "TabletSmartphone",
       [HELP_TOPICS.webAttendance, HELP_TOPICS.trackWorkTime],
       "probleme",
     );
@@ -2364,6 +2342,7 @@ function nfcProblemTopic(nfcEnabled: boolean | null): HelpTopic {
       HELP_TOPICS.nfcProblem,
       "Das NFC-Tablet funktioniert nicht",
       "Was kann ich tun, wenn das NFC-Tablet nicht funktioniert?",
+      "TabletSmartphone",
       [HELP_TOPICS.webAttendance, HELP_TOPICS.trackWorkTime],
       "probleme",
     );
@@ -2377,7 +2356,7 @@ function nfcProblemTopic(nfcEnabled: boolean | null): HelpTopic {
       "Prüfen Sie Strom, Verbindung, Lesegerät und Armband nacheinander.",
     group: "probleme",
     audience: ["caregiver", "lead"],
-    icon: TabletSmartphone,
+    icon: "TabletSmartphone",
     steps: [
       "Prüfen Sie, ob Tablet und NFC-Sensor Strom haben.",
       "Prüfen Sie, ob das Tablet mit dem Internet verbunden ist.",
@@ -2408,7 +2387,7 @@ function loginProblemTopic(nfcEnabled: boolean | null): HelpTopic {
       "Prüfen Sie die Seite Ihrer OGS, Ihre E-Mail-Adresse und Ihr Passwort.",
     group: "probleme",
     audience: ["caregiver", "lead"],
-    icon: KeyRound,
+    icon: "KeyRound",
     steps: [
       "Prüfen Sie, ob Sie die moto-Seite Ihrer OGS geöffnet haben.",
       "Geben Sie Ihre E-Mail-Adresse erneut vollständig ein.",
@@ -2522,7 +2501,7 @@ function roomsCatalogTopic(presenceMode: HelpPresenceMode): HelpTopic {
     summary: "Legen Sie jeden Raum einmal an. Gruppen brauchen einen Raum.",
     group: "einrichten",
     audience: "lead",
-    icon: Building2,
+    icon: "Building2",
     // Kein `requirements`: wer die Leitungshilfe liest, hat die Rechte der
     // Leitung. Der Fall „Bereich fehlt trotzdem" steht bei den Problemen,
     // wo er zu einer Handlung fuehrt.
@@ -2606,7 +2585,7 @@ function groupsCatalogTopic(groupMode: HelpGroupMode): HelpTopic {
       : "Legen Sie jede Gruppe an und geben Sie ihr Raum und Leitung.",
     group: "einrichten",
     audience: "lead",
-    icon: Users,
+    icon: "Users",
     steps: [],
     instructionGroups: [
       {
@@ -2679,7 +2658,7 @@ function activitiesCatalogTopic(): HelpTopic {
       "Aktivitäten sind Angebote neben der Gruppe, zum Beispiel eine AG.",
     group: "einrichten",
     audience: "lead",
-    icon: Sparkles,
+    icon: "Sparkles",
     steps: [],
     instructionGroups: [
       {
@@ -2759,7 +2738,7 @@ function createStudentTopic(): HelpTopic {
     summary: "Einzeln über ein Fenster. Viele auf einmal über eine Vorlage.",
     group: "einrichten",
     audience: "lead",
-    icon: UserRoundPlus,
+    icon: "Student",
     steps: [],
     instructionGroups: [
       {
@@ -2834,7 +2813,7 @@ function careTimesTopic(): HelpTopic {
     summary: "Legen Sie fest, an welchen Tagen ein Kind betreut wird.",
     group: "einrichten",
     audience: "lead",
-    icon: CalendarDays,
+    icon: "CalendarDays",
     steps: [],
     instructionGroups: [
       {
@@ -2881,6 +2860,11 @@ function careTimesTopic(): HelpTopic {
       "Dieselbe Auswahl gibt es für eine ganze Klasse: unter `Kinderdaten` im Menü der Klasse bei `Ankunftszeit bearbeiten`.",
       "Die Auswahl erscheint, wenn unter `Einstellungen` bei `Schulstunden` Uhrzeiten stehen. Jede Schule pflegt ihre eigenen Zeiten.",
       "Ändern Sie später eine Schulstunde, bleiben gespeicherte Zeiten unverändert.",
+      // #3371: Textfeld mit Ziffernmaske statt nativem Zeitfeld, Knopf nur
+      // mit gepflegter Vorgabe (care-weekly-plan-editor.tsx).
+      "Tippen Sie nur Ziffern, zum Beispiel 1600 für 16:00 Uhr.",
+      "Steht unter einem leeren Feld zum Beispiel `16:00 Uhr eintragen`? Ein Klick trägt die übliche Zeit Ihrer Schule ein.",
+      "Die üblichen Zeiten stehen unter `Einstellungen` bei `Betreuungszeiten`. Jede Schule pflegt ihre eigenen Zeiten.",
     ],
     differences: [
       // Einstellung `enrollment.bookings_authoritative`, Vorgabe aus. Der
@@ -2915,7 +2899,7 @@ function dataManagementTopic(): HelpTopic {
       "In der `Datenverwaltung` legen Sie an, was die OGS dauerhaft braucht.",
     group: "einrichten",
     audience: "lead",
-    icon: Database,
+    icon: "Database",
     steps: [
       "Klappen Sie in der Seitenleiste `Verwaltung` auf.",
       "Wählen Sie `Datenverwaltung`.",
@@ -3018,7 +3002,7 @@ function goLiveTopic(
     summary: "Arbeiten Sie diese Liste einmal von oben nach unten ab.",
     group: "einrichten",
     audience: "lead",
-    icon: ListChecks,
+    icon: "ListChecks",
     steps: [],
     instructionGroups: [
       {
@@ -3094,7 +3078,7 @@ function manageStudentTopic(): HelpTopic {
     summary: "Die Kindakte hat für jeden Bereich einen eigenen Reiter.",
     group: "kinderdaten",
     audience: "lead",
-    icon: UserRoundSearch,
+    icon: "UserRoundSearch",
     steps: [],
     instructionGroups: [
       {
@@ -3172,7 +3156,7 @@ function inviteGuardiansTopic(): HelpTopic {
       "Sie laden jede Person beim Kind ein. Dafür brauchen Sie ihre E-Mail-Adresse.",
     group: "elternarbeit",
     audience: "lead",
-    icon: KeyRound,
+    icon: "KeyRound",
     requirements: [
       "Das Kind ist in moto angelegt.",
       "Sie kennen die E-Mail-Adresse der Person.",
@@ -3254,7 +3238,7 @@ function endCareTopic(): HelpTopic {
     summary: "Sie setzen einen letzten Betreuungstag. Die Daten bleiben.",
     group: "kinderdaten",
     audience: "lead",
-    icon: LogOut,
+    icon: "LogOut",
     steps: [],
     instructionGroups: [
       {
@@ -3313,7 +3297,7 @@ function deleteStudentTopic(): HelpTopic {
     summary: "Löschen entfernt die Daten des Kindes. Das ist endgültig.",
     group: "kinderdaten",
     audience: "lead",
-    icon: Trash2,
+    icon: "Trash2",
     steps: [
       "Öffnen Sie `Datenverwaltung` und danach `Kinderdaten`.",
       "Wählen Sie das Kind aus der Liste.",
@@ -3359,7 +3343,7 @@ function gradeTransitionTopic(): HelpTopic {
     summary: "moto schlägt für jede Klasse die nächste vor. Sie prüfen nur.",
     group: "kinderdaten",
     audience: "lead",
-    icon: ArrowUpRight,
+    icon: "ArrowUpRight",
     steps: [
       "Öffnen Sie `Datenverwaltung` und danach `Jahrgangswechsel`.",
       "Wählen Sie `Neuer Jahrgangswechsel`.",
@@ -3404,7 +3388,7 @@ function classListEntriesTopic(): HelpTopic {
     summary: "Für vollständige Klassenlisten erfassen Sie auch diese Kinder.",
     group: "kinderdaten",
     audience: "lead",
-    icon: ClipboardList,
+    icon: "ClipboardList",
     steps: [],
     instructionGroups: [
       {
@@ -3480,7 +3464,7 @@ function parentAnnouncementTopic(): HelpTopic {
       "Eine Mitteilung erscheint im Elternportal der gewählten Familien.",
     group: "elternarbeit",
     audience: "lead",
-    icon: Megaphone,
+    icon: "Megaphone",
     steps: [
       ...parentAnnouncementSteps("Mitteilungen", "Mitteilung", "Titel"),
       "Wählen Sie `Veröffentlichen`.",
@@ -3523,7 +3507,7 @@ function parentLetterTopic(): HelpTopic {
     summary: "Ein Elternbrief geht zusätzlich per E-Mail und wird bestätigt.",
     group: "elternarbeit",
     audience: "lead",
-    icon: FileText,
+    icon: "FileText",
     steps: [
       ...parentAnnouncementSteps("Elternbriefe", "Elternbrief", "Titel"),
       "Wählen Sie unter `Wer erhält die E-Mail?`, wer sie bekommt.",
@@ -3562,7 +3546,7 @@ function parentSurveyTopic(): HelpTopic {
     summary: "Eine Umfrage sammelt die Antworten der Eltern an einem Ort.",
     group: "elternarbeit",
     audience: "lead",
-    icon: ListChecks,
+    icon: "ListChecks",
     steps: [
       ...parentAnnouncementSteps("Umfragen", "Umfrage", "Frage"),
       "Tragen Sie unter `Antwortmöglichkeiten` die Antworten ein. `Ja` und `Nein` stehen schon da, `+ Antwort hinzufügen` ergänzt weitere.",
@@ -3600,7 +3584,7 @@ function mealPlanTopic(): HelpTopic {
       "Tragen Sie die Gerichte je Tag ein. Eltern sehen den Plan sofort.",
     group: "elternarbeit",
     audience: "lead",
-    icon: UtensilsCrossed,
+    icon: "UtensilsCrossed",
     steps: [
       "Klappen Sie in der Seitenleiste `Eltern` auf.",
       "Öffnen Sie `Essensplan`.",
@@ -3644,7 +3628,7 @@ function bankDetailsTopic(): HelpTopic {
     summary: "Sie sehen je Kind die hinterlegte IBAN und können sie ausgeben.",
     group: "elternarbeit",
     audience: "lead",
-    icon: Landmark,
+    icon: "Landmark",
     steps: [
       "Klappen Sie in der Seitenleiste `Eltern` auf.",
       "Öffnen Sie `Bankverbindungen`.",
@@ -3686,7 +3670,7 @@ function enrollmentSetupTopic(): HelpTopic {
     summary: "Drei Schritte: Phase anlegen, Angebote pflegen, Formular prüfen.",
     group: "anmeldeverwaltung",
     audience: "lead",
-    icon: CalendarPlus,
+    icon: "CalendarPlus",
     steps: [],
     instructionGroups: [
       {
@@ -3775,7 +3759,7 @@ function enrollmentFormTopic(): HelpTopic {
       "Nur nötig, wenn das Basisformular nicht reicht. Sie legen dann eine Vorlage an.",
     group: "anmeldeverwaltung",
     audience: "lead",
-    icon: FileText,
+    icon: "FileText",
     requirements: [
       "Sie haben das `Basisformular` angesehen und etwas vermisst.",
     ],
@@ -3881,7 +3865,7 @@ function enrollmentReviewTopic(): HelpTopic {
     summary: "Sie prüfen die Angaben und entscheiden je Kind.",
     group: "anmeldeverwaltung",
     audience: "lead",
-    icon: ListChecks,
+    icon: "ListChecks",
     steps: [
       "Klappen Sie in der Seitenleiste `Eltern` auf.",
       "Öffnen Sie `Anmeldungen` und danach `Überblick`.",
@@ -3921,7 +3905,7 @@ function enrollmentExportTopic(): HelpTopic {
     summary: "Jede Phase lässt sich als Datei herunterladen.",
     group: "anmeldeverwaltung",
     audience: "lead",
-    icon: Download,
+    icon: "Download",
     steps: [
       "Öffnen Sie `Anmeldungen` und danach `Überblick`.",
       "Wählen Sie bei der Phase `Anmeldungen ansehen`.",
@@ -3957,7 +3941,7 @@ function enrollmentCleanupTopic(): HelpTopic {
     summary: "Löschen entfernt die ganze Anmeldung samt aller Kinder darin.",
     group: "anmeldeverwaltung",
     audience: "lead",
-    icon: Trash2,
+    icon: "Trash2",
     steps: [
       "Öffnen Sie `Anmeldungen` und danach `Überblick`.",
       "Wählen Sie bei der Phase `Anmeldungen ansehen`.",
@@ -3997,7 +3981,7 @@ function inviteStaffTopic(): HelpTopic {
     summary: "Einzeln über eine Einladung. Viele auf einmal über eine Vorlage.",
     group: "einrichten",
     audience: "lead",
-    icon: UserRoundPlus,
+    icon: "UserRoundPlus",
     steps: [],
     instructionGroups: [
       {
@@ -4069,7 +4053,7 @@ function staffRecordTopic(): HelpTopic {
       "Die Personalakte bündelt Arbeitszeit, Abwesenheiten und Unterlagen.",
     group: "personal",
     audience: "lead",
-    icon: FolderOpen,
+    icon: "FolderOpen",
     steps: [],
     instructionGroups: [
       {
@@ -4146,7 +4130,7 @@ function removeStaffTopic(): HelpTopic {
     summary: "Der Zugang geht aus. Die bisherigen Einträge bleiben erhalten.",
     group: "personal",
     audience: "lead",
-    icon: Trash2,
+    icon: "Trash2",
     steps: [
       "Öffnen Sie `Datenverwaltung` und danach `Personal`.",
       "Wählen Sie die Person aus der Liste.",
@@ -4188,7 +4172,7 @@ function staffPermissionsTopic(): HelpTopic {
     summary: "Jede Person hat eine Rolle. Die Rolle trägt die Rechte.",
     group: "personal",
     audience: "lead",
-    icon: ShieldCheck,
+    icon: "ShieldCheck",
     steps: [],
     instructionGroups: [
       {
@@ -4253,7 +4237,7 @@ function leadTeacherAccessTopic(): HelpTopic {
     summary: "Lehrkräfte sehen ihre Klasse in einem eigenen Bereich.",
     group: "personal",
     audience: "lead",
-    icon: GraduationCap,
+    icon: "GraduationCap",
     steps: [
       "Öffnen Sie `Datenverwaltung` und danach `Personal`.",
       "Wählen Sie oben rechts `+ Personal`.",
@@ -4300,7 +4284,7 @@ function staffNoticesTopic(): HelpTopic {
     summary: "Eine Tagesinformation sehen alle, die heute arbeiten.",
     group: "planung",
     audience: "lead",
-    icon: Megaphone,
+    icon: "Megaphone",
     steps: [
       "Klappen Sie in der Seitenleiste `Team` auf.",
       "Öffnen Sie `Tagesinformationen`.",
@@ -4347,7 +4331,7 @@ function calendarPeriodsTopic(): HelpTopic {
     summary: "moto plant nur an Tagen, an denen Ihre OGS geöffnet hat.",
     group: "planung",
     audience: "lead",
-    icon: CalendarDays,
+    icon: "CalendarDays",
     steps: [],
     instructionGroups: [
       {
@@ -4404,7 +4388,7 @@ function leadCarePlanTopic(): HelpTopic {
     summary: "Der Betreuungsplan legt fest, wer wann welche Kinder betreut.",
     group: "planung",
     audience: "lead",
-    icon: CalendarDays,
+    icon: "Table",
     steps: [
       "Klappen Sie in der Seitenleiste `Planung` auf.",
       "Öffnen Sie `Betreuungsplan`.",
@@ -4443,7 +4427,7 @@ function dutyRosterTopic(): HelpTopic {
     summary: "Der Dienstplan zeigt, wer wann arbeitet.",
     group: "planung",
     audience: "lead",
-    icon: Clock3,
+    icon: "Clock3",
     steps: [
       "Klappen Sie in der Seitenleiste `Planung` auf.",
       "Öffnen Sie `Dienstplan`.",
@@ -4482,7 +4466,7 @@ function substitutionPlanTopic(): HelpTopic {
     summary: "Sie tragen ein, wer einen Einsatz übernimmt.",
     group: "planung",
     audience: "lead",
-    icon: Repeat,
+    icon: "Repeat",
     steps: [
       "Klappen Sie in der Seitenleiste `Planung` auf.",
       "Öffnen Sie `Vertretungsplan`.",
@@ -4519,7 +4503,7 @@ function dayListsTopic(): HelpTopic {
     summary: "Tageslisten zeigen für einen Tag, wer wo sein soll.",
     group: "planung",
     audience: "lead",
-    icon: ClipboardList,
+    icon: "ClipboardList",
     steps: [
       "Klappen Sie in der Seitenleiste `Planung` auf.",
       "Öffnen Sie `Tageslisten`.",
@@ -4562,7 +4546,7 @@ function workTimeReviewTopic(): HelpTopic {
     summary: "Zeiten stehen bei `Mitarbeiter`, Anträge unter `Anfragen`.",
     group: "personal",
     audience: "lead",
-    icon: Clock3,
+    icon: "Clock3",
     steps: [],
     instructionGroups: [
       {
@@ -4625,7 +4609,7 @@ function absenceReportTopic(): HelpTopic {
     summary: "Die Auswertung zeigt Krankmeldungen und Entschuldigungen.",
     group: "auswertung",
     audience: "lead",
-    icon: BellRing,
+    icon: "BellRing",
     steps: [
       "Öffnen Sie im `Tagesbetrieb` den Bereich `Alle Kinder`.",
       "Öffnen Sie oben rechts das Menü mit den drei Punkten.",
@@ -4661,7 +4645,7 @@ function statisticsTopic(): HelpTopic {
     summary: "Die Statistik zeigt die Anwesenheit über einen Zeitraum.",
     group: "auswertung",
     audience: "lead",
-    icon: BarChart3,
+    icon: "BarChart3",
     steps: [
       "Klappen Sie in der Seitenleiste `Verwaltung` auf.",
       "Öffnen Sie `Statistik`.",
@@ -4698,7 +4682,7 @@ function exportsTopic(): HelpTopic {
     summary: "Fertige Listen lassen sich als Datei herunterladen.",
     group: "auswertung",
     audience: "lead",
-    icon: Download,
+    icon: "Download",
     steps: [
       "Öffnen Sie `Datenverwaltung` und danach `Exporte`.",
       "Suchen Sie die passende Liste und wählen Sie `Liste erstellen`.",
@@ -4739,7 +4723,7 @@ function payrollTopic(): HelpTopic {
     summary: "Sie hinterlegen einmal die Lohnarten Ihres Trägers.",
     group: "personal",
     audience: "lead",
-    icon: Landmark,
+    icon: "Landmark",
     steps: [
       "Klappen Sie in der Seitenleiste `Planung` auf.",
       "Öffnen Sie `Abrechnung`.",
@@ -4782,7 +4766,7 @@ function settingsTopic(): HelpTopic {
     summary: "Die Einstellungen steuern Anwesenheit, Funktionen und Abläufe.",
     group: "konfiguration",
     audience: "lead",
-    icon: Settings,
+    icon: "Settings",
     steps: [
       "Wählen Sie unten in der Seitenleiste `Einstellungen`.",
       "Wählen Sie oben den Bereich.",
@@ -4817,7 +4801,7 @@ function parentVisibilityTopic(): HelpTopic {
     summary: "Sie schalten einzeln ein, was Eltern sehen und tun dürfen.",
     group: "konfiguration",
     audience: "lead",
-    icon: Eye,
+    icon: "Eye",
     steps: [
       "Wählen Sie unten in der Seitenleiste `Einstellungen`.",
       "Bleiben Sie oben im Reiter `Betrieb`.",
@@ -4863,7 +4847,7 @@ function tabletSetupTopic(): HelpTopic {
     summary: "Standort wählen, Kabel einstecken, den Startbildschirm abwarten.",
     group: "einrichten",
     audience: "lead",
-    icon: PlugZap,
+    icon: "PlugZap",
     requirements: ["Eine Steckdose in der Nähe des Standorts"],
     steps: [
       "Wählen Sie einen Ort, an dem die Kinder täglich vorbeikommen.",
@@ -4917,7 +4901,7 @@ function nfcSettingsTopic(presenceMode: HelpPresenceMode): HelpTopic {
       : "Sie setzen die PIN, mit der sich Ihr Team am Tablet anmeldet.",
     group: "nfc",
     audience: "lead",
-    icon: SlidersHorizontal,
+    icon: "SlidersHorizontal",
     steps: [],
     instructionGroups: [
       {
@@ -5001,7 +4985,7 @@ function devicesTopic(): HelpTopic {
     summary: "Sie sehen alle Geräte Ihrer OGS und ihren Zustand.",
     group: "nfc",
     audience: "lead",
-    icon: TabletSmartphone,
+    icon: "Devices",
     steps: [],
     instructionGroups: [
       {
@@ -5063,7 +5047,7 @@ function infoDisplaysTopic(): HelpTopic {
       "Ein Bildschirm im Flur zeigt Raumbelegung, Angebote und Abholzeiten.",
     group: "konfiguration",
     audience: "lead",
-    icon: Monitor,
+    icon: "Monitor",
     steps: [],
     instructionGroups: [
       {
@@ -5112,7 +5096,7 @@ function leadMissingMenuTopic(): HelpTopic {
     summary: "Meist fehlt der Rolle das Recht für diesen Bereich.",
     group: "probleme",
     audience: "lead",
-    icon: ShieldAlert,
+    icon: "EyeSlash",
     steps: [
       "Fragen Sie, welcher Bereich genau fehlt.",
       "Öffnen Sie `Datenverwaltung` und danach `Personal`.",
@@ -5229,7 +5213,7 @@ function parentAccountTopic(): HelpTopic {
     summary: "Sie öffnen den Link aus der E-Mail und legen Ihr Passwort fest.",
     group: "einstieg",
     audience: "parent",
-    icon: KeyRound,
+    icon: "KeyRound",
     requirements: ["Sie haben eine Einladungs-E-Mail Ihrer OGS bekommen."],
     steps: [
       "Öffnen Sie den Link aus der E-Mail.",
@@ -5273,7 +5257,7 @@ function parentLoginTopic(): HelpTopic {
       "Das Elternportal hat eine eigene Adresse und eigene Zugangsdaten.",
     group: "einstieg",
     audience: "parent",
-    icon: LogIn,
+    icon: "LogIn",
     steps: [
       "Öffnen Sie die Adresse des Elternportals.",
       "Tragen Sie Ihre `E-Mail-Adresse` ein.",
@@ -5313,7 +5297,7 @@ function parentInstallAppTopic(): HelpTopic {
     summary: "Sie fügen moto zum Startbildschirm hinzu. Ohne App Store.",
     group: "einstieg",
     audience: "parent",
-    icon: Smartphone,
+    icon: "Smartphone",
     steps: [],
     instructionGroups: [
       {
@@ -5366,7 +5350,7 @@ function parentChildOverviewTopic(): HelpTopic {
     summary: "Die Seite `Kinder` zeigt den heutigen Tag und drei Bereiche.",
     group: "mein-kind",
     audience: "parent",
-    icon: UserRoundSearch,
+    icon: "UserRoundSearch",
     steps: [
       "Tippen Sie unten auf `Mein Kind`.",
       "Haben Sie mehrere Kinder, wählen Sie oben das Kind.",
@@ -5410,7 +5394,7 @@ function parentChildDataTopic(): HelpTopic {
     summary: "Manches ändern Sie selbst. Anderes prüft die OGS zuerst.",
     group: "mein-kind",
     audience: "parent",
-    icon: FileText,
+    icon: "FileText",
     steps: [],
     instructionGroups: [
       {
@@ -5475,7 +5459,7 @@ function parentGuardiansTopic(): HelpTopic {
     summary: "Sie hinterlegen Kontakte und legen Abholrechte fest.",
     group: "mein-kind",
     audience: "parent",
-    icon: Users,
+    icon: "Users",
     steps: [],
     instructionGroups: [
       {
@@ -5547,7 +5531,7 @@ function parentReportAbsenceTopic(): HelpTopic {
     summary: "Sie melden der OGS, an welchen Tagen Ihr Kind nicht kommt.",
     group: "mein-kind",
     audience: "parent",
-    icon: BellRing,
+    icon: "BellRing",
     steps: [
       "Tippen Sie unten auf `Mein Kind`.",
       "Tippen Sie unter `Heute` auf den Knopf mit dem Namen Ihres Kindes und `abmelden`.",
@@ -5589,7 +5573,7 @@ function parentPickupChangeTopic(): HelpTopic {
     summary: "Sie fragen eine andere Abholzeit an. Der Wochenplan bleibt.",
     group: "mein-kind",
     audience: "parent",
-    icon: Clock3,
+    icon: "Clock3",
     steps: [
       "Tippen Sie unten auf `Mein Kind`.",
       "Tippen Sie unter `Heute` auf `Abholzeit für ... ändern`.",
@@ -5630,7 +5614,7 @@ function parentDepartureTopic(): HelpTopic {
     summary: "Sie wählen je Wochentag den Weg und fragen die Änderung an.",
     group: "mein-kind",
     audience: "parent",
-    icon: Repeat,
+    icon: "Repeat",
     steps: [
       "Tippen Sie unten auf `Mein Kind`.",
       "Wählen Sie den Reiter `Betreuung`.",
@@ -5675,7 +5659,7 @@ function parentCareChangeTopic(): HelpTopic {
     summary: "Sie stellen eine Anfrage. Die OGS entscheidet darüber.",
     group: "mein-kind",
     audience: "parent",
-    icon: CalendarDays,
+    icon: "CalendarDays",
     steps: [],
     instructionGroups: [
       {
@@ -5731,7 +5715,7 @@ function parentMessagesTopic(): HelpTopic {
     summary: "Sie schreiben dem OGS-Team und lesen seine Antworten.",
     group: "nachrichten",
     audience: "parent",
-    icon: MessageSquareText,
+    icon: "MessageSquareText",
     steps: [
       "Tippen Sie unten auf `Nachrichten`.",
       "Tippen Sie auf die Unterhaltung des Kindes.",
@@ -5770,7 +5754,7 @@ function parentNewsTopic(): HelpTopic {
     summary: "Unter `Elternbriefe` stehen Mitteilungen und Umfragen.",
     group: "nachrichten",
     audience: "parent",
-    icon: Megaphone,
+    icon: "Megaphone",
     steps: [],
     instructionGroups: [
       {
@@ -5824,7 +5808,7 @@ function parentCalendarTopic(): HelpTopic {
     summary: "Der Kalender zeigt die Termine Ihrer Kinder.",
     group: "nachrichten",
     audience: "parent",
-    icon: CalendarDays,
+    icon: "CalendarDays",
     steps: [
       "Tippen Sie unten auf `Kalender`.",
       "Lesen Sie die Termine unter `Diese Woche`, `Nächste Woche` und `Später`.",
@@ -5863,7 +5847,7 @@ function parentMealPlanTopic(): HelpTopic {
     summary: "Unter `Mittagessen` steht der Plan der Woche.",
     group: "nachrichten",
     audience: "parent",
-    icon: UtensilsCrossed,
+    icon: "UtensilsCrossed",
     steps: [
       "Tippen Sie unten auf `Mehr`.",
       "Wählen Sie `Mittagessen`.",
@@ -5907,7 +5891,7 @@ function parentNotificationsTopic(): HelpTopic {
       "Sie wählen die Themen aus. Danach erlauben Sie die Benachrichtigungen auf Ihrem Gerät.",
     group: "einstieg",
     audience: "parent",
-    icon: BellRing,
+    icon: "BellRing",
     steps: [
       "Tippen Sie unten auf `Mehr` und dann auf `Einstellungen`.",
       "Schalten Sie unter `Benachrichtigungen` die Themen ein. Oder wählen Sie `Alle aktivieren`.",
@@ -5950,7 +5934,7 @@ function parentEnrollTopic(): HelpTopic {
     summary: "Sie wählen die Anmeldung und füllen ein Formular aus.",
     group: "anmeldung",
     audience: "parent",
-    icon: ListChecks,
+    icon: "ListChecks",
     steps: [
       "Tippen Sie unten auf `Mehr`.",
       "Wählen Sie `Neue Anmeldung`.",
@@ -5993,7 +5977,7 @@ function parentEnrollStatusTopic(): HelpTopic {
     summary: "Der Link aus der Bestätigungs-E-Mail führt zum Stand.",
     group: "anmeldung",
     audience: "parent",
-    icon: Eye,
+    icon: "Eye",
     requirements: ["Sie haben die Bestätigungs-E-Mail zu Ihrer Anmeldung."],
     steps: [],
     instructionGroups: [
@@ -6054,7 +6038,7 @@ function parentAccountProblemTopic(): HelpTopic {
     summary: "Meist ist der Link abgelaufen oder schon benutzt.",
     group: "probleme",
     audience: "parent",
-    icon: ShieldAlert,
+    icon: "ShieldAlert",
     steps: [
       "Lesen Sie, was auf der Seite steht.",
       "Prüfen Sie, ob Sie den Link schon einmal geöffnet haben.",
@@ -6088,7 +6072,7 @@ function parentChildMissingTopic(): HelpTopic {
     summary: "Die OGS muss Ihren Zugang zum Kind erst freigeben.",
     group: "probleme",
     audience: "parent",
-    icon: Search,
+    icon: "Search",
     steps: [
       "Prüfen Sie, ob Sie mit der richtigen E-Mail-Adresse angemeldet sind.",
       "Haben Sie mehrere Kinder, prüfen Sie oben die Auswahl.",
@@ -6122,7 +6106,7 @@ function parentFeatureMissingTopic(): HelpTopic {
     summary: "Jede OGS schaltet selbst frei, was Eltern sehen und tun dürfen.",
     group: "probleme",
     audience: "parent",
-    icon: ShieldAlert,
+    icon: "EyeSlash",
     steps: [
       "Prüfen Sie, ob der Bereich hinter `Mehr` liegt.",
       "Fehlt er auch dort, nutzt Ihre OGS ihn nicht.",
@@ -6198,7 +6182,7 @@ function teacherAccessTopic(): HelpTopic {
     summary: "Sie öffnen den Link aus der E-Mail und legen Ihr Passwort fest.",
     group: "einstieg",
     audience: "teacher",
-    icon: KeyRound,
+    icon: "KeyRound",
     requirements: ["Sie haben eine Einladungs-E-Mail der OGS bekommen."],
     steps: [
       "Öffnen Sie den Link aus der E-Mail.",
@@ -6234,7 +6218,7 @@ function teacherLoginTopic(): HelpTopic {
     summary: "moto schule hat eine eigene Adresse und eine eigene Anmeldung.",
     group: "einstieg",
     audience: "teacher",
-    icon: LogIn,
+    icon: "LogIn",
     steps: [
       "Öffnen Sie die Adresse von moto schule.",
       "Tragen Sie Ihre `E-Mail-Adresse` ein.",
@@ -6271,7 +6255,7 @@ function teacherSettingsTopic(): HelpTopic {
       "Erst wählen, worüber Sie informiert werden, dann das Gerät einrichten.",
     group: "einstieg",
     audience: "teacher",
-    icon: Settings,
+    icon: "Settings",
     steps: [
       "Öffnen Sie `Einstellungen`.",
       "Wählen Sie unter `Benachrichtigungen` die Arten aus.",
@@ -6306,7 +6290,7 @@ function teacherClassDayTopic(): HelpTopic {
       "Die `Klassenansicht` zeigt Ihre Klassen und die Zahlen des Tages.",
     group: "klasse",
     audience: "teacher",
-    icon: Users,
+    icon: "Users",
     steps: [
       "Melden Sie sich bei moto schule an.",
       "Sie landen in der `Klassenansicht`.",
@@ -6342,7 +6326,7 @@ function teacherClassListTopic(): HelpTopic {
     summary: "Die Liste trennt, wer bleibt, wer nach Hause geht und wer fehlt.",
     group: "klasse",
     audience: "teacher",
-    icon: ListChecks,
+    icon: "ListChecks",
     steps: [],
     instructionGroups: [
       {
@@ -6403,7 +6387,7 @@ function teacherChildDetailsTopic(): HelpTopic {
     summary: "Sie sehen den heutigen Tag. Kontaktdaten nur in Ihrer Aufsicht.",
     group: "klasse",
     audience: "teacher",
-    icon: UserRoundSearch,
+    icon: "UserRoundSearch",
     steps: [
       "Öffnen Sie die Liste Ihrer Klasse.",
       "Wählen Sie das Kind aus der Liste.",
@@ -6442,7 +6426,7 @@ function teacherArrivalChangeTopic(): HelpTopic {
     summary: "Sie tragen die neue Ankunftszeit für einen einzelnen Tag ein.",
     group: "klasse",
     audience: "teacher",
-    icon: Clock3,
+    icon: "Clock3",
     steps: [
       "Öffnen Sie die Liste Ihrer Klasse.",
       "Wählen Sie `Ankunft heute ändern`.",
@@ -6481,7 +6465,7 @@ function teacherSupervisionTopic(): HelpTopic {
     summary: "Unter `Meine Aufsichten` stehen Ihre eigenen Dienste des Tages.",
     group: "aufsicht",
     audience: "teacher",
-    icon: Eye,
+    icon: "Eye",
     steps: [
       "Öffnen Sie `Meine Aufsichten`.",
       "Lesen Sie, welche Aufsichten heute für Sie eingeteilt sind.",
@@ -6513,7 +6497,7 @@ function teacherStartSupervisionTopic(): HelpTopic {
     summary: "Mit dem Start sehen Sie die Kinder, die zu Ihnen gehören.",
     group: "aufsicht",
     audience: "teacher",
-    icon: Clock3,
+    icon: "Clock3",
     steps: [
       "Öffnen Sie `Meine Aufsichten`.",
       "Wählen Sie die Aufsicht, die jetzt beginnt.",
@@ -6547,7 +6531,7 @@ function teacherSupervisionRosterTopic(): HelpTopic {
       "In einer laufenden Aufsicht sehen Sie Abholung und Notfallkontakt.",
     group: "aufsicht",
     audience: "teacher",
-    icon: Users,
+    icon: "Users",
     steps: [
       "Starten Sie Ihre Aufsicht.",
       "Wählen Sie ein Kind aus der Liste.",
@@ -6584,7 +6568,7 @@ function teacherMessagesTopic(): HelpTopic {
     summary: "Sie schreiben dem OGS-Team und lesen seine Antworten.",
     group: "nachrichten",
     audience: "teacher",
-    icon: MessageSquareText,
+    icon: "MessageSquareText",
     steps: [
       "Öffnen Sie `Nachrichten`.",
       "Wählen Sie eine Unterhaltung. Oder wählen Sie `Neue Nachricht`.",
@@ -6619,7 +6603,7 @@ function teacherNoticesTopic(): HelpTopic {
     summary: "Unter `Tagesinformationen` steht, was für heute gilt.",
     group: "nachrichten",
     audience: "teacher",
-    icon: Megaphone,
+    icon: "Megaphone",
     steps: [
       "Öffnen Sie `Tagesinformationen`.",
       "Lesen Sie die Hinweise für heute.",
@@ -6653,7 +6637,7 @@ function teacherLoginProblemTopic(): HelpTopic {
     summary: "Meist wurde die Anmeldung der OGS statt moto schule benutzt.",
     group: "probleme",
     audience: "teacher",
-    icon: ShieldAlert,
+    icon: "ShieldAlert",
     steps: [
       "Prüfen Sie, ob oben `Willkommen im Schulportal` steht.",
       "Steht dort etwas anderes, nutzen Sie die Adresse von moto schule.",
@@ -6688,7 +6672,7 @@ function teacherNoClassesTopic(): HelpTopic {
     summary: "Die OGS muss Ihnen die Klassen erst zuweisen.",
     group: "probleme",
     audience: "teacher",
-    icon: Search,
+    icon: "Search",
     steps: [
       "Lesen Sie, ob dort `Keine Klassen zugewiesen` steht.",
       "Schreiben Sie der OGS und nennen Sie Ihre Klassen.",
@@ -6725,7 +6709,7 @@ function teacherFeatureMissingTopic(): HelpTopic {
       "Jede OGS schaltet selbst frei, was Lehrkräfte sehen und tun dürfen.",
     group: "probleme",
     audience: "teacher",
-    icon: ShieldAlert,
+    icon: "EyeSlash",
     steps: [
       "Prüfen Sie, welcher Bereich genau fehlt.",
       "Schreiben Sie der OGS, wenn Sie ihn brauchen.",
@@ -6836,6 +6820,9 @@ const FIXED_GROUPS_ONLY_TOPIC_IDS: ReadonlySet<HelpTopicId> = new Set([
   HELP_TOPICS.ownGroups,
   HELP_TOPICS.transferGroup,
 ]);
+
+/** So viele Themen zeigt die Startseite einer Rolle als Kacheln. */
+export const HOME_TOPIC_COUNT = 6;
 
 export function getHelpTopics(
   presenceMode: HelpPresenceMode,

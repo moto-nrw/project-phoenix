@@ -6,7 +6,7 @@ import (
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
-	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 var errSettingsNotConfigured = errors.New("settings service is not configured")
@@ -21,7 +21,7 @@ type settingsResolver interface {
 // with the retained presence service, which validates the value.
 type settings struct {
 	settings settingsResolver
-	active   activeSvc.Service
+	active   studentpresence.Presence
 }
 
 func (s settings) PresenceMode(ctx context.Context) (string, error) {

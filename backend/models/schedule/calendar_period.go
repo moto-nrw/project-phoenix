@@ -25,28 +25,7 @@ var (
 	// series. The caller must keep the period unchanged until the offering is
 	// relinked or removed.
 	ErrCalendarPeriodCareOfferingConflict = errors.New("calendar period is required by a linked care offering")
-	// ErrCalendarPeriodOverlapConflict is returned when creating or updating
-	// an active period would overlap an existing active period of the same
-	// period_type (#1837). Overlaps across different types (e.g. holidays
-	// inside a school year) stay legal and are only surfaced as advisory
-	// warnings.
-	ErrCalendarPeriodOverlapConflict = errors.New("calendar period overlaps an active period of the same type")
 )
-
-// CalendarPeriodOverlapError wraps ErrCalendarPeriodOverlapConflict and
-// carries the conflicting periods so handlers can name them in the 409
-// response. errors.Is against the sentinel keeps matching through Unwrap.
-type CalendarPeriodOverlapError struct {
-	Overlaps []*CalendarPeriod
-}
-
-func (e *CalendarPeriodOverlapError) Error() string {
-	return ErrCalendarPeriodOverlapConflict.Error()
-}
-
-func (e *CalendarPeriodOverlapError) Unwrap() error {
-	return ErrCalendarPeriodOverlapConflict
-}
 
 // CalendarPeriodNameMaxLength is the maximum length of the name field.
 const CalendarPeriodNameMaxLength = 255

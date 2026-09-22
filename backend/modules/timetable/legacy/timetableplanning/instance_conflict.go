@@ -22,7 +22,6 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
 // Conflict kinds — stable string values exported to clients so the frontend
@@ -68,7 +67,7 @@ type InstanceConflictWarning struct {
 // no graceful-degradation path here because the planner cannot reliably
 // decide whether to warn without all sub-checks.
 type ConflictDependencies struct {
-	GroupRepo         active.GroupRepository
+	GroupRepo         studentpresence.SessionRecords
 	Presence          ConflictPresence
 	InstanceRepo      scheduleModel.ActivityInstanceRepository
 	InstanceStaffRepo scheduleModel.InstanceStaffRepository
@@ -221,7 +220,7 @@ func DetectStartConflicts(
 
 type activeStaffConflicts struct {
 	supervisions map[int64][]studentpresence.GroupSupervision
-	groups       map[int64]*active.Group
+	groups       map[int64]*studentpresence.SessionDetail
 	instances    map[int64]*scheduleModel.ActivityInstance
 	staffRows    map[int64][]*scheduleModel.InstanceStaff
 	roomsLoaded  bool
@@ -254,7 +253,7 @@ func loadActiveStaffConflicts(
 func newActiveStaffConflicts() activeStaffConflicts {
 	return activeStaffConflicts{
 		supervisions: make(map[int64][]studentpresence.GroupSupervision),
-		groups:       make(map[int64]*active.Group),
+		groups:       make(map[int64]*studentpresence.SessionDetail),
 		instances:    make(map[int64]*scheduleModel.ActivityInstance),
 		staffRows:    make(map[int64][]*scheduleModel.InstanceStaff),
 	}
@@ -338,7 +337,7 @@ func indexSupervisions(byStaff map[int64][]studentpresence.GroupSupervision, row
 // determined (lookup failure, or a bridged instance whose roster does not
 // contain the staff member) — callers must then KEEP the warning, because an
 // undetermined room is "not certainly the same room".
-func (c activeStaffConflicts) room(group *active.Group, staffID int64) (roomID int64, ok bool) {
+func (c activeStaffConflicts) room(group *studentpresence.SessionDetail, staffID int64) (roomID int64, ok bool) {
 	if !c.roomsLoaded {
 		return 0, false
 	}

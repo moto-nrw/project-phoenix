@@ -564,7 +564,9 @@
    `TileCard`) wachsen nie: eine gestreckte Kachel wäre ein riesiger Knopf,
    ein gestrecktes Gitter zöge jede Zeile in die Länge.
    Ausstieg: `.moto-scroll-surface` an einer Fläche, die ihre Höhe selbst
-   bekommt und innen scrollt (die Chats mit `useChatViewportLock`). Die Regel
+   bekommt und innen scrollt: die Chats (`useChatViewportLock`), das
+   Master-Detail-Layout und die einspaltige Sammlung der Datenverwaltung am
+   Computer (`useFillHeight`; auf dem Telefon scrollt dort die Seite). Die Regel
    steht außerhalb der Tailwind-Layer; ihr `flex: 1 0 auto` schlüge sonst das
    `flex-1 min-h-0` der Karte. Die Karte würde so hoch wie ihr ganzer
    Inhalt, die Liste hätte nichts zu scrollen und die feste Hülle schnitte
@@ -583,10 +585,16 @@
    letzten Karte frei. Eine Hülle, die ab `md` ausgeblendet ist (die
    gestapelten Telefonzeilen einer `DataTable`), bleibt außen vor: sonst
    schlägt dieses `display: flex` ihr `md:hidden` und die Zeilen stehen auf
-   dem Desktop doppelt, als Karten und als Tabelle. */
+   dem Desktop doppelt, als Karten und als Tabelle. Karten IN einer
+   `moto-scroll-surface` zählen nicht: sonst machten sie deren Hüllen wieder
+   zur Spalte, und Liste und Objektansicht des Master-Detail-Layouts lägen
+   untereinander statt nebeneinander. */
 .moto-tenant-body
   > :last-child:not(.grid, .moto-content-surface, .hidden, .md\:hidden):has(
-    .moto-content-surface:last-child:is(section, div):not(.moto-scroll-surface)
+    .moto-content-surface:last-child:is(section, div):not(
+        .moto-scroll-surface,
+        .moto-scroll-surface *
+      )
   ),
 .moto-tenant-body
   > :last-child:not(.grid, .moto-content-surface, .hidden, .md\:hidden)
@@ -597,7 +605,10 @@
     .md\:hidden,
     .moto-scroll-surface *
   ):has(
-    .moto-content-surface:last-child:is(section, div):not(.moto-scroll-surface)
+    .moto-content-surface:last-child:is(section, div):not(
+        .moto-scroll-surface,
+        .moto-scroll-surface *
+      )
   ) {
   display: flex;
   flex-direction: column;

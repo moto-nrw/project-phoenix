@@ -42,6 +42,28 @@ func (e *recordingEngine) UpdateCalendarPeriod(context.Context, UpdateCalendarPe
 
 func (e *recordingEngine) DeleteCalendarPeriod(context.Context, int64) error { e.calls++; return nil }
 
+func (e *recordingEngine) FederalState(context.Context) (string, error) {
+	e.calls++
+	return "DE-NW", nil
+}
+
+func (e *recordingEngine) AddCalendarPeriod(context.Context, CreateCalendarPeriod) (CalendarPeriod, error) {
+	e.calls++
+	return CalendarPeriod{}, nil
+}
+
+func (e *recordingEngine) ChangeCalendarPeriod(context.Context, UpdateCalendarPeriod) (CalendarPeriod, error) {
+	e.calls++
+	return CalendarPeriod{}, nil
+}
+
+func (e *recordingEngine) RemoveCalendarPeriod(context.Context, int64) error { e.calls++; return nil }
+
+func (e *recordingEngine) EnsureDefaultSchoolYear(context.Context) ([]CalendarPeriod, bool, error) {
+	e.calls++
+	return nil, false, nil
+}
+
 func (e *recordingEngine) FindClosingDay(context.Context, int64) (ClosingDay, error) {
 	e.calls++
 	return ClosingDay{}, nil

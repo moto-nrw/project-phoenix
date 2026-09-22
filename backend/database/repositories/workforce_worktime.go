@@ -25,27 +25,9 @@ func NewWorkforceWithClock(db *bun.DB, membership schoolmembership.Capability, n
 			_, err := membership.FindStaffForMutation(ctx, staffID)
 			return err
 		},
-		DB:                db,
-		AssignedStaffIDs:  WorkforceAssignedStaffIDs(membership),
-		RebaseStaffAnchor: membership.RebaseWorkTimeModelAnchor,
-		Observe:           func(workforceCompose.Observation) {},
-		Now:               now,
+		DB:           db,
+		LiveStaffIDs: WorkforceLiveStaffIDs(membership),
+		Observe:      func(workforceCompose.Observation) {},
+		Now:          now,
 	})
-}
-
-// WorkforceAssignedStaffIDs resolves the staff members bound to a work-time
-// template through School Membership. Workforce never joins users.staff
-// itself (#2667).
-func WorkforceAssignedStaffIDs(membership schoolmembership.Capability) func(context.Context, int64) ([]int64, error) {
-	return func(ctx context.Context, workTimeModelID int64) ([]int64, error) {
-		members, err := membership.ListStaff(ctx, schoolmembership.StaffFilter{WorkTimeModelID: &workTimeModelID})
-		if err != nil {
-			return nil, err
-		}
-		ids := make([]int64, 0, len(members))
-		for _, member := range members {
-			ids = append(ids, member.ID)
-		}
-		return ids, nil
-	}
 }

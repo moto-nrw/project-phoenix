@@ -7,7 +7,8 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
+	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
+	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // mountDemoAccess adds the public demo routes (#3462); they exist under
@@ -24,7 +25,7 @@ func mountDemoAccess(router chi.Router, accesses authAPI.DemoAccesses, appEnv, f
 		}
 		return accesses, nil
 	}
-	return authAPI.MountDemoRoutes(router, appEnv, compose, origins)
+	return authAPI.MountDemoRoutes(router, services.IsDemoEnvironment(appEnv), compose, origins)
 }
 
 // demoOrigins yields where a prospect waits and where the demo school lives

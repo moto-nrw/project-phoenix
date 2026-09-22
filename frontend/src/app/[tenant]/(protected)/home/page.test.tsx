@@ -49,6 +49,7 @@ vi.mock("~/lib/auth-utils", () => ({
   isAdmin: vi.fn((session) => session?.user?.isAdmin ?? false),
   hasEffectiveAdminScope: vi.fn((session) => session?.user?.isAdmin ?? false),
   hasPermission: vi.fn((session) => session?.user?.isAdmin ?? false),
+  leadsSchool: vi.fn((session) => session?.user?.isAdmin ?? false),
   hasRole: vi.fn(() => false),
   isCaregiver: vi.fn(() => false),
 }));
@@ -191,7 +192,12 @@ vi.mock("~/lib/hooks/use-home-layout", () => ({
 }));
 
 import { useSession } from "next-auth/react";
-import { hasEffectiveAdminScope, isAdmin, isCaregiver } from "~/lib/auth-utils";
+import {
+  hasEffectiveAdminScope,
+  isAdmin,
+  isCaregiver,
+  leadsSchool,
+} from "~/lib/auth-utils";
 import { useSWRAuth } from "~/lib/swr/hooks";
 
 const analytics = {
@@ -361,8 +367,9 @@ describe("Startseite", () => {
     expect(useSWRAuth).not.toHaveBeenCalled();
   });
 
-  it("lädt die Ablaufwarnungen der Anmeldephasen nur mit Adminzuschnitt", () => {
-    vi.mocked(hasEffectiveAdminScope).mockReturnValue(false);
+  it("lädt die Ablaufwarnungen der Anmeldephasen nur für die Leitung", () => {
+    // Leitung: Adminzuschnitt oder config:manage (#3469).
+    vi.mocked(leadsSchool).mockReturnValue(false);
 
     render(<HomePage />);
 

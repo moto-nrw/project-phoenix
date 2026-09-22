@@ -404,16 +404,6 @@ func TestGuestMembershipAdapter_FindsByStaffAndActiveWindow(t *testing.T) {
 	_, err = factory.Guest.FindByStaffID(ctx, missingID(guest.StaffID))
 	require.Error(t, err)
 	assert.True(t, testpkg.IsNotFoundError(err))
-
-	active, err := factory.Guest.FindActive(ctx)
-	require.NoError(t, err)
-	var listed bool
-	for _, entry := range active {
-		if entry.ID == guest.ID {
-			listed = true
-		}
-	}
-	assert.True(t, listed, "a guest without a start or end date is active today")
 }
 
 func TestStaffMembershipAdapter_ListRejectsUnknownFilters(t *testing.T) {

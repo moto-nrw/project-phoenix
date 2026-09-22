@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -338,8 +339,8 @@ func (rs *Resource) quickCreateActivity(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Get current staff - required for created_by
-	staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
-	if err != nil || staff == nil {
+	staffID, found, err := rs.UserContextService.CurrentStaffID(r.Context())
+	if err != nil || !found {
 		common.RenderError(w, r, common.ErrorForbidden(errors.New("only staff members can create activities")))
 		return
 	}
@@ -351,11 +352,11 @@ func (rs *Resource) quickCreateActivity(w http.ResponseWriter, r *http.Request) 
 		IsOpen:          true, // Default to true for quick-create
 		CategoryID:      req.CategoryID,
 		PlannedRoomID:   req.RoomID,
-		CreatedBy:       &staff.ID,
+		CreatedBy:       &staffID,
 	}
 
 	// Auto-assign creator as primary supervisor
-	supervisorIDs := []int64{staff.ID}
+	supervisorIDs := []int64{staffID}
 
 	// Create the activity group with auto-assigned teacher supervision
 	var createdGroup *activities.Group
@@ -389,20 +390,13 @@ func (rs *Resource) quickCreateActivity(w http.ResponseWriter, r *http.Request) 
 		response.RoomName = ""
 	}
 
-	// Add supervisor name to response if available
-	if staff != nil && staff.Person != nil {
-		response.SupervisorName = fmt.Sprintf("%s %s", staff.Person.FirstName, staff.Person.LastName)
-	} else {
-		// Try to get person info for non-staff users
-		person, err := rs.UserContextService.GetCurrentPerson(r.Context())
-		if err != nil {
-			common.RenderError(w, r, common.ErrorInternalServer(err))
-			return
-		}
-		if person != nil {
-			response.SupervisorName = fmt.Sprintf("%s %s", person.FirstName, person.LastName)
-		}
+	// The creator supervises the activity; their person names it.
+	firstName, lastName, err := rs.UserContextService.CurrentPersonName(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
 	}
+	response.SupervisorName = fmt.Sprintf("%s %s", firstName, lastName)
 
 	common.Respond(w, r, http.StatusCreated, response, msgActivityCreatedSuccess)
 }
@@ -501,8 +495,12 @@ func (rs *Resource) deleteActivity(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) getTimespans(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// Fetch active timeframes from the schedule service
-	timeframes, err := rs.ScheduleService.FindActiveTimeframes(ctx)
+	// Fetch active timeframes from the Timetable owner
+	values, err := rs.Timeframes.ListTimeframes(ctx, timetableModule.TimeframeFilter{ActiveOnly: true})
+	var timeframes []timeframeSlot
+	if err == nil {
+		timeframes, err = timeframesToSlots(values)
+	}
 	if err != nil {
 		slog.Default().ErrorContext(ctx, "Error fetching timeframes", slog.String("error", err.Error()))
 		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to retrieve timeframes")

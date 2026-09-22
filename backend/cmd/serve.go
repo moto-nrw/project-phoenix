@@ -116,6 +116,9 @@ func init() {
 	RootCmd.AddCommand(serveCmd)
 
 	viper.SetDefault("log_level", "debug")
+	// Capacity of the public demo (#3466); required under APP_ENV=demo.
+	serveCmd.Flags().Int("demo-max-active-schools", 0, "public demo: how many demo schools may exist at once; further requests answer 503")
+	_ = viper.BindPFlag("demo_max_active_schools", serveCmd.Flags().Lookup("demo-max-active-schools"))
 
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:

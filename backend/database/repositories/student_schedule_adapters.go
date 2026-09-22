@@ -10,7 +10,6 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
 // StudentScheduleRepositories contains the Care Plan compatibility adapters
@@ -22,7 +21,7 @@ type StudentScheduleRepositories struct {
 	PickupSchedule   scheduleModels.StudentPickupScheduleRepository
 	PickupException  scheduleModels.StudentPickupExceptionRepository
 	PickupNote       scheduleModels.StudentPickupNoteRepository
-	StatusDay        activeModels.StudentStatusDayRepository
+	StatusDay        *StudentStatusDayRepository
 }
 
 type arrivalScheduleRepository struct{ careplan.Capability }

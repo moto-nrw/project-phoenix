@@ -6,7 +6,6 @@ import (
 
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 )
 
 type snapshotPersonReader interface {
@@ -31,7 +30,7 @@ func LoadStudentDataSnapshot(
 	ctx context.Context,
 	personService snapshotPersonReader,
 	educationSvc snapshotGroupReader,
-	activeSvc activeService.Service,
+	activeSvc StudentLocationReader,
 	studentIDs []int64,
 	personIDs []int64,
 	groupIDs []int64,
@@ -78,7 +77,7 @@ func loadSnapshotGroups(ctx context.Context, snapshot *StudentDataSnapshot, svc 
 	return fmt.Errorf("load student snapshot groups: %w", err)
 }
 
-func loadSnapshotLocations(ctx context.Context, snapshot *StudentDataSnapshot, svc activeService.Service, ids []int64) error {
+func loadSnapshotLocations(ctx context.Context, snapshot *StudentDataSnapshot, svc StudentLocationReader, ids []int64) error {
 	if len(ids) == 0 {
 		return nil
 	}

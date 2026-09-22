@@ -8,8 +8,9 @@
 // English error — the German mapping breaks with no compile-time signal.
 //
 // The guard reads every non-test .go file under api/iot/ (all sub-packages,
-// so it survives package moves/merges) plus the auth/device, modules/studentpresence/legacy/services/active
-// and api/common error sources whose strings surface through IoT routes, and
+// so it survives package moves/merges) plus the auth/device, Student Presence
+// (modules/studentpresence/operations.go) and api/common error sources whose
+// strings surface through IoT routes, and
 // asserts every mapped substring is still present somewhere in that corpus.
 //
 // History: this guard originally lived in api/iot/checkin/ with a hardcoded
@@ -63,7 +64,7 @@ var pyreportalErrorStrings = []string{
 	"Activity capacity exceeded",
 
 	// Duplicate active visit (POST /checkin) — 409 Conflict. The canonical
-	// phrasing is modules/studentpresence/legacy/services/active.ErrStudentAlreadyActive; the api/iot/common
+	// phrasing is modules/studentpresence.ErrStudentAlreadyActive; the api/iot/common
 	// response type references that sentinel so the two layers cannot drift.
 	"STUDENT_ALREADY_ACTIVE",
 	"student already has an active visit",
@@ -150,9 +151,11 @@ var pyreportalErrorCodes = []string{
 // Paths are relative to the backend module root.
 var extraGuardSources = []string{
 	"auth/device/errors.go",
-	"modules/studentpresence/legacy/services/active/errors.go",
-	// The presence sentinels the active service wraps are the Student
-	// Presence owner's public values (#2737).
+	// Every presence sentinel is the Student Presence owner's public value
+	// (#2737), including the three kiosk strings the retained active service
+	// used to define itself: "student has no attendance record for today",
+	// "device is already running an activity session" and "no active
+	// session" (#3422).
 	"modules/studentpresence/operations.go",
 	"api/common/errors.go",
 	// Issue #575 B8 extracted the RFID check-in business logic into

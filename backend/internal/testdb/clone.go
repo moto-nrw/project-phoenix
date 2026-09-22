@@ -2,11 +2,9 @@ package testdb
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/sha1" //nolint:gosec // clone names only need collision resistance for identifiers, not security
 	"database/sql"
-	"encoding/hex"
 	"fmt"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -47,18 +45,13 @@ func SanitizeRunID(raw string) string {
 	if validRunID.MatchString(raw) {
 		return raw
 	}
-	sum := sha1.Sum([]byte(raw)) //nolint:gosec // identifier derivation, not security
-	return hex.EncodeToString(sum[:])[:12]
+	return identifierHash(raw)[:12]
 }
 
+// randomRunID returns 12 hex characters from the auto-seeded generator. Clone
+// names need uniqueness per process, not unpredictability.
 func randomRunID() string {
-	var b [6]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		// crypto/rand failing is effectively fatal elsewhere; fall back to
-		// the PID so clone names stay unique per process.
-		return fmt.Sprintf("pid%d", os.Getpid())
-	}
-	return hex.EncodeToString(b[:])
+	return fmt.Sprintf("%012x", rand.Uint64()&0xffffffffffff)
 }
 
 // pkgCommentPrefix marks a clone's package label ("phx-pkg:services/active").
@@ -83,11 +76,10 @@ func packageLabel(workdir string) string {
 }
 
 // CloneName derives the database name for this run's clone of the package
-// rooted at workdir: phx_test_pkg_<runID>_<sha1(workdir)[:12]>.
+// rooted at workdir: phx_test_pkg_<runID>_<hash(workdir)[:12]>.
 func CloneName(runID, workdir string) string {
 	normalized := filepath.ToSlash(workdir)
-	sum := sha1.Sum([]byte(normalized)) //nolint:gosec // identifier derivation, not security
-	return ClonePrefix + SanitizeRunID(runID) + "_" + hex.EncodeToString(sum[:])[:12]
+	return ClonePrefix + SanitizeRunID(runID) + "_" + identifierHash(normalized)[:12]
 }
 
 // CloneHandle is a live package clone. The keeper connection pins the clone

@@ -46,7 +46,7 @@ func setupSchedulesRoute(t *testing.T) *schedulesTestContext {
 
 	db, svc := testutil.SetupScheduleModule(t)
 
-	resource := schedulesAPI.NewSchedulesResource(svc.Schedule, db)
+	resource := schedulesAPI.NewSchedulesResource(svc.Calendar, svc.Timetable, svc.TimeframeGuard, db)
 
 	return &schedulesTestContext{
 		db:       db,

@@ -77,14 +77,6 @@ func (r timetableRecurrenceRuleRepository) List(ctx context.Context, options *ti
 		SortBy: sortBy, SortDescending: descending, Limit: limit, Offset: offset}, "list")
 }
 
-func (r timetableRecurrenceRuleRepository) FindByFrequency(ctx context.Context, frequency string) ([]*scheduleModels.RecurrenceRule, error) {
-	return r.list(ctx, timetable.RecurrenceRuleFilter{Frequency: frequency}, "find by frequency")
-}
-
-func (r timetableRecurrenceRuleRepository) FindByWeekday(ctx context.Context, weekday string) ([]*scheduleModels.RecurrenceRule, error) {
-	return r.list(ctx, timetable.RecurrenceRuleFilter{Weekday: weekday}, "find by weekday")
-}
-
 func (r timetableRecurrenceRuleRepository) FindByDateRange(ctx context.Context, startDate, _ time.Time) ([]*scheduleModels.RecurrenceRule, error) {
 	return r.list(ctx, timetable.RecurrenceRuleFilter{ActiveAt: &startDate}, "find by date range")
 }

@@ -315,7 +315,7 @@ func ruleLoosenings(base, candidate *Policy, candidateOnlyPoints map[string]stru
 		if candidateRuleCoveredDirectly(rule, base.Rules) {
 			continue
 		}
-		if candidate.PolicyEpoch > base.PolicyEpoch && reviewedTestInfrastructureRule(rule) {
+		if candidate.PolicyEpoch > base.PolicyEpoch && (reviewedTestInfrastructureRule(rule) || reviewedSharedFixtureRule(rule)) {
 			continue
 		}
 		if problem := uncoveredRulePermission(rule, baseEvaluator, candidateEvaluator, owners, roles); problem != "" {
@@ -357,6 +357,66 @@ func reviewedTestInfrastructureRule(rule Rule) bool {
 		}
 	}
 	return true
+}
+
+// sharedFixtureOwner is the owner of the shared fixtures, helpers and
+// end-to-end suites that every module's tests compose through.
+const sharedFixtureOwner = "test-support"
+
+// sharedFixtureTargets are the owner/role points the shared fixture owner may
+// reach in a reviewed epoch (ADR 0039, #2748): its own tooling, the tenant
+// runtime rows are created under, the calendar-date type DATE columns are
+// mandated to use, and the permission constants tokens carry. Nothing an
+// owner is dissolving is among them.
+var sharedFixtureTargets = map[[2]string]bool{
+	{sharedFixtureOwner, "test-support"}: true,
+	{"tenant-runtime", "public"}:         true,
+	{"legacy-shared", "domain"}:          true,
+	{"security-runtime", "contract"}:     true,
+}
+
+// reviewedSharedFixtureRule reports whether a rule has the one owner-specific
+// shape a reviewed policy epoch may add for the shared fixture owner without
+// an anchor to a candidate-created package: the fixture owner in its
+// test-support role (production) or its e2e-test role (test scopes), reaching
+// one of sharedFixtureTargets. A rule without a role would overlap the
+// owner-agnostic test-role rules and is refused with them; other source
+// owners, owner kinds, external classes and every other target stay under the
+// ordinary loosening guards.
+func reviewedSharedFixtureRule(rule Rule) bool {
+	if rule.SourceOwner != sharedFixtureOwner || rule.SourceOwnerKind != "" ||
+		rule.TargetOwnerKind != "" || rule.TargetClass != "" || rule.SameOwner {
+		return false
+	}
+	switch rule.SourceRole {
+	case "test-support":
+		for _, scope := range rule.Scopes {
+			if Scope(scope) != ScopeProduction {
+				return false
+			}
+		}
+	case "e2e-test":
+		for _, scope := range rule.Scopes {
+			if Scope(scope) == ScopeProduction {
+				return false
+			}
+		}
+	default:
+		return false
+	}
+	return sharedFixtureTargets[[2]string{rule.TargetOwner, rule.TargetRole}]
+}
+
+// firstPartyAllowedByReviewedSharedFixtureRule reports whether the single rule
+// that admits this first-party import in the candidate policy is a reviewed
+// shared-fixture rule (ADR 0039). The import loosening it implies is then the
+// intended effect of that rule, not a separate widening.
+func firstPartyAllowedByReviewedSharedFixtureRule(base, candidate *Policy, scope Scope, source, target Package) bool {
+	if candidate.PolicyEpoch <= base.PolicyEpoch || source.Owner != sharedFixtureOwner {
+		return false
+	}
+	decision := decideRules(candidate.firstPartyRules(scope, source.inScope(scope), target))
+	return decision.Allowed != nil && len(decision.Overlaps) == 0 && reviewedSharedFixtureRule(*decision.Allowed)
 }
 
 func candidateOnlyRolePoints(candidate *Policy, createdPackages map[string]struct{}) map[string]struct{} {
@@ -478,7 +538,11 @@ func uncoveredFirstPartyPermission(rule Rule, base, candidate *Policy, scope Sco
 		if !candidate.matchesTarget(rule, sourcePackage, targetPackage) {
 			continue
 		}
-		if !policyAllowsFirstParty(base, scope, sourcePackage, targetPackage) && !careScheduleCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) {
+		if !policyAllowsFirstParty(base, scope, sourcePackage, targetPackage) && !careScheduleCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
+			!careLifecycleCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
+			!studentPresenceCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
+			!timetablePlanningCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
+			!shiftPlanningCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) {
 			return fmt.Sprintf("rule %s newly allows %s %s/%s -> %s/%s", rule.ID, scope, source.Owner.ID, source.Role, target.ID, rule.TargetRole)
 		}
 	}
@@ -534,7 +598,11 @@ func firstPartyImportLoosenings(base, candidate *Policy, sourcePath string, base
 		}
 		for _, scope := range allScopes() {
 			if policyAllowsFirstParty(candidate, scope, source, target) && !policyAllowsFirstParty(base, scope, baseSource, baseTarget) &&
-				!careScheduleCutoverPermission(base, candidate, scope, baseSource, target) {
+				!careScheduleCutoverPermission(base, candidate, scope, baseSource, target) && !careLifecycleCutoverPermission(base, candidate, scope, baseSource, target) &&
+				!studentPresenceCutoverPermission(base, candidate, scope, baseSource, target) &&
+				!timetablePlanningCutoverPermission(base, candidate, scope, baseSource, target) &&
+				!shiftPlanningCutoverPermission(base, candidate, scope, baseSource, target) &&
+				!firstPartyAllowedByReviewedSharedFixtureRule(base, candidate, scope, source, target) {
 				problems = append(problems, Violation{Scope: scope, Rule: "imports.forbidden", Source: sourcePath, Target: targetPath}.Key())
 			}
 		}

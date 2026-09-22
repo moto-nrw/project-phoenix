@@ -8,7 +8,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 const additionalSupervisorRole = "additional_supervisor"
@@ -37,10 +37,7 @@ func (s *substitutionModule) listRunningSupervisions(
 		if !broad && !own {
 			continue
 		}
-		if hydrated := loaded[group.ID]; hydrated != nil {
-			group = hydrated
-		}
-		result = append(result, projectRunningSupervision(group, byGroup[group.ID], targets, access, own))
+		result = append(result, projectRunningSupervision(group.ID, loaded[group.ID], byGroup[group.ID], targets, access, own))
 	}
 	if query.ActiveGroupID > 0 && len(result) == 0 {
 		return nil, ErrNotFound
@@ -50,9 +47,9 @@ func (s *substitutionModule) listRunningSupervisions(
 }
 
 func (s *substitutionModule) loadRunningSupervisionState(ctx context.Context) (
-	[]*activeModels.Group,
-	map[int64][]*activeModels.GroupSupervisor,
-	map[int64]*activeModels.Group,
+	[]*studentpresence.LiveGroup,
+	map[int64][]*studentpresence.StaffedSupervision,
+	map[int64]*studentpresence.SessionDetail,
 	error,
 ) {
 	groups, err := s.deps.ActiveGroups.FindActiveGroups(ctx)
@@ -68,7 +65,7 @@ func (s *substitutionModule) loadRunningSupervisionState(ctx context.Context) (
 	return groups, supervisorsByGroup(supervisors), loaded, err
 }
 
-func activeGroupIDs(groups []*activeModels.Group) []int64 {
+func activeGroupIDs(groups []*studentpresence.LiveGroup) []int64 {
 	ids := make([]int64, 0, len(groups))
 	for _, group := range groups {
 		ids = append(ids, group.ID)
@@ -76,30 +73,33 @@ func activeGroupIDs(groups []*activeModels.Group) []int64 {
 	return ids
 }
 
-func supervisorsByGroup(supervisors []*activeModels.GroupSupervisor) map[int64][]*activeModels.GroupSupervisor {
-	result := make(map[int64][]*activeModels.GroupSupervisor)
+func supervisorsByGroup(supervisors []*studentpresence.StaffedSupervision) map[int64][]*studentpresence.StaffedSupervision {
+	result := make(map[int64][]*studentpresence.StaffedSupervision)
 	for _, supervisor := range supervisors {
 		result[supervisor.GroupID] = append(result[supervisor.GroupID], supervisor)
 	}
 	return result
 }
 
+// projectRunningSupervision names the session after its activity template,
+// else its room; a session the detail read missed stays unnamed.
 func projectRunningSupervision(
-	group *activeModels.Group,
-	supervisors []*activeModels.GroupSupervisor,
+	groupID int64,
+	group *studentpresence.SessionDetail,
+	supervisors []*studentpresence.StaffedSupervision,
 	caregivers []StaffRef,
 	access substitutionAccess,
 	own bool,
 ) RunningSupervision {
 	result := RunningSupervision{
-		ID: group.ID, Type: TargetAdditionalSupervision,
+		ID: groupID, Type: TargetAdditionalSupervision,
 		Supervisors: []StaffRef{}, AvailableTargets: []StaffRef{},
 		IsCurrentUserSupervising: own, CanAssign: access.admin || own,
 	}
-	if group.ActualGroup != nil {
-		result.Name = group.ActualGroup.Name
+	if group != nil && group.Activity != nil {
+		result.Name = group.Activity.Name
 	}
-	if group.Room != nil {
+	if group != nil && group.Room != nil {
 		result.RoomName = group.Room.Name
 		if result.Name == "" {
 			result.Name = group.Room.Name
@@ -121,15 +121,11 @@ func projectRunningSupervision(
 	return result
 }
 
-func supervisorRef(supervisor *activeModels.GroupSupervisor) StaffRef {
-	ref := StaffRef{ID: supervisor.StaffID}
-	if supervisor.Staff != nil && supervisor.Staff.Person != nil {
-		ref.FullName = supervisor.Staff.Person.GetFullName()
-	}
-	return ref
+func supervisorRef(supervisor *studentpresence.StaffedSupervision) StaffRef {
+	return StaffRef{ID: supervisor.StaffID, FullName: supervisor.StaffName}
 }
 
-func actorSupervises(actor *Actor, supervisors []*activeModels.GroupSupervisor) bool {
+func actorSupervises(actor *Actor, supervisors []*studentpresence.StaffedSupervision) bool {
 	if actor == nil {
 		return false
 	}
@@ -187,7 +183,7 @@ func (s *substitutionModule) assignAdditionalSupervisionLocked(
 	access substitutionAccess,
 	broad bool,
 	request *AdditionalSupervisionAssignment,
-) (*activeModels.GroupSupervisor, *userModels.ActiveCaregiver, error) {
+) (*studentpresence.GroupSupervision, *userModels.ActiveCaregiver, error) {
 	group, err := s.lockAssignableSupervision(ctx, caller, access, broad, request)
 	if err != nil {
 		return nil, nil, err
@@ -196,9 +192,9 @@ func (s *substitutionModule) assignAdditionalSupervisionLocked(
 	if err != nil {
 		return nil, nil, err
 	}
-	created := &activeModels.GroupSupervisor{
+	created := &studentpresence.GroupSupervision{
 		StaffID: target.StaffID, GroupID: group.ID, Role: additionalSupervisorRole,
-		StartDate: timezone.DateFromTime(s.deps.Now()),
+		StartDate: timezone.DateFromTime(s.deps.Now()).String(),
 	}
 	if err := s.deps.ActiveSupervisorCreator.CreateGroupSupervisor(ctx, created); err != nil {
 		return nil, nil, err
@@ -215,7 +211,7 @@ func (s *substitutionModule) lockAssignableSupervision(
 	access substitutionAccess,
 	broad bool,
 	request *AdditionalSupervisionAssignment,
-) (*activeModels.Group, error) {
+) (*studentpresence.LiveGroup, error) {
 	group, err := s.deps.ActiveGroups.FindByIDForUpdate(ctx, request.ActiveGroupID)
 	if err != nil {
 		return nil, notFoundError(err)
@@ -244,7 +240,7 @@ func (s *substitutionModule) lockAssignableSupervision(
 	return group, nil
 }
 
-func additionalSupervisionAudit(row *activeModels.GroupSupervisor, actorID int64) *auditModels.SubstitutionChange {
+func additionalSupervisionAudit(row *studentpresence.GroupSupervision, actorID int64) *auditModels.SubstitutionChange {
 	return &auditModels.SubstitutionChange{
 		SubstitutionID: row.ID, TargetType: string(TargetAdditionalSupervision), Action: auditModels.SubstitutionAssigned,
 		GroupID: row.GroupID, TargetStaffID: row.StaffID, ActorAccountID: actorID,

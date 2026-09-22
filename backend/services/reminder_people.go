@@ -7,8 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 )
 
@@ -57,7 +55,7 @@ type reminderSupervisionReader struct {
 		QueryGroupSupervisions(context.Context, studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error)
 	}
 	source interface {
-		GetActiveGroupsByIDs(context.Context, []int64) (map[int64]*active.Group, error)
+		GetActiveGroupsByIDs(context.Context, []int64) (map[int64]*studentpresence.SessionDetail, error)
 	}
 }
 
@@ -65,14 +63,14 @@ func (r reminderSupervisionReader) GetStaffActiveSupervisions(ctx context.Contex
 	day := timezone.TodayDate().String()
 	values, err := r.presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffID: &id, ActiveOn: &day})
 	if err != nil {
-		return nil, &activeService.ActiveError{Op: "GetStaffActiveSupervisions", Err: activeService.ErrDatabaseOperation}
+		return nil, &studentpresence.OperationError{Op: "GetStaffActiveSupervisions", Err: studentpresence.ErrDatabaseOperation}
 	}
 	result := make([]*ports.GroupSupervisor, 0, len(values))
 	today := timezone.TodayDate()
 	for _, value := range values {
 		start, err := timezone.ParseDate(value.StartDate)
 		if err != nil {
-			return nil, &activeService.ActiveError{Op: "GetStaffActiveSupervisions", Err: activeService.ErrDatabaseOperation}
+			return nil, &studentpresence.OperationError{Op: "GetStaffActiveSupervisions", Err: studentpresence.ErrDatabaseOperation}
 		}
 		if start.After(today) {
 			continue
@@ -80,7 +78,7 @@ func (r reminderSupervisionReader) GetStaffActiveSupervisions(ctx context.Contex
 		if value.EndDate != nil {
 			end, err := timezone.ParseDate(*value.EndDate)
 			if err != nil {
-				return nil, &activeService.ActiveError{Op: "GetStaffActiveSupervisions", Err: activeService.ErrDatabaseOperation}
+				return nil, &studentpresence.OperationError{Op: "GetStaffActiveSupervisions", Err: studentpresence.ErrDatabaseOperation}
 			}
 			if !today.Before(end) {
 				continue
@@ -107,7 +105,7 @@ func (r reminderSupervisionReader) GetActiveGroupsByIDs(ctx context.Context, ids
 
 type reminderBulkSupervisionReader struct {
 	source interface {
-		ListActiveSupervisedRooms(context.Context) ([]active.StaffRoomSupervision, error)
+		ListActiveSupervisedRooms(context.Context) ([]studentpresence.StaffRoomSupervision, error)
 	}
 }
 

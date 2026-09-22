@@ -6,13 +6,23 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
-type ScheduleTestModule struct{ Schedule timetableplanning.Service }
+// ScheduleTestModule bundles what the schedules API binds: the School
+// Calendar for dateframes, the Timetable owner for timeframes and
+// recurrence rules, and the care-offering guard on timeframe changes.
+type ScheduleTestModule struct {
+	Calendar       schoolcalendar.Calendar
+	Timetable      timetable.Capability
+	TimeframeGuard timetableHTTPAdapter.TimeframeChangeGuard
+}
 
 func NewScheduleTestModule(db *bun.DB, unit tenant.UnitOfWork) (ScheduleTestModule, error) {
 	r, err := repositories.NewTimetableTestRepositories(db)
@@ -30,11 +40,6 @@ func NewScheduleTestModule(db *bun.DB, unit tenant.UnitOfWork) (ScheduleTestModu
 		ActivityExceptionRepo: r.ActivityException, Phases: r.Enrollment(), Settings: settings.Settings,
 		Today: timezone.TodayDate, LockTemplateRecurrence: lock, Logger: slog.Default(),
 	})
-	service := timetableplanning.NewServiceWithConfig(timetableplanning.ServiceConfig{
-		RecurrenceEvents: r.Timetable,
-		DateframeRepo:    r.Dateframe, TimeframeRepo: r.Timeframe, RecurrenceRuleRepo: r.RecurrenceRule,
-		LockTemplateRecurrence:              lock,
-		ValidateCareOfferingTimeframeChange: offerings.(enrollment.CareOfferingMaterializationResourceValidator).ValidateTimeframeChange,
-	})
-	return ScheduleTestModule{Schedule: service}, nil
+	guard := TimeframeChangeGuard(lock, offerings.(enrollment.CareOfferingMaterializationResourceValidator).ValidateTimeframeReplacement)
+	return ScheduleTestModule{Calendar: r.SchoolCalendar(), Timetable: r.Timetable, TimeframeGuard: guard}, nil
 }

@@ -1,46 +1,51 @@
-// Package legacy adapts the retained schedule services and repositories to
-// the plan export capability's consumer-owned ports (#2706). It exists
-// because the staff schedule overview, the materialized blocks and their
-// staff, the Schichtarten, the Planungsspuren, the closing days and the
-// holidays still live in the retained Timetable & Activities packages; the
-// adapters translate their rows into plain records and decide nothing
-// themselves. Delete this package with the last legacy source once each
-// owner exposes the fact through its public capability.
+// Package legacy adapts the retained schedule repositories and the Workforce
+// Dienstplan overview to the plan export capability's consumer-owned ports
+// (#2706). It exists because the materialized blocks and their staff, the
+// Schichtarten, the Planungsspuren, the closing days and the holidays still
+// live in the retained Timetable & Activities packages; the adapters
+// translate their rows into plain records and decide nothing themselves. The
+// staff schedule overview arrives through the public Workforce query
+// (#3418). Delete this package with the last legacy source once each owner
+// exposes the fact through its public capability.
 package legacy
 
 import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
-	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
-// ShiftTypeSource is the slice of the retained shift-type repository the
-// adapter reads.
+// ShiftTypeSource, ActivityInstanceSource and RoomSource are the slices of the retained repositories the adapters read.
 type ShiftTypeSource interface {
 	ListAll(ctx context.Context) ([]*scheduleModel.ShiftType, error)
 }
+type ActivityInstanceSource interface {
+	FindByTenantAndDateRange(ctx context.Context, from, to scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error)
+}
+type RoomSource interface {
+	FindByIDs(ctx context.Context, ids []int64) ([]*facilitiesModel.Room, error)
+}
 
-// ActivityGroupSource is the slice of the retained activity-group repository
-// the adapter reads.
+// ActivityGroupSource is the slice of the retained activity-group repository the adapter reads.
 type ActivityGroupSource interface {
 	FindByIDs(ctx context.Context, ids []int64) ([]*activitiesModel.Group, error)
 }
 
-// PlanningTrackSource is the slice of the retained planning-track repository
-// the adapter reads.
+// PlanningTrackSource is the slice of the retained planning-track repository the adapter reads.
 type PlanningTrackSource interface {
 	ListAll(ctx context.Context) ([]*scheduleModel.PlanningTrack, error)
 }
 
-// InstanceStudentCountSource is the slice of the retained instance-student
-// repository the adapter reads.
+// InstanceStudentCountSource is the slice of the retained instance-student repository the adapter reads.
 type InstanceStudentCountSource interface {
 	CountNonAbsentByInstanceIDs(ctx context.Context, instanceIDs []int64) (map[int64]int, error)
 }
@@ -49,17 +54,17 @@ type InstanceStudentCountSource interface {
 // be nil, in which case the matching port stays unbound and the capability
 // prints without that detail — the same contract the retained service had.
 type Sources struct {
-	Overview       shiftplanning.StaffScheduleOverviewGetter
+	Overview       workforce.StaffScheduleOverviewQuery
 	ShiftTypes     ShiftTypeSource
-	Instances      shiftplanning.ActivityInstanceRangeReader
+	Instances      ActivityInstanceSource
 	InstanceStaff  timetableplanning.InstanceStaffBatchReader
 	Students       InstanceStudentCountSource
-	Rooms          shiftplanning.RoomBatchReader
-	Staff          shiftplanning.StaffOverviewReader
+	Rooms          RoomSource
+	Staff          timetableplanning.StaffWithPersonBatchReader
 	ActivityGroups ActivityGroupSource
 	PlanningTracks PlanningTrackSource
-	ClosingDays    timetableplanning.ClosingDayService
-	Holidays       timetableplanning.HolidayService
+	ClosingDays    planexport.ClosingDayReader
+	Holidays       planexport.HolidayReader
 	Renderer       planexport.Renderer
 	Logger         *slog.Logger
 }
@@ -97,12 +102,8 @@ func New(sources Sources) planexport.Service {
 	if sources.PlanningTracks != nil {
 		deps.PlanningTracks = planningTrackAdapter{source: sources.PlanningTracks}
 	}
-	if sources.ClosingDays != nil {
-		deps.ClosingDays = closingDayAdapter{source: sources.ClosingDays}
-	}
-	if sources.Holidays != nil {
-		deps.Holidays = holidayAdapter{source: sources.Holidays}
-	}
+	deps.ClosingDays = sources.ClosingDays
+	deps.Holidays = sources.Holidays
 	return planexport.NewService(deps, sources.Logger)
 }
 
@@ -122,7 +123,7 @@ func parseRange(from, to planexport.Date) (timezone.Date, timezone.Date, error) 
 }
 
 type overviewAdapter struct {
-	source shiftplanning.StaffScheduleOverviewGetter
+	source workforce.StaffScheduleOverviewQuery
 }
 
 func (a overviewAdapter) StaffScheduleOverview(ctx context.Context, from, to planexport.Date) (*planexport.StaffScheduleOverview, error) {
@@ -130,11 +131,11 @@ func (a overviewAdapter) StaffScheduleOverview(ctx context.Context, from, to pla
 	if err != nil {
 		return nil, err
 	}
-	overview, err := a.source.GetOverview(ctx, start, end)
+	overview, err := a.source.Overview(ctx, start.String(), end.String())
 	if err != nil {
 		return nil, err
 	}
-	if overview == nil {
+	if len(overview.Staff) == 0 && len(overview.Shifts) == 0 && len(overview.Assignments) == 0 {
 		return &planexport.StaffScheduleOverview{}, nil
 	}
 	out := &planexport.StaffScheduleOverview{
@@ -143,25 +144,15 @@ func (a overviewAdapter) StaffScheduleOverview(ctx context.Context, from, to pla
 		Assignments: make([]planexport.Assignment, 0, len(overview.Assignments)),
 	}
 	for _, member := range overview.Staff {
-		if member == nil {
-			continue
-		}
-		record := &planexport.StaffMember{ID: member.ID}
-		if member.Person != nil {
-			record.FirstName, record.LastName = member.Person.FirstName, member.Person.LastName
-		}
-		out.Staff = append(out.Staff, record)
+		out.Staff = append(out.Staff, &planexport.StaffMember{ID: member.ID, FirstName: member.FirstName, LastName: member.LastName})
 	}
 	for _, shift := range overview.Shifts {
-		if shift == nil {
-			continue
-		}
 		out.Shifts = append(out.Shifts, &planexport.Shift{
 			ID:            shift.ID,
 			StaffID:       shift.StaffID,
 			Date:          planexport.Date(shift.Date),
-			StartTime:     shift.StartTime,
-			EndTime:       shift.EndTime,
+			StartTime:     wallClock(shift.StartTime),
+			EndTime:       wallClock(shift.EndTime),
 			ShiftTypeID:   shift.ShiftTypeID,
 			OriginShiftID: shift.OriginShiftID,
 			Cancelled:     shift.Cancelled,
@@ -172,13 +163,13 @@ func (a overviewAdapter) StaffScheduleOverview(ctx context.Context, from, to pla
 	for _, assignment := range overview.Assignments {
 		intervals := make([]planexport.Interval, 0, len(assignment.UncoveredIntervals))
 		for _, gap := range assignment.UncoveredIntervals {
-			intervals = append(intervals, planexport.Interval{StartTime: gap.StartTime, EndTime: gap.EndTime})
+			intervals = append(intervals, planexport.Interval{StartTime: wallClock(gap.StartTime), EndTime: wallClock(gap.EndTime)})
 		}
 		out.Assignments = append(out.Assignments, planexport.Assignment{
 			StaffID:            assignment.StaffID,
 			Date:               planexport.Date(assignment.Date),
-			StartTime:          assignment.StartTime,
-			EndTime:            assignment.EndTime,
+			StartTime:          wallClock(assignment.StartTime),
+			EndTime:            wallClock(assignment.EndTime),
 			ActivityTitle:      assignment.ActivityTitle,
 			ActivityGroupID:    assignment.ActivityGroupID,
 			RoomName:           assignment.RoomName,
@@ -188,6 +179,12 @@ func (a overviewAdapter) StaffScheduleOverview(ctx context.Context, from, to pla
 		})
 	}
 	return out, nil
+}
+
+// wallClock restores the normalized wall clock from the public ClockLayout string.
+func wallClock(value string) time.Time {
+	parsed, _ := time.Parse(workforce.ClockLayout, value)
+	return timezone.NormalizeWallClock(parsed)
 }
 
 type shiftTypeAdapter struct {
@@ -210,7 +207,7 @@ func (a shiftTypeAdapter) ListShiftTypes(ctx context.Context) ([]*planexport.Shi
 }
 
 type instanceAdapter struct {
-	source shiftplanning.ActivityInstanceRangeReader
+	source ActivityInstanceSource
 }
 
 func (a instanceAdapter) InstancesInRange(ctx context.Context, from, to planexport.Date) ([]*planexport.Instance, error) {
@@ -244,8 +241,7 @@ func (a instanceAdapter) InstancesInRange(ctx context.Context, from, to planexpo
 	return out, nil
 }
 
-// studentCountAdapter names the binding of the head-count read so a renamed
-// retained method fails here instead of silently unbinding the port.
+// studentCountAdapter names the head-count binding so a renamed retained method fails here, not by unbinding the port.
 type studentCountAdapter struct {
 	source InstanceStudentCountSource
 }
@@ -280,7 +276,7 @@ func (a instanceStaffAdapter) InstanceStaffByInstanceIDs(ctx context.Context, in
 }
 
 type roomAdapter struct {
-	source shiftplanning.RoomBatchReader
+	source RoomSource
 }
 
 func (a roomAdapter) RoomsByIDs(ctx context.Context, ids []int64) ([]*planexport.Room, error) {
@@ -299,7 +295,7 @@ func (a roomAdapter) RoomsByIDs(ctx context.Context, ids []int64) ([]*planexport
 }
 
 type staffAdapter struct {
-	source shiftplanning.StaffOverviewReader
+	source timetableplanning.StaffWithPersonBatchReader
 }
 
 func (a staffAdapter) StaffByIDs(ctx context.Context, ids []int64) (map[int64]*planexport.StaffMember, error) {
@@ -358,53 +354,6 @@ func (a planningTrackAdapter) ListPlanningTracks(ctx context.Context) ([]*planex
 			continue
 		}
 		out = append(out, &planexport.PlanningTrack{ID: track.ID, Color: track.Color})
-	}
-	return out, nil
-}
-
-type closingDayAdapter struct {
-	source timetableplanning.ClosingDayService
-}
-
-func (a closingDayAdapter) ClosingDaysInRange(ctx context.Context, from, to planexport.Date) ([]*planexport.ClosingPeriod, error) {
-	start, end, err := parseRange(from, to)
-	if err != nil {
-		return nil, err
-	}
-	ranges, err := a.source.ClosingDaysInRange(ctx, start, end)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]*planexport.ClosingPeriod, 0, len(ranges))
-	for _, closing := range ranges {
-		if closing == nil {
-			continue
-		}
-		out = append(out, &planexport.ClosingPeriod{
-			StartDate: planexport.Date(closing.StartDate),
-			EndDate:   planexport.Date(closing.EndDate),
-			Reason:    closing.Reason,
-		})
-	}
-	return out, nil
-}
-
-type holidayAdapter struct {
-	source timetableplanning.HolidayService
-}
-
-func (a holidayAdapter) HolidaysInRange(ctx context.Context, from, to planexport.Date) ([]planexport.Holiday, error) {
-	start, end, err := parseRange(from, to)
-	if err != nil {
-		return nil, err
-	}
-	holidays, err := a.source.HolidaysInRange(ctx, start, end)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]planexport.Holiday, 0, len(holidays))
-	for _, holiday := range holidays {
-		out = append(out, planexport.Holiday{Date: planexport.Date(holiday.Date), Name: holiday.Name})
 	}
 	return out, nil
 }

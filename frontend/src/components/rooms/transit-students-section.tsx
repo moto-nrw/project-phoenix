@@ -16,19 +16,47 @@ import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { DatabaseSelect } from "~/components/ui/database/database-select";
 import { useToast } from "~/contexts/ToastContext";
-import { activeService } from "~/lib/active-service";
+import {
+  activeService,
+  summarizeStudentMoveResult,
+} from "~/lib/active-service";
 import type { ActiveGroup, Supervisor } from "~/lib/active-helpers";
-import { studentService } from "~/lib/api";
+import { roomService, studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
+import type { ApiError } from "~/lib/api-error";
+import type { Room } from "~/lib/room-helpers";
 import { userContextService } from "~/lib/usercontext-api";
 import type { Staff } from "~/lib/usercontext-helpers";
 import { CompactStudentCard } from "~/components/students/compact-student-card";
 import { useTenantRouter } from "~/lib/tenant-router";
-import { useAttendanceWebEnabled } from "~/lib/tenant-context";
+import {
+  useAttendanceWebEnabled,
+  useSchoolWideAttendanceMoves,
+} from "~/lib/tenant-context";
 
 const DETAIL_CARD_CLASS =
   "moto-content-surface rounded-2xl border p-5 shadow-sm sm:p-6";
 const EMPTY_STUDENTS: Student[] = [];
+const EMPTY_ROOMS: Room[] = [];
+
+/**
+ * One entry of the target select. A `session` target assigns the children to
+ * a running session; an `openRoom` target books an independent stay in a
+ * released room (#3066), for example after the child's activity ended.
+ */
+type TransitTargetOption =
+  | {
+      readonly kind: "session";
+      readonly value: string;
+      readonly label: string;
+    }
+  | {
+      readonly kind: "openRoom";
+      readonly value: string;
+      readonly roomId: string;
+      readonly roomName: string;
+      readonly label: string;
+    };
 
 function buildSessionLabel(group: ActiveGroup): string {
   const roomName = group.room?.name ?? `Raum ${group.roomId}`;
@@ -66,11 +94,17 @@ export function TransitStudentsSection({
   // Visibility never grants move rights: only administrators may target any
   // running module; staff remain limited to modules they supervise.
   const showAllTargets = canUseAllMoveTargets(session);
+  // A child without a room belongs to no supervision, so booking it into a
+  // released room needs the school-wide move right (#3066): administrators,
+  // or every staff member where the school opened attendance edits and the
+  // overview to all staff. The server re-checks this for every move.
+  const schoolWideMoves = useSchoolWideAttendanceMoves();
+  const canTargetOpenRooms = showAllTargets || schoolWideMoves;
   const sectionSearchParams = useSearchParams();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [collapsibleExpanded, setCollapsibleExpanded] = useState(false);
   const isExpanded = !collapsible || collapsibleExpanded;
-  const [targetGroupId, setTargetGroupId] = useState("");
+  const [targetValue, setTargetValue] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const { success: toastSuccess } = useToast();
@@ -126,6 +160,16 @@ export function TransitStudentsSection({
     () => activeService.getStaffActiveSupervisions(currentStaff?.id ?? ""),
   );
 
+  const {
+    data: rooms = EMPTY_ROOMS,
+    error: roomsError,
+    isLoading: roomsLoading,
+    mutate: refreshTargetRooms,
+  } = useSWRAuth<Room[]>(
+    canTargetOpenRooms ? "transit-target-rooms" : null,
+    () => roomService.getRooms(),
+  );
+
   const supervisedTargetGroupIds = useMemo(
     () =>
       new Set(
@@ -136,19 +180,41 @@ export function TransitStudentsSection({
     [activeSupervisions],
   );
 
-  const targetOptions = useMemo(
-    () =>
-      [...activeGroups]
-        .filter(
-          (group) =>
-            group.isActive &&
-            (showAllTargets || supervisedTargetGroupIds.has(group.id)),
-        )
-        .sort((a, b) =>
-          buildSessionLabel(a).localeCompare(buildSessionLabel(b), "de"),
-        ),
-    [activeGroups, showAllTargets, supervisedTargetGroupIds],
-  );
+  const targetOptions = useMemo((): TransitTargetOption[] => {
+    const sessionOptions = activeGroups
+      .filter(
+        (group) =>
+          group.isActive &&
+          (showAllTargets || supervisedTargetGroupIds.has(group.id)),
+      )
+      .map((group): TransitTargetOption => ({
+        kind: "session",
+        value: group.id,
+        label: buildSessionLabel(group),
+      }));
+    const openRoomOptions = canTargetOpenRooms
+      ? rooms
+          .filter((room) => room.isOpenRoom)
+          .map((room): TransitTargetOption => ({
+            kind: "openRoom",
+            value: `room:${room.id}`,
+            roomId: room.id,
+            roomName: room.name,
+            label: `${room.name} (offener Raum)`,
+          }))
+      : [];
+    return [...sessionOptions, ...openRoomOptions].sort((a, b) =>
+      a.label.localeCompare(b.label, "de"),
+    );
+  }, [
+    activeGroups,
+    canTargetOpenRooms,
+    rooms,
+    showAllTargets,
+    supervisedTargetGroupIds,
+  ]);
+  const targetsLoading =
+    groupsLoading || staffLoading || supervisionsLoading || roomsLoading;
 
   const students = studentsData?.students ?? EMPTY_STUDENTS;
   const visibleStudentIds = useMemo(
@@ -179,12 +245,12 @@ export function TransitStudentsSection({
 
   useEffect(() => {
     if (
-      targetGroupId &&
-      !targetOptions.some((group) => group.id === targetGroupId)
+      targetValue &&
+      !targetOptions.some((option) => option.value === targetValue)
     ) {
-      setTargetGroupId("");
+      setTargetValue("");
     }
-  }, [targetGroupId, targetOptions]);
+  }, [targetValue, targetOptions]);
 
   const toggleSelected = (studentId: string) => {
     setSelectedIds((current) => {
@@ -210,33 +276,73 @@ export function TransitStudentsSection({
     const studentIds = [...selectedIds].filter((studentId) =>
       visibleStudentIds.has(studentId),
     );
-    if (!targetGroupId || studentIds.length === 0) return;
+    const target = targetOptions.find((option) => option.value === targetValue);
+    if (!target || studentIds.length === 0) return;
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const result = await activeService.assignTransitStudents(
-        studentIds,
-        targetGroupId,
-      );
+      const message =
+        target.kind === "openRoom"
+          ? await bookIntoOpenRoom(studentIds, target)
+          : await assignToSession(studentIds, target.value);
       setSelectedIds(new Set());
+      setTargetValue("");
       await mutateStudents();
       await mutateKey("rooms-list");
       await mutateMatching();
-      const skipped = result.skipped.length;
-      toastSuccess(
-        skipped > 0
-          ? `${result.assigned.length} zugewiesen, ${skipped} übersprungen.`
-          : `${result.assigned.length} ${
-              result.assigned.length === 1 ? "Kind" : "Kinder"
-            } zugewiesen.`,
-      );
-    } catch {
+      toastSuccess(message);
+    } catch (err) {
+      const releaseRemoved =
+        target.kind === "openRoom" &&
+        (err as ApiError | undefined)?.code === "room_not_released";
+      if (releaseRemoved) {
+        // The release was removed after the room list loaded: drop the stale
+        // choice and reload the rooms, so the list stops offering it.
+        setTargetValue("");
+        await refreshTargetRooms();
+      }
       setSubmitError(
-        "Die ausgewählten Kinder konnten nicht zugewiesen werden.",
+        releaseRemoved
+          ? "Dieser Raum ist nicht mehr freigegeben. Bitte wählen Sie einen anderen Raum."
+          : "Die ausgewählten Kinder konnten nicht zugewiesen werden.",
       );
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const assignToSession = async (
+    studentIds: string[],
+    activeGroupId: string,
+  ): Promise<string> => {
+    const result = await activeService.assignTransitStudents(
+      studentIds,
+      activeGroupId,
+    );
+    const skipped = result.skipped.length;
+    return skipped > 0
+      ? `${result.assigned.length} zugewiesen, ${skipped} übersprungen.`
+      : `${result.assigned.length} ${
+          result.assigned.length === 1 ? "Kind" : "Kinder"
+        } zugewiesen.`;
+  };
+
+  // An explicit independent stay in a released room (#3066): the children
+  // use the room without joining an activity that runs there.
+  const bookIntoOpenRoom = async (
+    studentIds: string[],
+    target: Extract<TransitTargetOption, { kind: "openRoom" }>,
+  ): Promise<string> => {
+    const result = await activeService.moveStudentsToOpenRoom(
+      studentIds,
+      target.roomId,
+    );
+    const { successCount } = summarizeStudentMoveResult(result);
+    const skipped = result.skipped.length;
+    const moved = `${successCount} ${
+      successCount === 1 ? "Kind" : "Kinder"
+    } nach ${target.roomName} gesetzt`;
+    return skipped > 0 ? `${moved}, ${skipped} übersprungen.` : `${moved}.`;
   };
 
   return (
@@ -285,7 +391,11 @@ export function TransitStudentsSection({
       )}
 
       {isExpanded &&
-      (studentsError || groupsError || staffError || supervisionsError) ? (
+      (studentsError ||
+        groupsError ||
+        staffError ||
+        supervisionsError ||
+        roomsError) ? (
         <div className="mt-4">
           <Alert
             type="error"
@@ -338,28 +448,24 @@ export function TransitStudentsSection({
                   id="transit-target-room"
                   name="transit-target-room"
                   label="Zielraum"
-                  value={targetGroupId}
+                  value={targetValue}
                   onChange={(value) => {
-                    setTargetGroupId(value);
+                    setTargetValue(value);
                     setSubmitError(null);
                   }}
                   disabled={
-                    groupsLoading ||
-                    staffLoading ||
-                    supervisionsLoading ||
-                    targetOptions.length === 0 ||
-                    submitting
+                    targetsLoading || targetOptions.length === 0 || submitting
                   }
                   placeholder={
-                    groupsLoading || staffLoading || supervisionsLoading
+                    targetsLoading
                       ? "Aktive Räume werden geladen..."
                       : targetOptions.length === 0
                         ? "Keine aktiven Räume"
                         : "Zielraum wählen"
                   }
-                  options={targetOptions.map((group) => ({
-                    value: group.id,
-                    label: buildSessionLabel(group),
+                  options={targetOptions.map((option) => ({
+                    value: option.value,
+                    label: option.label,
                   }))}
                   className="bg-white text-sm md:text-sm"
                 />
@@ -371,7 +477,7 @@ export function TransitStudentsSection({
                   loadingText="Weise zu..."
                   onClick={() => void assignSelected()}
                   disabled={
-                    !targetGroupId || selectedVisibleCount === 0 || submitting
+                    !targetValue || selectedVisibleCount === 0 || submitting
                   }
                   className="h-9 w-full px-3 py-2 text-xs shadow-sm sm:w-auto"
                 >

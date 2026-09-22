@@ -42,10 +42,12 @@ func (s *Service) RetireStaff(ctx context.Context, staffID int64, revision strin
 			return deleteErr
 		}
 		result.ClassAssignments = deleteStats.Rows
+		// The retained membership must stop referencing the template. The
+		// template binding is Workforce's, so the retirement asks its owner
+		// inside the same unit of work.
 		if staff.WorkTimeModelID != nil {
-			clearStats, clearErr := s.store.ClearWorkTimeModel(txCtx, staffID)
-			stats.Add(clearStats)
-			if clearErr != nil {
+			stats.Queries++
+			if clearErr := s.employment.ClearStaffWorkTimeModel(txCtx, staffID); clearErr != nil {
 				return clearErr
 			}
 		}
@@ -77,12 +79,12 @@ func (s *Service) PreviewRetirement(ctx context.Context, staffID int64) (result 
 
 func (s *Service) retirementSnapshot(ctx context.Context, staffID int64, stats *domain.OperationStats) (retirementSnapshot, domain.RetirementPreview, error) {
 	snapshot := retirementSnapshot{StaffID: staffID}
-	staff, found, queryStats, err := s.store.FindStaff(ctx, staffID, "UPDATE", false)
-	stats.Add(queryStats)
+	staff, found, err := s.lockStaffForRetirement(ctx, staffID, stats)
 	if err != nil {
 		return snapshot, domain.RetirementPreview{}, err
 	}
 	if found {
+		var queryStats domain.OperationStats
 		snapshot.Staff = staff
 		teacher, teacherFound, teacherStats, err := s.store.FindTeacherByStaff(ctx, staffID)
 		stats.Add(teacherStats)
@@ -138,4 +140,17 @@ func (s *Service) retirementSnapshot(ctx context.Context, staffID int64, stats *
 		preview.Retirement = domain.Retirement{StaffID: staff.ID, PersonID: staff.PersonID, TeacherID: snapshot.Teacher.ID, GroupAssignments: int64(len(snapshot.Groups)), ClassAssignments: int64(len(snapshot.Classes))}
 	}
 	return snapshot, preview, nil
+}
+
+// lockStaffForRetirement locks the live membership and composes the whole
+// staff member: the work-time binding decides whether retirement clears it
+// and is part of the revision.
+func (s *Service) lockStaffForRetirement(ctx context.Context, staffID int64, stats *domain.OperationStats) (domain.Staff, bool, error) {
+	staff, found, queryStats, err := s.store.FindStaff(ctx, staffID, "UPDATE", false)
+	stats.Add(queryStats)
+	if err != nil || !found {
+		return domain.Staff{}, found, err
+	}
+	staff, err = s.withEmployment(ctx, staff, stats)
+	return staff, err == nil, err
 }

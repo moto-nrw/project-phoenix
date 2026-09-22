@@ -31,6 +31,10 @@ type StudentDeparturePlan struct {
 
 type StudentProfileCommands interface {
 	SetStudentLiveStatus(context.Context, StudentLiveStatus) (int64, error)
+	// SetStudentHealthInfo writes health_info (nil clears it) on the child's
+	// care row in the current tenant and returns the rows changed; 0 means the
+	// child has no care row there.
+	SetStudentHealthInfo(ctx context.Context, studentID int64, healthInfo *string) (int64, error)
 	ClearStudentStatusFlags(context.Context, []int64, string) (int64, error)
 	SaveStudentCareProfile(context.Context, StudentCareProfile, *StudentDeparturePlan) error
 }

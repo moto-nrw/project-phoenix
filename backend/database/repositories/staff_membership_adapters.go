@@ -9,6 +9,7 @@ import (
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
 // The adapters in this file serve the legacy users.StaffRepository,
@@ -31,12 +32,15 @@ type staffIdentityQuery interface {
 type staffMembershipDeps struct {
 	persons  userModels.PersonRepository
 	identity staffIdentityQuery
+	// employment is Workforce's owner of the employment-only staff writes
+	// (#2753): notes and the birthday opt-out.
+	employment workforce.StaffEmploymentCommand
 	// groupTeachers is lazy because School Membership may be rebound after construction.
 	groupTeachers func() educationModels.GroupTeacherRepository
 }
 
-func newStaffMembershipDeps(persons userModels.PersonRepository, identity staffIdentityQuery) *staffMembershipDeps {
-	return &staffMembershipDeps{persons: persons, identity: identity}
+func newStaffMembershipDeps(persons userModels.PersonRepository, identity staffIdentityQuery, employment workforce.StaffEmploymentCommand) *staffMembershipDeps {
+	return &staffMembershipDeps{persons: persons, identity: identity, employment: employment}
 }
 
 // staffMembershipRepository serves users.StaffRepository.
@@ -209,12 +213,6 @@ func (r staffMembershipRepository) List(ctx context.Context, filters map[string]
 				return nil, usersRepo.WrapError("list staff", err)
 			}
 			filter.PersonIDs = append(filter.PersonIDs, id)
-		case "work_time_model_id":
-			id, err := membershipID(value)
-			if err != nil {
-				return nil, usersRepo.WrapError("list staff", err)
-			}
-			filter.WorkTimeModelID = &id
 		default:
 			return nil, usersRepo.WrapError("list staff", fmt.Errorf("unsupported staff filter %q", field))
 		}
@@ -385,6 +383,7 @@ func (r staffMembershipRepository) activeAccountsByTenant(ctx context.Context, l
 }
 
 func (r staffMembershipRepository) accountIDsByStaff(ctx context.Context, filter schoolmembership.StaffFilter, op string) (map[int64]int64, error) {
+	filter.MembershipOnly = true // account links read no employment field
 	values, err := r.membership.ListStaff(ctx, filter)
 	if err != nil {
 		return nil, membershipError(op, err)
@@ -421,6 +420,7 @@ func (r staffMembershipRepository) ListAllStaffAccountIDs(ctx context.Context) (
 // account is active there, together with their effective permission names.
 func (r staffMembershipRepository) permittedStaffLinks(ctx context.Context, filter schoolmembership.StaffFilter, op string) ([]staffAccountLink, map[int64][]string, error) {
 	tenantID := usersRepo.TenantIDFromContext(ctx)
+	filter.MembershipOnly = true // permission links read no employment field
 	values, err := r.membership.ListStaff(ctx, filter)
 	if err != nil {
 		return nil, nil, membershipError(op, err)
@@ -541,7 +541,7 @@ func (r staffMembershipRepository) GetStaffContactInfo(ctx context.Context, staf
 // entry per matching role assignment rather than one per staff member.
 func (r staffMembershipRepository) ListStaffByRoles(ctx context.Context, roles []string) ([]*userModels.StaffWithRoleInfo, error) {
 	const op = "list staff by roles"
-	values, err := r.membership.ListStaff(ctx, schoolmembership.StaffFilter{})
+	values, err := r.membership.ListStaff(ctx, schoolmembership.StaffFilter{MembershipOnly: true})
 	if err != nil {
 		return nil, membershipError(op, err)
 	}
@@ -642,15 +642,31 @@ func (r staffMembershipRepository) ListBirthdaysForExport(ctx context.Context) (
 	return r.staffBirthdays(ctx, nil, false, "list staff birthdays for export")
 }
 
-func (r staffMembershipRepository) SetBirthdayDisplayOptOut(ctx context.Context, staffID int64, optOut bool) error {
-	return membershipError("set staff birthday display opt-out", r.membership.SetBirthdayDisplayOptOut(ctx, staffID, optOut))
-}
+// The employment-only writes go to their Workforce owner. The opt-out and the
+// notes apply to live staff members only, as before the split, so both check
+// the membership first. Inside a caller's transaction the check and the write
+// share it and the membership stays locked; without one they are two short
+// transactions, and an offboarding that commits in between leaves the note or
+// opt-out on the retired member, which nothing reads for live staff.
 
-func (r staffMembershipRepository) ClearWorkTimeModel(ctx context.Context, id int64) error {
-	return membershipError("clear work time model", r.membership.ClearWorkTimeModel(ctx, id))
+func (r staffMembershipRepository) SetBirthdayDisplayOptOut(ctx context.Context, staffID int64, optOut bool) error {
+	return membershipError("set staff birthday display opt-out", r.withLiveStaff(ctx, staffID, func(ctx context.Context) error {
+		return membershipEmploymentError(r.deps.employment.SetStaffBirthdayDisplayOptOut(ctx, staffID, optOut))
+	}))
 }
 
 func (r staffMembershipRepository) AddNotes(ctx context.Context, id int64, notes string) error {
-	_, err := r.membership.AppendStaffNotes(ctx, id, notes)
-	return membershipError("add notes", err)
+	return membershipError("add notes", r.withLiveStaff(ctx, id, func(ctx context.Context) error {
+		_, err := r.deps.employment.AppendStaffNotes(ctx, id, notes)
+		return membershipEmploymentError(err)
+	}))
+}
+
+// withLiveStaff runs write only for a live membership. Inside the caller's
+// transaction the membership stays locked until it commits.
+func (r staffMembershipRepository) withLiveStaff(ctx context.Context, staffID int64, write func(context.Context) error) error {
+	if _, err := r.membership.FindStaffForMutation(ctx, staffID); err != nil {
+		return err
+	}
+	return write(ctx)
 }

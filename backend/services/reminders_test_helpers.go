@@ -9,7 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
@@ -21,7 +20,7 @@ import (
 type RemindersTestModule struct {
 	Reminders   reminder.Query
 	Settings    config.SettingsService
-	UserContext usercontext.UserContextService
+	UserContext *repositories.CallerRows
 }
 
 func NewRemindersTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() time.Time) (RemindersTestModule, error) {

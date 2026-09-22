@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -23,11 +23,11 @@ func (s *scopedSessionCleanup) CleanupAbandonedSessions(ctx context.Context, _ t
 	return 0, nil
 }
 
-func (s *scopedSessionCleanup) EndDailySessions(ctx context.Context) (*active.DailySessionCleanupResult, error) {
+func (s *scopedSessionCleanup) EndDailySessions(ctx context.Context) (*studentpresence.DailySessionCleanupResult, error) {
 	id := (testpkg.SettingsRuntimeAdapter{}).TenantID(ctx)
 	require.Positive(s.t, id, "daily cleanup must receive a school")
 	s.daily[id] = true
-	return &active.DailySessionCleanupResult{Success: true}, nil
+	return &studentpresence.DailySessionCleanupResult{Success: true}, nil
 }
 
 func TestSessionCleanupExecutesForEachSchool(t *testing.T) {

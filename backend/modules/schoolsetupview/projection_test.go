@@ -97,7 +97,7 @@ func TestProgressIgnoresRowsTheSchoolDidNotCreate(t *testing.T) {
 	assert.False(t, facts.RoomCreated, "a system room must not finish the room step")
 }
 
-// TestProgressIsTenantScoped pins the tenant_safe invariant of ADR 0035: data
+// TestProgressIsTenantScoped pins the tenant_safe invariant of ADR 0040: data
 // of another school never counts.
 func TestProgressIsTenantScoped(t *testing.T) {
 	t.Parallel()

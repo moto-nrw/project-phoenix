@@ -3,7 +3,7 @@ package statisticshttp
 import (
 	"strconv"
 
-	statisticsService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/statistics"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // int64 IDs travel as strings on the wire (frontend convention).
@@ -99,7 +99,7 @@ type reportResponse struct {
 	CourseDataFrom string                  `json:"course_data_from"`
 }
 
-func toReportResponse(report *statisticsService.Report) reportResponse {
+func toReportResponse(report *studentpresence.StatisticsReport) reportResponse {
 	out := reportResponse{
 		From:     report.From.String(),
 		To:       report.To.String(),
@@ -178,7 +178,7 @@ func toReportResponse(report *statisticsService.Report) reportResponse {
 	return out
 }
 
-func toCourseResponse(course statisticsService.CourseRow) courseResponse {
+func toCourseResponse(course studentpresence.StatisticsCourseRow) courseResponse {
 	return courseResponse{
 		CourseID:           strconv.FormatInt(course.CourseID, 10),
 		Name:               course.Name,
@@ -195,7 +195,7 @@ func toCourseResponse(course statisticsService.CourseRow) courseResponse {
 	}
 }
 
-func toGroupResponse(g statisticsService.GroupRow) groupResponse {
+func toGroupResponse(g studentpresence.StatisticsGroupRow) groupResponse {
 	return groupResponse{
 		GroupID:         strconv.FormatInt(g.GroupID, 10),
 		Name:            g.Name,

@@ -69,7 +69,7 @@ function claimFirstOpen(accountID: string): boolean {
 }
 
 /**
- * Der Einrichtungs-Assistent für neue Schulen (#2832, ADR 0035).
+ * Der Einrichtungs-Assistent für neue Schulen (#2832, ADR 0040).
  *
  * Eine Checkliste unten rechts, über allen Seiten. Der nächste offene
  * Schritt ist aufgeklappt; „Zeig es mir“ führt per Tour durch die

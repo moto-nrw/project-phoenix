@@ -222,6 +222,30 @@ func TestSchoolPeriodEndSettings(t *testing.T) {
 	assert.Nil(t, config.GetDefinition(config.SchoolPeriodEndKey(config.SchoolPeriodCount+1)))
 }
 
+// The care time presets are optional clock times the school team may change
+// (#3371): empty by default, so a school that maintains none offers nothing.
+func TestCareTimePresetSettings(t *testing.T) {
+	t.Parallel()
+
+	for key, sortOrder := range map[string]int{
+		config.KeyCareDefaultArrivalTime: 2,
+		config.KeyCareDefaultPickupTime:  3,
+	} {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "%s should be registered", key)
+		assert.Equal(t, config.FieldTime, def.Type)
+		assert.Equal(t, "", def.Default)
+		assert.Equal(t, "config:read", def.ReadPermission)
+		assert.Equal(t, "config:update", def.WritePermission)
+		assert.Equal(t, config.AccessShared, def.AccessPolicy)
+		assert.Equal(t, "operations", def.Tab)
+		assert.Equal(t, "betreuungszeiten", def.Category)
+		assert.Equal(t, sortOrder, def.SortOrder)
+		assert.Nil(t, def.DependsOn)
+	}
+	assert.Equal(t, "Übliche Abholzeit", config.GetDefinition(config.KeyCareDefaultPickupTime).Label)
+}
+
 func TestCalendarCalDAVSetting(t *testing.T) {
 	t.Parallel()
 

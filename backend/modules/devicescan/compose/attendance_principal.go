@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // WithAttendanceStaff binds the staff identity already verified by the web
@@ -15,8 +15,8 @@ func WithAttendanceStaff(ctx context.Context, staffID, tenantID int64) context.C
 
 // AttendancePrincipal projects the verified device and staff context for attendance.
 // It reads the original context; no independent authentication state is created.
-func AttendancePrincipal(ctx context.Context) active.RequestPrincipal {
-	result := active.RequestPrincipal{IsIoT: device.IsIoTDeviceRequest(ctx)}
+func AttendancePrincipal(ctx context.Context) studentpresence.RequestPrincipal {
+	result := studentpresence.RequestPrincipal{IsIoT: device.IsIoTDeviceRequest(ctx)}
 	if principal := device.DeviceFromCtx(ctx); principal != nil {
 		result.DeviceID = principal.ID
 	}

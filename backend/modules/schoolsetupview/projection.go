@@ -1,5 +1,5 @@
 // Package schoolsetupview implements the tenant-safe read projection behind the
-// onboarding wizard for new schools (#2832, ADR 0035): whether the school has
+// onboarding wizard for new schools (#2832, ADR 0040): whether the school has
 // invited staff and created rooms, groups, children and parent invitations.
 //
 // It is a read-only projection because every answer reads another owner's
@@ -36,7 +36,7 @@ type Facts struct {
 
 // progressQuery answers all five questions in one statement. Every EXISTS
 // filters tenant_id explicitly on top of RLS: the predicate is the invariant
-// ADR 0035 records for tenant_safe.
+// ADR 0040 records for tenant_safe.
 const progressQuery = `
 SELECT
 	EXISTS (

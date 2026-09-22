@@ -16,8 +16,8 @@ func (f *Factory) bindPersonProjections(persons peopledirectory.Capability) {
 	if projection, ok := f.CrossTenant.(*visitorProjection); ok {
 		projection.persons = persons
 	}
-	if f.GroupSupervisor != nil {
-		f.GroupSupervisor = personGroupSupervisorRepository{GroupSupervisorRepository: f.GroupSupervisor, persons: persons}
+	if staff := f.supervisionStaffOf(); staff != nil {
+		staff.persons = persons
 	}
 	if f.StaffAbsence != nil {
 		f.StaffAbsence = personStaffAbsenceRepository{StaffAbsenceRepository: f.StaffAbsence, persons: persons}

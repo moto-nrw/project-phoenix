@@ -16,7 +16,6 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
@@ -182,7 +181,7 @@ func attendanceSessionExportColumns() []listexport.Column {
 // attendanceExportRows merges slot rows and unassigned observed sessions into
 // one chronologically sorted list (date, then start clock time) so multi-day
 // exports read in order regardless of which source a row came from.
-func attendanceExportRows(slots []*activeService.HistorySlot, attendanceRows []*studentpresence.Attendance) []listexport.Row {
+func attendanceExportRows(slots []*studentpresence.HistorySlot, attendanceRows []*studentpresence.Attendance) []listexport.Row {
 	type sortableExportRow struct {
 		date  timezone.Date
 		clock string // HH:MM:SS in Berlin, orders rows within a day
@@ -234,7 +233,7 @@ func attendanceExportRows(slots []*activeService.HistorySlot, attendanceRows []*
 	return rows
 }
 
-func slotExportRow(row *activeService.HistorySlot) listexport.Row {
+func slotExportRow(row *studentpresence.HistorySlot) listexport.Row {
 	assignment := "Gebucht"
 	if row.Attendance.IsUnplanned {
 		assignment = "Ungeplant, ohne Buchung"

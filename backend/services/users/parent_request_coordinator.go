@@ -12,7 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -171,8 +171,8 @@ func isBulkRequestRace(err error) bool {
 		errors.Is(err, ErrReviewNotPending) ||
 		errors.Is(err, userModels.ErrChangeRequestNotFound) ||
 		errors.Is(err, userModels.ErrChangeRequestNotPending) ||
-		errors.Is(err, activeModels.ErrExcusedRequestNotFound) ||
-		errors.Is(err, activeModels.ErrExcusedRequestNotPending)
+		errors.Is(err, absencerecords.ErrExcusedRequestNotFound) ||
+		errors.Is(err, absencerecords.ErrExcusedRequestNotPending)
 }
 
 func bulkStudentIDs(
@@ -257,7 +257,7 @@ func (s *ParentRequestCoordinator) applyBulkParentRequest(ctx context.Context, i
 		return err
 	}
 	err := s.excused.ApproveExcusedBulk(ctx, ref.ID, input.Reason, input.ReviewerID, ref.ExpectedVersion)
-	if errors.Is(err, activeModels.ErrExcusedRequestNotPending) {
+	if errors.Is(err, absencerecords.ErrExcusedRequestNotPending) {
 		return ErrParentRequestDecisionRace
 	}
 	return err

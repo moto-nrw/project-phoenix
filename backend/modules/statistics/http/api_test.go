@@ -24,16 +24,16 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	statisticsAPI "github.com/moto-nrw/project-phoenix/modules/statistics/http"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 type testContext struct {
 	db               *bun.DB
 	resource         *statisticsAPI.Resource
-	createClosingDay func(context.Context, *scheduleModels.ClosingDay) error
+	createClosingDay func(ctx context.Context, start, end timezone.Date, reason string) error
 }
 
 func setupStatisticsRoute(t *testing.T, statisticsClocks ...func() time.Time) *testContext {
@@ -42,7 +42,7 @@ func setupStatisticsRoute(t *testing.T, statisticsClocks ...func() time.Time) *t
 	return &testContext{
 		db:               db,
 		resource:         statisticsAPI.NewResource(svc.Statistics, svc.ListExport, db, slog.Default()),
-		createClosingDay: svc.ClosingDays.Create,
+		createClosingDay: svc.CreateClosingDay,
 	}
 }
 
@@ -153,14 +153,14 @@ func insertStatusDay(t *testing.T, db *bun.DB, tenantID, studentID int64, date t
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	row := &activeModels.StudentStatusDay{
+	row := &testpkg.StudentStatusDayRow{
 		StudentID:  studentID,
 		Date:       date,
 		Status:     status,
 		ReportedAt: date.BerlinMidnight().Add(7 * time.Hour),
-		Source:     activeModels.StudentStatusSourceManual,
+		Source:     absencerecords.StudentStatusSourceManual,
 	}
-	row.SetTenantID(tenantID)
+	row.TenantID = tenantID
 	_, err := db.NewInsert().Model(row).ModelTableExpr(`active.student_status_days`).Exec(ctx)
 	require.NoError(t, err)
 }
@@ -170,15 +170,15 @@ func insertEndOfDayStatusDay(t *testing.T, db *bun.DB, tenantID, studentID int64
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	clearedAt := date.BerlinMidnight().Add(18 * time.Hour)
-	row := &activeModels.StudentStatusDay{
+	row := &testpkg.StudentStatusDayRow{
 		StudentID:  studentID,
 		Date:       date,
 		Status:     status,
 		ReportedAt: date.BerlinMidnight().Add(7 * time.Hour),
 		ClearedAt:  &clearedAt,
-		Source:     activeModels.StudentStatusSourceEndOfDay,
+		Source:     absencerecords.StudentStatusSourceEndOfDay,
 	}
-	row.SetTenantID(tenantID)
+	row.TenantID = tenantID
 	_, err := db.NewInsert().Model(row).ModelTableExpr(`active.student_status_days`).Exec(ctx)
 	require.NoError(t, err)
 }
@@ -210,7 +210,7 @@ func insertHolidayPeriod(t *testing.T, db *bun.DB, tenantID int64, name string, 
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
-	row.SetTenantID(tenantID)
+	row.TenantID = tenantID
 	_, err := db.NewInsert().Model(row).ModelTableExpr(`schedule.calendar_periods`).Exec(ctx)
 	require.NoError(t, err)
 }
@@ -298,11 +298,7 @@ func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 
 	// Tue 09.06. is a closing day, Fri 12.06. lies in a holiday period.
 	// Care days: Mon, Wed, Thu = 3.
-	require.NoError(t, tc.createClosingDay(ctx, &scheduleModels.ClosingDay{
-		StartDate: scheduleModels.NewDate(2026, 6, 9),
-		EndDate:   scheduleModels.NewDate(2026, 6, 9),
-		Reason:    "Pädagogischer Tag",
-	}))
+	require.NoError(t, tc.createClosingDay(ctx, timezone.NewDate(2026, 6, 9), timezone.NewDate(2026, 6, 9), "Pädagogischer Tag"))
 	insertHolidayPeriod(t, tc.db, tenantID, "Pfingstferien", timezone.NewDate(2026, 6, 12), timezone.NewDate(2026, 6, 14))
 
 	// Anna: present Mon + Wed, unexplained Thu. Attendance on the closing
@@ -312,9 +308,9 @@ func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 	insertAttendance(t, tc.db, tenantID, anna.ID, device.ID, timezone.NewDate(2026, 6, 10))
 	// Bert: sick Mon (sick beats an excused row on the same day), class trip
 	// Wed (counts as excused even though archived by end-of-day), present Thu.
-	insertStatusDay(t, tc.db, tenantID, bert.ID, timezone.NewDate(2026, 6, 8), activeModels.StudentStatusDaySick)
-	insertStatusDay(t, tc.db, tenantID, bert.ID, timezone.NewDate(2026, 6, 8), activeModels.StudentStatusDayExcused)
-	insertEndOfDayStatusDay(t, tc.db, tenantID, bert.ID, timezone.NewDate(2026, 6, 10), activeModels.StudentStatusDayClassTrip)
+	insertStatusDay(t, tc.db, tenantID, bert.ID, timezone.NewDate(2026, 6, 8), absencerecords.StudentStatusDaySick)
+	insertStatusDay(t, tc.db, tenantID, bert.ID, timezone.NewDate(2026, 6, 8), absencerecords.StudentStatusDayExcused)
+	insertEndOfDayStatusDay(t, tc.db, tenantID, bert.ID, timezone.NewDate(2026, 6, 10), absencerecords.StudentStatusDayClassTrip)
 	insertAttendance(t, tc.db, tenantID, bert.ID, device.ID, timezone.NewDate(2026, 6, 11))
 
 	// Room: two overlapping visits on Monday (peak 2), one visit that

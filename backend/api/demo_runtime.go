@@ -24,17 +24,24 @@ type DemoVisit struct {
 	ChangedAt   time.Time
 }
 
-// DemoRuntime composes only the two owner capabilities needed by the sidecar.
+// DemoRuntime composes only the owner capabilities needed by the sidecar.
 // It deliberately does not construct the retained API/service factory graph.
 type DemoRuntime struct {
 	schools      *organizationtenancy.DemoSchools
 	queue        *organizationtenancy.DemoSchoolQueue
+	expiry       services.DemoAccessExpiry
 	presence     *studentpresence.Module
 	transactions services.TenantRuntime
 }
 
-func NewDemoRuntime(db *bun.DB) (*DemoRuntime, error) {
+// NewDemoRuntime composes the sidecar on its privileged connection; now is
+// the clock the expiry of demo accesses reads (#3470).
+func NewDemoRuntime(db *bun.DB, now func() time.Time) (*DemoRuntime, error) {
 	schools, err := organizationcompose.NewDemoSchools(db)
+	if err != nil {
+		return nil, err
+	}
+	expiry, err := services.NewDemoAccessExpiry(db, now)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +61,19 @@ func NewDemoRuntime(db *bun.DB) (*DemoRuntime, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &DemoRuntime{schools: schools, queue: queue, presence: presence, transactions: transactions}, nil
+	return &DemoRuntime{schools: schools, queue: queue, expiry: expiry, presence: presence, transactions: transactions}, nil
+}
+
+// ExpireDemoAccesses deletes the demo accesses 14 days past their last use
+// (#3470) and returns how many, plus the demo schools no access enters any
+// more.
+func (d *DemoRuntime) ExpireDemoAccesses(ctx context.Context) (int, []string, error) {
+	return d.expiry.ExpireDemoAccesses(ctx)
+}
+
+// RetireDemoSchools hides the named demo schools and returns how many it hid.
+func (d *DemoRuntime) RetireDemoSchools(ctx context.Context, slugs []string) (int, error) {
+	return d.queue.RetireDemoSchools(ctx, slugs)
 }
 
 // DemoSchoolOrder is a demo school of the public demo waiting for its seed
@@ -82,8 +101,8 @@ func (d *DemoRuntime) ClaimDemoSchoolOrder(ctx context.Context) (*DemoSchoolOrde
 }
 
 // FinishDemoSchoolOrder opens the school for its demo access.
-func (d *DemoRuntime) FinishDemoSchoolOrder(ctx context.Context, slug string, visitorAccountID int64) error {
-	return d.queue.FinishDemoSchoolOrder(ctx, slug, visitorAccountID)
+func (d *DemoRuntime) FinishDemoSchoolOrder(ctx context.Context, slug string, visitorAccountID, visitorParentAccountID int64) error {
+	return d.queue.FinishDemoSchoolOrder(ctx, slug, visitorAccountID, visitorParentAccountID)
 }
 
 // FailDemoSchoolOrder queues the order again until maxAttempts are used.
@@ -91,9 +110,15 @@ func (d *DemoRuntime) FailDemoSchoolOrder(ctx context.Context, slug string, maxA
 	return d.queue.FailDemoSchoolOrder(ctx, slug, maxAttempts)
 }
 
-// ReadyDemoSchools lists the demo schools the simulation keeps alive.
+// ReadyDemoSchools lists every demo school that can be entered.
 func (d *DemoRuntime) ReadyDemoSchools(ctx context.Context) ([]string, error) {
 	return d.queue.ReadyDemoSchools(ctx)
+}
+
+// ActiveDemoSchools lists the ready demo schools a visitor entered since the
+// instant; only these get simulation ticks (#3464).
+func (d *DemoRuntime) ActiveDemoSchools(ctx context.Context, since time.Time) ([]string, error) {
+	return d.queue.ActiveDemoSchools(ctx, since)
 }
 
 func (d *DemoRuntime) LoadDemoSchool(ctx context.Context, name string) (*DemoSchoolRecord, error) {

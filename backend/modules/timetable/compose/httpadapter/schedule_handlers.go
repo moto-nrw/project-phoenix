@@ -167,7 +167,7 @@ func (rs *Resource) getAvailableTimeSlots(w http.ResponseWriter, r *http.Request
 	endDate := startDate.AddDate(0, 0, 7)
 
 	// Find available time slots
-	availableSlots, err := rs.ScheduleService.FindAvailableSlots(ctx, startDate, endDate, duration)
+	availableSlots, err := availableTimeframeSlots(ctx, rs.Timeframes, startDate, endDate, duration)
 	if err != nil {
 		slog.Default().ErrorContext(ctx, "Error finding available time slots", slog.String("error", err.Error()))
 		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to retrieve available time slots")

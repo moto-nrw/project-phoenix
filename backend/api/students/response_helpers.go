@@ -16,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -34,7 +33,7 @@ type StudentResponseOpts struct {
 
 // StudentResponseServices groups service dependencies for student response creation
 type StudentResponseServices struct {
-	ActiveService activeService.Service
+	ActiveService StudentPresence
 	PersonService userService.PersonService
 }
 
@@ -304,7 +303,7 @@ func absentInfo(hasFullAccess bool, checkOutTime *time.Time) common.StudentLocat
 // write only attendance (no room visit), so falling through to
 // presentOrTransit() would always yield "Unterwegs", contradicting the
 // simplified Anwesend/Schulhof/Abwesend UX binary mode promises.
-func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFullAccess bool, svc activeService.Service) (common.StudentLocationInfo, error) {
+func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFullAccess bool, svc StudentPresence) (common.StudentLocationInfo, error) {
 	mode, err := svc.GetPresenceMode(ctx)
 	if err != nil {
 		return common.StudentLocationInfo{}, err
@@ -332,7 +331,7 @@ func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFul
 
 	// Student is checked in - get current visit to check room assignment
 	currentVisit, err := svc.GetStudentCurrentVisit(ctx, studentID)
-	if err != nil && !errors.Is(err, activeService.ErrVisitNotFound) {
+	if err != nil && !errors.Is(err, studentpresence.ErrVisitNotFound) {
 		return common.StudentLocationInfo{}, err
 	}
 	if currentVisit == nil || currentVisit.ActiveGroupID <= 0 {
@@ -596,7 +595,7 @@ func buildArrivalNotes(eat *careplan.EffectiveArrivalTime) string {
 	return strings.Join(parts, ", ")
 }
 
-func applyActualTimesFromAttendance(response *StudentResponse, status *activeService.AttendanceStatus) {
+func applyActualTimesFromAttendance(response *StudentResponse, status *studentpresence.DailyAttendanceStatus) {
 	if response == nil || status == nil {
 		return
 	}

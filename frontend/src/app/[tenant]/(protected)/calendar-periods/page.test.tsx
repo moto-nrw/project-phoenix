@@ -2,11 +2,11 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  useRequireAdmin: vi.fn(),
+  useRequirePermission: vi.fn(),
 }));
 
-vi.mock("~/lib/hooks/use-require-admin", () => ({
-  useRequireAdmin: mocks.useRequireAdmin,
+vi.mock("~/lib/hooks/use-require-permission", () => ({
+  useRequirePermission: mocks.useRequirePermission,
 }));
 
 vi.mock("~/components/planning/calendar-periods-editor", () => ({
@@ -33,7 +33,7 @@ import CalendarPeriodsPage from "./page";
 describe("CalendarPeriodsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.useRequireAdmin.mockReturnValue({ isReady: true });
+    mocks.useRequirePermission.mockReturnValue({ isReady: true });
   });
 
   // Bewusst kein timetable.enabled-Gate: Kalenderzeiträume werden auch von
@@ -61,8 +61,8 @@ describe("CalendarPeriodsPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the loading state until the admin gate resolves", () => {
-    mocks.useRequireAdmin.mockReturnValue({ isReady: false });
+  it("shows the loading state until the permission gate resolves", () => {
+    mocks.useRequirePermission.mockReturnValue({ isReady: false });
 
     render(<CalendarPeriodsPage />);
 

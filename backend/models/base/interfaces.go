@@ -81,3 +81,9 @@ func (e *DatabaseError) Error() string {
 func (e *DatabaseError) Unwrap() error {
 	return e.Err
 }
+
+// StoreFailure marks the error as the store's failure rather than a refusal
+// of the request, for callers that may not name this type (#2736).
+func (e *DatabaseError) StoreFailure() bool {
+	return true
+}

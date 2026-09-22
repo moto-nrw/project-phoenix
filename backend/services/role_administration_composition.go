@@ -2,11 +2,11 @@ package services
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 )
 
 // Identity & Access owns role and permission management (#3314): role and
@@ -18,40 +18,40 @@ import (
 // the consumer-owned ports of the retained auth and people services over the
 // public module.
 
-// hasLiveCaregiverProfile walks the person → staff → teacher chain of the
-// account at the tenant in ctx. Soft-deleted (offboarded) records do not
-// count. Every path that guards the Lehrkraft role reads this one walk
-// (#1772): the Identity & Access role administration and school identity
-// seam as well as the operator school access.
-func hasLiveCaregiverProfile(
-	ctx context.Context,
-	persons userModels.PersonRepository,
-	staffs userModels.StaffRepository,
-	teachers userModels.TeacherRepository,
-	accountID int64,
-) (bool, error) {
-	person, err := persons.FindByAccountID(ctx, accountID)
+// caregiverProfiles answers whether an account holds a live teacher profile
+// at the tenant in ctx, through the School Membership staff identity read
+// over the People Directory. Soft-deleted (offboarded) records do not count.
+// Every path that guards the Lehrkraft role reads this one walk (#1772): the
+// Identity & Access role administration and school identity seam as well as
+// the operator school access.
+type caregiverProfiles struct {
+	persons    peopledirectory.Query
+	membership schoolmembership.StaffIdentities
+}
+
+func (c caregiverProfiles) complete() bool { return c.persons != nil && c.membership != nil }
+
+func (c caregiverProfiles) hasLive(ctx context.Context, accountID int64) (bool, error) {
+	identity, err := c.membership.ResolveStaffIdentityByAccount(ctx, accountID, accountPersons{directory: c.persons})
 	if err != nil {
 		return false, err
 	}
-	if person == nil || person.DeletedAt != nil {
-		return false, nil
+	return identity.IsTeacher(), nil
+}
+
+// accountPersons serves School Membership's consumer-owned person port over
+// the People Directory; a missing person is the clean "no person" outcome.
+type accountPersons struct{ directory peopledirectory.Query }
+
+func (p accountPersons) FindPersonIDByAccount(ctx context.Context, accountID int64) (int64, bool, error) {
+	person, err := p.directory.FindPersonByAccount(ctx, accountID)
+	if errors.Is(err, peopledirectory.ErrPersonNotFound) {
+		return 0, false, nil
 	}
-	staff, err := staffs.FindByPersonID(ctx, person.ID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return false, nil
-		}
-		return false, err
+		return 0, false, err
 	}
-	if staff == nil || staff.DeletedAt != nil {
-		return false, nil
-	}
-	teacher, err := teachers.FindByStaffID(ctx, staff.ID)
-	if err != nil {
-		return false, err
-	}
-	return teacher != nil && teacher.DeletedAt == nil, nil
+	return person.ID, true, nil
 }
 
 // roleAdministration serves the people services' role port over the public

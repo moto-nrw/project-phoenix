@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/adapters/postgres"
@@ -21,6 +22,34 @@ type Observation = ports.Observation
 type Dependencies struct {
 	DB      *bun.DB
 	Observe func(Observation)
+	// Administration resolves the owner collaborators of the period
+	// administration on every call. The root binds it to a value it fills
+	// once the legacy services factory exists, because the care-offering
+	// guard is an Enrollment service that itself reads this calendar.
+	// Optional: without it the administration runs without gate and guard
+	// and the tenant holiday reads report a configuration error.
+	Administration func() AdministrationRuntime
+	// Today names the current calendar day in YYYY-MM-DD. Nil means the
+	// Berlin calendar day, the school's day.
+	Today func() string
+}
+
+// AdministrationRuntime is everything the period administration and the
+// tenant holiday reads need from other owners.
+type AdministrationRuntime struct {
+	// FederalState resolves the tenant's federal-state ISO code for the
+	// statutory-holiday reads (the operations.federal_state setting).
+	// Nil: the tenant holiday reads report a configuration error.
+	FederalState func(context.Context) (string, error)
+	// RecurrenceGate serializes period administration against every
+	// recurrence-derived write of the tenant. Nil: no gate (graphs without
+	// planning); production binds the shared tenant recurrence lock.
+	RecurrenceGate func(context.Context) error
+	// CareOfferingGuard refuses a period change (replacement set) or
+	// removal (replacement nil) a linked care offering still needs. It
+	// reports the refusal as schoolcalendar.ErrCalendarPeriodRequiredByCareOffering
+	// in the error chain. Nil: no guard.
+	CareOfferingGuard func(ctx context.Context, periodID int64, replacement *schoolcalendar.CalendarPeriodFields) error
 }
 
 // PersistenceRuntime exposes the compose-owned ambient tenant transaction to
@@ -85,14 +114,117 @@ func New(dependencies Dependencies) (*schoolcalendar.Module, error) {
 			return nil, 0, fmt.Errorf("school calendar postgres: unsupported transaction %T", transaction)
 		}
 	})
+	resolve := dependencies.Administration
+	if resolve == nil {
+		resolve = func() AdministrationRuntime { return AdministrationRuntime{} }
+	}
 	service := application.New(store, func(observation Observation) {
 		observation.Err = mapError(observation.Err)
 		dependencies.Observe(observation)
-	})
-	return schoolcalendar.NewModule(engine{service: service}), nil
+	}, administrationPorts(resolve, dependencies.Today))
+	return schoolcalendar.NewModule(engine{service: service, federalState: resolve}), nil
 }
 
-type engine struct{ service *application.Service }
+// administrationPorts binds the application's administration ports to the
+// runtime the resolver answers with on every call; a missing gate or guard
+// is skipped, a missing clock means the Berlin calendar day.
+func administrationPorts(resolve func() AdministrationRuntime, today func() string) application.Administration {
+	if today == nil {
+		today = berlinToday
+	}
+	return application.Administration{
+		Transaction: writeTransaction,
+		RecurrenceGate: func(ctx context.Context) error {
+			gate := resolve().RecurrenceGate
+			if gate == nil {
+				return nil
+			}
+			return gate(ctx)
+		},
+		CareOfferingGuard: func(ctx context.Context, periodID int64, replacement *domain.CalendarPeriodFields) error {
+			guard := resolve().CareOfferingGuard
+			if guard == nil {
+				return nil
+			}
+			var fields *schoolcalendar.CalendarPeriodFields
+			if replacement != nil {
+				value := periodFieldsToPublic(*replacement)
+				fields = &value
+			}
+			return guard(ctx, periodID, fields)
+		},
+		Today: today,
+	}
+}
+
+// berlinLocation is the school's wall clock; the calendar day is the day in
+// Europe/Berlin, never the server's zone.
+var berlinLocation = func() *time.Location {
+	location, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		panic("school calendar compose: Europe/Berlin location is required: " + err.Error())
+	}
+	return location
+}()
+
+func berlinToday() string { return time.Now().In(berlinLocation).Format(schoolcalendar.DateLayout) }
+
+// writeTransaction joins the ambient tenant transaction (tenant middleware,
+// recurrence gate, scheduler loops) and otherwise opens one for the tenant
+// in context, so the recurrence gate always holds a transaction-scoped lock.
+func writeTransaction(ctx context.Context, fn func(context.Context) error) error {
+	if _, ok := tenant.TransactionFromContext(ctx); ok {
+		return fn(ctx)
+	}
+	return tenant.WithinCurrentTenant(ctx, fn)
+}
+
+type engine struct {
+	service      *application.Service
+	federalState func() AdministrationRuntime
+}
+
+// FederalState resolves the tenant's federal state through the runtime's
+// settings port; an unbound runtime is a configuration error.
+func (e engine) FederalState(ctx context.Context) (string, error) {
+	federalState := e.federalState().FederalState
+	if federalState == nil {
+		return "", errors.New("school calendar: federal state resolver is not bound")
+	}
+	return federalState(ctx)
+}
+
+func (e engine) AddCalendarPeriod(ctx context.Context, input schoolcalendar.CreateCalendarPeriod) (schoolcalendar.CalendarPeriod, error) {
+	value, err := e.service.AddCalendarPeriod(ctx, periodFieldsToDomain(input.CalendarPeriodFields))
+	return periodToPublic(value), mapError(err)
+}
+
+func (e engine) ChangeCalendarPeriod(ctx context.Context, input schoolcalendar.UpdateCalendarPeriod) (schoolcalendar.CalendarPeriod, error) {
+	value, err := e.service.ChangeCalendarPeriod(ctx, input.ID, periodFieldsToDomain(input.CalendarPeriodFields))
+	return periodToPublic(value), mapError(err)
+}
+
+func (e engine) RemoveCalendarPeriod(ctx context.Context, id int64) error {
+	return mapError(e.service.RemoveCalendarPeriod(ctx, id))
+}
+
+func (e engine) EnsureDefaultSchoolYear(ctx context.Context) ([]schoolcalendar.CalendarPeriod, bool, error) {
+	values, created, err := e.service.EnsureDefaultSchoolYear(ctx, func(today string) domain.CalendarPeriodFields {
+		name, start, end := schoolcalendar.DefaultSchoolYear(today)
+		return domain.CalendarPeriodFields{
+			Name: name, PeriodType: schoolcalendar.PeriodTypeSchoolYear, StartDate: start, EndDate: end,
+			WeekCycleLength: 1, IsActive: true,
+		}
+	})
+	if err != nil {
+		return nil, false, mapError(err)
+	}
+	result := make([]schoolcalendar.CalendarPeriod, 0, len(values))
+	for _, value := range values {
+		result = append(result, periodToPublic(value))
+	}
+	return result, created, nil
+}
 
 func (e engine) FindCalendarPeriod(ctx context.Context, id int64) (schoolcalendar.CalendarPeriod, error) {
 	value, err := e.service.FindCalendarPeriod(ctx, id)
@@ -270,6 +402,13 @@ func periodFieldsToDomain(fields schoolcalendar.CalendarPeriodFields) domain.Cal
 	}
 }
 
+func periodFieldsToPublic(fields domain.CalendarPeriodFields) schoolcalendar.CalendarPeriodFields {
+	return schoolcalendar.CalendarPeriodFields{
+		Name: fields.Name, PeriodType: fields.PeriodType, StartDate: fields.StartDate, EndDate: fields.EndDate,
+		WeekCycleLength: fields.WeekCycleLength, WeekCycleAnchor: fields.WeekCycleAnchor, IsActive: fields.IsActive,
+	}
+}
+
 func periodToPublic(value domain.CalendarPeriod) schoolcalendar.CalendarPeriod {
 	return schoolcalendar.CalendarPeriod{
 		ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
@@ -303,7 +442,19 @@ func mapError(err error) error {
 		// The cause stays in the chain on purpose: callers that classify the
 		// collision by constraint name keep working.
 		return fmt.Errorf("%w: %w", schoolcalendar.ErrCalendarPeriodNameConflict, err)
+	case errors.Is(err, domain.ErrCalendarPeriodOverlapConflict):
+		var overlap *domain.CalendarPeriodOverlapError
+		if errors.As(err, &overlap) {
+			overlaps := make([]schoolcalendar.CalendarPeriod, 0, len(overlap.Overlaps))
+			for _, value := range overlap.Overlaps {
+				overlaps = append(overlaps, periodToPublic(value))
+			}
+			return &schoolcalendar.CalendarPeriodOverlapError{Overlaps: overlaps}
+		}
+		return schoolcalendar.ErrCalendarPeriodOverlapConflict
 	default:
+		// Care-offering refusals already carry the public sentinel: the
+		// runtime guard wraps them before the service sees them.
 		return err
 	}
 }

@@ -58,13 +58,13 @@ func testTimetableDataWithOfferingCallbacks(
 		panic(err)
 	}
 	activityInstanceRepo := timetablesqltest.NewActivityInstanceRepository(db)
-	supervisorRepo := presenceCompose.NewLegacyGroupSupervisorRepository(repositories.NewPresenceSupervisionRecords(db))
+	supervisorRepo := repositories.NewPresenceSessionRecords(db)
 	var today func() timezone.Date
 	if len(clocks) > 0 && clocks[0] != nil {
 		clock := clocks[0]
 		today = func() timezone.Date { return timezone.DateFromTime(clock()) }
 		activityInstanceRepo = timetablesqltest.NewActivityInstanceRepository(db, clock)
-		supervisorRepo = presenceCompose.NewLegacyGroupSupervisorRepository(repositories.NewPresenceSupervisionRecords(db), clock)
+		supervisorRepo = repositories.NewPresenceSessionRecords(db, clock)
 	}
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	if err != nil {
@@ -127,4 +127,26 @@ func mustTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) repos
 		panic(err)
 	}
 	return repos
+}
+
+// calendarPeriodUsageFor serves the usage port from the test repository
+// factory's planning-owner read, converting by shape.
+func calendarPeriodUsageFor(repos repositories.TimetableTestRepositories) CalendarPeriodUsage {
+	return usageFunc(func(ctx context.Context) (map[int64]CalendarPeriodUsageCounts, error) {
+		values, err := repos.CalendarPeriodUsage().Usage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		result := make(map[int64]CalendarPeriodUsageCounts, len(values))
+		for id, value := range values {
+			result[id] = CalendarPeriodUsageCounts(value)
+		}
+		return result, nil
+	})
+}
+
+type usageFunc func(context.Context) (map[int64]CalendarPeriodUsageCounts, error)
+
+func (f usageFunc) UsageCounts(ctx context.Context) (map[int64]CalendarPeriodUsageCounts, error) {
+	return f(ctx)
 }

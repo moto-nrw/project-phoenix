@@ -3,7 +3,7 @@ package students
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,14 +22,14 @@ func TestCompanionConflictsConfirmed(t *testing.T) {
 
 	t.Run("exactly what was confirmed", func(t *testing.T) {
 		require.True(t, companionConflictsConfirmed(
-			[]carelifecycle.CompanionConflict{{StudentID: tom, Weekdays: []string{"thu"}}},
+			[]careplan.CompanionConflict{{StudentID: tom, Weekdays: []string{"thu"}}},
 			[]CompanionEntry{{CompanionStudentID: tom, Weekdays: []string{"thu"}}},
 		))
 	})
 
 	t.Run("a companion that appeared afterwards is not confirmed", func(t *testing.T) {
 		require.False(t, companionConflictsConfirmed(
-			[]carelifecycle.CompanionConflict{
+			[]careplan.CompanionConflict{
 				{StudentID: tom, Weekdays: []string{"thu"}},
 				{StudentID: mia, Weekdays: []string{"thu"}},
 			},
@@ -39,14 +39,14 @@ func TestCompanionConflictsConfirmed(t *testing.T) {
 
 	t.Run("a weekday that appeared afterwards is not confirmed", func(t *testing.T) {
 		require.False(t, companionConflictsConfirmed(
-			[]carelifecycle.CompanionConflict{{StudentID: tom, Weekdays: []string{"thu", "fri"}}},
+			[]careplan.CompanionConflict{{StudentID: tom, Weekdays: []string{"thu", "fri"}}},
 			[]CompanionEntry{{CompanionStudentID: tom, Weekdays: []string{"thu"}}},
 		))
 	})
 
 	t.Run("a conflict that resolved itself leaves the rest confirmed", func(t *testing.T) {
 		require.True(t, companionConflictsConfirmed(
-			[]carelifecycle.CompanionConflict{{StudentID: tom, Weekdays: []string{"thu"}}},
+			[]careplan.CompanionConflict{{StudentID: tom, Weekdays: []string{"thu"}}},
 			[]CompanionEntry{
 				{CompanionStudentID: tom, Weekdays: []string{"thu"}},
 				{CompanionStudentID: mia, Weekdays: []string{"thu"}},
@@ -56,7 +56,7 @@ func TestCompanionConflictsConfirmed(t *testing.T) {
 
 	t.Run("a flag without a list confirms nothing", func(t *testing.T) {
 		require.False(t, companionConflictsConfirmed(
-			[]carelifecycle.CompanionConflict{{StudentID: tom, Weekdays: []string{"thu"}}},
+			[]careplan.CompanionConflict{{StudentID: tom, Weekdays: []string{"thu"}}},
 			nil,
 		))
 	})

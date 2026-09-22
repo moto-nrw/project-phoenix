@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 )
@@ -12,7 +13,7 @@ import (
 // scheduleLookupError keeps missing-resource wire messages stable without treating a
 // failed read as a missing row.
 func scheduleLookupError(err error, notFoundMessage string) render.Renderer {
-	if errors.Is(err, timetableModule.ErrDateframeNotFound) ||
+	if errors.Is(err, schoolcalendar.ErrDateframeNotFound) ||
 		errors.Is(err, timetableModule.ErrTimeframeNotFound) ||
 		errors.Is(err, timetableModule.ErrRecurrenceRuleNotFound) {
 		return common.ErrorNotFound(errors.New(notFoundMessage))
@@ -26,7 +27,7 @@ func scheduleLookupError(err error, notFoundMessage string) render.Renderer {
 // prefix (unlike rooms/groups, which strip it), and keeping the bytes
 // identical is part of the issue #575 B2 consolidation contract.
 var scheduleErrorRules = []common.ErrorRule{
-	{Target: timetableModule.ErrDateframeNotFound, Render: common.ErrorNotFound},
+	{Target: schoolcalendar.ErrDateframeNotFound, Render: common.ErrorNotFound},
 	{Target: timetableModule.ErrTimeframeNotFound, Render: common.ErrorNotFound},
 	{Target: timetableModule.ErrTimeframeRequiredByCareOffering, Render: common.ErrorConflict},
 	{Target: timetableModule.ErrRecurrenceRuleNotFound, Render: common.ErrorNotFound},

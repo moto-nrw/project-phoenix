@@ -148,10 +148,9 @@ func buildTemplateModule(t *testing.T, mat timetableplanning.MaterializationServ
 	repoFactory := mustTimetableTestRepositories(db)
 
 	res := NewResource(Dependencies{
-		TimetableData: testTimetableData(db, clocks...),
-		CalendarPeriodService: timetableplanning.NewCalendarPeriodServiceWithConfig(timetableplanning.CalendarPeriodServiceConfig{
-			Repo: repoFactory.CalendarPeriod,
-		}),
+		TimetableData:          testTimetableData(db, clocks...),
+		CalendarPeriods:        repoFactory.SchoolCalendar(),
+		CalendarPeriodUsage:    calendarPeriodUsageFor(repoFactory),
 		MaterializationService: mat,
 		InstanceService:        serviceFactory.Instance,
 		SettingsService:        templateGradeSettings(schoolclass.DefaultGradeLevelMax, nil),

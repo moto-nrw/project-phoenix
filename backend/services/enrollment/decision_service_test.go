@@ -25,7 +25,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -155,13 +154,8 @@ func newDecisionServiceForTestWithPickupExtensions(
 		outbox = outboxes[0]
 	}
 	if careWithdrawal == nil {
-		careWithdrawal = carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
-			StudentRepo: repositories.NewCareStudents(repoFactory.Student, repoFactory.SchoolMembership()), PersonRepo: repoFactory.Person,
-			CareExitRepo: repoFactory.CareExit, CleanupRepo: repoFactory.CareExitCleanup,
-			WithdrawalRepo: repoFactory.CareWithdrawal, TagReleaser: repoFactory.StudentTagReleaser(),
-			AuditService:          usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(env.db)),
+		careWithdrawal = newTestCareLifecycle(env.db, repositories.CareLifecycleTestConfig{
 			BookingsAuthoritative: testBookingsAuthority(settings),
-			DB:                    env.db, Logger: slog.Default(),
 		})
 	}
 	pickupBaselines := newPickupBaselineService(repoFactory.CarePlan(), approvedOfferingTestProjection(repoFactory))
@@ -4728,4 +4722,22 @@ func (a pickupExcusalTimetable) RecordPickupDayExtension(ctx context.Context, in
 }
 func (a pickupExcusalTimetable) RecordPickupWeekdayExtension(ctx context.Context, input compose.PickupWeekdayExtension) error {
 	return a.Capability.RecordPickupWeekdayExtension(ctx, timetable.PickupWeekdayExtension(input))
+}
+
+// newTestCareLifecycle composes Care Plan's lifecycle over the test database,
+// with its owners bound the way the production graph binds them. The care-end
+// history goes to the ordinary student audit unless the config names another.
+func newTestCareLifecycle(db *bun.DB, config repositories.CareLifecycleTestConfig) careplan.CareLifecycle {
+	repos, err := repositories.NewCareLifecycleTestRepositories(db, nil)
+	if err != nil {
+		panic(err)
+	}
+	if config.Audit == nil {
+		config.Audit = usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(db))
+	}
+	lifecycle, err := repos.NewCareLifecycle(config)
+	if err != nil {
+		panic(err)
+	}
+	return lifecycle
 }

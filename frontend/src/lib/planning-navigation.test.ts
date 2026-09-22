@@ -49,6 +49,29 @@ describe("planning navigation", () => {
     );
   });
 
+  it("opens every planning page for a permission, not only for the admin role", () => {
+    // Eine Leitungsrolle, die die Schule selbst anlegt (#3469), erreicht die
+    // Planung über das Recht ihrer Route; ein Eintrag ohne Recht bliebe dem
+    // Rollennamen `admin` vorbehalten.
+    expect(
+      PLANNING_SUB_PAGES.filter(
+        (page) => page.nonAdminPermission === undefined,
+      ),
+    ).toEqual([]);
+    expect(
+      Object.fromEntries(
+        PLANNING_SUB_PAGES.map((page) => [page.href, page.nonAdminPermission]),
+      ),
+    ).toEqual({
+      "/betreuungsplan": "schedules:manage",
+      "/dienstplan": "time_tracking:manage",
+      "/vertretung": "schedules:manage",
+      "/lists": "schedules:manage",
+      "/calendar-periods": "schedules:manage",
+      "/payroll": "config:manage",
+    });
+  });
+
   it("recognizes only canonical planning hrefs", () => {
     expect(isPlanningPageHref("/dienstplan")).toBe(true);
     expect(isPlanningPageHref("/staff/dienstplan")).toBe(false);

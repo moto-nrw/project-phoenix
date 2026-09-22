@@ -1,12 +1,15 @@
 "use client";
 
+import { CheckCircleIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { GraduationCap, HeartHandshake, Users, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
+import { cn } from "~/lib/utils";
 import type { HelpGroupMode, HelpPresenceMode, HelpRole } from "./help-content";
+import { HelpWordmark } from "./help-wordmark";
 
 /**
  * Einstieg in die Hilfe: wir fragen, fuer wen die Anleitung ist.
@@ -127,19 +130,37 @@ function QuestionBlock<TValue>({
         <p className="mt-1 text-sm text-gray-600">{question.hint}</p>
       ) : null}
       <div className="mt-3 grid gap-2 sm:grid-cols-3">
-        {question.options.map((option) => (
-          <ChoiceTile
-            key={String(option.value)}
-            as="button"
-            tone="green"
-            selected={option.value === value}
-            aria-pressed={option.value === value}
-            onClick={() => onChange(option.value)}
-            className="min-h-11 justify-center text-center"
-          >
-            {option.label}
-          </ChoiceTile>
-        ))}
+        {question.options.map((option) => {
+          const selected = option.value === value;
+          return (
+            <ChoiceTile
+              key={String(option.value)}
+              as="button"
+              tone="green"
+              selected={selected}
+              aria-pressed={selected}
+              data-state={selected ? "selected" : "unselected"}
+              onClick={() => onChange(option.value)}
+              className={cn(
+                "grid min-h-11 grid-cols-[1.25rem_minmax(0,1fr)_1.25rem] items-center text-center",
+                selected &&
+                  "border-moto-green bg-moto-green-soft font-semibold shadow-sm",
+              )}
+            >
+              <span aria-hidden="true" />
+              <span>{option.label}</span>
+              <CheckCircleIcon
+                size={20}
+                weight="fill"
+                aria-hidden="true"
+                className={cn(
+                  "text-moto-green-strong transition-opacity",
+                  selected ? "opacity-100" : "opacity-0",
+                )}
+              />
+            </ChoiceTile>
+          );
+        })}
       </div>
     </fieldset>
   );
@@ -183,9 +204,7 @@ export function HelpEntry({
           eine fremde Seite wirkt. */}
       <header className="relative border-b border-gray-200 bg-white">
         <div className="mx-auto flex h-20 w-full max-w-3xl items-center gap-3 px-4">
-          <span className="text-xl font-bold tracking-tight text-gray-950">
-            moto Hilfe
-          </span>
+          <HelpWordmark />
         </div>
       </header>
 

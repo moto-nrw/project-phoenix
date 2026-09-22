@@ -11,7 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
 // Sentinel errors for handler mapping (#1420).
@@ -81,8 +80,8 @@ type CreateBalanceAdjustmentRequest struct {
 // (#1420): payout, lump-sum Freizeitausgleich grants, and the school-year
 // reset. All writes require time_tracking:manage at the route level.
 type StaffBalanceAdjustmentService interface {
-	ListAdjustments(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.StaffBalanceAdjustment, error)
-	CreateAdjustment(ctx context.Context, staffID, decidedBy int64, req CreateBalanceAdjustmentRequest) (*activeModels.StaffBalanceAdjustment, error)
+	ListAdjustments(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffBalanceAdjustment, error)
+	CreateAdjustment(ctx context.Context, staffID, decidedBy int64, req CreateBalanceAdjustmentRequest) (*StaffBalanceAdjustment, error)
 	// DeleteAdjustment removes a booking and writes an append-only tombstone
 	// (audit.time_tracking_deletions, #1417) in the same tenant transaction —
 	// a deleted ledger row must stay visible in the audit log. deletedBy is
@@ -92,12 +91,12 @@ type StaffBalanceAdjustmentService interface {
 	// balance as of effectiveDate into carryoverMinutes (#1420 5c). It must
 	// run inside the ambient tenant transaction (advisory lock + unique
 	// index serialize concurrent resets).
-	ResetBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate timezone.Date, carryoverMinutes int, note string) (*activeModels.StaffBalanceAdjustment, error)
+	ResetBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate timezone.Date, carryoverMinutes int, note string) (*StaffBalanceAdjustment, error)
 	// CreateOpeningBalance writes an 'opening' transaction whose delta turns
 	// the closing balance as of effectiveDate into balanceMinutes (#2132).
 	// balanceMinutes is SIGNED — a migrated account may start negative. One
 	// opening per staff member, ever; corrections are delete + re-create.
-	CreateOpeningBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate timezone.Date, balanceMinutes int, note string) (*activeModels.StaffBalanceAdjustment, error)
+	CreateOpeningBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate timezone.Date, balanceMinutes int, note string) (*StaffBalanceAdjustment, error)
 	// ValidateOpeningBalance runs CreateOpeningBalance's read-only guards
 	// without booking, so the bulk import's dry-run preview can report a
 	// rejection per row. Part of the contract because the import lives in
@@ -113,7 +112,7 @@ type adjustmentFreezeReader interface {
 
 type staffBalanceAdjustmentService struct {
 	todayFunc      func() timezone.Date
-	adjustmentRepo activeModels.StaffBalanceAdjustmentRepository
+	adjustmentRepo StaffBalanceAdjustmentRepository
 	monthService   WorkTimeMonthService
 	settings       monthSettingsResolver
 	snapshotRepo   adjustmentFreezeReader
@@ -127,7 +126,7 @@ func (s *staffBalanceAdjustmentService) broadcastTimeTrackingChanged(ctx context
 }
 
 func NewStaffBalanceAdjustmentService(
-	adjustmentRepo activeModels.StaffBalanceAdjustmentRepository,
+	adjustmentRepo StaffBalanceAdjustmentRepository,
 	monthService WorkTimeMonthService,
 	settings monthSettingsResolver,
 	logger *slog.Logger,
@@ -194,7 +193,7 @@ func (s *staffBalanceAdjustmentService) rejectFrozenMonth(ctx context.Context, s
 	)
 }
 
-func (s *staffBalanceAdjustmentService) ListAdjustments(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.StaffBalanceAdjustment, error) {
+func (s *staffBalanceAdjustmentService) ListAdjustments(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffBalanceAdjustment, error) {
 	if staffID <= 0 {
 		return nil, fmt.Errorf("%w: staff id is required", ErrAdjustmentInvalid)
 	}
@@ -204,8 +203,8 @@ func (s *staffBalanceAdjustmentService) ListAdjustments(ctx context.Context, sta
 	return s.adjustmentRepo.GetByStaffAndDateRange(ctx, staffID, from, to)
 }
 
-func (s *staffBalanceAdjustmentService) CreateAdjustment(ctx context.Context, staffID, decidedBy int64, req CreateBalanceAdjustmentRequest) (*activeModels.StaffBalanceAdjustment, error) {
-	if req.Type != activeModels.BalanceAdjustmentTypePayout && req.Type != activeModels.BalanceAdjustmentTypeCompTime {
+func (s *staffBalanceAdjustmentService) CreateAdjustment(ctx context.Context, staffID, decidedBy int64, req CreateBalanceAdjustmentRequest) (*StaffBalanceAdjustment, error) {
+	if req.Type != BalanceAdjustmentTypePayout && req.Type != BalanceAdjustmentTypeCompTime {
 		return nil, fmt.Errorf("%w: type must be payout or comp_time", ErrAdjustmentInvalid)
 	}
 	if req.MinutesDelta >= 0 {
@@ -263,7 +262,7 @@ func (s *staffBalanceAdjustmentService) CreateAdjustment(ctx context.Context, st
 		)
 	}
 
-	adjustment := &activeModels.StaffBalanceAdjustment{
+	adjustment := &StaffBalanceAdjustment{
 		StaffID:       staffID,
 		Type:          req.Type,
 		MinutesDelta:  req.MinutesDelta,
@@ -325,7 +324,7 @@ func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, st
 	// replaced by a negative opening. Its documented correction workflow is
 	// delete + re-create, so do not reject the transient deletion solely
 	// because later consumption would make the account negative.
-	if adjustment.Type != activeModels.BalanceAdjustmentTypeOpening {
+	if adjustment.Type != BalanceAdjustmentTypeOpening {
 		if err := s.validatePositiveAdjustmentDeletion(ctx, adjustment); err != nil {
 			return err
 		}
@@ -362,7 +361,7 @@ func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, st
 	return nil
 }
 
-func (s *staffBalanceAdjustmentService) validatePositiveAdjustmentDeletion(ctx context.Context, adjustment *activeModels.StaffBalanceAdjustment) error {
+func (s *staffBalanceAdjustmentService) validatePositiveAdjustmentDeletion(ctx context.Context, adjustment *StaffBalanceAdjustment) error {
 	if adjustment.MinutesDelta <= 0 {
 		return nil
 	}
@@ -388,7 +387,7 @@ func (s *staffBalanceAdjustmentService) validatePositiveAdjustmentDeletion(ctx c
 	)
 }
 
-func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate timezone.Date, carryoverMinutes int, note string) (*activeModels.StaffBalanceAdjustment, error) {
+func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate timezone.Date, carryoverMinutes int, note string) (*StaffBalanceAdjustment, error) {
 	if err := validateAdjustmentCommon(staffID, decidedBy, effectiveDate, note); err != nil {
 		return nil, err
 	}
@@ -422,7 +421,7 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 		return nil, err
 	}
 	if len(resets) > 0 {
-		if resets[0].EffectiveDate == effectiveDate && resets[0].Type == activeModels.BalanceAdjustmentTypeReset {
+		if resets[0].EffectiveDate == effectiveDate && resets[0].Type == BalanceAdjustmentTypeReset {
 			return nil, fmt.Errorf("%w: %s", ErrBalanceAlreadyReset, effectiveDate.String())
 		}
 		return nil, fmt.Errorf(
@@ -459,9 +458,9 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 		}
 	}
 
-	adjustment := &activeModels.StaffBalanceAdjustment{
+	adjustment := &StaffBalanceAdjustment{
 		StaffID:       staffID,
-		Type:          activeModels.BalanceAdjustmentTypeReset,
+		Type:          BalanceAdjustmentTypeReset,
 		MinutesDelta:  int(delta),
 		EffectiveDate: effectiveDate,
 		Note:          note,
@@ -491,15 +490,15 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 // balanceMinutes. Unlike ResetBalance there is no lower bound and no
 // reduction-capacity check — a migrated account legitimately starts negative
 // when the staff member owed hours in the previous system.
-func (s *staffBalanceAdjustmentService) CreateOpeningBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate timezone.Date, balanceMinutes int, note string) (*activeModels.StaffBalanceAdjustment, error) {
+func (s *staffBalanceAdjustmentService) CreateOpeningBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate timezone.Date, balanceMinutes int, note string) (*StaffBalanceAdjustment, error) {
 	delta, err := s.validateOpeningBalance(ctx, staffID, decidedBy, effectiveDate, balanceMinutes, note, true)
 	if err != nil {
 		return nil, err
 	}
 
-	adjustment := &activeModels.StaffBalanceAdjustment{
+	adjustment := &StaffBalanceAdjustment{
 		StaffID:       staffID,
-		Type:          activeModels.BalanceAdjustmentTypeOpening,
+		Type:          BalanceAdjustmentTypeOpening,
 		MinutesDelta:  delta,
 		EffectiveDate: effectiveDate,
 		Note:          note,
@@ -605,11 +604,11 @@ func (s *staffBalanceAdjustmentService) rejectConflictingRebaselines(ctx context
 
 // listOpenings lists all opening bookings for a staff member regardless of
 // date — the one-opening-ever guard (#2132).
-func (s *staffBalanceAdjustmentService) listOpenings(ctx context.Context, staffID int64) ([]*activeModels.StaffBalanceAdjustment, error) {
+func (s *staffBalanceAdjustmentService) listOpenings(ctx context.Context, staffID int64) ([]*StaffBalanceAdjustment, error) {
 	options := modelBase.NewQueryOptions()
 	options.Filter.
 		Equal("staff_id", staffID).
-		Equal("type", activeModels.BalanceAdjustmentTypeOpening)
+		Equal("type", BalanceAdjustmentTypeOpening)
 	openings, err := s.adjustmentRepo.List(ctx, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing opening balances: %w", err)
@@ -617,7 +616,7 @@ func (s *staffBalanceAdjustmentService) listOpenings(ctx context.Context, staffI
 	return openings, nil
 }
 
-func (s *staffBalanceAdjustmentService) hasDependentReset(ctx context.Context, adjustment *activeModels.StaffBalanceAdjustment) (bool, error) {
+func (s *staffBalanceAdjustmentService) hasDependentReset(ctx context.Context, adjustment *StaffBalanceAdjustment) (bool, error) {
 	resets, err := s.listRebaselinesOnOrAfter(ctx, adjustment.StaffID, adjustment.EffectiveDate)
 	if err != nil {
 		return false, err
@@ -636,11 +635,11 @@ func (s *staffBalanceAdjustmentService) hasDependentReset(ctx context.Context, a
 // history before their Stichtag, so any write dated on/before them would
 // silently shift the balance they pinned — the shared dependent-booking
 // guard treats them identically (#1420, #2132).
-func (s *staffBalanceAdjustmentService) listRebaselinesOnOrAfter(ctx context.Context, staffID int64, effectiveDate timezone.Date) ([]*activeModels.StaffBalanceAdjustment, error) {
+func (s *staffBalanceAdjustmentService) listRebaselinesOnOrAfter(ctx context.Context, staffID int64, effectiveDate timezone.Date) ([]*StaffBalanceAdjustment, error) {
 	options := modelBase.NewQueryOptions()
 	options.Filter.
 		Equal("staff_id", staffID).
-		In("type", activeModels.BalanceAdjustmentTypeReset, activeModels.BalanceAdjustmentTypeOpening).
+		In("type", BalanceAdjustmentTypeReset, BalanceAdjustmentTypeOpening).
 		GreaterThanOrEqual("effective_date", effectiveDate)
 	sorting := &modelBase.Sorting{}
 	sorting.AddField("effective_date", modelBase.SortAsc)

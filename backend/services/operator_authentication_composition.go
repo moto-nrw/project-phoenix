@@ -33,7 +33,7 @@ type operatorAuthenticationWiring struct {
 	repos         operatorRepositories
 	organizations organizationtenancy.Query
 	persons       peopledirectory.Query
-	membership    schoolmembership.Query
+	membership    schoolmembership.Capability
 	logger        *slog.Logger
 }
 
@@ -70,6 +70,7 @@ func newOperatorDependencies(wiring operatorAuthenticationWiring) (*identityacce
 		Identities: schoolIdentityProvisioner{
 			persons: wiring.repos.persons, staff: wiring.repos.staff, teachers: wiring.repos.teachers, students: wiring.repos.students,
 			directory: wiring.persons, membership: wiring.membership,
+			caregivers: caregiverProfiles{persons: wiring.persons, membership: wiring.membership},
 		},
 		Logger: wiring.logger,
 	}, nil
@@ -179,6 +180,7 @@ type schoolIdentityProvisioner struct {
 	students   userModels.StudentRepository
 	directory  peopledirectory.Query
 	membership schoolmembership.Query
+	caregivers caregiverProfiles
 }
 
 func (p schoolIdentityProvisioner) HasLivePersonAtSchool(ctx context.Context, accountID int64) (bool, error) {
@@ -229,7 +231,7 @@ func (p schoolIdentityProvisioner) personIsStudent(ctx context.Context, personID
 }
 
 func (p schoolIdentityProvisioner) HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
-	return hasLiveCaregiverProfile(ctx, p.persons, p.staff, p.teachers, accountID)
+	return p.caregivers.hasLive(ctx, accountID)
 }
 
 func (p schoolIdentityProvisioner) EnsureSchoolIdentity(context.Context, identityaccessCompose.SchoolIdentityRequest) error {
@@ -263,7 +265,7 @@ func (p schoolIdentityProvisioner) ListAccountIdentityFacts(ctx context.Context,
 	for _, person := range personByTenant {
 		personIDs = append(personIDs, person.ID)
 	}
-	members, err := p.membership.ListStaff(ctx, schoolmembership.StaffFilter{PersonIDs: personIDs})
+	members, err := p.membership.ListStaff(ctx, schoolmembership.StaffFilter{PersonIDs: personIDs, MembershipOnly: true})
 	if err != nil {
 		return nil, fmt.Errorf("load staff for account identity facts: %w", err)
 	}

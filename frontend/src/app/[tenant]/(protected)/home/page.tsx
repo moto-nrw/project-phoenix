@@ -13,7 +13,7 @@ import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnin
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { TenantPage } from "~/components/ui/tenant-page";
-import { hasEffectiveAdminScope } from "~/lib/auth-utils";
+import { leadsSchool } from "~/lib/auth-utils";
 import { fetchBirthdayOverviewClient } from "~/lib/birthdays-api";
 import type { BirthdayOverview } from "~/lib/birthdays-api";
 import { fetchDashboardAnalyticsClient } from "~/lib/dashboard-api";
@@ -375,7 +375,9 @@ function HomeContent() {
   const editing = draft !== null;
   const firstName = session?.user?.name?.trim().split(/\s+/)[0];
   const greeting = getTimeBasedGreeting();
-  const canReadPhaseExpiryWarnings = hasEffectiveAdminScope(session);
+  // Die Route der Hinweise verlangt config:manage; die Leitung der Schule
+  // hält es, ob Admin oder eigene Leitungsrolle (#3469).
+  const canReadPhaseExpiryWarnings = leadsSchool(session);
   // Nur das Datum: die Zahlen des Tages trägt die Jetzt-Zone darunter, und
   // die Kennzahlen stehen als Kacheln auf der Fläche. Dieselbe Zahl dreimal
   // auf einem Bildschirm sagt nicht mehr als einmal.

@@ -16,8 +16,8 @@ import (
 	"testing"
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -25,15 +25,15 @@ func TestCompanionPlanErrorRenderer(t *testing.T) {
 	t.Parallel()
 
 	t.Run("stranded companion is a client-fixable 400", func(t *testing.T) {
-		resp := rendererStatus(t, companionPlanErrorRenderer(carelifecycle.ErrCompanionWouldLoseDeparture))
+		resp := rendererStatus(t, companionPlanErrorRenderer(careplan.ErrCompanionWouldLoseDeparture))
 
 		assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
 		// The German sentinel text is the whole instruction the user gets.
-		assert.Equal(t, carelifecycle.ErrCompanionWouldLoseDeparture.Error(), resp.ErrorText)
+		assert.Equal(t, careplan.ErrCompanionWouldLoseDeparture.Error(), resp.ErrorText)
 	})
 
 	t.Run("busy companion lock is a retriable 409 with its code", func(t *testing.T) {
-		resp := rendererStatus(t, companionPlanErrorRenderer(carelifecycle.ErrCompanionLockBusy))
+		resp := rendererStatus(t, companionPlanErrorRenderer(careplan.ErrCompanionLockBusy))
 
 		assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
 		assert.Equal(t, CodeCompanionLockBusy, resp.Code)
@@ -64,8 +64,8 @@ func TestDecideMasterDataChangeRequest_MapsCompanionErrors(t *testing.T) {
 		err  error
 		want int
 	}{
-		{name: "stranded companion", err: carelifecycle.ErrCompanionWouldLoseDeparture, want: http.StatusBadRequest},
-		{name: "busy companion lock", err: carelifecycle.ErrCompanionLockBusy, want: http.StatusConflict},
+		{name: "stranded companion", err: careplan.ErrCompanionWouldLoseDeparture, want: http.StatusBadRequest},
+		{name: "busy companion lock", err: careplan.ErrCompanionLockBusy, want: http.StatusConflict},
 	}
 
 	for _, tt := range tests {
@@ -110,8 +110,8 @@ func TestDecideCareScheduleChangeRequest_MapsCompanionErrors(t *testing.T) {
 		want     int
 		wantCode string
 	}{
-		{name: "stranded companion", err: carelifecycle.ErrCompanionWouldLoseDeparture, want: http.StatusBadRequest},
-		{name: "busy companion lock", err: carelifecycle.ErrCompanionLockBusy, want: http.StatusConflict},
+		{name: "stranded companion", err: careplan.ErrCompanionWouldLoseDeparture, want: http.StatusBadRequest},
+		{name: "busy companion lock", err: careplan.ErrCompanionLockBusy, want: http.StatusConflict},
 		{name: "stale pickup impact", err: carerequests.ErrPickupChangeImpactChanged, want: http.StatusConflict, wantCode: "pickup_change_impact_changed"},
 		{name: "care day belongs to booking", err: carerequests.ErrCareDayManagedByBooking, want: http.StatusConflict, wantCode: "care_day_managed_by_booking"},
 		{name: "missing pickup impact", want: http.StatusBadRequest},

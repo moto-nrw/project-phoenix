@@ -35,7 +35,7 @@ func NewWorkSessionTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func
 		return WorkSessionTestModule{}, err
 	}
 	service := timetracking.NewWorkSessionService(r.WorkSession, r.WorkSessionBreak, NewWorkSessionAudit(r.WorkSessionEdit),
-		r.StaffAbsence, r.GroupSupervisor, r.ActiveGroup, WorkSessionStaff(r.Staff), NewWorkSessionSchedules(r.StaffWorkSchedule), NewWorkSessionTimeModels(r.WorkTimeModel), PresenceSettings(settings.Settings), slog.Default(), db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook,
-		timetracking.WithWorkSessionShifts(NewTimeTrackingShifts(r.StaffShift)), timetracking.WithWorkSessionEvents(TimeTrackingEvents(deliveryCompose.NewRealtimeHub(slog.Default()))))
+		r.StaffAbsence, r.GroupSupervisor, r.ActiveGroup, WorkSessionStaff(r.Staff, repositories.MustNewStaffEmployment(db)), NewWorkSessionSchedules(r.StaffWorkSchedule), NewWorkSessionTimeModels(r.WorkTimeModel), PresenceSettings(settings.Settings), slog.Default(), db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook,
+		timetracking.WithWorkSessionShifts(NewTimeTrackingShifts(repositories.NewAbsenceTypeTestCapability(db))), timetracking.WithWorkSessionEvents(TimeTrackingEvents(deliveryCompose.NewRealtimeHub(slog.Default()))))
 	return WorkSessionTestModule{WorkSession: service, StaffClock: newStaffClockService(identity.Users, rfid.RFID, service)}, nil
 }

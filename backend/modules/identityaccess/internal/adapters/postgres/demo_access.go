@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 // Identity-owned rows behind the demo access of the public demo (#3462). The
@@ -70,29 +72,78 @@ func (s *Store) FindDemoAccessByTokenHash(ctx context.Context, tokenHash string)
 	}
 	var row struct {
 		ID         int64     `bun:"id"`
+		Email      string    `bun:"email"`
 		ExpiresAt  time.Time `bun:"expires_at"`
 		SchoolSlug string    `bun:"school_slug"`
+		SchoolName string    `bun:"school_name"`
+		PersonName string    `bun:"person_name"`
+		Source     string    `bun:"source"`
 	}
-	err = db.NewRaw(`SELECT id, expires_at, school_slug FROM auth.demo_accesses WHERE token_hash = ?`, tokenHash).Scan(ctx, &row)
+	err = db.NewRaw(`SELECT id, email, expires_at, school_slug, school_name, person_name, source FROM auth.demo_accesses WHERE token_hash = ?`, tokenHash).Scan(ctx, &row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.DemoAccess{}, false, nil
 	}
 	if err != nil {
 		return domain.DemoAccess{}, false, fmt.Errorf("identity access postgres: find demo access: %w", err)
 	}
-	return domain.DemoAccess{ID: row.ID, TokenHash: tokenHash, ExpiresAt: row.ExpiresAt, SchoolSlug: row.SchoolSlug}, true, nil
+	return domain.DemoAccess{
+		ID: row.ID, Email: row.Email, TokenHash: tokenHash, ExpiresAt: row.ExpiresAt,
+		SchoolSlug: row.SchoolSlug, SchoolName: row.SchoolName, PersonName: row.PersonName, Source: row.Source,
+	}, true, nil
 }
 
-// RecordDemoAccessUse notes one redemption and the account it signed in.
-func (s *Store) RecordDemoAccessUse(ctx context.Context, id, accountID int64, usedAt time.Time) error {
+// RecordDemoAccessUse notes one redemption, the account it signed in and the
+// school's parent the role parent signs in (#3468). A redemption without such
+// a parent keeps the one noted before: an earlier parent session of the same
+// access stays exempt from the session cap. Every use extends the access by
+// its full lifetime (#3470): the demo expires 14 days after the last entry.
+func (s *Store) RecordDemoAccessUse(ctx context.Context, id, accountID, parentAccountID int64, usedAt, expiresAt time.Time) error {
 	db, err := s.database(ctx)
 	if err != nil {
 		return err
 	}
-	_, err = db.NewRaw(`UPDATE auth.demo_accesses SET use_count = use_count + 1, last_used_at = ?, account_id = ? WHERE id = ?`,
-		usedAt, accountID, id).Exec(ctx)
+	_, err = db.NewRaw(`UPDATE auth.demo_accesses
+		SET use_count = use_count + 1, last_used_at = ?, expires_at = ?, account_id = ?,
+			parent_account_id = COALESCE(NULLIF(?, 0::BIGINT), parent_account_id)
+		WHERE id = ?`,
+		usedAt, expiresAt, accountID, parentAccountID, id).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("identity access postgres: record demo access use: %w", err)
+	}
+	return nil
+}
+
+// ReplaceDemoAccountRole makes one role the only role of the visitor's
+// account in its demo school: the first of the named roles that exists as a
+// role of the school or as a system role. Any other role of the school would
+// carry its permissions into every demo role. A school none of the roles
+// exists in cannot serve the demo role.
+func (s *Store) ReplaceDemoAccountRole(ctx context.Context, accountID, tenantID int64, roles []string) error {
+	db, err := s.database(ctx)
+	if err != nil {
+		return err
+	}
+	var roleID int64
+	err = db.NewRaw(`SELECT id FROM auth.roles
+		WHERE name IN (?) AND (tenant_id = ? OR tenant_id IS NULL)
+		ORDER BY array_position(?::text[], name), tenant_id NULLS LAST
+		LIMIT 1`, bun.List(roles), tenantID, pgdialect.Array(roles)).Scan(ctx, &roleID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("identity access postgres: demo role: none of %v exists in school %d", roles, tenantID)
+	}
+	if err != nil {
+		return fmt.Errorf("identity access postgres: find demo role: %w", err)
+	}
+	_, err = db.NewRaw(`DELETE FROM auth.account_roles
+		WHERE account_id = ? AND tenant_id = ? AND role_id <> ?`, accountID, tenantID, roleID).Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("identity access postgres: drop demo account role: %w", err)
+	}
+	_, err = db.NewRaw(`INSERT INTO auth.account_roles (account_id, role_id, tenant_id)
+		VALUES (?, ?, ?)
+		ON CONFLICT (account_id, role_id, tenant_id) DO NOTHING`, accountID, roleID, tenantID).Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("identity access postgres: grant demo account role: %w", err)
 	}
 	return nil
 }
@@ -121,16 +172,71 @@ func (s *Store) FindSchoolAdministrator(ctx context.Context, tenantID int64) (in
 	return accountID, true, nil
 }
 
-// DemoAccountExists reports whether a demo access ever signed the account in.
+// DemoAccountExists reports whether a demo access ever signed the account in,
+// as the visitor's caregiver or as the school's parent of the role parent.
 func (s *Store) DemoAccountExists(ctx context.Context, accountID int64) (bool, error) {
 	db, err := s.database(ctx)
 	if err != nil {
 		return false, err
 	}
 	var exists bool
-	err = db.NewRaw(`SELECT EXISTS (SELECT 1 FROM auth.demo_accesses WHERE account_id = ?)`, accountID).Scan(ctx, &exists)
+	err = db.NewRaw(`SELECT EXISTS (SELECT 1 FROM auth.demo_accesses WHERE account_id = ? OR parent_account_id = ?)`,
+		accountID, accountID).Scan(ctx, &exists)
 	if err != nil {
 		return false, fmt.Errorf("identity access postgres: check demo account: %w", err)
 	}
 	return exists, nil
+}
+
+// MoveDemoAccesses lets every access of the hidden school enter its
+// successor (#3470). The accounts of the old school are forgotten: the next
+// entry notes the new school's.
+func (s *Store) MoveDemoAccesses(ctx context.Context, fromSlug, toSlug string) error {
+	db, err := s.database(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = db.NewRaw(`UPDATE auth.demo_accesses SET school_slug = ?, account_id = NULL, parent_account_id = NULL WHERE school_slug = ?`,
+		toSlug, fromSlug).Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("identity access postgres: move demo accesses: %w", err)
+	}
+	return nil
+}
+
+// DemoAccessExpiryStore runs on the demo process's own connection (#3470),
+// whose role may delete accesses and read the columns that decide it, and
+// nothing that names a prospect.
+type DemoAccessExpiryStore struct{ db bun.IDB }
+
+func NewDemoAccessExpiryStore(db bun.IDB) *DemoAccessExpiryStore {
+	return &DemoAccessExpiryStore{db: db}
+}
+
+// DeleteExpiredDemoAccesses deletes every access past its lifetime and
+// returns the schools of the deleted accesses that no access enters any
+// more: with the last link gone, the school can be hidden.
+func (s *DemoAccessExpiryStore) DeleteExpiredDemoAccesses(ctx context.Context, now time.Time) (int, []string, error) {
+	var rows []struct {
+		SchoolSlug string `bun:"school_slug"`
+		Orphaned   bool   `bun:"orphaned"`
+	}
+	// The sub-select reads the table as it was when the statement began, so
+	// it must ask for accesses that survive, not for rows that are left.
+	err := s.db.NewRaw(`WITH expired AS (
+			DELETE FROM auth.demo_accesses WHERE expires_at <= ? RETURNING school_slug)
+		SELECT school_slug,
+			NOT EXISTS (SELECT 1 FROM auth.demo_accesses AS remaining
+				WHERE remaining.school_slug = expired.school_slug AND remaining.expires_at > ?) AS orphaned
+		FROM expired ORDER BY school_slug`, now, now).Scan(ctx, &rows)
+	if err != nil {
+		return 0, nil, fmt.Errorf("identity access postgres: delete expired demo accesses: %w", err)
+	}
+	var slugs []string
+	for _, row := range rows {
+		if row.Orphaned && (len(slugs) == 0 || slugs[len(slugs)-1] != row.SchoolSlug) {
+			slugs = append(slugs, row.SchoolSlug)
+		}
+	}
+	return len(rows), slugs, nil
 }

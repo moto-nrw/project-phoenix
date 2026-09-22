@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // The MFA and passkey composition owns its persistence. School settings,
@@ -682,7 +683,7 @@ func (e engine) OperatorDisableMFA(ctx context.Context, operatorID, schoolID, ta
 	if err != nil {
 		return err
 	}
-	return mfa.OperatorDisableMFA(ctx, operatorID, schoolID, targetAccountID, reason)
+	return mfa.OperatorDisableMFA(operatorSchoolContext(ctx, schoolID), operatorID, schoolID, targetAccountID, reason)
 }
 
 func (e engine) OperatorSetMFAOverride(ctx context.Context, operatorID, schoolID, targetAccountID int64, override, reason string) error {
@@ -690,7 +691,19 @@ func (e engine) OperatorSetMFAOverride(ctx context.Context, operatorID, schoolID
 	if err != nil {
 		return err
 	}
-	return mfa.OperatorSetMFAOverride(ctx, operatorID, schoolID, targetAccountID, override, reason)
+	return mfa.OperatorSetMFAOverride(operatorSchoolContext(ctx, schoolID), operatorID, schoolID, targetAccountID, override, reason)
+}
+
+// operatorSchoolContext runs an operator's school-scoped MFA admin write
+// under that school. The operator routes run outside the tenant middleware,
+// and the audit append needs the tenant (#3231: moved here from the operator
+// HTTP adapter, which may not name the tenant runtime). A missing school is
+// left to the application, which refuses it.
+func operatorSchoolContext(ctx context.Context, schoolID int64) context.Context {
+	if schoolID <= 0 {
+		return ctx
+	}
+	return tenant.WithTenantID(ctx, schoolID)
 }
 
 func (e engine) OperatorSetGlobalMFAOverride(ctx context.Context, operatorID, targetAccountID int64, override, reason string) error {

@@ -156,19 +156,17 @@ type materializationService struct {
 	// careBounds answers "until which day is this child in care" for the
 	// per-date roster filter (#2487). Optional: nil means no child has an end
 	// of care, which is what a bare unit-test service should assume.
-	careBounds      CareBoundReader
-	exceptionRepo   schedule.ActivityExceptionRepository
-	timeframeRepo   schedule.TimeframeRepository
-	calendarService CalendarPeriodService
-	db              *bun.DB
-	broadcaster     realtime.Broadcaster
-	logger          *slog.Logger
+	careBounds    CareBoundReader
+	exceptionRepo schedule.ActivityExceptionRepository
+	timeframeRepo schedule.TimeframeRepository
+	db            *bun.DB
+	broadcaster   realtime.Broadcaster
+	logger        *slog.Logger
 }
 
 // NewMaterializationService constructs a MaterializationService with all
-// repository dependencies. The CalendarPeriodService is injected (rather than
-// reconstructed) so the shared A/B week algorithm stays the single source of
-// truth for the DST-safe math. Production wiring must provide db so direct
+// repository dependencies. The A/B week decision is the School Calendar's
+// single engine (schoolcalendar.WeekPatternApplies). Production wiring must provide db so direct
 // calls get an RLS-aware transaction and recurrence gate; nil is reserved for
 // pure repository-double unit tests. broadcaster is optional (nil → no SSE);
 // production wiring must provide it so runs that create instances invalidate
@@ -184,27 +182,25 @@ func NewMaterializationService(
 	studentRepo schedule.InstanceStudentRepository,
 	exceptionRepo schedule.ActivityExceptionRepository,
 	timeframeRepo schedule.TimeframeRepository,
-	calendarService CalendarPeriodService,
 	db *bun.DB,
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
 	options ...MaterializationOption,
 ) MaterializationService {
 	svc := &materializationService{
-		groupRepo:       groupRepo,
-		scheduleRepo:    scheduleRepo,
-		enrollmentRepo:  enrollmentRepo,
-		supervisorRepo:  supervisorRepo,
-		periodRepo:      periodRepo,
-		instanceRepo:    instanceRepo,
-		staffRepo:       staffRepo,
-		studentRepo:     studentRepo,
-		exceptionRepo:   exceptionRepo,
-		timeframeRepo:   timeframeRepo,
-		calendarService: calendarService,
-		db:              db,
-		broadcaster:     broadcaster,
-		logger:          logger,
+		groupRepo:      groupRepo,
+		scheduleRepo:   scheduleRepo,
+		enrollmentRepo: enrollmentRepo,
+		supervisorRepo: supervisorRepo,
+		periodRepo:     periodRepo,
+		instanceRepo:   instanceRepo,
+		staffRepo:      staffRepo,
+		studentRepo:    studentRepo,
+		exceptionRepo:  exceptionRepo,
+		timeframeRepo:  timeframeRepo,
+		db:             db,
+		broadcaster:    broadcaster,
+		logger:         logger,
 	}
 	for _, option := range options {
 		option(svc)
@@ -572,7 +568,7 @@ func (s *materializationService) materializeTemplate(
 				continue
 			}
 
-			if !s.calendarService.ShouldMaterialize(sch.WeekPattern, date, period) {
+			if !shouldMaterializeWeekPattern(sch.WeekPattern, date, period) {
 				result.CandidatesSkippedABWeek++
 				continue
 			}

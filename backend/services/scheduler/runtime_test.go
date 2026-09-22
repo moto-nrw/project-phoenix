@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -52,8 +52,8 @@ func TestStopCancelsRunningTaskContexts(t *testing.T) {
 }
 
 func newUnitScheduler(
-	activeService activeSvc.Service,
-	cleanupService activeSvc.CleanupService,
+	activeService studentpresence.Presence,
+	cleanupService studentpresence.PresenceCleanup,
 	authService AuthCleanup,
 	invitationService InvitationCleaner,
 	emailChangeCleaner EmailChangeTokenCleaner,

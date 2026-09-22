@@ -10,6 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/sessionrecordstest"
+
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecordstest"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
@@ -26,7 +29,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -381,6 +383,13 @@ func CreateTestStaffForPerson(tb testing.TB, db *bun.DB, personID int64) *users.
 	return staff
 }
 
+// StudentInGroup returns a detached student row that belongs to groupID
+// (nil: no group), for policy tests that decide over the row alone and never
+// touch the database.
+func StudentInGroup(groupID *int64) *users.Student {
+	return &users.Student{GroupID: groupID}
+}
+
 // CreateTestStudent creates a real student in the database
 // This requires a person, so it creates one automatically
 func CreateTestStudent(tb testing.TB, db *bun.DB, firstName, lastName, schoolClass string) *users.Student {
@@ -534,24 +543,31 @@ func fixtureInstant() time.Time {
 	return time.Now().Round(time.Microsecond)
 }
 
+// ActiveGroupRow and GroupSupervisorRow are the stored session and
+// supervision rows the fixtures insert.
+type (
+	ActiveGroupRow     = sessionrecordstest.ActiveGroupRow
+	GroupSupervisorRow = sessionrecordstest.GroupSupervisorRow
+)
+
 // CreateTestActiveGroup creates a real active group (session) in the database.
 // This requires an ActivityGroup (activities.groups) and Room to exist.
 // Use this for testing session management and visit tracking.
-func CreateTestActiveGroup(tb testing.TB, db *bun.DB, activityGroupID, roomID int64) *active.Group {
+func CreateTestActiveGroup(tb testing.TB, db *bun.DB, activityGroupID, roomID int64) *ActiveGroupRow {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	now := fixtureInstant()
-	activeGroup := &active.Group{
+	activeGroup := &ActiveGroupRow{
 		GroupID:        &activityGroupID,
 		RoomID:         roomID,
 		StartTime:      now,
 		LastActivity:   now,
 		TimeoutMinutes: 30,
 	}
-	activeGroup.SetTenantID(fixtureTenantID(tb))
+	activeGroup.TenantID = fixtureTenantID(tb)
 
 	err := db.NewInsert().
 		Model(activeGroup).
@@ -564,19 +580,19 @@ func CreateTestActiveGroup(tb testing.TB, db *bun.DB, activityGroupID, roomID in
 
 // CreateTestGroupSupervisor creates a real group supervisor record in the database.
 // This requires a Staff and ActiveGroup to already exist.
-func CreateTestGroupSupervisor(tb testing.TB, db *bun.DB, staffID, activeGroupID int64, role string) *active.GroupSupervisor {
+func CreateTestGroupSupervisor(tb testing.TB, db *bun.DB, staffID, activeGroupID int64, role string) *GroupSupervisorRow {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	supervisor := &active.GroupSupervisor{
+	supervisor := &GroupSupervisorRow{
 		StaffID:   staffID,
 		GroupID:   activeGroupID,
 		Role:      role,
 		StartDate: timezone.TodayDate(),
 	}
-	supervisor.SetTenantID(fixtureTenantID(tb))
+	supervisor.TenantID = fixtureTenantID(tb)
 
 	err := db.NewInsert().
 		Model(supervisor).
@@ -2068,7 +2084,7 @@ func CreateTestActivityGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64,
 
 // CreateTestActiveGroupForTenant creates an active group (session) belonging to a specific tenant.
 // Self-contained: creates its own room and activity group dependencies.
-func CreateTestActiveGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64) *active.Group {
+func CreateTestActiveGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64) *ActiveGroupRow {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -2079,14 +2095,14 @@ func CreateTestActiveGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64) *
 
 	now := time.Now()
 	activityGroupID := activityGroup.ID
-	activeGroup := &active.Group{
+	activeGroup := &ActiveGroupRow{
 		GroupID:        &activityGroupID,
 		RoomID:         room.ID,
 		StartTime:      now,
 		LastActivity:   now,
 		TimeoutMinutes: 30,
 	}
-	activeGroup.SetTenantID(tenantID)
+	activeGroup.TenantID = tenantID
 
 	err := db.NewInsert().
 		Model(activeGroup).
@@ -2102,21 +2118,21 @@ func CreateTestActiveGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64) *
 // when the test owns the room and activity group fixtures (so it can clean
 // them up explicitly) rather than letting CreateTestActiveGroupForTenant
 // auto-create and leak them.
-func CreateTestActiveGroupWithIDsForTenant(tb testing.TB, db *bun.DB, tenantID, activityGroupID, roomID int64) *active.Group {
+func CreateTestActiveGroupWithIDsForTenant(tb testing.TB, db *bun.DB, tenantID, activityGroupID, roomID int64) *ActiveGroupRow {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	now := fixtureInstant()
-	activeGroup := &active.Group{
+	activeGroup := &ActiveGroupRow{
 		GroupID:        &activityGroupID,
 		RoomID:         roomID,
 		StartTime:      now,
 		LastActivity:   now,
 		TimeoutMinutes: 30,
 	}
-	activeGroup.SetTenantID(tenantID)
+	activeGroup.TenantID = tenantID
 
 	err := db.NewInsert().
 		Model(activeGroup).
@@ -2362,7 +2378,7 @@ func CreateTestArrivalSchedule(tb testing.TB, db *bun.DB, studentID int64, weekd
 	if arrivalHHMM != "" {
 		row.ExpectedArrival = parseTimeHHMM(tb, arrivalHHMM)
 	}
-	row.SetTenantID(fixtureTenantID(tb))
+	row.TenantID = fixtureTenantID(tb)
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2392,7 +2408,7 @@ func CreateTestArrivalException(tb testing.TB, db *bun.DB, studentID int64, date
 	if reason != "" {
 		row.Reason = &reason
 	}
-	row.SetTenantID(fixtureTenantID(tb))
+	row.TenantID = fixtureTenantID(tb)
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2415,7 +2431,7 @@ func CreateTestPickupSchedule(tb testing.TB, db *bun.DB, studentID int64, weekda
 		PickupTime: parseTimeHHMM(tb, pickupHHMM),
 		CreatedBy:  staffID,
 	}
-	row.SetTenantID(fixtureTenantID(tb))
+	row.TenantID = fixtureTenantID(tb)
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2445,7 +2461,7 @@ func CreateTestPickupException(tb testing.TB, db *bun.DB, studentID int64, date 
 	if reason != "" {
 		row.Reason = &reason
 	}
-	row.SetTenantID(fixtureTenantID(tb))
+	row.TenantID = fixtureTenantID(tb)
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2594,7 +2610,7 @@ func CreateTestCalendarPeriod(tb testing.TB, db *bun.DB, name string, start, end
 		WeekCycleLength: 1,
 		IsActive:        false,
 	}
-	row.SetTenantID(fixtureTenantID(tb))
+	row.TenantID = fixtureTenantID(tb)
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2628,7 +2644,7 @@ func CreateTestClosingDay(tb testing.TB, db *bun.DB, start, end CalendarDate, re
 	defer cancel()
 
 	row := &schedule.ClosingDay{StartDate: schedule.Date(start.String()), EndDate: schedule.Date(end.String()), Reason: reason}
-	row.SetTenantID(fixtureTenantID(tb))
+	row.TenantID = fixtureTenantID(tb)
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2647,7 +2663,7 @@ func CreateTestDateframe(tb testing.TB, db *bun.DB, name string, start, end time
 	defer cancel()
 
 	row := &schedule.Dateframe{Name: name, StartDate: start, EndDate: end}
-	row.SetTenantID(fixtureTenantID(tb))
+	row.TenantID = fixtureTenantID(tb)
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2725,7 +2741,7 @@ func CreateTestStaffShift(tb testing.TB, db *bun.DB, staffID int64, date Calenda
 		ShiftTypeID: opts.ShiftTypeID,
 		CreatedBy:   staffID,
 	}
-	row.SetTenantID(fixtureTenantID(tb))
+	row.TenantID = fixtureTenantID(tb)
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2781,7 +2797,7 @@ func CreateTestInstanceStudent(tb testing.TB, db *bun.DB, instanceID, studentID 
 		ManualStatusAt:     opt.ManualStatusAt,
 		CheckedInAt:        opt.CheckedInAt,
 	}
-	row.SetTenantID(fixtureTenantID(tb))
+	row.TenantID = fixtureTenantID(tb)
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2791,24 +2807,31 @@ func CreateTestInstanceStudent(tb testing.TB, db *bun.DB, instanceID, studentID 
 	return row
 }
 
+// StudentStatusDayRow and ExcusedAbsenceRequestRow map the Care Plan absence
+// tables for fixtures and for tests that arrange or assert stored rows.
+type (
+	StudentStatusDayRow      = absencerecordstest.StudentStatusDayRow
+	ExcusedAbsenceRequestRow = absencerecordstest.ExcusedAbsenceRequestRow
+)
+
 // CreateTestStudentStatusDay inserts one reported broad day status (sick /
 // excused / class trip) for a student on a date. Callers that pass its ID into
 // InstanceStudentOpts.StudentStatusDayID reproduce the state ApplyStatusDay
 // leaves behind: a slot absence the day status owns. The package clone owns it.
-func CreateTestStudentStatusDay(tb testing.TB, db *bun.DB, studentID int64, date timezone.Date, status string) *active.StudentStatusDay {
+func CreateTestStudentStatusDay(tb testing.TB, db *bun.DB, studentID int64, date timezone.Date, status string) *StudentStatusDayRow {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	row := &active.StudentStatusDay{
+	row := &StudentStatusDayRow{
 		StudentID:  studentID,
 		Date:       date,
 		Status:     status,
 		ReportedAt: time.Now(),
-		Source:     active.StudentStatusSourceManual,
+		Source:     "manual", // absencerecords.StudentStatusSourceManual
 	}
-	row.SetTenantID(fixtureTenantID(tb))
+	row.TenantID = fixtureTenantID(tb)
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2843,7 +2866,7 @@ func CreateTestInstanceStaff(tb testing.TB, db *bun.DB, instanceID, staffID int6
 		IsSubstitute: opts.IsSubstitute,
 		IsAbsent:     opts.IsAbsent,
 	}
-	row.SetTenantID(fixtureTenantID(tb))
+	row.TenantID = fixtureTenantID(tb)
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2961,6 +2984,31 @@ func CreateTestEnrollmentPhase(tb testing.TB, db *bun.DB) *enrollmentOwner.Phase
 func CreateTestEnrollmentPhaseForCalendarPeriod(tb testing.TB, db *bun.DB, periodID int64) *enrollmentOwner.Phase {
 	tb.Helper()
 	return createTestEnrollmentPhase(tb, db, &periodID)
+}
+
+// CreateTestEnrollmentRequestAwaitingGuardian submits a public enrollment
+// request in phaseID for a guardian who has no account yet, in the current
+// test tenant. statusToken must be unique per request.
+func CreateTestEnrollmentRequestAwaitingGuardian(tb testing.TB, db *bun.DB, phaseID int64, guardianEmail, statusToken string) *enrollmentOwner.Request {
+	tb.Helper()
+	ctx := WithTenantRuntime(tb, TenantContext(fixtureTenantID(tb)), db)
+	request := &enrollmentOwner.Request{
+		TenantID:          fixtureTenantID(tb),
+		PhaseID:           phaseID,
+		GuardianFirstName: "Guardian",
+		GuardianLastName:  "Test",
+		GuardianEmail:     guardianEmail,
+		ConsentFlags:      []byte("{}"),
+		CustomData:        []byte("{}"),
+		SubmissionSource:  enrollment.RequestSourcePublic,
+		SourceMetadata:    []byte("{}"),
+		StatusToken:       statusToken,
+		SubmittedAt:       time.Now(),
+	}
+	if err := enrollmentOwner.New().InsertRequest(ctx, request); err != nil {
+		tb.Fatalf("create test enrollment request: %v", err)
+	}
+	return request
 }
 
 func createTestEnrollmentPhase(tb testing.TB, db *bun.DB, periodID *int64) *enrollmentOwner.Phase {

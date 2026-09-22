@@ -10,7 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -65,7 +65,7 @@ func sessionBlocksFixture(t *testing.T) (*timetableOpsTestDeps, timezone.Date, m
 	}
 	for sessionID, staffIDs := range supervisors {
 		for _, staffID := range staffIDs {
-			deps.supervisors.byActiveGroup[sessionID] = append(deps.supervisors.byActiveGroup[sessionID], &activeModel.GroupSupervisor{StaffID: staffID})
+			deps.supervisors.byActiveGroup[sessionID] = append(deps.supervisors.byActiveGroup[sessionID], &studentpresence.StaffedSupervision{GroupSupervision: studentpresence.GroupSupervision{StaffID: staffID}})
 		}
 	}
 	return deps, day, supervisors

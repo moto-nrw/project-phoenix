@@ -26,7 +26,24 @@ var (
 	ErrDemoSchoolPreparing = errors.New("demo school is being prepared")
 	// ErrDemoSessionTenantLocked reports a tenant switch of a demo session.
 	ErrDemoSessionTenantLocked = errors.New("demo sessions cannot switch tenants")
+	// ErrDemoCapacityReached reports that no further demo school may be
+	// created (#3466).
+	ErrDemoCapacityReached = errors.New("demo capacity reached")
 )
+
+// Limits of the public request (#3466). Visitors of a fair share one WLAN
+// address, so the IP limit is far above the address limit.
+const (
+	DemoRequestWindow        = time.Hour
+	DemoRequestsPerAddress   = 3
+	DemoRequestsPerIPAddress = 60
+)
+
+// DemoAccessRateLimitedError reports a request over a limit and when the
+// caller may ask again.
+type DemoAccessRateLimitedError struct{ RetryAt time.Time }
+
+func (e *DemoAccessRateLimitedError) Error() string { return "too many demo access requests" }
 
 // DemoAccess connects a prospect's address with the demo. Only the SHA-256
 // fingerprint of its token is kept.
@@ -42,6 +59,55 @@ type DemoAccess struct {
 	CreatedAt    time.Time
 	// SchoolSlug is the demo school this access enters (#3463).
 	SchoolSlug string
+	// Role is the demo role a request preselects (#3467). It is not stored:
+	// it rides in the mailed link, and the entry page skips the role cards.
+	Role DemoRole
+}
+
+// DemoRole is what a visitor of the public demo sees the demo school as
+// (#3467). The visitor has one account; a switch changes its role.
+type DemoRole string
+
+const (
+	DemoRoleCaregiver DemoRole = "caregiver"
+	DemoRoleLead      DemoRole = "lead"
+	DemoRoleAll       DemoRole = "all"
+	// DemoRoleParent signs the visitor in to the parents portal as the
+	// school's parent who carries the visitor's name (#3468).
+	DemoRoleParent DemoRole = "parent"
+)
+
+// ParseDemoRole accepts the empty role, which chooses none.
+func ParseDemoRole(value string) (DemoRole, error) {
+	switch role := DemoRole(strings.TrimSpace(value)); role {
+	case "", DemoRoleCaregiver, DemoRoleLead, DemoRoleAll, DemoRoleParent:
+		return role, nil
+	default:
+		return "", ErrDemoAccessInvalid
+	}
+}
+
+// The reduced roles of the demo school (#3469). The seeder creates both as
+// roles of the school with their permission sets (seed/api/demo_roles.go);
+// "all functions" is the administrator.
+const (
+	DemoSchoolRoleCaregiver = "betreuungskraft"
+	DemoSchoolRoleLead      = "ogs-leitung"
+)
+
+// SchoolRoles names the roles the visitor's account may hold in the demo
+// role, best first: the school's reduced role, then the system role a school
+// seeded before the reduced roles existed falls back to. Until #3469 the
+// caregiver was a standard staff member and the OGS lead an administrator.
+func (r DemoRole) SchoolRoles() []string {
+	switch r {
+	case DemoRoleCaregiver:
+		return []string{DemoSchoolRoleCaregiver, "user"}
+	case DemoRoleLead:
+		return []string{DemoSchoolRoleLead, "admin"}
+	default:
+		return []string{"admin"}
+	}
 }
 
 // Progress of the demo school behind a demo access (#3463).
@@ -57,6 +123,27 @@ type DemoSchoolEntry struct {
 	Status    string
 	TenantID  int64
 	AccountID int64
+	// ParentAccountID is the parent carrying the visitor's name (#3468);
+	// zero in a school without one.
+	ParentAccountID int64
+	// Shared marks the administrator every visitor of the standing school
+	// signs in as; no demo role switch may change its role (#3467).
+	Shared bool
+}
+
+// DemoEntry is a redeemed demo access: the session and what the demo
+// banner shows and reports about it (#3467).
+type DemoEntry struct {
+	AccessToken  string
+	RefreshToken string
+	AccessID     int64
+	// Role is the demo role the session really has; empty when the caller
+	// chose none and the account kept its role.
+	Role   DemoRole
+	Source string
+	// FixedRole marks the standing school's shared administrator, whose
+	// role no switch changes; the banner then offers none.
+	FixedRole bool
 }
 
 // Normalize trims the prospect's fields and validates them.
@@ -68,6 +155,9 @@ func (a *DemoAccess) Normalize() error {
 	parsed, err := mail.ParseAddress(a.Email)
 	if err != nil || parsed.Address != a.Email || len(a.Email) > 254 {
 		return ErrDemoAccessInvalid
+	}
+	if a.Role, err = ParseDemoRole(string(a.Role)); err != nil {
+		return err
 	}
 	if a.PersonName == "" || len(a.PersonName) > 120 || a.SchoolName == "" || len(a.SchoolName) > 120 || len(a.Source) > 60 {
 		return ErrDemoAccessInvalid

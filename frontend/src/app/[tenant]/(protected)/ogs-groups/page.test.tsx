@@ -50,6 +50,9 @@ vi.mock("~/lib/auth-utils", () => ({
     if (role === "user") return !(session?.user?.isAdmin ?? false);
     return false;
   },
+  // Der RoleGuard nennt seit #3469 das Recht der Route; die Sitzungen dieser
+  // Tests tragen keine Rechte, die Rolle entscheidet weiter.
+  hasPermission: () => false,
 }));
 
 // Mock next-auth/react

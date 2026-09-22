@@ -19,7 +19,7 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -491,8 +491,8 @@ func TestListInstances_StatusDayAbsenceOnUnbookedDayReadsAsNotScheduled(t *testi
 	manualUnbooked := testpkg.CreateTestStudent(t, s.db, "Manuell", fmt.Sprintf("Unbooked-%d-B", suffix), "3c")
 	sickBooked := testpkg.CreateTestStudent(t, s.db, "Krank", fmt.Sprintf("Booked-%d-C", suffix), "3c")
 
-	statusDay := testpkg.CreateTestStudentStatusDay(t, s.db, sickUnbooked.ID, fromDate, activeModels.StudentStatusDaySick)
-	bookedStatusDay := testpkg.CreateTestStudentStatusDay(t, s.db, sickBooked.ID, fromDate, activeModels.StudentStatusDaySick)
+	statusDay := testpkg.CreateTestStudentStatusDay(t, s.db, sickUnbooked.ID, fromDate, absencerecords.StudentStatusDaySick)
+	bookedStatusDay := testpkg.CreateTestStudentStatusDay(t, s.db, sickBooked.ID, fromDate, absencerecords.StudentStatusDaySick)
 	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, sickUnbooked.ID, schedule.AttendanceStatusAbsent,
 		testpkg.InstanceStudentOpts{StudentStatusDayID: &statusDay.ID})
 	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, manualUnbooked.ID, schedule.AttendanceStatusAbsent)

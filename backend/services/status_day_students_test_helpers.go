@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // statusDayStudentSource is the slice of the student service the status-day
@@ -23,12 +23,14 @@ type statusDayStudentSource interface {
 // rather than quietly waving them through; see errStatusDayAuthorizeMissing.
 // A caller that genuinely has no caller identity to check passes
 // AllowAllStatusDayWrites and says so at the call site.
-type StatusDayAuthorize func(ctx context.Context, student *active.StudentRecord, status string) bool
+type StatusDayAuthorize func(ctx context.Context, student *studentpresence.StudentRecord, status string) bool
 
 // AllowAllStatusDayWrites authorizes every status-day write. It exists so a
 // non-HTTP entry point, which carries no JWT to re-check, has to name that
 // intent instead of expressing it as an omitted argument.
-func AllowAllStatusDayWrites(context.Context, *active.StudentRecord, string) bool { return true }
+func AllowAllStatusDayWrites(context.Context, *studentpresence.StudentRecord, string) bool {
+	return true
+}
 
 var errStatusDayAuthorizeMissing = errors.New("status day students: authorization callback is required")
 
@@ -38,7 +40,7 @@ type statusDayStudents struct {
 	locked    map[int64]*users.Student
 }
 
-// StatusDayStudents serves active.StatusDayStudents for one write context. The
+// StatusDayStudents serves studentpresence.StatusDayStudents for one write context. The
 // rows locked through LockForStatusWrite are kept so UpdateLiveStatus writes
 // the flags back through the owner's full-row path on exactly that row. One
 // adapter belongs to one request; do not share it.
@@ -47,7 +49,7 @@ type statusDayStudents struct {
 // the policy forbids api/students from importing this composition root, and
 // the conversion needs both the owner's row type and the presence record, so
 // neither side can host a shared helper. Keep the two in step.
-func StatusDayStudents(source statusDayStudentSource, authorize StatusDayAuthorize) active.StatusDayStudents {
+func StatusDayStudents(source statusDayStudentSource, authorize StatusDayAuthorize) studentpresence.StatusDayStudents {
 	return &statusDayStudents{source: source, authorize: authorize, locked: map[int64]*users.Student{}}
 }
 
@@ -70,11 +72,11 @@ func (r statusDayStudentRepo) Update(ctx context.Context, student *users.Student
 
 // StatusDayStudentsFromRepository is StatusDayStudents backed by the student
 // repository rather than the student service.
-func StatusDayStudentsFromRepository(source statusDayStudentRepoSource, authorize StatusDayAuthorize) active.StatusDayStudents {
+func StatusDayStudentsFromRepository(source statusDayStudentRepoSource, authorize StatusDayAuthorize) studentpresence.StatusDayStudents {
 	return StatusDayStudents(statusDayStudentRepo{source: source}, authorize)
 }
 
-func (s *statusDayStudents) LockForStatusWrite(ctx context.Context, studentID int64, status string) (*active.StudentRecord, error) {
+func (s *statusDayStudents) LockForStatusWrite(ctx context.Context, studentID int64, status string) (*studentpresence.StudentRecord, error) {
 	if s.authorize == nil {
 		return nil, errStatusDayAuthorizeMissing
 	}
@@ -84,13 +86,13 @@ func (s *statusDayStudents) LockForStatusWrite(ctx context.Context, studentID in
 	}
 	record := studentRecord(fresh)
 	if !s.authorize(ctx, record, status) {
-		return nil, active.ErrStudentStatusDayReassigned
+		return nil, studentpresence.ErrStudentStatusDayReassigned
 	}
 	s.locked[studentID] = fresh
 	return record, nil
 }
 
-func (s *statusDayStudents) UpdateLiveStatus(ctx context.Context, record *active.StudentRecord) error {
+func (s *statusDayStudents) UpdateLiveStatus(ctx context.Context, record *studentpresence.StudentRecord) error {
 	if record == nil {
 		return nil
 	}
@@ -108,7 +110,7 @@ func (s *statusDayStudents) UpdateLiveStatus(ctx context.Context, record *active
 
 // applyStudentLiveStatus copies the presence flags onto the owner's row so a
 // caller holding the full row can persist them through the owner's write path.
-func applyStudentLiveStatus(row *users.Student, record *active.StudentRecord) {
+func applyStudentLiveStatus(row *users.Student, record *studentpresence.StudentRecord) {
 	if row == nil || record == nil {
 		return
 	}

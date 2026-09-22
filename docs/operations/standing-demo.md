@@ -12,8 +12,8 @@ school of #3461 stays selectable as the fallback (see below).
    points at the waiting room `FRONTEND_URL/demo`, because `https://<slug>.<TENANT_DOMAIN>`
    answers only once the school exists; the waiting room sends the visitor
    there when the status turns `ready`. The serving backend may
-   only insert an order and read `name`, `status`, `tenant_id` and
-   `visitor_account_id`; `seed_state` with its credentials and `status` stay
+   only insert an order, read `name`, `status`, `tenant_id` and
+   `visitor_account_id`, and stamp `last_used_at`; `seed_state` with its credentials and `status` stay
    out of its reach (column grants, `phoenix_admin` bypasses row security).
 2. The demo process claims orders oldest first. At most **3** seeds run at a
    time (`demoSeedWorkers`); further orders wait. The seed workers share one
@@ -26,8 +26,20 @@ school of #3461 stays selectable as the fallback (see below).
    the administrator role, and the demo access signs in as that account.
 4. After the seed the process runs the school's first tick, which rebuilds
    rooms and attendance at any hour and on any weekday, and only then sets
-   `status = ready`. From then on the school has its own ticker.
-5. A failed order is repeated once. The repetition renames and soft-deletes
+   `status = ready`. It names the visitor's caregiver (`visitor_account_id`)
+   and the visitor's parent (`visitor_parent_account_id`, #3468): the
+   renamed Sabine Schneider, a primary guardian with full parents portal
+   rights for exactly one child.
+5. Only schools in use get ticks (#3464). Redeeming the token stamps
+   `last_used_at` on the school's row (the serving role may write that one
+   column), and the process keeps one ticker per ready school entered in the
+   last 30 minutes (`demoInUseWindow`). A new ticker ticks at once, so an
+   entered school moves within about a second; one that falls out of the
+   window stops. A returning visitor redeems the link again and the
+   simulation resumes; the first tick rebuilds attendance when the daily close
+   ended it. Tokens redeemed only once cover a single visit: a visitor who
+   stays longer than the window without entering again sees a still school.
+6. A failed order is repeated once. The repetition renames and soft-deletes
    the school the broken attempt left under the slug (schools are never
    hard-deleted and keep their unique subdomain) and seeds with a fresh
    account scope. Account emails and usernames carry the slug's random
@@ -38,14 +50,46 @@ school of #3461 stays selectable as the fallback (see below).
    the process waits a minute before it tries to sign in again. After the second failure the order is `failed`;
    the entry page tells the prospect to request a new link, and that address
    no longer counts as having an active demo access.
-6. A restart releases the claims of the stopped process. An order whose seed
+7. A restart releases the claims of the stopped process. An order whose seed
    state was already stored is not seeded again; it only gets its first tick.
+8. „Demo neu anfangen" (#3470, `POST /demo/access/reset`) soft-deletes the
+   visitor's school, revokes its sessions and queues a new order with the
+   same OGS and visitor names; every access of the old school now enters the
+   new one. The old order keeps its row and its `ready` status, but the
+   process skips it: `ReadyDemoSchools` and `ActiveDemoSchools` join
+   `platform.schools` and leave hidden schools out, so a running ticker
+   stops at the next poll. The standing school cannot be restarted.
 
 An address whose newest unexpired demo access enters a school that did not
 fail gets no second school: after the 10-minute cooldown of #3465 a further
 request stores an access into that same school and mails its link.
 
-`--once` empties the queue, ticks every ready school once and exits.
+`--once` runs the expiry, empties the queue, ticks every ready school once, in use or not, and exits.
+
+### Expiry
+
+A demo access ends 14 days after its last use (#3470): every redemption moves
+`expires_at` forward by the full lifetime. Once an hour (`demoExpiryInterval`,
+first run at the first poll) the process deletes every access past its end
+and soft-deletes the demo schools no remaining access enters; the standing
+school is never hidden. A hidden school holds no place against the capacity,
+gets no ticker and cannot be entered. A school that could not be hidden
+(database away) is remembered and hidden at the next poll. The process's role
+sees only `id`, `school_slug` and `expires_at` of `auth.demo_accesses`, never
+an address or a name, and may set `deleted_at` on `platform.schools`
+(migration 1.15.412). Hidden schools accumulate; the ADR allows rebuilding
+the demo database when that matters.
+
+### Capacity
+
+The server queues at most `--demo-max-active-schools` demo schools at once
+(#3466): queued schools and ready ones whose school is not deleted count, a
+failed one does not. Beyond that a new address gets `503
+demo_capacity_reached`; an address with a school still gets its link. The
+value sits on the `server` command in `environments/demo.compose.yml` (300);
+check it against the host size before a fair and change it there with a
+deploy. `serve` refuses to start under `APP_ENV=demo` without it; locally
+pass the flag to `serve`.
 
 ## Fallback: the standing demo school
 
@@ -139,10 +183,30 @@ HTTP database roles cannot read that table.
   device or whose latest departure was booked by staff without a kiosk is
   left alone for 15 minutes. Automatic closing does not restart that period.
   Failed reads never trigger a rebuild.
+- Parent ticks (#3468): every 3 minutes another parent of the school asks
+  for a pickup change on a school day from the day after tomorrow on, or
+  writes a message about the own child, alternating, so „Offene Anfragen" in
+  the OGS app is never empty. One parent acts for 10 minutes on one login,
+  then the next takes over. The visitor's parent and every parent who shares
+  its child stay out: their messages would appear in the visitor's own
+  parents app. A request the school refuses (4xx) is skipped; a failing
+  parent never stops the children's ticks of the same round.
 - When no visits remain, the runner restores sessions and attendance without
   consulting the weekday timetable. It keeps existing sessions alive and
   recreates those ended by daily close. School schedules themselves are not
   shifted to weekends.
+- Weekend day plan (#3471): the device sessions the runner starts are
+  mirrored into the timetable as spontaneous blocks (title of the activity,
+  window from the session start plus 60 minutes, status running), so home
+  page, „Mein Tag" and the day plan show eight running blocks on a Saturday
+  as well. That is all the simulation can add on a weekend: the web
+  spontaneous start and instance planning reject Saturday and Sunday on the
+  server, and a device session can neither be back-dated nor planned ahead.
+  Upcoming blocks, pickup and arrival times and the week view stay empty.
+  Rotating the sessions to fill the day was tried and rejected: it turns the
+  day plan into a log of the same eight activities and changes nothing for a
+  per-access school, which only ticks during the visit. Screenshots and the
+  proposed follow-up are in the issue.
 - The initial occupancy is capped at 84 children to respect the seed profile's
   room capacities. All eligible children receive simulator RFID identities,
   including those available to subsequent attendance ticks.

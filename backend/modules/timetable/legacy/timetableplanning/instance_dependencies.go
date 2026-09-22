@@ -10,7 +10,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	announcement "github.com/moto-nrw/project-phoenix/modules/communication"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/uptrace/bun"
 )
@@ -23,8 +23,8 @@ type InstanceServiceDependencies struct {
 	InstanceStaffRepo  scheduleModel.InstanceStaffRepository
 	InstanceStudents   scheduleModel.InstanceStudentRepository
 	ExceptionRepo      scheduleModel.ActivityExceptionRepository
-	ActiveGroupRepo    activeModel.GroupRepository
-	SupervisorRepo     activeModel.GroupSupervisorRepository
+	ActiveGroupRepo    studentpresence.SessionRecords
+	SupervisorRepo     studentpresence.SupervisionRecords
 	Presence           InstancePresence
 	RoomRepo           facilitiesModel.RoomRepository
 	ActivityGroupRepo  activitiesModel.GroupRepository

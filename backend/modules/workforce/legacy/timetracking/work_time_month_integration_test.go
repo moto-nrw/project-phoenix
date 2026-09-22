@@ -7,7 +7,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -35,7 +36,8 @@ func TestWorkTimeMonthSummary_DB(t *testing.T) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Monat", "Karte")
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	owners := repositories.NewUnobservedTimetableDependencies(db)
+	repos := repositories.NewFactory(db, owners)
 	ctx := testpkg.TenantContext(tenantID)
 
 	t.Cleanup(func() {
@@ -54,11 +56,11 @@ func TestWorkTimeMonthSummary_DB(t *testing.T) {
 	// One 480-minute session on Monday June 1, 2026.
 	checkIn := time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC)
 	checkOut := checkIn.Add(8 * time.Hour)
-	session := &activeModels.WorkSession{
+	session := &timerecords.WorkSession{
 		StaffID:     staff.ID,
 		Date:        timezone.NewDate(2026, time.June, 1),
-		Status:      activeModels.WorkSessionStatusPresent,
-		Source:      activeModels.WorkSessionSourceApp,
+		Status:      workforce.WorkSessionStatusPresent,
+		Source:      workforce.WorkSessionSourceApp,
 		CheckInTime: checkIn, CheckOutTime: &checkOut,
 		CreatedBy: staff.ID,
 	}
@@ -66,10 +68,10 @@ func TestWorkTimeMonthSummary_DB(t *testing.T) {
 	require.NoError(t, repos.WorkSession.Create(ctx, session))
 
 	// Reported sick day on Monday June 15, 2026 → credits 480.
-	absence := &activeModels.StaffAbsence{
+	absence := &timerecords.StaffAbsence{
 		StaffID:     staff.ID,
-		AbsenceType: activeModels.AbsenceTypeSick,
-		Status:      activeModels.AbsenceStatusReported,
+		AbsenceType: workforce.AbsenceTypeSick,
+		Status:      workforce.AbsenceStatusReported,
 		DateStart:   timezone.NewDate(2026, time.June, 15),
 		DateEnd:     timezone.NewDate(2026, time.June, 15),
 		CreatedBy:   staff.ID,
@@ -78,8 +80,8 @@ func TestWorkTimeMonthSummary_DB(t *testing.T) {
 	require.NoError(t, repos.StaffAbsence.Create(ctx, absence))
 
 	svc := timetracking.NewWorkTimeMonthService(
-		repos.WorkSession, repos.WorkSessionBreak, repos.StaffAbsence, services.StaffScheduleAssignments(repos.Staff),
-		services.NewWorkScheduleTargets(repos.StaffWorkSchedule), services.NewWorkTimeTargetModels(repos.WorkTimeModel), services.NewTimeTrackingShifts(repos.StaffShift),
+		repos.WorkSession, repos.WorkSessionBreak, repos.StaffAbsence, services.StaffScheduleAssignments(repositories.MustNewStaffEmployment(db)),
+		services.NewWorkScheduleTargets(repos.StaffWorkSchedule), services.NewWorkTimeTargetModels(repos.WorkTimeModel), services.NewTimeTrackingShifts(owners.Workforce),
 		wtmIntSettings{accountStart: "2026-06-01"}, nil,
 	)
 
@@ -102,9 +104,9 @@ func TestWorkTimeMonthSummary_DB(t *testing.T) {
 	// LIVE Übertrag: a late June correction immediately changes July's carry.
 	lateCheckIn := time.Date(2026, 6, 8, 8, 0, 0, 0, time.UTC)
 	lateCheckOut := lateCheckIn.Add(4 * time.Hour)
-	lateSession := &activeModels.WorkSession{
+	lateSession := &timerecords.WorkSession{
 		StaffID: staff.ID, Date: timezone.NewDate(2026, time.June, 8),
-		Status: activeModels.WorkSessionStatusPresent, Source: activeModels.WorkSessionSourceApp,
+		Status: workforce.WorkSessionStatusPresent, Source: workforce.WorkSessionSourceApp,
 		CheckInTime: lateCheckIn, CheckOutTime: &lateCheckOut,
 		CreatedBy: staff.ID,
 	}

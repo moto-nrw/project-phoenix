@@ -4,10 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -19,7 +18,6 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -39,7 +37,7 @@ func pendingWithdrawalForStudent(
 
 func (failingCareWithdrawalReconciler) ReconcileAuthoritativeBookingChange(
 	context.Context,
-	userModels.CareWithdrawalBookingChange,
+	careplan.CareWithdrawalBookingChange,
 ) error {
 	return errors.New("forced durable completion failure")
 }
@@ -164,7 +162,7 @@ func (f *completeWithdrawalFixture) assertCompletionAudit() {
 
 func (f *completeWithdrawalFixture) assertCareExitCompletesSource(pending *userModels.CareWithdrawalCompletion) {
 	lifecycle := newWithdrawalLifecycle(f.env)
-	input := carelifecycle.CareExitInput{LastCareDay: decisionTestToday.AddDays(-1), Reason: userModels.CareExitReasonNoCareNeed}
+	input := careplan.CareExitInput{LastCareDay: decisionTestToday.AddDays(-1), Reason: userModels.CareExitReasonNoCareNeed}
 	preview, err := lifecycle.PreviewWithdrawalCareEnd(f.ctx, pending.ID, input)
 	require.NoError(f.t, err)
 	require.Len(f.t, preview.Students, 1)
@@ -181,16 +179,11 @@ func (f *completeWithdrawalFixture) assertCareExitCompletesSource(pending *userM
 	assert.Equal(f.t, decisionTestToday, *validUntil)
 }
 
-func newWithdrawalLifecycle(env *decisionTestEnv) carelifecycle.CareLifecycleService {
-	return carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
-		StudentRepo: repositories.NewCareStudents(env.repos.Student, env.repos.SchoolMembership()), PersonRepo: env.repos.Person,
-		CareExitRepo: env.repos.CareExit, CleanupRepo: env.repos.CareExitCleanup,
-		WithdrawalRepo: env.repos.CareWithdrawal, TagReleaser: env.repos.StudentTagReleaser(),
-		AuditService: usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(env.db)),
+func newWithdrawalLifecycle(env *decisionTestEnv) careplan.CareLifecycle {
+	return newTestCareLifecycle(env.db, repositories.CareLifecycleTestConfig{
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
 			return env.settings.ResolveBool(ctx, configModel.KeyEnrollmentBookingsAuthoritative)
 		},
-		DB: env.db, Logger: slog.Default(),
 	})
 }
 
@@ -264,7 +257,7 @@ type withdrawalRaceFixture struct {
 	t                 *testing.T
 	env               *decisionTestEnv
 	ctx               context.Context
-	lifecycle         carelifecycle.CareLifecycleService
+	lifecycle         careplan.CareLifecycle
 	decision          enrollmentService.DecisionService
 	recurrenceGate    func(context.Context) error
 	completionWaiting chan struct{}
@@ -296,18 +289,12 @@ func (f *withdrawalRaceFixture) wireRaceServices(authoritative *bool) {
 	f.recurrenceGate = func(ctx context.Context) error {
 		return timetableplanning.LockTenantRecurrenceWrites(ctx, f.env.db)
 	}
-	repos := f.env.repos
-	f.lifecycle = carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
-		StudentRepo: repositories.NewCareStudents(repos.Student, repos.SchoolMembership()), PersonRepo: repos.Person,
-		CareExitRepo: repos.CareExit, CleanupRepo: repos.CareExitCleanup,
-		WithdrawalRepo: repos.CareWithdrawal, TagReleaser: repos.StudentTagReleaser(),
-		AuditService: usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(f.env.db)),
+	f.lifecycle = newTestCareLifecycle(f.env.db, repositories.CareLifecycleTestConfig{
 		LockCareBookingWrites: func(ctx context.Context) error {
 			close(f.completionWaiting)
 			return f.recurrenceGate(ctx)
 		},
 		BookingsAuthoritative: func(context.Context) (bool, error) { return *authoritative, nil },
-		DB:                    f.env.db, Logger: slog.Default(),
 	})
 	f.decision = newDecisionServiceForTestWithCareWithdrawal(f.env.rolloverTestEnv,
 		stubActivationSettings{bookingsAuthoritative: authoritative}, f.recurrenceGate, f.lifecycle)
@@ -342,7 +329,7 @@ func (f *withdrawalRaceFixture) applyInTenantTx() error {
 }
 
 func (f *withdrawalRaceFixture) prepareWithdrawalRace() (
-	*userModels.CareWithdrawalCompletion, *carelifecycle.CareExitPreview, carelifecycle.CareExitInput,
+	*userModels.CareWithdrawalCompletion, *careplan.CareExitPreview, careplan.CareExitInput,
 ) {
 	require.NoError(f.t, f.applyInTenantTx())
 	f.input.Offerings = nil
@@ -351,7 +338,7 @@ func (f *withdrawalRaceFixture) prepareWithdrawalRace() (
 	pending, err := pendingWithdrawalForStudent(f.ctx, f.env.repos.CareWithdrawal, f.studentID)
 	require.NoError(f.t, err)
 	require.NotNil(f.t, pending)
-	exitInput := carelifecycle.CareExitInput{
+	exitInput := careplan.CareExitInput{
 		LastCareDay: decisionTestToday.AddDays(-1), Reason: userModels.CareExitReasonNoCareNeed,
 	}
 	preview, err := f.lifecycle.PreviewWithdrawalCareEnd(f.ctx, pending.ID, exitInput)
@@ -360,7 +347,7 @@ func (f *withdrawalRaceFixture) prepareWithdrawalRace() (
 }
 
 func (f *withdrawalRaceFixture) runRebookingRace(
-	pending *userModels.CareWithdrawalCompletion, preview *carelifecycle.CareExitPreview, input carelifecycle.CareExitInput,
+	pending *userModels.CareWithdrawalCompletion, preview *careplan.CareExitPreview, input careplan.CareExitInput,
 ) {
 	confirmErr := make(chan error, 1)
 	err := testpkg.WithTenantTx(f.t, f.ctx, f.env.db, testpkg.Tenant(f.t), func(ctx context.Context, _ bun.Tx) error {
@@ -377,7 +364,7 @@ func (f *withdrawalRaceFixture) runRebookingRace(
 		return f.apply(ctx)
 	})
 	require.NoError(f.t, err)
-	require.ErrorIs(f.t, <-confirmErr, userModels.ErrCareWithdrawalAlreadyResolved)
+	require.ErrorIs(f.t, <-confirmErr, careplan.ErrCareWithdrawalAlreadyResolved)
 }
 
 func (f *withdrawalRaceFixture) assertRebookingWon() {

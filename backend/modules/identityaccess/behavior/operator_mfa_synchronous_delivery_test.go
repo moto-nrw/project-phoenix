@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -24,11 +23,11 @@ type refusingOperatorMFAMailer struct {
 	attempts atomic.Int32
 }
 
-func (m *refusingOperatorMFAMailer) Send(message email.Message) error {
+func (m *refusingOperatorMFAMailer) Send(message testpkg.EmailMessage) error {
 	return m.SendContext(context.Background(), message)
 }
 
-func (m *refusingOperatorMFAMailer) SendContext(_ context.Context, _ email.Message) error {
+func (m *refusingOperatorMFAMailer) SendContext(_ context.Context, _ testpkg.EmailMessage) error {
 	m.attempts.Add(1)
 	return errors.New("smtp connection lost")
 }

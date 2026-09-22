@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -27,7 +28,7 @@ type snapshotFixture struct {
 	tenantID  int64
 	staff     int64
 	admin     int64
-	session   *activeModels.WorkSession
+	session   *timerecords.WorkSession
 	schedule  *testpkg.StaffWorkScheduleFixture
 	repos     *repositories.Factory
 	db        *testpkg.DB
@@ -53,7 +54,7 @@ func (snapshotSessionSettings) TimeTrackingRetentionDays(context.Context) (int, 
 func (f *snapshotFixture) newAdminSessionService() timetracking.WorkSessionService {
 	return timetracking.NewWorkSessionService(
 		f.repos.WorkSession, f.repos.WorkSessionBreak, services.NewWorkSessionAudit(f.repos.WorkSessionEdit), f.repos.StaffAbsence,
-		f.repos.GroupSupervisor, f.repos.ActiveGroup, services.WorkSessionStaff(f.repos.Staff), services.NewWorkSessionSchedules(f.repos.StaffWorkSchedule), services.NewWorkSessionTimeModels(f.repos.WorkTimeModel),
+		f.repos.GroupSupervisor, f.repos.ActiveGroup, services.WorkSessionStaff(f.repos.Staff, repositories.MustNewStaffEmployment(f.db)), services.NewWorkSessionSchedules(f.repos.StaffWorkSchedule), services.NewWorkSessionTimeModels(f.repos.WorkTimeModel),
 		snapshotSessionSettings{}, nil, f.db, services.RenderTimeTrackingPDF,
 		services.RenderTimeTrackingWorkbook,
 	)
@@ -75,7 +76,8 @@ func newSnapshotFixture(t *testing.T) *snapshotFixture {
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Abschluss", "Mitarbeiter")
 	admin := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Abschluss", "Leitung")
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	owners := repositories.NewUnobservedTimetableDependencies(db)
+	repos := repositories.NewFactory(db, owners)
 	ctx := testpkg.TenantContext(tenantID)
 
 	t.Cleanup(func() {
@@ -96,11 +98,11 @@ func newSnapshotFixture(t *testing.T) *snapshotFixture {
 
 	checkIn := time.Date(snapshotYear, time.August, snapshotSessionDay, 8, 0, 0, 0, time.UTC)
 	checkOut := checkIn.Add(8 * time.Hour)
-	session := &activeModels.WorkSession{
+	session := &timerecords.WorkSession{
 		StaffID:     staff.ID,
 		Date:        timezone.NewDate(snapshotYear, time.August, snapshotSessionDay),
-		Status:      activeModels.WorkSessionStatusPresent,
-		Source:      activeModels.WorkSessionSourceApp,
+		Status:      workforce.WorkSessionStatusPresent,
+		Source:      workforce.WorkSessionSourceApp,
 		CheckInTime: checkIn, CheckOutTime: &checkOut,
 		CreatedBy: staff.ID,
 	}
@@ -109,8 +111,8 @@ func newSnapshotFixture(t *testing.T) *snapshotFixture {
 
 	settings := wtmIntSettings{accountStart: "2025-01-01"}
 	monthSvc := timetracking.NewWorkTimeMonthService(
-		repos.WorkSession, repos.WorkSessionBreak, repos.StaffAbsence, services.StaffScheduleAssignments(repos.Staff),
-		services.NewWorkScheduleTargets(repos.StaffWorkSchedule), services.NewWorkTimeTargetModels(repos.WorkTimeModel), services.NewTimeTrackingShifts(repos.StaffShift),
+		repos.WorkSession, repos.WorkSessionBreak, repos.StaffAbsence, services.StaffScheduleAssignments(repositories.MustNewStaffEmployment(db)),
+		services.NewWorkScheduleTargets(repos.StaffWorkSchedule), services.NewWorkTimeTargetModels(repos.WorkTimeModel), services.NewTimeTrackingShifts(owners.Workforce),
 		settings, nil,
 		timetracking.WithMonthSnapshots(services.MonthSnapshotCapability(repos.StaffMonthSnapshot)),
 		timetracking.WithMonthAdjustments(repos.StaffBalanceAdjust),
@@ -340,7 +342,7 @@ func TestMonthClose_RejectsAdjustmentInClosedMonth(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = f.adjustSvc.CreateAdjustment(f.ctx, f.staff, f.admin, timetracking.CreateBalanceAdjustmentRequest{
-		Type:          activeModels.BalanceAdjustmentTypePayout,
+		Type:          workforce.BalanceAdjustmentTypePayout,
 		MinutesDelta:  -60,
 		EffectiveDate: timezone.NewDate(snapshotYear, time.August, 20),
 		Note:          "Auszahlung im abgeschlossenen Monat",
@@ -361,7 +363,7 @@ func TestMonthClose_RejectedAdjustmentCarriesClosedMonthSentinel(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = f.adjustSvc.CreateAdjustment(f.ctx, f.staff, f.admin, timetracking.CreateBalanceAdjustmentRequest{
-		Type:          activeModels.BalanceAdjustmentTypePayout,
+		Type:          workforce.BalanceAdjustmentTypePayout,
 		MinutesDelta:  -60,
 		EffectiveDate: timezone.NewDate(snapshotYear, time.August, 20),
 		Note:          "Auszahlung im abgeschlossenen Monat",

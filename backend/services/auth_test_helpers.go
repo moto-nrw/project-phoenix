@@ -84,9 +84,16 @@ type authTestSettings struct {
 	mfaBackoff       []time.Duration
 	mfaRecords       func(AccountMFARecords) AccountMFARecords
 	mfaCapability    identityaccess.AccountMFA
-	mfaSettings      config.SettingsService
 	staffCreateErr   error
 	standingDemo     string
+	// demoMaxActiveSchools is the demo capacity; the default leaves room
+	// for every demo school the tests of a package queue.
+	demoMaxActiveSchools int
+}
+
+// WithDemoMaxActiveSchools composes the demo access with this capacity.
+func WithDemoMaxActiveSchools(capacity int) AuthTestOption {
+	return func(settings *authTestSettings) { settings.demoMaxActiveSchools = capacity }
 }
 
 // WithStandingDemoSchool composes the demo access with the fallback of #3463:
@@ -134,13 +141,6 @@ func WithAuthTestMFARecords(decorate func(AccountMFARecords) AccountMFARecords) 
 	return func(s *authTestSettings) { s.mfaRecords = decorate }
 }
 
-// WithAuthTestMFASettings resolves the MFA gate's school settings through
-// the given service, so a test can drive security.mfa_mode and the
-// trusted-device values without touching the rest of the composition.
-func WithAuthTestMFASettings(settings config.SettingsService) AuthTestOption {
-	return func(s *authTestSettings) { s.mfaSettings = settings }
-}
-
 // WithAuthTestMFACapability composes the module over the given account
 // second factor instead of the one over the repositories, so a test can
 // drive the login branches the gate decides between.
@@ -171,7 +171,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		return AuthTestModule{}, err
 	}
 	cfg := currentFactoryConfig()
-	settingsOverrides := authTestSettings{mailer: email.NewMockMailer(), rateLimitEnabled: cfg.RateLimitEnabled}
+	settingsOverrides := authTestSettings{mailer: email.NewMockMailer(), rateLimitEnabled: cfg.RateLimitEnabled, demoMaxActiveSchools: 300}
 	for _, option := range options {
 		option(&settingsOverrides)
 	}
@@ -237,11 +237,11 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		operators: operators,
 		demoAccess: &demoAccessWiring{
 			dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL,
-			logger: logger, backoff: settingsOverrides.resetBackoff,
+			logger: logger, backoff: settingsOverrides.resetBackoff, maxActiveSchools: settingsOverrides.demoMaxActiveSchools,
 		},
 		demoStandingSchool: settingsOverrides.standingDemo,
 		mfa: &mfaWiring{
-			repos: r, settings: mfaSettingsService(settings.Settings, settingsOverrides),
+			repos: r, settings: settings.Settings,
 			dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL,
 			jwtSecret: mfaTestSecret(), logger: logger, backoff: settingsOverrides.mfaBackoff,
 			decorate: settingsOverrides.mfaRecords, capability: settingsOverrides.mfaCapability,
@@ -249,6 +249,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		},
 		lifecycle: &lifecycleWiring{
 			settings: settings.Settings, audit: command,
+			caregivers: caregiverProfiles{persons: owners.persons, membership: owners.membership},
 			guardianMail: &guardianInvitationWiring{
 				settings: settings.Settings, schools: r.School,
 				outbox:      func() platformModels.OutboxEnqueuer { return outboxEnqueuer{outbox: deliveryModule.EmailOutbox} },
@@ -312,6 +313,10 @@ func IdentityAccessForTests(repos *repositories.Factory, cfg IdentityAccessTestC
 	if err != nil {
 		return nil, err
 	}
+	caregivers, err := caregiverProfilesForTests(db)
+	if err != nil {
+		return nil, err
+	}
 	module, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
 		repos: sessionRepositoriesOf(repos, repos.School), codec: codec, settings: cfg.Settings,
 		audit: cfg.Audit, logger: logger,
@@ -320,7 +325,7 @@ func IdentityAccessForTests(repos *repositories.Factory, cfg IdentityAccessTestC
 			dispatcher: cfg.Dispatcher, defaultFrom: cfg.DefaultFrom, frontendURL: cfg.FrontendURL,
 			jwtSecret: mfaTestSecret(), logger: logger,
 		},
-		lifecycle: &lifecycleWiring{settings: cfg.Settings, audit: cfg.Audit},
+		lifecycle: &lifecycleWiring{settings: cfg.Settings, audit: cfg.Audit, caregivers: caregivers},
 		resets: &passwordResetWiring{
 			dispatcher: cfg.Dispatcher, defaultFrom: cfg.DefaultFrom,
 			staffURL: cfg.FrontendURL, parentsURL: cfg.ParentsURL, schoolURL: cfg.SchoolURL,
@@ -366,12 +371,3 @@ func (d failingStaffDirectory) Create(context.Context, *userModels.Staff) error 
 // trusted-device HMAC key from: the process configuration, exactly as the
 // production root reads it, so no key is stored in source.
 func mfaTestSecret() string { return currentFactoryConfig().JWTSecret }
-
-// mfaSettingsService is the settings service the MFA gate resolves through:
-// the composed one, or the one a test supplied.
-func mfaSettingsService(composed config.SettingsService, overrides authTestSettings) config.SettingsService {
-	if overrides.mfaSettings != nil {
-		return overrides.mfaSettings
-	}
-	return composed
-}

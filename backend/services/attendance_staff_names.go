@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 )
 
 type attendanceNameStaff interface {
@@ -22,7 +22,7 @@ type attendanceStaffNames struct {
 }
 
 // NewAttendanceStaffNames retains the staff and person lookups used by attendance.
-func NewAttendanceStaffNames(staff attendanceNameStaff, people attendanceNamePeople) active.AttendanceStaffNames {
+func NewAttendanceStaffNames(staff attendanceNameStaff, people attendanceNamePeople) presenceservice.AttendanceStaffNames {
 	return attendanceStaffNames{staff: staff, people: people}
 }
 

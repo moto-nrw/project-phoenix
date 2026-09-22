@@ -10,6 +10,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("vaul", async () => {
   const React = await import("react");
+  const OpenChangeContext = React.createContext<
+    ((open: boolean) => void) | undefined
+  >(undefined);
+  const InteractOutsideContext = React.createContext<{
+    current: ((event: Event) => void) | undefined;
+  } | null>(null);
 
   return {
     Drawer: {
@@ -21,20 +27,43 @@ vi.mock("vaul", async () => {
         children: React.ReactNode;
         direction?: string;
         onOpenChange?: (open: boolean) => void;
-      }) => (
-        <div data-direction={direction}>
-          {/* Vaul schließt selbst bei Escape und Klick auf den Hintergrund und
-              meldet das über onOpenChange. Das echte Vaul lässt sich in jsdom
-              nicht fahren, prüfbar ist aber das, was uns gehört: dass der
-              Rückruf beim Aufrufer ankommt. */}
-          <button
-            type="button"
-            data-testid="vaul-dismiss"
-            onClick={() => onOpenChange?.(false)}
-          />
-          {children}
-        </div>
-      ),
+      }) => {
+        const interactOutsideHandler = React.useRef<
+          ((event: Event) => void) | undefined
+        >(undefined);
+        return (
+          <OpenChangeContext.Provider value={onOpenChange}>
+            <InteractOutsideContext.Provider value={interactOutsideHandler}>
+              <div data-direction={direction}>
+                {/* Vaul schließt selbst bei Escape und Klick auf den Hintergrund
+                  und meldet das über onOpenChange. Das echte Vaul lässt sich in
+                  jsdom nicht fahren, prüfbar ist aber das, was uns gehört: dass
+                  der Rückruf beim Aufrufer ankommt. */}
+                <button
+                  type="button"
+                  data-testid="vaul-dismiss"
+                  onClick={() => onOpenChange?.(false)}
+                />
+                {/* Der Hintergrund liegt neben, nicht im Inhalt. Er schließt nur,
+                  wenn der von Content registrierte Radix-Handler das Ereignis
+                  nicht abweist. */}
+                <button
+                  type="button"
+                  data-testid="vaul-outside"
+                  onClick={() => {
+                    const event = new Event("pointerdown", {
+                      cancelable: true,
+                    });
+                    interactOutsideHandler.current?.(event);
+                    if (!event.defaultPrevented) onOpenChange?.(false);
+                  }}
+                />
+                {children}
+              </div>
+            </InteractOutsideContext.Provider>
+          </OpenChangeContext.Provider>
+        );
+      },
       Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
       Overlay: React.forwardRef<
         HTMLDivElement,
@@ -42,8 +71,20 @@ vi.mock("vaul", async () => {
       >((props, ref) => <div ref={ref} {...props} />),
       Content: React.forwardRef<
         HTMLDivElement,
-        React.HTMLAttributes<HTMLDivElement>
-      >((props, ref) => <div ref={ref} {...props} />),
+        React.HTMLAttributes<HTMLDivElement> & {
+          onInteractOutside?: (event: Event) => void;
+        }
+      >(({ onInteractOutside, children, ...props }, ref) => {
+        const interactOutsideHandler = React.useContext(InteractOutsideContext);
+        if (interactOutsideHandler) {
+          interactOutsideHandler.current = onInteractOutside;
+        }
+        return (
+          <div ref={ref} {...props}>
+            {children}
+          </div>
+        );
+      }),
       Close: React.forwardRef<
         HTMLButtonElement,
         React.ButtonHTMLAttributes<HTMLButtonElement>
@@ -181,6 +222,50 @@ describe("SlideOver", () => {
 
     fireEvent.click(screen.getByTestId("vaul-dismiss"));
 
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("schließt bei einem Klick neben das Panel, solange nichts anderes verlangt ist", () => {
+    const onOpenChange = vi.fn();
+
+    render(
+      <SlideOver open onOpenChange={onOpenChange}>
+        <SlideOverContent>Inhalt</SlideOverContent>
+      </SlideOver>,
+    );
+
+    fireEvent.click(screen.getByTestId("vaul-outside"));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("bleibt mit isBackdropDismissDisabled bei einem Klick daneben offen und behält die Eingabe (#3370)", () => {
+    const onOpenChange = vi.fn();
+    const onInteractOutside = vi.fn();
+
+    render(
+      <SlideOver open onOpenChange={onOpenChange}>
+        <SlideOverContent
+          isBackdropDismissDisabled
+          onInteractOutside={onInteractOutside}
+        >
+          <StatefulContent />
+        </SlideOverContent>
+      </SlideOver>,
+    );
+
+    fireEvent.change(screen.getByLabelText("Entwurf"), {
+      target: { value: "0171 1234567" },
+    });
+    fireEvent.click(screen.getByTestId("vaul-outside"));
+
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Entwurf")).toHaveValue("0171 1234567");
+    // Ein eigener Handler des Aufrufers läuft weiterhin.
+    expect(onInteractOutside).toHaveBeenCalledTimes(1);
+
+    // Escape und X laufen nicht über onInteractOutside und schließen weiter.
+    fireEvent.click(screen.getByTestId("vaul-dismiss"));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 

@@ -17,8 +17,6 @@ import (
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -1069,7 +1067,7 @@ func TestTimetableOperationsCheckInMovesVisitCreatedDuringCheckIn(t *testing.T) 
 		nil,
 		{StudentID: studentID, ActiveGroupID: originActiveGroupID, EntryTime: time.Now()},
 	}
-	deps.activeService.createErr = activeSvc.ErrStudentAlreadyActive
+	deps.activeService.createErr = studentpresence.ErrStudentAlreadyActive
 
 	roster, err := deps.service.CheckInStudent(context.Background(), 661, false, instanceID, studentID)
 
@@ -1100,7 +1098,7 @@ func TestTimetableOperationsCheckInMovesStudentActiveElsewhere(t *testing.T) {
 		wireAssignedStaff(deps, 670, 490, 251, instanceID)
 		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
 		deps.visitRepo.currentByStudent[studentID] = &studentpresence.Visit{StudentID: studentID, ActiveGroupID: originActiveGroupID, EntryTime: time.Now()}
-		deps.activeService.moveResult = &activeSvc.StudentMoveResult{
+		deps.activeService.moveResult = &studentpresence.StudentMoveResult{
 			Moved:                  []int64{studentID},
 			PreviousActiveGroupIDs: map[int64]int64{studentID: originActiveGroupID},
 			ActiveGroupID:          &activeGroupID,
@@ -1153,9 +1151,9 @@ func TestTimetableOperationsCheckInMovesStudentActiveElsewhere(t *testing.T) {
 
 	t.Run("falls back to the activity group name when no instance owns the origin session", func(t *testing.T) {
 		deps := newDeps()
-		originGroup := &activeModel.Group{GroupID: testpkg.Int64Ptr(640), RoomID: 810}
+		originGroup := &studentpresence.LiveGroup{ActivityGroupID: testpkg.Int64Ptr(640), RoomID: 810}
 		originGroup.ID = originActiveGroupID
-		deps.activeGroups.byID = map[int64]*activeModel.Group{originActiveGroupID: originGroup}
+		deps.activeGroups.byID = map[int64]*studentpresence.LiveGroup{originActiveGroupID: originGroup}
 		activityGroup := &activitiesModel.Group{Name: "Fußball AG"}
 		activityGroup.ID = 640
 		deps.activityGroups.byID[640] = activityGroup
@@ -1188,8 +1186,8 @@ func TestTimetableOperationsCheckInMovesStudentActiveElsewhere(t *testing.T) {
 
 	t.Run("maps a skipped move to a conflict", func(t *testing.T) {
 		deps := newDeps()
-		deps.activeService.moveResult = &activeSvc.StudentMoveResult{
-			Skipped: []activeSvc.StudentMoveSkipped{{StudentID: studentID, Reason: activeSvc.StudentMoveSkipConflict}},
+		deps.activeService.moveResult = &studentpresence.StudentMoveResult{
+			Skipped: []studentpresence.StudentMoveSkipped{{StudentID: studentID, Reason: studentpresence.StudentMoveSkipConflict}},
 		}
 		ctx := tenant.WithRollbackMarker(context.Background())
 
@@ -1202,7 +1200,7 @@ func TestTimetableOperationsCheckInMovesStudentActiveElsewhere(t *testing.T) {
 
 	t.Run("treats an unchanged result as same-group success without move notice", func(t *testing.T) {
 		deps := newDeps()
-		deps.activeService.moveResult = &activeSvc.StudentMoveResult{Unchanged: []int64{studentID}}
+		deps.activeService.moveResult = &studentpresence.StudentMoveResult{Unchanged: []int64{studentID}}
 
 		roster, err := deps.service.CheckInStudent(context.Background(), 670, false, instanceID, studentID)
 
@@ -1244,7 +1242,7 @@ func TestTimetableOperationsCheckOutAlreadyEndedReturnsRoster(t *testing.T) {
 	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
 	deps.visitRepo.byActiveGroup[activeGroupID] = []*studentpresence.Visit{{StudentID: studentID, ActiveGroupID: activeGroupID, EntryTime: time.Now()}}
 	deps.visitRepo.byActiveGroup[activeGroupID][0].ID = visitID
-	deps.activeService.endErr = activeSvc.ErrVisitAlreadyEnded
+	deps.activeService.endErr = studentpresence.ErrVisitAlreadyEnded
 
 	roster, err := deps.service.CheckOutStudent(context.Background(), 682, false, instanceID, studentID)
 
@@ -1413,7 +1411,7 @@ func TestTimetableOperationsPermissionBranches(t *testing.T) {
 		wireAssignedStaff(deps, 675, 496, 256, instanceID)
 		deps.staffRepo.byInstance[instanceID] = nil
 		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
-		deps.supervisors.byActiveGroup[activeGroupID] = []*activeModel.GroupSupervisor{{StaffID: 256}}
+		deps.supervisors.byActiveGroup[activeGroupID] = []*studentpresence.StaffedSupervision{{GroupSupervision: studentpresence.GroupSupervision{StaffID: 256}}}
 
 		_, err := deps.service.Complete(context.Background(), 675, false, instanceID)
 
@@ -2074,7 +2072,7 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		arrivalService:  &fakeOpsArrivalService{byStudent: map[int64]*careplan.EffectiveArrivalTime{}},
 		pickupService:   &fakeOpsPickupService{byStudent: map[int64]*careplan.EffectivePickupTime{}},
 		careDayService:  &fakeOpsCareDayService{byStudent: map[int64]careplan.CareDayStatus{}},
-		supervisors:     &fakeOpsSupervisorRepo{byActiveGroup: map[int64][]*activeModel.GroupSupervisor{}},
+		supervisors:     &fakeOpsSupervisorRepo{byActiveGroup: map[int64][]*studentpresence.StaffedSupervision{}},
 		visitRepo: &fakeOpsVisitRepo{
 			byActiveGroup:            map[int64][]*studentpresence.Visit{},
 			currentByStudent:         map[int64]*studentpresence.Visit{},
@@ -2252,13 +2250,13 @@ func (s *fakeOpsInstanceService) Reopen(_ context.Context, instanceID, _ int64, 
 }
 
 type fakeOpsActiveGroupRepo struct {
-	activeModel.GroupRepository
-	byID         map[int64]*activeModel.Group
+	studentpresence.SessionRecords
+	byID         map[int64]*studentpresence.LiveGroup
 	lastActivity map[int64]time.Time
 	updateErr    error
 }
 
-func (r *fakeOpsActiveGroupRepo) FindByID(_ context.Context, id int64) (*activeModel.Group, error) {
+func (r *fakeOpsActiveGroupRepo) FindSession(_ context.Context, id int64) (*studentpresence.LiveGroup, error) {
 	group := r.byID[id]
 	if group == nil {
 		return nil, modelBase.ErrNotFound
@@ -2319,17 +2317,17 @@ type fakeOpsActiveService struct {
 	createErr  error
 	endErr     error
 	moveCalls  []opsMoveCall
-	moveResult *activeSvc.StudentMoveResult
+	moveResult *studentpresence.StudentMoveResult
 	moveErr    error
 }
 
 type opsMoveCall struct {
 	studentIDs    []int64
 	activeGroupID int64
-	auth          activeSvc.StudentMoveAuthorization
+	auth          studentpresence.StudentMoveAuthorization
 }
 
-func (s *fakeOpsActiveService) MoveStudentsToActiveGroupAuthorized(_ context.Context, studentIDs []int64, activeGroupID int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
+func (s *fakeOpsActiveService) MoveStudentsToActiveGroupAuthorized(_ context.Context, studentIDs []int64, activeGroupID int64, auth studentpresence.StudentMoveAuthorization) (*studentpresence.StudentMoveResult, error) {
 	s.moveCalls = append(s.moveCalls, opsMoveCall{studentIDs: studentIDs, activeGroupID: activeGroupID, auth: auth})
 	if s.moveErr != nil {
 		return nil, s.moveErr
@@ -2337,7 +2335,7 @@ func (s *fakeOpsActiveService) MoveStudentsToActiveGroupAuthorized(_ context.Con
 	if s.moveResult != nil {
 		return s.moveResult, nil
 	}
-	return &activeSvc.StudentMoveResult{Moved: studentIDs, ActiveGroupID: &activeGroupID}, nil
+	return &studentpresence.StudentMoveResult{Moved: studentIDs, ActiveGroupID: &activeGroupID}, nil
 }
 
 func (s *fakeOpsActiveService) CreateVisit(_ context.Context, visit *studentpresence.Visit) error {
@@ -2403,11 +2401,11 @@ func (s *fakeOpsArrivalService) GetBulkEffectiveArrivalTimesForDate(_ context.Co
 }
 
 type fakeOpsSupervisorRepo struct {
-	activeModel.GroupSupervisorRepository
-	byActiveGroup map[int64][]*activeModel.GroupSupervisor
+	studentpresence.SupervisionRecords
+	byActiveGroup map[int64][]*studentpresence.StaffedSupervision
 }
 
-func (r *fakeOpsSupervisorRepo) FindByActiveGroupID(_ context.Context, activeGroupID int64, _ bool) ([]*activeModel.GroupSupervisor, error) {
+func (r *fakeOpsSupervisorRepo) FindByActiveGroupID(_ context.Context, activeGroupID int64, _ bool) ([]*studentpresence.StaffedSupervision, error) {
 	return r.byActiveGroup[activeGroupID], nil
 }
 

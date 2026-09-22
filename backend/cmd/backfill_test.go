@@ -34,12 +34,22 @@ func TestBackfillCommandMetadata(t *testing.T) {
 	assert.Equal(t, "status", backfillStudentOwnerStatusCmd.Use)
 	assert.Equal(t, "reset", backfillStudentOwnerResetCmd.Use)
 	assert.Contains(t, backfillStudentOwnerResetCmd.Long, "users.students is never\nmodified")
+	assert.Equal(t, "guardian-owner", backfillGuardianOwnerCmd.Use)
+	assert.NotNil(t, backfillGuardianOwnerCmd.RunE)
+	assert.NotNil(t, backfillGuardianOwnerCmd.Flags().Lookup(flagBackfillBatchSize))
+	assert.NotNil(t, backfillGuardianOwnerCmd.Flags().Lookup(flagBackfillMaxPasses))
+	assert.Equal(t, "status", backfillGuardianOwnerStatusCmd.Use)
+	assert.Equal(t, "reset", backfillGuardianOwnerResetCmd.Use)
+	assert.Contains(t, backfillGuardianOwnerResetCmd.Long, "users.students_guardians is never\nmodified")
 	require.True(t, backfillCmd.HasSubCommands())
 	for _, sub := range []*cobra.Command{backfillStaffOwnerStatusCmd, backfillStaffOwnerResetCmd} {
 		assert.Equal(t, backfillStaffOwnerCmd, sub.Parent())
 	}
 	for _, sub := range []*cobra.Command{backfillStudentOwnerStatusCmd, backfillStudentOwnerResetCmd} {
 		assert.Equal(t, backfillStudentOwnerCmd, sub.Parent())
+	}
+	for _, sub := range []*cobra.Command{backfillGuardianOwnerStatusCmd, backfillGuardianOwnerResetCmd} {
+		assert.Equal(t, backfillGuardianOwnerCmd, sub.Parent())
 	}
 	assert.Equal(t, RootCmd, backfillCmd.Parent())
 }
@@ -57,6 +67,7 @@ func TestBackfillRootFailsFastWithoutDatabaseDependency(t *testing.T) {
 func TestBackfillStaffOwnerCommands(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	testpkg.RestoreStaffStorageBeforeCutover(t, db)
 	ctx := context.Background()
 	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -140,6 +151,7 @@ func decodeBackfillReport[T any](t *testing.T, output string) T {
 func TestBackfillStaffOwnerReportsPartialFailure(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	testpkg.RestoreStaffStorageBeforeCutover(t, db)
 	ctx := t.Context()
 	tenantA := testpkg.Tenant(t)
 	tenantB := testpkg.UniqueTestTenantID(t)
@@ -249,5 +261,77 @@ func TestBackfillStudentOwnerCommands(t *testing.T) {
 	require.Contains(t, report.MissingTenants, tenantID)
 	var sourceRows int
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM users.students WHERE id = ?`, student.ID).Scan(ctx, &sourceRows))
+	require.Equal(t, 1, sourceRows)
+}
+
+// The backfill visits every school in the database, so the test owns an
+// isolated clone instead of the package's shared one.
+func TestBackfillGuardianOwnerCommands(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := context.Background()
+	tenantID := testpkg.Tenant(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Backfill", "Command", "3a")
+	guardian := testpkg.CreateTestGuardianProfileForTenant(t, db, tenantID, "Backfill", "Guardian", "backfill-command")
+	link := testpkg.CreateTestStudentGuardianLinkForTenant(t, db, tenantID, student.ID, guardian.ID, "primary_guardian")
+	released := 0
+	root := backfillRoot{openDatabase: func() (*testpkg.DB, func(), error) {
+		return db, func() { released++ }, nil
+	}}
+	newCommand := func() (*cobra.Command, *bytes.Buffer) {
+		var out bytes.Buffer
+		cmd := &cobra.Command{}
+		cmd.SetContext(ctx)
+		cmd.SetOut(&out)
+		return cmd, &out
+	}
+
+	cmd, out := newCommand()
+	require.NoError(t, root.guardianOwnerRun(cmd, migrations.GuardianOwnerBackfillOptions{BatchSize: 1}))
+	require.Equal(t, 1, released, "the database is released after every command")
+	require.Contains(t, out.String(), "guardian owner backfill stable")
+	report := decodeBackfillReport[migrations.GuardianOwnerBackfillReport](t, out.String())
+	require.True(t, report.Stable())
+	var found bool
+	for _, tenant := range report.Tenants {
+		if tenant.TenantID == tenantID {
+			found = true
+			require.EqualValues(t, 1, tenant.RowsCopied)
+			require.EqualValues(t, 1, tenant.SourceCount)
+		}
+	}
+	require.True(t, found)
+
+	cmd, out = newCommand()
+	require.NoError(t, root.guardianOwnerStatus(cmd))
+	require.Equal(t, 2, released)
+	require.Equal(t, len(report.Tenants), len(decodeBackfillReport[migrations.GuardianOwnerBackfillReport](t, out.String()).Tenants))
+
+	// A source edit after the last pass keeps the tenant unstable for exactly
+	// one more pass: the command prints the evidence, fails, and the next run
+	// converges.
+	_, err := db.ExecContext(ctx, `UPDATE users.students_guardians SET pickup_notes = 'changed after the last pass' WHERE id = ?`, link.ID)
+	require.NoError(t, err)
+	cmd, out = newCommand()
+	err = root.guardianOwnerRun(cmd, migrations.GuardianOwnerBackfillOptions{MaxPasses: 1})
+	require.ErrorContains(t, err, "not stable")
+	require.Contains(t, out.String(), `"pass_writes": 1`)
+	cmd, _ = newCommand()
+	require.NoError(t, root.guardianOwnerRun(cmd, migrations.GuardianOwnerBackfillOptions{}))
+
+	cmd, out = newCommand()
+	require.NoError(t, root.guardianOwnerReset(cmd))
+	require.Contains(t, out.String(), "users.students_guardians untouched")
+	var relationships int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM users.student_guardian_relationships`).Scan(ctx, &relationships))
+	require.Zero(t, relationships)
+	cmd, out = newCommand()
+	require.ErrorContains(t, root.guardianOwnerStatus(cmd), "not stable", "unvisited schools block Cutover")
+	report = decodeBackfillReport[migrations.GuardianOwnerBackfillReport](t, out.String())
+	require.Empty(t, report.Tenants)
+	require.Contains(t, report.MissingTenants, tenantID)
+	var sourceRows int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM users.students_guardians WHERE id = ?`, link.ID).Scan(ctx, &sourceRows))
 	require.Equal(t, 1, sourceRows)
 }

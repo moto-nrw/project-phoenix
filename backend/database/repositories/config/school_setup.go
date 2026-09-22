@@ -5,8 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/schoolsetup"
 )
 
 const (
@@ -15,7 +16,21 @@ const (
 	tableSchoolSetupDismissals = "config.school_setup_dismissals"
 )
 
-// SchoolSetupRepository implements config.SchoolSetupRepository.
+// schoolSetupRow is one config.school_setups row (#2832, ADR 0040).
+type schoolSetupRow struct {
+	ID                int64      `bun:"id,pk,autoincrement"`
+	TenantID          int64      `bun:"tenant_id,notnull"`
+	ParentAppUsed     *bool      `bun:"parent_app_used"`
+	SkippedSteps      []string   `bun:"skipped_steps,array,notnull"`
+	BasicsConfirmedAt *time.Time `bun:"basics_confirmed_at"`
+	CompletedAt       *time.Time `bun:"completed_at"`
+	UpdatedBy         *int64     `bun:"updated_by"`
+	CreatedAt         time.Time  `bun:"created_at,notnull,default:now()"`
+	UpdatedAt         time.Time  `bun:"updated_at,notnull,default:now()"`
+}
+
+// SchoolSetupRepository implements schoolsetup.Store. Both tables belong to
+// Settings Platform, which is why the wizard's storage lives here.
 //
 // Tenant scoping comes from the runtime's tenant transaction and the RLS
 // policy on both tables; the account is the only key this package supplies
@@ -25,15 +40,15 @@ type SchoolSetupRepository struct {
 }
 
 // NewSchoolSetupRepository creates a new SchoolSetupRepository.
-func NewSchoolSetupRepository(runtime Runtime) config.SchoolSetupRepository {
+func NewSchoolSetupRepository(runtime Runtime) schoolsetup.Store {
 	return &SchoolSetupRepository{runtime: runtime}
 }
 
 // Find returns the school's wizard state, or (nil, nil) for a new school.
-func (r *SchoolSetupRepository) Find(ctx context.Context) (*config.SchoolSetup, error) {
-	setup := new(config.SchoolSetup)
+func (r *SchoolSetupRepository) Find(ctx context.Context) (*schoolsetup.State, error) {
+	stored := new(schoolSetupRow)
 	err := r.runtime.DB(ctx).NewSelect().
-		Model(setup).
+		Model(stored).
 		ModelTableExpr(tableSchoolSetupsAlias).
 		Limit(1).
 		Scan(ctx)
@@ -43,23 +58,38 @@ func (r *SchoolSetupRepository) Find(ctx context.Context) (*config.SchoolSetup, 
 		}
 		return nil, fmt.Errorf("find school setup: %w", err)
 	}
-	return setup, nil
+	return &schoolsetup.State{
+		TenantID:          stored.TenantID,
+		ParentAppUsed:     stored.ParentAppUsed,
+		SkippedSteps:      stored.SkippedSteps,
+		BasicsConfirmedAt: stored.BasicsConfirmedAt,
+		CompletedAt:       stored.CompletedAt,
+		UpdatedBy:         stored.UpdatedBy,
+	}, nil
 }
 
 // Upsert replaces the school's wizard state wholesale.
-func (r *SchoolSetupRepository) Upsert(ctx context.Context, setup *config.SchoolSetup) error {
-	if setup == nil {
-		return fmt.Errorf("school setup cannot be nil")
+func (r *SchoolSetupRepository) Upsert(ctx context.Context, state *schoolsetup.State) error {
+	if state == nil {
+		return errors.New("school setup cannot be nil")
 	}
-	if setup.TenantID <= 0 {
-		return fmt.Errorf("tenant ID is required")
+	if state.TenantID <= 0 {
+		return errors.New("tenant ID is required")
 	}
-	if setup.SkippedSteps == nil {
-		setup.SkippedSteps = []string{}
+	skipped := state.SkippedSteps
+	if skipped == nil {
+		skipped = []string{}
 	}
 
 	_, err := r.runtime.DB(ctx).NewInsert().
-		Model(setup).
+		Model(&schoolSetupRow{
+			TenantID:          state.TenantID,
+			ParentAppUsed:     state.ParentAppUsed,
+			SkippedSteps:      skipped,
+			BasicsConfirmedAt: state.BasicsConfirmedAt,
+			CompletedAt:       state.CompletedAt,
+			UpdatedBy:         state.UpdatedBy,
+		}).
 		ModelTableExpr(tableSchoolSetups).
 		On("CONFLICT (tenant_id) DO UPDATE").
 		Set("parent_app_used = EXCLUDED.parent_app_used").
@@ -78,7 +108,7 @@ func (r *SchoolSetupRepository) Upsert(ctx context.Context, setup *config.School
 // IsDismissed reports whether the account hid the wizard.
 func (r *SchoolSetupRepository) IsDismissed(ctx context.Context, accountID int64) (bool, error) {
 	if accountID <= 0 {
-		return false, fmt.Errorf("account ID is required")
+		return false, errors.New("account ID is required")
 	}
 	exists, err := r.runtime.DB(ctx).NewSelect().
 		TableExpr(tableSchoolSetupDismissals).
@@ -94,7 +124,7 @@ func (r *SchoolSetupRepository) IsDismissed(ctx context.Context, accountID int64
 // idempotent.
 func (r *SchoolSetupRepository) SetDismissed(ctx context.Context, tenantID, accountID int64, dismissed bool) error {
 	if tenantID <= 0 || accountID <= 0 {
-		return fmt.Errorf("tenant ID and account ID are required")
+		return errors.New("tenant ID and account ID are required")
 	}
 	db := r.runtime.DB(ctx)
 	if dismissed {

@@ -28,6 +28,40 @@ through `devbox run` when the current process has not loaded the project environ
 | Fast inner loop | `scripts/test-changed.sh --fast origin/development` (run without `--fast` before push) |
 | Generate route docs | `docker compose run server go run . gendoc --routes` |
 
+### Native dev loop
+
+`scripts/dev-native.sh` (or `devbox run dev <command>`) runs the backend
+(`air`) and frontend (`next dev`) on the host while `postgres` and `mailpit`
+stay in Compose. Both processes read the root `.env` that Compose uses; only
+Compose hostnames (`DB_DSN`, `EMAIL_SMTP_*`, `MAILPIT_URL`, `API_URL`, `PORT`)
+are rewritten to localhost with the published ports. Nothing else changes, so
+`.env` stays the single source and the env-sync rule applies unchanged.
+
+| Task | Command |
+|---|---|
+| Start infra + backend + frontend (foreground) | `scripts/dev-native.sh up` |
+| Stop native processes (infra keeps running) | `scripts/dev-native.sh down` |
+| Status | `scripts/dev-native.sh status` |
+| Backend CLI with the native env | `scripts/dev-native.sh backend go run . migrate` |
+| Frontend command with the native env | `scripts/dev-native.sh frontend pnpm run check` |
+| Back to the full Compose stack | `scripts/dev-native.sh docker` |
+
+Logs land in `tmp/dev-native/backend.log` and `tmp/dev-native/frontend.log`.
+`up` stops the `server` and `frontend` containers first and refuses to start
+when a published port is taken. After `go.mod` changes restart `up`; plain Go
+edits reload through air. Worktrees created with `wt` carry their own ports in
+the copied `.env`, so several native loops run side by side.
+
+### Worktrees
+
+`wt add <issue|branch>` creates a worktree with copied local files (`.env`,
+`backend/dev.env`, `frontend/.env.local`, `docker-compose.yml`, the Postgres
+certificates), rewritten host ports, an isolated Compose project, and the
+frozen frontend dependencies; see `.wtconfig`. `wt doctor` inside a worktree
+lists ignored files the worktree lacks and leased ports that the shell or
+`.envrc` shadows. `wt remove` tears down the worktree's Compose project and
+its `project-phoenix-testdb-<port>` test server, including volumes.
+
 The seeder is **dev-only**. Staging/production infrastructure belongs in data
 migrations or the admin UI, never the seeder. The one deployed exception is the
 public demo environment (`APP_ENV=demo`, ADR 0029): `seed`, `simulate`,
@@ -52,6 +86,7 @@ go run . cleanup timetable|time-tracking [preview|stats]      # nested dry-runs 
 go run . cleanup tokens|invitations|rate-limits|attendance|sessions|supervisors
 go run . backfill staff-owner [status|reset]   # resumable users.staff → Membership/Workforce copy (#2752); exits 1 while unstable
 go run . backfill student-owner [status|reset] # resumable users.students → People/Membership/Care Plan copy (#2758); exits 1 while unstable
+go run . backfill guardian-owner [status|reset] # resumable users.students_guardians → People/Care Plan/Identity copy (#2755); exits 1 while unstable
 go run . gendoc                     # Generates routes.md + docs/openapi.yaml
 ```
 

@@ -477,4 +477,68 @@ describe("OverflowMenu", () => {
     fireEvent.mouseDown(screen.getByTestId("outside"));
     expect(screen.queryByRole("menu")).toBeNull();
   });
+
+  // The menu renders at the end of <body>, so Tab from the trigger never
+  // reaches it. Opened by keyboard, it takes the focus itself.
+  it("moves the focus into a menu opened by keyboard and along it with the arrow keys", () => {
+    const pick = vi.fn();
+    render(
+      <OverflowMenu
+        items={[
+          { kind: "header", label: "Ansehen als" },
+          { kind: "radio", label: "Eins", checked: false, onClick: pick },
+          { kind: "radio", label: "Zwei", checked: true, onClick: pick },
+          { label: "Drei", onClick: pick, disabled: true },
+          { label: "Vier", onClick: pick },
+        ]}
+      />,
+    );
+
+    // A keyboard click carries detail 0; a pointer click does not.
+    fireEvent.click(screen.getByRole("button", { name: /Weitere Aktionen/ }), {
+      detail: 0,
+    });
+    const menu = screen.getByRole("menu");
+    expect(screen.getByRole("menuitemradio", { name: "Zwei" })).toHaveFocus();
+
+    fireEvent.keyDown(menu, { key: "ArrowDown" });
+    expect(screen.getByRole("menuitem", { name: "Vier" })).toHaveFocus();
+    fireEvent.keyDown(menu, { key: "ArrowDown" });
+    expect(screen.getByRole("menuitemradio", { name: "Eins" })).toHaveFocus();
+    fireEvent.keyDown(menu, { key: "ArrowUp" });
+    expect(screen.getByRole("menuitem", { name: "Vier" })).toHaveFocus();
+    fireEvent.keyDown(menu, { key: "Home" });
+    expect(screen.getByRole("menuitemradio", { name: "Eins" })).toHaveFocus();
+    fireEvent.keyDown(menu, { key: "End" });
+    expect(screen.getByRole("menuitem", { name: "Vier" })).toHaveFocus();
+    expect(pick).not.toHaveBeenCalled();
+  });
+
+  it("hands the focus back to the trigger after an entry is chosen by keyboard", () => {
+    const pick = vi.fn();
+    render(<OverflowMenu items={[{ label: "Export", onClick: pick }]} />);
+    const trigger = screen.getByRole("button", { name: /Weitere Aktionen/ });
+
+    fireEvent.click(trigger, { detail: 0 });
+    const item = screen.getByRole("menuitem", { name: "Export" });
+    expect(item).toHaveFocus();
+    fireEvent.keyDown(item, { key: "Enter" });
+
+    expect(pick).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("leaves the focus on the trigger when the pointer opens the menu", () => {
+    render(
+      <OverflowMenu items={[{ label: "Export", onClick: () => undefined }]} />,
+    );
+    const trigger = screen.getByRole("button", { name: /Weitere Aktionen/ });
+    trigger.focus();
+
+    fireEvent.click(trigger, { detail: 1 });
+
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
 });

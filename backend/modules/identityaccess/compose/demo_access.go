@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
@@ -39,22 +41,50 @@ type DemoSessions = ports.DemoSessions
 // DemoSchools reaches the demo schools through Organisation & Tenancy inside
 // the flow's administrative transaction (#3463). PrepareDemoSchool returns
 // the slug a new access enters: a queued school of its own or the standing
-// school. DemoSchoolEntry reports "preparing" until the school is seeded,
-// exists and is active.
+// school, or identityaccess.ErrDemoCapacityReached when no further school
+// may be queued (#3466). DemoSchoolEntry reports "preparing" until the school
+// is seeded, exists and is active. MarkDemoSchoolUsed notes an entry into the
+// school.
 type DemoSchools interface {
 	PrepareDemoSchool(ctx context.Context, schoolName, personName string) (slug string, err error)
 	DemoSchoolEntry(ctx context.Context, slug string) (identityaccess.DemoSchoolEntry, error)
+	MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error
+	// ReplaceDemoSchool hides the school and queues a fresh one with the
+	// same names, returning its slug (#3470). The standing school reports
+	// identityaccess.ErrDemoAccessInvalid: it is shared and never restarts.
+	ReplaceDemoSchool(ctx context.Context, slug, schoolName, personName string) (newSlug string, err error)
 }
 
 type demoSchoolsPort struct{ schools DemoSchools }
 
+func (p demoSchoolsPort) MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error {
+	return p.schools.MarkDemoSchoolUsed(ctx, slug, usedAt)
+}
+
+func (p demoSchoolsPort) ReplaceDemoSchool(ctx context.Context, slug, schoolName, personName string) (string, error) {
+	newSlug, err := p.schools.ReplaceDemoSchool(ctx, slug, schoolName, personName)
+	switch {
+	case errors.Is(err, identityaccess.ErrDemoCapacityReached):
+		return "", domain.ErrDemoCapacityReached
+	case errors.Is(err, identityaccess.ErrDemoAccessInvalid):
+		return "", domain.ErrDemoAccessInvalid
+	}
+	return newSlug, err
+}
+
 func (p demoSchoolsPort) PrepareDemoSchool(ctx context.Context, schoolName, personName string) (string, error) {
-	return p.schools.PrepareDemoSchool(ctx, schoolName, personName)
+	slug, err := p.schools.PrepareDemoSchool(ctx, schoolName, personName)
+	if errors.Is(err, identityaccess.ErrDemoCapacityReached) {
+		return "", domain.ErrDemoCapacityReached
+	}
+	return slug, err
 }
 
 func (p demoSchoolsPort) DemoSchoolEntry(ctx context.Context, slug string) (domain.DemoSchoolEntry, error) {
 	entry, err := p.schools.DemoSchoolEntry(ctx, slug)
-	return domain.DemoSchoolEntry{Status: entry.Status, TenantID: entry.SchoolID, AccountID: entry.AccountID}, err
+	return domain.DemoSchoolEntry{
+		Status: entry.Status, TenantID: entry.SchoolID, AccountID: entry.AccountID, ParentAccountID: entry.ParentAccountID,
+	}, err
 }
 
 // DemoAccessDependencies compose the demo access of the public demo (#3462).
@@ -120,18 +150,58 @@ type demoAccessEngine struct{ flows *application.DemoAccess }
 func (e demoAccessEngine) RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) error {
 	return demoAccessError(e.flows.Request(ctx, domain.DemoAccess{
 		Email: request.Email, PersonName: request.PersonName, SchoolName: request.SchoolName,
-		Source: request.Source, ContactOptIn: request.ContactOptIn,
-	}, request.EntryURLPrefix))
+		Source: request.Source, ContactOptIn: request.ContactOptIn, Role: domain.DemoRole(request.Role),
+	}, request.ClientIP, request.EntryURLPrefix))
 }
 
-func (e demoAccessEngine) DemoAccessStatus(ctx context.Context, token string) (string, string, error) {
-	status, schoolSlug, err := e.flows.Status(ctx, token)
-	return status, schoolSlug, demoAccessError(err)
+func (e demoAccessEngine) DemoAccessStatus(ctx context.Context, token string) (identityaccess.DemoAccessProgress, error) {
+	access, status, err := e.flows.Status(ctx, token)
+	if err != nil {
+		return identityaccess.DemoAccessProgress{}, demoAccessError(err)
+	}
+	return identityaccess.DemoAccessProgress{Status: status, SchoolSlug: access.SchoolSlug, SchoolName: access.SchoolName}, nil
 }
 
-func (e demoAccessEngine) RedeemDemoAccess(ctx context.Context, token, ipAddress, userAgent string) (string, string, error) {
-	access, refresh, err := e.flows.Redeem(ctx, token, ipAddress, userAgent)
-	return access, refresh, demoAccessError(err)
+func (e demoAccessEngine) RedeemDemoAccess(ctx context.Context, token, role, ipAddress, userAgent string) (identityaccess.DemoEntry, error) {
+	entry, err := e.flows.Redeem(ctx, token, domain.DemoRole(role), ipAddress, userAgent)
+	if err != nil {
+		return identityaccess.DemoEntry{}, demoAccessError(err)
+	}
+	return identityaccess.DemoEntry{
+		AccessToken: entry.AccessToken, RefreshToken: entry.RefreshToken,
+		AccessID: entry.AccessID, Role: string(entry.Role), Source: entry.Source, FixedRole: entry.FixedRole,
+	}, nil
+}
+
+func (e demoAccessEngine) ResetDemoAccess(ctx context.Context, token, clientIP string) error {
+	_, err := e.flows.Reset(ctx, token, clientIP)
+	return demoAccessError(err)
+}
+
+// NewDemoAccessExpiry composes the demo process's expiry (#3470) on that
+// process's own connection; now is the clock the process injects.
+func NewDemoAccessExpiry(db bun.IDB, now func() time.Time) (*identityaccess.DemoAccessExpiry, error) {
+	if db == nil {
+		return nil, errors.New("identity access compose: demo access expiry requires a database")
+	}
+	if now == nil {
+		return nil, errors.New("identity access compose: demo access expiry requires a clock")
+	}
+	return identityaccess.NewDemoAccessExpiry(demoAccessExpiryEngine{store: postgres.NewDemoAccessExpiryStore(db), now: now}), nil
+}
+
+// demoAccessExpiryEngine deletes demo accesses 14 days after their last use
+// (#3470). A use extends the access, so an access past its end has not been
+// used for its whole lifetime; deleting it removes the prospect's contact
+// data. The schools left without any access go back to the caller, which
+// hides them through their owner.
+type demoAccessExpiryEngine struct {
+	store *postgres.DemoAccessExpiryStore
+	now   func() time.Time
+}
+
+func (e demoAccessExpiryEngine) ExpireDemoAccesses(ctx context.Context) (int, []string, error) {
+	return e.store.DeleteExpiredDemoAccesses(ctx, e.now())
 }
 
 var demoAccessSentinels = []struct{ internal, public error }{
@@ -139,11 +209,16 @@ var demoAccessSentinels = []struct{ internal, public error }{
 	{domain.ErrDemoAccessUnknown, identityaccess.ErrDemoAccessUnknown},
 	{domain.ErrDemoAccessExpired, identityaccess.ErrDemoAccessExpired},
 	{domain.ErrDemoSchoolPreparing, identityaccess.ErrDemoSchoolPreparing},
+	{domain.ErrDemoCapacityReached, identityaccess.ErrDemoCapacityReached},
 }
 
 func demoAccessError(err error) error {
 	if err == nil {
 		return nil
+	}
+	var limited *domain.DemoAccessRateLimitedError
+	if errors.As(err, &limited) {
+		return &identityaccess.DemoAccessRateLimitError{RetryAt: limited.RetryAt}
 	}
 	for _, sentinel := range demoAccessSentinels {
 		if errors.Is(err, sentinel.internal) {

@@ -10,7 +10,17 @@ var (
 	ErrClosingDayNotFound         = errors.New("closing day not found")
 	ErrDateframeNotFound          = errors.New("dateframe not found")
 	ErrCalendarPeriodNameConflict = errors.New("calendar period name already exists")
+	// ErrCalendarPeriodOverlapConflict: an active period may not overlap an
+	// active period of the same type (#1837).
+	ErrCalendarPeriodOverlapConflict = errors.New("calendar period overlaps an active period of the same type")
 )
+
+// CalendarPeriodOverlapError names the active same-type periods a mutation
+// would collide with; it unwraps to ErrCalendarPeriodOverlapConflict.
+type CalendarPeriodOverlapError struct{ Overlaps []CalendarPeriod }
+
+func (e *CalendarPeriodOverlapError) Error() string { return ErrCalendarPeriodOverlapConflict.Error() }
+func (e *CalendarPeriodOverlapError) Unwrap() error { return ErrCalendarPeriodOverlapConflict }
 
 // Dateframe ranges are instants: the table stores TIMESTAMPTZ columns.
 type Dateframe struct {

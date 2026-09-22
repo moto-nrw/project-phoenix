@@ -78,10 +78,6 @@ func (r timetableTimeframeRepository) ListAll(ctx context.Context) ([]*scheduleM
 	return r.list(ctx, timetable.TimeframeFilter{}, "list")
 }
 
-func (r timetableTimeframeRepository) FindActive(ctx context.Context) ([]*scheduleModels.Timeframe, error) {
-	return r.list(ctx, timetable.TimeframeFilter{ActiveOnly: true}, "find active")
-}
-
 func (r timetableTimeframeRepository) FindByTimeRange(ctx context.Context, startTime, endTime time.Time) ([]*scheduleModels.Timeframe, error) {
 	start, end := publicClock(startTime), publicClock(endTime)
 	return r.list(ctx, timetable.TimeframeFilter{OverlapsStart: &start, OverlapsEnd: &end}, "find by time range")

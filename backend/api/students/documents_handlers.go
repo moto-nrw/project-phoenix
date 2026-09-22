@@ -9,8 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	apiDocuments "github.com/moto-nrw/project-phoenix/modules/filestorage/documents"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -50,12 +49,12 @@ func (rs *Resource) studentDocumentCoordinator() (*apiDocuments.Coordinator, err
 // studentDocumentActor builds the service actor from the JWT: account id for
 // audit rows, display name for the change history, roles for the access log,
 // permissions for the per-category checks.
-func studentDocumentActor(r *http.Request) (carelifecycle.StudentDocumentActor, error) {
+func studentDocumentActor(r *http.Request) (careplan.StudentDocumentActor, error) {
 	claims := jwt.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
-		return carelifecycle.StudentDocumentActor{}, errors.New("invalid token: no account id")
+		return careplan.StudentDocumentActor{}, errors.New("invalid token: no account id")
 	}
-	return carelifecycle.StudentDocumentActor{
+	return careplan.StudentDocumentActor{
 		AccountID: int64(claims.ID),
 		// The audit row snapshots the editor's name so the history still
 		// reads correctly after a rename or an account deletion.
@@ -96,7 +95,7 @@ type StudentDocumentCategory struct {
 	Sensitive bool   `json:"sensitive"`
 }
 
-func newStudentDocumentResponse(doc *userModels.StudentDocument) StudentDocumentResponse {
+func newStudentDocumentResponse(doc careplan.CareDocument) StudentDocumentResponse {
 	return StudentDocumentResponse{
 		ID:            doc.ID,
 		StudentID:     doc.StudentID,
@@ -106,31 +105,32 @@ func newStudentDocumentResponse(doc *userModels.StudentDocument) StudentDocument
 		SizeBytes:     doc.SizeBytes,
 		ContentType:   doc.ContentType,
 		UploadedAt:    doc.CreatedAt,
-		Sensitive:     isSensitiveStudentDocumentCategory(doc.Category),
+		Sensitive:     careplan.IsSensitiveStudentDocumentCategory(doc.Category),
 	}
 }
 
 func studentDocumentLabel(category string) string {
-	if label := userModels.StudentDocumentCategoryLabels[category]; label != "" {
+	if label := careplan.StudentDocumentCategoryLabels[category]; label != "" {
 		return label
 	}
 	return category
 }
 
-func isSensitiveStudentDocumentCategory(category string) bool {
-	return userModels.IsHealthStudentDocumentCategory(category) ||
-		userModels.IsLegalStudentDocumentCategory(category)
+// isStudentDocumentNotFound reports a document, or a child, that does not
+// exist in this school.
+func isStudentDocumentNotFound(err error) bool {
+	return errors.Is(err, careplan.ErrCareDocumentNotFound) || modelBase.IsNoRows(err)
 }
 
 // renderStudentDocumentError maps document service errors onto HTTP responses.
 func renderStudentDocumentError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, carelifecycle.ErrStudentDocumentForbidden),
-		errors.Is(err, carelifecycle.ErrStudentDocumentNoAccess):
+	case errors.Is(err, careplan.ErrStudentDocumentForbidden),
+		errors.Is(err, careplan.ErrStudentDocumentNoAccess):
 		common.RenderError(w, r, common.ErrorForbidden(err))
-	case errors.Is(err, carelifecycle.ErrStudentDocumentInvalid):
+	case errors.Is(err, careplan.ErrStudentDocumentInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case modelBase.IsNoRows(err):
+	case isStudentDocumentNotFound(err):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -174,7 +174,7 @@ func (rs *Resource) listStudentDocuments(w http.ResponseWriter, r *http.Request)
 		resp.VisibleCategories = append(resp.VisibleCategories, StudentDocumentCategory{
 			Value:     category,
 			Label:     studentDocumentLabel(category),
-			Sensitive: isSensitiveStudentDocumentCategory(category),
+			Sensitive: careplan.IsSensitiveStudentDocumentCategory(category),
 		})
 	}
 	common.Respond(w, r, http.StatusOK, resp, "Student documents retrieved successfully")
@@ -192,7 +192,7 @@ func (rs *Resource) listStudentDocuments(w http.ResponseWriter, r *http.Request)
 // which is before an after-commit hook removes anything. The scheduler owns
 // that work instead: it removes inside the same transaction that holds the
 // lock, and it reaches every tenant within five minutes.
-func (rs *Resource) retryStudentDocumentCleanups(ctx context.Context, studentID int64, actor carelifecycle.StudentDocumentActor, source string) {
+func (rs *Resource) retryStudentDocumentCleanups(ctx context.Context, studentID int64, actor careplan.StudentDocumentActor, source string) {
 	coordinator, err := rs.studentDocumentCoordinator()
 	if err != nil {
 		rs.getLogger().Warn("student document cleanup retry unavailable", "error", err)
@@ -285,7 +285,7 @@ func (rs *Resource) uploadStudentDocument(w http.ResponseWriter, r *http.Request
 	// scheduler had already removed its bytes. The bookkeeping calls below
 	// deliberately stay on the request context so they still run once the
 	// upload deadline has fired.
-	uploadCtx, cancelUpload := context.WithTimeout(r.Context(), carelifecycle.StudentDocumentUploadDeadline)
+	uploadCtx, cancelUpload := context.WithTimeout(r.Context(), careplan.StudentDocumentUploadDeadline)
 	defer cancelUpload()
 
 	size, err := coordinator.Save(uploadCtx, tenantID, storedName, uploaded.File)
@@ -315,7 +315,7 @@ func (rs *Resource) uploadStudentDocument(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	doc, err := rs.StudentDocumentService.CreateStudentDocument(uploadCtx, carelifecycle.CreateStudentDocumentInput{
+	doc, err := rs.StudentDocumentService.CreateStudentDocument(uploadCtx, careplan.CreateStudentDocumentInput{
 		StudentID:       id,
 		Category:        category,
 		FilenameDisplay: uploaded.Filename,
@@ -329,8 +329,8 @@ func (rs *Resource) uploadStudentDocument(w http.ResponseWriter, r *http.Request
 		// and let the bytes go immediately. Anything deeper — including a
 		// commit whose acknowledgement never arrived — is in doubt and is left
 		// to the queued intent.
-		rejectedBeforeCommit := errors.Is(err, carelifecycle.ErrStudentDocumentInvalid) ||
-			errors.Is(err, carelifecycle.ErrStudentDocumentForbidden)
+		rejectedBeforeCommit := errors.Is(err, careplan.ErrStudentDocumentInvalid) ||
+			errors.Is(err, careplan.ErrStudentDocumentForbidden)
 		coordinator.ReleaseFailedUpload(r.Context(), tenantID, id, storedName, rejectedBeforeCommit, err)
 		renderStudentDocumentError(w, r, err)
 		return
@@ -420,7 +420,7 @@ func (rs *Resource) deleteStudentDocument(w http.ResponseWriter, r *http.Request
 
 	doc, err := rs.StudentDocumentService.DeleteStudentDocument(r.Context(), id, docID, actor)
 	if err != nil {
-		if !modelBase.IsNoRows(err) {
+		if !isStudentDocumentNotFound(err) {
 			renderStudentDocumentError(w, r, err)
 			return
 		}
@@ -434,7 +434,7 @@ func (rs *Resource) deleteStudentDocument(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	if !doc.IsFileDeleted() {
+	if doc.FileDeletedAt == nil {
 		tenantID := tenant.FromContext(r.Context())
 		documentID, storedName := doc.ID, doc.FilenameStored
 		cleanupCtx := context.WithoutCancel(tenant.ContextWithoutTransaction(r.Context()))

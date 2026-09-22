@@ -23,6 +23,7 @@ import {
 } from "~/components/ui/drawer";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { cn } from "~/lib/utils";
 import {
   getHelpTopics,
@@ -30,6 +31,7 @@ import {
   helpTopicMatchesRole,
   HELP_GROUPS,
   HELP_ROLES,
+  HOME_TOPIC_COUNT,
   type HelpGroupMode,
   type HelpPresenceMode,
   type HelpRole,
@@ -37,7 +39,10 @@ import {
   type HelpTopicGroup,
 } from "./help-content";
 import { HelpEntry, type HelpEntryAnswers } from "./help-entry";
+import { HELP_ICONS } from "./help-icons";
 import { useHelpSidebarScrollRestoration } from "./help-sidebar-scroll";
+import { useHelpTableOfContents } from "./help-table-of-contents";
+import { HelpWordmark } from "./help-wordmark";
 
 // Reihenfolge der Oberthemen je Rolle. Jede Rolle hat eine eigene
 // Seitenleiste (#2229, Informationsarchitektur Abschnitt 3).
@@ -324,9 +329,7 @@ function HelpMobileHeader({
           href={homeHref}
           className="focus-visible:ring-moto-blue inline-flex min-h-11 min-w-0 items-center rounded-lg px-1 focus-visible:ring-2 focus-visible:outline-none"
         >
-          <span className="truncate text-xl font-bold tracking-tight text-gray-950">
-            moto Hilfe
-          </span>
+          <HelpWordmark />
         </Link>
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
           <Button
@@ -422,14 +425,18 @@ function GroupOverview({
       </p>
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         {groupTopics.map((item) => {
-          const Icon = item.icon;
           return (
             <Link
               key={item.id}
               href={hrefFor(item.id)}
               className="moto-content-surface group rounded-2xl border p-5 shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
             >
-              <Icon className="text-moto-blue h-6 w-6" aria-hidden="true" />
+              <MotoDuotoneIcon
+                icon={HELP_ICONS[item.icon]}
+                tone="greenDeep"
+                size={28}
+                weight="regular"
+              />
               <h2 className="mt-4 font-semibold text-gray-950">{item.title}</h2>
               <p className="mt-2 text-sm leading-6 text-gray-600">
                 {item.summary}
@@ -546,6 +553,8 @@ function DocumentationArticle({
       show: topic.related.length > 0,
     },
   ].filter((item) => item.show);
+  const { activeSectionId, scrollToSection } =
+    useHelpTableOfContents(tableOfContents);
 
   return (
     <div className="xl:grid xl:grid-cols-[minmax(0,42rem)_12rem] xl:gap-x-16">
@@ -803,7 +812,15 @@ function DocumentationArticle({
                 <li key={item.id}>
                   <a
                     href={`#${item.id}`}
-                    className="text-sm leading-5 text-gray-500 hover:text-gray-950"
+                    aria-current={
+                      activeSectionId === item.id ? "location" : undefined
+                    }
+                    onClick={(event) => scrollToSection(event, item.id)}
+                    className={cn(
+                      "-ml-[21px] block border-l-2 border-transparent py-0.5 pl-5 text-sm leading-5 text-gray-500 transition-colors hover:text-gray-950",
+                      activeSectionId === item.id &&
+                        "border-moto-green text-moto-green-strong font-semibold",
+                    )}
                   >
                     {item.label}
                   </a>
@@ -816,7 +833,19 @@ function DocumentationArticle({
                         <li key={child.id}>
                           <a
                             href={`#${child.id}`}
-                            className="block text-sm leading-5 text-gray-500 hover:text-gray-950"
+                            aria-current={
+                              activeSectionId === child.id
+                                ? "location"
+                                : undefined
+                            }
+                            onClick={(event) =>
+                              scrollToSection(event, child.id)
+                            }
+                            className={cn(
+                              "-ml-[17px] block border-l-2 border-transparent py-0.5 pl-4 text-sm leading-5 text-gray-500 transition-colors hover:text-gray-950",
+                              activeSectionId === child.id &&
+                                "border-moto-green text-moto-green-strong font-semibold",
+                            )}
                           >
                             <InlineCode text={child.label} />
                           </a>
@@ -1089,11 +1118,9 @@ function HelpDocumentationShell({
         <div className="flex h-20 shrink-0 items-center gap-3 border-b border-gray-200 px-6">
           <Link
             href={restartHref}
-            className="focus-visible:ring-moto-blue rounded-lg focus-visible:ring-2 focus-visible:outline-none"
+            className="focus-visible:ring-moto-blue flex items-center rounded-lg focus-visible:ring-2 focus-visible:outline-none"
           >
-            <span className="text-xl font-bold tracking-tight text-gray-950">
-              moto Hilfe
-            </span>
+            <HelpWordmark />
           </Link>
         </div>
         <div className="border-b border-gray-200 px-5 py-4">
@@ -1177,18 +1204,19 @@ function HelpDocumentationShell({
             <div className="mt-8 grid gap-4 sm:grid-cols-2">
               {topics
                 .filter((item) => helpTopicMatchesRole(item, role))
-                .slice(0, 6)
+                .slice(0, HOME_TOPIC_COUNT)
                 .map((item) => {
-                  const Icon = item.icon;
                   return (
                     <Link
                       key={item.id}
                       href={hrefFor(item.id)}
                       className="moto-content-surface group rounded-2xl border p-5 shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                     >
-                      <Icon
-                        className="text-moto-blue h-6 w-6"
-                        aria-hidden="true"
+                      <MotoDuotoneIcon
+                        icon={HELP_ICONS[item.icon]}
+                        tone="greenDeep"
+                        size={28}
+                        weight="regular"
                       />
                       <h2 className="mt-4 font-semibold text-gray-950">
                         {item.question}

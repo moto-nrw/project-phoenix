@@ -11,7 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -81,7 +81,7 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 	}
 
 	if err := rs.StudentStatusDayService.CreateForDates(r.Context(), rs.newStatusDayCreateWriteContext(r, userPermissions, req.Status, dates), student.ID, req.Status, req.Reason, dates); err != nil {
-		var conflictErr *activeService.StudentStatusDayConflictError
+		var conflictErr *studentpresence.StudentStatusDayConflictError
 		if errors.As(err, &conflictErr) {
 			common.RespondWithJSON(
 				w,
@@ -91,11 +91,11 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 			)
 			return
 		}
-		if errors.Is(err, activeService.ErrStudentStatusDayReassigned) {
+		if errors.Is(err, studentpresence.ErrStudentStatusDayReassigned) {
 			renderError(w, r, common.ErrorForbidden(err))
 			return
 		}
-		if errors.Is(err, activeService.ErrStudentStatusDayPartialAbsenceConflict) {
+		if errors.Is(err, studentpresence.ErrStudentStatusDayPartialAbsenceConflict) {
 			// Stable code so the frontend can show a clear message instead of
 			// parsing this as an empty StudentStatusDayConflictError sample.
 			renderError(w, r, common.ErrorConflictWithCode(err, "partial_absence_conflict"))
@@ -147,7 +147,7 @@ func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.R
 
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	if err := rs.StudentStatusDayService.BulkCreateForDates(r.Context(), rs.newStatusDayCreateWriteContext(r, userPermissions, req.Status, dates), req.StudentIDs, req.Status, req.Reason, dates); err != nil {
-		var conflictErr *activeService.StudentStatusDayConflictError
+		var conflictErr *studentpresence.StudentStatusDayConflictError
 		if errors.As(err, &conflictErr) {
 			// Fail closed under the outer TenantTxMiddleware tx: 409 is non-5xx
 			// and must not commit any partial nested write.
@@ -160,14 +160,14 @@ func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.R
 			)
 			return
 		}
-		if errors.Is(err, activeService.ErrStudentStatusDayReassigned) {
+		if errors.Is(err, studentpresence.ErrStudentStatusDayReassigned) {
 			// Fail closed under the outer TenantTxMiddleware tx: 403 is non-5xx
 			// and would otherwise commit any partial write from a nested reuse.
 			tenant.MarkRollback(r.Context())
 			renderError(w, r, common.ErrorForbidden(err))
 			return
 		}
-		if errors.Is(err, activeService.ErrStudentStatusDayPartialAbsenceConflict) {
+		if errors.Is(err, studentpresence.ErrStudentStatusDayPartialAbsenceConflict) {
 			// Stable code so the frontend can show a clear message instead of
 			// parsing this as an empty StudentStatusDayConflictError sample.
 			tenant.MarkRollback(r.Context())
@@ -206,12 +206,12 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if err := rs.StudentStatusDayService.DeleteByID(r.Context(), rs.newStatusDayWriteContext(r, userPermissions), statusDayID, student.ID); err != nil {
+	if err := rs.StudentStatusDayService.DeleteStatusDay(r.Context(), rs.newStatusDayWriteContext(r, userPermissions), statusDayID, student.ID); err != nil {
 		if common.IsNotFound(err) {
 			renderError(w, r, common.ErrorNotFound(errors.New("student status day not found")))
 			return
 		}
-		if errors.Is(err, activeService.ErrStudentStatusDayReassigned) {
+		if errors.Is(err, studentpresence.ErrStudentStatusDayReassigned) {
 			renderError(w, r, common.ErrorForbidden(err))
 			return
 		}
@@ -225,9 +225,9 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 // newStatusDayWriteContext bundles the collaborators the status-day write
 // service needs, keeping the JWT-permission decision (canManageStudentAbsence)
 // and the SSE fan-out at the HTTP boundary.
-func (rs *Resource) newStatusDayWriteContext(r *http.Request, userPermissions []string) activeService.StatusDayWriteContext {
+func (rs *Resource) newStatusDayWriteContext(r *http.Request, userPermissions []string) studentpresence.StatusDayWriteContext {
 	tenantID := tenant.FromContext(r.Context())
-	return activeService.StatusDayWriteContext{
+	return studentpresence.StatusDayWriteContext{
 		DB:       rs.DB,
 		TenantID: tenantID,
 		StudentService: newStatusDayStudents(rs.StudentService, func(ctx context.Context, student *users.Student, status string) bool {
@@ -245,7 +245,7 @@ func (rs *Resource) newStatusDayWriteContext(r *http.Request, userPermissions []
 	}
 }
 
-func (rs *Resource) newStatusDayCreateWriteContext(r *http.Request, userPermissions []string, status string, dates []timezone.Date) activeService.StatusDayWriteContext {
+func (rs *Resource) newStatusDayCreateWriteContext(r *http.Request, userPermissions []string, status string, dates []timezone.Date) studentpresence.StatusDayWriteContext {
 	writeContext := rs.newStatusDayWriteContext(r, userPermissions)
 	tenantID := tenant.FromContext(r.Context())
 	actorAccountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
@@ -305,7 +305,7 @@ func datesBetweenInclusive(from, to timezone.Date) []timezone.Date {
 
 // statusDayConflictResponse builds the shared 409 body for single and bulk
 // planned-status writes: a capped conflict sample plus the full total.
-func statusDayConflictResponse(conflictErr *activeService.StudentStatusDayConflictError) map[string]any {
+func statusDayConflictResponse(conflictErr *studentpresence.StudentStatusDayConflictError) map[string]any {
 	return map[string]any{
 		"status":         "error",
 		"error":          "existing student status days were not overwritten",

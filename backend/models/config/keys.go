@@ -558,3 +558,12 @@ const SchoolPeriodCount = 8
 func SchoolPeriodEndKey(period int) string {
 	return "school_periods.end_" + strconv.Itoa(period)
 }
+
+// Care time presets (#3371). Most children of a school arrive and leave at the
+// same clock time; the weekly plan offers these two times for one-click
+// adoption into an empty field. A school is one tenant, so Burbach and
+// Wahlbach each keep their own pair. Empty means the forms offer nothing.
+const (
+	KeyCareDefaultArrivalTime = "care_times.default_arrival"
+	KeyCareDefaultPickupTime  = "care_times.default_pickup"
+)

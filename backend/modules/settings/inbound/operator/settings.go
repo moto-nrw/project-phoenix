@@ -3,7 +3,9 @@
 // review, and setting, resetting and revealing a school's values. The
 // operator router in api/operator mounts these handlers behind its
 // middleware chain, so the operator wire format and authorization stay
-// unchanged.
+// unchanged. The handlers call the public OperatorSchoolSettings capability
+// (#2736); the tenant transaction, the side effects and the broadcast live
+// behind it.
 package operator
 
 import (
@@ -17,15 +19,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 )
 
 // errAdminOnlyForOperator explains why an operator may not touch an
@@ -35,16 +31,15 @@ const errAdminOnlyForOperator = "this setting is admin-only and cannot be modifi
 const errLegalAGBDocumentManagedByUpload = "AGB document URL is managed by the file upload endpoint"
 
 // guardOperatorWrite blocks the operator from set/reset/reveal on AccessAdminOnly settings.
-// The access-policy decision lives in the settings service (CheckOperatorWritable);
+// The access-policy decision lives in the settings capability (CheckOperatorWritable);
 // this maps the returned error to the operator HTTP response. Returns true when
 // the handler should abort (response has already been written).
 func (rs *SettingsResource) guardOperatorWrite(w http.ResponseWriter, r *http.Request, key string) bool {
-	err := rs.settingsService.CheckOperatorWritable(key)
+	err := rs.settings.CheckOperatorWritable(key)
 	if err == nil {
 		return false
 	}
-	var notFound *configSvc.DefinitionNotFoundError
-	if errors.As(err, &notFound) {
+	if _, ok := errors.AsType[*settings.DefinitionNotFoundError](err); ok {
 		render.Render(w, r, common.OperatorNotFound(fmt.Sprintf("setting %q not found", key))) //nolint:errcheck
 		return true
 	}
@@ -53,7 +48,7 @@ func (rs *SettingsResource) guardOperatorWrite(w http.ResponseWriter, r *http.Re
 }
 
 func guardOperatorDirectManagedSettingWrite(w http.ResponseWriter, r *http.Request, key string) bool {
-	if key != configModel.KeyEnrollmentLegalAGBDocumentURL {
+	if key != settings.KeyEnrollmentLegalAGBDocumentURL {
 		return false
 	}
 	render.Render(w, r, common.OperatorForbidden(errLegalAGBDocumentManagedByUpload)) //nolint:errcheck
@@ -62,99 +57,30 @@ func guardOperatorDirectManagedSettingWrite(w http.ResponseWriter, r *http.Reque
 
 // SettingsResource handles operator-level settings management for schools.
 type SettingsResource struct {
-	settingsService configSvc.SettingsService
-	db              *bun.DB
-	// operatorSettings owns the set/reset orchestration (presence-mode guard,
-	// tenant transaction, side-effect hook, SSE broadcast).
-	operatorSettings configSvc.OperatorSettingsService
+	// settings owns the reads and the set/reset orchestration (presence-mode
+	// guard, tenant transaction, side-effect hook, SSE broadcast).
+	settings settings.OperatorSchoolSettings
 	// schoolService lets the resource emit `school_slug` in set/reset
 	// responses so the frontend operator proxy can bust the slug-keyed
 	// `tenant-${slug}` Next.js cache after tenant-resolve-affecting
 	// toggles (currently only operations.student_photos_enabled).
 	schoolService SchoolLookup
-	// onValueSet runs inside the write transaction and returns an optional
-	// post-commit closure. Mirrors the tenant SettingsResource.OnValueSet
-	// contract so side effects apply uniformly regardless of who flipped the
-	// value; passed to the operatorSettings service on each write.
-	onValueSet    configSvc.OperatorValueSetHook
-	careLifecycle carelifecycle.CareLifecycleService
-}
-
-type operatorSettingsRuntime struct{ db *bun.DB }
-
-func (r operatorSettingsRuntime) WithinTenant(ctx context.Context, schoolID int64, fn func(context.Context) error) error {
-	return tenant.WithTenantTx(ctx, r.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
-		return fn(txCtx)
-	})
-}
-
-func (operatorSettingsRuntime) AfterCommit(ctx context.Context, fn func()) {
-	tenant.RegisterAfterCommit(ctx, fn)
-}
-
-func (operatorSettingsRuntime) Today() configModel.CalendarDate {
-	today := timezone.TodayDate()
-	return configModel.NewCalendarDate(today.Year(), today.Month(), today.Day())
-}
-
-type openAttendanceAdapter struct{ service activeSvc.Service }
-
-func (a openAttendanceAdapter) HasOpenAttendanceOn(ctx context.Context, day configModel.CalendarDate) (bool, error) {
-	if a.service == nil {
-		return false, nil
-	}
-	value := day.UTCMidnight()
-	return a.service.HasOpenAttendanceOn(ctx, timezone.NewDate(value.Year(), value.Month(), value.Day()))
 }
 
 // SettingsConfig holds the operator settings routes' dependencies.
 type SettingsConfig struct {
-	Settings configSvc.SettingsService
-	DB       *bun.DB
-	// Broadcaster emits the cross-origin tenant_settings_changed SSE event so
-	// open tenant tabs invalidate their settings caches when an operator
-	// flips a value. Optional: nil disables the broadcast fan-out.
-	Broadcaster realtime.Broadcaster
+	Settings settings.OperatorSchoolSettings
 	// Schools enriches the response with the school's slug so the frontend
 	// operator proxy can additionally bust the `tenant-${slug}` Next.js cache
 	// for tenant-resolve-affecting settings (e.g. student_photos_enabled).
 	Schools SchoolLookup
-	// Active feeds the presence-mode guard. Optional: nil disables it.
-	Active        activeSvc.Service
-	CareLifecycle carelifecycle.CareLifecycleService
-	// OnValueSet runs after a setting value change is validated and
-	// persisted, inside the tenant transaction; the optional postCommit
-	// closure it returns runs only after a successful commit. It mirrors the
-	// tenant settings hook, so side effects apply uniformly regardless of
-	// who flipped the value.
-	OnValueSet configSvc.OperatorValueSetHook
 }
 
 // NewSettingsResource creates a new operator settings resource.
 func NewSettingsResource(cfg SettingsConfig) *SettingsResource {
 	return &SettingsResource{
-		settingsService: cfg.Settings,
-		db:              cfg.DB,
-		operatorSettings: configSvc.NewOperatorSettingsService(
-			cfg.Settings,
-			operatorSettingsRuntime{db: cfg.DB},
-			settingsChangedNotifier(cfg.Broadcaster),
-			openAttendanceAdapter{service: cfg.Active},
-			slog.Default(),
-		),
+		settings:      cfg.Settings,
 		schoolService: cfg.Schools,
-		onValueSet:    cfg.OnValueSet,
-		careLifecycle: cfg.CareLifecycle,
-	}
-}
-
-func settingsChangedNotifier(broadcaster realtime.Broadcaster) configSvc.SettingsChangedNotifier {
-	if broadcaster == nil {
-		return nil
-	}
-	return func(_ context.Context, tenantID int64, key string) {
-		event := realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{Source: &key})
-		_ = broadcaster.BroadcastToTenant(tenantID, event)
 	}
 }
 
@@ -167,7 +93,7 @@ type setSchoolSettingRequest struct {
 // flag needs the slug for cache busting; other settings stay on the
 // development-era empty-body response.
 func requiresPhotoMutationResponse(key string) bool {
-	return key == configModel.KeyStudentPhotosEnabled
+	return key == settings.KeyStudentPhotosEnabled
 }
 
 // schoolSettingMutationResponse carries the school slug back to the frontend
@@ -206,12 +132,7 @@ func (rs *SettingsResource) GetSchoolSettingsSchema(w http.ResponseWriter, r *ht
 		return
 	}
 
-	var schema *configSvc.SettingsSchema
-	err := tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(ctx context.Context, _ bun.Tx) error {
-		var schemaErr error
-		schema, schemaErr = rs.settingsService.GetSchemaForOperator(ctx, nil)
-		return schemaErr
-	})
+	schema, err := rs.settings.Schema(r.Context(), schoolID)
 	if err != nil {
 		render.Render(w, r, common.OperatorInternal("Failed to retrieve settings schema")) //nolint:errcheck
 		return
@@ -228,16 +149,11 @@ func (rs *SettingsResource) GetBookingAuthorityImpact(w http.ResponseWriter, r *
 	if !ok {
 		return
 	}
-	if rs.careLifecycle == nil {
+	impact, err := rs.settings.BookingAuthorityImpact(r.Context(), schoolID)
+	if errors.Is(err, settings.ErrBookingAuthorityImpactUnavailable) {
 		render.Render(w, r, common.OperatorInternal("Booking authority impact service is not configured")) //nolint:errcheck
 		return
 	}
-	var impact *carelifecycle.BookingAuthorityImpact
-	err := tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(ctx context.Context, _ bun.Tx) error {
-		var impactErr error
-		impact, impactErr = rs.careLifecycle.PreviewBookingAuthorityImpact(ctx, timezone.TodayDate())
-		return impactErr
-	})
 	if err != nil {
 		render.Render(w, r, common.OperatorInternal("Failed to review booking authority impact")) //nolint:errcheck
 		return
@@ -272,17 +188,17 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 	// switch). Everything else ignores the flag.
 	force := r.URL.Query().Get("force") == "true"
 
-	err := rs.operatorSettings.SetValue(r.Context(), schoolID, key, req.Value, changedBy, force, rs.onValueSet)
+	err := rs.settings.SetValue(r.Context(), schoolID, key, req.Value, changedBy, force)
 	if err != nil {
 		// Dedicated 409 path for the mode-switch block so the frontend can
 		// surface the "daily end required" copy without heuristics. errors.Is
 		// keeps the branch resilient to wrapping, unlike string equality.
-		if errors.Is(err, configSvc.ErrPresenceModeSwitchBlocked) {
-			render.Render(w, r, common.OperatorConflict(configSvc.ErrPresenceModeSwitchBlocked.Error())) //nolint:errcheck
+		if errors.Is(err, settings.ErrPresenceModeSwitchBlocked) {
+			render.Render(w, r, common.OperatorConflict(settings.ErrPresenceModeSwitchBlocked.Error())) //nolint:errcheck
 			return
 		}
-		if errors.Is(err, carelifecycle.ErrBookingAuthorityBlocked) {
-			render.Render(w, r, common.OperatorConflict(carelifecycle.ErrBookingAuthorityBlocked.Error())) //nolint:errcheck
+		if errors.Is(err, careplan.ErrBookingAuthorityBlocked) {
+			render.Render(w, r, common.OperatorConflict(careplan.ErrBookingAuthorityBlocked.Error())) //nolint:errcheck
 			return
 		}
 		renderOperatorSettingsError(w, r, err)
@@ -315,7 +231,7 @@ func (rs *SettingsResource) ResetSchoolSettingValue(w http.ResponseWriter, r *ht
 	claims := jwt.ClaimsFromCtx(r.Context())
 	changedBy := int64(claims.ID)
 
-	if err := rs.operatorSettings.ResetValue(r.Context(), schoolID, key, changedBy, rs.onValueSet); err != nil {
+	if err := rs.settings.ResetValue(r.Context(), schoolID, key, changedBy); err != nil {
 		renderOperatorSettingsError(w, r, err)
 		return
 	}
@@ -342,12 +258,7 @@ func (rs *SettingsResource) RevealSchoolSettingValue(w http.ResponseWriter, r *h
 		return
 	}
 
-	var value any
-	err := tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(ctx context.Context, _ bun.Tx) error {
-		var resolveErr error
-		value, resolveErr = rs.settingsService.Resolve(ctx, key)
-		return resolveErr
-	})
+	value, err := rs.settings.Reveal(r.Context(), schoolID, key)
 	if err != nil {
 		renderOperatorSettingsError(w, r, err)
 		return
@@ -356,19 +267,19 @@ func (rs *SettingsResource) RevealSchoolSettingValue(w http.ResponseWriter, r *h
 	common.Respond(w, r, http.StatusOK, map[string]any{"value": value}, "")
 }
 
-// renderOperatorSettingsError maps settings service errors to operator HTTP responses.
+// renderOperatorSettingsError maps settings errors to operator HTTP responses.
 func renderOperatorSettingsError(w http.ResponseWriter, r *http.Request, err error) {
-	var settingsErr *configSvc.SettingsError
-	if !errors.As(err, &settingsErr) {
+	settingsErr, ok := errors.AsType[*settings.SettingsError](err)
+	if !ok {
 		render.Render(w, r, common.OperatorInternal(err.Error())) //nolint:errcheck
 		return
 	}
 
 	inner := settingsErr.Unwrap()
 
-	var defNotFound *configSvc.DefinitionNotFoundError
-	var invalidValue *configSvc.InvalidValueError
-	var permDenied *configSvc.PermissionDeniedError
+	var defNotFound *settings.DefinitionNotFoundError
+	var invalidValue *settings.InvalidValueError
+	var permDenied *settings.PermissionDeniedError
 
 	switch {
 	case errors.As(inner, &defNotFound):

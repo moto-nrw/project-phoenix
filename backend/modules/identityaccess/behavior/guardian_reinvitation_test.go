@@ -3,7 +3,6 @@ package behavior_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -82,7 +81,7 @@ func TestInviteToStudent_RecreatedContactDoesNotDetachOtherChildren(t *testing.T
 	_, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID: child.ID, Email: account.Email, CreatedBy: actor.ID,
 	})
-	require.ErrorIs(t, err, users.ErrGuardianAccountConflict)
+	require.ErrorContains(t, err, "guardian account link conflicts with an existing profile")
 	assert.Equal(t, services.GuardianFailureConflict, services.ClassifyGuardianInvitationFailure(err))
 	assert.True(t, env.linkExists(t, child.ID, old.ID))
 	assert.False(t, env.linkExists(t, child.ID, replacement.ID))

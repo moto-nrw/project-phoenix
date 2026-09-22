@@ -39,6 +39,21 @@ export async function forwardDemoToken(
   }
 }
 
+/**
+ * Holds the demo token after the entry, so the banner can switch the demo
+ * role (#3467) without the token ever being readable by a script. Only the
+ * demo routes receive it, and it lives as long as a demo link.
+ */
+export const DEMO_TOKEN_COOKIE = "moto-demo-token";
+
+export const DEMO_TOKEN_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "strict",
+  path: "/api/demo",
+  maxAge: 14 * 24 * 60 * 60,
+} as const;
+
 export function demoBackendUrl(path: string): string {
   return `${getServerApiUrl()}/demo/access/${path}`;
 }

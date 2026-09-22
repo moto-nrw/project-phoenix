@@ -46,11 +46,6 @@ func (e engine) ListPendingWithdrawalBoundaries(ctx context.Context, studentIDs 
 	return values, mapError(err)
 }
 
-func (e engine) ListWithdrawalCompletionKeys(ctx context.Context, studentIDs []int64) ([]careplan.WithdrawalCompletionKey, error) {
-	values, err := e.service.ListWithdrawalCompletionKeys(ctx, studentIDs)
-	return values, mapError(err)
-}
-
 func (e engine) UpsertPendingWithdrawal(ctx context.Context, value careplan.WithdrawalCompletion) (careplan.WithdrawalCompletion, error) {
 	stored, err := e.service.UpsertPendingWithdrawal(ctx, value)
 	return stored, mapError(err)

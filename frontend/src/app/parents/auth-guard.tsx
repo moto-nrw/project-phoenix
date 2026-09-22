@@ -35,6 +35,9 @@ const PARENT_PUBLIC_PAGES = [
   // when the parent isn't logged in.
   "/parents/anmeldung/status",
   "/anmeldung/status",
+  // The public demo's entry page signs the visitor in itself (#3468).
+  "/parents/demo",
+  "/demo",
 ];
 
 export function ParentAuthGuard({

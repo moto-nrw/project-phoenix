@@ -213,7 +213,7 @@ type Query interface {
 }
 
 type Command interface {
-	CareExitRosterCommand
+	CareExitRoster
 	ScheduleCommand
 	PlannedSupervisorCommand
 	StudentEnrollmentCommand

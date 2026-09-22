@@ -29,7 +29,7 @@ var (
 	ErrCareExitInvalidReason  = errors.New("care plan: invalid care exit reason")
 	ErrCareExitNoteRequired   = errors.New("care plan: care exit reason note is required")
 	ErrCareExitNoteNotAllowed = errors.New("care plan: care exit reason note is not allowed")
-	ErrCareExitNoteTooLong    = errors.New("care plan: care exit reason note is too long")
+	ErrCareExitNoteTooLong    = errors.New("Die Begründung ist zu lang. Bitte kürzen Sie sie.") //nolint:staticcheck // ST1005: user-facing German message
 	ErrInvalidCareExit        = errors.New("invalid care exit")
 	ErrInvalidCompanion       = errors.New("invalid student companion")
 	ErrInvalidCareDocument    = errors.New("invalid student care document")
@@ -287,7 +287,7 @@ func (m *Module) ListCareDocumentCleanups(ctx context.Context, studentID *int64)
 }
 
 func (m *Module) CreateCareDocument(ctx context.Context, value CareDocument) (CareDocument, error) {
-	if err := validateCareDocument(value); err != nil {
+	if err := ValidateCareDocument(value); err != nil {
 		return CareDocument{}, err
 	}
 	return m.engine.CreateCareDocument(ctx, value)
@@ -393,30 +393,41 @@ func normalizeCareExit(value *CareExit) error {
 	if value.StudentID <= 0 {
 		return invalid(ErrInvalidCareExit, "student ID is required")
 	}
-	if value.Reason != CareExitReasonMovedAway && value.Reason != CareExitReasonNoCareNeed && value.Reason != CareExitReasonOther {
-		return ErrCareExitInvalidReason
+	note, err := NormalizeCareExitReason(value.Reason, value.ReasonNote)
+	if err != nil {
+		return err
 	}
-	if value.ReasonNote != nil {
-		trimmed := strings.TrimSpace(*value.ReasonNote)
-		if trimmed == "" {
-			value.ReasonNote = nil
-		} else {
-			if utf8.RuneCountInString(trimmed) > MaxCareExitNoteLen {
-				return ErrCareExitNoteTooLong
-			}
-			value.ReasonNote = &trimmed
-		}
-	}
-	if value.Reason == CareExitReasonOther && value.ReasonNote == nil {
-		return ErrCareExitNoteRequired
-	}
-	if value.Reason != CareExitReasonOther && value.ReasonNote != nil {
-		return ErrCareExitNoteNotAllowed
-	}
+	value.ReasonNote = note
 	return nil
 }
 
-func validateCareDocument(value CareDocument) error {
+// NormalizeCareExitReason checks one exit reason and its note and returns the
+// canonical note: trimmed, nil when blank. Only "other" carries a note, and
+// it must.
+func NormalizeCareExitReason(reason string, note *string) (*string, error) {
+	if reason != CareExitReasonMovedAway && reason != CareExitReasonNoCareNeed && reason != CareExitReasonOther {
+		return nil, ErrCareExitInvalidReason
+	}
+	var normalized *string
+	if note != nil {
+		if trimmed := strings.TrimSpace(*note); trimmed != "" {
+			if utf8.RuneCountInString(trimmed) > MaxCareExitNoteLen {
+				return nil, ErrCareExitNoteTooLong
+			}
+			normalized = &trimmed
+		}
+	}
+	if reason == CareExitReasonOther && normalized == nil {
+		return nil, ErrCareExitNoteRequired
+	}
+	if reason != CareExitReasonOther && normalized != nil {
+		return nil, ErrCareExitNoteNotAllowed
+	}
+	return normalized, nil
+}
+
+// ValidateCareDocument checks that one metadata row is storable.
+func ValidateCareDocument(value CareDocument) error {
 	if value.StudentID <= 0 || strings.TrimSpace(value.Category) == "" || strings.TrimSpace(value.FilenameDisplay) == "" || strings.TrimSpace(value.FilenameStored) == "" || value.SizeBytes < 0 || strings.TrimSpace(value.ContentType) == "" || value.UploadedBy <= 0 {
 		return invalid(ErrInvalidCareDocument, "care document metadata is invalid")
 	}

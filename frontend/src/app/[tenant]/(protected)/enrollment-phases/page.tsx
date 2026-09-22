@@ -3,7 +3,7 @@
 import { Suspense } from "react";
 import { PhasesEditor } from "~/components/enrollment/phases-editor";
 import { TenantPage } from "~/components/ui/tenant-page";
-import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
+import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 
 /** Kopfkarte samt Aktion trägt der Editor, weil „Neue Anmeldephase“ an seinen
  *  Zustand gebunden ist. Solange die Berechtigung geprüft wird, steht hier das
@@ -13,7 +13,7 @@ function PhasesPageSkeleton() {
 }
 
 export default function EnrollmentPhasesPage() {
-  const { isReady } = useRequireAdmin();
+  const { isReady } = useRequirePermission("config:manage");
 
   if (!isReady) return <PhasesPageSkeleton />;
 

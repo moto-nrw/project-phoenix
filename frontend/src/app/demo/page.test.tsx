@@ -1,4 +1,10 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import DemoWaitingRoomPage from "./page";
 
@@ -57,18 +63,71 @@ describe("DemoWaitingRoomPage", () => {
     expect(document.URL).not.toContain("secret-token");
   });
 
-  it("tells the visitor that the demo is being prepared and does not leave", async () => {
-    fetchMock.mockReturnValue(json(200, { status: "preparing" }));
+  it("hands a preselected role on with the token", async () => {
+    fetchMock.mockReturnValueOnce(
+      json(200, {
+        status: "ready",
+        school_url: "https://ogs-nord-k3m9xp.demo.example",
+      }),
+    );
+
+    open("#token=secret-token&role=lead");
+
+    await waitFor(() =>
+      expect(assign).toHaveBeenCalledWith(
+        "https://ogs-nord-k3m9xp.demo.example/demo#token=secret-token&role=lead",
+      ),
+    );
+  });
+
+  it("names the OGS being set up, shows the progress lines and does not leave", async () => {
+    fetchMock.mockReturnValue(
+      json(200, { status: "preparing", school_name: "OGS Nord" }),
+    );
 
     const view = open("#token=secret-token");
 
     expect(
-      await screen.findByText(
-        "Ihre Demo wird vorbereitet. Einen Moment bitte.",
-      ),
+      await screen.findByRole("heading", {
+        name: "Wir richten OGS Nord für Sie ein",
+      }),
     ).toBeInTheDocument();
+    const lines = within(screen.getByRole("list")).getAllByRole("listitem");
+    expect(lines.map((line) => line.textContent)).toEqual([
+      "Schule anlegenläuft",
+      "Kinder und Gruppen eintragenfolgt",
+      "OGS-Tag startenfolgt",
+    ]);
+    // Screen readers hear the line that is running now.
+    expect(screen.getByRole("status")).toHaveTextContent("Schule anlegen …");
     expect(assign).not.toHaveBeenCalled();
     view.unmount();
+  });
+
+  it("offers another try when waiting went wrong and enters the school on it", async () => {
+    fetchMock.mockRejectedValueOnce(new Error("network down"));
+
+    open("#token=secret-token");
+
+    const retry = await screen.findByRole("button", {
+      name: "Noch einmal versuchen",
+    });
+    expect(
+      screen.getByText("Das hat leider nicht geklappt"),
+    ).toBeInTheDocument();
+    fetchMock.mockReturnValueOnce(
+      json(200, {
+        status: "ready",
+        school_url: "https://ogs-nord-k3m9xp.demo.example",
+      }),
+    );
+    fireEvent.click(retry);
+
+    await waitFor(() =>
+      expect(assign).toHaveBeenCalledWith(
+        "https://ogs-nord-k3m9xp.demo.example/demo#token=secret-token",
+      ),
+    );
   });
 
   it("sends the visitor back to the website when the demo school could not be set up", async () => {
@@ -109,5 +168,26 @@ describe("DemoWaitingRoomPage", () => {
       await screen.findByText("Das hat leider nicht geklappt"),
     ).toBeInTheDocument();
     expect(assign).not.toHaveBeenCalled();
+  });
+
+  // The role parent (#3468) goes straight to the parents app, which redeems
+  // the same link on its own host.
+  it("hands a link with the role parent on to the parents app", async () => {
+    vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", "eltern.demo.example");
+    fetchMock.mockReturnValueOnce(
+      json(200, {
+        status: "ready",
+        school_url: "https://ogs-nord-k3m9xp.demo.example",
+      }),
+    );
+
+    open("#token=secret-token&role=parent");
+
+    await waitFor(() =>
+      expect(assign).toHaveBeenCalledWith(
+        `${globalThis.location.protocol}//eltern.demo.example/demo#token=secret-token&role=parent`,
+      ),
+    );
+    vi.unstubAllEnvs();
   });
 });

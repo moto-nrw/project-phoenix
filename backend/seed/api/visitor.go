@@ -44,3 +44,17 @@ func VisitorAccountID(profile *SeedProfile) int64 {
 	}
 	return 0
 }
+
+// VisitorParentAccountID returns the parent account whose guardian carries
+// the visitor's name (#3468). The demo role parent signs the prospect in as
+// that parent, who has full parent portal rights for exactly one child.
+func VisitorParentAccountID(profile *SeedProfile) int64 {
+	guardian := DemoGuardians[visitorGuardianIndex]
+	key := guardian.FirstName + " " + guardian.LastName
+	for _, parent := range profile.Credentials.Parents {
+		if parent.Name == key {
+			return parent.AccountID
+		}
+	}
+	return 0
+}

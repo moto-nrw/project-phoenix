@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -29,7 +29,7 @@ func newStatusDayStudents(students userService.StudentService, authorize func(ct
 	return &statusDayStudents{students: students, authorize: authorize, locked: map[int64]*users.Student{}}
 }
 
-func (s *statusDayStudents) LockForStatusWrite(ctx context.Context, studentID int64, status string) (*activeService.StudentRecord, error) {
+func (s *statusDayStudents) LockForStatusWrite(ctx context.Context, studentID int64, status string) (*studentpresence.StudentRecord, error) {
 	if s.authorize == nil {
 		return nil, errors.New("status day students: authorization callback is required")
 	}
@@ -38,13 +38,13 @@ func (s *statusDayStudents) LockForStatusWrite(ctx context.Context, studentID in
 		return nil, err
 	}
 	if !s.authorize(ctx, fresh, status) {
-		return nil, activeService.ErrStudentStatusDayReassigned
+		return nil, studentpresence.ErrStudentStatusDayReassigned
 	}
 	s.locked[studentID] = fresh
 	return studentRecord(fresh), nil
 }
 
-func (s *statusDayStudents) UpdateLiveStatus(ctx context.Context, record *activeService.StudentRecord) error {
+func (s *statusDayStudents) UpdateLiveStatus(ctx context.Context, record *studentpresence.StudentRecord) error {
 	if record == nil {
 		return nil
 	}
@@ -66,26 +66,26 @@ func (s *statusDayStudents) UpdateLiveStatus(ctx context.Context, record *active
 // studentLifecycle maps the owner's lifecycle status onto the states the
 // presence flows branch on. Every other status, today only "pending", is
 // StudentLifecycleOther and counts as not-yet-active.
-func studentLifecycle(status users.StudentStatus) activeService.StudentLifecycle {
+func studentLifecycle(status users.StudentStatus) studentpresence.StudentLifecycle {
 	switch status {
 	case users.StudentStatusActive:
-		return activeService.StudentLifecycleActive
+		return studentpresence.StudentLifecycleActive
 	case users.StudentStatusInactive:
-		return activeService.StudentLifecycleInactive
+		return studentpresence.StudentLifecycleInactive
 	case users.StudentStatusAlumnus:
-		return activeService.StudentLifecycleAlumnus
+		return studentpresence.StudentLifecycleAlumnus
 	case users.StudentStatusPending:
-		return activeService.StudentLifecycleOther
+		return studentpresence.StudentLifecycleOther
 	default:
-		return activeService.StudentLifecycleOther
+		return studentpresence.StudentLifecycleOther
 	}
 }
 
-func studentRecord(row *users.Student) *activeService.StudentRecord {
+func studentRecord(row *users.Student) *studentpresence.StudentRecord {
 	if row == nil {
 		return nil
 	}
-	return &activeService.StudentRecord{
+	return &studentpresence.StudentRecord{
 		ID:            row.ID,
 		TenantID:      row.TenantID,
 		PersonID:      row.PersonID,

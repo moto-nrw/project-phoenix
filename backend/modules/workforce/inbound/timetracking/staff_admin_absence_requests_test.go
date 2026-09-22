@@ -19,7 +19,7 @@ import (
 )
 
 // Wire values of the absence contract. Spelled out here because the tests may
-// not import the model package; they mirror models/active/staff_absence.go.
+// not import the model package; they mirror modules/workforce/absence.go.
 const (
 	absenceTypeSick      = "sick"
 	absenceTypeVacation  = "vacation"

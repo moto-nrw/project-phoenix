@@ -647,48 +647,6 @@ func (r materializationFakeTimeframeRepo) ListAll(context.Context) ([]*schedule.
 	return r.timeframes, nil
 }
 
-type materializationAllowCalendarService struct{}
-
-func (materializationAllowCalendarService) GetAllPeriods(context.Context) ([]*schedule.CalendarPeriod, error) {
-	panic("unused")
-}
-
-func (materializationAllowCalendarService) GetActivePeriods(context.Context) ([]*schedule.CalendarPeriod, error) {
-	panic("unused")
-}
-
-func (materializationAllowCalendarService) GetPeriodByID(context.Context, int64) (*schedule.CalendarPeriod, error) {
-	panic("unused")
-}
-
-func (materializationAllowCalendarService) CreatePeriod(context.Context, *schedule.CalendarPeriod) error {
-	panic("unused")
-}
-
-func (materializationAllowCalendarService) UpdatePeriod(context.Context, *schedule.CalendarPeriod) error {
-	panic("unused")
-}
-
-func (materializationAllowCalendarService) DeletePeriod(context.Context, int64) error {
-	panic("unused")
-}
-
-func (materializationAllowCalendarService) EnsureDefaultSchoolYear(context.Context) ([]*schedule.CalendarPeriod, bool, error) {
-	panic("unused")
-}
-
-func (materializationAllowCalendarService) FindActiveOverlaps(context.Context, *schedule.CalendarPeriod) ([]*schedule.CalendarPeriod, error) {
-	panic("unused")
-}
-
-func (materializationAllowCalendarService) GetUsageCounts(context.Context) (map[int64]schedule.CalendarPeriodUsage, error) {
-	panic("unused")
-}
-
-func (materializationAllowCalendarService) ShouldMaterialize(int, timezone.Date, *schedule.CalendarPeriod) bool {
-	return true
-}
-
 func TestMaterializeForTenant_DuplicateInsertRaceDoesNotCopyChildren(t *testing.T) {
 	t.Parallel()
 
@@ -776,7 +734,6 @@ func TestMaterializeForTenant_PreconditionWarnings(t *testing.T) {
 			materializationFakeStudentRepo{},
 			materializationFakeExceptionRepo{},
 			materializationFakeTimeframeRepo{},
-			materializationAllowCalendarService{},
 			nil,
 			nil,
 			slog.Default(),
@@ -807,7 +764,6 @@ func TestMaterializeForTenant_PreconditionWarnings(t *testing.T) {
 			materializationFakeStudentRepo{},
 			materializationFakeExceptionRepo{},
 			materializationFakeTimeframeRepo{},
-			materializationAllowCalendarService{},
 			nil,
 			nil,
 			slog.Default(),
@@ -861,7 +817,6 @@ func TestMaterializeForTenant_ErrorBranches(t *testing.T) {
 			materializationFakeStudentRepo{},
 			exceptionRepo,
 			timeframeRepo,
-			materializationAllowCalendarService{},
 			nil,
 			nil,
 			slog.Default(),
@@ -1143,7 +1098,6 @@ func newMaterializationBranchServiceForSchedule(
 			EndTime:   &end,
 			Model:     schedule.Model{ID: timeframeID},
 		}}},
-		materializationAllowCalendarService{},
 		nil,
 		nil,
 		slog.Default(),

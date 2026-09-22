@@ -1,20 +1,33 @@
 package repositories
 
 import (
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/uptrace/bun"
 )
+
+// NewSchoolCalendarWithAdministration composes the unobserved calendar owner
+// over the given administration resolver, which the services test graphs
+// answer with the recurrence gate, the care-offering guard and the
+// federal-state setting once those services exist. Production roots compose
+// the module themselves (api/base.go).
+func NewSchoolCalendarWithAdministration(db *bun.DB, administration func() schoolCalendarCompose.AdministrationRuntime) (*schoolcalendar.Module, error) {
+	return schoolCalendarCompose.New(schoolCalendarCompose.Dependencies{
+		DB:             db,
+		Observe:        func(schoolCalendarCompose.Observation) {},
+		Administration: administration,
+	})
+}
 
 type CalendarTestRepositories struct {
 	TimetableTestRepositories
 	Profile                    identityaccess.AccountProfiles
-	GroupSubstitution          educationModels.GroupSubstitutionRepository
+	StaffGroups                schoolstructure.StaffGroupQuery
 	GuardianProfile            userModels.GuardianProfileRepository
 	StudentGuardian            userModels.StudentGuardianRepository
 	ParentChild                parentModels.ChildRepository
@@ -45,7 +58,7 @@ func NewCalendarTestRepositories(db *bun.DB) (CalendarTestRepositories, error) {
 	feeds := NewCalendarFeedTestRepositories(db)
 	return CalendarTestRepositories{
 		TimetableTestRepositories: identity.Timetable,
-		Profile:                   identity.Profile, GroupSubstitution: identity.Substitutions,
+		Profile:                   identity.Profile, StaffGroups: identity.StaffGroups,
 		GuardianProfile: parents.GuardianProfile, StudentGuardian: parents.StudentGuardian,
 		ParentChild: parents.ParentChild, StaffCalendarFeedToken: feeds.StaffFeed, ParentCalendarFeed: feeds.ParentFeed,
 		CalendarStaffFeedTombstone: feeds.Tombstone, appointments: appointments, schoolCalendar: calendar,

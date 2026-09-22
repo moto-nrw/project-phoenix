@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -21,6 +22,9 @@ type DemoAccess struct {
 	mail     ports.DemoAccessMail
 	adminTx  ports.DemoAdminTx
 	now      func() time.Time
+	// perIP and perAddress limit the public request (#3466).
+	perIP      *demoRequestWindow
+	perAddress *demoRequestWindow
 }
 
 // DemoAccessDependencies are the ports the flows consume.
@@ -39,6 +43,7 @@ func NewDemoAccess(deps DemoAccessDependencies) (*DemoAccess, error) {
 	}
 	return &DemoAccess{
 		sessions: deps.Sessions, store: deps.Store, schools: deps.Schools, tokens: deps.Tokens, mail: deps.Mail, adminTx: deps.AdminTx, now: time.Now,
+		perIP: newDemoRequestWindow(domain.DemoRequestsPerIPAddress), perAddress: newDemoRequestWindow(domain.DemoRequestsPerAddress),
 	}, nil
 }
 
@@ -50,10 +55,34 @@ func NewDemoAccess(deps DemoAccessDependencies) (*DemoAccess, error) {
 // The team hears of a first access and of a changed contact consent. An
 // address whose school did not fail gets no second school (#3463): the new
 // link leads into the school it already has.
-func (d *DemoAccess) Request(ctx context.Context, access domain.DemoAccess, entryURLPrefix string) error {
+//
+// Only a valid request counts against its IP address and its address, so
+// typing errors of fair visitors behind one WLAN address fill no window; an
+// invalid request touches no table (#3466). A new school beyond the
+// configured number is refused by PrepareDemoSchool; such a request gives
+// its places in both windows back, so retries at the capacity do not end in
+// a rate limit once a place is free again.
+func (d *DemoAccess) Request(ctx context.Context, access domain.DemoAccess, clientIP, entryURLPrefix string) error {
 	if err := access.Normalize(); err != nil {
 		return err
 	}
+	at := d.now()
+	if err := d.perIP.admit(clientIP, at); err != nil {
+		return err
+	}
+	if err := d.perAddress.admit(access.Email, at); err != nil {
+		d.perIP.withdraw(clientIP, at)
+		return err
+	}
+	err := d.request(ctx, access, entryURLPrefix)
+	if errors.Is(err, domain.ErrDemoCapacityReached) {
+		d.perIP.withdraw(clientIP, at)
+		d.perAddress.withdraw(access.Email, at)
+	}
+	return err
+}
+
+func (d *DemoAccess) request(ctx context.Context, access domain.DemoAccess, entryURLPrefix string) error {
 	raw, fingerprint, err := d.tokens.NewToken()
 	if err != nil {
 		return fmt.Errorf("mint demo access token: %w", err)
@@ -80,7 +109,12 @@ func (d *DemoAccess) Request(ctx context.Context, access domain.DemoAccess, entr
 	if !stored {
 		return nil
 	}
-	d.mail.SendDemoAccessLink(ctx, access, entryURLPrefix+raw)
+	entryURL := entryURLPrefix + raw
+	if access.Role != "" {
+		// The fragment carries the preselected role past the waiting room.
+		entryURL += "&role=" + string(access.Role)
+	}
+	d.mail.SendDemoAccessLink(ctx, access, entryURL)
 	if lead {
 		d.mail.SendDemoLead(ctx, access)
 	}
@@ -103,30 +137,46 @@ func (d *DemoAccess) schoolFor(ctx context.Context, access, known domain.DemoAcc
 	return d.schools.PrepareDemoSchool(ctx, access.SchoolName, access.PersonName)
 }
 
-// Status reports the progress of the token's demo school and its slug, which
-// is the school's address once it is ready. A ready school without an account
-// to sign in is still preparing.
-func (d *DemoAccess) Status(ctx context.Context, token string) (status, schoolSlug string, err error) {
+// Status reports the progress of the token's demo school and the access
+// itself, whose school slug is the school's address once it is ready. A ready
+// school without an account to sign in is still preparing.
+func (d *DemoAccess) Status(ctx context.Context, token string) (access domain.DemoAccess, status string, err error) {
 	err = d.adminTx(ctx, func(txCtx context.Context) error {
-		access, err := d.valid(txCtx, token)
-		if err != nil {
+		var err error
+		if access, err = d.valid(txCtx, token); err != nil {
 			return err
 		}
 		entry, err := d.entry(txCtx, access.SchoolSlug)
-		status, schoolSlug = entry.Status, access.SchoolSlug
+		status = entry.Status
 		return err
 	})
-	return status, schoolSlug, err
+	return access, status, err
 }
 
-// Redeem notes the use and mints a session in the token's demo school: for
+// Redeem notes the use, which starts or resumes the school's simulation
+// (#3464), and mints a session in the token's demo school: for
 // the prospect's own caregiver, or for the administrator of a school without
 // one. The token stays valid afterwards.
-func (d *DemoAccess) Redeem(ctx context.Context, token, ipAddress, userAgent string) (string, string, error) {
+//
+// A chosen demo role (#3467) first becomes the role of the prospect's own
+// caregiver, so a switch in the banner is a further redemption: one account,
+// a new session. The shared administrator of the standing school keeps its
+// role; its session has all functions whatever was chosen.
+//
+// The demo role parent (#3468) leaves the caregiver's role alone and mints a
+// parents portal session for the school's parent who carries the visitor's
+// name, on the parents host with the same token. The standing school has no
+// such parent; its session stays the administrator's.
+func (d *DemoAccess) Redeem(ctx context.Context, token string, role domain.DemoRole, ipAddress, userAgent string) (domain.DemoEntry, error) {
+	role, err := domain.ParseDemoRole(string(role))
+	if err != nil {
+		return domain.DemoEntry{}, err
+	}
 	var entry domain.DemoSchoolEntry
-	err := d.adminTx(ctx, func(txCtx context.Context) error {
-		access, err := d.valid(txCtx, token)
-		if err != nil {
+	var access domain.DemoAccess
+	err = d.adminTx(ctx, func(txCtx context.Context) error {
+		var err error
+		if access, err = d.valid(txCtx, token); err != nil {
 			return err
 		}
 		if entry, err = d.entry(txCtx, access.SchoolSlug); err != nil {
@@ -135,12 +185,132 @@ func (d *DemoAccess) Redeem(ctx context.Context, token, ipAddress, userAgent str
 		if entry.Status != domain.DemoSchoolReady {
 			return domain.ErrDemoSchoolPreparing
 		}
-		return d.store.RecordDemoAccessUse(txCtx, access.ID, entry.AccountID, d.now())
+		if role, err = d.assumeRole(txCtx, entry, role); err != nil {
+			return err
+		}
+		if err := d.schools.MarkDemoSchoolUsed(txCtx, access.SchoolSlug, d.now()); err != nil {
+			return err
+		}
+		// The access keeps naming the caregiver, also for the role parent;
+		// the parent it signs in is noted next to it, so the tenant lock and
+		// the session cap of the demo hold for that account too (#3462).
+		usedAt := d.now()
+		return d.store.RecordDemoAccessUse(txCtx, access.ID, entry.AccountID, signedInParent(entry, role), usedAt, usedAt.Add(domain.DemoAccessLifetime))
 	})
 	if err != nil {
-		return "", "", err
+		return domain.DemoEntry{}, err
 	}
-	return d.sessions.IssueTokensForAuthenticatedAccount(ctx, entry.AccountID, entry.TenantID, ipAddress, userAgent)
+	var accessToken, refreshToken string
+	if role == domain.DemoRoleParent {
+		accessToken, refreshToken, err = d.sessions.IssueParentTokensForAuthenticatedAccount(ctx, entry.ParentAccountID, ipAddress, userAgent)
+	} else {
+		accessToken, refreshToken, err = d.sessions.IssueTokensForAuthenticatedAccount(ctx, entry.AccountID, entry.TenantID, ipAddress, userAgent)
+	}
+	if err != nil {
+		return domain.DemoEntry{}, err
+	}
+	return domain.DemoEntry{
+		AccessToken: accessToken, RefreshToken: refreshToken,
+		AccessID: access.ID, Role: role, Source: access.Source, FixedRole: entry.Shared,
+	}, nil
+}
+
+// Reset gives the token's demo access a fresh demo school (#3470): the old
+// school is hidden and queued anew with the same OGS and visitor names, and
+// every access of the old school enters the new one from now on. The link
+// keeps working; the next entry waits for the seed like the first one did.
+// The old school's sessions end, so nobody keeps working in a hidden school.
+// A school that is still being prepared cannot be restarted; the standing
+// school is shared and never is.
+//
+// A restart is a seed job and leaves a hidden school behind, so it counts
+// against the same windows as a request (#3466): per IP address and per
+// address of the access. A refused restart gives its places back.
+func (d *DemoAccess) Reset(ctx context.Context, token, clientIP string) (domain.DemoAccess, error) {
+	at := d.now()
+	if err := d.perIP.admit(clientIP, at); err != nil {
+		return domain.DemoAccess{}, err
+	}
+	var access domain.DemoAccess
+	err := d.adminTx(ctx, func(txCtx context.Context) error {
+		var err error
+		if access, err = d.valid(txCtx, token); err != nil {
+			return err
+		}
+		if err := d.perAddress.admit(access.Email, at); err != nil {
+			return err
+		}
+		entry, err := d.entry(txCtx, access.SchoolSlug)
+		if err != nil {
+			return err
+		}
+		if entry.Shared {
+			return domain.ErrDemoAccessInvalid
+		}
+		if entry.Status == domain.DemoSchoolPreparing {
+			return domain.ErrDemoSchoolPreparing
+		}
+		return d.replaceSchool(txCtx, access, entry)
+	})
+	if err != nil {
+		d.perIP.withdraw(clientIP, at)
+		if access.Email != "" {
+			d.perAddress.withdraw(access.Email, at)
+		}
+	}
+	if err != nil {
+		return domain.DemoAccess{}, err
+	}
+	return access, nil
+}
+
+// replaceSchool hides the access's school, queues its successor, moves every
+// access along and ends the old school's sessions. A failed school has no
+// sessions to end.
+func (d *DemoAccess) replaceSchool(ctx context.Context, access domain.DemoAccess, entry domain.DemoSchoolEntry) error {
+	newSlug, err := d.schools.ReplaceDemoSchool(ctx, access.SchoolSlug, access.SchoolName, access.PersonName)
+	if err != nil {
+		return err
+	}
+	if err := d.store.MoveDemoAccesses(ctx, access.SchoolSlug, newSlug); err != nil {
+		return err
+	}
+	if entry.TenantID == 0 {
+		return nil
+	}
+	if _, err := d.sessions.RevokeTokensByTenantID(ctx, entry.TenantID); err != nil {
+		return fmt.Errorf("end the sessions of the hidden demo school: %w", err)
+	}
+	return nil
+}
+
+// signedInParent names the account a redemption signs in besides the
+// caregiver: the school's visitor parent, and only for the role parent.
+func signedInParent(entry domain.DemoSchoolEntry, role domain.DemoRole) int64 {
+	if role != domain.DemoRoleParent {
+		return 0
+	}
+	return entry.ParentAccountID
+}
+
+// assumeRole gives the prospect's own caregiver the chosen demo role and
+// returns the role the session will have. The shared administrator keeps
+// all functions; no role keeps the account as it is. The parent role needs
+// the school's visitor parent and changes no staff role.
+func (d *DemoAccess) assumeRole(ctx context.Context, entry domain.DemoSchoolEntry, role domain.DemoRole) (domain.DemoRole, error) {
+	if entry.Shared {
+		return domain.DemoRoleAll, nil
+	}
+	if role == "" {
+		return role, nil
+	}
+	if role == domain.DemoRoleParent {
+		if entry.ParentAccountID == 0 {
+			return "", domain.ErrDemoAccessInvalid
+		}
+		return role, nil
+	}
+	return role, d.store.ReplaceDemoAccountRole(ctx, entry.AccountID, entry.TenantID, role.SchoolRoles())
 }
 
 // entry resolves the account a demo session signs in.
@@ -156,7 +326,7 @@ func (d *DemoAccess) entry(ctx context.Context, schoolSlug string) (domain.DemoS
 	if !found {
 		entry.Status = domain.DemoSchoolPreparing
 	}
-	entry.AccountID = accountID
+	entry.AccountID, entry.Shared = accountID, true
 	return entry, nil
 }
 

@@ -1,0 +1,397 @@
+package presence
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"log/slog"
+	"testing"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+type failingPlannedStatusRead struct {
+	StudentStatusDayRepository
+	err                   error
+	clearErr              error
+	upsertErr, historyErr error
+}
+
+func (r *failingPlannedStatusRead) UpsertReported(context.Context, *absencerecords.StudentStatusDay) error {
+	return r.upsertErr
+}
+
+func (r *failingPlannedStatusRead) MarkCleared(context.Context, int64, string, timezone.Date, time.Time, string) error {
+	return r.historyErr
+}
+
+func TestLiveStatusHistoryFailuresDoNotClearFlags(t *testing.T) {
+	t.Parallel()
+	injected := errors.New("status history write failed")
+	for _, flag := range []string{"sick", "excused"} {
+		for _, stage := range []string{"upsert", "clear"} {
+			t.Run(flag+"/"+stage, func(t *testing.T) {
+				set := true
+				student := &StudentRecord{ID: 42, Sick: &set, Excused: &set}
+				students := &mockStudentRepoForClear{}
+				statuses := &failingPlannedStatusRead{}
+				if stage == "upsert" {
+					statuses.upsertErr = injected
+				} else {
+					statuses.historyErr = injected
+				}
+				svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, StudentRepo: students, StudentStatusRepo: statuses}}
+				var err error
+				if flag == "sick" {
+					err = svc.clearSickFlagOnCheckin(context.Background(), student, time.Now())
+				} else {
+					err = svc.clearExcusedFlagOnCheckin(context.Background(), student, time.Now())
+				}
+				require.ErrorIs(t, err, injected)
+				assert.Zero(t, students.updateCalls)
+				assert.True(t, *student.Sick)
+				assert.True(t, *student.Excused)
+			})
+		}
+	}
+}
+
+func (r *failingPlannedStatusRead) MarkClearedByID(context.Context, int64, time.Time, string) error {
+	return r.clearErr
+}
+
+func (r *failingPlannedStatusRead) FindActiveByStudentAndDateRange(context.Context, int64, timezone.Date, timezone.Date) ([]*absencerecords.StudentStatusDay, error) {
+	return nil, r.err
+}
+
+func (r *failingPlannedStatusRead) FindActiveByStudentIDsAndDate(context.Context, []int64, timezone.Date) ([]*absencerecords.StudentStatusDay, error) {
+	return nil, r.err
+}
+
+func TestPlannedStatusClearFailuresPropagate(t *testing.T) {
+	t.Parallel()
+	injected := errors.New("planned status clear failed")
+	for _, stage := range []string{"status write", "student read", "student write"} {
+		t.Run(stage, func(t *testing.T) {
+			statuses := &failingPlannedStatusRead{}
+			students := &mockStudentRepoForClear{findByIDFunc: func(context.Context, int64) (*StudentRecord, error) {
+				if stage == "student read" {
+					return nil, injected
+				}
+				return &StudentRecord{ID: 42}, nil
+			}}
+			if stage == "status write" {
+				statuses.clearErr = injected
+			}
+			if stage == "student write" {
+				students.updateErr = injected
+			}
+			svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, StudentStatusRepo: statuses, StudentRepo: students}}
+			rows := []*absencerecords.StudentStatusDay{{StudentID: 42, Status: absencerecords.StudentStatusDaySick, Source: absencerecords.StudentStatusSourcePlanned}}
+			require.ErrorIs(t, svc.clearPlannedStatusRows(context.Background(), 42, nil, rows, time.Now()), injected)
+			if stage != "student write" {
+				assert.Zero(t, students.updateCalls)
+			}
+		})
+	}
+}
+
+func TestCheckinPlannedStatusReadFailuresPropagate(t *testing.T) {
+	t.Parallel()
+	injected := errors.New("planned status read failed")
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, StudentStatusRepo: &failingPlannedStatusRead{err: injected}}}
+	svc.settings = &fakeSettingsResolver{resolved: "manual"}
+	require.ErrorIs(t, svc.autoClearPlannedStudentStatuses(context.Background(), 42), injected)
+	require.ErrorIs(t, svc.autoClearOnBatchCheckin(context.Background(), []int64{42}, nil, time.Now(), timezone.TodayDate()), injected)
+}
+
+// fakeSettingsResolver is a minimal stub that satisfies the SettingsResolver
+// interface. Each field is independently settable so tests can script the
+// full branch space of resolveClearMode without pulling in the real service.
+type fakeSettingsResolver struct {
+	hasOverride    bool
+	hasOverrideErr error
+	resolved       string
+	resolveErr     error
+}
+
+// Every question answers from the same pair: these tests exercise one setting
+// at a time.
+func (f *fakeSettingsResolver) PresenceMode(context.Context) (string, error) {
+	return f.resolved, f.resolveErr
+}
+
+func (f *fakeSettingsResolver) SickClearMode(context.Context) (string, error) {
+	return f.resolved, f.resolveErr
+}
+
+func (f *fakeSettingsResolver) ExcusedClearMode(context.Context) (string, error) {
+	return f.resolved, f.resolveErr
+}
+
+func (f *fakeSettingsResolver) AttendanceEditScope(context.Context) (string, error) {
+	return f.resolved, f.resolveErr
+}
+
+func (f *fakeSettingsResolver) OperationalOverviewScope(context.Context) (string, error) {
+	return f.resolved, f.resolveErr
+}
+
+func (f *fakeSettingsResolver) SessionInactivityTimeoutMinutes(context.Context) (int, error) {
+	return 0, nil
+}
+
+// registryDefaultSettings answers both clear-mode questions with the value an
+// unconfigured tenant gets: a sick note ends at the next check-in, an excuse
+// at the end of the day. That the registry declares these defaults is asserted
+// where the settings ports are bound.
+type registryDefaultSettings struct{ *fakeSettingsResolver }
+
+func (registryDefaultSettings) SickClearMode(context.Context) (string, error) {
+	return ClearModeNextCheckin, nil
+}
+
+func (registryDefaultSettings) ExcusedClearMode(context.Context) (string, error) {
+	return "end_of_day", nil
+}
+
+func TestResolveClearModeUsesResolvedValueAndPropagatesErrors(t *testing.T) {
+	t.Parallel()
+	injected := errors.New("settings unavailable")
+	for _, scenario := range []struct {
+		name     string
+		resolver SettingsResolver
+		want     string
+		wantErr  error
+		missing  bool
+	}{
+		{name: "missing wiring", missing: true},
+		{name: "read failure", resolver: &fakeSettingsResolver{resolveErr: injected}, wantErr: injected},
+		{name: "registry default", resolver: &fakeSettingsResolver{resolved: "next_checkin"}, want: "next_checkin"},
+		{name: "explicit override", resolver: &fakeSettingsResolver{hasOverride: true, resolved: "manual"}, want: "manual"},
+		{name: "override equals default", resolver: &fakeSettingsResolver{hasOverride: true, resolved: "next_checkin"}, want: "next_checkin"},
+		{name: "no override probe", resolver: &fakeSettingsResolver{hasOverrideErr: injected, resolved: "end_of_day"}, want: "end_of_day"},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			svc := &service{settings: scenario.resolver}
+			value, err := svc.resolveSickClearMode(context.Background())
+			if scenario.missing {
+				require.ErrorContains(t, err, "settings service is not configured")
+			} else if scenario.wantErr != nil {
+				require.ErrorIs(t, err, scenario.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, scenario.want, value)
+		})
+	}
+}
+
+// mockStudentRepoForClear is a thin stub that only needs to implement the
+// two methods autoClearStudent{Sick,Excused} call. Every other method of
+// userModels.StudentRepository panics if invoked, which keeps the test
+// surface small and catches accidental extra calls.
+type mockStudentRepoForClear struct {
+	findByIDFunc func(ctx context.Context, id int64) (*StudentRecord, error)
+	updateErr    error
+	updateCalls  int
+	lastUpdate   *StudentRecord
+}
+
+func (m *mockStudentRepoForClear) FindByID(ctx context.Context, id int64) (*StudentRecord, error) {
+	return m.findByIDFunc(ctx, id)
+}
+
+func (m *mockStudentRepoForClear) UpdateLiveStatus(_ context.Context, s *StudentRecord) error {
+	m.updateCalls++
+	m.lastUpdate = s
+	return m.updateErr
+}
+
+// newTestServiceWithLogger returns a minimal *service wired up to a discard
+// logger and the given settings + student-repo stubs. Only the fields that
+// auto-clear exercises are populated.
+func newTestServiceWithLogger(s SettingsResolver, repo PresenceStudents) *service {
+	if s == nil {
+		s = registryDefaultSettings{fakeSettingsResolver: &fakeSettingsResolver{}}
+	}
+	return &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, StudentRepo: repo, Logger: slog.New(slog.NewTextHandler(new(bytes.Buffer), nil))}, settings: s}
+}
+
+// TestAutoClearStudentSickness_SkipsWhenModeNotNextCheckin — no studentRepo
+// calls happen when the tenant has chosen a different clear mode.
+func TestAutoClearStudentSickness_SkipsWhenModeNotNextCheckin(t *testing.T) {
+	t.Parallel()
+
+	repo := &mockStudentRepoForClear{
+		findByIDFunc: func(_ context.Context, _ int64) (*StudentRecord, error) {
+			t.Fatal("repo should not be called when mode != next_checkin")
+			return nil, nil
+		},
+	}
+	settings := &fakeSettingsResolver{hasOverride: true, resolved: "manual"}
+	s := newTestServiceWithLogger(settings, repo)
+
+	require.NoError(t, s.autoClearStudentSickness(context.Background(), 42))
+	assert.Equal(t, 0, repo.updateCalls)
+}
+
+// TestAutoClearStudentSickness_FindByIDError — error from repo is swallowed
+// (logged), and no Update call happens.
+func TestAutoClearStudentSickness_FindByIDError(t *testing.T) {
+	t.Parallel()
+
+	repo := &mockStudentRepoForClear{
+		findByIDFunc: func(_ context.Context, _ int64) (*StudentRecord, error) {
+			return nil, errors.New("db down")
+		},
+	}
+	// No settings -> resolveClearMode returns the fallback, which is
+	// next_checkin for sickness — so we actually enter the repo branch.
+	s := newTestServiceWithLogger(nil, repo)
+
+	require.ErrorContains(t, s.autoClearStudentSickness(context.Background(), 99), "db down")
+	assert.Equal(t, 0, repo.updateCalls, "Update must not be called when FindByID fails")
+}
+
+// TestAutoClearStudentSickness_AlreadyHealthy — student has sick=false, so no
+// Update is issued (early return path).
+func TestAutoClearStudentSickness_AlreadyHealthy(t *testing.T) {
+	t.Parallel()
+
+	falseVal := false
+	healthy := &StudentRecord{ID: 1, Sick: &falseVal}
+	repo := &mockStudentRepoForClear{
+		findByIDFunc: func(_ context.Context, _ int64) (*StudentRecord, error) {
+			return healthy, nil
+		},
+	}
+	s := newTestServiceWithLogger(nil, repo)
+
+	require.NoError(t, s.autoClearStudentSickness(context.Background(), 1))
+	assert.Equal(t, 0, repo.updateCalls, "Update must not fire when student is already healthy")
+}
+
+// TestAutoClearStudentSickness_UpdateErrorPropagates preserves the write failure.
+func TestAutoClearStudentSickness_UpdateErrorPropagates(t *testing.T) {
+	t.Parallel()
+
+	trueVal := true
+	sickStudent := &StudentRecord{ID: 2, Sick: &trueVal}
+	repo := &mockStudentRepoForClear{
+		findByIDFunc: func(_ context.Context, _ int64) (*StudentRecord, error) {
+			return sickStudent, nil
+		},
+		updateErr: errors.New("update failed"),
+	}
+	s := newTestServiceWithLogger(nil, repo)
+
+	require.ErrorContains(t, s.autoClearStudentSickness(context.Background(), 2), "update failed")
+	require.Equal(t, 1, repo.updateCalls)
+}
+
+// TestAutoClearStudentExcused_SkipsWhenModeNotNextCheckin — excused default is
+// end_of_day, so a nil settings resolver keeps the flag untouched.
+func TestAutoClearStudentExcused_SkipsWhenModeNotNextCheckin(t *testing.T) {
+	t.Parallel()
+
+	repo := &mockStudentRepoForClear{
+		findByIDFunc: func(_ context.Context, _ int64) (*StudentRecord, error) {
+			t.Fatal("repo should not be called under default end_of_day mode")
+			return nil, nil
+		},
+	}
+	s := newTestServiceWithLogger(nil, repo)
+
+	require.NoError(t, s.autoClearStudentExcused(context.Background(), 42))
+	assert.Equal(t, 0, repo.updateCalls)
+}
+
+// TestAutoClearStudentExcused_FindByIDError — with override set to
+// next_checkin, the read error propagates without an Update.
+func TestAutoClearStudentExcused_FindByIDError(t *testing.T) {
+	t.Parallel()
+
+	repo := &mockStudentRepoForClear{
+		findByIDFunc: func(_ context.Context, _ int64) (*StudentRecord, error) {
+			return nil, errors.New("db down")
+		},
+	}
+	settings := &fakeSettingsResolver{hasOverride: true, resolved: "next_checkin"}
+	s := newTestServiceWithLogger(settings, repo)
+
+	require.ErrorContains(t, s.autoClearStudentExcused(context.Background(), 99), "db down")
+	assert.Equal(t, 0, repo.updateCalls)
+}
+
+// TestAutoClearStudentExcused_AlreadyNotExcused — no-op when excused=false.
+func TestAutoClearStudentExcused_AlreadyNotExcused(t *testing.T) {
+	t.Parallel()
+
+	falseVal := false
+	notExcused := &StudentRecord{ID: 1, Excused: &falseVal}
+	repo := &mockStudentRepoForClear{
+		findByIDFunc: func(_ context.Context, _ int64) (*StudentRecord, error) {
+			return notExcused, nil
+		},
+	}
+	settings := &fakeSettingsResolver{hasOverride: true, resolved: "next_checkin"}
+	s := newTestServiceWithLogger(settings, repo)
+
+	require.NoError(t, s.autoClearStudentExcused(context.Background(), 1))
+	assert.Equal(t, 0, repo.updateCalls)
+}
+
+// TestAutoClearStudentExcused_Clears — happy path: mode=next_checkin,
+// student excused, Update succeeds, flag and timestamp both zeroed.
+func TestAutoClearStudentExcused_Clears(t *testing.T) {
+	t.Parallel()
+
+	trueVal := true
+	excStudent := &StudentRecord{ID: 3, Excused: &trueVal}
+	repo := &mockStudentRepoForClear{
+		findByIDFunc: func(_ context.Context, _ int64) (*StudentRecord, error) {
+			return excStudent, nil
+		},
+	}
+	settings := &fakeSettingsResolver{hasOverride: true, resolved: "next_checkin"}
+	s := newTestServiceWithLogger(settings, repo)
+
+	require.NoError(t, s.autoClearStudentExcused(context.Background(), 3))
+	require.Equal(t, 1, repo.updateCalls)
+	require.NotNil(t, repo.lastUpdate)
+	require.NotNil(t, repo.lastUpdate.Excused)
+	assert.False(t, *repo.lastUpdate.Excused)
+	assert.Nil(t, repo.lastUpdate.ExcusedSince)
+}
+
+// TestAutoClearStudentExcused_UpdateError preserves the write failure.
+func TestAutoClearStudentExcused_UpdateError(t *testing.T) {
+	t.Parallel()
+
+	trueVal := true
+	excStudent := &StudentRecord{ID: 4, Excused: &trueVal}
+	repo := &mockStudentRepoForClear{
+		findByIDFunc: func(_ context.Context, _ int64) (*StudentRecord, error) {
+			return excStudent, nil
+		},
+		updateErr: errors.New("update failed"),
+	}
+	settings := &fakeSettingsResolver{hasOverride: true, resolved: "next_checkin"}
+	s := newTestServiceWithLogger(settings, repo)
+
+	require.ErrorContains(t, s.autoClearStudentExcused(context.Background(), 4), "update failed")
+	require.Equal(t, 1, repo.updateCalls)
+}
+
+func (m *mockStudentRepoForClear) FindByIDForUpdate(ctx context.Context, id int64) (*StudentRecord, error) {
+	return m.findByIDFunc(ctx, id)
+}
+
+func (m *mockStudentRepoForClear) FindByIDsForUpdate(context.Context, []int64) (map[int64]*StudentRecord, error) {
+	panic("FindByIDsForUpdate is not part of the auto-clear surface")
+}

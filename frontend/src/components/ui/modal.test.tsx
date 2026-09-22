@@ -67,6 +67,47 @@ describe("Modal", () => {
     );
   });
 
+  it("focuses the close button on open by default", async () => {
+    render(
+      <TestWrapper>
+        <Modal isOpen={true} onClose={vi.fn()} title="My Title">
+          <p>Content</p>
+        </Modal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    expect(
+      screen.getByRole("button", { name: "Modal schließen" }),
+    ).toHaveFocus();
+  });
+
+  it("focuses the title on open with focusTitleOnOpen", async () => {
+    render(
+      <TestWrapper>
+        <Modal
+          isOpen={true}
+          onClose={vi.fn()}
+          title="My Title"
+          focusTitleOnOpen
+        >
+          <p>Content</p>
+        </Modal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    const heading = screen.getByRole("heading", { name: "My Title" });
+    expect(heading).toHaveFocus();
+    expect(heading).toHaveAttribute("tabindex", "-1");
+  });
+
   it("gives a 255-character title wrapping space without shrinking the close target", async () => {
     const longTitle = "T".repeat(255);
 
