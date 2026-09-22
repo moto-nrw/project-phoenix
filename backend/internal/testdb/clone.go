@@ -51,7 +51,7 @@ func SanitizeRunID(raw string) string {
 // randomRunID returns 12 hex characters from the auto-seeded generator. Clone
 // names need uniqueness per process, not unpredictability.
 func randomRunID() string {
-	return fmt.Sprintf("%012x", rand.Uint64()&0xffffffffffff) //nolint:gosec // identifier, not a secret
+	return fmt.Sprintf("%012x", rand.Uint64()&0xffffffffffff)
 }
 
 // pkgCommentPrefix marks a clone's package label ("phx-pkg:services/active").

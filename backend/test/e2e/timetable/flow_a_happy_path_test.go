@@ -102,8 +102,8 @@ func TestFlowA_PlanToReport(t *testing.T) {
 	// Materialize a web-manual device so the visits have a deviceID to be
 	// attributed to, matching what the web check-in path does.
 	kiosk := testutil.WithDeviceActor(s.tenantCtx(), testpkg.EnsureWebManualDevice(t, s.db), staff1)
-	checkInStudent(t, s, kiosk, student1.ID, startResp.ActiveGroupID)
-	checkInStudent(t, s, kiosk, student2.ID, startResp.ActiveGroupID)
+	checkInStudent(kiosk, t, s, student1.ID, startResp.ActiveGroupID)
+	checkInStudent(kiosk, t, s, student2.ID, startResp.ActiveGroupID)
 
 	// --- Step 5: assert attendance sync flipped instance_students ----------
 	instStudents = fetchInstanceStudents(t, s, instance.ID)
@@ -231,7 +231,7 @@ func countInstanceStaff(t *testing.T, s *scenario, instanceID int64) int {
 // what a PyrePortal check-in does (minus the HTTP layer). The attendance-sync
 // mirror (B10) runs as a side effect and flips instance_students.status.
 // ctx carries the device and staff actor (testutil.WithDeviceActor).
-func checkInStudent(t *testing.T, s *scenario, ctx context.Context, studentID, activeGroupID int64) {
+func checkInStudent(ctx context.Context, t *testing.T, s *scenario, studentID, activeGroupID int64) {
 	t.Helper()
 	visit := &studentpresence.Visit{
 		StudentID:     studentID,
