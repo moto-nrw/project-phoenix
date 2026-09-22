@@ -6,7 +6,7 @@ writes. Until the cutover, `schedule.activity_instances` and
 `schedule.instance_students` remain authoritative. Planned occurrences and
 assignments stay in those tables.
 
-Cutover migration 1.15.413 (#2762) runs the final delta itself and makes the
+Cutover migration 1.15.415 (#2762) runs the final delta itself and makes the
 Presence targets authoritative; see the
 [cutover runbook](operations/presence-storage-cutover-2762.md). After that
 switch `run` and `restart` refuse; `status` still reads the frozen

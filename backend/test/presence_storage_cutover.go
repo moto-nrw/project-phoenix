@@ -10,7 +10,7 @@ import (
 // RestorePresenceStorageBeforeCutover turns the execution columns of
 // schedule.activity_instances and the attendance columns of
 // schedule.instance_students back into the authoritative storage they were
-// before migration 1.15.413 (#2762).
+// before migration 1.15.415 (#2762).
 //
 // Contracts written for the Expand (#2718) and Backfill (#2761) migrations
 // describe a world in which those columns hold the rows and the two Presence

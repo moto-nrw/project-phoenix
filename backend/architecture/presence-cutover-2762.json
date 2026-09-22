@@ -32,11 +32,11 @@
     "active.presence_compatibility_writes"
   ],
   "exact_ratchet_keys": [],
-  "atomic_cutover": "Migration 1.15.413 locks the four tables, applies the final backfill delta per school, compares counts and checksums, and installs the mirror and routing triggers in one transaction; the old execution and attendance columns stay as a rollback-only mirror because the previous image books participants with INSERT ... ON CONFLICT, which a view cannot serve. The same release switches every caller: the retained activity-instance and instance-student repositories, the class-day lists, the care-exit roster, the recovery, the session-end workflow, the pickup extension decision and the statistics read the plan through Timetable and the execution and attendance through Student Presence or the presence projection; database/repositories/student_presence.go, the old provider, is deleted. Each multi-owner write runs inside the caller's tenant transaction, so a failing owner command rolls the plan back with it. No application dual write and no fallback read chain remain.",
+  "atomic_cutover": "Migration 1.15.415 locks the four tables, applies the final backfill delta per school, compares counts and checksums, and installs the mirror and routing triggers in one transaction; the old execution and attendance columns stay as a rollback-only mirror because the previous image books participants with INSERT ... ON CONFLICT, which a view cannot serve. The same release switches every caller: the retained activity-instance and instance-student repositories, the class-day lists, the care-exit roster, the recovery, the session-end workflow, the pickup extension decision and the statistics read the plan through Timetable and the execution and attendance through Student Presence or the presence projection; database/repositories/student_presence.go, the old provider, is deleted. Each multi-owner write runs inside the caller's tenant transaction, so a failing owner command rolls the plan back with it. No application dual write and no fallback read chain remain.",
   "tests": [
     "backend/database/migrations: TestPresenceCutover* (final delta, rollback with a failing switch, unequal targets refused, contract golden) and TestPresenceCompatibility* (mirror, routing of previous-image writes, tenant isolation).",
     "backend/modules/studentpresence/compose/session_storage_test.go: one session per block, two-tenant isolation of both targets, writes rolling back with the caller's transaction.",
-    "backend/database/repositories/presence_cutover_composition_test.go: a DTO created in an execution state joins the caller's transaction; a Presence command failing after the Timetable command leaves no plan row.",
+    "backend/modules/timetable/legacy/timetablesqltest/presence_cutover_composition_test.go: a DTO created in an execution state joins the caller's transaction; a Presence command failing after the Timetable command leaves no plan row.",
     "backend/test/presence_storage_caller_inventory_test.go: zero application literals name a mirrored column or the routing counter.",
     "scripts/test-changed.sh origin/development without --fast, including the retained timetablesqltest, classday, careplan, parentportal, enrollment and query-budget suites.",
     "scripts/backend-architecture.sh check with no new violation and no policy loosening."
@@ -48,7 +48,7 @@
       "docs/operations/presence-storage-cutover-2762.sql",
       "backend/database/migrations/presence_cutover_test.go",
       "backend/modules/studentpresence/compose/session_storage_test.go",
-      "backend/database/repositories/presence_cutover_composition_test.go",
+      "backend/modules/timetable/legacy/timetablesqltest/presence_cutover_composition_test.go",
       "backend/test/presence_storage_caller_inventory_test.go",
       "backend/test/query_budgets.go"
     ],
@@ -108,7 +108,7 @@
     },
     "smoke": {
       "state": "measured",
-      "result": "scripts/backend-architecture.sh check passes with 590 remaining legacy violations (593 at the base) and composition surface 623 -> 623; the caller inventory, module ratchets and query budgets pass."
+      "result": "scripts/backend-architecture.sh check passes with the 568 baseline violations unchanged, no key removed or added, and composition surface 623 -> 623; the caller inventory, module ratchets and query budgets pass."
     }
   },
   "rollback_and_cleanup": "Deploy the previous image against the retained mirror; do not run a down migration, do not drop the triggers, the counter or the mirrored columns, do not truncate the owner tables. The pre-cutover backfill and its restart refuse after the switch. #2763 removes the mirrored columns, the triggers and the counter after the rollback window.",

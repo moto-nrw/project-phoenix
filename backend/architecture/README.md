@@ -210,7 +210,7 @@ use the one-time replacement path of
 [ADR 0035](../../docs/adr/0035-care-lifecycle-cutover-replaces-legacy-permissions.md).
 
 #2762 cut the execution and the attendance of a block over to Student
-Presence (migration 1.15.413, one release with the caller switch). Timetable
+Presence (migration 1.15.415, one release with the caller switch). Timetable
 & Activities keeps the plan in `schedule.activity_instances` and
 `schedule.instance_students`; Student Presence owns `active.activity_sessions`
 (status active/completed, live group, actor, timestamps, completion snapshot)

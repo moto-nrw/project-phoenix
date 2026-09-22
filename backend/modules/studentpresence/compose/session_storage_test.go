@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -40,7 +39,7 @@ func newSessionStorageFixture(t *testing.T, db *bun.DB, title string) sessionSto
 	instance := testpkg.CreateTestActivityInstance(t, db, testpkg.Date(2026, 9, 22), room.ID,
 		testpkg.ActivityInstanceOpts{ActivityGroupID: &activity.ID, Title: title})
 	student := testpkg.CreateTestStudent(t, db, "Session", title, "2a")
-	participant := testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, scheduleModels.AttendanceStatusExpected)
+	participant := testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, "")
 	return sessionStorageFixture{module: module, instanceID: instance.ID, groupID: group.ID, participant: participant.ID}
 }
 

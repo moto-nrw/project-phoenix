@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const presenceCutoverVersion = "1.15.413"
+const presenceCutoverVersion = "1.15.415"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
@@ -16,7 +16,7 @@ func init() {
 		DependsOn: []string{
 			presenceBackfillCheckpointVersion,
 			staffOwnerCutoverVersion, // the session started_by key already names the membership
-			"1.15.412",               // preserves ladder order
+			"1.15.414",               // preserves ladder order
 		},
 		// A school with timetable rows but no completed backfill pass cannot
 		// be switched: the final delta closes the small remainder, not a

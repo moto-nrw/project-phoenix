@@ -1,6 +1,6 @@
 # Presence storage cutover and rollback window (#2762)
 
-Migration 1.15.413 applies the final delta of the
+Migration 1.15.415 applies the final delta of the
 [Timetable → Presence backfill](../presence-backfill.md) under one write lock,
 verifies every school, and makes the two Presence targets authoritative:
 
@@ -107,10 +107,10 @@ Disposable PostgreSQL clones, 2026-09-22, PR branch:
 | --- | --- |
 | Migration tests | `TestPresenceCutover*` and `TestPresenceCompatibility*` in `backend/database/migrations`: final delta, rollback with a failing switch, unequal targets refused, mirror and routing in both directions, tenant isolation of the routing. |
 | Owner tests | `TestActivitySessionStartsOncePerBlock`, `TestSessionStorageIsTenantIsolated`, `TestSessionStorageWritesRollBackWithTheCallerTransaction` in `backend/modules/studentpresence/compose`. |
-| Composition tests | `TestActivityInstanceCreateInExecutionStateJoinsTheCallerTransaction`, `TestActivityInstanceCreateRollsBackThePlanWhenTheSessionCannotStart` in `backend/database/repositories`. |
+| Composition tests | `TestActivityInstanceCreateInExecutionStateJoinsTheCallerTransaction`, `TestActivityInstanceCreateRollsBackThePlanWhenTheSessionCannotStart` in `backend/modules/timetable/legacy/timetablesqltest`. |
 | Caller inventory | `TestPresenceStorageCallerInventory`: zero application literals name a mirrored column or the counter. |
 | Query budgets | Unchanged register; the retained lists read the plan and the owner rows in one joined statement each. |
-| Architecture ratchet | `scripts/backend-architecture.sh check` passes with 590 remaining legacy violations (from 593 at the base) and no policy loosening. |
+| Architecture ratchet | `scripts/backend-architecture.sh check` passes with the 568 baseline violations unchanged (no key removed or added) and no policy loosening. |
 
 Staging acceptance (switch wall time on real data, previous image against the
 switched schema, counter trend over the rollback window) is still to be
