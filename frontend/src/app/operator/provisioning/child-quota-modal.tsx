@@ -98,9 +98,8 @@ export function ChildQuotaModal({
     if (!isOpen) return;
     setBundles(school.childQuotaBundles?.toString() ?? "");
     setBundleSize(
-      (school.childQuotaBundles === null
-        ? CHILD_QUOTA_DEFAULT_BUNDLE_SIZE
-        : school.childQuotaBundleSize
+      (
+        school.childQuotaBundleSize ?? CHILD_QUOTA_DEFAULT_BUNDLE_SIZE
       ).toString(),
     );
     setFieldErrors({});
@@ -123,17 +122,27 @@ export function ChildQuotaModal({
           current.id,
           schoolUpdate(current, childQuota),
         );
-        await onUpdated();
-        onClose();
       } catch (err) {
         logger.error("child_quota_update_failed", {
           school_id: school.id,
           error: err instanceof Error ? err.message : String(err),
         });
         setError(saveErrorMessage(err));
+        setSaving(false);
+        return;
+      }
+
+      try {
+        await onUpdated();
+      } catch (err) {
+        logger.error("child_quota_refresh_failed", {
+          school_id: school.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
       } finally {
         setSaving(false);
       }
+      onClose();
     },
     [loadCurrentSchool, onClose, onUpdated, school.id],
   );

@@ -122,6 +122,12 @@ describe("ChildQuotaModal", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("preserves the stored bundle size when re-enabling a Kinderkontingent", () => {
+    renderModal({ ...unlimited, childQuotaBundleSize: 40 });
+
+    expect(screen.getByLabelText("Kinder pro Bundle")).toHaveValue("40");
+  });
+
   it("recomputes the Kinderkontingent while typing and saves whole bundles", async () => {
     const { onClose, onUpdated } = renderModal(unlimited);
 
@@ -231,6 +237,40 @@ describe("ChildQuotaModal", () => {
       ...schoolFieldsOf(renamed),
       child_quota: { bundles: 2, bundle_size: 50 },
     });
+  });
+
+  it("does not save from stale school data when refreshing the school fails", async () => {
+    const { onClose, loadCurrentSchool } = renderModal();
+    loadCurrentSchool.mockRejectedValue(new Error("refresh failed"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(
+        "Das Kinderkontingent wurde nicht gespeichert. Bitte versuchen Sie es erneut.",
+      ),
+    ).toBeInTheDocument();
+    expect(mockUpdateSchool).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("closes after saving when the subsequent refresh fails", async () => {
+    const { onClose, onUpdated } = renderModal();
+    onUpdated.mockRejectedValue(new Error("refresh failed"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(mockUpdateSchool).toHaveBeenCalled();
+    expect(
+      screen.queryByText(
+        "Das Kinderkontingent wurde nicht gespeichert. Bitte versuchen Sie es erneut.",
+      ),
+    ).not.toBeInTheDocument();
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      "child_quota_refresh_failed",
+      expect.objectContaining({ school_id: "10" }),
+    );
   });
 
   it("asks for a reload when the school changed underneath", async () => {

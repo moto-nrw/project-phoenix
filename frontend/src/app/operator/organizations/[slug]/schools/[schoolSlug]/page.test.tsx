@@ -429,6 +429,9 @@ describe("OperatorSchoolDetailPage", () => {
       ),
     );
     await waitFor(() => expect(mockMutateSchools).toHaveBeenCalled());
+    expect(mockMutateSchools).toHaveBeenCalledWith(undefined, {
+      throwOnError: true,
+    });
     expect(mockMutateOrgs).toHaveBeenCalled();
     await waitFor(() =>
       expect(screen.queryByLabelText("Anzahl Bundles")).not.toBeInTheDocument(),

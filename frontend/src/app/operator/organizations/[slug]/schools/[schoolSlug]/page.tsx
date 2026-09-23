@@ -30,6 +30,7 @@ import { TransferDeviceModal } from "~/components/operator/transfer-device-modal
 import { DeletePersonModal } from "~/components/operator/delete-person-modal";
 import { PersonsTable } from "~/components/operator/persons-table";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
+import { Button } from "~/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { CaregiverCapabilityModal } from "~/components/teachers/caregiver-capability-modal";
@@ -392,13 +393,14 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
         >
           Bearbeiten
         </button>
-        <button
+        <Button
           type="button"
+          variant="secondary"
+          size="compact"
           onClick={() => setChildQuotaOpen(true)}
-          className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
         >
           Kinderkontingent
-        </button>
+        </Button>
         <Link
           href={
             school
@@ -663,8 +665,12 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
         onClose={() => setChildQuotaOpen(false)}
         school={school}
         loadCurrentSchool={async () => {
-          const fresh = await mutateSchools();
-          return fresh?.find((item) => item.id === school.id) ?? school;
+          const fresh = await mutateSchools(undefined, { throwOnError: true });
+          const current = fresh?.find((item) => item.id === school.id);
+          if (!current) {
+            throw new Error("school not found after refresh");
+          }
+          return current;
         }}
         onUpdated={refreshSchoolDetail}
       />
