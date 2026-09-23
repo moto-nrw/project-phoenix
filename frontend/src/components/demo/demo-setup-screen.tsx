@@ -1,3 +1,4 @@
+import { DemoShell } from "~/components/demo/demo-shell";
 import { CheckIcon, SpinnerIcon } from "~/components/ui/icons";
 import { SectionCard } from "~/components/ui/section-card";
 import {
@@ -34,7 +35,7 @@ function LineIcon({ state }: { readonly state: LineState }) {
 export function DemoSetupScreen({ schoolName, step }: DemoSetupProgress) {
   const running = DEMO_SETUP_STEPS[step] ?? DEMO_SETUP_STEPS[0];
   return (
-    <main className="flex min-h-dvh items-center justify-center px-4 py-8">
+    <DemoShell>
       <SectionCard
         headingLevel={1}
         title={demoSetupTitle(schoolName)}
@@ -73,6 +74,6 @@ export function DemoSetupScreen({ schoolName, step }: DemoSetupProgress) {
           {running} …
         </output>
       </SectionCard>
-    </main>
+    </DemoShell>
   );
 }
