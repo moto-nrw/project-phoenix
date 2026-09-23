@@ -139,6 +139,31 @@ func TestDetectEditedInWindow_FollowsClosingDaySkip(t *testing.T) {
 	assert.Empty(t, detect(), "the closing-day occurrence of holiday care is expected")
 }
 
+// An occurrence planned before its day became a closing day (Wissingen: the
+// school year was materialized before the autumn holidays were entered) is
+// not an edit, so changing the series raises no lost-edits warning for it.
+func TestDetectEditedInWindow_OccurrencePlannedBeforeClosureIsNoEdit(t *testing.T) {
+	t.Parallel()
+
+	closingMonday := timezone.NewDate(2026, time.April, 13)
+	regularMonday := timezone.NewDate(2026, time.April, 20)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, closingMonday)
+
+	_, err := s.factory.Materialization.MaterializeForTenant(s.ctx, closingMonday, regularMonday, timetableplanning.MaterializationSourceManual)
+	require.NoError(t, err)
+	require.Len(t, listInstancesForDate(t, s.db, s.template.ID, closingMonday), 1)
+	insertScenarioClosingDay(t, s, closingMonday, closingMonday)
+
+	var edited []timetableplanning.EditedOccurrence
+	err = tenant.WithTenantTx(s.ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var err error
+		edited, err = s.factory.Materialization.DetectEditedInWindow(txCtx, s.template.ID, closingMonday, regularMonday, false)
+		return err
+	})
+	require.NoError(t, err)
+	assert.Empty(t, edited)
+}
+
 // bulkCancelScenario plans six Mondays around the factory's today
 // (2026-08-24): one in the past, today, and four ahead.
 func bulkCancelScenario(t *testing.T) (*scenarioSetup, []timezone.Date) {

@@ -282,7 +282,7 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/timetable/legacy/timetableplanning/deviation_apply.go:planSubstitutions":                                                                30,
 	"modules/timetable/legacy/timetableplanning/deviation_apply.go:validateDeviationStaff":                                                           32,
 	"modules/timetable/legacy/timetableplanning/deviation_service.go:(*instanceService).ApplySubstitute":                                             26,
-	"modules/timetable/legacy/timetableplanning/edited_instance_detection.go:(*materializationService).DetectEditedInWindow":                         50,
+	"modules/timetable/legacy/timetableplanning/edited_instance_detection.go:(*materializationService).DetectEditedInWindow":                         48,
 	"modules/timetable/legacy/timetableplanning/edited_instance_detection.go:(*materializationService).expectedSlotsOn":                              16,
 	"modules/timetable/legacy/timetableplanning/instance_conflict.go:DetectStartConflicts":                                                           37,
 	"modules/timetable/legacy/timetableplanning/instance_conflict.go:DetectWindowConflicts":                                                          24,

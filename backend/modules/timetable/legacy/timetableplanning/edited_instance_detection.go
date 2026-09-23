@@ -143,10 +143,10 @@ func (s *materializationService) DetectEditedInWindow(
 		if err != nil {
 			return nil, &ScheduleError{Op: "detect edited: load periods", Err: err}
 		}
-		days, err := timetable.LoadNonWorkingDays(ctx, s.nonWorkingDays, from.String(), to.String())
-		if err != nil {
-			return nil, &ScheduleError{Op: "detect edited: load non-working days", Err: err}
-		}
+		// Occurrences on closing days and holidays are compared with the series
+		// pattern as if the day were open: an untouched occurrence planned before
+		// the closure is not an edit (#3594), and a re-plan drops it anyway.
+		days := timetable.NonWorkingDays{}
 		enrollments, err := s.enrollmentRepo.FindByGroupID(ctx, activityGroupID)
 		if err != nil {
 			return nil, &ScheduleError{Op: "detect edited: load enrollments", Err: err}
