@@ -478,6 +478,17 @@ Ablehnung (der Vorgang ist gerade nicht möglich), Nicht erreichbar (später
 erneut versuchen) und Serverfehler (bei uns ist etwas kaputt). Jeder Fehlercode
 gehört zu genau einer Klasse. Kennt der Fehlerkatalog einen Code nicht, wird der
 Text seiner Klasse angezeigt.
+_Vermeiden_: Netzabbruch (heißt Nicht erreichbar).
+
+## Absturz
+
+Ein **Absturz** ist ein Fehler, den kein Programmteil abgefangen hat. Er hat
+keinen Fehlercode und gehört deshalb zu keiner Fehlerklasse. Zusammen mit
+Serverfehlern und endgültig gescheiterter Hintergrundarbeit ist er ein
+**Defekt**: etwas, das bei uns kaputt ist und behoben werden muss. Nur Defekte
+werden in der Fehlerbeobachtung einzeln gemeldet; Erwartbares wird nur
+protokolliert.
+_Vermeiden_: Crash.
 
 ## Fehlerkatalog
 
