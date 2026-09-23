@@ -12,6 +12,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -655,11 +656,9 @@ func phaseServiceWithCalendarPeriods(t *testing.T) (enrollmentService.PhaseServi
 	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
 		Owner:            repoFactory.Enrollment(),
 		CareOfferingRepo: enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
-		CalendarPeriods: timetableplanning.NewCalendarPeriodServiceWithConfig(timetableplanning.CalendarPeriodServiceConfig{
-			Repo: repoFactory.CalendarPeriod, Logger: slog.Default(),
-		}),
-		DB:     db,
-		Logger: slog.Default(),
+		CalendarPeriods:  repoFactory.SchoolCalendar(),
+		DB:               db,
+		Logger:           slog.Default(),
 	})
 	return svc, repoFactory, db, cleanup
 }
@@ -806,42 +805,6 @@ type failingCalendarPeriodService struct {
 	err error
 }
 
-func (s failingCalendarPeriodService) GetAllPeriods(context.Context) ([]*scheduleModels.CalendarPeriod, error) {
-	return nil, s.err
-}
-
-func (s failingCalendarPeriodService) GetActivePeriods(context.Context) ([]*scheduleModels.CalendarPeriod, error) {
-	return nil, s.err
-}
-
-func (s failingCalendarPeriodService) GetPeriodByID(context.Context, int64) (*scheduleModels.CalendarPeriod, error) {
-	return nil, s.err
-}
-
-func (s failingCalendarPeriodService) CreatePeriod(context.Context, *scheduleModels.CalendarPeriod) error {
-	return s.err
-}
-
-func (s failingCalendarPeriodService) UpdatePeriod(context.Context, *scheduleModels.CalendarPeriod) error {
-	return s.err
-}
-
-func (s failingCalendarPeriodService) DeletePeriod(context.Context, int64) error {
-	return s.err
-}
-
-func (s failingCalendarPeriodService) EnsureDefaultSchoolYear(context.Context) ([]*scheduleModels.CalendarPeriod, bool, error) {
-	return nil, false, s.err
-}
-
-func (s failingCalendarPeriodService) FindActiveOverlaps(context.Context, *scheduleModels.CalendarPeriod) ([]*scheduleModels.CalendarPeriod, error) {
-	return nil, s.err
-}
-
-func (s failingCalendarPeriodService) GetUsageCounts(context.Context) (map[int64]scheduleModels.CalendarPeriodUsage, error) {
-	return nil, s.err
-}
-
-func (failingCalendarPeriodService) ShouldMaterialize(int, timezone.Date, *scheduleModels.CalendarPeriod) bool {
-	return false
+func (s failingCalendarPeriodService) FindCalendarPeriod(context.Context, int64) (schoolcalendar.CalendarPeriod, error) {
+	return schoolcalendar.CalendarPeriod{}, s.err
 }

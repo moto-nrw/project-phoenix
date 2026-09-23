@@ -11,38 +11,27 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
-// Use shared constants from common package
-var scheduleDateLayout = common.DateFormatISO
-
-const (
-	errMsgInvalidDateframeID      = "invalid dateframe ID"
-	errMsgInvalidTimeframeID      = "invalid timeframe ID"
-	errMsgInvalidRecurrenceRuleID = "invalid recurrence rule ID"
-	errMsgInvalidStartDate        = "invalid start date format"
-	errMsgInvalidEndDate          = "invalid end date format"
-	errMsgInvalidStartTime        = "invalid start time format"
-	errMsgInvalidEndTime          = "invalid end time format"
-	msgRecurrenceRulesRetrieved   = "Recurrence rules retrieved successfully"
-)
-
 // SchedulesResource defines the schedules API resource
 type SchedulesResource struct {
-	ScheduleService timetableplanning.Service
-	db              *bun.DB
+	Dateframes     Dateframes
+	Timeframes     Timeframes
+	TimeframeGuard TimeframeChangeGuard
+	db             *bun.DB
 }
 
 // NewSchedulesResource creates a new schedules resource
-func NewSchedulesResource(scheduleService timetableplanning.Service, db *bun.DB) *SchedulesResource {
+func NewSchedulesResource(dateframes Dateframes, timeframes Timeframes, guard TimeframeChangeGuard, db *bun.DB) *SchedulesResource {
 	return &SchedulesResource{
-		ScheduleService: scheduleService,
-		db:              db,
+		Dateframes:     dateframes,
+		Timeframes:     timeframes,
+		TimeframeGuard: guard,
+		db:             db,
 	}
 }
 
@@ -174,10 +163,10 @@ type RecurrenceRuleRequest struct {
 func (req *RecurrenceRuleRequest) Bind(_ *http.Request) error {
 	return validation.ValidateStruct(req,
 		validation.Field(&req.Frequency, validation.Required, validation.In(
-			schedule.FrequencyDaily,
-			schedule.FrequencyWeekly,
-			schedule.FrequencyMonthly,
-			schedule.FrequencyYearly,
+			recurrenceFrequencyDaily,
+			recurrenceFrequencyWeekly,
+			recurrenceFrequencyMonthly,
+			recurrenceFrequencyYearly,
 		)),
 		validation.Field(&req.IntervalCount, validation.Min(1)),
 	)
@@ -294,7 +283,7 @@ func (rs *SchedulesResource) parseOptionalEndDate(w http.ResponseWriter, r *http
 	return &endDate, true
 }
 
-func newDateframeResponse(dateframe *schedule.Dateframe) DateframeResponse {
+func newDateframeResponse(dateframe schoolcalendar.Dateframe) DateframeResponse {
 	return DateframeResponse{
 		ID:          dateframe.ID,
 		StartDate:   common.Time(dateframe.StartDate),
@@ -306,7 +295,7 @@ func newDateframeResponse(dateframe *schedule.Dateframe) DateframeResponse {
 	}
 }
 
-func newTimeframeResponse(timeframe *schedule.Timeframe) TimeframeResponse {
+func newTimeframeResponse(timeframe timeframeSlot) TimeframeResponse {
 	resp := TimeframeResponse{
 		ID:          timeframe.ID,
 		StartTime:   common.Time(timeframe.StartTime),
@@ -324,7 +313,7 @@ func newTimeframeResponse(timeframe *schedule.Timeframe) TimeframeResponse {
 	return resp
 }
 
-func newRecurrenceRuleResponse(rule *schedule.RecurrenceRule) RecurrenceRuleResponse {
+func newRecurrenceRuleResponse(rule timetableModule.RecurrenceRule) RecurrenceRuleResponse {
 	resp := RecurrenceRuleResponse{
 		ID:            rule.ID,
 		Frequency:     rule.Frequency,
@@ -347,21 +336,14 @@ func newRecurrenceRuleResponse(rule *schedule.RecurrenceRule) RecurrenceRuleResp
 // Dateframe endpoints
 
 func (rs *SchedulesResource) listDateframes(w http.ResponseWriter, r *http.Request) {
-	// Create query options
-	queryOptions := base.NewQueryOptions()
-
-	// Add filters if provided
-	name := r.URL.Query().Get("name")
-	if name != "" {
-		queryOptions.Filter.ILike("name", "%"+name+"%")
+	filter := schoolcalendar.DateframeFilter{}
+	if name := r.URL.Query().Get("name"); name != "" {
+		filter.NamePattern = "%" + name + "%"
 	}
-
-	// Add pagination
 	page, pageSize := common.ParsePagination(r)
-	queryOptions.WithPagination(page, pageSize)
+	filter.Limit, filter.Offset = pageSize, (page-1)*pageSize
 
-	// Get dateframes
-	dateframes, err := rs.ScheduleService.ListDateframes(r.Context(), queryOptions)
+	dateframes, err := rs.Dateframes.ListDateframes(r.Context(), filter)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -385,7 +367,7 @@ func (rs *SchedulesResource) getDateframe(w http.ResponseWriter, r *http.Request
 	}
 
 	// Get dateframe
-	dateframe, err := rs.ScheduleService.GetDateframe(r.Context(), id)
+	dateframe, err := rs.Dateframes.FindDateframe(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, scheduleLookupError(err, "dateframe not found"))
 		return
@@ -409,16 +391,14 @@ func (rs *SchedulesResource) createDateframe(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Create dateframe
-	dateframe := &schedule.Dateframe{
-		StartDate:   startDate,
-		EndDate:     endDate,
-		Name:        req.Name,
-		Description: req.Description,
-	}
-
+	var dateframe schoolcalendar.Dateframe
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.ScheduleService.CreateDateframe(ctx, dateframe)
+		created, err := rs.Dateframes.CreateDateframe(ctx, schoolcalendar.CreateDateframe{DateframeFields: schoolcalendar.DateframeFields{
+			StartDate: startDate, EndDate: endDate, Name: req.Name, Description: req.Description,
+		}})
+		dateframe = created
+		return err
 	}); err != nil {
 		common.RenderError(w, r, SchedulesErrorRenderer(err))
 		return
@@ -443,7 +423,7 @@ func (rs *SchedulesResource) updateDateframe(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Get existing dateframe
-	dateframe, err := rs.ScheduleService.GetDateframe(r.Context(), id)
+	dateframe, err := rs.Dateframes.FindDateframe(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, scheduleLookupError(err, "dateframe not found"))
 		return
@@ -455,16 +435,16 @@ func (rs *SchedulesResource) updateDateframe(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Update fields
-	dateframe.StartDate = startDate
-	dateframe.EndDate = endDate
-	dateframe.Name = req.Name
-	dateframe.Description = req.Description
-
 	// Update dateframe
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.ScheduleService.UpdateDateframe(ctx, dateframe)
+		updated, err := rs.Dateframes.UpdateDateframe(ctx, schoolcalendar.UpdateDateframe{ID: dateframe.ID, DateframeFields: schoolcalendar.DateframeFields{
+			StartDate: startDate, EndDate: endDate, Name: req.Name, Description: req.Description,
+		}})
+		if err == nil {
+			dateframe = updated
+		}
+		return err
 	}); err != nil {
 		common.RenderError(w, r, SchedulesErrorRenderer(err))
 		return
@@ -484,7 +464,7 @@ func (rs *SchedulesResource) deleteDateframe(w http.ResponseWriter, r *http.Requ
 	// Delete dateframe
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.ScheduleService.DeleteDateframe(ctx, id)
+		return rs.Dateframes.DeleteDateframe(ctx, id)
 	}); err != nil {
 		common.RenderError(w, r, SchedulesErrorRenderer(err))
 		return
@@ -508,8 +488,9 @@ func (rs *SchedulesResource) getDateframesByDate(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// Get dateframes
-	dateframes, err := rs.ScheduleService.FindDateframesByDate(r.Context(), date)
+	// Get dateframes holding the day
+	instant := dateframeMidnight(date)
+	dateframes, err := rs.Dateframes.ListDateframes(r.Context(), schoolcalendar.DateframeFilter{Contains: &instant})
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -548,7 +529,12 @@ func (rs *SchedulesResource) getOverlappingDateframes(w http.ResponseWriter, r *
 	}
 
 	// Get overlapping dateframes
-	dateframes, err := rs.ScheduleService.FindOverlappingDateframes(r.Context(), startDate, endDate)
+	if startDate.After(endDate) {
+		common.RenderError(w, r, common.ErrorInternalServer(timetableModule.ErrInvalidRecurrenceRange))
+		return
+	}
+	from, to := dateframeMidnight(startDate), dateframeMidnight(endDate)
+	dateframes, err := rs.Dateframes.ListDateframes(r.Context(), schoolcalendar.DateframeFilter{OverlappingFrom: &from, OverlappingTo: &to})
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -564,34 +550,30 @@ func (rs *SchedulesResource) getOverlappingDateframes(w http.ResponseWriter, r *
 }
 
 func (rs *SchedulesResource) getCurrentDateframe(w http.ResponseWriter, r *http.Request) {
-	// Get current dateframe
-	dateframe, err := rs.ScheduleService.GetCurrentDateframe(r.Context())
+	// Get current dateframe: the first range holding today. If multiple
+	// dateframes are active, the listing order (by ID) decides.
+	now := dateframeMidnight(time.Now())
+	dateframes, err := rs.Dateframes.ListDateframes(r.Context(), schoolcalendar.DateframeFilter{Contains: &now})
 	if err != nil {
 		common.RenderError(w, r, scheduleLookupError(err, "no current dateframe found"))
 		return
 	}
+	if len(dateframes) == 0 {
+		common.RenderError(w, r, scheduleLookupError(schoolcalendar.ErrDateframeNotFound, "no current dateframe found"))
+		return
+	}
 
-	common.Respond(w, r, http.StatusOK, newDateframeResponse(dateframe), "Current dateframe retrieved successfully")
+	common.Respond(w, r, http.StatusOK, newDateframeResponse(dateframes[0]), "Current dateframe retrieved successfully")
 }
 
 // Timeframe endpoints
 
 func (rs *SchedulesResource) listTimeframes(w http.ResponseWriter, r *http.Request) {
-	// Create query options
-	queryOptions := base.NewQueryOptions()
-
-	// Add filters if provided
-	description := r.URL.Query().Get("description")
-	if description != "" {
-		queryOptions.Filter.ILike("description", "%"+description+"%")
-	}
-
-	// Add pagination
+	filter := timetableModule.TimeframeFilter{DescriptionContains: r.URL.Query().Get("description")}
 	page, pageSize := common.ParsePagination(r)
-	queryOptions.WithPagination(page, pageSize)
+	filter.Limit, filter.Offset = pageSize, (page-1)*pageSize
 
-	// Get timeframes
-	timeframes, err := rs.ScheduleService.ListTimeframes(r.Context(), queryOptions)
+	timeframes, err := rs.listTimeframeSlots(r.Context(), filter)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -615,7 +597,7 @@ func (rs *SchedulesResource) getTimeframe(w http.ResponseWriter, r *http.Request
 	}
 
 	// Get timeframe
-	timeframe, err := rs.ScheduleService.GetTimeframe(r.Context(), id)
+	timeframe, err := rs.findTimeframeSlot(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, scheduleLookupError(err, "timeframe not found"))
 		return
@@ -639,16 +621,15 @@ func (rs *SchedulesResource) createTimeframe(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Create timeframe
-	timeframe := &schedule.Timeframe{
-		StartTime:   startTime,
-		EndTime:     endTime,
-		IsActive:    req.IsActive,
-		Description: req.Description,
-	}
-
+	var timeframe timeframeSlot
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.ScheduleService.CreateTimeframe(ctx, timeframe)
+		created, err := rs.Timeframes.CreateTimeframe(ctx, timeframeInput(startTime, endTime, req.IsActive, req.Description))
+		if err != nil {
+			return err
+		}
+		timeframe, err = timeframeToSlot(created)
+		return err
 	}); err != nil {
 		common.RenderError(w, r, SchedulesErrorRenderer(err))
 		return
@@ -673,7 +654,7 @@ func (rs *SchedulesResource) updateTimeframe(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Get existing timeframe
-	timeframe, err := rs.ScheduleService.GetTimeframe(r.Context(), id)
+	timeframe, err := rs.findTimeframeSlot(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, scheduleLookupError(err, "timeframe not found"))
 		return
@@ -685,16 +666,19 @@ func (rs *SchedulesResource) updateTimeframe(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Update fields
-	timeframe.StartTime = startTime
-	timeframe.EndTime = endTime
-	timeframe.IsActive = req.IsActive
-	timeframe.Description = req.Description
-
-	// Update timeframe
+	// Update timeframe: the care-offering guard sees the replacement first.
+	input := timeframeInput(startTime, endTime, req.IsActive, req.Description)
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.ScheduleService.UpdateTimeframe(ctx, timeframe)
+		if err := rs.guardTimeframeChange(ctx, timeframe.ID, &input); err != nil {
+			return err
+		}
+		updated, err := rs.Timeframes.UpdateTimeframe(ctx, timeframe.ID, input)
+		if err != nil {
+			return err
+		}
+		timeframe, err = timeframeToSlot(updated)
+		return err
 	}); err != nil {
 		common.RenderError(w, r, SchedulesErrorRenderer(err))
 		return
@@ -711,10 +695,13 @@ func (rs *SchedulesResource) deleteTimeframe(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Delete timeframe
+	// Delete timeframe: the care-offering guard runs before the row goes.
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.ScheduleService.DeleteTimeframe(ctx, id)
+		if err := rs.guardTimeframeChange(ctx, id, nil); err != nil {
+			return err
+		}
+		return rs.Timeframes.DeleteTimeframe(ctx, id)
 	}); err != nil {
 		common.RenderError(w, r, SchedulesErrorRenderer(err))
 		return
@@ -725,7 +712,7 @@ func (rs *SchedulesResource) deleteTimeframe(w http.ResponseWriter, r *http.Requ
 
 func (rs *SchedulesResource) getActiveTimeframes(w http.ResponseWriter, r *http.Request) {
 	// Get active timeframes
-	timeframes, err := rs.ScheduleService.FindActiveTimeframes(r.Context())
+	timeframes, err := rs.listTimeframeSlots(r.Context(), timetableModule.TimeframeFilter{ActiveOnly: true})
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -764,7 +751,11 @@ func (rs *SchedulesResource) getTimeframesByRange(w http.ResponseWriter, r *http
 	}
 
 	// Get timeframes
-	timeframes, err := rs.ScheduleService.FindTimeframesByTimeRange(r.Context(), startTime, endTime)
+	if !endTime.IsZero() && startTime.After(endTime) {
+		common.RenderError(w, r, common.ErrorInternalServer(timetableModule.ErrInvalidTimeRange))
+		return
+	}
+	timeframes, err := overlappingTimeframes(r.Context(), rs.Timeframes, startTime, endTime)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -782,21 +773,11 @@ func (rs *SchedulesResource) getTimeframesByRange(w http.ResponseWriter, r *http
 // Recurrence rule endpoints
 
 func (rs *SchedulesResource) listRecurrenceRules(w http.ResponseWriter, r *http.Request) {
-	// Create query options
-	queryOptions := base.NewQueryOptions()
-
-	// Add filters if provided
-	frequency := r.URL.Query().Get("frequency")
-	if frequency != "" {
-		queryOptions.Filter.Equal("frequency", frequency)
-	}
-
-	// Add pagination
+	filter := timetableModule.RecurrenceRuleFilter{Frequency: r.URL.Query().Get("frequency")}
 	page, pageSize := common.ParsePagination(r)
-	queryOptions.WithPagination(page, pageSize)
+	filter.Limit, filter.Offset = pageSize, (page-1)*pageSize
 
-	// Get recurrence rules
-	rules, err := rs.ScheduleService.ListRecurrenceRules(r.Context(), queryOptions)
+	rules, err := rs.Timeframes.ListRecurrenceRules(r.Context(), filter)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -820,7 +801,7 @@ func (rs *SchedulesResource) getRecurrenceRule(w http.ResponseWriter, r *http.Re
 	}
 
 	// Get recurrence rule
-	rule, err := rs.ScheduleService.GetRecurrenceRule(r.Context(), id)
+	rule, err := rs.Timeframes.FindRecurrenceRule(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, scheduleLookupError(err, "recurrence rule not found"))
 		return
@@ -838,7 +819,7 @@ func (rs *SchedulesResource) createRecurrenceRule(w http.ResponseWriter, r *http
 	}
 
 	// Create recurrence rule
-	rule := &schedule.RecurrenceRule{
+	input := timetableModule.RecurrenceRuleInput{
 		Frequency:     req.Frequency,
 		IntervalCount: req.IntervalCount,
 		Weekdays:      req.Weekdays,
@@ -853,12 +834,15 @@ func (rs *SchedulesResource) createRecurrenceRule(w http.ResponseWriter, r *http
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidEndDate)))
 			return
 		}
-		rule.EndDate = &endDate
+		input.EndDate = &endDate
 	}
 
+	var rule timetableModule.RecurrenceRule
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.ScheduleService.CreateRecurrenceRule(ctx, rule)
+		created, err := rs.Timeframes.CreateRecurrenceRule(ctx, input)
+		rule = created
+		return err
 	}); err != nil {
 		common.RenderError(w, r, SchedulesErrorRenderer(err))
 		return
@@ -883,30 +867,34 @@ func (rs *SchedulesResource) updateRecurrenceRule(w http.ResponseWriter, r *http
 	}
 
 	// Get existing recurrence rule
-	rule, err := rs.ScheduleService.GetRecurrenceRule(r.Context(), id)
+	rule, err := rs.Timeframes.FindRecurrenceRule(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, scheduleLookupError(err, "recurrence rule not found"))
 		return
 	}
-
-	// Update fields
-	rule.Frequency = req.Frequency
-	rule.IntervalCount = req.IntervalCount
-	rule.Weekdays = req.Weekdays
-	rule.MonthDays = req.MonthDays
-	rule.Count = req.Count
 
 	// Parse and validate optional end date
 	endDate, ok := rs.parseOptionalEndDate(w, r, req.EndDate)
 	if !ok {
 		return
 	}
-	rule.EndDate = endDate
+	input := timetableModule.RecurrenceRuleInput{
+		Frequency:     req.Frequency,
+		IntervalCount: req.IntervalCount,
+		Weekdays:      req.Weekdays,
+		MonthDays:     req.MonthDays,
+		EndDate:       endDate,
+		Count:         req.Count,
+	}
 
 	// Update recurrence rule
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.ScheduleService.UpdateRecurrenceRule(ctx, rule)
+		updated, err := rs.Timeframes.UpdateRecurrenceRule(ctx, rule.ID, input)
+		if err == nil {
+			rule = updated
+		}
+		return err
 	}); err != nil {
 		common.RenderError(w, r, SchedulesErrorRenderer(err))
 		return
@@ -926,7 +914,7 @@ func (rs *SchedulesResource) deleteRecurrenceRule(w http.ResponseWriter, r *http
 	// Delete recurrence rule
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.ScheduleService.DeleteRecurrenceRule(ctx, id)
+		return rs.Timeframes.DeleteRecurrenceRule(ctx, id)
 	}); err != nil {
 		common.RenderError(w, r, SchedulesErrorRenderer(err))
 		return
@@ -944,7 +932,7 @@ func (rs *SchedulesResource) getRecurrenceRulesByFrequency(w http.ResponseWriter
 	}
 
 	// Get recurrence rules
-	rules, err := rs.ScheduleService.FindRecurrenceRulesByFrequency(r.Context(), frequency)
+	rules, err := rs.Timeframes.ListRecurrenceRules(r.Context(), timetableModule.RecurrenceRuleFilter{Frequency: frequency})
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -968,7 +956,7 @@ func (rs *SchedulesResource) getRecurrenceRulesByWeekday(w http.ResponseWriter, 
 	}
 
 	// Get recurrence rules
-	rules, err := rs.ScheduleService.FindRecurrenceRulesByWeekday(r.Context(), weekday)
+	rules, err := rs.Timeframes.ListRecurrenceRules(r.Context(), timetableModule.RecurrenceRuleFilter{Weekday: weekday})
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -1005,7 +993,7 @@ func (rs *SchedulesResource) generateEvents(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Generate events
-	events, err := rs.ScheduleService.GenerateEvents(r.Context(), id, startDate, endDate)
+	events, err := rs.Timeframes.GenerateRecurrenceEvents(r.Context(), id, startDate, endDate)
 	if err != nil {
 		common.RenderError(w, r, SchedulesErrorRenderer(err))
 		return
@@ -1047,7 +1035,7 @@ func (rs *SchedulesResource) checkConflict(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Check conflict
-	hasConflict, conflictingTimeframes, err := rs.ScheduleService.CheckConflict(r.Context(), startTime, endTime)
+	hasConflict, conflictingTimeframes, err := checkTimeframeConflict(r.Context(), rs.Timeframes, startTime, endTime)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -1083,7 +1071,7 @@ func (rs *SchedulesResource) findAvailableSlots(w http.ResponseWriter, r *http.R
 	duration := time.Duration(req.Duration) * time.Minute
 
 	// Find available slots
-	availableSlots, err := rs.ScheduleService.FindAvailableSlots(r.Context(), startDate, endDate, duration)
+	availableSlots, err := availableTimeframeSlots(r.Context(), rs.Timeframes, startDate, endDate, duration)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return

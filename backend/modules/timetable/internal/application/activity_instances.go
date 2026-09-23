@@ -115,25 +115,8 @@ func (s *Service) UpdateActivityInstance(ctx context.Context, id int64, fields d
 
 func (s *Service) PatchActivityInstance(ctx context.Context, id int64, fields domain.ActivityInstanceFields, columns []string) (result int64, err error) {
 	err = s.runWrite(ctx, "patch_activity_instance", true, func(txCtx context.Context, stats *domain.OperationStats) error {
-		if slices.Contains(columns, "date") || slices.Contains(columns, "status") {
-			current, found, queryStats, err := s.store.FindActivityInstance(txCtx, id)
-			stats.Add(queryStats)
-			if err != nil {
-				return err
-			}
-			if !found {
-				return domain.ErrActivityInstanceNotFound
-			}
-			date, status := current.Date, current.Status
-			if slices.Contains(columns, "date") {
-				date = fields.Date
-			}
-			if slices.Contains(columns, "status") {
-				status = fields.Status
-			}
-			if err := s.lockOperationalInstanceStaff(txCtx, id, date, status, &current, stats); err != nil {
-				return err
-			}
+		if err := s.guardActivityInstancePatch(txCtx, id, fields, columns, stats); err != nil {
+			return err
 		}
 		rows, queryStats, updateErr := s.store.PatchActivityInstance(txCtx, id, fields, columns)
 		stats.Add(queryStats)
@@ -141,6 +124,46 @@ func (s *Service) PatchActivityInstance(ctx context.Context, id int64, fields do
 		return updateErr
 	})
 	return result, err
+}
+
+// guardActivityInstancePatch locks what a date or planning-status change
+// touches: the staff assignments of an operational block, and the block
+// itself. A planning-status change would overwrite the rollback mirror of a
+// running block, so the execution has to end first.
+func (s *Service) guardActivityInstancePatch(ctx context.Context, id int64, fields domain.ActivityInstanceFields, columns []string, stats *domain.OperationStats) error {
+	if !slices.Contains(columns, "date") && !slices.Contains(columns, "status") {
+		return nil
+	}
+	current, found, queryStats, err := s.store.FindActivityInstance(ctx, id)
+	stats.Add(queryStats)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return domain.ErrActivityInstanceNotFound
+	}
+	date, status := current.Date, current.Status
+	if slices.Contains(columns, "date") {
+		date = fields.Date
+	}
+	if slices.Contains(columns, "status") {
+		status = fields.Status
+		if err := s.requireUnstartedInstance(ctx, id); err != nil {
+			return err
+		}
+	}
+	return s.lockOperationalInstanceStaff(ctx, id, date, status, &current, stats)
+}
+
+func (s *Service) requireUnstartedInstance(ctx context.Context, id int64) error {
+	started, err := s.startedInstanceIDs(ctx, []int64{id})
+	if err != nil {
+		return err
+	}
+	if started[id] {
+		return domain.ErrActivityInstanceStarted
+	}
+	return nil
 }
 
 // Moving retained history back into the operational timetable must not revive
@@ -202,63 +225,69 @@ func (s *Service) DeleteActivityInstance(ctx context.Context, id int64) error {
 	})
 }
 
-func (s *Service) MarkActivityInstanceCompleted(ctx context.Context, id int64, completedAt time.Time) error {
-	return s.runWrite(ctx, "mark_activity_instance_completed", true, func(txCtx context.Context, stats *domain.OperationStats) error {
-		found, queryStats, err := s.store.MarkActivityInstanceCompleted(txCtx, id, completedAt)
-		stats.Add(queryStats)
-		if err == nil && !found {
-			return domain.ErrActivityInstanceNotFound
-		}
-		return err
-	})
-}
-
-func (s *Service) CompleteActiveActivityInstances(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (result int64, err error) {
-	err = s.runWrite(ctx, "complete_active_activity_instances", true, func(txCtx context.Context, stats *domain.OperationStats) error {
-		rows, queryStats, updateErr := s.store.CompleteActiveActivityInstances(txCtx, activeGroupIDs, completedAt)
-		stats.Add(queryStats)
-		result = rows
-		return updateErr
-	})
-	return result, err
-}
-
-func (s *Service) DeletePlannedActivityInstances(ctx context.Context, from string, to *string, groupID *int64, preserveDeviations bool) (result int64, err error) {
-	err = s.runWrite(ctx, "delete_planned_activity_instances", true, func(txCtx context.Context, stats *domain.OperationStats) error {
-		rows, queryStats, deleteErr := s.store.DeletePlannedActivityInstances(txCtx, from, to, groupID, preserveDeviations)
-		stats.Add(queryStats)
-		result = rows
-		return deleteErr
-	})
-	return result, err
-}
-
-func (s *Service) DeleteRemovedWeekendActivityInstances(ctx context.Context, groupID int64, weekdays []int) (result int64, err error) {
-	err = s.runWrite(ctx, "delete_removed_weekend_activity_instances", true, func(txCtx context.Context, stats *domain.OperationStats) error {
-		rows, queryStats, deleteErr := s.store.DeleteRemovedWeekendActivityInstances(txCtx, groupID, weekdays, s.today())
-		stats.Add(queryStats)
-		result = rows
-		return deleteErr
-	})
-	return result, err
-}
-
-func (s *Service) PropagateActivityInstanceListKind(ctx context.Context, groupID int64, previousKind, newKind *string, after string) (result int64, err error) {
-	err = s.runWrite(ctx, "propagate_activity_instance_list_kind", true, func(txCtx context.Context, stats *domain.OperationStats) error {
-		rows, queryStats, updateErr := s.store.PropagateActivityInstanceListKind(txCtx, groupID, previousKind, newKind, after, time.Now())
-		stats.Add(queryStats)
-		result = rows
-		return updateErr
-	})
-	return result, err
-}
-
 func (s *Service) DeleteActivityInstancesBefore(ctx context.Context, before string) (result int64, err error) {
 	err = s.runWrite(ctx, "delete_activity_instances_before", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		rows, queryStats, deleteErr := s.store.DeleteActivityInstancesBefore(txCtx, before)
 		stats.Add(queryStats)
 		result = rows
 		return deleteErr
+	})
+	return result, err
+}
+
+// DeletePlannedActivityInstances removes the template-backed occurrences of
+// the window a replan may replace. A block that started or ended keeps its
+// row: Student Presence records the execution, so the planner asks it first.
+func (s *Service) DeletePlannedActivityInstances(ctx context.Context, from string, to *string, groupID *int64, preserveDeviations bool) (result int64, err error) {
+	err = s.runWrite(ctx, "delete_planned_activity_instances", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		ids, queryStats, listErr := s.store.ListReplannableActivityInstanceIDs(txCtx, from, to, groupID, preserveDeviations)
+		stats.Add(queryStats)
+		if listErr != nil {
+			return listErr
+		}
+		return s.deleteUnstartedInstances(txCtx, ids, stats, &result)
+	})
+	return result, err
+}
+
+func (s *Service) deleteUnstartedInstances(ctx context.Context, ids []int64, stats *domain.OperationStats, result *int64) error {
+	started, err := s.startedInstanceIDs(ctx, ids)
+	if err != nil {
+		return err
+	}
+	rows, deleteStats, err := s.store.DeleteActivityInstancesByID(ctx, withoutIDs(ids, started))
+	stats.Add(deleteStats)
+	*result = rows
+	return err
+}
+
+func (s *Service) DeleteRemovedWeekendActivityInstances(ctx context.Context, groupID int64, weekdays []int) (result int64, err error) {
+	err = s.runWrite(ctx, "delete_removed_weekend_activity_instances", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		ids, queryStats, listErr := s.store.ListRemovedWeekendActivityInstanceIDs(txCtx, groupID, weekdays, s.today())
+		stats.Add(queryStats)
+		if listErr != nil {
+			return listErr
+		}
+		return s.deleteUnstartedInstances(txCtx, ids, stats, &result)
+	})
+	return result, err
+}
+
+func (s *Service) PropagateActivityInstanceListKind(ctx context.Context, groupID int64, previousKind, newKind *string, after string) (result int64, err error) {
+	err = s.runWrite(ctx, "propagate_activity_instance_list_kind", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		ids, queryStats, listErr := s.store.ListFutureTemplateActivityInstanceIDs(txCtx, groupID, previousKind, after)
+		stats.Add(queryStats)
+		if listErr != nil {
+			return listErr
+		}
+		started, factsErr := s.startedInstanceIDs(txCtx, ids)
+		if factsErr != nil {
+			return factsErr
+		}
+		rows, updateStats, updateErr := s.store.SetActivityInstanceListKind(txCtx, withoutIDs(ids, started), newKind, time.Now())
+		stats.Add(updateStats)
+		result = rows
+		return updateErr
 	})
 	return result, err
 }

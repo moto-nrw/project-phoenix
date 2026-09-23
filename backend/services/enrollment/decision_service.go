@@ -47,7 +47,7 @@ var (
 	ErrDecisionStudentNotFound   = errors.New("student not found")
 	ErrDecisionInvalidStatus     = errors.New("invalid decision status")
 	ErrDecisionAlreadyTerminal   = errors.New("child is already in a terminal status")
-	ErrOfferingAdjustmentInvalid = errors.New("offering adjustment is invalid")
+	ErrOfferingAdjustmentInvalid = careplan.ErrOfferingAdjustmentInvalid
 	// ErrDecisionInvalidData marks an approval that failed because the
 	// parent-supplied request data (e.g. guardian phone) doesn't pass the
 	// student/person validators. Mapped to 400, not 500 — submit/edit now
@@ -193,7 +193,7 @@ type RequestFilters struct {
 // DecisionService backs the admin review UI. Slice 2 wires the full
 // approval pipeline: status mutation + downstream record creation
 // (users.persons / users.students / users.guardian_profiles /
-// users.students_guardians / activities.student_enrollments) + outbox
+// guardian relationships / activities.student_enrollments) + outbox
 // enqueue for parent decision emails. The guardian invitation is
 // surfaced via DecideOutcome.PendingInvite so the handler can fire it
 // post-commit.
@@ -213,7 +213,7 @@ type DecisionService interface {
 	UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*RequestChild, error)
 	ListOfferingAdjustments(ctx context.Context, requestID, requestChildID int64) ([]*auditModels.EnrollmentOfferingAdjustment, error)
 
-	// ListChildOfferings returns the request_child_offerings rows for
+	// ListChildOfferings returns the care offering bookings for
 	// every child under requestID, joined to the offering's name +
 	// description so the admin detail page can render labels without
 	// a second per-offering fetch. Map key is request_child_id.
@@ -1981,7 +1981,7 @@ func (s *decisionService) attachApprovalToExistingStudent(
 			return nil, fmt.Errorf("decision: targeted-field dispatch on existing student: %w", err)
 		}
 		// Materialize any co-guardians the parent added on this full form. A
-		// newly submitted co-guardian needs a users.students_guardians link +
+		// newly submitted co-guardian needs a student-guardian relationship +
 		// phone or the AdditionalGuardians contact data is silently dropped.
 		// Idempotent, so re-approval is safe. Fatal like the fresh-create path —
 		// losing a pickup-authorized emergency contact is a data-integrity
@@ -2252,7 +2252,7 @@ func (s *decisionService) applyStandaloneGuardianProfileNameCorrection(ctx conte
 }
 
 // linkAdditionalGuardians materializes the co-guardians stored on the
-// request (enrollment.request_guardians) as additional students_guardians
+// request (enrollment.request_guardians) as additional student-guardian
 // links for the just-created student. Co-guardians are mapped identically
 // to the primary guardian except IsPrimary=false; they are contact-only,
 // so there is deliberately NO account attach and NO invitation here.
@@ -2313,7 +2313,7 @@ func (s *decisionService) linkAdditionalGuardians(
 }
 
 // reconcilePrimaryGuardianLink resolves the request's primary guardian profile
-// and makes sure the student carries it as the primary students_guardians link,
+// and makes sure the student carries it as the primary student-guardian relationship,
 // creating the link when the student has none (imported / manually created
 // children, and children whose original enrollment predates the guardian link).
 //
@@ -4312,7 +4312,7 @@ func (s *decisionService) dispatchWeekdaySchedule(ctx context.Context, raw any, 
 
 // dispatchContactList creates one additional guardian_profile (or
 // reuses an existing one matched by email) per submitted contact,
-// links it to the student via users.students_guardians, and inserts
+// links it to the student via the student-guardian relationships, and inserts
 // any submitted phone numbers. Mirrors the dedup-by-email behaviour
 // of the CSV importer at services/import/student_import_config.go.
 func contactGuardianRole(isEmergencyContact, canPickup bool) string {
@@ -4470,7 +4470,7 @@ func (s *decisionService) dispatchContactList(ctx context.Context, raw any, stud
 			}
 		}
 
-		// students_guardians link with the parent-submitted flags.
+		// student-guardian relationship with the parent-submitted flags.
 		// Relationship type goes through the same German→enum mapping
 		// the CSV importer uses; unknown values land on "other".
 		rel := &users.StudentGuardian{

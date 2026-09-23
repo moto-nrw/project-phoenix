@@ -86,6 +86,7 @@ go run . cleanup timetable|time-tracking [preview|stats]      # nested dry-runs 
 go run . cleanup tokens|invitations|rate-limits|attendance|sessions|supervisors
 go run . backfill staff-owner [status|reset]   # resumable users.staff → Membership/Workforce copy (#2752); exits 1 while unstable
 go run . backfill student-owner [status|reset] # resumable users.students → People/Membership/Care Plan copy (#2758); exits 1 while unstable
+go run . backfill guardian-owner [status|reset] # resumable users.students_guardians → People/Care Plan/Identity copy (#2755); exits 1 while unstable; refused after Cutover #2756 (runbook: docs/operations/guardian-owner-storage-cutover.md)
 go run . gendoc                     # Generates routes.md + docs/openapi.yaml
 ```
 
@@ -158,8 +159,9 @@ keys through 1Password/Signal, never Slack/email.
    Demo deploys only through manual dispatch from `main`; see
    [demo environment](../operations/demo-environment.md) for host setup and ports.
 3. CI decrypts and copies `.env` and compose to `~/<environment>/` and the release
-   scripts to `~/scripts/<environment>/`. Environments deploy concurrently on one
-   host, so they never share a script directory.
+   scripts to `~/scripts/<environment>/`. Staging and production deploy
+   concurrently on one host, so they never share a script directory; demo runs
+   on its own VM with the same layout.
 4. Deployment pulls images, runs `migrate preflight`, backs up the DB, migrates,
    starts, and healthchecks; failures after the backup trigger rollback.
 
@@ -186,13 +188,38 @@ before changing deployment environments or maintenance jobs.
 
 CI uses `SOPS_AGE_KEY`, `STAGING_SSH_*`, `PRODUCTION_SSH_*`, and `DEMO_SSH_*` secrets;
 failure recipients are in the `DEPLOY_NOTIFY_EMAILS` repository variable.
-Server layout is `~/{staging,production,demo}/` (`.env`, `docker-compose.yml`,
+Server layout on each host is `~/{staging,production,demo}/` (`.env`, `docker-compose.yml`,
 `.deploy-state`) and `~/backups/{env}/` (3 staging / 7 production / 3 demo complete
 snapshot sets). See [complete release backup and rollback](../operations/release-backup-rollback.md)
 for snapshot contents, verification, manual recovery and data-loss boundaries.
 Rollbacks restore matching images, configuration, roles, database and uploads;
 an old image alone is not compatible with every newer schema.
 For env changes, read `.claude/rules/env-docker-sync.md` before editing.
+
+## Rollback window of a storage cutover
+
+A storage cutover leaves the old shape in place as a compatibility mirror so the
+previous image can be deployed again. The period until the matching Contract
+ticket drops that mirror is the rollback window. **It is not a waiting period,
+and it has no fixed length.** Sitting out hours or a school day proves nothing
+that the counters do not already say.
+
+The window ends as soon as all three hold:
+
+1. The cutover shipped in a production release, so the owner tables are filled
+   and in use there. This is ordering, not waiting: the Contract migration may
+   not drop columns the running image still needs.
+2. Both compatibility hit counters read zero and the cutover's caller-inventory
+   test is green. Together they answer who still uses the old path: the counters
+   at runtime, the test in the code.
+3. A restorable backup is verified, not merely present. After the Contract
+   migration, rolling the image back is no longer enough; recovery means
+   restoring that backup.
+
+Then the Contract ticket goes into the next release. Recording an observation
+day, a minimum duration or a separate evidence file is not required
+(decided 2026-09-23, same reasoning as the deployment gates removed in #3453
+and #3455).
 
 ## PR screenshots and QA evidence
 

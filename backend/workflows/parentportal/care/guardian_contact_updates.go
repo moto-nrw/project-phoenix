@@ -138,7 +138,7 @@ func (s *Service) lockEditableGuardianContact(ctx context.Context, accountID, st
 	// Then lock the relationship row itself FOR UPDATE. The role check below
 	// reads link.GuardianRole; without this lock a concurrent staff edit could
 	// promote/demote or remove the relationship between that check and the
-	// contact write (the staff path edits the students_guardians row without
+	// contact write (the staff path edits the student-guardian relationship without
 	// taking the profile lock above). Locking the row serializes against it —
 	// a plain staff UPDATE/DELETE blocks on this lock — so the authorization
 	// decision is made on a row that cannot change until we commit. Profile is

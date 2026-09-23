@@ -174,7 +174,7 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 			Where("id = ?", offering.ID).Exec(t.Context())
 		require.NoError(t, err)
 	}
-	_, err := tc.db.NewDelete().TableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).
+	_, err := tc.db.NewDelete().TableExpr(`enrollment.care_offering_bookings AS "care_offering_booking"`).
 		Where("request_child_id = ?", fixture.child.ID).
 		Where("care_offering_id = ?", fixture.mittag.ID).
 		Exec(t.Context())
@@ -374,7 +374,7 @@ func TestPickupAdjustmentProtectedRouterRollsBackKnownErrorAfterOfferingWrite(t 
 			}).Where("id = ?", offering.ID).Exec(t.Context())
 		require.NoError(t, err)
 	}
-	_, err := tc.db.NewDelete().TableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).
+	_, err := tc.db.NewDelete().TableExpr(`enrollment.care_offering_bookings AS "care_offering_booking"`).
 		Where("request_child_id = ?", fixture.child.ID).
 		Where("care_offering_id = ?", fixture.mittag.ID).Exec(t.Context())
 	require.NoError(t, err)

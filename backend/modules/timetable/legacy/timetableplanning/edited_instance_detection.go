@@ -283,7 +283,7 @@ func (s *materializationService) expectedSlotsOn(
 		if period == nil {
 			continue
 		}
-		if !s.calendarService.ShouldMaterialize(sch.WeekPattern, date, period) {
+		if !shouldMaterializeWeekPattern(sch.WeekPattern, date, period) {
 			continue
 		}
 		tfID := int64(0)

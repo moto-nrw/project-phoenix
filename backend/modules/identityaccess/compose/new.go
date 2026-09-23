@@ -117,7 +117,7 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		return nil, err
 	}
 	tokens := application.NewOperatorTokens(service, store)
-	operatorAuth, accountAccess, err := newOperatorFlows(service, store, tokens, auth, dependencies.Sessions, dependencies.Operators, lifecycle, operatorMFAGate{flows.operator})
+	operatorAuth, accountAccess, err := newOperatorFlows(service, store, tokens, auth, dependencies.Sessions, dependencies.Operators, lifecycle, operatorLoginGate(flows, dependencies.Demo))
 	if err != nil {
 		return nil, err
 	}
@@ -468,6 +468,8 @@ func mapError(err error) error {
 		return identityaccess.ErrTenantRequired
 	case errors.Is(err, domain.ErrGuardianRoleMissing):
 		return identityaccess.ErrGuardianRoleMissing
+	case errors.Is(err, domain.ErrGuardianStudentAccessTenantMismatch):
+		return fmt.Errorf("%w: %w", identityaccess.ErrGuardianStudentAccessTenantMismatch, err)
 	case errors.Is(err, domain.ErrOperatorNotFound):
 		return identityaccess.ErrOperatorNotFound
 	case errors.Is(err, domain.ErrOperatorSessionNotFound):

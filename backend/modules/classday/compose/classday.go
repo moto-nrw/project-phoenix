@@ -97,13 +97,14 @@ func (b reportBinding) ClassDay(ctx context.Context, schoolClass string, date ti
 	if err != nil {
 		return nil, mapError(err, errorPair{legacy: enrollment.ErrReportInvalidFilter, sentinel: classday.ErrInvalidReportFilter})
 	}
-	return DayReportFromEnrollment(report), nil
+	return dayReportFromEnrollment(report), nil
 }
 
-// DayReportFromEnrollment projects the enrollment report onto the public
-// contract field by field; the JSON shapes are identical (see the parity
-// test).
-func DayReportFromEnrollment(report *enrollment.ClassDayReport) *classday.DayReport {
+// dayReportFromEnrollment projects the enrollment report onto the public
+// contract. Rows, totals and the class exception convert as struct types, so
+// the compiler refuses a field the two sides do not share; the wire golden
+// and the class-day HTTP tests pin the JSON tags.
+func dayReportFromEnrollment(report *enrollment.ClassDayReport) *classday.DayReport {
 	if report == nil {
 		return nil
 	}
@@ -114,27 +115,15 @@ func DayReportFromEnrollment(report *enrollment.ClassDayReport) *classday.DayRep
 		SchoolDay:       report.SchoolDay,
 		PhaseName:       report.PhaseName,
 		EnrollmentKnown: report.EnrollmentKnown,
-		Totals: classday.DayTotals{
-			Students: report.Totals.Students, Staying: report.Totals.Staying, Leaving: report.Totals.Leaving,
-			Absent: report.Totals.Absent, ListEntries: report.Totals.ListEntries,
-		},
-		Rows: make([]classday.DayRow, 0, len(report.Rows)),
+		Totals:          classday.DayTotals(report.Totals),
+		Rows:            make([]classday.DayRow, 0, len(report.Rows)),
 	}
 	for _, row := range report.Rows {
-		out.Rows = append(out.Rows, classday.DayRow{
-			StudentID: row.StudentID, FirstName: row.FirstName, LastName: row.LastName,
-			ListEntry: row.ListEntry, ListEntryID: row.ListEntryID, GroupName: row.GroupName,
-			Registered: row.Registered, StaysToday: row.StaysToday, Offerings: row.Offerings,
-			Arrival: row.Arrival, Pickup: row.Pickup, Departure: row.Departure, Status: row.Status,
-			PickupChanged: row.PickupChanged, PickupRegular: row.PickupRegular, ReportedAt: row.ReportedAt,
-		})
+		out.Rows = append(out.Rows, classday.DayRow(row))
 	}
 	if report.ClassArrivalException != nil {
-		out.ClassArrivalException = &classday.DayArrivalException{
-			ArrivalTime: report.ClassArrivalException.ArrivalTime,
-			Reason:      report.ClassArrivalException.Reason,
-			Origin:      report.ClassArrivalException.Origin,
-		}
+		exception := classday.DayArrivalException(*report.ClassArrivalException)
+		out.ClassArrivalException = &exception
 	}
 	return out
 }

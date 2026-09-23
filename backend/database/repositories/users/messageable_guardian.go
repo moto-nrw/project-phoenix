@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/guardianlinkview"
 	"github.com/uptrace/bun"
 )
 
@@ -58,22 +59,21 @@ func (r *MessageableGuardianRepository) ListGuardiansForStudent(ctx context.Cont
 		users.MessageableGuardian
 		SchoolID int64 `bun:"school_id"`
 	}
-	query := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr("users.students_guardians AS sg").
-		ColumnExpr("sg.tenant_id AS school_id").
+	query := guardianlinkview.Query(base.GetDB(ctx, r.db), 0).
+		ColumnExpr("student_guardian.tenant_id AS school_id").
 		ColumnExpr("gp.account_id AS account_id").
 		ColumnExpr("btrim(COALESCE(gp.first_name,'') || ' ' || COALESCE(gp.last_name,'')) AS name").
-		ColumnExpr("sg.relationship_type AS relationship_type").
-		ColumnExpr("sg.is_primary AS is_primary").
+		ColumnExpr("student_guardian.relationship_type AS relationship_type").
+		ColumnExpr("student_guardian.is_primary AS is_primary").
 		ColumnExpr("COALESCE(gp.portal_locale, 'de') AS portal_locale").
-		Join("JOIN users.guardian_profiles AS gp ON gp.id = sg.guardian_profile_id").
-		Where("sg.student_id = ?", studentID).
+		Join("JOIN users.guardian_profiles AS gp ON gp.id = student_guardian.guardian_profile_id").
+		Where("student_guardian.student_id = ?", studentID).
 		Where("gp.account_id IS NOT NULL").
 		Where("gp.has_account = true").
-		Where(`sg.permissions @> ?::jsonb`, `{"parent_portal.access": true}`).
-		OrderExpr("sg.is_primary DESC, name ASC")
+		Where(`"student_guardian".permissions @> ?::jsonb`, `{"parent_portal.access": true}`).
+		OrderExpr("student_guardian.is_primary DESC, name ASC")
 
-	query = base.WithTenantFilter(ctx, query, "sg")
+	query = base.WithTenantFilter(ctx, query, "student_guardian")
 
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list guardians for student", Err: base.TranslateNotFound(err)}

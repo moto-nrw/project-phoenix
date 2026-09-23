@@ -4,7 +4,6 @@ import "errors"
 
 // Schedule-service failures preserve the existing HTTP error messages.
 var (
-	ErrDateframeNotFound = errors.New("dateframe not found")
 	// ErrCategoryNotAssignable rejects assigning missing or archived categories.
 	ErrCategoryNotAssignable = errors.New("activity category is not available for new assignments")
 	// ErrTimeframeRequiredByCareOffering protects linked offerings from incompatible edits or deletion.

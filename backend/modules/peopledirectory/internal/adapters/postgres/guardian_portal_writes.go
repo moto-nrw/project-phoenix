@@ -3,8 +3,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
@@ -195,78 +193,114 @@ func (s *GuardianStore) DeletePhone(ctx context.Context, phoneID int64) (bool, d
 	return affected > 0, stats, err
 }
 
-// guardianLinkInsertRow binds the permissions object as the JSON the caller
-// supplied, so no value is re-typed on the way to the jsonb column.
-type guardianLinkInsertRow struct {
-	bun.BaseModel      `bun:"table:students_guardians"`
-	TenantID           int64           `bun:"tenant_id,notnull"`
-	StudentID          int64           `bun:"student_id,notnull"`
-	GuardianProfileID  int64           `bun:"guardian_profile_id,notnull"`
-	RelationshipType   string          `bun:"relationship_type,notnull"`
-	GuardianRole       string          `bun:"guardian_role,notnull"`
-	IsPrimary          bool            `bun:"is_primary,notnull"`
-	IsEmergencyContact bool            `bun:"is_emergency_contact,notnull"`
-	CanPickup          bool            `bun:"can_pickup,notnull"`
-	PickupNotes        *string         `bun:"pickup_notes"`
-	EmergencyPriority  int             `bun:"emergency_priority"`
-	IsPayer            bool            `bun:"is_payer,notnull"`
-	Permissions        json.RawMessage `bun:"permissions,type:jsonb"`
-}
-
 // InsertLinkIfAbsent inserts the relationship unless the (tenant, student,
-// guardian) pair exists already, and returns the new ID (0 when it existed). The composite foreign keys reject rows of
-// another school.
+// guardian) pair exists already, and returns the new ID (0 when it existed).
+// The composite foreign keys reject rows of another school. A primary link
+// first demotes the child's other primary: the relationship table keeps one
+// per child with a partial unique index instead of the old demotion trigger.
+// The demotion is guarded on the absent pair, so a re-link of an already
+// linked guardian stays the no-op it reports and never leaves the child
+// without a primary.
 func (s *GuardianStore) InsertLinkIfAbsent(ctx context.Context, link domain.GuardianLinkRecord) (int64, domain.OperationStats, error) {
 	db, tenantID, err := s.tenantDB(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
-	row := &guardianLinkInsertRow{
-		TenantID: tenantID, StudentID: link.StudentID, GuardianProfileID: link.GuardianProfileID,
-		RelationshipType: link.RelationshipType, GuardianRole: link.GuardianRole, IsPrimary: link.IsPrimary,
-		IsEmergencyContact: link.IsEmergencyContact, CanPickup: link.CanPickup, PickupNotes: link.PickupNotes,
-		EmergencyPriority: link.EmergencyPriority, IsPayer: link.IsPayer, Permissions: link.Permissions,
-	}
-	var linkID int64
-	stats := domain.OperationStats{Queries: 1}
+	stats := domain.OperationStats{}
 	started := time.Now()
-	err = db.NewInsert().Model(row).
-		ModelTableExpr("users.students_guardians").
-		Column("tenant_id", "student_id", "guardian_profile_id", "relationship_type", "guardian_role", "is_primary",
-			"is_emergency_contact", "can_pickup", "pickup_notes", "emergency_priority", "is_payer", "permissions").
-		On("CONFLICT (tenant_id, student_id, guardian_profile_id) DO NOTHING").
-		Returning("id").Scan(ctx, &linkID)
+	if link.IsPrimary {
+		stats.Queries++
+		if _, err := db.NewRaw(`UPDATE users.student_guardian_relationships AS relationship SET is_primary = FALSE
+			WHERE relationship.tenant_id = ? AND relationship.student_id = ? AND relationship.is_primary
+				AND NOT EXISTS (
+					SELECT 1 FROM users.student_guardian_relationships AS linked
+					WHERE linked.tenant_id = relationship.tenant_id
+						AND linked.student_id = relationship.student_id
+						AND linked.guardian_profile_id = ?)`,
+			tenantID, link.StudentID, link.GuardianProfileID).Exec(ctx); err != nil {
+			stats.StatementDuration = time.Since(started)
+			return 0, stats, wrapGuardianWriteError("demote primary guardian", err)
+		}
+	}
+	var ids []int64
+	stats.Queries++
+	err = db.NewRaw(`INSERT INTO users.student_guardian_relationships
+		(tenant_id, student_id, guardian_profile_id, relationship_type, guardian_role,
+		 is_primary, is_emergency_contact, emergency_priority, is_payer)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (tenant_id, student_id, guardian_profile_id) DO NOTHING
+		RETURNING id`,
+		tenantID, link.StudentID, link.GuardianProfileID, link.RelationshipType, link.GuardianRole,
+		link.IsPrimary, link.IsEmergencyContact, link.EmergencyPriority, link.IsPayer).Scan(ctx, &ids)
 	stats.StatementDuration = time.Since(started)
-	switch {
-	case errors.Is(err, sql.ErrNoRows):
-		// DO NOTHING returned no row: the pair is linked already.
-		return 0, stats, nil
-	case err != nil:
+	if err != nil {
 		return 0, stats, wrapGuardianWriteError("link guardian contact", err)
 	}
+	if len(ids) == 0 {
+		// DO NOTHING returned no row: the pair is linked already.
+		return 0, stats, nil
+	}
 	stats.Rows = 1
-	return linkID, stats, nil
+	return ids[0], stats, nil
 }
 
-// PatchLinkPickup sets only the supplied pickup columns of one relationship.
-func (s *GuardianStore) PatchLinkPickup(ctx context.Context, patch domain.GuardianLinkPickupPatch) (int64, domain.OperationStats, error) {
+// LockLinkForPickup takes the relationship row lock the pickup permission is
+// written under, sets the emergency contact flag when one is supplied, and
+// reports whether the tenant has the relationship.
+func (s *GuardianStore) LockLinkForPickup(ctx context.Context, linkID int64, isEmergencyContact *bool) (bool, domain.OperationStats, error) {
 	db, tenantID, err := s.tenantDB(ctx)
 	if err != nil {
-		return 0, domain.OperationStats{}, err
+		return false, domain.OperationStats{}, err
 	}
-	query := db.NewUpdate().TableExpr("users.students_guardians").
-		Where("id = ?", patch.LinkID).
-		Where("tenant_id = ?", tenantID)
-	if patch.CanPickup != nil {
-		query = query.Set("can_pickup = ?", *patch.CanPickup)
+	if isEmergencyContact != nil {
+		affected, stats, err := exec(ctx, "patch guardian link emergency contact", db.NewUpdate().
+			TableExpr("users.student_guardian_relationships").
+			Set("is_emergency_contact = ?", *isEmergencyContact).
+			Where("id = ?", linkID).
+			Where("tenant_id = ?", tenantID).Exec)
+		return affected > 0, stats, err
 	}
-	if patch.IsEmergencyContact != nil {
-		query = query.Set("is_emergency_contact = ?", *patch.IsEmergencyContact)
+	var ids []int64
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = db.NewSelect().TableExpr("users.student_guardian_relationships").
+		Column("id").
+		Where("id = ?", linkID).
+		Where("tenant_id = ?", tenantID).
+		For("UPDATE").Scan(ctx, &ids)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return false, stats, fmt.Errorf("people directory postgres: lock guardian link: %w", err)
 	}
-	if patch.SetPickupNotes {
-		query = query.Set("pickup_notes = ?", patch.PickupNotes)
+	stats.Rows = int64(len(ids))
+	return len(ids) > 0, stats, nil
+}
+
+// GuardianAccount reads the portal account the guardian profile names; a new
+// link's access row binds it.
+func (s *GuardianStore) GuardianAccount(ctx context.Context, guardianID int64) (*int64, domain.OperationStats, error) {
+	db, tenantID, err := s.tenantDB(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
 	}
-	return exec(ctx, "patch guardian link pickup", query.Exec)
+	var rows []struct {
+		AccountID *int64 `bun:"account_id"`
+	}
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = db.NewSelect().TableExpr("users.guardian_profiles").
+		Column("account_id").
+		Where("id = ?", guardianID).
+		Where("tenant_id = ?", tenantID).Scan(ctx, &rows)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return nil, stats, fmt.Errorf("people directory postgres: read guardian account: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil, stats, nil
+	}
+	stats.Rows = 1
+	return rows[0].AccountID, stats, nil
 }
 
 // SetPortalLocale updates the account's profiles of the tenant in context.

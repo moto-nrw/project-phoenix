@@ -28,17 +28,16 @@ import (
 // limited to security/session artifacts, one-time migration backups, legacy
 // compatibility tables, and transient lifecycle state.
 var seedCoverageExemptions = map[string]string{
-	"active.presence_backfill_checkpoints": "one-time migration ledger (#2761); only the explicit backfill CLI writes checkpoints, never seed/API traffic",
-	"active.presence_backfill_batches":     "one-time migration evidence (#2761); empty unless an operator explicitly runs the backfill",
-	// Expand #2718 explicitly requires empty targets and forbids dual writes.
-	// Remove these exemptions when #2762 switches the real seed/API callers.
-	"active.activity_sessions":           "empty Expand target (#2718); old timetable rows remain authoritative until #2762",
-	"active.activity_session_attendance": "empty Expand target (#2718); old participant rows remain authoritative until #2762",
-	// Expand #2716 explicitly requires empty targets and forbids dual writes.
-	// Remove these exemptions when the guardian Cutover switches the real seed/API callers.
-	"users.student_guardian_relationships":      "empty Expand target (#2716); users.students_guardians remains authoritative until Cutover",
-	"users.student_guardian_pickup_permissions": "empty Expand target (#2716); users.students_guardians remains authoritative until Cutover",
-	"auth.guardian_student_access":              "empty Expand target (#2716); users.students_guardians remains authoritative until Cutover",
+	// active.presence_backfill_checkpoints carries no exemption any more: the
+	// cutover #2762 writes the switch's own verdict into the checkpoint of
+	// every school it finds, and migration 1.14.002 always leaves the default
+	// school behind, so a migrated stack holds at least one row.
+	"active.presence_backfill_batches": "one-time migration evidence (#2761); empty unless an operator explicitly runs the backfill",
+	// users.student_guardian_relationships, users.student_guardian_pickup_permissions
+	// and auth.guardian_student_access held no rows while Expand #2716 kept
+	// them empty. Cutover #2756 made them the authoritative guardian link
+	// storage; the rollback mirror users.students_guardians is filled by its
+	// triggers. None of the four carries an exemption.
 	// users.student_profiles, users.student_school_memberships and
 	// users.student_care_profiles held no rows while Expand #2717 kept them
 	// empty. Cutover #2759 made them the authoritative student storage, so a
@@ -86,8 +85,7 @@ var seedCoverageExemptions = map[string]string{
 	"education.grade_transition_class_list_entries": "not in prod yet (migration newer than the deployed image)",
 	"education.grade_transition_class_teachers":     "empty in prod too",
 
-	"enrollment.care_offering_auto_triggers":    "empty in prod too",
-	"enrollment.request_child_offerings_legacy": "rollback archive retained by Cutover #2714; populated only from pre-cutover data or previous-image compatibility writes, never current seed/API traffic",
+	"enrollment.care_offering_auto_triggers": "empty in prod too",
 
 	"feedback.entries": "empty in prod too",
 

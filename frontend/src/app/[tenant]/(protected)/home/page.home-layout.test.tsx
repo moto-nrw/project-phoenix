@@ -42,6 +42,7 @@ vi.mock("~/lib/auth-utils", () => ({
   isAdmin: vi.fn(() => true),
   hasEffectiveAdminScope: vi.fn(() => true),
   hasPermission: vi.fn(() => true),
+  leadsSchool: vi.fn(() => true),
   hasRole: vi.fn(() => true),
   isCaregiver: vi.fn(() => false),
 }));

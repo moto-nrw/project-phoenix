@@ -9,7 +9,7 @@ import (
 
 // bindGuardianDirectories hands the People Directory to every legacy
 // repository that used to read users.guardian_profiles or
-// users.students_guardians through a foreign join (#2663). Each repository
+// the student-guardian relationships through a foreign join (#2663). Each repository
 // declares the narrow projection it needs; the adapters below map the
 // owner's rows onto it.
 func (f *Factory) bindGuardianDirectories(guardians peopledirectory.GuardianQuery) {

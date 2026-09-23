@@ -6,6 +6,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/guardianlinkview"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -30,7 +31,7 @@ type guardianRow struct {
 }
 
 type guardianLinkRow struct {
-	bun.BaseModel      `bun:"table:students_guardians,alias:student_guardian"`
+	bun.BaseModel      `bun:"alias:student_guardian"`
 	ID                 int64          `bun:"id,pk,autoincrement"`
 	TenantID           int64          `bun:"tenant_id,notnull"`
 	StudentID          int64          `bun:"student_id,notnull"`
@@ -47,8 +48,9 @@ type guardianLinkRow struct {
 }
 
 // GuardianStore is the row-level adapter over users.guardian_profiles and
-// users.students_guardians; it shares the database runtime with the person
-// store. The application-level guardian flows stay with the owner's
+// users.student_guardian_relationships; it shares the database runtime with
+// the person store. Link reads that need the pickup permission or the portal
+// permissions join the other two owners through the guardian-link projection. The application-level guardian flows stay with the owner's
 // legacy service, so this store carries only the reads foreign owners need.
 type PortalMembershipQuery func(context.Context, []int64) (map[int64][]int64, error)
 
@@ -73,7 +75,7 @@ func (s *GuardianStore) ListLinksByAccount(ctx context.Context, accountID int64)
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []guardianLinkRow{}
-	query := db.NewSelect().Model(&rows).ModelTableExpr(`users.students_guardians AS "student_guardian"`).
+	query := guardianlinkview.ModelQuery(db, 0, &rows).
 		Join(`JOIN users.guardian_profiles AS "guardian_profile" ON "guardian_profile".id = "student_guardian".guardian_profile_id AND "guardian_profile".tenant_id = "student_guardian".tenant_id`).
 		Where(`"guardian_profile".account_id = ?`, accountID)
 	if tenantID > 0 {
@@ -142,7 +144,7 @@ func (s *GuardianStore) CountLinks(ctx context.Context, guardianIDs []int64) (ma
 		GuardianProfileID int64 `bun:"guardian_profile_id"`
 		Links             int   `bun:"links"`
 	}
-	query := db.NewSelect().TableExpr(`users.students_guardians AS "student_guardian"`).
+	query := db.NewSelect().TableExpr(`users.student_guardian_relationships AS "student_guardian"`).
 		ColumnExpr(`"student_guardian".guardian_profile_id AS guardian_profile_id`).
 		ColumnExpr(`COUNT(*)::int AS links`).
 		Where(`"student_guardian".guardian_profile_id IN (?)`, bun.List(guardianIDs))
@@ -181,7 +183,7 @@ func (s *GuardianStore) ListAccountLinksByStudents(ctx context.Context, studentI
 		guardianLinkRow
 		AccountID int64 `bun:"portal_account_id"`
 	}{}
-	query := db.NewSelect().Model(&rows).ModelTableExpr(`users.students_guardians AS "student_guardian"`).
+	query := guardianlinkview.ModelQuery(db, 0, &rows).
 		ColumnExpr(`"student_guardian".id, "student_guardian".tenant_id, "student_guardian".student_id,
 			"student_guardian".guardian_profile_id, "student_guardian".relationship_type, "student_guardian".guardian_role,
 			"student_guardian".is_primary, "student_guardian".is_emergency_contact, "student_guardian".can_pickup,

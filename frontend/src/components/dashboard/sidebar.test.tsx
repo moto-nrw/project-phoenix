@@ -38,6 +38,12 @@ vi.mock("~/lib/supervision-context", () => ({
 vi.mock("~/lib/auth-utils", () => {
   const isAdminFn = vi.fn();
   const hasEffectiveAdminScopeFn = vi.fn(() => isAdminFn());
+  // Elternmitteilungen (#1669) gates on this; admins hold it via admin:*.
+  // The nav item additionally requires operations.parent_news_enabled (off
+  // in these tests' settings schema), so it stays hidden regardless.
+  const hasPermissionFn = vi.fn((_session: unknown, _permission: string) =>
+    isAdminFn(),
+  );
   return {
     isAdmin: isAdminFn,
     hasEffectiveAdminScope: hasEffectiveAdminScopeFn,
@@ -47,11 +53,11 @@ vi.mock("~/lib/auth-utils", () => {
       if (role === "user") return !isAdminFn();
       return false;
     }),
-    // Elternmitteilungen (#1669) gates on this; admins hold it via admin:*.
-    // The nav item additionally requires operations.parent_news_enabled (off
-    // in these tests' settings schema), so it stays hidden regardless.
-    hasPermission: vi.fn((_session: unknown, _permission: string) =>
-      isAdminFn(),
+    hasPermission: hasPermissionFn,
+    // Wie die echte Funktion: Adminzuschnitt oder config:manage (#3469).
+    leadsSchool: vi.fn(
+      (session: unknown) =>
+        hasEffectiveAdminScopeFn() || hasPermissionFn(session, "config:manage"),
     ),
   };
 });
@@ -2149,6 +2155,119 @@ describe("Sidebar", () => {
       expect(screen.getByText("Kinderdaten")).toBeInTheDocument();
       expect(screen.queryByText("Geräte")).not.toBeInTheDocument();
       expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
+    });
+  });
+
+  // Die reduzierten Rollen der Demo-Schule (#3469) sind Rollen der Schule,
+  // nicht der Rollenname `admin`: die Seitenleiste folgt ihren Rechten.
+  describe("Rollen der Schule ohne den Rollennamen admin (#3469)", () => {
+    const LEAD_PERMISSIONS = new Set([
+      "config:manage",
+      "config:read",
+      "schedules:manage",
+      "schedules:read",
+      "time_tracking:manage",
+      // Elternzugänge verlangen beides: users:manage liest die
+      // Warteschlange, users:update entscheidet sie.
+      "users:manage",
+      "users:update",
+      "users:read",
+      "rooms:manage",
+      "groups:manage",
+      "staff:manage",
+      "calendar:own",
+    ]);
+    const CAREGIVER_PERMISSIONS = new Set([
+      "users:read",
+      "schedules:read",
+      "calendar:own",
+      "activities:manage",
+    ]);
+
+    beforeEach(() => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+    });
+
+    it("zeigt einer Leitungsrolle Planung, Anmeldungen, Verwaltung und Einstellungen", () => {
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          LEAD_PERMISSIONS.has(permission),
+      );
+
+      render(<Sidebar />);
+
+      for (const label of [
+        "Betreuungsplan",
+        "Dienstplan",
+        "Vertretungsplan",
+        "Tageslisten",
+        "Schuljahr und Ferien",
+        "Abrechnung",
+        "Anmeldungen",
+        "Elternzugänge",
+        "Datenverwaltung",
+        "Einstellungen",
+      ]) {
+        expect(screen.getByText(label)).toBeInTheDocument();
+      }
+      // Die Rolle heißt nicht `admin`; der Tagesplan bleibt ihr erhalten.
+      expect(screen.getByText("Tagesplan")).toBeInTheDocument();
+    });
+
+    it("hält Planung, Anmeldungen, Verwaltung und Einstellungen von einer Betreuungsrolle fern", () => {
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          CAREGIVER_PERMISSIONS.has(permission),
+      );
+
+      render(<Sidebar />);
+
+      for (const label of [
+        "Planung",
+        "Betreuungsplan",
+        "Dienstplan",
+        "Anmeldungen",
+        "Elternzugänge",
+        "Datenverwaltung",
+        "Einstellungen",
+      ]) {
+        expect(screen.queryByText(label)).not.toBeInTheDocument();
+      }
+      expect(screen.getByText("Tagesplan")).toBeInTheDocument();
+      expect(screen.getByText("Mein Kalender")).toBeInTheDocument();
+    });
+
+    it("verbirgt Elternzugänge ohne das Recht, die Warteschlange zu entscheiden", () => {
+      // users:manage liest die Warteschlange, entscheiden lässt das Backend
+      // sie nur mit users:update. Ohne das zweite Recht stünde dort eine
+      // gefüllte Liste, in der jedes Annehmen mit 403 endet.
+      const withoutDecide = new Set(LEAD_PERMISSIONS);
+      withoutDecide.delete("users:update");
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          withoutDecide.has(permission),
+      );
+
+      render(<Sidebar />);
+
+      expect(screen.queryByText("Elternzugänge")).not.toBeInTheDocument();
+      // Der Rest der Elterngruppe bleibt der Rolle erhalten.
+      expect(screen.getByText("Nachrichten")).toBeInTheDocument();
+    });
+
+    it("schickt eine Leitungsrolle in die Leitungs-Anleitung", () => {
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          LEAD_PERMISSIONS.has(permission),
+      );
+
+      render(<Sidebar />);
+
+      expect(screen.getByRole("link", { name: "Hilfe" })).toHaveAttribute(
+        "href",
+        expect.stringContaining("role=lead"),
+      );
     });
   });
 

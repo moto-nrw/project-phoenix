@@ -154,8 +154,8 @@ func TestDeleteCareException_ReleasesAutoExcusedBlocks(t *testing.T) {
 // repositories, including its Care Plan reads and student-before-day locks.
 func newPickupExcusal(t *testing.T, db *bun.DB, records compose.PickupExcusalRecords, baselines careplan.PickupBaselineReader, tt timetable.Capability, extensions bool) careplan.PickupAutoExcusal {
 	t.Helper()
-	adapter := pickupExcusalTimetable{tt}
-	deps := compose.PickupExcusalDependencies{DB: db, Records: records, Baselines: baselines, Blocks: tt, Preview: adapter}
+	adapter := pickupExcusalTimetable{partialAbsencePreview{reads: repositories.NewPartialAbsencePreview(db)}, tt, db}
+	deps := compose.PickupExcusalDependencies{DB: db, Records: records, Baselines: baselines, Blocks: repositories.NewStudentPresenceForTests(db), Preview: adapter}
 	if extensions {
 		deps.Extensions = adapter
 	}
@@ -164,10 +164,30 @@ func newPickupExcusal(t *testing.T, db *bun.DB, records compose.PickupExcusalRec
 	return service
 }
 
-type pickupExcusalTimetable struct{ timetable.Capability }
+type pickupExcusalTimetable struct {
+	partialAbsencePreview
+	timetable.Capability
+	db *bun.DB
+}
 
-func (a pickupExcusalTimetable) FindPartialAbsenceBlocks(ctx context.Context, id int64, date timezone.Date, clock time.Time) ([]carerequests.Block, error) {
-	rows, err := a.ListPartialAbsenceBlocks(ctx, id, date.String(), clock)
+func (a pickupExcusalTimetable) RecordPickupDayExtension(ctx context.Context, input compose.PickupDayExtension) error {
+	return a.Capability.RecordPickupDayExtension(ctx, timetable.PickupDayExtension(input))
+}
+func (a pickupExcusalTimetable) RecordPickupWeekdayExtension(ctx context.Context, input compose.PickupWeekdayExtension) error {
+	return a.Capability.RecordPickupWeekdayExtension(ctx, timetable.PickupWeekdayExtension(input))
+}
+
+// partialAbsenceReads is the joined block read the preview builds on.
+type partialAbsenceReads interface {
+	FindPartialAbsenceBlocks(context.Context, int64, string, time.Time) ([]scheduleModels.PartialAbsenceBlock, error)
+}
+
+// partialAbsencePreview serves the Care Plan's partial absence preview port
+// the way the retained services do (#2762).
+type partialAbsencePreview struct{ reads partialAbsenceReads }
+
+func (p partialAbsencePreview) FindPartialAbsenceBlocks(ctx context.Context, studentID int64, date timezone.Date, clock time.Time) ([]carerequests.Block, error) {
+	rows, err := p.reads.FindPartialAbsenceBlocks(ctx, studentID, date.String(), clock)
 	if err != nil {
 		return nil, err
 	}
@@ -176,10 +196,4 @@ func (a pickupExcusalTimetable) FindPartialAbsenceBlocks(ctx context.Context, id
 		blocks = append(blocks, carerequests.Block{ID: row.ID, Title: row.Title, StartTime: row.StartTime, EndTime: row.EndTime})
 	}
 	return blocks, nil
-}
-func (a pickupExcusalTimetable) RecordPickupDayExtension(ctx context.Context, input compose.PickupDayExtension) error {
-	return a.Capability.RecordPickupDayExtension(ctx, timetable.PickupDayExtension(input))
-}
-func (a pickupExcusalTimetable) RecordPickupWeekdayExtension(ctx context.Context, input compose.PickupWeekdayExtension) error {
-	return a.Capability.RecordPickupWeekdayExtension(ctx, timetable.PickupWeekdayExtension(input))
 }

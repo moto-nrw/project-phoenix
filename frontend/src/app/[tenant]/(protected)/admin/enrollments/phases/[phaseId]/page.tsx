@@ -3,7 +3,7 @@
 import { use } from "react";
 import { AdminEnrollmentPhaseDetail } from "~/components/enrollment/admin-enrollment-phase-detail";
 import { TenantPage } from "~/components/ui/tenant-page";
-import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
+import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 
 interface PageProps {
   readonly params: Promise<{ tenant: string; phaseId: string }>;
@@ -11,7 +11,7 @@ interface PageProps {
 
 export default function AdminEnrollmentPhasePage({ params }: PageProps) {
   const { phaseId } = use(params);
-  const { isReady } = useRequireAdmin();
+  const { isReady } = useRequirePermission("config:manage");
 
   if (!isReady) {
     return (

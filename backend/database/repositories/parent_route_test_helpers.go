@@ -4,7 +4,6 @@ import (
 	"context"
 
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -15,7 +14,7 @@ import (
 // NewStudentGuardianRepository binds relationship permission checks to native
 // Identity membership facts for tests that do not construct the serving graph.
 func NewStudentGuardianRepository(db *bun.DB) usersModels.StudentGuardianRepository {
-	return usersRepo.NewStudentGuardianRepository(db, usersRepo.WithStudentGuardianMemberships(newIdentityAccess(db, nil).FindActiveSchoolMemberships))
+	return newGuardianRelationships(db, newIdentityAccess(db, nil).FindActiveSchoolMemberships, nil)
 }
 
 type ParentRouteTestRepositories struct {
@@ -44,7 +43,7 @@ func NewParentRouteTestRepositories(db *bun.DB) (ParentRouteTestRepositories, er
 	if err != nil {
 		return ParentRouteTestRepositories{}, err
 	}
-	slots := timetableInstanceStudentRepository{timetable: NewUnobservedTimetableDependencies(db).Capability}
+	slots := newTimetableInstanceStudentRepository(db, NewUnobservedTimetableDependencies(db).Capability, newStudentPresence(db))
 	care, err := NewCarePlan(db, people, slots)
 	if err != nil {
 		return ParentRouteTestRepositories{}, err

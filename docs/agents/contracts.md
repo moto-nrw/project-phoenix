@@ -11,8 +11,13 @@ React). The Phoenix backend runs on the server, never on the Pi. PRs target
 `development`.
 
 PyrePortal consumes `/api/iot/*` using a device API key and staff PIN.
-`../PyrePortal/src/services/api.ts` maps backend error strings to German UI
-text. Coordinate endpoint, error-string, and auth-header changes across repos.
+`../PyrePortal/src/services/apiErrors.ts` maps backend error strings and
+staff-clock error codes to German UI text. Coordinate endpoint, error-string,
+and auth-header changes across repos. Changing a mapped string or code is a
+two-repo change: `backend/api/testdata/iot_error_strings.golden`
+(`TestFullProductionRouterGolden`) and `TestPyrePortalErrorStringsGuard`
+(`backend/api/iot/pyreportal_error_strings_test.go`) fail until both sides
+and the golden move together.
 Backend header and attribution rules: `backend/CLAUDE.md` RFID/IoT Integration.
 
 ### Presence mode
@@ -247,6 +252,14 @@ is dropped and reported as sent, whoever the caller is; only
 sign-in waits for that code. A new mail that must leave the demo environment
 needs its template added there. `email.IsDemoEnvironment` decides for the
 routes, the capability and the lock alike.
+
+Because the lock drops the operator's sign-in code, the `APP_ENV=demo`
+composition leaves the operator login without a second factor
+(`DemoDependencies.OperatorWithoutSecondFactor`, #3460); otherwise the demo
+process could never sign in to seed a school. The demo host's Caddy answers
+404 for the operator host and every `/operator` and `/api/operator` path, so
+the operator surface stays internal. Every other environment keeps operator
+MFA mandatory.
 
 `SwitchTenant` refuses any account a demo access signed in
 (`403 demo_session`), through a mint guard inside the switch transaction.

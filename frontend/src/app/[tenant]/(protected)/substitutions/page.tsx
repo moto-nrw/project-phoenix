@@ -975,7 +975,13 @@ function LoadingFallback() {
 
 export default function SubstitutionPage() {
   return (
-    <RoleGuard variant="staffOrAdmin" fallback={<LoadingFallback />}>
+    <RoleGuard
+      variant="staffOrAdmin"
+      // Die Übersicht liest das Backend mit substitutions:read; so öffnet sie
+      // auch einer Betreuungsrolle, die die Schule selbst anlegt (#3469).
+      permission="substitutions:read"
+      fallback={<LoadingFallback />}
+    >
       <Suspense fallback={<LoadingFallback />}>
         <SubstitutionPageContent />
       </Suspense>

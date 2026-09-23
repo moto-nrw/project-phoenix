@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -25,9 +25,13 @@ type ownerCapabilities struct {
 	groups        schoolstructure.Capability
 	rooms         facilitiesModule.Capability
 	membership    schoolmembership.Capability
-	calendar      schoolcalendar.Capability
-	timetable     timetable.Capability
-	workforce     workforceModule.Capability
+	calendar      schoolcalendar.Calendar
+	// bindCalendarAdministration hands the calendar the period
+	// administration collaborators once the factory exists, as the
+	// production root does.
+	bindCalendarAdministration func(schoolCalendarCompose.AdministrationRuntime)
+	timetable                  timetable.Capability
+	workforce                  workforceModule.Capability
 }
 
 // NewFactoryForTests creates the partial graph used by legacy package tests.
@@ -37,7 +41,7 @@ func NewFactoryForTests(repos *repositories.Factory, db *bun.DB, logger *slog.Lo
 	if err != nil {
 		return nil, err
 	}
-	return newFactory(repos, db, logger, currentTestFactoryConfig(), tenant.UnitOfWork{}, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.workforce, func(DataImportObservation) {}, FileStorageWiring{}, true, clocks...)
+	return owners.factory(newFactory(repos, db, logger, currentTestFactoryConfig(), tenant.UnitOfWork{}, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.workforce, func(DataImportObservation) {}, FileStorageWiring{}, true, clocks...))
 }
 
 func NewFactoryForTestsWithConfig(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cfg FactoryConfig, clocks ...func() time.Time) (*Factory, error) {
@@ -45,7 +49,7 @@ func NewFactoryForTestsWithConfig(repos *repositories.Factory, db *bun.DB, logge
 	if err != nil {
 		return nil, err
 	}
-	return newFactory(repos, db, logger, cfg, tenant.UnitOfWork{}, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.workforce, func(DataImportObservation) {}, FileStorageWiring{}, true, clocks...)
+	return owners.factory(newFactory(repos, db, logger, cfg, tenant.UnitOfWork{}, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.workforce, func(DataImportObservation) {}, FileStorageWiring{}, true, clocks...))
 }
 
 func currentTestFactoryConfig() FactoryConfig {
@@ -89,15 +93,12 @@ func newOwnerCapabilitiesForTests(db *bun.DB) (ownerCapabilities, error) {
 	if err != nil {
 		return ownerCapabilities{}, err
 	}
-	calendar, err := repositories.NewSchoolCalendar(db)
+	var calendarAdministration schoolCalendarCompose.AdministrationRuntime
+	calendar, err := repositories.NewSchoolCalendarWithAdministration(db, func() schoolCalendarCompose.AdministrationRuntime { return calendarAdministration })
 	if err != nil {
 		return ownerCapabilities{}, err
 	}
-	careLocks, err := carePlanCompose.NewDayLocks(db, persons.LockStudent, peopledirectory.ErrStudentNotFound)
-	if err != nil {
-		return ownerCapabilities{}, err
-	}
-	timetableCapability, err := repositories.NewTimetable(db, persons, rooms, careLocks)
+	timetableCapability, err := repositories.NewTimetable(db, persons, rooms)
 	if err != nil {
 		return ownerCapabilities{}, err
 	}
@@ -108,5 +109,16 @@ func newOwnerCapabilitiesForTests(db *bun.DB) (ownerCapabilities, error) {
 	return ownerCapabilities{
 		organizations: organizations, persons: persons, groups: groups, rooms: rooms,
 		membership: membership, calendar: calendar, timetable: timetableCapability, workforce: workTime,
+		bindCalendarAdministration: func(runtime schoolCalendarCompose.AdministrationRuntime) { calendarAdministration = runtime },
 	}, nil
+}
+
+// factory hands the finished factory's period administration to the
+// calendar the graph was composed with.
+func (o ownerCapabilities) factory(factory *Factory, err error) (*Factory, error) {
+	if err != nil {
+		return nil, err
+	}
+	o.bindCalendarAdministration(factory.SchoolCalendarAdministration())
+	return factory, nil
 }

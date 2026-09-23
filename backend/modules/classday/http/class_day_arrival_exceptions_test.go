@@ -9,6 +9,7 @@
 package classdayhttp_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -49,14 +50,26 @@ type arrivalExceptionFixture struct {
 	staffID   int64
 	class     string
 	openWrite func(t *testing.T)
+	// retainedMondayReport marshals the retained enrollment report of the
+	// class for arrivalExceptionMonday, the value the projection serves.
+	retainedMondayReport func(t *testing.T) []byte
 }
 
 // setupArrivalExceptionRoute wires the class-day resource with its write
-// seam (#2970) the way api/base.go does.
-func setupArrivalExceptionRoute(t *testing.T) (*testpkg.DB, chi.Router) {
+// seam (#2970) the way api/base.go does. It also returns a reader of the
+// retained enrollment report the projection forwards to.
+func setupArrivalExceptionRoute(t *testing.T) (*testpkg.DB, func(t *testing.T, class string, accountID int64) []byte, chi.Router) {
 	t.Helper()
 	db, factory := testutil.SetupClassDayModule(t)
-	return db, classdayhttp.NewResource(classdayCompose.NewClassDay(classdayCompose.ClassDayDependencies{
+	retainedMondayReport := func(t *testing.T, class string, accountID int64) []byte {
+		t.Helper()
+		report, err := factory.EnrollmentReport.ClassDay(testpkg.Ctx(t), class, arrivalExceptionMonday, accountID, "lehrkraft")
+		require.NoError(t, err)
+		body, err := json.Marshal(report)
+		require.NoError(t, err)
+		return body
+	}
+	return db, retainedMondayReport, classdayhttp.NewResource(classdayCompose.NewClassDay(classdayCompose.ClassDayDependencies{
 		Reports: factory.EnrollmentReport, Caller: factory.UserContext, ArrivalExceptions: factory.ClassDayArrivalExceptions,
 	}), db, nil).SchoolRouter()
 }
@@ -66,7 +79,7 @@ func setupArrivalExceptionRoute(t *testing.T) (*testpkg.DB, chi.Router) {
 // of parallel tests cannot interfere.
 func setupArrivalExceptionFixture(t *testing.T) *arrivalExceptionFixture {
 	t.Helper()
-	db, router := setupArrivalExceptionRoute(t)
+	db, retainedMondayReport, router := setupArrivalExceptionRoute(t)
 	tenantID := testpkg.Tenant(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Lehr", fmt.Sprintf("Kraft-%d", time.Now().UnixNano()))
@@ -94,6 +107,10 @@ func setupArrivalExceptionFixture(t *testing.T) *arrivalExceptionFixture {
 				 ON CONFLICT (tenant_id, setting_key) DO UPDATE SET value = EXCLUDED.value`,
 				tenantID, schoolPortalWriteScopeKey, `"`+schoolPortalWriteScopeExceptions+`"`)
 			require.NoError(t, err)
+		},
+		retainedMondayReport: func(t *testing.T) []byte {
+			t.Helper()
+			return retainedMondayReport(t, className, account.ID)
 		},
 	}
 }
@@ -205,6 +222,7 @@ func TestSchoolArrivalExceptionsRoundTrip(t *testing.T) {
 	rec = f.do(t, http.MethodGet, "/?class="+f.class+"&date="+arrivalExceptionMonday, "", classDayReadPermission)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), `"class_arrival_exception":{"arrival_time":"12:45","reason":"Unterricht fällt aus","origin":"school"}`)
+	assertServesRetainedReport(t, f, rec)
 
 	rec = f.do(t, http.MethodDelete, path, "", classDayWritePermission)
 	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
@@ -216,6 +234,19 @@ func TestSchoolArrivalExceptionsRoundTrip(t *testing.T) {
 	rec = f.do(t, http.MethodGet, "/?class="+f.class+"&date="+arrivalExceptionMonday, "", classDayReadPermission)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.NotContains(t, rec.Body.String(), "class_arrival_exception")
+	assertServesRetainedReport(t, f, rec)
+}
+
+// assertServesRetainedReport compares the served day report with the retained
+// enrollment report it projects: the portal reads the same JSON, field for
+// field, including the omitted optionals (#2701, #3444).
+func assertServesRetainedReport(t *testing.T, f *arrivalExceptionFixture, rec *httptest.ResponseRecorder) {
+	t.Helper()
+	var served struct {
+		Data json.RawMessage `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &served))
+	assert.JSONEq(t, string(f.retainedMondayReport(t)), string(served.Data))
 }
 
 func TestSchoolArrivalExceptionsRefuseForeignClassAndBadDates(t *testing.T) {
@@ -242,8 +273,12 @@ func TestSchoolArrivalExceptionsRefuseForeignClassAndBadDates(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 		assert.Contains(t, rec.Body.String(), "class_arrival_exception_past_date")
 
+		// The delete reaches the seam, whose wrapped Care Plan error still
+		// classifies as the past date and keeps the retained message.
 		rec = f.do(t, http.MethodDelete, path, "", classDayWritePermission)
 		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+		assert.Contains(t, rec.Body.String(), "class_arrival_exception_past_date")
+		assert.Contains(t, rec.Body.String(), "class arrival exception date lies in the past")
 	})
 
 	t.Run("weekend", func(t *testing.T) {
@@ -255,6 +290,11 @@ func TestSchoolArrivalExceptionsRefuseForeignClassAndBadDates(t *testing.T) {
 	t.Run("bad date and bad time", func(t *testing.T) {
 		rec := f.do(t, http.MethodPut, f.writePath("heute"), body, classDayWritePermission)
 		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+
+		// A malformed day is refused before the seam is reached.
+		rec = f.do(t, http.MethodDelete, f.writePath("02.03.2099"), "", classDayWritePermission)
+		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+		assert.NotContains(t, rec.Body.String(), "class_arrival_exception_past_date")
 
 		rec = f.do(t, http.MethodPut, f.writePath(arrivalExceptionMonday), `{"arrival_time":"12h45"}`, classDayWritePermission)
 		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())

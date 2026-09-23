@@ -9,7 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
@@ -52,10 +52,6 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	if err != nil {
 		return WorkforceTestModule{}, err
 	}
-	calendar, err := repositories.NewSchoolCalendar(db)
-	if err != nil {
-		return WorkforceTestModule{}, err
-	}
 	logger := slog.Default()
 	identityAccess, err := lifecycleTestModule(db, unit, GuardianInvitationTestConfig{Audit: command, Logger: logger})
 	if err != nil {
@@ -74,9 +70,12 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		StammdatenAudit: repos.StaffMasterDataChange, DataAccessLog: repos.DataAccessLog, DB: db, SettingsService: settingsService, Logger: logger,
 	})
 	staffDocumentService := users.NewStaffDocumentService(db, repos.StaffDocument, repos.Staff, repos.StaffMasterData, repos.StaffMasterDataChange, repos.DataAccessLog, logger)
-	holidayService := timetableplanning.NewHolidayService(settingsService, schoolCalendarHolidayAdapter{query: calendar}, logger.With("service", "holidays"))
-	closingDayService := timetableplanning.NewClosingDayService(repos.ClosingDay)
-	nonWorkingDayService := timetableplanning.NewNonWorkingDayResolver(holidayService, closingDayService)
+	calendarAdministration := schoolCalendarAdministration(settingsService, func(context.Context) error { return nil }, nil)
+	calendar, err := repositories.NewSchoolCalendarWithAdministration(db, func() schoolCalendarCompose.AdministrationRuntime { return calendarAdministration })
+	if err != nil {
+		return WorkforceTestModule{}, err
+	}
+	nonWorkingDayService := nonWorkingDays{calendar: calendar}
 	staffAbsenceTypeService := AbsenceTypes(repos.StaffAbsenceType)
 	timeTrackingEvents := TimeTrackingEvents(realtimeHub)
 	today := timezone.CalendarDateClock(optionalClock(clocks))

@@ -88,6 +88,15 @@ type authTestSettings struct {
 	// demoMaxActiveSchools is the demo capacity; the default leaves room
 	// for every demo school the tests of a package queue.
 	demoMaxActiveSchools int
+	// demoOperatorWithoutSecondFactor composes the operator login the way
+	// APP_ENV=demo does (#3460).
+	demoOperatorWithoutSecondFactor bool
+}
+
+// WithDemoOperatorWithoutSecondFactor composes the operator login of the
+// demo environment, which asks for no second factor (#3460).
+func WithDemoOperatorWithoutSecondFactor() AuthTestOption {
+	return func(settings *authTestSettings) { settings.demoOperatorWithoutSecondFactor = true }
 }
 
 // WithDemoMaxActiveSchools composes the demo access with this capacity.
@@ -237,6 +246,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		demoAccess: &demoAccessWiring{
 			dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL,
 			logger: logger, backoff: settingsOverrides.resetBackoff, maxActiveSchools: settingsOverrides.demoMaxActiveSchools,
+			operatorWithoutSecondFactor: settingsOverrides.demoOperatorWithoutSecondFactor,
 		},
 		demoStandingSchool: settingsOverrides.standingDemo,
 		mfa: &mfaWiring{

@@ -4,7 +4,7 @@ import { use, useEffect, useState } from "react";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { RolloverForm } from "~/components/enrollment/rollover-form";
 import { getPhase, type Phase } from "~/lib/enrollment-phase-api";
-import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
+import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import { createLogger } from "~/lib/logger";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantMutate } from "~/lib/swr";
@@ -17,7 +17,7 @@ interface PageProps {
 
 export default function MobileRolloverPage({ params }: PageProps) {
   const { id } = use(params);
-  const { isReady } = useRequireAdmin();
+  const { isReady } = useRequirePermission("config:manage");
   const tenantPath = useTenantAwarePath();
   const tenantMutate = useTenantMutate();
   const [phase, setPhase] = useState<Phase | null>(null);

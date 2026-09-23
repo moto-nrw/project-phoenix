@@ -74,7 +74,7 @@ func createCareBooking(
 	// These scenarios include legacy unbounded bookings. The owner defaults new
 	// bookings to the phase window, so restore only the intentional legacy nulls.
 	if validFrom == nil || validUntil == nil {
-		update := db.NewUpdate().TableExpr("enrollment.request_child_offerings").
+		update := db.NewUpdate().TableExpr("enrollment.care_offering_bookings").
 			Where("id = ? AND tenant_id = ?", link.ID, scope.TenantID)
 		if validFrom == nil {
 			update = update.Set("valid_from = NULL")
@@ -453,7 +453,7 @@ func assertFiniteRebookingHistory(t *testing.T, oldOffset, newOffset int) {
 	oldTask := requirePendingCompletion(t, repo, scope.Context(), student.ID)
 
 	if newGap.Before(oldGap) {
-		_, err := db.NewUpdate().TableExpr("enrollment.request_child_offerings AS rco").
+		_, err := db.NewUpdate().TableExpr("enrollment.care_offering_bookings AS rco").
 			Set("valid_until = ?", newGap).
 			Where("request_child_id IN (SELECT id FROM enrollment.request_children WHERE created_student_id = ?)", student.ID).
 			Exec(scope.Context())

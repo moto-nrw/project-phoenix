@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 22,
+  "policy_epoch": 25,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -72,6 +72,10 @@
     },
     {
       "id": "timetable-legacy-view",
+      "kind": "projection"
+    },
+    {
+      "id": "presence-legacy-view",
       "kind": "projection"
     },
     {
@@ -433,6 +437,10 @@
     {
       "id": "shift-plan-sync",
       "kind": "workflow"
+    },
+    {
+      "id": "guardian-link-view",
+      "kind": "projection"
     }
   ],
   "roles": [
@@ -1191,13 +1199,6 @@
       "role": "postgres",
       "internal_test_role": "module-internal-test",
       "external_test_role": "adapter-test"
-    },
-    {
-      "path": "database/repositories/enrollment",
-      "owner": "enrollment",
-      "role": "postgres",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
     },
     {
       "path": "modules/feedback/internal/adapters/postgres",
@@ -2213,6 +2214,13 @@
       "role": "test-support",
       "internal_test_role": "workflow-integration-test",
       "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/presenceprojection",
+      "owner": "presence-legacy-view",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
     },
     {
       "path": "modules/timetableenrollmentprovenance",
@@ -3382,11 +3390,26 @@
       "role": "compose",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/guardianlinkview",
+      "owner": "guardian-link-view",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
     }
   ],
   "data_objects": [
     {
       "name": "platform.demo_school_states",
+      "write_owner": "organization-tenancy"
+    },
+    {
+      "name": "platform.billing_settings",
+      "write_owner": "organization-tenancy"
+    },
+    {
+      "name": "platform.billing_key_date_counts",
       "write_owner": "organization-tenancy"
     },
     {
@@ -3396,6 +3419,10 @@
     {
       "name": "active.presence_backfill_checkpoints",
       "write_owner": "student-presence"
+    },
+    {
+      "name": "active.presence_compatibility_writes",
+      "write_owner": "migrations"
     },
     {
       "name": "active.activity_session_attendance",
@@ -4226,6 +4253,10 @@
       "write_owner": "migrations"
     },
     {
+      "name": "users.students_guardians_compatibility_writes",
+      "write_owner": "migrations"
+    },
+    {
       "name": "users.staff_document_file_cleanup",
       "write_owner": "workforce"
     },
@@ -4393,8 +4424,7 @@
         "users.persons",
         "users.student_care_profiles",
         "users.student_profiles",
-        "users.student_school_memberships",
-        "users.students_guardians"
+        "users.student_school_memberships"
       ],
       "tenant_safe": true
     },
@@ -4426,8 +4456,7 @@
         "users.persons",
         "users.student_care_profiles",
         "users.student_profiles",
-        "users.student_school_memberships",
-        "users.students_guardians"
+        "users.student_school_memberships"
       ],
       "tenant_safe": true
     },
@@ -4469,6 +4498,20 @@
       "tenant_safe": true
     },
     {
+      "id": "presence-legacy-view",
+      "package": "modules/presenceprojection",
+      "data_objects": [
+        "active.activity_session_attendance",
+        "active.activity_sessions",
+        "activities.categories",
+        "activities.groups",
+        "activities.student_enrollments",
+        "schedule.activity_instances",
+        "schedule.instance_students"
+      ],
+      "tenant_safe": true
+    },
+    {
       "id": "operator-dashboard",
       "package": "modules/organizationtenancy/internal/adapters/operatordashboard",
       "data_objects": [
@@ -4479,6 +4522,16 @@
         "iot.pwa_standalone_usage",
         "platform.organizations",
         "platform.schools"
+      ],
+      "tenant_safe": true
+    },
+    {
+      "id": "guardian-link-view",
+      "package": "modules/guardianlinkview",
+      "data_objects": [
+        "auth.guardian_student_access",
+        "users.student_guardian_pickup_permissions",
+        "users.student_guardian_relationships"
       ],
       "tenant_safe": true
     }
@@ -4567,10 +4620,6 @@
     },
     {
       "path": "crypto/rand",
-      "class": "crypto"
-    },
-    {
-      "path": "crypto/sha1",
       "class": "crypto"
     },
     {
@@ -5188,24 +5237,13 @@
       "target_role": "test-support"
     },
     {
-      "id": "care-plan.contracttest.shared-kernel.contract",
-      "description": "The test-only native Care Plan contract suite uses owner fixtures and canonical calendar values (#3351).",
+      "id": "shared-kernel.contract",
+      "description": "Every role may import the shared kernel's contract: the canonical calendar Date, WallClock, TenantID and CorrelationID every owner exchanges (ADR 0040, #3447, #3448).",
       "scopes": [
+        "production",
+        "internal_test",
         "external_test"
       ],
-      "source_owner": "care-plan",
-      "source_role": "e2e-test",
-      "target_owner": "shared-kernel",
-      "target_role": "contract"
-    },
-    {
-      "id": "care-schedule-cutover.care-plan.module-behavior-test.shared-kernel.contract",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "module-behavior-test",
       "target_owner": "shared-kernel",
       "target_role": "contract"
     },
@@ -5219,28 +5257,6 @@
       "source_role": "module-behavior-test",
       "target_owner": "care-plan",
       "target_role": "public"
-    },
-    {
-      "id": "care-schedule-cutover.enrollment.module-behavior-test.care-plan.contract",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "module-behavior-test",
-      "target_owner": "care-plan",
-      "target_role": "contract"
-    },
-    {
-      "id": "care-schedule-cutover.care-plan.module-internal-test.shared-kernel.contract",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "module-internal-test",
-      "target_owner": "shared-kernel",
-      "target_role": "contract"
     },
     {
       "id": "care-schedule-cutover.inbound-timetable.module-internal-test.care-plan.public",
@@ -5309,6 +5325,17 @@
       "target_role": "public"
     },
     {
+      "id": "care-schedule-cutover.enrollment.module-behavior-test.care-plan.contract",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "module-behavior-test",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
       "id": "care-schedule-cutover.legacy-composition.compose.care-plan.contract",
       "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
       "scopes": [
@@ -5317,17 +5344,6 @@
       "source_owner": "legacy-composition",
       "source_role": "compose",
       "target_owner": "care-plan",
-      "target_role": "contract"
-    },
-    {
-      "id": "care-schedule-cutover.care-plan.contract.shared-kernel.contract",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "contract",
-      "target_owner": "shared-kernel",
       "target_role": "contract"
     },
     {
@@ -5342,17 +5358,6 @@
       "target_role": "contract"
     },
     {
-      "id": "care-schedule-cutover.care-plan.compose.shared-kernel.contract",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "compose",
-      "target_owner": "shared-kernel",
-      "target_role": "contract"
-    },
-    {
       "id": "care-schedule-cutover.care-plan.application.care-plan.contract",
       "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
       "scopes": [
@@ -5361,28 +5366,6 @@
       "source_owner": "care-plan",
       "source_role": "application",
       "target_owner": "care-plan",
-      "target_role": "contract"
-    },
-    {
-      "id": "care-schedule-cutover.care-plan.application.shared-kernel.contract",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "application",
-      "target_owner": "shared-kernel",
-      "target_role": "contract"
-    },
-    {
-      "id": "care-schedule-cutover.care-plan.domain.shared-kernel.contract",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "domain",
-      "target_owner": "shared-kernel",
       "target_role": "contract"
     },
     {
@@ -5405,28 +5388,6 @@
       "source_owner": "care-plan",
       "source_role": "port",
       "target_owner": "care-plan",
-      "target_role": "contract"
-    },
-    {
-      "id": "care-schedule-cutover.care-plan.port.shared-kernel.contract",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "port",
-      "target_owner": "shared-kernel",
-      "target_role": "contract"
-    },
-    {
-      "id": "care-schedule-cutover.care-plan.public.shared-kernel.contract",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "public",
-      "target_owner": "shared-kernel",
       "target_role": "contract"
     },
     {
@@ -6735,6 +6696,17 @@
       "source_role": "module-internal-test",
       "target_owner": "student-presence",
       "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.compose.presence-cutover.presence-legacy-view.postgres",
+      "description": "The Timetable compose serves the retained reads that join the plan with the Student Presence execution and attendance from the tenant-safe presence projection (#2762).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "compose",
+      "target_owner": "presence-legacy-view",
+      "target_role": "postgres"
     },
     {
       "id": "legacy-composition.compose.presence-cutover.student-presence.public",
@@ -8208,17 +8180,6 @@
       "target_role": "public"
     },
     {
-      "id": "class-day-view.from.timetable-activities",
-      "description": "class-day-view reads the public timetable-activities query seam.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "class-day-view",
-      "source_role": "application",
-      "target_owner": "timetable-activities",
-      "target_role": "public"
-    },
-    {
       "id": "data-import.port.people-directory",
       "description": "Data import ports name the People Directory person, student and guardian commands through their public contract (#2708).",
       "scopes": [
@@ -8952,18 +8913,6 @@
       "target_role": "domain"
     },
     {
-      "id": "settings-platform.test-support.legacy-shared-domain",
-      "description": "The settings test support takes calendar dates in the retained date type while the work-schedule rows still live in the settings package (#3207). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "settings-platform",
-      "source_role": "test-support",
-      "target_owner": "legacy-shared",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3448"
-    },
-    {
       "id": "student-presence.http.public",
       "description": "The presence HTTP composition calls exactly one public capability.",
       "scopes": [
@@ -8976,27 +8925,14 @@
     },
     {
       "id": "student-presence.http.inbound-common",
-      "description": "The presence HTTP composition binds the shared tenant middleware, response rendering and error helpers (#3207). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "description": "The presence HTTP adapter binds the shared HTTP runtime in api/common: tenant middleware, response rendering and error helpers. It has no replacement; the other owners' HTTP adapters hold the same standing rule (#3447).",
       "scopes": [
         "production"
       ],
       "source_owner": "student-presence",
       "source_role": "http",
       "target_owner": "inbound-common",
-      "target_role": "http",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3447"
-    },
-    {
-      "id": "student-presence.http.legacy-shared-domain",
-      "description": "The presence HTTP composition parses and renders the retained calendar-date signatures while the date type migrates (#3207). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "http",
-      "target_owner": "legacy-shared",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3447"
+      "target_role": "http"
     },
     {
       "id": "root-composition.to.student-presence-http",
@@ -9012,7 +8948,7 @@
     },
     {
       "id": "student-presence.adapter-test.inbound-common",
-      "description": "Presence HTTP tests assert the shared response rendering the adapter binds (#3207). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "description": "Presence HTTP tests assert the shared response rendering of api/common that the adapter binds, as the other owners' adapter tests do (#3447).",
       "scopes": [
         "internal_test",
         "external_test"
@@ -9020,34 +8956,7 @@
       "source_owner": "student-presence",
       "source_role": "adapter-test",
       "target_owner": "inbound-common",
-      "target_role": "http",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3447"
-    },
-    {
-      "id": "student-presence.adapter-test.legacy-shared-domain",
-      "description": "Presence HTTP tests build fixed calendar dates for the retained date type (#3207). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "adapter-test",
-      "target_owner": "legacy-shared",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3447"
-    },
-    {
-      "id": "student-presence.adapter-test.settings-platform-domain",
-      "description": "Presence HTTP tests name the tenant setting keys the routes resolve (#3207). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "adapter-test",
-      "target_owner": "settings-platform",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3447"
+      "target_role": "http"
     },
     {
       "id": "inbound-announcement.to.communication",
@@ -10738,17 +10647,6 @@
       "target_role": "public"
     },
     {
-      "id": "school-structure.staff-groups.calendar-contract",
-      "description": "The staff-keyed substitution read parses its day with the canonical shared-kernel calendar Date (#3499).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-structure",
-      "source_role": "adapter",
-      "target_owner": "shared-kernel",
-      "target_role": "contract"
-    },
-    {
       "id": "school-structure.integration-test.public",
       "description": "School Structure integration tests exercise the public facade.",
       "scopes": [
@@ -10802,17 +10700,6 @@
       "source_role": "adapter-test",
       "target_owner": "workforce",
       "target_role": "compose"
-    },
-    {
-      "id": "school-structure.adapter-test.calendar-contract",
-      "description": "Staff-keyed group read tests use fixed shared-kernel calendar dates (#3499).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "school-structure",
-      "source_role": "adapter-test",
-      "target_owner": "shared-kernel",
-      "target_role": "contract"
     },
     {
       "id": "root-composition.to.school-structure-compose",
@@ -11231,6 +11118,17 @@
       "target_role": "postgres"
     },
     {
+      "id": "enrollment.postgres.presence-legacy-view",
+      "description": "Enrollment impact previews read the manually planned care blocks of a child from the tenant-safe presence projection (#2762).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "postgres",
+      "target_owner": "presence-legacy-view",
+      "target_role": "postgres"
+    },
+    {
       "id": "timetable-legacy-view.test.subject",
       "description": "Projection regression tests call the exported SQL projection boundary.",
       "scopes": [
@@ -11239,6 +11137,17 @@
       "source_owner": "timetable-legacy-view",
       "source_role": "workflow-integration-test",
       "target_owner": "timetable-legacy-view",
+      "target_role": "postgres"
+    },
+    {
+      "id": "timetable-legacy-view.test.presence-legacy-view",
+      "description": "The timetable projection regression tests also call the presence projection that took over the joined reads (#2762).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "timetable-legacy-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "presence-legacy-view",
       "target_role": "postgres"
     },
     {
@@ -11283,6 +11192,28 @@
       "source_owner": "timetable-legacy-view",
       "source_role": "postgres",
       "target_owner": "enrollment",
+      "target_role": "domain"
+    },
+    {
+      "id": "presence-legacy-view.shared-date",
+      "description": "The presence projection preserves calendar-date contracts at its callers (#2762).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "presence-legacy-view",
+      "source_role": "postgres",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "presence-legacy-view.timetable-domain",
+      "description": "The presence projection serves the retained timetable model contracts to their legacy callers (#2762).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "presence-legacy-view",
+      "source_role": "postgres",
+      "target_owner": "timetable-activities",
       "target_role": "domain"
     },
     {
@@ -17379,17 +17310,6 @@
       "target_role": "public"
     },
     {
-      "id": "class-day-view.internal-test.timetable-public",
-      "description": "Class-day application tests name the Timetable instance statuses (#2701).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "class-day-view",
-      "source_role": "module-internal-test",
-      "target_owner": "timetable-activities",
-      "target_role": "public"
-    },
-    {
       "id": "class-day-view.integration-test.compose",
       "description": "Class-day integration tests compose the projection the way the service factory does (#2701).",
       "scopes": [
@@ -17531,18 +17451,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "document-rendering",
       "target_role": "application"
-    },
-    {
-      "id": "class-day-view.integration-test.enrollment-application",
-      "description": "Compatibility permission (#2701): the day-report parity test marshals the retained enrollment report next to the projection's contract.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "class-day-view",
-      "source_role": "workflow-integration-test",
-      "target_owner": "enrollment",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3444"
     },
     {
       "id": "inbound-timetable.to.class-day-view",
@@ -20019,50 +19927,6 @@
       "target_role": "public"
     },
     {
-      "id": "legacy-shared.domain.calendar-contract",
-      "description": "Use the canonical Date and WallClock shared-kernel contract (#2744).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-shared",
-      "source_role": "domain",
-      "target_owner": "shared-kernel",
-      "target_role": "contract"
-    },
-    {
-      "id": "data-import.application.calendar-contract",
-      "description": "Use the canonical Date and WallClock shared-kernel contract (#2744).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "data-import",
-      "source_role": "application",
-      "target_owner": "shared-kernel",
-      "target_role": "contract"
-    },
-    {
-      "id": "data-import.workflow-decision-test.calendar-contract",
-      "description": "Use the canonical Date and WallClock shared-kernel contract (#2744).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "data-import",
-      "source_role": "workflow-decision-test",
-      "target_owner": "shared-kernel",
-      "target_role": "contract"
-    },
-    {
-      "id": "data-import.integration-test.shared-kernel.contract",
-      "description": "Integration tests exercise the canonical import contracts and their composition (#2744).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "data-import",
-      "source_role": "workflow-integration-test",
-      "target_owner": "shared-kernel",
-      "target_role": "contract"
-    },
-    {
       "id": "data-import.integration-test.data-import.compose",
       "description": "Integration tests exercise the canonical import contracts and their composition (#2744).",
       "scopes": [
@@ -20960,329 +20824,6 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-parent.http.orm-sql",
-      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) runs the enrollment submit and bootstrap in tenant and admin transactions over the concrete Bun database and maps the legacy no-rows reset error. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "http",
-      "target_class": "orm-sql",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
-      "id": "inbound-parent.http.inbound-common",
-      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) binds the shared middleware, response rendering and error helpers. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "http",
-      "target_owner": "inbound-common",
-      "target_role": "http",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
-      "id": "inbound-parent.http.inbound-enrollment",
-      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) reuses the public enrollment wire request, bootstrap response and error rendering. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "http",
-      "target_owner": "inbound-enrollment",
-      "target_role": "http",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
-      "id": "inbound-parent.http.identity-access-adapter",
-      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) verifies parent-scope tokens and reads their claims (#2725). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "http",
-      "target_owner": "identity-access",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
-      "id": "inbound-parent.http.legacy-shared-domain",
-      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) parses and renders calendar dates while the date type migrates. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "http",
-      "target_owner": "legacy-shared",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
-      "id": "inbound-parent.http.delivery-platform-adapter",
-      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) validates the requested portal locale. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "http",
-      "target_owner": "delivery-platform",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
-      "id": "inbound-parent.http.enrollment-domain",
-      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) maps the retained enrollment request and offering rows. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "http",
-      "target_owner": "enrollment",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
-      "id": "inbound-parent.http.enrollment-application",
-      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) calls the retained enrollment request service and maps the enrollment, offering and course result types and errors. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "http",
-      "target_owner": "enrollment",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
-      "id": "inbound-parent.http.care-plan-domain",
-      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) maps the retained parent-portal rows in models/parent. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "http",
-      "target_owner": "care-plan",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
-      "id": "inbound-parent.http.people-directory-domain",
-      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) maps the retained person and guardian rows in models/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "http",
-      "target_owner": "people-directory",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
-      "id": "inbound-parent.http.people-directory-application",
-      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) loads guardian profiles through the retained services/users loader. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "http",
-      "target_owner": "people-directory",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
-      "id": "inbound-parent.http.tenant-runtime",
-      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) opens the tenant and admin transactions of the enrollment routes. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "http",
-      "target_owner": "tenant-runtime",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
-      "id": "inbound-parent.adapter-test.inbound-enrollment",
-      "description": "The guardian portal HTTP tests (#3229) build the public enrollment wire request the routes accept. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "adapter-test",
-      "target_owner": "inbound-enrollment",
-      "target_role": "http",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
-      "id": "inbound-parent.adapter-test.identity-access-adapter",
-      "description": "The guardian portal HTTP tests (#3229) mint and read parent-scope tokens. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
-      "id": "inbound-parent.adapter-test.legacy-shared-domain",
-      "description": "The guardian portal HTTP tests (#3229) build fixed calendar dates. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "adapter-test",
-      "target_owner": "legacy-shared",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
-      "id": "inbound-parent.adapter-test.transaction-runtime-domain",
-      "description": "The guardian portal HTTP tests (#3229) build the retained base model of their fake rows. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "adapter-test",
-      "target_owner": "transaction-runtime",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
-      "id": "inbound-parent.adapter-test.school-calendar-domain",
-      "description": "The guardian portal HTTP tests (#3229) build the retained calendar rows of the calendar route fakes. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "adapter-test",
-      "target_owner": "school-calendar",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
-      "id": "inbound-parent.adapter-test.enrollment-domain",
-      "description": "The guardian portal HTTP tests (#3229) build the retained enrollment rows of their fakes. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "adapter-test",
-      "target_owner": "enrollment",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
-      "id": "inbound-parent.adapter-test.enrollment-application",
-      "description": "The guardian portal HTTP tests (#3229) stub the retained enrollment services. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "adapter-test",
-      "target_owner": "enrollment",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
-      "id": "inbound-parent.adapter-test.care-plan-domain",
-      "description": "The guardian portal HTTP tests (#3229) build the retained parent-portal rows of their fakes. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "adapter-test",
-      "target_owner": "care-plan",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
-      "id": "inbound-parent.adapter-test.timetable-domain",
-      "description": "The guardian portal HTTP tests (#3229) build the retained care-exception and care-schedule rows. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "adapter-test",
-      "target_owner": "timetable-activities",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
-      "id": "inbound-parent.adapter-test.people-directory-domain",
-      "description": "The guardian portal HTTP tests (#3229) build the retained person and guardian rows. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "adapter-test",
-      "target_owner": "people-directory",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
-      "id": "inbound-parent.adapter-test.people-directory-application",
-      "description": "The guardian portal HTTP tests (#3229) build the retained guardian profile loader. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "adapter-test",
-      "target_owner": "people-directory",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
-      "id": "inbound-parent.adapter-test.legacy-composition",
-      "description": "The guardian portal HTTP tests (#3229) build the retained repository factory for the database-backed routes. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "adapter-test",
-      "target_owner": "legacy-composition",
-      "target_role": "compose",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
-      "id": "inbound-parent.adapter-test.settings-platform-domain",
-      "description": "The guardian portal HTTP tests (#3229) name the retained tenant setting keys the routes gate on. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "adapter-test",
-      "target_owner": "settings-platform",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
-      "id": "inbound-parent.adapter-test.settings-platform-application",
-      "description": "The guardian portal HTTP tests (#3229) wrap the retained settings service to script the route gates. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "adapter-test",
-      "target_owner": "settings-platform",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
-      "id": "inbound-parent.adapter-test.cli-config",
-      "description": "The guardian portal HTTP tests (#3229) pin the process-wide JWT configuration once in TestMain. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "adapter-test",
-      "target_class": "cli-config",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3421"
-    },
-    {
       "id": "inbound-parent.http.care-plan-absence-records",
       "description": "The parent routes return the child's status days as the Care Plan absence records of modules/careplan/absencerecords (#3422).",
       "scopes": [
@@ -21917,36 +21458,12 @@
       "target_role": "contract"
     },
     {
-      "id": "timetable-activities.workflow-integration-test.inbound-timetable-adapter",
-      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/timetable/compose/httpintegration. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "workflow-integration-test",
-      "target_owner": "inbound-timetable",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
       "id": "calendar-view.adapter-test.inbound-timetable-adapter",
       "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/supervisiondashboard/legacy. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
         "internal_test"
       ],
       "source_owner": "calendar-view",
-      "source_role": "adapter-test",
-      "target_owner": "inbound-timetable",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
-      "id": "document-rendering.adapter-test.inbound-timetable-adapter",
-      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/planexport/legacy. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "document-rendering",
       "source_role": "adapter-test",
       "target_owner": "inbound-timetable",
       "target_role": "adapter",
@@ -22560,18 +22077,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
-      "id": "timetable-activities.compose.inbound-timetable-adapter",
-      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/timetable/compose/httpadapter. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "compose",
-      "target_owner": "inbound-timetable",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
       "id": "inbound-timetable.adapter-test.inbound-timetable-test-support",
       "description": "The retained timetable SQL test providers that moved from database/repositories/schedule to modules/timetable/legacy/timetablesqltest (#3220) are still consumed by api/timetable. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -22839,17 +22344,6 @@
       ],
       "source_owner": "inbound-timetable",
       "source_role": "module-internal-test",
-      "target_owner": "timetable-activities",
-      "target_role": "public"
-    },
-    {
-      "id": "care-schedule-cutover.inbound-timetable.module-behavior-test.timetable-activities.public",
-      "description": "Assert Timetable errors at their native owner after Care Schedule retirement (#3351, ADR 0030).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "module-behavior-test",
       "target_owner": "timetable-activities",
       "target_role": "public"
     },
@@ -23496,6 +22990,83 @@
       "target_role": "public"
     },
     {
+      "id": "timetable-planning-cutover.inbound-timetable.http.school-calendar.public",
+      "description": "The calendar period and closing day routes of api/timetable drive the School Calendar owner directly since slice S6 of #3424 (ADR 0038).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "http",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-planning-cutover.inbound-timetable.adapter.school-calendar.public",
+      "description": "The retained timetable planning services ask the School Calendar for the A/B-week decision slice S6 of #3424 moved out of them (ADR 0038); the rule ends with the package.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-planning-cutover.timetable-activities.compose.school-calendar.public",
+      "description": "The schedules HTTP composition serves dateframes from the School Calendar owner since slice S6 of #3424 (ADR 0038).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "compose",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-planning-cutover.workforce.application.school-calendar.public",
+      "description": "The Workforce planning commands ask the School Calendar for the A/B-week decision since slice S6 of #3424 (ADR 0038).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "application",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-planning-cutover.enrollment.application.school-calendar.public",
+      "description": "Enrollment validates calendar-period links and renders proposed periods through the School Calendar contract since slice S6 of #3424 (ADR 0038).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "application",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-planning-cutover.enrollment.module-behavior-test.school-calendar.public",
+      "description": "The Enrollment behaviour suites read calendar periods through the School Calendar contract since slice S6 of #3424 (ADR 0038).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "module-behavior-test",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-planning-cutover.test-support.e2e-test.school-calendar.public",
+      "description": "The timetable end-to-end flows (an internal-test suite beside its own setup) create calendar periods through the School Calendar contract since slice S6 of #3424 (ADR 0038).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
       "id": "workforce.application.legacy-shared-domain",
       "description": "The Workforce planning commands and queries (modules/workforce/internal/planning, #3418) speak the shared calendar-date and wall-clock helpers.",
       "scopes": [
@@ -23719,18 +23290,6 @@
       "source_role": "compose",
       "target_owner": "document-rendering",
       "target_role": "public"
-    },
-    {
-      "id": "workforce.compose.inbound-timetable-adapter",
-      "description": "Workforce composition binds the retained holiday service to the Dienstplan weekly summaries (#3418). Goes with the timetable nest.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "compose",
-      "target_owner": "inbound-timetable",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
       "id": "workforce.compose.delivery-public",
@@ -24474,6 +24033,106 @@
       "target_owner": "people-directory",
       "target_role": "domain",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/2729"
+    },
+    {
+      "id": "shared-fixtures.own-tooling",
+      "description": "The shared fixtures wire their own tooling: the fixture catalog opens the test database lifecycle, the API helpers build on the catalog, and the bootstrap and sweep commands drive the lifecycle (ADR 0039).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "shared-fixtures.tenant-runtime-public",
+      "description": "The shared fixtures create rows inside a tenant through the shared tenant runtime (ADR 0039).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "shared-fixtures.e2e.tenant-runtime-public",
+      "description": "The shared end-to-end suites verify tenant isolation through the shared tenant runtime (ADR 0039).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "shared-fixtures.calendar-date",
+      "description": "The shared fixtures build DATE column values with the mandated calendar-date type (ADR 0039).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "shared-fixtures.e2e.calendar-date",
+      "description": "The shared end-to-end suites pin calendar days with the mandated calendar-date type (ADR 0039).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "shared-fixtures.e2e.permission-constants",
+      "description": "The shared end-to-end suites mint tokens with the permission constants the routes check, instead of spelling the wire strings (ADR 0039).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "people-directory.postgres.guardian-link-view",
+      "description": "Relationship reads that need the pickup permission or the parents-portal permissions join the three relationship owners through the named guardian-link projection (#2756).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "postgres",
+      "target_owner": "guardian-link-view",
+      "target_role": "postgres"
+    },
+    {
+      "id": "parent-message-inbox.postgres.guardian-link-view",
+      "description": "The parent inbox checks a thread's guardian relationship and its parents-portal access through the guardian-link projection (#2756).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-message-inbox",
+      "source_role": "postgres",
+      "target_owner": "guardian-link-view",
+      "target_role": "postgres"
+    },
+    {
+      "id": "parent-announcement-audience.postgres.guardian-link-view",
+      "description": "The announcement audience resolves the guardians with parents-portal access through the guardian-link projection (#2756).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-announcement-audience",
+      "source_role": "postgres",
+      "target_owner": "guardian-link-view",
+      "target_role": "postgres"
     }
   ],
   "relocations": [

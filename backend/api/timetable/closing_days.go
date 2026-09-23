@@ -1,7 +1,6 @@
 package timetable
 
 import (
-	"database/sql"
 	"errors"
 	"net/http"
 	"strings"
@@ -11,7 +10,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 )
 
 // ClosingDayRequest represents a create/update request for a closing day
@@ -28,7 +27,7 @@ func (req *ClosingDayRequest) Bind(_ *http.Request) error {
 	if req.Reason == "" {
 		return errors.New("reason is required")
 	}
-	if utf8.RuneCountInString(req.Reason) > schedule.ClosingDayReasonMaxLength {
+	if utf8.RuneCountInString(req.Reason) > schoolcalendar.ClosingDayReasonMaxLength {
 		return errors.New("reason cannot exceed 255 characters")
 	}
 	if req.StartDate == "" {
@@ -50,11 +49,11 @@ type ClosingDayResponse struct {
 	UpdatedAt string `json:"updated_at"`
 }
 
-func mapClosingDayToResponse(d *schedule.ClosingDay) ClosingDayResponse {
+func mapClosingDayToResponse(d schoolcalendar.ClosingDay) ClosingDayResponse {
 	return ClosingDayResponse{
 		ID:        d.ID,
-		StartDate: d.StartDate.String(),
-		EndDate:   d.EndDate.String(),
+		StartDate: d.StartDate,
+		EndDate:   d.EndDate,
 		Reason:    d.Reason,
 		CreatedAt: d.CreatedAt.Format(time.RFC3339),
 		UpdatedAt: d.UpdatedAt.Format(time.RFC3339),
@@ -88,7 +87,7 @@ func parseClosingDayDates(w http.ResponseWriter, r *http.Request, req *ClosingDa
 }
 
 func (rs *Resource) listClosingDays(w http.ResponseWriter, r *http.Request) {
-	days, err := rs.ClosingDayService.GetAll(r.Context())
+	days, err := rs.ClosingDays.ListClosingDays(r.Context(), schoolcalendar.ClosingDayFilter{})
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("Schließtage konnten nicht geladen werden", err))
 		return
@@ -114,13 +113,12 @@ func (rs *Resource) createClosingDay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	day := &schedule.ClosingDay{
-		StartDate: schedule.Date(startDate),
-		EndDate:   schedule.Date(endDate),
+	day, err := rs.ClosingDays.CreateClosingDay(r.Context(), schoolcalendar.CreateClosingDay{ClosingDayFields: schoolcalendar.ClosingDayFields{
+		StartDate: startDate.String(),
+		EndDate:   endDate.String(),
 		Reason:    req.Reason,
-	}
-
-	if err := rs.ClosingDayService.Create(r.Context(), day); err != nil {
+	}})
+	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("Schließtag konnte nicht angelegt werden", err))
 		return
 	}
@@ -146,9 +144,9 @@ func (rs *Resource) updateClosingDay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	day, err := rs.ClosingDayService.GetByID(r.Context(), id)
+	day, err := rs.ClosingDays.FindClosingDay(r.Context(), id)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, schoolcalendar.ErrClosingDayNotFound) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("closing day not found")))
 		} else {
 			common.RenderError(w, r, common.ErrorInternalServerWrap("Schließtag konnte nicht geladen werden", err))
@@ -156,16 +154,17 @@ func (rs *Resource) updateClosingDay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	day.StartDate = schedule.Date(startDate)
-	day.EndDate = schedule.Date(endDate)
-	day.Reason = req.Reason
-
-	if err := rs.ClosingDayService.Update(r.Context(), day); err != nil {
+	updated, err := rs.ClosingDays.UpdateClosingDay(r.Context(), schoolcalendar.UpdateClosingDay{ID: day.ID, ClosingDayFields: schoolcalendar.ClosingDayFields{
+		StartDate: startDate.String(),
+		EndDate:   endDate.String(),
+		Reason:    req.Reason,
+	}})
+	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("Schließtag konnte nicht aktualisiert werden", err))
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, mapClosingDayToResponse(day), "Closing day updated successfully")
+	common.Respond(w, r, http.StatusOK, mapClosingDayToResponse(updated), "Closing day updated successfully")
 }
 
 func (rs *Resource) deleteClosingDay(w http.ResponseWriter, r *http.Request) {
@@ -175,8 +174,8 @@ func (rs *Resource) deleteClosingDay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := rs.ClosingDayService.GetByID(r.Context(), id); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+	if _, err := rs.ClosingDays.FindClosingDay(r.Context(), id); err != nil {
+		if errors.Is(err, schoolcalendar.ErrClosingDayNotFound) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("closing day not found")))
 		} else {
 			common.RenderError(w, r, common.ErrorInternalServerWrap("Schließtag konnte nicht geladen werden", err))
@@ -184,7 +183,7 @@ func (rs *Resource) deleteClosingDay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := rs.ClosingDayService.Delete(r.Context(), id); err != nil {
+	if err := rs.ClosingDays.DeleteClosingDay(r.Context(), id); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("Schließtag konnte nicht gelöscht werden", err))
 		return
 	}

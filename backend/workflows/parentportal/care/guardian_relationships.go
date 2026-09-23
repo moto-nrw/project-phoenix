@@ -99,7 +99,7 @@ func (s *Service) updateGuardianRelationshipInTx(ctx context.Context, child *Chi
 		return nil, err
 	}
 	// Lock the guardian profile row for the duration of the tx. The link
-	// update below is a read-modify-write on the students_guardians row, and
+	// update below is a read-modify-write on the student-guardian relationship, and
 	// the same profile lock guards the contact path; taking it here serializes
 	// concurrent relationship edits (and relationship-vs-contact edits) of the
 	// same guardian so independent field writes can't clobber each other in a
@@ -119,7 +119,7 @@ func (s *Service) updateGuardianRelationshipInTx(ctx context.Context, child *Chi
 	// link.GuardianRole and the write mutates this row; without the lock a
 	// concurrent staff edit could promote/remove the relationship after the
 	// guards pass and before the write, since the staff path edits the
-	// students_guardians row without taking the profile lock above. Locking
+	// student-guardian relationship without taking the profile lock above. Locking
 	// the row makes the authorization decision and the write atomic against it.
 	link, err := s.findChildGuardianLinkForUpdate(ctx, edit.studentID, edit.guardianProfileID)
 	if err != nil {
@@ -245,7 +245,7 @@ func refusePickupNoteEdit(profile *usersModels.GuardianProfile, link *usersModel
 // a note-only edit would re-send the two flag columns with their stale read
 // values and clobber a staff toggle made between our read and write (the
 // guardian_profiles lock serializes parent-vs-parent edits, but the staff path
-// edits the students_guardians row without taking it). Building the patch from
+// edits the student-guardian relationship without taking it). Building the patch from
 // exactly the supplied fields makes the write-set equal the touched-set, so an
 // untouched flag is never written.
 func (s *Service) writeRelationshipEdit(ctx context.Context, link *usersModels.StudentGuardian, input GuardianRelationshipInput) error {
@@ -329,7 +329,7 @@ func (s *Service) requireGuardianManagementEnabled(ctx context.Context, tenantID
 	return nil
 }
 
-// findChildGuardianLinkForUpdate returns the students_guardians row joining the
+// findChildGuardianLinkForUpdate returns the student-guardian relationship joining the
 // child and guardian profile LOCKED FOR UPDATE for the current tx, or
 // ErrGuardianNotLinked when none exists. Write paths use it (after locking the
 // guardian profile) so a concurrent staff edit/delete of the relationship row

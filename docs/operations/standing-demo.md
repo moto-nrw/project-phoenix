@@ -129,6 +129,24 @@ from the normal local environment. Staff/admin passwords are generated for
 this school. A restart reads the existing state and does not seed another
 school. Ctrl+C stops the runner; it does not delete the school.
 
+### Local public demo
+
+The loop above runs the standing school under `APP_ENV=development`. To
+click through the public flow (request, mail, waiting room, own school, role
+switch), run a separate worktree in demo mode:
+
+1. In the worktree's `.env` set `APP_ENV=demo`, `NEXT_PUBLIC_APP_ENV=demo`
+   and `DEMO_MAX_ACTIVE_SCHOOLS=20`; the demo routes exist only there.
+2. Start the application with `devbox run dev up`.
+3. Run the demo process with `APP_ENV=development`, because under `demo` it
+   accepts only the Compose host `server`, and point `DEMO_DB_DSN` at the
+   published Postgres port (one line):
+   `CGO_ENABLED=0 devbox run dev backend env APP_ENV=development 'DEMO_DB_DSN=postgres://phoenix_demo@localhost:<POSTGRES_HOST_PORT>/postgres?sslmode=require' go run . demo --url http://localhost:<SERVER_HOST_PORT>`
+4. Request a demo as the website would:
+   `curl -X POST http://localhost:<SERVER_HOST_PORT>/demo/access-requests -H 'Content-Type: application/json' -d '{"email":"test@example.com","school_name":"OGS Test","person_name":"Kim Test","src":"local"}'`
+5. Open the link from the mail in Mailpit (`MAILPIT_HOST_PORT`). The waiting
+   room forwards to `<slug>.localhost` once the process logs `demo school ready`.
+
 For a finite smoke check, append `--once`: the command provisions or reloads
 the school, executes one tick and exits. The CI seed smoke runs it twice before
 the table-coverage ratchet, exercising both creation and restart.
@@ -195,6 +213,18 @@ HTTP database roles cannot read that table.
   consulting the weekday timetable. It keeps existing sessions alive and
   recreates those ended by daily close. School schedules themselves are not
   shifted to weekends.
+- Weekend day plan (#3471): the device sessions the runner starts are
+  mirrored into the timetable as spontaneous blocks (title of the activity,
+  window from the session start plus 60 minutes, status running), so home
+  page, „Mein Tag" and the day plan show eight running blocks on a Saturday
+  as well. That is all the simulation can add on a weekend: the web
+  spontaneous start and instance planning reject Saturday and Sunday on the
+  server, and a device session can neither be back-dated nor planned ahead.
+  Upcoming blocks, pickup and arrival times and the week view stay empty.
+  Rotating the sessions to fill the day was tried and rejected: it turns the
+  day plan into a log of the same eight activities and changes nothing for a
+  per-access school, which only ticks during the visit. Screenshots and the
+  proposed follow-up are in the issue.
 - The initial occupancy is capped at 84 children to respect the seed profile's
   room capacities. All eligible children receive simulator RFID identities,
   including those available to subsequent attendance ticks.

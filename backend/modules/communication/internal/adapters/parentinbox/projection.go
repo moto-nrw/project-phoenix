@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/guardianlinkview"
 	"github.com/uptrace/bun"
 )
 
@@ -157,7 +158,7 @@ func inboxSelect(q *bun.SelectQuery, accountID int64, staffReader bool, staffAcc
 		// has one row per school. Joining on account_id alone would duplicate each
 		// inbox thread once per school.
 		Join("LEFT JOIN users.guardian_profiles AS gp ON gp.account_id = t.guardian_account_id AND gp.tenant_id = t.tenant_id").
-		Join("LEFT JOIN users.students_guardians AS sg ON sg.guardian_profile_id = gp.id AND sg.student_id = t.student_id").
+		Join("LEFT JOIN (?) AS sg ON sg.guardian_profile_id = gp.id AND sg.student_id = t.student_id", guardianLinks(q.DB())).
 		Join("LEFT JOIN users.parent_message_reads AS r ON r.thread_id = t.id AND r.account_id = ? AND r.tenant_id = t.tenant_id", accountID).
 		// The thread's last message, for the structured preview columns above. A
 		// primary-key lookup, so it stays an index scan; tenant_id = t.tenant_id
@@ -258,7 +259,7 @@ func (p *Projection) ListThreadsForGuardianStudent(ctx context.Context, accountI
 		Where("t.guardian_account_id = ?", accountID).
 		Where("t.student_id = ?", studentID).
 		Where(threadHasMessages).
-		Where(guardianStillLinked)
+		Where(guardianStillLinked, guardianLinks(db))
 	query = withTenant(query, "t", tenantID)
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("list guardian threads for student: %w", err)
@@ -285,7 +286,7 @@ func (p *Projection) ListThreadsForGuardianTenants(ctx context.Context, accountI
 		Where("t.guardian_account_id = ?", accountID).
 		Where("t.tenant_id IN (?)", bun.List(tenantIDs)).
 		Where(threadHasMessages).
-		Where(guardianStillLinked)
+		Where(guardianStillLinked, guardianLinks(db))
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("list guardian threads cross-tenant: %w", err)
 	}
@@ -324,7 +325,7 @@ func (p *Projection) UnreadMessageCountForGuardianTenants(ctx context.Context, a
 	count, err := unreadMessageCountSelect(db.NewSelect(), accountID, false).
 		Where("t.guardian_account_id = ?", accountID).
 		Where("t.tenant_id IN (?)", bun.List(tenantIDs)).
-		Where(guardianStillLinked).
+		Where(guardianStillLinked, guardianLinks(db)).
 		Count(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("count unread guardian messages cross-tenant: %w", err)
@@ -353,7 +354,7 @@ func (p *Projection) FindThreadHeader(ctx context.Context, threadID int64) (*dom
 		// gp.tenant_id = t.tenant_id is REQUIRED: joining on account_id alone
 		// duplicates the row once per school for a guardian with two schools.
 		Join("LEFT JOIN users.guardian_profiles AS gp ON gp.account_id = t.guardian_account_id AND gp.tenant_id = t.tenant_id").
-		Join("LEFT JOIN users.students_guardians AS sg ON sg.guardian_profile_id = gp.id AND sg.student_id = t.student_id").
+		Join("LEFT JOIN (?) AS sg ON sg.guardian_profile_id = gp.id AND sg.student_id = t.student_id", guardianLinks(db)).
 		Where("t.id = ?", threadID)
 	query = withTenant(query, "t", tenantID)
 	if err := query.Scan(ctx, &rows); err != nil {
@@ -436,4 +437,11 @@ func (p *Projection) GuardianReadCursor(ctx context.Context, threadID int64) (*d
 		return nil, nil
 	}
 	return &domain.ParentReadCursor{LastReadAt: rows[0].LastReadAt, LastReadMessageID: rows[0].LastReadMessageID}, nil
+}
+
+// guardianLinks is the student-guardian relationship with its parents-portal
+// permissions, read through the guardian-link projection (#2756). The inbox
+// correlates it with the thread's school itself.
+func guardianLinks(db bun.IDB) *bun.SelectQuery {
+	return guardianlinkview.Query(db, 0)
 }

@@ -14,6 +14,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -105,9 +106,10 @@ type PhaseServiceConfig struct {
 	Owner            PhaseOwner
 	CareOfferingRepo enrollmentModels.CareOfferingRepository
 	// CalendarPeriods validates phase→calendar-period links on
-	// Create/Update. Optional: when nil (unit tests with mocks), the
-	// link is accepted unvalidated and the FK constraint still holds.
-	CalendarPeriods                 timetableplanning.CalendarPeriodService
+	// Create/Update through the School Calendar. Optional: when nil (unit
+	// tests with mocks), the link is accepted unvalidated and the FK
+	// constraint still holds.
+	CalendarPeriods                 CalendarPeriodLookup
 	LockTemplateRecurrence          func(context.Context) error
 	ValidateCareOfferingPhaseChange func(context.Context, int64, *enrollmentOwner.Phase) error
 	// Settings resolves the concrete-class collection toggles used to
@@ -129,7 +131,7 @@ type PhaseServiceConfig struct {
 type phaseService struct {
 	owner                           PhaseOwner
 	careOfferingRepo                enrollmentModels.CareOfferingRepository
-	calendarPeriods                 timetableplanning.CalendarPeriodService
+	calendarPeriods                 CalendarPeriodLookup
 	lockTemplateRecurrence          func(context.Context) error
 	validateCareOfferingPhaseChange func(context.Context, int64, *enrollmentOwner.Phase) error
 	// sourcedTemplateResyncer re-reconciles templates sourcing this phase's
@@ -349,13 +351,19 @@ func (s *phaseService) validateCalendarPeriodLink(ctx context.Context, phase *en
 	if phase.CalendarPeriodID == nil || s.calendarPeriods == nil {
 		return nil
 	}
-	if _, err := s.calendarPeriods.GetPeriodByID(ctx, *phase.CalendarPeriodID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+	if _, err := s.calendarPeriods.FindCalendarPeriod(ctx, *phase.CalendarPeriodID); err != nil {
+		if errors.Is(err, schoolcalendar.ErrCalendarPeriodNotFound) {
 			return fmt.Errorf("%w: calendar period %d not found", ErrInvalidPhase, *phase.CalendarPeriodID)
 		}
 		return fmt.Errorf("validate calendar period link: %w", err)
 	}
 	return nil
+}
+
+// CalendarPeriodLookup is the slice of the School Calendar the phase link
+// validation reads.
+type CalendarPeriodLookup interface {
+	FindCalendarPeriod(ctx context.Context, id int64) (schoolcalendar.CalendarPeriod, error)
 }
 
 func (s *phaseService) validateFormSchemaLink(ctx context.Context, phase *enrollmentOwner.Phase) error {
@@ -669,11 +677,12 @@ func (s *phaseService) DeleteImpact(ctx context.Context, id int64) (*PhaseDelete
 // delete a phase at any lifecycle stage. To merely hide a phase from
 // parents, use Update(is_active=false) instead.
 //
-// Ordering matters. enrollment.request_child_offerings.care_offering_id
-// is an ON DELETE RESTRICT FK, so a single DELETE on phases (which would
-// cascade requests and care_offerings concurrently) can fail. We delete
-// requests first — that cascades request_children and
-// request_child_offerings away, clearing the RESTRICT referrers — then
+// Ordering matters. The care_offering_id FKs of care_offering_bookings and
+// request_child_offering_selections are ON DELETE RESTRICT, so a single
+// DELETE on phases (which would cascade requests and care_offerings
+// concurrently) can fail. We delete requests first — that cascades
+// request_children, bookings and selections away, clearing the RESTRICT
+// referrers — then
 // delete the phase, whose cascade drops the now-unreferenced care
 // offerings cleanly. Both steps run in one transaction.
 //

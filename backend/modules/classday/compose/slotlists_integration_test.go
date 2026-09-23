@@ -35,6 +35,7 @@ import (
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -275,7 +276,7 @@ func newTestServiceWithParticipation(db *bun.DB, rooms roomReader, settings comp
 	carePlan := carePlanTest.NewCarePlan(slotListTestTB{}, db)
 	arrivals := carePlanTest.NewArrivalQueries(slotListTestTB{}, db, carePlan)
 	service := compose.NewSlotLists(compose.SlotListDependencies{
-		Timetable:       timetabletest.New(slotListTestTB{}, db),
+		Timetable:       slotListTimetableRows{rows: timetabletest.NewLegacyRows(slotListTestTB{}, db)},
 		Presence:        newSlotListPresence(db),
 		CarePlan:        carePlan,
 		Students:        people,
@@ -2969,53 +2970,6 @@ func TestBuildList_PickupReconciliationCancelledButPresentIsUnplanned(t *testing
 	assert.Equal(t, 0, result.Counters.Missing)
 }
 
-type slotListInstanceStudents struct {
-	repository timetabletest.InstanceStudents
-}
-
-func newBoundInstanceStudentRepository(db *bun.DB) slotListInstanceStudents {
-	return slotListInstanceStudents{repository: timetabletest.NewInstanceStudents(slotListTestTB{}, db)}
-}
-
-func (r slotListInstanceStudents) Create(ctx context.Context, value *scheduleModels.InstanceStudent) error {
-	created, err := r.repository.Create(ctx, slotListInstanceStudent(value))
-	if err == nil {
-		value.ID = created.ID
-	}
-	return err
-}
-
-func (r slotListInstanceStudents) Update(ctx context.Context, value *scheduleModels.InstanceStudent) error {
-	_, err := r.repository.Update(ctx, slotListInstanceStudent(value))
-	return err
-}
-
-func (r slotListInstanceStudents) FindByInstanceID(ctx context.Context, instanceID int64) ([]*scheduleModels.InstanceStudent, error) {
-	return r.FindByInstanceIDs(ctx, []int64{instanceID})
-}
-
-func (r slotListInstanceStudents) FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModels.InstanceStudent, error) {
-	values, err := r.repository.ListByInstanceIDs(ctx, instanceIDs)
-	result := make([]*scheduleModels.InstanceStudent, 0, len(values))
-	for _, value := range values {
-		row := &scheduleModels.InstanceStudent{InstanceID: value.InstanceID, StudentID: value.StudentID, RoomID: value.RoomID,
-			Status: value.Status, Substatus: value.Substatus, Note: value.Note, CheckedInAt: value.CheckedInAt,
-			CheckedOutAt: value.CheckedOutAt, IsUnplanned: value.IsUnplanned, NotScheduled: value.NotScheduled,
-			ManualStatusAt: value.ManualStatusAt, StudentStatusDayID: value.StudentStatusDayID, PickupExceptionID: value.PickupExceptionID}
-		row.ID, row.CreatedAt, row.UpdatedAt = value.ID, value.CreatedAt, value.UpdatedAt
-		row.SetTenantID(value.TenantID)
-		result = append(result, row)
-	}
-	return result, err
-}
-
-func slotListInstanceStudent(value *scheduleModels.InstanceStudent) timetabletest.InstanceStudent {
-	return timetabletest.InstanceStudent{ID: value.ID, InstanceID: value.InstanceID, StudentID: value.StudentID, RoomID: value.RoomID,
-		Status: value.Status, Substatus: value.Substatus, Note: value.Note, CheckedInAt: value.CheckedInAt,
-		CheckedOutAt: value.CheckedOutAt, IsUnplanned: value.IsUnplanned, NotScheduled: value.NotScheduled,
-		ManualStatusAt: value.ManualStatusAt, StudentStatusDayID: value.StudentStatusDayID, PickupExceptionID: value.PickupExceptionID}
-}
-
 type slotListTestTB struct{}
 
 func (slotListTestTB) Helper() {}
@@ -3036,4 +2990,113 @@ func newSlotListPresence(db *bun.DB) *studentpresence.Module {
 		panic(err)
 	}
 	return module
+}
+
+// The slot lists read blocks and rosters from two owners since the presence
+// cutover (#2762): Timetable plans them, Student Presence runs them and
+// records the attendance. The bindings below serve the tests the way the
+// composition root does, one joined statement per read, and write the legacy
+// roster fixtures through the same two owners.
+
+// slotListTimetableRows serves the lists' block and roster read seam.
+type slotListTimetableRows struct{ rows timetabletest.LegacyRows }
+
+func (r slotListTimetableRows) ListActivityInstancesOn(ctx context.Context, date string) ([]compose.SlotBlock, error) {
+	instances, err := r.rows.InstancesOn(ctx, date)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]compose.SlotBlock, 0, len(instances))
+	for _, instance := range instances {
+		result = append(result, compose.SlotBlock{
+			ID: instance.ID, Title: instance.Title, Date: instance.Date, StartTime: instance.StartTime.Format("15:04:05"),
+			EndTime: instance.EndTime.Format("15:04:05"), RoomID: instance.RoomID, Status: instance.Status,
+			ActiveGroupID: instance.ActiveGroupID, ListKind: instance.ListKind,
+		})
+	}
+	return result, nil
+}
+
+func (r slotListTimetableRows) ListRoster(ctx context.Context, instanceIDs []int64) ([]compose.SlotRosterRow, error) {
+	if len(instanceIDs) == 0 {
+		return []compose.SlotRosterRow{}, nil
+	}
+	participants, err := r.rows.Roster(ctx, instanceIDs)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]compose.SlotRosterRow, 0, len(participants))
+	for _, participant := range participants {
+		result = append(result, compose.SlotRosterRow{
+			ID: participant.ID, InstanceID: participant.InstanceID, StudentID: participant.StudentID, RoomID: participant.RoomID,
+			Status: participant.Status, Substatus: participant.Substatus, Note: participant.Note,
+			CheckedInAt: participant.CheckedInAt, CheckedOutAt: participant.CheckedOutAt,
+			IsUnplanned: participant.IsUnplanned, NotScheduled: participant.NotScheduled, ManualStatusAt: participant.ManualStatusAt,
+			StudentStatusDayID: participant.StudentStatusDayID, PickupExceptionID: participant.PickupExceptionID,
+		})
+	}
+	return result, nil
+}
+
+// slotListInstanceStudents writes and reads the legacy roster fixtures of
+// the tests through the two owners.
+type slotListInstanceStudents struct {
+	timetable timetable.Capability
+	presence  *studentpresence.Module
+	rows      timetabletest.LegacyRows
+}
+
+func newBoundInstanceStudentRepository(db *bun.DB) slotListInstanceStudents {
+	return slotListInstanceStudents{
+		timetable: timetabletest.New(slotListTestTB{}, db), presence: newSlotListPresence(db), rows: timetabletest.NewLegacyRows(slotListTestTB{}, db),
+	}
+}
+
+func (r slotListInstanceStudents) Create(ctx context.Context, value *scheduleModels.InstanceStudent) error {
+	created, err := r.timetable.CreateInstanceStudent(ctx, timetable.InstanceStudentInput{InstanceID: value.InstanceID, StudentID: value.StudentID, RoomID: value.RoomID})
+	if err != nil {
+		return err
+	}
+	value.ID = created.ID
+	return r.writeAttendance(ctx, value)
+}
+
+func (r slotListInstanceStudents) Update(ctx context.Context, value *scheduleModels.InstanceStudent) error {
+	if _, err := r.timetable.UpdateInstanceStudent(ctx, value.ID, timetable.InstanceStudentInput{InstanceID: value.InstanceID, StudentID: value.StudentID, RoomID: value.RoomID}); err != nil {
+		return err
+	}
+	return r.writeAttendance(ctx, value)
+}
+
+func (r slotListInstanceStudents) writeAttendance(ctx context.Context, value *scheduleModels.InstanceStudent) error {
+	status := value.Status
+	if status == "" {
+		status = scheduleModels.AttendanceStatusExpected
+	}
+	return r.presence.RestoreSessionAttendance(ctx, []studentpresence.SessionAttendanceRestore{{
+		ParticipantID: value.ID, Status: status, Substatus: value.Substatus, Note: value.Note,
+		CheckedInAt: value.CheckedInAt, CheckedOutAt: value.CheckedOutAt, IsUnplanned: value.IsUnplanned,
+		NotScheduled: value.NotScheduled, ManualStatusAt: value.ManualStatusAt,
+		StudentStatusDayID: value.StudentStatusDayID, PickupExceptionID: value.PickupExceptionID,
+	}})
+}
+
+func (r slotListInstanceStudents) FindByInstanceID(ctx context.Context, instanceID int64) ([]*scheduleModels.InstanceStudent, error) {
+	participants, err := r.rows.Roster(ctx, []int64{instanceID})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*scheduleModels.InstanceStudent, 0, len(participants))
+	for _, participant := range participants {
+		row := &scheduleModels.InstanceStudent{
+			InstanceID: participant.InstanceID, StudentID: participant.StudentID, RoomID: participant.RoomID,
+			Status: participant.Status, Substatus: participant.Substatus, Note: participant.Note,
+			CheckedInAt: participant.CheckedInAt, CheckedOutAt: participant.CheckedOutAt,
+			IsUnplanned: participant.IsUnplanned, NotScheduled: participant.NotScheduled, ManualStatusAt: participant.ManualStatusAt,
+			StudentStatusDayID: participant.StudentStatusDayID, PickupExceptionID: participant.PickupExceptionID,
+		}
+		row.ID = participant.ID
+		result = append(result, row)
+	}
+	return result, nil
 }

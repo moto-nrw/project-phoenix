@@ -57,7 +57,7 @@ type RequestChild struct {
 	ReviewReason          *string `json:"review_reason,omitempty"`
 }
 
-// RequestChildOffering is a row in enrollment.request_child_offerings -
+// RequestChildOffering is one effective care booking of a request child -
 // the join table linking a request_child to a care_offering. PR 6
 // ships the schema; PR 7 fills it on submission.
 type RequestChildOffering struct {

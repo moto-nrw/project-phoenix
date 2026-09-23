@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -27,11 +26,11 @@ func TestListPeriodsQueryBudget(t *testing.T) {
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := testpkg.Ctx(t)
 
+	repos := mustTimetableTestRepositories(db)
 	res := NewResource(Dependencies{
-		CalendarPeriodService: timetableplanning.NewCalendarPeriodServiceWithConfig(timetableplanning.CalendarPeriodServiceConfig{
-			Repo: mustTimetableTestRepositories(db).CalendarPeriod,
-		}),
-		DB: db,
+		CalendarPeriods:     repos.SchoolCalendar(),
+		CalendarPeriodUsage: calendarPeriodUsageFor(repos),
+		DB:                  db,
 	})
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))

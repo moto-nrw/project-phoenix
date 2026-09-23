@@ -41,7 +41,7 @@ type ChildSummary struct {
 	SchoolName string `json:"school_name"`
 	SchoolSlug string `json:"school_slug"`
 
-	// GuardianPermissions is the matching users.students_guardians.permissions
+	// GuardianPermissions is the matching auth.guardian_student_access.permissions
 	// map for the calling account's guardian relationship. It is internal to the
 	// parent service; handlers must not serialize it.
 	GuardianPermissions map[string]interface{} `json:"-"`
@@ -137,7 +137,7 @@ type EnrollablePhase struct {
 type GuardianSubmitStatus struct {
 	// Linked: the account has an active auth.account_tenants mapping.
 	Linked bool
-	// HasGuardianLink: at least one users.students_guardians row exists
+	// HasGuardianLink: at least one student-guardian relationship exists
 	// via a guardian profile owned by the account at this school.
 	HasGuardianLink bool
 	// HasSubmitPermission: at least one of those rows grants

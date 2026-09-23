@@ -103,6 +103,12 @@ func (s *FixedSeeder) Seed(ctx context.Context) (*FixedResult, error) {
 		return nil, fmt.Errorf("failed to fetch roles: %w", err)
 	}
 
+	// 1b. The reduced roles of the demo school (#3469); the demo role switch
+	//     of the public demo puts the visitor's account into one of them.
+	if err := s.seedDemoRoles(ctx); err != nil {
+		return nil, fmt.Errorf("failed to seed demo roles: %w", err)
+	}
+
 	// 2. Create rooms
 	if err := s.seedRooms(ctx, result); err != nil {
 		return nil, fmt.Errorf("failed to seed rooms: %w", err)
@@ -1333,7 +1339,9 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 		registerBody["first_name"], registerBody["last_name"] = visitorDisplayName(s.visitorName, i == visitorStaffIndex,
 			staff.FirstName, staff.LastName, DemoStaff[visitorStaffIndex].FirstName, DemoStaff[visitorStaffIndex].LastName)
 		if s.visitorName != "" && i == visitorStaffIndex {
-			// Until the demo roles exist the visitor keeps every function.
+			// The visitor enters with every function; the demo role chosen on
+			// the entry page replaces it with a reduced role of the school
+			// (#3469), so the seed itself needs no role for the visitor.
 			registerBody["role_id"] = adminRoleID
 		}
 

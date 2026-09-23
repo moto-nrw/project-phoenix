@@ -141,15 +141,45 @@ func (s *GuardianService) LinkContact(ctx context.Context, link domain.GuardianL
 		if s.tx.TenantID(txCtx) <= 0 {
 			return domain.ErrTenantRequired
 		}
-		var writeStats domain.OperationStats
-		linkID, writeStats, err = s.store.InsertLinkIfAbsent(txCtx, link)
-		stats.Add(writeStats)
-		return err
+		if s.owners == nil {
+			return domain.ErrGuardianLinkOwnersUnbound
+		}
+		// The savepoint makes the three halves one write even when the caller
+		// handles a failure and commits its transaction.
+		return s.tx.RunSavepoint(txCtx, func(ctx context.Context) error {
+			linkID, err = s.writeLink(ctx, link, stats)
+			return err
+		})
 	})
+	if err != nil {
+		linkID = 0
+	}
 	return linkID, err
 }
 
-// PatchLinkPickup writes exactly the supplied columns.
+// writeLink writes the relationship and, when it is new, its pickup
+// permission and portal access.
+func (s *GuardianService) writeLink(ctx context.Context, link domain.GuardianLinkRecord, stats *domain.OperationStats) (int64, error) {
+	tenantID := s.tx.TenantID(ctx)
+	linkID, writeStats, err := s.store.InsertLinkIfAbsent(ctx, link)
+	stats.Add(writeStats)
+	if err != nil || linkID == 0 {
+		return linkID, err
+	}
+	if err := s.owners.CreateGuardianPickupPermission(ctx, tenantID, linkID, link.CanPickup, link.PickupNotes); err != nil {
+		return linkID, err
+	}
+	accountID, readStats, err := s.store.GuardianAccount(ctx, link.GuardianProfileID)
+	stats.Add(readStats)
+	if err != nil {
+		return linkID, err
+	}
+	return linkID, s.owners.GrantGuardianStudentAccess(ctx, tenantID, linkID, accountID, link.Permissions)
+}
+
+// PatchLinkPickup writes exactly the supplied columns: the emergency contact
+// flag on the relationship, the pickup flag and note on Care Plan's pickup
+// permission, under the relationship row lock.
 func (s *GuardianService) PatchLinkPickup(ctx context.Context, patch domain.GuardianLinkPickupPatch) (affected int64, err error) {
 	if patch.LinkID <= 0 || (patch.CanPickup == nil && patch.IsEmergencyContact == nil && !patch.SetPickupNotes) {
 		return 0, &domain.GuardianInvalidError{Reason: "relationship ID and at least one pickup column are required"}
@@ -158,12 +188,33 @@ func (s *GuardianService) PatchLinkPickup(ctx context.Context, patch domain.Guar
 		if s.tx.TenantID(txCtx) <= 0 {
 			return domain.ErrTenantRequired
 		}
-		var writeStats domain.OperationStats
-		affected, writeStats, err = s.store.PatchLinkPickup(txCtx, patch)
-		stats.Add(writeStats)
-		return err
+		if s.owners == nil {
+			return domain.ErrGuardianLinkOwnersUnbound
+		}
+		return s.tx.RunSavepoint(txCtx, func(ctx context.Context) error {
+			affected, err = s.writeLinkPickup(ctx, patch, stats)
+			return err
+		})
 	})
+	if err != nil {
+		affected = 0
+	}
 	return affected, err
+}
+
+// writeLinkPickup locks the relationship, sets its emergency flag when one is
+// supplied and hands the pickup columns to Care Plan.
+func (s *GuardianService) writeLinkPickup(ctx context.Context, patch domain.GuardianLinkPickupPatch, stats *domain.OperationStats) (int64, error) {
+	found, writeStats, err := s.store.LockLinkForPickup(ctx, patch.LinkID, patch.IsEmergencyContact)
+	stats.Add(writeStats)
+	if err != nil || !found {
+		return 0, err
+	}
+	if patch.CanPickup == nil && !patch.SetPickupNotes {
+		return 1, nil
+	}
+	_, err = s.owners.ChangeGuardianPickupPermission(ctx, s.tx.TenantID(ctx), patch.LinkID, patch.CanPickup, patch.SetPickupNotes, patch.PickupNotes)
+	return 1, err
 }
 
 // SetPortalLocale only ever touches the tenant in context: parent accounts

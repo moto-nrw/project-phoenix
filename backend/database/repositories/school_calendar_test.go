@@ -392,18 +392,6 @@ func TestDateframeAdapter_KeepsTheLegacyLookups(t *testing.T) {
 	require.Error(t, err)
 	assert.True(t, testpkg.IsNotFoundError(err))
 
-	byDate, err := repo.FindByDate(ctx, time.Date(2030, time.March, 5, 15, 30, 0, 0, berlin))
-	require.NoError(t, err)
-	require.Len(t, byDate, 1, "the clock is dropped before the containment check")
-	assert.Equal(t, dateframe.ID, byDate[0].ID)
-	outside, err := repo.FindByDate(ctx, time.Date(2030, time.March, 8, 0, 0, 0, 0, berlin))
-	require.NoError(t, err)
-	assert.Empty(t, outside)
-
-	overlapping, err := repo.FindOverlapping(ctx, time.Date(2030, time.March, 7, 12, 0, 0, 0, berlin), time.Date(2030, time.March, 31, 0, 0, 0, 0, berlin))
-	require.NoError(t, err)
-	require.Len(t, overlapping, 1, "the inclusive end day overlaps the window start")
-
 	_, err = repo.FindByID(ctx, missingID(dateframe.ID))
 	require.Error(t, err)
 	assert.True(t, testpkg.IsNotFoundError(err))

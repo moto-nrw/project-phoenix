@@ -57,7 +57,7 @@ type GuardianFinancialDataRepository interface {
 }
 
 // GuardianPaymentAssignment is a projection of one child and the guardian
-// charged for it, scanned from a join across students_guardians → students →
+// charged for it, scanned from a join across guardian relationships → students →
 // persons → guardian_profiles. Not a persisted entity: it is the row shape of
 // the Bankverbindungen list and its export.
 type GuardianPaymentAssignment struct {

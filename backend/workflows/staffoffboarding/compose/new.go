@@ -138,7 +138,7 @@ func New(deps Dependencies) (*staffoffboarding.Workflow, error) {
 	if err != nil {
 		return nil, err
 	}
-	timetable, err := timetablecompose.NewOffboarding(timetablecompose.OffboardingDependencies{DB: deps.DB, Observe: func(timetablecompose.Observation) {}})
+	timetable, err := timetablecompose.NewOffboarding(timetablecompose.OffboardingDependencies{DB: deps.DB, Sessions: timetablecompose.NewPresenceSessionFacts(presence), Observe: func(timetablecompose.Observation) {}})
 	if err != nil {
 		return nil, err
 	}

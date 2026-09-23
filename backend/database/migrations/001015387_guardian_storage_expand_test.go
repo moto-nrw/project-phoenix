@@ -24,7 +24,7 @@ var guardianStorageTargets = []string{
 
 func TestGuardianStorageExpandColumnMapping(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupGuardianStorageBeforeCutover(t)
 	for _, tc := range []struct {
 		target  string
 		columns []string
@@ -116,7 +116,7 @@ func (f guardianStorageExpandFixture) insertRelationship(t *testing.T, db *testp
 
 func TestGuardianStorageExpandTenantIsolation(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupGuardianStorageBeforeCutover(t)
 	a, b := createGuardianStorageExpandFixture(t, db), createGuardianStorageExpandFixture(t, db)
 	fixtures := []guardianStorageExpandFixture{a, b}
 	// The dependent targets need one relationship per tenant. Create those as
@@ -221,7 +221,7 @@ func TestGuardianStorageExpandTenantIsolation(t *testing.T) {
 
 func TestGuardianStorageExpandConstraints(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupGuardianStorageBeforeCutover(t)
 	a, b := createGuardianStorageExpandFixture(t, db), createGuardianStorageExpandFixture(t, db)
 	relationship := a.insertRelationship(t, db)
 	_, err := db.ExecContext(t.Context(), `INSERT INTO users.student_guardian_pickup_permissions (tenant_id, relationship_id) VALUES (?, ?)`, a.tenant, relationship)
@@ -280,6 +280,10 @@ func TestGuardianStorageExpandConstraints(t *testing.T) {
 func TestGuardianStorageExpandReferenceDeletion(t *testing.T) {
 	t.Parallel()
 	db := setupIsolatedStudentStorageBeforeCutover(t)
+	// The Backfill (1.15.413) relaxes the guardian foreign key to CASCADE for
+	// as long as the targets are copies; its rollback restores the Expand
+	// schema whose RESTRICT contract this test pins.
+	require.NoError(t, guardianOwnerBackfillDown(t.Context(), db))
 	f := createGuardianStorageExpandFixture(t, db)
 	relationship := f.insertRelationship(t, db)
 	_, err := db.ExecContext(t.Context(), `INSERT INTO users.student_guardian_pickup_permissions (tenant_id, relationship_id, can_pickup) VALUES (?, ?, TRUE)`, f.tenant, relationship)
@@ -412,7 +416,7 @@ func TestGuardianStorageExpandRollbackRefusesPopulatedTargets(t *testing.T) {
 
 func TestGuardianStorageExpandCatalogAndDefaults(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupGuardianStorageBeforeCutover(t)
 	for _, table := range guardianStorageTargets {
 		schema, name, _ := strings.Cut(table, ".")
 		var forced bool

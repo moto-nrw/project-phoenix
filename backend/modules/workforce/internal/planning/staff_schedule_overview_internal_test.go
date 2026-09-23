@@ -180,10 +180,6 @@ type fakeOverviewHolidayService struct {
 	to    timezone.Date
 }
 
-func (f *fakeOverviewHolidayService) HolidaysInRange(_ context.Context, _, _ timezone.Date) ([]timetableplanning.Holiday, error) {
-	return nil, f.err
-}
-
 func (f *fakeOverviewHolidayService) HolidayDates(_ context.Context, from, to timezone.Date) (map[timezone.Date]bool, error) {
 	f.calls++
 	f.from, f.to = from, to

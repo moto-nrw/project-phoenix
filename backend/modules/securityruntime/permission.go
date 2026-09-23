@@ -17,3 +17,8 @@ func HasAdminWildcard(permissions []string) bool {
 func DatabaseStatsCapabilities(permissions []string) authorize.DatabaseStatsCapabilities {
 	return authorize.NewDatabaseStatsCapabilities(permissions)
 }
+
+// DatabaseStatsPermissions lists every permission the statistics honour.
+func DatabaseStatsPermissions() []string {
+	return authorize.DatabaseStatsPermissions()
+}

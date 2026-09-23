@@ -70,7 +70,7 @@ type Factory struct {
 	schoolCalendarBound bool
 	// schoolCalendar is the bound capability behind the calendar period,
 	// closing day and dateframe adapters (#2666).
-	schoolCalendar schoolcalendar.Capability
+	schoolCalendar schoolcalendar.Calendar
 	appointments   appointments.Capability
 	carePlan       careplan.Capability
 
@@ -494,7 +494,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		RFIDCard:            identity,
 		Student:             studentRepo,
 		Profile:             identity,
-		StudentGuardian:     users.NewStudentGuardianRepository(db, users.WithStudentGuardianMemberships(identity.FindActiveSchoolMemberships)),
+		StudentGuardian:     newGuardianRelationships(db, identity.FindActiveSchoolMemberships, timetableDependencies.ObserveIdentityAccess),
 		GuardianProfile:     NewGuardianProfileRepository(db),
 		GuardianPhoneNumber: users.NewGuardianPhoneNumberRepository(db),
 		FamilyProtection:    users.NewFamilyProtectionEventRepository(db),
@@ -545,7 +545,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		ActivityInstance:          nil, // bound to Timetable below
 		InstanceIdempotency:       nil, // bound to Timetable below
 		InstanceStaff:             nil, // bound to Timetable below
-		InstanceStudent:           timetableInstanceStudentRepository{timetable: timetableCapability},
+		InstanceStudent:           newTimetableInstanceStudentRepository(db, timetableCapability, presenceCapability),
 		ActivityException:         nil, // bound to Timetable below
 
 		// Activities repositories
@@ -641,10 +641,9 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		StaffNotice:                timetableCompose.NewStaffNoticeRepository(db),
 	}
 	// Care withdrawal completions belong to Care Plan (#3221); the adapter
-	// follows the factory's current Care Plan and People Directory bindings.
+	// follows the factory's current Care Plan binding.
 	factory.CareWithdrawal = newCareWithdrawalCompletionRepository(
 		func() careplan.Capability { return factory.carePlan },
-		func() peopledirectory.StudentQuery { return factory.students },
 	)
 	factory.appointments = appointmentsModule
 	studentRepo.(interface {
@@ -732,7 +731,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	factory.bindStaffProjections(lazyStaffLookup{
 		get: func() schoolmembership.Capability { return factory.schoolMembership },
 	}, timetableDependencies.Workforce)
-	adapters := newTimetableRepositories(timetableCapability, timetableDependencies.Students, timetableDependencies.Groups, timetableDependencies.Rooms, timetableDependencies.Calendar, timetableDependencies.Membership, timetableDependencies.Workforce)
+	adapters := newTimetableRepositories(db, timetableCapability, presenceCapability, timetableDependencies.Students, timetableDependencies.Groups, timetableDependencies.Rooms, timetableDependencies.Calendar, timetableDependencies.Membership, timetableDependencies.Workforce)
 	factory.ActivityCategory, factory.ActivityGroup = adapters.ActivityCategory, adapters.ActivityGroup
 	factory.ActivitySchedule, factory.ActivitySupervisor = adapters.ActivitySchedule, adapters.ActivitySupervisor
 	factory.StudentEnrollment, factory.Timeframe = adapters.StudentEnrollment, adapters.Timeframe

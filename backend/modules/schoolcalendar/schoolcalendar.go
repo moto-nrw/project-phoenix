@@ -332,6 +332,15 @@ type engine interface {
 	HolidayDates(context.Context, string, string, string) (map[string]bool, error)
 	RenderCalendar(context.Context, string, []CalendarEvent) (string, error)
 	RenderCalendarObject(context.Context, CalendarEvent) (string, error)
+
+	// FederalState resolves the caller's tenant federal-state ISO code; the
+	// composition binds it to the settings platform.
+	FederalState(context.Context) (string, error)
+
+	AddCalendarPeriod(context.Context, CreateCalendarPeriod) (CalendarPeriod, error)
+	ChangeCalendarPeriod(context.Context, UpdateCalendarPeriod) (CalendarPeriod, error)
+	RemoveCalendarPeriod(context.Context, int64) error
+	EnsureDefaultSchoolYear(context.Context) ([]CalendarPeriod, bool, error)
 }
 
 type Module struct{ engine engine }
@@ -714,6 +723,12 @@ func ErrorCode(err error) string {
 		return "invalid"
 	case errors.Is(err, ErrCalendarPeriodNameConflict):
 		return "calendar_period_name_conflict"
+	case errors.Is(err, ErrCalendarPeriodOverlapConflict):
+		return "calendar_period_overlap_conflict"
+	case errors.Is(err, ErrCalendarPeriodRequiredByCareOffering):
+		return "calendar_period_care_offering_conflict"
+	case errors.Is(err, ErrFederalStateUnavailable):
+		return "federal_state_unavailable"
 	default:
 		return "internal_error"
 	}

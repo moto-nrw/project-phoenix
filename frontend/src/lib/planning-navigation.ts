@@ -34,16 +34,21 @@ export const PLANNING_SUB_PAGES: readonly PlanningSubPage[] = [
     label: "Betreuungsplan",
     legacyPrefixes: ["/timetables"],
     showInMobileNav: true,
-    // Leseansicht (#2283): Nicht-Admins erreichen den Wochenplan als Tab
-    // "Betreuungsplan" in "Mein Kalender" (eine Kalenderfläche) — deshalb
-    // hier bewusst KEINE nonAdminPermission; der Planungsbereich in der
-    // Navigation bleibt Admins vorbehalten.
+    // Der Planungsbereich gehört der Leitung: wer den Plan bearbeiten darf
+    // (schedules:manage, das Recht der Schreibrouten), sieht den Eintrag, ob
+    // Admin oder eine eigene Leitungsrolle der Schule (#3469). Alle anderen
+    // erreichen die Leseansicht (#2283) als Tab "Betreuungsplan" in "Mein
+    // Kalender" (eine Kalenderfläche), nicht über die Planungsgruppe.
+    nonAdminPermission: "schedules:manage",
   },
   {
     href: "/dienstplan",
     label: "Dienstplan",
     legacyPrefixes: ["/staff/dienstplan"],
     showInMobileNav: true,
+    // Schichten schreibt das Backend mit time_tracking:manage; dieselbe
+    // Schranke öffnet den Eintrag und das Bearbeiten in der Ansicht.
+    nonAdminPermission: "time_tracking:manage",
   },
   {
     // „Vertretungsplan", nicht „Terminvertretungen": neben Betreuungsplan und
@@ -53,23 +58,31 @@ export const PLANNING_SUB_PAGES: readonly PlanningSubPage[] = [
     label: "Vertretungsplan",
     legacyPrefixes: ["/vertretungsplan"],
     showInMobileNav: true,
+    nonAdminPermission: "schedules:manage",
   },
   {
     // Tageslisten (#1565): druckbare Listen aus den Betreuungsplan-Slots
-    // (Plan/Ist/Abgleich). Die Seite selbst hat einen Zurück-Button.
+    // (Plan/Ist/Abgleich). Die Seite selbst hat einen Zurück-Button. Die
+    // Listen selbst lesen mit schedules:read und users:read; als Werkzeug der
+    // Planung hängt der Eintrag am Planungsrecht, damit er nicht jeder
+    // Betreuungskraft in einer Gruppe „Planung" erscheint.
     href: "/lists",
     label: "Tageslisten",
     legacyPrefixes: [],
     showInMobileNav: true,
+    nonAdminPermission: "schedules:manage",
   },
   {
     // Die Seite verwaltet Schuljahr, Halbjahre, Ferien und Schließtage. Der
     // Fachbegriff „Kalenderzeitraum" bleibt im Formularfeld, das einen davon
     // auswählt; in der Navigation sagt der Name, was drin ist (#2826).
+    // Zeiträume und Schließtage schreibt das Backend mit den schedules-
+    // Rechten; schedules:manage steht für die Leitung, die sie pflegt.
     href: "/calendar-periods",
     label: "Schuljahr und Ferien",
     legacyPrefixes: [],
     showInMobileNav: true,
+    nonAdminPermission: "schedules:manage",
   },
   {
     // Abrechnung war ein eigener flacher Eintrag; sie gehört inhaltlich zur

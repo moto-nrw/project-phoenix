@@ -128,3 +128,25 @@ func mustTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) repos
 	}
 	return repos
 }
+
+// calendarPeriodUsageFor serves the usage port from the test repository
+// factory's planning-owner read, converting by shape.
+func calendarPeriodUsageFor(repos repositories.TimetableTestRepositories) CalendarPeriodUsage {
+	return usageFunc(func(ctx context.Context) (map[int64]CalendarPeriodUsageCounts, error) {
+		values, err := repos.CalendarPeriodUsage().Usage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		result := make(map[int64]CalendarPeriodUsageCounts, len(values))
+		for id, value := range values {
+			result[id] = CalendarPeriodUsageCounts(value)
+		}
+		return result, nil
+	})
+}
+
+type usageFunc func(context.Context) (map[int64]CalendarPeriodUsageCounts, error)
+
+func (f usageFunc) UsageCounts(ctx context.Context) (map[int64]CalendarPeriodUsageCounts, error) {
+	return f(ctx)
+}

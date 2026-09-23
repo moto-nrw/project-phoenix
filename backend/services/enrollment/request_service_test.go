@@ -164,7 +164,7 @@ func TestRequestService_RollsBackDurableOutboxWrite(t *testing.T) {
 			_, err := svc.Submit(testpkg.Ctx(t), input)
 			require.ErrorIs(t, err, failure)
 			require.Equal(t, failAt, outbox.calls)
-			tables := []string{"enrollment.requests", "enrollment.request_children", "enrollment.request_guardians", "enrollment.request_child_offerings", "platform.email_outbox"}
+			tables := []string{"enrollment.requests", "enrollment.request_children", "enrollment.request_guardians", "enrollment.request_child_offering_selections", "enrollment.care_offering_bookings", "platform.email_outbox"}
 			for _, table := range tables {
 				count, err := env.db.NewSelect().Table(table).Where("tenant_id = ?", testpkg.Tenant(t)).Count(testpkg.Ctx(t))
 				require.NoError(t, err)
@@ -3435,7 +3435,7 @@ func TestRequestService_SubmitRollsBackWhenEmailEnqueueFails(t *testing.T) {
 	require.NoError(t, env.db.NewRaw(`SELECT COUNT(*) FROM enrollment.requests WHERE phase_id = ?`, env.phaseID).Scan(testpkg.Ctx(t), &count))
 	assert.Zero(t, count)
 	assertRows := func(expected int) {
-		for _, table := range []string{"enrollment.requests", "enrollment.request_children", "enrollment.request_guardians", "enrollment.request_child_offerings"} {
+		for _, table := range []string{"enrollment.requests", "enrollment.request_children", "enrollment.request_guardians", "enrollment.request_child_offering_selections", "enrollment.care_offering_bookings"} {
 			rows, err := env.db.NewSelect().Table(table).Where("tenant_id = ?", testpkg.Tenant(t)).Count(testpkg.Ctx(t))
 			require.NoError(t, err)
 			require.Equal(t, expected, rows, table)

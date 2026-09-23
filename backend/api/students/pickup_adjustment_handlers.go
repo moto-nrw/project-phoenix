@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -352,25 +353,25 @@ func pickupAdjustmentConsequencesResponseFrom(preview *enrollmentService.Offerin
 
 func renderPickupAdjustmentError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, enrollmentService.ErrPickupAdjustmentResolutionRequired):
+	case errors.Is(err, careplan.ErrPickupAdjustmentResolutionRequired):
 		renderError(w, r, common.ErrorInvalidRequestWithCode(err, "pickup.resolution_required"))
-	case errors.Is(err, enrollmentService.ErrPickupAdjustmentStale):
+	case errors.Is(err, careplan.ErrPickupAdjustmentStale):
 		renderError(w, r, common.ErrorConflictWithCode(err, "pickup.preview_stale"))
-	case errors.Is(err, enrollmentService.ErrPickupAdjustmentFutureManualReset):
+	case errors.Is(err, careplan.ErrPickupAdjustmentFutureManualReset):
 		renderError(w, r, common.ErrorConflictWithCode(err, "pickup.future_manual_reset"))
-	case errors.Is(err, enrollmentService.ErrOfferingChangeCapacityFull):
+	case errors.Is(err, careplan.ErrOfferingChangeCapacityFull):
 		renderError(w, r, common.ErrorConflictWithCode(err, "pickup.offering_capacity_full"))
-	case errors.Is(err, enrollmentService.ErrCareOfferingsDisabled):
+	case errors.Is(err, careplan.ErrCareOfferingsDisabled):
 		renderError(w, r, common.ErrorConflictWithCode(err, "pickup.offerings_disabled"))
-	case errors.Is(err, enrollmentService.ErrCompleteWithdrawalConfirmationRequired):
+	case errors.Is(err, careplan.ErrCompleteWithdrawalConfirmationRequired):
 		renderError(w, r, common.ErrorConflictWithCode(err, "enrollment.complete_withdrawal_confirmation_required"))
-	case errors.Is(err, enrollmentService.ErrOfferingChangeDateOutOfRange),
-		errors.Is(err, enrollmentService.ErrOfferingChangeInvalid),
-		errors.Is(err, enrollmentService.ErrPickupAdjustmentInvalid):
+	case errors.Is(err, careplan.ErrOfferingChangeDateOutOfRange),
+		errors.Is(err, careplan.ErrOfferingChangeInvalid),
+		errors.Is(err, careplan.ErrPickupAdjustmentInvalid):
 		renderError(w, r, common.ErrorInvalidRequestWithCode(err, "pickup.invalid"))
-	case errors.Is(err, enrollmentService.ErrPickupAdjustmentUnauthorized):
+	case errors.Is(err, careplan.ErrPickupAdjustmentUnauthorized):
 		renderError(w, r, common.ErrorForbidden(err))
-	case errors.Is(err, enrollmentService.ErrPickupAdjustmentStudentNotFound):
+	case errors.Is(err, careplan.ErrPickupAdjustmentStudentNotFound):
 		renderError(w, r, common.ErrorNotFound(err))
 	default:
 		renderError(w, r, common.ErrorInternalServer(err))

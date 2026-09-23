@@ -13,7 +13,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -103,9 +102,9 @@ type StaffScheduleOverviewDependencies struct {
 	// planned-minutes-only summaries (TargetMinutes stays nil).
 	WorkSchedules StaffWorkScheduleReader
 	WorkModels    WorkTimeModelReader
-	// Holidays reduces the weekly targets by public-holiday Soll (#1418 3a).
-	// Optional: nil skips the reduction.
-	Holidays timetableplanning.HolidayService
+	// Holidays reduces the weekly targets by the non-working-day Soll (#1418
+	// 3a/3b), bound to the School Calendar. Optional: nil skips the reduction.
+	Holidays planning.HolidayDatesReader
 }
 
 // newStaffScheduleOverview builds the public query and the getter the
@@ -156,7 +155,7 @@ type ShiftPlanningDependencies struct {
 	// targets; all three are optional.
 	WorkSchedules StaffWorkScheduleReader
 	WorkModels    WorkTimeModelReader
-	Holidays      timetableplanning.HolidayService
+	Holidays      planning.HolidayDatesReader
 	// CategoryLinker syncs the optional Kategorie-Schichtart mapping, whose FK
 	// lives with the Timetable owner. Optional: nil leaves mappings untouched.
 	CategoryLinker planning.CategoryLinker

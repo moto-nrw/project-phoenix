@@ -93,6 +93,19 @@ export function hasEffectiveAdminScope(session: Session | null): boolean {
 }
 
 /**
+ * Führt die Person die Einrichtung? Der Adminzuschnitt oder das Recht, mit
+ * dem das Backend Anmeldungen, Einstellungen und die Planung freigibt
+ * (`config:manage`). Am Recht festgemacht, nicht am Rollennamen: eine Schule
+ * kann ihre Leitungsrolle frei anlegen (#3469), und die Hilfe wie die
+ * Standard-Startseite sollen dann trotzdem die der Leitung sein.
+ */
+export function leadsSchool(session: Session | null): boolean {
+  return (
+    hasEffectiveAdminScope(session) || hasPermission(session, "config:manage")
+  );
+}
+
+/**
  * Check if the user can access caregiver workflows.
  */
 export function isCaregiver(session: Session | null): boolean {

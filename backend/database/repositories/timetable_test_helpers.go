@@ -16,6 +16,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	facilitiesAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
@@ -27,6 +28,8 @@ import (
 
 type TimetableTestRepositories struct {
 	enrollment                *enrollmentCapability.Module
+	schoolCalendar            schoolcalendar.Calendar
+	calendarPeriodUsage       *timetableCompose.CalendarPeriodUsageRepository
 	Timetable                 timetable.Capability
 	ActivityGroup             activitiesModels.GroupRepository
 	ActivityCategory          activitiesModels.CategoryRepository
@@ -111,7 +114,7 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 		db: db, Person: members.Person, Staff: members.Staff, Teacher: members.Teacher,
 		Group: members.Group, GroupTeacher: members.GroupTeacher, ClassTeacher: members.ClassTeacher,
 		Student:               NewStudentRepository(db),
-		InstanceStudent:       timetableInstanceStudentRepository{timetable: bookings},
+		InstanceStudent:       newTimetableInstanceStudentRepository(db, bookings, newStudentPresence(db)),
 		ActiveGroup:           sessions,
 		GroupSupervisor:       sessions,
 		Room:                  facilitiesAdapter.New(),
@@ -136,7 +139,7 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
-	adapters := newTimetableRepositories(bookings, persons, groups, rooms, calendar, membership, workTime)
+	adapters := newTimetableRepositories(db, bookings, newStudentPresence(db), persons, groups, rooms, calendar, membership, workTime)
 	repos.ActivityCategory, repos.ActivityGroup = adapters.ActivityCategory, adapters.ActivityGroup
 	repos.ActivitySchedule, repos.ActivitySupervisor = adapters.ActivitySchedule, adapters.ActivitySupervisor
 	repos.StudentEnrollment, repos.Timeframe = adapters.StudentEnrollment, adapters.Timeframe
@@ -173,10 +176,20 @@ func timetableTestRepositories(r *Factory) TimetableTestRepositories {
 		StudentStatusDay: r.StudentStatusDay, CarePlan: r.carePlan,
 		Room: r.Room, DeviationEvent: r.DeviationEvent,
 		ClassArrivalTime: r.ClassArrivalTime, ClassArrivalException: r.ClassArrivalException,
-		enrollment: r.SubmissionRateLimit,
+		enrollment: r.SubmissionRateLimit, schoolCalendar: r.SchoolCalendar(), calendarPeriodUsage: r.CalendarPeriodUsage(),
 	}
 }
 
 func (r TimetableTestRepositories) Enrollment() EnrollmentBookingProjection {
 	return NewEnrollmentBookingProjection(r.enrollment)
+}
+
+// SchoolCalendar returns the calendar owner the period, closing-day and
+// dateframe adapters above delegate to.
+func (r TimetableTestRepositories) SchoolCalendar() schoolcalendar.Calendar { return r.schoolCalendar }
+
+// CalendarPeriodUsage returns the planning owners' per-period reference
+// counts (#3124).
+func (r TimetableTestRepositories) CalendarPeriodUsage() *timetableCompose.CalendarPeriodUsageRepository {
+	return r.calendarPeriodUsage
 }

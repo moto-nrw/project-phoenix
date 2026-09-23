@@ -6,8 +6,8 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 const visitAccessPolicyName = "student_visit_access"
@@ -88,7 +88,7 @@ func (q visitAccessQuery) StudentGroupID(ctx context.Context, studentID int64) (
 }
 
 func (q visitAccessQuery) SupervisedActiveGroupIDs(ctx context.Context, staffID int64) []int64 {
-	day := timezone.TodayDate().String()
+	day := calendar.TodayDate().String()
 	supervisors, err := q.resource.Presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffID: &staffID, ActiveOn: &day})
 	if err != nil {
 		return nil

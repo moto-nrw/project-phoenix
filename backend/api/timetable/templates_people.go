@@ -2,7 +2,6 @@ package timetable
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
@@ -32,10 +32,10 @@ func (rs *Resource) templateRosterValidFrom(
 		}
 		return rs.todayDate(), nil
 	}
-	if rs.CalendarPeriodService == nil {
+	if rs.CalendarPeriods == nil {
 		return timezone.Date(""), errors.New("calendar period service not wired")
 	}
-	period, err := rs.CalendarPeriodService.GetPeriodByID(ctx, *calendarPeriodID)
+	period, err := rs.CalendarPeriods.FindCalendarPeriod(ctx, *calendarPeriodID)
 	if err != nil {
 		return timezone.Date(""), err
 	}
@@ -43,7 +43,7 @@ func (rs *Resource) templateRosterValidFrom(
 		if startDate.Before(timezone.Date(period.StartDate)) || startDate.After(timezone.Date(period.EndDate)) {
 			return timezone.Date(""), fmt.Errorf("%w (%s to %s)",
 				errTemplateStartDateOutsidePeriod,
-				period.StartDate.String(), period.EndDate.String())
+				period.StartDate, period.EndDate)
 		}
 		return *startDate, nil
 	}
@@ -51,7 +51,7 @@ func (rs *Resource) templateRosterValidFrom(
 }
 
 func renderTemplatePeriodLookupError(w http.ResponseWriter, r *http.Request, err error) {
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, schoolcalendar.ErrCalendarPeriodNotFound) {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("calendar period not found")))
 		return
 	}

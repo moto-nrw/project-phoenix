@@ -1,5 +1,18 @@
 package parentaudience
 
+import (
+	"github.com/moto-nrw/project-phoenix/modules/guardianlinkview"
+	"github.com/uptrace/bun"
+)
+
+// guardianLinks is the guardian-link projection (#2756) a query joins as sg.
+// A positive school scopes it the way the old `sg.tenant_id = ?` did; zero
+// leaves the school to the feed queries' own correlation with the
+// announcement row.
+func guardianLinks(db bun.IDB, schoolID int64) *bun.SelectQuery {
+	return guardianlinkview.Query(db, schoolID)
+}
+
 // The care row is an existence filter, just as in the former compatibility
 // view (ADR 0025). No care fields enter this projection. The public student
 // ID belongs to s; sm.id is the separate membership ID.
@@ -14,6 +27,12 @@ const studentMembershipJoins = `
 // are the shared building blocks; each exported query assembles them once and
 // documents its bind order, because a `?` binds in textual order no matter
 // which fragment it came from.
+//
+// A student-guardian relationship is read through the guardian-link
+// projection (#2756), bound as a subquery joined as sg: People Directory's
+// relationship with Identity & Access's parents-portal permissions. For a
+// bound school the subquery carries the school filter the old
+// `sg.tenant_id = ?` did, in the same bind position.
 
 // activeEnrollmentBound renders the activity_group branch of a target match:
 // the student has an enrollment in pt.target_ref_id that is active on the
@@ -77,9 +96,9 @@ const reachedStudentsBound = `
 // membership at the school: a guardian whose mapping went pending or inactive
 // keeps the relationship rows but has lost portal access.
 //
-// Bind order: school, school.
+// Bind order: guardian links of the school, school.
 const portalGuardiansBound = `
-			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
+			JOIN (?) sg ON sg.student_id = s.id
 				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
 				AND gp.account_id IS NOT NULL
@@ -89,9 +108,9 @@ const portalGuardiansBound = `
 // pollGuardiansBound is portalGuardiansBound restricted to guardians who may
 // also answer polls for the child.
 //
-// Bind order: school, school.
+// Bind order: guardian links of the school, school.
 const pollGuardiansBound = `
-			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
+			JOIN (?) sg ON sg.student_id = s.id
 				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 				 AND sg.permissions @> '{"parent_portal.poll.response": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
@@ -101,9 +120,9 @@ const pollGuardiansBound = `
 
 // pollGuardiansForAccountBound is pollGuardiansBound narrowed to one account.
 //
-// Bind order: school, school, account.
+// Bind order: guardian links of the school, school, account.
 const pollGuardiansForAccountBound = `
-			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
+			JOIN (?) sg ON sg.student_id = s.id
 				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 				 AND sg.permissions @> '{"parent_portal.poll.response": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
@@ -153,8 +172,8 @@ const pendingApplicantAccountsBound = `
 // reaches right now: the student-based targets plus the pending_enrollment
 // target.
 //
-// Bind order: school, school, today, today, today, school, school,
-// announcement, school, announcement, school.
+// Bind order: school, school, today, today, today, guardian links of the
+// school, school, announcement, school, announcement, school.
 const audienceAccountsBound = `
 			SELECT DISTINCT gp.account_id AS account_id` + reachedStudentsBound + portalGuardiansBound + announcementTargetsBound + `
 			UNION
@@ -165,7 +184,7 @@ const audienceAccountsBound = `
 // announcement a right now" for the cross-school feed, where the announcement
 // and school are column references.
 //
-// Bind order: today, today, today, account, account, account.
+// Bind order: today, today, today, guardian links, account, account, account.
 const reachedAccountFeed = `(
 		EXISTS (
 			SELECT 1
@@ -174,7 +193,7 @@ const reachedAccountFeed = `(
 			)
 			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
 			AND sm.status <> 'alumnus'
-			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = a.tenant_id
+			JOIN (?) sg ON sg.student_id = s.id AND sg.tenant_id = a.tenant_id
 				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = a.tenant_id
 				AND gp.account_id = ?
@@ -204,12 +223,13 @@ const reachedAccountFeed = `(
 
 // reachedAccountBound is reachedAccountFeed for one bound announcement.
 //
-// Bind order: school, school, today, today, today, school, school, account,
-// announcement, school, school, account, account, announcement, school.
+// Bind order: school, school, today, today, today, guardian links of the
+// school, school, account, announcement, school, school, account, account,
+// announcement, school.
 const reachedAccountBound = `(
 		EXISTS (
 			SELECT 1` + reachedStudentsBound + `
-			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
+			JOIN (?) sg ON sg.student_id = s.id
 				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
 				AND gp.account_id = ?
@@ -243,7 +263,7 @@ const reachedAccountBound = `(
 // outstanding, because a poll that quietly stops nagging is a poll nobody
 // answers.
 //
-// Bind order: today, today, today, account.
+// Bind order: today, today, today, guardian links, account.
 const openPollForAccountFeed = `(
 		a.response_type <> 'none'
 		AND (a.response_deadline IS NULL OR a.response_deadline > NOW())
@@ -254,7 +274,7 @@ const openPollForAccountFeed = `(
 			)
 			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
 			AND sm.status <> 'alumnus'
-			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = a.tenant_id
+			JOIN (?) sg ON sg.student_id = s.id AND sg.tenant_id = a.tenant_id
 				AND sg.permissions @> '{"parent_portal.access": true, "parent_portal.poll.response": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = a.tenant_id
 				AND gp.account_id = ?
@@ -285,8 +305,8 @@ const liveAnnouncementPredicate = `
 // Staff results must include every child the announcement reaches, even if
 // no guardian may answer the poll.
 //
-// Bind order: school, school, today, today, today, school, school,
-// announcement, school.
+// Bind order: school, school, today, today, today, guardian links of the
+// school, school, announcement, school.
 const pollAudienceStudentsBound = `
 			SELECT DISTINCT s.id AS student_id` + reachedStudentsBound + portalGuardiansBound + announcementTargetsBound
 
@@ -294,16 +314,16 @@ const pollAudienceStudentsBound = `
 // one guardian currently has poll.response: the completion denominator and
 // reminder source.
 //
-// Bind order: school, school, today, today, today, school, school,
-// announcement, school.
+// Bind order: school, school, today, today, today, guardian links of the
+// school, school, announcement, school.
 const pollAnswerableStudentsBound = `
 			SELECT DISTINCT s.id AS student_id` + reachedStudentsBound + pollGuardiansBound + announcementTargetsBound
 
 // pollAnswerableStudentsForAccountBound narrows pollAnswerableStudentsBound to
 // one guardian's children.
 //
-// Bind order: school, school, today, today, today, school, school, account,
-// announcement, school.
+// Bind order: school, school, today, today, today, guardian links of the
+// school, school, account, announcement, school.
 const pollAnswerableStudentsForAccountBound = `
 			SELECT DISTINCT s.id AS student_id` + reachedStudentsBound + pollGuardiansForAccountBound + announcementTargetsBound
 

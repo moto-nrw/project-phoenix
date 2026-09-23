@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -17,8 +16,10 @@ import (
 
 // NewSchoolCalendar composes the calendar owner behind the legacy composition
 // seam for graphs that do not record observations. Production roots compose
-// the module themselves (api/base.go) so runtime evidence is kept.
-func NewSchoolCalendar(db *bun.DB) (schoolcalendar.Capability, error) {
+// the module themselves (api/base.go) so runtime evidence is kept. The
+// period administration runs without gate, guard and federal state; test
+// graphs that bind those use NewSchoolCalendarWithAdministration.
+func NewSchoolCalendar(db *bun.DB) (*schoolcalendar.Module, error) {
 	return schoolCalendarCompose.New(schoolCalendarCompose.Dependencies{
 		DB:      db,
 		Observe: func(schoolCalendarCompose.Observation) {},
@@ -30,7 +31,7 @@ func NewSchoolCalendar(db *bun.DB) (schoolcalendar.Capability, error) {
 // themselves, with compositions over the observed School Calendar capability
 // (#2666). NewFactory already composes an unobserved module, so this binding
 // is about runtime evidence, not about correctness.
-func (f *Factory) BindSchoolCalendar(capability schoolcalendar.Capability) {
+func (f *Factory) BindSchoolCalendar(capability schoolcalendar.Calendar) {
 	if capability == nil {
 		panic("repository factory: school calendar capability is required")
 	}
@@ -41,8 +42,15 @@ func (f *Factory) BindSchoolCalendar(capability schoolcalendar.Capability) {
 	f.bindSchoolCalendarAdapters(capability, f.CalendarPeriod.(calendarPeriodCalendarRepository).usage)
 }
 
-// SchoolCalendar returns the capability the calendar adapters read through.
-func (f *Factory) SchoolCalendar() schoolcalendar.Capability { return f.schoolCalendar }
+// SchoolCalendar returns the calendar owner the calendar adapters read through.
+func (f *Factory) SchoolCalendar() schoolcalendar.Calendar { return f.schoolCalendar }
+
+// CalendarPeriodUsage returns the per-period reference counts the School
+// Calendar deletion preview renders; the two planning owners each answer
+// with one statement (#3124).
+func (f *Factory) CalendarPeriodUsage() *timetableCompose.CalendarPeriodUsageRepository {
+	return f.CalendarPeriod.(calendarPeriodCalendarRepository).usage
+}
 
 // NewCalendarPeriodUsage composes the School Calendar usage read from the
 // two owners that hold calendar-period references: Enrollment (phases) and
@@ -65,7 +73,7 @@ func NewCalendarPeriodUsage(enrollment timetableCompose.EnrollmentPhaseQueries, 
 // given capability. The raw activities and users repositories are reached
 // through their bind methods, so the binding survives the person, school and
 // group wrappers layered on top of them.
-func (f *Factory) bindSchoolCalendarAdapters(capability schoolcalendar.Capability, usage *timetableCompose.CalendarPeriodUsageRepository) {
+func (f *Factory) bindSchoolCalendarAdapters(capability schoolcalendar.Calendar, usage *timetableCompose.CalendarPeriodUsageRepository) {
 	f.schoolCalendar = capability
 	f.CalendarPeriod = newCalendarPeriodCalendarRepository(capability, usage)
 	f.ClosingDay = newClosingDayCalendarRepository(capability)
@@ -551,30 +559,6 @@ func (r dateframeCalendarRepository) FindByName(ctx context.Context, name string
 	dateframe := new(scheduleModels.Dateframe)
 	applyDateframeToLegacy(dateframe, values[0])
 	return dateframe, nil
-}
-
-func (r dateframeCalendarRepository) FindByDate(ctx context.Context, date time.Time) ([]*scheduleModels.Dateframe, error) {
-	instant := dateframeMidnight(date)
-	values, err := r.calendar.ListDateframes(ctx, schoolcalendar.DateframeFilter{Contains: &instant})
-	if err != nil {
-		return nil, calendarError("find by date", err)
-	}
-	return toLegacyDateframes(values), nil
-}
-
-func (r dateframeCalendarRepository) FindOverlapping(ctx context.Context, startDate, endDate time.Time) ([]*scheduleModels.Dateframe, error) {
-	from, to := dateframeMidnight(startDate), dateframeMidnight(endDate)
-	values, err := r.calendar.ListDateframes(ctx, schoolcalendar.DateframeFilter{OverlappingFrom: &from, OverlappingTo: &to})
-	if err != nil {
-		return nil, calendarError("find overlapping", err)
-	}
-	return toLegacyDateframes(values), nil
-}
-
-// dateframeMidnight drops the clock in the instant's own location, the
-// normalisation the legacy lookups applied before comparing.
-func dateframeMidnight(value time.Time) time.Time {
-	return time.Date(value.Year(), value.Month(), value.Day(), 0, 0, 0, 0, value.Location())
 }
 
 // --- owner queries for the raw repositories ---

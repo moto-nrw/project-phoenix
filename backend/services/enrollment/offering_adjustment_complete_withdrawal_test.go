@@ -172,7 +172,7 @@ func (f *completeWithdrawalFixture) assertCareExitCompletesSource(pending *userM
 	_, err = lifecycle.ConfirmWithdrawalCareEnd(f.ctx, pending.ID, preview.Token, input, f.env.creatorID)
 	require.NoError(f.t, err)
 	var validUntil *timezone.Date
-	require.NoError(f.t, f.env.db.NewRaw(`SELECT valid_until FROM enrollment.request_child_offerings
+	require.NoError(f.t, f.env.db.NewRaw(`SELECT valid_until FROM enrollment.care_offering_bookings
 		WHERE tenant_id = ? AND request_child_id = ? AND care_offering_id = ?`,
 		testpkg.Tenant(f.t), f.childID, f.lunchID).Scan(f.ctx, &validUntil))
 	require.NotNil(f.t, validUntil)

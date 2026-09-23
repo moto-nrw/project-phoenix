@@ -108,9 +108,10 @@ test('demo browser hosts are generated at build time', t => {
   assert.match(build, /NEXT_PUBLIC_APP_ENV=\$\{\{ needs.check-environment.outputs.environment \}\}/);
 });
 
-// Demo, staging and production share a host but not a concurrency group. Bash
-// reads a script while it runs, so one environment's copy step must never
-// overwrite a script another environment's release is executing (#3482).
+// Staging and production share a host but not a concurrency group; demo has its
+// own VM with the same layout. Bash reads a script while it runs, so one
+// environment's copy step must never overwrite a script another environment's
+// release is executing (#3482).
 test('each environment copies and runs its release scripts in its own directory', () => {
   for (const [workflow, step, directory] of [
     [build, 'Deploy to staging', 'staging'], [build, 'Deploy to production', 'production'],

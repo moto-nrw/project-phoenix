@@ -501,7 +501,7 @@ func (t transfers) GroupHandovers(ctx context.Context, groupID int64, date group
 	}
 	caller := educationService.SubstitutionCaller{
 		AccountID: principal.AccountID(), TenantID: principal.TenantID(), Scope: string(principal.Scope()),
-		Roles: principal.Roles(), Admin: principal.HasAdminScope(),
+		Roles: principal.Roles(), Admin: principal.HasAdminScope(), HasPermission: principal.HasPermission,
 	}
 	overview, err := t.substitutions.Overview(ctx, caller, educationService.OverviewQuery{GroupID: groupID, On: &day})
 	if err != nil {

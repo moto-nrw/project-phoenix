@@ -2,11 +2,10 @@ package testdb
 
 import (
 	"context"
-	"crypto/sha1" //nolint:gosec // identifier derivation, not security
-	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"hash/fnv"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -66,8 +65,7 @@ func templateNameForHash(base, hash string) string {
 	if !hexHash.MatchString(suffix) || len(suffix) < templateHashLen {
 		// Test hooks (WithMigrationsHash) pass arbitrary strings; hash them
 		// down so the name stays a valid, deterministic identifier.
-		sum := sha1.Sum([]byte(hash)) //nolint:gosec // identifier derivation, not security
-		suffix = hex.EncodeToString(sum[:])
+		suffix = identifierHash(hash)
 	}
 	suffix = suffix[:templateHashLen]
 
@@ -149,7 +147,7 @@ func MigrationsHash() (string, error) {
 	}
 	sort.Strings(names)
 
-	h := sha256.New()
+	h := fnv.New128a() // identifier derivation, see identifierHash
 	for _, name := range names {
 		content, err := os.ReadFile(filepath.Join(dir, name)) //nolint:gosec // paths come from ReadDir of a repo directory
 		if err != nil {

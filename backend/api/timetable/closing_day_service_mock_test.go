@@ -3,70 +3,52 @@ package timetable
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 )
 
-// ClosingDayServiceMock is a func-field test double for
-// timetableplanning.ClosingDayService. Nil functions return zero values.
-type ClosingDayServiceMock struct {
-	GetAllFn             func(ctx context.Context) ([]*scheduleModel.ClosingDay, error)
-	GetByIDFn            func(ctx context.Context, id int64) (*scheduleModel.ClosingDay, error)
-	CreateFn             func(ctx context.Context, day *scheduleModel.ClosingDay) error
-	UpdateFn             func(ctx context.Context, day *scheduleModel.ClosingDay) error
-	DeleteFn             func(ctx context.Context, id int64) error
-	ClosingDaysInRangeFn func(ctx context.Context, from, to timezone.Date) ([]*scheduleModel.ClosingDay, error)
-	ClosingDayDatesFn    func(ctx context.Context, from, to timezone.Date) (map[timezone.Date]bool, error)
+// ClosingDaysMock is a func-field test double for the ClosingDays port.
+// Nil functions return zero values.
+type ClosingDaysMock struct {
+	ListFn   func(ctx context.Context, filter schoolcalendar.ClosingDayFilter) ([]schoolcalendar.ClosingDay, error)
+	FindFn   func(ctx context.Context, id int64) (schoolcalendar.ClosingDay, error)
+	CreateFn func(ctx context.Context, input schoolcalendar.CreateClosingDay) (schoolcalendar.ClosingDay, error)
+	UpdateFn func(ctx context.Context, input schoolcalendar.UpdateClosingDay) (schoolcalendar.ClosingDay, error)
+	DeleteFn func(ctx context.Context, id int64) error
 }
 
-var _ timetableplanning.ClosingDayService = (*ClosingDayServiceMock)(nil)
+var _ ClosingDays = (*ClosingDaysMock)(nil)
 
-func (m *ClosingDayServiceMock) GetAll(ctx context.Context) ([]*scheduleModel.ClosingDay, error) {
-	if m.GetAllFn != nil {
-		return m.GetAllFn(ctx)
+func (m *ClosingDaysMock) ListClosingDays(ctx context.Context, filter schoolcalendar.ClosingDayFilter) ([]schoolcalendar.ClosingDay, error) {
+	if m.ListFn != nil {
+		return m.ListFn(ctx, filter)
 	}
 	return nil, nil
 }
 
-func (m *ClosingDayServiceMock) GetByID(ctx context.Context, id int64) (*scheduleModel.ClosingDay, error) {
-	if m.GetByIDFn != nil {
-		return m.GetByIDFn(ctx, id)
+func (m *ClosingDaysMock) FindClosingDay(ctx context.Context, id int64) (schoolcalendar.ClosingDay, error) {
+	if m.FindFn != nil {
+		return m.FindFn(ctx, id)
 	}
-	return nil, nil
+	return schoolcalendar.ClosingDay{}, nil
 }
 
-func (m *ClosingDayServiceMock) Create(ctx context.Context, day *scheduleModel.ClosingDay) error {
+func (m *ClosingDaysMock) CreateClosingDay(ctx context.Context, input schoolcalendar.CreateClosingDay) (schoolcalendar.ClosingDay, error) {
 	if m.CreateFn != nil {
-		return m.CreateFn(ctx, day)
+		return m.CreateFn(ctx, input)
 	}
-	return nil
+	return schoolcalendar.ClosingDay{ID: 1, StartDate: input.StartDate, EndDate: input.EndDate, Reason: input.Reason}, nil
 }
 
-func (m *ClosingDayServiceMock) Update(ctx context.Context, day *scheduleModel.ClosingDay) error {
+func (m *ClosingDaysMock) UpdateClosingDay(ctx context.Context, input schoolcalendar.UpdateClosingDay) (schoolcalendar.ClosingDay, error) {
 	if m.UpdateFn != nil {
-		return m.UpdateFn(ctx, day)
+		return m.UpdateFn(ctx, input)
 	}
-	return nil
+	return schoolcalendar.ClosingDay{ID: input.ID, StartDate: input.StartDate, EndDate: input.EndDate, Reason: input.Reason}, nil
 }
 
-func (m *ClosingDayServiceMock) Delete(ctx context.Context, id int64) error {
+func (m *ClosingDaysMock) DeleteClosingDay(ctx context.Context, id int64) error {
 	if m.DeleteFn != nil {
 		return m.DeleteFn(ctx, id)
 	}
 	return nil
-}
-
-func (m *ClosingDayServiceMock) ClosingDaysInRange(ctx context.Context, from, to timezone.Date) ([]*scheduleModel.ClosingDay, error) {
-	if m.ClosingDaysInRangeFn != nil {
-		return m.ClosingDaysInRangeFn(ctx, from, to)
-	}
-	return nil, nil
-}
-
-func (m *ClosingDayServiceMock) ClosingDayDates(ctx context.Context, from, to timezone.Date) (map[timezone.Date]bool, error) {
-	if m.ClosingDayDatesFn != nil {
-		return m.ClosingDayDatesFn(ctx, from, to)
-	}
-	return nil, nil
 }

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -20,8 +19,8 @@ func TestModuleDeleteStudentAssignmentsPreservesSharedInstanceAndRollsBack(t *te
 	instance := createOwnedActivityInstance(t, module, ctx, fixture, "2027-11-01", "08:00:00", "Shared")
 	target := testpkg.CreateTestStudent(t, db, "Delete", "Target", "3a")
 	spared := testpkg.CreateTestStudent(t, db, "Delete", "Spared", "3a")
-	createOwnedInstanceStudent(t, module, ctx, instance.ID, target.ID, timetable.InstanceAttendanceExpected)
-	other := createOwnedInstanceStudent(t, module, ctx, instance.ID, spared.ID, timetable.InstanceAttendanceExpected)
+	createOwnedInstanceStudent(t, module, ctx, instance.ID, target.ID)
+	other := createOwnedInstanceStudent(t, module, ctx, instance.ID, spared.ID)
 	count, err := module.CountStudentAssignments(ctx, target.ID)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)

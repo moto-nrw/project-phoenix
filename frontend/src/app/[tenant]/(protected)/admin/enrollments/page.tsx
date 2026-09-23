@@ -7,11 +7,12 @@ import {
 } from "~/components/enrollment/admin-enrollments-list";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
-import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
+import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
 
 export default function AdminEnrollmentsPage() {
-  const { isReady } = useRequireAdmin();
+  // Jede Anmeldungsroute verlangt config:manage (#3469).
+  const { isReady } = useRequirePermission("config:manage");
   // Statuszeile des Seitenkopfs: die Zahlen, die die Liste ohnehin lädt.
   const [summary, setSummary] = useState<AdminEnrollmentsSummary | null>(null);
   const handleSummaryChange = useCallback(

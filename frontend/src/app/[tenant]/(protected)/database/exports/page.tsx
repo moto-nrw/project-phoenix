@@ -363,9 +363,9 @@ export default function DatabaseExportsPage() {
               <ExportLink href="/betreuungsplan">Zum Betreuungsplan</ExportLink>
             </InfoCard>
           )}
-          {/* /admin/enrollments redirects non-admins to /dashboard (useRequireAdmin),
-              so only offer the link to admins rather than send others to a dead end. */}
-          {isAdmin(session) && (
+          {/* /admin/enrollments verlangt config:manage (#3469); ohne das Recht
+              führte der Link nur auf eine Umleitung zur Startseite. */}
+          {(isAdmin(session) || hasPermission(session, "config:manage")) && (
             <InfoCard
               title="Anmeldungen"
               icon={<MotoConceptIcon concept="enrollments" size={20} />}

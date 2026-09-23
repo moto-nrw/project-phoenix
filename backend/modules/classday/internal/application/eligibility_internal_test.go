@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 func TestIncludePickupParticipantUsesCareBoundaryAndActualPresence(t *testing.T) {
@@ -97,10 +96,10 @@ func TestSummarySlotCount_CancelledSlots(t *testing.T) {
 
 	result := &classday.Result{
 		Slots: []classday.Slot{
-			{InstanceID: 1, Status: timetable.InstanceStatusActive},    // baseline → counts
-			{InstanceID: 2, Status: timetable.InstanceStatusCancelled}, // always skipped
-			{InstanceID: 3, Status: timetable.InstanceStatusCancelled}, // always skipped
-			{InstanceID: 4, Status: timetable.InstanceStatusActive},    // deferred → skipped
+			{InstanceID: 1, Status: ports.InstanceStatusActive},    // baseline → counts
+			{InstanceID: 2, Status: ports.InstanceStatusCancelled}, // always skipped
+			{InstanceID: 3, Status: ports.InstanceStatusCancelled}, // always skipped
+			{InstanceID: 4, Status: ports.InstanceStatusActive},    // deferred → skipped
 		},
 		DeferredSlots: map[int64]struct{}{4: {}},
 	}

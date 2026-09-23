@@ -12,12 +12,14 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+// deletionTypeTimetableRetention is the audit.data_deletions.deletion_type
+// value the retention cleanup records, as stored in the table.
+const deletionTypeTimetableRetention = "timetable_retention"
 
 // TestFlowF_GDPRCleanup covers the retention-based cleanup job:
 //   - Seed old instances (far past) + fresh ones + an exception row.
@@ -124,9 +126,9 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 	assert.Equal(t, 0, count, "instance_students CASCADE-deleted with old instance")
 
 	// Audit rows: one per affected student, deletion_type='timetable_retention'.
-	auditCount := countAuditRows(t, s, studA.ID, auditModel.DeletionTypeTimetableRetention)
+	auditCount := countAuditRows(t, s, studA.ID, deletionTypeTimetableRetention)
 	assert.Equal(t, 1, auditCount, "studA audit row")
-	auditCount = countAuditRows(t, s, studB.ID, auditModel.DeletionTypeTimetableRetention)
+	auditCount = countAuditRows(t, s, studB.ID, deletionTypeTimetableRetention)
 	assert.Equal(t, 1, auditCount, "studB audit row")
 
 	// --- Idempotency: second run deletes nothing --------------------------
@@ -141,7 +143,7 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 	// --- Tenant isolation: cleanup on T2 does not touch T1 data -----------
 	// Seed an old instance in T2; run cleanup there; verify T1 fresh
 	// instance is still intact.
-	t2Scope := tenant.WithTenantID(context.Background(), s.secondaryTenant)
+	t2Scope := testpkg.ContextForTenant(context.Background(), s.secondaryTenant)
 	err = testpkg.WithTenantTx(t, t2Scope, s.db, s.secondaryTenant, func(ctx context.Context, _ bun.Tx) error {
 		_, err := s.cleanupTimetable(ctx)
 		return err
@@ -235,8 +237,7 @@ func countInstanceStudents(t *testing.T, s *scenario, instanceID int64) int {
 func countAuditRows(t *testing.T, s *scenario, studentID int64, deletionType string) int {
 	t.Helper()
 	n, err := s.db.NewSelect().
-		Model((*auditModel.DataDeletion)(nil)).
-		ModelTableExpr(`audit.data_deletions AS "data_deletion"`).
+		TableExpr(`audit.data_deletions AS "data_deletion"`).
 		Where(`"data_deletion".student_id = ?`, studentID).
 		Where(`"data_deletion".deletion_type = ?`, deletionType).
 		Where(`"data_deletion".tenant_id = ?`, s.primaryTenant).

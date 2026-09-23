@@ -209,6 +209,63 @@ two consumers that could only reach the adapter and the moved behavior suites
 use the one-time replacement path of
 [ADR 0035](../../docs/adr/0035-care-lifecycle-cutover-replaces-legacy-permissions.md).
 
+#2762 cut the execution and the attendance of a block over to Student
+Presence (migration 1.15.415, one release with the caller switch). Timetable
+& Activities keeps the plan in `schedule.activity_instances` and
+`schedule.instance_students`; Student Presence owns `active.activity_sessions`
+(status active/completed, live group, actor, timestamps, completion snapshot)
+and `active.activity_session_attendance` (status, substatus, note, check-in and
+checkout, walk-in and non-booking markers, manual decision, care-plan
+provenance). Timetable asks the owner which planned rows already run, ended,
+were observed or are not booked through its consumer-owned `SessionFacts`
+port (`timetable/compose.NewPresenceSessionFacts`); Student Presence resolves
+the participants of its attendance rules (reported day statuses, partial
+excusals, block end) through its `PlannedRoster` port, bound in
+`database/repositories/presence_bindings.go`. The retained list endpoints
+still read one row per block or participant, so the tenant-safe projection
+`modules/presenceprojection` (owner `presence-legacy-view`) joins the plan
+with the owner rows in one statement each (`ListLegacyInstances`,
+`ListLegacyParticipants`, the partial-absence, parallel-presence, course and
+manual-planning reads), and `timetable/compose.PresenceReads` wraps it for
+the legacy composition. The old execution and attendance columns stay as a
+trigger-kept rollback mirror with the `active.presence_compatibility_writes`
+counter until #2763; `TestPresenceStorageCallerInventory` keeps every
+provider off them. The later-pickup decision that writes to both owners is
+bound at the composition root (`api/pickup_extensions.go`) rather than as a
+new workflow owner. `database/repositories/student_presence.go`, the old
+provider, is gone. The evidence lives in
+[presence-cutover-2762.json](presence-cutover-2762.json) and the runbook in
+[docs/operations/presence-storage-cutover-2762.md](../../docs/operations/presence-storage-cutover-2762.md).
+
+#2756 cut the student-guardian relationship over to its three owners
+(migration 1.15.417, one release with the caller switch). People Directory
+owns `users.student_guardian_relationships` (type, role, primary, emergency
+contact and priority, payer), Care Plan `users.student_guardian_pickup_permissions`
+(`careplan.GuardianPickupPermissions`) and Identity & Access
+`auth.guardian_student_access` (account binding and parents-portal
+permissions, `identityaccess.GuardianStudentAccess`). The retained
+`StudentGuardianRepository` seam is People Directory's relationship store in
+`database/repositories/users/guardian_relationships.go`: it writes the
+relationship and then the other two halves through consumer-owned ports,
+inside one savepoint that holds the relationship row lock, and the legacy
+composition binds the ports in `database/repositories/guardian_relationship_owners.go`.
+The People Directory parents-portal link writes take the same ports through
+`compose.Dependencies.GuardianLinkOwners`. Reads that need the whole row join
+the three owners through the tenant-safe projection `modules/guardianlinkview`
+(owner `guardian-link-view`), embedded as a subquery so every retained read,
+including the Communication audience and inbox projections, keeps its one
+statement; those two projections gave up their `users.students_guardians`
+grant instead of gaining the three owner tables. The account binding follows
+the guardian profile through a migration trigger. The old table stays a
+trigger-kept rollback mirror with the `users.students_guardians_compatibility_writes`
+counter until #2757, because the previous image links guardians with
+`INSERT ... ON CONFLICT`; `TestGuardianStorageCallerInventory` keeps every
+provider off it. `database/repositories/users/student_guardian.go`, the old
+provider, is gone. The evidence lives in
+[guardian-owner-cutover-2756.json](guardian-owner-cutover-2756.json) and the
+runbook in
+[docs/operations/guardian-owner-storage-cutover.md](../../docs/operations/guardian-owner-storage-cutover.md).
+
 The staff messaging writes live in the Communication Postgres adapter
 `modules/communication/internal/adapters/staffpostgres`. The inbox and unread
 badge join People Directory's person rows, so they read through the tenant-safe
@@ -873,14 +930,17 @@ classified `student-presence`/`http` for the same reason (#3207). It replaced
 Schulhof routes from the public Student Presence contract and the public
 supervision projection, with unchanged paths, status codes and error strings.
 Its `student-presence.http.inbound-common` and
-`student-presence.http.legacy-shared-domain` rules, the
-`root-composition.to.student-presence-http` mount and every
-`student-presence.adapter-test.*` rule are compatibility permissions, not
-target dependencies: the shared HTTP rendering edge goes when the inbound
-common package moves, the calendar-date edge with the retained
-`internal/timezone` type, and the settings and user-context test edges with the
-fixtures that still name them. Convert them to exact debt with the rule above
-once the package exists at a base SHA.
+`student-presence.adapter-test.inbound-common` rules are standing target
+rules (#3447): `api/common` is the shared HTTP runtime the other owners' HTTP
+adapters and adapter tests bind as well, and it has no replacement. The
+`root-composition.to.student-presence-http` mount stays a compatibility
+permission; convert it to exact debt with the rule above once the package
+exists at a base SHA. The calendar-date edges are gone: the adapter and its
+tests name `sharedkernel/calendar` directly under the shared-kernel rule
+([ADR 0040](../../docs/adr/0040-every-role-may-import-the-shared-kernel.md)).
+The settings test edge is gone too: the tests name the setting keys through
+the public `modules/settings` contract, which now also exports the four
+tracking-indicator keys.
 
 The retained Presence services, rows and repositories (#3214) moved file for
 file, with their tests, out of the legacy packages the HTTP composition left
@@ -981,6 +1041,21 @@ satisfied by it. No key, rule or baseline entry changed; the two remaining
 `inbound-students.*.student-presence-*` rules are target permissions on the
 `public` and `compose` roles, not compatibility.
 
+The timetable planning nest `modules/timetable/legacy/timetableplanning`
+(`inbound-timetable`/`adapter`, #3424) dissolves in slices. Slice S6 moved the
+calendar-period administration (name uniqueness, the same-type overlap
+invariant, the recurrence gate and the care-offering guard), the tenant's
+non-working days, the A/B-week engine (`schoolcalendar.WeekPatternApplies`)
+and the dateframe routes of the schedules HTTP composition to the School
+Calendar owner; `api/timetable`, the schedules composition, the Workforce
+planning commands, Enrollment and the timetable e2e suite consume the public
+`schoolcalendar.Calendar` contract. The three compatibility rules the slice
+emptied are deleted, not converted; the seven replacement permissions are the
+epoch-gated exception in
+[ADR 0038](../../docs/adr/0038-timetable-planning-dissolution-replaces-legacy-permissions.md)
+(policy epoch 22 to 23), which every later slice of #3424 reuses and which
+ends when the last slice removes the package from the base.
+
 The import HTTP composition (`modules/dataimport/inbound`, with its runtime
 binding in `modules/dataimport/inbound/compose`) keeps the `inbound-import`
 owner and its `http` / `compose` roles after replacing `api/import` (#3217).
@@ -1052,9 +1127,10 @@ The settings test support (`services/config/settingstest`, `settings-platform`/
 `test-support`) scripts the payroll and work-schedule settings that presence
 behaviour tests drive through their real services, so those tests name a school's
 configuration instead of registry keys and ORM rows. Its `models/config` import is
-a target dependency of the settings owner; its calendar-date import exists only
-because the settings package still carries the contractual work-schedule rows
-(#3207) and converts to exact debt with them.
+a target dependency of the settings owner. Its calendar dates are the
+shared-kernel `sharedkernel/calendar` type under the shared-kernel rule
+([ADR 0040](../../docs/adr/0040-every-role-may-import-the-shared-kernel.md),
+#3448), so it no longer reaches the retained `internal/timezone` wrapper.
 
 The Identity & Access guardian-access capability (`modules/identityaccess`,
 `identity-access`/`public`) is the first just-in-time slice of the late
@@ -1617,13 +1693,14 @@ care-schedule diff row is named through the parent-portal workflow port
 (`CareRequestDiffEntry`), so the production `services/schedule` import fell
 with the move; the adapter tests still build that vocabulary. After the move the package
 is the only `inbound-parent` package, so the point exists only in the
-candidate. Every `inbound-parent.http.*` and `inbound-parent.adapter-test.*`
-rule this move added, `root-composition.to.inbound-parent-http` and
-`test-support.e2e-test.inbound-parent-http` are compatibility permissions, not
-target dependencies. They cover every future `inbound-parent` package, so no
-other package may join that point before the conversion. Convert them to exact
-debt with the rule above under #2580 once the package exists at a base SHA;
-the `modules/identityaccess/legacy/jwt` and `services/auth` edges then wait for #2725. The move replaced
+candidate. The `inbound-parent.http.*` and `inbound-parent.adapter-test.*`
+compatibility rules this move added are converted (#3421): the 27 rules are
+gone from `policy.json`, and the 29 imports they allowed (12 production,
+11 internal-test, 6 external-test) are exact `legacy.jsonl` entries under
+#3421, which closes when the last of them falls. `root-composition.to.inbound-parent-http` (#2750) and
+`test-support.e2e-test.inbound-parent-http` (#2748) are still compatibility
+permissions; convert them to exact debt with the rule above under their
+issues. The `modules/identityaccess/legacy/jwt` and `services/auth` edges wait for #2725. The move replaced
 the calendar, push, notification-preference and PWA-usage setters with a
 construction-time `ResourceConfig`, and the auth rate-limiter setter with
 `RouterWithAuthRateLimiter` (the school portal shape), because the
@@ -2228,6 +2305,29 @@ grants, first-party targets, production roles, other external classes — is sti
 a loosening. Epoch 6 registered `external.<class>.<role>` for every test role,
 replacing the 65 owner-specific rules they subsume, so a per-owner test-role
 rule for these classes would now overlap and fail to load.
+
+A reviewed epoch may also grant the shared fixture owner its four standing
+reaches ([ADR 0039](../../docs/adr/0039-shared-fixtures-reach-their-standing-targets.md),
+[#2748](https://github.com/moto-nrw/project-phoenix/issues/2748)): a rule with
+`source_owner` `test-support`, the `test-support` role in production or the
+`e2e-test` role in the test scopes, and a target of `test-support/test-support`,
+`tenant-runtime/public`, `legacy-shared/domain` or `security-runtime/contract`.
+Epoch 24 registers the six `shared-fixtures.*` rules under it. Everything else
+the fixtures still import — the models, services and repositories other
+carriers are dissolving, the device authenticator, the legacy composition —
+stays exact debt on #2748 and falls with those carriers; a rule would hide it.
+
+A reviewed epoch may also add the one owner-agnostic shared-kernel rule
+([ADR 0040](../../docs/adr/0040-every-role-may-import-the-shared-kernel.md),
+[#3447](https://github.com/moto-nrw/project-phoenix/issues/3447),
+[#3448](https://github.com/moto-nrw/project-phoenix/issues/3448)): no
+`source_owner`, no `source_owner_kind`, no `source_role`, all three scopes, and
+the target `shared-kernel`/`contract`. Epoch 25 registers it as
+`shared-kernel.contract` and removes the 15 owner-specific rules it subsumes, so
+a per-owner rule to the kernel would now overlap and fail to load. A
+`same_owner` rule never selects a kernel owner: the kernel's own tests reach
+its contract through this rule alone. A narrower source, another target, an
+owner-kind target and an external class are still loosenings.
 
 A reviewed epoch may also let a target owner adopt an existing table
 ([ADR 0015](../../docs/adr/0015-owners-adopt-existing-unowned-tables.md),

@@ -68,7 +68,11 @@ import (
 // the suites, the four that remain (the module's own public contract, its
 // token adapter and refresh-rotation application, and the tenant runtime)
 // became exact `legacy.jsonl` debt under the same issue, lowering them to 177
-// and 236; this prose counter remains as an independent guard.
+// and 236. Slice S6 of #3424 (ADR 0038) retired the three grants the School
+// Calendar handover emptied; this prose counter remains as an independent
+// guard. #3421 converted the 27 `inbound-parent.*` permissions of the
+// guardian portal HTTP adapter into 29 exact `legacy.jsonl` entries under the
+// same issue, removing the family and lowering the totals by 27 each.
 //
 // Three shrink-only measurements, all read-only on policy.json:
 //
@@ -118,12 +122,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 132
+	policyTempRulesTotal = 96
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 191
+	policyTempRulesCompatTotal = 154
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -152,7 +156,7 @@ var policyTempRulesFamilies = map[string]int{
 	"calendar-view": 2,
 
 	// #3218, #3219, #3220 — closed.
-	"document-rendering": 3,
+	"document-rendering": 2,
 
 	// #3214, #3218, #3220 — closed; #3427 removed the three #3350 (PR #3408)
 	// had added.
@@ -161,9 +165,6 @@ var policyTempRulesFamilies = map[string]int{
 	// #3214, #3218, #3220, #3224 — closed; #3427 removed the one #3350 added.
 	// #3422 removed 1 that went stale with legacy/services/active.
 	"group-live-view": 1,
-
-	// #3229, #3214, #3220 — closed; #2725 (OPEN) for one rule.
-	"inbound-parent": 27,
 
 	// #3214, #3218, #3220, #3224 — closed. #3427 removed the 36 that #3350
 	// (PR #3408) had added with the care-lifecycle adapter.
@@ -202,21 +203,10 @@ var policyTempRulesFamilies = map[string]int{
 	// #3214, #3218 — closed.
 	"school-structure": 1,
 
-	// #3448 for the one test-support rule; #2736 removed the #3232 rules and
-	// #3427 the one #3350 (PR #3408) added.
-	"settings-platform": 1,
-
-	// #3214, #3207, #3218, #3224 — closed.
-	// #3422 removed 7 that went stale with legacy/services/active and rewrote
-	// the 9 of the dissolved nest's behaviour suites, which now describe the
-	// module's own suites and promise no conversion.
-	"student-presence": 5,
-
 	// #3214, #3218, #3229 — closed.
 	"test-support": 2,
 
 	// #3214, #3218, #3220, #3224 — closed.
-	"timetable-activities": 2,
 }
 
 // policyTempRulesFamilyFix is the guidance ratchetViolations prints for a family

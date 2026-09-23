@@ -10,7 +10,6 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -218,7 +217,7 @@ func TestInstanceStaffRepository_DeleteUpcomingByStaffID(t *testing.T) {
 	futureRow := makeRow(futureInst.ID, staff.ID)
 	otherFutureRow := makeRow(futureInst.ID, otherStaff.ID)
 
-	affected, err := timetabletest.New(t, db).DeleteUpcomingInstanceStaff(ctx, staff.ID, cutoff.String())
+	affected, err := repositories.NewUnobservedTimetableDependencies(db).Capability.DeleteUpcomingInstanceStaff(ctx, staff.ID, cutoff.String())
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), affected)
 

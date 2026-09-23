@@ -240,7 +240,7 @@ const (
 	GuardianInvitationApprovalRejected    = "rejected"
 )
 
-// GuardianRoleClass classifies a students_guardians role for the invite flow.
+// GuardianRoleClass classifies a guardian relationship role for the invite flow.
 type GuardianRoleClass int
 
 const (
@@ -268,7 +268,7 @@ func (p GuardianProfile) FullName() string {
 	return strings.TrimSpace(strings.TrimSpace(p.FirstName) + " " + strings.TrimSpace(p.LastName))
 }
 
-// StudentGuardianLink is one users.students_guardians row.
+// StudentGuardianLink is one student-guardian relationship.
 type StudentGuardianLink struct {
 	ID                int64
 	TenantID          int64

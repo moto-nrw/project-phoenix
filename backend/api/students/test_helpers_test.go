@@ -130,6 +130,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 			return requestreviewcompose.ReviewDate(timezone.DateFromTime(clock()))
 		},
 		ObserveCare: func(requestreviewcompose.CareObservation) {}, ObserveTimetable: func(requestreviewcompose.TimetableObservation) {},
+		Blocks: repositories.NewPickupReviewBlocks(db),
 	})
 	require.NoError(t, err)
 	careQueue, err := requestreviewcompose.NewCareScheduleQueue(careReviews, func() requestreviewcompose.ReviewDate {

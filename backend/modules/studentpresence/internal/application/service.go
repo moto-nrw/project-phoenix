@@ -12,13 +12,22 @@ type Service struct {
 	store   ports.Store
 	tx      ports.Transaction
 	observe func(ports.Observation)
+	// The session attendance rules resolve their participants through the
+	// Timetable owner and the care plan; a composition that does not serve
+	// those rules leaves the ports unbound and the rules report it.
+	roster   ports.PlannedRoster
+	carePlan ports.CarePlanDirectory
+	careDays ports.CareDayLocker
 }
 
-func New(store ports.Store, tx ports.Transaction, observe func(ports.Observation)) *Service {
+// New builds the service. The attendance rule ports may be nil in a
+// composition that serves no attendance rules; the rules that need one then
+// fail with a configuration error.
+func New(store ports.Store, tx ports.Transaction, observe func(ports.Observation), rules ports.AttendanceRulePorts) *Service {
 	if store == nil || tx == nil || observe == nil {
 		panic("student presence: all application dependencies are required")
 	}
-	return &Service{store: store, tx: tx, observe: observe}
+	return &Service{store: store, tx: tx, observe: observe, roster: rules.Roster, carePlan: rules.CarePlan, careDays: rules.CareDays}
 }
 
 func (s *Service) run(operation string, fn func() (ports.Stats, error)) error {

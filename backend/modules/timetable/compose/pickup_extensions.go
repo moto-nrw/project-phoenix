@@ -58,6 +58,7 @@ func (e engine) ResolvePickupExtension(ctx context.Context, taskID int64, blockI
 		Kind:           pickupExtensionKind(value.Task),
 		AssignedBlocks: pickupExtensionBlocksToPublic(value.Assigned),
 		InstanceIDs:    append([]int64{}, value.InstanceIDs...),
+		Instances:      pickupExtensionInstancesToPublic(value.Instances),
 	}, nil
 }
 
@@ -88,6 +89,14 @@ func pickupExtensionBlocksToPublic(values []domain.PickupExtensionBlock) []timet
 		result = append(result, timetable.PickupExtensionBlock{
 			ID: value.ID, Title: value.Title, StartTime: value.StartTime, EndTime: value.EndTime,
 		})
+	}
+	return result
+}
+
+func pickupExtensionInstancesToPublic(values []domain.PickupExtensionInstance) []timetable.PickupExtensionInstance {
+	result := make([]timetable.PickupExtensionInstance, 0, len(values))
+	for _, value := range values {
+		result = append(result, timetable.PickupExtensionInstance{ID: value.ID, Date: value.Date.String()})
 	}
 	return result
 }

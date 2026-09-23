@@ -2,7 +2,6 @@ package timetable
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -315,7 +314,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 func (rs *Resource) validateSpontaneousRoom(w http.ResponseWriter, r *http.Request, roomID int64) bool {
 	room, err := rs.TimetableData.GetRoom(r.Context(), roomID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if common.IsNotFound(err) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("room not found")))
 			return false
 		}
@@ -369,7 +368,7 @@ func (rs *Resource) resolveSpontaneousActivityGroupID(ctx context.Context, title
 	}
 	if existing, err := rs.TimetableData.GetActivityGroupByName(ctx, title); err == nil && existing != nil {
 		return &existing.ID, nil
-	} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	} else if err != nil && !common.IsNotFound(err) {
 		return nil, err
 	}
 
@@ -403,7 +402,7 @@ func (rs *Resource) ensureSpontaneousActivityCategory(ctx context.Context) (*act
 			return nil, errSpontaneousCategoryArchived
 		}
 		return existing, nil
-	} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	} else if err != nil && !common.IsNotFound(err) {
 		return nil, err
 	}
 

@@ -45,6 +45,8 @@ type pickupExtensionBlockRow struct {
 	StartTime        string       `bun:"start_time"`
 	EndTime          string       `bun:"end_time"`
 	Member           bool         `bun:"member"`
+	OwnParticipantID *int64       `bun:"own_participant_id"`
+	ParticipantIDs   []int64      `bun:"participant_ids,array"`
 	CalendarPeriodID *int64       `bun:"calendar_period_id"`
 	ValidFrom        domain.Date  `bun:"valid_from"`
 	ValidUntil       *domain.Date `bun:"valid_until"`
@@ -217,7 +219,10 @@ func (s *Store) ListPickupExtensionDayBlocks(ctx context.Context, tasks []domain
 		SELECT task.task_id, "instance".id, "instance".title,
 			to_char("instance".start_time, 'HH24:MI') AS start_time,
 			to_char("instance".end_time, 'HH24:MI') AS end_time,
-			"own".id IS NOT NULL AS member,
+			"own".id IS NOT NULL AS member, "own".id AS own_participant_id,
+			ARRAY(SELECT "attendee".id FROM schedule.instance_students AS "attendee"
+				WHERE "attendee".tenant_id = "instance".tenant_id AND "attendee".instance_id = "instance".id
+				ORDER BY "attendee".id) AS participant_ids,
 			NULL::BIGINT AS calendar_period_id, '' AS valid_from
 		FROM task
 		JOIN schedule.activity_instances AS "instance"
@@ -225,14 +230,13 @@ func (s *Store) ListPickupExtensionDayBlocks(ctx context.Context, tasks []domain
 		LEFT JOIN schedule.instance_students AS "own"
 			ON "own".tenant_id = "instance".tenant_id AND "own".instance_id = "instance".id
 			AND "own".student_id = task.student_id
-		WHERE "instance".status NOT IN ('cancelled', 'completed')
+		WHERE "instance".status <> 'cancelled'
 			AND NOT "instance".is_spontaneous
 			AND "instance".start_time < task.to_time AND "instance".end_time > task.from_time
-			AND ("own".id IS NULL OR NOT "own".not_scheduled)
 			AND EXISTS (
 				SELECT 1 FROM schedule.instance_students AS "attendee"
 				WHERE "attendee".tenant_id = "instance".tenant_id AND "attendee".instance_id = "instance".id
-					AND NOT "attendee".not_scheduled)
+					)
 		ORDER BY task.task_id, "instance".start_time, "instance".id`,
 		pgdialect.Array(taskIDs), pgdialect.Array(studentIDs), pgdialect.Array(dates),
 		pgdialect.Array(froms), pgdialect.Array(tos), tenantID,
@@ -288,7 +292,7 @@ func (s *Store) ListPickupExtensionWeekdayBlocks(ctx context.Context, tasks []do
 					AND ("own".weekday IS NULL OR "own".weekday = task.weekday)
 					AND (COALESCE(jsonb_array_length("own".selected_weekdays), 0) = 0
 						OR "own".selected_weekdays @> to_jsonb(ARRAY[task.weekday]))
-			) AS member
+			) AS member, NULL::BIGINT AS own_participant_id
 		FROM task
 		JOIN activities.schedules AS "schedule"
 			ON "schedule".tenant_id = ? AND "schedule".weekday = task.weekday
@@ -331,17 +335,14 @@ func (s *Store) ListPickupExtensionTemplateInstances(ctx context.Context, templa
 	}
 	rows := make([]domain.PickupExtensionInstance, 0)
 	query := db.NewSelect().TableExpr(`schedule.activity_instances AS "instance"`).
-		ColumnExpr(`"instance".id AS id, "instance".date::text AS date`).
+		ColumnExpr(`"instance".id AS id, "instance".date::text AS date, "own".id AS own_participant_id`).
+		Join(`LEFT JOIN schedule.instance_students AS "own" ON "own".tenant_id = "instance".tenant_id AND "own".instance_id = "instance".id AND "own".student_id = ?`, studentID).
 		Where(`"instance".tenant_id = ?`, tenantID).
 		Where(`"instance".activity_group_id = ?`, templateID).
 		Where(`"instance".date >= ?::date`, from).
 		Where(`date_part('isodow', "instance".date) = ?`, weekday).
-		Where(`"instance".status IN ('planned', 'active')`).
+		Where(`"instance".status <> 'cancelled'`).
 		Where(`NOT "instance".is_spontaneous`).
-		Where(`NOT EXISTS (
-			SELECT 1 FROM schedule.instance_students AS "own"
-			WHERE "own".tenant_id = "instance".tenant_id AND "own".instance_id = "instance".id
-			AND "own".student_id = ? AND NOT "own".not_scheduled)`, studentID).
 		OrderExpr(`"instance".date ASC, "instance".id ASC`)
 	if calendarPeriodID == nil {
 		query = query.Where(`"instance".calendar_period_id IS NULL`)

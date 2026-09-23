@@ -411,7 +411,8 @@ func TestMigrationsHashIsStableAndSourceSensitive(t *testing.T) {
 	h2, err := MigrationsHash()
 	require.NoError(t, err)
 	assert.Equal(t, h1, h2)
-	assert.Len(t, h1, 64)
+	// Full hex digest of the 128-bit identifier hash (#2748).
+	assert.Len(t, h1, 32)
 }
 
 func TestMigrationSetsMatchRequiresExactSet(t *testing.T) {

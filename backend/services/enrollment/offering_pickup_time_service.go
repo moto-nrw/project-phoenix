@@ -2,7 +2,6 @@ package enrollment
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -26,7 +25,7 @@ type OfferingPickupTimeService interface {
 
 // ErrPickupResetNoOffering protects a manual pickup row when no booking-derived
 // pickup time would replace it on the requested date.
-var ErrPickupResetNoOffering = errors.New("für diesen Tag gibt es keine Angebots-Gehzeit")
+var ErrPickupResetNoOffering = careplan.ErrPickupResetNoOffering
 
 // OfferingPickupBaselineReader is the date-aware read boundary needed by the
 // reset write. The schedule projector implements it without coupling this

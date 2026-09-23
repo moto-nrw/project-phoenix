@@ -176,7 +176,7 @@ var modulePassthroughBudgets = map[string]int{
 	// composition, the dead ListWithdrawalCompletionKeys, the People stranding
 	// forward and the internal-only AdministrativelyVisibleStudentIDs.
 	// Shrink-only from here like every other entry.
-	"modules/careplan": 112,
+	"modules/careplan": 111,
 	// The caller, report and arrival-exception ports reached straight
 	// through, most of them behind a nil-port guard and a date parse.
 	"modules/classday": 9,
@@ -231,12 +231,26 @@ var modulePassthroughBudgets = map[string]int{
 	// public sentinels (ErrVisitNotFound, ErrNoActiveSession), the room and
 	// present-today projections, the combined-group validation and the
 	// status-day upsert guarded by the exception-day lock.
-	"modules/studentpresence": 76,
+	//
+	// The second raise in this register, 76 → 89 with #2762, has the same
+	// shape as the #3427 one above: the activity-session and session-attendance
+	// commands used to live in database/repositories/student_presence.go
+	// (legacy composition, never scanned) and are now the owner's native
+	// application code. Thirteen of them keep the counted shape while each
+	// carries its own rule: the session reads and SessionExecution validate the
+	// id sets and the status filter; the attendance reads and the participant
+	// commands (check-in, checkout, close, interval reconciliation, manual
+	// patch, non-booking marker, excusal reconnection) validate the ids, the
+	// instants and the patch shape before the one store call inside the
+	// tenant transaction. The same cutover removed the four reads and the
+	// reinstate command no consumer called. Shrink-only from here like every
+	// other entry.
+	"modules/studentpresence": 89,
 	// The largest block, and the one the previous version could not see at
 	// all: service.go (23), instance_students.go (21), activity_instances.go
 	// (14) and 19 more files, every one of them s.run around a single
 	// s.store call.
-	"modules/timetable": 127,
+	"modules/timetable": 100,
 	// Work sessions (15), the service facade (7), absences, shifts, staff
 	// records, month snapshots, offboarding and substitutions.
 	"modules/workforce": 47,

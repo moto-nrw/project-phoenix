@@ -72,8 +72,6 @@ type GroupSubstitutionRepository interface {
 	ListActiveSubstitutionBlockers(ctx context.Context, staffID, tenantID int64) ([]users.BlockerSubstitution, error)
 	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*GroupSubstitution, error)
 	FindByGroup(ctx context.Context, groupID int64) ([]*GroupSubstitution, error)
-	FindActive(ctx context.Context, date timezone.Date) ([]*GroupSubstitution, error)
-	FindOverlapping(ctx context.Context, staffID int64, startDate timezone.Date, endDate timezone.Date) ([]*GroupSubstitution, error)
 
 	// Methods with related data loading
 	ListWithRelations(ctx context.Context, options *base.QueryOptions) ([]*GroupSubstitution, error)

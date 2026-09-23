@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/dataimport/fileformat"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 
 	sentryhttp "github.com/getsentry/sentry-go/http"
 	"github.com/go-chi/chi/v5"
@@ -183,6 +185,9 @@ type moduleServices struct {
 	persons       *peopleModule.Module
 	rooms         *facilitiesModule.Module
 	timetable     *timetableModule.Module
+	// calendar owns schedule.calendar_periods, schedule.closing_days and
+	// schedule.dateframes and answers the tenant's non-working days.
+	calendar *schoolCalendarModule.Module
 	// membership owns users.staff, users.teachers and users.guests (#2667).
 	membership *schoolMembershipModule.Module
 	// workforce owns the work-time templates and staff schedule versions
@@ -205,31 +210,16 @@ func NewCleanupTimetable(db *bun.DB) (timetableModule.Capability, error) {
 	if err != nil {
 		return nil, err
 	}
-	careLocks, err := carePlanCompose.NewDayLocks(db, students.LockStudent, peopleModule.ErrStudentNotFound)
-	if err != nil {
-		return nil, err
-	}
-	return repositories.NewTimetable(db, students, rooms, careLocks)
+	return repositories.NewTimetable(db, students, rooms)
 }
 
 func composeTimetable(db *bun.DB, persons *peopleModule.Module, rooms *facilitiesModule.Module, membership *schoolMembershipModule.Module) (*timetableModule.Module, error) {
-	careQueries, err := repositories.NewTimetableCarePlanQueries(db, func(observation carePlanCompose.Observation) {
-		observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
-	})
-	if err != nil {
-		return nil, err
-	}
-	careLocks, err := carePlanCompose.NewDayLocks(db, persons.LockStudent, peopleModule.ErrStudentNotFound)
-	if err != nil {
-		return nil, err
-	}
 	return timetableCompose.New(timetableCompose.Dependencies{
 		LockStaffAssignment: func(ctx context.Context, staffID int64) error {
 			_, err := membership.FindStaffForMutation(ctx, staffID)
 			return err
 		},
-		CarePlan: careQueries,
-		DB:       db, Students: timetableStudents(persons), Rooms: timetableRooms(rooms), CareDays: careLocks,
+		DB: db, Students: timetableStudents(persons), Rooms: timetableRooms(rooms), Sessions: repositories.NewPresenceFacts(db),
 		Observe: func(observation timetableCompose.Observation) {
 			observability.ObserveTimetableActivitiesOperation(
 				observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows,
@@ -294,11 +284,18 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	if err != nil {
 		return moduleServices{}, err
 	}
+	// The period administration resolves the recurrence gate, the
+	// care-offering guard and the federal-state setting on every call from
+	// the runtime the services factory answers with below; the guard is an
+	// Enrollment service that itself reads this calendar, so it cannot exist
+	// before the factory does.
+	var calendarAdministration schoolCalendarCompose.AdministrationRuntime
 	calendar, err := schoolCalendarCompose.New(schoolCalendarCompose.Dependencies{
 		DB: db,
 		Observe: func(observation schoolCalendarCompose.Observation) {
 			observability.ObserveSchoolCalendarOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, schoolCalendarModule.ErrorCode(observation.Err), observation.Err)
 		},
+		Administration: func() schoolCalendarCompose.AdministrationRuntime { return calendarAdministration },
 	})
 	if err != nil {
 		return moduleServices{}, err
@@ -429,7 +426,8 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 		return moduleServices{}, err
 	}
 	legacyFacilities = factory.Facilities
-	return moduleServices{repositories: repoFactory, services: factory, demoAccess: authAPI.ComposedDemoAccess(factory.AccountAuthentication().DemoAccess()), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime}, nil
+	calendarAdministration = factory.SchoolCalendarAdministration()
+	return moduleServices{repositories: repoFactory, services: factory, demoAccess: authAPI.ComposedDemoAccess(factory.AccountAuthentication().DemoAccess()), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, calendar: calendar, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime}, nil
 }
 
 // withFileStorageWiring resolves what the File Storage module needs from the
@@ -1281,7 +1279,8 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
 			return api.Services.Settings.ResolveBool(ctx, reviewsettings.BookingsAuthoritative)
 		},
-		Today: carePlanCompose.Today,
+		Today:  carePlanCompose.Today,
+		Blocks: repositories.NewPickupReviewBlocks(db),
 		ObserveCare: func(observation requestreviewcompose.CareObservation) {
 			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
 		},
@@ -1456,7 +1455,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		Students: api.Services.Import, Staff: api.Services.StaffImport, ClassList: api.Services.ClassListImport,
 		Files: fileformat.Decoder{}, Runtime: importCompose.HTTPRuntime(db, api.Services.PeopleDirectory, api.membership, api.Services.OpeningBalanceImport),
 	})
-	api.Activities = timetableHTTPAdapter.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
+	api.Activities = timetableHTTPAdapter.NewResource(api.Services.Activities, modules.timetable, api.Services.Users, api.Services.UserContext, db)
 	staffResource, staffAdmin, err := newStaffComposition(api.membership, workforce, api.Services, db, logger.With("handler", "staff"))
 	if err != nil {
 		return err
@@ -1492,7 +1491,13 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	// One Device Fleet owner serves every entry point: the services factory
 	// composes it and the IoT service hands it back here (#2676).
 	api.Display = displayHTTPAdapter.NewResource(api.Services.IoT.Fleet(), api.Services.Settings)
-	api.Schedules = timetableHTTPAdapter.NewSchedulesResource(api.Services.Schedule, db)
+	// Dateframes belong to the School Calendar, timeframes and recurrence
+	// rules to the Timetable owner; timeframe changes stay guarded by the
+	// recurrence gate and Enrollment's care-offering check.
+	api.Schedules = timetableHTTPAdapter.NewSchedulesResource(modules.calendar, modules.timetable, services.TimeframeChangeGuard(
+		func(ctx context.Context) error { return timetableplanning.LockTenantRecurrenceWrites(ctx, db) },
+		api.Services.EnrollmentCareOffering.(enrollmentSvc.CareOfferingMaterializationResourceValidator).ValidateTimeframeReplacement,
+	), db)
 	homeLayouts := requireHomeLayoutOperations(api.Services.Settings)
 	api.Settings = newSettingsResource(api.Services.TenantSettings, homeLayouts, repoFactory.Enrollment().SchemaReferencesLegalDocument, db)
 	openRoomMove, err := newOpenRoomMove(modules, api.Services.Active, logger)
@@ -1529,7 +1534,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		Active:     api.Services.Active,
 		Users:      api.Services.Users,
 		Activities: api.Services.Activities,
-		Rosters:    timetableModule.SessionRosters{Query: modules.timetable},
+		Rosters:    repositories.SessionRosters{Sessions: presence, Roster: modules.timetable},
 		Education:  api.Services.Education,
 		Pickups:    api.Services.PickupSchedule,
 		Settings:   api.Services.Settings,
@@ -1571,10 +1576,15 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.ClassListEntries = newClassListEntriesResource(api.membership, db, logger.With("handler", "class-list-entries"))
 	api.Substitutions = workforceInbound.NewSubstitutionsResource(services.SubstitutionCapability(api.Services.Substitution), db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
-	api.TimeTracking = newTimeTrackingResource(api.Services, db)
+	api.TimeTracking = newTimeTrackingResource(api.Services, modules.calendar, db)
+	pickupExtensions, err := newPickupExtensions(modules.timetable, presence)
+	if err != nil {
+		return err
+	}
 	api.Timetable = timetableAPI.NewResource(timetableAPI.Dependencies{
-		CalendarPeriodService:   api.Services.CalendarPeriod,
-		ClosingDayService:       api.Services.ClosingDays,
+		CalendarPeriods:         modules.calendar,
+		ClosingDays:             modules.calendar,
+		CalendarPeriodUsage:     calendarPeriodUsage{usage: repoFactory.CalendarPeriodUsage()},
 		MaterializationService:  api.Services.Materialization,
 		InstanceService:         api.Services.Instance,
 		InstanceSeriesConverter: api.Services.InstanceSeriesConverter,
@@ -1590,7 +1600,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		OfferingSourceOptions:   offeringSourceOptions(api.Services.EnrollmentDecision),
 		ReportService:           api.Services.EnrollmentReport,
 		PlanExportService:       api.Services.PlanExport,
-		PickupExtensions:        modules.timetable,
+		PickupExtensions:        pickupExtensions,
 		Broadcaster:             api.Services.RealtimeHub,
 		Logger:                  logger.With("handler", "timetable"),
 		DB:                      db,
@@ -1617,6 +1627,10 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 			},
 		},
 	})
+	billing, err := newOperatorBilling(logger)
+	if err != nil {
+		return fmt.Errorf("compose operator billing: %w", err)
+	}
 	schoolSettings := settingsCompose.NewOperatorSchoolSettings(settingsCompose.OperatorDependencies{
 		Settings:       api.Services.Settings,
 		DB:             db,
@@ -1629,8 +1643,11 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		OnValueSet: api.Services.SettingsSideEffects.Dispatch,
 	})
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
-		AppEnv:               viper.GetString("app_env"),
-		AuthService:          api.Services.OperatorAuth,
+		AppEnv:      viper.GetString("app_env"),
+		AuthService: api.Services.OperatorAuth,
+		IsLocalSeedRequest: func(r *http.Request) bool {
+			return apiCommon.IsLocalSeedRequest(r, viper.GetString("app_env"))
+		},
 		Identity:             identityOperatorAPI.NewResource(api.Services.AccountAuthentication(), operatorAPI.IdentityResponses()),
 		PasskeyService:       api.Services.OperatorPasskey,
 		MFAService:           api.Services.OperatorMFA,
@@ -1641,6 +1658,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		UnregisteredTagScans: tagScanReview.Router(),
 		SchoolSettings:       schoolSettings,
 		SchoolService:        api.Services.Schools,
+		Billing:              billing,
 		TenantMFAService:     api.Services.MFA,
 		Sessions:             identityOperatorAPI.NewSessions(sessionAuth, api.Services.OperatorAuth),
 	})
@@ -2036,7 +2054,12 @@ func (a *API) databaseStatsRouter() chi.Router {
 func newDatabaseStatsRouter(db *bun.DB, read services.DatabaseStatsReader, logger *slog.Logger) chi.Router {
 	router := chi.NewRouter()
 	apiCommon.ProtectedTenantGroup(router, db, func(router chi.Router, withTx apiCommon.Middleware) {
-		router.With(apiCommon.RequiresPermission("system:manage"), withTx).Get("/stats", func(w http.ResponseWriter, r *http.Request) { serveDatabaseStats(w, r, read, logger) })
+		// The reader redacts every count the caller may not read, so the
+		// route opens for any permission authorize.NewDatabaseStatsCapabilities
+		// honours: the Datenverwaltung hub shows its counts to a lead role a
+		// school defines itself, not only to system administrators (#3469).
+		router.With(apiCommon.RequiresAnyPermission(services.DatabaseStatsPermissions()...), withTx).
+			Get("/stats", func(w http.ResponseWriter, r *http.Request) { serveDatabaseStats(w, r, read, logger) })
 	})
 	return router
 }
@@ -2106,4 +2129,23 @@ func newSessionTokenAuth() (*projectJWT.TokenAuth, error) {
 		return nil, fmt.Errorf("invalid auth JWT configuration: %w", err)
 	}
 	return tokenAuth, nil
+}
+
+// newStudentPresence composes the Student Presence owner for the serving
+// root with its attendance rules bound to the Timetable planned roster and
+// the Care Plan reads (#2762).
+func newStudentPresence(db *bun.DB, logger *slog.Logger) *studentpresence.Module {
+	module, err := repositories.NewStudentPresence(db, func(o presenceCompose.Observation) {
+		logger.Debug("student presence operation",
+			"operation", o.Operation,
+			"duration", o.Duration,
+			"queries", o.Queries,
+			"rows", o.Rows,
+			"error", o.Err,
+		)
+	})
+	if err != nil {
+		panic(err)
+	}
+	return module
 }

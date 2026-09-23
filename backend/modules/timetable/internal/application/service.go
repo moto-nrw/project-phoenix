@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
@@ -14,25 +13,63 @@ type Service struct {
 	tx                  ports.Transaction
 	students            ports.StudentDirectory
 	rooms               ports.RoomDirectory
-	locks               ports.CareDayLocker
+	sessions            ports.SessionFacts
 	today               func() string
 	observe             ports.Observer
-	carePlan            ports.CarePlanDirectory
 	lockStaffAssignment func(context.Context, int64) error
 }
 
-func New(store ports.Store, tx ports.Transaction, students ports.StudentDirectory, rooms ports.RoomDirectory, locks ports.CareDayLocker, carePlan ports.CarePlanDirectory, lockStaffAssignment func(context.Context, int64) error, today func() string, observe ports.Observer) *Service {
-	if store == nil || tx == nil || students == nil || rooms == nil || locks == nil || carePlan == nil || lockStaffAssignment == nil || today == nil || observe == nil {
+func New(store ports.Store, tx ports.Transaction, students ports.StudentDirectory, rooms ports.RoomDirectory, sessions ports.SessionFacts, lockStaffAssignment func(context.Context, int64) error, today func() string, observe ports.Observer) *Service {
+	if store == nil || tx == nil || students == nil || rooms == nil || sessions == nil || lockStaffAssignment == nil || today == nil || observe == nil {
 		panic("timetable application: all dependencies are required")
 	}
-	return &Service{store: store, tx: tx, students: students, rooms: rooms, locks: locks, carePlan: carePlan, lockStaffAssignment: lockStaffAssignment, today: today, observe: observe}
+	return &Service{store: store, tx: tx, students: students, rooms: rooms, sessions: sessions, lockStaffAssignment: lockStaffAssignment, today: today, observe: observe}
 }
 
-func (s *Service) carePlanDirectory() (ports.CarePlanDirectory, error) {
-	if s.carePlan == nil {
-		return nil, errors.New("timetable application: care plan directory is not bound")
+// idSet answers membership questions the session facts port returns as lists.
+func idSet(ids []int64, err error) (map[int64]bool, error) {
+	if err != nil {
+		return nil, err
 	}
-	return s.carePlan, nil
+	result := make(map[int64]bool, len(ids))
+	for _, id := range ids {
+		result[id] = true
+	}
+	return result, nil
+}
+
+// withoutIDs returns the ids that are not in the excluded set.
+func withoutIDs(ids []int64, excluded map[int64]bool) []int64 {
+	result := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if !excluded[id] {
+			result = append(result, id)
+		}
+	}
+	return result
+}
+
+// startedInstanceIDs asks Student Presence which of the instances already
+// have an execution.
+func (s *Service) startedInstanceIDs(ctx context.Context, instanceIDs []int64) (map[int64]bool, error) {
+	if len(instanceIDs) == 0 {
+		return map[int64]bool{}, nil
+	}
+	return idSet(s.sessions.StartedInstanceIDs(ctx, instanceIDs))
+}
+
+func (s *Service) completedInstanceIDs(ctx context.Context, instanceIDs []int64) (map[int64]bool, error) {
+	if len(instanceIDs) == 0 {
+		return map[int64]bool{}, nil
+	}
+	return idSet(s.sessions.CompletedInstanceIDs(ctx, instanceIDs))
+}
+
+func (s *Service) observedParticipantIDs(ctx context.Context, participantIDs []int64) (map[int64]bool, error) {
+	if len(participantIDs) == 0 {
+		return map[int64]bool{}, nil
+	}
+	return idSet(s.sessions.ObservedParticipantIDs(ctx, participantIDs))
 }
 
 func (s *Service) FindCategory(ctx context.Context, id int64) (result domain.Category, err error) {
