@@ -244,6 +244,10 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			seedEnrollmentBookingsProfileStep{seeder: seeder},
 		)
 	}
-	steps = append(steps, buildStateStep{seeder: seeder}, printSummaryStep{seeder: seeder})
+	steps = append(steps,
+		seedBillingKeyDateCountsStep{},
+		buildStateStep{seeder: seeder},
+		printSummaryStep{seeder: seeder},
+	)
 	return Workflow{Name: "full-demo", Steps: steps}
 }

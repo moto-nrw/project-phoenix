@@ -65,7 +65,7 @@
       "declaration": "newRuntime",
       "target": "api.New",
       "lines": [
-        105
+        106
       ],
       "tables": []
     },
@@ -75,7 +75,7 @@
       "declaration": "newWorker",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        172
+        177
       ],
       "tables": []
     },
@@ -20971,6 +20971,7 @@
       "announcement-reminders",
       "appointment-reminders",
       "auto-checkout",
+      "billing-key-dates",
       "booking-consistency-audit",
       "break-auto-end",
       "email-outbox",
@@ -21085,6 +21086,7 @@
     "announcement-reminders",
     "appointment-reminders",
     "auto-checkout",
+    "billing-key-dates",
     "booking-consistency-audit",
     "break-auto-end",
     "email-outbox",

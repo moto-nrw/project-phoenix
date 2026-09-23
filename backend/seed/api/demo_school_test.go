@@ -57,6 +57,8 @@ func TestFullDemoWorkflowOnlyProfileSkipsFurtherSchools(t *testing.T) {
 	assert.Equal(t, 0, furtherSchools(SeedOptions{OnlyProfile: DefaultProfileKey}))
 
 	restricted := fullDemoWorkflow(&Seeder{options: SeedOptions{OnlyProfile: DefaultProfileKey}}).Steps
+	_, seedsBilling := restricted[len(restricted)-3].(seedBillingKeyDateCountsStep)
+	assert.True(t, seedsBilling, "every seed workflow captures a reviewable billing snapshot")
 	_, writesState := restricted[len(restricted)-2].(buildStateStep)
 	assert.True(t, writesState, "a restricted run still writes its seed state")
 }
