@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,7 +29,7 @@ func TestEndOpenVisitForStudent_LookupErrorPropagates(t *testing.T) {
 	}},
 	}
 
-	_, err := svc.endOpenVisitForStudent(context.Background(), 4711, timezone.TodayDate())
+	_, err := svc.endOpenVisitForStudent(context.Background(), 4711, calendar.TodayDate())
 
 	require.Error(t, err, "a non-NotFound lookup failure must propagate so the checkout transaction rolls back")
 	assert.False(t, errors.Is(err, ErrVisitNotFound))
@@ -60,7 +60,7 @@ func TestEndOpenVisitForStudent_AlreadyEndedIsTolerated(t *testing.T) {
 	}},
 	}
 
-	result, err := svc.endOpenVisitForStudent(context.Background(), 4711, timezone.TodayDate())
+	result, err := svc.endOpenVisitForStudent(context.Background(), 4711, calendar.TodayDate())
 
 	require.NoError(t, err, "a visit ended by a concurrent caller is the desired end state, not an error")
 	require.NotNil(t, result)
@@ -97,7 +97,7 @@ func TestEndOpenVisitForStudent_BinaryModeStillEndsStaleVisit(t *testing.T) {
 	},
 	}
 
-	_, err := svc.endOpenVisitForStudent(context.Background(), 4711, timezone.TodayDate())
+	_, err := svc.endOpenVisitForStudent(context.Background(), 4711, calendar.TodayDate())
 
 	require.NoError(t, err)
 	assert.True(t, endCalled, "checkout stale-visit healing must bypass the binary-mode EndVisit no-op")
@@ -125,7 +125,7 @@ func TestEndOpenVisitForStudent_EndVisitErrorPropagates(t *testing.T) {
 	}},
 	}
 
-	_, err := svc.endOpenVisitForStudent(context.Background(), 4711, timezone.TodayDate())
+	_, err := svc.endOpenVisitForStudent(context.Background(), 4711, calendar.TodayDate())
 
 	require.Error(t, err, "an EndVisit failure must propagate so attendance close and visit end stay atomic")
 	assert.False(t, errors.Is(err, ErrVisitAlreadyEnded))
@@ -153,7 +153,7 @@ func TestEndOpenVisitForStudent_NextDayVisitIsLeftAlone(t *testing.T) {
 	}},
 	}
 
-	result, err := svc.endOpenVisitForStudent(context.Background(), 4711, timezone.TodayDate().AddDays(-1))
+	result, err := svc.endOpenVisitForStudent(context.Background(), 4711, calendar.TodayDate().AddDays(-1))
 
 	require.NoError(t, err)
 	assert.Nil(t, result, "a newer-day visit reports as nothing-to-end, not as an ended row")

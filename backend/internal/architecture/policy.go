@@ -553,12 +553,32 @@ func targetSelectorsOverlap(left, right Rule, owners map[string]Owner) bool {
 		return ownerSelectorsOverlap(left.TargetOwner, left.TargetOwnerKind, right.TargetOwner, right.TargetOwnerKind, owners)
 	}
 	for _, owner := range owners {
-		if ownerMatches(left.SourceOwner, left.SourceOwnerKind, owner) && ownerMatches(right.SourceOwner, right.SourceOwnerKind, owner) &&
+		if sameOwnerSelects(owner) &&
+			ownerMatches(left.SourceOwner, left.SourceOwnerKind, owner) && ownerMatches(right.SourceOwner, right.SourceOwnerKind, owner) &&
 			ownerMatches(left.TargetOwner, left.TargetOwnerKind, owner) && ownerMatches(right.TargetOwner, right.TargetOwnerKind, owner) {
 			return true
 		}
 	}
 	return false
+}
+
+// sameOwnerSelects reports whether a same_owner rule can select owner as its
+// target. The shared kernel has no private side: every role reaches its
+// contract through the one owner-agnostic shared-kernel rule (ADR 0040), so a
+// same_owner rule never selects a kernel owner and cannot overlap that rule.
+func sameOwnerSelects(owner Owner) bool {
+	return owner.Kind != "kernel"
+}
+
+// sameOwnerSelectsID is sameOwnerSelects for an owner named by ID; an unknown
+// owner is left to the ordinary owner selectors.
+func (p *Policy) sameOwnerSelectsID(id string) bool {
+	for _, owner := range p.Owners {
+		if owner.ID == id {
+			return sameOwnerSelects(owner)
+		}
+	}
+	return true
 }
 
 func ownerSelectorsOverlap(leftID, leftKind, rightID, rightKind string, owners map[string]Owner) bool {

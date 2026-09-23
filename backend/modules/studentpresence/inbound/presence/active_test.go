@@ -18,7 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	tenantsettings "github.com/moto-nrw/project-phoenix/modules/settings"
 	presenceAPI "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -269,7 +269,7 @@ func TestEndActiveGroup(t *testing.T) {
 	t.Run("disabled web attendance blocks group teardown", func(t *testing.T) {
 		disabledSettings := &configtest.Mock{
 			ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
-				assert.Equal(t, configModel.KeyAttendanceWebEnabled, key)
+				assert.Equal(t, tenantsettings.KeyAttendanceWebEnabled, key)
 				return false, nil
 			},
 		}
@@ -2227,7 +2227,7 @@ func TestGetActiveGroupVisitsWithDisplay(t *testing.T) {
 	t.Parallel()
 	tc, router := setupFullCoverageRouter(t)
 	require.NoError(t, tc.settings.SetString(
-		testpkg.Ctx(t), configModel.KeyOperationalOverviewScope, configModel.OverviewScopeOwn, nil, nil,
+		testpkg.Ctx(t), tenantsettings.KeyOperationalOverviewScope, tenantsettings.OverviewScopeOwn, nil, nil,
 	))
 
 	// Create staff with account for claims

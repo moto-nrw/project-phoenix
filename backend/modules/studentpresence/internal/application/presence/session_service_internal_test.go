@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -1185,7 +1185,7 @@ func TestTransferActiveSupervisorsBetweenGroups_ErrorBranches(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 
 	t.Run("new supervisor lookup error", func(t *testing.T) {
 		call := 0
@@ -1400,7 +1400,7 @@ func TestSupervisorReplacement_ErrorBranches(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	startDate := timezone.TodayDate()
+	startDate := calendar.TodayDate()
 
 	t.Run("current supervisor lookup error", func(t *testing.T) {
 		expectedErr := errors.New("current supervisors failed")
@@ -1487,13 +1487,13 @@ func TestSupervisorReplacement_PreservesAdditionalSupervisors(t *testing.T) {
 		ID:        21,
 		StaffID:   11,
 		Role:      "additional_supervisor",
-		StartDate: timezone.TodayDate(),
+		StartDate: calendar.TodayDate(),
 	}
 	primary := &ports.GroupSupervisor{
 		ID:        20,
 		StaffID:   10,
 		Role:      "supervisor",
-		StartDate: timezone.TodayDate(),
+		StartDate: calendar.TodayDate(),
 	}
 
 	var updatedIDs, createdStaffIDs []int64
@@ -1636,12 +1636,12 @@ func TestCleanupOrphanedSupervisors_ErrorBranches(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 
 	t.Run("find failure is captured", func(t *testing.T) {
 		result := &DailySessionCleanupResult{Success: true}
 		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SupervisorRepo: &mockGroupSupervisorRepository{
-			findStaleOpenFunc: func(context.Context, timezone.Date) ([]*ports.GroupSupervisor, error) {
+			findStaleOpenFunc: func(context.Context, calendar.Date) ([]*ports.GroupSupervisor, error) {
 				return nil, errors.New("stale lookup failed")
 			},
 		}},
@@ -1662,7 +1662,7 @@ func TestCleanupOrphanedSupervisors_ErrorBranches(t *testing.T) {
 				return &ports.ActiveGroup{ID: 20}, nil
 			},
 		}, SupervisorRepo: &mockGroupSupervisorRepository{
-			findStaleOpenFunc: func(context.Context, timezone.Date) ([]*ports.GroupSupervisor, error) {
+			findStaleOpenFunc: func(context.Context, calendar.Date) ([]*ports.GroupSupervisor, error) {
 				return []*ports.GroupSupervisor{record}, nil
 			},
 			findByIDFunc: func(context.Context, interface{}) (*ports.GroupSupervisor, error) {
