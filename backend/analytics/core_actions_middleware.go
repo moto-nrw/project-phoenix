@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/jwtauth/v5"
 )
 
 // Analytics surfaces and roles, the same values the frontend sends
@@ -87,6 +88,17 @@ func CoreActionMiddleware(cfg CoreActionConfig) func(http.Handler) http.Handler 
 			cfg.Tracker.CaptureContext(r.Context(), distinctID(actor), action.Event, action.properties(actor))
 		})
 	}
+}
+
+// VerifiedSessionClaims returns the raw claims of the session token the root
+// verifier accepted for r (signature and expiry checked), or false when the
+// request carries none. The caller maps them onto its session model.
+func VerifiedSessionClaims(r *http.Request) (map[string]any, bool) {
+	token, claims, err := jwtauth.FromContext(r.Context())
+	if err != nil || token == nil {
+		return nil, false
+	}
+	return claims, true
 }
 
 func lookupCoreAction(r *http.Request) (CoreAction, bool) {
