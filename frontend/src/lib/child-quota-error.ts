@@ -54,7 +54,7 @@ export function childQuotaMessage(err: unknown): string | null {
   const { booked_places: booked, occupied_places: occupied } = coded.details;
   const stand =
     typeof booked === "number" && typeof occupied === "number"
-      ? ` ${occupied} von ${booked} Plätzen sind belegt.`
+      ? ` Die Kontingentzahl beträgt ${occupied} von ${booked} Kindern.`
       : "";
   return `Das Kinderkontingent Ihrer Schule ist voll.${stand} Für weitere Kinder melden Sie sich bitte beim moto-Team.`;
 }

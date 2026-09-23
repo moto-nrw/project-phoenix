@@ -57,7 +57,7 @@ describe("CareResumeModal", () => {
     await waitFor(() =>
       expect(
         screen.getByText(
-          "Das Kinderkontingent Ihrer Schule ist voll. 50 von 50 Plätzen sind belegt. Für weitere Kinder melden Sie sich bitte beim moto-Team.",
+          "Das Kinderkontingent Ihrer Schule ist voll. Die Kontingentzahl beträgt 50 von 50 Kindern. Für weitere Kinder melden Sie sich bitte beim moto-Team.",
         ),
       ).toBeInTheDocument(),
     );

@@ -10,7 +10,7 @@ function codedError(code: string, details?: unknown) {
 }
 
 describe("childQuotaMessage", () => {
-  it("names the Kinderkontingent with the booked and occupied places", () => {
+  it("names the Kinderkontingent with the booked and occupied children", () => {
     const error = codedError(CHILD_QUOTA_REACHED_CODE, {
       booked_places: 50,
       occupied_places: 50,
@@ -18,7 +18,7 @@ describe("childQuotaMessage", () => {
     });
 
     expect(childQuotaMessage(error)).toBe(
-      "Das Kinderkontingent Ihrer Schule ist voll. 50 von 50 Plätzen sind belegt. Für weitere Kinder melden Sie sich bitte beim moto-Team.",
+      "Das Kinderkontingent Ihrer Schule ist voll. Die Kontingentzahl beträgt 50 von 50 Kindern. Für weitere Kinder melden Sie sich bitte beim moto-Team.",
     );
   });
 
@@ -33,7 +33,7 @@ describe("childQuotaMessage", () => {
     });
 
     expect(childQuotaMessage(error)).toContain(
-      "102 von 100 Plätzen sind belegt.",
+      "Die Kontingentzahl beträgt 102 von 100 Kindern.",
     );
   });
 

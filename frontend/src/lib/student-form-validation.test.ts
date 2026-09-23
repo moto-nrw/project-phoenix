@@ -394,7 +394,7 @@ describe("handleStudentFormSubmit", () => {
     const error = Object.assign(new Error("child quota reached"), {
       status: 409,
       body: JSON.stringify({
-        error: "child quota reached: 50 of 50 places occupied, 1 requested",
+        error: "child quota reached: 50 of 50 children occupied, 1 requested",
         code: "students.child_quota_reached",
         details: {
           booked_places: 50,
@@ -416,7 +416,7 @@ describe("handleStudentFormSubmit", () => {
 
     expect(mockSetErrors).toHaveBeenCalledWith({
       submit:
-        "Das Kinderkontingent Ihrer Schule ist voll. 50 von 50 Plätzen sind belegt. Für weitere Kinder melden Sie sich bitte beim moto-Team.",
+        "Das Kinderkontingent Ihrer Schule ist voll. Die Kontingentzahl beträgt 50 von 50 Kindern. Für weitere Kinder melden Sie sich bitte beim moto-Team.",
     });
   });
 

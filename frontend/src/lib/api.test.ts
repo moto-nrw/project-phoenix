@@ -411,6 +411,49 @@ describe("api.ts helper functions", () => {
         }),
       ).rejects.toThrow("School class is required");
     });
+
+    it("keeps structured child quota details from the browser response", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              error: "child quota reached",
+              code: "students.child_quota_reached",
+              details: {
+                booked_places: 50,
+                occupied_places: 50,
+                requested_places: 1,
+              },
+            }),
+          ),
+      });
+      const { studentService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await expect(
+          studentService.createStudent({
+            first_name: "Test",
+            second_name: "Student",
+            school_class: "1a",
+            name: "Test Student",
+            current_location: "",
+          }),
+        ).rejects.toMatchObject({
+          status: 409,
+          code: "students.child_quota_reached",
+          details: {
+            booked_places: 50,
+            occupied_places: 50,
+            requested_places: 1,
+          },
+        });
+      } finally {
+        restore();
+      }
+    });
   });
 
   describe("studentService.getSchoolClasses", () => {

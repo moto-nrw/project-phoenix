@@ -104,6 +104,8 @@ func TestChildQuotaCountsActiveAndPendingChildren(t *testing.T) {
 	testpkg.CreateTestStudent(t, db, "Aktiv", "Zählt", "1a")
 	pending := testpkg.CreateTestStudent(t, db, "Vorgemerkt", "Zählt", "1a")
 	setMembership(t, db, tenantID, pending.ID, "status = 'pending', enrolled_from = '2099-08-01'")
+	pendingStarted := testpkg.CreateTestStudent(t, db, "Vorgemerkt", "Begonnen", "1a")
+	setMembership(t, db, tenantID, pendingStarted.ID, "status = 'pending', enrolled_from = '2020-07-31'")
 	for _, status := range []string{"inactive", "alumnus"} {
 		student := testpkg.CreateTestStudent(t, db, "Frei", status, "1a")
 		setMembership(t, db, tenantID, student.ID, "status = ?", status)
@@ -127,6 +129,7 @@ func TestChildQuotaCountsActiveAndPendingChildren(t *testing.T) {
 	pendingChild := unenrolledStudent(t, db, tenantID, "Später")
 	input := enrollment(pendingChild)
 	input.Status = "pending"
+	input.EnrolledFrom = "2099-08-01"
 	_, err = module.Enroll(ctx, input)
 	requireQuotaReached(t, err, 3, 3, 1)
 
