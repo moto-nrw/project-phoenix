@@ -39,6 +39,11 @@ var queryBudgets = map[string]queryBudget{
 	// organization summaries, and one device read through the Device Fleet
 	// owner. Flat in the number of devices.
 	"repositories.operator.device_rows": {max: 3},
+	// services — the operator school listing (#3568), organizationtenancy
+	// Provisioning.ListSchoolSummaries: the school rows plus one aggregate
+	// each for accounts, devices, persons and the Kontingentzahl, eight
+	// statements in all. Flat in the number of schools and children.
+	"services.operator.school_summaries": {max: 8},
 	// modules — the operator billing report (#2791), organizationtenancy
 	// BillingReport. The listing is one read of the captured rows. A capture
 	// is the key day, the schools still missing, and one insert for all of
