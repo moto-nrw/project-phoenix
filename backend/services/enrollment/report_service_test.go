@@ -1518,7 +1518,9 @@ func (s *fakeCareUsagePickupScheduleSvc) GetWeeklySchedulesByStudentIDsForDate(_
 func TestCareUsageEnrichesGuardiansAndSchedulePickup(t *testing.T) {
 	t.Parallel()
 
-	reportDate := timezone.NewDate(2026, 8, 24).AddDays(30)
+	// A phase that has not started yet: the report clamps the offering date to
+	// the service start, so the expectation holds whenever the test runs.
+	reportDate := timezone.NewDate(2099, 9, 1)
 	studentID := int64(700)
 	excludedStudentID := int64(701)
 	guardianEmail := "max@example.org"

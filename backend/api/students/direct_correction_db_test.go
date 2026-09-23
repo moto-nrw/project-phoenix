@@ -37,7 +37,11 @@ type correctionFixture struct {
 
 func setupCorrectionFixture(t *testing.T, tc *testContext, studentID, tenantID int64, lastName string) *correctionFixture {
 	t.Helper()
-	phase := testpkg.CreateTestEnrollmentPhase(t, tc.db)
+	// This package runs on fixedCalendarClock, so the service window has to
+	// cover studentsTestToday instead of the real calendar day.
+	phase := testpkg.CreateTestEnrollmentPhaseForServiceWindow(
+		t, tc.db, studentsTestToday.AddDays(-30), studentsTestToday.AddDays(300),
+	)
 	ganztag := testpkg.CreateTestCareOffering(t, tc.db, phase.ID, "Ganztag")
 	mittag := testpkg.CreateTestCareOffering(t, tc.db, phase.ID, "Mittagessen")
 
