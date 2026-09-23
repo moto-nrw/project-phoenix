@@ -3,10 +3,10 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 22.09.2026 · Ratchet 568 · Composition 623 · Policy-Epoche 24 · 129 Regeln mit
+Stand 23.09.2026 · Ratchet 597 · Composition 623 · Policy-Epoche 24 · 102 Regeln mit
 `convert it to exact debt` · 52.901 LOC unter `modules/*/legacy`
 
-Summenprobe: 251 + 4 + 61 + 43 + 28 + 19 + 162 = 568 = `wc -l backend/architecture/legacy.jsonl`.
+Summenprobe: 251 + 29 + 4 + 61 + 43 + 28 + 19 + 162 = 597 = `wc -l backend/architecture/legacy.jsonl`.
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Entscheidungen
@@ -36,9 +36,9 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [x] [#3420](https://github.com/moto-nrw/project-phoenix/issues/3420) `workflows/parentportal/legacy` aufgelöst — 5.881 LOC, 46 Kompatibilitätsregeln weg, Schreibpfade als Owner-Commands (Care Plan, People Directory, Audit Platform); offen: Announcement-Quittungen in `messaging` (Communication)
 - [x] [#3410](https://github.com/moto-nrw/project-phoenix/issues/3410) `modules/careplan/legacy` Wurzelpaket aufgelöst — 874 LOC, 15 Keys weniger (644 → 629)
 
-## Schuld sichtbar machen · 129 Regeln
+## Schuld sichtbar machen · 102 Regeln, 29 Keys
 
-- [ ] [#3421](https://github.com/moto-nrw/project-phoenix/issues/3421) `inbound-parent.*` zu exaktem Debt konvertieren — 34 Regeln
+- [ ] [#3421](https://github.com/moto-nrw/project-phoenix/issues/3421) `inbound-parent.*` zu exaktem Debt konvertiert — 27 Regeln weg, 29 Keys unter #3421 (568 → 597); offen: Keys abbauen, dann schließen
 - [ ] [#3416](https://github.com/moto-nrw/project-phoenix/issues/3416) `issue`-Feld an Policy-Regeln und `rules.stale`
 - [ ] [#3423](https://github.com/moto-nrw/project-phoenix/issues/3423) Die acht neuen Quality-Ratchets auf null fahren
 
