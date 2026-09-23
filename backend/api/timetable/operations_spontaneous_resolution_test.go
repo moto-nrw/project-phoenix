@@ -13,7 +13,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
@@ -34,7 +33,7 @@ func TestOperationsCreateAndStartSpontaneousResolvesActivityAgainstRealRepositor
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := mustTimetableTestRepositories(db)
 	room := testpkg.CreateTestRoom(t, db, "Spontanraum")
 	staff := testpkg.CreateTestStaff(t, db, "Spontan", "Starter")
 	existingGroup := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Bestehende AG %d", time.Now().UnixNano()))
