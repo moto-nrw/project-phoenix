@@ -198,6 +198,9 @@ func (s *GuardianStore) DeletePhone(ctx context.Context, phoneID int64) (bool, d
 // The composite foreign keys reject rows of another school. A primary link
 // first demotes the child's other primary: the relationship table keeps one
 // per child with a partial unique index instead of the old demotion trigger.
+// The demotion is guarded on the absent pair, so a re-link of an already
+// linked guardian stays the no-op it reports and never leaves the child
+// without a primary.
 func (s *GuardianStore) InsertLinkIfAbsent(ctx context.Context, link domain.GuardianLinkRecord) (int64, domain.OperationStats, error) {
 	db, tenantID, err := s.tenantDB(ctx)
 	if err != nil {
@@ -207,8 +210,14 @@ func (s *GuardianStore) InsertLinkIfAbsent(ctx context.Context, link domain.Guar
 	started := time.Now()
 	if link.IsPrimary {
 		stats.Queries++
-		if _, err := db.NewRaw(`UPDATE users.student_guardian_relationships SET is_primary = FALSE
-			WHERE tenant_id = ? AND student_id = ? AND is_primary`, tenantID, link.StudentID).Exec(ctx); err != nil {
+		if _, err := db.NewRaw(`UPDATE users.student_guardian_relationships AS relationship SET is_primary = FALSE
+			WHERE relationship.tenant_id = ? AND relationship.student_id = ? AND relationship.is_primary
+				AND NOT EXISTS (
+					SELECT 1 FROM users.student_guardian_relationships AS linked
+					WHERE linked.tenant_id = relationship.tenant_id
+						AND linked.student_id = relationship.student_id
+						AND linked.guardian_profile_id = ?)`,
+			tenantID, link.StudentID, link.GuardianProfileID).Exec(ctx); err != nil {
 			stats.StatementDuration = time.Since(started)
 			return 0, stats, wrapGuardianWriteError("demote primary guardian", err)
 		}

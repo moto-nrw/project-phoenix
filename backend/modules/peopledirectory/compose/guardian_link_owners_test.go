@@ -113,3 +113,51 @@ func TestGuardianPortalLinkRollsBackAfterEveryOwnerCommand(t *testing.T) {
 	require.False(t, stored.IsEmergencyContact)
 	require.True(t, stored.CanPickup)
 }
+
+// A parents-portal re-link naming a primary writes no relationship, so it must
+// not demote the child's primary either. The old table's BEFORE INSERT trigger
+// demoted before the conflict check and could leave the child without one.
+func TestGuardianPortalRelinkLeavesThePrimaryAlone(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	tenantID := testpkg.Tenant(t)
+	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Portal", "Relink", "1a")
+	primary := testpkg.CreateTestGuardianProfileForTenant(t, db, tenantID, "Portal", "Primary", "portal-relink-primary")
+	other := testpkg.CreateTestGuardianProfileForTenant(t, db, tenantID, "Portal", "Other", "portal-relink-other")
+	module := buildModuleWithLinkOwners(t, db, testGuardianLinkOwners{db: db})
+
+	primaryLink := peopledirectory.GuardianContactLink{
+		StudentID: student.ID, GuardianProfileID: primary.ID, RelationshipType: "parent", IsPrimary: true,
+	}
+	_, inserted, err := module.LinkGuardianContact(ctx, primaryLink)
+	require.NoError(t, err)
+	require.True(t, inserted)
+	otherLink := peopledirectory.GuardianContactLink{
+		StudentID: student.ID, GuardianProfileID: other.ID, RelationshipType: "parent",
+	}
+	_, inserted, err = module.LinkGuardianContact(ctx, otherLink)
+	require.NoError(t, err)
+	require.True(t, inserted)
+
+	// Re-linking either pair as primary changes nothing.
+	for _, relink := range []peopledirectory.GuardianContactLink{primaryLink, {
+		StudentID: student.ID, GuardianProfileID: other.ID, RelationshipType: "parent", IsPrimary: true,
+	}} {
+		_, inserted, err = module.LinkGuardianContact(ctx, relink)
+		require.NoError(t, err)
+		require.False(t, inserted)
+		require.True(t, readGuardianLink(t, db, student.ID, primary.ID).IsPrimary, "the child keeps its primary guardian")
+		require.False(t, readGuardianLink(t, db, student.ID, other.ID).IsPrimary)
+	}
+
+	// A new pair still demotes: the insert writes a row.
+	third := testpkg.CreateTestGuardianProfileForTenant(t, db, tenantID, "Portal", "Third", "portal-relink-third")
+	_, inserted, err = module.LinkGuardianContact(ctx, peopledirectory.GuardianContactLink{
+		StudentID: student.ID, GuardianProfileID: third.ID, RelationshipType: "parent", IsPrimary: true,
+	})
+	require.NoError(t, err)
+	require.True(t, inserted)
+	require.False(t, readGuardianLink(t, db, student.ID, primary.ID).IsPrimary)
+	require.True(t, readGuardianLink(t, db, student.ID, third.ID).IsPrimary)
+}

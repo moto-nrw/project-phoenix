@@ -152,6 +152,27 @@ func demoteOtherPrimaries(ctx context.Context, db bun.IDB, tenantID, studentID, 
 	return nil
 }
 
+// demoteOtherPrimariesForNewPair clears the primary flag of the child's other
+// relationships, but only while the (tenant, student, guardian) pair is not
+// linked yet. The demotion has to precede the insert because the relationship
+// table keeps one primary per child with a partial unique index, and guarding
+// it on the absent pair keeps a re-link of an already-linked guardian the pure
+// no-op its callers document: the insert then writes nothing, so nothing may
+// strip the child's primary either.
+func demoteOtherPrimariesForNewPair(ctx context.Context, db bun.IDB, tenantID, studentID, guardianProfileID int64) error {
+	if _, err := db.NewRaw(`UPDATE users.student_guardian_relationships AS relationship SET is_primary = FALSE
+		WHERE relationship.tenant_id = ? AND relationship.student_id = ? AND relationship.is_primary
+			AND NOT EXISTS (
+				SELECT 1 FROM users.student_guardian_relationships AS linked
+				WHERE linked.tenant_id = relationship.tenant_id
+					AND linked.student_id = relationship.student_id
+					AND linked.guardian_profile_id = ?)`,
+		tenantID, studentID, guardianProfileID).Exec(ctx); err != nil {
+		return fmt.Errorf("demote other primary guardians: %w", err)
+	}
+	return nil
+}
+
 const insertRelationshipSQL = `INSERT INTO users.student_guardian_relationships AS relationship
 	(tenant_id, student_id, guardian_profile_id, relationship_type, guardian_role,
 	 is_primary, is_emergency_contact, emergency_priority, is_payer)
@@ -175,7 +196,13 @@ const insertRelationshipIfAbsentSQL = `INSERT INTO users.student_guardian_relati
 func (r *GuardianRelationshipRepository) insertRelationship(ctx context.Context, rel *users.StudentGuardian, ifAbsent bool) (int64, *int64, error) {
 	db := base.GetDB(ctx, r.db)
 	if rel.IsPrimary {
-		if err := demoteOtherPrimaries(ctx, db, rel.TenantID, rel.StudentID, 0); err != nil {
+		demote := func() error { return demoteOtherPrimaries(ctx, db, rel.TenantID, rel.StudentID, 0) }
+		if ifAbsent {
+			demote = func() error {
+				return demoteOtherPrimariesForNewPair(ctx, db, rel.TenantID, rel.StudentID, rel.GuardianProfileID)
+			}
+		}
+		if err := demote(); err != nil {
 			return 0, nil, err
 		}
 	}
@@ -274,9 +301,11 @@ func (r *GuardianRelationshipRepository) Create(ctx context.Context, rel *users.
 // race-safe and leaves the transaction usable. Only a new relationship gets
 // its Care Plan and Identity halves.
 //
-// A primary link demotes the child's other primaries even when the pair is
-// linked already, as the old table's demotion trigger did before its conflict
-// check.
+// A primary link demotes the child's other primaries only when it writes a
+// new row. The old table's BEFORE INSERT trigger demoted before the conflict
+// check, so a re-link naming a primary could leave the child without one;
+// that contradicted the no-op the link callers document and is not carried
+// over.
 func (r *GuardianRelationshipRepository) LinkIfNotExists(ctx context.Context, rel *users.StudentGuardian) (bool, error) {
 	if rel == nil {
 		return false, fmt.Errorf("student guardian cannot be nil")

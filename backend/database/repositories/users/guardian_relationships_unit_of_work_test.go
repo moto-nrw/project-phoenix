@@ -234,6 +234,57 @@ func TestGuardianRelationshipPromotionDemotesThePreviousPrimary(t *testing.T) {
 	require.Equal(t, firstLink.ID, primaries[0].ID)
 }
 
+// A re-link naming a primary must not touch the child's other relationships:
+// the insert writes nothing, so the demotion must not run either. The old
+// table's BEFORE INSERT trigger demoted before the conflict check and could
+// leave the child without a primary.
+func TestGuardianRelationshipRelinkLeavesThePrimaryAlone(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	tenantID := testpkg.Tenant(t)
+	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Relink", "Child", "2a")
+	primary := testpkg.CreateTestGuardianProfileForTenant(t, db, tenantID, "Relink", "Primary", "unit-of-work-relink-primary")
+	other := testpkg.CreateTestGuardianProfileForTenant(t, db, tenantID, "Relink", "Other", "unit-of-work-relink-other")
+	store := newRelationshipStore(db, &sqlGuardianOwners{db: db})
+	primaryLink := newLink(student.ID, primary.ID)
+	require.NoError(t, store.Create(ctx, primaryLink))
+	otherLink := newLink(student.ID, other.ID)
+	otherLink.IsPrimary = false
+	require.NoError(t, store.Create(ctx, otherLink))
+
+	// Re-linking the primary guardian itself.
+	inserted, err := store.LinkIfNotExists(ctx, newLink(student.ID, primary.ID))
+	require.NoError(t, err)
+	require.False(t, inserted)
+	primaries, err := store.List(ctx, map[string]any{"student_id": student.ID, "is_primary": true})
+	require.NoError(t, err)
+	require.Len(t, primaries, 1, "the child keeps its primary guardian")
+	require.Equal(t, primaryLink.ID, primaries[0].ID)
+
+	// Re-linking the other guardian as primary leaves the stored flags alone.
+	relink := newLink(student.ID, other.ID)
+	relink.IsPrimary = true
+	inserted, err = store.LinkIfNotExists(ctx, relink)
+	require.NoError(t, err)
+	require.False(t, inserted)
+	primaries, err = store.List(ctx, map[string]any{"student_id": student.ID, "is_primary": true})
+	require.NoError(t, err)
+	require.Len(t, primaries, 1)
+	require.Equal(t, primaryLink.ID, primaries[0].ID)
+
+	// A new pair still demotes: the insert writes a row.
+	third := testpkg.CreateTestGuardianProfileForTenant(t, db, tenantID, "Relink", "Third", "unit-of-work-relink-third")
+	newPair := newLink(student.ID, third.ID)
+	inserted, err = store.LinkIfNotExists(ctx, newPair)
+	require.NoError(t, err)
+	require.True(t, inserted)
+	primaries, err = store.List(ctx, map[string]any{"student_id": student.ID, "is_primary": true})
+	require.NoError(t, err)
+	require.Len(t, primaries, 1)
+	require.Equal(t, newPair.ID, primaries[0].ID)
+}
+
 func TestGuardianRelationshipStoreStaysInsideTheTenant(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
