@@ -159,8 +159,9 @@ keys through 1Password/Signal, never Slack/email.
    Demo deploys only through manual dispatch from `main`; see
    [demo environment](../operations/demo-environment.md) for host setup and ports.
 3. CI decrypts and copies `.env` and compose to `~/<environment>/` and the release
-   scripts to `~/scripts/<environment>/`. Environments deploy concurrently on one
-   host, so they never share a script directory.
+   scripts to `~/scripts/<environment>/`. Staging and production deploy
+   concurrently on one host, so they never share a script directory; demo runs
+   on its own VM with the same layout.
 4. Deployment pulls images, runs `migrate preflight`, backs up the DB, migrates,
    starts, and healthchecks; failures after the backup trigger rollback.
 
@@ -187,7 +188,7 @@ before changing deployment environments or maintenance jobs.
 
 CI uses `SOPS_AGE_KEY`, `STAGING_SSH_*`, `PRODUCTION_SSH_*`, and `DEMO_SSH_*` secrets;
 failure recipients are in the `DEPLOY_NOTIFY_EMAILS` repository variable.
-Server layout is `~/{staging,production,demo}/` (`.env`, `docker-compose.yml`,
+Server layout on each host is `~/{staging,production,demo}/` (`.env`, `docker-compose.yml`,
 `.deploy-state`) and `~/backups/{env}/` (3 staging / 7 production / 3 demo complete
 snapshot sets). See [complete release backup and rollback](../operations/release-backup-rollback.md)
 for snapshot contents, verification, manual recovery and data-loss boundaries.
