@@ -1,0 +1,92 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#3557"
+  ],
+  "owner_and_capability": "Timetable & Activities (api/timetable inbound HTTP) — bounded Contract step for #2732: the spontaneous-start handler recognises the repository not-found sentinel through api/common.IsNotFound instead of database/sql.ErrNoRows",
+  "affected_packages": [
+    "api/timetable"
+  ],
+  "affected_tables": [
+    "activities.groups",
+    "activities.categories",
+    "facilities.rooms"
+  ],
+  "exact_ratchet_keys": [
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|database/sql"
+  ],
+  "atomic_cutover": "One code-only commit: the three not-found checks in api/timetable/operations.go (room, activity group and activity category lookups of the spontaneous start) switch from errors.Is(err, sql.ErrNoRows) to common.IsNotFound(err), and the database/sql import disappears with them. The repositories already returned the not-found sentinel, so the old check never matched (#3557). No second provider, no fallback, no policy rule added.",
+  "tests": [
+    "api/timetable TestOperationsCreateAndStartSpontaneousResolvesActivityAgainstRealRepositories against the real room, activity group and category repositories on the isolated PostgreSQL test database.",
+    "api/timetable spontaneous-start unit tests, with fakes that return the same not-found sentinel as the real repositories.",
+    "scripts/test-changed.sh origin/development without --fast, and the source-level ratchet tests in backend/test."
+  ],
+  "runtime_evidence": {
+    "source": "Local test runs on the PR branch for #3557, 2026-09-23; PR https://github.com/moto-nrw/project-phoenix/pull/3580.",
+    "sources": [
+      "https://github.com/moto-nrw/project-phoenix/pull/3580"
+    ],
+    "workload": "No load run. Go test suites against the local isolated PostgreSQL test database through scripts/test-changed.sh origin/development.",
+    "thresholds": "Code-only Contract: zero database/sql imports in api/timetable and the listed key absent. scripts/backend-architecture.sh check must pass with exactly this key removed and none added.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "Code-only Contract: only the error classification in the handler changed; no SQL statement, table mapping or write path changed."
+    },
+    "query_count": {
+      "state": "not_applicable",
+      "reason": "The handler makes the same repository calls in the same order; no query was added, moved or removed."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No latency run was made. The change replaces one errors.Is with one errors.As over the same error chain; #2732 names zero keys as the gate for a code-only Contract."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No latency run was made. The change replaces one errors.Is with one errors.As over the same error chain; #2732 names zero keys as the gate for a code-only Contract."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "scripts/test-changed.sh origin/development reported every affected package ok; golangci-lint on api/timetable reported 0 issues; scripts/backend-architecture.sh check passed with 588 remaining keys and an unchanged composition surface of 623."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection acquisition, transaction boundary or pool setting changed."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "The spontaneous-start advisory locks and repository statements are unchanged, so no lock behaviour can differ."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No statement or transaction boundary changed, so no lock ordering can differ."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The affected handler has no worker or scheduler path."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "The affected handler has no worker or scheduler path."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "The affected handler has no worker or scheduler path."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "Before the change the integration test returned 500 with 'database error during find group by name: repository: not found' for a new title; after it, a new title creates the group and the Spontan category (201), and a deleted room returns 400."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data write path or schema change. Reverting the commit restores the old checks and the import."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "go build ./... passed and the handler integration test passed against the isolated test database. No manual application start or HTTP smoke run was made."
+    }
+  },
+  "rollback_and_cleanup": "Revert the code-only commit if needed. No table, migration or configuration is touched, and nothing remains to clean up.",
+  "exit_criterion": "api/timetable no longer imports database/sql; the listed key is absent from legacy.jsonl; scripts/backend-architecture.sh check passes with no new key and no added policy rule. #2732 stays open for the remaining api/timetable keys."
+}
