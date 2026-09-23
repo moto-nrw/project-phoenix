@@ -280,6 +280,9 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 			observability.ObserveSchoolMembershipOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, schoolMembershipModule.ErrorCode(observation.Err), observation.Err)
 		},
 		Employment: repositories.MembershipStaffEmployment(staffEmployment),
+		// Every counting membership write is checked against the school's
+		// Kinderkontingent, which Organisation & Tenancy owns (#3567).
+		ChildQuota: organizationCompose.NewChildQuotaLimits(),
 	})
 	if err != nil {
 		return moduleServices{}, err

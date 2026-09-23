@@ -1341,6 +1341,14 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 
 		case "/operator/schools":
+			// The Kinderkontingent step (#3567) reads the school back.
+			if r.Method == seedHTTPMethodGet {
+				_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []map[string]any{{
+					"id": 1, "organization_id": 1, "name": "Demo-Schule Vollbetrieb",
+					"slug": "vollbetrieb", "subdomain": "vollbetrieb", "active": true,
+				}}})
+				return
+			}
 			var body struct {
 				Slug string `json:"slug"`
 			}

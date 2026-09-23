@@ -287,6 +287,7 @@ type Capability interface {
 
 type engine interface {
 	TransitionStudentStatus(context.Context, int64, string, string) (bool, error)
+	SetStudentStatus(context.Context, int64, string) (bool, error)
 	EnrollStudent(context.Context, StudentEnrollment) (int64, error)
 	RenewStudentEnrollment(context.Context, StudentEnrollment) (int64, error)
 	AssignStudentGroup(context.Context, int64, *int64) (bool, error)
@@ -294,7 +295,7 @@ type engine interface {
 	EndStudentCare(context.Context, []int64, string) (int64, error)
 	ResumeStudentCare(context.Context, int64, string, string, string) (bool, error)
 	GraduateStudents(context.Context, []int64) (int64, error)
-	ReactivateStudents(context.Context, []int64, string) ([]int64, error)
+	ReactivateStudents(ctx context.Context, ids []int64, status string, enforceChildQuota bool) ([]int64, error)
 	ChangeStudentClass(context.Context, []int64, string, string) (int64, error)
 	FindStaff(ctx context.Context, id int64, lock string) (Staff, error)
 	FindStaffByPerson(context.Context, int64) (Staff, error)
@@ -667,6 +668,8 @@ func ErrorCode(err error) string {
 		return "class_assignment_conflict"
 	case errors.Is(err, ErrGroupAssignmentConflict):
 		return "group_assignment_conflict"
+	case errors.Is(err, ErrChildQuotaReached):
+		return "child_quota_reached"
 	default:
 		return "internal_error"
 	}

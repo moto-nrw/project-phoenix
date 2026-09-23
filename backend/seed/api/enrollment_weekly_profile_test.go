@@ -81,6 +81,15 @@ func (m *weeklyProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, r *
 		_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"written": 4}})
 		return true
 	}
+	// The Kinderkontingent step (#3567) reads the full demo school back to
+	// resend its editable fields with the quota.
+	if r.Method == "GET" && r.URL.Path == "/operator/schools" {
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []map[string]any{{
+			"id": 1, "organization_id": 1, "name": "Demo-Schule Vollbetrieb",
+			"slug": "vollbetrieb", "subdomain": "vollbetrieb", "active": true,
+		}}})
+		return true
+	}
 	var body map[string]any
 	if r.Method == "POST" || r.Method == "PUT" {
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))

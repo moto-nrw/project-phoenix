@@ -245,6 +245,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		)
 	}
 	steps = append(steps,
+		seedChildQuotaStep{},
 		seedBillingKeyDateCountsStep{},
 		buildStateStep{seeder: seeder},
 		printSummaryStep{seeder: seeder},
