@@ -125,13 +125,13 @@ describe("Arbeitszeitmodell preview", () => {
     expect(within(row).getByText("42h 30min")).toBeInTheDocument();
   });
 
-  it("counts closing days as 0 and shows 0h on a 0-hour Sonderarbeitszeit", () => {
+  it("counts closing days as 0 and shows 0min on a 0-hour Sonderarbeitszeit", () => {
     render(<ArbeitszeitmodellTab staffId="42" canEdit={false} />);
 
     const row = weekRow("KW 40");
-    expect(within(row).getByText("0h")).toBeInTheDocument();
-    expect(within(row).getAllByText("-")).toHaveLength(4);
-    expect(within(row).getByText("0min")).toBeInTheDocument();
+    // Day and week total use the same formatter: "0min".
+    expect(within(row).getAllByText("0min")).toHaveLength(2);
+    expect(within(row).getAllByText("–")).toHaveLength(4);
   });
 
   it("invents no Soll from the current model while the daily Soll is missing", () => {
@@ -140,8 +140,12 @@ describe("Arbeitszeitmodell preview", () => {
     render(<ArbeitszeitmodellTab staffId="42" canEdit={false} />);
 
     expect(within(weekRow("KW 38")).queryByText("8h")).toBeNull();
-    expect(within(weekRow("KW 38")).getAllByText("?").length).toBeGreaterThan(
-      0,
-    );
+    expect(within(weekRow("KW 38")).queryByText("?")).toBeNull();
+    expect(within(weekRow("KW 38")).getAllByText("–")).toHaveLength(6);
+    expect(
+      screen.getByText(
+        "Das Soll der nächsten Wochen konnte nicht geladen werden. Bitte laden Sie die Seite neu.",
+      ),
+    ).toBeInTheDocument();
   });
 });

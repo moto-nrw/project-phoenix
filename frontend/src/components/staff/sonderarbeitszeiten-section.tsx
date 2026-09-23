@@ -1,5 +1,6 @@
 "use client";
 
+import { Plus } from "lucide-react";
 import { useState } from "react";
 import { useSWRConfig } from "swr";
 
@@ -9,6 +10,7 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
+import { useFormError } from "~/components/ui/form-error";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
 import {
@@ -17,6 +19,7 @@ import {
 } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
 import { useToast } from "~/contexts/ToastContext";
+import { formatClosingDayRange } from "~/lib/closing-day-helpers";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
@@ -33,22 +36,56 @@ import {
 
 const logger = createLogger({ component: "SonderarbeitszeitenSection" });
 
-// A Sonderarbeitszeit changes the Soll of its days exactly like a model
-// change, so the same caches go stale.
-function isStaleAfterOverrideChange(key: unknown): boolean {
-  return isStaleAfterModelSave(key);
-}
-
 type Draft = {
   readonly startDate: string;
   readonly endDate: string;
   readonly hours: string;
 };
 
+type FieldErrors = {
+  readonly startDate?: string;
+  readonly endDate?: string;
+  readonly hours?: string;
+};
+
+// A range reads like a closing day: "TT.MM.JJJJ – TT.MM.JJJJ", one date for a
+// single day.
+function formatRange(row: StaffTargetOverride): string {
+  return formatClosingDayRange({
+    id: row.id,
+    startDate: row.startDate,
+    endDate: row.endDate,
+    reason: "",
+  });
+}
+
+function validateDraft(draft: Draft): {
+  readonly fields: FieldErrors;
+  readonly minutes: number | null;
+} {
+  const parsed = parseDecimalHours(draft.hours);
+  const fields: FieldErrors = {
+    startDate: draft.startDate ? undefined : "Bitte den ersten Tag wählen.",
+    endDate: !draft.endDate
+      ? "Bitte den letzten Tag wählen."
+      : draft.startDate && draft.endDate < draft.startDate
+        ? "Der letzte Tag liegt vor dem ersten Tag."
+        : undefined,
+    hours:
+      parsed.status === "valid"
+        ? undefined
+        : "Bitte 0 bis 12 Stunden eingeben, zum Beispiel 8,5.",
+  };
+  return {
+    fields,
+    minutes: parsed.status === "valid" ? parsed.minutes : null,
+  };
+}
+
 // Sonderarbeitszeiten (#3259): a different daily Soll for a date range, for
-// example holiday care inside the autumn closure. Listed below the model on
-// the Arbeitszeitmodell tab; managers add and delete them here. A wrong
-// entry is deleted and entered again, there is no edit (#3259).
+// example holiday care inside the autumn closure. Listed on the
+// Arbeitszeitmodell tab; managers add and delete them here. A wrong entry is
+// deleted and entered again, there is no edit.
 export function SonderarbeitszeitenSection({
   staffId,
   canEdit,
@@ -56,61 +93,55 @@ export function SonderarbeitszeitenSection({
   readonly staffId: string;
   readonly canEdit: boolean;
 }) {
-  const listKey = `staff-target-overrides-${staffId}`;
   const {
     data: overrides,
     error: loadError,
     isLoading,
     mutate: mutateList,
-  } = useSWRAuth(listKey, () => staffTargetOverrideService.list(staffId));
+  } = useSWRAuth(`staff-target-overrides-${staffId}`, () =>
+    staffTargetOverrideService.list(staffId),
+  );
   const { mutate } = useSWRConfig();
   const toast = useToast();
 
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formError, setFormError] = useFormError();
   const [deleteTarget, setDeleteTarget] = useState<StaffTargetOverride | null>(
     null,
   );
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
 
+  // A Sonderarbeitszeit changes the Soll of its days like a model change.
   const refresh = () => {
     void mutateList();
-    void mutate(isStaleAfterOverrideChange);
+    void mutate(isStaleAfterModelSave);
   };
 
   const openCreate = () => {
     setFormError(null);
+    setFieldErrors({});
     setDraft({ startDate: "", endDate: "", hours: "" });
   };
 
   const handleSave = async () => {
     if (!draft) return;
-    if (!draft.startDate || !draft.endDate) {
-      setFormError("Bitte wählen Sie den ersten und den letzten Tag.");
+    const { fields, minutes } = validateDraft(draft);
+    setFieldErrors(fields);
+    if (minutes === null || fields.startDate || fields.endDate) {
+      setFormError("Bitte die markierten Felder prüfen.");
       return;
     }
-    if (draft.endDate < draft.startDate) {
-      setFormError("Der letzte Tag liegt vor dem ersten Tag.");
-      return;
-    }
-    const parsed = parseDecimalHours(draft.hours);
-    if (parsed.status !== "valid") {
-      setFormError(
-        "Bitte geben Sie die Stunden pro Tag ein, zum Beispiel 8,5. Erlaubt sind 0 bis 12.",
-      );
-      return;
-    }
-    const input = {
-      startDate: draft.startDate,
-      endDate: draft.endDate,
-      dailyMinutes: parsed.minutes,
-    };
     setSaving(true);
     setFormError(null);
     try {
-      await staffTargetOverrideService.create(staffId, input);
+      await staffTargetOverrideService.create(staffId, {
+        startDate: draft.startDate,
+        endDate: draft.endDate,
+        dailyMinutes: minutes,
+      });
       toast.success("Sonderarbeitszeit angelegt.");
       setDraft(null);
       refresh();
@@ -143,15 +174,25 @@ export function SonderarbeitszeitenSection({
     }
   };
 
+  const createButton = canEdit ? (
+    <Button
+      type="button"
+      variant="primary"
+      size="md"
+      onClick={openCreate}
+      className="shrink-0 gap-2"
+    >
+      <Plus className="h-4 w-4" aria-hidden="true" />
+      Sonderarbeitszeit anlegen
+    </Button>
+  ) : undefined;
+
   const columns: DataTableColumn<StaffTargetOverride>[] = [
     {
       key: "range",
       header: "Zeitraum",
       stacked: "title",
-      render: (row) =>
-        row.startDate === row.endDate
-          ? formatDate(row.startDate)
-          : `${formatDate(row.startDate)} bis ${formatDate(row.endDate)}`,
+      render: formatRange,
       sortValue: (row) => row.startDate,
     },
     {
@@ -196,18 +237,7 @@ export function SonderarbeitszeitenSection({
       title="Sonderarbeitszeiten"
       headingLevel={3}
       description="Für einen Zeitraum gelten andere Stunden pro Tag, zum Beispiel für die Ferienbetreuung. Sie gelten Montag bis Freitag, auch an Schließtagen. Feiertage bleiben frei. Danach gilt wieder das Arbeitszeitmodell."
-      action={
-        canEdit ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            onClick={openCreate}
-          >
-            Anlegen
-          </Button>
-        ) : undefined
-      }
+      action={createButton}
     >
       {loadError ? (
         <Alert
@@ -227,6 +257,12 @@ export function SonderarbeitszeitenSection({
             <EmptyState
               variant="compact"
               title="Keine Sonderarbeitszeiten eingetragen."
+              description={
+                canEdit
+                  ? "Arbeitet die Person in den Ferien andere Stunden? Legen Sie dafür eine Sonderarbeitszeit an."
+                  : "Es gilt immer das Arbeitszeitmodell."
+              }
+              action={createButton}
             />
           }
         />
@@ -258,7 +294,7 @@ export function SonderarbeitszeitenSection({
               onClick={() => void handleSave()}
               disabled={saving}
             >
-              {saving ? "Speichern..." : "Speichern"}
+              {saving ? "Speichert…" : "Speichern"}
             </Button>
           </div>
         }
@@ -266,47 +302,31 @@ export function SonderarbeitszeitenSection({
         {draft && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label
-                  htmlFor="target-override-start"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  Erster Tag
-                </label>
-                <ISODatePicker
-                  id="target-override-start"
-                  controlSize="lg"
-                  value={draft.startDate}
-                  onChange={(value) => setDraft({ ...draft, startDate: value })}
-                  calendarLayout="popover"
-                />
-              </div>
-              <div>
-                <label
-                  htmlFor="target-override-end"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  Letzter Tag
-                </label>
-                <ISODatePicker
-                  id="target-override-end"
-                  controlSize="lg"
-                  value={draft.endDate}
-                  min={draft.startDate || undefined}
-                  onChange={(value) => setDraft({ ...draft, endDate: value })}
-                  calendarLayout="popover"
-                />
-              </div>
+              <ISODatePicker
+                id="target-override-start"
+                label="Erster Tag"
+                error={fieldErrors.startDate}
+                controlSize="lg"
+                value={draft.startDate}
+                onChange={(value) => setDraft({ ...draft, startDate: value })}
+                calendarLayout="popover"
+              />
+              <ISODatePicker
+                id="target-override-end"
+                label="Letzter Tag"
+                error={fieldErrors.endDate}
+                controlSize="lg"
+                value={draft.endDate}
+                min={draft.startDate || undefined}
+                onChange={(value) => setDraft({ ...draft, endDate: value })}
+                calendarLayout="popover"
+              />
             </div>
             <div>
-              <label
-                htmlFor="target-override-hours"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Stunden pro Tag
-              </label>
               <Input
                 id="target-override-hours"
+                label="Stunden pro Tag"
+                error={fieldErrors.hours}
                 type="text"
                 inputMode="decimal"
                 value={draft.hours}
@@ -330,10 +350,7 @@ export function SonderarbeitszeitenSection({
           deleteTarget ? (
             <>
               Für{" "}
-              <span className="font-medium">
-                {formatDate(deleteTarget.startDate)} bis{" "}
-                {formatDate(deleteTarget.endDate)}
-              </span>{" "}
+              <span className="font-medium">{formatRange(deleteTarget)}</span>{" "}
               gilt danach wieder das Arbeitszeitmodell.
             </>
           ) : null

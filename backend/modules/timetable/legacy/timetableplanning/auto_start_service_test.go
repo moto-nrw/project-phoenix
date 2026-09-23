@@ -376,7 +376,7 @@ func (s *autoStartInstanceStarter) Cancel(context.Context, int64, *string, *int6
 func (s *autoStartInstanceStarter) DeleteCancelled(context.Context, int64) error {
 	return nil
 }
-func (s *autoStartInstanceStarter) BulkCancelPlanned(context.Context, timezone.Date, timezone.Date, bool, *int64) (*timetable.BulkCancelResult, error) {
+func (s *autoStartInstanceStarter) BulkCancelPlanned(context.Context, timezone.Date, timezone.Date, timetable.BulkCancelOptions, *int64) (*timetable.BulkCancelResult, error) {
 	return nil, nil
 }
 func (s *autoStartInstanceStarter) CancelWithNotice(context.Context, CancelInstanceInput) (*CancelInstanceResult, error) {

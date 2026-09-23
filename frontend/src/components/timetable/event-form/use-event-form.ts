@@ -1351,6 +1351,19 @@ export function useEventForm({
             "Das Datum muss im gewählten Planungszeitraum liegen.";
         }
       }
+      // #3594: the last day of the series lies between its start and the end
+      // of its Planungszeitraum. Empty = until the period ends.
+      if (form.seriesEndDate !== "") {
+        const seriesStart = initialSeries ? form.seriesStartDate : form.date;
+        const periodEnd = findPeriod(form.calendarPeriodId)?.endDate;
+        if (seriesStart && form.seriesEndDate < seriesStart) {
+          errors.seriesEndDate =
+            "Der letzte Tag darf nicht vor dem Beginn der Serie liegen.";
+        } else if (periodEnd && form.seriesEndDate > periodEnd) {
+          errors.seriesEndDate =
+            "Der letzte Tag muss im gewählten Planungszeitraum liegen.";
+        }
+      }
       // "Alle 2 Wochen" only genuinely repeats every two weeks in an anchored
       // two-week period. Otherwise the A/B week_pattern either fires weekly or
       // once per longer cycle. Series edits are exempt so their stored pattern
@@ -2072,6 +2085,7 @@ export function useEventForm({
       const created = await timetableService.createTemplate({
         ...body,
         start_date: form.date || undefined,
+        end_date: form.seriesEndDate || undefined,
         materialize_from: weekFrom,
         materialize_to: weekTo,
       });
@@ -2084,6 +2098,7 @@ export function useEventForm({
     const created = await timetableService.createTemplate({
       ...body,
       start_date: form.date || undefined,
+      end_date: form.seriesEndDate || undefined,
       materialize_from: firstChunk.from,
       materialize_to: firstChunk.to,
     });
@@ -2242,6 +2257,11 @@ export function useEventForm({
             ...(pulledSeriesStart !== null
               ? { start_date: pulledSeriesStart }
               : {}),
+            // #3594: only a changed last day travels; null removes it. The
+            // re-plan below then drops occurrences after a shortened end.
+            ...(form.seriesEndDate !== (initialSeries.endDate ?? "")
+              ? { end_date: form.seriesEndDate || null }
+              : {}),
           });
           const followUpOk = isStartDateOnlyPull
             ? await materializePulledForwardWindow(
@@ -2316,6 +2336,8 @@ export function useEventForm({
             ...seriesBody(parsed.roomId, parsed.categoryId),
             // #2135: the repeated instance's date is the series start.
             start_date: form.date,
+            // #3594: optional last day of the series.
+            end_date: form.seriesEndDate || undefined,
             instance_notes: form.notes.trim() || undefined,
           },
         );
@@ -2483,6 +2505,7 @@ export function useEventForm({
           ? undefined
           : validity?.validFrom,
       validUntil: validity?.validUntil,
+      lastDay: template.endDate,
     });
     const conflict = findFirstClosingDayConflict(closingDayRanges, dates);
     if (!conflict) return null;

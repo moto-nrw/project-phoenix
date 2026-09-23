@@ -328,6 +328,10 @@ type TemplateFieldsUpdate struct {
 	// IncludeClosingDays opts the series into closing days (#3594); nil
 	// keeps the stored value.
 	IncludeClosingDays *bool
+	// SeriesLastDay (#3594, inclusive) is written only when
+	// SeriesLastDayProvided; nil clears it.
+	SeriesLastDay         *string
+	SeriesLastDayProvided bool
 }
 
 // TemplateListRow is one row of the template list read model produced by
@@ -376,6 +380,8 @@ type TemplateListRow struct {
 	Notes NullString `bun:"notes"`
 	// IncludeClosingDays is the series' closing-day opt-in (#3594).
 	IncludeClosingDays bool `bun:"include_closing_days"`
+	// SeriesLastDay is the inclusive last day of the series (#3594); nil = none.
+	SeriesLastDay NullString `bun:"series_last_day"`
 	// ShiftTypeName/ShiftTypeColor come from the category's optional
 	// Kategorie↔Schichtart mapping (#1836/#1837 follow-up); empty when unmapped.
 	ShiftTypeID     NullInt64 `bun:"shift_type_id"`

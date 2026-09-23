@@ -253,6 +253,7 @@ export function materializedRecurrenceDates({
   weekPattern,
   validFrom,
   validUntil,
+  lastDay,
 }: {
   period: CalendarPeriod;
   fromISO: string;
@@ -260,11 +261,14 @@ export function materializedRecurrenceDates({
   weekPattern: number;
   validFrom?: string;
   validUntil?: string;
+  /** Inclusive last day of the series (#3594); empty = until the period ends. */
+  lastDay?: string;
 }): string[] {
   const from = latestISODate(period.startDate, fromISO, validFrom ?? "");
   return weekdayDatesInRange(from, period.endDate, weekdays).filter(
     (dateISO) =>
       (validUntil === undefined || dateISO < validUntil) &&
+      (!lastDay || dateISO <= lastDay) &&
       shouldMaterializeWeekPattern(period, dateISO, weekPattern),
   );
 }
@@ -629,6 +633,10 @@ export function mapBulkCancelResult(
     count: raw.count,
     days: (raw.days ?? []).map((day) => ({ date: day.date, count: day.count })),
     kept: raw.kept ?? 0,
+    keptSeries: (raw.kept_series ?? []).map((series) => ({
+      name: series.name,
+      count: series.count,
+    })),
   };
 }
 
@@ -1098,6 +1106,7 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
       maxParticipants: template.max_participants,
       notes: template.notes,
       includeClosingDays: template.include_closing_days ?? false,
+      endDate: template.end_date ?? undefined,
       shiftTypeName: template.shift_type_name,
       shiftTypeColor: template.shift_type_color,
       calendarPeriodId:

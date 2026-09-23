@@ -27,6 +27,7 @@ type TemplateListRow struct {
 	ListKind                  *string
 	Notes                     *string
 	IncludeClosingDays        bool
+	SeriesLastDay             *string
 	ShiftTypeID               *int64
 	ShiftTypeName             string
 	ShiftTypeColor            string

@@ -122,9 +122,9 @@ func (m *mockInstanceService) DeleteCancelled(_ context.Context, _ int64) error 
 	return m.deleteErr
 }
 
-func (m *mockInstanceService) BulkCancelPlanned(ctx context.Context, from, to timezone.Date, dryRun bool, actor *int64) (*timetableModule.BulkCancelResult, error) {
+func (m *mockInstanceService) BulkCancelPlanned(ctx context.Context, from, to timezone.Date, opts timetableModule.BulkCancelOptions, actor *int64) (*timetableModule.BulkCancelResult, error) {
 	if m.real != nil {
-		return m.real.BulkCancelPlanned(ctx, from, to, dryRun, actor)
+		return m.real.BulkCancelPlanned(ctx, from, to, opts, actor)
 	}
 	return nil, nil
 }

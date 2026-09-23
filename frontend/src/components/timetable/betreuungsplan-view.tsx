@@ -1565,7 +1565,6 @@ function TimetablesContent() {
       {canManageSchedules && bulkCancelOpen && (
         <BulkCancelAppointmentsModal
           isOpen
-          rangeEditable
           initialFrom={fetchFromISO < todayISO ? todayISO : fetchFromISO}
           initialTo={fetchToISO < todayISO ? todayISO : fetchToISO}
           onClose={() => setBulkCancelOpen(false)}

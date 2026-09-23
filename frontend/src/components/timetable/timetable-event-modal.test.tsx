@@ -805,6 +805,110 @@ describe("TimetableEventModal", () => {
     );
   });
 
+  // #3594: a series may end before its planning period, e.g. one week of
+  // holiday care. The last day travels with the create and limits which
+  // closing days the series prompt counts.
+  it("saves the last day of a new series and counts closing days only up to it", async () => {
+    renderModal({
+      variant: "quick",
+      closingDayRanges: [
+        { startDate: "2026-05-11", endDate: "2026-05-11", reason: "Ferien" },
+        { startDate: "2026-05-25", endDate: "2026-05-25", reason: "Brücke" },
+      ],
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Ferienbetreuung" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await goToStep(2);
+    await chooseFromSelect(
+      screen.getByLabelText("Wiederholt sich"),
+      "Wöchentlich am Montag",
+    );
+    expect(
+      screen.getByText("Danach legt die Serie keine Termine mehr an."),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Letzter Tag"), {
+      target: { value: "2026-05-18" },
+    });
+    await clickSave();
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Schließtage in dieser Serie",
+    });
+    expect(
+      within(dialog).getByText(/Diese Serie trifft 1 Schließtag\./),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: /Schließtage auslassen/ }),
+    );
+    await waitFor(() =>
+      expect(mockCreateTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          start_date: "2026-05-04",
+          end_date: "2026-05-18",
+        }),
+      ),
+    );
+  });
+
+  it("rejects a last day before the series start", async () => {
+    renderModal({ variant: "quick" });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Ferienbetreuung" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await goToStep(2);
+    await chooseFromSelect(
+      screen.getByLabelText("Wiederholt sich"),
+      "Wöchentlich am Montag",
+    );
+    fireEvent.change(screen.getByLabelText("Letzter Tag"), {
+      target: { value: "2026-04-27" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+
+    expect(
+      await screen.findByText(
+        "Der letzte Tag darf nicht vor dem Beginn der Serie liegen.",
+      ),
+    ).toBeInTheDocument();
+    expect(mockCreateTemplate).not.toHaveBeenCalled();
+  });
+
+  it("sends a changed last day on a series edit", async () => {
+    renderModal({
+      initialSeries: { ...template, endDate: "2026-06-29" },
+    });
+
+    await screen.findByText("Regeltermin bearbeiten");
+    await goToStep(2);
+    expect(screen.getByLabelText("Letzter Tag")).toHaveValue("2026-06-29");
+    fireEvent.change(screen.getByLabelText("Letzter Tag"), {
+      target: { value: "2026-05-25" },
+    });
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        template.id,
+        expect.objectContaining({ end_date: "2026-05-25" }),
+      ),
+    );
+  });
+
+  it("keeps an unchanged last day out of a series edit", async () => {
+    renderModal({ initialSeries: { ...template, endDate: "2026-06-29" } });
+    await screen.findByText("Regeltermin bearbeiten");
+    await clickSave();
+    await waitFor(() => expect(mockUpdateTemplate).toHaveBeenCalled());
+    expect(mockUpdateTemplate.mock.calls[0]![1]).not.toHaveProperty("end_date");
+  });
+
   // #2135: a new series starts at the picked Datum. Occurrences before it can
   // never be materialized, so a closing day before the start must not trigger
   // the question.

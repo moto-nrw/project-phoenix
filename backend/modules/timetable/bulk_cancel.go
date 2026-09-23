@@ -22,8 +22,28 @@ type BulkCancelCandidate struct {
 	Date       string
 	Status     string
 	// SeriesIncludesClosingDays marks occurrences of a series planned on
-	// closing days on purpose (holiday care); they are never selected.
+	// closing days on purpose (holiday care); they are only selected when the
+	// caller asks for them with BulkCancelOptions.IncludeClosingDaySeries.
 	SeriesIncludesClosingDays bool
+	// SeriesName names the series (the template) so the dialog can list the
+	// series that stay.
+	SeriesName string
+}
+
+// BulkCancelOptions carries the switches of one bulk cancellation.
+type BulkCancelOptions struct {
+	// DryRun only counts; nothing is cancelled.
+	DryRun bool
+	// IncludeClosingDaySeries also cancels occurrences of series planned on
+	// closing days on purpose (holiday care). Off by default.
+	IncludeClosingDaySeries bool
+}
+
+// BulkCancelKeptSeries names one series whose occurrences stay in the plan
+// and how many of them lie in the range.
+type BulkCancelKeptSeries struct {
+	Name  string `json:"name"`
+	Count int    `json:"count"`
 }
 
 // BulkCancelDay counts the selected occurrences of one day.
@@ -43,6 +63,8 @@ type BulkCancelResult struct {
 	// their series includes closing days (holiday care), so the dialog only
 	// mentions them when there are some.
 	Kept int `json:"kept"`
+	// KeptSeries lists those series by name, ordered by name.
+	KeptSeries []BulkCancelKeptSeries `json:"kept_series"`
 }
 
 // ValidateBulkCancelRange accepts two "YYYY-MM-DD" dates, from <= to, at
@@ -67,20 +89,23 @@ func ValidateBulkCancelRange(from, to string) error {
 
 // SelectBulkCancel picks the occurrences a bulk cancellation removes: planned
 // ones dated in [from, to] and not before today, except occurrences of series
-// that include closing days. Running, finished, cancelled and past
+// that include closing days unless opts.IncludeClosingDaySeries asks for
+// them. Running, finished, cancelled and past
 // occurrences stay untouched. The IDs come back ordered by date so the
 // caller takes its per-day locks in ascending order; the per-day counts feed
 // the confirmation dialog.
-func SelectBulkCancel(candidates []BulkCancelCandidate, from, to, today string) ([]int64, BulkCancelResult) {
+func SelectBulkCancel(candidates []BulkCancelCandidate, from, to, today string, opts BulkCancelOptions) ([]int64, BulkCancelResult) {
 	lower := max(from, today)
 	selected := make([]BulkCancelCandidate, 0, len(candidates))
 	kept := 0
+	keptBySeries := map[string]int{}
 	for _, candidate := range candidates {
 		if candidate.Status != InstanceStatusPlanned || candidate.Date < lower || candidate.Date > to {
 			continue
 		}
-		if candidate.SeriesIncludesClosingDays {
+		if candidate.SeriesIncludesClosingDays && !opts.IncludeClosingDaySeries {
 			kept++
+			keptBySeries[candidate.SeriesName]++
 			continue
 		}
 		selected = append(selected, candidate)
@@ -92,7 +117,10 @@ func SelectBulkCancel(candidates []BulkCancelCandidate, from, to, today string) 
 		return selected[i].InstanceID < selected[j].InstanceID
 	})
 
-	result := BulkCancelResult{From: from, To: to, Count: len(selected), Days: []BulkCancelDay{}, Kept: kept}
+	result := BulkCancelResult{
+		From: from, To: to, DryRun: opts.DryRun, Count: len(selected),
+		Days: []BulkCancelDay{}, Kept: kept, KeptSeries: keptSeries(keptBySeries),
+	}
 	ids := make([]int64, 0, len(selected))
 	for _, candidate := range selected {
 		ids = append(ids, candidate.InstanceID)
@@ -104,4 +132,15 @@ func SelectBulkCancel(candidates []BulkCancelCandidate, from, to, today string) 
 		result.Days = append(result.Days, BulkCancelDay{Date: candidate.Date, Count: 1})
 	}
 	return ids, result
+}
+
+// keptSeries turns the per-series counts into a list ordered by name, empty
+// rather than nil so the dialog always reads a list.
+func keptSeries(counts map[string]int) []BulkCancelKeptSeries {
+	series := make([]BulkCancelKeptSeries, 0, len(counts))
+	for name, count := range counts {
+		series = append(series, BulkCancelKeptSeries{Name: name, Count: count})
+	}
+	sort.Slice(series, func(i, j int) bool { return series[i].Name < series[j].Name })
+	return series
 }

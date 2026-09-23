@@ -218,6 +218,24 @@ describe("date and range helpers", () => {
     ).toEqual(["2026-05-18"]);
   });
 
+  it("stops materialized recurrence dates at the series' last day (#3594)", () => {
+    const period = {
+      id: "5",
+      startDate: "2026-05-01",
+      endDate: "2026-06-30",
+    } as CalendarPeriod;
+
+    expect(
+      materializedRecurrenceDates({
+        period,
+        fromISO: "2026-05-01",
+        weekdays: [1],
+        weekPattern: 0,
+        lastDay: "2026-05-18",
+      }),
+    ).toEqual(["2026-05-04", "2026-05-11", "2026-05-18"]);
+  });
+
   it("snaps weekend dates to the following Monday, weekdays pass through", () => {
     expect(nextWorkdayISO("2026-07-18")).toBe("2026-07-20"); // Sa -> Mo
     expect(nextWorkdayISO("2026-07-19")).toBe("2026-07-20"); // So -> Mo
@@ -542,6 +560,7 @@ describe("backend mappers", () => {
         count: 3,
         days: [{ date: "2026-10-12", count: 3 }],
         kept: 2,
+        kept_series: [{ name: "Ferienbetreuung", count: 2 }],
       }),
     ).toEqual({
       from: "2026-10-12",
@@ -550,16 +569,18 @@ describe("backend mappers", () => {
       count: 3,
       days: [{ date: "2026-10-12", count: 3 }],
       kept: 2,
+      keptSeries: [{ name: "Ferienbetreuung", count: 2 }],
     });
-    expect(
-      mapBulkCancelResult({
-        from: "2026-10-12",
-        to: "2026-10-16",
-        dry_run: false,
-        count: 0,
-        days: null,
-      }).days,
-    ).toEqual([]);
+    const empty = mapBulkCancelResult({
+      from: "2026-10-12",
+      to: "2026-10-16",
+      dry_run: false,
+      count: 0,
+      days: null,
+      kept_series: null,
+    });
+    expect(empty.days).toEqual([]);
+    expect(empty.keptSeries).toEqual([]);
   });
 
   it("maps materialization and re-plan results", () => {

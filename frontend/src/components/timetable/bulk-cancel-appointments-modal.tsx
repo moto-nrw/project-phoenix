@@ -7,26 +7,25 @@
  * dann folgt die zweistufige Bestätigung des geteilten Löschdialogs.
  *
  * Abgesagt werden nur geplante Termine ab heute. Laufende, beendete und
- * vergangene Termine bleiben, ebenso Serien, die bewusst auch an
- * Schließtagen geplant sind (Ferienbetreuung). Eltern bekommen keine
- * Nachricht.
+ * vergangene Termine bleiben. Serien, die bewusst auch an Schließtagen
+ * geplant sind (Ferienbetreuung), bleiben ebenfalls, bis die Person das
+ * Häkchen „Auch Serien absagen …“ setzt; der Dialog nennt sie mit Namen.
+ * Eltern bekommen keine Nachricht.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { DateRange } from "react-day-picker";
 
+import { Checkbox } from "~/components/ui/checkbox";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { DateRangePicker } from "~/components/ui/date-range-picker";
 import { useToast } from "~/contexts/ToastContext";
-import {
-  berlinTodayISO,
-  formatDate,
-  parseISODate,
-  toISODate,
-} from "~/lib/date-helpers";
+import { formatClosingDayRange } from "~/lib/closing-day-helpers";
+import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { useTenantMutateMatching } from "~/lib/swr";
 import { timetableService } from "~/lib/timetable-api";
+import type { BulkCancelResult } from "~/lib/timetable-types";
 
 const logger = createLogger({ component: "BulkCancelAppointmentsModal" });
 
@@ -43,28 +42,39 @@ const PLAN_CACHE_PREFIXES = [
 type CountState =
   | { kind: "idle" }
   | { kind: "loading" }
-  | { kind: "ready"; count: number; kept: number }
+  | ({ kind: "ready" } & Pick<BulkCancelResult, "count" | "keptSeries">)
   | { kind: "error" };
+
+function termineLabel(count: number): string {
+  return count === 1 ? "1 Termin" : `${count} Termine`;
+}
 
 function appointmentsLabel(count: number): string {
   return count === 1
-    ? "1 geplanter Termin wird"
-    : `${count} geplante Termine werden`;
+    ? "wird 1 geplanter Termin"
+    : `werden ${count} geplante Termine`;
 }
 
-function keptLabel(kept: number): string {
-  const subject =
-    kept === 1
-      ? "1 Termin bleibt im Plan und wird"
-      : `${kept} Termine bleiben im Plan und werden`;
-  return `${subject} nicht abgesagt. Diese Serien sind bewusst auch an Schließtagen geplant, zum Beispiel die Ferienbetreuung.`;
+/** „Ferienbetreuung (5 Termine), Ferienspiele (1 Termin)“ */
+function keptSeriesLabel(series: BulkCancelResult["keptSeries"]): string {
+  return series
+    .map((entry) => `${entry.name} (${termineLabel(entry.count)})`)
+    .join(", ");
+}
+
+/**
+ * Ein Zeitraum, der schon begonnen hat, startet heute: vergangene Termine
+ * sagt moto ohnehin nicht ab, und die Auswahl erlaubt keine früheren Tage.
+ */
+function clampToToday(from: string, to: string): string {
+  const today = berlinTodayISO();
+  return from !== "" && from < today && to >= today ? today : from;
 }
 
 export function BulkCancelAppointmentsModal({
   isOpen,
   initialFrom,
   initialTo,
-  rangeEditable = false,
   afterSave = false,
   onClose,
   onCancelled,
@@ -72,27 +82,29 @@ export function BulkCancelAppointmentsModal({
   /** Direkt nach dem Speichern eines Schließtags geöffnet (#3594). */
   readonly afterSave?: boolean;
   readonly isOpen: boolean;
-  /** Erster Tag des Zeitraums als "YYYY-MM-DD". */
+  /** Vorgeschlagener erster Tag als "YYYY-MM-DD"; die Person kann ihn ändern. */
   readonly initialFrom: string;
-  /** Letzter Tag des Zeitraums als "YYYY-MM-DD". */
+  /** Vorgeschlagener letzter Tag als "YYYY-MM-DD"; die Person kann ihn ändern. */
   readonly initialTo: string;
-  /** Zeigt eine Zeitraumauswahl, z. B. im Betreuungsplan. */
-  readonly rangeEditable?: boolean;
   readonly onClose: () => void;
   readonly onCancelled?: (count: number) => void;
 }) {
   const [from, setFrom] = useState(initialFrom);
   const [to, setTo] = useState(initialTo);
+  const [includeSeries, setIncludeSeries] = useState(false);
   const [countState, setCountState] = useState<CountState>({ kind: "idle" });
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState("");
   const { success: toastSuccess } = useToast();
   const refreshPlan = useTenantMutateMatching(PLAN_CACHE_PREFIXES);
+  const rangeLabelId = useId();
+  const includeSeriesId = useId();
 
   useEffect(() => {
     if (!isOpen) return;
-    setFrom(initialFrom);
+    setFrom(clampToToday(initialFrom, initialTo));
     setTo(initialTo);
+    setIncludeSeries(false);
     setError("");
   }, [isOpen, initialFrom, initialTo]);
 
@@ -104,13 +116,13 @@ export function BulkCancelAppointmentsModal({
     let active = true;
     setCountState({ kind: "loading" });
     timetableService
-      .bulkCancel(from, to, true)
+      .bulkCancel(from, to, true, includeSeries)
       .then((preview) => {
         if (active) {
           setCountState({
             kind: "ready",
             count: preview.count,
-            kept: preview.kept,
+            keptSeries: preview.keptSeries,
           });
         }
       })
@@ -125,7 +137,7 @@ export function BulkCancelAppointmentsModal({
     return () => {
       active = false;
     };
-  }, [isOpen, from, to]);
+  }, [isOpen, from, to, includeSeries]);
 
   const handleRangeChange = (range: DateRange | undefined) => {
     setFrom(range?.from ? toISODate(range.from) : "");
@@ -136,7 +148,12 @@ export function BulkCancelAppointmentsModal({
     setCancelling(true);
     setError("");
     try {
-      const result = await timetableService.bulkCancel(from, to, false);
+      const result = await timetableService.bulkCancel(
+        from,
+        to,
+        false,
+        includeSeries,
+      );
       toastSuccess(
         result.count === 1
           ? "1 Termin abgesagt"
@@ -159,12 +176,13 @@ export function BulkCancelAppointmentsModal({
     }
   };
 
-  const rangeText =
-    from !== "" && to !== ""
-      ? from === to
-        ? formatDate(from)
-        : `${formatDate(from)} bis ${formatDate(to)}`
-      : "";
+  // „Im Zeitraum 12.10.2026 – 16.10.2026“, ein einzelner Tag „Am 12.10.2026“.
+  const rangeText = `${from === to ? "Am" : "Im Zeitraum"} ${formatClosingDayRange({ startDate: from, endDate: to })}`;
+  const ready = countState.kind === "ready" ? countState : null;
+  const keptSeries = ready?.keptSeries ?? [];
+  // Das Häkchen bleibt sichtbar, solange es gesetzt ist: nach dem Neuzählen
+  // bleibt keine Serie mehr übrig, die Person muss es aber abwählen können.
+  const showIncludeSeries = includeSeries || keptSeries.length > 0;
 
   return (
     <ConfirmDeleteModal
@@ -178,24 +196,27 @@ export function BulkCancelAppointmentsModal({
               Termine im Plan.
             </p>
           )}
-          {rangeEditable ? (
-            <div className="flex flex-col gap-1">
-              <span className="text-sm font-medium text-gray-700">
-                Zeitraum
-              </span>
-              <DateRangePicker
-                value={
-                  from !== "" && to !== ""
-                    ? { from: parseISODate(from), to: parseISODate(to) }
-                    : undefined
-                }
-                onChange={handleRangeChange}
-                fromMin={parseISODate(berlinTodayISO())}
-              />
-            </div>
-          ) : (
-            rangeText !== "" && <p>Zeitraum: {rangeText}</p>
-          )}
+          <div
+            role="group"
+            aria-labelledby={rangeLabelId}
+            className="flex flex-col gap-1"
+          >
+            <span
+              id={rangeLabelId}
+              className="text-sm font-medium text-gray-700"
+            >
+              Zeitraum
+            </span>
+            <DateRangePicker
+              value={
+                from !== "" && to !== ""
+                  ? { from: parseISODate(from), to: parseISODate(to) }
+                  : undefined
+              }
+              onChange={handleRangeChange}
+              fromMin={parseISODate(berlinTodayISO())}
+            />
+          </div>
           {countState.kind === "loading" && <p>Die Termine werden gezählt.</p>}
           {countState.kind === "error" && (
             <p>
@@ -203,31 +224,52 @@ export function BulkCancelAppointmentsModal({
               noch einmal.
             </p>
           )}
-          {countState.kind === "ready" && countState.count === 0 && (
-            <p>In diesem Zeitraum sind keine Termine mehr geplant.</p>
+          {ready && ready.count === 0 && keptSeries.length === 0 && (
+            <p>{rangeText} sind keine Termine mehr geplant.</p>
           )}
-          {countState.kind === "ready" && countState.count > 0 && (
+          {ready && ready.count === 0 && keptSeries.length > 0 && (
             <p>
-              {appointmentsLabel(countState.count)} abgesagt und aus dem Plan
-              entfernt. Eltern bekommen keine Nachricht.
+              {rangeText} stehen nur noch Serien im Plan, die auch an
+              Schließtagen geplant sind: {keptSeriesLabel(keptSeries)}. Wenn Sie
+              auch diese absagen möchten, setzen Sie unten das Häkchen.
             </p>
           )}
-          {countState.kind === "ready" && countState.kept > 0 && (
-            <p>{keptLabel(countState.kept)}</p>
+          {ready && ready.count > 0 && (
+            <p>
+              {rangeText} {appointmentsLabel(ready.count)} abgesagt und aus dem
+              Plan entfernt. Eltern bekommen keine Nachricht.
+            </p>
+          )}
+          {ready && ready.count > 0 && keptSeries.length > 0 && (
+            <p>
+              Diese Serien sind auch an Schließtagen geplant. Sie bleiben im
+              Plan: {keptSeriesLabel(keptSeries)}.
+            </p>
+          )}
+          {showIncludeSeries && (
+            <label htmlFor={includeSeriesId} className="flex items-start gap-2">
+              <Checkbox
+                id={includeSeriesId}
+                checked={includeSeries}
+                disabled={cancelling}
+                onChange={(event) => setIncludeSeries(event.target.checked)}
+              />
+              <span className="text-sm text-gray-800">
+                Auch Serien absagen, die an Schließtagen geplant sind
+              </span>
+            </label>
           )}
         </div>
       }
       gate={{ mode: "twoStep", firstStepLabel: "Termine absagen" }}
       cancelLabel="Termine behalten"
-      confirmDisabled={
-        countState.kind !== "ready" || countState.count === 0 || cancelling
-      }
+      confirmDisabled={!ready || ready.count === 0 || cancelling}
       onConfirm={handleConfirm}
       onClose={onClose}
       loading={cancelling}
       error={error}
       confirmLabel="Endgültig absagen"
-      loadingLabel="Wird abgesagt …"
+      loadingLabel="Wird abgesagt…"
     />
   );
 }

@@ -176,7 +176,7 @@ type InstanceService interface {
 	// cancellation notice for the block would reach (#2601).
 	GuardianNoticeReachFor(ctx context.Context, instanceID int64) (*GuardianNoticeReach, error)
 	DeleteCancelled(ctx context.Context, instanceID int64) error
-	BulkCancelPlanned(ctx context.Context, from, to timezone.Date, dryRun bool, actorAccountID *int64) (*timetable.BulkCancelResult, error)
+	BulkCancelPlanned(ctx context.Context, from, to timezone.Date, opts timetable.BulkCancelOptions, actorAccountID *int64) (*timetable.BulkCancelResult, error)
 	// SetUnderstaffedAck flips the "deliberately unstaffed" acknowledgement on a
 	// planned or active instance (Vertretungsplan, issue #1840). It only
 	// annotates the block — no lifecycle transition, no active-state change — so

@@ -1386,7 +1386,7 @@ func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 		SourceGradeLevels:     sourceGradeLevels,
 		SourceSchoolClasses:   sourceSchoolClasses,
 		ListKind:              listKind,
-		Notes:                 notes, IncludeClosingDays: successorIncludesClosingDays(in.IncludeClosingDays, old.IncludeClosingDays),
+		Notes:                 notes, IncludeClosingDays: successorIncludesClosingDays(in.IncludeClosingDays, old.IncludeClosingDays), SeriesLastDay: old.SeriesLastDay,
 	}
 	group.SetTenantID(tenantID)
 	if err := s.deps.GroupRepo.Create(ctx, group); err != nil {

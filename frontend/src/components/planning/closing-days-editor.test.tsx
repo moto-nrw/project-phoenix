@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ClosingDay } from "~/lib/closing-day-helpers";
@@ -142,16 +148,21 @@ describe("ClosingDaysEditor", () => {
 
     expect(
       await screen.findByText(
-        /83 geplante Termine werden abgesagt und aus dem Plan entfernt\. Eltern bekommen keine Nachricht\./,
+        "Im Zeitraum 12.10.2026 – 25.10.2026 werden 83 geplante Termine abgesagt und aus dem Plan entfernt. Eltern bekommen keine Nachricht.",
       ),
     ).toBeInTheDocument();
+    // Der Zeitraum ist mit dem Schließtag vorbelegt, lässt sich aber ändern.
     expect(
-      screen.getByText("Zeitraum: 12.10.2026 bis 25.10.2026"),
+      within(screen.getByRole("group", { name: "Zeitraum" })).getByRole(
+        "button",
+        { name: "12.–25. Okt. 2026" },
+      ),
     ).toBeInTheDocument();
     expect(mockBulkCancel).toHaveBeenCalledWith(
       "2026-10-12",
       "2026-10-25",
       true,
+      false,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Termine absagen" }));
@@ -162,6 +173,7 @@ describe("ClosingDaysEditor", () => {
         "2026-10-12",
         "2026-10-25",
         false,
+        false,
       ),
     );
     await waitFor(() =>
@@ -171,9 +183,7 @@ describe("ClosingDaysEditor", () => {
     // The periods page reloads its "Verwendung" column after a cancellation.
     expect(onAppointmentsCancelled).toHaveBeenCalledOnce();
     // Nothing stays behind, so the holiday-care note is not shown.
-    expect(
-      screen.queryByText(/bewusst auch an Schließtagen/),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Sie bleiben im Plan/)).not.toBeInTheDocument();
   });
 
   it("sperrt das Absagen, wenn im Zeitraum nichts mehr geplant ist", async () => {
@@ -195,7 +205,7 @@ describe("ClosingDaysEditor", () => {
 
     expect(
       await screen.findByText(
-        "In diesem Zeitraum sind keine Termine mehr geplant.",
+        "Im Zeitraum 24.12.2026 – 31.12.2026 sind keine Termine mehr geplant.",
       ),
     ).toBeInTheDocument();
     expect(
@@ -212,6 +222,7 @@ describe("ClosingDaysEditor", () => {
       count: 5,
       days: [],
       kept: 3,
+      keptSeries: [{ name: "Ferienbetreuung", count: 3 }],
     });
 
     render(<ClosingDaysEditor />);
@@ -222,7 +233,7 @@ describe("ClosingDaysEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mock Termine übrig" }));
 
     expect(
-      await screen.findByText(/5 geplante Termine werden abgesagt/),
+      await screen.findByText(/werden 5 geplante Termine abgesagt/),
     ).toBeInTheDocument();
     // The offer says the save worked, and title and actions do not repeat
     // each other.
@@ -234,8 +245,12 @@ describe("ClosingDaysEditor", () => {
     ).toBeInTheDocument();
     // Holiday care in the range is named only when there is some.
     expect(
-      screen.getByText(/3 Termine bleiben im Plan und werden nicht abgesagt\./),
+      screen.getByText(
+        "Diese Serien sind auch an Schließtagen geplant. Sie bleiben im Plan: Ferienbetreuung (3 Termine).",
+      ),
     ).toBeInTheDocument();
+    // Das Angebot nach dem Speichern lässt den Zeitraum ebenfalls ändern.
+    expect(screen.getByRole("group", { name: "Zeitraum" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Termine behalten" }));
     await waitFor(() =>
@@ -246,6 +261,7 @@ describe("ClosingDaysEditor", () => {
     expect(mockBulkCancel).not.toHaveBeenCalledWith(
       "2026-10-12",
       "2026-10-25",
+      false,
       false,
     );
   });

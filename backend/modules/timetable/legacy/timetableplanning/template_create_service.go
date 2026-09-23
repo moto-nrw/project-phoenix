@@ -50,10 +50,10 @@ type CreateTemplateInput struct {
 	SourceSchoolClasses   []string
 	// ListKind classifies the template for printable daily lists (#1565);
 	// nil = no list kind.
-	ListKind *string
-	Notes    *string
-	// IncludeClosingDays plans the series on closing days too (#3594).
-	IncludeClosingDays bool
+	ListKind           *string
+	Notes              *string
+	IncludeClosingDays bool                  // also plan on closing days (#3594)
+	SeriesLastDay      *activitiesModel.Date // inclusive last day of the series (#3594)
 	StudentIDs         []int64
 	StaffIDs           []int64
 	PrimaryStaffID     *int64
@@ -337,7 +337,7 @@ func (s *TimetableDataService) createTemplateLocked(
 		SourceGradeLevels:     in.SourceGradeLevels,
 		SourceSchoolClasses:   in.SourceSchoolClasses,
 		ListKind:              in.ListKind,
-		Notes:                 in.Notes, IncludeClosingDays: in.IncludeClosingDays,
+		Notes:                 in.Notes, IncludeClosingDays: in.IncludeClosingDays, SeriesLastDay: in.SeriesLastDay,
 	}
 	group.SetTenantID(tenantID)
 	if err := s.deps.ActivityGroupRepo.Create(ctx, group); err != nil {

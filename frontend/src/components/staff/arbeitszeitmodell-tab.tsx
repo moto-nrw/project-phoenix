@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSWRConfig } from "swr";
 
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -229,9 +230,9 @@ export function ArbeitszeitmodellTab({
         </div>
       </SectionCard>
 
-      <FourWeekPreview staffId={staffId} schedule={schedule} today={today} />
-
       <SonderarbeitszeitenSection staffId={staffId} canEdit={canEdit} />
+
+      <FourWeekPreview staffId={staffId} schedule={schedule} today={today} />
     </div>
   );
 }
@@ -296,10 +297,19 @@ function FourWeekPreview({
     }
     return result;
   }, [schedule, projection, today]);
-  const pending = projectionError ? "?" : "…";
+  // Pending: "…"; unavailable: "–" with the reason in the alert above.
+  const pending = projectionError ? "–" : "…";
 
   return (
     <SectionCard title="Vorschau (nächste 4 Wochen)" headingLevel={3}>
+      {projectionError ? (
+        <div className="mb-3">
+          <Alert
+            type="error"
+            message="Das Soll der nächsten Wochen konnte nicht geladen werden. Bitte laden Sie die Seite neu."
+          />
+        </div>
+      ) : null}
       <div className="space-y-2">
         {weeks.map((week) => {
           const badge = WEEK_BADGE_LETTERS[week.weekIndex] ?? "?";
@@ -337,11 +347,9 @@ function FourWeekPreview({
                     <span className="tabular-nums">
                       {d.target === null
                         ? pending
-                        : d.target > 0
+                        : d.target > 0 || d.isOverride
                           ? formatDuration(d.target)
-                          : d.isOverride
-                            ? "0h"
-                            : "-"}
+                          : "–"}
                     </span>
                   </span>
                 ))}

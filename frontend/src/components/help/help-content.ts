@@ -4075,7 +4075,7 @@ function targetOverrideTopic(): HelpTopic {
     title: "Eine Sonderarbeitszeit eintragen",
     question: "Wie trage ich andere Stunden für die Ferienbetreuung ein?",
     summary:
-      "Für einen Zeitraum gelten andere Stunden pro Tag als im Arbeitszeitmodell.",
+      "Für die Ferienbetreuung, etwa in den Herbstferien, gelten andere Stunden pro Tag.",
     group: "personal",
     audience: "lead",
     icon: "CalendarPlus",
@@ -4083,21 +4083,23 @@ function targetOverrideTopic(): HelpTopic {
       "Sie dürfen die Zeiterfassung aller Mitarbeitenden verwalten.",
     ],
     steps: [
-      "Öffnen Sie die Personalakte der Person.",
+      "Klappen Sie in der Seitenleiste `Team` auf.",
+      "Öffnen Sie `Mitarbeiter`.",
+      "Wählen Sie die Karte der Person.",
       "Wählen Sie oben `Arbeitszeitmodell`.",
-      "Wählen Sie im Abschnitt `Sonderarbeitszeiten` den Knopf `Anlegen`.",
+      "Wählen Sie im Abschnitt `Sonderarbeitszeiten` den Knopf `Sonderarbeitszeit anlegen`.",
       "Wählen Sie den ersten und den letzten Tag.",
       "Tragen Sie die Stunden pro Tag ein, zum Beispiel `8,5`.",
       "Wählen Sie `Speichern`.",
     ],
     result:
-      "An diesen Tagen gilt das neue Soll. Danach gilt wieder das Arbeitszeitmodell.",
+      "An diesen Tagen gilt das neue Soll. Danach gilt wieder das Arbeitszeitmodell. Die `Vorschau` darunter zeigt es.",
     notes: [
       "Die Stunden gelten Montag bis Freitag, auch an Schließtagen.",
       "Gesetzliche Feiertage bleiben frei.",
       "Tragen Sie `0` ein, muss die Person an diesen Tagen nicht arbeiten.",
       "In der Zeiterfassung steht unter dem Soll dann `Sonderarbeitszeit`.",
-      "Stimmt ein Eintrag nicht, löschen Sie ihn über die drei Punkte in seiner Zeile. Legen Sie ihn dann neu an.",
+      "Stimmt ein Eintrag nicht, löschen Sie ihn und legen Sie ihn neu an. Wählen Sie dazu in seiner Zeile die drei Punkte und `Löschen`. Bestätigen Sie mit `Ja, löschen` und `Endgültig löschen`.",
     ],
     differences: [
       "Den Abschnitt ändern Sie nur mit dem Recht zur Zeiterfassung aller Mitarbeitenden. Sonst sehen Sie ihn nur.",
@@ -4333,13 +4335,21 @@ function calendarPeriodsTopic(): HelpTopic {
     steps: [],
     instructionGroups: [
       {
+        title: "Zeitraum oder Schließtag?",
+        steps: [
+          "Ein Zeitraum mit der Art `Ferien`, zum Beispiel die Herbstferien, markiert nur die Ferienzeit. Termine und Sollstunden bleiben.",
+          "Hat die OGS geschlossen, legen Sie einen Schließtag an. Nur an Schließtagen fallen Termine aus und es gibt keine Sollstunden.",
+        ],
+        ordered: false,
+      },
+      {
         title: "Einen Zeitraum anlegen",
         steps: [
           "Klappen Sie in der Seitenleiste `Planung` auf.",
           "Öffnen Sie `Schuljahr und Ferien`.",
           "Wählen Sie `Halbjahr anlegen` oder `Zeitraum anlegen`.",
-          "Tragen Sie Name, Beginn und Ende ein.",
-          "Speichern Sie den Zeitraum.",
+          "Tragen Sie `Bezeichnung`, `Art`, `Startdatum` und `Enddatum` ein, zum Beispiel `Herbstferien` mit der Art `Ferien`.",
+          "Wählen Sie `Anlegen`.",
         ],
       },
       {
@@ -4348,9 +4358,9 @@ function calendarPeriodsTopic(): HelpTopic {
           "Öffnen Sie `Schuljahr und Ferien`.",
           "Gehen Sie zum Abschnitt `Schließtage`.",
           "Wählen Sie `Schließtag anlegen`.",
-          "Tragen Sie den Tag und den Grund ein.",
-          "Speichern Sie den Schließtag.",
-          "Stehen an diesen Tagen schon Termine im Plan, fragt moto nach. Wählen Sie `Termine absagen`, damit der Plan leer wird.",
+          "Tragen Sie `Grund`, `Von` und `Bis` ein, zum Beispiel `Herbstferien`.",
+          "Wählen Sie `Speichern`.",
+          "Stehen an diesen Tagen schon Termine im Plan, fragt moto nach. Wählen Sie `Termine absagen`, dann nimmt moto die Termine aus dem Plan.",
         ],
       },
       {
@@ -4360,7 +4370,9 @@ function calendarPeriodsTopic(): HelpTopic {
         steps: [
           "Öffnen Sie beim Schließtag das Menü mit den drei Punkten.",
           "Wählen Sie `Termine absagen`.",
-          "Prüfen Sie die Zahl der Termine.",
+          "Prüfen Sie den `Zeitraum`. Sie können ihn ändern, zum Beispiel auf die erste Ferienwoche.",
+          "Prüfen Sie die Zahl der Termine. Serien, die auch an Schließtagen geplant sind, bleiben im Plan. moto nennt sie mit Namen.",
+          "Sollen auch diese Serien ausfallen, setzen Sie das Häkchen bei `Auch Serien absagen, die an Schließtagen geplant sind`.",
           "Wählen Sie `Termine absagen` und dann `Endgültig absagen`.",
         ],
       },
@@ -4370,7 +4382,7 @@ function calendarPeriodsTopic(): HelpTopic {
     notes: [
       "Die Seite heißt oben `Zeiträume`. In der Seitenleiste steht `Schuljahr und Ferien`.",
       "Ein Zeitraum, den noch nichts benutzt, trägt `Nicht verwendet`.",
-      "Ferienbetreuung an Schließtagen: Speichern Sie die Serie im Betreuungsplan. Bei der Rückfrage wählen Sie `Auch an Schließtagen planen`. Diese Termine bleiben beim Absagen erhalten.",
+      "Ferienbetreuung an Schließtagen: Speichern Sie die Serie im Betreuungsplan. Bei der Rückfrage wählen Sie `Auch an Schließtagen planen`. Diese Termine bleiben beim Absagen erhalten, außer Sie setzen das Häkchen für diese Serien. Soll die Serie nur in den Ferien laufen, tragen Sie im Feld `Letzter Tag` den letzten Ferientag ein. Danach legt die Serie keine Termine mehr an.",
       "Einen beliebigen Zeitraum sagen Sie im Betreuungsplan ab. Wählen Sie im Menü `Termine im Zeitraum absagen`.",
       "An Schließtagen hat niemand Soll. Arbeitet jemand in der Ferienbetreuung, tragen Sie für die Person eine Sonderarbeitszeit ein.",
     ],

@@ -25,14 +25,14 @@ type bulkCancelStub struct {
 	calls  int
 	from   timezone.Date
 	to     timezone.Date
-	dryRun bool
+	opts   timetableModule.BulkCancelOptions
 	result *timetableModule.BulkCancelResult
 	err    error
 }
 
-func (s *bulkCancelStub) BulkCancelPlanned(_ context.Context, from, to timezone.Date, dryRun bool, _ *int64) (*timetableModule.BulkCancelResult, error) {
+func (s *bulkCancelStub) BulkCancelPlanned(_ context.Context, from, to timezone.Date, opts timetableModule.BulkCancelOptions, _ *int64) (*timetableModule.BulkCancelResult, error) {
 	s.calls++
-	s.from, s.to, s.dryRun = from, to, dryRun
+	s.from, s.to, s.opts = from, to, opts
 	return s.result, s.err
 }
 
@@ -83,7 +83,8 @@ func TestBulkCancelRoute_DryRunReturnsCounts(t *testing.T) {
 	assert.Equal(t, 1, stub.calls)
 	assert.Equal(t, timezone.NewDate(2026, 10, 12), stub.from)
 	assert.Equal(t, timezone.NewDate(2026, 10, 16), stub.to)
-	assert.True(t, stub.dryRun)
+	assert.True(t, stub.opts.DryRun)
+	assert.False(t, stub.opts.IncludeClosingDaySeries, "series planned on closing days stay by default")
 
 	var envelope struct {
 		Data timetableModule.BulkCancelResult `json:"data"`
@@ -92,6 +93,41 @@ func TestBulkCancelRoute_DryRunReturnsCounts(t *testing.T) {
 	assert.Equal(t, 3, envelope.Data.Count)
 	assert.True(t, envelope.Data.DryRun)
 	assert.Len(t, envelope.Data.Days, 2)
+}
+
+func TestBulkCancelRoute_IncludesClosingDaySeriesOnRequest(t *testing.T) {
+	t.Parallel()
+
+	stub := &bulkCancelStub{
+		mockInstanceService: &mockInstanceService{},
+		result: &timetableModule.BulkCancelResult{
+			From: "2026-10-12", To: "2026-10-16", DryRun: true, Count: 0, Days: []timetableModule.BulkCancelDay{},
+			Kept: 9, KeptSeries: []timetableModule.BulkCancelKeptSeries{{Name: "Ferienbetreuung", Count: 5}, {Name: "Ferienspiele", Count: 4}},
+		},
+	}
+	router := bulkCancelRouter(t, stub)
+
+	response := postBulkCancel(t, router,
+		`{"from":"2026-10-12","to":"2026-10-16","dry_run":true,"include_closing_day_series":true}`,
+		[]string{permissions.SchedulesManage})
+
+	require.Equal(t, http.StatusOK, response.Code, "body=%s", response.Body.String())
+	assert.Equal(t, timetableModule.BulkCancelOptions{DryRun: true, IncludeClosingDaySeries: true}, stub.opts)
+
+	var envelope struct {
+		Data struct {
+			Kept       int `json:"kept"`
+			KeptSeries []struct {
+				Name  string `json:"name"`
+				Count int    `json:"count"`
+			} `json:"kept_series"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &envelope))
+	assert.Equal(t, 9, envelope.Data.Kept)
+	require.Len(t, envelope.Data.KeptSeries, 2)
+	assert.Equal(t, "Ferienbetreuung", envelope.Data.KeptSeries[0].Name)
+	assert.Equal(t, 5, envelope.Data.KeptSeries[0].Count)
 }
 
 func TestBulkCancelRoute_RejectsInvalidRanges(t *testing.T) {

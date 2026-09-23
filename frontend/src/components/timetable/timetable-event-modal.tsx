@@ -80,7 +80,7 @@ const STEP_FIELDS: readonly (readonly (keyof EventFormState)[])[] = [
     "roomId",
     "categoryId",
   ],
-  ["weekdays", "calendarPeriodId", "weekPattern"],
+  ["weekdays", "calendarPeriodId", "weekPattern", "seriesEndDate"],
   ["targetGradeLevel", "targetSchoolClass", "educationGroupId"],
 ];
 
@@ -365,6 +365,8 @@ export function TimetableEventModal({
       weekPattern: form.weekPattern,
       validFrom: requestedValidFrom,
       validUntil: validity?.validUntil,
+      // #3594: only closing days up to the last day of the series count.
+      lastDay: form.seriesEndDate,
     });
     // Converting preserves the concrete seed occurrence even when its date is
     // outside the selected recurrence slots.
@@ -385,6 +387,7 @@ export function TimetableEventModal({
     form.calendarPeriodId,
     form.date,
     form.seriesStartDate,
+    form.seriesEndDate,
     form.weekPattern,
     form.weekdays,
     initialSeries,

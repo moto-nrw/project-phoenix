@@ -51,6 +51,7 @@ type Group struct {
 	SourceSchoolClasses   []string   `json:"source_school_classes,omitempty"`
 	Notes                 *string    `json:"notes,omitempty"`
 	IncludeClosingDays    bool       `json:"-"`
+	SeriesLastDay         *string    `json:"-"`
 	Category              *Category  `json:"category,omitempty"`
 }
 
@@ -119,6 +120,7 @@ type GroupInput struct {
 	SourceSchoolClasses   []string
 	Notes                 *string
 	IncludeClosingDays    bool
+	SeriesLastDay         *string
 }
 
 type TemplateUpdate struct {
@@ -143,6 +145,9 @@ type TemplateUpdate struct {
 	SourceSchoolClasses     []string
 	// IncludeClosingDays nil keeps the stored series flag (#3594).
 	IncludeClosingDays *bool
+	// SeriesLastDay is applied only when SeriesLastDayProvided; nil clears it.
+	SeriesLastDay         *string
+	SeriesLastDayProvided bool
 }
 
 type OfferingSourceInput struct {

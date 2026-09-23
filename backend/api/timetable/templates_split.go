@@ -172,6 +172,10 @@ func (req *splitTemplateRequest) Bind(r *http.Request) error {
 	if req.SeriesRosterFrom != nil {
 		return errors.New("series_roster_from is not supported on a split")
 	}
+	// The series end (#3594) is set on create and on a whole-series update.
+	if req.EndDate.Set {
+		return errors.New("end_date is not supported on a split")
+	}
 	// req.Notes (nullableStr) shadows the embedded updateTemplateRequest.Notes,
 	// so the create/update length guard in the embedded Bind never sees the
 	// split note. Enforce the same 2000-char limit here (#1837 follow-up).

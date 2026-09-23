@@ -91,6 +91,12 @@ type updateTemplateRequest struct {
 	// stored series start, and clear of any predecessor segment's window.
 	// Omitted = the stored validity envelope stays untouched.
 	StartDate *string `json:"start_date,omitempty"`
+	// EndDate (#3594, YYYY-MM-DD, inclusive) moves the last day of the series
+	// earlier or later; the follow-up re-plan removes planned occurrences after
+	// it. Must lie within the planning period and not before the start.
+	// Presence-aware: omitted keeps the stored end, null removes it. Not
+	// supported on a split ("Ab jetzt"); the split rejects it.
+	EndDate nullableStr `json:"end_date"`
 }
 
 func (req *updateTemplateRequest) Bind(_ *http.Request) error {
@@ -190,6 +196,8 @@ type parsedUpdateTemplate struct {
 	maxParticipantsProvided bool
 	seriesRosterFrom        *timezone.Date
 	startDate               *timezone.Date
+	// endDate moves the last day of the series earlier (#3594); nil keeps it.
+	endDate *timezone.Date
 }
 
 // parseUpdateTemplateRequest binds and format-validates the request. Format
@@ -228,7 +236,12 @@ func parseUpdateTemplateRequest(w http.ResponseWriter, r *http.Request) (*parsed
 		}
 		startDate = &parsedDate
 	}
+	endDate, ok := parseSeriesEndDate(w, r, req.EndDate.Value)
+	if !ok {
+		return nil, false
+	}
 	return &parsedUpdateTemplate{
+		endDate:                 endDate,
 		req:                     req,
 		startTime:               timing.startTime,
 		endTime:                 timing.endTime,
@@ -358,13 +371,9 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		renderTemplateNotFound(w, r)
 		return
 	}
-	if err := validateLegacyTemplateWorkdays(templates[0].Schedules, parsed.req.Weekdays); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	if !rs.prepareTemplateUpdate(w, r, parsed, templates[0]) {
 		return
 	}
-	parsed.req.CalendarPeriodID = updateCalendarPeriodID(
-		parsed.startDate, parsed.req.CalendarPeriodID, templates[0])
-	applyOfferingSourcePresence(parsed.req, templates[0])
 	gradeLevelMax, rosterValidFrom, ok := rs.templateWritePreflight(w, r, parsed.req.CalendarPeriodID, parsed.startDate)
 	if !ok {
 		return
@@ -551,6 +560,8 @@ func buildUpdateTemplateInput(
 			ListKind:                req.ListKind,
 			Notes:                   normalizeNotes(req.Notes),
 			IncludeClosingDays:      req.IncludeClosingDays,
+			SeriesLastDay:           seriesLastDayString(parsed.endDate),
+			SeriesLastDayProvided:   req.EndDate.Set,
 		},
 		Weekdays:           req.Weekdays,
 		TimeframeID:        timeframeID,

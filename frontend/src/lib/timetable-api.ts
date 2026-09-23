@@ -773,13 +773,15 @@ class TimetableService {
   /**
    * POST /api/timetable/instances/bulk-cancel (#3594).
    * Cancels and removes the planned appointments in [from, to] from today
-   * on, except series planned on closing days on purpose. Parents are not
-   * notified. `dryRun` only counts them for the confirmation dialog.
+   * on, except series planned on closing days on purpose unless
+   * `includeClosingDaySeries` is set. Parents are not notified. `dryRun`
+   * only counts them for the confirmation dialog.
    */
   async bulkCancel(
     from: string,
     to: string,
     dryRun: boolean,
+    includeClosingDaySeries = false,
   ): Promise<BulkCancelResult> {
     const response = await fetch("/api/timetable/instances/bulk-cancel", {
       method: "POST",
@@ -788,7 +790,12 @@ class TimetableService {
         Accept: "application/json",
       },
       credentials: "include",
-      body: JSON.stringify({ from, to, dry_run: dryRun }),
+      body: JSON.stringify({
+        from,
+        to,
+        dry_run: dryRun,
+        include_closing_day_series: includeClosingDaySeries,
+      }),
     });
 
     const raw = await unwrap<BackendBulkCancelResult>(response);

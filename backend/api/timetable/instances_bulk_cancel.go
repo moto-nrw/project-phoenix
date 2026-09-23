@@ -17,6 +17,9 @@ type bulkCancelRequest struct {
 	From   string `json:"from"`
 	To     string `json:"to"`
 	DryRun bool   `json:"dry_run"`
+	// IncludeClosingDaySeries also cancels series planned on closing days on
+	// purpose (holiday care). Off by default.
+	IncludeClosingDaySeries bool `json:"include_closing_day_series"`
 }
 
 func (req *bulkCancelRequest) Bind(_ *http.Request) error {
@@ -28,7 +31,8 @@ func (req *bulkCancelRequest) Bind(_ *http.Request) error {
 
 // bulkCancelInstances cancels and removes the planned occurrences of a date
 // range, for example a closure the school entered after the plan was made.
-// dry_run only returns the count per day for the confirmation dialog.
+// dry_run only returns the count per day and the series that stay, for the
+// confirmation dialog.
 func (rs *Resource) bulkCancelInstances(w http.ResponseWriter, r *http.Request) {
 	if rs.InstanceService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("instance service not wired")))
@@ -46,7 +50,8 @@ func (rs *Resource) bulkCancelInstances(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	result, err := rs.InstanceService.BulkCancelPlanned(r.Context(), from, to, req.DryRun, jwt.ActorAccountIDFromCtx(r.Context()))
+	opts := timetable.BulkCancelOptions{DryRun: req.DryRun, IncludeClosingDaySeries: req.IncludeClosingDaySeries}
+	result, err := rs.InstanceService.BulkCancelPlanned(r.Context(), from, to, opts, jwt.ActorAccountIDFromCtx(r.Context()))
 	if errors.Is(err, timetable.ErrInvalidBulkCancelRange) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return

@@ -3,6 +3,7 @@
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { ISODatePicker } from "~/components/ui/date-picker";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import { getGermanWeekdayShort } from "~/lib/timetable-helpers";
@@ -77,6 +78,33 @@ export function StepWiederholung({
   dateWeekdayName,
   manualWeekPattern,
 }: Readonly<StepWiederholungProps>) {
+  const selectedPeriod = calendarPeriods.find(
+    (period) => period.id === form.calendarPeriodId,
+  );
+  // #3594: eine Serie kann vor dem Ende des Planungszeitraums enden, etwa
+  // eine Woche Ferienbetreuung. Leer = bis zum Ende des Zeitraums.
+  const lastDayField = (
+    <Field
+      label="Letzter Tag"
+      htmlFor="event_series_last_day"
+      error={fieldErrors.seriesEndDate}
+    >
+      <ISODatePicker
+        id="event_series_last_day"
+        controlSize="md"
+        value={form.seriesEndDate}
+        min={isEditingSeries ? undefined : form.date || undefined}
+        max={selectedPeriod?.endDate}
+        invalid={Boolean(fieldErrors.seriesEndDate)}
+        calendarLayout="popover"
+        placeholder="Bis zum Ende des Zeitraums"
+        onChange={(next) => update("seriesEndDate", next)}
+      />
+      <p className="mt-1 text-xs text-gray-500">
+        Danach legt die Serie keine Termine mehr an.
+      </p>
+    </Field>
+  );
   const legacyWeekendWeekdays = form.weekdays.filter((iso) => iso > 5);
   const normalizeLegacyWeekend = (legacyWeekday: number) => {
     const weekdays = form.weekdays.filter((iso) => iso !== legacyWeekday);
@@ -278,9 +306,12 @@ export function StepWiederholung({
                 )}
               </div>
             )}
+            {lastDayField}
           </div>
         </>
       )}
+
+      {!expanded && isSeriesFlow && lastDayField}
 
       {isSeriesFlow && calendarPeriods.length === 0 && (
         <Alert

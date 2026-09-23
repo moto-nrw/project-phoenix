@@ -109,7 +109,7 @@ func TestSelectBulkCancel(t *testing.T) {
 		{InstanceID: 40, Date: "2026-10-19", Status: timetable.InstanceStatusPlanned},
 	}
 
-	ids, result := timetable.SelectBulkCancel(candidates, "2026-10-01", "2026-10-16", "2026-10-12")
+	ids, result := timetable.SelectBulkCancel(candidates, "2026-10-01", "2026-10-16", "2026-10-12", timetable.BulkCancelOptions{})
 
 	assert.Equal(t, []int64{10, 11, 30}, ids, "planned, from today, inside the range, date order")
 	assert.Equal(t, 3, result.Count)
@@ -122,8 +122,48 @@ func TestSelectBulkCancel(t *testing.T) {
 func TestSelectBulkCancel_EmptyRangeHasNoDays(t *testing.T) {
 	t.Parallel()
 
-	ids, result := timetable.SelectBulkCancel(nil, "2026-10-12", "2026-10-16", "2026-10-01")
+	ids, result := timetable.SelectBulkCancel(nil, "2026-10-12", "2026-10-16", "2026-10-01", timetable.BulkCancelOptions{})
 	assert.Empty(t, ids)
 	assert.Zero(t, result.Count)
 	assert.NotNil(t, result.Days, "the dialog reads an empty list, never null")
+}
+
+func TestSelectBulkCancel_NamesTheSeriesThatStay(t *testing.T) {
+	t.Parallel()
+
+	candidates := []timetable.BulkCancelCandidate{
+		{InstanceID: 1, Date: "2026-10-12", Status: timetable.InstanceStatusPlanned, SeriesIncludesClosingDays: true, SeriesName: "Ferienspiele"},
+		{InstanceID: 2, Date: "2026-10-12", Status: timetable.InstanceStatusPlanned, SeriesIncludesClosingDays: true, SeriesName: "Ferienbetreuung"},
+		{InstanceID: 3, Date: "2026-10-13", Status: timetable.InstanceStatusPlanned, SeriesIncludesClosingDays: true, SeriesName: "Ferienbetreuung"},
+		{InstanceID: 4, Date: "2026-10-13", Status: timetable.InstanceStatusPlanned, SeriesName: "Hausaufgaben"},
+		{InstanceID: 5, Date: "2026-10-09", Status: timetable.InstanceStatusPlanned, SeriesIncludesClosingDays: true, SeriesName: "Vergangen"},
+	}
+
+	ids, result := timetable.SelectBulkCancel(candidates, "2026-10-01", "2026-10-16", "2026-10-12", timetable.BulkCancelOptions{DryRun: true})
+
+	assert.Equal(t, []int64{4}, ids)
+	assert.True(t, result.DryRun)
+	assert.Equal(t, 3, result.Kept)
+	assert.Equal(t, []timetable.BulkCancelKeptSeries{
+		{Name: "Ferienbetreuung", Count: 2},
+		{Name: "Ferienspiele", Count: 1},
+	}, result.KeptSeries, "ordered by name, past occurrences not counted")
+}
+
+func TestSelectBulkCancel_IncludeClosingDaySeries(t *testing.T) {
+	t.Parallel()
+
+	candidates := []timetable.BulkCancelCandidate{
+		{InstanceID: 2, Date: "2026-10-13", Status: timetable.InstanceStatusPlanned, SeriesIncludesClosingDays: true, SeriesName: "Ferienbetreuung"},
+		{InstanceID: 1, Date: "2026-10-12", Status: timetable.InstanceStatusPlanned},
+		{InstanceID: 3, Date: "2026-10-12", Status: timetable.InstanceStatusCancelled, SeriesIncludesClosingDays: true, SeriesName: "Ferienbetreuung"},
+	}
+
+	ids, result := timetable.SelectBulkCancel(candidates, "2026-10-12", "2026-10-16", "2026-10-12", timetable.BulkCancelOptions{IncludeClosingDaySeries: true})
+
+	assert.Equal(t, []int64{1, 2}, ids, "the holiday care series is cancelled too, still only planned occurrences")
+	assert.Equal(t, 2, result.Count)
+	assert.Zero(t, result.Kept)
+	assert.NotNil(t, result.KeptSeries, "the dialog reads an empty list, never null")
+	assert.Empty(t, result.KeptSeries)
 }

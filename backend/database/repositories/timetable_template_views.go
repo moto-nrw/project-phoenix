@@ -138,6 +138,7 @@ func legacyTemplateRow(row timetable.TemplateListRow) activitiesModels.TemplateL
 		SourceCareOfferingIDsJSON: row.SourceCareOfferingIDsJSON, SourceGradeLevelsJSON: row.SourceGradeLevelsJSON,
 		SourceSchoolClassesJSON: row.SourceSchoolClassesJSON, ListKind: legacyNullString(row.ListKind), Notes: legacyNullString(row.Notes),
 		IncludeClosingDays: row.IncludeClosingDays,
+		SeriesLastDay:      legacyNullString(row.SeriesLastDay),
 		ShiftTypeID:        legacyNullInt64(row.ShiftTypeID), ShiftTypeName: row.ShiftTypeName, ShiftTypeColor: row.ShiftTypeColor,
 		EnrollmentCount: row.EnrollmentCount, SupervisorCount: row.SupervisorCount,
 		CapacityEnrollmentCount: row.CapacityEnrollmentCount, CapacitySupervisorCount: row.CapacitySupervisorCount,

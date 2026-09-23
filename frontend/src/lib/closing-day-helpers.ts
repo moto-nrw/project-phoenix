@@ -48,7 +48,9 @@ export function mapClosingDays(data: BackendClosingDay[]): ClosingDay[] {
 }
 
 /** "24.12.2026 – 31.12.2026", collapsed to one date for single-day ranges. */
-export function formatClosingDayRange(day: ClosingDay): string {
+export function formatClosingDayRange<
+  T extends Pick<ClosingDay, "startDate" | "endDate">,
+>(day: T): string {
   if (day.startDate === day.endDate) {
     return formatDate(day.startDate);
   }

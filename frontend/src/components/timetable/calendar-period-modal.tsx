@@ -417,6 +417,12 @@ export function CalendarPeriodModal({
               />
             </Field>
 
+            {/* #3594: „Ferien“ als Zeitraum sagt keine Termine ab und setzt
+                kein Soll auf null; das tut nur ein Schließtag. */}
+            {form.periodType === "holiday" && (
+              <Alert type="info" message={HOLIDAY_CLOSING_DAY_HINT} />
+            )}
+
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="Startdatum" htmlFor="start_date" required>
                 <ISODatePicker
@@ -631,6 +637,11 @@ interface FieldProps {
   required?: boolean;
   children: React.ReactNode;
 }
+
+// #3594: Hinweis bei der Art „Ferien“. Der Zeitraum sagt keine Termine ab
+// und setzt kein Soll auf null; das tut nur ein Schließtag.
+const HOLIDAY_CLOSING_DAY_HINT =
+  "Hat die OGS in dieser Zeit geschlossen? Dann legen Sie unten auf der Seite „Zeiträume“ einen Schließtag an. Nur an Schließtagen fallen Termine aus und es gibt keine Sollstunden.";
 
 function Field({ label, htmlFor, required = false, children }: FieldProps) {
   return (

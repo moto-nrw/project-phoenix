@@ -54,7 +54,9 @@ const holidayCare: StaffTargetOverride = {
 
 function openCreate() {
   render(<SonderarbeitszeitenSection staffId="42" canEdit />);
-  fireEvent.click(screen.getByRole("button", { name: "Anlegen" }));
+  fireEvent.click(
+    screen.getAllByRole("button", { name: "Sonderarbeitszeit anlegen" })[0]!,
+  );
   expect(
     screen.getByRole("dialog", { name: "Sonderarbeitszeit anlegen" }),
   ).toBeInTheDocument();
@@ -89,7 +91,7 @@ describe("SonderarbeitszeitenSection", () => {
     expect(
       screen.getByRole("heading", { name: "Sonderarbeitszeiten" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("19.10.2026 bis 23.10.2026")).toBeInTheDocument();
+    expect(screen.getByText("19.10.2026 – 23.10.2026")).toBeInTheDocument();
     expect(screen.getByText("8,5 Std.")).toBeInTheDocument();
     expect(
       screen.getByText(/auch an Schließtagen\. Feiertage bleiben frei\./),
@@ -112,7 +114,9 @@ describe("SonderarbeitszeitenSection", () => {
   it("hides every write action without the edit permission", () => {
     render(<SonderarbeitszeitenSection staffId="42" canEdit={false} />);
 
-    expect(screen.queryByRole("button", { name: "Anlegen" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Sonderarbeitszeit anlegen" }),
+    ).toBeNull();
     expect(
       screen.queryByRole("button", {
         name: /Aktionen für die Sonderarbeitszeit/,
@@ -153,7 +157,9 @@ describe("SonderarbeitszeitenSection", () => {
     fillRange("13");
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     expect(
-      await screen.findByText(/Erlaubt sind 0 bis 12\./),
+      await screen.findByText(
+        "Bitte 0 bis 12 Stunden eingeben, zum Beispiel 8,5.",
+      ),
     ).toBeInTheDocument();
     expect(mocks.create).not.toHaveBeenCalled();
 
@@ -212,12 +218,51 @@ describe("SonderarbeitszeitenSection", () => {
     expect(screen.getAllByText("Sonderarbeitszeiten")).toHaveLength(1);
   });
 
-  it("shows an empty state when nothing is entered", () => {
+  it("offers the next step in the empty state", () => {
     mocks.rows = [];
     render(<SonderarbeitszeitenSection staffId="42" canEdit />);
 
     expect(
       screen.getByText("Keine Sonderarbeitszeiten eingetragen."),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Legen Sie dafür eine Sonderarbeitszeit an\./),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "Sonderarbeitszeit anlegen" }),
+    ).toHaveLength(2);
+  });
+
+  it("shows a single day as one date", () => {
+    mocks.rows = [
+      { ...holidayCare, startDate: "2026-10-19", endDate: "2026-10-19" },
+    ];
+    render(<SonderarbeitszeitenSection staffId="42" canEdit />);
+
+    expect(screen.getByText("19.10.2026")).toBeInTheDocument();
+  });
+
+  it("puts each validation error at its field", async () => {
+    mocks.rows = [];
+    openCreate();
+    fireEvent.change(screen.getByLabelText("Stunden pro Tag"), {
+      target: { value: "abc" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText("Bitte den ersten Tag wählen."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Bitte den letzten Tag wählen."),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Stunden pro Tag")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+    expect(
+      screen.getByText("Bitte die markierten Felder prüfen."),
+    ).toBeInTheDocument();
+    expect(mocks.create).not.toHaveBeenCalled();
   });
 });

@@ -800,10 +800,8 @@ export function StaffSessionTable({
                           >
                             {dailyProjectionError === true ? "?" : "…"}
                           </span>
-                        ) : target > 0 ? (
+                        ) : target > 0 || projected?.isOverride ? (
                           formatDuration(target)
-                        ) : projected?.isOverride ? (
-                          "0h"
                         ) : (
                           "–"
                         )}

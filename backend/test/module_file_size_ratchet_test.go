@@ -70,7 +70,7 @@ var moduleFileSizeAllowlist = map[string]int{
 	"modules/peopledirectory/http/guardian_handlers.go":                              1025,
 	"modules/schoolcalendar/portal/internal/application/service.go":                  2000,
 	"modules/timetable/compose/httpadapter/schedules.go":                             1090,
-	"modules/timetable/compose/new.go":                                               1192,
+	"modules/timetable/compose/new.go":                                               1146,
 	"modules/timetable/legacy/timetableplanning/deviation_apply.go":                  1530,
 	"modules/timetable/legacy/timetableplanning/instance_conflict.go":                814,
 	"modules/timetable/legacy/timetableplanning/instance_service.go":                 3095,

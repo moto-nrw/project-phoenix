@@ -42,7 +42,7 @@ func (s *materializationService) candidatePeriod(
 	if sch.Weekday != isoWeekday(date) {
 		return nil
 	}
-	if scheduleEndedOn(sch, date) {
+	if scheduleEndedOn(sch, date) || (tmpl.SeriesLastDay != nil && tmpl.SeriesLastDay.Before(date)) {
 		result.CandidatesSkippedEnded++
 		return nil
 	}

@@ -192,7 +192,7 @@ func TestBulkCancelPlanned_CancelsAndRemovesPlannedOccurrences(t *testing.T) {
 	require.Len(t, activeRows, 1)
 	setInstanceStatus(t, s, activeRows[0].ID, scheduleModels.InstanceStatusActive)
 
-	preview, err := s.factory.Instance.BulkCancelPlanned(s.ctx, past, third, true, nil)
+	preview, err := s.factory.Instance.BulkCancelPlanned(s.ctx, past, third, timetableplanning.BulkCancelOptionsForTest(true, false), nil)
 	require.NoError(t, err)
 	assert.True(t, preview.DryRun)
 	assert.Equal(t, 3, preview.Count, "today and the two planned Mondays ahead")
@@ -206,7 +206,7 @@ func TestBulkCancelPlanned_CancelsAndRemovesPlannedOccurrences(t *testing.T) {
 	assert.Equal(t, map[string]int{today.String(): 1, second.String(): 1, third.String(): 1}, perDay)
 	assert.Len(t, listInstancesForDate(t, s.db, s.template.ID, second), 1, "a dry run changes nothing")
 
-	done, err := s.factory.Instance.BulkCancelPlanned(s.ctx, past, third, false, nil)
+	done, err := s.factory.Instance.BulkCancelPlanned(s.ctx, past, third, timetableplanning.BulkCancelOptionsForTest(false, false), nil)
 	require.NoError(t, err)
 	assert.False(t, done.DryRun)
 	assert.Equal(t, 3, done.Count)
@@ -233,14 +233,41 @@ func TestBulkCancelPlanned_KeepsSeriesThatIncludeClosingDays(t *testing.T) {
 	s, mondays := bulkCancelScenario(t)
 	setSeriesIncludesClosingDays(t, s, true)
 
-	result, err := s.factory.Instance.BulkCancelPlanned(s.ctx, mondays[1], mondays[5], false, nil)
+	result, err := s.factory.Instance.BulkCancelPlanned(s.ctx, mondays[1], mondays[5], timetableplanning.BulkCancelOptionsForTest(false, false), nil)
 	require.NoError(t, err)
 	assert.Zero(t, result.Count)
 	assert.Empty(t, result.Days)
 	assert.Equal(t, 5, result.Kept, "the dialog learns that holiday care stays")
+	require.Len(t, result.KeptSeries, 1, "the dialog names the series that stay")
+	assert.Equal(t, s.template.Name, result.KeptSeries[0].Name)
+	assert.Equal(t, 5, result.KeptSeries[0].Count)
 	for _, monday := range mondays[1:] {
 		assert.Len(t, listInstancesForDate(t, s.db, s.template.ID, monday), 1)
 	}
+}
+
+func TestBulkCancelPlanned_IncludeClosingDaySeriesRemovesThem(t *testing.T) {
+	t.Parallel()
+
+	s, mondays := bulkCancelScenario(t)
+	setSeriesIncludesClosingDays(t, s, true)
+
+	preview, err := s.factory.Instance.BulkCancelPlanned(s.ctx, mondays[1], mondays[5],
+		timetableplanning.BulkCancelOptionsForTest(true, true), nil)
+	require.NoError(t, err)
+	assert.Equal(t, 5, preview.Count, "the recount includes the holiday care series")
+	assert.Zero(t, preview.Kept)
+	assert.Empty(t, preview.KeptSeries)
+
+	done, err := s.factory.Instance.BulkCancelPlanned(s.ctx, mondays[1], mondays[5],
+		timetableplanning.BulkCancelOptionsForTest(false, true), nil)
+	require.NoError(t, err)
+	assert.Equal(t, 5, done.Count)
+	for _, monday := range mondays[1:] {
+		assert.Empty(t, listInstancesForDate(t, s.db, s.template.ID, monday), "removed on %s", monday)
+		assert.Equal(t, 1, countCancelledExceptions(t, s.db, s, monday), "slot exception on %s", monday)
+	}
+	assert.Len(t, listInstancesForDate(t, s.db, s.template.ID, mondays[0]), 1, "past occurrences stay")
 }
 
 func TestBulkCancelPlanned_StaysInsideTheTenant(t *testing.T) {
@@ -249,7 +276,7 @@ func TestBulkCancelPlanned_StaysInsideTheTenant(t *testing.T) {
 	own, mondays := bulkCancelScenario(t)
 	other, _ := bulkCancelScenario(t)
 
-	result, err := own.factory.Instance.BulkCancelPlanned(own.ctx, mondays[1], mondays[5], false, nil)
+	result, err := own.factory.Instance.BulkCancelPlanned(own.ctx, mondays[1], mondays[5], timetableplanning.BulkCancelOptionsForTest(false, false), nil)
 	require.NoError(t, err)
 	assert.Equal(t, 5, result.Count)
 	for _, monday := range mondays[1:] {
@@ -268,7 +295,7 @@ func TestBulkCancelPlanned_RejectsInvalidRanges(t *testing.T) {
 
 		"same days": {mondays[5].AddDays(1), mondays[5].AddDays(1)},
 	} {
-		_, err := s.factory.Instance.BulkCancelPlanned(s.ctx, window[0], window[1], true, nil)
+		_, err := s.factory.Instance.BulkCancelPlanned(s.ctx, window[0], window[1], timetableplanning.BulkCancelOptionsForTest(true, false), nil)
 		if name == "same days" {
 			require.NoError(t, err, name)
 			continue
@@ -315,7 +342,7 @@ func TestBulkCancelPlanned_DryRunQueryBudget(t *testing.T) {
 
 	run := func(to timezone.Date, want int) int {
 		counter.Reset()
-		result, err := s.factory.Instance.BulkCancelPlanned(s.ctx, mondays[1], to, true, nil)
+		result, err := s.factory.Instance.BulkCancelPlanned(s.ctx, mondays[1], to, timetableplanning.BulkCancelOptionsForTest(true, false), nil)
 		require.NoError(t, err)
 		require.Equal(t, want, result.Count)
 		return counter.Total()

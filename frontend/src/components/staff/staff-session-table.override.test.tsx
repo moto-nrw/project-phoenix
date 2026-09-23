@@ -83,11 +83,11 @@ describe("StaffSessionTable Sonderarbeitszeit (#3259)", () => {
     expect(within(monday).queryByText("Schließtag")).toBeNull();
   });
 
-  it("shows 0h on a 0-hour Sonderarbeitszeit, the closure badge stays", () => {
+  it("shows 0min on a 0-hour Sonderarbeitszeit, the closure badge stays", () => {
     renderClosureWeek();
 
     const tuesday = row("06.01.");
-    expect(within(tuesday).getByText("0h")).toBeInTheDocument();
+    expect(within(tuesday).getByText("0min")).toBeInTheDocument();
     expect(within(tuesday).getByText("Schließtag")).toBeInTheDocument();
     expect(within(tuesday).queryByText("Nicht erfasst")).toBeNull();
   });
@@ -98,6 +98,6 @@ describe("StaffSessionTable Sonderarbeitszeit (#3259)", () => {
     const wednesday = row("07.01.");
     expect(within(wednesday).getByText("Schließtag")).toBeInTheDocument();
     expect(within(wednesday).queryByText(/Sonderarbeitszeit/)).toBeNull();
-    expect(within(wednesday).queryByText("0h")).toBeNull();
+    expect(within(wednesday).queryByText("0min")).toBeNull();
   });
 });

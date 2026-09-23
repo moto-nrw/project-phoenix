@@ -27,6 +27,7 @@ type TemplateListRow struct {
 	ListKind                  *string `bun:"list_kind"`
 	Notes                     *string `bun:"notes"`
 	IncludeClosingDays        bool    `bun:"include_closing_days"`
+	SeriesLastDay             *string `bun:"series_last_day"`
 	ShiftTypeID               *int64  `bun:"shift_type_id"`
 	ShiftTypeName             string  `bun:"shift_type_name"`
 	ShiftTypeColor            string  `bun:"shift_type_color"`

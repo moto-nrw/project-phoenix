@@ -305,6 +305,19 @@ describe("small timetable components", () => {
     expect(screen.getByText("Besetzung:")).toHaveClass("sr-only");
   });
 
+  it("shows the last day of a series that ends early (#3594)", () => {
+    render(
+      <TemplateCard
+        template={{ ...template, endDate: "2026-10-23" }}
+        onEdit={vi.fn()}
+        onApply={vi.fn()}
+        onArchive={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/, bis 23\.10\.2026/)).toBeInTheDocument();
+  });
+
   it("gives compact ratio pills a screen-reader label", () => {
     render(
       <TimetableRatioPill

@@ -138,6 +138,7 @@ func templateResponseFromRow(row templateRow, childrenPerStaffRatio int) templat
 		ListKind:                    nullableTemplateString(row.ListKind.Valid, row.ListKind.String),
 		Notes:                       nullableTemplateString(row.Notes.Valid, row.Notes.String),
 		IncludeClosingDays:          row.IncludeClosingDays,
+		EndDate:                     nullableTemplateString(row.SeriesLastDay.Valid, row.SeriesLastDay.String),
 		ShiftTypeName:               row.ShiftTypeName,
 		ShiftTypeColor:              row.ShiftTypeColor,
 		EnrollmentCount:             row.EnrollmentCount,
@@ -284,6 +285,9 @@ type templateResponse struct {
 	Notes *string `json:"notes,omitempty"`
 	// IncludeClosingDays: the series is planned on closing days too (#3594).
 	IncludeClosingDays bool `json:"include_closing_days"`
+	// EndDate is the inclusive last day of the series (#3594); nil = the
+	// series runs until its planning period ends.
+	EndDate *string `json:"end_date,omitempty"`
 	// ShiftTypeName/ShiftTypeColor reflect the category's optional
 	// Kategorie↔Schichtart mapping (#1836/#1837 follow-up); empty when unmapped.
 	ShiftTypeName   string `json:"shift_type_name,omitempty"`

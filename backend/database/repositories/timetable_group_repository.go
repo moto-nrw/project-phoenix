@@ -243,6 +243,7 @@ func (r timetableActivityGroupRepository) UpdateTemplateFields(ctx context.Conte
 		TargetSchoolClass: fields.TargetSchoolClass, ListKind: fields.ListKind, Notes: fields.Notes,
 		SourceCareOfferingIDs: fields.SourceCareOfferingIDs, SourceGradeLevels: fields.SourceGradeLevels,
 		SourceSchoolClasses: fields.SourceSchoolClasses, IncludeClosingDays: fields.IncludeClosingDays,
+		SeriesLastDay: fields.SeriesLastDay, SeriesLastDayProvided: fields.SeriesLastDayProvided,
 	})
 }
 
@@ -359,6 +360,7 @@ func legacyGroup(group timetable.Group) *activitiesModels.Group {
 		TargetGradeLevel: group.TargetGradeLevel, TargetSchoolClass: group.TargetSchoolClass,
 		SourceCareOfferingIDs: group.SourceCareOfferingIDs, SourceGradeLevels: group.SourceGradeLevels,
 		SourceSchoolClasses: group.SourceSchoolClasses, Notes: group.Notes, IncludeClosingDays: group.IncludeClosingDays,
+		SeriesLastDay: activityDateFromString(group.SeriesLastDay),
 	}
 	result.ID = group.ID
 	result.CreatedAt = group.CreatedAt
@@ -380,7 +382,24 @@ func publicGroupInput(group *activitiesModels.Group) timetable.GroupInput {
 		TargetGradeLevel: group.TargetGradeLevel, TargetSchoolClass: group.TargetSchoolClass,
 		SourceCareOfferingIDs: group.SourceCareOfferingIDs, SourceGradeLevels: group.SourceGradeLevels,
 		SourceSchoolClasses: group.SourceSchoolClasses, Notes: group.Notes, IncludeClosingDays: group.IncludeClosingDays,
+		SeriesLastDay: activityDateString(group.SeriesLastDay),
 	}
+}
+
+func activityDateFromString(value *string) *activitiesModels.Date {
+	if value == nil {
+		return nil
+	}
+	day := activitiesModels.Date(*value)
+	return &day
+}
+
+func activityDateString(value *activitiesModels.Date) *string {
+	if value == nil {
+		return nil
+	}
+	day := value.String()
+	return &day
 }
 
 func legacyCategory(category timetable.Category) *activitiesModels.Category {

@@ -91,7 +91,11 @@ type createTemplateRequest struct {
 	// are materialized before it and the initial roster becomes valid from it.
 	// Must lie within the calendar period when one is pinned. Omitted = the
 	// series starts with the planning period (legacy behavior).
-	StartDate       *string `json:"start_date,omitempty"`
+	StartDate *string `json:"start_date,omitempty"`
+	// EndDate is the optional last day of the series (YYYY-MM-DD, inclusive,
+	// #3594): no occurrences after it. Must not lie before the start nor after
+	// the planning period. Omitted = the series runs until the period ends.
+	EndDate         *string `json:"end_date,omitempty"`
 	MaterializeFrom *string `json:"materialize_from,omitempty"` // YYYY-MM-DD
 	MaterializeTo   *string `json:"materialize_to,omitempty"`   // YYYY-MM-DD
 	StudentIDs      []int64 `json:"student_ids,omitempty"`
@@ -289,6 +293,9 @@ type parsedCreateTemplate struct {
 	// startDate is the parsed optional series start; nil = start with the
 	// planning period.
 	startDate *timezone.Date
+	// endDate is the parsed optional last day (#3594); nil = until the period
+	// ends.
+	endDate *timezone.Date
 }
 
 // parseCreateTemplateRequest binds and format-validates the request. Format
@@ -328,6 +335,10 @@ func parseBoundCreateTemplateRequest(
 		}
 		startDate = &parsed
 	}
+	endDate, ok := parseSeriesEndDate(w, r, req.EndDate)
+	if !ok {
+		return nil, false
+	}
 	return &parsedCreateTemplate{
 		req:             req,
 		startTime:       timing.startTime,
@@ -335,6 +346,7 @@ func parseBoundCreateTemplateRequest(
 		weekPattern:     timing.weekPattern,
 		maxParticipants: timing.maxParticipants,
 		startDate:       startDate,
+		endDate:         endDate,
 	}, true
 }
 
@@ -361,6 +373,9 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 
 	gradeLevelMax, rosterValidFrom, ok := rs.templateWritePreflight(w, r, parsed.req.CalendarPeriodID, parsed.startDate)
 	if !ok {
+		return
+	}
+	if !rs.validateSeriesEnd(w, r, parsed.endDate, rosterValidFrom, parsed.req.CalendarPeriodID) {
 		return
 	}
 
@@ -429,6 +444,7 @@ func buildCreateTemplateInput(
 		ListKind:              req.ListKind,
 		Notes:                 normalizeNotes(req.Notes),
 		IncludeClosingDays:    req.IncludeClosingDays,
+		SeriesLastDay:         seriesLastDayActivityDate(parsed.endDate),
 		StudentIDs:            req.StudentIDs,
 		StaffIDs:              req.StaffIDs,
 		PrimaryStaffID:        req.PrimaryStaffID,
