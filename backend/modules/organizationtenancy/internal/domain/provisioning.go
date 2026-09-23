@@ -274,6 +274,9 @@ type SchoolSummary struct {
 	Email            string
 	Settings         string
 	AccountCount     int
+	// ChildQuotaBundles is nil when the school has no Kinderkontingent.
+	ChildQuotaBundles    *int
+	ChildQuotaBundleSize int
 }
 
 // PWAUsageRow is one (school, portal) bucket of PWA standalone usage.

@@ -39,6 +39,8 @@ import { formatCount } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";
 import { PlusIcon } from "~/app/operator/provisioning/provisioning-shared";
 import { EditSchoolModal } from "~/app/operator/provisioning/edit-school-modal";
+import { ChildQuotaModal } from "~/app/operator/provisioning/child-quota-modal";
+import { childQuotaLimit } from "~/lib/operator/child-quota";
 import { InviteAdminModal } from "~/app/operator/provisioning/invite-admin-modal";
 import { CreateAccountModal } from "~/app/operator/provisioning/create-account-modal";
 import { CreateDeviceModal } from "~/app/operator/provisioning/create-device-modal";
@@ -98,6 +100,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     name: string;
   } | null>(null);
   const [editSchoolOpen, setEditSchoolOpen] = useState(false);
+  const [childQuotaOpen, setChildQuotaOpen] = useState(false);
   const [schoolToggleError, setSchoolToggleError] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [createAccountOpen, setCreateAccountOpen] = useState(false);
@@ -339,10 +342,32 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       ) : (
         <span title={pwaTooltip}>–</span>
       );
+    // Kinderkontingent next to the Kontingentzahl (#3568), so the moto team
+    // sees at a glance when a school needs another bundle.
+    const quotaLimit = childQuotaLimit({
+      bundles: school.childQuotaBundles,
+      bundleSize: school.childQuotaBundleSize,
+    });
+    const overQuota =
+      quotaLimit !== null && school.childQuotaCount > quotaLimit;
     return [
       { label: "Konten", value: formatCount(school.kontenCount) },
       { label: "Geräte", value: formatCount(school.geraeteCount) },
       { label: "Personen", value: formatCount(school.personenCount) },
+      {
+        label: "Kinderkontingent",
+        value: quotaLimit === null ? "Keine Grenze" : formatCount(quotaLimit),
+      },
+      {
+        label: "Kontingentzahl",
+        value: overQuota ? (
+          <span className="text-moto-amber-strong">
+            {formatCount(school.childQuotaCount)}
+          </span>
+        ) : (
+          formatCount(school.childQuotaCount)
+        ),
+      },
       { label: "App-Nutzung Mitarbeitende", value: pwaValue(pwaUsage?.staff) },
       { label: "App-Nutzung Eltern", value: pwaValue(pwaUsage?.parent) },
     ];
@@ -366,6 +391,13 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
           className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
         >
           Bearbeiten
+        </button>
+        <button
+          type="button"
+          onClick={() => setChildQuotaOpen(true)}
+          className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
+        >
+          Kinderkontingent
         </button>
         <Link
           href={
@@ -625,6 +657,17 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
           onConfirm={() => void schoolDelete.handleSoftDelete()}
         />
       )}
+
+      <ChildQuotaModal
+        isOpen={childQuotaOpen}
+        onClose={() => setChildQuotaOpen(false)}
+        school={school}
+        loadCurrentSchool={async () => {
+          const fresh = await mutateSchools();
+          return fresh?.find((item) => item.id === school.id) ?? school;
+        }}
+        onUpdated={refreshSchoolDetail}
+      />
 
       <EditSchoolModal
         isOpen={editSchoolOpen}
