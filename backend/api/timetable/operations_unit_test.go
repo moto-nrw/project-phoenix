@@ -3,7 +3,6 @@ package timetable
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
@@ -1161,7 +1161,7 @@ func (r *fakeOperationRoomRepo) FindByID(_ context.Context, _ interface{}) (*fac
 		return nil, r.err
 	}
 	if r.room == nil {
-		return nil, sql.ErrNoRows
+		return nil, facilities.ErrRoomNotFound
 	}
 	return r.room, nil
 }
@@ -1183,7 +1183,7 @@ func (r *fakeOperationActivityGroupRepo) FindByName(_ context.Context, name stri
 	if r.findByNameResult != nil {
 		return r.findByNameResult, nil
 	}
-	return nil, sql.ErrNoRows
+	return nil, activityModels.WrapNotFoundDatabaseError("find group by name")
 }
 
 func (r *fakeOperationActivityGroupRepo) Create(_ context.Context, group *activityModels.Group) error {
@@ -1216,7 +1216,7 @@ func (r *fakeOperationActivityCategoryRepo) findByName() (*activityModels.Catego
 	if r.findByNameResult != nil {
 		return r.findByNameResult, nil
 	}
-	return nil, sql.ErrNoRows
+	return nil, activityModels.WrapNotFoundDatabaseError("find by name")
 }
 
 func (r *fakeOperationActivityCategoryRepo) Create(_ context.Context, category *activityModels.Category) error {
