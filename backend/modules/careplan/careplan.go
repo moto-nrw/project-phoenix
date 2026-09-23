@@ -51,9 +51,11 @@ const (
 )
 
 var (
-	ErrCareOfferingNotFound       = errors.New("care offering not found")
-	ErrOfferingChangeNotFound     = errors.New("offering change request not found")
-	ErrOfferingChangeNotPending   = errors.New("offering change request is not pending")
+	ErrCareOfferingNotFound = errors.New("care offering not found")
+	// ErrOfferingChangeNotFound and ErrOfferingChangeNotPending are part of the
+	// decision error contract (decision_errors.go): handlers render their texts.
+	ErrOfferingChangeNotFound     = errors.New("enrollment: offering change request not found")
+	ErrOfferingChangeNotPending   = errors.New("enrollment: offering change request is not pending")
 	ErrOfferingChangeAlreadyOpen  = errors.New("offering change request already pending")
 	ErrInvalidCareOffering        = errors.New("invalid care offering")
 	ErrInvalidOfferingChange      = errors.New("invalid offering change request")

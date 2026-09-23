@@ -316,7 +316,7 @@ func (r *offeringChangeCarePlanRepository) ListDecidedForTenant(ctx context.Cont
 func (r *offeringChangeCarePlanRepository) FindByIDForUpdate(ctx context.Context, id int64) (*enrollmentModels.OfferingChangeRequest, error) {
 	row, err := r.find(ctx, id, true, "find offering change request for update")
 	if errors.Is(err, careplan.ErrOfferingChangeNotFound) || modelBase.IsNoRows(err) {
-		return nil, enrollmentModels.ErrOfferingChangeNotFound
+		return nil, errOfferingChangeNotFound
 	}
 	return row, err
 }
@@ -420,7 +420,7 @@ func (r *offeringChangeCarePlanRepository) searchStudentIDs(ctx context.Context,
 
 func (r *offeringChangeCarePlanRepository) pendingError(op string, err error) error {
 	if errors.Is(err, careplan.ErrOfferingChangeNotPending) {
-		return enrollmentModels.ErrOfferingChangeNotPending
+		return errOfferingChangeNotPending
 	}
 	if err != nil {
 		return &modelBase.DatabaseError{Op: op, Err: err}

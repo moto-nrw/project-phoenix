@@ -10,7 +10,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
@@ -232,21 +232,21 @@ func renderOfferingDecisionError(w http.ResponseWriter, r *http.Request, err err
 }
 
 var offeringDecisionErrorRenderer = common.RulesRenderer(parentRequestRules(
-	common.ErrorRule{Target: enrollmentModels.ErrOfferingChangeNotFound, Render: common.ErrorNotFound},
-	common.ErrorRule{Target: enrollmentModels.ErrOfferingChangeNotPending, Render: conflictWithCode("change_request_not_pending")},
-	common.ErrorRule{Target: enrollmentService.ErrOfferingChangeForbidden, Render: common.ErrorForbidden},
-	common.ErrorRule{Target: enrollmentService.ErrCareOfferingsDisabled, Render: func(err error) render.Renderer {
+	common.ErrorRule{Target: careplan.ErrOfferingChangeNotFound, Render: common.ErrorNotFound},
+	common.ErrorRule{Target: careplan.ErrOfferingChangeNotPending, Render: conflictWithCode("change_request_not_pending")},
+	common.ErrorRule{Target: careplan.ErrOfferingChangeForbidden, Render: common.ErrorForbidden},
+	common.ErrorRule{Target: careplan.ErrCareOfferingsDisabled, Render: func(err error) render.Renderer {
 		return common.ErrorForbiddenWithCode(err, "care_offerings_disabled")
 	}},
-	common.ErrorRule{Target: enrollmentService.ErrOfferingChangeCapacityFull, Render: conflictWithCode("offering_change_capacity_full")},
-	common.ErrorRule{Target: enrollmentService.ErrOfferingChangeNoEnrollment, Render: conflictWithCode("offering_changes_no_enrollment")},
-	common.ErrorRule{Target: enrollmentService.ErrOfferingChangeDateOutOfRange, Render: func(err error) render.Renderer {
+	common.ErrorRule{Target: careplan.ErrOfferingChangeCapacityFull, Render: conflictWithCode("offering_change_capacity_full")},
+	common.ErrorRule{Target: careplan.ErrOfferingChangeNoEnrollment, Render: conflictWithCode("offering_changes_no_enrollment")},
+	common.ErrorRule{Target: careplan.ErrOfferingChangeDateOutOfRange, Render: func(err error) render.Renderer {
 		return common.ErrorInvalidRequestWithCode(err, "offering_change_date_out_of_range")
 	}},
 	common.ErrorRule{
-		Target: enrollmentService.ErrCompleteWithdrawalConfirmationRequired,
+		Target: careplan.ErrCompleteWithdrawalConfirmationRequired,
 		Render: conflictWithCode("enrollment.complete_withdrawal_confirmation_required"),
 	},
-	common.ErrorRule{Target: enrollmentService.ErrOfferingChangeInvalid, Render: common.ErrorInvalidRequest},
-	common.ErrorRule{Target: enrollmentService.ErrOfferingAdjustmentInvalid, Render: common.ErrorInvalidRequest},
+	common.ErrorRule{Target: careplan.ErrOfferingChangeInvalid, Render: common.ErrorInvalidRequest},
+	common.ErrorRule{Target: careplan.ErrOfferingAdjustmentInvalid, Render: common.ErrorInvalidRequest},
 ), common.ErrorInternalServer)

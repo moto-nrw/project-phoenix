@@ -24,7 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-var ErrCompleteWithdrawalConfirmationRequired = errors.New("Alle Betreuungstage werden entfernt. Bitte bestätigen Sie die Komplett-Abmeldung.") //nolint:staticcheck // user-facing German message
+var ErrCompleteWithdrawalConfirmationRequired = careplan.ErrCompleteWithdrawalConfirmationRequired
 
 type offeringAdjustmentSnapshot struct {
 	OfferingID            string   `json:"offering_id"`

@@ -7,7 +7,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 // renderError writes an error response to the HTTP response writer.
@@ -49,7 +48,7 @@ var (
 	ErrExceptionContainsPartialAbsence = careplan.ErrCareExceptionContainsPartialAbsence
 	// ErrPickupResetNoOffering means a manual row cannot be removed because
 	// no booking-derived pickup time would replace it on the requested date.
-	ErrPickupResetNoOffering = enrollmentService.ErrPickupResetNoOffering
+	ErrPickupResetNoOffering = careplan.ErrPickupResetNoOffering
 )
 
 var exceptionWriteErrorRenderer = common.RulesRenderer([]common.ErrorRule{

@@ -3,10 +3,10 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 23.09.2026 · Ratchet 589 · Composition 623 · Policy-Epoche 25 · 96 Regeln mit
+Stand 23.09.2026 · Ratchet 588 · Composition 623 · Policy-Epoche 25 · 96 Regeln mit
 `convert it to exact debt` · 52.901 LOC unter `modules/*/legacy`
 
-Summenprobe: 244 + 29 + 4 + 61 + 43 + 28 + 19 + 161 = 589 = `wc -l backend/architecture/legacy.jsonl`.
+Summenprobe: 244 + 29 + 4 + 60 + 43 + 28 + 19 + 161 = 588 = `wc -l backend/architecture/legacy.jsonl`.
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Entscheidungen
@@ -42,14 +42,14 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [ ] [#3416](https://github.com/moto-nrw/project-phoenix/issues/3416) `issue`-Feld an Policy-Regeln und `rules.stale`
 - [ ] [#3423](https://github.com/moto-nrw/project-phoenix/issues/3423) Die acht neuen Quality-Ratchets auf null fahren
 
-## api/students · 61 Keys
+## api/students · 60 Keys
 
 - [x] [#3351](https://github.com/moto-nrw/project-phoenix/issues/3351) `modules/careplan/legacy/careschedule` auflösen — 9.561 LOC (nativ in Care Plan, ADR 0030)
 - [x] [#3352](https://github.com/moto-nrw/project-phoenix/issues/3352) Status-Tage und Präsenz-Reads → `modules/studentpresence` — die 16 Produktionsdateien hängen seit #3422 am öffentlichen Vertrag (`StatusDays`, `StatusDayOverviews`, `StudentHistory`); `api/students` bindet die Präsenz jetzt über den eigenen Port `StudentPresence` statt der ganzen `Presence`-Komposition, 0 Keys, keine Regel geändert
 - [ ] [#3353](https://github.com/moto-nrw/project-phoenix/issues/3353) Offering-Change- und Pickup-Entscheidungen → Owner-Commands
 - [ ] [#3354](https://github.com/moto-nrw/project-phoenix/issues/3354) Stammdaten- und Elternantrags-Reviews → Owner-Module
 - [ ] [#3356](https://github.com/moto-nrw/project-phoenix/issues/3356) Settings-, Listenexport-, Messaging-, IoT-, Aktivitäts- und Schulstruktur-Kanten
-- [ ] [#2731](https://github.com/moto-nrw/project-phoenix/issues/2731) Carrier — 61
+- [ ] [#2731](https://github.com/moto-nrw/project-phoenix/issues/2731) Carrier — 60
 
 ## Identity · 4 Keys
 

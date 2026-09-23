@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -23,7 +22,7 @@ func (s *offeringChangeRequestService) ConflictCandidate(
 		return nil, err
 	}
 	if row.IsTerminal() {
-		return nil, enrollmentModels.ErrOfferingChangeNotPending
+		return nil, errOfferingChangeNotPending
 	}
 	return &usersService.ParentRequestConflictCandidate{
 		StudentID: row.StudentID,
@@ -37,7 +36,7 @@ func (s *offeringChangeRequestService) LockConflictRequest(ctx context.Context, 
 		return err
 	}
 	if row.IsTerminal() {
-		return enrollmentModels.ErrOfferingChangeNotPending
+		return errOfferingChangeNotPending
 	}
 	return nil
 }

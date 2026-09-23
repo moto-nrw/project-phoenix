@@ -31,13 +31,13 @@ const (
 )
 
 var (
-	ErrPickupAdjustmentInvalid            = errors.New("pickup adjustment: invalid input")
-	ErrPickupAdjustmentResolutionRequired = errors.New("pickup adjustment: explicit resolution is required")
-	ErrPickupAdjustmentStale              = errors.New("pickup adjustment: preview is stale")
-	ErrPickupAdjustmentFutureManualReset  = errors.New("pickup adjustment: manual pickup times can only be reset today")
-	ErrPickupAdjustmentBulkConfirmation   = errors.New("pickup adjustment: bulk exceptions require confirmation")
-	ErrPickupAdjustmentUnauthorized       = errors.New("pickup adjustment: student is not authorized")
-	ErrPickupAdjustmentStudentNotFound    = errors.New("pickup adjustment: student not found")
+	ErrPickupAdjustmentInvalid            = careplan.ErrPickupAdjustmentInvalid
+	ErrPickupAdjustmentResolutionRequired = careplan.ErrPickupAdjustmentResolutionRequired
+	ErrPickupAdjustmentStale              = careplan.ErrPickupAdjustmentStale
+	ErrPickupAdjustmentFutureManualReset  = careplan.ErrPickupAdjustmentFutureManualReset
+	ErrPickupAdjustmentBulkConfirmation   = careplan.ErrPickupAdjustmentBulkConfirmation
+	ErrPickupAdjustmentUnauthorized       = careplan.ErrPickupAdjustmentUnauthorized
+	ErrPickupAdjustmentStudentNotFound    = careplan.ErrPickupAdjustmentStudentNotFound
 )
 
 type PickupAdjustmentSchedule struct {
