@@ -1,4 +1,4 @@
-package enrollment_test
+package postgres_test
 
 import (
 	"context"
@@ -14,8 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -139,7 +137,7 @@ func TestPhaseRepository_Update_PersistsChanges(t *testing.T) {
 	newName := uniquePhaseName("updated")
 	defer wipePhases(db, tenantID, newName)
 	phase.Name = newName
-	phase.ServiceEndDate = capability.Date(timezone.NewDate(2027, 8, 15))
+	phase.ServiceEndDate = capability.Date("2027-08-15")
 	phase.IsActive = false
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -154,7 +152,7 @@ func TestPhaseRepository_Update_PersistsChanges(t *testing.T) {
 	}))
 	assert.Equal(t, newName, got.Name)
 	assert.False(t, got.IsActive)
-	assert.Equal(t, capability.Date(timezone.NewDate(2027, 8, 15)), got.ServiceEndDate)
+	assert.Equal(t, capability.Date("2027-08-15"), got.ServiceEndDate)
 }
 
 func TestPhaseRepository_Update_RejectsZeroID(t *testing.T) {
@@ -198,8 +196,8 @@ func TestPhaseRepository_Update_RejectsInvalidPhase(t *testing.T) {
 	}))
 
 	// End-before-start is rejected by Validate.
-	phase.ServiceStartDate = capability.Date(timezone.NewDate(2030, 1, 1))
-	phase.ServiceEndDate = capability.Date(timezone.NewDate(2029, 12, 31))
+	phase.ServiceStartDate = capability.Date("2030-01-01")
+	phase.ServiceEndDate = capability.Date("2029-12-31")
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.UpdatePhase(ctx, phase)
 	})
@@ -259,16 +257,16 @@ func TestPhaseRepository_ListByTenant_OrdersByServiceStartDesc(t *testing.T) {
 	defer wipePhases(db, tenantID, a, b, c)
 
 	phaseA := makeOwnerEligibilityPhase(a)
-	phaseA.ServiceStartDate = capability.Date(timezone.NewDate(2025, 9, 1))
-	phaseA.ServiceEndDate = capability.Date(timezone.NewDate(2026, 7, 31))
+	phaseA.ServiceStartDate = capability.Date("2025-09-01")
+	phaseA.ServiceEndDate = capability.Date("2026-07-31")
 
 	phaseB := makeOwnerEligibilityPhase(b)
-	phaseB.ServiceStartDate = capability.Date(timezone.NewDate(2026, 9, 1))
-	phaseB.ServiceEndDate = capability.Date(timezone.NewDate(2027, 7, 31))
+	phaseB.ServiceStartDate = capability.Date("2026-09-01")
+	phaseB.ServiceEndDate = capability.Date("2027-07-31")
 
 	phaseC := makeOwnerEligibilityPhase(c)
-	phaseC.ServiceStartDate = capability.Date(timezone.NewDate(2027, 9, 1))
-	phaseC.ServiceEndDate = capability.Date(timezone.NewDate(2028, 7, 31))
+	phaseC.ServiceStartDate = capability.Date("2027-09-01")
+	phaseC.ServiceEndDate = capability.Date("2028-07-31")
 
 	for _, p := range []*capability.Phase{phaseA, phaseB, phaseC} {
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -510,10 +508,10 @@ func TestPhaseRepository_ExistsByRolloverSourcePhaseID_TrueAfterRollover(t *test
 		return repo.InsertPhase(ctx, source)
 	}))
 
-	mode := enrollmentModels.PhaseRolloverModeOptOut
+	mode := capability.PhaseRolloverModeOptOut
 	rollover := makeOwnerEligibilityPhase(rolloverName)
-	rollover.ServiceStartDate = capability.Date(timezone.NewDate(2027, 9, 1))
-	rollover.ServiceEndDate = capability.Date(timezone.NewDate(2028, 7, 31))
+	rollover.ServiceStartDate = capability.Date("2027-09-01")
+	rollover.ServiceEndDate = capability.Date("2028-07-31")
 	rollover.RolloverSourcePhaseID = &source.ID
 	rollover.RolloverMode = &mode
 	rolloverDeadline := time.Date(2027, 7, 1, 0, 0, 0, 0, time.UTC)
