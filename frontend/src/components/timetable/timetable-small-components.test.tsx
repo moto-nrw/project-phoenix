@@ -318,6 +318,20 @@ describe("small timetable components", () => {
     expect(screen.getByText(/, bis 23\.10\.2026/)).toBeInTheDocument();
   });
 
+  it("keeps a finished series listed and marks it as ended (#3594)", () => {
+    // The shared test clock stands on 2026-09-09.
+    render(
+      <TemplateCard
+        template={{ ...template, endDate: "2026-09-04" }}
+        onEdit={vi.fn()}
+        onApply={vi.fn()}
+        onArchive={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/, beendet am 04\.09\.2026/)).toBeInTheDocument();
+  });
+
   it("gives compact ratio pills a screen-reader label", () => {
     render(
       <TimetableRatioPill

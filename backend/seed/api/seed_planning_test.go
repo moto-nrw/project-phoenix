@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -102,6 +103,7 @@ func TestSeedPlanningDemoStepCreatesRealPlanningFlows(t *testing.T) {
 	// #3594: holiday care keeps running on the seeded closing day.
 	assert.Equal(t, "Ferienbetreuung", templates[3]["name"])
 	assert.Equal(t, true, templates[3]["include_closing_days"])
+	assert.Equal(t, holidayCareLastDay(todaySeedDate()).String(), templates[3]["end_date"])
 	// #3261: an afternoon block with children and an office appointment
 	// without children, which the later-pickup choice must leave out.
 	assert.Equal(t, "Freies Spiel", templates[4]["name"])
@@ -109,6 +111,18 @@ func TestSeedPlanningDemoStepCreatesRealPlanningFlows(t *testing.T) {
 	assert.Equal(t, []any{float64(38), float64(39), float64(40), float64(41), float64(42), float64(43)}, templates[4]["student_ids"])
 	assert.Equal(t, "Teamsitzung", templates[5]["name"])
 	assert.Nil(t, templates[5]["student_ids"])
+}
+
+func TestHolidayCareLastDayStaysInTheSchoolYear(t *testing.T) {
+	t.Parallel()
+	at := func(value string) seedDate {
+		day, err := time.Parse(seedDateLayout, value)
+		require.NoError(t, err)
+		return seedDate{Time: day}
+	}
+	assert.Equal(t, "2026-11-06", holidayCareLastDay(at("2026-09-23")).String())
+	assert.Equal(t, "2027-07-31", holidayCareLastDay(at("2027-07-01")).String())
+	assert.Equal(t, "2027-09-14", holidayCareLastDay(at("2027-08-01")).String())
 }
 
 func TestSeedPlanningDemoStepRequiresPlanningReferences(t *testing.T) {
