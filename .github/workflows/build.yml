@@ -379,6 +379,13 @@ jobs:
             NEXT_PUBLIC_SENTRY_ENVIRONMENT=${{ needs.check-environment.outputs.environment }}
             NEXT_PUBLIC_POSTHOG_KEY=${{ secrets[needs.check-environment.outputs.environment == 'demo' && 'DEMO_NEXT_PUBLIC_POSTHOG_KEY' || 'NEXT_PUBLIC_POSTHOG_KEY'] }}
             NEXT_PUBLIC_POSTHOG_HOST=https://eu.i.posthog.com
+            SENTRY_ORG=${{ vars.SENTRY_ORG }}
+            SENTRY_PROJECT=${{ vars.SENTRY_PROJECT }}
+            SENTRY_RELEASE=${{ github.sha }}
+          # Source-map upload for readable Sentry stack traces. Without the
+          # SENTRY_AUTH_TOKEN secret the build skips the upload.
+          secrets: |
+            sentry_auth_token=${{ secrets.SENTRY_AUTH_TOKEN }}
           # Layer cache is mounted automatically via Blacksmith sticky disks (per repo + Dockerfile)
           provenance: false
 
