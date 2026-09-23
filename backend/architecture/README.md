@@ -934,10 +934,11 @@ Its `student-presence.http.inbound-common` and
 `root-composition.to.student-presence-http` mount and every
 `student-presence.adapter-test.*` rule are compatibility permissions, not
 target dependencies: the shared HTTP rendering edge goes when the inbound
-common package moves, the calendar-date edge with the retained
-`internal/timezone` type, and the settings and user-context test edges with the
-fixtures that still name them. Convert them to exact debt with the rule above
-once the package exists at a base SHA.
+common package moves and the calendar-date edge with the retained
+`internal/timezone` type. Convert them to exact debt with the rule above
+once the package exists at a base SHA. The settings test edge is gone (#3447):
+the tests name the setting keys through the public `modules/settings`
+contract, which now also exports the four tracking-indicator keys.
 
 The retained Presence services, rows and repositories (#3214) moved file for
 file, with their tests, out of the legacy packages the HTTP composition left

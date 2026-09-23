@@ -122,12 +122,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 102
+	policyTempRulesTotal = 101
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 160
+	policyTempRulesCompatTotal = 159
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -211,7 +211,7 @@ var policyTempRulesFamilies = map[string]int{
 	// #3422 removed 7 that went stale with legacy/services/active and rewrote
 	// the 9 of the dissolved nest's behaviour suites, which now describe the
 	// module's own suites and promise no conversion.
-	"student-presence": 5,
+	"student-presence": 4,
 
 	// #3214, #3218, #3229 — closed.
 	"test-support": 2,

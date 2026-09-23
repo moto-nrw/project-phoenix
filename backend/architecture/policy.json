@@ -9085,19 +9085,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3447"
     },
     {
-      "id": "student-presence.adapter-test.settings-platform-domain",
-      "description": "Presence HTTP tests name the tenant setting keys the routes resolve (#3207). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "adapter-test",
-      "target_owner": "settings-platform",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3447"
-    },
-    {
       "id": "inbound-announcement.to.communication",
       "description": "inbound-announcement calls exactly one public capability.",
       "scopes": [

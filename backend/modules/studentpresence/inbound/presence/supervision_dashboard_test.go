@@ -13,7 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	tenantsettings "github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -128,11 +128,11 @@ func TestSupervisionDashboard_Aggregates(t *testing.T) {
 	testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, checkIn, nil)
 
 	settingsCtx := testpkg.Ctx(t)
-	require.NoError(t, tc.settings.SetBool(settingsCtx, configModel.KeyTrackingIndicatorsEnabled, true, nil, nil))
-	require.NoError(t, tc.settings.SetString(settingsCtx, configModel.KeyTrackingIndicator1, "Hausaufgaben", nil, nil))
+	require.NoError(t, tc.settings.SetBool(settingsCtx, tenantsettings.KeyTrackingIndicatorsEnabled, true, nil, nil))
+	require.NoError(t, tc.settings.SetString(settingsCtx, tenantsettings.KeyTrackingIndicator1, "Hausaufgaben", nil, nil))
 	t.Cleanup(func() {
-		_ = tc.settings.ResetValue(settingsCtx, configModel.KeyTrackingIndicatorsEnabled, nil, nil)
-		_ = tc.settings.ResetValue(settingsCtx, configModel.KeyTrackingIndicator1, nil, nil)
+		_ = tc.settings.ResetValue(settingsCtx, tenantsettings.KeyTrackingIndicatorsEnabled, nil, nil)
+		_ = tc.settings.ResetValue(settingsCtx, tenantsettings.KeyTrackingIndicator1, nil, nil)
 	})
 
 	envelope := dashboardExec(t, router, "/active/supervision-dashboard", account.ID, dashboardPerms)
@@ -310,7 +310,7 @@ func TestSupervisionDashboard_ErrorContract(t *testing.T) {
 	t.Parallel()
 	tc, router := setupDashboardContext(t)
 	require.NoError(t, tc.settings.SetString(
-		testpkg.Ctx(t), configModel.KeyOperationalOverviewScope, configModel.OverviewScopeOwn, nil, nil,
+		testpkg.Ctx(t), tenantsettings.KeyOperationalOverviewScope, tenantsettings.OverviewScopeOwn, nil, nil,
 	))
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "DashErr", "Leader")
