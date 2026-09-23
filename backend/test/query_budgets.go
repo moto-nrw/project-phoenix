@@ -39,6 +39,13 @@ var queryBudgets = map[string]queryBudget{
 	// organization summaries, and one device read through the Device Fleet
 	// owner. Flat in the number of devices.
 	"repositories.operator.device_rows": {max: 3},
+	// modules — the operator billing report (#2791), organizationtenancy
+	// BillingReport. The listing is one read of the captured rows. A capture
+	// is the key day, the schools still missing, and one insert for all of
+	// them; the owners' counts are stubbed in the scenario and add one read
+	// each in production. Both stay flat in the number of schools.
+	"modules.organizationtenancy.billing.key_date_counts": {max: 1, exact: true},
+	"modules.organizationtenancy.billing.capture":         {max: 3, exact: true},
 	// modules/careplan/inbound/parent — GET /me/children/{studentId}/courses resolves the catalog,
 	// capacity and pending-request queue through this bounded service scenario.
 	"api.parent.child_courses": {max: 14},

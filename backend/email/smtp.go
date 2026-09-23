@@ -123,6 +123,7 @@ func (m *SMTPMailer) buildMessage(email Message) (*mail.Msg, error) {
 		}
 	}
 	msg.Subject(email.Subject)
+	msg.SetMessageID()
 	msg.SetGenHeader(mail.HeaderListUnsubscribe, fmt.Sprintf("<mailto:%s?subject=unsubscribe>", email.From.Address))
 	msg.SetGenHeader(mail.HeaderListUnsubscribePost, "List-Unsubscribe=One-Click")
 	msg.SetBodyString(mail.TypeTextPlain, email.text)
@@ -143,23 +144,36 @@ func (m *SMTPMailer) SendContext(ctx context.Context, email Message) error {
 
 	msg, err := m.buildMessage(email)
 	if err != nil {
-		return err
+		return redactAddresses(err, email.To.Address)
+	}
+	recipientAddresses, recipientErr := msg.GetRecipients()
+	if recipientErr != nil {
+		recipientAddresses = []string{email.To.Address}
+	} else {
+		recipientAddresses = append(recipientAddresses, email.To.Address)
 	}
 
+	// The Message-ID, not the recipient, is what these lines carry: it
+	// identifies the mail in the SMTP provider's logs and in a bounce without
+	// writing a parent's or employee's address into Loki (#2108).
+	messageID := msg.GetMessageID()
 	m.logger.Info("sending email",
-		slog.String("to", email.To.Address),
+		slog.String("message_id", messageID),
 		slog.String("subject", email.Subject),
 		slog.String("template", email.Template))
 	err = m.sendMessageContext(ctx, msg)
 	if err != nil {
+		err = redactAddresses(err, recipientAddresses...)
 		m.logger.Error("email send failed",
-			slog.String("to", email.To.Address),
+			slog.String("message_id", messageID),
+			slog.String("template", email.Template),
 			slog.Any("error", err),
 		)
 		return err
 	}
 	m.logger.Info("email sent successfully",
-		slog.String("to", email.To.Address))
+		slog.String("message_id", messageID),
+		slog.String("template", email.Template))
 
 	return nil
 }

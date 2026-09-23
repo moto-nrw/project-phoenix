@@ -8,7 +8,7 @@ import (
 )
 
 // RestoreGuardianStorageBeforeCutover turns users.students_guardians back into
-// the authoritative storage it was before migration 1.15.416 (#2756).
+// the authoritative storage it was before migration 1.15.417 (#2756).
 //
 // Contracts written for the Expand (#2716) and Backfill (#2755) migrations
 // describe a world in which users.students_guardians holds the rows and the
@@ -42,7 +42,7 @@ func RestoreGuardianStorageBeforeCutover(tb testing.TB, db *bun.DB) {
 }
 
 // restoreGuardianStorageIfCutOver is the guardian half of a restore to a
-// schema older than 1.15.416: a world before the student cutover is also a
+// schema older than 1.15.417: a world before the student cutover is also a
 // world before the guardian cutover. Unlike the guardian contracts, the older
 // contracts keep the backfill checkpoints the migration ladder wrote, as they
 // found them before the cutover existed.

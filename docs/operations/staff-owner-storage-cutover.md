@@ -14,7 +14,9 @@ anchor, birthday opt-out) are authoritative. The compatibility shape exists for
 one purpose only: deploying the previous image again. No current provider reads
 or writes it, there is no fallback read chain and no application dual write.
 [Contract #2754](https://github.com/moto-nrw/project-phoenix/issues/2754)
-removes it after the rollback window.
+removes it at the end of the
+[rollback window](../agents/operations.md#rollback-window-of-a-storage-cutover),
+which ends on conditions, not after a waiting period.
 
 Prerequisite: [the completed backfill](staff-owner-storage-backfill.md).
 `phoenix backfill staff-owner status` must exit zero shortly before the release.
@@ -139,7 +141,7 @@ is still to be recorded below.
 |---|---|
 | Switch wall time | |
 | Previous-image smoke against the view | |
-| Counters after 24 h on the new image | |
+| Counters on the new image under production load (zero is the gate, not the clock) | |
 
 Observation queries: [staff-owner-storage-cutover.sql](staff-owner-storage-cutover.sql).
 
@@ -148,7 +150,8 @@ Observation queries: [staff-owner-storage-cutover.sql](staff-owner-storage-cutov
 Deploy the previous image. It reads and writes `users.staff` through the view;
 nothing needs to be undone first. Do not run a down migration, do not rename the
 archive back, and do not drop the view, its routing, the personnel-number
-trigger or the counters: #2754 removes them after the rollback window.
+trigger or the counters: #2754 removes them once the counters read zero, the
+caller inventory is green and a restorable backup is verified.
 
 If the switch itself refuses (drift, a foreign work-time model, a missing
 checkpoint), nothing changed: keep the previous image, fix the source data and

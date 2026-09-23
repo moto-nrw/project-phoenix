@@ -142,6 +142,7 @@ func requiredWorkerJobIDs() []JobID {
 		"rollover-deadline",
 		"appointment-reminders",
 		"announcement-reminders",
+		"billing-key-dates",
 	}
 }
 
@@ -178,6 +179,7 @@ func (s *Scheduler) jobDefinitions() []Job {
 	add(!isNilDependency(s.rolloverDeadlineRunner), "rollover-deadline", s.scheduleRolloverDeadlineTask)
 	add(!isNilDependency(s.appointmentReminders), "appointment-reminders", s.scheduleAppointmentReminderTask)
 	add(!isNilDependency(s.announcementReminders), "announcement-reminders", s.scheduleAnnouncementReminderTask)
+	add(!isNilDependency(s.schoolRepo), "billing-key-dates", s.scheduleBillingKeyDatesTask)
 	return jobs
 }
 

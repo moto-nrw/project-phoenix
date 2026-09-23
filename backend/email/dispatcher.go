@@ -267,7 +267,6 @@ func (d *Dispatcher) tryDelivery(ctx context.Context, cfg dispatchConfig, attemp
 	d.getLogger().Warn("email send attempt failed",
 		"type", cfg.metadata.Type,
 		"reference_id", cfg.metadata.ReferenceID,
-		"recipient", cfg.metadata.Recipient,
 		"attempt", attempt,
 		"max_attempts", cfg.maxAttempts,
 		"error", err,

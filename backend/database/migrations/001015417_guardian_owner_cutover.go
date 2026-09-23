@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const guardianOwnerCutoverVersion = "1.15.416"
+const guardianOwnerCutoverVersion = "1.15.417"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
@@ -15,7 +15,8 @@ func init() {
 		Description: "Cut over People, Care Plan and Identity guardian storage with previous-image compatibility (#2756)",
 		DependsOn: []string{
 			guardianOwnerBackfillVersion,
-			presenceCutoverVersion, // preserves ladder order
+			presenceCutoverVersion,
+			"1.15.416", // preserves ladder order
 		},
 		// A relationship the copy rejects (a child with two primaries, a
 		// guardian of another school) can never reach the targets: more passes
