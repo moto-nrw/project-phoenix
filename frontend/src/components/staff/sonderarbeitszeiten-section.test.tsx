@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   remove: vi.fn(),
   mutateList: vi.fn(),
   mutate: vi.fn(),
+  toastSuccess: vi.fn(),
 }));
 
 vi.mock("swr", () => ({
@@ -32,6 +33,10 @@ vi.mock("~/lib/staff-target-overrides-api", () => ({
     create: mocks.create,
     delete: mocks.remove,
   },
+}));
+
+vi.mock("~/contexts/ToastContext", () => ({
+  useToast: () => ({ success: mocks.toastSuccess, error: vi.fn() }),
 }));
 
 vi.mock("~/components/ui/date-picker", async (importOriginal) => {
@@ -75,6 +80,7 @@ describe("SonderarbeitszeitenSection", () => {
     mocks.remove.mockReset();
     mocks.mutateList.mockReset();
     mocks.mutate.mockReset();
+    mocks.toastSuccess.mockReset();
   });
 
   it("lists the range with its daily hours as decimal hours", () => {
@@ -129,6 +135,9 @@ describe("SonderarbeitszeitenSection", () => {
       }),
     );
     expect(mocks.mutateList).toHaveBeenCalled();
+    expect(mocks.toastSuccess).toHaveBeenCalledWith(
+      "Sonderarbeitszeit angelegt.",
+    );
     const invalidate = mocks.mutate.mock.calls[0]?.[0] as (
       key: unknown,
     ) => boolean;
@@ -174,6 +183,33 @@ describe("SonderarbeitszeitenSection", () => {
       await screen.findByText(/gibt es schon eine Sonderarbeitszeit/),
     ).toBeInTheDocument();
     expect(mocks.mutate).not.toHaveBeenCalled();
+  });
+
+  it("deletes after the two-step confirmation and confirms with a toast", async () => {
+    mocks.remove.mockResolvedValue(undefined);
+    render(<SonderarbeitszeitenSection staffId="42" canEdit />);
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Aktionen für die Sonderarbeitszeit ab 19.10.2026",
+      }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Löschen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ja, löschen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Endgültig löschen" }));
+
+    await waitFor(() => expect(mocks.remove).toHaveBeenCalledWith("42", "7"));
+    await waitFor(() =>
+      expect(mocks.toastSuccess).toHaveBeenCalledWith(
+        "Sonderarbeitszeit gelöscht.",
+      ),
+    );
+    expect(mocks.mutateList).toHaveBeenCalled();
+  });
+
+  it("names the section once, not again above the table", () => {
+    render(<SonderarbeitszeitenSection staffId="42" canEdit />);
+
+    expect(screen.getAllByText("Sonderarbeitszeiten")).toHaveLength(1);
   });
 
   it("shows an empty state when nothing is entered", () => {

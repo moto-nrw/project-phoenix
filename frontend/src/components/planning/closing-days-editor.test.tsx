@@ -126,10 +126,14 @@ describe("ClosingDaysEditor", () => {
         dryRun,
         count: 83,
         days: [{ date: "2026-10-12", count: 83 }],
+        kept: 0,
       }),
     );
 
-    render(<ClosingDaysEditor />);
+    const onAppointmentsCancelled = vi.fn();
+    render(
+      <ClosingDaysEditor onAppointmentsCancelled={onAppointmentsCancelled} />,
+    );
 
     fireEvent.click(
       await screen.findByRole("button", { name: /^Aktionen für/ }),
@@ -164,6 +168,12 @@ describe("ClosingDaysEditor", () => {
       expect(mockToastSuccess).toHaveBeenCalledWith("83 Termine abgesagt"),
     );
     expect(mockRefreshPlan).toHaveBeenCalled();
+    // The periods page reloads its "Verwendung" column after a cancellation.
+    expect(onAppointmentsCancelled).toHaveBeenCalledOnce();
+    // Nothing stays behind, so the holiday-care note is not shown.
+    expect(
+      screen.queryByText(/bewusst auch an Schließtagen/),
+    ).not.toBeInTheDocument();
   });
 
   it("sperrt das Absagen, wenn im Zeitraum nichts mehr geplant ist", async () => {
@@ -201,6 +211,7 @@ describe("ClosingDaysEditor", () => {
       dryRun: true,
       count: 5,
       days: [],
+      kept: 3,
     });
 
     render(<ClosingDaysEditor />);
@@ -213,6 +224,30 @@ describe("ClosingDaysEditor", () => {
     expect(
       await screen.findByText(/5 geplante Termine werden abgesagt/),
     ).toBeInTheDocument();
+    // The offer says the save worked, and title and actions do not repeat
+    // each other.
+    expect(
+      screen.getByText(/Der Schließtag ist gespeichert\./),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Geplante Termine im Zeitraum" }),
+    ).toBeInTheDocument();
+    // Holiday care in the range is named only when there is some.
+    expect(
+      screen.getByText(/3 Termine bleiben im Plan und werden nicht abgesagt\./),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Termine behalten" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByText(/Der Schließtag ist gespeichert\./),
+      ).not.toBeInTheDocument(),
+    );
+    expect(mockBulkCancel).not.toHaveBeenCalledWith(
+      "2026-10-12",
+      "2026-10-25",
+      false,
+    );
   });
 
   it("zeigt ohne Planungsrecht kein Absagen", async () => {

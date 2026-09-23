@@ -33,7 +33,12 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "ClosingDaysEditor" });
 
-export function ClosingDaysEditor() {
+export function ClosingDaysEditor({
+  onAppointmentsCancelled,
+}: {
+  /** Nach „Termine absagen“: die Verwendung der Zeiträume neu laden. */
+  readonly onAppointmentsCancelled?: () => void;
+} = {}) {
   const [closingDays, setClosingDays] = useState<ClosingDay[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +51,7 @@ export function ClosingDaysEditor() {
   const [cancelRange, setCancelRange] = useState<{
     startDate: string;
     endDate: string;
+    afterSave?: boolean;
   } | null>(null);
   const { data: session } = useSession();
   const canManageSchedules = hasPermission(session, "schedules:manage");
@@ -207,7 +213,7 @@ export function ClosingDaysEditor() {
           freier Absatz und eigene Buttonzeile über der Tabelle zu stehen. */}
       <SectionCard
         title="Schließtage"
-        description="OGS-Schließtage (z. B. pädagogische Tage, Ferien, Sommerschließung). An diesen Tagen plant moto keine Regeltermine. Es gilt Soll = 0 wie an gesetzlichen Feiertagen."
+        description="Tage, an denen die OGS geschlossen hat, z. B. pädagogische Tage, Ferien, Sommerschließung. Regeltermine fallen an diesen Tagen aus. Ausnahme: Serien, die auch an Schließtagen geplant sind, z. B. die Ferienbetreuung. Mitarbeitende haben an Schließtagen keine Sollstunden, außer es ist eine Sonderarbeitszeit eingetragen."
         actions={
           <Button
             type="button"
@@ -248,14 +254,20 @@ export function ClosingDaysEditor() {
         onClose={() => setModalOpen(false)}
         onSaved={refreshAfterMutation}
         initial={editing}
-        onOfferCancel={canManageSchedules ? setCancelRange : undefined}
+        onOfferCancel={
+          canManageSchedules
+            ? (range) => setCancelRange({ ...range, afterSave: true })
+            : undefined
+        }
       />
 
       <BulkCancelAppointmentsModal
         isOpen={cancelRange !== null}
         initialFrom={cancelRange?.startDate ?? ""}
         initialTo={cancelRange?.endDate ?? ""}
+        afterSave={cancelRange?.afterSave ?? false}
         onClose={() => setCancelRange(null)}
+        onCancelled={onAppointmentsCancelled}
       />
 
       <ConfirmDeleteModal

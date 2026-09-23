@@ -541,6 +541,7 @@ describe("backend mappers", () => {
         dry_run: true,
         count: 3,
         days: [{ date: "2026-10-12", count: 3 }],
+        kept: 2,
       }),
     ).toEqual({
       from: "2026-10-12",
@@ -548,6 +549,7 @@ describe("backend mappers", () => {
       dryRun: true,
       count: 3,
       days: [{ date: "2026-10-12", count: 3 }],
+      kept: 2,
     });
     expect(
       mapBulkCancelResult({

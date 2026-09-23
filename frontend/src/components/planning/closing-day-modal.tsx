@@ -171,8 +171,10 @@ export function ClosingDayModal({
 
         <p className="text-xs text-gray-500">
           Für einen einzelnen Schließtag dasselbe Datum in beide Felder
-          eintragen. An Schließtagen plant moto keine Regeltermine. Es gilt Soll
-          = 0, genau wie an gesetzlichen Feiertagen.
+          eintragen. Regeltermine fallen an Schließtagen aus. Ausnahme: Serien,
+          die auch an Schließtagen geplant sind, z. B. die Ferienbetreuung.
+          Mitarbeitende haben an Schließtagen keine Sollstunden, außer es ist
+          eine Sonderarbeitszeit eingetragen.
         </p>
       </div>
     </FormModal>

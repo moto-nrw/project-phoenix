@@ -664,6 +664,8 @@ export interface BulkCancelResult {
   dryRun: boolean;
   count: number;
   days: { date: string; count: number }[];
+  /** Planned appointments of series that include closing days; they stay. */
+  kept: number;
 }
 
 export interface BackendBulkCancelResult {
@@ -672,6 +674,7 @@ export interface BackendBulkCancelResult {
   dry_run: boolean;
   count: number;
   days?: { date: string; count: number }[] | null;
+  kept?: number;
 }
 
 /**

@@ -39,6 +39,10 @@ type BulkCancelResult struct {
 	DryRun bool            `json:"dry_run"`
 	Count  int             `json:"count"`
 	Days   []BulkCancelDay `json:"days"`
+	// Kept counts the planned occurrences in the range that stay because
+	// their series includes closing days (holiday care), so the dialog only
+	// mentions them when there are some.
+	Kept int `json:"kept"`
 }
 
 // ValidateBulkCancelRange accepts two "YYYY-MM-DD" dates, from <= to, at
@@ -70,11 +74,13 @@ func ValidateBulkCancelRange(from, to string) error {
 func SelectBulkCancel(candidates []BulkCancelCandidate, from, to, today string) ([]int64, BulkCancelResult) {
 	lower := max(from, today)
 	selected := make([]BulkCancelCandidate, 0, len(candidates))
+	kept := 0
 	for _, candidate := range candidates {
-		if candidate.Status != InstanceStatusPlanned || candidate.SeriesIncludesClosingDays {
+		if candidate.Status != InstanceStatusPlanned || candidate.Date < lower || candidate.Date > to {
 			continue
 		}
-		if candidate.Date < lower || candidate.Date > to {
+		if candidate.SeriesIncludesClosingDays {
+			kept++
 			continue
 		}
 		selected = append(selected, candidate)
@@ -86,7 +92,7 @@ func SelectBulkCancel(candidates []BulkCancelCandidate, from, to, today string) 
 		return selected[i].InstanceID < selected[j].InstanceID
 	})
 
-	result := BulkCancelResult{From: from, To: to, Count: len(selected), Days: []BulkCancelDay{}}
+	result := BulkCancelResult{From: from, To: to, Count: len(selected), Days: []BulkCancelDay{}, Kept: kept}
 	ids := make([]int64, 0, len(selected))
 	for _, candidate := range selected {
 		ids = append(ids, candidate.InstanceID)

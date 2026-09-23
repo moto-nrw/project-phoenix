@@ -802,12 +802,16 @@ export function StaffSessionTable({
                           </span>
                         ) : target > 0 ? (
                           formatDuration(target)
+                        ) : projected?.isOverride ? (
+                          "0h"
                         ) : (
                           "–"
                         )}
                         {!targetUnresolved && projected?.isOverride && (
                           <div className="text-xs whitespace-nowrap text-gray-400">
-                            Sonderarbeitszeit
+                            {closingReason
+                              ? "Sonderarbeitszeit · Schließtag"
+                              : "Sonderarbeitszeit"}
                           </div>
                         )}
                       </td>

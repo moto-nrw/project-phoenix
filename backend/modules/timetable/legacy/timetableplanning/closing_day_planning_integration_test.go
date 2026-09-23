@@ -212,6 +212,7 @@ func TestBulkCancelPlanned_KeepsSeriesThatIncludeClosingDays(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, result.Count)
 	assert.Empty(t, result.Days)
+	assert.Equal(t, 5, result.Kept, "the dialog learns that holiday care stays")
 	for _, monday := range mondays[1:] {
 		assert.Len(t, listInstancesForDate(t, s.db, s.template.ID, monday), 1)
 	}

@@ -104,6 +104,7 @@ func TestSelectBulkCancel(t *testing.T) {
 		{InstanceID: 12, Date: "2026-10-12", Status: timetable.InstanceStatusCancelled},
 		{InstanceID: 13, Date: "2026-10-12", Status: "active"},
 		{InstanceID: 14, Date: "2026-10-12", Status: timetable.InstanceStatusPlanned, SeriesIncludesClosingDays: true},
+		{InstanceID: 15, Date: "2026-10-09", Status: timetable.InstanceStatusPlanned, SeriesIncludesClosingDays: true},
 		{InstanceID: 5, Date: "2026-10-09", Status: timetable.InstanceStatusPlanned},
 		{InstanceID: 40, Date: "2026-10-19", Status: timetable.InstanceStatusPlanned},
 	}
@@ -112,6 +113,7 @@ func TestSelectBulkCancel(t *testing.T) {
 
 	assert.Equal(t, []int64{10, 11, 30}, ids, "planned, from today, inside the range, date order")
 	assert.Equal(t, 3, result.Count)
+	assert.Equal(t, 1, result.Kept, "holiday care in the range stays and is reported; past occurrences are not counted")
 	assert.Equal(t, "2026-10-01", result.From)
 	assert.Equal(t, "2026-10-16", result.To)
 	assert.Equal(t, []timetable.BulkCancelDay{{Date: "2026-10-12", Count: 2}, {Date: "2026-10-13", Count: 1}}, result.Days)

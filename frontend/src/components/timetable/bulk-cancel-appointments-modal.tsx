@@ -36,12 +36,14 @@ const PLAN_CACHE_PREFIXES = [
   "timetable-month-",
   "timetable-day-",
   "timetable-gaps-",
+  // Planungszeiträume des Betreuungsplans: die Verwendung zählt Termine.
+  "database-calendar-periods-list",
 ] as const;
 
 type CountState =
   | { kind: "idle" }
   | { kind: "loading" }
-  | { kind: "ready"; count: number }
+  | { kind: "ready"; count: number; kept: number }
   | { kind: "error" };
 
 function appointmentsLabel(count: number): string {
@@ -50,14 +52,25 @@ function appointmentsLabel(count: number): string {
     : `${count} geplante Termine werden`;
 }
 
+function keptLabel(kept: number): string {
+  const subject =
+    kept === 1
+      ? "1 Termin bleibt im Plan und wird"
+      : `${kept} Termine bleiben im Plan und werden`;
+  return `${subject} nicht abgesagt. Diese Serien sind bewusst auch an Schließtagen geplant, zum Beispiel die Ferienbetreuung.`;
+}
+
 export function BulkCancelAppointmentsModal({
   isOpen,
   initialFrom,
   initialTo,
   rangeEditable = false,
+  afterSave = false,
   onClose,
   onCancelled,
 }: {
+  /** Direkt nach dem Speichern eines Schließtags geöffnet (#3594). */
+  readonly afterSave?: boolean;
   readonly isOpen: boolean;
   /** Erster Tag des Zeitraums als "YYYY-MM-DD". */
   readonly initialFrom: string;
@@ -93,7 +106,13 @@ export function BulkCancelAppointmentsModal({
     timetableService
       .bulkCancel(from, to, true)
       .then((preview) => {
-        if (active) setCountState({ kind: "ready", count: preview.count });
+        if (active) {
+          setCountState({
+            kind: "ready",
+            count: preview.count,
+            kept: preview.kept,
+          });
+        }
       })
       .catch((err: unknown) => {
         logger.error("bulk_cancel_preview_failed", {
@@ -150,9 +169,15 @@ export function BulkCancelAppointmentsModal({
   return (
     <ConfirmDeleteModal
       isOpen={isOpen}
-      title="Termine absagen"
+      title="Geplante Termine im Zeitraum"
       description={
         <div className="flex flex-col gap-3">
+          {afterSave && (
+            <p>
+              Der Schließtag ist gespeichert. In diesem Zeitraum stehen noch
+              Termine im Plan.
+            </p>
+          )}
           {rangeEditable ? (
             <div className="flex flex-col gap-1">
               <span className="text-sm font-medium text-gray-700">
@@ -182,20 +207,18 @@ export function BulkCancelAppointmentsModal({
             <p>In diesem Zeitraum sind keine Termine mehr geplant.</p>
           )}
           {countState.kind === "ready" && countState.count > 0 && (
-            <>
-              <p>
-                {appointmentsLabel(countState.count)} abgesagt und aus dem Plan
-                entfernt. Eltern bekommen keine Nachricht.
-              </p>
-              <p>
-                Serien, die auch an Schließtagen geplant sind, bleiben. Zum
-                Beispiel die Ferienbetreuung.
-              </p>
-            </>
+            <p>
+              {appointmentsLabel(countState.count)} abgesagt und aus dem Plan
+              entfernt. Eltern bekommen keine Nachricht.
+            </p>
+          )}
+          {countState.kind === "ready" && countState.kept > 0 && (
+            <p>{keptLabel(countState.kept)}</p>
           )}
         </div>
       }
       gate={{ mode: "twoStep", firstStepLabel: "Termine absagen" }}
+      cancelLabel="Termine behalten"
       confirmDisabled={
         countState.kind !== "ready" || countState.count === 0 || cancelling
       }

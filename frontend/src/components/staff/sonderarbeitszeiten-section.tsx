@@ -16,6 +16,7 @@ import {
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
+import { useToast } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
@@ -63,6 +64,7 @@ export function SonderarbeitszeitenSection({
     mutate: mutateList,
   } = useSWRAuth(listKey, () => staffTargetOverrideService.list(staffId));
   const { mutate } = useSWRConfig();
+  const toast = useToast();
 
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
@@ -109,6 +111,7 @@ export function SonderarbeitszeitenSection({
     setFormError(null);
     try {
       await staffTargetOverrideService.create(staffId, input);
+      toast.success("Sonderarbeitszeit angelegt.");
       setDraft(null);
       refresh();
     } catch (err) {
@@ -127,6 +130,7 @@ export function SonderarbeitszeitenSection({
     setDeleteError("");
     try {
       await staffTargetOverrideService.delete(staffId, deleteTarget.id);
+      toast.success("Sonderarbeitszeit gelöscht.");
       setDeleteTarget(null);
       refresh();
     } catch (err) {
@@ -219,7 +223,6 @@ export function SonderarbeitszeitenSection({
           isLoading={isLoading}
           loadingRowCount={1}
           defaultSortKey="range"
-          caption="Sonderarbeitszeiten"
           emptyState={
             <EmptyState
               variant="compact"

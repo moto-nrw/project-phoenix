@@ -628,6 +628,7 @@ export function mapBulkCancelResult(
     dryRun: raw.dry_run,
     count: raw.count,
     days: (raw.days ?? []).map((day) => ({ date: day.date, count: day.count })),
+    kept: raw.kept ?? 0,
   };
 }
 

@@ -20,14 +20,17 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
-import { staffScheduleService, workTimeModelService } from "~/lib/staff-api";
+import {
+  staffMonthSummaryService,
+  staffScheduleService,
+  workTimeModelService,
+} from "~/lib/staff-api";
 import type {
   StaffSchedule,
   UpdateScheduleRequest,
   WorkTimeModel,
 } from "~/lib/staff-api";
 import {
-  resolveTargetForDate,
   resolveWeekIndex,
   startOfWeek,
   toDateKey,
@@ -226,50 +229,74 @@ export function ArbeitszeitmodellTab({
         </div>
       </SectionCard>
 
-      <FourWeekPreview schedule={schedule} today={today} />
+      <FourWeekPreview staffId={staffId} schedule={schedule} today={today} />
 
       <SonderarbeitszeitenSection staffId={staffId} canEdit={canEdit} />
     </div>
   );
 }
 
+// Die Vorschau zeigt dasselbe Tages-Soll wie die Zeiterfassung (#3259): der
+// Server rechnet Feiertage, Schließtage und Sonderarbeitszeiten ein. Solange
+// es fehlt, steht kein erfundener Wert aus dem aktuellen Modell da (#1842).
 function FourWeekPreview({
+  staffId,
   schedule,
   today,
 }: {
+  readonly staffId: string;
   readonly schedule: StaffSchedule;
   readonly today: Date;
 }) {
+  const firstMonday = startOfWeek(today);
+  const lastDay = new Date(firstMonday);
+  lastDay.setDate(lastDay.getDate() + PREVIEW_WEEKS * 7 - 1);
+  const fromKey = toDateKey(firstMonday);
+  const toKey = toDateKey(lastDay);
+  const { data: projection, error: projectionError } = useSWRAuth(
+    `staff-schedule-targets-preview-${staffId}-${fromKey}-${toKey}`,
+    () => staffMonthSummaryService.getDailyProjection(staffId, fromKey, toKey),
+  );
+
   const weeks = useMemo(() => {
-    const monday = startOfWeek(today);
     const result: Array<{
       monday: Date;
       label: string;
       weekIndex: number;
-      total: number;
-      days: Array<{ date: Date; target: number }>;
+      total: number | null;
+      hasOverride: boolean;
+      days: Array<{ date: Date; target: number | null; isOverride: boolean }>;
       isCurrent: boolean;
     }> = [];
     for (let w = 0; w < PREVIEW_WEEKS; w++) {
-      const wMonday = new Date(monday);
+      const wMonday = startOfWeek(today);
       wMonday.setDate(wMonday.getDate() + w * 7);
       const days = WORK_DAYS.map((d) => {
         const date = new Date(wMonday);
         date.setDate(date.getDate() + d);
-        return { date, target: resolveTargetForDate(schedule, date) };
+        const day = projection?.get(toDateKey(date));
+        return {
+          date,
+          target: day ? day.targetMinutes : null,
+          isOverride: day?.isOverride === true,
+        };
       });
-      const total = days.reduce((s, d) => s + d.target, 0);
+      const total = days.every((d) => d.target !== null)
+        ? days.reduce((s, d) => s + (d.target ?? 0), 0)
+        : null;
       result.push({
         monday: wMonday,
         label: `KW ${getISOWeek(wMonday)}`,
         weekIndex: resolveWeekIndex(schedule, wMonday),
         total,
+        hasOverride: days.some((d) => d.isOverride),
         days,
         isCurrent: w === 0,
       });
     }
     return result;
-  }, [schedule, today]);
+  }, [schedule, projection, today]);
+  const pending = projectionError ? "?" : "…";
 
   return (
     <SectionCard title="Vorschau (nächste 4 Wochen)" headingLevel={3}>
@@ -291,21 +318,36 @@ function FourWeekPreview({
               {schedule.rotationLength > 1 && (
                 <StatusBadge tone="gray" label={`Woche ${badge}`} />
               )}
+              {week.hasOverride && (
+                <StatusBadge tone="blue" label="Sonderarbeitszeit" />
+              )}
               <div className="flex flex-1 flex-wrap items-center gap-3 text-xs text-gray-600">
                 {week.days.map((d) => (
                   <span
-                    key={d.date.toISOString()}
-                    className={d.target > 0 ? "" : "text-gray-300"}
+                    key={toDateKey(d.date)}
+                    className={
+                      d.isOverride
+                        ? "font-semibold text-gray-900"
+                        : d.target !== null && d.target > 0
+                          ? ""
+                          : "text-gray-300"
+                    }
                   >
                     {dayLabels[(d.date.getDay() + 6) % 7]}{" "}
                     <span className="tabular-nums">
-                      {d.target > 0 ? formatDuration(d.target) : "-"}
+                      {d.target === null
+                        ? pending
+                        : d.target > 0
+                          ? formatDuration(d.target)
+                          : d.isOverride
+                            ? "0h"
+                            : "-"}
                     </span>
                   </span>
                 ))}
               </div>
               <span className="ml-auto text-sm font-bold text-gray-700 tabular-nums">
-                {formatDuration(week.total)}
+                {week.total === null ? pending : formatDuration(week.total)}
               </span>
             </div>
           );
