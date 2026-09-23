@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 	"net"
+	mail "net/mail"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,6 +43,29 @@ func TestRedactAddresses_KeepsSendErrorMessageID(t *testing.T) {
 	assert.Equal(t, "rejected, affected recipient(s): [address], affected message ID: <Ab.c_1@mail.host>", err.Error())
 }
 
+func TestRedactAddresses_RedactsEveryValidRecipientForm(t *testing.T) {
+	t.Parallel()
+
+	for _, recipient := range []string{
+		`"foo bar"@example.invalid`,
+		"user@[127.0.0.1]",
+		"müller@example.invalid",
+	} {
+		t.Run(recipient, func(t *testing.T) {
+			t.Parallel()
+
+			parsed, err := mail.ParseAddress(recipient)
+			require.NoError(t, err)
+			original := errors.New("rejected recipient: <" + parsed.Address + ">, affected recipient(s): " + recipient)
+			redacted := redactAddresses(original, recipient, parsed.Address)
+
+			assert.NotContains(t, redacted.Error(), recipient)
+			assert.NotContains(t, redacted.Error(), parsed.Address)
+			assert.Equal(t, "rejected recipient: <[address]>, affected recipient(s): [address]", redacted.Error())
+		})
+	}
+}
+
 type messageIDError struct{ text, id string }
 
 func (e messageIDError) Error() string     { return e.text }
@@ -53,71 +77,81 @@ func (e messageIDError) MessageID() string { return e.id }
 func TestSMTPMailer_RejectedRecipientStaysOutOfLogsAndError(t *testing.T) {
 	t.Parallel()
 
-	const recipient = "erika.muster@example.invalid"
-	tempDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "regression.html"),
-		[]byte(`<!DOCTYPE html><html><body><p>{{.Message}}</p></body></html>`), 0o644))
-	templates, err := parseTemplates(tempDir)
-	require.NoError(t, err)
+	for _, recipient := range []string{
+		"erika.muster@example.invalid",
+		`"foo bar"@example.invalid`,
+		"user@[127.0.0.1]",
+		"müller@example.invalid",
+	} {
+		t.Run(recipient, func(t *testing.T) {
+			t.Parallel()
 
-	clientConn, serverConn := net.Pipe()
-	t.Cleanup(func() {
-		_ = clientConn.Close()
-		_ = serverConn.Close()
-	})
-	go func() {
-		reader := bufio.NewReader(serverConn)
-		_, _ = serverConn.Write([]byte("220 smtp.test ESMTP\r\n"))
-		for {
-			line, readErr := reader.ReadString('\n')
-			if readErr != nil {
-				return
+			tempDir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(tempDir, "regression.html"),
+				[]byte(`<!DOCTYPE html><html><body><p>{{.Message}}</p></body></html>`), 0o644))
+			templates, err := parseTemplates(tempDir)
+			require.NoError(t, err)
+
+			clientConn, serverConn := net.Pipe()
+			t.Cleanup(func() {
+				_ = clientConn.Close()
+				_ = serverConn.Close()
+			})
+			go func() {
+				reader := bufio.NewReader(serverConn)
+				_, _ = serverConn.Write([]byte("220 smtp.test ESMTP\r\n"))
+				for {
+					line, readErr := reader.ReadString('\n')
+					if readErr != nil {
+						return
+					}
+					switch {
+					case strings.HasPrefix(line, "EHLO"):
+						_, _ = serverConn.Write([]byte("250 smtp.test\r\n"))
+					case strings.HasPrefix(line, "RCPT TO"):
+						_, _ = serverConn.Write([]byte("550 5.1.1 <" + recipient + ">: Recipient address rejected\r\n"))
+					case strings.HasPrefix(line, "QUIT"):
+						_, _ = serverConn.Write([]byte("221 bye\r\n"))
+						return
+					default:
+						_, _ = serverConn.Write([]byte("250 ok\r\n"))
+					}
+				}
+			}()
+
+			client, err := gomail.NewClient("smtp.test",
+				gomail.WithPort(25),
+				gomail.WithTLSPolicy(gomail.NoTLS),
+				gomail.WithoutNoop(),
+				gomail.WithDialContextFunc(func(context.Context, string, string) (net.Conn, error) {
+					return clientConn, nil
+				}),
+			)
+			require.NoError(t, err)
+
+			var logs bytes.Buffer
+			mailer := &SMTPMailer{
+				client:      client,
+				templates:   templates,
+				logger:      slog.New(slog.NewTextHandler(&logs, nil)),
+				defaultFrom: NewEmail("moto", "system@example.invalid"),
 			}
-			switch {
-			case strings.HasPrefix(line, "EHLO"):
-				_, _ = serverConn.Write([]byte("250 smtp.test\r\n"))
-			case strings.HasPrefix(line, "RCPT TO"):
-				_, _ = serverConn.Write([]byte("550 5.1.1 <" + recipient + ">: Recipient address rejected\r\n"))
-			case strings.HasPrefix(line, "QUIT"):
-				_, _ = serverConn.Write([]byte("221 bye\r\n"))
-				return
-			default:
-				_, _ = serverConn.Write([]byte("250 ok\r\n"))
-			}
-		}
-	}()
 
-	client, err := gomail.NewClient("smtp.test",
-		gomail.WithPort(25),
-		gomail.WithTLSPolicy(gomail.NoTLS),
-		gomail.WithoutNoop(),
-		gomail.WithDialContextFunc(func(context.Context, string, string) (net.Conn, error) {
-			return clientConn, nil
-		}),
-	)
-	require.NoError(t, err)
+			sendErr := mailer.SendContext(context.Background(), Message{
+				To:       NewEmail("Erika Muster", recipient),
+				Subject:  "Einladung zum Eltern-Portal",
+				Template: "regression.html",
+				Content:  map[string]string{"Message": "Hallo"},
+			})
 
-	var logs bytes.Buffer
-	mailer := &SMTPMailer{
-		client:      client,
-		templates:   templates,
-		logger:      slog.New(slog.NewTextHandler(&logs, nil)),
-		defaultFrom: NewEmail("moto", "system@example.invalid"),
+			require.Error(t, sendErr)
+			assert.NotContains(t, sendErr.Error(), recipient)
+			assert.Contains(t, sendErr.Error(), "550", "the server reply stays diagnosable")
+			var sendError *gomail.SendError
+			require.ErrorAs(t, sendErr, &sendError, "callers can still inspect the go-mail error")
+			assert.Contains(t, sendErr.Error(), sendError.MessageID(), "the Message-ID survives the redaction")
+			assert.NotContains(t, logs.String(), recipient)
+			assert.Contains(t, logs.String(), "message_id=", "the Message-ID identifies the mail instead")
+		})
 	}
-
-	sendErr := mailer.SendContext(context.Background(), Message{
-		To:       NewEmail("Erika Muster", recipient),
-		Subject:  "Einladung zum Eltern-Portal",
-		Template: "regression.html",
-		Content:  map[string]string{"Message": "Hallo"},
-	})
-
-	require.Error(t, sendErr)
-	assert.NotContains(t, sendErr.Error(), recipient)
-	assert.Contains(t, sendErr.Error(), "550", "the server reply stays diagnosable")
-	var sendError *gomail.SendError
-	require.ErrorAs(t, sendErr, &sendError, "callers can still inspect the go-mail error")
-	assert.Contains(t, sendErr.Error(), sendError.MessageID(), "the Message-ID survives the redaction")
-	assert.NotContains(t, logs.String(), recipient)
-	assert.Contains(t, logs.String(), "message_id=", "the Message-ID identifies the mail instead")
 }

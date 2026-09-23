@@ -25,16 +25,23 @@ func (e *redactedError) Error() string { return e.text }
 func (e *redactedError) Unwrap() error { return e.err }
 
 // redactAddresses returns err with every address in its text replaced by
-// "[address]". The Message-ID go-mail reports in a SendError also has the
-// form local@host; it stays, because it is how a failed send is found in the
-// provider's logs.
-func redactAddresses(err error) error {
+// "[address]". knownAddresses are the input and canonical recipient forms
+// from go-mail, which also cover valid non-dot-atom addresses. The Message-ID
+// go-mail reports in a SendError also has the form local@host; it stays,
+// because it is how a failed send is found in the provider's logs.
+func redactAddresses(err error, knownAddresses ...string) error {
 	if err == nil {
 		return nil
 	}
 	text := err.Error()
 	messageID := sendErrorMessageID(err)
-	redacted := addressInText.ReplaceAllStringFunc(text, func(match string) string {
+	redacted := text
+	for _, address := range knownAddresses {
+		if address != "" {
+			redacted = strings.ReplaceAll(redacted, address, "[address]")
+		}
+	}
+	redacted = addressInText.ReplaceAllStringFunc(redacted, func(match string) string {
 		if messageID != "" && match == messageID {
 			return match
 		}

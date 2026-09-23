@@ -144,7 +144,13 @@ func (m *SMTPMailer) SendContext(ctx context.Context, email Message) error {
 
 	msg, err := m.buildMessage(email)
 	if err != nil {
-		return redactAddresses(err)
+		return redactAddresses(err, email.To.Address)
+	}
+	recipientAddresses, recipientErr := msg.GetRecipients()
+	if recipientErr != nil {
+		recipientAddresses = []string{email.To.Address}
+	} else {
+		recipientAddresses = append(recipientAddresses, email.To.Address)
 	}
 
 	// The Message-ID, not the recipient, is what these lines carry: it
@@ -157,7 +163,7 @@ func (m *SMTPMailer) SendContext(ctx context.Context, email Message) error {
 		slog.String("template", email.Template))
 	err = m.sendMessageContext(ctx, msg)
 	if err != nil {
-		err = redactAddresses(err)
+		err = redactAddresses(err, recipientAddresses...)
 		m.logger.Error("email send failed",
 			slog.String("message_id", messageID),
 			slog.String("template", email.Template),
