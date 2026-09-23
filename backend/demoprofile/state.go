@@ -207,7 +207,6 @@ type AccountCredentials struct {
 	AccountID int64  `json:"account_id,omitempty"`
 	Email     string `json:"email"`
 	Password  string `json:"password"`
-	PIN       string `json:"pin"`
 	Name      string `json:"name"`
 	StaffID   int64  `json:"staff_id"`
 	TeacherID int64  `json:"teacher_id,omitempty"`

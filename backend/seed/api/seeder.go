@@ -509,7 +509,6 @@ func (s *Seeder) populateSeedAccounts(state *SeedState, fs *FixedSeeder) {
 			AccountID: cred.AccountID,
 			Email:     cred.Email,
 			Password:  cred.Password,
-			PIN:       cred.PIN,
 			Name:      cred.Name,
 			StaffID:   fs.staffIDs[staffKey],
 		}
@@ -594,11 +593,11 @@ func (s *Seeder) printSuccessSummary(email, adminPassword string, result *SeedRe
 
 	// Staff accounts with correct individual passwords
 	fmt.Println("STAFF ACCOUNTS:")
-	fmt.Println("  Name                 | Position                | Email              | Password   | PIN")
-	fmt.Println("  " + "--------------------" + " | " + "-----------------------" + " | " + "------------------" + " | " + "----------" + " | " + "----")
+	fmt.Println("  Name                 | Position                | Email              | Password")
+	fmt.Println("  " + "--------------------" + " | " + "-----------------------" + " | " + "------------------" + " | " + "----------")
 	for _, cred := range result.Fixed.StaffCredentials {
-		fmt.Printf("  %-20s | %-23s | %-18s | %-10s | %s\n",
-			cred.Name, cred.Position, cred.Email, cred.Password, cred.PIN)
+		fmt.Printf("  %-20s | %-23s | %-18s | %s\n",
+			cred.Name, cred.Position, cred.Email, cred.Password)
 	}
 	fmt.Println()
 

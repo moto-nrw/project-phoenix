@@ -53,13 +53,11 @@ func (*fakeUnit) RequireTransaction(context.Context) error { return nil }
 
 type fakePrincipals struct {
 	device *ports.Device
-	staff  *ports.Staff
 }
 
 func (p fakePrincipals) Device(context.Context) (*ports.Device, bool) {
 	return p.device, p.device != nil
 }
-func (p fakePrincipals) Staff(context.Context) (*ports.Staff, bool) { return p.staff, p.staff != nil }
 
 func testDevice() *ports.Device {
 	name := testDeviceName
