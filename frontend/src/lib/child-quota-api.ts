@@ -16,7 +16,7 @@ interface ChildQuotaResponse {
 }
 
 /** Wandelt die Backend-Antwort; ohne Kinderkontingent null. */
-export function mapChildQuota(
+function mapChildQuota(
   response: ChildQuotaResponse | undefined,
 ): ChildQuota | null {
   if (
