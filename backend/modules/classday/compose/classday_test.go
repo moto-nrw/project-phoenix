@@ -1,37 +1,34 @@
 package compose_test
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
-	"github.com/moto-nrw/project-phoenix/modules/classday/compose"
-	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// TestDayReportFromEnrollmentKeepsTheWireShape is the output golden of the
-// cutover (#2701): the school portal serves the projection's DayReport
-// where it served the enrollment report before, so both must marshal to the
-// same JSON, field for field, including the omitted optionals.
-func TestDayReportFromEnrollmentKeepsTheWireShape(t *testing.T) {
+// TestDayReportKeepsTheWireShape is the output golden of the cutover
+// (#2701): the school portal serves the projection's DayReport where it
+// served the enrollment report before, so every field keeps the JSON name
+// and omission the enrollment report gave it. The class-day HTTP tests
+// compare the served report with the retained report end to end (#3444).
+func TestDayReportKeepsTheWireShape(t *testing.T) {
 	t.Parallel()
 
-	reportedAt := timezone.NewDate(2026, 8, 5).BerlinMidnight().Add(7 * time.Hour)
-	source := &enrollment.ClassDayReport{
+	reportedAt := time.Date(2026, 8, 5, 5, 0, 0, 0, time.UTC)
+	report := classday.DayReport{
 		SchoolClass:     "4a",
-		Date:            timezone.NewDate(2026, 8, 5),
+		Date:            classday.Date("2026-08-05"),
 		Weekday:         "wed",
 		SchoolDay:       true,
 		PhaseName:       "Schuljahr 2026/27",
 		EnrollmentKnown: true,
-		Totals:          enrollment.ClassDayTotals{Students: 3, Staying: 1, Leaving: 1, Absent: 1, ListEntries: 1},
-		Rows: []enrollment.ClassDayRow{
+		Totals:          classday.DayTotals{Students: 3, Staying: 1, Leaving: 1, Absent: 1, ListEntries: 1},
+		Rows: []classday.DayRow{
 			{
 				StudentID: 11, FirstName: "Klara", LastName: "Klassentag", GroupName: "Delfine", Registered: true,
 				StaysToday: true, Offerings: []string{"Lernzeit"}, Arrival: "11:45", Pickup: "15:00", Departure: "Abholung",
@@ -45,81 +42,50 @@ func TestDayReportFromEnrollmentKeepsTheWireShape(t *testing.T) {
 				FirstName: "Lisa", LastName: "NurListe", ListEntry: true, ListEntryID: 9007199254740993, Offerings: []string{},
 			},
 		},
-		ClassArrivalException: &enrollment.ClassDayArrivalException{ArrivalTime: "12:45", Reason: "Unterricht fällt aus", Origin: "school"},
+		ClassArrivalException: &classday.DayArrivalException{ArrivalTime: "12:45", Reason: "Unterricht fällt aus", Origin: "school"},
 	}
 
-	want, err := json.Marshal(source)
+	got, err := json.Marshal(report)
 	require.NoError(t, err)
-	got, err := json.Marshal(compose.DayReportFromEnrollment(source))
-	require.NoError(t, err)
-	assert.JSONEq(t, string(want), string(got))
+	assert.JSONEq(t, `{
+		"school_class": "4a", "date": "2026-08-05", "weekday": "wed", "school_day": true,
+		"phase_name": "Schuljahr 2026/27", "enrollment_known": true,
+		"totals": {"students": 3, "staying": 1, "leaving": 1, "absent": 1, "list_entries": 1},
+		"rows": [
+			{"student_id": 11, "first_name": "Klara", "last_name": "Klassentag", "group_name": "Delfine",
+			 "registered": true, "stays_today": true, "offerings": ["Lernzeit"], "arrival": "11:45",
+			 "pickup": "15:00", "departure": "Abholung", "pickup_changed": true, "pickup_regular": "16:00",
+			 "reported_at": "2026-08-05T05:00:00Z"},
+			{"student_id": 12, "first_name": "Nico", "last_name": "Krank", "registered": true, "stays_today": false,
+			 "offerings": [], "departure": "Keine Angabe", "status": "sick", "reported_at": "2026-08-05T05:00:00Z"},
+			{"student_id": 0, "first_name": "Lisa", "last_name": "NurListe", "list_entry": true,
+			 "list_entry_id": "9007199254740993", "registered": false, "stays_today": false, "offerings": []}
+		],
+		"class_arrival_exception": {"arrival_time": "12:45", "reason": "Unterricht fällt aus", "origin": "school"}
+	}`, string(got))
 
-	// The optionals stay omitted on both sides.
-	bare, err := json.Marshal(compose.DayReportFromEnrollment(&enrollment.ClassDayReport{SchoolClass: "1b", Date: timezone.NewDate(2026, 8, 8), Rows: []enrollment.ClassDayRow{}}))
+	// The optionals stay omitted.
+	bare, err := json.Marshal(classday.DayReport{SchoolClass: "1b", Date: classday.Date("2026-08-08"), Rows: []classday.DayRow{}})
 	require.NoError(t, err)
 	assert.NotContains(t, string(bare), "class_arrival_exception")
 	assert.NotContains(t, string(bare), "phase_name")
-	assert.Nil(t, compose.DayReportFromEnrollment(nil))
 }
 
 // TestArrivalExceptionErrorsKeepTheirMessages pins the error contract of the
-// class-day write seam: the projection's sentinels carry the retained
-// service's messages, and a wrapped service error still classifies through
-// errors.Is against the sentinel while the client reads the original text.
+// class-day write seam: the projection's sentinels carry the messages of the
+// Care Plan errors the retained service returns under its own names. The
+// class-day HTTP tests drive a wrapped service error through the real seam
+// (#3444).
 func TestArrivalExceptionErrorsKeepTheirMessages(t *testing.T) {
 	t.Parallel()
 
 	pairs := map[error]error{
-		classday.ErrArrivalExceptionPastDate:      enrollment.ErrClassDayArrivalExceptionPastDate,
-		classday.ErrArrivalExceptionWeekend:       enrollment.ErrClassDayArrivalExceptionWeekend,
-		classday.ErrArrivalExceptionClassNotFound: enrollment.ErrClassDayArrivalExceptionClassNotFound,
-		classday.ErrArrivalExceptionNotFound:      enrollment.ErrClassDayArrivalExceptionNotFound,
+		classday.ErrArrivalExceptionPastDate:      careplan.ErrClassArrivalExceptionPastDate,
+		classday.ErrArrivalExceptionWeekend:       careplan.ErrClassArrivalExceptionWeekend,
+		classday.ErrArrivalExceptionClassNotFound: careplan.ErrClassArrivalExceptionClassNotFound,
+		classday.ErrArrivalExceptionNotFound:      careplan.ErrClassArrivalExceptionNotFound,
 	}
 	for sentinel, legacy := range pairs {
 		assert.Equal(t, legacy.Error(), sentinel.Error())
 	}
-
-	wrapped := &careplan.ScheduleError{Op: "upsert class arrival exception", Err: careplan.ErrClassArrivalExceptionPastDate}
-	service := compose.NewClassDay(compose.ClassDayDependencies{
-		Reports:           stubReports{},
-		Caller:            stubCaller{},
-		ArrivalExceptions: stubArrivalExceptions{err: wrapped},
-	})
-	err := service.ClearArrivalException(t.Context(), "4a", classday.Date("2099-03-02"))
-	require.Error(t, err)
-	assert.ErrorIs(t, err, classday.ErrArrivalExceptionPastDate)
-	assert.NotErrorIs(t, err, classday.ErrArrivalExceptionWeekend)
-	assert.Equal(t, wrapped.Error(), err.Error(), "the client keeps reading the retained service's text")
-
-	// A malformed calendar day is refused before the seam is reached.
-	err = service.ClearArrivalException(t.Context(), "4a", classday.Date("02.03.2099"))
-	require.Error(t, err)
-	assert.NotErrorIs(t, err, classday.ErrArrivalExceptionPastDate)
-}
-
-type stubReports struct{}
-
-func (stubReports) ClassDay(context.Context, string, timezone.Date, int64, string) (*enrollment.ClassDayReport, error) {
-	return &enrollment.ClassDayReport{}, nil
-}
-
-type stubCaller struct{}
-
-func (stubCaller) GetMySchoolClasses(context.Context) ([]string, error) { return []string{"4a"}, nil }
-func (stubCaller) CurrentStaffID(context.Context) (int64, bool, error) {
-	return 0, true, nil
-}
-
-type stubArrivalExceptions struct{ err error }
-
-func (s stubArrivalExceptions) SchoolMayWrite(context.Context) (bool, error) { return true, nil }
-func (s stubArrivalExceptions) List(context.Context, string, timezone.Date, timezone.Date) ([]enrollment.ClassDayArrivalExceptionEntry, error) {
-	return nil, s.err
-}
-func (s stubArrivalExceptions) Set(context.Context, enrollment.ClassDayArrivalExceptionWrite) (*enrollment.ClassDayArrivalExceptionEntry, error) {
-	return nil, s.err
-}
-func (s stubArrivalExceptions) Remove(context.Context, string, timezone.Date) error { return s.err }
-func (s stubArrivalExceptions) EarliestBlockStart(context.Context, string, timezone.Date) (string, error) {
-	return "", s.err
 }

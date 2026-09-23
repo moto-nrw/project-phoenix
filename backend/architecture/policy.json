@@ -17614,18 +17614,6 @@
       "target_role": "application"
     },
     {
-      "id": "class-day-view.integration-test.enrollment-application",
-      "description": "Compatibility permission (#2701): the day-report parity test marshals the retained enrollment report next to the projection's contract.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "class-day-view",
-      "source_role": "workflow-integration-test",
-      "target_owner": "enrollment",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3444"
-    },
-    {
       "id": "inbound-timetable.to.class-day-view",
       "description": "The timetable list endpoints read the class-day projection (#1565, #2701).",
       "scopes": [
